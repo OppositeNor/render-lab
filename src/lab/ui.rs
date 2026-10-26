@@ -190,6 +190,8 @@ pub struct ViewerChrome {
     pub hover: Option<String>,
     /// The caption on screen while the timeline plays.
     pub caption: Option<String>,
+    /// The seconds the timeline just skipped (Left and Right), and the notice's opacity.
+    pub skip: Option<(i64, f32)>,
     pub status: String,
     pub tab: DockTab,
     pub actions: Vec<ViewerAction>,
@@ -337,6 +339,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_caption_text(&ink, l, viewer.caption.as_deref());
             } else {
                 crate::lab::controls::draw_dock(ctx, &ink, input, viewer);
+            }
+            if let Some((seconds, opacity)) = viewer.skip {
+                draw_skip_notice(&ink, l, seconds, opacity);
             }
             if viewer.timeline_mode {
                 draw_timeline_bar(ctx, &ink, l, viewer);
@@ -994,6 +999,22 @@ fn draw_caption_text(ink: &Ink, l: &Layout, caption: Option<&str>) {
         ink.text(pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::TEXT);
         y += 48.0;
     }
+}
+
+/// How far the timeline just skipped, in a card on the viewport's left
+/// (back) or right (forward) side, fading out.
+fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
+    let text = if seconds < 0 {
+        format!("◀◀  {}", t("back {} s", "后退 {} 秒").replace("{}", &(-seconds).to_string()))
+    } else {
+        format!("{}  ▶▶", t("forward {} s", "快进 {} 秒").replace("{}", &seconds.to_string()))
+    };
+    let size = ink.measure(&text, 34.0, bold()) + vec2(56.0, 28.0);
+    let x = if seconds < 0 { l.viewport.min.x + l.viewport.width() * 0.2 } else { l.viewport.max.x - l.viewport.width() * 0.2 };
+    let card = Rect::from_center_size(pos2(x, l.viewport.center().y), size);
+    ink.painter.rect_filled(card, CornerRadius::same(12), palette::PANEL.gamma_multiply(0.85 * opacity));
+    ink.painter.rect_stroke(card, CornerRadius::same(12), Stroke::new(1.5, palette::ACCENT.gamma_multiply(opacity)), StrokeKind::Inside);
+    ink.text(card.center(), Align2::CENTER_CENTER, text, 34.0, bold(), palette::TEXT.gamma_multiply(opacity));
 }
 
 /// The viewer's timeline: a play/pause button, the time, and a bar with the

@@ -3,7 +3,8 @@
 //!
 //! Controls: left-drag orbit, right/middle-drag pan, wheel zoom, click pick,
 //! 1–9, 0, −, = the investigation's demonstrations in order, Space
-//! play/pause, Right or . step, R reset, T switch between the timeline and
+//! play/pause, Right or . step (on a timeline, Left and Right skip 10 s
+//! back and forward), R reset, T switch between the timeline and
 //! the free demonstrations (with a timeline), F11 fullscreen, Esc or the
 //! header's Home button back to the homepage. The dock's sliders
 //! (`controls.rs`) edit the demonstration's parameters.
@@ -49,6 +50,10 @@ pub use crate::lab::text::DEFAULT_UI_SCALE;
 /// How long FFplay takes from starting to sounding (measured on this lab's
 /// machine: 0.11–0.17 s of overhead for one second of audio, start and end together).
 const AUDIO_START_DELAY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// How far Left and Right skip on a timeline, and how long the viewport says so.
+const SKIP_SECONDS: i64 = 10;
+const SKIP_NOTICE: std::time::Duration = std::time::Duration::from_millis(900);
 
 pub struct ViewerOptions {
     pub timeline: Option<PathBuf>,
@@ -120,6 +125,8 @@ pub struct App {
     /// or skipped redraw drops frames instead of falling behind the narration.
     timeline_anchor: (Instant, u64),
     pub timeline_mode: bool,
+    /// The last skip: the seconds skipped by presses in a row, and when the last one was.
+    skip: Option<(i64, Instant)>,
     audio: Option<crate::lab::audio::AudioPlayer>,
     images: Option<ImageCache>,
     cursor: Vec2,
@@ -175,6 +182,7 @@ impl App {
             timeline_frame: start_frame,
             timeline_anchor: (Instant::now(), start_frame),
             timeline_mode: start_in_timeline,
+            skip: None,
             audio,
             images,
             cursor: Vec2::ZERO,
@@ -344,6 +352,19 @@ impl App {
         }
     }
 
+    /// Skip the timeline `seconds` back or forward; presses in the same
+    /// direction while the notice shows add up in it.
+    fn skip(&mut self, seconds: i64) {
+        let Some(fps) = self.timeline.as_ref().map(|t| t.fps as i64) else { return };
+        self.seek((self.timeline_frame as i64 + seconds * fps).max(0) as u64);
+        let now = Instant::now();
+        let total = match self.skip {
+            Some((s, at)) if now - at < SKIP_NOTICE && s.signum() == seconds.signum() => s + seconds,
+            _ => seconds,
+        };
+        self.skip = Some((total, now));
+    }
+
     pub fn apply(&mut self, action: ViewerAction) {
         let interactive = !self.timeline_playing();
         match action {
@@ -462,6 +483,8 @@ impl App {
         }
         match code {
             KeyCode::Space => self.apply(ViewerAction::TogglePlay),
+            KeyCode::ArrowLeft if self.timeline_mode => self.skip(-SKIP_SECONDS),
+            KeyCode::ArrowRight if self.timeline_mode => self.skip(SKIP_SECONDS),
             KeyCode::ArrowRight | KeyCode::Period => self.apply(ViewerAction::Step),
             KeyCode::KeyR => self.apply(ViewerAction::Reset),
             KeyCode::KeyT => self.apply(ViewerAction::ToggleTimeline),
@@ -653,6 +676,10 @@ impl App {
             caption: self.timeline.as_ref().filter(|_| self.timeline_playing()).and_then(|t| {
                 let (_, beat) = t.beat_at(self.timeline_frame);
                 beat.captions.iter().find(|c| c.start <= self.timeline_frame && self.timeline_frame < c.end).map(|c| c.text.clone())
+            }),
+            skip: self.skip.filter(|_| self.timeline_mode).and_then(|(s, at)| {
+                let left = 1.0 - (now - at).as_secs_f32() / SKIP_NOTICE.as_secs_f32();
+                (left > 0.0).then(|| (s, (left * 3.0).min(1.0)))
             }),
             status: self.status(),
             tab: self.tab,
