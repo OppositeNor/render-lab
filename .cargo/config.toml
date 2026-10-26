@@ -1,0 +1,13 @@
+# Keep every crate source and build artifact inside this project.
+# `vendor/` is recreated from Cargo.lock by `bash setup.sh` (see README.md).
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+
+[net]
+offline = true
+
+[build]
+target-dir = "target"

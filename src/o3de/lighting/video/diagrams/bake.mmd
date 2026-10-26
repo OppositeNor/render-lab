@@ -1,0 +1,7 @@
+flowchart LR
+    ENV["Environment<br/>cubemap"] --> BOX["Box-filtered<br/>source mips"]
+    BOX --> GGX["GGX filter<br/>256 samples per texel"]
+    GGX --> SPEC["Specular cubemap<br/>six mips, roughness m / 5"]
+    ENV --> COS["Cosine filter<br/>whole hemisphere"]
+    COS --> DIFFUSE["Diffuse cubemap<br/>irradiance / pi"]
+    LUT["BRDFTextureCS<br/>1024 samples"] --> BRDF["BRDF texture<br/>A and B"]

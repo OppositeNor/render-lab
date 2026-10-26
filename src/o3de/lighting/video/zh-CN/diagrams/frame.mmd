@@ -1,0 +1,10 @@
+flowchart LR
+    CULL["深度预 pass，<br/>光源剔除"] --> FWD["Forward pass<br/>decal、光源"]
+    FWD --> TARGETS["Target"]
+    TARGETS --> DIFF["DiffuseGlobal"]
+    TARGETS --> REFL["反射<br/>probe、全局"]
+    REFL --> COMP["Reflection<br/>Composite"]
+    DIFF --> AO["SSAO"]
+    AO --> MERGE["Merge"]
+    COMP --> MERGE
+    MERGE --> FRAME["最终画面"]

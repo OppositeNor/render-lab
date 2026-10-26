@@ -1,0 +1,5 @@
+# GPU narration (narration.py): the CUDA build of ONNX Runtime and cuDNN,
+# installed by `setup.sh --gpu` into .cache/video-tts-gpu, apart from the CPU
+# packages. The CUDA 13 runtime and the NVIDIA driver come from the system.
+onnxruntime-gpu==1.31.0
+nvidia-cudnn-cu13==9.27.0.42

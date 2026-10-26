@@ -1,0 +1,34 @@
+# Rust: build output, the crate cache, and the vendored crates (recreated by setup.sh).
+target/
+.cache/
+vendor/
+
+# Python bytecode anywhere.
+__pycache__/
+*.py[cod]
+
+# Personal Claude Code settings. The project's skills are in .agents/skills (the Agent Skills layout);
+# .claude/skills holds one link per skill for Claude Code, and both stay tracked.
+.claude/settings.local.json
+
+# Editors and operating systems.
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Investigations of commercial engines stay on this machine: their source code's licenses do
+# not allow publishing code derived from it. build.rs builds the homepage alone without them.
+/src/commercial/
+# Their narrated videos, their build, and their paper.
+/video/
+/paper/
+# Their task guides for coding agents.
+/.agents/skills/render-lab-*/
+/.claude/skills/render-lab-*
+
+# Video builds (tools/video): intermediates and deliverables, and the Node packages.
+/build/
+/tools/video/node_modules/

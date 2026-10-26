@@ -1,0 +1,3247 @@
+{
+  "schema": 1,
+  "engine": {
+    "name": "Open 3D Engine",
+    "version": "2.8.0",
+    "commit": "d363107efc92f79c75bb7eb88b78b8fc07ae229c",
+    "checkoutFromLabRoot": "../../o3de",
+    "license": "Apache-2.0 OR MIT",
+    "note": "Paths are relative to the O3DE checkout (o3de/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present."
+  },
+  "entries": {
+    "engine-version": {
+      "path": "engine.json",
+      "line": 4,
+      "symbol": "engine.json version",
+      "lineHash": "daf161a9c90b47c7",
+      "inspect": "The engine version this checkout declares; the commit identifies it exactly.",
+      "inspectZh": "该 checkout 声明的引擎版本；commit 才能精确标识它。",
+      "details": []
+    },
+    "forward-pixel": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Pipelines/MainPipeline/ForwardPassVertexAndPixel.azsli",
+      "line": 46,
+      "symbol": "PixelShader (MainPipeline forward pass)",
+      "lineHash": "59d83a6ebd20a610",
+      "inspect": "The main pipeline's forward pixel shader: it evaluates the material's Surface, then EvaluateLighting, and writes diffuse and specular lighting to separate R16G16B16A16_FLOAT targets, plus the albedo, specularF0, and normal targets the full-screen passes read.",
+      "inspectZh": "主管线的 forward 像素着色器：先求材质的 Surface，再调用 EvaluateLighting，把漫反射和高光写入不同的 R16G16B16A16_FLOAT target，并写出全屏 pass 读取的 albedo、specularF0 与法线 target。",
+      "details": [
+        {
+          "line": 61,
+          "lineHash": "a8c6a68d4d45fda5",
+          "note": "EvaluateLighting",
+          "noteZh": "EvaluateLighting"
+        },
+        {
+          "line": 69,
+          "lineHash": "c285f07e662f69c5",
+          "note": "diffuse lighting goes to the diffuse target",
+          "noteZh": "漫反射光照写入 diffuse target"
+        },
+        {
+          "line": 74,
+          "lineHash": "3c67c6c74c432bb6",
+          "note": "specular lighting goes to the specular target",
+          "noteZh": "高光光照写入 specular target"
+        },
+        {
+          "line": 101,
+          "lineHash": "990e0dea1c39c756",
+          "note": "emission is added to the specular target",
+          "noteZh": "自发光加到 specular target 上"
+        }
+      ]
+    },
+    "evaluate-lighting": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassEvaluateLighting.azsli",
+      "line": 20,
+      "symbol": "EvaluateLighting_ForwardPass",
+      "lineHash": "3e496765de52c4f3",
+      "inspect": "Decals, then InitializeLightingData, direct lighting, image-based lighting, and FinalizeLightingData; lights come from the pixel's screen tile, since ENABLE_LIGHT_CULLING is 1.",
+      "inspectZh": "依次处理 decal、InitializeLightingData、直接光照、基于图像的光照和 FinalizeLightingData；由于 ENABLE_LIGHT_CULLING 为 1，光源来自像素所在屏幕 tile 的列表。",
+      "details": [
+        {
+          "line": 25,
+          "lineHash": "695af9d1321bfee4",
+          "note": "the tile's light list",
+          "noteZh": "该 tile 的光源列表"
+        },
+        {
+          "line": 37,
+          "lineHash": "3b44ef3a73a9dcaf",
+          "note": "direct lighting",
+          "noteZh": "直接光照"
+        },
+        {
+          "line": 40,
+          "lineHash": "03b850bd951851d6",
+          "note": "image-based lighting (a later chapter)",
+          "noteZh": "基于图像的光照（后续章节）"
+        }
+      ]
+    },
+    "direct-lighting": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassDirectLighting.azsli",
+      "line": 22,
+      "symbol": "ApplyDirectLighting_ForwardPass",
+      "lineHash": "12a02890af07bd1e",
+      "inspect": "Every light type in turn: directional, simple point and spot (punctual), then the five area light types, each group behind a shader option that defaults to true.",
+      "inspectZh": "依次处理各类光源：方向光、simple point 与 spot（点光），然后是五种面光源，每组都由默认开启的 shader option 控制。",
+      "details": [
+        {
+          "line": 26,
+          "lineHash": "c2388b22a1cff1ba",
+          "note": "directional lights",
+          "noteZh": "方向光"
+        },
+        {
+          "line": 30,
+          "lineHash": "9acd469b3afdfa49",
+          "note": "simple point and simple spot lights",
+          "noteZh": "simple point 与 simple spot light"
+        },
+        {
+          "line": 32,
+          "lineHash": "1f01e1bac7706562",
+          "note": "the simple point lights",
+          "noteZh": "simple point light"
+        },
+        {
+          "line": 35,
+          "lineHash": "b359b670ebfbba9f",
+          "note": "point, disk, capsule, quad, and polygon area lights",
+          "noteZh": "point、disk、capsule、quad 与 polygon 面光源"
+        }
+      ]
+    },
+    "diffuse-specular-merge": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/DiffuseSpecularMerge.azsl",
+      "line": 70,
+      "symbol": "DiffuseSpecularMerge MainPS",
+      "lineHash": "cc4c32494dba414c",
+      "inspect": "The last opaque pass adds the diffuse and specular targets into one colour; a 2 x 2 filter smooths diffuse only where subsurface scattering marked the pixel.",
+      "inspectZh": "最后一个不透明 pass 把 diffuse 和 specular target 相加为一个颜色；只有被次表面散射标记的像素会对漫反射做 2 x 2 滤波。",
+      "details": [
+        {
+          "line": 38,
+          "lineHash": "04b91aff16cbf2f6",
+          "note": "the subsurface-scattering pixels only (the forward pass writes alpha -1 otherwise)",
+          "noteZh": "仅限次表面散射像素（否则 forward pass 写入 alpha -1）"
+        }
+      ]
+    },
+    "surface-data": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_SurfaceData.azsli",
+      "line": 46,
+      "symbol": "SurfaceData_StandardPBR",
+      "lineHash": "ceab0e95e1aa5fbd",
+      "inspect": "StandardPBR's Surface (the #else branch, since DOES_CLASS_INHERITANCE_WORK_IN_ASZL is 0): lighting channels, clear coat, position, normals, base colour, metallic, roughnessLinear, roughnessA, roughnessA2, alpha, albedo, specularF0, emission, and the two occlusion factors.",
+      "inspectZh": "StandardPBR 的 Surface（由于 DOES_CLASS_INHERITANCE_WORK_IN_ASZL 为 0，使用 #else 分支）：lighting channel、clear coat、位置、法线、base colour、metallic、roughnessLinear、roughnessA、roughnessA2、alpha、albedo、specularF0、自发光，以及两个遮蔽系数。",
+      "details": [
+        {
+          "line": 23,
+          "lineHash": "bf2d5004efbf04fd",
+          "note": "the inheriting version is compiled out",
+          "noteZh": "继承版本被编译排除"
+        },
+        {
+          "line": 77,
+          "lineHash": "04b6b8ad34a7000c",
+          "note": "diffuse ambient occlusion, 1 without an occlusion map",
+          "noteZh": "漫反射环境光遮蔽，没有遮蔽贴图时为 1"
+        },
+        {
+          "line": 78,
+          "lineHash": "69a6975ed9c4ddfa",
+          "note": "specular occlusion",
+          "noteZh": "高光遮蔽"
+        }
+      ]
+    },
+    "set-albedo-f0": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_SurfaceData.azsli",
+      "line": 99,
+      "symbol": "SurfaceData_StandardPBR::SetAlbedoAndSpecularF0",
+      "lineHash": "92e4b36770cd0d6c",
+      "inspect": "The metallic workflow: albedo = GetAlbedo(baseColor, metallic), specularF0 = CalculateSpecularF0(baseColor, metallic, specularF0Factor).",
+      "inspectZh": "Metallic 工作流：albedo = GetAlbedo(baseColor, metallic)，specularF0 = CalculateSpecularF0(baseColor, metallic, specularF0Factor)。",
+      "details": []
+    },
+    "surface-eval": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_SurfaceEval.azsli",
+      "line": 87,
+      "symbol": "EvaluateSurface_BasePBR",
+      "lineHash": "dc14d327403dc23b",
+      "inspect": "Where the material's inputs become the Surface: base colour, metallic, and the specularF0 factor, then roughness.",
+      "inspectZh": "材质输入在这里变为 Surface：base colour、metallic 和 specularF0 factor，然后是 roughness。",
+      "details": [
+        {
+          "line": 92,
+          "lineHash": "d466d27f201e2f96",
+          "note": "roughness, as authored",
+          "noteZh": "作者设置的 roughness"
+        }
+      ]
+    },
+    "material-utils": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/MaterialUtils.azsli",
+      "line": 16,
+      "symbol": "MaxDielectricSpecularF0",
+      "lineHash": "4ad2774f647cb741",
+      "inspect": "Dielectric F0 is 0.08 times the specularF0 factor, so the default factor 0.5 gives 0.04.",
+      "inspectZh": "电介质的 F0 是 0.08 乘以 specularF0 factor，所以默认值 0.5 得到 0.04。",
+      "details": [
+        {
+          "line": 20,
+          "lineHash": "0f38f10c66d0f70a",
+          "note": "the smallest roughness lighting uses",
+          "noteZh": "光照使用的最小 roughness"
+        },
+        {
+          "line": 46,
+          "lineHash": "740063509be1f4cc",
+          "note": "GetAlbedo: baseColor * (1 - metallic)",
+          "noteZh": "GetAlbedo：baseColor * (1 - metallic)"
+        },
+        {
+          "line": 51,
+          "lineHash": "0797f1ceacd653c0",
+          "note": "CalculateSpecularF0: lerp(dielectric F0, baseColor, metallic)",
+          "noteZh": "CalculateSpecularF0：lerp(电介质 F0, baseColor, metallic)"
+        }
+      ]
+    },
+    "roughness-values": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/MaterialUtils.azsli",
+      "line": 28,
+      "symbol": "CalculateRoughnessValues",
+      "lineHash": "26169929fc087ab3",
+      "inspect": "roughnessLinear is clamped to MinRoughnessLinear, squared into roughnessA, and squared again into roughnessA2; then specular AA, on by default, widens roughnessA2 by the normal's screen-space change and recomputes roughnessA and roughnessLinear from it.",
+      "inspectZh": "roughnessLinear 被限制到 MinRoughnessLinear 以上，平方得到 roughnessA，再平方得到 roughnessA2；随后默认开启的 specular AA 按法线在屏幕空间的变化增大 roughnessA2，并由它反推 roughnessA 与 roughnessLinear。",
+      "details": [
+        {
+          "line": 37,
+          "lineHash": "fc95fa091c3b9fab",
+          "note": "specular AA widens roughnessA2",
+          "noteZh": "specular AA 增大 roughnessA2"
+        },
+        {
+          "line": 41,
+          "lineHash": "6ceb83f951326e88",
+          "note": "roughnessLinear recomputed from it",
+          "noteZh": "由它反推 roughnessLinear"
+        }
+      ]
+    },
+    "lighting-data": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_LightingData.azsli",
+      "line": 34,
+      "symbol": "LightingData_BasePBR",
+      "lineHash": "756eac411cd0654f",
+      "inspect": "What lighting accumulates per pixel: diffuse and specular lighting, the responses, NdotV, the BRDF texture sample, and the multiscatter compensation.",
+      "inspectZh": "光照为每个像素累积的数据：漫反射与高光光照、response、NdotV、BRDF 贴图采样和多次散射补偿。",
+      "details": []
+    },
+    "lighting-init": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_LightingEval.azsli",
+      "line": 28,
+      "symbol": "LightingData_BasePBR::Init",
+      "lineHash": "ee252c33c9a80dc8",
+      "inspect": "dirToCamera, NdotV, and the BRDF texture sampled at (NdotV, 1 - roughnessLinear).",
+      "inspectZh": "dirToCamera、NdotV，以及在 (NdotV, 1 - roughnessLinear) 处采样的 BRDF 贴图。",
+      "details": [
+        {
+          "line": 46,
+          "lineHash": "064a8c833e71bf15",
+          "note": "indexed by smoothness, not roughness",
+          "noteZh": "以 smoothness 而不是 roughness 为索引"
+        }
+      ]
+    },
+    "initialize-lighting-data": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_LightingEval.azsli",
+      "line": 51,
+      "symbol": "InitializeLightingData_BasePBR",
+      "lineHash": "63fa2527d6ad2f50",
+      "inspect": "diffuseResponse = 1 - FresnelSchlickWithRoughness(NdotV, specularF0, roughnessLinear), then the multiscatter compensation.",
+      "inspectZh": "diffuseResponse = 1 - FresnelSchlickWithRoughness(NdotV, specularF0, roughnessLinear)，然后计算多次散射补偿。",
+      "details": [
+        {
+          "line": 57,
+          "lineHash": "848b9d8f4edc587c",
+          "note": "the diffuse response",
+          "noteZh": "diffuse response"
+        },
+        {
+          "line": 60,
+          "lineHash": "ecf43b403c1a8add",
+          "note": "compensation, behind a shader option that StandardPBR's material property leaves off unless set",
+          "noteZh": "补偿，由 shader option 控制；StandardPBR 的材质属性在未设置时将其关闭"
+        }
+      ]
+    },
+    "standard-init": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_LightingEval.azsli",
+      "line": 24,
+      "symbol": "InitializeLightingData_StandardPBR",
+      "lineHash": "521b36050db366d2",
+      "inspect": "StandardPBR runs the BasePBR initialisation and adds emission, occlusion, and, when clear coat is enabled (off by default), its share of the diffuse response.",
+      "inspectZh": "StandardPBR 先执行 BasePBR 的初始化，再加上自发光、遮蔽，以及 clear coat 对 diffuse response 的影响。",
+      "details": []
+    },
+    "multiscatter": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingUtils.azsli",
+      "line": 24,
+      "symbol": "GetMultiScatterCompensation",
+      "lineHash": "6d4848f22c35c252",
+      "inspect": "1 + specularF0 (1 / (brdf.x + brdf.y) - 1): A + B is the single-scattering energy, and the missing part is added back in proportion to F0 (Turquin 2019).",
+      "inspectZh": "1 + specularF0 (1 / (brdf.x + brdf.y) - 1)：A + B 是单次散射的能量，缺失的部分按 F0 的比例补回（Turquin 2019）。",
+      "details": []
+    },
+    "ms-option": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingOptions.azsli",
+      "line": 82,
+      "symbol": "o_specularF0_enableMultiScatterCompensation",
+      "lineHash": "9de391a6e92f6de1",
+      "inspect": "The shader option that turns multiscatter compensation on. Its declared default is true, but StandardPBR connects it to a material property that loads as false unless the material sets it (see ms-material-property).",
+      "inspectZh": "开启多次散射补偿的 shader option。它声明的默认值为 true，但 StandardPBR 把它连接到一个材质属性，该属性在材质未设置时读取为 false（见 ms-material-property）。",
+      "details": []
+    },
+    "fresnel-schlick": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Fresnel.azsli",
+      "line": 19,
+      "symbol": "FresnelSchlickF90",
+      "lineHash": "446f123ee97bbc2c",
+      "inspect": "Schlick's Fresnel, F0 + (F90 - F0)(1 - HdotV)^5; FresnelSchlick uses F90 = 1.",
+      "inspectZh": "Schlick 的 Fresnel，F0 + (F90 - F0)(1 - HdotV)^5；FresnelSchlick 取 F90 = 1。",
+      "details": []
+    },
+    "fresnel-roughness": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Fresnel.azsli",
+      "line": 50,
+      "symbol": "FresnelSchlickWithRoughness",
+      "lineHash": "509566016a816655",
+      "inspect": "Fresnel for light from the whole environment: the grazing value is max(1 - roughness, F0) instead of 1.",
+      "inspectZh": "针对来自整个环境的光的 Fresnel：掠射角的值为 max(1 - roughness, F0) 而不是 1。",
+      "details": []
+    },
+    "ggx-d": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Ggx.azsli",
+      "line": 36,
+      "symbol": "NormalDistributionGGX",
+      "lineHash": "972ca60eca7c2539",
+      "inspect": "GGX's distribution of microfacet normals, roughnessA2 / (pi b^2) with b = NdotH^2 (roughnessA2 - 1) + 1 (Walter et al. 2007, eq. 33): a density over projected solid angle, far above 1 at the peak of a smooth lobe.",
+      "inspectZh": "GGX 微表面法线分布，roughnessA2 / (pi b^2)，其中 b = NdotH^2 (roughnessA2 - 1) + 1（Walter et al. 2007，式 33）。",
+      "details": []
+    },
+    "ggx-g": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Ggx.azsli",
+      "line": 52,
+      "symbol": "GeometricShadowingMaskingGGXCorrelated",
+      "lineHash": "30de47b7bfa1d26d",
+      "inspect": "Height-correlated Smith masking-shadowing, returned already divided by 4 NdotL NdotV (a visibility term).",
+      "inspectZh": "高度相关的 Smith 遮蔽-阴影项，返回时已除以 4 NdotL NdotV（即可见性项）。",
+      "details": [
+        {
+          "line": 22,
+          "lineHash": "ee711606694d7846",
+          "note": "the epsilon that keeps its denominator positive",
+          "noteZh": "使分母保持为正的 epsilon"
+        }
+      ]
+    },
+    "ggx-sample": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Ggx.azsli",
+      "line": 112,
+      "symbol": "ImportanceSampleGGX",
+      "lineHash": "8c51802af8396065",
+      "inspect": "A microfacet normal drawn from D for a 2D sample point (Walter 2007, eqs. 35 and 36), for the BRDF texture.",
+      "inspectZh": "按 D 为二维采样点取一个微表面法线（Walter 2007，式 35 与 36），用于 BRDF 贴图。",
+      "details": [
+        {
+          "line": 121,
+          "lineHash": "680f36dca161868c",
+          "note": "sinTheta with no guard against cosTheta rounding above 1",
+          "noteZh": "sinTheta 没有防止 cosTheta 舍入到 1 以上的保护"
+        }
+      ]
+    },
+    "hammersley": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Hammersley.azsli",
+      "line": 25,
+      "symbol": "GetHammersleyPoint",
+      "lineHash": "5115ed492dc10282",
+      "inspect": "The sample points: (i / N, the radical inverse of i).",
+      "inspectZh": "采样点：(i / N, i 的 radical inverse)。",
+      "details": []
+    },
+    "diffuse-lambert": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Brdf.azsli",
+      "line": 25,
+      "symbol": "DiffuseLambertian",
+      "lineHash": "c4049e68e4c9e1ef",
+      "inspect": "albedo NdotL / pi times the diffuse response: the diffuse term StandardPBR uses.",
+      "inspectZh": "albedo NdotL / pi 乘以 diffuse response：StandardPBR 使用的漫反射项。",
+      "details": []
+    },
+    "diffuse-disney": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Brdf.azsli",
+      "line": 33,
+      "symbol": "NormalizedDisneyDiffuse",
+      "lineHash": "be51a7b68a81e054",
+      "inspect": "The normalised Disney diffuse from the Frostbite course notes, with its own Fresnel terms on entry and exit (so no diffuse response). StandardPBR does not call it; EnhancedPBR does when subsurface scattering is on, and Skin always does. DiffuseTitanfall, below it, is called nowhere in this checkout.",
+      "inspectZh": "来自 Frostbite 课程笔记的归一化 Disney 漫反射，自带进入与离开表面的 Fresnel 项（因此不乘 diffuse response）。StandardPBR 不调用它；EnhancedPBR 在开启次表面散射时调用，Skin 总是调用。其下方的 DiffuseTitanfall 在这个 checkout 中没有任何调用。",
+      "details": []
+    },
+    "enhanced-diffuse": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/EnhancedPBR/EnhancedPBR_LightingBrdf.azsli",
+      "line": 34,
+      "symbol": "GetDiffuseLighting_EnhancedPBR",
+      "lineHash": "b9c645d96c5fd230",
+      "inspect": "EnhancedPBR switches to NormalizedDisneyDiffuse when o_enableSubsurfaceScattering is on, and otherwise uses DiffuseLambertian as StandardPBR does.",
+      "inspectZh": "EnhancedPBR 在 o_enableSubsurfaceScattering 开启时改用 NormalizedDisneyDiffuse，否则与 StandardPBR 一样使用 DiffuseLambertian。",
+      "details": []
+    },
+    "skin-diffuse": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/Skin/Skin_LightingBrdf.azsli",
+      "line": 33,
+      "symbol": "GetDiffuseLighting_Skin",
+      "lineHash": "2535a413f35729a5",
+      "inspect": "The Skin material always uses NormalizedDisneyDiffuse.",
+      "inspectZh": "Skin 材质总是使用 NormalizedDisneyDiffuse。",
+      "details": []
+    },
+    "specular-ggx": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Brdf.azsli",
+      "line": 87,
+      "symbol": "SpecularGGX",
+      "lineHash": "349f52d6ee942289",
+      "inspect": "D * G * F * NdotL times the multiscatter compensation; the 1 / (4 NdotL NdotV) is inside G.",
+      "inspectZh": "D * G * F * NdotL 乘以多次散射补偿；1 / (4 NdotL NdotV) 已包含在 G 中。",
+      "details": [
+        {
+          "line": 105,
+          "lineHash": "e7ee71d3425d8366",
+          "note": "the product",
+          "noteZh": "乘积"
+        }
+      ]
+    },
+    "standard-brdf": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_LightingBrdf.azsli",
+      "line": 34,
+      "symbol": "GetDiffuseLighting_StandardPBR",
+      "lineHash": "f914a521461644fa",
+      "inspect": "StandardPBR's diffuse: DiffuseLambertian with the diffuse response, times the light; when o_clearCoat_feature_enabled (the clearCoat.enable property, false by default), less the clear coat's Fresnel. Its specular, below, is SpecularGGX, with the clear coat layered on top only then.",
+      "inspectZh": "StandardPBR 的漫反射：带 diffuse response 的 DiffuseLambertian，乘以光照；仅当 o_clearCoat_feature_enabled（clearCoat.enable 属性，默认 false）开启时减去 clear coat 的 Fresnel。下面的高光是 SpecularGGX，也只有此时才叠加 clear coat。",
+      "details": [
+        {
+          "line": 39,
+          "lineHash": "7b5a5bfea8cf1ad9",
+          "note": "the clear coat, only when enabled",
+          "noteZh": "clear coat，仅在开启时"
+        },
+        {
+          "line": 51,
+          "lineHash": "525fabdb97e315c8",
+          "note": "GetSpecularLighting_StandardPBR",
+          "noteZh": "GetSpecularLighting_StandardPBR"
+        }
+      ]
+    },
+    "brdf-texture": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/BRDFTexture/BRDFTextureCS.azsl",
+      "line": 22,
+      "symbol": "BRDFTextureCS MainCS",
+      "lineHash": "7cff7ea04f7dddae",
+      "inspect": "Fills the BRDF texture once, at startup: per texel, 1024 GGX samples split the BRDF's integral into a scale A and a bias B on F0 (the split-sum approximation). Samples below the horizon add nothing, but the sums are divided by all 1024.",
+      "inspectZh": "一次性填充 BRDF 贴图：每个 texel 用 1024 个 GGX 样本，把 BRDF 的积分拆成作用于 F0 的 scale A 与 bias B（split-sum 近似）。",
+      "details": [
+        {
+          "line": 44,
+          "lineHash": "daf19d63e404e452",
+          "note": "samples per texel",
+          "noteZh": "每个 texel 的样本数"
+        },
+        {
+          "line": 62,
+          "lineHash": "450a4a8f02d2142c",
+          "note": "the sample's weight G * 4 VdotH NdotL / NdotH: BRDF times NdotL over the pdf of L, with F factored out",
+          "noteZh": "样本权重 G * 4 VdotH NdotL / NdotH：BRDF 乘以 NdotL 再除以 L 的 pdf，F 被提出"
+        },
+        {
+          "line": 57,
+          "lineHash": "5fa0a4f332712144",
+          "note": "only samples above the horizon",
+          "noteZh": "只计地平线以上的样本"
+        },
+        {
+          "line": 71,
+          "lineHash": "89e241f62ee0edfd",
+          "note": "divided by all samples",
+          "noteZh": "除以全部样本数"
+        },
+        {
+          "line": 74,
+          "lineHash": "90eecc2d3744ae27",
+          "note": "rows flipped, so v is smoothness",
+          "noteZh": "行被翻转，所以 v 是 smoothness"
+        }
+      ]
+    },
+    "brdf-texture-size": {
+      "path": "Gems/Atom/Feature/Common/Assets/Textures/BRDFTexture.attimage",
+      "line": 12,
+      "symbol": "BRDFTexture.attimage",
+      "lineHash": "21c07ea6c47b9661",
+      "inspect": "The BRDF texture is 256 x 256 in format 24 of RHI::Format, R16G16_FLOAT: A and B as 16-bit floats.",
+      "inspectZh": "BRDF 贴图为 256 x 256，格式为 RHI::Format 的第 24 项 R16G16_FLOAT：A 与 B 各为 16 位浮点数。",
+      "details": [
+        {
+          "line": 15,
+          "lineHash": "3c2f8cde65f77c4d",
+          "note": "format 24: R16G16_FLOAT",
+          "noteZh": "格式 24：R16G16_FLOAT"
+        }
+      ]
+    },
+    "point-light-struct": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/LightStructures.azsli",
+      "line": 18,
+      "symbol": "SimplePointLight",
+      "lineHash": "4430f5fb9241e787",
+      "inspect": "The record per simple point light: position, 1 / attenuationRadius^2, RGB intensity in candelas, the GI factor and flag, the lighting-channel mask, and padding to 16 bytes.",
+      "inspectZh": "每个 simple point light 的记录：位置、1 / attenuationRadius^2、以 candela 计的 RGB 强度、GI 系数与标志、lighting channel 掩码，以及补齐到 16 字节的 padding。",
+      "details": [
+        {
+          "line": 25,
+          "lineHash": "fa5213d3b4335910",
+          "note": "the lighting channels it affects",
+          "noteZh": "它影响的 lighting channel"
+        }
+      ]
+    },
+    "point-light-init": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/SimplePointLight.azsli",
+      "line": 24,
+      "symbol": "SimplePointLightUtil_PBR::Init",
+      "lineHash": "606ea2cef7b136ec",
+      "inspect": "falloff = d^2 / attenuationRadius^2, and the direction to the light.",
+      "inspectZh": "falloff = d^2 / attenuationRadius^2，以及指向光源的方向。",
+      "details": []
+    },
+    "point-light-apply": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/SimplePointLight.azsli",
+      "line": 45,
+      "symbol": "SimplePointLightUtil_PBR::Apply",
+      "lineHash": "76722ff2ac82d75b",
+      "inspect": "Intensity / d^2 times (1 - falloff^2)^2, which reaches zero at the attenuation radius; then the diffuse and specular lighting.",
+      "inspectZh": "Intensity / d^2 乘以 (1 - falloff^2)^2，在衰减半径处降为零；然后是漫反射与高光光照。",
+      "details": [
+        {
+          "line": 53,
+          "lineHash": "ab52ba04b8556d62",
+          "note": "the light's illuminance at the surface",
+          "noteZh": "光源在表面处的照度"
+        },
+        {
+          "line": 52,
+          "lineHash": "44480ce2021cda92",
+          "note": "d^2 held at (1 mm)^2 or more",
+          "noteZh": "d^2 至少为 (1 mm)^2"
+        }
+      ]
+    },
+    "point-light-loop": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassSimplePointLights.azsli",
+      "line": 11,
+      "symbol": "ApplySimplePointLight",
+      "lineHash": "3f3568e507c745e1",
+      "inspect": "Skips the light at or beyond its attenuation radius; simple point lights get no shadows (litRatio 1).",
+      "inspectZh": "在衰减半径及以外跳过该光源；simple point light 没有阴影（litRatio 为 1）。",
+      "details": [
+        {
+          "line": 15,
+          "lineHash": "a5d08717718e1cc5",
+          "note": "lights of other lighting channels skipped",
+          "noteZh": "跳过其他 lighting channel 的光源"
+        },
+        {
+          "line": 22,
+          "lineHash": "bf947af1b0d23009",
+          "note": "outside the radius",
+          "noteZh": "在半径之外"
+        },
+        {
+          "line": 27,
+          "lineHash": "968c5a6691e701b7",
+          "note": "no shadows",
+          "noteZh": "没有阴影"
+        }
+      ]
+    },
+    "point-light-radius": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/SimplePointLightFeatureProcessor.cpp",
+      "line": 181,
+      "symbol": "SimplePointLightFeatureProcessor::SetAttenuationRadius",
+      "lineHash": "c55e7d321e122de1",
+      "inspect": "The record stores 1 / radius^2, with the radius held at 1 mm or more.",
+      "inspectZh": "记录中保存的是 1 / radius^2，半径至少为 1 mm。",
+      "details": [
+        {
+          "line": 185,
+          "lineHash": "feda8cb03a5c4e21",
+          "note": "the radius held at 1 mm or more",
+          "noteZh": "半径至少为 1 mm"
+        }
+      ]
+    },
+    "point-light-auto-radius": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/CoreLights/SimplePointLightDelegate.cpp",
+      "line": 26,
+      "symbol": "SimplePointLightDelegate::CalculateAttenuationRadius",
+      "lineHash": "eec0a7e2859c5e10",
+      "inspect": "In the automatic mode, the radius where the light's irradiance falls to the cutoff: sqrt(intensity / cutoff), where intensity is the colour's perceptual luminance times the lumens.",
+      "inspectZh": "在自动模式下，半径取光源辐照度降到阈值处：sqrt(intensity / cutoff)，其中 intensity 是颜色的感知亮度乘以 lumen 数。",
+      "details": [
+        {
+          "line": 29,
+          "lineHash": "9c8629cc59162617",
+          "note": "the luminance-weighted lumens",
+          "noteZh": "按亮度加权的 lumen"
+        }
+      ]
+    },
+    "cutoff-intensity": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/CoreLights/AreaLightComponentConfig.h",
+      "line": 50,
+      "symbol": "AreaLightComponentConfig::CutoffIntensity",
+      "lineHash": "8cd57dac614cac64",
+      "inspect": "That cutoff: 0.1; the automatic mode is the component's default.",
+      "inspectZh": "该阈值：0.1；自动模式是组件的默认设置。",
+      "details": [
+        {
+          "line": 56,
+          "lineHash": "983b2521ffa779f5",
+          "note": "Automatic by default",
+          "noteZh": "默认为 Automatic"
+        }
+      ]
+    },
+    "ibl-forward-transparent": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassIbl.azsli",
+      "line": 35,
+      "symbol": "ApplyIbl_ForwardPass",
+      "lineHash": "52a2d30325d64759",
+      "inspect": "The forward pass applies IBL only to transparent materials, or applies specular IBL when a mesh or material forward-specular option is set (both default to false); opaque shaders define FORCE_OPAQUE, so they get IBL from the full-screen passes.",
+      "inspectZh": "Forward pass 只对透明材质应用 IBL，或在 mesh 或材质的 forward specular 选项开启时（两者默认 false）应用高光 IBL；不透明着色器定义了 FORCE_OPAQUE，因此由全屏 pass 获得 IBL。",
+      "details": [
+        {
+          "line": 15,
+          "lineHash": "b396559218b6a3d4",
+          "note": "the forward-specular options, false by default",
+          "noteZh": "forward specular 选项，默认 false"
+        },
+        {
+          "line": 36,
+          "lineHash": "c8cadcc0820ad104",
+          "note": "specular IBL in the forward pass",
+          "noteZh": "forward pass 中的高光 IBL"
+        }
+      ]
+    },
+    "forward-targets": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Pipelines/MainPipeline/ForwardPassVertexAndPixel.azsli",
+      "line": 84,
+      "symbol": "PixelShader (forward targets)",
+      "lineHash": "3bb8b5fc9b587994",
+      "inspect": "What the IBL passes read back: albedo times the diffuse response and diffuse AO with specular occlusion in alpha, specularF0 with roughnessLinear in alpha, and the normal with the IBL and multiscatter flags.",
+      "inspectZh": "IBL pass 读回的内容：乘以 diffuse response 和 AO 的 albedo、alpha 中存 roughnessLinear 的 specularF0，以及带 IBL 与多次散射标志的法线。",
+      "details": [
+        {
+          "line": 85,
+          "lineHash": "ac3aef25d3ef4327",
+          "note": "specular occlusion in albedo's alpha",
+          "noteZh": "albedo 的 alpha 中存高光遮蔽"
+        },
+        {
+          "line": 80,
+          "lineHash": "c0c073d4176a78b4",
+          "note": "roughness in specularF0's alpha",
+          "noteZh": "roughness 存在 specularF0 的 alpha 中"
+        },
+        {
+          "line": 98,
+          "lineHash": "5feaf9f254173451",
+          "note": "the two flags",
+          "noteZh": "两个标志"
+        }
+      ]
+    },
+    "target-formats": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/Forward.pass",
+      "line": 215,
+      "symbol": "ForwardPassTemplate images",
+      "lineHash": "938cdcbec0d16eb7",
+      "inspect": "The albedo and specularF0 targets are R8G8B8A8_UNORM, so the IBL passes see 8-bit albedo, F0, and roughness; the diffuse and specular targets are R16G16B16A16_FLOAT, and the normal target R10G10B10A2_UNORM.",
+      "inspectZh": "albedo 与 specularF0 target 为 R8G8B8A8_UNORM，所以 IBL pass 看到的是 8 位的 albedo、F0 和 roughness；diffuse 与 specular target 为 R16G16B16A16_FLOAT，法线 target 为 R10G10B10A2_UNORM。",
+      "details": [
+        {
+          "line": 181,
+          "lineHash": "356fda92103ef81a",
+          "note": "the diffuse target, R16G16B16A16_FLOAT",
+          "noteZh": "diffuse target，R16G16B16A16_FLOAT"
+        },
+        {
+          "line": 198,
+          "lineHash": "356fda92103ef81a",
+          "note": "the specular target, R16G16B16A16_FLOAT",
+          "noteZh": "specular target，R16G16B16A16_FLOAT"
+        },
+        {
+          "line": 232,
+          "lineHash": "938cdcbec0d16eb7",
+          "note": "the specularF0 target, R8G8B8A8_UNORM",
+          "noteZh": "specularF0 target，R8G8B8A8_UNORM"
+        },
+        {
+          "line": 249,
+          "lineHash": "5762b5f368a34ff8",
+          "note": "the normal target, R10G10B10A2_UNORM",
+          "noteZh": "法线 target，R10G10B10A2_UNORM"
+        }
+      ]
+    },
+    "diffuse-global": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/DiffuseGlobalIllumination/DiffuseGlobalFullscreen.azsl",
+      "line": 75,
+      "symbol": "DiffuseGlobalFullscreen MainPS",
+      "lineHash": "f9a392da094dfc05",
+      "inspect": "Diffuse IBL for opaque surfaces: the albedo target times the diffuse cubemap at the normal, times 2^m_iblExposure; the pass adds it onto the diffuse target.",
+      "inspectZh": "不透明表面的漫反射 IBL：albedo target 乘以法线方向的漫反射 cubemap，再乘以 2^m_iblExposure；该 pass 把结果加到 diffuse target 上。",
+      "details": [
+        {
+          "line": 78,
+          "lineHash": "86cbe69c175d233b",
+          "note": "the exposure, in stops",
+          "noteZh": "以 stop 计的曝光"
+        }
+      ]
+    },
+    "diffuse-global-blend": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/DiffuseGlobalIllumination/DiffuseGlobalFullscreen.shader",
+      "line": 33,
+      "symbol": "DiffuseGlobalFullscreen blend state",
+      "lineHash": "486cd5d478a1a5d5",
+      "inspect": "Additive blending.",
+      "inspectZh": "加法混合。",
+      "details": []
+    },
+    "reflection-global": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionGlobalFullscreen.azsl",
+      "line": 115,
+      "symbol": "ReflectionGlobalFullscreen MainPS",
+      "lineHash": "e951e33291e6c043",
+      "inspect": "Specular IBL for opaque surfaces: the specular cubemap along the reflection (rotated by m_iblOrientation) at mip roughness * 5, times F0 * A + B from the BRDF texture and the multiscatter compensation, times the global weight left by reflection probes, the exposure, and the specular occlusion. It writes its own reflection target, which ReflectionComposite adds onto specular.",
+      "inspectZh": "不透明表面的高光 IBL：沿反射方向（经 m_iblOrientation 旋转）在 mip roughness * 5 处采样高光 cubemap，乘以 BRDF 贴图得到的 F0 * A + B 和多次散射补偿，再乘以 reflection probe 留给全局的权重、曝光和高光遮蔽。它写入自己的 reflection target，由 ReflectionComposite 加到 specular 上。",
+      "details": [
+        {
+          "line": 101,
+          "lineHash": "c99aaade4fda61fe",
+          "note": "the weight reflection probes leave to the sky",
+          "noteZh": "reflection probe 留给天空的权重"
+        },
+        {
+          "line": 121,
+          "lineHash": "3e8f313b0de40559",
+          "note": "times specular occlusion",
+          "noteZh": "乘以高光遮蔽"
+        },
+        {
+          "line": 109,
+          "lineHash": "62ead914a13e3506",
+          "note": "the prefiltered radiance",
+          "noteZh": "预过滤的辐射度"
+        },
+        {
+          "line": 112,
+          "lineHash": "db0e2599dfc0ca57",
+          "note": "NdotV held at 0.01 or more",
+          "noteZh": "NdotV 至少为 0.01"
+        }
+      ]
+    },
+    "roughness-mip": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingUtils.azsli",
+      "line": 60,
+      "symbol": "GetRoughnessMip",
+      "lineHash": "f4282e6b0081f256",
+      "inspect": "The specular cubemap's mip is roughness * 5.",
+      "inspectZh": "高光 cubemap 的 mip 为 roughness * 5。",
+      "details": []
+    },
+    "cubemap-coords": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingUtils.azsli",
+      "line": 18,
+      "symbol": "GetCubemapCoords",
+      "lineHash": "3ae661e68753267c",
+      "inspect": "Turns O3DE's +Z-up world direction into the cubemap's: (-x, z, -y).",
+      "inspectZh": "把 O3DE 的 +Z 向上的世界方向转换为 cubemap 的方向：(-x, z, -y)。",
+      "details": []
+    },
+    "specular-preset": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/Assets/Config/IBLSpecular.preset",
+      "line": 9,
+      "symbol": "IBLSpecular.preset",
+      "lineHash": "d8938b3fe8bc19b5",
+      "inspect": "The default specular cubemap preset: 256 x 256 faces, GGX filter, R9G9B9E5; the High and VeryHigh presets make 512 and 1024.",
+      "inspectZh": "默认的高光 cubemap 预设：256 x 256 的面，GGX 滤波，R9G9B9E5；High 与 VeryHigh 预设分别为 512 与 1024。",
+      "details": [
+        {
+          "line": 13,
+          "lineHash": "b7438f20f24280df",
+          "note": "R9G9B9E5",
+          "noteZh": "R9G9B9E5"
+        },
+        {
+          "line": 16,
+          "lineHash": "b23bd2553db9f415",
+          "note": "256 texels a face",
+          "noteZh": "每面 256 texel"
+        },
+        {
+          "line": 19,
+          "lineHash": "ce81c7f0c2d2c375",
+          "note": "the GGX filter",
+          "noteZh": "GGX 滤波"
+        }
+      ]
+    },
+    "diffuse-preset": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/Assets/Config/IBLDiffuse.preset",
+      "line": 9,
+      "symbol": "IBLDiffuse.preset",
+      "lineHash": "609c828891e3726d",
+      "inspect": "The diffuse cubemap: 32 to 128 texel faces in BC6UH on PC (R9G9B9E5 on Android), a cosine filter over 180 degrees.",
+      "inspectZh": "漫反射 cubemap：32 到 128 texel 的面，PC 上为 BC6UH（Android 上为 R9G9B9E5），180 度的余弦滤波。",
+      "details": [
+        {
+          "line": 13,
+          "lineHash": "4dd1ffaa8df321f7",
+          "note": "BC6UH on PC",
+          "noteZh": "PC 上为 BC6UH"
+        },
+        {
+          "line": 16,
+          "lineHash": "40f1e333a4e98463",
+          "note": "at most 128 texels a face",
+          "noteZh": "每面至多 128 texel"
+        },
+        {
+          "line": 19,
+          "lineHash": "771df8e9baa13909",
+          "note": "the cosine filter",
+          "noteZh": "余弦滤波"
+        }
+      ]
+    },
+    "cubemap-ggx": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/Code/Source/Converters/Cubemap.cpp",
+      "line": 643,
+      "symbol": "ImageConvertProcess::FillCubemapMipmaps",
+      "lineHash": "dfe450835c4b8643",
+      "inspect": "The GGX filter: 256 samples per texel, and exactly six mips, which the PBR shaders expect.",
+      "inspectZh": "GGX 滤波：每个 texel 256 个样本，正好六级 mip，这是 PBR 着色器所要求的。",
+      "details": [
+        {
+          "line": 539,
+          "lineHash": "9d51b5cbb2824ce1",
+          "note": "six mips",
+          "noteZh": "六级 mip"
+        }
+      ]
+    },
+    "filter-ggx": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/External/CubeMapGen/CCubeMapProcessor.cpp",
+      "line": 1591,
+      "symbol": "CCubeMapProcessor::FilterCubeSurfacesGGX",
+      "lineHash": "1c143cb2fb1fec3b",
+      "inspect": "Per texel, with N = V = the texel's direction: GGX samples of the source, each read one mip blurrier than the mip whose texels match its solid angle, blended between two mips, weighted by NdotL and normalised. Mip m is filtered for roughness m / 5; mip 0 is not convolved.",
+      "inspectZh": "对每个 texel，令 N = V = texel 的方向：对源 cubemap 做 GGX 采样，每个样本从比立体角匹配的 mip 再模糊一级的位置读取，在两级 mip 之间混合，按 NdotL 加权并归一化。第 m 级 mip 对应 roughness m / 5；mip 0 不做卷积。",
+      "details": [
+        {
+          "line": 1593,
+          "lineHash": "d60ca0e60c9420ca",
+          "note": "mip 0 is copied, not filtered",
+          "noteZh": "mip 0 直接复制，不做滤波"
+        },
+        {
+          "line": 1636,
+          "lineHash": "31011cdc67b58aa0",
+          "note": "N = V = the texel's direction",
+          "noteZh": "N = V = texel 的方向"
+        },
+        {
+          "line": 1680,
+          "lineHash": "afa3011e317ea258",
+          "note": "trilinear between two mips",
+          "noteZh": "在两级 mip 之间三线性插值"
+        },
+        {
+          "line": 1692,
+          "lineHash": "60e7799c97352d94",
+          "note": "normalised by the NdotL weights",
+          "noteZh": "按 NdotL 权重归一化"
+        },
+        {
+          "line": 1606,
+          "lineHash": "012de7cdfb6f98d7",
+          "note": "the mip's roughness",
+          "noteZh": "该 mip 的 roughness"
+        },
+        {
+          "line": 1663,
+          "lineHash": "63005975a129e38a",
+          "note": "the source mip of a sample: one level blurrier than the match",
+          "noteZh": "样本对应的源 mip：比匹配的 mip 再模糊一级"
+        }
+      ]
+    },
+    "filter-cosine": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/External/CubeMapGen/CCubeMapProcessor.cpp",
+      "line": 735,
+      "symbol": "CCubeMapProcessor::ProcessFilterExtents (cosine)",
+      "lineHash": "7d67109e0c26157e",
+      "inspect": "The diffuse filter: taps weighted by solid angle and the positive cosine, then normalised, so the cubemap holds irradiance / pi.",
+      "inspectZh": "漫反射滤波：按立体角和正余弦加权，再归一化，因此 cubemap 存的是辐照度 / pi。",
+      "details": [
+        {
+          "line": 804,
+          "lineHash": "effd1057e2377ee6",
+          "note": "normalised by the total weight",
+          "noteZh": "按总权重归一化"
+        }
+      ]
+    },
+    "vect-to-texel": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/External/CubeMapGen/CCubeMapProcessor.cpp",
+      "line": 240,
+      "symbol": "VectToTexelCoord",
+      "lineHash": "6599aee7361d7b3b",
+      "inspect": "The prefilter's lookups map a face's [-1, 1] onto texel indices [0, size - 1], not onto texel centres, so they sit up to half a texel off at the face's edges.",
+      "inspectZh": "预过滤的查找把面的 [-1, 1] 映射到 texel 索引 [0, size - 1] 而不是 texel 中心，所以在面的边缘最多偏差半个 texel。",
+      "details": []
+    },
+    "cubemapgen-license": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/External/CubeMapGen/license.txt",
+      "line": 3,
+      "symbol": "CubeMapGen license",
+      "lineHash": "b89608e0ef7b9433",
+      "inspect": "CubeMapGen is AMD's, under a modified BSD license.",
+      "inspectZh": "CubeMapGen 属于 AMD，采用修改版 BSD 许可。",
+      "details": []
+    },
+    "math-pi": {
+      "path": "Gems/Atom/RPI/Assets/ShaderLib/Atom/RPI/Math.azsli",
+      "line": 11,
+      "symbol": "PI",
+      "lineHash": "19e7af6c1b1ef569",
+      "inspect": "The shaders' pi; INV_PI follows.",
+      "inspectZh": "着色器中的 pi；后面是 INV_PI。",
+      "details": [
+        {
+          "line": 13,
+          "lineHash": "573d1f441861194c",
+          "note": "INV_PI",
+          "noteZh": "INV_PI"
+        }
+      ]
+    },
+    "light-culling-pass": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/MainPipeline.pass",
+      "line": 94,
+      "symbol": "MainPipeline LightCullingPass",
+      "lineHash": "3fb3a6e8a81dec6d",
+      "inspect": "Light culling runs after the depth pre-pass and before the opaque passes: tile prepare, culling, and the remap.",
+      "inspectZh": "光源剔除在深度预 pass 之后、不透明 pass 之前运行：tile 准备、剔除与重映射。",
+      "details": [
+        {
+          "line": 47,
+          "lineHash": "fec61736e436625e",
+          "note": "the depth pre-pass before it",
+          "noteZh": "它之前的深度预 pass"
+        }
+      ]
+    },
+    "light-culling-tile": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/LightCulling/LightCullingShared.azsli",
+      "line": 14,
+      "symbol": "TILE_DIM_X",
+      "lineHash": "8184cc0274cf2bc5",
+      "inspect": "Tiles are 16 x 16 pixels.",
+      "inspectZh": "tile 为 16 x 16 像素。",
+      "details": []
+    },
+    "tile-prepare": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCullingTilePrepare.azsl",
+      "line": 264,
+      "symbol": "LightCullingTilePrepare MainCS",
+      "lineHash": "75de0f902482228e",
+      "inspect": "One thread per depth pixel, one group per tile: the tile's nearest sample and its farthest one short of the sky, then a 32-slice mask with one bit per sample, and 1, 2, 4, or 8 bins from log2 of the depth span in metres.",
+      "inspectZh": "每个深度像素一个线程，每个 tile 一个线程组：tile 中最近的样本和除天空外最远的样本，然后是每个样本一位的 32 段掩码，并按以米计的深度跨度的 log2 得到 1、2、4 或 8 个 bin。",
+      "details": [
+        {
+          "line": 317,
+          "lineHash": "1d8aae0379b13867",
+          "note": "4x MSAA: four samples a pixel",
+          "noteZh": "4x MSAA：每个像素四个样本"
+        },
+        {
+          "line": 180,
+          "lineHash": "2b838a3ee559231a",
+          "note": "the number of bins",
+          "noteZh": "bin 的数量"
+        }
+      ]
+    },
+    "nvlc-constants": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/LightCulling/NVLC.azsli",
+      "line": 32,
+      "symbol": "NVLC constants",
+      "lineHash": "90cc79d8f382a850",
+      "inspect": "At most 256 entries per tile and 8 depth bins; depth is reversed (DEPTH_NEAR 1).",
+      "inspectZh": "每个 tile 至多 256 个条目、8 个深度 bin；深度是反向的（DEPTH_NEAR 为 1）。",
+      "details": [
+        {
+          "line": 33,
+          "lineHash": "d1c21c2e667e8610",
+          "note": "8 bins",
+          "noteZh": "8 个 bin"
+        },
+        {
+          "line": 48,
+          "lineHash": "af0e2d0f9abd0857",
+          "note": "reversed depth",
+          "noteZh": "反向深度"
+        }
+      ]
+    },
+    "is-object-inside-tile": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/LightCulling/NVLC.azsli",
+      "line": 139,
+      "symbol": "IsObjectInsideTile",
+      "lineHash": "b4cf4ccbe7c97bb0",
+      "inspect": "An object's depth range as a run of the 32 slices, ANDed with the tile's mask, then folded into the bins it touches.",
+      "inspectZh": "物体的深度范围表示为 32 段中连续的一段，与 tile 的掩码相与，再折叠为它涉及的 bin。",
+      "details": [
+        {
+          "line": 126,
+          "lineHash": "e5692298db362866",
+          "note": "a pixel's bin",
+          "noteZh": "像素所在的 bin"
+        }
+      ]
+    },
+    "cull-point-light": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCulling.azsl",
+      "line": 293,
+      "symbol": "CullPointLight",
+      "lineHash": "e9330250861e1ead",
+      "inspect": "A light is kept when its sphere meets the tile's view-space box and its depth range meets the tile's mask; entries are index << 16 | bins.",
+      "inspectZh": "当光源的球体与 tile 的视图空间包围盒相交、且深度范围与 tile 的掩码相交时保留它；条目为 index << 16 | bins。",
+      "details": [
+        {
+          "line": 77,
+          "lineHash": "197922d2638d738d",
+          "note": "sphere against box",
+          "noteZh": "球体与包围盒"
+        },
+        {
+          "line": 196,
+          "lineHash": "5bc4db615048b541",
+          "note": "appended in the order threads finish",
+          "noteZh": "按线程完成的顺序追加"
+        }
+      ]
+    },
+    "light-culling-main": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCulling.azsl",
+      "line": 618,
+      "symbol": "LightCulling MainCS",
+      "lineHash": "cdfc1ac70d06c57e",
+      "inspect": "Groups in order: decals, simple point, simple spot, point, disk, capsule, and quad lights, each closed by END_OF_GROUP; polygon lights are not culled.",
+      "inspectZh": "按顺序分组：decal、simple point、simple spot、point、disk、capsule 与 quad 光源，每组以 END_OF_GROUP 结束；polygon 光源不参与剔除。",
+      "details": [
+        {
+          "line": 475,
+          "lineHash": "a76f4a15eeae39c4",
+          "note": "END_OF_GROUP",
+          "noteZh": "END_OF_GROUP"
+        }
+      ]
+    },
+    "light-culling-remap": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCullingRemap.azsl",
+      "line": 163,
+      "symbol": "LightCullingRemap MainCS",
+      "lineHash": "caa1ece864b5c212",
+      "inspect": "Per depth bin, the indices of the entries that touch it, in list order, ending with END_OF_LIST.",
+      "inspectZh": "对每个深度 bin，按列表顺序列出涉及它的条目的索引，以 END_OF_LIST 结束。",
+      "details": []
+    },
+    "tile-iterator": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/LightCulling/LightCullingTileIterator.azsli",
+      "line": 40,
+      "symbol": "LightCullingTileIterator::Init",
+      "lineHash": "5cc67ac1f1bec64f",
+      "inspect": "The forward pass reads only its pixel's tile and depth bin.",
+      "inspectZh": "forward pass 只读取它的像素所在 tile 与深度 bin 的列表。",
+      "details": []
+    },
+    "polygon-not-culled": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassPolygonLights.azsli",
+      "line": 44,
+      "symbol": "ApplyPolygonLights",
+      "lineHash": "e1b2a3e1731c4760",
+      "inspect": "Polygon lights are compiled in (ENABLE_POLYGON_LTC_LIGHTS follows ENABLE_AREA_LIGHTS, 1), and the forward pass walks a polygon group, but the culling pass writes none, so with culling on, polygon lights are never shaded.",
+      "inspectZh": "polygon 光源被编译在内（ENABLE_POLYGON_LTC_LIGHTS 随 ENABLE_AREA_LIGHTS 为 1），forward pass 也会遍历 polygon 组，但剔除 pass 从不写出它，因此在开启剔除时 polygon 光源从不被着色。",
+      "details": []
+    },
+    "lighting-channels-test": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/LightTypesCommon.azsli",
+      "line": 70,
+      "symbol": "IsSameLightChannel",
+      "lineHash": "e240e0d068233d14",
+      "inspect": "A light shades a surface only if their lighting-channel masks share a bit; image-based lighting, the reflection passes, and decals do not test it.",
+      "inspectZh": "只有当光源与表面的 lighting channel 掩码有共同位时，光源才照亮该表面；基于图像的光照、反射 pass 与 decal 都不检查它。",
+      "details": []
+    },
+    "lighting-channels-default": {
+      "path": "Gems/Atom/Feature/Common/Code/Include/Atom/Feature/LightingChannel/LightingChannelConfiguration.h",
+      "line": 34,
+      "symbol": "LightingChannelConfiguration",
+      "lineHash": "20d51eb4561937f0",
+      "inspect": "Five channels; components start with all five set (0x1F), while a mesh or light made through a feature processor alone starts in channel 0.",
+      "inspectZh": "共五个 channel；组件默认全部开启（0x1F），而仅通过 feature processor 创建的网格或光源默认只在 channel 0。",
+      "details": [
+        {
+          "line": 20,
+          "lineHash": "b2ad5c3161659b99",
+          "note": "five channels",
+          "noteZh": "五个 channel"
+        }
+      ]
+    },
+    "directional-channel-return": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassDirectionalLights.azsli",
+      "line": 57,
+      "symbol": "ApplyDirectionalLights (lighting channels)",
+      "lineHash": "8beaabe25ab7e0a8",
+      "inspect": "A directional light of another lighting channel ends the whole loop (return, not continue), so the directional lights after it are skipped too.",
+      "inspectZh": "另一个 lighting channel 的方向光会结束整个循环（return 而不是 continue），因此它之后的方向光也被跳过。",
+      "details": []
+    },
+    "clear-coat-f0": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/MaterialUtils.azsli",
+      "line": 58,
+      "symbol": "ApplyClearCoatToSpecularF0",
+      "lineHash": "7d41ec688acd7e5d",
+      "inspect": "The base layer's F0 under a coat: f0 = (1 - 5 sqrt(F0)) / (5 - sqrt(F0)), then lerp(F0, f0^2, factor) (Filament's base-layer change).",
+      "inspectZh": "涂层下底层的 F0：f0 = (1 - 5 sqrt(F0)) / (5 - sqrt(F0))，然后取 lerp(F0, f0^2, factor)（Filament 的底层修正）。",
+      "details": []
+    },
+    "clear-coat-inputs": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/MaterialInputs/ClearCoatInput.azsli",
+      "line": 101,
+      "symbol": "GetClearCoatInputs",
+      "lineHash": "f5e4b53f71f823e0",
+      "inspect": "The coat's factor and roughness from the properties (times their maps), the roughness held at 0.001 or more; without a coat normal map, the vertex normal.",
+      "inspectZh": "涂层的 factor 与 roughness 来自属性（再乘以各自的贴图），roughness 至少为 0.001；没有涂层法线贴图时使用顶点法线。",
+      "details": []
+    },
+    "clear-coat-response": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_LightingEval.azsli",
+      "line": 39,
+      "symbol": "InitializeLightingData_StandardPBR (clear coat)",
+      "lineHash": "d8c1b08a954fd047",
+      "inspect": "The diffuse response loses the coat's share: 1 - FresnelSchlickWithRoughness(NdotV, 0.04, coat roughness) * factor (IOR 1.5).",
+      "inspectZh": "diffuse response 减去涂层的份额：1 - FresnelSchlickWithRoughness(NdotV, 0.04, 涂层 roughness) * factor（IOR 1.5）。",
+      "details": []
+    },
+    "clear-coat-diffuse": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_LightingBrdf.azsli",
+      "line": 43,
+      "symbol": "GetDiffuseLighting_StandardPBR (clear coat)",
+      "lineHash": "5b96f4c424588a64",
+      "inspect": "Each light's diffuse is attenuated again, by the coat's Fresnel at the half vector: the coat dims diffuse twice, once through the response and once per light.",
+      "inspectZh": "每盏光的漫反射再次被涂层在半向量处的 Fresnel 衰减：涂层让漫反射变暗两次，一次通过 response，一次针对每盏光。",
+      "details": []
+    },
+    "clear-coat-specular": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Microfacet/Brdf.azsli",
+      "line": 172,
+      "symbol": "ClearCoatSpecular",
+      "lineHash": "f7077a5ef1c62399",
+      "inspect": "base * (1 - Fc) + the coat's GGX, with Fc = FresnelSchlick(HdotL, 0.04) * factor and alpha = max(roughness^2, 0.0005).",
+      "inspectZh": "base * (1 - Fc) 加上涂层的 GGX，其中 Fc = FresnelSchlick(HdotL, 0.04) * factor，alpha = max(roughness^2, 0.0005)。",
+      "details": [
+        {
+          "line": 151,
+          "lineHash": "9bb0e9ba3d3eb554",
+          "note": "ClearCoatGGX: GGX D with the coat's alpha",
+          "noteZh": "ClearCoatGGX：使用涂层 alpha 的 GGX D"
+        },
+        {
+          "line": 163,
+          "lineHash": "83d7d04047f51224",
+          "note": "Kelemen's visibility (Kelemen and Szirmay-Kalos 2001)",
+          "noteZh": "Kelemen 的可见性项（Kelemen 与 Szirmay-Kalos 2001）"
+        }
+      ]
+    },
+    "clear-coat-ibl": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/Ibl.azsli",
+      "line": 149,
+      "symbol": "ApplyIBL (clear coat)",
+      "lineHash": "a660070ea1eef19f",
+      "inspect": "Specular IBL under a coat: the base through (1 - Fc)^2 plus the coat's own IBL (F0 0.04, times factor); direct light uses (1 - Fc) once.",
+      "inspectZh": "涂层下的高光 IBL：底层乘以 (1 - Fc)^2，再加上涂层自己的 IBL（F0 0.04，乘以 factor）；直接光只乘一次 (1 - Fc)。",
+      "details": []
+    },
+    "clear-coat-forward-ibl": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/StandardPBR_ClearCoatEnableFeature.lua",
+      "line": 26,
+      "symbol": "StandardPBR_ClearCoatEnableFeature.lua",
+      "lineHash": "81600d47c430e6c4",
+      "inspect": "Enabling clear coat also switches the material to forward-pass specular IBL, because the full-screen reflection pass knows nothing of the coat.",
+      "inspectZh": "开启 clear coat 时，材质也会改用 forward pass 的高光 IBL，因为全屏反射 pass 对涂层一无所知。",
+      "details": [
+        {
+          "line": 25,
+          "lineHash": "ed851bf668130461",
+          "note": "the clear-coat feature option",
+          "noteZh": "clear coat 功能选项"
+        }
+      ]
+    },
+    "forward-ibl-stencil": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/Mesh/MeshFeatureProcessor.cpp",
+      "line": 2422,
+      "symbol": "MeshFeatureProcessor (stencil reference)",
+      "lineHash": "da7c579a5363f470",
+      "inspect": "A mesh whose material needs forward-pass IBL specular draws without the UseIBLSpecularPass bits, so the full-screen reflection pass skips it; UseDiffuseGIPass stays set.",
+      "inspectZh": "材质需要 forward pass 高光 IBL 的网格绘制时不带 UseIBLSpecularPass 位，因此全屏反射 pass 跳过它；UseDiffuseGIPass 仍然设置。",
+      "details": [
+        {
+          "line": 2425,
+          "lineHash": "931814cb208e008a",
+          "note": "the diffuse pass still runs",
+          "noteZh": "漫反射 pass 仍然运行"
+        }
+      ]
+    },
+    "ms-material-property": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/SpecularPropertyGroup.json",
+      "line": 50,
+      "symbol": "specularF0.enableMultiScatterCompensation",
+      "lineHash": "5e0a81a1da0e835d",
+      "inspect": "StandardPBR's material property for the compensation option. It has no defaultValue, so it loads as false, and material initialisation applies it to o_specularF0_enableMultiScatterCompensation: compensation is off unless the material turns it on.",
+      "inspectZh": "StandardPBR 控制补偿选项的材质属性。它没有 defaultValue，因此读取为 false，材质初始化时会把它应用到 o_specularF0_enableMultiScatterCompensation：除非材质开启，否则补偿是关闭的。",
+      "details": [
+        {
+          "line": 56,
+          "lineHash": "b121bddf23d9a751",
+          "note": "its shader-option connection",
+          "noteZh": "它连接的 shader option"
+        }
+      ]
+    },
+    "bool-property-default": {
+      "path": "Gems/Atom/RPI/Code/Source/RPI.Edit/Material/MaterialPropertySerializer.cpp",
+      "line": 227,
+      "symbol": "JsonMaterialPropertySerializer::Load (Bool)",
+      "lineHash": "cc0d65fc4b1fce53",
+      "inspect": "A Bool material property without a defaultValue loads as false.",
+      "inspectZh": "没有 defaultValue 的 Bool 材质属性读取为 false。",
+      "details": []
+    },
+    "property-init": {
+      "path": "Gems/Atom/RPI/Code/Source/RPI.Reflect/Material/MaterialPropertyCollection.cpp",
+      "line": 66,
+      "symbol": "MaterialPropertyCollection::Init",
+      "lineHash": "7b7529c4e58f5497",
+      "inspect": "Initialisation sets every property to its default value, which marks it dirty, so the material applies it to its shader inputs and options.",
+      "inspectZh": "初始化把每个属性设为其默认值并标记为 dirty，材质随后把它应用到着色器输入和 option 上。",
+      "details": []
+    },
+    "property-apply": {
+      "path": "Gems/Atom/RPI/Code/Source/RPI.Public/Material/Material.cpp",
+      "line": 542,
+      "symbol": "Material::ProcessDirectConnections",
+      "lineHash": "a2a0de8b8ad44e25",
+      "inspect": "Every dirty property is applied through its connections, a shader option among them.",
+      "inspectZh": "每个 dirty 的属性都通过它的连接被应用，其中包括 shader option。",
+      "details": []
+    },
+    "ms-preset": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Presets/PBR/metal_gold.material",
+      "line": 14,
+      "symbol": "metal_gold.material",
+      "lineHash": "706819dab01ddf8b",
+      "inspect": "O3DE's PBR presets set the compensation explicitly (37 of the 39 in Materials/Presets/PBR), this metal among them.",
+      "inspectZh": "O3DE 的 PBR 预设会显式开启补偿（Materials/Presets/PBR 中 39 个里有 37 个），这个金属预设也是。",
+      "details": []
+    },
+    "specular-aa-default": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/GeneralCommonPropertyGroup.json",
+      "line": 17,
+      "symbol": "general.applySpecularAA",
+      "lineHash": "d926859160f0061a",
+      "inspect": "Specular anti-aliasing is on by default for StandardPBR materials.",
+      "inspectZh": "StandardPBR 材质默认开启 specular 抗锯齿。",
+      "details": [
+        {
+          "line": 21,
+          "lineHash": "f9c389433dadc562",
+          "note": "default true",
+          "noteZh": "默认 true"
+        }
+      ]
+    },
+    "specular-aa": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/SpecularAA.azsli",
+      "line": 28,
+      "symbol": "CalculateSpecularAA",
+      "lineHash": "7589d5d412f7c9ed",
+      "inspect": "Widens roughnessA2 by the screen-space derivatives of the normal: kernel = min(2 * 0.25 * (|dN/dx|^2 + |dN/dy|^2), 0.18), then saturate(roughnessA2 + kernel). It is compiled in (ENABLE_SPECULARAA 1).",
+      "inspectZh": "按法线的屏幕空间导数增大 roughnessA2：kernel = min(2 * 0.25 * (|dN/dx|^2 + |dN/dy|^2), 0.18)，然后取 saturate(roughnessA2 + kernel)。它被编译在内（ENABLE_SPECULARAA 为 1）。",
+      "details": [
+        {
+          "line": 12,
+          "lineHash": "d6873d039b4c5543",
+          "note": "compiled in",
+          "noteZh": "被编译在内"
+        },
+        {
+          "line": 38,
+          "lineHash": "062c7ef4f2489c00",
+          "note": "the kernel, at most 0.18",
+          "noteZh": "kernel，至多 0.18"
+        }
+      ]
+    },
+    "light-culling-define": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingOptions.azsli",
+      "line": 26,
+      "symbol": "ENABLE_LIGHT_CULLING",
+      "lineHash": "591276a7a2310311",
+      "inspect": "Tiled light lists are compiled in: lights reach a pixel through its screen tile.",
+      "inspectZh": "分块光源列表被编译在内：光源通过像素所在的屏幕 tile 到达该像素。",
+      "details": []
+    },
+    "forward-opaque": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Pipelines/MainPipeline/ForwardPass_StandardLighting.azsli",
+      "line": 16,
+      "symbol": "ForwardPass_StandardLighting FORCE_OPAQUE",
+      "lineHash": "e951d75453f097ae",
+      "inspect": "The opaque forward shader of the Standard lighting model defines FORCE_OPAQUE, so its forward-pass IBL path for transparents is compiled out.",
+      "inspectZh": "Standard 光照模型的不透明 forward 着色器定义了 FORCE_OPAQUE，因此它为透明材质准备的 forward pass IBL 路径被编译排除。",
+      "details": []
+    },
+    "opaque-pass-order": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/OpaqueParent.pass",
+      "line": 235,
+      "symbol": "OpaqueParentTemplate",
+      "lineHash": "4c3d156a7c2a4122",
+      "inspect": "The opaque passes in order after the forward pass: DiffuseGlobalFullscreen, Reflections, SkyBox, ReflectionComposite, the MSAA resolves, subsurface scattering, ambient occlusion, then DiffuseSpecularMerge.",
+      "inspectZh": "forward pass 之后不透明 pass 的顺序：DiffuseGlobalFullscreen、Reflections、SkyBox、ReflectionComposite、MSAA resolve、次表面散射、环境光遮蔽，然后是 DiffuseSpecularMerge。",
+      "details": [
+        {
+          "line": 276,
+          "lineHash": "1e0ab5995e2e4199",
+          "note": "the reflections (global IBL and probes)",
+          "noteZh": "反射（全局 IBL 与 probe）"
+        },
+        {
+          "line": 353,
+          "lineHash": "f65ade8024913bb6",
+          "note": "the reflection target added onto specular",
+          "noteZh": "把 reflection target 加到 specular 上"
+        },
+        {
+          "line": 484,
+          "lineHash": "2afbe57fb0709b23",
+          "note": "ambient occlusion on the diffuse target",
+          "noteZh": "对 diffuse target 做环境光遮蔽"
+        },
+        {
+          "line": 504,
+          "lineHash": "bb7112750965e128",
+          "note": "the merge",
+          "noteZh": "合并"
+        }
+      ]
+    },
+    "ssao-default": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/PostProcessing/SsaoPasses.cpp",
+      "line": 35,
+      "symbol": "SsaoParentPass::IsEnabled",
+      "lineHash": "cd8f30aed9aa3de7",
+      "inspect": "SSAO runs unless a level's post-process settings turn it off: it is enabled when there are no settings, and the settings default to enabled with the SSAO method. It modulates the diffuse target before the merge.",
+      "inspectZh": "SSAO 默认运行，除非关卡的后处理设置关闭它：没有设置时它就是开启的，而设置的默认值为开启且方法为 SSAO。它在合并之前调制 diffuse target。",
+      "details": [
+        {
+          "line": 62,
+          "lineHash": "66d0c8830beaef5f",
+          "note": "with settings: enabled and the SSAO method",
+          "noteZh": "有设置时：开启且方法为 SSAO"
+        }
+      ]
+    },
+    "ao-defaults": {
+      "path": "Gems/Atom/Feature/Common/Code/Include/Atom/Feature/PostProcess/AmbientOcclusion/AoParams.inl",
+      "line": 15,
+      "symbol": "AoParams Enabled",
+      "lineHash": "b2d6bc9109e1ef3c",
+      "inspect": "Ambient occlusion defaults to enabled, with SSAO as its method.",
+      "inspectZh": "环境光遮蔽默认开启，方法为 SSAO。",
+      "details": [
+        {
+          "line": 19,
+          "lineHash": "59f4bbefebe14438",
+          "note": "SSAO by default",
+          "noteZh": "默认 SSAO"
+        }
+      ]
+    },
+    "reflection-target": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/ReflectionGlobalFullscreen.pass",
+      "line": 76,
+      "symbol": "ReflectionGlobalFullscreenPassTemplate ReflectionImage",
+      "lineHash": "15ea7d3b44f1734b",
+      "inspect": "The global specular IBL is written to its own cleared reflection target, not onto the specular target.",
+      "inspectZh": "全局高光 IBL 写入它自己的、已清空的 reflection target，而不是直接写到 specular target 上。",
+      "details": [
+        {
+          "line": 88,
+          "lineHash": "356fda92103ef81a",
+          "note": "R16G16B16A16_FLOAT",
+          "noteZh": "R16G16B16A16_FLOAT"
+        }
+      ]
+    },
+    "reflection-composite": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionComposite.shader",
+      "line": 34,
+      "symbol": "ReflectionComposite blend state",
+      "lineHash": "eb7b530dd5dd7d31",
+      "inspect": "The composite adds the reflection target onto the specular target (One, One, Add).",
+      "inspectZh": "合成 pass 把 reflection target 加到 specular target 上（One、One、Add）。",
+      "details": []
+    },
+    "brdf-execute-once": {
+      "path": "Gems/Atom/Bootstrap/Code/Source/BootstrapSystemComponent.cpp",
+      "line": 713,
+      "symbol": "BootstrapSystemComponent (BRDF texture pipeline)",
+      "lineHash": "1a7b0108de14b59d",
+      "inspect": "The BRDF texture's pipeline runs once.",
+      "inspectZh": "BRDF 贴图的管线只运行一次。",
+      "details": [
+        {
+          "line": 712,
+          "lineHash": "e373207f78f6adcf",
+          "note": "the BRDF texture pipeline",
+          "noteZh": "BRDF 贴图管线"
+        }
+      ]
+    },
+    "rhi-format": {
+      "path": "Gems/Atom/RHI/Code/Include/Atom/RHI.Reflect/Format.h",
+      "line": 16,
+      "symbol": "RHI::Format",
+      "lineHash": "6508270803c30084",
+      "inspect": "Counted from Unknown = 0, entry 24 is R16G16_FLOAT.",
+      "inspectZh": "从 Unknown = 0 开始计数，第 24 项是 R16G16_FLOAT。",
+      "details": [
+        {
+          "line": 51,
+          "lineHash": "5ffd0727c428281c",
+          "note": "R16G16_FLOAT",
+          "noteZh": "R16G16_FLOAT"
+        }
+      ]
+    },
+    "msaa-default": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/MainRenderPipeline.azasset",
+      "line": 13,
+      "symbol": "MainRenderPipeline MultisampleState",
+      "lineHash": "cf2ccd92879d1807",
+      "inspect": "The main pipeline renders with 2x MSAA.",
+      "inspectZh": "主管线以 2x MSAA 渲染。",
+      "details": []
+    },
+    "ibl-srg": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderResourceGroups/SceneSrg.azsli",
+      "line": 36,
+      "symbol": "SceneSrg IBL",
+      "lineHash": "7a7bccbecf8abb33",
+      "inspect": "The global skylight's two cubemaps, its orientation, and its exposure.",
+      "inspectZh": "全局 skylight 的两个 cubemap、它的朝向和曝光。",
+      "details": [
+        {
+          "line": 38,
+          "lineHash": "affebb5d3a7129e4",
+          "note": "a rotation applied to the reflection direction",
+          "noteZh": "作用于反射方向的旋转"
+        },
+        {
+          "line": 39,
+          "lineHash": "1b66e4103185e1ee",
+          "note": "the exposure, in stops",
+          "noteZh": "以 stop 计的曝光"
+        },
+        {
+          "line": 61,
+          "lineHash": "6db998c6ad72b87a",
+          "note": "a trilinear sampler, wrapping",
+          "noteZh": "三线性采样器，wrap 寻址"
+        }
+      ]
+    },
+    "ibl-exposure-default": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/ImageBasedLights/ImageBasedLightComponentConfig.h",
+      "line": 30,
+      "symbol": "ImageBasedLightComponentConfig::m_exposure",
+      "lineHash": "958004a147156984",
+      "inspect": "The skylight's exposure defaults to 0 stops.",
+      "inspectZh": "skylight 的曝光默认为 0 stop。",
+      "details": []
+    },
+    "point-light-luminance": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/PhotometricValue.cpp",
+      "line": 163,
+      "symbol": "PhotometricValue::GetCombinedIntensity",
+      "lineHash": "c372f7bb9711ecd4",
+      "inspect": "A light's combined intensity is the perceptual luminance of its colour times its intensity.",
+      "inspectZh": "光源的合成强度是其颜色的感知亮度乘以强度。",
+      "details": []
+    },
+    "clear-coat-default": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/ClearCoatPropertyGroup.json",
+      "line": 9,
+      "symbol": "clearCoat.enable",
+      "lineHash": "a842358ebb663699",
+      "inspect": "Clear coat is off by default.",
+      "inspectZh": "clear coat 默认关闭。",
+      "details": [
+        {
+          "line": 11,
+          "lineHash": "b62d0ae009e1752a",
+          "note": "default false",
+          "noteZh": "默认 false"
+        }
+      ]
+    },
+    "decal-apply": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Decals.azsli",
+      "line": 38,
+      "symbol": "ApplyDecal",
+      "lineHash": "81a74bdb2f1315d4",
+      "inspect": "One decal on the surface: the position in the decal's box, from -1 to 1, through the transpose of its rotation and its half size; inside the box, the base map times the decal colour replaces the albedo by alpha times opacity times the angle attenuation, specularF0 by that times metallic, and the normal map bends the normal by alpha times the normal-map opacity.",
+      "inspectZh": "把一个 decal 应用到表面：经旋转矩阵的转置和半尺寸，求出点在 decal 盒内从 -1 到 1 的位置；在盒内，base map 乘以 decal 颜色，按 alpha、opacity 与角度衰减之积替换 albedo，按该值乘以 metallic 替换 specularF0，并按 alpha 与 normal map opacity 之积用 normal map 弯折法线。",
+      "details": [
+        {
+          "line": 43,
+          "lineHash": "621840d113394b8c",
+          "note": "the rows of the transpose are the decal's axes",
+          "noteZh": "转置后的各行就是 decal 的坐标轴"
+        },
+        {
+          "line": 51,
+          "lineHash": "f44cecc96aee9de9",
+          "note": "inside the box only",
+          "noteZh": "仅在盒内"
+        },
+        {
+          "line": 59,
+          "lineHash": "9c56c7754075bf1b",
+          "note": "v is flipped",
+          "noteZh": "v 被翻转"
+        },
+        {
+          "line": 136,
+          "lineHash": "a841f960819ffc34",
+          "note": "the angle attenuation, from the vertex normal and the decal's z axis",
+          "noteZh": "角度衰减，由顶点法线和 decal 的 z 轴求出"
+        },
+        {
+          "line": 137,
+          "lineHash": "799d98a15d2b550a",
+          "note": "the albedo's opacity",
+          "noteZh": "albedo 的不透明度"
+        },
+        {
+          "line": 140,
+          "lineHash": "53bfcdd5bb69cf98",
+          "note": "the base map times the colour and its factor (Multiply)",
+          "noteZh": "base map 乘以颜色及其系数（Multiply）"
+        },
+        {
+          "line": 146,
+          "lineHash": "7edbbab1f9f22c60",
+          "note": "specularF0, scaled by metallic",
+          "noteZh": "specularF0，按 metallic 缩放"
+        },
+        {
+          "line": 150,
+          "lineHash": "e3ee33f387c1d142",
+          "note": "the normal",
+          "noteZh": "法线"
+        }
+      ]
+    },
+    "decal-attenuation": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Decals.azsli",
+      "line": 28,
+      "symbol": "GetDecalAttenuation",
+      "lineHash": "3376d445934fa253",
+      "inspect": "The angle attenuation: the cosine between the vertex normal and the decal's projection axis, clamped to 0.55 and smoothstepped from 0.55 to 1, so a decal fades out by about 57 degrees; m_angleAttenuation blends between none (0) and all of it (1).",
+      "inspectZh": "角度衰减：顶点法线与 decal 投影轴夹角的余弦，截断到 0.55，再从 0.55 到 1 做 smoothstep，所以 decal 在约 57 度处完全淡出；m_angleAttenuation 在不衰减（0）与完全衰减（1）之间插值。",
+      "details": [
+        {
+          "line": 30,
+          "lineHash": "98e0013417c88cac",
+          "note": "the clamp",
+          "noteZh": "截断值"
+        },
+        {
+          "line": 33,
+          "lineHash": "55de50df2b7ff154",
+          "note": "the smoothstep",
+          "noteZh": "smoothstep"
+        },
+        {
+          "line": 35,
+          "lineHash": "e7158efe708cc1a8",
+          "note": "blended by m_angleAttenuation",
+          "noteZh": "按 m_angleAttenuation 插值"
+        }
+      ]
+    },
+    "decal-forward": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassDecals.azsli",
+      "line": 22,
+      "symbol": "ApplyDecals_ForwardPass",
+      "lineHash": "c12895bd9694fab2",
+      "inspect": "The forward pass walks the first group of its tile's list, the decals, in the order light culling sorted them, and applies each; with o_enableDecals off it still walks the group.",
+      "inspectZh": "forward pass 遍历所在 tile 列表的第一组，即 decal，按光源剔除排好的顺序逐个应用；o_enableDecals 关闭时它仍会遍历这一组。",
+      "details": [
+        {
+          "line": 25,
+          "lineHash": "e660df928146336e",
+          "note": "the option only skips the blend",
+          "noteZh": "该选项只跳过混合"
+        },
+        {
+          "line": 27,
+          "lineHash": "f6c377be3e4ba0d5",
+          "note": "ApplyDecal",
+          "noteZh": "ApplyDecal"
+        }
+      ]
+    },
+    "decal-evaluate-order": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassEvaluateLighting.azsli",
+      "line": 31,
+      "symbol": "EvaluateLighting_ForwardPass (decals)",
+      "lineHash": "0f1240c9840f0722",
+      "inspect": "Decals change the Surface before InitializeLightingData, so lighting, the IBL passes (through the albedo, specularF0, and normal targets), and every light see the decalled surface.",
+      "inspectZh": "decal 在 InitializeLightingData 之前修改 Surface，所以光照、IBL pass（通过 albedo、specularF0 与法线 target）以及所有光源看到的都是贴了 decal 的表面。",
+      "details": [
+        {
+          "line": 34,
+          "lineHash": "cef1898ec972bfb4",
+          "note": "then the lighting data",
+          "noteZh": "然后是光照数据"
+        }
+      ]
+    },
+    "decal-options": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingOptions.azsli",
+      "line": 99,
+      "symbol": "o_enableDecals",
+      "lineHash": "7faad8ed4af593b8",
+      "inspect": "Decals are on by default: the o_enableDecals shader option, and ENABLE_DECALS 1 (only the low-end tier 2 quality and the multi-view pipelines compile them out).",
+      "inspectZh": "decal 默认开启：o_enableDecals shader option，以及 ENABLE_DECALS 为 1（只有低端 tier 2 画质和 multi-view 管线会把它编译掉）。",
+      "details": [
+        {
+          "line": 30,
+          "lineHash": "d117ab21a517a2ba",
+          "note": "ENABLE_DECALS",
+          "noteZh": "ENABLE_DECALS"
+        }
+      ]
+    },
+    "decal-cull": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCulling.azsl",
+      "line": 260,
+      "symbol": "CullDecals",
+      "lineHash": "8f860574b9c56533",
+      "inspect": "Decals are the first group of each tile's list: past its maximum draw distance (0: none) a decal is dropped; otherwise a sphere around its box, of radius length(m_halfSize), meets the tile's view-space box, then its depth range meets the tile's mask, as for a point light.",
+      "inspectZh": "decal 是每个 tile 列表的第一组：超出最大绘制距离（0 表示不限）的 decal 被丢弃；否则用半径为 length(m_halfSize) 的球包住它的盒，与 tile 的视图空间包围盒求交，再像点光源一样用深度范围与 tile 的掩码求交。",
+      "details": [
+        {
+          "line": 270,
+          "lineHash": "57991b5fc2497107",
+          "note": "the draw distance",
+          "noteZh": "绘制距离"
+        },
+        {
+          "line": 277,
+          "lineHash": "81af7b2db941e491",
+          "note": "a sphere around the box",
+          "noteZh": "包住盒的球"
+        },
+        {
+          "line": 284,
+          "lineHash": "e497e3fa83fe8a30",
+          "note": "its depth range",
+          "noteZh": "它的深度范围"
+        }
+      ]
+    },
+    "decal-sort": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/LightCulling/LightCulling.azsl",
+      "line": 136,
+      "symbol": "AreDecalsOutofOrder",
+      "lineHash": "bb01fc94c3ab95e8",
+      "inspect": "After culling, SortDecals orders the tile's decals with a bitonic sort across the group's threads: by sort key (the low byte), then by index, so a larger key is applied later and lands on top.",
+      "inspectZh": "剔除之后，SortDecals 在线程组内用双调排序给 tile 的 decal 排序：先按 sort key（低字节），再按索引，所以 key 更大的 decal 后应用，盖在上面。",
+      "details": [
+        {
+          "line": 133,
+          "lineHash": "075b0079c547a14a",
+          "note": "the sort key",
+          "noteZh": "sort key"
+        },
+        {
+          "line": 147,
+          "lineHash": "85457b775fc16298",
+          "note": "equal keys: by index",
+          "noteZh": "key 相同时按索引"
+        },
+        {
+          "line": 613,
+          "lineHash": "15cb2692dfbbcb56",
+          "note": "sorted before the group is written",
+          "noteZh": "在写出该组之前排序"
+        }
+      ]
+    },
+    "decal-struct": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Decals/DecalStructures.azsli",
+      "line": 3,
+      "symbol": "Decal",
+      "lineHash": "9fd86001326de049",
+      "inspect": "The record the decal feature processor uploads per decal: position, opacity, rotation quaternion, half size, angle attenuation, normal-map opacity, packed sort key, texture array and index, colour and its factor, and the maximum draw distance.",
+      "inspectZh": "decal feature processor 为每个 decal 上传的记录：位置、opacity、旋转四元数、半尺寸、角度衰减、normal map opacity、打包的 sort key、纹理数组与索引、颜色及其系数，以及最大绘制距离。",
+      "details": []
+    },
+    "decal-defaults": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/Decals/DecalComponentConfig.h",
+      "line": 25,
+      "symbol": "DecalComponentConfig",
+      "lineHash": "946d94850706835c",
+      "inspect": "The decal component's defaults: sort key 16, and attenuation angle, opacity, normal-map opacity, and colour factor all 1, with no draw-distance limit.",
+      "inspectZh": "decal 组件的默认值：sort key 16，attenuation angle、opacity、normal map opacity 与颜色系数都为 1，不限制绘制距离。",
+      "details": [
+        {
+          "line": 28,
+          "lineHash": "9f29a585d56659a1",
+          "note": "the attenuation angle",
+          "noteZh": "attenuation angle"
+        },
+        {
+          "line": 31,
+          "lineHash": "a14649d0efb358f3",
+          "note": "larger keys on top",
+          "noteZh": "更大的 key 在上面"
+        },
+        {
+          "line": 37,
+          "lineHash": "de05207ebbf01d41",
+          "note": "no draw-distance limit",
+          "noteZh": "不限制绘制距离"
+        }
+      ]
+    },
+    "decal-half-size": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/Decals/DecalTextureArrayFeatureProcessor.cpp",
+      "line": 360,
+      "symbol": "DecalTextureArrayFeatureProcessor::SetDecalTransform",
+      "lineHash": "4901db9b587849a2",
+      "inspect": "A decal's half size is its entity's non-uniform scale times its uniform scale: a unit decal is a 2 m box.",
+      "inspectZh": "decal 的半尺寸是其实体的非均匀缩放乘以均匀缩放：单位 decal 是一个 2 m 的盒。",
+      "details": []
+    },
+    "tangent-space-normal": {
+      "path": "Gems/Atom/RPI/Assets/ShaderLib/Atom/RPI/TangentSpace.azsli",
+      "line": 86,
+      "symbol": "GetTangentSpaceNormal_Unnormalized",
+      "lineHash": "1c009d140393aecb",
+      "inspect": "A normal map sample: the image builder's swapped channels swapped back, z rebuilt from x and y and kept at least 0.01.",
+      "inspectZh": "normal map 采样：把图像构建器交换过的通道换回来，用 x 和 y 重建 z，并保持至少 0.01。",
+      "details": [
+        {
+          "line": 91,
+          "lineHash": "c7644fab252e790d",
+          "note": "the swap",
+          "noteZh": "交换"
+        },
+        {
+          "line": 100,
+          "lineHash": "3badda804b1187d6",
+          "note": "z at least 0.01",
+          "noteZh": "z 至少为 0.01"
+        }
+      ]
+    },
+    "forward-linear-sampler": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassSrg.azsli",
+      "line": 23,
+      "symbol": "PassSrg::LinearSampler",
+      "lineHash": "bf36489747955363",
+      "inspect": "The sampler ApplyDecal reads the decal textures with: trilinear, clamped in u, v, and w.",
+      "inspectZh": "ApplyDecal 读取 decal 纹理所用的采样器：三线性，u、v、w 方向都截断。",
+      "details": [
+        {
+          "line": 28,
+          "lineHash": "5da30c1478708116",
+          "note": "clamped",
+          "noteZh": "截断"
+        }
+      ]
+    },
+    "back-lighting": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/BackLighting.azsli",
+      "line": 45,
+      "symbol": "GetBackLighting_Default",
+      "lineHash": "d1c83543044193da",
+      "inspect": "Transmission's back lighting per light. ThickObject (Barré-Brisebois and Bouchard 2011): saturate(V · -normalize(L + vertexNormal · distortion))^power · scale, times exp(-t · attenuation) · saturate(1 - t), with t the larger of the shadow map's thickness and the material's. ThinObject (Jimenez et al. 2010): the albedo times saturate(NdotL bias - N · L), through a diffusion kernel of the shadow thickness times 300 times the material's thickness, skipped when the distance is negative (no shadow data).",
+      "inspectZh": "透射在每个光源下的背光。ThickObject（Barré-Brisebois 与 Bouchard 2011）：saturate(V · -normalize(L + vertexNormal · distortion))^power · scale，乘以 exp(-t · attenuation) · saturate(1 - t)，t 取阴影贴图厚度与材质厚度中较大的一个。ThinObject（Jimenez 等 2010）：albedo 乘以 saturate(NdotL bias - N · L)，经过以阴影厚度乘 300 再乘材质厚度为参数的扩散核；距离为负（没有阴影数据）时跳过。",
+      "details": [
+        {
+          "line": 64,
+          "lineHash": "1b82d864b97f437b",
+          "note": "the thickness",
+          "noteZh": "厚度"
+        },
+        {
+          "line": 66,
+          "lineHash": "d896870675e97a78",
+          "note": "the attenuation through the thickness",
+          "noteZh": "穿过厚度的衰减"
+        },
+        {
+          "line": 77,
+          "lineHash": "aa570b12a36dcdc0",
+          "note": "thin objects need shadow data",
+          "noteZh": "薄物体需要阴影数据"
+        },
+        {
+          "line": 90,
+          "lineHash": "03ff95196c5ca3d3",
+          "note": "the thin mode's constant",
+          "noteZh": "thin 模式的常数"
+        },
+        {
+          "line": 105,
+          "lineHash": "0d29b10931f41a07",
+          "note": "the thin mode's distance attenuation",
+          "noteZh": "thin 模式的距离衰减"
+        }
+      ]
+    },
+    "transmission-kernel": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/BackLighting.azsli",
+      "line": 20,
+      "symbol": "TransmissionKernel",
+      "lineHash": "8257c4ee5812e478",
+      "inspect": "The thin mode's diffusion profile, integrated approximately: 0.25 (e^(-s t) + 3 e^(-s t / 3)), with s one over the scatter distance; it is 1 at t = 0.",
+      "inspectZh": "thin 模式扩散剖面的近似积分：0.25 (e^(-s t) + 3 e^(-s t / 3))，s 为散射距离的倒数；t = 0 时为 1。",
+      "details": []
+    },
+    "transmission-finalize": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_LightingData.azsli",
+      "line": 105,
+      "symbol": "LightingData_BasePBR::FinalizeLighting (transmission)",
+      "lineHash": "0b90052c268f0dac",
+      "inspect": "The summed back lighting, times the transmission tint, joins diffuse lighting after the diffuse occlusion multiply, so occlusion does not dim it.",
+      "inspectZh": "累加的背光乘以 transmission tint 后并入漫反射光照，发生在乘以漫反射遮蔽之后，所以遮蔽不会让它变暗。",
+      "details": [
+        {
+          "line": 95,
+          "lineHash": "cc7feefe67322f14",
+          "note": "the occlusion comes first",
+          "noteZh": "先乘遮蔽"
+        }
+      ]
+    },
+    "transmission-option": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingOptions.azsli",
+      "line": 110,
+      "symbol": "o_transmission_mode",
+      "lineHash": "43549b25dcb29e05",
+      "inspect": "The transmission mode is a shader option, compiled in with ENABLE_TRANSMISSION 1.",
+      "inspectZh": "透射模式是一个 shader option，ENABLE_TRANSMISSION 为 1 时编译进来。",
+      "details": [
+        {
+          "line": 69,
+          "lineHash": "6dcac2f2d448b9e4",
+          "note": "ENABLE_TRANSMISSION",
+          "noteZh": "ENABLE_TRANSMISSION"
+        }
+      ]
+    },
+    "transmission-defaults": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/SubsurfaceAndTransmissionPropertyGroup.json",
+      "line": 93,
+      "symbol": "transmissionMode",
+      "lineHash": "9bb9b6c096c9dee0",
+      "inspect": "EnhancedPBR's transmission properties: the mode defaults to None; thickness 0.5, tint (1, 0.8, 0.6), power 6, distortion 0.1, attenuation 4, scale 1; for thin objects, shrink factor 0.005, NdotL bias 0.1, distance attenuation 0.5, and the scatter colour (1, 0.27, 0.13) times a distance of 8.",
+      "inspectZh": "EnhancedPBR 的透射属性：模式默认为 None；thickness 0.5、tint (1, 0.8, 0.6)、power 6、distortion 0.1、attenuation 4、scale 1；薄物体另有 shrink factor 0.005、NdotL bias 0.1、distance attenuation 0.5，以及散射颜色 (1, 0.27, 0.13) 乘以距离 8。",
+      "details": [
+        {
+          "line": 94,
+          "lineHash": "de3947fc2b036b38",
+          "note": "None by default",
+          "noteZh": "默认 None"
+        },
+        {
+          "line": 105,
+          "lineHash": "b428e813f7378142",
+          "note": "thickness 0.5",
+          "noteZh": "thickness 0.5"
+        },
+        {
+          "line": 150,
+          "lineHash": "1e248ec04b5040f9",
+          "note": "power 6",
+          "noteZh": "power 6"
+        },
+        {
+          "line": 168,
+          "lineHash": "21b75f41b35c9091",
+          "note": "attenuation 4",
+          "noteZh": "attenuation 4"
+        }
+      ]
+    },
+    "transmission-params": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/Material/SubsurfaceTransmissionParameterFunctor.cpp",
+      "line": 67,
+      "symbol": "SubsurfaceTransmissionParameterFunctor::Process",
+      "lineHash": "c74fe42e3944f9de",
+      "inspect": "The functor packs the four mode-dependent parameters into m_transmissionParams: (attenuation, power, distortion, scale) for thick objects, (shrink factor, NdotL bias, distance attenuation, scale) otherwise, and the tint with the thickness into m_transmissionTintThickness.",
+      "inspectZh": "该 functor 把四个依模式而定的参数打包进 m_transmissionParams：厚物体为 (attenuation, power, distortion, scale)，否则为 (shrink factor, NdotL bias, distance attenuation, scale)；tint 与 thickness 打包进 m_transmissionTintThickness。",
+      "details": [
+        {
+          "line": 76,
+          "lineHash": "3e7052d3f50f3c52",
+          "note": "the thin layout",
+          "noteZh": "thin 的布局"
+        },
+        {
+          "line": 84,
+          "lineHash": "d6bfa99ac9ef4fdf",
+          "note": "the thickness",
+          "noteZh": "厚度"
+        }
+      ]
+    },
+    "enhanced-brdf": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/EnhancedPBR/EnhancedPBR_LightingBrdf.azsli",
+      "line": 34,
+      "symbol": "GetDiffuseLighting_EnhancedPBR",
+      "lineHash": "b9c645d96c5fd230",
+      "inspect": "EnhancedPBR's per-light BRDF is StandardPBR's unless subsurface scattering (NormalizedDisneyDiffuse) or anisotropy (AnisotropicGGX) is on; both are off by default.",
+      "inspectZh": "除非开启次表面散射（NormalizedDisneyDiffuse）或各向异性（AnisotropicGGX），EnhancedPBR 每个光源的 BRDF 与 StandardPBR 相同；两者默认都关闭。",
+      "details": [
+        {
+          "line": 37,
+          "lineHash": "c979c4e9c56e117a",
+          "note": "subsurface scattering",
+          "noteZh": "次表面散射"
+        },
+        {
+          "line": 63,
+          "lineHash": "e6e3f4a42d92e68d",
+          "note": "anisotropy",
+          "noteZh": "各向异性"
+        }
+      ]
+    },
+    "sphere-light-apply": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/PointLight.azsli",
+      "line": 65,
+      "symbol": "PointLightUtil_PBR::Apply",
+      "lineHash": "948c8a03ce3717af",
+      "inspect": "O3DE's point light (a sphere area light) lights like a simple point light, adds back lighting for transmission, and moves the specular light direction to the point of the bulb nearest the reflection ray, with an energy normalization from the bulb's size.",
+      "inspectZh": "O3DE 的 point light（球形面光源）的照明与 simple point light 相同，另为透射加上背光，并把高光的光照方向移到灯泡上离反射光线最近的点，按灯泡尺寸做能量归一化。",
+      "details": [
+        {
+          "line": 82,
+          "lineHash": "a30b5193badd1573",
+          "note": "the back lighting",
+          "noteZh": "背光"
+        },
+        {
+          "line": 99,
+          "lineHash": "0f5bd30163a89aba",
+          "note": "the bulb's normalization",
+          "noteZh": "灯泡的归一化"
+        }
+      ]
+    },
+    "sphere-light-shadow-branch": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassPointLights.azsli",
+      "line": 90,
+      "symbol": "ApplyPointLight",
+      "lineHash": "1010e0971b3261d5",
+      "inspect": "The transmission distance comes from the light's shadow map inside the shadow branch; both options default to true, so the branch runs even for a light without shadows, where GetVisibility returns 1 and GetThickness 0. Thin objects then get the kernel at distance 0, its full value, rather than no back lighting.",
+      "inspectZh": "透射距离在阴影分支中由光源的阴影贴图求出；两个选项默认都为 true，所以即使光源没有阴影，该分支也会执行，此时 GetVisibility 返回 1、GetThickness 返回 0。于是薄物体得到距离 0 处的扩散核，即它的最大值，而不是没有背光。",
+      "details": [
+        {
+          "line": 105,
+          "lineHash": "dfb545fe236a1de4",
+          "note": "thick objects",
+          "noteZh": "厚物体"
+        },
+        {
+          "line": 111,
+          "lineHash": "c41dfc052b961aed",
+          "note": "the distance the light uses",
+          "noteZh": "光源使用的距离"
+        }
+      ]
+    },
+    "sphere-light-shadow-option": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingOptions.azsli",
+      "line": 89,
+      "symbol": "o_enableSphereLightShadows",
+      "lineHash": "62ff9260f5745037",
+      "inspect": "On by default; only per-mesh shader option flags, off by default, would turn it off for meshes that no shadowed point light reaches.",
+      "inspectZh": "默认开启；只有默认关闭的逐网格 shader option 标志，才会对没有任何带阴影 point light 照到的网格关闭它。",
+      "details": [
+        {
+          "line": 83,
+          "lineHash": "7d4c9bb28a649ecc",
+          "note": "shadows in general",
+          "noteZh": "整体的阴影"
+        }
+      ]
+    },
+    "per-mesh-flags": {
+      "path": "Gems/Atom/Feature/Common/Code/Include/Atom/Feature/Mesh/MeshFeatureProcessorInterface.h",
+      "line": 31,
+      "symbol": "r_enablePerMeshShaderOptionFlags",
+      "lineHash": "3af1a7548d4e0c2d",
+      "inspect": "The console variable that lets lights set shader options per mesh defaults to false.",
+      "inspectZh": "允许光源逐网格设置 shader option 的控制台变量默认为 false。",
+      "details": [
+        {
+          "line": 32,
+          "lineHash": "3721e7f2db98c23f",
+          "note": "false",
+          "noteZh": "false"
+        }
+      ]
+    },
+    "shadow-thickness-none": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Shadow/ProjectedShadow.azsli",
+      "line": 124,
+      "symbol": "ProjectedShadow::GetThickness",
+      "lineHash": "f3a1169dc750e449",
+      "inspect": "Without a shadow (index 0xFFFF) the thickness is 0.",
+      "inspectZh": "没有阴影（索引 0xFFFF）时厚度为 0。",
+      "details": [
+        {
+          "line": 129,
+          "lineHash": "33f075e12911fa63",
+          "note": "0",
+          "noteZh": "0"
+        }
+      ]
+    },
+    "sphere-light-bulb": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/CoreLights/EditorAreaLightComponent.cpp",
+      "line": 430,
+      "symbol": "EditorAreaLightComponent (sphere default)",
+      "lineHash": "93d1b60d745cfd4a",
+      "inspect": "A new sphere light's shape gets a 0.05 m radius, which SphereLightDelegate passes on as the bulb radius.",
+      "inspectZh": "新建球形光源的形状半径设为 0.05 m，SphereLightDelegate 把它作为灯泡半径传给光源。",
+      "details": []
+    },
+    "simple-point-no-backlight": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/SimplePointLight.azsli",
+      "line": 45,
+      "symbol": "SimplePointLightUtil::Apply",
+      "lineHash": "76722ff2ac82d75b",
+      "inspect": "A simple point light adds diffuse and specular only: no back lighting, so transmission needs another light type.",
+      "inspectZh": "simple point light 只加上漫反射和高光：没有背光，所以透射需要别的光源类型。",
+      "details": []
+    },
+    "reflections-order": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/Reflections.pass",
+      "line": 56,
+      "symbol": "ReflectionsParentPassTemplate",
+      "lineHash": "aedcb962932c7176",
+      "inspect": "The reflection passes in order: the probe stencil, the blend weight, the global full-screen pass, the outer and the inner probe passes; screen-space reflections follow but are disabled by default.",
+      "inspectZh": "反射 pass 的顺序：probe stencil、混合权重、全局全屏 pass、outer 与 inner probe pass；屏幕空间反射在其后，但默认关闭。",
+      "details": [
+        {
+          "line": 74,
+          "lineHash": "49afd232870029cc",
+          "note": "the blend weight",
+          "noteZh": "混合权重"
+        },
+        {
+          "line": 159,
+          "lineHash": "615122cc91abaeda",
+          "note": "the outer pass",
+          "noteZh": "outer pass"
+        },
+        {
+          "line": 216,
+          "lineHash": "96b2b2b3857f2274",
+          "note": "the inner pass",
+          "noteZh": "inner pass"
+        },
+        {
+          "line": 268,
+          "lineHash": "100974a8286d326f",
+          "note": "screen-space reflections off",
+          "noteZh": "屏幕空间反射关闭"
+        }
+      ]
+    },
+    "probe-stencil": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionProbeStencil.shader",
+      "line": 25,
+      "symbol": "ReflectionProbeStencil.shader",
+      "lineHash": "afe2b98882949c02",
+      "inspect": "Each probe's inner volume is drawn with depth testing and no colour: where the surface is inside it, its back face fails the depth test and adds one to the stencil (IncrementSaturate) while its front face passes; the test (StencilRef 0 Less, 0x3F) admits only drawn surfaces.",
+      "inspectZh": "每个 probe 的 inner 体积在开启深度测试、不写颜色的情况下绘制：表面在体积内时，背面深度测试失败，给 stencil 加一（IncrementSaturate），正面则通过；测试（StencilRef 0、Less、0x3F）只放行画过的表面。",
+      "details": [
+        {
+          "line": 32,
+          "lineHash": "146603293bc2511b",
+          "note": "back faces add one",
+          "noteZh": "背面加一"
+        },
+        {
+          "line": 20,
+          "lineHash": "558215eedad49cc0",
+          "note": "the low six bits",
+          "noteZh": "低六位"
+        }
+      ]
+    },
+    "probe-stencil-reduced": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/ReflectionProbe/ReflectionProbe.cpp",
+      "line": 122,
+      "symbol": "ReflectionProbe::Simulate",
+      "lineHash": "14fcd9e5d16cddff",
+      "inspect": "The stencil pass draws the inner volume 0.1 m smaller in each extent, to avoid seams; the stencil draw uses StencilRefs::None and the other three UseIBLSpecularPass.",
+      "inspectZh": "stencil pass 绘制的 inner 体积每个方向小 0.1 m，以避免接缝；stencil 绘制使用 StencilRefs::None，其他三个使用 UseIBLSpecularPass。",
+      "details": [
+        {
+          "line": 176,
+          "lineHash": "1f3178a6837dc254",
+          "note": "the stencil pass's reference",
+          "noteZh": "stencil pass 的参考值"
+        }
+      ]
+    },
+    "probe-blend-weight": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionProbeBlendWeight.azsl",
+      "line": 91,
+      "symbol": "ReflectionProbeBlendWeight MainPS",
+      "lineHash": "374680d0fd8dd6b5",
+      "inspect": "Each probe adds its weight where the surface is inside its outer box: 1 inside the inner box, otherwise the fraction of the way from the outer box to the inner one; the target is R16_FLOAT, cleared to 0, blended One/One, and only stencil 3 (outside every inner volume) is drawn.",
+      "inspectZh": "每个 probe 在表面位于其 outer 盒内时加上自己的权重：在 inner 盒内为 1，否则为从 outer 盒到 inner 盒的距离比例；目标为 R16_FLOAT，清为 0，One/One 混合，只绘制 stencil 为 3（在所有 inner 体积之外）的位置。",
+      "details": [
+        {
+          "line": 70,
+          "lineHash": "94239a20324f326c",
+          "note": "inside the outer box only",
+          "noteZh": "仅在 outer 盒内"
+        },
+        {
+          "line": 82,
+          "lineHash": "88dc55fd2ba89ac0",
+          "note": "between the boxes",
+          "noteZh": "两盒之间"
+        }
+      ]
+    },
+    "probe-render-outer": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionProbeRenderOuter.azsl",
+      "line": 108,
+      "symbol": "ReflectionProbeRenderOuter MainPS",
+      "lineHash": "2ae919940a865539",
+      "inspect": "Outside every inner volume (stencil 3), each probe adds its specular IBL times its weight over max(1, the sum of weights), times 2^exposure, into the reflection target (One/One).",
+      "inspectZh": "在所有 inner 体积之外（stencil 3），每个 probe 把自己的高光 IBL 乘以权重除以 max(1, 权重总和)，再乘以 2^exposure，加进 reflection target（One/One）。",
+      "details": [
+        {
+          "line": 111,
+          "lineHash": "c0a835cca4b8efc0",
+          "note": "the probe's exposure",
+          "noteZh": "probe 的曝光"
+        }
+      ]
+    },
+    "probe-render-inner": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionProbeRenderInner.azsl",
+      "line": 82,
+      "symbol": "ReflectionProbeRenderInner MainPS",
+      "lineHash": "bf6bc4e5b16122ec",
+      "inspect": "Inside a probe's inner box the probe's specular replaces the reflection target, with no blend state; its stencil test is LessEqual 3, so it runs outside the inner volumes too, wherever the full inner box contains the surface.",
+      "inspectZh": "在 probe 的 inner 盒内，probe 的高光直接替换 reflection target，没有混合状态；它的 stencil 测试是 LessEqual 3，所以在 inner 体积之外也会运行，只要完整的 inner 盒包含该表面。",
+      "details": [
+        {
+          "line": 88,
+          "lineHash": "c0a835cca4b8efc0",
+          "note": "the probe's exposure",
+          "noteZh": "probe 的曝光"
+        }
+      ]
+    },
+    "probe-specular": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionProbeRenderCommon.azsli",
+      "line": 15,
+      "symbol": "ComputeProbeSpecular",
+      "lineHash": "31888c021bbebf93",
+      "inspect": "A probe's specular: discarded outside the given box or where the IBL flag is off; the probe cubemap along the reflection, parallax-corrected against the outer box when enabled, at mip roughness * 5, times the compensation and F0 * A + B. Unlike the global pass it applies no specular occlusion.",
+      "inspectZh": "一个 probe 的高光：在给定的盒外或 IBL 标志关闭时丢弃；沿反射方向采样 probe 的 cubemap，开启时按 outer 盒做视差校正，mip 为 roughness * 5，乘以补偿和 F0 * A + B。与全局 pass 不同，它不乘高光遮蔽。",
+      "details": [
+        {
+          "line": 53,
+          "lineHash": "b5ad5d398120b3a4",
+          "note": "parallax correction",
+          "noteZh": "视差校正"
+        },
+        {
+          "line": 37,
+          "lineHash": "db0e2599dfc0ca57",
+          "note": "NdotV held at 0.01 or more",
+          "noteZh": "NdotV 至少为 0.01"
+        }
+      ]
+    },
+    "parallax-obb": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/LightingUtils.azsli",
+      "line": 84,
+      "symbol": "ApplyParallaxCorrectionOBB",
+      "lineHash": "ad3374223b6cecdb",
+      "inspect": "Parallax correction (Lagarde 2012): the reflection ray from the surface is intersected with the box from inside, and the cubemap is read toward that hit from the probe's centre.",
+      "inspectZh": "视差校正（Lagarde 2012）：从表面出发的反射光线在盒内与盒求交，再从 probe 中心朝交点方向读取 cubemap。",
+      "details": [
+        {
+          "line": 78,
+          "lineHash": "3c920a74f8acb942",
+          "note": "the nearest exit",
+          "noteZh": "最近的出口"
+        }
+      ]
+    },
+    "obb-lerp": {
+      "path": "Gems/Atom/RPI/Assets/ShaderLib/Atom/RPI/Math.azsli",
+      "line": 183,
+      "symbol": "ComputeLerpBetweenInnerOuterAABBs",
+      "lineHash": "c7e48a150f2d4e42",
+      "inspect": "The weight between the boxes: from the inner box's closest point through the surface point to the outer box, the remaining distance over the whole, 1 on the inner box and 0 on the outer.",
+      "inspectZh": "两盒之间的权重：从 inner 盒上的最近点经过表面点到 outer 盒，剩余距离与全程之比；在 inner 盒上为 1，在 outer 盒上为 0。",
+      "details": [
+        {
+          "line": 215,
+          "lineHash": "e2b91d50bdf8dc3b",
+          "note": "the containment test",
+          "noteZh": "包含测试"
+        }
+      ]
+    },
+    "probe-sort": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/ReflectionProbe/ReflectionProbeFeatureProcessor.cpp",
+      "line": 140,
+      "symbol": "ReflectionProbeFeatureProcessor::Simulate",
+      "lineHash": "abdb98f2f6fe57e6",
+      "inspect": "Probes draw by descending inner volume, so in the inner pass a smaller probe inside a larger one has the last word.",
+      "inspectZh": "probe 按 inner 体积从大到小绘制，所以在 inner pass 中，位于大 probe 内的小 probe 最后写入。",
+      "details": []
+    },
+    "probe-defaults": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/ReflectionProbe/ReflectionProbeComponentController.h",
+      "line": 40,
+      "symbol": "ReflectionProbeComponentConfig",
+      "lineHash": "9c68ac4b79a487ab",
+      "inspect": "Probe defaults: 8 m outer and inner extents, parallax correction on, the Medium bake quality (256-texel faces), and render exposure 0.",
+      "inspectZh": "probe 默认值：outer 与 inner 尺寸 8 m，视差校正开启，烘焙质量 Medium（256 texel 的面），渲染曝光 0。",
+      "details": [
+        {
+          "line": 44,
+          "lineHash": "45789d3f0595b3da",
+          "note": "Medium quality",
+          "noteZh": "Medium 质量"
+        },
+        {
+          "line": 50,
+          "lineHash": "beb41136deceafc6",
+          "note": "exposure 0",
+          "noteZh": "曝光 0"
+        }
+      ]
+    },
+    "reflection-clear": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/ReflectionGlobalFullscreen.pass",
+      "line": 64,
+      "symbol": "ReflectionGlobalFullscreen.pass ReflectionOutput",
+      "lineHash": "bb383a22a173ba13",
+      "inspect": "The reflection target is cleared to (0.4, 0.4, 0.4, 0). The global pass runs only on stencil 3, so inside an inner volume that grey stays until the inner pass overwrites it; where the inner pass discards (the IBL flag off), the composite adds the grey.",
+      "inspectZh": "reflection target 清为 (0.4, 0.4, 0.4, 0)。全局 pass 只在 stencil 为 3 时运行，所以在 inner 体积内这个灰色会保留，直到 inner pass 覆盖它；inner pass 丢弃时（IBL 标志关闭），composite 会把灰色加上去。",
+      "details": []
+    },
+    "reflection-global-stencil": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionGlobalFullscreen.shader",
+      "line": 22,
+      "symbol": "ReflectionGlobalFullscreen.shader",
+      "lineHash": "8d42b3fa9a3134c7",
+      "inspect": "The global pass's stencil test: Equal on 0x3F with StencilRef 3, so only outside every inner volume.",
+      "inspectZh": "全局 pass 的 stencil 测试：在 0x3F 上 Equal，StencilRef 3，所以只在所有 inner 体积之外。",
+      "details": []
+    },
+    "reflection-global-weight": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Reflections/ReflectionGlobalFullscreen.azsl",
+      "line": 101,
+      "symbol": "ReflectionGlobalFullscreen MainPS (probes)",
+      "lineHash": "c99aaade4fda61fe",
+      "inspect": "The global cubemap takes what the probes leave: 1 - min(their summed weight, 1).",
+      "inspectZh": "全局 cubemap 取 probe 剩下的部分：1 - min(它们的权重总和, 1)。",
+      "details": []
+    },
+    "composite-stencil": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/OpaqueParent.pass",
+      "line": 383,
+      "symbol": "ReflectionCompositePass",
+      "lineHash": "f84c1e3a7b3319fa",
+      "inspect": "The composite adds the reflection target where 1 <= stencil & 0x3F (LessEqual), One/One onto the specular target.",
+      "inspectZh": "composite 在 1 <= stencil & 0x3F（LessEqual）处把 reflection target 以 One/One 加到 specular target 上。",
+      "details": []
+    },
+    "ao-placement": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/OpaqueParent.pass",
+      "line": 485,
+      "symbol": "OpaqueParent AoParent",
+      "lineHash": "195e53b669c21997",
+      "inspect": "Ambient occlusion runs after subsurface scattering, on its output (the resolved diffuse target), and feeds DiffuseSpecularMerge; the specular target is untouched.",
+      "inspectZh": "环境光遮蔽在次表面散射之后运行，作用于它的输出（已解析的 diffuse target），再交给 DiffuseSpecularMerge；specular target 不受影响。",
+      "details": [
+        {
+          "line": 490,
+          "lineHash": "f83beca55b7724e4",
+          "note": "the diffuse target after subsurface scattering",
+          "noteZh": "次表面散射之后的 diffuse target"
+        }
+      ]
+    },
+    "ao-parent": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/AoParent.pass",
+      "line": 38,
+      "symbol": "AoParentTemplate",
+      "lineHash": "bdf4edc1adcb28c4",
+      "inspect": "Of the two AO methods, SSAO is the enabled child; GTAO is disabled.",
+      "inspectZh": "两种 AO 方法中，启用的是 SSAO；GTAO 被禁用。",
+      "details": [
+        {
+          "line": 60,
+          "lineHash": "100974a8286d326f",
+          "note": "GTAO off",
+          "noteZh": "GTAO 关闭"
+        }
+      ]
+    },
+    "ssao-order": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/SsaoParent.pass",
+      "line": 38,
+      "symbol": "SsaoParentTemplate",
+      "lineHash": "573162389801f485",
+      "inspect": "SSAO's passes: DepthDownsample, SsaoCompute, the depth-aware blur, DepthUpsample, and ModulateWithSsao on the diffuse target.",
+      "inspectZh": "SSAO 的各个 pass：DepthDownsample、SsaoCompute、深度感知模糊、DepthUpsample，以及作用于 diffuse target 的 ModulateWithSsao。",
+      "details": [
+        {
+          "line": 52,
+          "lineHash": "4d2b7eccbfe7a1e4",
+          "note": "SsaoCompute",
+          "noteZh": "SsaoCompute"
+        },
+        {
+          "line": 65,
+          "lineHash": "1d2c727f500b5a0c",
+          "note": "the blur",
+          "noteZh": "模糊"
+        },
+        {
+          "line": 86,
+          "lineHash": "77af1abd2fdf3e72",
+          "note": "the upsample",
+          "noteZh": "上采样"
+        },
+        {
+          "line": 114,
+          "lineHash": "3bfe079b06479177",
+          "note": "the modulate",
+          "noteZh": "调制"
+        }
+      ]
+    },
+    "depth-linear": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/DepthToLinearDepth.azsl",
+      "line": 41,
+      "symbol": "DepthToLinearDepth MainPS",
+      "lineHash": "d12fef070b621d54",
+      "inspect": "The linear depth SSAO reads: the view distance, from the depth MSAAResolveDepth keeps, its sample 0.",
+      "inspectZh": "SSAO 读取的线性深度：视图距离，由 MSAAResolveDepth 保留的深度（其第 0 个采样）求出。",
+      "details": []
+    },
+    "depth-resolve": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/MSAAResolveDepth.azsl",
+      "line": 37,
+      "symbol": "MSAAResolveDepth MainPS",
+      "lineHash": "8dc56297acfaef01",
+      "inspect": "The depth resolve keeps sample 0 of each pixel.",
+      "inspectZh": "深度解析保留每个像素的第 0 个采样。",
+      "details": []
+    },
+    "depth-downsample": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/DepthDownsample.azsl",
+      "line": 27,
+      "symbol": "DepthDownsample MainCS",
+      "lineHash": "3e214c3ae3baaa24",
+      "inspect": "Half-resolution depth takes the upper-left pixel of each 2 x 2, a real depth rather than an average.",
+      "inspectZh": "半分辨率深度取每个 2 x 2 的左上像素，是真实的深度而不是平均值。",
+      "details": []
+    },
+    "ssao-compute": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/SsaoCompute.azsl",
+      "line": 400,
+      "symbol": "SsaoCompute MainCS",
+      "lineHash": "6de14eaf446f7d0b",
+      "inspect": "Per half-res pixel: a position and a normal from depth, then 12 local samples and 10 rotations of 4 shared ones, each weighted 1 / (distance^2 + 0.07) and counting the positive cosine to the normal; the output is (1 - AO * strength)^2.2, stored in R8_UNORM.",
+      "inspectZh": "每个半分辨率像素：由深度求出位置和法线，然后取 12 个局部采样和 10 轮、每轮 4 个共享采样，每个按 1 / (距离^2 + 0.07) 加权，统计与法线的正余弦；输出为 (1 - AO * strength)^2.2，存为 R8_UNORM。",
+      "details": [
+        {
+          "line": 32,
+          "lineHash": "8330a26f7110f841",
+          "note": "12 local samples",
+          "noteZh": "12 个局部采样"
+        },
+        {
+          "line": 38,
+          "lineHash": "b9fc39ee11d3169f",
+          "note": "10 outer loops",
+          "noteZh": "10 轮外层循环"
+        },
+        {
+          "line": 240,
+          "lineHash": "90790705c60eb4b6",
+          "note": "the weight's 0.07",
+          "noteZh": "权重中的 0.07"
+        },
+        {
+          "line": 397,
+          "lineHash": "d5b95b07cfbbfb2e",
+          "note": "1 - AO * strength",
+          "noteZh": "1 - AO * strength"
+        }
+      ]
+    },
+    "ssao-format": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/SsaoCompute.pass",
+      "line": 34,
+      "symbol": "SsaoComputeTemplate",
+      "lineHash": "22bbb31c91cff600",
+      "inspect": "SSAO's output is 8-bit (R8_UNORM), as is the upsampled AO.",
+      "inspectZh": "SSAO 的输出是 8 位（R8_UNORM），上采样后的 AO 也是。",
+      "details": []
+    },
+    "ssao-defaults": {
+      "path": "Gems/Atom/Feature/Common/Code/Include/Atom/Feature/PostProcess/AmbientOcclusion/SsaoConstants.h",
+      "line": 17,
+      "symbol": "Ao::DefaultSsaoStrength",
+      "lineHash": "4e90702b1353db77",
+      "inspect": "SSAO's defaults: strength 1 and a sampling radius of 0.05 of the half-res height; they apply with or without an AO component.",
+      "inspectZh": "SSAO 的默认值：strength 1，采样半径为半分辨率高度的 0.05；无论有没有 AO 组件都适用。",
+      "details": [
+        {
+          "line": 18,
+          "lineHash": "09b0aee5d1222981",
+          "note": "radius 0.05",
+          "noteZh": "半径 0.05"
+        }
+      ]
+    },
+    "blur-defaults": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/PostProcessing/FastDepthAwareBlurPasses.h",
+      "line": 31,
+      "symbol": "FastDepthAwareBlurPassConstants",
+      "lineHash": "fa22fa53390e7b23",
+      "inspect": "Without an AO component the blur keeps its struct's defaults: constant falloff 2/3, depth threshold 0, depth strength 50. An AO component sets its own defaults, 0.85, 0, and 200.",
+      "inspectZh": "没有 AO 组件时，模糊使用其结构体的默认值：常数衰减 2/3、深度阈值 0、深度强度 50。AO 组件会设置自己的默认值 0.85、0 和 200。",
+      "details": [
+        {
+          "line": 40,
+          "lineHash": "29620a0db27d728a",
+          "note": "depth strength 50",
+          "noteZh": "深度强度 50"
+        }
+      ]
+    },
+    "blur-component-defaults": {
+      "path": "Gems/Atom/Feature/Common/Code/Include/Atom/Feature/PostProcess/AmbientOcclusion/AoConstants.h",
+      "line": 19,
+      "symbol": "Ao::DefaultBlurConstFalloff",
+      "lineHash": "fd997dee766775fa",
+      "inspect": "The AO component's blur defaults: constant falloff 0.85, depth strength 200.",
+      "inspectZh": "AO 组件的模糊默认值：常数衰减 0.85，深度强度 200。",
+      "details": [
+        {
+          "line": 21,
+          "lineHash": "94f01972b3f21a3a",
+          "note": "depth strength 200",
+          "noteZh": "深度强度 200"
+        }
+      ]
+    },
+    "blur-step": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/FastDepthAwareBlurCommon.azsli",
+      "line": 217,
+      "symbol": "FastDepthAwareBlur BlurStep",
+      "lineHash": "d7c07c716ee3b583",
+      "inspect": "The blur runs pixel to pixel, keeping the constant falloff of the previous value, less where the depth slope changes; each output is half the chain from 8 pixels before it and half the chain from 8 after.",
+      "inspectZh": "模糊逐像素推进，保留上一个值的常数衰减部分，深度斜率变化处保留得更少；每个输出一半来自其前 8 个像素开始的链，一半来自其后 8 个像素开始的链。",
+      "details": [
+        {
+          "line": 260,
+          "lineHash": "aef5d0b0afc92f6f",
+          "note": "half from each direction",
+          "noteZh": "两个方向各一半"
+        }
+      ]
+    },
+    "blur-order": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/FastDepthAwareBlur.pass",
+      "line": 43,
+      "symbol": "FastDepthAwareBlurTemplate",
+      "lineHash": "85252cd7d754dd48",
+      "inspect": "The vertical blur runs first, then the horizontal one.",
+      "inspectZh": "先做竖直模糊，再做水平模糊。",
+      "details": [
+        {
+          "line": 63,
+          "lineHash": "ba2f790d8304c7da",
+          "note": "then horizontal",
+          "noteZh": "然后水平"
+        }
+      ]
+    },
+    "depth-upsample": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/DepthUpsample.azsl",
+      "line": 116,
+      "symbol": "DepthUpsample GetDepthFactor",
+      "lineHash": "172ee1f1b550de8d",
+      "inspect": "Each full-res pixel takes its four nearest half-res pixels, weighted 3/4 near and 1/4 far on each axis and by one over the squared depth difference.",
+      "inspectZh": "每个全分辨率像素取最近的四个半分辨率像素，每个轴上近的权重 3/4、远的 1/4，再乘以深度差平方的倒数。",
+      "details": []
+    },
+    "ssao-modulate": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/ModulateTexture.azsl",
+      "line": 55,
+      "symbol": "ModulateTexture MainCS",
+      "lineHash": "66cf755eb6b2b574",
+      "inspect": "The diffuse target is multiplied by the AO in place, direct light and diffuse IBL alike.",
+      "inspectZh": "diffuse target 原地乘以 AO，直接光与漫反射 IBL 都一样。",
+      "details": []
+    },
+    "occlusion-input": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/MaterialInputs/OcclusionInput.azsli",
+      "line": 46,
+      "symbol": "GetOcclusionInput",
+      "lineHash": "97f07a918c72d2be",
+      "inspect": "An occlusion map's red channel raised to the power of its factor; 1 without a map.",
+      "inspectZh": "遮蔽贴图的红色通道取其 factor 次幂；没有贴图时为 1。",
+      "details": [
+        {
+          "line": 31,
+          "lineHash": "8ef13f869e1a9b64",
+          "note": "1 without a map",
+          "noteZh": "没有贴图时为 1"
+        }
+      ]
+    },
+    "occlusion-eval": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/StandardPBR/StandardPBR_SurfaceEval.azsli",
+      "line": 58,
+      "symbol": "EvaluateSurface_StandardPBR (occlusion)",
+      "lineHash": "5aa9e6558ca07cca",
+      "inspect": "StandardPBR reads two maps: diffuse ambient occlusion and specular occlusion (cavity), each with its own factor.",
+      "inspectZh": "StandardPBR 读取两张贴图：漫反射环境光遮蔽和高光遮蔽（cavity），各有自己的 factor。",
+      "details": [
+        {
+          "line": 59,
+          "lineHash": "11e11ff8e81bfe71",
+          "note": "specular occlusion",
+          "noteZh": "高光遮蔽"
+        }
+      ]
+    },
+    "occlusion-finalize": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/BasePBR/BasePBR_LightingData.azsli",
+      "line": 88,
+      "symbol": "LightingData_BasePBR::FinalizeLighting",
+      "lineHash": "ce43abef97aae040",
+      "inspect": "FinalizeLighting multiplies the forward pass's specular light by the specular occlusion and its diffuse light by the diffuse AO; the albedo target carries the AO and, in alpha, the specular occlusion to the full-screen passes.",
+      "inspectZh": "FinalizeLighting 把 forward pass 的高光乘以高光遮蔽，把漫反射乘以漫反射 AO；albedo target 把 AO 以及（在 alpha 中）高光遮蔽带给全屏 pass。",
+      "details": [
+        {
+          "line": 95,
+          "lineHash": "cc7feefe67322f14",
+          "note": "the diffuse AO",
+          "noteZh": "漫反射 AO"
+        }
+      ]
+    },
+    "occlusion-defaults": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/OcclusionPropertyGroup.json",
+      "line": 36,
+      "symbol": "occlusion.diffuseFactor",
+      "lineHash": "b87f94102a27dda4",
+      "inspect": "Both occlusion factors default to 1, so an assigned map is used as authored.",
+      "inspectZh": "两个遮蔽 factor 默认都为 1，所以指定的贴图按原样使用。",
+      "details": [
+        {
+          "line": 40,
+          "lineHash": "1ab9bd0f88b4132a",
+          "note": "1",
+          "noteZh": "1"
+        }
+      ]
+    },
+    "forward-probe-ibl": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/Ibl.azsli",
+      "line": 91,
+      "symbol": "GetIblSpecular (reflection probe)",
+      "lineHash": "89f3454baa79e3df",
+      "inspect": "Forward-pass IBL (clear coat's) reads the mesh's own reflection probe: parallax-corrected against its outer box, and blended over the global cubemap by the inner-to-outer weight; when a probe is used its exposure replaces the skylight's.",
+      "inspectZh": "forward pass 中的 IBL（clear coat 用的）读取网格自己的反射 probe：按其 outer 盒做视差校正，并按 inner 到 outer 的权重与全局 cubemap 混合；用到 probe 时，它的曝光取代 skylight 的。",
+      "details": [
+        {
+          "line": 101,
+          "lineHash": "3982f585f88ea170",
+          "note": "the blend",
+          "noteZh": "混合"
+        },
+        {
+          "line": 162,
+          "lineHash": "fba8db325fc34ffc",
+          "note": "the probe's exposure",
+          "noteZh": "probe 的曝光"
+        }
+      ]
+    },
+    "forward-probe-pick": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/Mesh/MeshFeatureProcessor.cpp",
+      "line": 2846,
+      "symbol": "ModelDataInstance (forward-pass probe)",
+      "lineHash": "44fa74ad3fc018e8",
+      "inspect": "A mesh's forward-pass probe is the last of the probes whose outer box overlaps its world bounds, sorted by descending inner volume: the smallest.",
+      "inspectZh": "网格的 forward pass probe 是 outer 盒与其世界包围盒重叠的 probe 中的最后一个（按 inner 体积从大到小排序），即最小的那个。",
+      "details": [
+        {
+          "line": 2842,
+          "lineHash": "7bbdcc1c554b17f8",
+          "note": "the overlapping probes",
+          "noteZh": "重叠的 probe"
+        }
+      ]
+    },
+    "light-index-pack": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/LightCulling/NVLC.azsli",
+      "line": 80,
+      "symbol": "PackLightIndexWithBinMask",
+      "lineHash": "e4d4fcf1b576bfe0",
+      "inspect": "A list entry is the light's index shifted 16 bits, with its bin mask in the low bits.",
+      "inspectZh": "列表项是光源索引左移 16 位，低位放它的 bin 掩码。",
+      "details": []
+    },
+    "cubemap-quality": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/CubeMapCapture/EditorCubeMapRenderer.h",
+      "line": 31,
+      "symbol": "CubeMapSpecularQualityLevel",
+      "lineHash": "4e42f1fc4cf83ba0",
+      "inspect": "The bake qualities and their face sizes: Medium, the probes' default, is 256.",
+      "inspectZh": "烘焙质量及其面尺寸：probe 默认的 Medium 为 256。",
+      "details": []
+    }
+  },
+  "chapters": [
+    {
+      "number": 1,
+      "title": "StandardPBR in O3DE's frame, and light culling",
+      "titleZh": "O3DE 一帧中的 StandardPBR 与光源剔除",
+      "reading": [
+        "light-culling-pass",
+        "light-culling-tile",
+        "tile-prepare",
+        "nvlc-constants",
+        "is-object-inside-tile",
+        "cull-point-light",
+        "light-culling-main",
+        "light-culling-remap",
+        "tile-iterator",
+        "polygon-not-culled",
+        "forward-pixel",
+        "evaluate-lighting",
+        "light-culling-define",
+        "direct-lighting",
+        "ibl-forward-transparent",
+        "forward-opaque",
+        "forward-targets",
+        "target-formats",
+        "opaque-pass-order",
+        "ssao-default",
+        "diffuse-specular-merge",
+        "msaa-default"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "The surface",
+      "titleZh": "表面",
+      "reading": [
+        "surface-eval",
+        "surface-data",
+        "set-albedo-f0",
+        "material-utils",
+        "roughness-values",
+        "specular-aa-default",
+        "specular-aa",
+        "occlusion-eval",
+        "occlusion-input",
+        "occlusion-defaults",
+        "occlusion-finalize"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "GGX specular, and clear coat",
+      "titleZh": "GGX 高光与 clear coat",
+      "reading": [
+        "specular-ggx",
+        "ggx-d",
+        "ggx-g",
+        "fresnel-schlick",
+        "standard-brdf",
+        "clear-coat-default",
+        "clear-coat-inputs",
+        "clear-coat-f0",
+        "clear-coat-response",
+        "clear-coat-diffuse",
+        "clear-coat-specular",
+        "clear-coat-ibl",
+        "clear-coat-forward-ibl",
+        "forward-ibl-stencil"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Diffuse and its response",
+      "titleZh": "漫反射与它的 response",
+      "reading": [
+        "diffuse-lambert",
+        "initialize-lighting-data",
+        "fresnel-roughness",
+        "diffuse-disney",
+        "enhanced-diffuse",
+        "skin-diffuse"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "The BRDF texture and multiscatter",
+      "titleZh": "BRDF 贴图与多次散射",
+      "reading": [
+        "brdf-texture",
+        "brdf-texture-size",
+        "rhi-format",
+        "brdf-execute-once",
+        "ggx-sample",
+        "hammersley",
+        "lighting-init",
+        "multiscatter",
+        "ms-option",
+        "ms-material-property",
+        "bool-property-default",
+        "property-init",
+        "property-apply",
+        "ms-preset"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "The simple point light, and lighting channels",
+      "titleZh": "Simple point light 与 lighting channel",
+      "reading": [
+        "lighting-channels-test",
+        "lighting-channels-default",
+        "directional-channel-return",
+        "point-light-struct",
+        "point-light-init",
+        "point-light-apply",
+        "point-light-loop",
+        "point-light-radius",
+        "point-light-auto-radius",
+        "point-light-luminance",
+        "cutoff-intensity"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "The global skylight",
+      "titleZh": "全局 skylight",
+      "reading": [
+        "specular-preset",
+        "diffuse-preset",
+        "cubemap-ggx",
+        "filter-ggx",
+        "filter-cosine",
+        "vect-to-texel",
+        "diffuse-global",
+        "diffuse-global-blend",
+        "reflection-global",
+        "reflection-target",
+        "reflection-composite",
+        "roughness-mip",
+        "cubemap-coords",
+        "ibl-srg",
+        "ibl-exposure-default",
+        "ao-defaults"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "What the lab leaves out",
+      "titleZh": "实验室省略了什么",
+      "reading": [
+        "specular-aa-default",
+        "ssao-default",
+        "msaa-default",
+        "clear-coat-default",
+        "direct-lighting",
+        "reflection-target"
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Decals",
+      "titleZh": "Decal",
+      "reading": [
+        "decal-evaluate-order",
+        "decal-options",
+        "decal-forward",
+        "decal-apply",
+        "decal-attenuation",
+        "tangent-space-normal",
+        "forward-linear-sampler",
+        "decal-cull",
+        "decal-sort",
+        "decal-struct",
+        "decal-defaults",
+        "decal-half-size"
+      ]
+    },
+    {
+      "number": 12,
+      "title": "Ambient occlusion",
+      "titleZh": "环境光遮蔽",
+      "reading": [
+        "ao-placement",
+        "ao-parent",
+        "ssao-default",
+        "ao-defaults",
+        "ssao-order",
+        "depth-resolve",
+        "depth-linear",
+        "depth-downsample",
+        "ssao-compute",
+        "ssao-format",
+        "ssao-defaults",
+        "blur-order",
+        "blur-step",
+        "blur-defaults",
+        "blur-component-defaults",
+        "depth-upsample",
+        "ssao-modulate"
+      ]
+    },
+    {
+      "number": 11,
+      "title": "Reflection probes",
+      "titleZh": "反射 probe",
+      "reading": [
+        "reflections-order",
+        "probe-stencil",
+        "probe-stencil-reduced",
+        "probe-blend-weight",
+        "reflection-global-stencil",
+        "reflection-global-weight",
+        "probe-render-outer",
+        "probe-render-inner",
+        "probe-specular",
+        "parallax-obb",
+        "obb-lerp",
+        "probe-sort",
+        "probe-defaults",
+        "reflection-clear",
+        "composite-stencil"
+      ]
+    },
+    {
+      "number": 10,
+      "title": "Transmission (EnhancedPBR)",
+      "titleZh": "透射（EnhancedPBR）",
+      "reading": [
+        "transmission-defaults",
+        "transmission-option",
+        "transmission-params",
+        "enhanced-brdf",
+        "simple-point-no-backlight",
+        "sphere-light-apply",
+        "sphere-light-bulb",
+        "sphere-light-shadow-branch",
+        "sphere-light-shadow-option",
+        "per-mesh-flags",
+        "shadow-thickness-none",
+        "back-lighting",
+        "transmission-kernel",
+        "transmission-finalize"
+      ]
+    }
+  ],
+  "demos": {
+    "culling": [
+      "light-culling-pass",
+      "light-culling-tile",
+      "tile-prepare",
+      "nvlc-constants",
+      "is-object-inside-tile",
+      "cull-point-light",
+      "light-culling-main",
+      "light-culling-remap",
+      "tile-iterator",
+      "polygon-not-culled"
+    ],
+    "room": [
+      "forward-pixel",
+      "evaluate-lighting",
+      "direct-lighting",
+      "opaque-pass-order",
+      "diffuse-specular-merge",
+      "standard-brdf",
+      "msaa-default"
+    ],
+    "surface": [
+      "surface-eval",
+      "surface-data",
+      "set-albedo-f0",
+      "material-utils",
+      "roughness-values",
+      "specular-aa-default",
+      "specular-aa",
+      "occlusion-eval",
+      "occlusion-input",
+      "occlusion-defaults",
+      "occlusion-finalize"
+    ],
+    "decals": [
+      "decal-apply",
+      "decal-attenuation",
+      "decal-forward",
+      "decal-evaluate-order",
+      "decal-cull",
+      "decal-sort",
+      "decal-defaults",
+      "decal-options",
+      "decal-struct",
+      "decal-half-size",
+      "tangent-space-normal",
+      "forward-linear-sampler"
+    ],
+    "ssao": [
+      "ao-placement",
+      "ao-parent",
+      "ssao-default",
+      "ao-defaults",
+      "ssao-order",
+      "depth-resolve",
+      "depth-linear",
+      "depth-downsample",
+      "ssao-compute",
+      "ssao-format",
+      "ssao-defaults",
+      "blur-order",
+      "blur-step",
+      "blur-defaults",
+      "blur-component-defaults",
+      "depth-upsample",
+      "ssao-modulate"
+    ],
+    "reflections": [
+      "reflections-order",
+      "probe-stencil",
+      "probe-stencil-reduced",
+      "probe-blend-weight",
+      "reflection-global-stencil",
+      "reflection-global-weight",
+      "probe-render-outer",
+      "probe-render-inner",
+      "probe-specular",
+      "parallax-obb",
+      "obb-lerp",
+      "probe-sort",
+      "probe-defaults",
+      "reflection-clear",
+      "composite-stencil"
+    ],
+    "transmission": [
+      "back-lighting",
+      "transmission-kernel",
+      "transmission-finalize",
+      "transmission-defaults",
+      "transmission-params",
+      "transmission-option",
+      "enhanced-brdf",
+      "sphere-light-apply",
+      "sphere-light-shadow-branch",
+      "sphere-light-shadow-option",
+      "per-mesh-flags",
+      "shadow-thickness-none",
+      "sphere-light-bulb",
+      "simple-point-no-backlight"
+    ],
+    "specular": [
+      "specular-ggx",
+      "ggx-d",
+      "ggx-g",
+      "fresnel-schlick",
+      "standard-brdf"
+    ],
+    "clearcoat": [
+      "forward-probe-ibl",
+      "forward-probe-pick",
+      "clear-coat-default",
+      "clear-coat-inputs",
+      "clear-coat-f0",
+      "clear-coat-response",
+      "clear-coat-diffuse",
+      "clear-coat-specular",
+      "clear-coat-ibl",
+      "clear-coat-forward-ibl",
+      "forward-ibl-stencil"
+    ],
+    "diffuse": [
+      "diffuse-lambert",
+      "initialize-lighting-data",
+      "fresnel-roughness",
+      "standard-brdf",
+      "diffuse-disney",
+      "enhanced-diffuse",
+      "skin-diffuse"
+    ],
+    "multiscatter": [
+      "multiscatter",
+      "ms-option",
+      "ms-material-property",
+      "ms-preset",
+      "lighting-init",
+      "brdf-texture",
+      "brdf-texture-size",
+      "ggx-sample",
+      "hammersley"
+    ],
+    "ibl": [
+      "reflection-global",
+      "diffuse-global",
+      "forward-targets",
+      "target-formats",
+      "ibl-forward-transparent",
+      "roughness-mip",
+      "cubemap-ggx",
+      "filter-ggx",
+      "filter-cosine",
+      "specular-preset",
+      "diffuse-preset",
+      "vect-to-texel",
+      "cubemap-coords",
+      "reflection-target",
+      "reflection-composite",
+      "ibl-srg",
+      "ssao-default"
+    ],
+    "pointlight": [
+      "lighting-channels-test",
+      "lighting-channels-default",
+      "directional-channel-return",
+      "point-light-struct",
+      "point-light-init",
+      "point-light-apply",
+      "point-light-loop",
+      "point-light-radius",
+      "point-light-auto-radius",
+      "point-light-luminance",
+      "cutoff-intensity"
+    ]
+  },
+  "mappings": [
+    {
+      "lab": "Surface",
+      "engineShort": "SurfaceData_StandardPBR",
+      "engineName": "SurfaceData_StandardPBR (StandardPBR's Surface)",
+      "engineNameZh": "SurfaceData_StandardPBR（StandardPBR 的 Surface）",
+      "relationship": "exact for the fields shown",
+      "sources": [
+        "surface-data",
+        "set-albedo-f0",
+        "roughness-values"
+      ],
+      "exact": "uint lightingChannels; ClearCoatSurfaceData clearCoat (real factor, real roughness, real3 normal); precise float3 position; real3 normal, vertexNormal, baseColor; real metallic, roughnessLinear, roughnessA; float roughnessA2; real alpha, opacityAffectsSpecularFactor; real3 albedo, specularF0, emissiveLighting; real diffuseAmbientOcclusion, specularOcclusion. `real` is half or float by platform.",
+      "exactZh": "uint lightingChannels；ClearCoatSurfaceData clearCoat（real factor、real roughness、real3 normal）；precise float3 position；real3 normal、vertexNormal、baseColor；real metallic、roughnessLinear、roughnessA；float roughnessA2；real alpha、opacityAffectsSpecularFactor；real3 albedo、specularF0、emissiveLighting；real diffuseAmbientOcclusion、specularOcclusion。`real` 依平台为 half 或 float。",
+      "labLayout": "brdf::Surface: position, normal, base_color, metallic, roughness_linear, roughness_a, roughness_a2, albedo, specular_f0, diffuse_ao, specular_occlusion, all f32, and clear_coat (factor, roughness, normal) when enabled; specular AA is applied by with_specular_aa. No vertex normal (the decals take it beside the surface), alpha, or emission; lighting channels sit on the lab's Material.",
+      "labLayoutZh": "brdf::Surface：position、normal、base_color、metallic、roughness_linear、roughness_a、roughness_a2、albedo、specular_f0、diffuse_ao、specular_occlusion，均为 f32，开启时还有 clear_coat（factor、roughness、normal）；specular AA 由 with_specular_aa 施加。没有顶点法线（decal 在 surface 之外单独接收它）、alpha 或自发光；lighting channel 放在实验室的 Material 上。"
+    },
+    {
+      "lab": "LightingData",
+      "engineShort": "LightingData_BasePBR",
+      "engineName": "LightingData_BasePBR",
+      "engineNameZh": "LightingData_BasePBR",
+      "relationship": "exact for one view",
+      "sources": [
+        "lighting-data",
+        "lighting-init",
+        "initialize-lighting-data"
+      ],
+      "exact": "real3 diffuseLighting; real3 specularLighting[MAX_SHADING_VIEWS]; real3 diffuseResponse; real shrinkFactor; float3 dirToCamera[]; real3 multiScatterCompensation; real3 emissiveLighting; real2 brdf[]; float NdotV[]; real3 translucentBackLighting (ENABLE_TRANSMISSION only); real diffuseAmbientOcclusion, specularOcclusion.",
+      "exactZh": "real3 diffuseLighting；real3 specularLighting[MAX_SHADING_VIEWS]；real3 diffuseResponse；real shrinkFactor；float3 dirToCamera[]；real3 multiScatterCompensation；real3 emissiveLighting；real2 brdf[]；float NdotV[]；real3 translucentBackLighting（仅 ENABLE_TRANSMISSION）；real diffuseAmbientOcclusion、specularOcclusion。",
+      "labLayout": "brdf::LightingData: dir_to_camera, n_dot_v, brdf, specular_response (a local of InitializeLightingData_BasePBR), diffuse_response, multi_scatter_compensation, diffuse_lighting, specular_lighting. One view, no emission, occlusion, or transmission.",
+      "labLayoutZh": "brdf::LightingData：dir_to_camera、n_dot_v、brdf、specular_response（InitializeLightingData_BasePBR 中的局部变量）、diffuse_response、multi_scatter_compensation、diffuse_lighting、specular_lighting。只有一个视图，没有自发光、遮蔽或透射。"
+    },
+    {
+      "lab": "PointLight / PointLightSample",
+      "engineShort": "SimplePointLight",
+      "engineName": "SimplePointLight and SimplePointLightUtil_PBR",
+      "engineNameZh": "SimplePointLight 与 SimplePointLightUtil_PBR",
+      "relationship": "exact for the lighting fields",
+      "sources": [
+        "point-light-struct",
+        "point-light-init",
+        "point-light-apply"
+      ],
+      "exact": "SimplePointLight: float3 m_position; float m_invAttenuationRadiusSquared; float3 m_rgbIntensityCandelas; float m_affectsGIFactor; bool m_affectsGI; uint m_lightingChannelMask; float2 m_padding; padded to 16 bytes. The util keeps the direction to the light, the distance squared, and the falloff.",
+      "exactZh": "SimplePointLight：float3 m_position；float m_invAttenuationRadiusSquared；float3 m_rgbIntensityCandelas；float m_affectsGIFactor；bool m_affectsGI；uint m_lightingChannelMask；float2 m_padding；补齐到 16 字节。util 保存指向光源的方向、距离平方和 falloff。",
+      "labLayout": "brdf::PointLight: position, inv_attenuation_radius_squared, rgb_intensity_candelas, lighting_channel_mask; brdf::PointLightSample: dir_to_light, distance_squared, falloff, radius_attenuation, intensity. No GI fields.",
+      "labLayoutZh": "brdf::PointLight：position、inv_attenuation_radius_squared、rgb_intensity_candelas、lighting_channel_mask；brdf::PointLightSample：dir_to_light、distance_squared、falloff、radius_attenuation、intensity。没有 GI 字段。"
+    },
+    {
+      "lab": "BrdfMap",
+      "engineShort": "BRDFTexture",
+      "engineName": "The BRDF texture ($BrdfTexture, filled by BRDFTextureCS)",
+      "engineNameZh": "BRDF 贴图（$BrdfTexture，由 BRDFTextureCS 填充）",
+      "relationship": "same values, different storage",
+      "sources": [
+        "brdf-texture",
+        "brdf-texture-size",
+        "rhi-format",
+        "lighting-init"
+      ],
+      "exact": "256 x 256 R16G16_FLOAT, (A, B) in RG; row y holds roughness (255 - y + 0.5) / 256; sampled bilinearly at (NdotV, 1 - roughnessLinear).",
+      "exactZh": "256 x 256 R16G16_FLOAT，RG 中存 (A, B)；第 y 行对应 roughness (255 - y + 0.5) / 256；在 (NdotV, 1 - roughnessLinear) 处双线性采样。",
+      "labLayout": "brdf::BrdfMap: 256 x 256 f32 pairs, filled on the CPU and read bilinearly by hand in Rust and WGSL; not rounded to 16-bit floats.",
+      "labLayoutZh": "brdf::BrdfMap：256 x 256 的 f32 对，在 CPU 上填充，并在 Rust 与 WGSL 中手动双线性读取；没有舍入到 16 位浮点。"
+    },
+    {
+      "lab": "forward targets",
+      "engineShort": "ForwardPassOutput",
+      "engineName": "ForwardPassOutput and the Forward pass's images",
+      "engineNameZh": "ForwardPassOutput 与 Forward pass 的图像",
+      "relationship": "conceptual",
+      "sources": [
+        "forward-targets",
+        "target-formats",
+        "msaa-default"
+      ],
+      "exact": "SV_Target0 diffuse lighting and SV_Target1 specular lighting (R16G16B16A16_FLOAT); SV_Target2 albedo times diffuse response and AO, specular occlusion in A, and SV_Target3 specularF0 with roughness in A (R8G8B8A8_UNORM); SV_Target4 the normal, signed octahedron in RGB10 with two flags in A2 (R10G10B10A2_UNORM). The main pipeline renders with 2x MSAA.",
+      "exactZh": "SV_Target0 漫反射光照与 SV_Target1 高光光照（R16G16B16A16_FLOAT）；SV_Target2 为乘以 diffuse response 与 AO 的 albedo，A 中存高光遮蔽，SV_Target3 为 specularF0，A 中存 roughness（R8G8B8A8_UNORM）；SV_Target4 为法线，RGB10 中存有符号八面体编码，A2 中存两个标志（R10G10B10A2_UNORM）。主管线以 2x MSAA 渲染。",
+      "labLayout": "The same five targets in the same formats (RGBA16F twice, RGBA8 twice, RGB10A2), plus a false-colour target for the dock's views and an R8 target standing in for the stencil, at 4x MSAA. The CPU mirror (brdf::Ibl) rounds albedo, F0, and roughness to 8 bits (ties to even) when quantize is on.",
+      "labLayoutZh": "同样的五个 target、同样的格式（两个 RGBA16F、两个 RGBA8、一个 RGB10A2），另有一个供 dock 视图使用的伪彩色 target 和一个代替 stencil 的 R8 target，4x MSAA。CPU 镜像（brdf::Ibl）在开启 quantize 时把 albedo、F0 和 roughness 舍入到 8 位（ties to even）。"
+    },
+    {
+      "lab": "Ibl",
+      "engineShort": "ReflectionGlobalFullscreen + DiffuseGlobalFullscreen",
+      "engineName": "The global IBL full-screen passes",
+      "engineNameZh": "全局 IBL 全屏 pass",
+      "relationship": "conceptual",
+      "sources": [
+        "reflection-global",
+        "diffuse-global",
+        "reflection-target",
+        "reflection-composite"
+      ],
+      "exact": "Diffuse: albedo target times the diffuse cubemap at the normal, times 2^exposure, added onto the diffuse target. Specular: the cubemap along the reflection rotated by m_iblOrientation at mip roughness * 5, times the compensation, F0 * A + B, the probes' remaining weight, 2^exposure, and specular occlusion, into its own target that ReflectionComposite adds onto specular.",
+      "exactZh": "漫反射：albedo target 乘以法线方向的漫反射 cubemap，再乘以 2^exposure，加到 diffuse target 上。高光：沿经 m_iblOrientation 旋转的反射方向在 mip roughness * 5 处采样 cubemap，乘以补偿、F0 * A + B、probe 剩余的权重、2^exposure 和高光遮蔽，写入自己的 target，再由 ReflectionComposite 加到 specular 上。",
+      "labLayout": "brdf::Ibl: albedo, specular_f0, roughness, irradiance, diffuse, reflect_dir, mip, prefiltered, n_dot_v, brdf, compensation, specular. On the GPU the reflection pass writes its own target and the composite adds it onto specular; no orientation or probes.",
+      "labLayoutZh": "brdf::Ibl：albedo、specular_f0、roughness、irradiance、diffuse、reflect_dir、mip、prefiltered、n_dot_v、brdf、compensation、specular。GPU 上 reflection pass 写入自己的 target，再由 composite 加到 specular 上；没有朝向或 probe。"
+    },
+    {
+      "lab": "Cubemap",
+      "engineShort": "m_specularEnvMap / m_diffuseEnvMap",
+      "engineName": "SceneSrg's specular and diffuse environment cubemaps",
+      "engineNameZh": "SceneSrg 的高光与漫反射环境 cubemap",
+      "relationship": "same filters, different storage",
+      "sources": [
+        "ibl-srg",
+        "specular-preset",
+        "diffuse-preset",
+        "cubemap-ggx"
+      ],
+      "exact": "Specular: 256 x 256 faces, six mips, R9G9B9E5 (the default preset); diffuse: 32 to 128 texel faces, BC6UH on PC; read through m_samplerEnv, a trilinear sampler.",
+      "exactZh": "高光：256 x 256 的面，六级 mip，R9G9B9E5（默认预设）；漫反射：32 到 128 texel 的面，PC 上为 BC6UH；通过三线性采样器 m_samplerEnv 读取。",
+      "labLayout": "ibl::Cubemap: 256 x 256 x 6 mips and 32 x 32, f32 RGB, filtered on the CPU with the same filters; lookups clamp at a face's edge instead of filtering across it.",
+      "labLayoutZh": "ibl::Cubemap：256 x 256 x 6 级 mip 与 32 x 32，f32 RGB，在 CPU 上用相同的滤波器生成；查找在面的边缘处截断，而不跨面滤波。"
+    },
+    {
+      "lab": "Decal",
+      "engineShort": "Decal",
+      "engineName": "Decal (DecalStructures.azsli), the decal feature processor's record",
+      "engineNameZh": "Decal（DecalStructures.azsli），decal feature processor 的记录",
+      "relationship": "exact for the fields shown",
+      "sources": [
+        "decal-struct",
+        "decal-apply",
+        "decal-sort"
+      ],
+      "exact": "float3 m_position; float m_opacity; float4 m_quaternion; float3 m_halfSize; float m_angleAttenuation; float m_normalMapOpacity; uint m_sortKeyPacked (the key in the low byte); uint m_textureArrayIndex, m_textureIndex; float3 m_decalColor; float m_decalColorFactor; float m_maxDrawDistance; padded to 16 bytes.",
+      "exactZh": "float3 m_position；float m_opacity；float4 m_quaternion；float3 m_halfSize；float m_angleAttenuation；float m_normalMapOpacity；uint m_sortKeyPacked（key 在低字节）；uint m_textureArrayIndex、m_textureIndex；float3 m_decalColor；float m_decalColorFactor；float m_maxDrawDistance；补齐到 16 字节。",
+      "labLayout": "decals::Decal: the same fields, with one texture index into the lab's two procedural textures for the array and index; gShadingFrame holds five vectors per decal (decals::frame_records).",
+      "labLayoutZh": "decals::Decal：同样的字段，用一个纹理索引指向实验室的两张程序纹理，代替数组与索引；gShadingFrame 中每个 decal 占五个向量（decals::frame_records）。"
+    }
+  ]
+}

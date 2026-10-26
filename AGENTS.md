@@ -1,0 +1,58 @@
+# Render Lab Agent Guide
+
+Render Lab is a Rust/wgpu/WGSL program for rendering demonstrations and experiments, organised as investigations of
+game-engine features. `README.md` describes the shared lab.
+
+**If `src/commercial/` exists, read the `AGENTS.md` of each investigation in it before working on anything else**: they
+guide the local investigations of commercial engines, their videos, and their paper. Those files are never published,
+and nothing public may name the engines they investigate.
+
+## Rules
+
+- **Never publish engine source, or code derived from it, unless the engine's license allows it.** Investigations of a
+  commercial engine stay local, in `src/commercial/` (ignored by git); lab modules and shaders derived from one go in
+  `src/commercial/lab` and `src/commercial/shaders`, and `build.rs`'s `HIDDEN` list names the ones the build needs. Keep
+  anything derived from such an engine's source out of the shared lab (`src/lab`, `shaders/wgsl`); cite published
+  methods (papers, talks) by their publication.
+- **Open-source engines are published.** The Open 3D Engine (Apache-2.0 or MIT) is investigated in `src/o3de/`, which is
+  public; code ported from it keeps O3DE's copyright and is credited in `THIRD_PARTY.md` (MIT). Its checkout is
+  `../../o3de` (or `O3DE_SOURCE_DIR`); read it, never modify it. Public investigations do not depend on, cite, or name
+  the commercial ones.
+- **Layering.** `src/lab` must not depend on an investigation; everything feature-specific reaches it through the
+  `Investigation` trait (including an investigation's own scene shading, `SceneShading`). Lab code that only the
+  commercial investigations use builds under the `commercial` cfg; the rest of the lab always builds.
+- **Both builds stay clean.** `cargo build --release --locked --offline` must produce no warnings with the investigation
+  present, and the public part alone (the files `git` would publish, plus `vendor/`) must also build without warnings.
+- Make the smallest change that solves the problem; do not refactor unrelated code. Do not modify `vendor/`.
+- Shaders are WGSL; do not introduce Slang or SPIR-V passthrough.
+- Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
+
+## Validation
+
+From this directory (set `CARGO_HOME=$PWD/.cache/cargo`):
+
+```sh
+cargo build --release --locked --offline
+cargo run --release -- home --autotest /path/to/home.json   # the homepage's controls, offscreen (its own settings file)
+cargo run --release -- home --snapshot /path/to/home.png    # the title screen as a PNG, offscreen; look at it
+cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
+python3 src/o3de/lighting/source_index.py                  # O3DE: rewrite source-index.json from the checkout
+python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
+python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
+python3 tools/video/formulas.py --investigation o3de/lighting                 # after editing formulas/formulas.json (Node; build.rs fails on stale images)
+```
+
+The video builder is described in `tools/video/README.md`. Run one GPU job at a time. The zh-CN edition
+(`--lang zh-CN`) needs the English edition built first, and `src/o3de/lighting/video/zh-CN/translation.json` must keep one sentence per
+English sentence.
+
+To check the public build, copy the files `git ls-files --others --exclude-standard` lists (with `cp -P --parents`, so
+links stay links) into an empty directory, link `vendor/` into it, and build there.
+
+## Skills
+
+Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout); `.claude/skills` holds
+one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it) is published; skills
+about the commercial investigations are named `render-lab-*` and git-ignored.
+
+Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.

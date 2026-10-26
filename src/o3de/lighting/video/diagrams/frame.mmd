@@ -1,0 +1,10 @@
+flowchart LR
+    CULL["Depth pre-pass,<br/>light culling"] --> FWD["Forward pass<br/>decals, lights"]
+    FWD --> TARGETS["Targets"]
+    TARGETS --> DIFF["DiffuseGlobal"]
+    TARGETS --> REFL["Reflections<br/>probes, global"]
+    REFL --> COMP["Reflection<br/>Composite"]
+    DIFF --> AO["SSAO"]
+    AO --> MERGE["Merge"]
+    COMP --> MERGE
+    MERGE --> FRAME["The frame"]
