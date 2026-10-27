@@ -2,7 +2,7 @@
  "fps": 30,
  "width": 1920,
  "height": 1080,
- "totalFrames": 63085,
+ "totalFrames": 66143,
  "title": "O3DE 如何照亮一帧",
  "engineLabel": "O3DE 2.8.0 · d363107e",
  "chapters": [
@@ -70,25 +70,25 @@
    "number": 11,
    "title": "全局 skylight",
    "startFrame": 45421,
-   "endFrame": 51229
+   "endFrame": 51662
   },
   {
    "number": 12,
    "title": "反射 probe",
-   "startFrame": 51229,
-   "endFrame": 56647
+   "startFrame": 51662,
+   "endFrame": 59705
   },
   {
    "number": 13,
    "title": "环境光遮蔽",
-   "startFrame": 56647,
-   "endFrame": 61383
+   "startFrame": 59705,
+   "endFrame": 64441
   },
   {
    "number": 14,
    "title": "回顾",
-   "startFrame": 61383,
-   "endFrame": 63085
+   "startFrame": 64441,
+   "endFrame": 66143
   }
  ],
  "beats": [
@@ -1860,28 +1860,28 @@
    "chapter": 11,
    "kind": "scene",
    "startFrame": 45421,
-   "frames": 655,
+   "frames": 724,
    "headline": "来自天空的光",
    "captions": [
     {
      "start": 45433,
-     "end": 45578,
+     "end": 45566,
      "text": "simple point light 就讲到这里；下一部分离开点光源。"
     },
     {
-     "start": 45578,
-     "end": 45659,
+     "start": 45586,
+     "end": 45655,
      "text": "第二个光源是天空。"
     },
     {
-     "start": 45659,
-     "end": 45856,
+     "start": 45675,
+     "end": 45859,
      "text": "O3DE 的全局 skylight 是基于图像的光照：\n一个环境，存为两个 cubemap。"
     },
     {
-     "start": 45856,
-     "end": 46052,
-     "text": "这个镜面球直接反射它；这是实验程序自己的天空，\n一侧高处有一个暖色的 softbox。"
+     "start": 45889,
+     "end": 46104,
+     "text": "这个镜面球直接反射它；实验程序的天空是一张照片，\nPoly Haven 的 Tree Lined Driveway，太阳被截断。"
     }
    ],
    "sources": []
@@ -1890,28 +1890,28 @@
    "id": "c11-bake",
    "chapter": 11,
    "kind": "mermaid",
-   "startFrame": 46076,
-   "frames": 938,
+   "startFrame": 46145,
+   "frames": 988,
    "headline": "离线烘焙",
    "captions": [
     {
-     "start": 46088,
-     "end": 46233,
+     "start": 46157,
+     "end": 46290,
      "text": "这些 cubemap 由 O3DE 的图像处理器离线烘焙。"
     },
     {
-     "start": 46233,
-     "end": 46591,
+     "start": 46310,
+     "end": 46655,
      "text": "GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，\n格式 R9G9B9E5，六级 mip，每级对应一档 roughness。"
     },
     {
-     "start": 46591,
-     "end": 46832,
+     "start": 46685,
+     "end": 46913,
      "text": "余弦滤波把它转换为每面三十二到一百二十八\ntexel 的漫反射 cubemap；实验室的是三十二。"
     },
     {
-     "start": 46832,
-     "end": 46991,
+     "start": 46943,
+     "end": 47102,
      "text": "另外，第五章的 BRDF 贴图提供 split sum 的各项。"
     }
    ],
@@ -1922,33 +1922,33 @@
    "id": "c11-prefilter",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 47014,
-   "frames": 866,
+   "startFrame": 47133,
+   "frames": 951,
    "headline": "预过滤高光 cubemap",
    "captions": [
     {
-     "start": 47026,
-     "end": 47162,
+     "start": 47145,
+     "end": 47268,
      "text": "高光 cubemap 的第 m 级 mip 按 m 除以 5 的 roughness 来滤波。"
     },
     {
-     "start": 47162,
-     "end": 47337,
+     "start": 47298,
+     "end": 47460,
      "text": "对每个 texel，滤波假设法线和视线都沿着这个 texel 的方向。"
     },
     {
-     "start": 47337,
-     "end": 47455,
+     "start": 47490,
+     "end": 47595,
      "text": "然后在它周围取 256 个 GGX 样本。"
     },
     {
-     "start": 47455,
-     "end": 47753,
+     "start": 47625,
+     "end": 47910,
      "text": "每个样本从比立体角匹配的 mip 再模糊一级的位置读取，\n并在两级 mip 之间混合，从而掩盖了样本这么少带来的噪点。"
     },
     {
-     "start": 47753,
-     "end": 47856,
+     "start": 47940,
+     "end": 48043,
      "text": "越粗糙的 mip 收集越宽的锥体，所以反射变模糊。"
     }
    ],
@@ -1958,23 +1958,23 @@
    "id": "c11-cosine",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 47880,
-   "frames": 578,
+   "startFrame": 48084,
+   "frames": 629,
    "headline": "漫反射 cubemap",
    "captions": [
     {
-     "start": 47892,
-     "end": 48067,
+     "start": 48096,
+     "end": 48258,
      "text": "漫反射 cubemap 是整个半球上的余弦加权平均，并按权重归一化。"
     },
     {
-     "start": 48067,
-     "end": 48259,
+     "start": 48288,
+     "end": 48467,
      "text": "所以它存的是辐照度除以 pi，\n漫反射 pass 直接乘以 albedo，不再做除法。"
     },
     {
-     "start": 48259,
-     "end": 48434,
+     "start": 48497,
+     "end": 48672,
      "text": "单独看，来自天空的漫反射光很柔和，\n被下方的地面和上方的蓝色染上颜色。"
     }
    ],
@@ -1984,33 +1984,33 @@
    "id": "c11-passes",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 48458,
-   "frames": 1219,
+   "startFrame": 48713,
+   "frames": 1304,
    "headline": "两个全屏 pass",
    "captions": [
     {
-     "start": 48470,
-     "end": 48743,
+     "start": 48725,
+     "end": 48985,
      "text": "运行时，forward pass 已经把乘以 diffuse response 和遮蔽的\nalbedo、F zero 以及 roughness 存下，每个都是八位。"
     },
     {
-     "start": 48743,
-     "end": 48886,
+     "start": 49015,
+     "end": 49145,
      "text": "漫反射 pass 把这个 albedo 乘以法线方向上的漫反射 cubemap。"
     },
     {
-     "start": 48886,
-     "end": 49081,
+     "start": 49175,
+     "end": 49357,
      "text": "反射 pass 沿反射向量、\n在 mip roughness 乘以 5 处读取高光 cubemap。"
     },
     {
-     "start": 49081,
-     "end": 49408,
+     "start": 49387,
+     "end": 49701,
      "text": "它应用 split sum，即 F zero 乘以 A 再加 B，带上补偿，并把\nN dot V 限制在百分之一以上，然后乘以 skylight 的曝光和高光遮蔽。"
     },
     {
-     "start": 49408,
-     "end": 49653,
+     "start": 49731,
+     "end": 49976,
      "text": "漫反射 pass 直接加到 diffuse target 上；反射 pass 写入自己的\ntarget，再由一个合成 pass 加到 specular target 上。"
     }
    ],
@@ -2020,18 +2020,18 @@
    "id": "c11-readout",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 49677,
-   "frames": 411,
+   "startFrame": 50017,
+   "frames": 445,
    "headline": "一个点上的各项",
    "captions": [
     {
-     "start": 49689,
-     "end": 49928,
+     "start": 50029,
+     "end": 50255,
      "text": "在选中的点上，readout 显示每一步：\n8 位的 roughness、它的 mip、预过滤的光，以及 split sum。"
     },
     {
-     "start": 49928,
-     "end": 50064,
+     "start": 50285,
+     "end": 50421,
      "text": "随着 roughness 增大，mip 随之增大，反射变暗并扩散。"
     }
    ],
@@ -2041,23 +2041,23 @@
    "id": "c11-occlusion",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 50088,
-   "frames": 824,
+   "startFrame": 50462,
+   "frames": 875,
    "headline": "天空没有阴影",
    "captions": [
     {
-     "start": 50100,
-     "end": 50343,
+     "start": 50474,
+     "end": 50704,
      "text": "全局 skylight 不投射阴影：\n只有遮蔽贴图和默认开启的屏幕空间环境光遮蔽会让它变暗。"
     },
     {
-     "start": 50343,
-     "end": 50573,
+     "start": 50734,
+     "end": 50951,
      "text": "实验室的房间没有遮蔽贴图，所以在房间里只有\nSSAO 让天空的光变暗，在角落和物体下方。"
     },
     {
-     "start": 50573,
-     "end": 50888,
+     "start": 50981,
+     "end": 51296,
      "text": "对于室内，O3DE 用反射 probe（见下一章）取代天空的反射，\n用 diffuse probe grid 取代它的漫反射，实验室没有实现后者。"
     }
    ],
@@ -2067,13 +2067,13 @@
    "id": "c11-sources",
    "chapter": 11,
    "kind": "sources",
-   "startFrame": 50912,
-   "frames": 317,
+   "startFrame": 51337,
+   "frames": 325,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 50924,
-     "end": 51206,
+     "start": 51349,
+     "end": 51631,
      "text": "烘焙、target 和两个 pass 都在这些文件中；\n滤波库 CubeMapGen 属于 AMD，采用 BSD 许可。"
     }
    ],
@@ -2092,39 +2092,116 @@
    "id": "c12-why",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 51229,
-   "frames": 1330,
+   "startFrame": 51662,
+   "frames": 1257,
    "headline": "房间的反射",
    "captions": [
     {
-     "start": 51241,
-     "end": 51458,
+     "start": 51674,
+     "end": 51891,
      "text": "天空的 cubemap 对整个场景一视同仁；\n下一部分的 reflection probe 让局部拥有自己的反射。"
     },
     {
-     "start": 51487,
-     "end": 51632,
+     "start": 51910,
+     "end": 52055,
      "text": "在房间里，反射出开阔的天空看起来是错的：墙应该出现在反射中。"
     },
     {
-     "start": 51661,
-     "end": 51849,
+     "start": 52074,
+     "end": 52262,
      "text": "反射 probe 解决这个问题：每个都是从场景中某一点烘焙的 cubemap，\n带一个 inner 盒和一个 outer 盒。"
     },
     {
-     "start": 51897,
-     "end": 52067,
+     "start": 52291,
+     "end": 52461,
      "text": "实验室放置了两个，并在 CPU 上自己烘焙，\n从每个 probe 的中心对房间着色。"
     },
     {
-     "start": 52096,
-     "end": 52330,
+     "start": 52480,
+     "end": 52714,
      "text": "它们的 cubemap 每面二百五十六 texel，\n与默认的 Medium 烘焙质量一致，并像天空的那样预过滤。"
     },
     {
-     "start": 52378,
-     "end": 52500,
-     "text": "在光滑的地面上，probe 把房间自己的墙放进了反射里。"
+     "start": 52743,
+     "end": 52879,
+     "text": "在抛光的金属地面上，probe 把房间自己的墙放进了反射里。"
+    }
+   ],
+   "sources": []
+  },
+  {
+   "id": "c12-bake",
+   "chapter": 12,
+   "kind": "scene",
+   "startFrame": 52919,
+   "frames": 1943,
+   "headline": "probe 烘焙了什么",
+   "captions": [
+    {
+     "start": 52931,
+     "end": 53170,
+     "text": "烘焙一个 probe，会从 probe 的位置把场景渲染六次，\n立方体的每个面一次，每次是一个九十度宽的正方形视图。"
+    },
+    {
+     "start": 53199,
+     "end": 53452,
+     "text": "O3DE 每帧绘制一个面，写入一千零二十四 texel\n的十六位浮点 target，并在五帧之后读回。"
+    },
+    {
+     "start": 53481,
+     "end": 53756,
+     "text": "展开之后，probe 一的各个面显示：前方是后墙，\n左边是红墙，右边是青绿色的墙，上方是天空，下方是地面。"
+    },
+    {
+     "start": 53775,
+     "end": 54044,
+     "text": "编辑器把六个面写进一个 DDS 文件，O3DE 的图像构建器再用\nskylight 自己的高光预设把它变成 probe 的 cubemap。"
+    },
+    {
+     "start": 54073,
+     "end": 54384,
+     "text": "在默认的 Medium 质量下，就是每面二百五十六 texel 的 R9G9B9E5，\n以及六级 mip，每一级都用 GGX 为更粗糙的表面滤波。"
+    },
+    {
+     "start": 54413,
+     "end": 54609,
+     "text": "实验室省去了大尺寸采集：\n它在 CPU 上直接着色二百五十六 texel 的面。"
+    },
+    {
+     "start": 54638,
+     "end": 54804,
+     "text": "probe 二是右后角一个较小的 probe，后墙和青绿色的墙都近在身边。"
+    }
+   ],
+   "sources": []
+  },
+  {
+   "id": "c12-ball",
+   "chapter": 12,
+   "kind": "scene",
+   "startFrame": 54862,
+   "frames": 835,
+   "headline": "可视化球",
+   "captions": [
+    {
+     "start": 54874,
+     "end": 55027,
+     "text": "在编辑器中，每个 probe 还会在自己的位置显示一个球，默认开启。"
+    },
+    {
+     "start": 55056,
+     "end": 55236,
+     "text": "它的材质是 roughness 为零的白色金属，\n所以它镜面反射 probe cubemap 最清晰的那级 mip。"
+    },
+    {
+     "start": 55265,
+     "end": 55388,
+     "text": "采集时会排除这个球，所以 probe 不会把自己的球烘焙进去。"
+    },
+    {
+     "start": 55417,
+     "end": 55639,
+     "text": "实验室画了自己的镜面球，它沿反射光线直接读取 cubemap；\nmip 越高，反射越模糊。"
     }
    ],
    "sources": []
@@ -2133,33 +2210,33 @@
    "id": "c12-stencil",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 52559,
-   "frames": 1123,
+   "startFrame": 55697,
+   "frames": 1028,
    "headline": "Stencil 与混合权重",
    "captions": [
     {
-     "start": 52571,
-     "end": 52837,
+     "start": 55709,
+     "end": 55975,
      "text": "forward pass 之后运行五个 pass：一个 stencil pass、一个混合权重\npass、全局 pass，以及 outer 与 inner 两个 probe pass。"
     },
     {
-     "start": 52885,
-     "end": 53138,
+     "start": 56004,
+     "end": 56257,
      "text": "stencil pass 绘制每个 probe 稍微缩小的 inner 盒，\n给盒内每个使用反射 pass 的表面的 stencil 加一。"
     },
     {
-     "start": 53186,
-     "end": 53283,
+     "start": 56286,
+     "end": 56383,
      "text": "在所有 inner 盒之外的表面保持值三。"
     },
     {
-     "start": 53331,
-     "end": 53508,
+     "start": 56412,
+     "end": 56589,
      "text": "在那里，混合权重 pass 加上每个 probe 的权重：\n在 inner 盒处为一，到 outer 盒处降为零。"
     },
     {
-     "start": 53556,
-     "end": 53623,
+     "start": 56618,
+     "end": 56685,
      "text": "probe 重叠处，权重相加。"
     }
    ],
@@ -2169,38 +2246,38 @@
    "id": "c12-blend",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 53682,
-   "frames": 1243,
+   "startFrame": 56725,
+   "frames": 1129,
    "headline": "混合 probe",
    "captions": [
     {
-     "start": 53694,
-     "end": 53929,
+     "start": 56737,
+     "end": 56972,
      "text": "全局 pass 只在 inner 盒之外运行，\n并保留 probe 剩下的部分：一减它们的权重总和，最多为一。"
     },
     {
-     "start": 53977,
-     "end": 54159,
+     "start": 57001,
+     "end": 57183,
      "text": "outer pass 加上每个 probe 的反射乘以其权重，\n总和超过一时再除以总和。"
     },
     {
-     "start": 54207,
-     "end": 54354,
+     "start": 57212,
+     "end": 57359,
      "text": "在 inner 盒内，inner pass 直接用 probe 的反射替换。"
     },
     {
-     "start": 54402,
-     "end": 54553,
+     "start": 57388,
+     "end": 57539,
      "text": "probe 按从大到小绘制，所以大 probe 里的小 probe 最后写入。"
     },
     {
-     "start": 54601,
-     "end": 54712,
+     "start": 57568,
+     "end": 57679,
      "text": "与全局 pass 不同，probe 不乘高光遮蔽。"
     },
     {
-     "start": 54760,
-     "end": 54866,
+     "start": 57708,
+     "end": 57814,
      "text": "缩小 inner 盒，probe 混合的带就变宽了。"
     }
    ],
@@ -2210,23 +2287,28 @@
    "id": "c12-parallax",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 54925,
-   "frames": 599,
+   "startFrame": 57854,
+   "frames": 814,
    "headline": "视差校正",
    "captions": [
     {
-     "start": 54937,
-     "end": 55069,
+     "start": 57866,
+     "end": 57998,
      "text": "cubemap 是从一个点捕获的，但表面遍布整个盒子。"
     },
     {
-     "start": 55117,
-     "end": 55300,
+     "start": 58027,
+     "end": 58210,
      "text": "所以默认情况下，反射光线被追踪到 outer 盒，\n再从 probe 中心朝交点方向读取 cubemap。"
     },
     {
-     "start": 55348,
-     "end": 55465,
+     "start": 58239,
+     "end": 58482,
+     "text": "所以 probe 的 outer 盒应当贴合它所在的房间：probe 在盒子之外\n看到的东西，会被当作位于盒面上来绘制，墙就会出现在错误的位置。"
+    },
+    {
+     "start": 58511,
+     "end": 58628,
      "text": "没有这一校正，反射中的墙就错位了。"
     }
    ],
@@ -2236,28 +2318,28 @@
    "id": "c12-composite",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 55524,
-   "frames": 914,
+   "startFrame": 58668,
+   "frames": 838,
    "headline": "合成，以及一个发现",
    "captions": [
     {
-     "start": 55536,
-     "end": 55717,
+     "start": 58680,
+     "end": 58861,
      "text": "然后 composite pass 在 stencil 标记了表面的地方，\n把 reflection target 加到高光上。"
     },
     {
-     "start": 55765,
-     "end": 55966,
+     "start": 58890,
+     "end": 59091,
      "text": "一个发现：这个 target 被清成零点四的灰色，\n而全局 pass 从不在 inner 盒内运行。"
     },
     {
-     "start": 56014,
-     "end": 56248,
+     "start": 59120,
+     "end": 59354,
      "text": "所以关闭基于图像的光照时，inner pass 会丢弃，\ninner 盒内的表面就会在高光上加上这层灰色。"
     },
     {
-     "start": 56296,
-     "end": 56379,
+     "start": 59383,
+     "end": 59466,
      "text": "实验室复现了这一点，如 readout 所示。"
     }
    ],
@@ -2267,13 +2349,13 @@
    "id": "c12-sources",
    "chapter": 12,
    "kind": "sources",
-   "startFrame": 56438,
-   "frames": 209,
+   "startFrame": 59506,
+   "frames": 199,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 56450,
-     "end": 56607,
+     "start": 59518,
+     "end": 59675,
      "text": "这些条目按顺序跟随五个反射 pass、probe 的高光，以及合成。"
     }
    ],
@@ -2299,33 +2381,33 @@
    "id": "c13-why",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 56647,
+   "startFrame": 59705,
    "frames": 883,
    "headline": "角落与缝隙",
    "captions": [
     {
-     "start": 56659,
-     "end": 56742,
+     "start": 59717,
+     "end": 59800,
      "text": "回顾之前的最后一部分是环境光遮蔽（ambient occlusion）。"
     },
     {
-     "start": 56764,
-     "end": 56899,
+     "start": 59822,
+     "end": 59957,
      "text": "天空的光照进角落和缝隙，和照在开阔地面上一样亮。"
     },
     {
-     "start": 56921,
-     "end": 57121,
+     "start": 59979,
+     "end": 60179,
      "text": "屏幕空间环境光遮蔽只凭深度缓冲让这些地方变暗，主管线默认运行它。"
     },
     {
-     "start": 57156,
-     "end": 57366,
+     "start": 60214,
+     "end": 60424,
      "text": "它在反射与次表面散射之后运行，\n只乘 diffuse target，直接光和天空光都一样。"
     },
     {
-     "start": 57401,
-     "end": 57484,
+     "start": 60459,
+     "end": 60542,
      "text": "这是它的结果，没有遮挡的地方是白色。"
     }
    ],
@@ -2335,43 +2417,43 @@
    "id": "c13-compute",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 57530,
+   "startFrame": 60588,
    "frames": 1623,
    "headline": "五十二个采样",
    "captions": [
     {
-     "start": 57542,
-     "end": 57697,
+     "start": 60600,
+     "end": 60755,
      "text": "它从线性深度开始：每个像素第一个 MSAA 采样的视图空间深度。"
     },
     {
-     "start": 57732,
-     "end": 57869,
+     "start": 60790,
+     "end": 60927,
      "text": "然后在半分辨率下工作，保留每个二乘二的左上像素。"
     },
     {
-     "start": 57904,
-     "end": 58222,
+     "start": 60962,
+     "end": 61280,
      "text": "SsaoCompute 由深度重建每个像素的位置和法线，并在其周围取五\n十二个采样：十二个近处的，以及与邻居共享的十轮、每轮四个。"
     },
     {
-     "start": 58257,
-     "end": 58547,
+     "start": 61315,
+     "end": 61605,
      "text": "每个采样贡献法线与指向它的方向之间的余弦，\n权重为一除以距离平方加零点零七，遮蔽就是它们的加权平均。"
     },
     {
-     "start": 58582,
-     "end": 58780,
+     "start": 61640,
+     "end": 61838,
      "text": "结果是一减遮蔽乘以 strength，再取二点二次幂，存为八位。"
     },
     {
-     "start": 58815,
-     "end": 58976,
+     "start": 61873,
+     "end": 62034,
      "text": "strength 默认为一，采样半径默认为半分辨率高度的百分之五。"
     },
     {
-     "start": 59011,
-     "end": 59107,
+     "start": 62069,
+     "end": 62165,
      "text": "半径越大，作用越远，变暗的范围越广。"
     }
    ],
@@ -2381,33 +2463,33 @@
    "id": "c13-blur",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 59153,
+   "startFrame": 62211,
    "frames": 1075,
    "headline": "深度感知模糊",
    "captions": [
     {
-     "start": 59165,
-     "end": 59315,
+     "start": 62223,
+     "end": 62373,
      "text": "原始结果有噪点，所以用深度感知模糊先竖直、再水平地平滑它。"
     },
     {
-     "start": 59350,
-     "end": 59581,
+     "start": 62408,
+     "end": 62639,
      "text": "它逐像素推进，保留前一个值的三分之二，\n深度斜率变化处保留得更少，所以边缘保持锐利。"
     },
     {
-     "start": 59616,
-     "end": 59761,
+     "start": 62674,
+     "end": 62819,
      "text": "每个输出一半来自其前八个像素开始的链，\n一半来自其后八个像素开始的链。"
     },
     {
-     "start": 59796,
-     "end": 60059,
+     "start": 62854,
+     "end": 63117,
      "text": "这些是模糊 pass 自己的默认值，在场景没有环境光遮蔽组件时使用；\n组件的默认值是零点八五和二百。"
     },
     {
-     "start": 60094,
-     "end": 60182,
+     "start": 63152,
+     "end": 63240,
      "text": "没有模糊时，采样的图案就会显露出来。"
     }
    ],
@@ -2417,28 +2499,28 @@
    "id": "c13-upsample",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 60228,
+   "startFrame": 63286,
    "frames": 923,
    "headline": "回到全分辨率",
    "captions": [
     {
-     "start": 60240,
-     "end": 60491,
+     "start": 63298,
+     "end": 63549,
      "text": "DepthUpsample 从最近的四个半分辨率像素把它恢复到全分辨率，\n按距离和深度的接近程度加权。"
     },
     {
-     "start": 60526,
-     "end": 60696,
+     "start": 63584,
+     "end": 63754,
      "text": "然后 diffuse target 乘以它，合并 pass 再加上未受影响的高光。"
     },
     {
-     "start": 60731,
-     "end": 60909,
+     "start": 63789,
+     "end": 63967,
      "text": "实验室把这些阶段在 GPU 上逐一与 CPU 副本核对，\n误差在一个八位级以内。"
     },
     {
-     "start": 60944,
-     "end": 61118,
+     "start": 64002,
+     "end": 64176,
      "text": "由于它只看到深度，SSAO 对屏幕外或最近表面之后的东西一无所知。"
     }
    ],
@@ -2448,13 +2530,13 @@
    "id": "c13-sources",
    "chapter": 13,
    "kind": "sources",
-   "startFrame": 61151,
+   "startFrame": 64209,
    "frames": 232,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 61163,
-     "end": 61350,
+     "start": 64221,
+     "end": 64408,
      "text": "这些条目跟随 SSAO 从线性深度经过采样、\n模糊与上采样，直到对漫反射的乘法。"
     }
    ],
@@ -2482,53 +2564,53 @@
    "id": "c14-recap",
    "chapter": 14,
    "kind": "scene",
-   "startFrame": 61383,
+   "startFrame": 64441,
    "frames": 1702,
    "headline": "不透明帧总结",
    "captions": [
     {
-     "start": 61395,
-     "end": 61492,
+     "start": 64453,
+     "end": 64550,
      "text": "所有部分都讲完了；下面看看它们如何组合在一起。"
     },
     {
-     "start": 61492,
-     "end": 61625,
+     "start": 64550,
+     "end": 64683,
      "text": "总结一下：这就是 O3DE 的不透明帧，一个 pass 接一个 pass。"
     },
     {
-     "start": 61625,
-     "end": 61828,
+     "start": 64683,
+     "end": 64886,
      "text": "光源剔除把光源分到 tile 中；\nforward pass 先应用 decal，再计算每盏灯：GGX 高光、"
     },
     {
-     "start": 61828,
-     "end": 62051,
+     "start": 64886,
+     "end": 65109,
      "text": "开启时的 clear coat、按 response 缩放的\nLambertian 漫反射，以及 EnhancedPBR 的透射。"
     },
     {
-     "start": 62051,
-     "end": 62311,
+     "start": 65109,
+     "end": 65369,
      "text": "然后全屏 pass 加上 skylight 和反射 probe（从八位\ntarget 读回），SSAO 在合并之前让漫反射变暗。"
     },
     {
-     "start": 62311,
-     "end": 62534,
+     "start": 65369,
+     "end": 65592,
      "text": "实验程序把这些公式移植到 WGSL，\n逐一与 CPU 版本对照，并引用它所跟随的每一行。"
     },
     {
-     "start": 62534,
-     "end": 62784,
+     "start": 65592,
+     "end": 65842,
      "text": "它省略了阴影、面光源与方向光、默认关闭的屏幕空间反射，\n以及 diffuse probe grid。"
     },
     {
-     "start": 62784,
-     "end": 63028,
+     "start": 65842,
+     "end": 66086,
      "text": "本视频中的每个演示都可以在查看器中探索，\n滑块、伪代码和源码并排显示。"
     },
     {
-     "start": 63028,
-     "end": 63064,
+     "start": 66086,
+     "end": 66122,
      "text": "感谢观看。"
     }
    ],
@@ -2545,6 +2627,55 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 0,
+   "blend": 0,
+   "source": "c1-room",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 36.767
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       0.0,
+       -0.3
+      ],
+      "degrees": 300.0,
+      "seconds": 36.767,
+      "ease": "sine"
+     }
+    }
+   ]
   },
   {
    "frame": 303,
@@ -2597,6 +2728,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 2379,
+   "blend": 0,
+   "source": "c1-code",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 40.967
+     }
+    }
+   ]
   },
   {
    "frame": 2391,
@@ -2657,6 +2822,55 @@
    "callout": ""
   },
   {
+   "frame": 3608,
+   "blend": 0,
+   "source": "c1-views",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 21.4
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       0.0,
+       -0.3
+      ],
+      "degrees": 180.0,
+      "seconds": 21.4,
+      "ease": "sine"
+     }
+    }
+   ]
+  },
+  {
    "frame": 3620,
    "blend": 0,
    "source": "c1-views",
@@ -2701,6 +2915,53 @@
    "callout": ""
   },
   {
+   "frame": 4612,
+   "blend": 0,
+   "source": "c2-why",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 39.633
+     }
+    },
+    {
+     "path": {
+      "params": [
+       "extraLightMotion"
+      ],
+      "through": [
+       [
+        30.0
+       ]
+      ],
+      "seconds": 39.633
+     }
+    }
+   ]
+  },
+  {
    "frame": 4798,
    "blend": 0,
    "source": "c2-why",
@@ -2727,6 +2988,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 5801,
+   "blend": 0,
+   "source": "c2-prepare",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 37.767
+     }
+    }
+   ]
   },
   {
    "frame": 5813,
@@ -2775,6 +3070,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 6934,
+   "blend": 0,
+   "source": "c2-cull",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 46.233
+     }
+    }
+   ]
   },
   {
    "frame": 6946,
@@ -2903,6 +3232,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 9566,
+   "blend": 0,
+   "source": "c2-finding",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 14.467
+     }
+    }
+   ]
   },
   {
    "frame": 9578,
@@ -3816,6 +4179,55 @@
    "callout": ""
   },
   {
+   "frame": 16271,
+   "blend": 0,
+   "source": "c4-what",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        30,
+        46,
+        2.6
+       ],
+       [
+        -12,
+        58,
+        2.3
+       ],
+       [
+        14,
+        50,
+        2.5
+       ]
+      ],
+      "seconds": 37.133
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       -0.7,
+       0.55
+      ],
+      "degrees": 360.0,
+      "seconds": 37.133,
+      "ease": "sine"
+     }
+    }
+   ]
+  },
+  {
    "frame": 16465,
    "blend": 0,
    "source": "c4-what",
@@ -3842,6 +4254,55 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 17385,
+   "blend": 0,
+   "source": "c4-apply",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        30,
+        46,
+        2.6
+       ],
+       [
+        -12,
+        58,
+        2.3
+       ],
+       [
+        14,
+        50,
+        2.5
+       ]
+      ],
+      "seconds": 46.1
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       -0.7,
+       0.55
+      ],
+      "degrees": 360.0,
+      "seconds": 46.1,
+      "ease": "sine"
+     }
+    }
+   ]
   },
   {
    "frame": 17397,
@@ -3909,6 +4370,40 @@
    "callout": ""
   },
   {
+   "frame": 18768,
+   "blend": 0,
+   "source": "c4-angle",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        30,
+        46,
+        2.6
+       ],
+       [
+        -12,
+        58,
+        2.3
+       ],
+       [
+        14,
+        50,
+        2.5
+       ]
+      ],
+      "seconds": 27.567
+     }
+    }
+   ]
+  },
+  {
    "frame": 18780,
    "blend": 0,
    "source": "c4-angle",
@@ -3968,6 +4463,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 19595,
+   "blend": 0,
+   "source": "c4-order",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        30,
+        46,
+        2.6
+       ],
+       [
+        -12,
+        58,
+        2.3
+       ],
+       [
+        14,
+        50,
+        2.5
+       ]
+      ],
+      "seconds": 39.033
+     }
+    }
+   ]
   },
   {
    "frame": 19752,
@@ -4700,6 +5229,56 @@
    "callout": ""
   },
   {
+   "frame": 25031,
+   "blend": 0,
+   "source": "c6-layer",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 22.6
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
+  },
+  {
    "frame": 25363,
    "blend": 0,
    "source": "c6-layer",
@@ -4720,6 +5299,29 @@
     "cameraDrift": 0.0
    },
    "callout": ""
+  },
+  {
+   "frame": 25709,
+   "blend": 0,
+   "source": "c6-base",
+   "animate": [
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
   },
   {
    "frame": 25721,
@@ -4777,6 +5379,56 @@
     "cameraDrift": 0.0
    },
    "callout": ""
+  },
+  {
+   "frame": 26725,
+   "blend": 0,
+   "source": "c6-specular",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 29.8
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
   },
   {
    "frame": 26737,
@@ -4846,6 +5498,40 @@
    "callout": ""
   },
   {
+   "frame": 27619,
+   "blend": 0,
+   "source": "c6-ibl",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        40,
+        14,
+        3.0
+       ],
+       [
+        -30,
+        8,
+        2.92
+       ],
+       [
+        10,
+        10,
+        3.1
+       ]
+      ],
+      "seconds": 34.533
+     }
+    }
+   ]
+  },
+  {
    "frame": 27631,
    "blend": 0,
    "source": "c6-ibl",
@@ -4883,6 +5569,29 @@
     "cameraDrift": 0.0
    },
    "callout": ""
+  },
+  {
+   "frame": 28883,
+   "blend": 0,
+   "source": "c7-lambert",
+   "animate": [
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
   },
   {
    "frame": 29095,
@@ -4940,6 +5649,40 @@
    "callout": ""
   },
   {
+   "frame": 30169,
+   "blend": 0,
+   "source": "c7-response",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 20.067
+     }
+    }
+   ]
+  },
+  {
    "frame": 30181,
    "blend": 0,
    "source": "c7-response",
@@ -4985,6 +5728,56 @@
    "callout": ""
   },
   {
+   "frame": 30771,
+   "blend": 0,
+   "source": "c7-disney",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 28.533
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
+  },
+  {
    "frame": 30783,
    "blend": 0,
    "source": "c7-disney",
@@ -5026,6 +5819,49 @@
    "callout": ""
   },
   {
+   "frame": 31846,
+   "blend": 0,
+   "source": "c8-why",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        52,
+        10,
+        1.95
+       ],
+       [
+        20,
+        4,
+        1.7
+       ],
+       [
+        38,
+        8,
+        1.85
+       ]
+      ],
+      "seconds": 35.867
+     }
+    },
+    {
+     "wave": {
+      "param": "sphereLightX",
+      "amplitude": 0.4,
+      "period": 11.0,
+      "seconds": 35.867,
+      "fade": 1.0
+     }
+    }
+   ]
+  },
+  {
    "frame": 32241,
    "blend": 0,
    "source": "c8-why",
@@ -5046,6 +5882,49 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 32922,
+   "blend": 0,
+   "source": "c8-light",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        52,
+        10,
+        1.95
+       ],
+       [
+        20,
+        4,
+        1.7
+       ],
+       [
+        38,
+        8,
+        1.85
+       ]
+      ],
+      "seconds": 25.367
+     }
+    },
+    {
+     "wave": {
+      "param": "sphereLightX",
+      "amplitude": 0.4,
+      "period": 11.0,
+      "seconds": 25.367,
+      "fade": 1.0
+     }
+    }
+   ]
   },
   {
    "frame": 32934,
@@ -5079,6 +5958,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 33683,
+   "blend": 0,
+   "source": "c8-thick",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        52,
+        10,
+        1.95
+       ],
+       [
+        20,
+        4,
+        1.7
+       ],
+       [
+        38,
+        8,
+        1.85
+       ]
+      ],
+      "seconds": 46.067
+     }
+    }
+   ]
   },
   {
    "frame": 33695,
@@ -5163,6 +6076,49 @@
    "callout": ""
   },
   {
+   "frame": 35065,
+   "blend": 0,
+   "source": "c8-thin",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        52,
+        10,
+        1.95
+       ],
+       [
+        20,
+        4,
+        1.7
+       ],
+       [
+        38,
+        8,
+        1.85
+       ]
+      ],
+      "seconds": 36.333
+     }
+    },
+    {
+     "wave": {
+      "param": "sphereLightX",
+      "amplitude": 0.4,
+      "period": 11.0,
+      "seconds": 36.333,
+      "fade": 1.0
+     }
+    }
+   ]
+  },
+  {
    "frame": 35077,
    "blend": 0,
    "source": "c8-thin",
@@ -5212,6 +6168,56 @@
    "callout": ""
   },
   {
+   "frame": 36369,
+   "blend": 0,
+   "source": "c9-loss",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 30.8
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightY"
+      ],
+      "center": [
+       -1.05,
+       1.24
+      ],
+      "degrees": 22.0,
+      "seconds": 5.0,
+      "ease": "sine",
+      "repeat": "pingPong"
+     }
+    }
+   ]
+  },
+  {
    "frame": 36939,
    "blend": 0,
    "source": "c9-loss",
@@ -5236,6 +6242,40 @@
     "cameraDrift": 0.0
    },
    "callout": ""
+  },
+  {
+   "frame": 37293,
+   "blend": 0,
+   "source": "c9-texture",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 43.033
+     }
+    }
+   ]
   },
   {
    "frame": 37305,
@@ -5392,6 +6432,40 @@
    "callout": ""
   },
   {
+   "frame": 39639,
+   "blend": 0,
+   "source": "c9-finding",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        16,
+        12,
+        3.0
+       ],
+       [
+        -14,
+        8,
+        3.25
+       ],
+       [
+        6,
+        10,
+        3.05
+       ]
+      ],
+      "seconds": 34.633
+     }
+    }
+   ]
+  },
+  {
    "frame": 39651,
    "blend": 30,
    "source": "c9-finding",
@@ -5417,6 +6491,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 40893,
+   "blend": 0,
+   "source": "c10-record",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        15,
+        24,
+        6.8
+       ],
+       [
+        8,
+        32,
+        7.5
+       ],
+       [
+        15,
+        26,
+        7.0
+       ]
+      ],
+      "seconds": 62.5
+     }
+    }
+   ]
   },
   {
    "frame": 41070,
@@ -5488,6 +6596,40 @@
    "callout": ""
   },
   {
+   "frame": 42768,
+   "blend": 0,
+   "source": "c10-radius",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        15,
+        24,
+        6.8
+       ],
+       [
+        8,
+        32,
+        7.5
+       ],
+       [
+        15,
+        26,
+        7.0
+       ]
+      ],
+      "seconds": 22.8
+     }
+    }
+   ]
+  },
+  {
    "frame": 42780,
    "blend": 0,
    "source": "c10-radius",
@@ -5537,6 +6679,40 @@
     "cameraDrift": 1.0
    },
    "callout": ""
+  },
+  {
+   "frame": 43452,
+   "blend": 0,
+   "source": "c10-channels",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        15,
+        24,
+        6.8
+       ],
+       [
+        8,
+        32,
+        7.5
+       ],
+       [
+        15,
+        26,
+        7.0
+       ]
+      ],
+      "seconds": 39.433
+     }
+    }
+   ]
   },
   {
    "frame": 43464,
@@ -5598,6 +6774,55 @@
    "callout": ""
   },
   {
+   "frame": 44635,
+   "blend": 0,
+   "source": "c10-shadows",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 18.6
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       0.0,
+       -0.3
+      ],
+      "degrees": 180.0,
+      "seconds": 18.6,
+      "ease": "sine"
+     }
+    }
+   ]
+  },
+  {
    "frame": 44647,
    "blend": 0,
    "source": "c10-shadows",
@@ -5628,13 +6853,47 @@
    "callout": ""
   },
   {
-   "frame": 45659,
+   "frame": 45421,
+   "blend": 0,
+   "source": "c11-sky",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        44,
+        14,
+        3.4
+       ],
+       [
+        -4,
+        8,
+        3.9
+       ],
+       [
+        26,
+        12,
+        3.5
+       ]
+      ],
+      "seconds": 24.133
+     }
+    }
+   ]
+  },
+  {
+   "frame": 45675,
    "blend": 0,
    "source": "c11-sky",
    "callout": "ibl-srg"
   },
   {
-   "frame": 45856,
+   "frame": 45889,
    "blend": 0,
    "source": "c11-sky",
    "params": {
@@ -5642,19 +6901,19 @@
    }
   },
   {
-   "frame": 46233,
+   "frame": 46310,
    "blend": 0,
    "source": "c11-bake",
    "callout": "specular-preset"
   },
   {
-   "frame": 46591,
+   "frame": 46685,
    "blend": 0,
    "source": "c11-bake",
    "callout": "diffuse-preset"
   },
   {
-   "frame": 47014,
+   "frame": 47133,
    "blend": 0,
    "source": "c11-prefilter",
    "demo": "ibl",
@@ -5664,7 +6923,7 @@
    "callout": ""
   },
   {
-   "frame": 47026,
+   "frame": 47145,
    "blend": 0,
    "source": "c11-prefilter",
    "panel": "code",
@@ -5675,7 +6934,7 @@
    "callout": "cubemap-ggx"
   },
   {
-   "frame": 47162,
+   "frame": 47298,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5684,7 +6943,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47337,
+   "frame": 47490,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5693,7 +6952,7 @@
    "callout": "cubemap-ggx"
   },
   {
-   "frame": 47337,
+   "frame": 47490,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5701,7 +6960,7 @@
    }
   },
   {
-   "frame": 47372,
+   "frame": 47525,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5709,7 +6968,7 @@
    }
   },
   {
-   "frame": 47407,
+   "frame": 47560,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5717,7 +6976,7 @@
    }
   },
   {
-   "frame": 47455,
+   "frame": 47625,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5726,7 +6985,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47753,
+   "frame": 47940,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5735,7 +6994,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47753,
+   "frame": 47940,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -5743,7 +7002,7 @@
    }
   },
   {
-   "frame": 47804,
+   "frame": 47991,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -5751,7 +7010,7 @@
    }
   },
   {
-   "frame": 47880,
+   "frame": 48084,
    "blend": 0,
    "source": "c11-cosine",
    "demo": "ibl",
@@ -5761,7 +7020,41 @@
    "callout": ""
   },
   {
-   "frame": 47892,
+   "frame": 48084,
+   "blend": 0,
+   "source": "c11-cosine",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        44,
+        14,
+        3.4
+       ],
+       [
+        -4,
+        8,
+        3.9
+       ],
+       [
+        26,
+        12,
+        3.5
+       ]
+      ],
+      "seconds": 20.967
+     }
+    }
+   ]
+  },
+  {
+   "frame": 48096,
    "blend": 30,
    "source": "c11-cosine",
    "callout": "filter-cosine",
@@ -5771,13 +7064,13 @@
    }
   },
   {
-   "frame": 48067,
+   "frame": 48288,
    "blend": 0,
    "source": "c11-cosine",
    "callout": "diffuse-global"
   },
   {
-   "frame": 48259,
+   "frame": 48497,
    "blend": 0,
    "source": "c11-cosine",
    "params": {
@@ -5785,7 +7078,7 @@
    }
   },
   {
-   "frame": 48458,
+   "frame": 48713,
    "blend": 0,
    "source": "c11-passes",
    "demo": "ibl",
@@ -5795,7 +7088,41 @@
    "callout": ""
   },
   {
-   "frame": 48470,
+   "frame": 48713,
+   "blend": 0,
+   "source": "c11-passes",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        44,
+        14,
+        3.4
+       ],
+       [
+        -4,
+        8,
+        3.9
+       ],
+       [
+        26,
+        12,
+        3.5
+       ]
+      ],
+      "seconds": 43.467
+     }
+    }
+   ]
+  },
+  {
+   "frame": 48725,
    "blend": 0,
    "source": "c11-passes",
    "panel": "code",
@@ -5809,7 +7136,7 @@
    }
   },
   {
-   "frame": 48743,
+   "frame": 49015,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -5821,7 +7148,7 @@
    }
   },
   {
-   "frame": 48886,
+   "frame": 49175,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -5833,7 +7160,7 @@
    }
   },
   {
-   "frame": 49081,
+   "frame": 49387,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -5842,7 +7169,7 @@
    "callout": "reflection-global"
   },
   {
-   "frame": 49408,
+   "frame": 49731,
    "blend": 0,
    "source": "c11-passes",
    "callout": "reflection-composite",
@@ -5851,7 +7178,7 @@
    }
   },
   {
-   "frame": 49677,
+   "frame": 50017,
    "blend": 0,
    "source": "c11-readout",
    "demo": "ibl",
@@ -5862,7 +7189,7 @@
    "callout": ""
   },
   {
-   "frame": 49689,
+   "frame": 50029,
    "blend": 0,
    "source": "c11-readout",
    "panel": "values",
@@ -5873,7 +7200,7 @@
    "callout": "roughness-mip"
   },
   {
-   "frame": 49928,
+   "frame": 50285,
    "blend": 0,
    "source": "c11-readout",
    "params": {
@@ -5882,7 +7209,7 @@
    "callout": "roughness-mip"
   },
   {
-   "frame": 49928,
+   "frame": 50285,
    "blend": 45,
    "source": "c11-readout",
    "params": {
@@ -5890,7 +7217,7 @@
    }
   },
   {
-   "frame": 49996,
+   "frame": 50353,
    "blend": 60,
    "source": "c11-readout",
    "params": {
@@ -5898,7 +7225,7 @@
    }
   },
   {
-   "frame": 50088,
+   "frame": 50462,
    "blend": 0,
    "source": "c11-occlusion",
    "demo": "room",
@@ -5908,13 +7235,47 @@
    "callout": ""
   },
   {
-   "frame": 50100,
+   "frame": 50462,
+   "blend": 0,
+   "source": "c11-occlusion",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 29.167
+     }
+    }
+   ]
+  },
+  {
+   "frame": 50474,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "ssao-default"
   },
   {
-   "frame": 50343,
+   "frame": 50734,
    "blend": 0,
    "source": "c11-occlusion",
    "params": {
@@ -5923,13 +7284,13 @@
    "callout": "ssao-default"
   },
   {
-   "frame": 50573,
+   "frame": 50981,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "reflection-global"
   },
   {
-   "frame": 51229,
+   "frame": 51662,
    "blend": 0,
    "source": "c12-why",
    "demo": "reflections",
@@ -5940,7 +7301,41 @@
    "callout": ""
   },
   {
-   "frame": 51661,
+   "frame": 51662,
+   "blend": 0,
+   "source": "c12-why",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 41.9
+     }
+    }
+   ]
+  },
+  {
+   "frame": 52074,
    "blend": 0,
    "source": "c12-why",
    "callout": "probe-defaults",
@@ -5949,13 +7344,13 @@
    }
   },
   {
-   "frame": 52096,
+   "frame": 52480,
    "blend": 0,
    "source": "c12-why",
    "callout": "cubemap-quality"
   },
   {
-   "frame": 52378,
+   "frame": 52743,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -5963,7 +7358,7 @@
    }
   },
   {
-   "frame": 52439,
+   "frame": 52811,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -5971,7 +7366,285 @@
    }
   },
   {
-   "frame": 52559,
+   "frame": 52919,
+   "blend": 0,
+   "source": "c12-bake",
+   "demo": "reflections",
+   "params": {
+    "cameraDrift": 1.0,
+    "probeBakeFaces": 0.0,
+    "probeBoxes": 0.6
+   },
+   "callout": ""
+  },
+  {
+   "frame": 52919,
+   "blend": 0,
+   "source": "c12-bake",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        18,
+        5.8
+       ],
+       [
+        12,
+        14,
+        6.2
+       ]
+      ],
+      "seconds": 64.767
+     }
+    }
+   ]
+  },
+  {
+   "frame": 52931,
+   "blend": 0,
+   "source": "c12-bake",
+   "callout": "probe-bake-capture"
+  },
+  {
+   "frame": 53199,
+   "blend": 30,
+   "source": "c12-bake",
+   "callout": "probe-bake-faces",
+   "params": {
+    "probeCubemap": 1.0
+   },
+   "panel": "hidden"
+  },
+  {
+   "frame": 53199,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 1.0
+   }
+  },
+  {
+   "frame": 53241,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 2.0
+   }
+  },
+  {
+   "frame": 53283,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 3.0
+   }
+  },
+  {
+   "frame": 53325,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 4.0
+   }
+  },
+  {
+   "frame": 53368,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 5.0
+   }
+  },
+  {
+   "frame": 53410,
+   "blend": 12,
+   "source": "c12-bake",
+   "params": {
+    "probeBakeFaces": 6.0
+   }
+  },
+  {
+   "frame": 53775,
+   "blend": 0,
+   "source": "c12-bake",
+   "callout": "probe-bake-write"
+  },
+  {
+   "frame": 54073,
+   "blend": 0,
+   "source": "c12-bake",
+   "callout": "probe-bake-preset"
+  },
+  {
+   "frame": 54073,
+   "blend": 24,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 1.0
+   }
+  },
+  {
+   "frame": 54135,
+   "blend": 24,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 2.0
+   }
+  },
+  {
+   "frame": 54197,
+   "blend": 24,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 3.0
+   }
+  },
+  {
+   "frame": 54259,
+   "blend": 24,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 4.0
+   }
+  },
+  {
+   "frame": 54322,
+   "blend": 24,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 5.0
+   }
+  },
+  {
+   "frame": 54413,
+   "blend": 36,
+   "source": "c12-bake",
+   "params": {
+    "probeCubemapMip": 0.0
+   }
+  },
+  {
+   "frame": 54638,
+   "blend": 0,
+   "source": "c12-bake",
+   "params": {
+    "probeShown": 2.0
+   }
+  },
+  {
+   "frame": 54862,
+   "blend": 0,
+   "source": "c12-ball",
+   "demo": "reflections",
+   "params": {
+    "cameraDrift": 1.0,
+    "probeCubemap": 1.0,
+    "probeBoxes": 0.0,
+    "probeBallRadius": 0.3
+   },
+   "callout": "",
+   "panel": "hidden"
+  },
+  {
+   "frame": 54874,
+   "blend": 36,
+   "source": "c12-ball",
+   "callout": "probe-visualization",
+   "params": {
+    "probeCubemap": 0.0,
+    "probeBall": 1.0
+   }
+  },
+  {
+   "frame": 54874,
+   "blend": 90,
+   "source": "c12-ball",
+   "ease": "inOut",
+   "camera": {
+    "target": [
+     0.0,
+     1.2,
+     -0.1
+    ],
+    "yaw": -20.0,
+    "pitch": 12.0,
+    "distance": 2.0
+   }
+  },
+  {
+   "frame": 55056,
+   "blend": 0,
+   "source": "c12-ball",
+   "callout": "probe-visualization-surface",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        -38,
+        8,
+        1.9
+       ],
+       [
+        2,
+        16,
+        2.2
+       ],
+       [
+        -18,
+        10,
+        2.0
+       ]
+      ],
+      "seconds": 21.367
+     }
+    }
+   ]
+  },
+  {
+   "frame": 55265,
+   "blend": 0,
+   "source": "c12-ball",
+   "callout": "probe-visualization-hidden"
+  },
+  {
+   "frame": 55417,
+   "blend": 30,
+   "source": "c12-ball",
+   "params": {
+    "probeBallMip": 2.0
+   }
+  },
+  {
+   "frame": 55491,
+   "blend": 30,
+   "source": "c12-ball",
+   "params": {
+    "probeBallMip": 4.0
+   }
+  },
+  {
+   "frame": 55564,
+   "blend": 30,
+   "source": "c12-ball",
+   "params": {
+    "probeBallMip": 0.0
+   }
+  },
+  {
+   "frame": 55697,
    "blend": 0,
    "source": "c12-stencil",
    "demo": "reflections",
@@ -5981,7 +7654,41 @@
    "callout": ""
   },
   {
-   "frame": 52571,
+   "frame": 55697,
+   "blend": 0,
+   "source": "c12-stencil",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 34.267
+     }
+    }
+   ]
+  },
+  {
+   "frame": 55709,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "reflections-order",
@@ -5992,7 +7699,7 @@
    ]
   },
   {
-   "frame": 52885,
+   "frame": 56004,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-stencil",
@@ -6001,14 +7708,14 @@
    }
   },
   {
-   "frame": 53186,
+   "frame": 56286,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-stencil-reduced"
   },
   {
-   "frame": 53331,
-   "blend": 0,
+   "frame": 56412,
+   "blend": 30,
    "source": "c12-stencil",
    "highlight": [
     "weight"
@@ -6016,17 +7723,18 @@
    "callout": "probe-blend-weight",
    "params": {
     "viewMode": 14.0,
-    "formula": 1.0
+    "formula": 1.0,
+    "probeInnerScale": 0.7
    }
   },
   {
-   "frame": 53556,
+   "frame": 56618,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-blend-weight"
   },
   {
-   "frame": 53682,
+   "frame": 56725,
    "blend": 0,
    "source": "c12-blend",
    "demo": "reflections",
@@ -6036,7 +7744,41 @@
    "callout": ""
   },
   {
-   "frame": 53694,
+   "frame": 56725,
+   "blend": 0,
+   "source": "c12-blend",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 37.633
+     }
+    }
+   ]
+  },
+  {
+   "frame": 56737,
    "blend": 0,
    "source": "c12-blend",
    "panel": "code",
@@ -6051,7 +7793,7 @@
    }
   },
   {
-   "frame": 53977,
+   "frame": 57001,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
@@ -6063,7 +7805,7 @@
    }
   },
   {
-   "frame": 54207,
+   "frame": 57212,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
@@ -6072,19 +7814,19 @@
    "callout": "probe-render-inner"
   },
   {
-   "frame": 54402,
+   "frame": 57388,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-sort"
   },
   {
-   "frame": 54601,
+   "frame": 57568,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-specular"
   },
   {
-   "frame": 54760,
+   "frame": 57708,
    "blend": 0,
    "source": "c12-blend",
    "panel": "values",
@@ -6094,7 +7836,7 @@
    }
   },
   {
-   "frame": 54760,
+   "frame": 57708,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -6102,7 +7844,7 @@
    }
   },
   {
-   "frame": 54813,
+   "frame": 57761,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -6110,7 +7852,7 @@
    }
   },
   {
-   "frame": 54925,
+   "frame": 57854,
    "blend": 0,
    "source": "c12-parallax",
    "demo": "reflections",
@@ -6120,7 +7862,41 @@
    "callout": ""
   },
   {
-   "frame": 54937,
+   "frame": 57854,
+   "blend": 0,
+   "source": "c12-parallax",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        24,
+        22,
+        5.6
+       ],
+       [
+        8,
+        14,
+        6.4
+       ],
+       [
+        21,
+        18,
+        6.0
+       ]
+      ],
+      "seconds": 27.133
+     }
+    }
+   ]
+  },
+  {
+   "frame": 57866,
    "blend": 0,
    "source": "c12-parallax",
    "panel": "code",
@@ -6134,19 +7910,25 @@
    }
   },
   {
-   "frame": 55117,
+   "frame": 58027,
    "blend": 0,
    "source": "c12-parallax",
    "callout": "parallax-obb"
   },
   {
-   "frame": 55348,
+   "frame": 58239,
+   "blend": 0,
+   "source": "c12-parallax",
+   "callout": "parallax-obb"
+  },
+  {
+   "frame": 58511,
    "blend": 0,
    "source": "c12-parallax",
    "panel": "values"
   },
   {
-   "frame": 55348,
+   "frame": 58511,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -6154,7 +7936,7 @@
    }
   },
   {
-   "frame": 55406,
+   "frame": 58569,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -6162,7 +7944,7 @@
    }
   },
   {
-   "frame": 55524,
+   "frame": 58668,
    "blend": 0,
    "source": "c12-composite",
    "demo": "reflections",
@@ -6172,7 +7954,41 @@
    "callout": ""
   },
   {
-   "frame": 55536,
+   "frame": 58668,
+   "blend": 0,
+   "source": "c12-composite",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 27.933
+     }
+    }
+   ]
+  },
+  {
+   "frame": 58680,
    "blend": 0,
    "source": "c12-composite",
    "panel": "code",
@@ -6183,13 +7999,13 @@
    "callout": "composite-stencil"
   },
   {
-   "frame": 55765,
+   "frame": 58890,
    "blend": 0,
    "source": "c12-composite",
    "callout": "reflection-clear"
   },
   {
-   "frame": 56014,
+   "frame": 59120,
    "blend": 0,
    "source": "c12-composite",
    "callout": "reflection-clear",
@@ -6198,13 +8014,13 @@
    }
   },
   {
-   "frame": 56296,
+   "frame": 59383,
    "blend": 0,
    "source": "c12-composite",
    "panel": "values"
   },
   {
-   "frame": 56647,
+   "frame": 59705,
    "blend": 0,
    "source": "c13-why",
    "demo": "ssao",
@@ -6216,7 +8032,41 @@
    "callout": ""
   },
   {
-   "frame": 56921,
+   "frame": 59705,
+   "blend": 0,
+   "source": "c13-why",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 29.433
+     }
+    }
+   ]
+  },
+  {
+   "frame": 59979,
    "blend": 30,
    "source": "c13-why",
    "callout": "ssao-default",
@@ -6225,13 +8075,13 @@
    }
   },
   {
-   "frame": 57156,
+   "frame": 60214,
    "blend": 0,
    "source": "c13-why",
    "callout": "ao-placement"
   },
   {
-   "frame": 57401,
+   "frame": 60459,
    "blend": 0,
    "source": "c13-why",
    "params": {
@@ -6240,7 +8090,7 @@
    "callout": "ssao-modulate"
   },
   {
-   "frame": 57530,
+   "frame": 60588,
    "blend": 0,
    "source": "c13-compute",
    "demo": "ssao",
@@ -6250,7 +8100,41 @@
    "callout": ""
   },
   {
-   "frame": 57542,
+   "frame": 60588,
+   "blend": 0,
+   "source": "c13-compute",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 54.1
+     }
+    }
+   ]
+  },
+  {
+   "frame": 60600,
    "blend": 0,
    "source": "c13-compute",
    "panel": "code",
@@ -6261,13 +8145,13 @@
    "callout": "depth-linear"
   },
   {
-   "frame": 57732,
+   "frame": 60790,
    "blend": 0,
    "source": "c13-compute",
    "callout": "depth-downsample"
   },
   {
-   "frame": 57904,
+   "frame": 60962,
    "blend": 0,
    "source": "c13-compute",
    "highlight": [
@@ -6279,13 +8163,13 @@
    }
   },
   {
-   "frame": 58257,
+   "frame": 61315,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-compute"
   },
   {
-   "frame": 58582,
+   "frame": 61640,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-format",
@@ -6294,13 +8178,13 @@
    }
   },
   {
-   "frame": 58815,
+   "frame": 61873,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-defaults"
   },
   {
-   "frame": 59011,
+   "frame": 62069,
    "blend": 0,
    "source": "c13-compute",
    "panel": "values",
@@ -6309,7 +8193,7 @@
    }
   },
   {
-   "frame": 59011,
+   "frame": 62069,
    "blend": 36,
    "source": "c13-compute",
    "params": {
@@ -6317,7 +8201,7 @@
    }
   },
   {
-   "frame": 59059,
+   "frame": 62117,
    "blend": 45,
    "source": "c13-compute",
    "params": {
@@ -6325,7 +8209,7 @@
    }
   },
   {
-   "frame": 59153,
+   "frame": 62211,
    "blend": 0,
    "source": "c13-blur",
    "demo": "ssao",
@@ -6335,7 +8219,41 @@
    "callout": ""
   },
   {
-   "frame": 59165,
+   "frame": 62211,
+   "blend": 0,
+   "source": "c13-blur",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 35.833
+     }
+    }
+   ]
+  },
+  {
+   "frame": 62223,
    "blend": 0,
    "source": "c13-blur",
    "panel": "code",
@@ -6346,31 +8264,31 @@
    "callout": "blur-order"
   },
   {
-   "frame": 59350,
+   "frame": 62408,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 59616,
+   "frame": 62674,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 59796,
+   "frame": 62854,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-defaults"
   },
   {
-   "frame": 60094,
+   "frame": 63152,
    "blend": 0,
    "source": "c13-blur",
    "panel": "values"
   },
   {
-   "frame": 60094,
+   "frame": 63152,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -6378,7 +8296,7 @@
    }
   },
   {
-   "frame": 60138,
+   "frame": 63196,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -6386,7 +8304,7 @@
    }
   },
   {
-   "frame": 60228,
+   "frame": 63286,
    "blend": 0,
    "source": "c13-upsample",
    "demo": "ssao",
@@ -6396,7 +8314,41 @@
    "callout": ""
   },
   {
-   "frame": 60240,
+   "frame": 63286,
+   "blend": 0,
+   "source": "c13-upsample",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        22,
+        21,
+        5.9
+       ],
+       [
+        4,
+        13,
+        6.7
+       ],
+       [
+        20,
+        18,
+        6.2
+       ]
+      ],
+      "seconds": 30.767
+     }
+    }
+   ]
+  },
+  {
+   "frame": 63298,
    "blend": 0,
    "source": "c13-upsample",
    "panel": "code",
@@ -6407,7 +8359,7 @@
    "callout": "depth-upsample"
   },
   {
-   "frame": 60526,
+   "frame": 63584,
    "blend": 0,
    "source": "c13-upsample",
    "callout": "ssao-modulate",
@@ -6417,13 +8369,13 @@
    }
   },
   {
-   "frame": 60731,
+   "frame": 63789,
    "blend": 0,
    "source": "c13-upsample",
    "panel": "values"
   },
   {
-   "frame": 61383,
+   "frame": 64441,
    "blend": 0,
    "source": "c14-recap",
    "demo": "room",
@@ -6433,19 +8385,68 @@
    "callout": ""
   },
   {
-   "frame": 61625,
+   "frame": 64441,
+   "blend": 0,
+   "source": "c14-recap",
+   "animate": [
+    {
+     "path": {
+      "params": [
+       "camera.yaw",
+       "camera.pitch",
+       "camera.distance"
+      ],
+      "through": [
+       [
+        23,
+        22,
+        5.8
+       ],
+       [
+        -6,
+        12,
+        6.8
+       ],
+       [
+        20,
+        19,
+        6.1
+       ]
+      ],
+      "seconds": 56.733
+     }
+    },
+    {
+     "orbit": {
+      "params": [
+       "lightX",
+       "lightZ"
+      ],
+      "center": [
+       0.0,
+       -0.3
+      ],
+      "degrees": 300.0,
+      "seconds": 56.733,
+      "ease": "sine"
+     }
+    }
+   ]
+  },
+  {
+   "frame": 64683,
    "blend": 0,
    "source": "c14-recap",
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 62051,
+   "frame": 65109,
    "blend": 0,
    "source": "c14-recap",
    "callout": "opaque-pass-order"
   },
   {
-   "frame": 62534,
+   "frame": 65592,
    "blend": 0,
    "source": "c14-recap",
    "callout": "reflections-order"

@@ -154,6 +154,13 @@ pub const PARAMS: &[(&str, f32, &str)] = &[
     ("probeInnerScale", 1.0, "the probes' inner extents as a fraction of the placed ones (clamped to the outer extents)"),
     ("probeExposure", 0.0, "the probes' render exposure, stops (default 0)"),
     ("probeBoxes", 0.0, "the probes' outer and inner boxes"),
+    ("probeShown", 1.0, "the probe whose baked cubemap the cubemap views show (1 or 2)"),
+    ("probeCubemap", 0.0, "that cubemap unfolded as a cross over the viewport (the lab's view, not an O3DE pass; a fraction fades it in)"),
+    ("probeCubemapMip", 0.0, "the cross's mip (0 the 256-texel capture, 5 the roughest prefiltered mip; a fraction blends two)"),
+    ("probeBakeFaces", 6.0, "how many of the cross's six faces are baked (the video fills them in, in the cubemap's face order: +X, -X, +Y, -Y, +Z, -Z)"),
+    ("probeBall", 0.0, "a mirror ball at the probe's position reflecting its cubemap (a fraction fades it in)"),
+    ("probeBallRadius", 0.22, "the mirror ball's radius, metres"),
+    ("probeBallMip", 0.0, "the mip the mirror ball reads"),
     ("teapotTransmission", 0.0, "the teapot as EnhancedPBR with transmission: 0 None (the default), 1 ThickObject, 2 ThinObject"),
     ("transmissionThickness", 0.5, "transmission thickness (the property's default 0.5)"),
     ("transmissionPower", 6.0, "thick mode: transmission power (default 6)"),
@@ -183,6 +190,8 @@ pub const PARAMS: &[(&str, f32, &str)] = &[
     ("boxRoughness", 0.55, "rotated box roughness"),
     ("boxMetallic", 0.0, "rotated box metallic"),
     ("floorRoughness", 0.45, "floor roughness"),
+    ("floorMetallic", 0.0, "floor metallic"),
+    ("floorBaseColorFactor", 1.0, "the floor's baseColor.factor, scaling its authored colour (0.16, 0.17, 0.19)"),
     ("inspectX", -0.621, "inspected point x, metres (a click sets it)"),
     ("inspectY", 0.900, "inspected point y"),
     ("inspectZ", -0.201, "inspected point z"),
@@ -332,11 +341,13 @@ pub fn for_demo(demo: Demo) -> ShotState {
             OrbitCamera { target: [-0.25, 0.3, -1.75], yaw: 35.0, pitch: 6.0, distance: 1.8, fov: 50.0 }
         }
         Demo::Reflections => {
-            // Both probes and their boxes; a glossy floor shows the probes' reflections.
+            // Both probes and their boxes; a polished metal floor mirrors the walls the probes saw.
             set("probes", 1.0);
             set("probeBoxes", 1.0);
             set("labels", 0.0);
             set("floorRoughness", 0.15);
+            set("floorMetallic", 1.0);
+            set("floorBaseColorFactor", 4.0);
             for (name, value) in [("inspectObject", ids::FLOOR as f32), ("inspectX", 0.15), ("inspectY", 0.0), ("inspectZ", -0.5), ("inspectNX", 0.0), ("inspectNY", 1.0), ("inspectNZ", 0.0)] {
                 set(name, value);
             }
@@ -363,7 +374,7 @@ pub fn for_demo(demo: Demo) -> ShotState {
             set("radius", 1.0);
             set("attenuationRadius", 3.5);
             set("viewMode", 9.0);
-            OrbitCamera { target: [0.3, 0.6, 0.2], yaw: 24.0, pitch: 28.0, distance: 7.2, fov: 50.0 }
+            OrbitCamera { target: [0.3, 0.6, 0.2], yaw: 12.0, pitch: 28.0, distance: 7.2, fov: 50.0 }
         }
         Demo::Ibl => {
             close_up(&mut set);
@@ -439,8 +450,9 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Multiscatter => vec![wave("sphereRoughness", 0.55, 0.42, 10.0)],
         // The radius grows and shrinks while the light moves across the room, its curve with it.
         Demo::PointLight => vec![wave("attenuationRadius", 3.5, 2.0, 10.0), wave("lightX", 0.55, 0.9, 17.0)],
-        // The inner volumes shrink and grow, so the blend region widens and narrows.
-        Demo::Reflections => vec![wave("probeInnerScale", 0.55, 0.45, 12.0)],
+        // The inner volumes shrink and grow, so the blend region widens and narrows; the floor's
+        // roughness walks its reflections through the cubemaps' mips, as the cross's mip does.
+        Demo::Reflections => vec![wave("probeInnerScale", 0.55, 0.45, 12.0), cosine("floorRoughness", 0.25, -0.1, 9.0), cosine("probeCubemapMip", 2.5, -2.5, 14.0)],
         // The sampling radius grows and shrinks: wider and softer, then tighter.
         Demo::Ssao => vec![wave("ssaoRadius", 0.05, 0.04, 10.0)],
         // Roughness walks through the specular cubemap's mips.

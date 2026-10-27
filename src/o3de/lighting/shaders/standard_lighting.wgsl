@@ -2277,7 +2277,90 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
         background = skyRadiance(viewRay((vec2<f32>(pixel) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
     }
     color += background * (1.0 - coverage / n);
+    color = probeCubemapViews(pixel, color);
     textureStore(oHdr, pixel, vec4<f32>(color, 1.0));
+}
+
+// ---------------------------------------------------------------------------
+// The lab's views of a probe's baked cubemap (not O3DE passes). gShadingFrame
+// from FRAME_CUBEMAP_VIEW (reflections.rs): (the unfolded cross's opacity,
+// its cubemap, its mip, how many faces are baked), (the mirror ball's
+// opacity, its radius, its cubemap, its mip), (the ball's centre, unused).
+const FRAME_CUBEMAP_VIEW: u32 = 224u;
+// The cross's cells as a fraction of the viewport, at most.
+const CROSS_FILL: f32 = 0.94;
+
+// The direction through a point of the horizontal cross (four faces across,
+// three down, -Z at the centre seen from inside), with uv in -1..1 (y down)
+// on the cell; w is the face (cubeSample's numbering) or -1 off the cross.
+fn crossDirection(cell: vec2<i32>, uv: vec2<f32>) -> vec4<f32> {
+    let u = uv.x;
+    let v = uv.y;
+    if (cell.y == 0 && cell.x == 1) {
+        return vec4<f32>(u, 1.0, v, 2.0);
+    }
+    if (cell.y == 2 && cell.x == 1) {
+        return vec4<f32>(u, -1.0, -v, 3.0);
+    }
+    if (cell.y == 1) {
+        switch cell.x {
+            case 0: { return vec4<f32>(-1.0, -v, u, 1.0); }
+            case 1: { return vec4<f32>(u, -v, -1.0, 5.0); }
+            case 2: { return vec4<f32>(1.0, -v, -u, 0.0); }
+            case 3: { return vec4<f32>(-u, -v, 1.0, 4.0); }
+            default: {}
+        }
+    }
+    return vec4<f32>(0.0, 0.0, 0.0, -1.0);
+}
+
+fn probeCubemapViews(pixel: vec2<u32>, sceneColor: vec3<f32>) -> vec3<f32> {
+    var color = sceneColor;
+    let size = vec2<f32>(textureDimensions(tDepth));
+    let ball = gShadingFrame[FRAME_CUBEMAP_VIEW + 1u];
+    if (ball.x > 0.0) {
+        let center = gShadingFrame[FRAME_CUBEMAP_VIEW + 2u].xyz;
+        let eye = gFrame.camera.position;
+        let dir = viewRay((vec2<f32>(pixel) + 0.5) / size);
+        let toCenter = center - eye;
+        let along = dot(toCenter, dir);
+        let miss = length(toCenter - dir * along);
+        // About one pixel of edge at the ball's distance.
+        let pixelSize = along * 2.0 / (gFrame.camera.viewToClip[1][1] * size.y);
+        let edge = saturate((ball.y - miss) / max(pixelSize, 1e-5) + 0.5);
+        if (edge > 0.0 && along > 0.0) {
+            let t = along - sqrt(max(ball.y * ball.y - miss * miss, 0.0));
+            let depth = textureLoad(tDepth, pixel, 0);
+            let sceneDistance = select(1e9, length(reconstructWorldPosition(pixel, depth) - eye), covered(depth));
+            if (t < sceneDistance) {
+                let normal = normalize(eye + dir * t - center);
+                let mirrored = sampleProbeEnv(u32(ball.z), reflect(dir, normal), ball.w);
+                color = mix(color, mirrored, edge * ball.x);
+            }
+        }
+    }
+    let view = gShadingFrame[FRAME_CUBEMAP_VIEW];
+    if (view.x > 0.0) {
+        let cellSize = min(size.x / 4.0, size.y / 3.0) * CROSS_FILL;
+        let origin = (size - vec2<f32>(4.0, 3.0) * cellSize) * 0.5;
+        let q = (vec2<f32>(pixel) + 0.5 - origin) / cellSize;
+        var shown = vec3<f32>(0.004, 0.009, 0.016);
+        if (all(q >= vec2<f32>(0.0)) && all(q < vec2<f32>(4.0, 3.0))) {
+            let cell = vec2<i32>(floor(q));
+            let d = crossDirection(cell, (q - floor(q)) * 2.0 - 1.0);
+            if (d.w >= 0.0) {
+                // A face not baked yet is the target's clear colour.
+                shown = select(vec3<f32>(0.0), sampleProbeEnv(u32(view.y), normalize(d.xyz), view.z), d.w < view.w);
+                // A thin seam between faces.
+                let f = (q - floor(q)) * cellSize;
+                if (any(f < vec2<f32>(1.0)) || any(f > vec2<f32>(cellSize - 1.0))) {
+                    shown = mix(shown, vec3<f32>(0.03), 0.6);
+                }
+            }
+        }
+        color = mix(color, shown, view.x);
+    }
+    return color;
 }
 
 // ---------------------------------------------------------------------------

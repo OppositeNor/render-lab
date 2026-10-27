@@ -33,10 +33,14 @@ pub struct Probe {
 }
 
 /// The probes' fixed placements, which their cubemaps are baked from:
-/// (position, outer extents, inner extents), full sizes as the component sets them.
+/// (position, outer extents, inner extents), full sizes as the component sets
+/// them. Parallax correction treats what a probe saw as lying on its outer
+/// box, so each box's faces lie on the walls: the first covers the room, its
+/// inner box reaching the walls; the second, smaller, fits the back-right
+/// corner, so it renders last and replaces the first there.
 const PLACEMENTS: [(Vec3, Vec3, Vec3); 2] = [
-    (Vec3::new(-1.3, 1.2, -1.3), Vec3::new(3.4, 2.8, 3.4), Vec3::new(2.0, 2.6, 2.0)),
-    (Vec3::new(1.4, 1.2, 0.3), Vec3::new(3.0, 2.8, 3.6), Vec3::new(1.6, 2.6, 2.2)),
+    (Vec3::new(0.0, 1.2, -0.1), Vec3::new(6.5, 2.8, 6.3), Vec3::new(6.0, 2.6, 5.8)),
+    (Vec3::new(1.75, 1.2, -1.75), Vec3::new(2.8, 2.8, 2.8), Vec3::new(1.6, 2.6, 1.6)),
 ];
 
 /// The scene's probes when `probes` is on, sorted as the feature processor
@@ -272,6 +276,30 @@ pub fn cubemaps() -> &'static Vec<Vec<Cubemap>> {
             })
             .collect()
     })
+}
+
+/// Which baked cubemap the cubemap views show (`probeShown`, 1 or 2).
+pub fn shown_cubemap(state: &ShotState) -> usize {
+    (state.p("probeShown").round().clamp(1.0, PLACEMENTS.len() as f32) as usize) - 1
+}
+
+/// The probe position a cubemap was baked from.
+pub fn bake_position(cubemap: usize) -> Vec3 {
+    PLACEMENTS[cubemap].0
+}
+
+/// The lab's views of a baked cubemap (FRAME_CUBEMAP_VIEW in the shader; not
+/// O3DE passes): (the unfolded cross's opacity, its cubemap, its mip, the
+/// faces baked so far), (the mirror ball's opacity, radius, cubemap, mip),
+/// (the ball's centre, unused).
+pub fn cubemap_view_records(state: &ShotState) -> Vec<[f32; 4]> {
+    let cubemap = shown_cubemap(state);
+    let mip_max = (SPECULAR_MIPS - 1) as f32;
+    vec![
+        [state.p("probeCubemap").clamp(0.0, 1.0), cubemap as f32, state.p("probeCubemapMip").clamp(0.0, mip_max), state.p("probeBakeFaces").clamp(0.0, 6.0)],
+        [state.p("probeBall").clamp(0.0, 1.0), state.p("probeBallRadius").max(0.01), cubemap as f32, state.p("probeBallMip").clamp(0.0, mip_max)],
+        bake_position(cubemap).extend(0.0).to_array(),
+    ]
 }
 
 /// The probes' cubemaps as gShadingData appends them.

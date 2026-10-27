@@ -70,7 +70,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
         Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("lightMarkers", tr("controls.light_markers")), ("labels", tr("controls.labels"))]),
         Demo::Surface => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("sphereOcclusion", tr("controls.occlusion_maps")), ("labels", tr("controls.labels"))]),
         Demo::Ssao => toggles.extend([("ssao", "SSAO"), ("ssaoBlur", tr("controls.blur")), ("walls", tr("controls.walls"))]),
-        Demo::Reflections => toggles.extend([("probes", tr("controls.probes")), ("probeParallax", tr("controls.parallax_correction")), ("probeBoxes", tr("controls.probe_boxes")), ("walls", tr("controls.walls"))]),
+        Demo::Reflections => toggles.extend([("probes", tr("controls.probes")), ("probeParallax", tr("controls.parallax_correction")), ("probeBoxes", tr("controls.probe_boxes")), ("walls", tr("controls.walls")), ("probeCubemap", tr("controls.cubemap_cross")), ("probeBall", tr("controls.mirror_ball"))]),
         Demo::Transmission => toggles.extend([("sphereLight", tr("common.point_light_sphere")), ("vectors", tr("controls.n_l_v")), ("labels", tr("controls.labels"))]),
         Demo::Decals => toggles.extend([("decals", tr("controls.decals")), ("decalBoxes", tr("controls.decal_boxes")), ("vectors", tr("controls.n_l_v_h"))]),
         Demo::ClearCoat => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("sphereClearCoat", tr("controls.clear_coat")), ("labels", tr("controls.labels"))]),
@@ -173,6 +173,15 @@ fn probes(dock: &mut Dock, ui: &mut Ui) {
             d.slider(ui, "probeExposure", tr("controls.exposure_stops"), palette::ACCENT, -4.0..=4.0, Unit::Plain);
         });
     });
+    let hint = tr("controls.cubemap_hint");
+    dock.group(ui, tr("controls.baked_cubemap"), Some(hint), |d, ui| {
+        d.rows(ui, "o3de-cubemap", |d, ui| {
+            d.slider(ui, "probeShown", tr("demos.probe"), palette::ACCENT, 1.0..=2.0, Unit::Index);
+            d.slider(ui, "probeCubemapMip", "mip", palette::ACCENT, 0.0..=5.0, Unit::Plain);
+            d.slider(ui, "probeBakeFaces", tr("controls.faces_baked"), palette::ACCENT, 0.0..=6.0, Unit::Plain);
+            d.slider(ui, "probeBallMip", tr("controls.ball_mip"), palette::REFLECTED, 0.0..=5.0, Unit::Plain);
+        });
+    });
 }
 
 /// The teapot's transmission (EnhancedPBR) and the sphere light behind it.
@@ -246,7 +255,7 @@ fn material(dock: &mut Dock, ui: &mut Ui) {
         ids::SPHERE => (Some("sphereRoughness"), Some("sphereMetallic")),
         ids::TEAPOT => (Some("teapotRoughness"), Some("teapotMetallic")),
         ids::BOX => (Some("boxRoughness"), Some("boxMetallic")),
-        ids::FLOOR => (Some("floorRoughness"), None),
+        ids::FLOOR => (Some("floorRoughness"), Some("floorMetallic")),
         _ => (None, None),
     };
     let name = crate::lab::i18n::object_name(dock.input.statics.scene.objects[object].name);
@@ -258,6 +267,9 @@ fn material(dock: &mut Dock, ui: &mut Ui) {
             }
             if let Some(metallic) = metallic {
                 d.slider(ui, metallic, "metallic", palette::TEXT, 0.0..=1.0, Unit::Plain);
+            }
+            if object == ids::FLOOR {
+                d.slider(ui, "floorBaseColorFactor", "baseColor factor", palette::TEXT, 0.0..=5.0, Unit::Factor);
             }
             d.slider(ui, "specularF0Factor", "specularF0 factor", super::demos::SPECULAR, 0.0..=1.0, Unit::Plain);
         });

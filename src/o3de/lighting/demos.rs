@@ -27,6 +27,8 @@ pub const FRAME_SPHERE_LIGHTS: usize = 184;
 pub const FRAME_PROBES: usize = 200;
 /// The SSAO settings, after up to four probes.
 pub const FRAME_SSAO: usize = 220;
+/// The lab's views of a probe's baked cubemap, after the SSAO settings.
+pub const FRAME_CUBEMAP_VIEW: usize = 224;
 
 /// The SSAO pass constants: (strength, sampling radius, blur on, unused),
 /// (constant falloff, depth falloff threshold, depth falloff strength,
@@ -56,6 +58,7 @@ fn material_params(object: usize) -> Option<(&'static str, &'static str)> {
         ids::SPHERE => Some(("sphereRoughness", "sphereMetallic")),
         ids::TEAPOT => Some(("teapotRoughness", "teapotMetallic")),
         ids::BOX => Some(("boxRoughness", "boxMetallic")),
+        ids::FLOOR => Some(("floorRoughness", "floorMetallic")),
         _ => None,
     }
 }
@@ -73,7 +76,10 @@ pub fn pose_objects(mut objects: Vec<ObjectData>, state: &ShotState) -> Vec<Obje
             o.albedo_roughness[3] = state.p(roughness);
         }
         if i == ids::FLOOR {
-            o.albedo_roughness[3] = state.p("floorRoughness");
+            // baseColor.factor scales the floor's authored colour.
+            for c in &mut o.albedo_roughness[..3] {
+                *c *= state.p("floorBaseColorFactor");
+            }
         }
         if i == ids::PANEL {
             o.emissive = [0.0; 4];
@@ -234,6 +240,27 @@ pub fn normal_derivatives(objects: &[ObjectData], camera: &crate::lab::layout::C
     [across, down]
 }
 
+/// The faces of the unfolded cubemap the merge pass draws (probeCubemapViews
+/// in the shader: four cells across, three down, -Z at the centre), named at
+/// their cells' tops, and the cubemap and mip under the cross.
+fn cubemap_cross_labels(labels: &mut Vec<Label>, state: &ShotState, camera: &crate::lab::layout::CameraData) {
+    let projector = crate::lab::camera::Projector::new(camera);
+    let size = projector.viewport;
+    let cell = (size.x / 4.0).min(size.y / 3.0) * 0.94;
+    let origin = (size - Vec2::new(4.0, 3.0) * cell) * 0.5;
+    let at = |x: f32, y: f32| {
+        let (eye, dir) = projector.ray(origin + Vec2::new(x, y) * cell);
+        eye + dir
+    };
+    for (x, y, name) in [(1.0, 0.0, "+Y"), (0.0, 1.0, "-X"), (1.0, 1.0, "-Z"), (2.0, 1.0, "+X"), (3.0, 1.0, "+Z"), (1.0, 2.0, "-Y")] {
+        labels.push(Label { anchor: at(x + 0.5, y + 0.12), text: name.into(), color: palette::TEXT });
+    }
+    let mip = state.p("probeCubemapMip").clamp(0.0, (super::ibl::SPECULAR_MIPS - 1) as f32);
+    let texels = super::ibl::SPECULAR_SIZE >> mip.round() as u32;
+    let text = format!("{} {} · mip {:.1} · {texels} × {texels}", tr("demos.probe"), super::reflections::shown_cubemap(state) + 1, mip);
+    labels.push(Label { anchor: at(3.0, 2.5), text, color: palette::ACCENT });
+}
+
 /// A direction perpendicular to `n` in the plane of `n` and `l`.
 fn in_plane(n: Vec3, l: Vec3) -> Vec3 {
     let t = l - n * n.dot(l);
@@ -288,6 +315,8 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     content.shading_frame.extend(super::reflections::frame_records(&shading.probes));
     content.shading_frame.resize(FRAME_SSAO, [0.0; 4]);
     content.shading_frame.extend(ssao_records(state));
+    content.shading_frame.resize(FRAME_CUBEMAP_VIEW, [0.0; 4]);
+    content.shading_frame.extend(super::reflections::cubemap_view_records(state));
 
     let map = BrdfMap::get();
     let (p, n) = inspected_point(state);
@@ -399,6 +428,12 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let readout = readout(demo, state, &shading, &px, statics, &content.objects, &uniforms.camera);
     content.readout = Some(readout);
     content.notes = notes(demo, &shading);
+    // The unfolded cubemap covers the room, so the room's markers and labels give way to its faces' names.
+    if state.p("probeCubemap") > 0.5 {
+        content.draw = DrawLists::default();
+        content.labels.clear();
+        cubemap_cross_labels(&mut content.labels, state, &content.uniforms.camera);
+    }
     content
 }
 
@@ -901,7 +936,6 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
 fn content_roughness(state: &ShotState, object: u32) -> f32 {
     match material_params(object as usize) {
         Some((roughness, _)) => state.p(roughness),
-        None if object as usize == ids::FLOOR => state.p("floorRoughness"),
         None => 1.0,
     }
 }

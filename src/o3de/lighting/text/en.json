@@ -200,5 +200,11 @@
   "shot.transmission": "Transmission",
   "shot.multiscatter": "Multiscatter",
   "shot.point_light": "Point light",
-  "shot.probes": "Probes"
+  "shot.probes": "Probes",
+  "controls.baked_cubemap": "baked cubemap",
+  "controls.ball_mip": "ball mip",
+  "controls.cubemap_cross": "cubemap cross",
+  "controls.cubemap_hint": "What a probe's bake stores: six 90-degree faces rendered from the probe's position, prefiltered into six mips (GGX, mip = roughness × 5). The cross unfolds them; the mirror ball (O3DE's visualization sphere: white, metallic, roughness 0) reflects them.",
+  "controls.faces_baked": "faces baked",
+  "controls.mirror_ball": "mirror ball"
 }

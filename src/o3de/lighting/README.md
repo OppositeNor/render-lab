@@ -49,7 +49,14 @@ and joined to the point, and the ones its tile lists for other bins are brighter
 turns each height's ring of lights about the room's centre, at its own rate and direction, so lights cross tiles and
 bins and the false-colour counts and the point's list follow them. Play animates each demonstration's parameters (the
 lights' motion and radius, the light's angle and the roughness in the close-ups, and so on); in the video, the camera
-holds still in the close-ups and while the culling lights move, so the change is the demonstration's own.
+floats around each scene and the lights move, and it holds still only while a step is shown in detail (the culling
+lights moving, the specular lobes) and where the narration quotes a value at the inspected point.
+
+The reflection-probe demonstration's floor is polished metal (metallic 1, `baseColor.factor` 4, roughness 0.15), so it
+mirrors the walls the probes saw. Its **baked cubemap** controls show what a probe stores: the **cubemap cross**
+unfolds the probe's six faces over the viewport (`-Z` at the centre; *faces baked* fills them in one by one, *mip*
+walks the six prefiltered mips), and the **mirror ball**, like O3DE's visualization sphere, reflects the cubemap at the
+probe's position.
 
 ## What the source shows
 
@@ -119,6 +126,12 @@ holds still in the close-ups and while the culling lights move, so the change is
   to (0.4, 0.4, 0.4); *finding:* with the IBL flag off, the inner pass
   discards and surfaces inside an inner box get that grey added to their specular. Screen-space reflections are
   disabled by default.
+- **A probe's bake** (`EnvironmentCubeMapPass`) renders six square 90-degree views from the probe's position (near
+  0.1 m, far 100 m), one face per frame into a 1024-texel R16G16B16A16_FLOAT target, each read back five frames after
+  it is drawn. The editor writes the faces to a DDS cubemap named with the quality's suffix (`_iblspecularcm256` at the
+  default Medium), and the image builder applies the skylight's `IBLSpecular` preset to it: 256-texel faces, GGX, six
+  mips, R9G9B9E5. *Show Visualization*, on by default, draws a sphere at each probe with a white, metallic,
+  roughness-0 material; the capture excludes it.
 - **SSAO** (on by default; GTAO is the disabled alternative) runs after subsurface scattering on the resolved diffuse
   target. Linear depth comes from the depth resolve's sample 0; the half-res depth takes the upper-left pixel of each
   2 x 2. `SsaoCompute` rebuilds a position and a normal from depth and takes 12 local and 10 x 4 shared samples, each
@@ -157,8 +170,12 @@ reflection passes (probe stencil, blend weight, global, outer, inner, and the co
 compute pass, in O3DE's order; each reads only its own sample, so the result is the same. The probe stencil is the
 count of reduced inner boxes holding the surface, which is what the depth-fail operations give for a box the camera
 is outside of or inside. The probes' cubemaps are baked by the lab on the CPU, shading the room with the CPU mirror
-(the point light and the global skylight, at the room demonstration's start) from each probe's centre, then
-prefiltered with the skylight's GGX filter; O3DE renders the bake through its pipeline. EnhancedPBR's transmission
+(the point light and the global skylight, at the room demonstration's start) from each probe's centre, straight at
+256 texels a face, then prefiltered with the skylight's GGX filter; O3DE renders the bake through its pipeline at 1024
+texels and the image builder downsamples it. The probes' boxes are the lab's, with their faces on the walls, since
+parallax correction draws whatever a probe saw as if it lay on its outer box: the first covers the room, the second,
+smaller, fits the back-right corner and replaces the first there. The cubemap cross and the mirror ball are the lab's views, drawn
+in the merge pass; the ball reads the cubemap along the reflection ray, without the reflection passes. EnhancedPBR's transmission
 uses O3DE's sphere point light without shadows. Light culling appends a group's lights in index order, where O3DE's threads append them in the order they finish;
 it sorts a tile's decals with an insertion sort, where O3DE uses a bitonic sort across the group (both give the same
 order). The decal and occlusion textures are the lab's own, procedural, read at mip 0 only from a storage buffer with the

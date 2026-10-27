@@ -76,7 +76,7 @@
       },
       "simplifications": [
         "The port keeps O3DE's arithmetic in f32; O3DE's `real` can be half precision on some platforms.",
-        "Screen-space reflections (off by default), the diffuse probe grid, shadows, and the area and directional lights are left out. The probes' cubemaps are baked by the lab on the CPU; SSAO's stages are computed per pixel and kept in f32 rounded to 8 bits; the reflection passes run per sample in one compute pass; the lab renders 4x MSAA where O3DE uses 2x, and emulates the stencil in a target.",
+        "Screen-space reflections (off by default), the diffuse probe grid, shadows, and the area and directional lights are left out. The probes' cubemaps are baked by the lab on the CPU, straight at 256 texels a face (O3DE captures 1024 and downsamples), and the cubemap cross and mirror ball that show them are the lab's views; SSAO's stages are computed per pixel and kept in f32 rounded to 8 bits; the reflection passes run per sample in one compute pass; the lab renders 4x MSAA where O3DE uses 2x, and emulates the stencil in a target.",
         "The environment is a photographed sky (Poly Haven's Tree Lined Driveway) with its sun clipped, not an O3DE asset; its cubemaps stay in f32, the diffuse one is 32² (O3DE allows 32 to 128), and run-time lookups clamp at a face's edge where a GPU filters seamlessly.",
         "The BRDF texture is filled on the CPU, so it is the same on every GPU; the WGSL port of BRDFTextureCS loses energy below roughness 0.03 on the lab's GPU (see the video's chapter 9).",
         "The BRDF texture is kept in f32 rather than R16G16_FLOAT, and multiscatter compensation is on, where a StandardPBR material without the property set has it off (O3DE's PBR presets set it).",
@@ -103,7 +103,7 @@
       },
       "simplifications": [
         "移植保持 O3DE 的 f32 运算；O3DE 的 `real` 在某些平台上可能是半精度。",
-        "省略了屏幕空间反射（默认关闭）、diffuse probe grid、阴影，以及面光源与方向光。probe 的 cubemap 由实验室在 CPU 上烘焙；SSAO 的各阶段逐像素计算，保存为舍入到 8 位的 f32；反射 pass 在一个 compute pass 中逐采样运行；实验室用 4x MSAA 渲染（O3DE 为 2x），并用一个 target 模拟 stencil。",
+        "省略了屏幕空间反射（默认关闭）、diffuse probe grid、阴影，以及面光源与方向光。probe 的 cubemap 由实验室在 CPU 上直接以每面 256 texel 烘焙（O3DE 采集 1024 再缩小），展示它们的 cubemap 十字图与镜面球是实验室自己的视图；SSAO 的各阶段逐像素计算，保存为舍入到 8 位的 f32；反射 pass 在一个 compute pass 中逐采样运行；实验室用 4x MSAA 渲染（O3DE 为 2x），并用一个 target 模拟 stencil。",
         "环境是一张实拍天空（Poly Haven 的 Tree Lined Driveway），太阳被截断，不是 O3DE 资源；它的 cubemap 保持 f32，漫反射 cubemap 为 32²（O3DE 允许 32 到 128），运行时查找在面的边缘处截断，而 GPU 会无缝过滤。",
         "BRDF 贴图在 CPU 上生成，因此在每块 GPU 上都相同；在实验所用的 GPU 上，BRDFTextureCS 的 WGSL 移植在 roughness 低于 0.03 时会丢失能量（见视频第 9 章）。",
         "BRDF 贴图保存为 f32 而不是 R16G16_FLOAT；多次散射补偿是开启的，而没有设置该属性的 StandardPBR 材质会将其关闭（O3DE 的 PBR 预设会设置它）。",

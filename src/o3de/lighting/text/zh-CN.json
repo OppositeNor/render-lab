@@ -200,5 +200,11 @@
   "shot.transmission": "透射",
   "shot.multiscatter": "多次散射",
   "shot.point_light": "点光源",
-  "shot.probes": "Probe"
+  "shot.probes": "Probe",
+  "controls.baked_cubemap": "烘焙的 cubemap",
+  "controls.ball_mip": "球的 mip",
+  "controls.cubemap_cross": "cubemap 十字图",
+  "controls.cubemap_hint": "probe 烘焙存下的内容：从 probe 位置渲染的六个 90 度面，预滤波成六级 mip（GGX，mip = roughness × 5）。十字展开图把它们摊开；镜面球（O3DE 的可视化球：白色、金属、roughness 0）反射它们。",
+  "controls.faces_baked": "已烘焙的面",
+  "controls.mirror_ball": "镜面球"
 }

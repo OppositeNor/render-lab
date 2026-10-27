@@ -2691,6 +2691,140 @@
       "inspect": "The bake qualities and their face sizes: Medium, the probes' default, is 256.",
       "inspectZh": "烘焙质量及其面尺寸：probe 默认的 Medium 为 256。",
       "details": []
+    },
+    "probe-bake-capture": {
+      "path": "Gems/Atom/RPI/Code/Source/RPI.Public/Pass/Specific/EnvironmentCubeMapPass.cpp",
+      "line": 96,
+      "symbol": "EnvironmentCubeMapPass",
+      "lineHash": "97b3affe46fdd771",
+      "inspect": "A bake renders each face as a square 90-degree view from the probe's position, near plane 0.1 m and far plane 100 m (reversed depth), into an R16G16B16A16_FLOAT target; after each face's readback the camera turns to the next face of CameraBasis.",
+      "inspectZh": "烘焙把每个面渲染为从 probe 位置出发的 90 度正方形视图，近平面 0.1 m、远平面 100 m（反向深度），写入 R16G16B16A16_FLOAT target；每个面读回之后，相机转向 CameraBasis 的下一个面。",
+      "details": [
+        {
+          "line": 30,
+          "lineHash": "64191c02f73f0114",
+          "note": "the six faces' camera bases",
+          "noteZh": "六个面的相机基"
+        },
+        {
+          "line": 124,
+          "lineHash": "a1d3dfc429a62848",
+          "note": "a 16-bit float target",
+          "noteZh": "16 位浮点 target"
+        },
+        {
+          "line": 220,
+          "lineHash": "dfee0de5dfb6d5f7",
+          "note": "the next face, after a readback",
+          "noteZh": "读回之后转到下一个面"
+        }
+      ]
+    },
+    "probe-bake-faces": {
+      "path": "Gems/Atom/RPI/Code/Include/Atom/RPI.Public/Pass/Specific/EnvironmentCubeMapPass.h",
+      "line": 41,
+      "symbol": "EnvironmentCubeMapPass::CubeMapFaceSize",
+      "lineHash": "a92775b5d89546b7",
+      "inspect": "The capture's faces are always 1024 texels (the image builder downsamples them); six faces, rendered one after another, each read back five frames after it is drawn.",
+      "inspectZh": "采集的面总是 1024 texel（由图像构建器缩小）；六个面依次渲染，每个面绘制五帧之后读回。",
+      "details": [
+        {
+          "line": 42,
+          "lineHash": "388e41667fdf7c45",
+          "note": "six faces",
+          "noteZh": "六个面"
+        },
+        {
+          "line": 100,
+          "lineHash": "6ea470cd3b5b2acd",
+          "note": "five frames before each readback",
+          "noteZh": "每次读回前等待五帧"
+        },
+        {
+          "line": 45,
+          "lineHash": "603c46fabfa54cbe",
+          "note": "done after the sixth face",
+          "noteZh": "第六个面之后完成"
+        }
+      ]
+    },
+    "probe-bake-write": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/CubeMapCapture/EditorCubeMapRenderer.cpp",
+      "line": 199,
+      "symbol": "EditorCubeMapRenderer::WriteOutputFile",
+      "lineHash": "1e179ad617fbacd3",
+      "inspect": "The editor writes the six faces as one uncompressed cubemap DDS, whose name carries the quality's suffix (_iblspecularcm256 for Medium).",
+      "inspectZh": "编辑器把六个面写成一个未压缩的 cubemap DDS，文件名带有质量后缀（Medium 为 _iblspecularcm256）。",
+      "details": [
+        {
+          "line": 202,
+          "lineHash": "b967925f7b6b2881",
+          "note": "the DDS write",
+          "noteZh": "写出 DDS"
+        }
+      ]
+    },
+    "probe-bake-preset": {
+      "path": "Gems/Atom/Asset/ImageProcessingAtom/Assets/Config/ImageBuilder.settings",
+      "line": 130,
+      "symbol": "ImageBuilder.settings",
+      "lineHash": "1b0ec96b67acefd5",
+      "inspect": "The image builder picks a preset by the file's suffix: a Medium probe bake (_iblspecularcm256) uses IBLSpecular, the skylight's specular preset: 256-texel faces, GGX, six mips, R9G9B9E5.",
+      "inspectZh": "图像构建器按文件后缀选择预设：Medium 的 probe 烘焙（_iblspecularcm256）使用 IBLSpecular，即 skylight 的高光预设：256 texel 的面、GGX、六级 mip、R9G9B9E5。",
+      "details": []
+    },
+    "probe-visualization": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Source/ReflectionProbe/ReflectionProbeComponentController.h",
+      "line": 41,
+      "symbol": "ReflectionProbeComponentConfig::m_showVisualization",
+      "lineHash": "89fd14c6d3e8e7ac",
+      "inspect": "Show Visualization is on by default: each probe draws a sphere with the ReflectionProbeVisualization material at its position.",
+      "inspectZh": "Show Visualization 默认开启：每个 probe 在自己的位置绘制一个使用 ReflectionProbeVisualization 材质的球。",
+      "details": []
+    },
+    "probe-visualization-surface": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/ReflectionProbe/ReflectionProbeVisualization.azsli",
+      "line": 80,
+      "symbol": "ReflectionProbeVisualization EvaluateSurface",
+      "lineHash": "a0b0ba59ef4da95d",
+      "inspect": "The visualization sphere's surface: white base colour, metallic 1, roughness 0, so it mirrors the sharpest mip.",
+      "inspectZh": "可视化球的表面：白色 base colour、metallic 1、roughness 0，所以它镜面反射最清晰的那级 mip。",
+      "details": [
+        {
+          "line": 78,
+          "lineHash": "9bebcda26bec2d3b",
+          "note": "white",
+          "noteZh": "白色"
+        },
+        {
+          "line": 83,
+          "lineHash": "dd8dd4b196019b38",
+          "note": "roughness 0",
+          "noteZh": "roughness 0"
+        }
+      ]
+    },
+    "probe-visualization-hidden": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/ReflectionProbe/ReflectionProbe.cpp",
+      "line": 70,
+      "symbol": "ReflectionProbe::Init",
+      "lineHash": "32fe4c10fc76e0cc",
+      "inspect": "The sphere is excluded from cubemap captures, so a probe never bakes its own sphere.",
+      "inspectZh": "该球被排除在 cubemap 采集之外，所以 probe 不会把自己的球烘焙进去。",
+      "details": [
+        {
+          "line": 62,
+          "lineHash": "5b4c6895a16f9776",
+          "note": "the sphere model",
+          "noteZh": "球模型"
+        },
+        {
+          "line": 77,
+          "lineHash": "fd990e93eb82b545",
+          "note": "its material",
+          "noteZh": "它的材质"
+        }
+      ]
     }
   },
   "chapters": [
@@ -2912,7 +3046,15 @@
         "probe-sort",
         "probe-defaults",
         "reflection-clear",
-        "composite-stencil"
+        "composite-stencil",
+        "cubemap-quality",
+        "probe-bake-capture",
+        "probe-bake-faces",
+        "probe-bake-write",
+        "probe-bake-preset",
+        "probe-visualization",
+        "probe-visualization-surface",
+        "probe-visualization-hidden"
       ]
     },
     {

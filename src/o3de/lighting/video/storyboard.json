@@ -36,6 +36,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           0.0,
+           -0.3
+          ],
+          "degrees": 300.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -129,6 +175,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -203,6 +280,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           0.0,
+           -0.3
+          ],
+          "degrees": 180.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -295,6 +418,50 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "path": {
+          "params": [
+           "extraLightMotion"
+          ],
+          "through": [
+           [
+            30.0
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -344,6 +511,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -408,6 +606,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -571,6 +800,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1605,6 +1865,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            30,
+            46,
+            2.6
+           ],
+           [
+            -12,
+            58,
+            2.3
+           ],
+           [
+            14,
+            50,
+            2.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           -0.7,
+           0.55
+          ],
+          "degrees": 360.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1651,6 +1957,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            30,
+            46,
+            2.6
+           ],
+           [
+            -12,
+            58,
+            2.3
+           ],
+           [
+            14,
+            50,
+            2.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           -0.7,
+           0.55
+          ],
+          "degrees": 360.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1734,6 +2086,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            30,
+            46,
+            2.6
+           ],
+           [
+            -12,
+            58,
+            2.3
+           ],
+           [
+            14,
+            50,
+            2.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1808,6 +2191,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            30,
+            46,
+            2.6
+           ],
+           [
+            -12,
+            58,
+            2.3
+           ],
+           [
+            14,
+            50,
+            2.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -2671,6 +3085,53 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -2709,6 +3170,26 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -2782,6 +3263,53 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -2861,6 +3389,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            40,
+            14,
+            3.0
+           ],
+           [
+            -30,
+            8,
+            2.92
+           ],
+           [
+            10,
+            10,
+            3.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -2948,6 +3507,26 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3022,6 +3601,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3078,6 +3688,53 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3167,6 +3824,46 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            52,
+            10,
+            1.95
+           ],
+           [
+            20,
+            4,
+            1.7
+           ],
+           [
+            38,
+            8,
+            1.85
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "wave": {
+          "param": "sphereLightX",
+          "amplitude": 0.4,
+          "period": 11.0,
+          "seconds": "beat",
+          "fade": 1.0
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3208,6 +3905,46 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            52,
+            10,
+            1.95
+           ],
+           [
+            20,
+            4,
+            1.7
+           ],
+           [
+            38,
+            8,
+            1.85
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "wave": {
+          "param": "sphereLightX",
+          "amplitude": 0.4,
+          "period": 11.0,
+          "seconds": "beat",
+          "fade": 1.0
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3256,6 +3993,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            52,
+            10,
+            1.95
+           ],
+           [
+            20,
+            4,
+            1.7
+           ],
+           [
+            38,
+            8,
+            1.85
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3352,6 +4120,46 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            52,
+            10,
+            1.95
+           ],
+           [
+            20,
+            4,
+            1.7
+           ],
+           [
+            38,
+            8,
+            1.85
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "wave": {
+          "param": "sphereLightX",
+          "amplitude": 0.4,
+          "period": 11.0,
+          "seconds": "beat",
+          "fade": 1.0
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3464,6 +4272,53 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightY"
+          ],
+          "center": [
+           -1.05,
+           1.24
+          ],
+          "degrees": 22.0,
+          "seconds": 5.0,
+          "ease": "sine",
+          "repeat": "pingPong"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3506,6 +4361,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3683,6 +4569,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            16,
+            12,
+            3.0
+           ],
+           [
+            -14,
+            8,
+            3.25
+           ],
+           [
+            6,
+            10,
+            3.05
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3755,6 +4672,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            15,
+            24,
+            6.8
+           ],
+           [
+            8,
+            32,
+            7.5
+           ],
+           [
+            15,
+            26,
+            7.0
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3847,6 +4795,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            15,
+            24,
+            6.8
+           ],
+           [
+            8,
+            32,
+            7.5
+           ],
+           [
+            15,
+            26,
+            7.0
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3908,6 +4887,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            15,
+            24,
+            6.8
+           ],
+           [
+            8,
+            32,
+            7.5
+           ],
+           [
+            15,
+            26,
+            7.0
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -3985,6 +4995,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           0.0,
+           -0.3
+          ],
+          "degrees": 180.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4037,7 +5093,7 @@
   {
    "number": 11,
    "title": "The global skylight",
-   "targetSeconds": 196,
+   "targetSeconds": 210,
    "summary": "Offline GGX and cosine prefiltering; the two full-screen passes; no occlusion.",
    "sources": [
     "filter-ggx",
@@ -4063,6 +5119,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            44,
+            14,
+            3.4
+           ],
+           [
+            -4,
+            8,
+            3.9
+           ],
+           [
+            26,
+            12,
+            3.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4079,7 +5166,7 @@
        ]
       },
       {
-       "text": "This chrome sphere reflects it directly; it is the lab's own sky, with a warm softbox high on one side.",
+       "text": "This chrome sphere reflects it directly; the lab's sky is a photograph, Poly Haven's Tree Lined Driveway, with its sun clipped.",
        "keys": [
         {
          "params": {
@@ -4235,6 +5322,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            44,
+            14,
+            3.4
+           ],
+           [
+            -4,
+            8,
+            3.9
+           ],
+           [
+            26,
+            12,
+            3.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4282,6 +5400,37 @@
         "cameraDrift": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            44,
+            14,
+            3.4
+           ],
+           [
+            -4,
+            8,
+            3.9
+           ],
+           [
+            26,
+            12,
+            3.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4419,6 +5568,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4474,7 +5654,7 @@
   {
    "number": 12,
    "title": "Reflection probes",
-   "targetSeconds": 182,
+   "targetSeconds": 270,
    "summary": "Probe cubemaps, their stencil and blend weights, parallax, and the composite.",
    "sources": [
     "reflections-order",
@@ -4485,7 +5665,10 @@
     "probe-render-inner",
     "probe-specular",
     "parallax-obb",
-    "reflection-clear"
+    "reflection-clear",
+    "probe-bake-capture",
+    "probe-bake-preset",
+    "probe-visualization-surface"
    ],
    "beats": [
     {
@@ -4500,6 +5683,37 @@
         "probes": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4532,7 +5746,7 @@
        ]
       },
       {
-       "text": "On the glossy floor, the probes put the room's own walls into the reflections.",
+       "text": "On the polished metal floor, the probes put the room's own walls into the reflections.",
        "sequence": [
         {
          "params": {
@@ -4549,6 +5763,298 @@
      ]
     },
     {
+     "id": "c12-bake",
+     "kind": "scene",
+     "headline": "What a probe bakes",
+     "keys": [
+      {
+       "demo": "reflections",
+       "params": {
+        "cameraDrift": 1.0,
+        "probeBakeFaces": 0.0,
+        "probeBoxes": 0.6
+       },
+       "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            18,
+            5.8
+           ],
+           [
+            12,
+            14,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
+      }
+     ],
+     "narration": [
+      {
+       "text": "Baking a probe renders the scene from the probe's position six times, once for each face of a cube, each a square view ninety degrees wide.",
+       "keys": [
+        {
+         "callout": "probe-bake-capture"
+        }
+       ]
+      },
+      {
+       "text": "O3DE draws one face per frame, into a sixteen-bit float target of one thousand and twenty-four texels, and reads each back five frames later.",
+       "keys": [
+        {
+         "callout": "probe-bake-faces",
+         "blend": 1.0,
+         "params": {
+          "probeCubemap": 1.0
+         },
+         "panel": "hidden"
+        }
+       ],
+       "sequence": [
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 1.0
+         }
+        },
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 2.0
+         }
+        },
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 3.0
+         }
+        },
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 4.0
+         }
+        },
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 5.0
+         }
+        },
+        {
+         "blend": 0.4,
+         "params": {
+          "probeBakeFaces": 6.0
+         }
+        }
+       ]
+      },
+      {
+       "text": "Unfolded, probe one's faces show the back wall ahead, the red wall to its left, the teal wall to its right, the sky above, and the floor below."
+      },
+      {
+       "text": "The editor writes the six faces to a DDS file, and O3DE's image builder turns it into the probe's cubemap with the skylight's own specular preset.",
+       "keys": [
+        {
+         "callout": "probe-bake-write"
+        }
+       ]
+      },
+      {
+       "text": "At the default Medium quality, that is two hundred fifty-six texels a face in R9G9B9E5, and six mips, each filtered with GGX for a rougher surface.",
+       "keys": [
+        {
+         "callout": "probe-bake-preset"
+        }
+       ],
+       "sequence": [
+        {
+         "blend": 0.8,
+         "params": {
+          "probeCubemapMip": 1.0
+         }
+        },
+        {
+         "blend": 0.8,
+         "params": {
+          "probeCubemapMip": 2.0
+         }
+        },
+        {
+         "blend": 0.8,
+         "params": {
+          "probeCubemapMip": 3.0
+         }
+        },
+        {
+         "blend": 0.8,
+         "params": {
+          "probeCubemapMip": 4.0
+         }
+        },
+        {
+         "blend": 0.8,
+         "params": {
+          "probeCubemapMip": 5.0
+         }
+        }
+       ]
+      },
+      {
+       "text": "The lab skips the large capture: it shades the two hundred fifty-six texel faces directly, on the CPU.",
+       "keys": [
+        {
+         "blend": 1.2,
+         "params": {
+          "probeCubemapMip": 0.0
+         }
+        }
+       ]
+      },
+      {
+       "text": "Probe two, a smaller one in the back-right corner, has the back wall and the teal wall close by.",
+       "keys": [
+        {
+         "params": {
+          "probeShown": 2.0
+         }
+        }
+       ],
+       "pause": 0.6
+      }
+     ]
+    },
+    {
+     "id": "c12-ball",
+     "kind": "scene",
+     "headline": "The visualization sphere",
+     "keys": [
+      {
+       "demo": "reflections",
+       "params": {
+        "cameraDrift": 1.0,
+        "probeCubemap": 1.0,
+        "probeBoxes": 0.0,
+        "probeBallRadius": 0.3
+       },
+       "callout": "",
+       "panel": "hidden"
+      }
+     ],
+     "narration": [
+      {
+       "text": "In the editor, every probe also shows a sphere at its position, on by default.",
+       "keys": [
+        {
+         "callout": "probe-visualization",
+         "blend": 1.2,
+         "params": {
+          "probeCubemap": 0.0,
+          "probeBall": 1.0
+         }
+        },
+        {
+         "camera": {
+          "target": [
+           0.0,
+           1.2,
+           -0.1
+          ],
+          "yaw": -20.0,
+          "pitch": 12.0,
+          "distance": 2.0
+         },
+         "blend": 3.0,
+         "ease": "inOut"
+        }
+       ]
+      },
+      {
+       "text": "Its material is a white metal with a roughness of zero, so it mirrors the sharpest mip of the probe's cubemap.",
+       "keys": [
+        {
+         "callout": "probe-visualization-surface",
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "camera.yaw",
+             "camera.pitch",
+             "camera.distance"
+            ],
+            "through": [
+             [
+              -38,
+              8,
+              1.9
+             ],
+             [
+              2,
+              16,
+              2.2
+             ],
+             [
+              -18,
+              10,
+              2.0
+             ]
+            ],
+            "seconds": "beat"
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "text": "The capture leaves the sphere out, so a probe never bakes its own sphere.",
+       "keys": [
+        {
+         "callout": "probe-visualization-hidden"
+        }
+       ]
+      },
+      {
+       "text": "The lab draws its own mirror ball, which reads the cubemap straight along the reflection ray; at higher mips, its reflection blurs.",
+       "sequence": [
+        {
+         "blend": 1.0,
+         "params": {
+          "probeBallMip": 2.0
+         }
+        },
+        {
+         "blend": 1.0,
+         "params": {
+          "probeBallMip": 4.0
+         }
+        },
+        {
+         "blend": 1.0,
+         "params": {
+          "probeBallMip": 0.0
+         }
+        }
+       ],
+       "pause": 0.6
+      }
+     ]
+    },
+    {
      "id": "c12-stencil",
      "kind": "scene",
      "headline": "Stencil and blend weight",
@@ -4559,6 +6065,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4604,8 +6141,10 @@
          "callout": "probe-blend-weight",
          "params": {
           "viewMode": 14.0,
-          "formula": 1.0
-         }
+          "formula": 1.0,
+          "probeInnerScale": 0.7
+         },
+         "blend": 1.0
         }
        ]
       },
@@ -4630,6 +6169,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4730,6 +6300,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            24,
+            22,
+            5.6
+           ],
+           [
+            8,
+            14,
+            6.4
+           ],
+           [
+            21,
+            18,
+            6.0
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4751,6 +6352,14 @@
       },
       {
        "text": "So by default the reflection ray is traced to the outer box, and the cubemap is read toward that hit from the probe's centre.",
+       "keys": [
+        {
+         "callout": "parallax-obb"
+        }
+       ]
+      },
+      {
+       "text": "A probe's outer box should therefore fit its room: whatever the probe saw beyond the box is drawn as if it lay on the box, and walls appear in the wrong place.",
        "keys": [
         {
          "callout": "parallax-obb"
@@ -4790,6 +6399,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4893,6 +6533,37 @@
         "ssao": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -4946,6 +6617,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -5049,6 +6751,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -5122,6 +6855,37 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            22,
+            21,
+            5.9
+           ],
+           [
+            4,
+            13,
+            6.7
+           ],
+           [
+            20,
+            18,
+            6.2
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -5218,6 +6982,52 @@
         "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            23,
+            22,
+            5.8
+           ],
+           [
+            -6,
+            12,
+            6.8
+           ],
+           [
+            20,
+            19,
+            6.1
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "orbit": {
+          "params": [
+           "lightX",
+           "lightZ"
+          ],
+          "center": [
+           0.0,
+           -0.3
+          ],
+          "degrees": 300.0,
+          "seconds": "beat",
+          "ease": "sine"
+         }
+        }
+       ]
       }
      ],
      "narration": [
