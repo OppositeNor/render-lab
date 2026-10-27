@@ -38,7 +38,9 @@ directional lights and their shadows) and the other material types come later. L
 Each demonstration has a **readout** in the struct panel's place: every term at the inspected point, computed by the CPU
 mirror. Click a surface to inspect another point. In the close-ups the readout, the N, L, V, H vectors, and the lobes
 see the point from an **observer** (the blue marker), so the plane of N, L, and V faces the camera; the scene pass
-always shades from the camera. The dock's **view** menu switches the scene pass to one part of the result (diffuse,
+always shades from the camera. The lobes sweep the outgoing direction through that plane: the green one is the diffuse
+term (the radiance seen from each direction), the pink one the specular term times N·V (the light reflected into each
+direction; the term alone grows toward the horizon, where G's division by N·V outpaces it). The dock's **view** menu switches the scene pass to one part of the result (diffuse,
 specular) or one term in false colour (D, G, F, the compensation, the diffuse response, NdotL, the radius attenuation).
 The Code tab has a Python pseudo-code listing per step ([`pseudocode/`](pseudocode)).
 

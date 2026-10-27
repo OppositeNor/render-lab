@@ -10,11 +10,13 @@
 //! choice (src/lab/investigation.rs); the lab only names a demonstration by
 //! its key and reads parameters by name.
 
+use crate::lab::animation::{Ease, Motion};
 use crate::lab::camera::OrbitCamera;
 use crate::lab::investigation;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 /// A demonstration of the current investigation, by its key (`"cards"`).
 /// Investigations define their own demonstrations and hand out these ids.
@@ -125,27 +127,7 @@ pub fn default_highlight(record: RecordRef) -> Vec<String> {
     fields.iter().map(|s| s.to_string()).collect()
 }
 
-/// A slow sway of the orbit camera, so that held shots show the scene's
-/// depth through parallax: a few degrees of yaw and pitch and a small change
-/// of distance, on periods that do not line up. It is the change of the sway
-/// between two times (seconds), scaled by `amount`. The video sways from
-/// time 0; the viewer sways from where Play animation started.
-pub fn camera_drift(camera: OrbitCamera, from: f32, to: f32, amount: f32) -> OrbitCamera {
-    if amount == 0.0 || from == to {
-        return camera;
-    }
-    let sway = |t: f32| {
-        let wave = |period: f32| (std::f32::consts::TAU * t / period).sin();
-        [3.0 * wave(17.0) + 1.0 * wave(7.3), 1.5 * wave(11.0), 0.03 * wave(13.0)]
-    };
-    let ([yaw0, pitch0, dist0], [yaw1, pitch1, dist1]) = (sway(from), sway(to));
-    OrbitCamera {
-        yaw: camera.yaw + amount * (yaw1 - yaw0),
-        pitch: camera.pitch + amount * (pitch1 - pitch0),
-        distance: camera.distance * (1.0 + amount * dist1) / (1.0 + amount * dist0),
-        ..camera
-    }
-}
+pub use crate::lab::animation::camera_drift;
 
 // ---------------------------------------------------------------------------
 // Timeline produced by scripts/build_enhanced.py from the storyboard and
@@ -226,6 +208,13 @@ pub struct Key {
     pub frame: u64,
     #[serde(default)]
     pub blend: u64,
+    /// How the key's values move over its blend.
+    #[serde(default)]
+    pub ease: Ease,
+    /// Motions that start at the key (src/lab/animation.rs), each driving its
+    /// channels until a later key sets them.
+    #[serde(default)]
+    pub animate: Vec<Motion>,
     #[serde(default)]
     pub demo: Option<DemoId>,
     #[serde(default)]
@@ -249,15 +238,42 @@ pub struct Key {
     pub source: Option<String>,
 }
 
+/// A channel's value over time: eased from its value at a key to the key's
+/// target, or a motion's.
+#[derive(Clone, Debug)]
+enum Channel {
+    Blend(Segment),
+    /// The `index`th channel of a motion that started at `from` from `start`.
+    Motion { motion: Rc<Motion>, index: usize, from: u64, fps: f32, start: Rc<Vec<f32>> },
+}
+
+impl Channel {
+    fn hold(from: u64, value: f32) -> Channel {
+        Channel::Blend(Segment::hold(from, value))
+    }
+
+    fn value(&self, frame: u64) -> f32 {
+        match self {
+            Channel::Blend(segment) => segment.value(frame),
+            Channel::Motion { motion, index, from, fps, start } => motion.sample(frame.saturating_sub(*from) as f32 / fps, start)[*index],
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     from: u64,
     blend: u64,
+    ease: Ease,
     start: f32,
     target: f32,
 }
 
 impl Segment {
+    fn hold(from: u64, value: f32) -> Segment {
+        Segment { from, blend: 0, ease: Ease::Smooth, start: value, target: value }
+    }
+
     fn value(&self, frame: u64) -> f32 {
         if self.blend == 0 || frame >= self.from + self.blend {
             return self.target;
@@ -266,13 +282,12 @@ impl Segment {
             return self.start;
         }
         let x = (frame - self.from) as f32 / self.blend as f32;
-        // Smootherstep: zero velocity and acceleration at both ends.
-        let s = x * x * x * (x * (x * 6.0 - 15.0) + 10.0);
-        self.start + (self.target - self.start) * s
+        self.start + (self.target - self.start) * self.ease.apply(x)
     }
 }
 
-const CAMERA_CHANNELS: [&str; 7] = ["cam.tx", "cam.ty", "cam.tz", "cam.yaw", "cam.pitch", "cam.distance", "cam.fov"];
+/// The camera's channels, as keys' `camera` and motions name them.
+const CAMERA_CHANNELS: [&str; 7] = ["camera.x", "camera.y", "camera.z", "camera.yaw", "camera.pitch", "camera.distance", "camera.fov"];
 
 fn camera_channels(c: &OrbitCamera) -> [f32; 7] {
     [c.target[0], c.target[1], c.target[2], c.yaw, c.pitch, c.distance, c.fov]
@@ -292,6 +307,19 @@ impl Timeline {
             for name in key.params.keys() {
                 if investigation::current().param_default(name).is_none() {
                     bail!("unknown shot parameter `{name}` in key at frame {} ({:?})", key.frame, key.source);
+                }
+            }
+            for motion in &key.animate {
+                if let Some(problem) = motion.problem() {
+                    bail!("{problem}, in key at frame {} ({:?})", key.frame, key.source);
+                }
+                for name in motion.params() {
+                    if investigation::current().param_default(name).is_none() && !CAMERA_CHANNELS.contains(&name) {
+                        bail!("unknown channel `{name}` in a motion of the key at frame {} ({:?})", key.frame, key.source);
+                    }
+                    if key.params.contains_key(name) {
+                        bail!("`{name}` is both set and animated by the key at frame {} ({:?})", key.frame, key.source);
+                    }
                 }
             }
             if let Some(code) = key.code.as_deref().filter(|c| !c.is_empty()) {
@@ -326,13 +354,13 @@ impl Timeline {
     pub fn state_at(&self, frame: u64) -> ShotState {
         // Before the first key, the investigation's first demonstration.
         let mut state = ShotState::for_demo(investigation::current().demos()[0]);
-        let mut segments: BTreeMap<String, Segment> = BTreeMap::new();
-        let reset = |segments: &mut BTreeMap<String, Segment>, state: &ShotState, at: u64| {
+        let mut segments: BTreeMap<String, Channel> = BTreeMap::new();
+        let reset = |segments: &mut BTreeMap<String, Channel>, state: &ShotState, at: u64| {
             for (name, value) in &state.params {
-                segments.insert(name.clone(), Segment { from: at, blend: 0, start: *value, target: *value });
+                segments.insert(name.clone(), Channel::hold(at, *value));
             }
             for (name, value) in CAMERA_CHANNELS.iter().zip(camera_channels(&state.camera)) {
-                segments.insert(name.to_string(), Segment { from: at, blend: 0, start: value, target: value });
+                segments.insert(name.to_string(), Channel::hold(at, value));
             }
         };
         reset(&mut segments, &state, 0);
@@ -347,7 +375,7 @@ impl Timeline {
                 // when the key itself moves the camera.
                 if key.camera.is_some() {
                     for (i, c) in CAMERA_CHANNELS.iter().enumerate() {
-                        segments.insert(c.to_string(), Segment { from: key.frame, blend: 0, start: camera_now[i], target: camera_now[i] });
+                        segments.insert(c.to_string(), Channel::hold(key.frame, camera_now[i]));
                     }
                 }
             }
@@ -380,16 +408,24 @@ impl Timeline {
             }
             for (name, target) in targets {
                 let start = segments.get(&name).map(|s| s.value(key.frame)).unwrap_or(target);
-                segments.insert(name, Segment { from: key.frame, blend: key.blend, start, target });
+                segments.insert(name, Channel::Blend(Segment { from: key.frame, blend: key.blend, ease: key.ease, start, target }));
+            }
+            for motion in &key.animate {
+                let params = motion.params();
+                let start = Rc::new(params.iter().map(|p| segments[*p].value(key.frame)).collect::<Vec<f32>>());
+                let motion = Rc::new(motion.clone());
+                for (index, name) in params.iter().enumerate() {
+                    segments.insert(name.to_string(), Channel::Motion { motion: motion.clone(), index, from: key.frame, fps: self.fps as f32, start: start.clone() });
+                }
             }
         }
         let value = |name: &str| segments[name].value(frame);
         let keyed = OrbitCamera {
-            target: [value("cam.tx"), value("cam.ty"), value("cam.tz")],
-            yaw: value("cam.yaw"),
-            pitch: value("cam.pitch"),
-            distance: value("cam.distance"),
-            fov: value("cam.fov"),
+            target: [value("camera.x"), value("camera.y"), value("camera.z")],
+            yaw: value("camera.yaw"),
+            pitch: value("camera.pitch"),
+            distance: value("camera.distance"),
+            fov: value("camera.fov"),
         };
         state.camera = camera_drift(keyed, 0.0, frame as f32 / self.fps as f32, segments.get("cameraDrift").map_or(0.0, |s| s.value(frame)));
         let names: Vec<String> = state.params.keys().cloned().collect();

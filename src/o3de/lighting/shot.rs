@@ -2,6 +2,7 @@
 //! what each demonstration shows by default, every numeric parameter the
 //! dock may set, and the viewer's Play animations.
 
+use crate::lab::animation::{Clip, Ease, Motion, Orbit, Repeat, Wave};
 use crate::lab::camera::OrbitCamera;
 use crate::o3de::lighting::text::tr;
 use crate::lab::scene::ids;
@@ -199,7 +200,7 @@ pub const PARAMS: &[(&str, f32, &str)] = &[
     ("radius", 0.0, "the attenuation radius around the light"),
     ("labels", 1.0, "object labels"),
     ("exposure", 1.0, "tonemapper exposure"),
-    ("vectorsShown", 5.0, "how many of N, L, V, H, and R are drawn, in that order (the video reveals them one by one)"),
+    ("vectorsShown", 5.0, "how many of N, L, V, H, and R are drawn, in that order (the video reveals them one by one; a fraction grows the next one)"),
     ("readoutRows", 99.0, "how many readout rows are shown (the video reveals them step by step)"),
     ("formula", 0.0, "the term lit in the demonstration's formula above the readout (0: none; -1 hides the formula)"),
     ("ggxSamples", 0.0, "GGX sample directions drawn around R at the inspected point, as the specular prefilter takes them (N = V = R)"),
@@ -385,47 +386,70 @@ pub fn for_demo(demo: Demo) -> ShotState {
     }
 }
 
-/// The viewer's Play animation: parameter values `t` seconds after it started.
-pub fn demo_animation(demo: Demo, t: f32) -> Vec<(&'static str, f32)> {
-    let wave = |period: f32| (std::f32::consts::TAU * t / period).sin();
+/// The light of the close-ups swinging in their plane, from `from` degrees
+/// off the normal at the top of the sphere to `from + degrees` and back, every
+/// `period` seconds.
+fn close_up_swing(from: f32, degrees: f32, period: f32) -> Motion {
+    let start = close_up_light(from).map(|p| p.1).to_vec();
+    Motion::Orbit(Orbit {
+        params: vec!["lightX".into(), "lightY".into()],
+        center: vec![SPHERE_TOP[0], SPHERE_TOP[1]],
+        axis: None,
+        start: Some(start),
+        degrees,
+        seconds: period / 2.0,
+        ease: Ease::Sine,
+        repeat: Repeat::PingPong,
+    })
+}
+
+/// The viewer's Play animation of a demonstration: looping motions that sweep
+/// what it is about.
+pub fn play_clip(demo: Demo) -> Clip {
+    let wave = |param: &str, center: f32, amplitude: f32, period: f32| Motion::Wave(Wave::new(param, center, amplitude, period));
+    let cosine = |param: &str, center: f32, amplitude: f32, period: f32| Motion::Wave(Wave::new(param, center, amplitude, period).cosine());
     // The light circles the room above the sphere.
     let orbit = |radius: f32, period: f32| {
-        let a = std::f32::consts::TAU * t / period + 1.0;
-        vec![("lightX", -0.9 + radius * a.cos()), ("lightZ", -0.4 + radius * a.sin())]
+        let center = [-0.9, -0.4];
+        Motion::Orbit(Orbit {
+            params: vec!["lightX".into(), "lightZ".into()],
+            center: center.to_vec(),
+            axis: None,
+            start: Some(vec![center[0] + radius * 1.0f32.cos(), center[1] + radius * 1.0f32.sin()]),
+            degrees: 360.0,
+            seconds: period,
+            ease: Ease::Linear,
+            repeat: Repeat::Loop,
+        })
     };
-    match demo {
-        Demo::Room => orbit(1.6, 14.0),
+    Clip(match demo {
+        Demo::Room => vec![orbit(1.6, 14.0)],
         // The lights' rings turn back and forth, so lights cross tiles and bins, while their radius breathes.
-        Demo::Culling => vec![("extraLightMotion", 200.0 * wave(28.0)), ("extraLightRadius", 0.8 + 0.5 * wave(10.0))],
-        Demo::Surface => vec![("sphereMetallic", 0.5 + 0.5 * wave(8.0)), ("sphereRoughness", 0.45 + 0.35 * wave(13.0))],
+        Demo::Culling => vec![wave("extraLightMotion", 0.0, 200.0, 28.0), wave("extraLightRadius", 0.8, 0.5, 10.0)],
+        Demo::Surface => vec![wave("sphereMetallic", 0.5, 0.5, 8.0), wave("sphereRoughness", 0.45, 0.35, 13.0)],
         // The grid turns under the splat, and the splat tilts away from the floor's normal.
-        Demo::Decals => vec![("decalTurn", 45.0 - 45.0 * (std::f32::consts::TAU * t / 16.0).cos()), ("decalTilt", 30.0 - 30.0 * (std::f32::consts::TAU * t / 11.0).cos())],
+        Demo::Decals => vec![cosine("decalTurn", 45.0, -45.0, 16.0), cosine("decalTilt", 30.0, -30.0, 11.0)],
         // The light sweeps from near the normal to grazing and back, while the roughness slowly widens and narrows the lobe.
-        Demo::Specular => {
-            let mut values = close_up_light(45.0 - 35.0 * (std::f32::consts::TAU * t / 12.0).cos()).to_vec();
-            values.push(("sphereRoughness", 0.35 + 0.2 * wave(19.0)));
-            values
-        }
-        Demo::ClearCoat => vec![("clearCoatFactor", 0.5 + 0.5 * wave(8.0)), ("clearCoatRoughness", 0.3 + 0.25 * wave(11.0))],
+        Demo::Specular => vec![close_up_swing(10.0, 70.0, 12.0), wave("sphereRoughness", 0.35, 0.2, 19.0)],
+        Demo::ClearCoat => vec![wave("clearCoatFactor", 0.5, 0.5, 8.0), wave("clearCoatRoughness", 0.3, 0.25, 11.0)],
         // Roughness changes the response; the light sweeps so N dot L changes too.
-        Demo::Diffuse => {
-            let mut values = close_up_light(40.0 - 30.0 * (std::f32::consts::TAU * t / 14.0).cos()).to_vec();
-            values.push(("sphereRoughness", 0.5 + 0.45 * wave(9.0)));
-            values
-        }
+        Demo::Diffuse => vec![close_up_swing(10.0, 60.0, 14.0), wave("sphereRoughness", 0.5, 0.45, 9.0)],
         // The light circles behind the teapot.
-        Demo::Transmission => {
-            let a = std::f32::consts::TAU * t / 12.0;
-            vec![("sphereLightX", -0.85 + 0.5 * a.sin()), ("sphereLightY", 0.3 + 0.25 * a.cos())]
-        }
-        Demo::Multiscatter => vec![("sphereRoughness", 0.55 + 0.42 * wave(10.0))],
+        Demo::Transmission => vec![wave("sphereLightX", -0.85, 0.5, 12.0), cosine("sphereLightY", 0.3, 0.25, 12.0)],
+        Demo::Multiscatter => vec![wave("sphereRoughness", 0.55, 0.42, 10.0)],
         // The radius grows and shrinks while the light moves across the room, its curve with it.
-        Demo::PointLight => vec![("attenuationRadius", 3.5 + 2.0 * wave(10.0)), ("lightX", 0.55 + 0.9 * wave(17.0))],
+        Demo::PointLight => vec![wave("attenuationRadius", 3.5, 2.0, 10.0), wave("lightX", 0.55, 0.9, 17.0)],
         // The inner volumes shrink and grow, so the blend region widens and narrows.
-        Demo::Reflections => vec![("probeInnerScale", 0.55 + 0.45 * wave(12.0))],
+        Demo::Reflections => vec![wave("probeInnerScale", 0.55, 0.45, 12.0)],
         // The sampling radius grows and shrinks: wider and softer, then tighter.
-        Demo::Ssao => vec![("ssaoRadius", 0.05 + 0.04 * wave(10.0))],
+        Demo::Ssao => vec![wave("ssaoRadius", 0.05, 0.04, 10.0)],
         // Roughness walks through the specular cubemap's mips.
-        Demo::Ibl => vec![("sphereRoughness", 0.5 - 0.5 * (std::f32::consts::TAU * t / 12.0).cos())],
-    }
+        Demo::Ibl => vec![cosine("sphereRoughness", 0.5, -0.5, 12.0)],
+    })
+}
+
+/// The viewer's Play animation: parameter values `t` seconds after it started.
+pub fn demo_animation(demo: Demo, t: f32) -> Vec<(&'static str, f32)> {
+    let name = |param: &str| PARAMS.iter().find(|p| p.0 == param).map(|p| p.0).unwrap_or_else(|| panic!("{param} is not a shot parameter"));
+    play_clip(demo).sample(t, |param| param_default(param).unwrap_or(0.0)).into_iter().map(|(param, value)| (name(&param), value)).collect()
 }

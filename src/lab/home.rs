@@ -31,6 +31,7 @@ use crate::lab::palette;
 use crate::lab::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
 use crate::lab::renderer::Renderer;
 use crate::lab::text::{self as ui, REFERENCE};
+use crate::lab::audio::AudioPlayer;
 use crate::lab::viewer::{self, ViewerExit, ViewerOptions};
 use anyhow::{Context, Result};
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2};
@@ -226,6 +227,8 @@ pub struct Home {
     pub widgets: Vec<(String, Rect)>,
     /// The smallest text size drawn (points at the 1080p reference).
     pub min_text: f32,
+    /// Whether a control was clicked since the window last played a click.
+    pub clicked: bool,
 }
 
 impl Home {
@@ -248,6 +251,7 @@ impl Home {
             error: None,
             widgets: Vec::new(),
             min_text: f32::INFINITY,
+            clicked: false,
         };
         // Start on the investigation chosen on the command line.
         let current = investigation::current().path();
@@ -359,6 +363,9 @@ impl Home {
     /// `time`: the page's clock in seconds (the Config popup counts down on it).
     pub fn draw(&mut self, ctx: &egui::Context, canvas: Vec2, time: f32) -> Option<Choice> {
         self.widgets.clear();
+        // Any enabled control: the glass buttons, the lists, the checkbox. Only set here
+        // (a frame may take more than one pass, and only the first sees the click).
+        self.clicked |= ctx.viewport(|v| v.interact_widgets.clicked.is_some());
         let painter = ctx.layer_painter(egui::LayerId::background());
         let ink = ui::Ink::new(&painter);
         let choice = match self.page {
@@ -832,6 +839,11 @@ struct Offscreen {
     size: [u32; 2],
     ui_scale: f32,
     frames: u64,
+    /// Controls clicked, and how many of those clicks (and of the hovers before
+    /// them) would have played the click sound.
+    clicks: usize,
+    heard: usize,
+    hovers_heard: usize,
 }
 
 impl Offscreen {
@@ -852,7 +864,7 @@ impl Offscreen {
         let buffer = readback_buffer(&gpu.device, size[0], size[1]);
         let painter = Painter::new(&gpu.device, FRAME_FORMAT);
         let backdrop = Backdrop::new(gpu, size, FRAME_FORMAT)?;
-        Ok(Offscreen { backdrop, painter, texture, view, buffer, size, ui_scale: options.ui_scale, frames: 0 })
+        Ok(Offscreen { backdrop, painter, texture, view, buffer, size, ui_scale: options.ui_scale, frames: 0, clicks: 0, heard: 0, hovers_heard: 0 })
     }
 
     /// The page's clock: deterministic, one sixtieth of a second per frame.
@@ -881,10 +893,13 @@ impl Offscreen {
         let at = home.widgets.iter().find(|w| w.0 == name)?.1.center();
         let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
         self.frame(home, vec![egui::Event::PointerMoved(at)]);
+        self.hovers_heard += std::mem::take(&mut home.clicked) as usize;
         self.frame(home, vec![press(true)]);
         let choice = self.frame(home, vec![press(false)]);
         // One more pass, so the page shows (and lists the controls of) what was selected.
         self.frame(home, vec![egui::Event::PointerGone]);
+        self.clicks += 1;
+        self.heard += std::mem::take(&mut home.clicked) as usize;
         Some(choice)
     }
 }
@@ -1009,6 +1024,8 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     let back = offscreen.click(&mut home, "back");
     check("Back returns to the title", back.is_some() && home.page == Page::Title, format!("{:?}", home.page));
     check("text is at least 24 pt at 1080p", home.min_text >= ui::MIN_TEXT_PT, format!("{:.1} pt", home.min_text));
+    check("every click on a control plays the click sound, and hovering plays none", offscreen.heard == offscreen.clicks && offscreen.hovers_heard == 0,
+          format!("{} of {} clicks, {} hovers", offscreen.heard, offscreen.clicks, offscreen.hovers_heard));
     let passed = checks.iter().all(|c| c["passed"] == true);
     std::fs::write(report, serde_json::to_string_pretty(&serde_json::json!({ "passed": passed, "checks": checks }))?)?;
     if !passed {
@@ -1039,6 +1056,8 @@ struct HomeApp<'a> {
     shown_fullscreen: bool,
     choice: Option<Choice>,
     error: Option<anyhow::Error>,
+    /// The sound of a control being clicked.
+    click: &'a mut Option<AudioPlayer>,
 }
 
 impl HomeApp<'_> {
@@ -1096,6 +1115,11 @@ impl HomeApp<'_> {
         let events = std::mem::take(&mut self.events);
         let time = self.started.elapsed().as_secs_f32();
         let choice = s.painter.paint(&mut s.backdrop, &view, [s.config.width, s.config.height], self.options.ui_scale, events, time, self.home, None);
+        if std::mem::take(&mut self.home.clicked) {
+            if let Some(click) = self.click.as_mut() {
+                click.play_from(0.0);
+            }
+        }
         s.window.pre_present_notify();
         s.backdrop.gpu().queue.present(frame);
         // F11, or settings being tried or put back.
@@ -1185,14 +1209,26 @@ impl ApplicationHandler for HomeApp<'_> {
     }
 }
 
+/// The homepage's music and the sound of its controls (assets/audio/README.md); the
+/// lab is silent without them or without FFplay.
+const MUSIC: &str = "assets/audio/music/soundza-bright-choir-loop-in-em.ogg";
+const CLICK: &str = "assets/audio/ui/soundza-ui-button-click.wav";
+
 /// The homepage, then whatever it opens, until it quits or a window is closed.
 pub fn run(options: HomeOptions) -> Result<()> {
     let mut event_loop = EventLoop::new()?;
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let mut size = PhysicalSize::new(options.width, options.height);
+    // The main theme's music plays while the homepage is shown, not in a demonstration or a video.
+    let mut music = AudioPlayer::new(options.manifest_dir.join(MUSIC), &options.manifest_dir).map(|m| m.looping(0.5, 2.0));
+    // So are its clicks. The player outlives each page, so the click that opens the viewer is heard.
+    let mut click = AudioPlayer::new(options.manifest_dir.join(CLICK), &options.manifest_dir);
     loop {
+        if let Some(m) = music.as_mut() {
+            m.play_from(0.0);
+        }
         event_loop.set_control_flow(ControlFlow::Poll);
-        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, choice: None, error: None };
+        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, choice: None, error: None, click: &mut click };
         event_loop.run_app_on_demand(&mut app)?;
         if let Some(e) = app.error.take() {
             return Err(e);
@@ -1200,6 +1236,9 @@ pub fn run(options: HomeOptions) -> Result<()> {
         let choice = app.choice.unwrap_or(Choice::Quit);
         size = app.size;
         drop(app);
+        if let Some(m) = music.as_mut() {
+            m.stop();
+        }
         if !open(choice, &mut event_loop, &mut home, &options, size) {
             return Ok(());
         }

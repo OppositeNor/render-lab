@@ -18,7 +18,9 @@ GAP = 0.32       # silence between sentences
 TAIL = 0.70      # silence after a beat's last sentence
 MAX_EXTRA_PAUSE = 2.2
 CAPTION_WIDTH = 58
-KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code'}
+KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate'}
+# How a key's blend moves (src/lab/shot.rs `Ease`); smooth when a key names none.
+EASES = ('smooth', 'linear', 'in', 'out', 'inOut')
 
 Board = dict[str, Any]
 Json = dict[str, Any]
@@ -90,13 +92,37 @@ def plan_chapter(chapter: Json, durations: Durations) -> tuple[float, list[float
     return natural, extras, deficit - sum(extras)
 
 
-def make_key(k: Json, base_frame: int, fps: int, source: str) -> Json:
-    unknown = set(k) - KEY_FIELDS - {'delay', 'blend'}
+def motion_seconds(motion: Json, frame: int, ends: dict[str, int], fps: int, source: str) -> Json:
+    """A motion (src/lab/animation.rs) with its `seconds` in seconds: `"sentence"`
+    or `"beat"` runs it from its key to the end of the sentence or the beat."""
+    if len(motion) != 1 or next(iter(motion)) not in ('path', 'orbit', 'wave'):
+        raise RuntimeError(f'{source}: a motion is one of path, orbit, or wave, not {sorted(motion)}')
+    kind, body = next(iter(motion.items()))
+    seconds = body.get('seconds')
+    if isinstance(seconds, str):
+        if seconds not in ends:
+            raise RuntimeError(f'{source}: a {kind} here can run for seconds, or until {" or ".join(repr(e) for e in ends)}, not {seconds!r}')
+        body = {**body, 'seconds': round((ends[seconds] - frame) / fps, 3)}
+        if body['seconds'] <= 0:
+            raise RuntimeError(f'{source}: the {kind} starts after the end of its {seconds}')
+    return {kind: body}
+
+
+def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, int]) -> Json:
+    """A timeline key; `ends` are the frames where the key's sentence and beat end."""
+    unknown = set(k) - KEY_FIELDS - {'delay', 'blend', 'ease'}
     if unknown:
         raise RuntimeError(f'{source}: unknown key fields {sorted(unknown)}')
     out: Json = {'frame': base_frame + int(round(k.get('delay', 0.0) * fps)), 'blend': int(round(k.get('blend', 0.0) * fps)), 'source': source}
-    for name in KEY_FIELDS & set(k):
+    if 'ease' in k:
+        if k['ease'] not in EASES:
+            raise RuntimeError(f'{source}: unknown ease {k["ease"]!r} (one of {", ".join(EASES)})')
+        out['ease'] = k['ease']
+    # In the storyboard's order, so the timeline is the same from run to run.
+    for name in (n for n in k if n in KEY_FIELDS):
         out[name] = k[name]
+    if 'animate' in k:
+        out['animate'] = [motion_seconds(m, out['frame'], ends, fps, source) for m in k['animate']]
     return out
 
 
@@ -125,6 +151,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
             beat_start = frame
             cursor = beat_start + to_frames(LEAD)
             captions: list[Json] = []
+            pending: list[tuple[list[tuple[Json, int]], int]] = []
             for s in sentences_of(beat):
                 path, seconds, rate = durations[s['text']]
                 start = cursor
@@ -140,16 +167,18 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 captions[-1]['end'] = end
                 extra = extras[sentence_index] if sentence_index < len(extras) else 0.0
                 sentence_index += 1
-                for k in s.get('keys', []):
-                    keys_out.append(make_key(k, start, fps, beat['id']))
+                # A sentence runs until the next one starts (or the beat ends).
+                sentence_keys = [(k, start) for k in s.get('keys', [])]
                 sequence = s.get('sequence', [])
-                for i, k in enumerate(sequence):
-                    keys_out.append(make_key({'delay': i * seconds / len(sequence), **k}, start, fps, beat['id']))
+                sentence_keys += [({'delay': i * seconds / len(sequence), **k}, start) for i, k in enumerate(sequence)]
                 cursor = end + to_frames(GAP + s.get('pause', 0.0) + extra)
-            for k in beat.get('keys', []):
-                keys_out.append(make_key(k, beat_start, fps, beat['id']))
+                pending.append((sentence_keys, cursor))
             hold = beat.get('hold', 0.0) + (leftover_per_beat if beat in scene_beats else 0.0)
             beat_end = cursor - to_frames(GAP) + to_frames(TAIL + hold)
+            for i, (sentence_keys, sentence_end) in enumerate(pending):
+                ends = {'sentence': beat_end if i == len(pending) - 1 else sentence_end, 'beat': beat_end}
+                keys_out.extend(make_key(k, base, fps, beat['id'], ends) for k, base in sentence_keys)
+            keys_out.extend(make_key(k, beat_start, fps, beat['id'], {'beat': beat_end}) for k in beat.get('keys', []))
             # Captions stay up through short gaps.
             for a, b in zip(captions, captions[1:]):
                 if b['start'] - a['end'] <= to_frames(0.6):

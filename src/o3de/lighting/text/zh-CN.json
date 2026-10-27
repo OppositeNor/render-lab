@@ -169,6 +169,7 @@
   "demos.simple_point_lights_add_no": "simple point light 不产生背光；",
   "demos.the_sphere_light_here_has": "这里的球形光源没有阴影。",
   "demos.disney_diffuse_note": "显示的是 Skin 使用的 NormalizedDisneyDiffuse；StandardPBR 使用 DiffuseLambertian。",
+  "demos.specular_lobe": "specular × N·V",
   "demos.compensation_off_note": "补偿已关闭：高光只有单次散射。",
   "demos.compensation_1_f0_1_a": "补偿 = 1 + F0 (1 / (A + B) − 1)。",
   "demos.the_global_skylight_casts_no": "全局 skylight 不投射阴影：",

@@ -169,6 +169,7 @@
   "demos.simple_point_lights_add_no": "Simple point lights add no back lighting;",
   "demos.the_sphere_light_here_has": "the sphere light here has no shadows.",
   "demos.disney_diffuse_note": "Showing NormalizedDisneyDiffuse, as Skin uses; StandardPBR uses DiffuseLambertian.",
+  "demos.specular_lobe": "specular × N·V",
   "demos.compensation_off_note": "Compensation off: specular is single scattering only.",
   "demos.compensation_1_f0_1_a": "Compensation = 1 + F0 (1 / (A + B) − 1).",
   "demos.the_global_skylight_casts_no": "The global skylight casts no shadows:",

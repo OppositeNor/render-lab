@@ -1,0 +1,64 @@
+soundza Standard License
+
+This soundza Standard License (“License”) is a legal agreement between you (“you” or “Licensee”) and Orange Lake, LLC, a limited liability company doing business as “soundza.” Throughout this License, references to “soundza,” “the Company,” “we,” “us,” or “our” refer to Orange Lake, LLC. This License governs the rights granted when you download any Sound from the soundza platform (soundza.com) under this License.
+
+By downloading a Sound, you accept the terms of this License. If you do not agree, do not download or use the Sound.
+01
+Definitions
+
+    “Sound” means any loop, beat, sample, sound effect, stem, or other audio file made available for download on soundza under this License.
+    “New Work” means a substantially original music production, audio composition, video, film, game, podcast, advertisement, or other creative work that incorporates or is built using a Sound, where the Sound is not the primary value of the New Work.
+
+02
+License grant
+
+Subject to the terms of this License, soundza grants you a perpetual, worldwide, non-exclusive, non-transferable, royalty-free license to:
+
+    Download, copy, and use Sounds to create New Works.
+    Distribute, publicly perform, and commercially exploit your New Works through any medium (streaming, download, broadcast, sync, live performance, etc.).
+    Use Sounds in an unlimited number of New Works and projects.
+
+No attribution is required.
+03
+Restrictions
+
+You may not:
+
+    Redistribute Sounds as standalone files. You may not share, resell, sublicense, give away, or make available any Sound (or a substantially unmodified version of a Sound) as a standalone audio file, in a sample pack, loop library, sound kit, or any format where the Sound is offered for others to use as a production element. Shipping a Sound inside a game or app you make is fine.
+    Claim exclusive ownership. You may not register or claim exclusive, sole, or proprietary ownership of any Sound, including through copyright registration of the Sound itself (as distinguished from a New Work you create).
+    Use Sounds for AI or machine learning. You may not use any Sound, in whole or in part, to train, fine-tune, distill, or otherwise develop any artificial intelligence model, machine-learning system, generative audio tool, or similar technology. This prohibition is a material term of this License, and violation constitutes copyright infringement to the extent it exceeds the scope of the license granted.
+    Misrepresent origin. You may not claim that you are the original creator or copyright owner of a Sound you downloaded.
+    Use Sounds in competing marketplaces. You may not upload Sounds obtained from soundza to any third-party sample, loop, beat, or sound-effect marketplace, library, or distribution platform.
+
+04
+Ownership
+
+Nothing in this License transfers ownership of the underlying copyright in a Sound from the creator to the downloader. Other users may license the identical Sound under the same or similar terms.
+05
+Term and termination
+
+This License is perpetual, but soundza may terminate your license to a specific Sound, or all Sounds, if you breach any term of this License. Upon termination, you must cease all use of the affected Sound(s), but New Works lawfully created before termination may continue to be distributed.
+
+soundza may stop offering any Sound at any time. If soundza receives a third-party rights claim about a Sound, or believes a Sound may infringe third-party rights, it may ask you (for example, by email or on the Sound's page) to stop using that Sound.
+06
+Disclaimer of warranties
+
+SOUNDS ARE PROVIDED “AS IS” AND “AS AVAILABLE.” SOUNDZA MAKES NO WARRANTIES, EXPRESS OR IMPLIED, REGARDING THE SOUNDS, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT ANY SOUND IS FREE OF THIRD-PARTY CLAIMS. YOU ASSUME ALL RISK ASSOCIATED WITH YOUR USE OF ANY SOUND.
+
+Sounds on soundza come from a range of sources, and soundza may review or screen Sounds before making them available. Whatever a Sound's source, soundza makes no representation that whoever created, uploaded, or released it held the rights to do so, that it is free of copyright, trademark, or other third-party claims, or that it will not be claimed by a content identification system. Soundza does not indemnify you against any claim arising from your use of a Sound. You are responsible for deciding whether a Sound suits your use, including under the laws where you use it, and for getting any clearances or permissions you need. To the maximum extent permitted by law, soundza is not liable for any claims or costs arising from your use of a Sound, including in a New Work or after you modify or combine it.
+07
+Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COMPANY AND ITS OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF OR INABILITY TO USE ANY SOUND. IN NO EVENT WILL THE COMPANY'S TOTAL LIABILITY ARISING OUT OF OR RELATING TO THIS LICENSE OR ANY SOUND EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID SOUNDZA FOR THAT SOUND OR (B) ONE HUNDRED U.S. DOLLARS (US $100). SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF CERTAIN DAMAGES, SO SOME OF THE ABOVE LIMITATIONS MAY NOT APPLY TO YOU.
+08
+General
+
+    This License is governed by the laws of the State of California, without regard to conflict-of-laws principles.
+    If any provision is found unenforceable, the remaining provisions remain in full effect.
+    This License constitutes the entire agreement between you and the Company regarding the use of Sounds under this License and supersedes any prior agreements on the same subject.
+    The Company may update this License from time to time. Updated terms apply to Sounds downloaded after the update takes effect; Sounds downloaded before an update remain subject to the version in effect at the time of download.
+
+09
+Contact
+Orange Lake, LLC (d/b/a soundza)
+admin@soundza.com

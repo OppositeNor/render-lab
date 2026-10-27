@@ -6,6 +6,7 @@
 use super::brdf::{self, BrdfMap, DiffuseModel, Material, PointLight, Shading};
 use super::shot::Demo;
 use super::transmission::{SphereLight, Transmission, TransmissionMode};
+use crate::lab::animation::Ease;
 use crate::lab::frame::{DrawLists, FrameContent, Label, Readout, Statics, FLAG_ARROW, FLAG_DASHED};
 use crate::lab::i18n::object_name;
 use crate::o3de::lighting::text::tr;
@@ -338,10 +339,15 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         if demo == Demo::Ibl {
             shown.push((px.ibl.reflect_dir, palette::REFLECTED, "R"));
         }
-        let count = state.p("vectorsShown").round().max(0.0) as usize;
-        for &(dir, color, name) in shown.iter().take(count) {
-            draw.segment(p, p + dir * len, color, vectors, 4.0, FLAG_ARROW);
-            labels.push(Label { anchor: p + dir * (len + 0.04), text: name.into(), color });
+        // A fractional count grows the next vector out of the point.
+        let shown_count = state.p("vectorsShown").max(0.0);
+        let count = shown_count.ceil() as usize;
+        for (i, &(dir, color, name)) in shown.iter().take(count).enumerate() {
+            let grown = if shown_count >= (i + 1) as f32 { 1.0 } else { Ease::Smooth.apply(shown_count - i as f32) };
+            draw.segment(p, p + dir * len * grown, color, vectors, 4.0, FLAG_ARROW);
+            if grown > 0.6 {
+                labels.push(Label { anchor: p + dir * (len * grown + 0.04), text: name.into(), color });
+            }
         }
         if shading.light_on && shown.iter().take(count).any(|s| s.2 == "L") {
             draw.segment(p, lp, LIGHT, vectors * 0.5, 1.5, FLAG_DASHED);
@@ -353,7 +359,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         }
     }
     if state.p("lobe") > 0.0 {
-        lobes(draw, &px, n, state.p("lobe"));
+        lobes(draw, labels, &px, n, state.p("lobe"));
     }
     let samples = state.p("ggxSamples").round().clamp(0.0, 256.0) as u32;
     if samples > 0 {
@@ -474,11 +480,15 @@ fn falloff_curve(draw: &mut DrawLists, labels: &mut Vec<Label>, light: &PointLig
     labels.push(Label { anchor: attenuated[70], text: "I / d² · (1 − (d²/r²)²)²".into(), color: LIGHT });
 }
 
-/// The diffuse and specular lobes at the inspected point: each term for an
-/// outgoing direction swept through the plane of N and L, horizon to
-/// horizon, as a radius (each lobe on its own scale). GGX's lobe need not
-/// fall to zero at the horizon, so each closes along it back to the point.
-fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
+/// The diffuse and specular lobes at the inspected point, for an outgoing
+/// direction swept through the plane of N and L, horizon to horizon, as a
+/// radius (each lobe on its own scale). The diffuse lobe is the term itself,
+/// the radiance seen from that direction, which Lambert keeps constant until
+/// the response flattens it. The specular lobe is the light the term reflects
+/// into that direction, the term times N·V: its radiance grows toward the
+/// horizon, where G's division by N·V outpaces it, and would stretch the lobe
+/// flat along the surface instead of around the mirror direction.
+fn lobes(draw: &mut DrawLists, labels: &mut Vec<Label>, px: &brdf::Pixel, n: Vec3, alpha: f32) {
     let s = &px.surface;
     let l = px.light.dir_to_light;
     let t = in_plane(n, l);
@@ -492,7 +502,7 @@ fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
         let spec = brdf::specular_ggx(w, l, n, s.specular_f0, n_dot_v, s.roughness_a2, px.lighting.multi_scatter_compensation);
         let response = Vec3::ONE - brdf::fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
         let diff = brdf::diffuse_lambertian(s.albedo, n, l, response);
-        specular.push((w, spec.dot(Vec3::splat(1.0 / 3.0))));
+        specular.push((w, spec.dot(Vec3::splat(1.0 / 3.0)) * n_dot_v));
         diffuse.push((w, diff.dot(Vec3::splat(1.0 / 3.0))));
     }
     let p = s.position;
@@ -503,6 +513,11 @@ fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
         }
         let points: Vec<Vec3> = std::iter::once(p).chain(lobe.iter().map(|(w, v)| p + *w * (size * v / peak))).chain(std::iter::once(p)).collect();
         draw.polyline(&points, color, alpha, 3.0);
+        // Say what the specular lobe is, at its tip.
+        if color == SPECULAR {
+            let tip = lobe.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map_or(n, |x| x.0);
+            labels.push(Label { anchor: p + tip * (size + 0.06), text: tr("demos.specular_lobe").into(), color: SPECULAR });
+        }
     }
     // The mirror direction of L, where the specular lobe of a smooth surface peaks.
     let mirror = (2.0 * n.dot(l) * n - l).normalize();

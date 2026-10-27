@@ -70,7 +70,7 @@ returns from `Investigation::formula`.
 | [`src/lab/home.rs`](src/lab/home.rs), [`src/lab/frost.rs`](src/lab/frost.rs), [`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | The homepage: the title, Config, and selection pages, over an investigation's backdrop scene (or a plain field), halved twice, blurred, tinted, and grained. |
 | [`src/lab/config.rs`](src/lab/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
 | [`src/lab/text.rs`](src/lab/text.rs), [`src/lab/readback.rs`](src/lab/readback.rs), [`src/lab/gpu.rs`](src/lab/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. |
-| `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player, the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). The parts that only the commercial investigations use (the Surface Cache, distance-field fixtures, and probes) build under the `commercial` cfg that `build.rs` sets when `src/commercial` is present; without it the shaders compose [`shaders/wgsl/surface_fallback.wgsl`](shaders/wgsl/surface_fallback.wgsl) in their place. |
+| `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). The parts that only the commercial investigations use (the Surface Cache, distance-field fixtures, and probes) build under the `commercial` cfg that `build.rs` sets when `src/commercial` is present; without it the shaders compose [`shaders/wgsl/surface_fallback.wgsl`](shaders/wgsl/surface_fallback.wgsl) in their place. |
 | [`src/investigations.rs`](src/investigations.rs), [`src/o3de/`](src/o3de) | The list of investigations, and the Open 3D Engine's. |
 | [`tools/video/`](tools/video/README.md) | The narrated-video builder: narration, timeline, render, mux, captions, documents, and verification. |
 | [`build.rs`](build.rs) | Validates the WGSL modules (and each investigation's own scene shading) with naga and exports their struct layouts; decides whether the commercial investigations are built; fails when an investigation's formula images no longer match their LaTeX. |
@@ -99,8 +99,12 @@ so the build validates it. A frame without a struct-panel record can show a `Rea
   use) read `vendor/` offline. [`.cargo/config.toml`](.cargo/config.toml) keeps the build output in `target/`.
 - **Fonts:** DejaVu Sans and DejaVu Sans Mono, with Source Han Sans CN for Chinese text, are bundled in
   [`assets/fonts`](assets/fonts) with their licenses.
+- **Sound:** the homepage plays a music loop while it is shown, and a click for its controls (neither in
+  demonstrations nor videos), through FFplay (the video environment's, `FFPLAY`, or PATH); without FFplay the lab is
+  silent. The sounds in [`assets/audio`](assets/audio) are licensed from soundza, not under the MIT License: they are
+  for this lab only (see [`THIRD_PARTY.md`](THIRD_PARTY.md)).
 
 ## License
 
 Render Lab is released under the [MIT License](LICENSE), copyright © 2026 OppositeNor. Bundled fonts, the teapot mesh,
-and the vendored crates keep their own terms; see [`THIRD_PARTY.md`](THIRD_PARTY.md).
+the sounds, and the vendored crates keep their own terms; see [`THIRD_PARTY.md`](THIRD_PARTY.md).

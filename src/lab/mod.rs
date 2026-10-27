@@ -13,6 +13,7 @@
 //! fixtures, and the probes are absent, and the shaders compose
 //! shaders/wgsl/surface_fallback.wgsl instead of their lookups.
 
+pub mod animation;
 pub mod audio;
 pub mod camera;
 pub mod config;

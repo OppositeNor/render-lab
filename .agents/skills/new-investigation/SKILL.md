@@ -87,7 +87,7 @@ An investigation is only as good as its claims. Each of these is required, not a
 ```
 src/<engine>/mod.rs                 pub static ENGINE: Engine { id, name, summary }; pub mod <feature>;
 src/<engine>/<feature>/mod.rs       the Investigation impl, Wording, TIMELINES
-                       shot.rs      Demo enum, PARAMS, for_demo, demo_animation
+                       shot.rs      Demo enum, PARAMS, for_demo, play_clip, demo_animation
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
                        selftest.rs  the verification suite
@@ -150,10 +150,13 @@ Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scen
 
 ## 6. The Play animation
 
-`demo_animation(demo, t) -> Vec<(param, value)>` gives the parameters `t` seconds after Play, and the trait's
-`animation` returns it. The viewer adds the camera's slow sway, the sliders follow, and stopping leaves the values in
-them. Use smooth periodic motion that sweeps the parameter the demonstration is about (O3DE: the light circles the room;
-roughness sweeps through the cubemap's mips). `backdrop(t)` can reuse it for the homepage's scene.
+A demonstration's Play animation is a `Clip` (`src/lab/animation.rs`) of looping motions: a `Wave` (a sine about a
+centre), an `Orbit` (a point turned about a centre; a `pingPong` of `Ease::Sine` swings it back and forth), or a `Path`
+through waypoints (`closed` with `Repeat::Loop` goes round). `play_clip(demo)` builds it, and
+`demo_animation(demo, t) -> Vec<(param, value)>` samples it `t` seconds after Play for the trait's `animation`. The
+viewer adds the camera's slow sway, the sliders follow, and stopping leaves the values in them. Sweep the parameter the
+demonstration is about (O3DE: the light circles the room; roughness sweeps through the cubemap's mips). `backdrop(t)`
+can reuse it for the homepage's scene.
 
 ## 7. The narrated video
 
@@ -167,7 +170,10 @@ Inputs in `src/<engine>/<feature>/video/`:
   `c<chapter>-<name>`, `kind`: `scene`, `mermaid`, or `sources`, `headline`, `narration`, `keys`). A sentence is a
   string or `{text, keys?, sequence?, pause?}`. Keys apply at the sentence's start; `sequence` keys are spread over it.
   A key sets `demo`, `camera`, `params`, `panel` (`values`, `code`, `hidden`, ...), `code` (a listing), `highlight`
-  (listing tags or fields), `callout` (an index key), or `record`, with `delay` and `blend` in seconds.
+  (listing tags or fields), `callout` (an index key), or `record`, with `delay` and `blend` in seconds and `ease` for
+  the blend (`smooth`, `linear`, `in`, `out`, `inOut`, `sine`). `animate` starts motions on parameters or `camera.*`
+  channels: a `path` through waypoints, an `orbit`, or a `wave`, whose `seconds` may be `"sentence"` or `"beat"`
+  (`tools/video/README.md`).
 - **`diagrams/*.mmd`**: Mermaid diagrams for `mermaid` beats (`focus` lights nodes); `zh-CN/diagrams/` for Chinese.
 - **`zh-CN/translation.json`**: one Chinese sentence per English sentence, per beat, plus titles and a glossary.
 
@@ -177,7 +183,12 @@ Animate, don't cut:
   term lit while the narration names it.
 - Reset a step parameter with an instant key (no `blend`) at the next beat of the same demonstration; a `demo` key
   resets everything.
-- Keep the camera alive with `cameraDrift`, and move it between examples. Use several examples, not one.
+- Keep the camera alive: float it on a `path` of `camera.yaw`, `camera.pitch`, and `camera.distance` for 3D views,
+  with `cameraDrift` on top, and glide it (`camera` with a `blend`) to a front view when a step is clearer in 2D. Move
+  lights on paths and orbits too, so vectors and highlights change while the narration explains them. Use several
+  examples, not one.
+- A `demo` key resets every channel, camera included unless the key sets `camera`; to keep a motion continuous across
+  beats of one demonstration, reset only the parameters that need it.
 - Write numbers as spoken words for the voice, say where the lab simplifies the engine, and back each claim with a
   `callout` or a chapter `sources` entry.
 - Budget each chapter (`targetSeconds`) near 1.2 times its narration; the builder fills the rest with pauses.

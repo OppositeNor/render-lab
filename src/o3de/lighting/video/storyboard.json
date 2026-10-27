@@ -635,11 +635,69 @@
      "keys": [
       {
        "demo": "surface",
+       "camera": {
+        "target": [
+         -1.05,
+         1.2,
+         -0.55
+        ],
+        "yaw": 40.0,
+        "pitch": 20.0,
+        "distance": 3.5
+       },
+       "blend": 3.0,
+       "ease": "inOut",
        "params": {
         "readoutRows": 0.0,
-        "cameraDrift": 0.0
+        "cameraDrift": 1.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            -1.8677,
+            2.0349,
+            0.4245
+           ],
+           [
+            -0.7072,
+            1.9442,
+            0.7293
+           ],
+           [
+            -1.5321,
+            2.3891,
+            0.285
+           ],
+           [
+            -2.0467,
+            2.3007,
+            -0.9128
+           ],
+           [
+            -1.8298,
+            1.8739,
+            -1.6636
+           ],
+           [
+            -2.2787,
+            2.1004,
+            -0.55
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -654,6 +712,37 @@
          "params": {
           "readoutRows": 4.0
          }
+        },
+        {
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "camera.yaw",
+             "camera.pitch",
+             "camera.distance"
+            ],
+            "through": [
+             [
+              15,
+              24,
+              3.5
+             ],
+             [
+              -12,
+              20,
+              3.3
+             ],
+             [
+              22,
+              18,
+              3.5
+             ]
+            ],
+            "seconds": "beat"
+           }
+          }
+         ]
         }
        ]
       },
@@ -688,6 +777,74 @@
         "sphereMetallic": 0.0
        },
        "callout": ""
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            -1.6245,
+            2.2042,
+            0.4451
+           ],
+           [
+            -0.597,
+            1.9442,
+            0.6945
+           ],
+           [
+            -1.7318,
+            2.3007,
+            -1.3625
+           ],
+           [
+            -2.2787,
+            2.1004,
+            -0.55
+           ]
+          ],
+          "seconds": "beat"
+         }
+        },
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            45,
+            20,
+            3.5
+           ],
+           [
+            10,
+            24,
+            3.5
+           ],
+           [
+            32,
+            18,
+            3.7
+           ],
+           [
+            20,
+            14,
+            3.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -788,6 +945,30 @@
           "sphereMetallic": 0.0,
           "formula": 3.0
          }
+        },
+        {
+         "blend": 2.5,
+         "ease": "inOut",
+         "camera": {
+          "target": [
+           -1.15,
+           1.6,
+           -0.55
+          ],
+          "yaw": 0.0,
+          "pitch": 4.0,
+          "distance": 2.6
+         },
+         "params": {
+          "cameraDrift": 0.0
+         }
+        },
+        {
+         "blend": 1.5,
+         "params": {
+          "lobe": 1.0,
+          "labels": 0.0
+         }
         }
        ]
       },
@@ -802,6 +983,46 @@
          ],
          "callout": "roughness-values"
         }
+       ],
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -30.0,
+            "seconds": 2.8,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 40.0,
+            "seconds": 3.0,
+            "ease": "sine"
+           }
+          }
+         ]
+        }
        ]
       },
       {
@@ -813,6 +1034,25 @@
           "sphereRoughness": 0.5
          },
          "callout": "roughness-values"
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -20.0,
+            "seconds": 2.0,
+            "ease": "sine"
+           }
+          }
+         ]
         }
        ]
       },
@@ -852,11 +1092,63 @@
      "headline": "Specular anti-aliasing",
      "keys": [
       {
-       "demo": "surface",
        "params": {
-        "cameraDrift": 0.0
+        "cameraDrift": 1.0,
+        "lobe": 0.0,
+        "labels": 1.0,
+        "sphereRoughness": 0.35,
+        "formula": 0.0,
+        "readoutRows": 99.0
        },
-       "callout": ""
+       "callout": "",
+       "blend": 3.0,
+       "ease": "inOut",
+       "camera": {
+        "target": [
+         -1.05,
+         1.2,
+         -0.55
+        ],
+        "yaw": -10.0,
+        "pitch": 22.0,
+        "distance": 3.5
+       }
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            -1.05,
+            2.1004,
+            0.6787
+           ],
+           [
+            -1.885,
+            2.3891,
+            -0.0679
+           ],
+           [
+            -1.9013,
+            1.9442,
+            -1.5646
+           ],
+           [
+            -2.2787,
+            2.1004,
+            -0.55
+           ]
+          ],
+          "seconds": 24.0
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -878,6 +1170,32 @@
        "keys": [
         {
          "callout": "specular-aa"
+        },
+        {
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "camera.yaw",
+             "camera.pitch",
+             "camera.distance"
+            ],
+            "through": [
+             [
+              25,
+              20,
+              3.5
+             ],
+             [
+              40,
+              16,
+              3.4
+             ]
+            ],
+            "seconds": 14.0
+           }
+          }
+         ]
         }
        ]
       },
@@ -899,6 +1217,20 @@
           "sphereRoughness": 0.1,
           "formula": 3.0
          }
+        },
+        {
+         "blend": 2.5,
+         "ease": "inOut",
+         "camera": {
+          "target": [
+           -1.05,
+           0.9,
+           -0.55
+          ],
+          "yaw": 30.0,
+          "pitch": 10.0,
+          "distance": 2.4
+         }
         }
        ],
        "sequence": [
@@ -919,6 +1251,60 @@
        "keys": [
         {
          "callout": "specular-aa"
+        },
+        {
+         "blend": 2.5,
+         "ease": "inOut",
+         "camera": {
+          "target": [
+           -1.05,
+           1.2,
+           -0.55
+          ]
+         }
+        },
+        {
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "camera.yaw",
+             "camera.pitch",
+             "camera.distance"
+            ],
+            "through": [
+             [
+              10,
+              20,
+              3.5
+             ],
+             [
+              25,
+              18,
+              3.6
+             ]
+            ],
+            "seconds": "beat"
+           }
+          },
+          {
+           "path": {
+            "params": [
+             "lightX",
+             "lightY",
+             "lightZ"
+            ],
+            "through": [
+             [
+              -1.6644,
+              2.1004,
+              0.5141
+             ]
+            ],
+            "seconds": "beat"
+           }
+          }
+         ]
         }
        ]
       }
@@ -930,11 +1316,103 @@
      "headline": "Occlusion maps",
      "keys": [
       {
-       "demo": "surface",
        "params": {
-        "cameraDrift": 0.0
+        "cameraDrift": 1.0,
+        "sphereRoughness": 0.35,
+        "formula": 0.0
        },
-       "callout": ""
+       "callout": "",
+       "blend": 1.5
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            -0.4903,
+            1.9442,
+            0.6503
+           ],
+           [
+            -1.7318,
+            2.3007,
+            0.2625
+           ],
+           [
+            -1.9995,
+            2.3891,
+            -0.7174
+           ],
+           [
+            -1.8097,
+            1.9442,
+            -1.6349
+           ],
+           [
+            -2.2787,
+            2.1004,
+            -0.55
+           ]
+          ],
+          "seconds": 36.0
+         }
+        },
+        {
+         "path": {
+          "params": [
+           "camera.yaw",
+           "camera.pitch",
+           "camera.distance"
+          ],
+          "through": [
+           [
+            35,
+            24,
+            3.5
+           ],
+           [
+            -10,
+            20,
+            3.5
+           ],
+           [
+            20,
+            18,
+            3.5
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
+      },
+      {
+       "delay": 41.8,
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            0.55,
+            1.85,
+            0.95
+           ]
+          ],
+          "seconds": "beat"
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1028,7 +1506,23 @@
         "labels": 1.0,
         "cameraDrift": 1.0
        },
-       "callout": ""
+       "callout": "",
+       "camera": {
+        "target": [
+         0.0,
+         0.85,
+         -0.3
+        ],
+        "yaw": 18.0,
+        "pitch": 16.0,
+        "distance": 6.4
+       },
+       "blend": 3.0
+      },
+      {
+       "params": {
+        "cameraDrift": 1.0
+       }
       }
      ],
      "narration": [
@@ -1403,7 +1897,7 @@
   {
    "number": 5,
    "title": "GGX specular",
-   "targetSeconds": 174,
+   "targetSeconds": 136,
    "summary": "N, L, V, and H; the D, G, and F terms; the specular lobe.",
    "sources": [
     "specular-ggx",
@@ -1421,13 +1915,71 @@
      "keys": [
       {
        "demo": "specular",
+       "camera": {},
        "params": {
         "vectorsShown": 0.0,
         "lobe": 0.0,
-        "readoutRows": 0.0,
-        "cameraDrift": 0.0
+        "readoutRows": 0.0
        },
        "callout": ""
+      },
+      {
+       "camera": {
+        "target": [
+         -1.05,
+         1.3,
+         -0.55
+        ],
+        "yaw": 35.0,
+        "pitch": 22.0,
+        "distance": 3.0
+       },
+       "blend": 3.0,
+       "ease": "inOut",
+       "params": {
+        "cameraDrift": 1.0
+       }
+      },
+      {
+       "animate": [
+        {
+         "path": {
+          "params": [
+           "lightX",
+           "lightY",
+           "lightZ"
+          ],
+          "through": [
+           [
+            -1.6245,
+            2.2042,
+            0.4451
+           ],
+           [
+            -0.585,
+            1.8739,
+            0.7275
+           ],
+           [
+            -1.7886,
+            2.3891,
+            0.0698
+           ],
+           [
+            -2.0451,
+            1.99,
+            -1.385
+           ],
+           [
+            -2.1298,
+            2.2042,
+            -0.157
+           ]
+          ],
+          "seconds": 15.0
+         }
+        }
+       ]
       }
      ],
      "narration": [
@@ -1441,6 +1993,37 @@
          "params": {
           "vectorsShown": 0.0
          }
+        },
+        {
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "camera.yaw",
+             "camera.pitch",
+             "camera.distance"
+            ],
+            "through": [
+             [
+              10,
+              26,
+              2.9
+             ],
+             [
+              -15,
+              18,
+              3.0
+             ],
+             [
+              20,
+              22,
+              2.8
+             ]
+            ],
+            "seconds": 8.6
+           }
+          }
+         ]
         }
        ]
       },
@@ -1450,7 +2033,8 @@
         {
          "params": {
           "vectorsShown": 1.0
-         }
+         },
+         "blend": 0.6
         }
        ]
       },
@@ -1460,7 +2044,8 @@
         {
          "params": {
           "vectorsShown": 2.0
-         }
+         },
+         "blend": 0.6
         }
        ]
       },
@@ -1470,7 +2055,46 @@
         {
          "params": {
           "vectorsShown": 3.0
+         },
+         "blend": 0.6
+        },
+        {
+         "camera": {
+          "target": [
+           -1.05,
+           1.35,
+           -0.55
+          ],
+          "yaw": 0.0,
+          "pitch": 6.0,
+          "distance": 3.1
+         },
+         "blend": 5.0,
+         "ease": "inOut",
+         "params": {
+          "cameraDrift": 0.0
          }
+        },
+        {
+         "animate": [
+          {
+           "path": {
+            "params": [
+             "lightX",
+             "lightY",
+             "lightZ"
+            ],
+            "through": [
+             [
+              -2.2787,
+              2.1004,
+              -0.55
+             ]
+            ],
+            "seconds": 5.0
+           }
+          }
+         ]
         }
        ]
       },
@@ -1480,11 +2104,54 @@
         {
          "params": {
           "vectorsShown": 4.0
-         }
+         },
+         "blend": 0.6
         }
        ]
       },
-      "A microfacet whose normal points along H mirrors the light straight into the viewer."
+      {
+       "text": "A microfacet whose normal points along H mirrors the light straight into the viewer.",
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -25.0,
+            "seconds": 2.2,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 25.0,
+            "seconds": 2.2,
+            "ease": "sine"
+           }
+          }
+         ]
+        }
+       ]
+      }
      ]
     },
     {
@@ -1505,12 +2172,11 @@
        "text": "SpecularGGX multiplies three terms, D, G, and F, with N dot L and the multiscatter compensation.",
        "keys": [
         {
-         "panel": "code",
-         "code": "specular-ggx",
-         "highlight": [
-          "angles"
-         ],
-         "callout": "specular-ggx"
+         "panel": "values",
+         "callout": "specular-ggx",
+         "params": {
+          "formula": 0.0
+         }
         }
        ]
       },
@@ -1530,7 +2196,49 @@
         }
        ]
       },
-      "In false colour, D is bright only where H meets the normal: the core of the highlight.",
+      {
+       "text": "In false colour, D is bright only where H meets the normal: the core of the highlight.",
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -20.0,
+            "seconds": 2.7,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 20.0,
+            "seconds": 2.7,
+            "ease": "sine"
+           }
+          }
+         ]
+        }
+       ]
+      },
       {
        "text": "G is the height-correlated Smith term: the share of those facets that are neither shadowed nor hidden.",
        "keys": [
@@ -1552,6 +2260,46 @@
         {
          "callout": "ggx-g"
         }
+       ],
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 20.0,
+            "seconds": 3.5,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -20.0,
+            "seconds": 3.5,
+            "ease": "sine"
+           }
+          }
+         ]
+        }
        ]
       },
       {
@@ -1566,6 +2314,46 @@
           "viewMode": 5.0,
           "formula": 3.0
          }
+        }
+       ],
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 25.0,
+            "seconds": 3.6,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -25.0,
+            "seconds": 3.6,
+            "ease": "sine"
+           }
+          }
+         ]
         }
        ]
       },
@@ -1615,16 +2403,71 @@
         }
        ]
       },
-      "The pink curve is the specular response for every outgoing direction in this plane, and it leans around the mirror direction of L.",
+      {
+       "text": "The pink curve is the specular response for every outgoing direction in this plane, and it leans around the mirror direction of L.",
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 12.0,
+            "seconds": 3.5,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -12.0,
+            "seconds": 3.5,
+            "ease": "sine"
+           }
+          }
+         ]
+        }
+       ]
+      },
       {
        "text": "Raise the light toward the normal, and the lobe stands up with it.",
        "keys": [
         {
-         "blend": 2.5,
-         "params": {
-          "lightX": -1.563,
-          "lightY": 2.65
-         }
+         "params": {},
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -35.0,
+            "seconds": 3.5,
+            "ease": "smooth"
+           }
+          }
+         ]
         }
        ]
       },
@@ -1632,12 +2475,26 @@
        "text": "Lower it toward the horizon: N dot L falls, Fresnel grows, and the lobe stretches out.",
        "keys": [
         {
-         "blend": 3.0,
          "params": {
-          "lightX": -2.46,
-          "lightY": 1.753,
           "formula": 3.0
-         }
+         },
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 50.0,
+            "seconds": 4.5,
+            "ease": "smooth"
+           }
+          }
+         ]
         }
        ]
       },
@@ -1645,12 +2502,49 @@
        "text": "The readout follows every term as the light moves.",
        "keys": [
         {
-         "blend": 2.0,
          "params": {
-          "lightX": -2.111,
-          "lightY": 2.301,
           "formula": 0.0
          }
+        }
+       ],
+       "sequence": [
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": -30.0,
+            "seconds": 1.4,
+            "ease": "sine"
+           }
+          }
+         ]
+        },
+        {
+         "animate": [
+          {
+           "orbit": {
+            "params": [
+             "lightX",
+             "lightY"
+            ],
+            "center": [
+             -1.05,
+             1.24
+            ],
+            "degrees": 15.0,
+            "seconds": 2.2,
+            "ease": "sine"
+           }
+          }
+         ]
         }
        ]
       }

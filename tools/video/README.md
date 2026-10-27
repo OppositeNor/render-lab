@@ -34,7 +34,23 @@ An investigation keeps its video in `src/<engine>/<feature>/video/`:
   `kind`: `scene`, `mermaid`, or `sources`, `headline`, `narration`, `keys`). A sentence is a string or
   `{text, keys?, sequence?, pause?}`. Keys apply at the sentence's start; `sequence` keys are spread over it; a key
   sets `demo`, `camera`, `record`, `highlight`, `panel`, `params`, `callout`, or `code`, with `delay` and `blend` in
-  seconds. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times the narration.
+  seconds, and `ease` for the blend (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`). A key's `animate`
+  starts motions (`src/lab/animation.rs`), each driving its channels until a later key sets them; a channel is a shot
+  parameter or `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or
+  `camera.fov`:
+  - `{"path": {"params": [...], "through": [[...], ...], "seconds": ...}}` runs from the channels' values through the
+    waypoints on a smooth curve, without stopping at each one (`ease` paces the whole curve; `closed` returns to the
+    start);
+  - `{"orbit": {"params": [x, y] or [x, y, z], "center": [...], "degrees": ..., "seconds": ...}}` turns a point about
+    `center` (two channels from the first towards the second, three about `axis`, +y by default), from `start` or
+    the channels' values;
+  - `{"wave": {"param": ..., "amplitude": ..., "period": ...}}` adds a sine about `center` (the channel's value by
+    default), with `phase` in degrees, and `seconds` and `fade` to stop it smoothly.
+
+  Each takes `ease` and `repeat` (`once`, `loop`, `pingPong`). A motion's `seconds` may be `"sentence"` or `"beat"`: it
+  then runs until its sentence (or beat) ends. A `demo` key resets every channel to the demonstration's state, so it
+  cuts a running motion. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times
+  the narration.
 - **`diagrams/*.mmd`**: the Mermaid diagrams (`focus` names the lit nodes).
 - **`zh-CN/translation.json`**: one Chinese sentence per English sentence, per beat, plus titles and a glossary.
 
