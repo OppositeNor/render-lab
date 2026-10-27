@@ -42,6 +42,13 @@ always shades from the camera. The dock's **view** menu switches the scene pass 
 specular) or one term in false colour (D, G, F, the compensation, the diffuse response, NdotL, the radius attenuation).
 The Code tab has a Python pseudo-code listing per step ([`pseudocode/`](pseudocode)).
 
+In the light-culling demonstration a dot marks each small light; the lights the inspected point's bin keeps are ringed
+and joined to the point, and the ones its tile lists for other bins are brighter than the rest. The **motion** slider
+turns each height's ring of lights about the room's centre, at its own rate and direction, so lights cross tiles and
+bins and the false-colour counts and the point's list follow them. Play animates each demonstration's parameters (the
+lights' motion and radius, the light's angle and the roughness in the close-ups, and so on); in the video, the camera
+holds still in the close-ups and while the culling lights move, so the change is the demonstration's own.
+
 ## What the source shows
 
 - **StandardPBR's surface** is `SurfaceData_StandardPBR`, not the generic `Surface` in `PBR/Surfaces/StandardSurface.azsli`.

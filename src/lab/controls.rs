@@ -83,9 +83,15 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
             });
             ui.add_space((divider + 16.0 - ui.cursor().min.x).max(0.0));
             if tab != DockTab::Sources {
-                egui::ScrollArea::horizontal().max_width(inner.max.x - ui.cursor().min.x).show(ui, |ui| {
+                // Each direction scrolls once the groups overflow it (as of last frame), so a
+                // tall group's lower rows stay reachable; with one direction, the wheel drives it.
+                let room = vec2(inner.max.x - ui.cursor().min.x, inner.max.y - ui.cursor().min.y);
+                let overflow_id = egui::Id::unique("viewer-dock-overflow");
+                let overflow = ctx.data(|d| d.get_temp::<[bool; 2]>(overflow_id)).unwrap_or([true, false]);
+                let output = egui::ScrollArea::new(overflow).id_salt("viewer-dock-scroll").max_width(room.x).max_height(room.y).show(ui, |ui| {
                     ui.horizontal_top(|ui| if tab == DockTab::Code { dock.code(ui) } else { investigation::current().dock(&mut dock, ui) });
                 });
+                ctx.data_mut(|d| d.insert_temp(overflow_id, [output.content_size.x > room.x + 0.5, output.content_size.y > room.y + 0.5]));
             }
         });
     });

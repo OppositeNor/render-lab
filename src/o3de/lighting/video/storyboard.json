@@ -270,7 +270,7 @@
   {
    "number": 2,
    "title": "Light culling",
-   "targetSeconds": 170,
+   "targetSeconds": 188,
    "summary": "Tiles, depth bins, and the lists the forward pass walks.",
    "sources": [
     "light-culling-pass",
@@ -299,6 +299,9 @@
      ],
      "narration": [
       {
+       "text": "That was the whole frame; the next part looks at its first lighting step, light culling."
+      },
+      {
        "text": "Before the forward pass, O3DE decides which lights each part of the screen needs.",
        "keys": [
         {
@@ -307,7 +310,7 @@
        ]
       },
       {
-       "text": "Here, twenty-four small simple point lights hang over the room."
+       "text": "Here, twenty-four small simple point lights hang over the room; a dot marks each one."
       },
       {
        "text": "The screen is cut into tiles of sixteen by sixteen pixels, and each tile gets its own list of lights.",
@@ -494,7 +497,7 @@
       {
        "demo": "culling",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -529,6 +532,26 @@
        "keys": [
         {
          "panel": "values"
+        }
+       ]
+      },
+      {
+       "text": "The ringed dots are the lights the point's bin keeps, each joined to the point by a dashed line."
+      },
+      {
+       "text": "Now the lights move: as each one crosses tiles and depth bins, the colours and the point's list follow it.",
+       "sequence": [
+        {
+         "blend": 3.0,
+         "params": {
+          "extraLightMotion": 70.0
+         }
+        },
+        {
+         "blend": 3.0,
+         "params": {
+          "extraLightMotion": -40.0
+         }
         }
        ]
       },
@@ -594,7 +617,7 @@
   {
    "number": 3,
    "title": "The surface",
-   "targetSeconds": 200,
+   "targetSeconds": 204,
    "summary": "The metallic workflow and the roughness remap.",
    "sources": [
     "surface-eval",
@@ -614,12 +637,15 @@
        "demo": "surface",
        "params": {
         "readoutRows": 0.0,
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "With the lights sorted into lists, the next part turns to what they light: the surface."
+      },
       {
        "text": "Every lighting function starts from the same surface record.",
        "keys": [
@@ -828,7 +854,7 @@
       {
        "demo": "surface",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -906,7 +932,7 @@
       {
        "demo": "surface",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1063,7 +1089,7 @@
   {
    "number": 4,
    "title": "Decals",
-   "targetSeconds": 155,
+   "targetSeconds": 159,
    "summary": "Box-projected textures blended into the surface before lighting.",
    "sources": [
     "decal-evaluate-order",
@@ -1088,6 +1114,9 @@
       }
      ],
      "narration": [
+      {
+       "text": "Before any light reaches that surface, decals can change it, and they are the next part."
+      },
       {
        "text": "Decals project a texture onto whatever surfaces fall inside a box.",
        "keys": [
@@ -1374,7 +1403,7 @@
   {
    "number": 5,
    "title": "GGX specular",
-   "targetSeconds": 170,
+   "targetSeconds": 174,
    "summary": "N, L, V, and H; the D, G, and F terms; the specular lobe.",
    "sources": [
     "specular-ggx",
@@ -1396,12 +1425,15 @@
         "vectorsShown": 0.0,
         "lobe": 0.0,
         "readoutRows": 0.0,
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "With the surface ready, the next part is how each light's highlight is computed: GGX specular."
+      },
       {
        "text": "Specular lighting depends on four directions at one point.",
        "keys": [
@@ -1463,7 +1495,7 @@
       {
        "demo": "specular",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1563,7 +1595,7 @@
       {
        "demo": "specular",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1633,7 +1665,7 @@
        "demo": "specular",
        "params": {
         "lobe": 1.0,
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1720,7 +1752,7 @@
   {
    "number": 6,
    "title": "Clear coat",
-   "targetSeconds": 126,
+   "targetSeconds": 130,
    "summary": "A dielectric layer over the base: its F zero, diffuse, specular, and IBL.",
    "sources": [
     "clear-coat-default",
@@ -1742,12 +1774,15 @@
       {
        "demo": "clearcoat",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "The next part puts a second specular layer over GGX: clear coat."
+      },
       {
        "text": "Clear coat adds a thin, clear layer over the base material, like varnish over paint."
       },
@@ -1777,7 +1812,7 @@
       {
        "demo": "clearcoat",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1850,7 +1885,7 @@
       {
        "demo": "clearcoat",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1929,7 +1964,7 @@
       {
        "demo": "clearcoat",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -1998,7 +2033,7 @@
   {
    "number": 7,
    "title": "Diffuse and its response",
-   "targetSeconds": 96,
+   "targetSeconds": 100,
    "summary": "Lambertian diffuse, scaled by one minus a roughness-aware Fresnel; Disney diffuse compared.",
    "sources": [
     "diffuse-lambert",
@@ -2016,12 +2051,15 @@
       {
        "demo": "diffuse",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "From specular, the next part turns to the other half of each light: diffuse, and its response."
+      },
       {
        "text": "Diffuse light in StandardPBR is Lambertian: albedo, times N dot L, over pi.",
        "keys": [
@@ -2087,7 +2125,7 @@
       {
        "demo": "diffuse",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -2143,7 +2181,7 @@
       {
        "demo": "diffuse",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -2211,7 +2249,7 @@
   {
    "number": 8,
    "title": "Transmission (EnhancedPBR)",
-   "targetSeconds": 148,
+   "targetSeconds": 152,
    "summary": "Light through thick and thin objects, and the point light it needs.",
    "sources": [
     "transmission-defaults",
@@ -2238,6 +2276,9 @@
       }
      ],
      "narration": [
+      {
+       "text": "So far light has only bounced off surfaces; the next part lets it pass through them: transmission."
+      },
       {
        "text": "Thin or translucent things, like leaves, wax, or skin, let light through from behind."
       },
@@ -2500,7 +2541,7 @@
   {
    "number": 9,
    "title": "The BRDF texture and multiscatter",
-   "targetSeconds": 148,
+   "targetSeconds": 152,
    "summary": "BRDFTextureCS, the energy single scattering loses, and the compensation.",
    "sources": [
     "brdf-texture",
@@ -2526,12 +2567,15 @@
       {
        "demo": "multiscatter",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "The next part returns to specular, and to the BRDF texture that O3DE fills at startup."
+      },
       "A single GGX bounce loses energy on rough surfaces.",
       "Light that strikes one microfacet can bounce to another before it escapes, and the single-scattering formula simply drops it.",
       {
@@ -2565,7 +2609,7 @@
       {
        "demo": "multiscatter",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -2653,7 +2697,7 @@
       {
        "demo": "multiscatter",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -2742,7 +2786,7 @@
       {
        "demo": "multiscatter",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -2796,7 +2840,7 @@
   {
    "number": 10,
    "title": "The simple point light",
-   "targetSeconds": 148,
+   "targetSeconds": 152,
    "summary": "Inverse square, the radius window, no shadows, the automatic radius.",
    "sources": [
     "point-light-struct",
@@ -2820,6 +2864,9 @@
       }
      ],
      "narration": [
+      {
+       "text": "So far the light itself has been a given; the next part looks at the simple point light."
+      },
       {
        "text": "A simple point light stores a position, an RGB intensity in candelas, one over its attenuation radius squared, and its lighting channels and GI flags.",
        "keys": [
@@ -3096,7 +3143,7 @@
   {
    "number": 11,
    "title": "The global skylight",
-   "targetSeconds": 192,
+   "targetSeconds": 196,
    "summary": "Offline GGX and cosine prefiltering; the two full-screen passes; no occlusion.",
    "sources": [
     "filter-ggx",
@@ -3119,12 +3166,15 @@
       {
        "demo": "ibl",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
+      {
+       "text": "That covers the simple point light; the next part leaves punctual lights behind."
+      },
       "The second source of light is the sky.",
       {
        "text": "O3DE's global skylight is image-based lighting: an environment, stored as two cubemaps.",
@@ -3184,7 +3234,7 @@
       {
        "demo": "ibl",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -3288,7 +3338,7 @@
       {
        "demo": "ibl",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -3335,7 +3385,7 @@
       {
        "demo": "ibl",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -3418,7 +3468,7 @@
        "demo": "ibl",
        "params": {
         "readoutRows": 0.0,
-        "cameraDrift": 1.0
+        "cameraDrift": 0.0
        },
        "callout": ""
       }
@@ -3530,7 +3580,7 @@
   {
    "number": 12,
    "title": "Reflection probes",
-   "targetSeconds": 178,
+   "targetSeconds": 182,
    "summary": "Probe cubemaps, their stencil and blend weights, parallax, and the composite.",
    "sources": [
     "reflections-order",
@@ -3552,21 +3602,18 @@
       {
        "demo": "reflections",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 1.0,
+        "probes": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
       {
-       "text": "Inside a room, reflections of an open sky look wrong: the walls should be in them.",
-       "keys": [
-        {
-         "params": {
-          "probes": 0.0
-         }
-        }
-       ]
+       "text": "The sky's cubemaps light the whole scene alike; the next part, reflection probes, gives places reflections of their own."
+      },
+      {
+       "text": "Inside a room, reflections of an open sky look wrong: the walls should be in them."
       },
       {
        "text": "Reflection probes fix that: each is a cubemap baked from a point in the scene, with an inner and an outer box.",
@@ -3924,7 +3971,7 @@
   {
    "number": 13,
    "title": "Ambient occlusion",
-   "targetSeconds": 155,
+   "targetSeconds": 159,
    "summary": "SSAO at half resolution: samples, blur, upsample, and the diffuse multiply.",
    "sources": [
     "ao-placement",
@@ -3947,22 +3994,19 @@
       {
        "demo": "ssao",
        "params": {
-        "cameraDrift": 1.0
+        "cameraDrift": 1.0,
+        "viewMode": 0.0,
+        "ssao": 0.0
        },
        "callout": ""
       }
      ],
      "narration": [
       {
-       "text": "Light from the sky reaches into corners and creases as brightly as onto open floor.",
-       "keys": [
-        {
-         "params": {
-          "viewMode": 0.0,
-          "ssao": 0.0
-         }
-        }
-       ]
+       "text": "The last part before the recap is ambient occlusion."
+      },
+      {
+       "text": "Light from the sky reaches into corners and creases as brightly as onto open floor."
       },
       {
        "text": "Screen-space ambient occlusion darkens those places from the depth buffer alone, and the main pipeline runs it by default.",
@@ -4257,7 +4301,7 @@
   {
    "number": 14,
    "title": "Recap",
-   "targetSeconds": 52,
+   "targetSeconds": 56,
    "summary": "What StandardPBR does, and what the lab leaves out.",
    "sources": [
     "forward-pixel",
@@ -4283,6 +4327,9 @@
       }
      ],
      "narration": [
+      {
+       "text": "That is every part; here is how they fit together."
+      },
       {
        "text": "To recap: this is O3DE's opaque frame, pass by pass."
       },

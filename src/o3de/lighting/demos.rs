@@ -42,6 +42,12 @@ pub const LIGHT_COLOR: Vec3 = Vec3::new(1.0, 0.92, 0.82);
 pub const LIGHT: Color32 = palette::rgb(0xffd98a);
 pub const DIFFUSE: Color32 = palette::rgb(0x8fe3a0);
 pub const SPECULAR: Color32 = palette::rgb(0xff8fc8);
+/// The half vector H and what is measured from it; also the clear coat's own lobe.
+pub const HALF: Color32 = palette::rgb(0xb49cff);
+/// GGX's G term (and the IBL's F0 · A + B), apart from D's pink.
+pub const TERM_G: Color32 = palette::rgb(0xffa14a);
+/// GGX's F term.
+pub const TERM_F: Color32 = palette::TEXT;
 
 /// The object a roughness or metallic parameter belongs to.
 fn material_params(object: usize) -> Option<(&'static str, &'static str)> {
@@ -80,16 +86,22 @@ pub fn light(state: &ShotState) -> PointLight {
     PointLight { position: Vec3::new(state.p("lightX"), state.p("lightY"), state.p("lightZ")), inv_attenuation_radius_squared: 1.0 / (radius * radius), rgb_intensity_candelas: LIGHT_COLOR * state.p("lightIntensity"), lighting_channel_mask: state.p("lightChannels").round() as u32 }
 }
 
+/// The colours of the light-culling demonstration's lights, in turn.
+const EXTRA_LIGHT_COLORS: [Vec3; 4] = [Vec3::new(1.0, 0.55, 0.35), Vec3::new(0.45, 0.75, 1.0), Vec3::new(0.6, 1.0, 0.55), Vec3::new(1.0, 0.85, 0.45)];
+
 /// The light-culling demonstration's lights: `extraLights` small simple point
-/// lights over the room (a golden-angle spiral, at three heights), in four colours.
+/// lights over the room (a golden-angle spiral, at three heights), in four
+/// colours. `extraLightMotion` turns each height's ring about the room's
+/// centre, at its own rate and direction, so lights cross tiles and bins.
 pub fn extra_lights(state: &ShotState) -> Vec<PointLight> {
     let count = state.p("extraLights").round().clamp(0.0, 48.0) as usize;
     let radius = state.p("extraLightRadius").max(0.05);
-    let colors = [Vec3::new(1.0, 0.55, 0.35), Vec3::new(0.45, 0.75, 1.0), Vec3::new(0.6, 1.0, 0.55), Vec3::new(1.0, 0.85, 0.45)];
+    let colors = EXTRA_LIGHT_COLORS;
+    let motion = state.p("extraLightMotion").to_radians();
     (0..count)
         .map(|i| {
             let r = 2.5 * ((i as f32 + 0.5) / 48.0).sqrt();
-            let a = i as f32 * 2.399_963;
+            let a = i as f32 * 2.399_963 + motion * [1.0, -0.6, 0.35][i % 3];
             let position = Vec3::new(r * a.cos(), [0.2, 0.9, 1.7][i % 3], -0.3 + r * a.sin());
             PointLight { position, inv_attenuation_radius_squared: 1.0 / (radius * radius), rgb_intensity_candelas: colors[i % 4] * state.p("extraLightIntensity"), lighting_channel_mask: brdf::ALL_LIGHTING_CHANNELS }
         })
@@ -321,7 +333,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         }
         shown.push((v, palette::VIEW, "V"));
         if shading.light_on {
-            shown.push((px.terms.half_vector, palette::REFLECTED, "H"));
+            shown.push((px.terms.half_vector, HALF, "H"));
         }
         if demo == Demo::Ibl {
             shown.push((px.ibl.reflect_dir, palette::REFLECTED, "R"));
@@ -368,9 +380,14 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     if state.p("decalBoxes") > 0.0 {
         decal_boxes(&mut content.draw, &mut content.labels, &shading.decals, state.p("decalBoxes"));
     }
-    if demo == Demo::Culling && state.p("cullTile") > 0.0 {
+    if demo == Demo::Culling && (state.p("cullTile") > 0.0 || state.p("lightMarkers") > 0.0) {
         let (_, tile) = culling_view(state, &shading, &content.objects, &uniforms.camera);
-        tile_overlay(&mut content.draw, &uniforms.camera, &tile, state.p("cullTile"));
+        if state.p("cullTile") > 0.0 {
+            tile_overlay(&mut content.draw, &uniforms.camera, &tile, state.p("cullTile"));
+        }
+        if state.p("lightMarkers") > 0.0 {
+            light_markers(&mut content.draw, &shading, (state.p("cullTile") > 0.0).then_some(&tile), state.p("lightMarkers"));
+        }
     }
     let readout = readout(demo, state, &shading, &px, statics, &content.objects, &uniforms.camera);
     content.readout = Some(readout);
@@ -458,8 +475,9 @@ fn falloff_curve(draw: &mut DrawLists, labels: &mut Vec<Label>, light: &PointLig
 }
 
 /// The diffuse and specular lobes at the inspected point: each term for an
-/// outgoing direction swept through the plane of N and L, as a radius
-/// (each lobe on its own scale).
+/// outgoing direction swept through the plane of N and L, horizon to
+/// horizon, as a radius (each lobe on its own scale). GGX's lobe need not
+/// fall to zero at the horizon, so each closes along it back to the point.
 fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
     let s = &px.surface;
     let l = px.light.dir_to_light;
@@ -468,7 +486,7 @@ fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
     let mut specular = Vec::new();
     let mut diffuse = Vec::new();
     for k in 0..=samples {
-        let a = (k as f32 / samples as f32 - 0.5) * std::f32::consts::PI * 0.98;
+        let a = (k as f32 / samples as f32 - 0.5) * std::f32::consts::PI;
         let w = n * a.cos() + t * a.sin();
         let n_dot_v = w.dot(n).clamp(0.0, 1.0);
         let spec = brdf::specular_ggx(w, l, n, s.specular_f0, n_dot_v, s.roughness_a2, px.lighting.multi_scatter_compensation);
@@ -483,7 +501,7 @@ fn lobes(draw: &mut DrawLists, px: &brdf::Pixel, n: Vec3, alpha: f32) {
         if peak <= 0.0 {
             continue;
         }
-        let points: Vec<Vec3> = lobe.iter().map(|(w, v)| p + *w * (size * v / peak)).collect();
+        let points: Vec<Vec3> = std::iter::once(p).chain(lobe.iter().map(|(w, v)| p + *w * (size * v / peak))).chain(std::iter::once(p)).collect();
         draw.polyline(&points, color, alpha, 3.0);
     }
     // The mirror direction of L, where the specular lobe of a smooth surface peaks.
@@ -513,6 +531,8 @@ pub struct CullTile {
     /// The point's bin, and the lights the bin keeps (group 1 of its remapped list).
     pub bin: u32,
     pub kept: Vec<u32>,
+    /// The simple point lights the tile's list holds, for any bin.
+    pub listed: Vec<u32>,
     pub point: Vec3,
 }
 
@@ -532,6 +552,7 @@ pub fn culling_view(state: &ShotState, shading: &Shading, objects: &[ObjectData]
     let bins = culling::remap(&list);
     let kept: Vec<u32> = bins[bin as usize].split(|&v| v == culling::END_OF_GROUP).nth(culling::GROUP_SIMPLE_POINT as usize).unwrap_or(&[]).to_vec();
     let in_tile = list.len() - culling::LIGHT_GROUPS as usize;
+    let listed: Vec<u32> = list.split(|&e| e >> 16 == culling::END_OF_GROUP).nth(culling::GROUP_SIMPLE_POINT as usize).unwrap_or(&[]).iter().map(|e| e >> 16).collect();
     let reach = lights.iter().filter(|l| (l.position - p).length_squared() * l.inv_attenuation_radius_squared < 1.0).count();
     let rows = vec![
         (tr("demos.tile_16_x_16_px").to_string(), format!("({}, {})", tile[0], tile[1]), palette::TEXT),
@@ -544,7 +565,7 @@ pub fn culling_view(state: &ShotState, shading: &Shading, objects: &[ObjectData]
         (tr("demos.in_that_bin").to_string(), format!("{}", kept.len()), LIGHT),
         (tr("demos.lights_reaching_the_point").to_string(), format!("{reach}"), DIFFUSE),
     ];
-    (rows, CullTile { tile, data, bin, kept, point: p })
+    (rows, CullTile { tile, data, bin, kept, listed, point: p })
 }
 
 /// The tile's view-space box in the world, its depth bins as slices, and the
@@ -571,7 +592,35 @@ fn tile_overlay(draw: &mut DrawLists, camera: &crate::lab::layout::CameraData, t
         draw.segment(corner(uv, tile.data.z_near), corner(uv, tile.data.z_far), palette::ACCENT, alpha * 0.7, 1.5, 0);
     }
     draw.point(tile.point, 9.0, palette::SELECTED, alpha);
-    let _ = &tile.kept;
+}
+
+/// A marker on each of the culling demonstration's lights, in its colour:
+/// faint when the inspected point's tile does not list it, brighter when the
+/// tile lists it for other bins, and lit, ringed, and joined to the point
+/// when the point's bin keeps it. List indices count the room's light first;
+/// it keeps its own marker, and is ringed and joined the same way.
+fn light_markers(draw: &mut DrawLists, shading: &Shading, tile: Option<&CullTile>, alpha: f32) {
+    if let Some(t) = tile.filter(|t| shading.light_on && t.kept.contains(&0)) {
+        draw.point(shading.light.position, 17.0, palette::TEXT, alpha);
+        draw.point(shading.light.position, 11.0, LIGHT, alpha);
+        draw.segment(t.point, shading.light.position, palette::TEXT, alpha * 0.8, 2.0, FLAG_DASHED);
+    }
+    for (i, light) in shading.extra_lights.iter().enumerate() {
+        let index = i as u32 + 1;
+        let [r, g, b] = (EXTRA_LIGHT_COLORS[i % 4] * 255.0).round().to_array();
+        let color = Color32::from_rgb(r as u8, g as u8, b as u8);
+        let kept = tile.is_some_and(|t| t.kept.contains(&index));
+        let listed = tile.is_some_and(|t| t.listed.contains(&index));
+        if kept {
+            draw.point(light.position, 16.0, palette::TEXT, alpha);
+            draw.point(light.position, 11.0, color, alpha);
+            if let Some(t) = tile {
+                draw.segment(t.point, light.position, palette::TEXT, alpha * 0.8, 2.0, FLAG_DASHED);
+            }
+        } else {
+            draw.point(light.position, if listed { 10.0 } else { 8.0 }, color, alpha * if listed { 0.85 } else { 0.4 });
+        }
+    }
 }
 
 fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, statics: &Statics, objects: &[ObjectData], camera: &crate::lab::layout::CameraData) -> Readout {
@@ -649,11 +698,11 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             row("roughnessA2", f1(s.roughness_a2), palette::ACCENT);
             row("NdotL", f1(g.n_dot_l), LIGHT);
             row("NdotV", f1(l.n_dot_v), palette::VIEW);
-            row("NdotH", f1(g.n_dot_h), palette::REFLECTED);
-            row("HdotV", f1(g.h_dot_v), palette::REFLECTED);
+            row("NdotH", f1(g.n_dot_h), HALF);
+            row("HdotV", f1(g.h_dot_v), HALF);
             row("D  NormalDistributionGGX", f1(g.d), SPECULAR);
-            row("G  (visibility, ÷ 4 NdotL NdotV)", f1(g.g), SPECULAR);
-            row("F  FresnelSchlick", f3(g.f), SPECULAR);
+            row("G  (visibility, ÷ 4 NdotL NdotV)", f1(g.g), TERM_G);
+            row("F  FresnelSchlick", f3(g.f), TERM_F);
             row(tr("demos.compensation"), f3(l.multi_scatter_compensation), palette::TEXT_DIM);
             row("D·G·F·NdotL·comp", f3(brdf::specular_ggx(l.dir_to_camera, px.light.dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2, l.multi_scatter_compensation)), SPECULAR);
             row(tr("demos.light_lux"), f3(px.specular()), SPECULAR);
@@ -671,9 +720,9 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                     row("clearCoat.roughness", f1(c.roughness), palette::ACCENT);
                     row(tr("demos.specularf0_base"), f3(s.specular_f0), SPECULAR);
                     row("diffuseResponse", f3(l.diffuse_response), DIFFUSE);
-                    row("Fc = F(HdotL, 0.04) · factor", f1(fc.x), palette::REFLECTED);
+                    row("Fc = F(HdotL, 0.04) · factor", f1(fc.x), HALF);
                     row(tr("demos.base_1_fc"), f3(base * (Vec3::ONE - fc)), SPECULAR);
-                    row(tr("demos.coat_specular"), f3(coated - base * (Vec3::ONE - fc)), palette::REFLECTED);
+                    row(tr("demos.coat_specular"), f3(coated - base * (Vec3::ONE - fc)), HALF);
                     row(tr("demos.light_lux"), f3(px.specular()), SPECULAR);
                 }
                 None => row("clearCoat.enable", tr("demos.off").into(), palette::TEXT_DIM),
@@ -748,7 +797,7 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             row(tr("demos.mip_roughness_5"), f1(i.mip), palette::ACCENT);
             row(tr("demos.prefiltered_at_r"), f3(i.prefiltered), palette::REFLECTED);
             row("NdotV (≥ 0.01)", f1(i.n_dot_v), palette::VIEW);
-            row("F0 · A + B", f3(i.specular_f0 * i.brdf.x + Vec3::splat(i.brdf.y)), SPECULAR);
+            row("F0 · A + B", f3(i.specular_f0 * i.brdf.x + Vec3::splat(i.brdf.y)), TERM_G);
             row(tr("demos.compensation"), f3(i.compensation), palette::TEXT_DIM);
             row(tr("common.specular_ibl"), f3(i.specular), SPECULAR);
             (tr("demos.global_ibl_passes"), object)
@@ -875,6 +924,5 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
         notes.push((tr("demos.metals_have_no_diffuse_term").to_string(), palette::TEXT_FAINT));
         notes.push((tr("demos.without_ibl_only_the_highlight").to_string(), palette::TEXT_FAINT));
     }
-    notes.push((tr("demos.click_a_surface_to_inspect").to_string(), palette::TEXT_FAINT));
     notes
 }

@@ -67,7 +67,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     let mut toggles: Vec<(&'static str, &str)> = vec![("lightOn", tr("controls.light_on"))];
     match demo {
         Demo::Room => toggles.extend([("labels", tr("controls.labels")), ("vectors", tr("controls.vectors")), ("lobe", tr("controls.lobes"))]),
-        Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("labels", tr("controls.labels"))]),
+        Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("lightMarkers", tr("controls.light_markers")), ("labels", tr("controls.labels"))]),
         Demo::Surface => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("sphereOcclusion", tr("controls.occlusion_maps")), ("labels", tr("controls.labels"))]),
         Demo::Ssao => toggles.extend([("ssao", "SSAO"), ("ssaoBlur", tr("controls.blur")), ("walls", tr("controls.walls"))]),
         Demo::Reflections => toggles.extend([("probes", tr("controls.probes")), ("probeParallax", tr("controls.parallax_correction")), ("probeBoxes", tr("controls.probe_boxes")), ("walls", tr("controls.walls"))]),
@@ -145,6 +145,7 @@ fn culling_lights(dock: &mut Dock, ui: &mut Ui) {
             d.slider(ui, "extraLights", tr("controls.lights"), LIGHT, 0.0..=48.0, Unit::Index);
             d.slider(ui, "extraLightRadius", tr("controls.radius"), LIGHT, 0.2..=2.5, Unit::Metres);
             d.slider(ui, "extraLightIntensity", "candelas", LIGHT, 0.0..=3.0, Unit::Plain);
+            d.slider(ui, "extraLightMotion", tr("controls.light_motion"), LIGHT, -360.0..=360.0, Unit::Degrees);
         });
     });
 }

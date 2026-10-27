@@ -2,7 +2,7 @@
  "fps": 30,
  "width": 1920,
  "height": 1080,
- "totalFrames": 62260,
+ "totalFrames": 64226,
  "title": "How O3DE Lights a Frame",
  "engineLabel": "O3DE 2.8.0 · d363107e",
  "chapters": [
@@ -16,79 +16,79 @@
    "number": 2,
    "title": "Light culling",
    "startFrame": 4612,
-   "endFrame": 9670
+   "endFrame": 10204
   },
   {
    "number": 3,
    "title": "The surface",
-   "startFrame": 9670,
-   "endFrame": 15617
+   "startFrame": 10204,
+   "endFrame": 16271
   },
   {
    "number": 4,
    "title": "Decals",
-   "startFrame": 15617,
-   "endFrame": 20221
+   "startFrame": 16271,
+   "endFrame": 21000
   },
   {
    "number": 5,
    "title": "GGX specular",
-   "startFrame": 20221,
-   "endFrame": 25289
+   "startFrame": 21000,
+   "endFrame": 26172
   },
   {
    "number": 6,
    "title": "Clear coat",
-   "startFrame": 25289,
-   "endFrame": 29031
+   "startFrame": 26172,
+   "endFrame": 30024
   },
   {
    "number": 7,
    "title": "Diffuse and its response",
-   "startFrame": 29031,
-   "endFrame": 31881
+   "startFrame": 30024,
+   "endFrame": 32987
   },
   {
    "number": 8,
    "title": "Transmission (EnhancedPBR)",
-   "startFrame": 31881,
-   "endFrame": 36280
+   "startFrame": 32987,
+   "endFrame": 37510
   },
   {
    "number": 9,
    "title": "The BRDF texture and multiscatter",
-   "startFrame": 36280,
-   "endFrame": 40682
+   "startFrame": 37510,
+   "endFrame": 42034
   },
   {
    "number": 10,
    "title": "The simple point light",
-   "startFrame": 40682,
-   "endFrame": 45083
+   "startFrame": 42034,
+   "endFrame": 46562
   },
   {
    "number": 11,
    "title": "The global skylight",
-   "startFrame": 45083,
-   "endFrame": 50768
+   "startFrame": 46562,
+   "endFrame": 52370
   },
   {
    "number": 12,
    "title": "Reflection probes",
-   "startFrame": 50768,
-   "endFrame": 56051
+   "startFrame": 52370,
+   "endFrame": 57788
   },
   {
    "number": 13,
    "title": "Ambient occlusion",
-   "startFrame": 56051,
-   "endFrame": 60655
+   "startFrame": 57788,
+   "endFrame": 62524
   },
   {
    "number": 14,
    "title": "Recap",
-   "startFrame": 60655,
-   "endFrame": 62260
+   "startFrame": 62524,
+   "endFrame": 64226
   }
  ],
  "beats": [
@@ -303,37 +303,42 @@
    "chapter": 2,
    "kind": "scene",
    "startFrame": 4612,
-   "frames": 975,
+   "frames": 1189,
    "headline": "Which lights a tile needs",
    "captions": [
     {
      "start": 4624,
-     "end": 4775,
+     "end": 4776,
+     "text": "That was the whole frame; the next part looks\nat its first lighting step, light culling."
+    },
+    {
+     "start": 4798,
+     "end": 4949,
      "text": "Before the forward pass, O3DE decides\nwhich lights each part of the screen needs."
     },
     {
-     "start": 4813,
-     "end": 4920,
-     "text": "Here, twenty-four small simple\npoint lights hang over the room."
+     "start": 4984,
+     "end": 5144,
+     "text": "Here, twenty-four small simple point lights\nhang over the room; a dot marks each one."
     },
     {
-     "start": 4944,
-     "end": 5115,
+     "start": 5166,
+     "end": 5337,
      "text": "The screen is cut into tiles of sixteen by sixteen\npixels, and each tile gets its own list of lights."
     },
     {
-     "start": 5153,
-     "end": 5267,
+     "start": 5372,
+     "end": 5486,
      "text": "In false colour, each pixel shows\nhow many lights its tile keeps"
     },
     {
-     "start": 5267,
-     "end": 5372,
+     "start": 5486,
+     "end": 5591,
      "text": "at its depth: dark blue for\nnone, yellow for eight or more."
     },
     {
-     "start": 5396,
-     "end": 5538,
+     "start": 5613,
+     "end": 5755,
      "text": "Three compute passes build these lists, after\na depth pre-pass and before any shading."
     }
    ],
@@ -343,38 +348,38 @@
    "id": "c2-prepare",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 5587,
-   "frames": 1148,
+   "startFrame": 5801,
+   "frames": 1133,
    "headline": "Each tile's depth",
    "captions": [
     {
-     "start": 5599,
-     "end": 5759,
+     "start": 5813,
+     "end": 5973,
      "text": "The first, LightCullingTilePrepare, runs\none thread per pixel and one group per tile."
     },
     {
-     "start": 5797,
-     "end": 5924,
+     "start": 6008,
+     "end": 6135,
      "text": "It finds the tile's nearest depth,\nand its farthest one short of the sky,"
     },
     {
-     "start": 5924,
-     "end": 6054,
+     "start": 6135,
+     "end": 6265,
      "text": "opaque and transparent alike, so a wall\nseen against the sky stays shallow."
     },
     {
-     "start": 6092,
-     "end": 6250,
+     "start": 6300,
+     "end": 6458,
      "text": "It marks a thirty-two-slice mask between them,\none bit for each slice that holds a surface."
     },
     {
-     "start": 6288,
-     "end": 6491,
+     "start": 6493,
+     "end": 6696,
      "text": "And it splits the range into one, two, four, or eight\ndepth bins, from the base-two log of its span in metres."
     },
     {
-     "start": 6529,
-     "end": 6686,
+     "start": 6731,
+     "end": 6888,
      "text": "The box drawn here is the inspected point's\ntile in view space, with its bins as slices."
     }
    ],
@@ -384,53 +389,53 @@
    "id": "c2-cull",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 6735,
-   "frames": 1405,
+   "startFrame": 6934,
+   "frames": 1387,
    "headline": "Testing lights against tiles",
    "captions": [
     {
-     "start": 6747,
-     "end": 6859,
+     "start": 6946,
+     "end": 7058,
      "text": "The second pass, LightCulling,\ntests each light against each tile."
     },
     {
-     "start": 6897,
-     "end": 6989,
+     "start": 7093,
+     "end": 7185,
      "text": "A light is kept when its sphere touches the tile's box,"
     },
     {
-     "start": 6989,
-     "end": 7082,
+     "start": 7185,
+     "end": 7278,
      "text": "and its depth range touches a filled slice of the mask."
     },
     {
-     "start": 7120,
-     "end": 7309,
+     "start": 7313,
+     "end": 7502,
      "text": "Each kept light is written as its index, shifted sixteen\nbits, with one bit for each depth bin it reaches."
     },
     {
-     "start": 7347,
-     "end": 7473,
+     "start": 7537,
+     "end": 7663,
      "text": "Lights are grouped by type, decals\nfirst, then simple point lights,"
     },
     {
-     "start": 7473,
-     "end": 7603,
+     "start": 7663,
+     "end": 7793,
      "text": "spot lights, and the area lights,\neach group closed by an end marker."
     },
     {
-     "start": 7641,
-     "end": 7796,
+     "start": 7828,
+     "end": 7983,
      "text": "O3DE's threads append a group's lights in\nwhatever order they finish, decals excepted,"
     },
     {
-     "start": 7796,
-     "end": 7958,
+     "start": 7983,
+     "end": 8145,
      "text": "since those are sorted; the lab appends lights\nin index order, so its frames never change."
     },
     {
-     "start": 7996,
-     "end": 8091,
+     "start": 8180,
+     "end": 8275,
      "text": "As the lights' radius grows, more tiles keep them."
     }
    ],
@@ -440,38 +445,48 @@
    "id": "c2-forward",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 8140,
-   "frames": 884,
+   "startFrame": 8321,
+   "frames": 1245,
    "headline": "One list per depth bin",
    "captions": [
     {
-     "start": 8152,
-     "end": 8310,
+     "start": 8333,
+     "end": 8491,
      "text": "The third pass, LightCullingRemap, rewrites\neach tile's list as one list per depth bin."
     },
     {
-     "start": 8348,
-     "end": 8468,
+     "start": 8526,
+     "end": 8646,
      "text": "The forward pass finds the bin at its\nown depth, and walks only that list."
     },
     {
-     "start": 8506,
-     "end": 8616,
+     "start": 8681,
+     "end": 8791,
      "text": "At the inspected point, the readout\ncounts the lights in the tile's"
     },
     {
-     "start": 8616,
-     "end": 8727,
+     "start": 8791,
+     "end": 8902,
      "text": "list, those its bin keeps, and\nthose whose spheres reach the point."
     },
     {
-     "start": 8765,
-     "end": 8879,
+     "start": 8937,
+     "end": 9078,
+     "text": "The ringed dots are the lights the point's bin\nkeeps, each joined to the point by a dashed line."
+    },
+    {
+     "start": 9100,
+     "end": 9274,
+     "text": "Now the lights move: as each one crosses tiles and\ndepth bins, the colours and the point's list follow it."
+    },
+    {
+     "start": 9309,
+     "end": 9423,
      "text": "The lab compares every tile's list\non the GPU with a CPU copy, and"
     },
     {
-     "start": 8879,
-     "end": 8989,
+     "start": 9423,
+     "end": 9533,
      "text": "checks that no light reaching a\nsurface is missing from its bin."
     }
    ],
@@ -481,23 +496,23 @@
    "id": "c2-finding",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 9024,
-   "frames": 440,
+   "startFrame": 9566,
+   "frames": 434,
    "headline": "A light type that never shades",
    "captions": [
     {
-     "start": 9036,
-     "end": 9160,
+     "start": 9578,
+     "end": 9702,
      "text": "One finding: the forward pass also\nwalks a group for polygon lights."
     },
     {
-     "start": 9198,
-     "end": 9308,
+     "start": 9737,
+     "end": 9847,
      "text": "But the culling pass writes no\nsuch group, so with light culling"
     },
     {
-     "start": 9308,
-     "end": 9415,
+     "start": 9847,
+     "end": 9954,
      "text": "on, which is the default, polygon\nlights never shade anything."
     }
    ],
@@ -507,13 +522,13 @@
    "id": "c2-sources",
    "chapter": 2,
    "kind": "sources",
-   "startFrame": 9464,
-   "frames": 206,
+   "startFrame": 10000,
+   "frames": 204,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 9476,
-     "end": 9635,
+     "start": 10012,
+     "end": 10171,
      "text": "These entries follow the three culling passes,\nthe tile iterator, and the polygon-light finding."
     }
    ],
@@ -534,23 +549,28 @@
    "id": "c3-inputs",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 9670,
-   "frames": 596,
+   "startFrame": 10204,
+   "frames": 762,
    "headline": "What the material provides",
    "captions": [
     {
-     "start": 9682,
-     "end": 9779,
+     "start": 10216,
+     "end": 10358,
+     "text": "With the lights sorted into lists, the next\npart turns to what they light: the surface."
+    },
+    {
+     "start": 10388,
+     "end": 10485,
      "text": "Every lighting function starts\nfrom the same surface record."
     },
     {
-     "start": 9831,
-     "end": 10019,
+     "start": 10535,
+     "end": 10723,
      "text": "The material provides a base colour, a metallic\nvalue, a specular F zero factor, and a roughness."
     },
     {
-     "start": 10071,
-     "end": 10185,
+     "start": 10773,
+     "end": 10887,
      "text": "From these, O3DE derives what the lighting actually uses."
     }
    ],
@@ -560,33 +580,33 @@
    "id": "c3-metal",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 10266,
-   "frames": 1047,
+   "startFrame": 10966,
+   "frames": 1039,
    "headline": "The metallic workflow",
    "captions": [
     {
-     "start": 10278,
-     "end": 10447,
+     "start": 10978,
+     "end": 11147,
      "text": "Albedo is the base colour times one minus\nmetallic, so a metal has no diffuse colour at all."
     },
     {
-     "start": 10499,
-     "end": 10647,
+     "start": 11197,
+     "end": 11345,
      "text": "Specular F zero blends from a dielectric\nvalue to the base colour as metallic grows."
     },
     {
-     "start": 10699,
-     "end": 10860,
+     "start": 11395,
+     "end": 11556,
      "text": "The dielectric value is zero point zero\neight times the factor, so the default factor"
     },
     {
-     "start": 10860,
-     "end": 11015,
+     "start": 11556,
+     "end": 11711,
      "text": "of one half gives zero point zero four,\nthe reflectance of most paint and plastic."
     },
     {
-     "start": 11067,
-     "end": 11250,
+     "start": 11761,
+     "end": 11944,
      "text": "Metallic values between zero and one blend the two,\nwhich suits only transitions such as dust on metal."
     }
    ],
@@ -596,28 +616,28 @@
    "id": "c3-rough",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 11313,
-   "frames": 786,
+   "startFrame": 12005,
+   "frames": 778,
    "headline": "Roughness, squared twice",
    "captions": [
     {
-     "start": 11325,
-     "end": 11402,
+     "start": 12017,
+     "end": 12094,
      "text": "Roughness is authored on a perceptual scale."
     },
     {
-     "start": 11454,
-     "end": 11650,
+     "start": 12144,
+     "end": 12340,
      "text": "O3DE clamps it to at least zero point zero two\nfour, squares it into alpha, and squares it again."
     },
     {
-     "start": 11702,
-     "end": 11887,
+     "start": 12390,
+     "end": 12575,
      "text": "So a roughness of one half becomes an alpha squared\nof one sixteenth, before anti-aliasing widens it."
     },
     {
-     "start": 11939,
-     "end": 12036,
+     "start": 12625,
+     "end": 12722,
      "text": "Watch the sphere as roughness\nsweeps from polished to matte."
     }
    ],
@@ -627,43 +647,43 @@
    "id": "c3-aa",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 12099,
-   "frames": 1192,
+   "startFrame": 12783,
+   "frames": 1182,
    "headline": "Specular anti-aliasing",
    "captions": [
     {
-     "start": 12111,
-     "end": 12214,
+     "start": 12795,
+     "end": 12898,
      "text": "Then specular anti-aliasing, on by default, widens alpha"
     },
     {
-     "start": 12214,
-     "end": 12323,
+     "start": 12898,
+     "end": 13007,
      "text": "squared where the normal turns\nquickly from pixel to pixel."
     },
     {
-     "start": 12375,
-     "end": 12466,
+     "start": 13057,
+     "end": 13148,
      "text": "It adds a kernel of half the squared change in the normal"
     },
     {
-     "start": 12466,
-     "end": 12564,
+     "start": 13148,
+     "end": 13246,
      "text": "across and down a pixel, never\nmore than zero point one eight."
     },
     {
-     "start": 12616,
-     "end": 12789,
+     "start": 13296,
+     "end": 13469,
      "text": "Then it recomputes alpha and the linear roughness from\nthe result, so every later term sees the wider lobe."
     },
     {
-     "start": 12841,
-     "end": 12999,
+     "start": 13519,
+     "end": 13677,
      "text": "On a smooth sphere the widening shows toward the\nrim, where the normal turns fastest across a pixel."
     },
     {
-     "start": 13051,
-     "end": 13228,
+     "start": 13727,
+     "end": 13904,
      "text": "The lab takes those derivatives as O3DE does, from\nthe fine screen-space derivatives of the normal."
     }
    ],
@@ -673,48 +693,48 @@
    "id": "c3-occlusion",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 13291,
-   "frames": 1349,
+   "startFrame": 13965,
+   "frames": 1337,
    "headline": "Occlusion maps",
    "captions": [
     {
-     "start": 13303,
-     "end": 13415,
+     "start": 13977,
+     "end": 14089,
      "text": "A material can also carry two\nocclusion maps: diffuse ambient"
     },
     {
-     "start": 13415,
-     "end": 13534,
+     "start": 14089,
+     "end": 14208,
      "text": "occlusion, and specular occlusion,\nsometimes called a cavity map."
     },
     {
-     "start": 13586,
-     "end": 13731,
+     "start": 14258,
+     "end": 14403,
      "text": "Each is the map's red channel, raised to the\npower of its factor, which defaults to one."
     },
     {
-     "start": 13783,
-     "end": 13878,
+     "start": 14453,
+     "end": 14548,
      "text": "Without a map, both are one, and nothing changes."
     },
     {
-     "start": 13930,
-     "end": 14045,
+     "start": 14598,
+     "end": 14713,
      "text": "At the end of the forward pass,\ndiffuse light is multiplied by the"
     },
     {
-     "start": 14045,
-     "end": 14157,
+     "start": 14713,
+     "end": 14825,
      "text": "ambient occlusion, and specular\nlight by the specular occlusion."
     },
     {
-     "start": 14209,
-     "end": 14381,
+     "start": 14875,
+     "end": 15047,
      "text": "The albedo target carries both on to the skylight's\npasses, with the specular occlusion in its alpha."
     },
     {
-     "start": 14433,
-     "end": 14577,
+     "start": 15097,
+     "end": 15241,
      "text": "Raising the factor deepens the creases;\nlowering it toward zero fades the map out."
     }
    ],
@@ -724,28 +744,28 @@
    "id": "c3-examples",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 14640,
-   "frames": 697,
+   "startFrame": 15302,
+   "frames": 690,
    "headline": "Every object, the same rules",
    "captions": [
     {
-     "start": 14652,
-     "end": 14738,
+     "start": 15314,
+     "end": 15400,
      "text": "The same rules apply to every object in the room."
     },
     {
-     "start": 14769,
-     "end": 14918,
+     "start": 15430,
+     "end": 15579,
      "text": "Make the teapot metal, and its green leaves\nthe diffuse light and moves into the highlight."
     },
     {
-     "start": 14970,
-     "end": 15086,
+     "start": 15629,
+     "end": 15745,
      "text": "Make the box rough, and its highlight\nspreads until it is barely there."
     },
     {
-     "start": 15138,
-     "end": 15274,
+     "start": 15795,
+     "end": 15931,
      "text": "Each of them goes through the same two\nfunctions before any light is evaluated."
     }
    ],
@@ -755,18 +775,18 @@
    "id": "c3-sources",
    "chapter": 3,
    "kind": "sources",
-   "startFrame": 15337,
-   "frames": 280,
+   "startFrame": 15992,
+   "frames": 279,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 15349,
-     "end": 15467,
+     "start": 16004,
+     "end": 16122,
      "text": "The surface comes from these four\nplaces: the material's evaluation,"
     },
     {
-     "start": 15467,
-     "end": 15575,
+     "start": 16122,
+     "end": 16230,
      "text": "the metallic workflow, its\nconstants, and the roughness remap."
     }
    ],
@@ -781,33 +801,38 @@
    "id": "c4-what",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 15617,
-   "frames": 942,
+   "startFrame": 16271,
+   "frames": 1114,
    "headline": "A texture in a box",
    "captions": [
     {
-     "start": 15629,
-     "end": 15742,
+     "start": 16283,
+     "end": 16433,
+     "text": "Before any light reaches that surface, decals\ncan change it, and they are the next part."
+    },
+    {
+     "start": 16465,
+     "end": 16578,
      "text": "Decals project a texture onto\nwhatever surfaces fall inside a box."
     },
     {
-     "start": 15799,
-     "end": 15912,
+     "start": 16632,
+     "end": 16745,
      "text": "Here, a paint splat and a panel grid lie on the floor; the"
     },
     {
-     "start": 15912,
-     "end": 16022,
+     "start": 16745,
+     "end": 16855,
      "text": "boxes and arrows show their volumes and projection axes."
     },
     {
-     "start": 16055,
-     "end": 16219,
+     "start": 16887,
+     "end": 17051,
      "text": "Decals are on by default, and they change the\nsurface itself, before the lighting data is set up."
     },
     {
-     "start": 16276,
-     "end": 16491,
+     "start": 17105,
+     "end": 17320,
      "text": "So every light, and the skylight's passes after the\nforward pass, see the decal's albedo, F zero, and normal."
     }
    ],
@@ -817,48 +842,48 @@
    "id": "c4-apply",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 16559,
-   "frames": 1401,
+   "startFrame": 17385,
+   "frames": 1383,
    "headline": "ApplyDecal",
    "captions": [
     {
-     "start": 16571,
-     "end": 16674,
+     "start": 17397,
+     "end": 17500,
      "text": "ApplyDecal moves the point into\nthe decal's box, through its"
     },
     {
-     "start": 16674,
-     "end": 16788,
+     "start": 17500,
+     "end": 17614,
      "text": "rotation and its half size, and\nskips it outside minus one to one."
     },
     {
-     "start": 16845,
-     "end": 16967,
+     "start": 17668,
+     "end": 17790,
      "text": "The box's x and y become the\ntexture coordinates, with v flipped."
     },
     {
-     "start": 17024,
-     "end": 17132,
+     "start": 17844,
+     "end": 17952,
      "text": "The base map times the decal's\ncolour replaces the albedo, by"
     },
     {
-     "start": 17132,
-     "end": 17241,
+     "start": 17952,
+     "end": 18061,
      "text": "the map's alpha times the decal's\nopacity and its angle fade."
     },
     {
-     "start": 17298,
-     "end": 17478,
+     "start": 18115,
+     "end": 18295,
      "text": "F zero moves too, by that amount times metallic,\nso a decal on metal changes the colour it reflects."
     },
     {
-     "start": 17535,
-     "end": 17662,
+     "start": 18349,
+     "end": 18476,
      "text": "And its normal map bends the normal,\nhere into the grooves between the panels."
     },
     {
-     "start": 17719,
-     "end": 17892,
+     "start": 18530,
+     "end": 18703,
      "text": "The normal map's two channels are swapped back\nand its z is rebuilt, as for any O3DE normal map."
     }
    ],
@@ -868,33 +893,33 @@
    "id": "c4-angle",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 17960,
-   "frames": 839,
+   "startFrame": 18768,
+   "frames": 827,
    "headline": "Fading with the angle",
    "captions": [
     {
-     "start": 17972,
-     "end": 18095,
+     "start": 18780,
+     "end": 18903,
      "text": "Each decal fades with the angle between\nthe surface and its projection axis."
     },
     {
-     "start": 18152,
-     "end": 18259,
+     "start": 18957,
+     "end": 19064,
      "text": "The cosine is clamped at zero\npoint five five and smoothstepped"
     },
     {
-     "start": 18259,
-     "end": 18355,
+     "start": 19064,
+     "end": 19160,
      "text": "to one, so a decal is gone by about fifty-seven degrees."
     },
     {
-     "start": 18412,
-     "end": 18514,
+     "start": 19214,
+     "end": 19316,
      "text": "Tilting the splat's axis away from\nthe floor's normal fades it out."
     },
     {
-     "start": 18571,
-     "end": 18731,
+     "start": 19370,
+     "end": 19530,
      "text": "The attenuation-angle setting, one by default,\nblends between none of that fade and all of it."
     }
    ],
@@ -904,38 +929,38 @@
    "id": "c4-order",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 18799,
-   "frames": 1187,
+   "startFrame": 19595,
+   "frames": 1171,
    "headline": "Which decal is on top",
    "captions": [
     {
-     "start": 18811,
-     "end": 18924,
+     "start": 19607,
+     "end": 19720,
      "text": "Where decals overlap, their order\ndecides which one lands on top."
     },
     {
-     "start": 18957,
-     "end": 19114,
+     "start": 19752,
+     "end": 19909,
      "text": "Light culling puts decals in the first group of\neach tile's list, as spheres around their boxes."
     },
     {
-     "start": 19171,
-     "end": 19370,
+     "start": 19963,
+     "end": 20162,
      "text": "Then it sorts them by sort key, and by index where keys\nare equal, so a larger key is applied later and wins."
     },
     {
-     "start": 19427,
-     "end": 19611,
+     "start": 20216,
+     "end": 20400,
      "text": "The grid keeps the default key of sixteen, and the\nsplat has seventeen, so the splat lies over the grid."
     },
     {
-     "start": 19668,
-     "end": 19751,
+     "start": 20454,
+     "end": 20537,
      "text": "Give the splat fifteen, and the grid covers it."
     },
     {
-     "start": 19808,
-     "end": 19918,
+     "start": 20591,
+     "end": 20701,
      "text": "The forward pass walks that sorted\ngroup before it sets up any lighting."
     }
    ],
@@ -945,18 +970,18 @@
    "id": "c4-sources",
    "chapter": 4,
    "kind": "sources",
-   "startFrame": 19986,
-   "frames": 235,
+   "startFrame": 20766,
+   "frames": 234,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 19998,
-     "end": 20090,
+     "start": 20778,
+     "end": 20870,
      "text": "These entries show where decals\nenter the forward pass, how"
     },
     {
-     "start": 20090,
-     "end": 20177,
+     "start": 20870,
+     "end": 20957,
      "text": "each one is blended, and how they are culled and sorted."
     }
    ],
@@ -977,38 +1002,43 @@
    "id": "c5-vectors",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 20221,
-   "frames": 1077,
+   "startFrame": 21000,
+   "frames": 1267,
    "headline": "Four directions",
    "captions": [
     {
-     "start": 20233,
-     "end": 20326,
+     "start": 21012,
+     "end": 21189,
+     "text": "With the surface ready, the next part is how\neach light's highlight is computed: GGX specular."
+    },
+    {
+     "start": 21231,
+     "end": 21324,
      "text": "Specular lighting depends on four directions at one point."
     },
     {
-     "start": 20402,
-     "end": 20446,
+     "start": 21399,
+     "end": 21443,
      "text": "The surface normal, N."
     },
     {
-     "start": 20522,
-     "end": 20575,
+     "start": 21518,
+     "end": 21571,
      "text": "The direction to the light, L."
     },
     {
-     "start": 20651,
-     "end": 20840,
+     "start": 21646,
+     "end": 21835,
      "text": "The direction to the viewer, V; we look from the blue\nobserver, so that all four lie in a plane facing us."
     },
     {
-     "start": 20916,
-     "end": 21012,
+     "start": 21910,
+     "end": 22006,
      "text": "And the half vector, H, halfway between L and V."
     },
     {
-     "start": 21088,
-     "end": 21221,
+     "start": 22081,
+     "end": 22214,
      "text": "A microfacet whose normal points along H\nmirrors the light straight into the viewer."
     }
    ],
@@ -1018,53 +1048,53 @@
    "id": "c5-terms",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 21298,
-   "frames": 1971,
+   "startFrame": 22267,
+   "frames": 1941,
    "headline": "D, G, and F",
    "captions": [
     {
-     "start": 21310,
-     "end": 21544,
+     "start": 22279,
+     "end": 22513,
      "text": "SpecularGGX multiplies three terms, D, G, and F,\nwith N dot L and the multiscatter compensation."
     },
     {
-     "start": 21620,
-     "end": 21762,
+     "start": 22588,
+     "end": 22730,
      "text": "D, the GGX normal distribution, is\nthe density of microfacet normals"
     },
     {
-     "start": 21762,
-     "end": 21896,
+     "start": 22730,
+     "end": 22864,
      "text": "that point along H; for a smooth\nsurface it rises far above one."
     },
     {
-     "start": 21972,
-     "end": 22122,
+     "start": 22939,
+     "end": 23089,
      "text": "In false colour, D is bright only where H\nmeets the normal: the core of the highlight."
     },
     {
-     "start": 22167,
-     "end": 22323,
+     "start": 23131,
+     "end": 23287,
      "text": "G is the height-correlated Smith term: the share of\nthose facets that are neither shadowed nor hidden."
     },
     {
-     "start": 22399,
-     "end": 22616,
+     "start": 23362,
+     "end": 23579,
      "text": "O3DE returns it already divided by four, N dot L,\nand N dot V, which saves the division at the end."
     },
     {
-     "start": 22692,
-     "end": 22804,
+     "start": 23654,
+     "end": 23766,
      "text": "F is Schlick's Fresnel, taken\non H dot V: reflectance rises"
     },
     {
-     "start": 22804,
-     "end": 22917,
+     "start": 23766,
+     "end": 23879,
      "text": "toward white as the light and\nthe view graze the microfacet."
     },
     {
-     "start": 22993,
-     "end": 23161,
+     "start": 23954,
+     "end": 24122,
      "text": "That product is the specular response; times the\nlight's intensity, it is the specular lighting."
     }
    ],
@@ -1074,38 +1104,38 @@
    "id": "c5-sweep",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 23269,
-   "frames": 1008,
+   "startFrame": 24208,
+   "frames": 980,
    "headline": "Moving the light",
    "captions": [
     {
-     "start": 23281,
-     "end": 23355,
+     "start": 24220,
+     "end": 24294,
      "text": "Now the numbers at the point, and its lobe."
     },
     {
-     "start": 23431,
-     "end": 23537,
+     "start": 24369,
+     "end": 24475,
      "text": "The pink curve is the specular\nresponse for every outgoing direction"
     },
     {
-     "start": 23537,
-     "end": 23632,
+     "start": 24475,
+     "end": 24570,
      "text": "in this plane, and it leans\naround the mirror direction of L."
     },
     {
-     "start": 23677,
-     "end": 23775,
+     "start": 24612,
+     "end": 24710,
      "text": "Raise the light toward the normal,\nand the lobe stands up with it."
     },
     {
-     "start": 23851,
-     "end": 24008,
+     "start": 24785,
+     "end": 24942,
      "text": "Lower it toward the horizon: N dot L falls,\nFresnel grows, and the lobe stretches out."
     },
     {
-     "start": 24084,
-     "end": 24169,
+     "start": 25017,
+     "end": 25102,
      "text": "The readout follows every term as the light moves."
     }
    ],
@@ -1115,28 +1145,28 @@
    "id": "c5-rough",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 24277,
-   "frames": 772,
+   "startFrame": 25188,
+   "frames": 747,
    "headline": "Roughness widens D",
    "captions": [
     {
-     "start": 24289,
-     "end": 24362,
+     "start": 25200,
+     "end": 25273,
      "text": "Roughness changes D more than anything else."
     },
     {
-     "start": 24438,
-     "end": 24601,
+     "start": 25348,
+     "end": 25511,
      "text": "A smooth surface concentrates its light into a\ntall, narrow lobe and a small, bright highlight."
     },
     {
-     "start": 24677,
-     "end": 24747,
+     "start": 25586,
+     "end": 25656,
      "text": "A rough one spreads the same light thin."
     },
     {
-     "start": 24823,
-     "end": 24941,
+     "start": 25731,
+     "end": 25849,
      "text": "In false colour, D grows from a pinpoint to a broad glow."
     }
    ],
@@ -1146,13 +1176,13 @@
    "id": "c5-sources",
    "chapter": 5,
    "kind": "sources",
-   "startFrame": 25049,
-   "frames": 240,
+   "startFrame": 25935,
+   "frames": 237,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 25061,
-     "end": 25233,
+     "start": 25947,
+     "end": 26119,
      "text": "SpecularGGX and its three terms live in\nthree short files of O3DE's shader library."
     }
    ],
@@ -1168,23 +1198,28 @@
    "id": "c6-layer",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 25289,
-   "frames": 528,
+   "startFrame": 26172,
+   "frames": 678,
    "headline": "A layer of varnish",
    "captions": [
     {
-     "start": 25301,
-     "end": 25442,
+     "start": 26184,
+     "end": 26319,
+     "text": "The next part puts a second\nspecular layer over GGX: clear coat."
+    },
+    {
+     "start": 26341,
+     "end": 26482,
      "text": "Clear coat adds a thin, clear layer over\nthe base material, like varnish over paint."
     },
     {
-     "start": 25465,
-     "end": 25586,
+     "start": 26504,
+     "end": 26625,
      "text": "It is off by default; here the sphere\nis a rough metal under a smooth coat."
     },
     {
-     "start": 25623,
-     "end": 25769,
+     "start": 26659,
+     "end": 26805,
      "text": "The coat is a dielectric with an F zero of\nfour percent, and its own factor and roughness."
     }
    ],
@@ -1194,38 +1229,38 @@
    "id": "c6-base",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 25817,
-   "frames": 1031,
+   "startFrame": 26850,
+   "frames": 1016,
    "headline": "The base beneath",
    "captions": [
     {
-     "start": 25829,
-     "end": 26008,
+     "start": 26862,
+     "end": 27041,
      "text": "Under the coat, the base's F zero changes, because\nlight now enters it from the coat rather than from air."
     },
     {
-     "start": 26045,
-     "end": 26174,
+     "start": 27075,
+     "end": 27204,
      "text": "O3DE uses Filament's form: one\nminus five root F zero, over"
     },
     {
-     "start": 26174,
-     "end": 26300,
+     "start": 27204,
+     "end": 27330,
      "text": "five minus root F zero, squared, blended in by the factor."
     },
     {
-     "start": 26337,
-     "end": 26445,
+     "start": 27364,
+     "end": 27472,
      "text": "The diffuse response shrinks by the\ncoat's Fresnel at the view angle."
     },
     {
-     "start": 26482,
-     "end": 26615,
+     "start": 27506,
+     "end": 27639,
      "text": "And each light's diffuse shrinks again,\nby the coat's Fresnel at the half vector."
     },
     {
-     "start": 26652,
-     "end": 26800,
+     "start": 27673,
+     "end": 27821,
      "text": "A finding: the coat dims diffuse light twice,\nonce through the response and once per light."
     }
    ],
@@ -1235,33 +1270,33 @@
    "id": "c6-specular",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 26848,
-   "frames": 906,
+   "startFrame": 27866,
+   "frames": 894,
    "headline": "Two specular lobes",
    "captions": [
     {
-     "start": 26860,
-     "end": 27039,
+     "start": 27878,
+     "end": 28057,
      "text": "Each light's specular becomes the base lobe, times one\nminus the coat's Fresnel, plus the coat's own lobe."
     },
     {
-     "start": 27076,
-     "end": 27207,
+     "start": 28091,
+     "end": 28222,
      "text": "The coat's lobe is GGX with Kelemen's\nvisibility term, at an alpha"
     },
     {
-     "start": 27207,
-     "end": 27344,
+     "start": 28222,
+     "end": 28359,
      "text": "of its roughness squared, never\nbelow zero point zero zero zero five."
     },
     {
-     "start": 27381,
-     "end": 27518,
+     "start": 28393,
+     "end": 28530,
      "text": "So the sphere shows a sharp highlight from\nthe coat, on top of the metal's broad one."
     },
     {
-     "start": 27555,
-     "end": 27706,
+     "start": 28564,
+     "end": 28715,
      "text": "As the factor rises, the sharp highlight\ngrows, and the metal's colour dims beneath it."
     }
    ],
@@ -1271,43 +1306,43 @@
    "id": "c6-ibl",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 27754,
-   "frames": 1048,
+   "startFrame": 28760,
+   "frames": 1036,
    "headline": "The sky's reflection, in the forward pass",
    "captions": [
     {
-     "start": 27766,
-     "end": 27893,
+     "start": 28772,
+     "end": 28899,
      "text": "Clear coat also moves the material's\nsky reflections into the forward pass."
     },
     {
-     "start": 27930,
-     "end": 28042,
+     "start": 28933,
+     "end": 29045,
      "text": "The full-screen reflection pass knows\nnothing of the coat, so the mesh"
     },
     {
-     "start": 28042,
-     "end": 28157,
+     "start": 29045,
+     "end": 29160,
      "text": "is drawn without the specular-IBL\nstencil value, and that pass skips it."
     },
     {
-     "start": 28194,
-     "end": 28308,
+     "start": 29194,
+     "end": 29308,
      "text": "In the forward pass, the base's\nreflection is scaled by one minus"
     },
     {
-     "start": 28308,
-     "end": 28427,
+     "start": 29308,
+     "end": 29427,
      "text": "the coat's Fresnel, squared, and\nthe coat's own reflection is added."
     },
     {
-     "start": 28464,
-     "end": 28607,
+     "start": 29461,
+     "end": 29604,
      "text": "So the full-screen probe passes never touch\na clear-coated mesh; instead the forward"
     },
     {
-     "start": 28607,
-     "end": 28754,
+     "start": 29604,
+     "end": 29751,
      "text": "pass blends in the smallest probe that\noverlaps it, between its inner and outer boxes."
     }
    ],
@@ -1317,13 +1352,13 @@
    "id": "c6-sources",
    "chapter": 6,
    "kind": "sources",
-   "startFrame": 28802,
-   "frames": 229,
+   "startFrame": 29796,
+   "frames": 228,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 28814,
-     "end": 28997,
+     "start": 29808,
+     "end": 29991,
      "text": "These entries follow the coat from its inputs to\nits specular, its diffuse, and its forward-pass IBL."
     }
    ],
@@ -1343,38 +1378,43 @@
    "id": "c7-lambert",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 29031,
-   "frames": 1121,
+   "startFrame": 30024,
+   "frames": 1286,
    "headline": "Lambertian, with a response",
    "captions": [
     {
-     "start": 29043,
-     "end": 29215,
+     "start": 30036,
+     "end": 30208,
+     "text": "From specular, the next part turns to the other\nhalf of each light: diffuse, and its response."
+    },
+    {
+     "start": 30236,
+     "end": 30408,
      "text": "Diffuse light in StandardPBR is\nLambertian: albedo, times N dot L, over pi."
     },
     {
-     "start": 29267,
-     "end": 29414,
+     "start": 30453,
+     "end": 30600,
      "text": "But it is scaled by a diffuse response:\none minus a Fresnel term at the view angle."
     },
     {
-     "start": 29466,
-     "end": 29647,
+     "start": 30645,
+     "end": 30826,
      "text": "That Fresnel knows the roughness: its grazing value\nis one minus roughness, but never less than F zero."
     },
     {
-     "start": 29699,
-     "end": 29789,
+     "start": 30871,
+     "end": 30961,
      "text": "So a smooth surface seen at a grazing angle keeps less of"
     },
     {
-     "start": 29789,
-     "end": 29883,
+     "start": 30961,
+     "end": 31055,
      "text": "its light for diffuse, because\nmore of it goes to specular."
     },
     {
-     "start": 29935,
-     "end": 30089,
+     "start": 31100,
+     "end": 31254,
      "text": "Without that response, diffuse and specular\ntogether could send back more light than arrives."
     }
    ],
@@ -1384,28 +1424,28 @@
    "id": "c7-response",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 30152,
-   "frames": 623,
+   "startFrame": 31310,
+   "frames": 602,
    "headline": "Where the response dips",
    "captions": [
     {
-     "start": 30164,
-     "end": 30328,
+     "start": 31322,
+     "end": 31486,
      "text": "In false colour, the diffuse response stays\nnear one, and dips only toward the sphere's rim."
     },
     {
-     "start": 30380,
-     "end": 30480,
+     "start": 31531,
+     "end": 31631,
      "text": "The green lobe shows the result for every view direction:"
     },
     {
-     "start": 30480,
-     "end": 30579,
+     "start": 31631,
+     "end": 31730,
      "text": "nearly a half circle, flattened where the response falls."
     },
     {
-     "start": 30631,
-     "end": 30712,
+     "start": 31775,
+     "end": 31856,
      "text": "Smoother surfaces dip more at grazing angles."
     }
    ],
@@ -1415,28 +1455,28 @@
    "id": "c7-disney",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 30775,
-   "frames": 884,
+   "startFrame": 31912,
+   "frames": 856,
    "headline": "A diffuse model StandardPBR does not use",
    "captions": [
     {
-     "start": 30787,
-     "end": 30936,
+     "start": 31924,
+     "end": 32073,
      "text": "O3DE's BRDF library also defines\na normalized Disney diffuse."
     },
     {
-     "start": 30988,
-     "end": 31209,
+     "start": 32118,
+     "end": 32339,
      "text": "StandardPBR never calls it; the Skin material does,\nand EnhancedPBR does when subsurface scattering is on."
     },
     {
-     "start": 31261,
-     "end": 31442,
+     "start": 32384,
+     "end": 32565,
      "text": "It carries its own Fresnel terms for light entering and\nleaving the surface, so it takes no diffuse response."
     },
     {
-     "start": 31494,
-     "end": 31596,
+     "start": 32610,
+     "end": 32712,
      "text": "Back to the Lambertian model that StandardPBR uses."
     }
    ],
@@ -1446,13 +1486,13 @@
    "id": "c7-sources",
    "chapter": 7,
    "kind": "sources",
-   "startFrame": 31659,
-   "frames": 222,
+   "startFrame": 32768,
+   "frames": 219,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 31671,
-     "end": 31839,
+     "start": 32780,
+     "end": 32948,
      "text": "These entries show the diffuse term, its response,\nand which materials use the Disney model."
     }
    ],
@@ -1469,33 +1509,38 @@
    "id": "c8-why",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 31881,
-   "frames": 892,
+   "startFrame": 32987,
+   "frames": 1076,
    "headline": "Light from behind",
    "captions": [
     {
-     "start": 31893,
-     "end": 32056,
+     "start": 32999,
+     "end": 33171,
+     "text": "So far light has only bounced off surfaces; the\nnext part lets it pass through them: transmission."
+    },
+    {
+     "start": 33195,
+     "end": 33358,
      "text": "Thin or translucent things, like leaves,\nwax, or skin, let light through from behind."
     },
     {
-     "start": 32082,
-     "end": 32199,
+     "start": 33382,
+     "end": 33499,
      "text": "StandardPBR has no transmission; EnhancedPBR adds it, off"
     },
     {
-     "start": 32199,
-     "end": 32311,
+     "start": 33499,
+     "end": 33611,
      "text": "by default, with a thick-object and a thin-object mode."
     },
     {
-     "start": 32354,
-     "end": 32534,
+     "start": 33650,
+     "end": 33830,
      "text": "Its other lighting is StandardPBR's, as long as\nsubsurface scattering and anisotropy stay off."
     },
     {
-     "start": 32577,
-     "end": 32736,
+     "start": 33869,
+     "end": 34028,
      "text": "Here the teapot is EnhancedPBR, lit from\nbehind; the simple point light is off."
     }
    ],
@@ -1505,38 +1550,38 @@
    "id": "c8-light",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 32773,
-   "frames": 775,
+   "startFrame": 34063,
+   "frames": 761,
    "headline": "A different kind of point light",
    "captions": [
     {
-     "start": 32785,
-     "end": 32861,
+     "start": 34075,
+     "end": 34151,
      "text": "Simple point lights add no back lighting at all."
     },
     {
-     "start": 32904,
-     "end": 33016,
+     "start": 34190,
+     "end": 34302,
      "text": "So the light behind the teapot\nis O3DE's point light, a sphere"
     },
     {
-     "start": 33016,
-     "end": 33134,
+     "start": 34302,
+     "end": 34420,
      "text": "area light, with the editor's\ndefault radius of five centimetres."
     },
     {
-     "start": 33177,
-     "end": 33294,
+     "start": 34459,
+     "end": 34576,
      "text": "It lights like a simple point light,\nbut moves its specular direction to"
     },
     {
-     "start": 33294,
-     "end": 33412,
+     "start": 34576,
+     "end": 34694,
      "text": "the point of its bulb nearest the\nreflection ray, and adds back lighting."
     },
     {
-     "start": 33455,
-     "end": 33511,
+     "start": 34733,
+     "end": 34789,
      "text": "Here it casts no shadows."
     }
    ],
@@ -1546,58 +1591,58 @@
    "id": "c8-thick",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 33548,
-   "frames": 1406,
+   "startFrame": 34824,
+   "frames": 1382,
    "headline": "Thick objects",
    "captions": [
     {
-     "start": 33560,
-     "end": 33736,
+     "start": 34836,
+     "end": 35012,
      "text": "Thick mode follows Barré-Brisebois and Bouchard: how\ndirectly the light shines through toward the viewer."
     },
     {
-     "start": 33779,
-     "end": 33867,
+     "start": 35051,
+     "end": 35139,
      "text": "The view direction is compared with the light's direction"
     },
     {
-     "start": 33867,
-     "end": 33954,
+     "start": 35139,
+     "end": 35226,
      "text": "bent by the normal, raised to a power of six, and scaled."
     },
     {
-     "start": 33997,
-     "end": 34099,
+     "start": 35265,
+     "end": 35367,
      "text": "Then it is attenuated through\nthe thickness: e to the minus"
     },
     {
-     "start": 34099,
-     "end": 34196,
+     "start": 35367,
+     "end": 35464,
      "text": "four times the thickness, times one minus the thickness."
     },
     {
-     "start": 34239,
-     "end": 34353,
+     "start": 35503,
+     "end": 35617,
      "text": "The thickness is the larger of the\nshadow map's and the material's;"
     },
     {
-     "start": 34353,
-     "end": 34469,
+     "start": 35617,
+     "end": 35733,
      "text": "this teapot uses zero point one\nfive, where the default is one half."
     },
     {
-     "start": 34512,
-     "end": 34621,
+     "start": 35772,
+     "end": 35881,
      "text": "The sum over lights, times the\ntint, joins the diffuse light"
     },
     {
-     "start": 34621,
-     "end": 34724,
+     "start": 35881,
+     "end": 35984,
      "text": "after the occlusion multiply, so occlusion never dims it."
     },
     {
-     "start": 34767,
-     "end": 34900,
+     "start": 36023,
+     "end": 36156,
      "text": "Without transmission the teapot's back is\ndark; with it, the light glows through."
     }
    ],
@@ -1607,48 +1652,48 @@
    "id": "c8-thin",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 34954,
-   "frames": 1110,
+   "startFrame": 36206,
+   "frames": 1090,
    "headline": "Thin objects, and a finding",
    "captions": [
     {
-     "start": 34966,
-     "end": 35063,
+     "start": 36218,
+     "end": 36315,
      "text": "Thin mode follows Jimenez and others: a diffusion profile"
     },
     {
-     "start": 35063,
-     "end": 35167,
+     "start": 36315,
+     "end": 36419,
      "text": "over the distance the shadow\nmap measures through the object."
     },
     {
-     "start": 35210,
-     "end": 35316,
+     "start": 36458,
+     "end": 36564,
      "text": "Its comment says that without shadow\ndata it gives no back lighting."
     },
     {
-     "start": 35359,
-     "end": 35462,
+     "start": 36603,
+     "end": 36706,
      "text": "A finding: for point lights,\nthe shadow branch runs even for"
     },
     {
-     "start": 35462,
-     "end": 35566,
+     "start": 36706,
+     "end": 36810,
      "text": "a light without shadows, because\nits options default to true."
     },
     {
-     "start": 35609,
-     "end": 35772,
+     "start": 36849,
+     "end": 37012,
      "text": "There the shadow lookup returns a thickness of\nzero, not the negative value that means no data."
     },
     {
-     "start": 35815,
-     "end": 35909,
+     "start": 37051,
+     "end": 37145,
      "text": "So a thin object behind a shadowless point light gets the"
     },
     {
-     "start": 35909,
-     "end": 36010,
+     "start": 37145,
+     "end": 37246,
      "text": "kernel's full value, the brightest\nback lighting it can have."
     }
    ],
@@ -1658,13 +1703,13 @@
    "id": "c8-sources",
    "chapter": 8,
    "kind": "sources",
-   "startFrame": 36064,
-   "frames": 216,
+   "startFrame": 37296,
+   "frames": 214,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 36076,
-     "end": 36243,
+     "start": 37308,
+     "end": 37475,
      "text": "These entries cover transmission's inputs, the sphere\nlight, both modes, and the shadow-branch finding."
     }
    ],
@@ -1689,33 +1734,38 @@
    "id": "c9-loss",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 36280,
-   "frames": 746,
+   "startFrame": 37510,
+   "frames": 924,
    "headline": "Energy that single scattering loses",
    "captions": [
     {
-     "start": 36292,
-     "end": 36403,
+     "start": 37522,
+     "end": 37690,
+     "text": "The next part returns to specular, and to\nthe BRDF texture that O3DE fills at startup."
+    },
+    {
+     "start": 37712,
+     "end": 37823,
      "text": "A single GGX bounce loses energy on rough surfaces."
     },
     {
-     "start": 36427,
-     "end": 36533,
+     "start": 37845,
+     "end": 37951,
      "text": "Light that strikes one microfacet\ncan bounce to another before"
     },
     {
-     "start": 36533,
-     "end": 36640,
+     "start": 37951,
+     "end": 38058,
      "text": "it escapes, and the single-scattering\nformula simply drops it."
     },
     {
-     "start": 36664,
-     "end": 36756,
+     "start": 38080,
+     "end": 38172,
      "text": "Here is a rough metal sphere with that loss left in."
     },
     {
-     "start": 36795,
-     "end": 36952,
+     "start": 38207,
+     "end": 38364,
      "text": "And here it is with O3DE's compensation:\nbrighter, as a real rough metal would be."
     }
    ],
@@ -1725,43 +1775,43 @@
    "id": "c9-texture",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 37026,
-   "frames": 1311,
+   "startFrame": 38434,
+   "frames": 1291,
    "headline": "The BRDF texture",
    "captions": [
     {
-     "start": 37038,
-     "end": 37209,
+     "start": 38446,
+     "end": 38617,
      "text": "To know how much is lost, O3DE fills a two hundred\nfifty six by two hundred fifty six texture,"
     },
     {
-     "start": 37209,
-     "end": 37379,
+     "start": 38617,
+     "end": 38787,
      "text": "two sixteen-bit floats per texel, once at startup;\nthe lab keeps it in thirty-two-bit floats."
     },
     {
-     "start": 37418,
-     "end": 37525,
+     "start": 38822,
+     "end": 38929,
      "text": "Each texel stands for one view angle and one roughness."
     },
     {
-     "start": 37564,
-     "end": 37755,
+     "start": 38964,
+     "end": 39155,
      "text": "It draws one thousand and twenty four GGX\nsamples, reflects the view about each, and weights"
     },
     {
-     "start": 37755,
-     "end": 37940,
+     "start": 39155,
+     "end": 39340,
      "text": "those above the horizon by the visibility\ntimes four, V dot H, and N dot L, over N dot H."
     },
     {
-     "start": 37979,
-     "end": 38082,
+     "start": 39375,
+     "end": 39478,
      "text": "It splits the sum into a scale A and a bias B on F zero."
     },
     {
-     "start": 38121,
-     "end": 38287,
+     "start": 39513,
+     "end": 39679,
      "text": "The rows are stored upside down, so lighting looks\nthe texture up by smoothness rather than roughness."
     }
    ],
@@ -1771,38 +1821,38 @@
    "id": "c9-compensation",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 38337,
-   "frames": 1075,
+   "startFrame": 39725,
+   "frames": 1055,
    "headline": "Putting the energy back",
    "captions": [
     {
-     "start": 38349,
-     "end": 38440,
+     "start": 39737,
+     "end": 39828,
      "text": "A plus B is the energy that single scattering keeps."
     },
     {
-     "start": 38479,
-     "end": 38629,
+     "start": 39863,
+     "end": 40013,
      "text": "At roughness zero point eight and this view\nangle, that is only about fifty seven percent."
     },
     {
-     "start": 38668,
-     "end": 38844,
+     "start": 40048,
+     "end": 40224,
      "text": "The compensation adds the missing part back, in\nproportion to F zero, following Turquin's method."
     },
     {
-     "start": 38883,
-     "end": 39053,
+     "start": 40259,
+     "end": 40429,
      "text": "Its shader option defaults to on, but\nStandardPBR's material property defaults to"
     },
     {
-     "start": 39053,
-     "end": 39229,
+     "start": 40429,
+     "end": 40605,
      "text": "off, so a material must turn it on, as\nO3DE's metal presets do; the lab turns it on."
     },
     {
-     "start": 39268,
-     "end": 39362,
+     "start": 40640,
+     "end": 40734,
      "text": "In false colour, the compensation grows with roughness."
     }
    ],
@@ -1812,38 +1862,38 @@
    "id": "c9-finding",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 39412,
-   "frames": 1053,
+   "startFrame": 40780,
+   "frames": 1039,
    "headline": "A detail of the texture shader",
    "captions": [
     {
-     "start": 39424,
-     "end": 39525,
+     "start": 40792,
+     "end": 40893,
      "text": "One detail of the texture shader\nstood out when it was ported."
     },
     {
-     "start": 39564,
-     "end": 39704,
+     "start": 40928,
+     "end": 41068,
      "text": "Its sampler takes the square root of one\nminus cos theta squared, without a guard."
     },
     {
-     "start": 39743,
-     "end": 39873,
+     "start": 41103,
+     "end": 41233,
      "text": "On the GPU used for this lab, cos\ntheta can round above one for an almost"
     },
     {
-     "start": 39873,
-     "end": 40019,
+     "start": 41233,
+     "end": 41379,
      "text": "mirror-like lobe; the square root then\ngives not a number, and the sample is lost."
     },
     {
-     "start": 40043,
-     "end": 40198,
+     "start": 41401,
+     "end": 41556,
      "text": "So the WGSL port loses energy below a\nroughness of about zero point zero three."
     },
     {
-     "start": 40222,
-     "end": 40430,
+     "start": 41578,
+     "end": 41786,
      "text": "The lab fills its texture on the CPU instead; whether\nO3DE's own texture shows the loss depends on the GPU."
     }
    ],
@@ -1853,13 +1903,13 @@
    "id": "c9-sources",
    "chapter": 9,
    "kind": "sources",
-   "startFrame": 40465,
-   "frames": 217,
+   "startFrame": 41819,
+   "frames": 215,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 40477,
-     "end": 40647,
+     "start": 41831,
+     "end": 42001,
      "text": "The texture's shader, its size, how lighting\nreads it, and the compensation are in these files."
     }
    ],
@@ -1876,58 +1926,63 @@
    "id": "c10-record",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 40682,
-   "frames": 1724,
+   "startFrame": 42034,
+   "frames": 1875,
    "headline": "A position, an intensity, a radius",
    "captions": [
     {
-     "start": 40694,
-     "end": 40835,
+     "start": 42046,
+     "end": 42180,
+     "text": "So far the light itself has been a given; the\nnext part looks at the simple point light."
+    },
+    {
+     "start": 42211,
+     "end": 42352,
      "text": "A simple point light stores a position,\nan RGB intensity in candelas, one"
     },
     {
-     "start": 40835,
-     "end": 40981,
+     "start": 42352,
+     "end": 42498,
      "text": "over its attenuation radius squared,\nand its lighting channels and GI flags."
     },
     {
-     "start": 41036,
-     "end": 41176,
+     "start": 42551,
+     "end": 42691,
      "text": "Its intensity falls off with the inverse square\nof distance: the dashed curve on the floor."
     },
     {
-     "start": 41231,
-     "end": 41374,
+     "start": 42744,
+     "end": 42887,
      "text": "Then a window pulls it smoothly to zero at\nthe attenuation radius: the solid curve."
     },
     {
-     "start": 41429,
-     "end": 41613,
+     "start": 42940,
+     "end": 43124,
      "text": "The window is one minus the squared ratio of distance\nsquared to radius squared, all squared once more."
     },
     {
-     "start": 41668,
-     "end": 41775,
+     "start": 43177,
+     "end": 43284,
      "text": "At half the radius it still keeps\neighty eight percent, so the solid"
     },
     {
-     "start": 41775,
-     "end": 41879,
+     "start": 43284,
+     "end": 43388,
      "text": "curve follows the dashed one closely\nand drops only near the edge."
     },
     {
-     "start": 41934,
-     "end": 42033,
+     "start": 43441,
+     "end": 43540,
      "text": "The readout follows one point\non the sphere: its distance, the"
     },
     {
-     "start": 42033,
-     "end": 42134,
+     "start": 43540,
+     "end": 43641,
      "text": "falloff ratio, the window, and\nthe illuminance that reaches it."
     },
     {
-     "start": 42189,
-     "end": 42340,
+     "start": 43694,
+     "end": 43845,
      "text": "Six candelas at just under two metres give\nabout one point seven lux, before the window."
     }
    ],
@@ -1937,28 +1992,28 @@
    "id": "c10-radius",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 42406,
-   "frames": 690,
+   "startFrame": 43909,
+   "frames": 684,
    "headline": "The attenuation radius",
    "captions": [
     {
-     "start": 42418,
-     "end": 42571,
+     "start": 43921,
+     "end": 44074,
      "text": "Beyond the radius, the light is skipped\nentirely, so the radius also limits its cost."
     },
     {
-     "start": 42626,
-     "end": 42707,
+     "start": 44127,
+     "end": 44208,
      "text": "Grow the radius, and the window reaches further."
     },
     {
-     "start": 42762,
-     "end": 42896,
+     "start": 44261,
+     "end": 44395,
      "text": "In the automatic mode, the default,\nthe radius is the square root of the"
     },
     {
-     "start": 42896,
-     "end": 43030,
+     "start": 44395,
+     "end": 44529,
      "text": "light's lumens, weighted by its\ncolour's luminance, over zero point one."
     }
    ],
@@ -1968,43 +2023,43 @@
    "id": "c10-channels",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 43096,
-   "frames": 1195,
+   "startFrame": 44593,
+   "frames": 1183,
    "headline": "Lighting channels",
    "captions": [
     {
-     "start": 43108,
-     "end": 43223,
+     "start": 44605,
+     "end": 44720,
      "text": "Lights and meshes also carry\nlighting channels: five bits each."
     },
     {
-     "start": 43278,
-     "end": 43363,
+     "start": 44773,
+     "end": 44858,
      "text": "A light shades a surface only\nwhen their masks share a bit."
     },
     {
-     "start": 43418,
-     "end": 43580,
+     "start": 44911,
+     "end": 45073,
      "text": "Components start with all five channels set,\nso by default every light reaches every mesh."
     },
     {
-     "start": 43635,
-     "end": 43780,
+     "start": 45126,
+     "end": 45271,
      "text": "Give the light a mask of one and the sphere a\nmask of two, and the sphere stops receiving it."
     },
     {
-     "start": 43835,
-     "end": 43958,
+     "start": 45324,
+     "end": 45447,
      "text": "The skylight, the reflection passes,\nand decals ignore the channels."
     },
     {
-     "start": 44013,
-     "end": 44116,
+     "start": 45500,
+     "end": 45603,
      "text": "A finding: in the directional-light\nloop, a light of another channel"
     },
     {
-     "start": 44116,
-     "end": 44225,
+     "start": 45603,
+     "end": 45712,
      "text": "ends the whole loop, so the directional\nlights after it are skipped too."
     }
    ],
@@ -2014,28 +2069,28 @@
    "id": "c10-shadows",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 44291,
-   "frames": 563,
+   "startFrame": 45776,
+   "frames": 558,
    "headline": "No shadows",
    "captions": [
     {
-     "start": 44303,
-     "end": 44374,
+     "start": 45788,
+     "end": 45859,
      "text": "Simple point lights cast no shadows."
     },
     {
-     "start": 44429,
-     "end": 44551,
+     "start": 45912,
+     "end": 46034,
      "text": "Light reaches every surface that\nfaces it, even behind the boxes."
     },
     {
-     "start": 44583,
-     "end": 44683,
+     "start": 46065,
+     "end": 46165,
      "text": "With no shadow maps, and culled per screen tile, each one"
     },
     {
-     "start": 44683,
-     "end": 44788,
+     "start": 46165,
+     "end": 46270,
      "text": "costs little more than shading\nthe pixels inside its radius."
     }
    ],
@@ -2045,13 +2100,13 @@
    "id": "c10-sources",
    "chapter": 10,
    "kind": "sources",
-   "startFrame": 44854,
-   "frames": 229,
+   "startFrame": 46334,
+   "frames": 228,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 44866,
-     "end": 45040,
+     "start": 46346,
+     "end": 46520,
      "text": "The light's record, its falloff, the loop that\nskips it, and the automatic radius are listed here."
     }
    ],
@@ -2069,23 +2124,28 @@
    "id": "c11-sky",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 45083,
-   "frames": 512,
+   "startFrame": 46562,
+   "frames": 655,
    "headline": "Light from the sky",
    "captions": [
     {
-     "start": 45095,
-     "end": 45176,
+     "start": 46574,
+     "end": 46719,
+     "text": "That covers the simple point light; the\nnext part leaves punctual lights behind."
+    },
+    {
+     "start": 46719,
+     "end": 46800,
      "text": "The second source of light is the sky."
     },
     {
-     "start": 45176,
-     "end": 45374,
+     "start": 46800,
+     "end": 46997,
      "text": "O3DE's global skylight is image-based lighting:\nan environment, stored as two cubemaps."
     },
     {
-     "start": 45374,
-     "end": 45570,
+     "start": 46997,
+     "end": 47193,
      "text": "This chrome sphere reflects it directly; it is the\nlab's own sky, with a warm softbox high on one side."
     }
    ],
@@ -2095,38 +2155,38 @@
    "id": "c11-bake",
    "chapter": 11,
    "kind": "mermaid",
-   "startFrame": 45595,
-   "frames": 940,
+   "startFrame": 47217,
+   "frames": 938,
    "headline": "Baked offline",
    "captions": [
     {
-     "start": 45607,
-     "end": 45752,
+     "start": 47229,
+     "end": 47374,
      "text": "The cubemaps are baked offline, by O3DE's image processor."
     },
     {
-     "start": 45752,
-     "end": 45919,
+     "start": 47374,
+     "end": 47541,
      "text": "A GGX filter turns the environment into\na specular cubemap with two hundred"
     },
     {
-     "start": 45919,
-     "end": 46111,
+     "start": 47541,
+     "end": 47732,
      "text": "fifty six texel faces in R9G9B9E5, and\nsix mips, one for each step of roughness."
     },
     {
-     "start": 46111,
-     "end": 46225,
+     "start": 47732,
+     "end": 47846,
      "text": "A cosine filter turns it into a\ndiffuse cubemap of thirty two to"
     },
     {
-     "start": 46225,
-     "end": 46353,
+     "start": 47846,
+     "end": 47973,
      "text": "one hundred twenty eight texels\na face; the lab's is thirty two."
     },
     {
-     "start": 46353,
-     "end": 46512,
+     "start": 47973,
+     "end": 48132,
      "text": "And, separately, the BRDF texture from\nchapter five supplies the split-sum terms."
     }
    ],
@@ -2137,38 +2197,38 @@
    "id": "c11-prefilter",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 46535,
-   "frames": 871,
+   "startFrame": 48155,
+   "frames": 866,
    "headline": "Prefiltering the specular cubemap",
    "captions": [
     {
-     "start": 46547,
-     "end": 46684,
+     "start": 48167,
+     "end": 48303,
      "text": "Mip m of the specular cubemap is\nfiltered for a roughness of m over five."
     },
     {
-     "start": 46684,
-     "end": 46860,
+     "start": 48303,
+     "end": 48478,
      "text": "For each texel, the filter assumes that the normal\nand the view both point along the texel's direction."
     },
     {
-     "start": 46860,
-     "end": 46979,
+     "start": 48478,
+     "end": 48596,
      "text": "Then it takes two hundred fifty six GGX samples around it."
     },
     {
-     "start": 46979,
-     "end": 47126,
+     "start": 48596,
+     "end": 48743,
      "text": "Each sample is read one mip blurrier\nthan the mip whose texels match its solid"
     },
     {
-     "start": 47126,
-     "end": 47278,
+     "start": 48743,
+     "end": 48894,
      "text": "angle, blended between two mips, which\nhides the noise of so few samples."
     },
     {
-     "start": 47278,
-     "end": 47381,
+     "start": 48894,
+     "end": 48997,
      "text": "Rougher mips gather a wider cone, so reflections blur."
     }
    ],
@@ -2178,23 +2238,23 @@
    "id": "c11-cosine",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 47406,
-   "frames": 581,
+   "startFrame": 49021,
+   "frames": 578,
    "headline": "The diffuse cubemap",
    "captions": [
     {
-     "start": 47418,
-     "end": 47594,
+     "start": 49033,
+     "end": 49208,
      "text": "The diffuse cubemap is a cosine-weighted average\nover the whole hemisphere, normalised by its weights."
     },
     {
-     "start": 47594,
-     "end": 47787,
+     "start": 49208,
+     "end": 49400,
      "text": "So it stores irradiance divided by pi, and the\ndiffuse pass multiplies it by albedo with no division."
     },
     {
-     "start": 47787,
-     "end": 47962,
+     "start": 49400,
+     "end": 49575,
      "text": "Seen alone, the diffuse light from the sky is soft,\nand coloured by the ground below and the blue above."
     }
    ],
@@ -2204,48 +2264,48 @@
    "id": "c11-passes",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 47987,
-   "frames": 1224,
+   "startFrame": 49599,
+   "frames": 1219,
    "headline": "The two full-screen passes",
    "captions": [
     {
-     "start": 47999,
-     "end": 48136,
+     "start": 49611,
+     "end": 49748,
      "text": "At run time, the forward pass has\nalready stored albedo times the diffuse"
     },
     {
-     "start": 48136,
-     "end": 48273,
+     "start": 49748,
+     "end": 49884,
      "text": "response and occlusion, F zero,\nand roughness, each in eight bits."
     },
     {
-     "start": 48273,
-     "end": 48417,
+     "start": 49884,
+     "end": 50027,
      "text": "The diffuse pass multiplies that albedo\nby the diffuse cubemap at the normal."
     },
     {
-     "start": 48417,
-     "end": 48613,
+     "start": 50027,
+     "end": 50222,
      "text": "The reflection pass reads the specular cubemap along\nthe reflection vector, at mip roughness times five."
     },
     {
-     "start": 48613,
-     "end": 48765,
+     "start": 50222,
+     "end": 50374,
      "text": "It applies the split sum, F zero times A\nplus B, with the compensation and N dot V"
     },
     {
-     "start": 48765,
-     "end": 48941,
+     "start": 50374,
+     "end": 50549,
      "text": "held at one hundredth or more, then the\nskylight's exposure and the specular occlusion."
     },
     {
-     "start": 48941,
-     "end": 49065,
+     "start": 50549,
+     "end": 50673,
      "text": "The diffuse pass adds straight onto\nthe diffuse target; the reflection pass"
     },
     {
-     "start": 49065,
-     "end": 49186,
+     "start": 50673,
+     "end": 50794,
      "text": "writes its own target, which a composite\npass adds onto the specular one."
     }
    ],
@@ -2255,23 +2315,23 @@
    "id": "c11-readout",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 49211,
-   "frames": 413,
+   "startFrame": 50818,
+   "frames": 411,
    "headline": "The terms at one point",
    "captions": [
     {
-     "start": 49223,
-     "end": 49340,
+     "start": 50830,
+     "end": 50947,
      "text": "At the inspected point, the readout\nshows each step: the eight-bit"
     },
     {
-     "start": 49340,
-     "end": 49463,
+     "start": 50947,
+     "end": 51069,
      "text": "roughness, its mip, the prefiltered\nlight, and the split sum."
     },
     {
-     "start": 49463,
-     "end": 49599,
+     "start": 51069,
+     "end": 51205,
      "text": "As roughness rises, the mip rises with\nit, and the reflection dims and spreads."
     }
    ],
@@ -2281,38 +2341,38 @@
    "id": "c11-occlusion",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 49624,
-   "frames": 827,
+   "startFrame": 51229,
+   "frames": 824,
    "headline": "No shadows from the sky",
    "captions": [
     {
-     "start": 49636,
-     "end": 49749,
+     "start": 51241,
+     "end": 51354,
      "text": "The global skylight casts no\nshadows: only occlusion maps and"
     },
     {
-     "start": 49749,
-     "end": 49880,
+     "start": 51354,
+     "end": 51484,
      "text": "screen-space ambient occlusion,\nwhich is on by default, dim it."
     },
     {
-     "start": 49880,
-     "end": 49987,
+     "start": 51484,
+     "end": 51591,
      "text": "The lab's room has no occlusion\nmaps, so inside it only SSAO"
     },
     {
-     "start": 49987,
-     "end": 50111,
+     "start": 51591,
+     "end": 51714,
      "text": "darkens the sky's light, in the\ncorners and under the objects."
     },
     {
-     "start": 50111,
-     "end": 50271,
+     "start": 51714,
+     "end": 51874,
      "text": "For interiors, O3DE replaces the sky's\nreflections with reflection probes, in the next"
     },
     {
-     "start": 50271,
-     "end": 50426,
+     "start": 51874,
+     "end": 52029,
      "text": "chapter, and its diffuse light with a\ndiffuse probe grid, which the lab leaves out."
     }
    ],
@@ -2322,18 +2382,18 @@
    "id": "c11-sources",
    "chapter": 11,
    "kind": "sources",
-   "startFrame": 50451,
+   "startFrame": 52053,
    "frames": 317,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 50463,
-     "end": 50603,
+     "start": 52065,
+     "end": 52205,
      "text": "The bake, the targets, and the\ntwo passes are in these files;"
     },
     {
-     "start": 50603,
-     "end": 50745,
+     "start": 52205,
+     "end": 52347,
      "text": "CubeMapGen, the filter library,\nis AMD's, under a BSD license."
     }
    ],
@@ -2352,38 +2412,48 @@
    "id": "c12-why",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 50768,
-   "frames": 1121,
+   "startFrame": 52370,
+   "frames": 1330,
    "headline": "Reflections of the room",
    "captions": [
     {
-     "start": 50780,
-     "end": 50925,
+     "start": 52382,
+     "end": 52495,
+     "text": "The sky's cubemaps light the\nwhole scene alike; the next part,"
+    },
+    {
+     "start": 52495,
+     "end": 52599,
+     "text": "reflection probes, gives places reflections of their own."
+    },
+    {
+     "start": 52628,
+     "end": 52773,
      "text": "Inside a room, reflections of an open sky\nlook wrong: the walls should be in them."
     },
     {
-     "start": 50977,
-     "end": 51165,
+     "start": 52802,
+     "end": 52990,
      "text": "Reflection probes fix that: each is a cubemap baked from\na point in the scene, with an inner and an outer box."
     },
     {
-     "start": 51217,
-     "end": 51387,
+     "start": 53038,
+     "end": 53208,
      "text": "The lab places two, and bakes them itself on the\nCPU, shading the room from each probe's centre."
     },
     {
-     "start": 51418,
-     "end": 51538,
+     "start": 53237,
+     "end": 53357,
      "text": "Their cubemaps have two hundred\nfifty-six texels a face, as the default"
     },
     {
-     "start": 51538,
-     "end": 51652,
+     "start": 53357,
+     "end": 53471,
      "text": "Medium bake quality makes them,\nand are prefiltered like the sky's."
     },
     {
-     "start": 51704,
-     "end": 51826,
+     "start": 53519,
+     "end": 53641,
      "text": "On the glossy floor, the probes put the\nroom's own walls into the reflections."
     }
    ],
@@ -2393,43 +2463,43 @@
    "id": "c12-stencil",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 51889,
-   "frames": 1143,
+   "startFrame": 53700,
+   "frames": 1123,
    "headline": "Stencil and blend weight",
    "captions": [
     {
-     "start": 51901,
-     "end": 52044,
+     "start": 53712,
+     "end": 53855,
      "text": "Five passes run after the forward\npass: a stencil pass, a blend-weight"
     },
     {
-     "start": 52044,
-     "end": 52167,
+     "start": 53855,
+     "end": 53978,
      "text": "pass, the global pass, and an\nouter and an inner probe pass."
     },
     {
-     "start": 52219,
-     "end": 52348,
+     "start": 54026,
+     "end": 54155,
      "text": "The stencil pass draws each probe's\ninner box, slightly reduced, and adds one"
     },
     {
-     "start": 52348,
-     "end": 52472,
+     "start": 54155,
+     "end": 54279,
      "text": "to the stencil of every surface inside\nit that uses the reflection passes."
     },
     {
-     "start": 52524,
-     "end": 52621,
+     "start": 54327,
+     "end": 54424,
      "text": "Surfaces outside every inner box keep the value three."
     },
     {
-     "start": 52673,
-     "end": 52850,
+     "start": 54472,
+     "end": 54649,
      "text": "There, the blend-weight pass adds each probe's weight:\none at its inner box, falling to zero at its outer one."
     },
     {
-     "start": 52902,
-     "end": 52969,
+     "start": 54697,
+     "end": 54764,
      "text": "Where probes overlap, the weights add up."
     }
    ],
@@ -2439,43 +2509,43 @@
    "id": "c12-blend",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 53032,
-   "frames": 1267,
+   "startFrame": 54823,
+   "frames": 1243,
    "headline": "Blending the probes",
    "captions": [
     {
-     "start": 53044,
-     "end": 53161,
+     "start": 54835,
+     "end": 54952,
      "text": "The global pass then runs only\noutside the inner boxes, and keeps"
     },
     {
-     "start": 53161,
-     "end": 53279,
+     "start": 54952,
+     "end": 55070,
      "text": "what the probes leave: one minus\ntheir summed weight, at most one."
     },
     {
-     "start": 53331,
-     "end": 53513,
+     "start": 55118,
+     "end": 55300,
      "text": "The outer pass adds each probe's reflection times its\nweight, divided by the total wherever that exceeds one."
     },
     {
-     "start": 53565,
-     "end": 53712,
+     "start": 55348,
+     "end": 55495,
      "text": "Inside an inner box, the inner pass simply\nreplaces the reflection with the probe's."
     },
     {
-     "start": 53764,
-     "end": 53915,
+     "start": 55543,
+     "end": 55694,
      "text": "Probes are drawn largest first, so a smaller\nprobe inside a larger one has the last word."
     },
     {
-     "start": 53967,
-     "end": 54078,
+     "start": 55742,
+     "end": 55853,
      "text": "Unlike the global pass, the probes\napply no specular occlusion."
     },
     {
-     "start": 54130,
-     "end": 54236,
+     "start": 55901,
+     "end": 56007,
      "text": "Shrinking the inner boxes widens\nthe bands where probes blend."
     }
    ],
@@ -2485,28 +2555,28 @@
    "id": "c12-parallax",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 54299,
-   "frames": 611,
+   "startFrame": 56066,
+   "frames": 599,
    "headline": "Parallax correction",
    "captions": [
     {
-     "start": 54311,
-     "end": 54443,
+     "start": 56078,
+     "end": 56210,
      "text": "A cubemap is captured from one point,\nbut surfaces are everywhere in the box."
     },
     {
-     "start": 54495,
-     "end": 54584,
+     "start": 56258,
+     "end": 56347,
      "text": "So by default the reflection\nray is traced to the outer box,"
     },
     {
-     "start": 54584,
-     "end": 54678,
+     "start": 56347,
+     "end": 56441,
      "text": "and the cubemap is read toward\nthat hit from the probe's centre."
     },
     {
-     "start": 54730,
-     "end": 54847,
+     "start": 56489,
+     "end": 56606,
      "text": "Without that correction, the\nreflected walls slide out of place."
     }
    ],
@@ -2516,43 +2586,43 @@
    "id": "c12-composite",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 54910,
-   "frames": 930,
+   "startFrame": 56665,
+   "frames": 914,
    "headline": "The composite, and a finding",
    "captions": [
     {
-     "start": 54922,
-     "end": 55011,
+     "start": 56677,
+     "end": 56766,
      "text": "The composite pass then adds the reflection target onto"
     },
     {
-     "start": 55011,
-     "end": 55103,
+     "start": 56766,
+     "end": 56858,
      "text": "the specular light, wherever the stencil marks a surface."
     },
     {
-     "start": 55155,
-     "end": 55253,
+     "start": 56906,
+     "end": 57004,
      "text": "A finding: that target is cleared to a grey of zero point"
     },
     {
-     "start": 55253,
-     "end": 55356,
+     "start": 57004,
+     "end": 57107,
      "text": "four, and the global pass never\nruns inside the inner boxes."
     },
     {
-     "start": 55408,
-     "end": 55522,
+     "start": 57155,
+     "end": 57269,
      "text": "So with image-based lighting switched\noff, the inner pass discards,"
     },
     {
-     "start": 55522,
-     "end": 55642,
+     "start": 57269,
+     "end": 57389,
      "text": "and surfaces inside an inner box get\nthat grey added to their specular."
     },
     {
-     "start": 55694,
-     "end": 55777,
+     "start": 57437,
+     "end": 57520,
      "text": "The lab reproduces it, as its readout shows."
     }
    ],
@@ -2562,13 +2632,13 @@
    "id": "c12-sources",
    "chapter": 12,
    "kind": "sources",
-   "startFrame": 55840,
-   "frames": 211,
+   "startFrame": 57579,
+   "frames": 209,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 55852,
-     "end": 56009,
+     "start": 57591,
+     "end": 57748,
      "text": "These entries follow the five reflection passes\nin order, the probe's specular, and the composite."
     }
    ],
@@ -2594,38 +2664,43 @@
    "id": "c13-why",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 56051,
-   "frames": 783,
+   "startFrame": 57788,
+   "frames": 883,
    "headline": "Corners and creases",
    "captions": [
     {
-     "start": 56063,
-     "end": 56198,
+     "start": 57800,
+     "end": 57883,
+     "text": "The last part before the recap is ambient occlusion."
+    },
+    {
+     "start": 57905,
+     "end": 58040,
      "text": "Light from the sky reaches into corners\nand creases as brightly as onto open floor."
     },
     {
-     "start": 56231,
-     "end": 56330,
+     "start": 58062,
+     "end": 58161,
      "text": "Screen-space ambient occlusion\ndarkens those places from the"
     },
     {
-     "start": 56330,
-     "end": 56431,
+     "start": 58161,
+     "end": 58262,
      "text": "depth buffer alone, and the main\npipeline runs it by default."
     },
     {
-     "start": 56464,
-     "end": 56566,
+     "start": 58297,
+     "end": 58399,
      "text": "It runs after the reflections\nand subsurface scattering, and"
     },
     {
-     "start": 56566,
-     "end": 56674,
+     "start": 58399,
+     "end": 58507,
      "text": "multiplies only the diffuse\ntarget, direct light and sky alike."
     },
     {
-     "start": 56707,
-     "end": 56790,
+     "start": 58542,
+     "end": 58625,
      "text": "This is its result, white where nothing occludes."
     }
    ],
@@ -2635,58 +2710,58 @@
    "id": "c13-compute",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 56834,
-   "frames": 1609,
+   "startFrame": 58671,
+   "frames": 1623,
    "headline": "Fifty-two samples",
    "captions": [
     {
-     "start": 56846,
-     "end": 57001,
+     "start": 58683,
+     "end": 58838,
      "text": "It starts from linear depth: the view-space\ndepth of each pixel's first MSAA sample."
     },
     {
-     "start": 57034,
-     "end": 57171,
+     "start": 58873,
+     "end": 59010,
      "text": "Then it works at half resolution, keeping\nthe upper-left pixel of every two by two."
     },
     {
-     "start": 57204,
-     "end": 57361,
+     "start": 59045,
+     "end": 59202,
      "text": "SsaoCompute rebuilds each pixel's position\nand normal from depth, and gathers fifty-two"
     },
     {
-     "start": 57361,
-     "end": 57522,
+     "start": 59202,
+     "end": 59363,
      "text": "samples around it: twelve close by, and ten\nrotations of four shared with its neighbours."
     },
     {
-     "start": 57555,
-     "end": 57699,
+     "start": 59398,
+     "end": 59542,
      "text": "Each sample adds the cosine between the normal\nand the direction to it, weighted by one over"
     },
     {
-     "start": 57699,
-     "end": 57845,
+     "start": 59542,
+     "end": 59688,
      "text": "its squared distance plus zero point zero seven,\nand the occlusion is their weighted average."
     },
     {
-     "start": 57878,
-     "end": 57974,
+     "start": 59723,
+     "end": 59819,
      "text": "The result is one minus the occlusion times the strength,"
     },
     {
-     "start": 57974,
-     "end": 58076,
+     "start": 59819,
+     "end": 59921,
      "text": "raised to the power two point\ntwo, and stored in eight bits."
     },
     {
-     "start": 58109,
-     "end": 58270,
+     "start": 59956,
+     "end": 60117,
      "text": "The strength defaults to one, and the sampling\nradius to five percent of the half-resolution height."
     },
     {
-     "start": 58303,
-     "end": 58399,
+     "start": 60152,
+     "end": 60248,
      "text": "A wider radius reaches farther and darkens more broadly."
     }
    ],
@@ -2696,43 +2771,43 @@
    "id": "c13-blur",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 58443,
-   "frames": 1065,
+   "startFrame": 60294,
+   "frames": 1075,
    "headline": "A depth-aware blur",
    "captions": [
     {
-     "start": 58455,
-     "end": 58605,
+     "start": 60306,
+     "end": 60456,
      "text": "The raw result is noisy, so a depth-aware\nblur smooths it, down and then across."
     },
     {
-     "start": 58638,
-     "end": 58759,
+     "start": 60491,
+     "end": 60612,
      "text": "It runs from pixel to pixel, keeping\ntwo thirds of the value before,"
     },
     {
-     "start": 58759,
-     "end": 58869,
+     "start": 60612,
+     "end": 60722,
      "text": "and less where the depth's slope\nchanges, so edges stay sharp."
     },
     {
-     "start": 58902,
-     "end": 59047,
+     "start": 60757,
+     "end": 60902,
      "text": "Each output is half the chain from eight pixels\nbefore it and half the chain from eight after."
     },
     {
-     "start": 59080,
-     "end": 59200,
+     "start": 60937,
+     "end": 61057,
      "text": "Those values are the blur pass's own\ndefaults, used when the scene has no"
     },
     {
-     "start": 59200,
-     "end": 59343,
+     "start": 61057,
+     "end": 61200,
      "text": "ambient-occlusion component; the component's\nare zero point eight five and two hundred."
     },
     {
-     "start": 59376,
-     "end": 59464,
+     "start": 61235,
+     "end": 61323,
      "text": "Without the blur, the samples' pattern shows through."
     }
    ],
@@ -2742,33 +2817,33 @@
    "id": "c13-upsample",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 59508,
-   "frames": 916,
+   "startFrame": 61369,
+   "frames": 923,
    "headline": "Back to full resolution",
    "captions": [
     {
-     "start": 59520,
-     "end": 59637,
+     "start": 61381,
+     "end": 61498,
      "text": "DepthUpsample brings it back to full\nresolution from the four nearest"
     },
     {
-     "start": 59637,
-     "end": 59771,
+     "start": 61498,
+     "end": 61632,
      "text": "half-resolution pixels, weighted by\ndistance and by how close their depths are."
     },
     {
-     "start": 59804,
-     "end": 59974,
+     "start": 61667,
+     "end": 61837,
      "text": "Then the diffuse target is multiplied by it, and\nthe merge pass adds the specular light, untouched."
     },
     {
-     "start": 60007,
-     "end": 60185,
+     "start": 61872,
+     "end": 62050,
      "text": "The lab checks each of these stages on the GPU\nagainst a CPU copy, to within one eight-bit step."
     },
     {
-     "start": 60218,
-     "end": 60392,
+     "start": 62085,
+     "end": 62259,
      "text": "Because it only sees depth, SSAO knows nothing of\nwhat lies off screen or behind the nearest surface."
     }
    ],
@@ -2778,18 +2853,18 @@
    "id": "c13-sources",
    "chapter": 13,
    "kind": "sources",
-   "startFrame": 60424,
-   "frames": 231,
+   "startFrame": 62292,
+   "frames": 232,
    "headline": "Where to read",
    "captions": [
     {
-     "start": 60436,
-     "end": 60529,
+     "start": 62304,
+     "end": 62397,
      "text": "These entries follow SSAO from\nthe linear depth through the"
     },
     {
-     "start": 60529,
-     "end": 60623,
+     "start": 62397,
+     "end": 62491,
      "text": "samples, the blur, and the\nupsample to the diffuse multiply."
     }
    ],
@@ -2817,63 +2892,68 @@
    "id": "c14-recap",
    "chapter": 14,
    "kind": "scene",
-   "startFrame": 60655,
-   "frames": 1605,
+   "startFrame": 62524,
+   "frames": 1702,
    "headline": "The opaque frame, in summary",
    "captions": [
     {
-     "start": 60667,
-     "end": 60800,
+     "start": 62536,
+     "end": 62633,
+     "text": "That is every part; here is how they fit together."
+    },
+    {
+     "start": 62633,
+     "end": 62766,
      "text": "To recap: this is O3DE's opaque frame, pass by pass."
     },
     {
-     "start": 60800,
-     "end": 61015,
+     "start": 62766,
+     "end": 62981,
      "text": "Light culling sorts the lights into tiles; the forward\npass applies decals, then each light, with GGX specular,"
     },
     {
-     "start": 61015,
-     "end": 61226,
+     "start": 62981,
+     "end": 63192,
      "text": "clear coat where enabled, a Lambertian diffuse scaled\nby its response, and transmission for EnhancedPBR."
     },
     {
-     "start": 61226,
-     "end": 61348,
+     "start": 63192,
+     "end": 63314,
      "text": "Full-screen passes then add the\nskylight and the reflection probes, read"
     },
     {
-     "start": 61348,
-     "end": 61486,
+     "start": 63314,
+     "end": 63452,
      "text": "back from eight-bit targets, and SSAO\ndarkens the diffuse before the merge."
     },
     {
-     "start": 61486,
-     "end": 61709,
+     "start": 63452,
+     "end": 63675,
      "text": "The lab ports these formulas to WGSL, checks each one\nagainst a CPU copy, and cites every line it follows."
     },
     {
-     "start": 61709,
-     "end": 61827,
+     "start": 63675,
+     "end": 63793,
      "text": "It leaves out shadows, area and\ndirectional lights, screen-space"
     },
     {
-     "start": 61827,
-     "end": 61959,
+     "start": 63793,
+     "end": 63925,
      "text": "reflections, which are off by\ndefault, and the diffuse probe grid."
     },
     {
-     "start": 61959,
-     "end": 62076,
+     "start": 63925,
+     "end": 64042,
      "text": "Every demonstration in this video\ncan be explored in the viewer,"
     },
     {
-     "start": 62076,
-     "end": 62203,
+     "start": 64042,
+     "end": 64169,
      "text": "with its sliders, its pseudo-code,\nand its sources side by side."
     },
     {
-     "start": 62203,
-     "end": 62239,
+     "start": 64169,
+     "end": 64205,
      "text": "Thank you for watching."
     }
    ],
@@ -2886,10 +2966,10 @@
    "blend": 0,
    "source": "c1-room",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
    "frame": 303,
@@ -2938,19 +3018,19 @@
    "blend": 0,
    "source": "c1-code",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
    "frame": 2391,
    "blend": 0,
    "source": "c1-code",
-   "code": "forward-pass",
    "highlight": [
     "surface"
    ],
+   "code": "forward-pass",
    "panel": "code"
   },
   {
@@ -2996,10 +3076,10 @@
    "blend": 0,
    "source": "c1-views",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
    "frame": 3620,
@@ -3029,150 +3109,150 @@
    "frame": 4040,
    "blend": 0,
    "source": "c1-views",
-   "callout": "opaque-pass-order",
    "params": {
     "viewMode": 0.0,
     "formula": 0.0
-   }
+   },
+   "callout": "opaque-pass-order"
   },
   {
    "frame": 4612,
    "blend": 0,
    "source": "c2-why",
    "demo": "culling",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 4624,
+   "frame": 4798,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-pass"
   },
   {
-   "frame": 4944,
+   "frame": 5166,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-tile"
   },
   {
-   "frame": 5396,
+   "frame": 5613,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-pass"
   },
   {
-   "frame": 5587,
+   "frame": 5801,
    "blend": 0,
    "source": "c2-prepare",
    "demo": "culling",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 5599,
+   "frame": 5813,
    "blend": 0,
    "source": "c2-prepare",
-   "code": "light-culling",
    "highlight": [
     "prepare"
    ],
-   "panel": "code",
-   "callout": "tile-prepare"
-  },
-  {
-   "frame": 5797,
-   "blend": 0,
-   "source": "c2-prepare",
-   "callout": "tile-prepare"
-  },
-  {
-   "frame": 6092,
-   "blend": 0,
-   "source": "c2-prepare",
-   "callout": "tile-prepare"
-  },
-  {
-   "frame": 6288,
-   "blend": 0,
-   "source": "c2-prepare",
+   "code": "light-culling",
    "callout": "tile-prepare",
+   "panel": "code"
+  },
+  {
+   "frame": 6008,
+   "blend": 0,
+   "source": "c2-prepare",
+   "callout": "tile-prepare"
+  },
+  {
+   "frame": 6300,
+   "blend": 0,
+   "source": "c2-prepare",
+   "callout": "tile-prepare"
+  },
+  {
+   "frame": 6493,
+   "blend": 0,
+   "source": "c2-prepare",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "tile-prepare"
   },
   {
-   "frame": 6529,
+   "frame": 6731,
    "blend": 0,
    "source": "c2-prepare",
    "panel": "values"
   },
   {
-   "frame": 6735,
+   "frame": 6934,
    "blend": 0,
    "source": "c2-cull",
    "demo": "culling",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 6747,
+   "frame": 6946,
    "blend": 0,
    "source": "c2-cull",
-   "code": "light-culling",
    "highlight": [
     "cull"
    ],
-   "panel": "code",
-   "callout": "light-culling-main"
+   "code": "light-culling",
+   "callout": "light-culling-main",
+   "panel": "code"
   },
   {
-   "frame": 6897,
+   "frame": 7093,
    "blend": 0,
    "source": "c2-cull",
-   "callout": "cull-point-light",
    "params": {
     "formula": 1.0
-   }
+   },
+   "callout": "cull-point-light"
   },
   {
-   "frame": 7120,
+   "frame": 7313,
    "blend": 0,
    "source": "c2-cull",
-   "callout": "light-index-pack",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "light-index-pack"
   },
   {
-   "frame": 7347,
+   "frame": 7537,
    "blend": 0,
    "source": "c2-cull",
    "callout": "light-culling-main"
   },
   {
-   "frame": 7641,
+   "frame": 7828,
    "blend": 0,
    "source": "c2-cull",
    "callout": "light-culling-main"
   },
   {
-   "frame": 7996,
+   "frame": 8180,
    "blend": 0,
    "source": "c2-cull",
-   "panel": "values",
    "params": {
     "formula": 0.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 7996,
+   "frame": 8180,
    "blend": 36,
    "source": "c2-cull",
    "params": {
@@ -3180,7 +3260,7 @@
    }
   },
   {
-   "frame": 8043,
+   "frame": 8227,
    "blend": 54,
    "source": "c2-cull",
    "params": {
@@ -3188,91 +3268,107 @@
    }
   },
   {
-   "frame": 8140,
+   "frame": 8321,
    "blend": 0,
    "source": "c2-forward",
    "demo": "culling",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 8152,
+   "frame": 8333,
    "blend": 0,
    "source": "c2-forward",
    "callout": "light-culling-remap"
   },
   {
-   "frame": 8348,
+   "frame": 8526,
    "blend": 0,
    "source": "c2-forward",
    "code": "light-culling",
    "panel": "code",
-   "callout": "tile-iterator",
+   "highlight": [
+    "forward"
+   ],
    "params": {
     "formula": 3.0
    },
-   "highlight": [
-    "forward"
-   ]
+   "callout": "tile-iterator"
   },
   {
-   "frame": 8506,
+   "frame": 8681,
    "blend": 0,
    "source": "c2-forward",
    "panel": "values"
   },
   {
-   "frame": 9024,
+   "frame": 9100,
+   "blend": 90,
+   "source": "c2-forward",
+   "params": {
+    "extraLightMotion": 70.0
+   }
+  },
+  {
+   "frame": 9187,
+   "blend": 90,
+   "source": "c2-forward",
+   "params": {
+    "extraLightMotion": -40.0
+   }
+  },
+  {
+   "frame": 9566,
    "blend": 0,
    "source": "c2-finding",
    "demo": "culling",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 9036,
+   "frame": 9578,
    "blend": 0,
    "source": "c2-finding",
    "callout": "polygon-not-culled"
   },
   {
-   "frame": 9198,
+   "frame": 9737,
    "blend": 0,
    "source": "c2-finding",
    "callout": "polygon-not-culled"
   },
   {
-   "frame": 9670,
+   "frame": 10204,
    "blend": 0,
    "source": "c3-inputs",
    "demo": "surface",
-   "callout": "",
    "params": {
     "readoutRows": 0.0,
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 9682,
+   "frame": 10388,
    "blend": 0,
    "source": "c3-inputs",
-   "callout": "surface-data",
    "params": {
     "readoutRows": 4.0
-   }
+   },
+   "callout": "surface-data"
   },
   {
-   "frame": 9831,
+   "frame": 10535,
    "blend": 0,
    "source": "c3-inputs",
    "callout": "surface-eval"
   },
   {
-   "frame": 10071,
+   "frame": 10773,
    "blend": 0,
    "source": "c3-inputs",
    "params": {
@@ -3280,27 +3376,27 @@
    }
   },
   {
-   "frame": 10266,
+   "frame": 10966,
    "blend": 0,
    "source": "c3-metal",
-   "callout": "",
    "params": {
     "sphereMetallic": 0.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 10278,
+   "frame": 10978,
    "blend": 0,
    "source": "c3-metal",
-   "code": "surface-setup",
    "highlight": [
     "albedo"
    ],
-   "panel": "code",
-   "callout": "material-utils"
+   "code": "surface-setup",
+   "callout": "material-utils",
+   "panel": "code"
   },
   {
-   "frame": 10278,
+   "frame": 10978,
    "blend": 24,
    "source": "c3-metal",
    "params": {
@@ -3308,7 +3404,7 @@
    }
   },
   {
-   "frame": 10362,
+   "frame": 11062,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3316,7 +3412,7 @@
    }
   },
   {
-   "frame": 10499,
+   "frame": 11197,
    "blend": 0,
    "source": "c3-metal",
    "highlight": [
@@ -3325,7 +3421,7 @@
    "callout": "set-albedo-f0"
   },
   {
-   "frame": 10499,
+   "frame": 11197,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3333,7 +3429,7 @@
    }
   },
   {
-   "frame": 10573,
+   "frame": 11271,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3341,17 +3437,17 @@
    }
   },
   {
-   "frame": 10699,
+   "frame": 11395,
    "blend": 0,
    "source": "c3-metal",
-   "panel": "values",
-   "callout": "material-utils",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "material-utils",
+   "panel": "values"
   },
   {
-   "frame": 11067,
+   "frame": 11761,
    "blend": 30,
    "source": "c3-metal",
    "params": {
@@ -3359,49 +3455,49 @@
    }
   },
   {
-   "frame": 11313,
+   "frame": 12005,
    "blend": 0,
    "source": "c3-rough",
    "callout": ""
   },
   {
-   "frame": 11325,
+   "frame": 12017,
    "blend": 24,
    "source": "c3-rough",
-   "panel": "values",
    "params": {
     "sphereMetallic": 0.0,
     "formula": 3.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 11454,
+   "frame": 12144,
    "blend": 0,
    "source": "c3-rough",
-   "code": "surface-setup",
    "highlight": [
     "roughness"
    ],
-   "panel": "code",
+   "code": "surface-setup",
+   "callout": "roughness-values",
+   "panel": "code"
+  },
+  {
+   "frame": 12390,
+   "blend": 30,
+   "source": "c3-rough",
+   "params": {
+    "sphereRoughness": 0.5
+   },
    "callout": "roughness-values"
   },
   {
-   "frame": 11702,
-   "blend": 30,
-   "source": "c3-rough",
-   "callout": "roughness-values",
-   "params": {
-    "sphereRoughness": 0.5
-   }
-  },
-  {
-   "frame": 11939,
+   "frame": 12625,
    "blend": 0,
    "source": "c3-rough",
    "panel": "values"
   },
   {
-   "frame": 11939,
+   "frame": 12625,
    "blend": 30,
    "source": "c3-rough",
    "params": {
@@ -3409,7 +3505,7 @@
    }
   },
   {
-   "frame": 11971,
+   "frame": 12657,
    "blend": 36,
    "source": "c3-rough",
    "params": {
@@ -3417,7 +3513,7 @@
    }
   },
   {
-   "frame": 12003,
+   "frame": 12689,
    "blend": 36,
    "source": "c3-rough",
    "params": {
@@ -3425,50 +3521,50 @@
    }
   },
   {
-   "frame": 12099,
+   "frame": 12783,
    "blend": 0,
    "source": "c3-aa",
    "demo": "surface",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 12111,
+   "frame": 12795,
    "blend": 0,
    "source": "c3-aa",
-   "code": "surface-setup",
    "highlight": [
     "aa"
    ],
-   "panel": "code",
-   "callout": "specular-aa-default"
+   "code": "surface-setup",
+   "callout": "specular-aa-default",
+   "panel": "code"
   },
   {
-   "frame": 12375,
+   "frame": 13057,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 12616,
+   "frame": 13296,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 12841,
+   "frame": 13519,
    "blend": 30,
    "source": "c3-aa",
-   "panel": "values",
    "params": {
     "sphereRoughness": 0.1,
     "formula": 3.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 12841,
+   "frame": 13519,
    "blend": 0,
    "source": "c3-aa",
    "params": {
@@ -3476,7 +3572,7 @@
    }
   },
   {
-   "frame": 12920,
+   "frame": 13598,
    "blend": 0,
    "source": "c3-aa",
    "params": {
@@ -3484,50 +3580,50 @@
    }
   },
   {
-   "frame": 13051,
+   "frame": 13727,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 13291,
+   "frame": 13965,
    "blend": 0,
    "source": "c3-occlusion",
    "demo": "surface",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 13303,
+   "frame": 13977,
    "blend": 0,
    "source": "c3-occlusion",
    "code": "occlusion",
    "panel": "code",
-   "callout": "occlusion-eval",
+   "highlight": [
+    "input"
+   ],
    "params": {
     "sphereOcclusion": 1.0,
     "viewMode": 0.0
    },
-   "highlight": [
-    "input"
-   ]
+   "callout": "occlusion-eval"
   },
   {
-   "frame": 13586,
+   "frame": 14258,
    "blend": 0,
    "source": "c3-occlusion",
    "callout": "occlusion-defaults"
   },
   {
-   "frame": 13783,
+   "frame": 14453,
    "blend": 0,
    "source": "c3-occlusion",
    "callout": "occlusion-input"
   },
   {
-   "frame": 13930,
+   "frame": 14598,
    "blend": 0,
    "source": "c3-occlusion",
    "highlight": [
@@ -3536,7 +3632,7 @@
    "callout": "occlusion-finalize"
   },
   {
-   "frame": 14209,
+   "frame": 14875,
    "blend": 0,
    "source": "c3-occlusion",
    "highlight": [
@@ -3545,13 +3641,13 @@
    "callout": "occlusion-finalize"
   },
   {
-   "frame": 14433,
+   "frame": 15097,
    "blend": 0,
    "source": "c3-occlusion",
    "panel": "values"
   },
   {
-   "frame": 14433,
+   "frame": 15097,
    "blend": 36,
    "source": "c3-occlusion",
    "params": {
@@ -3559,7 +3655,7 @@
    }
   },
   {
-   "frame": 14505,
+   "frame": 15169,
    "blend": 45,
    "source": "c3-occlusion",
    "params": {
@@ -3567,18 +3663,18 @@
    }
   },
   {
-   "frame": 14640,
+   "frame": 15302,
    "blend": 0,
    "source": "c3-examples",
    "demo": "room",
-   "callout": "",
    "params": {
     "labels": 1.0,
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 14769,
+   "frame": 15430,
    "blend": 45,
    "source": "c3-examples",
    "params": {
@@ -3586,7 +3682,7 @@
    }
   },
   {
-   "frame": 14970,
+   "frame": 15629,
    "blend": 45,
    "source": "c3-examples",
    "params": {
@@ -3594,93 +3690,93 @@
    }
   },
   {
-   "frame": 15138,
+   "frame": 15795,
    "blend": 45,
    "source": "c3-examples",
-   "callout": "set-albedo-f0",
    "params": {
     "teapotMetallic": 0.0,
     "boxRoughness": 0.55
-   }
+   },
+   "callout": "set-albedo-f0"
   },
   {
-   "frame": 15617,
+   "frame": 16271,
    "blend": 0,
    "source": "c4-what",
    "demo": "decals",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 15629,
+   "frame": 16465,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-apply"
   },
   {
-   "frame": 16055,
+   "frame": 16887,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-options"
   },
   {
-   "frame": 16276,
+   "frame": 17105,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-evaluate-order"
   },
   {
-   "frame": 16559,
+   "frame": 17385,
    "blend": 0,
    "source": "c4-apply",
    "demo": "decals",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 16571,
+   "frame": 17397,
    "blend": 0,
    "source": "c4-apply",
-   "code": "decals",
    "highlight": [
     "box"
    ],
-   "panel": "code",
-   "callout": "decal-apply"
+   "code": "decals",
+   "callout": "decal-apply",
+   "panel": "code"
   },
   {
-   "frame": 16845,
+   "frame": 17668,
    "blend": 0,
    "source": "c4-apply",
    "callout": "decal-apply"
   },
   {
-   "frame": 17024,
+   "frame": 17844,
    "blend": 0,
    "source": "c4-apply",
    "highlight": [
     "albedo"
    ],
-   "callout": "decal-apply",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "decal-apply"
   },
   {
-   "frame": 17298,
+   "frame": 18115,
    "blend": 0,
    "source": "c4-apply",
-   "callout": "decal-apply",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "decal-apply"
   },
   {
-   "frame": 17535,
+   "frame": 18349,
    "blend": 0,
    "source": "c4-apply",
    "highlight": [
@@ -3691,49 +3787,49 @@
    }
   },
   {
-   "frame": 17719,
+   "frame": 18530,
    "blend": 0,
    "source": "c4-apply",
    "callout": "tangent-space-normal"
   },
   {
-   "frame": 17960,
+   "frame": 18768,
    "blend": 0,
    "source": "c4-angle",
    "demo": "decals",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 17972,
+   "frame": 18780,
    "blend": 0,
    "source": "c4-angle",
    "code": "decals",
    "panel": "code",
-   "callout": "decal-attenuation",
+   "highlight": [
+    "angle"
+   ],
    "params": {
     "formula": 1.0
    },
-   "highlight": [
-    "angle"
-   ]
+   "callout": "decal-attenuation"
   },
   {
-   "frame": 18152,
+   "frame": 18957,
    "blend": 0,
    "source": "c4-angle",
    "callout": "decal-attenuation"
   },
   {
-   "frame": 18412,
+   "frame": 19214,
    "blend": 0,
    "source": "c4-angle",
    "panel": "values"
   },
   {
-   "frame": 18412,
+   "frame": 19214,
    "blend": 45,
    "source": "c4-angle",
    "params": {
@@ -3741,7 +3837,7 @@
    }
   },
   {
-   "frame": 18463,
+   "frame": 19265,
    "blend": 45,
    "source": "c4-angle",
    "params": {
@@ -3749,37 +3845,37 @@
    }
   },
   {
-   "frame": 18571,
+   "frame": 19370,
    "blend": 36,
    "source": "c4-angle",
-   "callout": "decal-defaults",
    "params": {
     "decalAngleAttenuation": 0.0
-   }
+   },
+   "callout": "decal-defaults"
   },
   {
-   "frame": 18799,
+   "frame": 19595,
    "blend": 0,
    "source": "c4-order",
    "demo": "decals",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 18957,
+   "frame": 19752,
    "blend": 0,
    "source": "c4-order",
-   "code": "decal-culling",
    "highlight": [
     "cull"
    ],
-   "panel": "code",
-   "callout": "decal-cull"
+   "code": "decal-culling",
+   "callout": "decal-cull",
+   "panel": "code"
   },
   {
-   "frame": 19171,
+   "frame": 19963,
    "blend": 0,
    "source": "c4-order",
    "highlight": [
@@ -3788,14 +3884,14 @@
    "callout": "decal-sort"
   },
   {
-   "frame": 19427,
+   "frame": 20216,
    "blend": 0,
    "source": "c4-order",
-   "panel": "values",
-   "callout": "decal-defaults"
+   "callout": "decal-defaults",
+   "panel": "values"
   },
   {
-   "frame": 19668,
+   "frame": 20454,
    "blend": 0,
    "source": "c4-order",
    "params": {
@@ -3803,31 +3899,31 @@
    }
   },
   {
-   "frame": 19808,
+   "frame": 20591,
    "blend": 0,
    "source": "c4-order",
-   "code": "decal-culling",
    "highlight": [
     "forward"
    ],
-   "panel": "code",
-   "callout": "decal-forward"
+   "code": "decal-culling",
+   "callout": "decal-forward",
+   "panel": "code"
   },
   {
-   "frame": 20221,
+   "frame": 21000,
    "blend": 0,
    "source": "c5-vectors",
    "demo": "specular",
-   "callout": "",
    "params": {
     "vectorsShown": 0.0,
     "lobe": 0.0,
     "readoutRows": 0.0,
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 20233,
+   "frame": 21231,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -3835,7 +3931,7 @@
    }
   },
   {
-   "frame": 20402,
+   "frame": 21399,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -3843,7 +3939,7 @@
    }
   },
   {
-   "frame": 20522,
+   "frame": 21518,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -3851,7 +3947,7 @@
    }
   },
   {
-   "frame": 20651,
+   "frame": 21646,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -3859,7 +3955,7 @@
    }
   },
   {
-   "frame": 20916,
+   "frame": 21910,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -3867,109 +3963,109 @@
    }
   },
   {
-   "frame": 21298,
+   "frame": 22267,
    "blend": 0,
    "source": "c5-terms",
    "demo": "specular",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 21310,
+   "frame": 22279,
    "blend": 0,
    "source": "c5-terms",
-   "code": "specular-ggx",
    "highlight": [
     "angles"
    ],
-   "panel": "code",
-   "callout": "specular-ggx"
+   "code": "specular-ggx",
+   "callout": "specular-ggx",
+   "panel": "code"
   },
   {
-   "frame": 21620,
+   "frame": 22588,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
     "d"
    ],
-   "panel": "values",
-   "callout": "ggx-d",
    "params": {
     "viewMode": 3.0,
     "formula": 1.0
-   }
+   },
+   "callout": "ggx-d",
+   "panel": "values"
   },
   {
-   "frame": 22167,
+   "frame": 23131,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
     "g"
    ],
-   "callout": "ggx-g",
    "params": {
     "viewMode": 4.0,
     "formula": 2.0
-   }
+   },
+   "callout": "ggx-g"
   },
   {
-   "frame": 22399,
+   "frame": 23362,
    "blend": 0,
    "source": "c5-terms",
    "callout": "ggx-g"
   },
   {
-   "frame": 22692,
+   "frame": 23654,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
     "f"
    ],
-   "callout": "fresnel-schlick",
    "params": {
     "viewMode": 5.0,
     "formula": 3.0
-   }
+   },
+   "callout": "fresnel-schlick"
   },
   {
-   "frame": 22993,
+   "frame": 23954,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
     "product",
     "light"
    ],
-   "callout": "standard-brdf",
    "params": {
     "viewMode": 0.0,
     "formula": 4.0
-   }
+   },
+   "callout": "standard-brdf"
   },
   {
-   "frame": 23269,
+   "frame": 24208,
    "blend": 0,
    "source": "c5-sweep",
    "demo": "specular",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 23281,
+   "frame": 24220,
    "blend": 15,
    "source": "c5-sweep",
-   "panel": "values",
    "params": {
     "lobe": 1.0,
     "readoutRows": 11.0,
     "formula": 0.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 23677,
+   "frame": 24612,
    "blend": 75,
    "source": "c5-sweep",
    "params": {
@@ -3978,7 +4074,7 @@
    }
   },
   {
-   "frame": 23851,
+   "frame": 24785,
    "blend": 90,
    "source": "c5-sweep",
    "params": {
@@ -3988,7 +4084,7 @@
    }
   },
   {
-   "frame": 24084,
+   "frame": 25017,
    "blend": 60,
    "source": "c5-sweep",
    "params": {
@@ -3998,27 +4094,27 @@
    }
   },
   {
-   "frame": 24277,
+   "frame": 25188,
    "blend": 0,
    "source": "c5-rough",
    "demo": "specular",
-   "callout": "",
    "params": {
     "lobe": 1.0,
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 24289,
+   "frame": 25200,
    "blend": 0,
    "source": "c5-rough",
-   "callout": "ggx-d",
    "params": {
     "formula": 1.0
-   }
+   },
+   "callout": "ggx-d"
   },
   {
-   "frame": 24438,
+   "frame": 25348,
    "blend": 45,
    "source": "c5-rough",
    "params": {
@@ -4026,7 +4122,7 @@
    }
   },
   {
-   "frame": 24677,
+   "frame": 25586,
    "blend": 60,
    "source": "c5-rough",
    "params": {
@@ -4034,7 +4130,7 @@
    }
   },
   {
-   "frame": 24823,
+   "frame": 25731,
    "blend": 0,
    "source": "c5-rough",
    "params": {
@@ -4042,7 +4138,7 @@
    }
   },
   {
-   "frame": 24823,
+   "frame": 25731,
    "blend": 36,
    "source": "c5-rough",
    "params": {
@@ -4050,7 +4146,7 @@
    }
   },
   {
-   "frame": 24882,
+   "frame": 25790,
    "blend": 45,
    "source": "c5-rough",
    "params": {
@@ -4058,59 +4154,59 @@
    }
   },
   {
-   "frame": 25289,
+   "frame": 26172,
    "blend": 0,
    "source": "c6-layer",
    "demo": "clearcoat",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 25465,
+   "frame": 26504,
    "blend": 0,
    "source": "c6-layer",
    "callout": "clear-coat-default"
   },
   {
-   "frame": 25623,
+   "frame": 26659,
    "blend": 0,
    "source": "c6-layer",
    "callout": "clear-coat-inputs"
   },
   {
-   "frame": 25817,
+   "frame": 26850,
    "blend": 0,
    "source": "c6-base",
    "demo": "clearcoat",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 25829,
+   "frame": 26862,
    "blend": 0,
    "source": "c6-base",
    "code": "clear-coat",
    "panel": "code",
-   "callout": "clear-coat-f0",
+   "highlight": [
+    "f0"
+   ],
    "params": {
     "formula": 1.0
    },
-   "highlight": [
-    "f0"
-   ]
+   "callout": "clear-coat-f0"
   },
   {
-   "frame": 26045,
+   "frame": 27075,
    "blend": 0,
    "source": "c6-base",
    "callout": "clear-coat-f0"
   },
   {
-   "frame": 26337,
+   "frame": 27364,
    "blend": 0,
    "source": "c6-base",
    "highlight": [
@@ -4119,67 +4215,67 @@
    "callout": "clear-coat-response"
   },
   {
-   "frame": 26482,
+   "frame": 27506,
    "blend": 0,
    "source": "c6-base",
    "highlight": [
     "diffuse"
    ],
-   "callout": "clear-coat-diffuse",
    "params": {
     "formula": 4.0
-   }
+   },
+   "callout": "clear-coat-diffuse"
   },
   {
-   "frame": 26652,
+   "frame": 27673,
    "blend": 0,
    "source": "c6-base",
    "callout": "clear-coat-diffuse"
   },
   {
-   "frame": 26848,
+   "frame": 27866,
    "blend": 0,
    "source": "c6-specular",
    "demo": "clearcoat",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 26860,
+   "frame": 27878,
    "blend": 0,
    "source": "c6-specular",
    "code": "clear-coat-specular",
    "panel": "code",
-   "callout": "clear-coat-specular",
+   "highlight": [
+    "specular"
+   ],
    "params": {
     "formula": 3.0
    },
-   "highlight": [
-    "specular"
-   ]
+   "callout": "clear-coat-specular"
   },
   {
-   "frame": 27076,
+   "frame": 28091,
    "blend": 0,
    "source": "c6-specular",
-   "callout": "clear-coat-specular",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "clear-coat-specular"
   },
   {
-   "frame": 27381,
+   "frame": 28393,
    "blend": 0,
    "source": "c6-specular",
-   "panel": "values",
    "params": {
     "viewMode": 2.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 27555,
+   "frame": 28564,
    "blend": 0,
    "source": "c6-specular",
    "params": {
@@ -4188,7 +4284,7 @@
    }
   },
   {
-   "frame": 27555,
+   "frame": 28564,
    "blend": 30,
    "source": "c6-specular",
    "params": {
@@ -4196,7 +4292,7 @@
    }
   },
   {
-   "frame": 27630,
+   "frame": 28639,
    "blend": 60,
    "source": "c6-specular",
    "params": {
@@ -4204,67 +4300,67 @@
    }
   },
   {
-   "frame": 27754,
+   "frame": 28760,
    "blend": 0,
    "source": "c6-ibl",
    "demo": "clearcoat",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 27766,
+   "frame": 28772,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "clear-coat-forward-ibl"
   },
   {
-   "frame": 27930,
+   "frame": 28933,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "forward-ibl-stencil"
   },
   {
-   "frame": 28194,
+   "frame": 29194,
    "blend": 0,
    "source": "c6-ibl",
-   "code": "clear-coat-specular",
    "highlight": [
     "ibl"
    ],
-   "panel": "code",
-   "callout": "clear-coat-ibl"
+   "code": "clear-coat-specular",
+   "callout": "clear-coat-ibl",
+   "panel": "code"
   },
   {
-   "frame": 28464,
+   "frame": 29461,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "forward-probe-pick"
   },
   {
-   "frame": 29031,
+   "frame": 30024,
    "blend": 0,
    "source": "c7-lambert",
    "demo": "diffuse",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 29043,
+   "frame": 30236,
    "blend": 0,
    "source": "c7-lambert",
-   "code": "diffuse-response",
    "highlight": [
     "lambert"
    ],
-   "panel": "code",
-   "callout": "diffuse-lambert"
+   "code": "diffuse-response",
+   "callout": "diffuse-lambert",
+   "panel": "code"
   },
   {
-   "frame": 29267,
+   "frame": 30453,
    "blend": 0,
    "source": "c7-lambert",
    "highlight": [
@@ -4273,52 +4369,52 @@
    "callout": "initialize-lighting-data"
   },
   {
-   "frame": 29466,
+   "frame": 30645,
    "blend": 0,
    "source": "c7-lambert",
-   "panel": "values",
-   "callout": "fresnel-roughness",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "fresnel-roughness",
+   "panel": "values"
   },
   {
-   "frame": 29699,
+   "frame": 30871,
    "blend": 0,
    "source": "c7-lambert",
-   "callout": "fresnel-roughness",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "fresnel-roughness"
   },
   {
-   "frame": 29935,
+   "frame": 31100,
    "blend": 0,
    "source": "c7-lambert",
    "callout": "initialize-lighting-data"
   },
   {
-   "frame": 30152,
+   "frame": 31310,
    "blend": 0,
    "source": "c7-response",
    "demo": "diffuse",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 30164,
+   "frame": 31322,
    "blend": 0,
    "source": "c7-response",
-   "panel": "values",
    "params": {
     "viewMode": 7.0,
     "formula": 2.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 30380,
+   "frame": 31531,
    "blend": 0,
    "source": "c7-response",
    "params": {
@@ -4327,7 +4423,7 @@
    }
   },
   {
-   "frame": 30631,
+   "frame": 31775,
    "blend": 36,
    "source": "c7-response",
    "params": {
@@ -4335,7 +4431,7 @@
    }
   },
   {
-   "frame": 30671,
+   "frame": 31815,
    "blend": 45,
    "source": "c7-response",
    "params": {
@@ -4343,169 +4439,169 @@
    }
   },
   {
-   "frame": 30775,
+   "frame": 31912,
    "blend": 0,
    "source": "c7-disney",
    "demo": "diffuse",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 30787,
+   "frame": 31924,
    "blend": 0,
    "source": "c7-disney",
-   "callout": "diffuse-disney",
    "params": {
     "diffuseModel": 1.0,
     "formula": 0.0
-   }
+   },
+   "callout": "diffuse-disney"
   },
   {
-   "frame": 30988,
+   "frame": 32118,
    "blend": 0,
    "source": "c7-disney",
    "callout": "skin-diffuse"
   },
   {
-   "frame": 31261,
+   "frame": 32384,
    "blend": 0,
    "source": "c7-disney",
    "callout": "diffuse-disney"
   },
   {
-   "frame": 31494,
+   "frame": 32610,
    "blend": 0,
    "source": "c7-disney",
-   "callout": "diffuse-lambert",
    "params": {
     "diffuseModel": 0.0
-   }
+   },
+   "callout": "diffuse-lambert"
   },
   {
-   "frame": 31881,
+   "frame": 32987,
    "blend": 0,
    "source": "c8-why",
    "demo": "transmission",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 32082,
+   "frame": 33382,
    "blend": 0,
    "source": "c8-why",
    "callout": "transmission-defaults"
   },
   {
-   "frame": 32354,
+   "frame": 33650,
    "blend": 0,
    "source": "c8-why",
    "callout": "enhanced-brdf"
   },
   {
-   "frame": 32773,
+   "frame": 34063,
    "blend": 0,
    "source": "c8-light",
    "demo": "transmission",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 32785,
+   "frame": 34075,
    "blend": 0,
    "source": "c8-light",
    "callout": "simple-point-no-backlight"
   },
   {
-   "frame": 32904,
+   "frame": 34190,
    "blend": 0,
    "source": "c8-light",
    "callout": "sphere-light-bulb"
   },
   {
-   "frame": 33177,
+   "frame": 34459,
    "blend": 0,
    "source": "c8-light",
-   "code": "transmission",
    "highlight": [
     "light"
    ],
-   "panel": "code",
-   "callout": "sphere-light-apply"
+   "code": "transmission",
+   "callout": "sphere-light-apply",
+   "panel": "code"
   },
   {
-   "frame": 33548,
+   "frame": 34824,
    "blend": 0,
    "source": "c8-thick",
    "demo": "transmission",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 33560,
+   "frame": 34836,
    "blend": 0,
    "source": "c8-thick",
    "code": "transmission",
    "panel": "code",
-   "callout": "back-lighting",
+   "highlight": [
+    "thick"
+   ],
    "params": {
     "formula": 1.0
    },
-   "highlight": [
-    "thick"
-   ]
+   "callout": "back-lighting"
   },
   {
-   "frame": 33779,
+   "frame": 35051,
    "blend": 0,
    "source": "c8-thick",
    "callout": "transmission-defaults"
   },
   {
-   "frame": 33997,
+   "frame": 35265,
    "blend": 0,
    "source": "c8-thick",
-   "callout": "back-lighting",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "back-lighting"
   },
   {
-   "frame": 34239,
+   "frame": 35503,
    "blend": 0,
    "source": "c8-thick",
    "callout": "back-lighting"
   },
   {
-   "frame": 34512,
+   "frame": 35772,
    "blend": 0,
    "source": "c8-thick",
    "highlight": [
     "tint"
    ],
-   "callout": "transmission-finalize",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "transmission-finalize"
   },
   {
-   "frame": 34767,
+   "frame": 36023,
    "blend": 0,
    "source": "c8-thick",
-   "panel": "values",
    "params": {
     "formula": 0.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 34767,
+   "frame": 36023,
    "blend": 0,
    "source": "c8-thick",
    "params": {
@@ -4513,7 +4609,7 @@
    }
   },
   {
-   "frame": 34833,
+   "frame": 36089,
    "blend": 0,
    "source": "c8-thick",
    "params": {
@@ -4521,66 +4617,66 @@
    }
   },
   {
-   "frame": 34954,
+   "frame": 36206,
    "blend": 0,
    "source": "c8-thin",
    "demo": "transmission",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 34966,
+   "frame": 36218,
    "blend": 0,
    "source": "c8-thin",
    "code": "transmission",
    "panel": "code",
-   "callout": "back-lighting",
+   "highlight": [
+    "thin"
+   ],
    "params": {
     "teapotTransmission": 2.0
    },
-   "highlight": [
-    "thin"
-   ]
+   "callout": "back-lighting"
   },
   {
-   "frame": 35210,
+   "frame": 36458,
    "blend": 0,
    "source": "c8-thin",
    "callout": "back-lighting"
   },
   {
-   "frame": 35359,
+   "frame": 36603,
    "blend": 0,
    "source": "c8-thin",
    "callout": "sphere-light-shadow-branch"
   },
   {
-   "frame": 35609,
+   "frame": 36849,
    "blend": 0,
    "source": "c8-thin",
    "callout": "shadow-thickness-none"
   },
   {
-   "frame": 35815,
+   "frame": 37051,
    "blend": 0,
    "source": "c8-thin",
-   "panel": "values",
-   "callout": "sphere-light-shadow-branch"
+   "callout": "sphere-light-shadow-branch",
+   "panel": "values"
   },
   {
-   "frame": 36280,
+   "frame": 37510,
    "blend": 0,
    "source": "c9-loss",
    "demo": "multiscatter",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 36664,
+   "frame": 38080,
    "blend": 0,
    "source": "c9-loss",
    "params": {
@@ -4588,7 +4684,7 @@
    }
   },
   {
-   "frame": 36795,
+   "frame": 38207,
    "blend": 0,
    "source": "c9-loss",
    "params": {
@@ -4596,34 +4692,34 @@
    }
   },
   {
-   "frame": 37026,
+   "frame": 38434,
    "blend": 0,
    "source": "c9-texture",
    "demo": "multiscatter",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 37038,
+   "frame": 38446,
    "blend": 0,
    "source": "c9-texture",
-   "code": "brdf-texture",
    "highlight": [
     "inputs"
    ],
-   "panel": "code",
-   "callout": "brdf-texture-size"
+   "code": "brdf-texture",
+   "callout": "brdf-texture-size",
+   "panel": "code"
   },
   {
-   "frame": 37418,
+   "frame": 38822,
    "blend": 0,
    "source": "c9-texture",
    "callout": "brdf-texture"
   },
   {
-   "frame": 37564,
+   "frame": 38964,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -4633,7 +4729,7 @@
    "callout": "brdf-texture"
   },
   {
-   "frame": 37564,
+   "frame": 38964,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -4641,7 +4737,7 @@
    }
   },
   {
-   "frame": 37689,
+   "frame": 39089,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -4649,7 +4745,7 @@
    }
   },
   {
-   "frame": 37814,
+   "frame": 39214,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -4657,7 +4753,7 @@
    }
   },
   {
-   "frame": 37979,
+   "frame": 39375,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -4666,7 +4762,7 @@
    "callout": "brdf-texture"
   },
   {
-   "frame": 38121,
+   "frame": 39513,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -4675,38 +4771,38 @@
    "callout": "lighting-init"
   },
   {
-   "frame": 38337,
+   "frame": 39725,
    "blend": 0,
    "source": "c9-compensation",
    "demo": "multiscatter",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 38349,
+   "frame": 39737,
    "blend": 0,
    "source": "c9-compensation",
    "code": "multiscatter",
    "panel": "code",
-   "callout": "multiscatter",
-   "params": {
-    "ggxSamples": 0.0
-   },
    "highlight": [
     "lookup",
     "energy"
-   ]
+   ],
+   "params": {
+    "ggxSamples": 0.0
+   },
+   "callout": "multiscatter"
   },
   {
-   "frame": 38479,
+   "frame": 39863,
    "blend": 0,
    "source": "c9-compensation",
    "callout": "lighting-init"
   },
   {
-   "frame": 38668,
+   "frame": 40048,
    "blend": 0,
    "source": "c9-compensation",
    "highlight": [
@@ -4715,7 +4811,7 @@
    "callout": "multiscatter"
   },
   {
-   "frame": 38883,
+   "frame": 40259,
    "blend": 0,
    "source": "c9-compensation",
    "highlight": [
@@ -4724,17 +4820,17 @@
    "callout": "ms-material-property"
   },
   {
-   "frame": 39268,
+   "frame": 40640,
    "blend": 0,
    "source": "c9-compensation",
-   "panel": "values",
    "params": {
     "viewMode": 6.0,
     "formula": 1.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 39268,
+   "frame": 40640,
    "blend": 36,
    "source": "c9-compensation",
    "params": {
@@ -4742,7 +4838,7 @@
    }
   },
   {
-   "frame": 39315,
+   "frame": 40687,
    "blend": 45,
    "source": "c9-compensation",
    "params": {
@@ -4750,62 +4846,62 @@
    }
   },
   {
-   "frame": 39412,
+   "frame": 40780,
    "blend": 0,
    "source": "c9-finding",
    "demo": "multiscatter",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 39424,
+   "frame": 40792,
    "blend": 30,
    "source": "c9-finding",
-   "callout": "ggx-sample",
    "params": {
     "ggxSamples": 256.0,
     "sphereRoughness": 0.1,
     "formula": 0.0
-   }
+   },
+   "callout": "ggx-sample"
   },
   {
-   "frame": 39564,
+   "frame": 40928,
    "blend": 0,
    "source": "c9-finding",
    "callout": "ggx-sample"
   },
   {
-   "frame": 40682,
+   "frame": 42034,
    "blend": 0,
    "source": "c10-record",
    "demo": "pointlight",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 40694,
+   "frame": 42211,
    "blend": 0,
    "source": "c10-record",
    "callout": "point-light-struct"
   },
   {
-   "frame": 41036,
+   "frame": 42551,
    "blend": 0,
    "source": "c10-record",
-   "code": "simple-point-light",
    "highlight": [
     "falloff",
     "intensity"
    ],
-   "panel": "code",
-   "callout": "point-light-apply"
+   "code": "simple-point-light",
+   "callout": "point-light-apply",
+   "panel": "code"
   },
   {
-   "frame": 41231,
+   "frame": 42744,
    "blend": 0,
    "source": "c10-record",
    "highlight": [
@@ -4814,23 +4910,23 @@
    "callout": "point-light-apply"
   },
   {
-   "frame": 41429,
+   "frame": 42940,
    "blend": 0,
    "source": "c10-record",
    "callout": "point-light-apply"
   },
   {
-   "frame": 41668,
+   "frame": 43177,
    "blend": 0,
    "source": "c10-record",
-   "panel": "values",
-   "callout": "point-light-apply",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "point-light-apply",
+   "panel": "values"
   },
   {
-   "frame": 41934,
+   "frame": 43441,
    "blend": 0,
    "source": "c10-record",
    "params": {
@@ -4838,7 +4934,7 @@
    }
   },
   {
-   "frame": 42189,
+   "frame": 43694,
    "blend": 0,
    "source": "c10-record",
    "params": {
@@ -4846,36 +4942,36 @@
    }
   },
   {
-   "frame": 42406,
+   "frame": 43909,
    "blend": 0,
    "source": "c10-radius",
    "demo": "pointlight",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 42418,
+   "frame": 43921,
    "blend": 0,
    "source": "c10-radius",
    "highlight": [
     "skip"
    ],
-   "callout": "point-light-loop",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "point-light-loop"
   },
   {
-   "frame": 42626,
+   "frame": 44127,
    "blend": 0,
    "source": "c10-radius",
-   "panel": "values",
-   "callout": "point-light-radius"
+   "callout": "point-light-radius",
+   "panel": "values"
   },
   {
-   "frame": 42626,
+   "frame": 44127,
    "blend": 45,
    "source": "c10-radius",
    "params": {
@@ -4883,7 +4979,7 @@
    }
   },
   {
-   "frame": 42666,
+   "frame": 44167,
    "blend": 60,
    "source": "c10-radius",
    "params": {
@@ -4891,118 +4987,118 @@
    }
   },
   {
-   "frame": 42762,
+   "frame": 44261,
    "blend": 0,
    "source": "c10-radius",
    "callout": "point-light-auto-radius"
   },
   {
-   "frame": 43096,
+   "frame": 44593,
    "blend": 0,
    "source": "c10-channels",
    "demo": "pointlight",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 43108,
+   "frame": 44605,
    "blend": 0,
    "source": "c10-channels",
    "code": "simple-point-light",
    "panel": "code",
-   "callout": "lighting-channels-default",
+   "highlight": [
+    "channel"
+   ],
    "params": {
     "falloff": 0.0,
     "radius": 0.0
    },
-   "highlight": [
-    "channel"
-   ]
+   "callout": "lighting-channels-default"
   },
   {
-   "frame": 43278,
+   "frame": 44773,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-test"
   },
   {
-   "frame": 43418,
+   "frame": 44911,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-default"
   },
   {
-   "frame": 43635,
+   "frame": 45126,
    "blend": 0,
    "source": "c10-channels",
-   "panel": "values",
    "params": {
     "lightChannels": 1.0,
     "sphereLightingChannels": 2.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 43835,
+   "frame": 45324,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-test"
   },
   {
-   "frame": 44013,
+   "frame": 45500,
    "blend": 0,
    "source": "c10-channels",
    "callout": "directional-channel-return"
   },
   {
-   "frame": 44291,
+   "frame": 45776,
    "blend": 0,
    "source": "c10-shadows",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 44303,
+   "frame": 45788,
    "blend": 0,
    "source": "c10-shadows",
    "code": "simple-point-light",
    "panel": "code",
-   "callout": "point-light-loop",
+   "highlight": [
+    "shadow"
+   ],
    "params": {
     "viewMode": 0.0
    },
-   "highlight": [
-    "shadow"
-   ]
+   "callout": "point-light-loop"
   },
   {
-   "frame": 44583,
+   "frame": 46065,
    "blend": 0,
    "source": "c10-shadows",
    "callout": "light-culling-define"
   },
   {
-   "frame": 45083,
+   "frame": 46562,
    "blend": 0,
    "source": "c11-sky",
    "demo": "ibl",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 45176,
+   "frame": 46800,
    "blend": 0,
    "source": "c11-sky",
    "callout": "ibl-srg"
   },
   {
-   "frame": 45374,
+   "frame": 46997,
    "blend": 0,
    "source": "c11-sky",
    "params": {
@@ -5010,40 +5106,40 @@
    }
   },
   {
-   "frame": 45752,
+   "frame": 47374,
    "blend": 0,
    "source": "c11-bake",
    "callout": "specular-preset"
   },
   {
-   "frame": 46111,
+   "frame": 47732,
    "blend": 0,
    "source": "c11-bake",
    "callout": "diffuse-preset"
   },
   {
-   "frame": 46535,
+   "frame": 48155,
    "blend": 0,
    "source": "c11-prefilter",
    "demo": "ibl",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 46547,
+   "frame": 48167,
    "blend": 0,
    "source": "c11-prefilter",
-   "code": "ibl-prefilter",
    "highlight": [
     "roughness"
    ],
-   "panel": "code",
-   "callout": "cubemap-ggx"
+   "code": "ibl-prefilter",
+   "callout": "cubemap-ggx",
+   "panel": "code"
   },
   {
-   "frame": 46684,
+   "frame": 48303,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5052,7 +5148,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 46860,
+   "frame": 48478,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5061,7 +5157,7 @@
    "callout": "cubemap-ggx"
   },
   {
-   "frame": 46860,
+   "frame": 48478,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5069,7 +5165,7 @@
    }
   },
   {
-   "frame": 46895,
+   "frame": 48513,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5077,7 +5173,7 @@
    }
   },
   {
-   "frame": 46930,
+   "frame": 48548,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -5085,7 +5181,7 @@
    }
   },
   {
-   "frame": 46979,
+   "frame": 48596,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5094,7 +5190,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47278,
+   "frame": 48894,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -5103,7 +5199,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47278,
+   "frame": 48894,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -5111,7 +5207,7 @@
    }
   },
   {
-   "frame": 47329,
+   "frame": 48945,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -5119,33 +5215,33 @@
    }
   },
   {
-   "frame": 47406,
+   "frame": 49021,
    "blend": 0,
    "source": "c11-cosine",
    "demo": "ibl",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 47418,
+   "frame": 49033,
    "blend": 30,
    "source": "c11-cosine",
-   "callout": "filter-cosine",
    "params": {
     "ggxSamples": 0.0,
     "sphereRoughness": 0.2
-   }
+   },
+   "callout": "filter-cosine"
   },
   {
-   "frame": 47594,
+   "frame": 49208,
    "blend": 0,
    "source": "c11-cosine",
    "callout": "diffuse-global"
   },
   {
-   "frame": 47787,
+   "frame": 49400,
    "blend": 0,
    "source": "c11-cosine",
    "params": {
@@ -5153,55 +5249,55 @@
    }
   },
   {
-   "frame": 47987,
+   "frame": 49599,
    "blend": 0,
    "source": "c11-passes",
    "demo": "ibl",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 47999,
+   "frame": 49611,
    "blend": 0,
    "source": "c11-passes",
    "code": "ibl-passes",
    "panel": "code",
-   "callout": "target-formats",
+   "highlight": [
+    "targets"
+   ],
    "params": {
     "viewMode": 0.0
    },
-   "highlight": [
-    "targets"
-   ]
+   "callout": "target-formats"
   },
   {
-   "frame": 48273,
+   "frame": 49884,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
     "diffuse"
    ],
-   "callout": "diffuse-global",
    "params": {
     "viewMode": 10.0
-   }
+   },
+   "callout": "diffuse-global"
   },
   {
-   "frame": 48417,
+   "frame": 50027,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
     "reflect"
    ],
-   "callout": "reflection-global",
    "params": {
     "viewMode": 11.0
-   }
+   },
+   "callout": "reflection-global"
   },
   {
-   "frame": 48613,
+   "frame": 50222,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -5210,47 +5306,47 @@
    "callout": "reflection-global"
   },
   {
-   "frame": 48941,
+   "frame": 50549,
    "blend": 0,
    "source": "c11-passes",
-   "callout": "reflection-composite",
    "params": {
     "viewMode": 0.0
-   }
+   },
+   "callout": "reflection-composite"
   },
   {
-   "frame": 49211,
+   "frame": 50818,
    "blend": 0,
    "source": "c11-readout",
    "demo": "ibl",
-   "callout": "",
    "params": {
     "readoutRows": 0.0,
-    "cameraDrift": 1.0
-   }
+    "cameraDrift": 0.0
+   },
+   "callout": ""
   },
   {
-   "frame": 49223,
+   "frame": 50830,
    "blend": 0,
    "source": "c11-readout",
-   "panel": "values",
-   "callout": "roughness-mip",
    "params": {
     "readoutRows": 11.0,
     "formula": 0.0
-   }
+   },
+   "callout": "roughness-mip",
+   "panel": "values"
   },
   {
-   "frame": 49463,
+   "frame": 51069,
    "blend": 0,
    "source": "c11-readout",
-   "callout": "roughness-mip",
    "params": {
     "formula": 1.0
-   }
+   },
+   "callout": "roughness-mip"
   },
   {
-   "frame": 49463,
+   "frame": 51069,
    "blend": 45,
    "source": "c11-readout",
    "params": {
@@ -5258,7 +5354,7 @@
    }
   },
   {
-   "frame": 49531,
+   "frame": 51137,
    "blend": 60,
    "source": "c11-readout",
    "params": {
@@ -5266,71 +5362,64 @@
    }
   },
   {
-   "frame": 49624,
+   "frame": 51229,
    "blend": 0,
    "source": "c11-occlusion",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 49636,
+   "frame": 51241,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "ssao-default"
   },
   {
-   "frame": 49880,
+   "frame": 51484,
    "blend": 0,
    "source": "c11-occlusion",
-   "callout": "ssao-default",
    "params": {
     "viewMode": 0.0
-   }
+   },
+   "callout": "ssao-default"
   },
   {
-   "frame": 50111,
+   "frame": 51714,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "reflection-global"
   },
   {
-   "frame": 50768,
+   "frame": 52370,
    "blend": 0,
    "source": "c12-why",
    "demo": "reflections",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
-  },
-  {
-   "frame": 50780,
-   "blend": 0,
-   "source": "c12-why",
-   "params": {
+    "cameraDrift": 1.0,
     "probes": 0.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 50977,
+   "frame": 52802,
    "blend": 0,
    "source": "c12-why",
-   "callout": "probe-defaults",
    "params": {
     "probes": 1.0
-   }
+   },
+   "callout": "probe-defaults"
   },
   {
-   "frame": 51418,
+   "frame": 53237,
    "blend": 0,
    "source": "c12-why",
    "callout": "cubemap-quality"
   },
   {
-   "frame": 51704,
+   "frame": 53519,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -5338,7 +5427,7 @@
    }
   },
   {
-   "frame": 51765,
+   "frame": 53580,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -5346,99 +5435,99 @@
    }
   },
   {
-   "frame": 51889,
+   "frame": 53700,
    "blend": 0,
    "source": "c12-stencil",
    "demo": "reflections",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 51901,
+   "frame": 53712,
    "blend": 0,
    "source": "c12-stencil",
-   "code": "reflection-probes",
    "highlight": [
     "stencil"
    ],
-   "panel": "code",
-   "callout": "reflections-order"
+   "code": "reflection-probes",
+   "callout": "reflections-order",
+   "panel": "code"
   },
   {
-   "frame": 52219,
+   "frame": 54026,
    "blend": 0,
    "source": "c12-stencil",
-   "callout": "probe-stencil",
    "params": {
     "viewMode": 13.0
-   }
+   },
+   "callout": "probe-stencil"
   },
   {
-   "frame": 52524,
+   "frame": 54327,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-stencil-reduced"
   },
   {
-   "frame": 52673,
+   "frame": 54472,
    "blend": 0,
    "source": "c12-stencil",
    "highlight": [
     "weight"
    ],
-   "callout": "probe-blend-weight",
    "params": {
     "viewMode": 14.0,
     "formula": 1.0
-   }
+   },
+   "callout": "probe-blend-weight"
   },
   {
-   "frame": 52902,
+   "frame": 54697,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-blend-weight"
   },
   {
-   "frame": 53032,
+   "frame": 54823,
    "blend": 0,
    "source": "c12-blend",
    "demo": "reflections",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 53044,
+   "frame": 54835,
    "blend": 0,
    "source": "c12-blend",
    "code": "reflection-probes",
    "panel": "code",
-   "callout": "reflection-global-weight",
+   "highlight": [
+    "global"
+   ],
    "params": {
     "viewMode": 0.0,
     "formula": 2.0
    },
-   "highlight": [
-    "global"
-   ]
+   "callout": "reflection-global-weight"
   },
   {
-   "frame": 53331,
+   "frame": 55118,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
     "outer"
    ],
-   "callout": "probe-render-outer",
    "params": {
     "formula": 3.0
-   }
+   },
+   "callout": "probe-render-outer"
   },
   {
-   "frame": 53565,
+   "frame": 55348,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
@@ -5447,29 +5536,29 @@
    "callout": "probe-render-inner"
   },
   {
-   "frame": 53764,
+   "frame": 55543,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-sort"
   },
   {
-   "frame": 53967,
+   "frame": 55742,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-specular"
   },
   {
-   "frame": 54130,
+   "frame": 55901,
    "blend": 0,
    "source": "c12-blend",
-   "panel": "values",
    "params": {
     "viewMode": 14.0,
     "formula": 0.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 54130,
+   "frame": 55901,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -5477,7 +5566,7 @@
    }
   },
   {
-   "frame": 54183,
+   "frame": 55954,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -5485,43 +5574,43 @@
    }
   },
   {
-   "frame": 54299,
+   "frame": 56066,
    "blend": 0,
    "source": "c12-parallax",
    "demo": "reflections",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 54311,
+   "frame": 56078,
    "blend": 0,
    "source": "c12-parallax",
    "code": "probe-specular",
    "panel": "code",
-   "callout": "probe-specular",
+   "highlight": [
+    "parallax"
+   ],
    "params": {
     "viewMode": 0.0
    },
-   "highlight": [
-    "parallax"
-   ]
+   "callout": "probe-specular"
   },
   {
-   "frame": 54495,
+   "frame": 56258,
    "blend": 0,
    "source": "c12-parallax",
    "callout": "parallax-obb"
   },
   {
-   "frame": 54730,
+   "frame": 56489,
    "blend": 0,
    "source": "c12-parallax",
    "panel": "values"
   },
   {
-   "frame": 54730,
+   "frame": 56489,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -5529,7 +5618,7 @@
    }
   },
   {
-   "frame": 54788,
+   "frame": 56547,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -5537,161 +5626,154 @@
    }
   },
   {
-   "frame": 54910,
+   "frame": 56665,
    "blend": 0,
    "source": "c12-composite",
    "demo": "reflections",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 54922,
+   "frame": 56677,
    "blend": 0,
    "source": "c12-composite",
-   "code": "reflection-probes",
    "highlight": [
     "composite"
    ],
-   "panel": "code",
-   "callout": "composite-stencil"
+   "code": "reflection-probes",
+   "callout": "composite-stencil",
+   "panel": "code"
   },
   {
-   "frame": 55155,
+   "frame": 56906,
    "blend": 0,
    "source": "c12-composite",
    "callout": "reflection-clear"
   },
   {
-   "frame": 55408,
+   "frame": 57155,
    "blend": 0,
    "source": "c12-composite",
-   "callout": "reflection-clear",
    "params": {
     "ibl": 0.0
-   }
+   },
+   "callout": "reflection-clear"
   },
   {
-   "frame": 55694,
+   "frame": 57437,
    "blend": 0,
    "source": "c12-composite",
    "panel": "values"
   },
   {
-   "frame": 56051,
+   "frame": 57788,
    "blend": 0,
    "source": "c13-why",
    "demo": "ssao",
-   "callout": "",
    "params": {
-    "cameraDrift": 1.0
-   }
-  },
-  {
-   "frame": 56063,
-   "blend": 0,
-   "source": "c13-why",
-   "params": {
+    "cameraDrift": 1.0,
     "viewMode": 0.0,
     "ssao": 0.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 56231,
+   "frame": 58062,
    "blend": 30,
    "source": "c13-why",
-   "callout": "ssao-default",
    "params": {
     "ssao": 1.0
-   }
+   },
+   "callout": "ssao-default"
   },
   {
-   "frame": 56464,
+   "frame": 58297,
    "blend": 0,
    "source": "c13-why",
    "callout": "ao-placement"
   },
   {
-   "frame": 56707,
+   "frame": 58542,
    "blend": 0,
    "source": "c13-why",
-   "callout": "ssao-modulate",
    "params": {
     "viewMode": 15.0
-   }
+   },
+   "callout": "ssao-modulate"
   },
   {
-   "frame": 56834,
+   "frame": 58671,
    "blend": 0,
    "source": "c13-compute",
    "demo": "ssao",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 56846,
+   "frame": 58683,
    "blend": 0,
    "source": "c13-compute",
-   "code": "ssao",
    "highlight": [
     "half"
    ],
-   "panel": "code",
-   "callout": "depth-linear"
+   "code": "ssao",
+   "callout": "depth-linear",
+   "panel": "code"
   },
   {
-   "frame": 57034,
+   "frame": 58873,
    "blend": 0,
    "source": "c13-compute",
    "callout": "depth-downsample"
   },
   {
-   "frame": 57204,
+   "frame": 59045,
    "blend": 0,
    "source": "c13-compute",
    "highlight": [
     "compute"
    ],
-   "callout": "ssao-compute",
    "params": {
     "formula": 1.0
-   }
+   },
+   "callout": "ssao-compute"
   },
   {
-   "frame": 57555,
+   "frame": 59398,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-compute"
   },
   {
-   "frame": 57878,
+   "frame": 59723,
    "blend": 0,
    "source": "c13-compute",
-   "callout": "ssao-format",
    "params": {
     "formula": 2.0
-   }
+   },
+   "callout": "ssao-format"
   },
   {
-   "frame": 58109,
+   "frame": 59956,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-defaults"
   },
   {
-   "frame": 58303,
+   "frame": 60152,
    "blend": 0,
    "source": "c13-compute",
-   "panel": "values",
    "params": {
     "formula": 0.0
-   }
+   },
+   "panel": "values"
   },
   {
-   "frame": 58303,
+   "frame": 60152,
    "blend": 36,
    "source": "c13-compute",
    "params": {
@@ -5699,7 +5781,7 @@
    }
   },
   {
-   "frame": 58351,
+   "frame": 60200,
    "blend": 45,
    "source": "c13-compute",
    "params": {
@@ -5707,52 +5789,52 @@
    }
   },
   {
-   "frame": 58443,
+   "frame": 60294,
    "blend": 0,
    "source": "c13-blur",
    "demo": "ssao",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 58455,
+   "frame": 60306,
    "blend": 0,
    "source": "c13-blur",
-   "code": "ssao",
    "highlight": [
     "blur"
    ],
-   "panel": "code",
-   "callout": "blur-order"
+   "code": "ssao",
+   "callout": "blur-order",
+   "panel": "code"
   },
   {
-   "frame": 58638,
+   "frame": 60491,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 58902,
+   "frame": 60757,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 59080,
+   "frame": 60937,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-defaults"
   },
   {
-   "frame": 59376,
+   "frame": 61235,
    "blend": 0,
    "source": "c13-blur",
    "panel": "values"
   },
   {
-   "frame": 59376,
+   "frame": 61235,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -5760,7 +5842,7 @@
    }
   },
   {
-   "frame": 59420,
+   "frame": 61279,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -5768,66 +5850,66 @@
    }
   },
   {
-   "frame": 59508,
+   "frame": 61369,
    "blend": 0,
    "source": "c13-upsample",
    "demo": "ssao",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 59520,
+   "frame": 61381,
    "blend": 0,
    "source": "c13-upsample",
-   "code": "ssao",
    "highlight": [
     "upsample"
    ],
-   "panel": "code",
-   "callout": "depth-upsample"
+   "code": "ssao",
+   "callout": "depth-upsample",
+   "panel": "code"
   },
   {
-   "frame": 59804,
+   "frame": 61667,
    "blend": 0,
    "source": "c13-upsample",
-   "callout": "ssao-modulate",
    "params": {
     "formula": 3.0,
     "viewMode": 0.0
-   }
+   },
+   "callout": "ssao-modulate"
   },
   {
-   "frame": 60007,
+   "frame": 61872,
    "blend": 0,
    "source": "c13-upsample",
    "panel": "values"
   },
   {
-   "frame": 60655,
+   "frame": 62524,
    "blend": 0,
    "source": "c14-recap",
    "demo": "room",
-   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   }
+   },
+   "callout": ""
   },
   {
-   "frame": 60800,
+   "frame": 62766,
    "blend": 0,
    "source": "c14-recap",
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 61226,
+   "frame": 63192,
    "blend": 0,
    "source": "c14-recap",
    "callout": "opaque-pass-order"
   },
   {
-   "frame": 61709,
+   "frame": 63675,
    "blend": 0,
    "source": "c14-recap",
    "callout": "reflections-order"

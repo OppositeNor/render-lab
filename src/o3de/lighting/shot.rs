@@ -123,6 +123,8 @@ pub const PARAMS: &[(&str, f32, &str)] = &[
     ("extraLights", 0.0, "more simple point lights over the room, for light culling (0 to 48)"),
     ("extraLightRadius", 1.0, "their attenuation radius, metres"),
     ("extraLightIntensity", 0.4, "their intensity, candelas"),
+    ("extraLightMotion", 0.0, "how far the lights have moved, degrees: each height's ring turns about the room's centre, the three at different rates and directions"),
+    ("lightMarkers", 0.0, "a marker on each of those lights; the ones the inspected point's bin keeps (with cullTile on) are ringed and joined to the point"),
     ("cullTile", 0.0, "the inspected point's 16 x 16 tile: its view-space box, its depth bins, and the lights its bin keeps"),
     ("decals", 0.0, "two decals on the floor beside the sphere: a paint splat and a panel grid (decals.rs)"),
     ("decalOpacity", 1.0, "the decals' m_opacity (the component's Opacity)"),
@@ -274,6 +276,7 @@ pub fn for_demo(demo: Demo) -> ShotState {
             set("viewMode", 12.0);
             set("labels", 0.0);
             set("cullTile", 1.0);
+            set("lightMarkers", 1.0);
             room_camera()
         }
         Demo::Surface => {
@@ -392,21 +395,32 @@ pub fn demo_animation(demo: Demo, t: f32) -> Vec<(&'static str, f32)> {
     };
     match demo {
         Demo::Room => orbit(1.6, 14.0),
-        Demo::Culling => vec![("extraLightRadius", 0.8 + 0.5 * wave(10.0))],
-        Demo::Surface => vec![("sphereMetallic", 0.5 + 0.5 * wave(8.0))],
+        // The lights' rings turn back and forth, so lights cross tiles and bins, while their radius breathes.
+        Demo::Culling => vec![("extraLightMotion", 200.0 * wave(28.0)), ("extraLightRadius", 0.8 + 0.5 * wave(10.0))],
+        Demo::Surface => vec![("sphereMetallic", 0.5 + 0.5 * wave(8.0)), ("sphereRoughness", 0.45 + 0.35 * wave(13.0))],
         // The grid turns under the splat, and the splat tilts away from the floor's normal.
         Demo::Decals => vec![("decalTurn", 45.0 - 45.0 * (std::f32::consts::TAU * t / 16.0).cos()), ("decalTilt", 30.0 - 30.0 * (std::f32::consts::TAU * t / 11.0).cos())],
-        // The light sweeps from near the normal to grazing and back.
-        Demo::Specular => close_up_light(45.0 - 35.0 * (std::f32::consts::TAU * t / 12.0).cos()).to_vec(),
-        Demo::ClearCoat => vec![("clearCoatFactor", 0.5 + 0.5 * wave(8.0))],
-        Demo::Diffuse => vec![("sphereRoughness", 0.5 + 0.45 * wave(9.0))],
+        // The light sweeps from near the normal to grazing and back, while the roughness slowly widens and narrows the lobe.
+        Demo::Specular => {
+            let mut values = close_up_light(45.0 - 35.0 * (std::f32::consts::TAU * t / 12.0).cos()).to_vec();
+            values.push(("sphereRoughness", 0.35 + 0.2 * wave(19.0)));
+            values
+        }
+        Demo::ClearCoat => vec![("clearCoatFactor", 0.5 + 0.5 * wave(8.0)), ("clearCoatRoughness", 0.3 + 0.25 * wave(11.0))],
+        // Roughness changes the response; the light sweeps so N dot L changes too.
+        Demo::Diffuse => {
+            let mut values = close_up_light(40.0 - 30.0 * (std::f32::consts::TAU * t / 14.0).cos()).to_vec();
+            values.push(("sphereRoughness", 0.5 + 0.45 * wave(9.0)));
+            values
+        }
         // The light circles behind the teapot.
         Demo::Transmission => {
             let a = std::f32::consts::TAU * t / 12.0;
             vec![("sphereLightX", -0.85 + 0.5 * a.sin()), ("sphereLightY", 0.3 + 0.25 * a.cos())]
         }
         Demo::Multiscatter => vec![("sphereRoughness", 0.55 + 0.42 * wave(10.0))],
-        Demo::PointLight => vec![("attenuationRadius", 3.5 + 2.0 * wave(10.0))],
+        // The radius grows and shrinks while the light moves across the room, its curve with it.
+        Demo::PointLight => vec![("attenuationRadius", 3.5 + 2.0 * wave(10.0)), ("lightX", 0.55 + 0.9 * wave(17.0))],
         // The inner volumes shrink and grow, so the blend region widens and narrows.
         Demo::Reflections => vec![("probeInnerScale", 0.55 + 0.45 * wave(12.0))],
         // The sampling radius grows and shrinks: wider and softer, then tighter.

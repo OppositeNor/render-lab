@@ -150,8 +150,9 @@
   "c2-why": {
    "headline": "一个 tile 需要哪些光源",
    "narration": [
+    "以上是整帧的概览；下一部分看它的第一个光照步骤：light culling。",
     "在 forward pass 之前，O3DE 先决定屏幕的每个部分需要哪些光源。",
-    "这里，二十四盏小的 simple point light 悬在房间上方。",
+    "这里，二十四盏小的 simple point light 悬在房间上方，每盏都用一个点标出。",
     "屏幕被切成十六乘十六像素的 tile，每个 tile 有自己的光源列表。",
     "伪彩色中，每个像素显示它所在 tile 在它的深度上保留了多少光源：深蓝表示没有，黄色表示八盏或更多。",
     "三个 compute pass 构建这些列表，在深度预 pass 之后、任何着色之前。"
@@ -184,6 +185,8 @@
     "第三个 pass 是 LightCullingRemap，把每个 tile 的列表改写成每个深度 bin 一个列表。",
     "forward pass 找到自身深度所在的 bin，只遍历那一个列表。",
     "在被检查的点上，readout 统计 tile 列表中的光源、它的 bin 保留的光源，以及球真正照到该点的光源。",
+    "带圈的点是该点的 bin 保留的光源，每盏都用虚线连到该点。",
+    "现在让光源移动：每盏光穿过 tile 和深度 bin 时，颜色和该点的列表都随之改变。",
     "实验室把 GPU 上每个 tile 的列表与 CPU 副本比较，并检查照到表面的光源都没有从它的 bin 中漏掉。"
    ]
   },
@@ -203,6 +206,7 @@
   "c3-inputs": {
    "headline": "材质提供了什么",
    "narration": [
+    "光源已经分进了列表；下一部分转向它们照亮的对象：表面。",
     "每个光照函数都从同一条表面记录开始。",
     "材质提供 base colour、metallic 值、specular F0 factor 和 roughness。",
     "O3DE 由这些值推导出光照真正使用的量。"
@@ -265,6 +269,7 @@
   "c4-what": {
    "headline": "盒子里的一张纹理",
    "narration": [
+    "在任何光照到这个表面之前，decal 可以先改变它，这就是下一部分。",
     "decal 把一张纹理投射到落在一个盒子里的任何表面上。",
     "这里，一块颜料泼溅和一个面板网格铺在地面上；盒子和箭头标出它们的体积和投影轴。",
     "decal 默认开启，而且直接修改表面本身，在设置光照数据之前。",
@@ -311,6 +316,7 @@
   "c5-vectors": {
    "headline": "四个方向",
    "narration": [
+    "表面准备好之后，下一部分讲每盏光的高光如何计算：GGX specular。",
     "高光光照取决于一个点上的四个方向。",
     "表面法线 N。",
     "指向光源的方向 L。",
@@ -359,6 +365,7 @@
   "c6-layer": {
    "headline": "一层清漆",
    "narration": [
+    "下一部分在 GGX 之上再加一层 specular：clear coat。",
     "Clear coat 在底层材质之上加一层薄而透明的涂层，就像油漆上的清漆。",
     "它默认关闭；这里的球是粗糙的金属，外面有一层光滑的涂层。",
     "涂层是 F0 为百分之四的电介质，有自己的 factor 和 roughness。"
@@ -401,6 +408,7 @@
   "c7-lambert": {
    "headline": "Lambert，加上一个 response",
    "narration": [
+    "讲完 specular，下一部分转向每盏光的另一半：diffuse 及其 response。",
     "StandardPBR 的漫反射是 Lambert 的：albedo 乘以 N dot L，再除以 pi。",
     "但它要乘以一个 diffuse response：一减去视角处的 Fresnel 项。",
     "这个 Fresnel 考虑了 roughness：它在掠射角的值是一减 roughness，但不小于 F0。",
@@ -434,6 +442,7 @@
   "c8-why": {
    "headline": "来自背后的光",
    "narration": [
+    "到目前为止，光只在表面反射；下一部分让光穿过物体：transmission。",
     "薄的或半透明的东西，比如树叶、蜡或皮肤，会让光从背后透过来。",
     "StandardPBR 没有透射；EnhancedPBR 加入了它，默认关闭，有厚物体和薄物体两种模式。",
     "只要次表面散射和各向异性保持关闭，它的其他光照就与 StandardPBR 相同。",
@@ -479,6 +488,7 @@
   "c9-loss": {
    "headline": "单次散射丢失的能量",
    "narration": [
+    "下一部分回到 specular，以及 O3DE 在启动时填充的 BRDF 纹理。",
     "在粗糙表面上，一次 GGX 反弹会丢失能量。",
     "照到一个 microfacet 的光可能先弹到另一个 microfacet 再离开，而单次散射公式直接把它丢掉了。",
     "这是保留了这部分损失的粗糙金属球。",
@@ -524,6 +534,7 @@
   "c10-record": {
    "headline": "一个位置、一个强度、一个半径",
    "narration": [
+    "到目前为止，光源本身一直是给定的；下一部分来看 simple point light 本身。",
     "simple point light 保存一个位置、以 candela 计的 RGB 强度、衰减半径平方的倒数，以及它的 lighting channel 和 GI 标志。",
     "它的强度随距离按平方反比衰减：地板上的虚线。",
     "然后一个窗口函数让它在衰减半径处平滑地降到零：实线。",
@@ -569,6 +580,7 @@
   "c11-sky": {
    "headline": "来自天空的光",
    "narration": [
+    "simple point light 就讲到这里；下一部分离开点光源。",
     "第二个光源是天空。",
     "O3DE 的全局 skylight 是基于图像的光照：一个环境，存为两个 cubemap。",
     "这个镜面球直接反射它；这是实验程序自己的天空，一侧高处有一个暖色的 softbox。"
@@ -635,6 +647,7 @@
   "c12-why": {
    "headline": "房间的反射",
    "narration": [
+    "天空的 cubemap 对整个场景一视同仁；下一部分的 reflection probe 让局部拥有自己的反射。",
     "在房间里，反射出开阔的天空看起来是错的：墙应该出现在反射中。",
     "反射 probe 解决这个问题：每个都是从场景中某一点烘焙的 cubemap，带一个 inner 盒和一个 outer 盒。",
     "实验室放置了两个，并在 CPU 上自己烘焙，从每个 probe 的中心对房间着色。",
@@ -689,6 +702,7 @@
   "c13-why": {
    "headline": "角落与缝隙",
    "narration": [
+    "回顾之前的最后一部分是环境光遮蔽（ambient occlusion）。",
     "天空的光照进角落和缝隙，和照在开阔地面上一样亮。",
     "屏幕空间环境光遮蔽只凭深度缓冲让这些地方变暗，主管线默认运行它。",
     "它在反射与次表面散射之后运行，只乘 diffuse target，直接光和天空光都一样。",
@@ -735,6 +749,7 @@
   "c14-recap": {
    "headline": "不透明帧总结",
    "narration": [
+    "所有部分都讲完了；下面看看它们如何组合在一起。",
     "总结一下：这就是 O3DE 的不透明帧，一个 pass 接一个 pass。",
     "光源剔除把光源分到 tile 中；forward pass 先应用 decal，再计算每盏灯：GGX 高光、开启时的 clear coat、按 response 缩放的 Lambertian 漫反射，以及 EnhancedPBR 的透射。",
     "然后全屏 pass 加上 skylight 和反射 probe（从八位 target 读回），SSAO 在合并之前让漫反射变暗。",

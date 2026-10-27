@@ -1020,7 +1020,8 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
     let painter = ink.painter;
     let button = Rect::from_min_size(pos2(l.footer.min.x, l.footer.min.y + 4.0), vec2(150.0, 40.0));
     let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x, l.footer.min.y + 30.0));
-    let response = egui::Area::new(egui::Id::unique("timeline-bar")).fixed_pos(l.footer.min).show(ctx, |ui| {
+    // In front of the dock, so the bar keeps its hover preview while the timeline is paused.
+    let response = egui::Area::new(egui::Id::unique("timeline-bar")).order(egui::Order::Foreground).fixed_pos(l.footer.min).show(ctx, |ui| {
         ui.set_min_size(l.footer.size());
         let play = ui.put(button, egui::Button::new(if viewer.playing { tr("ui.bar_pause") } else { tr("ui.bar_play") }));
         if play.clicked() {
