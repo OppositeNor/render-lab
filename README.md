@@ -16,9 +16,8 @@ whose license allows publishing code derived from them:
   its D, G, and F, the diffuse response, the BRDF texture and multiscatter compensation, the simple point light, and the
   global skylight's image-based lighting.
 
-Investigations of a commercial engine draw on that engine's source code, whose license does not allow it to be
-published, so they are kept locally, in `src/commercial/` (which git ignores), together with the lab modules and shaders
-derived from them. Without them the lab builds with the public investigations alone.
+An optional module, not provided in this repo, can be built in with the `commercial` cfg (`build.rs` sets it when
+`src/commercial/` is present). Without it the lab builds with the public investigations alone.
 
 Started without a command, `render-lab` opens a **title screen**, like a game's, behind frosted glass, with **Play**,
 **Config**, and **Quit**, and the copyright, license, and version in the bottom-left corner.
@@ -70,10 +69,10 @@ returns from `Investigation::formula`.
 | [`src/lab/home.rs`](src/lab/home.rs), [`src/lab/frost.rs`](src/lab/frost.rs), [`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | The homepage: the title, Config, and selection pages, over an investigation's backdrop scene (or a plain field), halved twice, blurred, tinted, and grained. |
 | [`src/lab/config.rs`](src/lab/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
 | [`src/lab/text.rs`](src/lab/text.rs), [`src/lab/readback.rs`](src/lab/readback.rs), [`src/lab/gpu.rs`](src/lab/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. |
-| `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). The parts that only the commercial investigations use (the Surface Cache, distance-field fixtures, and probes) build under the `commercial` cfg that `build.rs` sets when `src/commercial` is present; without it the shaders compose [`shaders/wgsl/surface_fallback.wgsl`](shaders/wgsl/surface_fallback.wgsl) in their place. |
+| `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). Under the `commercial` cfg the lab hands the optional module its generic extension points (`Extension`, `src/lab/extension.rs`) and nothing else. |
 | [`src/investigations.rs`](src/investigations.rs), [`src/o3de/`](src/o3de) | The list of investigations, and the Open 3D Engine's. |
 | [`tools/video/`](tools/video/README.md) | The narrated-video builder: narration, timeline, render, mux, captions, documents, and verification. |
-| [`build.rs`](build.rs) | Validates the WGSL modules (and each investigation's own scene shading) with naga and exports their struct layouts; decides whether the commercial investigations are built; fails when an investigation's formula images no longer match their LaTeX. |
+| [`build.rs`](build.rs) | Validates the WGSL modules (and each investigation's own scene shading) with naga and exports their struct layouts; decides whether the optional `commercial` module is built in, from the manifest that module carries; fails when an investigation's formula images no longer match their LaTeX. |
 
 ### Adding an investigation
 

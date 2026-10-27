@@ -17,8 +17,8 @@ alongside these steps.
 
 - **The engine's license allows publishing its code** (O3DE: Apache-2.0 or MIT): `src/<engine>/<feature>/`, published.
   Code ported from the engine keeps its copyright; add a row to `THIRD_PARTY.md` and its license text to `LICENSES/`.
-- **It does not**: the investigation goes under `src/commercial/` (git-ignored), listed in `crate::commercial::INVESTIGATIONS`,
-  and nothing public may name the engine. Read the `AGENTS.md` files there first.
+- **It does not**: it belongs in the optional `commercial` module, which is not provided in this repo and stays local;
+  nothing published may name the engine or reflect the module's contents. Read the module's own `AGENTS.md` files first.
 - A public investigation never depends on, cites, or names a commercial one.
 - Keep the engine checkout read-only, next to the lab (O3DE: `../../o3de`, or `O3DE_SOURCE_DIR`), and record its version and
   commit in the source index.
@@ -41,18 +41,18 @@ An investigation is only as good as its claims. Each of these is required, not a
   step counts, mip counts, limits ("at most four frames"), thresholds, epsilons and clamps, and the order of operations.
   When the value depends on configuration, give the default the video assumes and name what changes it ("full
   resolution by default, half when the quality setting is low").
-- **The lab's numbers are measured.** A count or value that comes from the lab's scene ("four hundred and forty-eight
-  of five hundred and twelve bricks", "about fifty-six percent") is computed by the lab's code and, where it matters,
+- **The lab's numbers are measured.** A count or value that comes from the lab's scene ("forty-three of sixty-four
+  tiles keep a light", "about fifty-six percent") is computed by the lab's code and, where it matters,
   asserted by the selftest; never estimated.
 - **Say where the lab differs.** Scale, resolution, prepared or offline data, a CPU stand-in for a GPU pass, a
-  schematic view: say it in the narration where it matters ("this lab's atlas is sixteen by eight pages"), label
+  schematic view: say it in the narration where it matters ("this lab's diffuse cubemap is thirty-two texels a face"), label
   schematic or scaled views on screen, and list every difference in the README's "Simplified" list.
 - **Records map to the engine's structures.** Each record or readout the lab shows has an entry in the index's
   `mappings`: the engine structure it stands for, whether the relationship is exact or conceptual, the engine's exact
   layout (`exact`), and the lab's (`labLayout`).
 - **Mirror, port, and test.** Shader code the video explains is ported (WGSL) and mirrored on the CPU, and the selftest
   compares them term by term, plus invariants the method promises (energy conservation, a white furnace, a normalised
-  distribution, footprints that stay inside their page). A deviation the port uncovers (an unguarded square root, a
+  distribution, footprints that stay inside their tile). A deviation the port uncovers (an unguarded square root, a
   precision loss) is reported as a finding with its evidence, not silently fixed in the "follows the engine" path.
 - **Coverage.** Every factual sentence of the narration is backed by a `callout` on that sentence or by its chapter's
   `sources`; aim for a callout on about half of all sentences. Every chapter has a reading table in the index's

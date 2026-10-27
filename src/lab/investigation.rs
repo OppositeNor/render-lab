@@ -207,6 +207,12 @@ pub trait Investigation: Sync {
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;
+    /// A setting of this shot that the prepared data is built with; the
+    /// renderer rebuilds that data when it changes. None keeps it as built.
+    #[cfg(commercial)]
+    fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
+        None
+    }
     /// A status line under the Surface Cache inset's title.
     #[cfg(commercial)]
     fn cache_status(&self, _state: &ShotState, _pages: usize, _layer: Layer) -> Option<String> {

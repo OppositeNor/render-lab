@@ -1,7 +1,6 @@
 //! Every investigation the lab has, grouped by engine on the homepage. The
-//! investigations of commercial engines live in src/commercial, which is not
-//! published (see .gitignore); this build lists them first when they are
-//! present, then the public ones.
+//! optional `commercial` module, not provided in this repo, may add its own;
+//! this build lists them first when it is present, then the public ones.
 
 use crate::lab::investigation::{Engine, Investigation};
 use std::sync::OnceLock;

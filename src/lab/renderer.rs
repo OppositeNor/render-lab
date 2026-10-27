@@ -681,6 +681,10 @@ impl Renderer {
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
         }
         let scene_beat = request.beat_kind == BeatKind::Scene;
+        #[cfg(commercial)]
+        if let Some(setting) = investigation::current().prepared_setting(request.state) {
+            self.cache_gpu.rebuild(&self.gpu.device, &self.gpu.queue, &mut self.statics, [&self.records.mesh_nodes, &self.records.mesh_triangles], &self.environment_view, &self._surface_cache, setting);
+        }
         let content = match prepared {
             Some(c) => Some(c),
             None => scene_beat.then(|| investigation::current().build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)),

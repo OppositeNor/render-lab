@@ -19,15 +19,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Investigations of commercial engines stay on this machine: their source code's licenses do
-# not allow publishing code derived from it. build.rs builds the homepage alone without them.
+# The optional commercial module, not provided in this repo (see build.rs).
 /src/commercial/
-# Their narrated videos, their build, and their paper.
-/video/
-/paper/
-# Their task guides for coding agents.
-/.agents/skills/render-lab-*/
-/.claude/skills/render-lab-*
 
 # Video builds (tools/video): intermediates and deliverables, and the Node packages.
 /build/

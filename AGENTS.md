@@ -3,24 +3,29 @@
 Render Lab is a Rust/wgpu/WGSL program for rendering demonstrations and experiments, organised as investigations of
 game-engine features. `README.md` describes the shared lab.
 
-**If `src/commercial/` exists, read the `AGENTS.md` of each investigation in it before working on anything else**: they
-guide the local investigations of commercial engines, their videos, and their paper. Those files are never published,
-and nothing public may name the engines they investigate.
+**If the optional `commercial` module (`src/commercial/`, not provided in this repo) is present, read every `AGENTS.md`
+inside it before working on anything else.** It is never published, and nothing published may reflect what it holds.
 
 ## Rules
 
-- **Never publish engine source, or code derived from it, unless the engine's license allows it.** Investigations of a
-  commercial engine stay local, in `src/commercial/` (ignored by git); lab modules and shaders derived from one go in
-  `src/commercial/lab` and `src/commercial/shaders`, and `build.rs`'s `HIDDEN` list names the ones the build needs. Keep
+- **Never publish engine source, or code derived from it, unless the engine's license allows it.** Work on an engine
+  whose license does not allow it belongs in the optional `commercial` module, which stays local (ignored by git). Keep
   anything derived from such an engine's source out of the shared lab (`src/lab`, `shaders/wgsl`); cite published
   methods (papers, talks) by their publication.
+- **Nothing outside the `commercial` module reflects what is inside it.** Published files (everything `git` would
+  publish) may know only that an optional module, not provided in this repo, can be built in with the `commercial` cfg.
+  They must not name, describe, or mirror its contents: no engine or feature names, no code, records, shaders,
+  parameters, text keys, comments, or file names that exist for it. What it needs from the lab goes through generic
+  extension points (the `Investigation` trait, the lab's `Extension`) that any investigation could use; its own code,
+  shaders, records, and build manifest live inside it. Local-only ignore patterns go in `.git/info/exclude`, not
+  `.gitignore`.
 - **Open-source engines are published.** The Open 3D Engine (Apache-2.0 or MIT) is investigated in `src/o3de/`, which is
   public; code ported from it keeps O3DE's copyright and is credited in `THIRD_PARTY.md` (MIT). Its checkout is
   `../../o3de` (or `O3DE_SOURCE_DIR`); read it, never modify it. Public investigations do not depend on, cite, or name
   the commercial ones.
 - **Layering.** `src/lab` must not depend on an investigation; everything feature-specific reaches it through the
-  `Investigation` trait (including an investigation's own scene shading, `SceneShading`). Lab code that only the
-  commercial investigations use builds under the `commercial` cfg; the rest of the lab always builds.
+  `Investigation` trait (including an investigation's own scene shading, `SceneShading`). The lab's `commercial` cfg
+  code only hands the optional module its generic extension points; the rest of the lab always builds.
 - **Both builds stay clean.** `cargo build --release --locked --offline` must produce no warnings with the investigation
   present, and the public part alone (the files `git` would publish, plus `vendor/`) must also build without warnings.
 - Make the smallest change that solves the problem; do not refactor unrelated code. Do not modify `vendor/`.
@@ -49,13 +54,12 @@ The video builder is described in `tools/video/README.md`. Run one GPU job at a 
 (`--lang zh-CN`) needs the English edition built first, and `src/o3de/lighting/video/zh-CN/translation.json` must keep one sentence per
 English sentence.
 
-To check the public build, copy the files `git ls-files --others --exclude-standard` lists (with `cp -P --parents`, so
+To check the public build, copy the files `git ls-files --cached --others --exclude-standard` lists (with `cp -P --parents`, so
 links stay links) into an empty directory, link `vendor/` into it, and build there.
 
 ## Skills
 
 Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout); `.claude/skills` holds
-one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it) is published; skills
-about the commercial investigations are named `render-lab-*` and git-ignored.
+one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it) is published.
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.

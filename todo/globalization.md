@@ -74,7 +74,7 @@ formats, and every translated piece of data shares one system.
 
 ## Verification
 
-- `cargo build --release --locked --offline` with no warnings, with and without `src/commercial/`, and a fresh clone
+- `cargo build --release --locked --offline` with no warnings, with and without the optional `commercial` module, and a fresh clone
   building with plain `cargo build`.
 - `cargo test` for the backend: lookup, fallback, plurals, number formats, and switching locale while running.
 - `build.rs` refuses: a key missing from a complete language, variables that differ between languages, an unknown
