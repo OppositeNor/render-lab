@@ -25,7 +25,10 @@ and nothing public may name the engines they investigate.
   present, and the public part alone (the files `git` would publish, plus `vendor/`) must also build without warnings.
 - Make the smallest change that solves the problem; do not refactor unrelated code. Do not modify `vendor/`.
 - Shaders are WGSL; do not introduce Slang or SPIR-V passthrough.
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). build.rs fails on a key missing from a language, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
+- Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents on
+  cheaper models: Sonnet, or Haiku for simple lookups. Keep design, edits, and final checks on the main model.
 
 ## Validation
 

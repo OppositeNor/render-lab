@@ -1,13 +1,6 @@
-# Keep every crate source and build artifact inside this project.
-# `vendor/` is recreated from Cargo.lock by `bash setup.sh` (see README.md).
-[source.crates-io]
-replace-with = "vendored-sources"
-
-[source.vendored-sources]
-directory = "vendor"
-
-[net]
-offline = true
-
+# Keep build artifacts inside this project. A fresh clone builds with plain
+# `cargo build`, from crates.io. `bash setup.sh` vendors the locked crates
+# into `vendor/` and writes `.cache/cargo/config.toml`, which builds from them
+# offline whenever CARGO_HOME=$PWD/.cache/cargo (see README.md).
 [build]
 target-dir = "target"

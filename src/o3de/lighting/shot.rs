@@ -3,7 +3,7 @@
 //! dock may set, and the viewer's Play animations.
 
 use crate::lab::camera::OrbitCamera;
-use crate::lab::i18n::t;
+use crate::o3de::lighting::text::tr;
 use crate::lab::scene::ids;
 use crate::lab::shot::{DemoId, PanelMode, RecordRef, ShotState};
 use std::collections::BTreeMap;
@@ -48,36 +48,36 @@ impl Demo {
 
     pub fn title(self) -> &'static str {
         match self {
-            Demo::Room => t("One point light, StandardPBR", "一盏点光源与 StandardPBR"),
-            Demo::Culling => t("Tiled light culling", "分块光源剔除"),
-            Demo::Surface => t("The metallic workflow", "Metallic 工作流"),
-            Demo::Decals => t("Decals", "Decal"),
-            Demo::Specular => t("GGX specular: D, G, and F", "GGX 高光：D、G 与 F"),
-            Demo::ClearCoat => t("Clear coat", "Clear coat"),
-            Demo::Diffuse => t("Diffuse and its response", "漫反射与 diffuse response"),
-            Demo::Transmission => t("Transmission (EnhancedPBR)", "透射（EnhancedPBR）"),
-            Demo::Multiscatter => t("Multiscatter compensation", "多次散射补偿"),
-            Demo::PointLight => t("The simple point light", "Simple point light"),
-            Demo::Ibl => t("Image-based lighting", "基于图像的光照"),
-            Demo::Reflections => t("Reflection probes", "反射 probe"),
-            Demo::Ssao => t("Screen-space ambient occlusion", "屏幕空间环境光遮蔽"),
+            Demo::Room => tr("shot.one_point_light_standardpbr"),
+            Demo::Culling => tr("common.tiled_light_culling"),
+            Demo::Surface => tr("shot.the_metallic_workflow"),
+            Demo::Decals => tr("shot.decals"),
+            Demo::Specular => tr("shot.ggx_specular_d_g_and"),
+            Demo::ClearCoat => tr("shot.clear_coat"),
+            Demo::Diffuse => tr("shot.diffuse_and_its_response"),
+            Demo::Transmission => tr("shot.transmission_enhancedpbr"),
+            Demo::Multiscatter => tr("shot.multiscatter_compensation"),
+            Demo::PointLight => tr("shot.the_simple_point_light"),
+            Demo::Ibl => tr("shot.image_based_lighting"),
+            Demo::Reflections => tr("common.reflection_probes"),
+            Demo::Ssao => tr("shot.screen_space_ambient_occlusion"),
         }
     }
 
     pub fn tab(self) -> &'static str {
         match self {
-            Demo::Room => t("Room", "房间"),
-            Demo::Culling => t("Culling", "剔除"),
-            Demo::Surface => t("Surface", "Surface"),
-            Demo::Decals => t("Decals", "Decal"),
-            Demo::Specular => t("Specular", "高光"),
-            Demo::ClearCoat => t("Clear coat", "Clear coat"),
-            Demo::Diffuse => t("Diffuse", "漫反射"),
-            Demo::Transmission => t("Transmission", "透射"),
-            Demo::Multiscatter => t("Multiscatter", "多次散射"),
-            Demo::PointLight => t("Point light", "点光源"),
+            Demo::Room => tr("shot.room"),
+            Demo::Culling => tr("shot.culling"),
+            Demo::Surface => tr("shot.surface"),
+            Demo::Decals => tr("shot.decals"),
+            Demo::Specular => tr("shot.specular"),
+            Demo::ClearCoat => tr("shot.clear_coat"),
+            Demo::Diffuse => tr("shot.diffuse"),
+            Demo::Transmission => tr("shot.transmission"),
+            Demo::Multiscatter => tr("shot.multiscatter"),
+            Demo::PointLight => tr("shot.point_light"),
             Demo::Ibl => "IBL",
-            Demo::Reflections => t("Probes", "Probe"),
+            Demo::Reflections => tr("shot.probes"),
             Demo::Ssao => "SSAO",
         }
     }

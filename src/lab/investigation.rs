@@ -54,8 +54,6 @@ pub struct Wording {
     pub engine_tag: &'static str,
     /// The checkout directory source paths are relative to, with a slash.
     pub checkout_dir: &'static str,
-    /// The footer line, in English and Chinese.
-    pub footer: (&'static str, &'static str),
 }
 
 /// An investigation's own shading of the scene pass, in place of the lab's
@@ -154,6 +152,8 @@ pub trait Investigation: Sync {
     /// A paragraph for the homepage.
     fn summary(&self) -> &'static str;
     fn wording(&self) -> &'static Wording;
+    /// The footer line, in the current locale.
+    fn footer(&self) -> &'static str;
     fn timelines(&self) -> &'static [TimelineInfo];
     fn sources(&self) -> &'static SourceIndex;
     fn listings(&self) -> &'static [Listing];

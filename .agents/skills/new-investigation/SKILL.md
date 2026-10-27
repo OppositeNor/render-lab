@@ -129,7 +129,7 @@ Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scen
   `vectorsShown`, `ggxSamples`, `readoutRows`).
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
   `rows`, `slider`, `toggle`, `show`). Keep each demonstration's dock inside its width: a fourth row per group at most.
-- On-screen text is `t("English", "中文")`; technical terms stay English in both.
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `src/o3de/lighting/text.rs`), and build.rs's `TEXT_TABLES` lists them. Technical terms stay English in both.
 - Mirror and test: GPU logic the video explains keeps a CPU mirror (O3DE: `brdf.rs` beside `standard_lighting.wgsl`), and
   the selftest compares them.
 

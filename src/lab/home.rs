@@ -25,7 +25,7 @@ use crate::lab::config::Config;
 use crate::lab::frame::Statics;
 use crate::lab::frost::Frost;
 use crate::lab::gpu::{self, Gpu, FRAME_FORMAT};
-use crate::lab::i18n::t;
+use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation::{self, Investigation, TimelineInfo};
 use crate::lab::palette;
 use crate::lab::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
@@ -52,7 +52,7 @@ pub fn fullscreen_mode(on: bool) -> Option<winit::window::Fullscreen> {
 
 /// The bottom-left line of the title page.
 fn credits() -> String {
-    format!("© 2026 OppositeNor · {} · v{}", t("MIT License", "MIT 许可证"), env!("CARGO_PKG_VERSION"))
+    format!("© 2026 OppositeNor · {} · v{}", tr("home.mit_license"), env!("CARGO_PKG_VERSION"))
 }
 
 pub struct HomeOptions {
@@ -172,7 +172,7 @@ struct TimelineRow {
 
 /// An option's value as the Config page names it.
 fn on_off(on: bool) -> &'static str {
-    if on { t("on", "开") } else { t("off", "关") }
+    if on { tr("home.on") } else { tr("home.off") }
 }
 
 /// Translucent white: the glass the page's panels and buttons are made of.
@@ -328,13 +328,13 @@ impl Home {
             Some(path) => match pending.save(path) {
                 Ok(()) => {
                     self.settings.saved = pending;
-                    format!("{} {}", t("Saved to", "已保存到"), path.display())
+                    format!("{} {}", tr("home.saved_to"), path.display())
                 }
-                Err(e) => format!("{} {e:#}", t("Applied, but not saved:", "已应用，但未保存：")),
+                Err(e) => format!("{} {e:#}", tr("home.applied_but_not_saved")),
             },
             None => {
                 self.settings.saved = pending;
-                t("Applied for this session: there is no configuration directory.", "仅在本次会话中应用：没有配置目录。").to_string()
+                tr("home.applied_for_session").to_string()
             }
         });
     }
@@ -344,7 +344,7 @@ impl Home {
         if let Some(trial) = self.settings.trial.take() {
             self.fullscreen = trial.fullscreen_before;
             self.settings.pending = self.settings.saved;
-            self.settings.message = Some(t("Restored the previous settings.", "已恢复之前的设置。").to_string());
+            self.settings.message = Some(tr("home.restored_the_previous_settings").to_string());
         }
     }
 
@@ -384,22 +384,22 @@ impl Home {
         ink.text(pos2(center, card.min.y + 64.0), Align2::CENTER_TOP, "Render Lab", 128.0, ui::bold(), palette::TEXT);
         let rule = card.min.y + 230.0;
         ink.painter.line_segment([pos2(center - 150.0, rule), pos2(center + 150.0, rule)], Stroke::new(2.0, palette::ACCENT));
-        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, t("Illustrated investigations of game-engine features", "游戏引擎功能的图解研究"), 28.0, FontFamily::Proportional, palette::TEXT_DIM);
+        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, tr("home.subtitle"), 28.0, FontFamily::Proportional, palette::TEXT_DIM);
         let button = vec2(460.0, 84.0);
         let mut choice = None;
         egui::Area::new(egui::Id::unique("home-title")).fixed_pos(pos2(center - button.x / 2.0, rule + 96.0)).fade_in(false).constrain(false).show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 22.0);
-            let play = glass_button(ui, button, t("Play", "开始"), 40.0, true);
+            let play = glass_button(ui, button, tr("home.play"), 40.0, true);
             self.widgets.push(("play".into(), play.rect));
             if play.clicked() {
                 self.page = Page::Select;
             }
-            let config = glass_button(ui, button, t("Config", "设置"), 40.0, true);
+            let config = glass_button(ui, button, tr("home.config"), 40.0, true);
             self.widgets.push(("config".into(), config.rect));
             if config.clicked() {
                 self.page = Page::Config;
             }
-            let quit = glass_button(ui, button, t("Quit", "退出"), 40.0, true);
+            let quit = glass_button(ui, button, tr("home.quit"), 40.0, true);
             self.widgets.push(("quit".into(), quit.rect));
             if quit.clicked() {
                 choice = Some(Choice::Quit);
@@ -419,10 +419,10 @@ impl Home {
         let painter = ink.painter;
 
         ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::ACCENT);
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, t("Choose an engine and a feature to investigate", "选择要研究的引擎与功能"), 38.0, ui::bold(), palette::TEXT);
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.choose"), 38.0, ui::bold(), palette::TEXT);
         let back_size = vec2(200.0, 60.0);
         egui::Area::new(egui::Id::unique("home-back")).fixed_pos(pos2(canvas.x - 40.0 - back_size.x, 30.0)).fade_in(false).constrain(false).show(ctx, |ui| {
-            let back = glass_button(ui, back_size, t("‹  Back", "‹  返回"), 28.0, true);
+            let back = glass_button(ui, back_size, tr("home.back"), 28.0, true);
             self.widgets.push(("back".into(), back.rect));
             if back.clicked() {
                 self.page = Page::Title;
@@ -441,7 +441,7 @@ impl Home {
         // Engines.
         let engines = investigations::engines();
         let mut new_engine = None;
-        self.column_area(ctx, "home-engines", engines_rect, t("ENGINE", "引擎"), |home, ui| {
+        self.column_area(ctx, "home-engines", engines_rect, tr("home.engine"), |home, ui| {
             for (i, engine) in engines.iter().enumerate() {
                 let r = ui.add(egui::Button::selectable(i == home.engine, RichText::new(engine.name).font(FontId::new(30.0, ui::bold()))).min_size(vec2(ui.available_width(), 56.0)));
                 home.widgets.push((format!("engine:{}", engine.id), r.rect));
@@ -459,7 +459,7 @@ impl Home {
         // Features of the chosen engine, with the version each was read from.
         let features = self.features();
         let mut new_feature = None;
-        self.column_area(ctx, "home-features", features_rect, t("FEATURE", "功能"), |home, ui| {
+        self.column_area(ctx, "home-features", features_rect, tr("home.feature"), |home, ui| {
             for (i, feature) in features.iter().enumerate() {
                 let r = ui.add(egui::Button::selectable(i == home.feature, RichText::new(feature.title()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(ui.available_width(), 56.0)));
                 home.widgets.push((format!("feature:{}", feature.path()), r.rect));
@@ -489,12 +489,12 @@ impl Home {
                 ui.spacing_mut().item_spacing.x = 16.0;
                 let first = rows.get(edition).filter(|r| r.summary.is_ok());
                 let button = vec2((ui.available_width() - 16.0) / 2.0, 64.0);
-                let watch = glass_button(ui, button, t("▶  Watch the narrated video", "▶  观看旁白视频"), 28.0, first.is_some());
+                let watch = glass_button(ui, button, tr("home.watch_the_narrated_video"), 28.0, first.is_some());
                 home.widgets.push(("watch".into(), watch.rect));
                 if let (true, Some(row)) = (watch.clicked(), first) {
                     choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0 });
                 }
-                let explore = glass_button(ui, button, t("Explore the demonstrations", "探索演示"), 28.0, true);
+                let explore = glass_button(ui, button, tr("home.explore_the_demonstrations"), 28.0, true);
                 home.widgets.push(("explore".into(), explore.rect));
                 if explore.clicked() {
                     choice = Some(Choice::Explore { investigation: chosen });
@@ -509,7 +509,7 @@ impl Home {
                     // With several editions, a picker; the chapters and Watch follow it.
                     if rows.len() > 1 {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(t("Edition:", "版本：")).color(palette::TEXT_DIM));
+                            ui.label(RichText::new(tr("home.edition")).color(palette::TEXT_DIM));
                             for (i, row) in rows.iter().enumerate() {
                                 let r = ui.selectable_label(i == edition, RichText::new(row.info.edition).font(FontId::new(24.0, ui::bold())));
                                 home.widgets.push((format!("edition:{}", row.info.id), r.rect));
@@ -525,9 +525,9 @@ impl Home {
                             Ok((title, length, chapters, narrated)) => {
                                 ui.label(RichText::new(format!("{title} · {length}")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
                                 if !narrated {
-                                    ui.label(RichText::new(t("No narration track yet: it plays silently.", "还没有旁白音轨：将无声播放。")).color(palette::TEXT_FAINT));
+                                    ui.label(RichText::new(tr("home.no_narration")).color(palette::TEXT_FAINT));
                                 }
-                                ui.label(RichText::new(t("Start from a chapter:", "从某一章开始：")).color(palette::TEXT_DIM));
+                                ui.label(RichText::new(tr("home.start_from_a_chapter")).color(palette::TEXT_DIM));
                                 for (number, label, frame) in chapters {
                                     let r = ui.add(egui::Button::new(RichText::new(format!("{number:02}  {label}"))).frame(false).truncate());
                                     home.widgets.push((format!("chapter:{number}"), r.rect));
@@ -538,7 +538,7 @@ impl Home {
                             }
                             Err(e) => {
                                 ui.label(RichText::new(row.info.title).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
-                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", t("Not built yet:", "尚未构建："))).color(palette::TEXT_FAINT)).wrap());
+                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", tr("home.not_built_yet"))).color(palette::TEXT_FAINT)).wrap());
                             }
                         }
                         ui.add_space(10.0);
@@ -546,7 +546,7 @@ impl Home {
                 });
                 // The demonstrations, with their keys in the viewer.
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(t("Demonstrations", "演示")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                    ui.label(RichText::new(tr("home.demonstrations")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
                     const KEYS: [&str; 12] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "−", "="];
                     for (i, demo) in chosen.demos().iter().enumerate() {
                         ui.add(egui::Label::new(RichText::new(format!("{}  {}", KEYS.get(i).unwrap_or(&" "), chosen.demo_title(*demo))).color(palette::TEXT_DIM)).truncate());
@@ -554,7 +554,7 @@ impl Home {
                 });
             });
         });
-        let footer = t("In the viewer, Esc returns here. Esc here returns to the title. F11: fullscreen.", "在查看器中按 Esc 返回此页；在此页按 Esc 返回标题。F11：全屏。");
+        let footer = tr("home.esc_hint");
         ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
 
         if let Some(e) = new_engine {
@@ -580,7 +580,7 @@ impl Home {
         }
         let trying = self.settings.trial.is_some();
         ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::ACCENT);
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, t("Config", "设置"), 38.0, ui::bold(), palette::TEXT);
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.config"), 38.0, ui::bold(), palette::TEXT);
         let card = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(1240.0, 470.0));
         glass_panel(ink.painter, card, 24, true);
         let inner = card.shrink2(vec2(48.0, 40.0));
@@ -592,21 +592,21 @@ impl Home {
             spacing.icon_width_inner = 18.0;
             spacing.icon_spacing = 14.0;
             ui.add_enabled_ui(!trying, |ui| {
-                ui.label(RichText::new(t("DISPLAY", "显示")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                ui.label(RichText::new(tr("home.display")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
                 ui.add_space(10.0);
                 let defaults = Config::default();
                 // An option that differs from its default is marked, and its Restore puts the default back.
                 let changed = self.settings.pending.fullscreen != defaults.fullscreen;
                 let row = ui.horizontal(|ui| {
                     let mut fullscreen = self.settings.pending.fullscreen;
-                    let r = ui.checkbox(&mut fullscreen, RichText::new(t("Full Screen", "全屏")).font(FontId::new(30.0, ui::bold())));
+                    let r = ui.checkbox(&mut fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
                     self.widgets.push(("option:fullscreen".into(), r.rect));
                     self.settings.pending.fullscreen = fullscreen;
                     if changed {
                         ui.add_space(12.0);
-                        ui.label(RichText::new(format!("{} {}", t("Default:", "默认："), on_off(defaults.fullscreen))).color(palette::ACCENT));
+                        ui.label(RichText::new(format!("{} {}", tr("home.default"), on_off(defaults.fullscreen))).color(palette::ACCENT));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let restore = glass_button(ui, vec2(190.0, 48.0), t("Restore", "恢复"), 26.0, !trying);
+                            let restore = glass_button(ui, vec2(190.0, 48.0), tr("home.restore"), 26.0, !trying);
                             self.widgets.push(("restore:fullscreen".into(), restore.rect));
                             if restore.clicked() {
                                 self.settings.pending.fullscreen = defaults.fullscreen;
@@ -618,53 +618,53 @@ impl Home {
                     let r = row.response.rect;
                     ui.painter().rect_filled(Rect::from_min_max(pos2(r.min.x - 20.0, r.min.y + 4.0), pos2(r.min.x - 14.0, r.max.y - 4.0)), CornerRadius::same(3), palette::ACCENT);
                 }
-                ui.add(egui::Label::new(RichText::new(t("Open the homepage and the viewer in borderless full screen. F11 switches full screen for this session only; that is never saved.", "以无边框全屏打开主页和查看器。F11 只在本次会话中切换全屏，不会被保存。")).color(palette::TEXT_DIM)).wrap());
+                ui.add(egui::Label::new(RichText::new(tr("home.full_screen_hint")).color(palette::TEXT_DIM)).wrap());
                 ui.add_space(36.0);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 18.0;
                     let size = vec2((inner.width() - 36.0) / 3.0, 72.0);
                     // Save and Apply only when something changed; otherwise Return.
                     if self.settings.pending != self.settings.saved {
-                        let save = glass_button(ui, size, t("Save and Apply", "保存并应用"), 30.0, !trying);
+                        let save = glass_button(ui, size, tr("home.save_and_apply"), 30.0, !trying);
                         self.widgets.push(("save".into(), save.rect));
                         if save.clicked() {
                             self.try_settings(time);
                         }
                     } else {
-                        let back = glass_button(ui, size, t("Return", "返回"), 30.0, !trying);
+                        let back = glass_button(ui, size, tr("home.return"), 30.0, !trying);
                         self.widgets.push(("return".into(), back.rect));
                         if back.clicked() {
                             self.page = Page::Title;
                             self.settings.message = None;
                         }
                     }
-                    let discard = glass_button(ui, size, t("Discard", "放弃"), 30.0, !trying);
+                    let discard = glass_button(ui, size, tr("home.discard"), 30.0, !trying);
                     self.widgets.push(("discard".into(), discard.rect));
                     if discard.clicked() {
                         self.discard_settings();
                     }
-                    let defaults = glass_button(ui, size, t("Restore Defaults", "恢复默认"), 30.0, !trying);
+                    let defaults = glass_button(ui, size, tr("home.restore_defaults"), 30.0, !trying);
                     self.widgets.push(("defaults".into(), defaults.rect));
                     if defaults.clicked() {
                         self.settings.pending = Config::default();
-                        self.settings.message = Some(t("The defaults are shown; Save and Apply to use them.", "已显示默认值；保存并应用后生效。").to_string());
+                        self.settings.message = Some(tr("home.defaults_shown").to_string());
                     }
                 });
                 ui.add_space(24.0);
                 if self.settings.pending != self.settings.saved {
-                    ui.label(RichText::new(t("Unsaved changes.", "有未保存的更改。")).color(palette::ACCENT));
+                    ui.label(RichText::new(tr("home.unsaved_changes")).color(palette::ACCENT));
                 }
                 if let Some(message) = &self.settings.message {
                     ui.add(egui::Label::new(RichText::new(message).color(palette::TEXT_DIM)).wrap());
                 }
                 let stored = match &self.settings.path {
-                    Some(path) => format!("{} {}", t("Stored in", "保存在"), path.display()),
-                    None => t("No configuration directory: settings last for this session.", "没有配置目录：设置只在本次会话中有效。").to_string(),
+                    Some(path) => format!("{} {}", tr("home.stored_in"), path.display()),
+                    None => tr("home.no_config_dir").to_string(),
                 };
                 ui.add(egui::Label::new(RichText::new(stored).color(palette::TEXT_FAINT)).wrap());
             });
         });
-        let footer = if trying { t("Esc restores the previous settings.", "按 Esc 恢复之前的设置。") } else { t("Esc discards the changes and returns to the title.", "按 Esc 放弃更改并返回标题。") };
+        let footer = if trying { tr("home.esc_restores") } else { tr("home.esc_discards") };
         ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
 
         // The countdown popup, above everything else on the page.
@@ -676,8 +676,8 @@ impl Home {
             let popup = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(820.0, 360.0));
             painter.rect_filled(popup, CornerRadius::same(22), Color32::from_rgba_unmultiplied(10, 22, 36, 235));
             painter.rect_stroke(popup, CornerRadius::same(22), Stroke::new(2.0, palette::ACCENT), StrokeKind::Inside);
-            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, t("Keep these settings?", "保留这些设置？"), FontId::new(38.0, ui::bold()), palette::TEXT);
-            let countdown = if crate::lab::i18n::zh() { format!("{left} 秒后恢复之前的设置。") } else { format!("The previous settings come back in {left} s.") };
+            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, tr("home.keep_these_settings"), FontId::new(38.0, ui::bold()), palette::TEXT);
+            let countdown = tr_with("home.countdown", args!(seconds = left));
             painter.text(pos2(popup.center().x, popup.min.y + 110.0), Align2::CENTER_TOP, countdown, FontId::new(28.0, FontFamily::Proportional), palette::TEXT_DIM);
             let size = vec2(300.0, 72.0);
             let row = Rect::from_center_size(pos2(popup.center().x, popup.max.y - 80.0), vec2(size.x * 2.0 + 24.0, size.y));
@@ -685,10 +685,10 @@ impl Home {
             let mut restore = false;
             ui.scope_builder(egui::UiBuilder::new().max_rect(row).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
                 ui.spacing_mut().item_spacing.x = 24.0;
-                let apply = glass_button(ui, size, t("Apply", "应用"), 32.0, true);
+                let apply = glass_button(ui, size, tr("home.apply"), 32.0, true);
                 self.widgets.push(("trial:apply".into(), apply.rect));
                 keep = apply.clicked();
-                let back = glass_button(ui, size, t("Restore", "恢复"), 32.0, true);
+                let back = glass_button(ui, size, tr("home.restore"), 32.0, true);
                 self.widgets.push(("trial:restore".into(), back.rect));
                 restore = back.clicked();
             });

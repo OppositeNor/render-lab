@@ -9,7 +9,7 @@
 //! the record browser, and checkboxes for overlay parameters.
 
 use crate::lab::camera::OrbitCamera;
-use crate::lab::i18n::t;
+use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation;
 use crate::lab::palette;
 use crate::lab::shot::{PanelMode, RecordRef, ShotState};
@@ -99,24 +99,21 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
 impl Dock<'_> {
     fn buttons(&mut self, ui: &mut Ui, tab: DockTab) {
         ui.horizontal(|ui| {
-            for (value, label) in [(DockTab::Parameters, t("Sliders", "滑块")), (DockTab::Code, t("Code", "代码")), (DockTab::Sources, t("Source", "源码"))] {
+            for (value, label) in [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))] {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
                 }
             }
         });
         let full = vec2(BUTTONS, 0.0);
-        let label = if self.playing { t("■  Stop animation", "■  停止动画") } else { t("▶  Play animation", "▶  播放动画") };
+        let label = if self.playing { tr("controls.stop_animation") } else { tr("controls.play_animation") };
         let play = ui.add(egui::Button::new(label).min_size(full));
         if play.clicked() {
             self.actions.push(ViewerAction::TogglePlay);
         }
-        play.on_hover_text(t(
-            "Plays this demonstration's animation, with the camera swaying slowly as in the video; the sliders follow it. Moving one of its sliders stops it.",
-            "播放这个演示的动画，相机像视频中一样缓慢摆动，滑块随之变化。拖动它驱动的滑块会停止动画。",
-        ));
-        let reset = ui.add(egui::Button::new(t("Reset parameters", "重置参数")).min_size(full));
-        if reset.on_hover_text(t("Every slider back to this demonstration's start. The camera stays; R resets it too.", "所有滑块恢复为这个演示的初始值。相机保持不变；R 键会一并重置相机。")).clicked() {
+        play.on_hover_text(tr("controls.play_animation_hint"));
+        let reset = ui.add(egui::Button::new(tr("controls.reset_parameters")).min_size(full));
+        if reset.on_hover_text(tr("controls.reset_parameters_hint")).clicked() {
             self.actions.push(ViewerAction::ResetParameters);
         }
     }
@@ -127,12 +124,12 @@ impl Dock<'_> {
         let demo = self.state.demo;
         let listings: Vec<_> = investigation::current().listings().iter().filter(|l| l.demo.as_deref() == Some(demo.key())).collect();
         if listings.is_empty() {
-            ui.label(RichText::new(t("No pseudo-code for this demonstration.", "这个演示没有伪代码。")).color(palette::TEXT_DIM));
+            ui.label(RichText::new(tr("controls.no_listing")).color(palette::TEXT_DIM));
             return;
         }
         let engine = investigation::current().wording().engine_short;
-        let hint = if crate::lab::i18n::zh() { format!("面板中所列 {engine} 函数的 Python 伪代码。") } else { format!("Python pseudo-code of the {engine} function named in the panel.") };
-        self.group(ui, t("listing", "代码"), Some(&hint), |d, ui| {
+        let hint = tr_with("controls.listing_hint", args!(engine = engine));
+        self.group(ui, tr("controls.listing"), Some(&hint), |d, ui| {
             for listing in &listings {
                 let selected = d.state.code.as_deref() == Some(listing.name);
                 if ui.selectable_label(selected, listing.title()).clicked() {
@@ -149,7 +146,7 @@ impl Dock<'_> {
                 }
             }
         }
-        self.group(ui, t("steps", "步骤"), Some(t("Light the lines of one step.", "高亮某一步的代码行。")), |d, ui| {
+        self.group(ui, tr("controls.steps"), Some(tr("controls.steps_hint")), |d, ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.set_max_width(520.0);
                 for tag in tags {
@@ -197,7 +194,7 @@ impl Dock<'_> {
             RecordRef::None => (3, 0),
         };
         let (name, count, make) = kinds[kind];
-        self.group(ui, t("record", "记录"), None, |d, ui| {
+        self.group(ui, tr("controls.record"), None, |d, ui| {
             egui::ComboBox::from_id_salt("struct").selected_text(name).width(250.0).show_ui(ui, |ui| {
                 for (other, _, make) in kinds {
                     if ui.selectable_label(other == name, other).clicked() && other != name {
@@ -209,16 +206,16 @@ impl Dock<'_> {
                 d.rows(ui, "record", |d, ui| d.index(ui, "index", Some(index), count, make));
             }
         });
-        self.group(ui, t("struct panel", "struct 面板"), None, |d, ui| {
-            for (mode, label) in [(PanelMode::Declaration, t("declaration", "声明")), (PanelMode::Values, t("values", "数值")), (PanelMode::Memory, t("memory", "内存"))] {
+        self.group(ui, tr("controls.struct_panel"), None, |d, ui| {
+            for (mode, label) in [(PanelMode::Declaration, tr("controls.declaration")), (PanelMode::Values, tr("controls.values")), (PanelMode::Memory, tr("controls.memory"))] {
                 if ui.selectable_label(d.state.panel == mode, label).clicked() {
                     d.actions.push(ViewerAction::SetPanel(mode));
                 }
             }
         });
         let fields: Vec<String> = statics.layouts.get(name).map(|s| s.fields.iter().map(|f| f.name.clone()).collect()).unwrap_or_default();
-        let none = t("none", "无");
-        self.group(ui, t("highlight", "高亮"), None, |d, ui| {
+        let none = tr("controls.none");
+        self.group(ui, tr("controls.highlight"), None, |d, ui| {
             let current = d.state.highlight.first().cloned();
             egui::ComboBox::from_id_salt("highlight").selected_text(current.clone().unwrap_or_else(|| none.to_string())).width(250.0).show_ui(ui, |ui| {
                 if ui.selectable_label(current.is_none(), none).clicked() {
@@ -235,8 +232,8 @@ impl Dock<'_> {
 
     pub fn camera(&mut self, ui: &mut Ui) {
         let c = self.state.camera;
-        let hint = t("The CameraData record of this view. Dragging in the view orbits; right-dragging pans.", "当前视图的 CameraData 记录。在视图中拖动可旋转，右键拖动可平移。");
-        self.group(ui, t("camera", "相机"), Some(hint), |d, ui| {
+        let hint = tr("controls.camera_hint");
+        self.group(ui, tr("controls.camera"), Some(hint), |d, ui| {
             d.rows(ui, "camera", |d, ui| {
                 let wrapped = (c.yaw + 180.0).rem_euclid(360.0) - 180.0;
                 let set = |d: &mut Self, camera: OrbitCamera| d.actions.push(ViewerAction::SetCamera(camera));
@@ -246,7 +243,7 @@ impl Dock<'_> {
                 if let Some(pitch) = d.number(ui, "cam.pitch", "pitch", palette::TEXT, c.pitch, -85.0..=85.0, Unit::Degrees) {
                     set(d, OrbitCamera { pitch, ..c });
                 }
-                if let Some(distance) = d.number(ui, "cam.distance", t("distance", "距离"), palette::TEXT, c.distance, 0.4..=15.0, Unit::Metres) {
+                if let Some(distance) = d.number(ui, "cam.distance", tr("controls.distance"), palette::TEXT, c.distance, 0.4..=15.0, Unit::Metres) {
                     set(d, OrbitCamera { distance, ..c });
                 }
                 if let Some(fov) = d.number(ui, "cam.fov", "fov", palette::TEXT, c.fov, 20.0..=90.0, Unit::Degrees) {
@@ -258,7 +255,7 @@ impl Dock<'_> {
 
     /// Checkboxes for overlay parameters (0 hidden, 1 shown), four per column.
     pub fn show(&mut self, ui: &mut Ui, toggles: &[(&'static str, &str)]) {
-        self.group(ui, t("show", "显示"), None, |d, ui| {
+        self.group(ui, tr("controls.show"), None, |d, ui| {
             ui.horizontal_top(|ui| {
                 for (i, column) in toggles.chunks(4).enumerate() {
                     if i > 0 {

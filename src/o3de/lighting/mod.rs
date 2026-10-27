@@ -27,12 +27,13 @@ pub mod selftest;
 pub mod shot;
 pub mod ssao;
 pub mod sources;
+pub mod text;
 pub mod transmission;
 
 use crate::lab::camera::Projector;
 use crate::lab::controls::Dock;
 use crate::lab::frame::{FrameContent, Statics};
-use crate::lab::i18n::t;
+use crate::o3de::lighting::text::tr;
 use crate::lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingBuffer, ShadingPass, ShadingTarget, TimelineInfo, Wording};
 use crate::lab::pseudocode::Listing;
 use crate::lab::scene::{self, ids};
@@ -50,7 +51,6 @@ static WORDING: Wording = Wording {
     engine_short: "O3DE",
     engine_tag: "O3DE",
     checkout_dir: "o3de/",
-    footer: ("Render Lab · O3DE's StandardPBR shading ported to WGSL · the lab's room, not an O3DE scene", "Render Lab · 移植到 WGSL 的 O3DE StandardPBR 着色 · 实验室的房间，并非 O3DE 场景"),
 };
 
 /// The narrated video's timelines (built by tools/video from video/storyboard.json).
@@ -156,18 +156,18 @@ impl Investigation for Lighting {
     }
 
     fn title(&self) -> &'static str {
-        t("Lighting model", "光照模型")
+        tr("investigation.lighting_model")
     }
 
     fn summary(&self) -> &'static str {
-        t(
-            "How O3DE 2.8's Atom renderer lights its opaque frame, ported to WGSL pass by pass and followed through the source: tiled light culling, the StandardPBR surface with specular AA and occlusion, decals, GGX specular and clear coat, the diffuse response, EnhancedPBR transmission, multiscatter compensation, point lights and lighting channels, the global skylight, reflection probes, and SSAO.",
-            "O3DE 2.8 的 Atom 渲染器如何照亮不透明帧，逐个 pass 移植到 WGSL 并对照源码：分块光源剔除，带 specular AA 与遮蔽的 StandardPBR 表面，decal，GGX 高光与 clear coat，diffuse response，EnhancedPBR 透射，多次散射补偿，点光源与 lighting channel，全局 skylight，反射 probe，以及 SSAO。",
-        )
+        tr("investigation.summary")
     }
 
     fn wording(&self) -> &'static Wording {
         &WORDING
+    }
+    fn footer(&self) -> &'static str {
+        tr("investigation.footer")
     }
 
     fn timelines(&self) -> &'static [TimelineInfo] {
@@ -196,7 +196,7 @@ impl Investigation for Lighting {
     }
 
     fn demo_hint(&self, _demo: DemoId) -> Option<&'static str> {
-        Some(t("click a surface to inspect its lighting", "点击表面以查看它的光照"))
+        Some(tr("investigation.demo_hint"))
     }
 
     fn resets_camera(&self, demo: DemoId) -> bool {

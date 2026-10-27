@@ -10,7 +10,7 @@ use super::shot::{self, Demo};
 use crate::lab::camera::Projector;
 use crate::lab::frame::Statics;
 use crate::lab::gpu::{self, Gpu};
-use crate::lab::i18n::t;
+use crate::o3de::lighting::text::tr;
 use crate::lab::investigation::SelftestOptions;
 use crate::lab::layout;
 use crate::lab::renderer::{self, FrameRequest, Renderer};
@@ -740,7 +740,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         // "At roughness zero point eight and this view angle, that is only about fifty seven percent."
         let energy = row(Demo::Multiscatter, "A + B");
         // "Six candelas at just under two metres give about one point seven lux, before the window."
-        let distance = row(Demo::PointLight, t("distance d", "距离 d"));
+        let distance = row(Demo::PointLight, tr("common.distance_d"));
         let lux = row(Demo::PointLight, "I / max");
         let ok = energy.is_some_and(|e| (0.565..0.575).contains(&e)) && distance.is_some_and(|d| (1.85..2.0).contains(&d)) && lux.is_some_and(|l| (1.65..1.75).contains(&l));
         report.check("the narration's measured numbers: A + B about 57% at the multiscatter point; about 1.7 lux from 6 cd just under 2 m", ok, json!({"singleScatteringEnergy": energy, "distanceMetres": distance, "luxBeforeWindow": lux}));

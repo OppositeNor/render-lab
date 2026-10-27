@@ -5,7 +5,7 @@
 //! at 1080p.
 
 use crate::lab::frame::{FrameContent, Statics};
-use crate::lab::i18n::{self, t};
+use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation;
 use crate::lab::layout::{FieldKind, RustField};
 use crate::lab::palette::{self, field_colors};
@@ -391,20 +391,20 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
                         }
                     }
                     ui.separator();
-                    if ui.button(if viewer.playing { t("Pause", "暂停") } else { t("Play", "播放") }).clicked() {
+                    if ui.button(if viewer.playing { tr("ui.pause") } else { tr("ui.play") }).clicked() {
                         viewer.actions.push(ViewerAction::TogglePlay);
                     }
-                    if ui.button(t("Step", "单步")).clicked() {
+                    if ui.button(tr("ui.step")).clicked() {
                         viewer.actions.push(ViewerAction::Step);
                     }
-                    if ui.button(t("Reset", "重置")).clicked() {
+                    if ui.button(tr("ui.reset")).clicked() {
                         viewer.actions.push(ViewerAction::Reset);
                     }
-                    if viewer.timeline.is_some() && ui.selectable_label(viewer.timeline_mode, t("Timeline", "时间轴")).clicked() {
+                    if viewer.timeline.is_some() && ui.selectable_label(viewer.timeline_mode, tr("ui.timeline")).clicked() {
                         viewer.actions.push(ViewerAction::ToggleTimeline);
                     }
                     ui.separator();
-                    if ui.button(t("⌂ Home", "⌂ 主页")).on_hover_text(t("Back to the homepage (Esc)", "返回主页（Esc）")).clicked() {
+                    if ui.button(tr("ui.home")).on_hover_text(tr("ui.home_hint")).clicked() {
                         viewer.actions.push(ViewerAction::Home);
                     }
                 });
@@ -544,7 +544,7 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     ink.text(pos2(x, y), Align2::LEFT_TOP, record.struct_name, 30.0, mono_bold(), palette::TEXT);
-    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, t("element", "元素")), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, tr("ui.element")), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
     y += 42.0;
     let title = ink.fit_right(&record.title, width, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::ACCENT);
@@ -621,7 +621,7 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
                 y += line;
             }
         } else {
-            let storage = if matches!(field.kind, FieldKind::Mat3) { t("3 cols × 16 B", "3 列 × 16 B") } else { t("4 cols × 16 B", "4 列 × 16 B") };
+            let storage = if matches!(field.kind, FieldKind::Mat3) { tr("ui.3_cols_16_b") } else { tr("ui.4_cols_16_b") };
             ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name}  ({storage})"), 24.0, FontFamily::Monospace, palette::TEXT);
             y += line;
             for row in &lines {
@@ -704,7 +704,7 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::lab::pseudocode::Listing, h
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     report.panel_code = Some(listing.name.to_string());
-    ink.text(pos2(x, y), Align2::LEFT_TOP, t("Python pseudo-code", "Python 伪代码"), 30.0, bold(), palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.python_pseudo_code"), 30.0, bold(), palette::TEXT);
     y += 42.0;
     let title = ink.fit_right(listing.title(), width, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::ACCENT);
@@ -774,7 +774,7 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::lab::frame::PanelReco
     let pads = layout.padding();
     let is_pad = |byte: usize| pads.iter().any(|(o, s, _)| byte >= *o && byte < o + s);
     let field_at = |byte: usize| layout.fields.iter().position(|f| byte >= f.offset && byte < f.offset + f.size);
-    ink.text(pos2(x, y), Align2::LEFT_TOP, t("byte   0 .. 15", "字节   0 .. 15"), 24.0, FontFamily::Monospace, palette::TEXT_FAINT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.byte_0_15"), 24.0, FontFamily::Monospace, palette::TEXT_FAINT);
     y += row_h;
     for r in 0..rows {
         if y + row_h > bottom - 3.0 * row_h {
@@ -815,7 +815,7 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::lab::frame::PanelReco
     }
     y += 8.0;
     let pad_total: usize = pads.iter().map(|p| p.1).sum();
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, t("data", "数据"), pad_total), 24.0, FontFamily::Proportional, palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, tr("ui.data"), pad_total), 24.0, FontFamily::Proportional, palette::TEXT);
     y += row_h + 2.0;
     for name in &state.highlight {
         if let (Some(f), Some(rf)) = (layout.field(name), rust.iter().find(|r| r.name == name.as_str())) {
@@ -823,8 +823,8 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::lab::frame::PanelReco
                 break;
             }
             let text = match rf.kind {
-                FieldKind::Mat3 => format!("{name}: {} B = {}", f.size, t("3 columns × 16 B", "3 列 × 16 B")),
-                FieldKind::Mat4 => format!("{name}: {} B = {}", f.size, t("4 columns × 16 B", "4 列 × 16 B")),
+                FieldKind::Mat3 => format!("{name}: {} B = {}", f.size, tr("ui.3_columns_16_b")),
+                FieldKind::Mat4 => format!("{name}: {} B = {}", f.size, tr("ui.4_columns_16_b")),
                 _ => format!("{name}: offset {}, {} B", f.offset, f.size),
             };
             let text = ink.fit_right(&text, width, 24.0, FontFamily::Proportional);
@@ -918,7 +918,7 @@ fn draw_history(ink: &Ink, input: &UiInput, history: &crate::lab::frame::History
     let rect = Rect::from_min_size(l.viewport.min + vec2(16.0, 16.0), vec2(width.max(520.0), 170.0));
     painter.rect_filled(rect, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, 238));
     painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
-    let title = ink.fit_right(t("history of the selected probe, frame by frame (display ×3)", "选中 probe 逐帧的 history（显示 ×3）"), rect.width() - 28.0, 24.0, FontFamily::Proportional);
+    let title = ink.fit_right(tr("ui.history_title"), rect.width() - 28.0, 24.0, FontFamily::Proportional);
     ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::TEXT_DIM);
     let exposure = content.uniforms.overlay_params[0];
     let top = rect.min.y + 52.0;
@@ -936,10 +936,10 @@ fn draw_history(ink: &Ink, input: &UiInput, history: &crate::lab::frame::History
         }
     }
     let s = &history.steps[history.current];
-    let frame = if i18n::zh() { format!("第 {} 帧", history.current) } else { format!("frame {}", history.current) };
+    let frame = tr_with("ui.history_frame", args!(frame = history.current));
     let mut text = format!("{frame} · framesAccumulated {} · historyWeight {:.2}", s.frames, s.weight);
     if s.fast_update > 0.0 {
-        text = format!("{frame} · {} {:.1} → {} {}", t("fast update", "fast update"), s.fast_update, s.frames, t("history frames", "帧 history"));
+        text = format!("{frame} · {} {:.1} → {} {}", tr("ui.fast_update"), s.fast_update, s.frames, tr("ui.history_frames"));
     }
     let text = ink.fit_right(&text, rect.width() - 28.0, 24.0, FontFamily::Proportional);
     ink.text(pos2(rect.min.x + 14.0, top + 50.0), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, if s.fast_update > 0.0 { palette::HISTORY_REJECT } else { palette::TEXT });
@@ -957,14 +957,10 @@ fn draw_source_card(ink: &Ink, input: &UiInput) {
     let x = rect.min.x + 40.0;
     let width = rect.width() - 80.0;
     let mut y = rect.min.y + 28.0;
-    let heading = if i18n::zh() {
-        format!("在 {} {} 中阅读 · 第 {} 章", index.engine.name, index.engine.version, input.chapter_number)
-    } else {
-        format!("Read it in {} {} · chapter {}", index.engine.name, index.engine.version, input.chapter_number)
-    };
+    let heading = tr_with("ui.read_it_in", args!(engine = index.engine.name, version = index.engine.version, chapter = input.chapter_number));
     ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 36.0, bold(), palette::TEXT);
     y += 50.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", t("Paths are relative to", "路径相对于"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", tr("ui.paths_are_relative_to"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
     y += 46.0;
     for key in input.beat_sources {
         let Some(entry) = index.entries.get(key) else { continue };
@@ -1005,9 +1001,9 @@ fn draw_caption_text(ink: &Ink, l: &Layout, caption: Option<&str>) {
 /// (back) or right (forward) side, fading out.
 fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
     let text = if seconds < 0 {
-        format!("◀◀  {}", t("back {} s", "后退 {} 秒").replace("{}", &(-seconds).to_string()))
+        format!("◀◀  {}", tr_with("ui.skip_back", args!(seconds = -seconds)))
     } else {
-        format!("{}  ▶▶", t("forward {} s", "快进 {} 秒").replace("{}", &seconds.to_string()))
+        format!("{}  ▶▶", tr_with("ui.skip_forward", args!(seconds = seconds)))
     };
     let size = ink.measure(&text, 34.0, bold()) + vec2(56.0, 28.0);
     let x = if seconds < 0 { l.viewport.min.x + l.viewport.width() * 0.2 } else { l.viewport.max.x - l.viewport.width() * 0.2 };
@@ -1026,7 +1022,7 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
     let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x, l.footer.min.y + 30.0));
     let response = egui::Area::new(egui::Id::unique("timeline-bar")).fixed_pos(l.footer.min).show(ctx, |ui| {
         ui.set_min_size(l.footer.size());
-        let play = ui.put(button, egui::Button::new(if viewer.playing { t("❚❚  Pause", "❚❚  暂停") } else { t("▶  Play", "▶  播放") }));
+        let play = ui.put(button, egui::Button::new(if viewer.playing { tr("ui.bar_pause") } else { tr("ui.bar_play") }));
         if play.clicked() {
             viewer.actions.push(ViewerAction::TogglePlay);
         }
@@ -1075,7 +1071,7 @@ fn draw_bar_preview(ctx: &egui::Context, bar: Rect, share: f32, total: u64, view
         format!("{}:{:02}", s / 60, s % 60)
     };
     let at = (share as f64 * total as f64) as u64;
-    let chapter = if i18n::zh() { format!("第 {} 章 · {}", section.chapter, section.chapter_title) } else { format!("Chapter {} · {}", section.chapter, section.chapter_title) };
+    let chapter = tr_with("ui.bar_chapter", args!(chapter = section.chapter, title = section.chapter_title));
     let width = 720.0f32;
     let chapter_line = ink.fit_right(&chapter, width - 120.0, 24.0, bold());
     let headline = ink.fit_right(&section.headline, width, 26.0, bold());
@@ -1096,11 +1092,7 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
     let wording = investigation::current().wording();
     let x = rect.min.x + 20.0;
     let mut y = rect.min.y + 10.0;
-    let heading = if i18n::zh() {
-        format!("{} 的 {} 源码（路径相对于 {}）", demo.title(), wording.engine_short, wording.checkout_dir)
-    } else {
-        format!("{} source for {} (paths relative to {})", wording.engine_short, demo.title(), wording.checkout_dir)
-    };
+    let heading = tr_with("ui.source_list_heading", args!(engine = wording.engine_short, demo = demo.title(), checkout = wording.checkout_dir));
     ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 24.0, bold(), palette::ACCENT);
     y += 34.0;
     let keys = index.demos.get(demo.key()).cloned().unwrap_or_default();
@@ -1129,6 +1121,5 @@ fn draw_footer(ink: &Ink, l: &Layout, timeline: Option<(&&Timeline, u64)>) {
         painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::same(2), palette::ACCENT);
         painter.circle_filled(pos2(x, bar.center().y), 7.0, palette::ACCENT);
     }
-    let (en, zh) = investigation::current().wording().footer;
-    ink.text(pos2(l.footer.min.x, l.footer.min.y + 16.0), Align2::LEFT_TOP, t(en, zh), 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+    ink.text(pos2(l.footer.min.x, l.footer.min.y + 16.0), Align2::LEFT_TOP, investigation::current().footer(), 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
 }

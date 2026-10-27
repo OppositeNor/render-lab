@@ -93,8 +93,10 @@ so the build validates it. A frame without a struct-panel record can show a `Rea
 ## Building and local caches
 
 - **Requirements:** Rust 1.88 or newer and a Vulkan driver. The shaders are WGSL, so no shader SDK is needed.
-- **Crate sources:** every crate is vendored in `vendor/`, and [`.cargo/config.toml`](.cargo/config.toml) points Cargo
-  there and sets `offline = true`. Recreate `vendor/` (for example in a fresh clone) with [`setup.sh`](setup.sh).
+- **Crate sources:** a fresh clone builds with plain `cargo build`, which downloads the locked crates from crates.io.
+  To keep every crate inside the project, run [`setup.sh`](setup.sh) once (with network access): it vendors them into
+  `vendor/` and writes `.cache/cargo/config.toml`, so builds with `CARGO_HOME=$PWD/.cache/cargo` (as the video tools
+  use) read `vendor/` offline. [`.cargo/config.toml`](.cargo/config.toml) keeps the build output in `target/`.
 - **Fonts:** DejaVu Sans and DejaVu Sans Mono, with Source Han Sans CN for Chinese text, are bundled in
   [`assets/fonts`](assets/fonts) with their licenses.
 

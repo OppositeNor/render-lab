@@ -40,6 +40,11 @@ const SCENE_SHADINGS: &[&str] = &["src/o3de/lighting/shaders/standard_lighting"]
 /// Investigations' readout formulas: formulas.json, the PNGs made from it,
 /// and manifest.json with their hashes.
 const FORMULAS: &[&str] = &["src/o3de/lighting/formulas"];
+/// Each layer's on-screen text (`text/en.json`, `text/zh-CN.json`) and the
+/// code that names its keys (`tr("key")`, `tr_with("key", …)`).
+const TEXT_TABLES: &[(&str, &str)] = &[("src/lab/text", "src/lab"), ("src/o3de/lighting/text", "src/o3de/lighting")];
+const COMMERCIAL_TEXT_TABLES: &[(&str, &str)] = &[("src/commercial/unreal/lumen/text", "src/commercial/unreal/lumen")];
+const LOCALES: &[&str] = &["en", "zh-CN"];
 /// Modules without the prelude.
 const STANDALONE: &[&str] = &["shaders/wgsl/frost"];
 /// The files of src/commercial the build needs, relative to the crate root.
@@ -133,6 +138,97 @@ fn check_formulas(manifest_dir: &std::path::Path) {
     }
 }
 
+/// A text's placeholder names (`{seconds}`; `{{` and `}}` are literal braces).
+fn placeholders(text: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut rest = text;
+    while let Some(i) = rest.find(['{', '}']) {
+        let tail = &rest[i..];
+        if tail.starts_with("{{") || tail.starts_with("}}") {
+            rest = &tail[2..];
+            continue;
+        }
+        let end = tail.find('}').filter(|_| tail.starts_with('{')).unwrap_or_else(|| panic!("unbalanced brace in text {text:?}"));
+        names.push(&tail[1..end]);
+        rest = &tail[end + 1..];
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`.
+fn text_keys_used(dir: &std::path::Path, keys: &mut Vec<(String, String)>) {
+    let mut entries: Vec<_> = fs::read_dir(dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())).map(|e| e.unwrap().path()).collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            text_keys_used(&path, keys);
+            continue;
+        }
+        if path.extension().is_none_or(|e| e != "rs") {
+            continue;
+        }
+        println!("cargo:rerun-if-changed={}", path.display());
+        let source = fs::read_to_string(&path).unwrap();
+        for (n, line) in source.lines().enumerate() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            for call in ["tr(", "tr_with("] {
+                for (i, _) in line.match_indices(call) {
+                    let before = line[..i].chars().next_back();
+                    if before.is_some_and(|c| c.is_alphanumeric() || c == '_') || line[..i].trim_end().ends_with("fn") {
+                        continue;
+                    }
+                    let at = format!("{}:{}", path.display(), n + 1);
+                    let rest = line[i + call.len()..].strip_prefix('"').unwrap_or_else(|| panic!("{at}: a text key must be a string literal"));
+                    let key = &rest[..rest.find('"').unwrap_or_else(|| panic!("{at}: unterminated text key"))];
+                    keys.push((key.to_string(), at));
+                }
+            }
+        }
+    }
+}
+
+/// Every locale of a text table has the same keys; English names every
+/// placeholder of a key and the other locales a subset (English may need a
+/// value another language does not, such as a plural's "s"); every key the
+/// layer's code names exists, and every key is named somewhere.
+fn check_text(manifest_dir: &std::path::Path, tables: &[(&str, &str)]) {
+    for (dir, code) in tables {
+        let tables: Vec<(&str, serde_json::Map<String, Value>)> = LOCALES
+            .iter()
+            .map(|locale| {
+                let path = manifest_dir.join(dir).join(format!("{locale}.json"));
+                println!("cargo:rerun-if-changed={}", path.display());
+                let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+                (*locale, serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
+            })
+            .collect();
+        let (first, reference) = &tables[0];
+        for (locale, table) in &tables {
+            for (key, text) in table {
+                let text = text.as_str().unwrap_or_else(|| panic!("{dir}/{locale}.json: {key} is not a string"));
+                let Some(other) = reference.get(key) else { panic!("{dir}/{locale}.json has {key}, {first}.json does not") };
+                let english = placeholders(other.as_str().unwrap_or_default());
+                assert!(placeholders(text).iter().all(|p| english.contains(p)), "{dir}/{locale}.json: {key} has a placeholder {first}.json does not");
+            }
+            for key in reference.keys() {
+                assert!(table.contains_key(key), "{dir}/{locale}.json has no {key}");
+            }
+        }
+        let mut used = Vec::new();
+        text_keys_used(&manifest_dir.join(code), &mut used);
+        for (key, at) in &used {
+            assert!(reference.contains_key(key), "{at}: no text {key:?} in {dir}");
+        }
+        for key in reference.keys() {
+            assert!(used.iter().any(|(k, _)| k == key), "{dir}: no code uses the text {key:?}");
+        }
+    }
+}
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -150,6 +246,10 @@ fn main() {
         panic!("src/commercial is only partly present; missing: {}", missing.join(", "));
     }
     check_formulas(&manifest_dir);
+    check_text(&manifest_dir, TEXT_TABLES);
+    if commercial {
+        check_text(&manifest_dir, COMMERCIAL_TEXT_TABLES);
+    }
     let read = |name: &str| {
         let path = manifest_dir.join(format!("{name}.wgsl"));
         println!("cargo:rerun-if-changed={}", path.display());

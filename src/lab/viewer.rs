@@ -607,7 +607,7 @@ impl App {
     }
 
     fn status(&self) -> String {
-        use crate::lab::i18n::t;
+        use crate::lab::i18n::tr;
         let mode = if let (true, Some(tl)) = (self.timeline_mode, &self.timeline) {
             let clock = |frame: u64| {
                 let s = frame / tl.fps as u64;
@@ -615,16 +615,16 @@ impl App {
             };
             let chapter = tl.chapter_at(self.timeline_frame);
             let what = if self.playing {
-                t("playing", "播放中")
+                tr("viewer.playing")
             } else {
-                t("paused: orbit, pick, and use the sliders", "已暂停：可旋转、拾取并使用滑块")
+                tr("viewer.paused_hint")
             };
-            let audio = if self.audio.is_some() { "" } else { t(" · no narration track", " · 没有旁白音轨") };
-            format!("{} / {} · {} {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), t("chapter", "第"), chapter.number)
+            let audio = if self.audio.is_some() { "" } else { tr("viewer.no_narration_track") };
+            format!("{} / {} · {} {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), tr("viewer.chapter_prefix"), chapter.number)
         } else {
-            format!("{} · t = {:.2} s", if self.playing { t("playing", "播放中") } else { t("paused", "已暂停") }, self.demo_time)
+            format!("{} · t = {:.2} s", if self.playing { tr("viewer.playing") } else { tr("viewer.paused") }, self.demo_time)
         };
-        let hint = investigation::current().demo_hint(self.state.demo).unwrap_or_else(|| t("drag orbit · right-drag pan · wheel zoom · click pick", "拖动旋转 · 右键拖动平移 · 滚轮缩放 · 点击拾取"));
+        let hint = investigation::current().demo_hint(self.state.demo).unwrap_or_else(|| tr("viewer.drag_hint"));
         format!("{mode} · {hint}")
     }
 
