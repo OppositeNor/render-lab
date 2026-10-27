@@ -38,21 +38,15 @@ const FACES: [[Vec3; 3]; 6] = [
     [Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
 ];
 
-/// The lab's environment: a sky over a dim ground, with a warm softbox high
-/// on one side. Radiance, in the units of the point light's illuminance.
+/// The skylight's level: the mean radiance of the lab's environment
+/// (src/lab/environment.rs, a photographed sky with its sun clipped), in the
+/// units of the point light's illuminance. It is the mean of the procedural
+/// sky this investigation had before, so the two lights keep their balance.
+pub const SKY_LEVEL: f32 = 0.31;
+
+/// The skylight's environment: the lab's, at the level lighting reads.
 pub fn environment(dir: Vec3) -> Vec3 {
-    let d = dir.normalize();
-    let smooth = |a: f32, b: f32, x: f32| {
-        let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
-        t * t * (3.0 - 2.0 * t)
-    };
-    let zenith = Vec3::new(0.10, 0.22, 0.48);
-    let horizon = Vec3::new(0.62, 0.70, 0.82);
-    let ground = Vec3::new(0.16, 0.14, 0.12);
-    let mut c = if d.y >= 0.0 { horizon.lerp(zenith, smooth(0.0, 0.6, d.y)) } else { (horizon * 0.5).lerp(ground, smooth(0.0, 0.15, -d.y)) };
-    let softbox = Vec3::new(-0.55, 0.55, 0.63).normalize();
-    c += Vec3::new(6.0, 5.6, 5.0) * smooth(0.975, 0.985, d.dot(softbox));
-    c
+    crate::lab::environment::radiance(dir) * SKY_LEVEL
 }
 
 /// Six square faces of `size` texels, face-major then row-major (v down, u across).

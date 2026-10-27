@@ -1836,8 +1836,8 @@ fn reconstructWorldPosition(pixel: vec2<u32>, depth: f32) -> vec3<f32> {
     return world.xyz / world.w;
 }
 
-// The lab has no sky box: where no surface was drawn (depth 0, the far
-// plane of the reversed depth), the background stays.
+// Where no surface was drawn (depth 0, the far plane of the reversed depth),
+// the merge pass draws the sky.
 fn covered(depth: f32) -> bool {
     return depth > 0.0;
 }
@@ -2268,8 +2268,14 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     } else if (view == VIEW_SSAO) {
         color = untonemap(vec3<f32>(ao));
     }
-    // The lab's background where samples hit nothing (it has no sky box).
-    let background = vec3<f32>(0.004, 0.009, 0.016);
+    // Where samples hit nothing, the sky box: the environment the skylight's
+    // cubemaps were baked from, unfiltered and without m_iblExposure (the lab
+    // draws it here instead of in a pass of its own). The false-colour views
+    // keep a dark background.
+    var background = vec3<f32>(0.004, 0.009, 0.016);
+    if (view == VIEW_FINAL) {
+        background = skyRadiance(viewRay((vec2<f32>(pixel) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
+    }
     color += background * (1.0 - coverage / n);
     textureStore(oHdr, pixel, vec4<f32>(color, 1.0));
 }

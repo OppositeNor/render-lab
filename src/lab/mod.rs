@@ -18,6 +18,7 @@ pub mod audio;
 pub mod camera;
 pub mod config;
 pub mod controls;
+pub mod environment;
 pub mod formats;
 pub mod frame;
 pub mod frost;

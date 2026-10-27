@@ -256,7 +256,8 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         light_axis_u: lighting.light.axis_u.extend(0.0).to_array(),
         light_axis_v: lighting.light.axis_v.extend(0.0).to_array(),
         light_color: lighting.light.color.extend(1.0).to_array(),
-        ambient_color: lighting.ambient.extend(1.0).to_array(),
+        // The sky box's level (gFrame.ambientColor scales skyRadiance).
+        ambient_color: [super::ibl::SKY_LEVEL, super::ibl::SKY_LEVEL, super::ibl::SKY_LEVEL, 1.0],
         floor_params: [state.p("floorRoughness"), lighting.f0, 0.0, 1.0],
         overlay_params: [exposure, pixel_scale, time, 0.0],
         cut_plane: [0.0; 4],

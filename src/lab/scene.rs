@@ -71,6 +71,7 @@ impl Light {
 #[derive(Clone, Copy, Debug)]
 pub struct Lighting {
     pub light: Light,
+    /// The sky's level: the environment (environment.rs) times this.
     pub ambient: Vec3,
     pub f0: f32,
     pub reflection_strength: f32,
@@ -90,6 +91,12 @@ fn deg(v: f32) -> f32 {
 }
 
 impl Scene {
+    /// Whether a point is inside the study room's walls, `margin` metres clear
+    /// of them (its front is open, and it has no ceiling).
+    pub fn inside_room(p: Vec3, margin: f32) -> bool {
+        p.x.abs() < 3.0 - margin && p.z > -3.0 + margin && p.y > margin
+    }
+
     pub fn study_room() -> Scene {
         let plane = |name, center: Vec3, rotation: Quat, ex: f32, ez: f32, albedo: Vec3| SceneObject {
             name,
@@ -195,7 +202,7 @@ impl Scene {
             objects,
             lighting: Lighting {
                 light,
-                ambient: Vec3::new(0.060, 0.070, 0.090),
+                ambient: Vec3::splat(0.12),
                 f0: 0.04,
                 reflection_strength: 1.0,
                 ggx_samples: 16,
@@ -481,8 +488,9 @@ pub fn direct_irradiance(objects: &[ObjectData], lighting: &Lighting, p: Vec3, n
     l.color * l.radiance * sum * area / 16.0
 }
 
+/// The sky along `dir` (common.wgsl's environmentRadiance).
 pub fn environment_radiance(lighting: &Lighting, dir: Vec3) -> Vec3 {
-    lighting.ambient * (0.35 + 0.25 * dir.y.clamp(0.0, 1.0))
+    lighting.ambient * crate::lab::environment::radiance(dir)
 }
 
 /// WGSL reflect(e1, e2) = e1 - 2 * dot(e2, e1) * e2 (same as HLSL).

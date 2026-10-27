@@ -99,6 +99,9 @@ so the build validates it. A frame without a struct-panel record can show a `Rea
   use) read `vendor/` offline. [`.cargo/config.toml`](.cargo/config.toml) keeps the build output in `target/`.
 - **Fonts:** DejaVu Sans and DejaVu Sans Mono, with Source Han Sans CN for Chinese text, are bundled in
   [`assets/fonts`](assets/fonts) with their licenses.
+- **Environment:** the sky that lights the study room and shows behind it is Poly Haven's "Tree Lined Driveway"
+  HDRI (CC0), in [`assets/environments`](assets/environments); `src/lab/environment.rs` clips its sun and scales it,
+  and each investigation sets its level.
 - **Sound:** the homepage plays a music loop while it is shown, and a click for its controls (neither in
   demonstrations nor videos), through FFplay (the video environment's, `FFPLAY`, or PATH); without FFplay the lab is
   silent. The sounds in [`assets/audio`](assets/audio) are licensed from soundza, not under the MIT License: they are
@@ -107,4 +110,4 @@ so the build validates it. A frame without a struct-panel record can show a `Rea
 ## License
 
 Render Lab is released under the [MIT License](LICENSE), copyright © 2026 OppositeNor. Bundled fonts, the teapot mesh,
-the sounds, and the vendored crates keep their own terms; see [`THIRD_PARTY.md`](THIRD_PARTY.md).
+the environment, the sounds, and the vendored crates keep their own terms; see [`THIRD_PARTY.md`](THIRD_PARTY.md).

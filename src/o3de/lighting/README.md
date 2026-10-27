@@ -164,13 +164,14 @@ it sorts a tile's decals with an insertion sort, where O3DE uses a bitonic sort 
 order). The decal and occlusion textures are the lab's own, procedural, read at mip 0 only from a storage buffer with the
 samplers' filtering and addressing done by hand; the decal textures are not in texture arrays. The BRDF
 texture is f32 rather than R16G16_FLOAT, and multiscatter compensation is on, where StandardPBR's material default is
-off. The environment is the lab's own (a procedural sky and softbox), indexed by the lab's +Y-up directions
+off. The environment is the lab's (Poly Haven's "Tree Lined Driveway" photograph, `src/lab/environment.rs`), with its sun
+clipped, since the lab has no directional light to carry it, and scaled to a mean radiance of 0.31; it is indexed by the lab's +Y-up directions
 (O3DE's `GetCubemapCoords` converts its +Z-up ones). The cubemaps stay in f32 rather than R9G9B9E5 or BC6H; the
 diffuse one is 32² (O3DE allows 32 to 128); and the run-time lookups clamp at a face's edge where a GPU filters
 seamlessly. The lab renders with 4x MSAA where O3DE's main pipeline uses 2x; its full-screen passes run per sample, as
 O3DE's do, and average their samples where O3DE resolves after the composite. Compute passes cannot blend, so where O3DE
-adds onto a target (One/One), the lab writes the sum to a new one. The lab has no sky box pass: uncovered samples keep
-its background, and a false-colour target carries the dock's views. The scene is the lab's study room, the tonemapper is the lab's, and
+adds onto a target (One/One), the lab writes the sum to a new one. The lab has no sky box pass: the merge pass draws the
+environment where samples hit nothing (a dark background in the false-colour views), and a false-colour target carries the dock's views. The scene is the lab's study room, the tonemapper is the lab's, and
 `DiffuseSpecularMerge`'s neighbourhood blend for subsurface scattering is not used.
 
 ## Files

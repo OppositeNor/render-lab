@@ -36,6 +36,8 @@ pub struct Pipelines {
     /// Group 1 of an investigation's own scene shading (`SceneShading`).
     pub shading_layout: wgpu::BindGroupLayout,
     pub scene: wgpu::RenderPipeline,
+    /// The backdrop, drawn first in a scene pass that has no pass chain.
+    pub sky: wgpu::RenderPipeline,
     pub ghost: wgpu::RenderPipeline,
     pub card: wgpu::RenderPipeline,
     pub sample: wgpu::RenderPipeline,
@@ -209,6 +211,7 @@ impl Pipelines {
             ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Uint, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false },
             count: None,
         });
+        frame_entries.push(texture(15, wgpu::TextureViewDimension::D2));
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("frame"), entries: &frame_entries });
         let texture_pair_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture pair"),
@@ -269,7 +272,19 @@ impl Pipelines {
         let cards = [Some(instance_layout::<CardInstance>(&PAIR_ATTRS))];
         let samples = [Some(instance_layout::<SampleInstance>(&PAIR_ATTRS))];
         let points = [Some(instance_layout::<PointInstance>(&POINT_ATTRS))];
+        let sky = render_pipeline(device, &frame_only, PipelineSpec {
+            label: "sky",
+            module: &scene_module,
+            vs: "fullscreenVS",
+            fs: "skyFS",
+            buffers: &[],
+            format: HDR_FORMAT,
+            samples: MSAA,
+            depth: Some((Always, false)),
+            blend: None,
+        });
         let pipelines = Pipelines {
+            sky,
             ghost: overlay("ghost", "ghostVS", "ghostFS", &mesh_buffers, (GreaterEqual, false)),
             card: overlay("card", "cardVS", "cardFS", &cards, (GreaterEqual, false)),
             sample: overlay("sample", "sampleVS", "sampleFS", &samples, (GreaterEqual, true)),

@@ -271,7 +271,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let worst_furnace = furnace.specular.iter().map(off).fold(off(&furnace.diffuse), f32::max);
     report.check("prefiltering keeps a constant environment constant (white furnace)", worst_furnace < 1e-5, json!({"worstDifference": worst_furnace, "mips": furnace.specular.len()}));
     let stats: Vec<Value> = cubes.specular.iter().enumerate().map(|(m, c)| json!({"mip": m, "size": c.size, "roughness": super::ibl::mip_roughness(m), "peak": c.texels.iter().map(|t| t.max_element()).fold(0.0f32, f32::max)})).collect();
-    report.check("specular cubemap: six mips, the softbox spreading as roughness grows", cubes.specular.len() == 6 && cubes.specular[5].size == 8, json!(stats));
+    report.check("specular cubemap: six mips, the sky spreading as roughness grows", cubes.specular.len() == 6 && cubes.specular[5].size == 8, json!(stats));
 
     // ---- 5. Whole pixels: o3dePixel on the GPU against brdf::pixel ---------
     let mut pixel_detail = Vec::new();

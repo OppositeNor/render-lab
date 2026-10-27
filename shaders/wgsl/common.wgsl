@@ -357,8 +357,47 @@ fn ambientVisibility(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> f32 {
     return visibility;
 }
 
+// The lab's environment (src/lab/environment.rs) along `dir` at one level:
+// bilinear between texel centres, wrapping around the vertical axis and
+// clamped at the poles, filtered by hand so it matches the CPU's lookup.
+// The constants are environment.rs's TURN and LIGHTING_LEVEL.
+const ENVIRONMENT_TURN: f32 = 0.0;
+const ENVIRONMENT_LIGHTING_LEVEL: i32 = 2;
+
+fn environment(dir: vec3<f32>, level: i32) -> vec3<f32> {
+    let size = vec2<i32>(textureDimensions(gEnvironment, level));
+    let d = normalize(dir);
+    let u = (0.5 + atan2(d.x, -d.z) / (2.0 * PI) + ENVIRONMENT_TURN) * f32(size.x) - 0.5;
+    let v = clamp(acos(clamp(d.y, -1.0, 1.0)) / PI * f32(size.y) - 0.5, 0.0, f32(size.y - 1));
+    let x = floor(u);
+    let y = floor(v);
+    let f = vec2<f32>(u - x, v - y);
+    let x0 = ((i32(x) % size.x) + size.x) % size.x;
+    let x1 = (x0 + 1) % size.x;
+    let y0 = i32(y);
+    let y1 = min(y0 + 1, size.y - 1);
+    let top = mix(textureLoad(gEnvironment, vec2<i32>(x0, y0), level).rgb, textureLoad(gEnvironment, vec2<i32>(x1, y0), level).rgb, f.x);
+    let bottom = mix(textureLoad(gEnvironment, vec2<i32>(x0, y1), level).rgb, textureLoad(gEnvironment, vec2<i32>(x1, y1), level).rgb, f.x);
+    return mix(top, bottom, f.y);
+}
+
+// The sky as lighting sees it (scene::environment_radiance).
 fn environmentRadiance(dir: vec3<f32>) -> vec3<f32> {
-    return gFrame.ambientColor.rgb * (0.35 + 0.25 * saturate(dir.y));
+    return gFrame.ambientColor.rgb * environment(dir, ENVIRONMENT_LIGHTING_LEVEL);
+}
+
+// The sky as the backdrop shows it: the environment's full detail.
+fn skyRadiance(dir: vec3<f32>) -> vec3<f32> {
+    return gFrame.ambientColor.rgb * environment(dir, 0);
+}
+
+// The world direction through a point of the viewport (uv 0..1, y down).
+fn viewRay(uv: vec2<f32>) -> vec3<f32> {
+    let c = gFrame.camera;
+    let d = vec3<f32>((uv.x * 2.0 - 1.0) / c.viewToClip[0][0], (1.0 - uv.y * 2.0) / c.viewToClip[1][1], -1.0);
+    // The view rotation's transpose.
+    let r = c.worldToView;
+    return normalize(vec3<f32>(dot(r[0].xyz, d), dot(r[1].xyz, d), dot(r[2].xyz, d)));
 }
 
 // ---------------------------------------------------------------------------

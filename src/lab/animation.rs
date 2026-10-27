@@ -339,6 +339,15 @@ pub enum Intro {
 /// The intro chosen last, so the next one is a different move (3: none yet).
 static LAST_INTRO: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(3);
 
+/// An intro fitted to its shot: where it starts, as offsets from the shot's camera.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IntroMove {
+    yaw: f32,
+    pitch: f32,
+    /// The start's distance over the shot's.
+    distance: f32,
+}
+
 impl Intro {
     pub const ALL: [Intro; 3] = [Intro::Swing, Intro::Crane, Intro::PushIn];
     /// Seconds from the start pose to the shot.
@@ -354,23 +363,39 @@ impl Intro {
         Intro::ALL[i]
     }
 
-    /// The camera `t` seconds into the intro, on its way to `shot`; `shot` itself at the end.
-    pub fn camera(self, shot: OrbitCamera, t: f32) -> OrbitCamera {
-        if t >= Intro::SECONDS {
-            return shot;
-        }
-        // Offsets kept small, so the camera stays inside the room.
+    /// The move into `shot`: this intro's start, or the same turned the other way,
+    /// or either made smaller, whichever first starts at a camera `fits` accepts
+    /// (inside the room, say); none at all if nothing does.
+    pub fn fit(self, shot: OrbitCamera, fits: impl Fn(&OrbitCamera) -> bool) -> IntroMove {
         let (yaw, pitch, distance) = match self {
             Intro::Swing => (40.0, 8.0, 1.2),
             Intro::Crane => (-12.0, (75.0 - shot.pitch).clamp(0.0, 35.0), 1.15),
             Intro::PushIn => (-22.0, -(shot.pitch - 2.0).clamp(0.0, 5.0), 1.35),
         };
-        // From the offset pose (k = 1) to the shot (k = 0): leaves at rest, settles gently.
+        for scale in [1.0, 0.75, 0.5, 0.25] {
+            for side in [1.0, -1.0] {
+                let candidate = IntroMove { yaw: yaw * side * scale, pitch: pitch * scale, distance: 1.0 + (distance - 1.0) * scale };
+                if fits(&candidate.camera(shot, 0.0)) {
+                    return candidate;
+                }
+            }
+        }
+        IntroMove { yaw: 0.0, pitch: 0.0, distance: 1.0 }
+    }
+}
+
+impl IntroMove {
+    /// The camera `t` seconds into the intro, on its way to `shot`; `shot` itself at the end.
+    pub fn camera(self, shot: OrbitCamera, t: f32) -> OrbitCamera {
+        if t >= Intro::SECONDS {
+            return shot;
+        }
+        // From the start (k = 1) to the shot (k = 0): leaves at rest, settles gently.
         let k = 1.0 - Ease::InOut.apply((t / Intro::SECONDS).clamp(0.0, 1.0));
         OrbitCamera {
-            yaw: shot.yaw + yaw * k,
-            pitch: (shot.pitch + pitch * k).clamp(-85.0, 85.0),
-            distance: shot.distance * (1.0 + (distance - 1.0) * k),
+            yaw: shot.yaw + self.yaw * k,
+            pitch: (shot.pitch + self.pitch * k).clamp(-85.0, 85.0),
+            distance: shot.distance * (1.0 + (self.distance - 1.0) * k),
             ..shot
         }
     }
@@ -405,12 +430,17 @@ mod tests {
     }
 
     #[test]
-    fn every_intro_ends_on_the_shot_and_never_repeats() {
+    fn every_intro_ends_on_the_shot_starts_where_it_fits_and_never_repeats() {
         let shot = OrbitCamera { target: [0.0, 1.0, 0.0], yaw: 10.0, pitch: 20.0, distance: 3.0, fov: 50.0 };
         for intro in Intro::ALL {
-            let end = intro.camera(shot, Intro::SECONDS);
+            let fitted = intro.fit(shot, |_| true);
+            let end = fitted.camera(shot, Intro::SECONDS);
             assert!(end.yaw == shot.yaw && end.pitch == shot.pitch && end.distance == shot.distance, "{intro:?}");
-            assert!(intro.camera(shot, 0.0).yaw != shot.yaw, "{intro:?} starts on the shot");
+            assert!(fitted.camera(shot, 0.0).yaw != shot.yaw, "{intro:?} starts on the shot");
+            // Only the mirrored side fits: the swing turns the other way.
+            let left = intro.fit(shot, |c| c.yaw <= shot.yaw);
+            assert!(left.camera(shot, 0.0).yaw < shot.yaw, "{intro:?}");
+            assert_eq!(intro.fit(shot, |c| c == &shot).camera(shot, 0.0), shot);
         }
         let mut last = Intro::random();
         for _ in 0..20 {

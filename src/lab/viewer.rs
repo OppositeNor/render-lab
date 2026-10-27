@@ -10,7 +10,9 @@
 //! (`controls.rs`) edit the demonstration's parameters.
 //!
 //! The homepage opens the viewer on the demonstrations, or on a timeline,
-//! paused at its start or at a chosen chapter. Playing runs it in real time with the narration (FFplay) and
+//! paused at its start or at a chosen chapter. Either way the camera first
+//! moves into the shot, one of three intros at random (`animation::Intro`);
+//! touching the camera stops it there. Playing runs it in real time with the narration (FFplay) and
 //! captions; the footer's bar seeks. Pausing hands the current shot to the
 //! user: the camera, the dock's sliders, and picking work on a copy of the
 //! timeline's state, and playing again returns to the timeline where it
@@ -23,6 +25,7 @@
 //! The viewer runs on an event loop it is given (`run_on`), so the homepage
 //! can open it and get the window back when it closes.
 
+use crate::lab::animation::{Intro, IntroMove};
 use crate::lab::camera::Projector;
 use crate::lab::frame::{FrameContent, Statics};
 use crate::lab::gpu::{self, Gpu};
@@ -149,6 +152,8 @@ pub struct App {
     /// The Home button was pressed: the event loop exits after this frame.
     pub leaving: bool,
     error: Option<anyhow::Error>,
+    /// The camera's move into the first shot, and when it started (src/lab/animation.rs).
+    intro: Option<(IntroMove, Instant)>,
 }
 
 impl App {
@@ -163,11 +168,13 @@ impl App {
         let audio = options.audio.clone().and_then(|a| crate::lab::audio::AudioPlayer::new(a, &options.manifest_dir));
         // A timeline opens on its first frame, paused; the autotest starts in the free demonstrations.
         let start_in_timeline = timeline.is_some() && autotest.is_none();
+        let no_autotest = autotest.is_none();
         let start_frame = timeline.as_ref().map_or(0, |t| options.start_frame.min(t.total_frames.saturating_sub(1)));
         let state = match (&timeline, start_in_timeline) {
             (Some(t), true) => t.state_at(start_frame),
             _ => ShotState::for_demo(investigation::current().demos()[0]),
         };
+        let camera = state.camera;
         Ok(App {
             options,
             surface: None,
@@ -199,6 +206,8 @@ impl App {
             exit: ViewerExit::Closed,
             leaving: false,
             error: None,
+            // The autotest checks the camera, so it opens straight on the shot.
+            intro: no_autotest.then(|| (Intro::random().fit(camera, |c| crate::lab::scene::Scene::inside_room(c.eye(), 0.2)), Instant::now())),
         })
     }
 
@@ -235,8 +244,28 @@ impl App {
         self.renderer.as_ref().map(|r| r.statics.default_state(demo)).unwrap_or_else(|| ShotState::for_demo(demo))
     }
 
+    /// Stop the intro where it is, keeping its camera, so the user's camera input carries on from what they see.
+    fn end_intro(&mut self) {
+        if let Some((intro, started)) = self.intro.take() {
+            self.state.camera = intro.camera(self.state.camera, started.elapsed().as_secs_f32());
+        }
+    }
+
+    /// The rendered state with the intro's camera on its way into the shot.
+    fn with_intro(&mut self, mut state: ShotState, now: Instant) -> ShotState {
+        if let Some((intro, started)) = self.intro {
+            let t = (now - started).as_secs_f32();
+            state.camera = intro.camera(state.camera, t);
+            if t >= Intro::SECONDS {
+                self.intro = None;
+            }
+        }
+        state
+    }
+
     pub fn select_demo(&mut self, demo: impl Into<DemoId>) {
         let demo = demo.into();
+        self.intro = None;
         self.stop_audio();
         self.state = self.default_state(demo);
         self.demo_time = 0.0;
@@ -422,6 +451,7 @@ impl App {
             }
             ViewerAction::SetCamera(camera) if interactive => {
                 // The camera sliders show the swayed view; hold it before changing it.
+                self.end_intro();
                 self.stop();
                 self.state.camera = camera;
             }
@@ -523,6 +553,7 @@ impl App {
         if self.timeline_playing() {
             return;
         }
+        self.end_intro();
         let height = self.viewport_height();
         match drag.button {
             MouseButton::Left => self.state.camera.orbit(delta),
@@ -593,6 +624,7 @@ impl App {
 
     pub fn wheel(&mut self, steps: f32) {
         if !self.timeline_playing() && !self.ui_has_pointer {
+            self.end_intro();
             self.state.camera.zoom(steps);
         }
     }
@@ -665,6 +697,7 @@ impl App {
             self.timeline_frame = self.timeline_frame.min(t.total_frames - 1);
         }
         let state = self.render_state();
+        let state = self.with_intro(state, now);
         let mut chrome = ViewerChrome {
             playing: self.playing,
             timeline: self.timeline.as_ref().map(|t| (self.timeline_frame, t.total_frames)),

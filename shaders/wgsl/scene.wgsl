@@ -107,6 +107,13 @@ fn compositeFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {
     return vec4<f32>(overlay.rgb + scene * (1.0 - overlay.a), 1.0);
 }
 
+// The backdrop: the sky along each pixel's view ray, drawn before the
+// objects without depth, so they cover it.
+@fragment
+fn skyFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {
+    return vec4<f32>(skyRadiance(viewRay(input.uv)), 1.0);
+}
+
 // Viewer blit from the RGBA8 frame (already sRGB-encoded) to the swapchain.
 @fragment
 fn blitRawFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {

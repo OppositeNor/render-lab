@@ -22,3 +22,6 @@
 // The Surface Cache atlases as stored: one u32 per texel and layer, in
 // the engine's encodings (see SURFACE_LAYER_* in common.wgsl).
 @group(0) @binding(14) var gSurfaceCache: texture_2d_array<u32>;
+// The lab's environment (src/lab/environment.rs): an equirectangular RGB9E5
+// image with three levels, read with textureLoad.
+@group(0) @binding(15) var gEnvironment: texture_2d<f32>;

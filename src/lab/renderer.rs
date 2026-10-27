@@ -130,6 +130,9 @@ pub struct Renderer {
     surface_cache_view: wgpu::TextureView,
     _surface_display: wgpu::Texture,
     surface_display_view: wgpu::TextureView,
+    /// The lab's environment (environment.rs), gEnvironment.
+    _environment: wgpu::Texture,
+    environment_view: wgpu::TextureView,
     /// The Surface Cache passes (built once, then the per-frame picture).
     #[cfg(commercial)]
     cache_gpu: SurfaceCacheGpu,
@@ -298,12 +301,29 @@ impl Renderer {
     /// are traced from it. A cache already lit on the CPU is uploaded as is.
     pub fn new(gpu: Gpu, #[cfg_attr(not(commercial), allow(unused_mut))] mut statics: Statics, width: u32, height: u32) -> anyhow::Result<Renderer> {
         let device = &gpu.device;
-        #[cfg(commercial)]
         let queue = &gpu.queue;
         let pipelines = Pipelines::new(device)?;
         let storage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC;
         let mesh_nodes = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("teapot BVH nodes"), contents: bytemuck::cast_slice(&crate::lab::mesh::teapot().nodes), usage: wgpu::BufferUsages::STORAGE });
         let mesh_triangles = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("teapot triangles"), contents: bytemuck::cast_slice(&crate::lab::mesh::teapot().triangles), usage: wgpu::BufferUsages::STORAGE });
+        // The lab's environment (environment.rs), gEnvironment.
+        let env = crate::lab::environment::Environment::get();
+        let environment = device.create_texture_with_data(
+            queue,
+            &wgpu::TextureDescriptor {
+                label: Some("environment (RGB9E5)"),
+                size: wgpu::Extent3d { width: env.sizes[0][0] as u32, height: env.sizes[0][1] as u32, depth_or_array_layers: 1 },
+                mip_level_count: env.levels.len() as u32,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgb9e5Ufloat,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            wgpu::util::TextureDataOrder::LayerMajor,
+            &env.levels.concat().iter().flat_map(|t| t.to_le_bytes()).collect::<Vec<u8>>(),
+        );
+        let environment_view = environment.create_view(&Default::default());
 
         // The Surface Cache: the atlases as stored (u32 per texel, the engine's
         // encodings) plus the radiosity snapshots, and the picture of them.
@@ -318,7 +338,7 @@ impl Renderer {
             } else {
                 let records = statics.scene.records();
                 let start = std::time::Instant::now();
-                let texels = cache_gpu.build(device, queue, &statics.fixtures.surface_cache, &records, &statics.scene.lighting, [&mesh_nodes, &mesh_triangles], &surface_cache);
+                let texels = cache_gpu.build(device, queue, &statics.fixtures.surface_cache, &records, &statics.scene.lighting, [&mesh_nodes, &mesh_triangles], &environment_view, &surface_cache);
                 statics.fixtures.surface_cache.set_lit_texels(texels, start.elapsed().as_secs_f32());
                 statics.trace_probes();
             }
@@ -420,9 +440,9 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let mut renderer = Renderer {
-            frame_bind_group: Self::frame_bind_group(device, &pipelines, &records, &brick_atlas_view, &surface_display_view, &surface_cache_view, &sampler),
+            frame_bind_group: Self::frame_bind_group(device, &pipelines, &records, &brick_atlas_view, &surface_display_view, &surface_cache_view, &environment_view, &sampler),
             #[cfg(commercial)]
-            cache_inputs: Self::cache_inputs(device, &cache_gpu, &records, &surface_cache_view),
+            cache_inputs: Self::cache_inputs(device, &cache_gpu, &records, &surface_cache_view, &environment_view),
             #[cfg(commercial)]
             cache_gpu,
             shading_uniforms,
@@ -439,6 +459,8 @@ impl Renderer {
             surface_cache_view,
             _surface_display: surface_display,
             surface_display_view,
+            _environment: environment,
+            environment_view,
             sampler,
             segments: GrowBuffer::new(device, "segments", vertex, 1 << 16),
             segments_xray: GrowBuffer::new(device, "segments x-ray", vertex, 1 << 16),
@@ -470,7 +492,7 @@ impl Renderer {
         target(device, "frame (RGBA8)", [width, height], FRAME_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING)
     }
 
-    fn frame_bind_group(device: &wgpu::Device, pipelines: &Pipelines, r: &RecordBuffers, bricks: &wgpu::TextureView, pictures: &wgpu::TextureView, cache: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
+    fn frame_bind_group(device: &wgpu::Device, pipelines: &Pipelines, r: &RecordBuffers, bricks: &wgpu::TextureView, pictures: &wgpu::TextureView, cache: &wgpu::TextureView, environment: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
         fn buffer(binding: u32, b: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
             wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }
         }
@@ -493,12 +515,13 @@ impl Renderer {
                 buffer(12, &r.mesh_nodes),
                 buffer(13, &r.mesh_triangles),
                 wgpu::BindGroupEntry { binding: 14, resource: wgpu::BindingResource::TextureView(cache) },
+                wgpu::BindGroupEntry { binding: 15, resource: wgpu::BindingResource::TextureView(environment) },
             ],
         })
     }
 
     #[cfg(commercial)]
-    fn cache_inputs(device: &wgpu::Device, cache_gpu: &SurfaceCacheGpu, r: &RecordBuffers, atlas: &wgpu::TextureView) -> wgpu::BindGroup {
+    fn cache_inputs(device: &wgpu::Device, cache_gpu: &SurfaceCacheGpu, r: &RecordBuffers, atlas: &wgpu::TextureView, environment: &wgpu::TextureView) -> wgpu::BindGroup {
         cache_gpu.inputs(device, &CacheInputs {
             uniforms: &r.uniforms,
             objects: &r.objects.buffer,
@@ -507,6 +530,7 @@ impl Renderer {
             mesh_nodes: &r.mesh_nodes,
             mesh_triangles: &r.mesh_triangles,
             atlas,
+            environment,
         })
     }
 
@@ -571,10 +595,10 @@ impl Renderer {
         grown |= r.probes.write(device, queue, &content.probes);
         grown |= r.radiance.write(device, queue, &content.radiance);
         if grown {
-            self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.brick_atlas_view, &self.surface_display_view, &self.surface_cache_view, &self.sampler);
+            self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.brick_atlas_view, &self.surface_display_view, &self.surface_cache_view, &self.environment_view, &self.sampler);
             #[cfg(commercial)]
             {
-                self.cache_inputs = Self::cache_inputs(device, &self.cache_gpu, &self.records, &self.surface_cache_view);
+                self.cache_inputs = Self::cache_inputs(device, &self.cache_gpu, &self.records, &self.surface_cache_view, &self.environment_view);
                 self.cache_gpu.invalidate();
             }
         }
@@ -797,7 +821,6 @@ impl Renderer {
             }
         }
         let chain = chained.and(self.chain.as_ref());
-        let clear = wgpu::Color { r: 0.004, g: 0.009, b: 0.016, a: 1.0 };
         let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = match chain {
             // The chain's targets start at zero: its passes decide what the background is.
             Some(c) => c
@@ -806,7 +829,7 @@ impl Renderer {
                 .iter()
                 .map(|name| Some(wgpu::RenderPassColorAttachment { view: c.view(name), depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store } }))
                 .collect(),
-            None => vec![Some(wgpu::RenderPassColorAttachment { view: &targets.hdr_msaa, depth_slice: None, resolve_target: Some(&targets.hdr), ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear), store: wgpu::StoreOp::Discard } })],
+            None => vec![Some(wgpu::RenderPassColorAttachment { view: &targets.hdr_msaa, depth_slice: None, resolve_target: Some(&targets.hdr), ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Discard } })],
         };
         // The chain's depth pre-pass and early passes, before the scene pass.
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
@@ -849,8 +872,13 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
         pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        // Without a chain, the sky is the background; a chain's passes draw their own.
+        if chain.is_none() {
+            pass.set_pipeline(&self.pipelines.sky);
+            pass.draw(0..3, 0..1);
+        }
+        pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
         if let Some(s) = shading {
             pass.set_bind_group(1, &s.group, &[]);
             if let Some(c) = chain {
