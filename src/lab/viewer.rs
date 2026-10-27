@@ -607,7 +607,7 @@ impl App {
     }
 
     fn status(&self) -> String {
-        use crate::lab::i18n::tr;
+        use crate::lab::i18n::{args, tr, tr_with};
         let mode = if let (true, Some(tl)) = (self.timeline_mode, &self.timeline) {
             let clock = |frame: u64| {
                 let s = frame / tl.fps as u64;
@@ -620,7 +620,7 @@ impl App {
                 tr("viewer.paused_hint")
             };
             let audio = if self.audio.is_some() { "" } else { tr("viewer.no_narration_track") };
-            format!("{} / {} · {} {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), tr("viewer.chapter_prefix"), chapter.number)
+            format!("{} / {} · {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), tr_with("viewer.chapter", args!(number = chapter.number)))
         } else {
             format!("{} · t = {:.2} s", if self.playing { tr("viewer.playing") } else { tr("viewer.paused") }, self.demo_time)
         };
