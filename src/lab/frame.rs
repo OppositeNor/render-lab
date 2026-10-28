@@ -276,8 +276,8 @@ impl Statics {
         let meshes = scene::build_meshes(&scene);
         #[cfg(commercial)]
         let fixtures = Fixtures::prepare(&scene);
-        let layouts = layout::parse_layouts(crate::lab::shaders::LAYOUT_JSON)?;
-        let declarations = layout::parse_declarations(crate::lab::shaders::TYPES_SOURCE);
+        let layouts = layout::parse_layouts(&crate::lab::shaders::layout_json()?)?;
+        let declarations = layout::parse_declarations(crate::lab::shaders::types_source());
         Ok(Statics {
             scene,
             meshes,

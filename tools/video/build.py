@@ -6,7 +6,11 @@ indices, and written as a timeline that `render-lab render` records frame by
 frame. The muxed video, captions, chapters, script, source-reading guide, and
 verification report come from the same data.
 
-    python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--prepare-only | --snapshots-only | --verify-only]
+    python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--resolution 1080p] [--prepare-only | --snapshots-only | --verify-only]
+
+The video is 1920 x 1080 unless `--resolution` names another size (720p,
+1080p, 1440p, 2160p or 4k, or WIDTHxHEIGHT); the stills and the verification
+use the same size, so give `--verify-only` the size the video was built at.
 
 The zh-CN edition speaks the English sentences, so it shares the English
 edition's narration and timing; its on-screen text, headlines, chapter titles,
@@ -26,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import LANGS, Config, Environment, log, run  # noqa: E402
+from config import LANGS, Config, Environment, log, parse_resolution, run  # noqa: E402
 
 Json = dict[str, Any]
 
@@ -85,11 +89,19 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                 compile(code, str(path), 'exec')
 
 
+def resolution_arg(value: str) -> tuple[int, int]:
+    try:
+        return parse_resolution(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     parser.add_argument('--investigation', required=True, help='engine/feature, e.g. o3de/lighting')
     parser.add_argument('--investigation-dir', type=Path, help='its source directory, when not src/<engine>/<feature>')
     parser.add_argument('--lang', default='en', choices=LANGS)
+    parser.add_argument('--resolution', default='1080p', type=resolution_arg, help='frame size: 720p, 1080p (default), 1440p, 2160p, 4k, or WIDTHxHEIGHT')
     parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')
     parser.add_argument('--snapshots-only', action='store_true', help='prepare, then render beat-midpoint stills for review')
     parser.add_argument('--skip-render', action='store_true', help='reuse the rendered video.mp4')
@@ -121,7 +133,7 @@ def main() -> None:
     if args.verify_only:
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}
-        sys.exit(0 if checks.verify(cfg, env, board, index, tl, plans) else 1)
+        sys.exit(0 if checks.verify(cfg, env, board, index, tl, plans, args.resolution) else 1)
 
     device, reason = narration.select_device(env, args.tts_device)
     log(f'Narration device: {device} ({reason}).')
@@ -150,16 +162,16 @@ def main() -> None:
     outputs.render_mermaid(cfg, env, board)
     binary = outputs.cargo_build(cfg)
     if args.snapshots_only:
-        outputs.snapshots(cfg, env, binary, tl)
+        outputs.snapshots(cfg, env, binary, tl, args.resolution)
         log(f'Snapshots in {build / "snapshots"}')
         return
     if not args.skip_render:
-        outputs.render_video(cfg, env, binary, args.frames)
+        outputs.render_video(cfg, env, binary, args.frames, args.resolution)
     if args.frames:
         log('Partial render finished; skipping the mux and the verification.')
         return
     outputs.mux(cfg, env)
-    outputs.snapshots(cfg, env, binary, tl)
+    outputs.snapshots(cfg, env, binary, tl, args.resolution)
     log('Running render-lab selftest with the timeline.')
     if (build / 'selftest').exists():
         shutil.rmtree(build / 'selftest')
@@ -168,7 +180,7 @@ def main() -> None:
             build / 'logs' / 'selftest.log')
     except RuntimeError as e:
         log(f'selftest failed: {str(e)[:400]}')
-    if not checks.verify(cfg, env, board, index, tl, plans):
+    if not checks.verify(cfg, env, board, index, tl, plans, args.resolution):
         sys.exit(1)
 
 

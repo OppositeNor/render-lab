@@ -74,16 +74,19 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 | 路径 | 作用 |
 |---|---|
 | [`src/main.rs`](src/main.rs) | 命令行。 |
-| [`src/lab/home.rs`](src/lab/home.rs)、[`src/lab/frost.rs`](src/lab/frost.rs)、[`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | 主页：标题、设置和选择页面，背景是某项研究的场景（或纯色背景），经过两次减半、模糊、着色并加上颗粒。 |
+| [`src/lab/home.rs`](src/lab/home.rs)、[`src/lab/frost.rs`](src/lab/frost.rs)、[`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | 主页：标题、设置和选择页面，背景是标题研究的场景（`investigations::title`，目前为 O3DE 的光照；加载完成前为纯色背景），经过两次减半、模糊、着色并加上颗粒。 |
 | [`src/lab/config.rs`](src/lab/config.rs) | 设置文件：它的位置、读取（使用 `toml_edit`）和写入。 |
-| [`src/lab/text.rs`](src/lab/text.rs)、[`src/lab/readback.rs`](src/lab/readback.rs)、[`src/lab/gpu.rs`](src/lab/gpu.rs) | 字体与文字、回读画面并保存为 PNG，以及 GPU 设备。 |
+| [`src/lab/text.rs`](src/lab/text.rs)、[`src/lab/readback.rs`](src/lab/readback.rs)、[`src/lab/gpu.rs`](src/lab/gpu.rs) | 字体与文字、回读画面并保存为 PNG，以及 GPU 设备。文本表、伪代码清单和源码索引都是各层包中的资源，首次使用时读取（`i18n::Table`）。 |
 | [`src/lab/formula.rs`](src/lab/formula.rs)、[`src/lab/rich_text.rs`](src/lab/rich_text.rs)、[`assets/mitex/`](assets/mitex) | 公式：LaTeX 由 Typst（通过 MiTeX 的 scope）排版为绘制时着色的覆盖遮罩，以及把带公式标签的文字排在同一条基线上。 |
-| [`src/lab/scene.rs`](src/lab/scene.rs)、[`src/lab/terrain.rs`](src/lab/terrain.rs) | 实验室的场景，按 `SceneId` 区分：书房，以及天空下的丘陵地形。每个演示显示其中一个（`Investigation::demo_scene`，默认为书房）；渲染器在某帧首次需要时准备场景，并保留它以便切换回来；当一项研究的演示使用多个场景时，查看器为每个场景显示一个标签页，旁边是该场景的演示。地形是网格上的高度场（`SHAPE_TERRAIN`），绘制为三角形，并在 GPU（`intersectTerrain`）和 CPU（`Terrain::intersect`）上逐格追踪；其高度来自给定的采样，或者（可选）固定种子的分形 Perlin 噪声。 |
-| `src/lab/*.rs`（其余文件） | 场景渲染器、确定性录制器、查看器及其停靠面板、时间线播放器及其动画（`animation.rs`：缓动、路径、环绕、波动和 Play 片段）、结构体面板的记录（`layout.rs`、`shaders/wgsl/types.wgsl`），以及 `Investigation` trait（`investigation.rs`）。在 `commercial` cfg 下，实验室只把通用扩展点（`Extension`，`src/lab/extension.rs`）交给可选模块，别无其他。 |
+| [`src/lab/scene.rs`](src/lab/scene.rs)、[`src/lab/scenes/`](src/lab/scenes/study-room.toml)、[`src/lab/terrain.rs`](src/lab/terrain.rs) | 实验室的场景，按 `SceneId` 区分：书房，以及天空下的丘陵地形。每个场景是一个数据文件，即资源 `scene/<key>`（其物体、形状、材质、光源、光照常数、相机从何处观看，以及地形的高度场），在首次构建场景时读取。每个演示显示其中一个（`Investigation::demo_scene`，默认为书房）；渲染器在某帧首次需要时准备场景，并保留它以便切换回来；当一项研究的演示使用多个场景时，查看器为每个场景显示一个标签页，旁边是该场景的演示。地形是网格上的高度场（`SHAPE_TERRAIN`），绘制为三角形，并在 GPU（`intersectTerrain`）和 CPU（`Terrain::intersect`）上逐格追踪；其高度来自给定的采样，或者（可选）固定种子的分形 Perlin 噪声。 |
+| `src/lab/*.rs`（其余文件） | 场景渲染器、确定性录制器、查看器及其停靠面板、时间线播放器及其动画（`animation.rs`：缓动、路径、环绕、波动和 Play 片段）、结构体面板的记录（`layout.rs`、`shaders/wgsl/types.wgsl`），以及 `Investigation` trait（`investigation.rs`）。在 `commercial` cfg 下，实验室只把通用扩展点（`Extension`，位于 `investigation.rs`）交给可选模块，别无其他。 |
 | [`src/investigations.rs`](src/investigations.rs)、[`src/o3de/`](src/o3de) | 研究列表，以及 Open 3D Engine 的研究。 |
 | [`tools/video/`](tools/video/README.md) | 旁白视频构建器：旁白、时间线、渲染、封装、字幕、文档和验证。 |
-| [`build.rs`](build.rs) | 用 naga 验证 WGSL 模块（以及各研究自己的场景着色）并导出其结构体布局；根据可选 `commercial` 模块自带的清单决定是否编译它；检查文本表及其公式标签；运行资源管线。 |
-| [`pipeline/`](pipeline/mod.rs)、[`src/lab/resources.rs`](src/lab/resources.rs) | 资源管线：build.rs 找到 `src/` 下的每个 `resources.toml`，按类型处理其中声明的资源（`file`；`radiance`：把 HDRI 制作成环境光的各级；`mesh`：把 OBJ 制作成 BVH），按源文件、参数和处理器的哈希缓存每个结果，实验室把它们嵌入程序，每个资源是一个以其 id 命名的 static。`render-lab resources` 列出它们。 |
+| [`build.rs`](build.rs) | 检查清单声明的每个 WGSL 模块（每个 `[[shader]]`，包括各研究自己的场景着色）都能通过 naga 验证；根据可选 `commercial` 模块自带的清单决定是否编译它；检查文本表及其公式标签。它不生成任何文件。 |
+| [`src/lab/pipeline/`](src/lab/pipeline/mod.rs)、[`src/lab/resources.rs`](src/lab/resources.rs) | 资源管线：实验室挂载各个包（实验室的 `resources.toml`，然后是每个研究的），在运行时按 id 加载资源，按类型处理（`file`；`radiance`：把 HDRI 制作成环境光的各级；`mesh`：把 OBJ 制作成 BVH），并按源文件、参数和处理器的哈希缓存在 `build/resources` 中。`render-lab resources` 列出它们；`render-lab cook` 处理全部资源。 |
+| [`src/lab/shaders.rs`](src/lab/shaders.rs)、[`src/lab/shaders.toml`](src/lab/shaders.toml) | 运行时的 WGSL：包声明的每个 `[[shader]]` 由其 `parts` 依次组成（WGSL 资源或其他 shader；实验室的各 pass 模块以 `shader/prelude` 开头），在实验室创建它时组合并由 naga 验证，因此修改后的着色器在下次启动时生效，错误会指出文件和行号。naga 还为结构体面板计算 `wgsl/types` 的布局。可选模块可以在自己的包中覆盖 prelude 的 `wgsl/surface-lookup`。 |
+| [`src/lab/demo.rs`](src/lab/demo.rs) | 以数据描述的演示：研究的包声明其参数（`params.toml`）、演示的顺序，以及每个演示一个文件（标题、标签、提示、场景、清单、相机，以及它改变的参数，可共用预设），实验室据此构建每个演示的初始状态。演示绘制什么、其停靠面板和 Play 动画仍是研究的代码（示例见 `src/o3de/lighting/demos/`）。 |
+| [`src/lab/loading.rs`](src/lab/loading.rs) | 加载步骤：启动时不读取场景所需的任何内容。查看器打开时（或主页显示背景时），工作线程准备场景的资源、静态数据和渲染器，同时窗口显示进度；`home --snapshot --page loading` 在屏幕外绘制该页面。 |
 
 ### 添加研究
 
@@ -95,7 +98,7 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 包含一个片元入口、每帧 uniform（`FrameContent::shading`）和每帧数据（`FrameContent::shading_frame`）、静态数据，以及供其 selftest
 使用的计算内核（`Renderer::run_shading_verify`）。对于通过多个渲染目标渲染的引擎，它也可以是一条 **pass 链**：片元着色器写入着色的
 `outputs`（多重采样目标），其 `passes` 作为计算 pass 在固定绑定的具名目标上运行（`ShadingPass`），最后一个 pass 写入 `"hdr"`，
-即画面所显示的内容。把它的文件列入 `build.rs` 的 `SCENE_SHADINGS`，以便构建时验证。没有结构体面板记录的画面可以在原处显示一个
+即画面所显示的内容。在研究的包中把它的 WGSL 声明为一个 `[[shader]]`，其 parts 以 `shader/scene` 开头，并在 `SceneShading::module` 中写上该 shader；build.rs 会验证它，实验室加载时也会验证。没有结构体面板记录的画面可以在原处显示一个
 `Readout`（名称与数值）。
 
 ## 构建与本地缓存
@@ -110,8 +113,9 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 - **环境光：** 照亮书房并显示在其后的天空是 Poly Haven 的 "Tree Lined Driveway" HDRI（CC0），位于
   [`assets/environments`](assets/environments)；资源管线裁剪其中的太阳并缩放亮度（[`src/lab/resources.toml`](src/lab/resources.toml)），
   各研究自行设定其强度。
-- **资源：** 实验室嵌入的文件（环境光、茶壶、字体、MiTeX 的 scope）声明在 [`src/lab/resources.toml`](src/lab/resources.toml) 中，
-  在构建实验室时处理（格式见 `pipeline/mod.rs`）。研究在其代码旁的 `resources.toml` 中声明自己的资源，并通过 `crate::lab::resources` 读取。
+- **资源：** 实验室加载的文件（环境光、茶壶、字体、MiTeX 的 scope）声明在 [`src/lab/resources.toml`](src/lab/resources.toml) 中，
+  在运行时首次需要时处理（格式见 `src/lab/pipeline/mod.rs`）。研究在其代码旁的 `resources.toml` 中声明自己的资源，用
+  `Investigation::package` 指明它，并通过 `crate::lab::resources` 读取。
 - **声音：** 主页显示时播放循环音乐，点击控件时播放点击音效（演示和视频中都没有），通过 FFplay 播放（视频环境中的 FFplay、`FFPLAY`
   或 PATH 中的）；没有 FFplay 时实验室保持静音。[`assets/audio`](assets/audio) 中的声音由 soundza 授权，不适用 MIT 许可证：
   它们仅供本实验室使用（见 [`THIRD_PARTY.md`](THIRD_PARTY.md)）。

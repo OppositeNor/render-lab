@@ -9,10 +9,12 @@
 //!
 //! One investigation is current at a time (`set`, `current`), the way the
 //! locale is (src/lab/i18n.rs): the homepage or the command line chooses it
-//! before anything is loaded or rendered.
+//! before anything is loaded or rendered. `scoped` makes another current on
+//! one thread for a while (the homepage's backdrop).
 
 use crate::lab::camera::Projector;
 use crate::lab::controls::Dock;
+use crate::lab::demo::{Demos, Tab};
 use crate::lab::frame::{FrameContent, Statics};
 use crate::lab::pseudocode::Listing;
 use crate::lab::scene::SceneId;
@@ -22,6 +24,7 @@ use crate::lab::sources::SourceIndex;
 use crate::lab::surface_cache::Layer;
 use crate::lab::viewer::ViewerTest;
 use glam::Vec2;
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
@@ -58,10 +61,10 @@ pub struct Wording {
 }
 
 /// An investigation's own shading of the scene pass, in place of the lab's
-/// (`sceneFS` in shaders/wgsl/scene.wgsl). `source` is composed after the
-/// scene module (the shared prelude and scene.wgsl, so it may use
-/// `SceneVaryings`, `SceneOutput`, and everything in common.wgsl), and it
-/// declares bind group 1:
+/// (`sceneFS` in shaders/wgsl/scene.wgsl). `module` is a shader its package
+/// declares (src/lab/shaders.rs), composed after the lab's `shader/scene` (the
+/// shared prelude and scene.wgsl, so it may use `SceneVaryings`,
+/// `SceneOutput`, and everything in common.wgsl), and it declares bind group 1:
 ///
 /// - binding 0: `var<uniform> gShading: array<vec4<f32>, SHADING_UNIFORMS>`,
 ///   the frame's `FrameContent::shading`;
@@ -85,7 +88,8 @@ pub struct Wording {
 /// no depth writes). The scene pass's fragment shader may read `scene_reads`
 /// from group 2, bound as for a pass.
 pub struct SceneShading {
-    pub source: &'static str,
+    /// The shader id of its module (`[[shader]]` in its package).
+    pub module: &'static str,
     /// The fragment entry point of the scene pass.
     pub fragment: &'static str,
     pub data: fn() -> Vec<[f32; 4]>,
@@ -145,6 +149,14 @@ pub struct SelftestOptions {
     pub work_dir: PathBuf,
 }
 
+/// What a module built in with the lab adds to it: investigations, listed
+/// before the public ones, and packages, mounted after the lab's.
+pub struct Extension {
+    pub investigations: &'static [&'static dyn Investigation],
+    /// Resource manifests (`resources.toml`), from the lab's root.
+    pub packages: &'static [&'static str],
+}
+
 pub trait Investigation: Sync {
     fn engine(&self) -> &'static Engine;
     /// Short key, used in `engine/feature` paths.
@@ -158,6 +170,11 @@ pub trait Investigation: Sync {
     fn timelines(&self) -> &'static [TimelineInfo];
     fn sources(&self) -> &'static SourceIndex;
     fn listings(&self) -> &'static [Listing];
+    /// Its resource manifest (`resources.toml`), from the lab's root, if it
+    /// declares resources of its own (src/lab/resources.rs).
+    fn package(&self) -> Option<&'static str> {
+        None
+    }
 
     fn listing(&self, name: &str) -> Option<&'static Listing> {
         self.listings().iter().find(|l| l.name == name)
@@ -168,30 +185,55 @@ pub trait Investigation: Sync {
         self.listings().iter().find(|l| l.demo.as_deref() == Some(demo.key()))
     }
 
-    /// Demonstrations in the order of the viewer's keys (1–9, 0, −, =).
-    fn demos(&self) -> &'static [DemoId];
-    fn demo_title(&self, demo: DemoId) -> &'static str;
-    /// The demonstration's short name on the viewer's tab row.
-    fn demo_tab(&self, demo: DemoId) -> &'static str;
-    /// The lab scene a demonstration shows (src/lab/scene.rs); the renderer
-    /// switches to it for the demonstration's frames.
-    fn demo_scene(&self, _demo: DemoId) -> SceneId {
-        SceneId::STUDY_ROOM
-    }
-    /// The viewer's status-line hint, if the demonstration has its own.
-    fn demo_hint(&self, _demo: DemoId) -> Option<&'static str> {
+    /// Its demonstrations as data (src/lab/demo.rs), when it describes them
+    /// in files; the methods below then read them. An investigation without
+    /// them implements `demos`, `demo_title`, `demo_tab`, `param_default`,
+    /// and `shot_state` itself.
+    fn demo_specs(&self) -> Option<&'static Demos> {
         None
     }
+    /// The text of a key its data names, in the current locale (its own table).
+    fn text(&self, key: &'static str) -> &'static str {
+        crate::lab::i18n::tr_key(key)
+    }
+
+    /// Demonstrations in the order of the viewer's keys (1–9, 0, −, =).
+    fn demos(&self) -> &'static [DemoId] {
+        specs(self).ids()
+    }
+    fn demo_title(&self, demo: DemoId) -> &'static str {
+        self.text(specs(self).spec(demo).title)
+    }
+    /// The demonstration's short name on the viewer's tab row.
+    fn demo_tab(&self, demo: DemoId) -> &'static str {
+        match specs(self).spec(demo).tab {
+            Tab::Text(key) => self.text(key),
+            Tab::Plain(name) => name,
+        }
+    }
+    /// The lab scene a demonstration shows (src/lab/scene.rs); the renderer
+    /// switches to it for the demonstration's frames.
+    fn demo_scene(&self, demo: DemoId) -> SceneId {
+        self.demo_specs().map_or(SceneId::STUDY_ROOM, |d| d.spec(demo).scene)
+    }
+    /// The viewer's status-line hint, if the demonstration has its own.
+    fn demo_hint(&self, demo: DemoId) -> Option<&'static str> {
+        self.demo_specs().and_then(|d| d.spec(demo).hint).map(|key| self.text(key))
+    }
     /// Whether "Reset parameters" also resets the camera (its dock shows the camera).
-    fn resets_camera(&self, _demo: DemoId) -> bool {
-        false
+    fn resets_camera(&self, demo: DemoId) -> bool {
+        self.demo_specs().is_some_and(|d| d.spec(demo).resets_camera)
     }
 
     /// The default of every shot parameter; None for an unknown name. The lab
     /// reads `cameraDrift` (the camera sway) when an investigation has it.
-    fn param_default(&self, name: &str) -> Option<f32>;
+    fn param_default(&self, name: &str) -> Option<f32> {
+        specs(self).param_default(name)
+    }
     /// The demonstration's starting state.
-    fn shot_state(&self, demo: DemoId) -> ShotState;
+    fn shot_state(&self, demo: DemoId) -> ShotState {
+        specs(self).shot_state(demo)
+    }
     /// The starting state, completed from the prepared data.
     fn default_state(&self, demo: DemoId, _statics: &Statics) -> ShotState {
         self.shot_state(demo)
@@ -243,6 +285,11 @@ pub trait Investigation: Sync {
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool>;
 }
 
+/// An investigation's demonstration files, for the methods that read them.
+fn specs<I: Investigation + ?Sized>(investigation: &I) -> &'static Demos {
+    investigation.demo_specs().unwrap_or_else(|| panic!("{} has no demonstration files: it implements demos, demo_title, demo_tab, param_default, and shot_state", investigation.title()))
+}
+
 impl dyn Investigation {
     /// `engine/feature`, as the command line names it.
     pub fn path(&self) -> String {
@@ -275,11 +322,31 @@ impl dyn Investigation {
 
 static CURRENT: RwLock<Option<&'static dyn Investigation>> = RwLock::new(None);
 
+thread_local! {
+    /// The investigation `scoped` makes current on this thread.
+    static SCOPED: Cell<Option<&'static dyn Investigation>> = const { Cell::new(None) };
+}
+
 pub fn set(investigation: &'static dyn Investigation) {
     *CURRENT.write().unwrap() = Some(investigation);
 }
 
-/// The investigation chosen on the homepage or the command line.
+/// The investigation chosen on the homepage or the command line, or the one
+/// `scoped` made current on this thread.
 pub fn current() -> &'static dyn Investigation {
-    CURRENT.read().unwrap().expect("no investigation selected")
+    SCOPED.get().unwrap_or_else(|| CURRENT.read().unwrap().expect("no investigation selected"))
+}
+
+/// Runs `f` with `investigation` current on this thread alone: a scene of
+/// one investigation (the homepage's backdrop) prepared or drawn while
+/// another is chosen.
+pub fn scoped<R>(investigation: &'static dyn Investigation, f: impl FnOnce() -> R) -> R {
+    struct Restore(Option<&'static dyn Investigation>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            SCOPED.set(self.0);
+        }
+    }
+    let _restore = Restore(SCOPED.replace(Some(investigation)));
+    f()
 }

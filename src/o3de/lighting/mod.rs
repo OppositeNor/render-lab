@@ -32,6 +32,7 @@ pub mod transmission;
 
 use crate::lab::camera::Projector;
 use crate::lab::controls::Dock;
+use crate::lab::demo::Demos;
 use crate::lab::frame::{FrameContent, Statics};
 use crate::o3de::lighting::text::tr;
 use crate::lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingBuffer, ShadingPass, ShadingTarget, TimelineInfo, Wording};
@@ -41,7 +42,6 @@ use crate::lab::shot::{DemoId, PanelMode, ShotState};
 use crate::lab::sources::SourceIndex;
 use glam::Vec2;
 use shot::Demo;
-use std::sync::OnceLock;
 
 pub struct Lighting;
 
@@ -133,7 +133,7 @@ const PASSES: &[ShadingPass] = &[
 ];
 
 pub static SHADING: SceneShading = SceneShading {
-    source: include_str!("shaders/standard_lighting.wgsl"),
+    module: "o3de/lighting/shader/standard-lighting",
     fragment: "o3deForwardFS",
     data: ibl::shading_data,
     verify: &["o3deBrdfTests", "o3dePixelTests", "o3deBrdfMapTests", "o3deIblTests"],
@@ -182,33 +182,16 @@ impl Investigation for Lighting {
         pseudocode::all()
     }
 
-    fn demos(&self) -> &'static [DemoId] {
-        static DEMOS: OnceLock<Vec<DemoId>> = OnceLock::new();
-        DEMOS.get_or_init(|| Demo::ALL.iter().map(|d| d.id()).collect())
+    fn package(&self) -> Option<&'static str> {
+        Some("src/o3de/lighting/resources.toml")
     }
 
-    fn demo_title(&self, demo: DemoId) -> &'static str {
-        Demo::of(demo).title()
+    fn demo_specs(&self) -> Option<&'static Demos> {
+        Some(shot::demos())
     }
 
-    fn demo_tab(&self, demo: DemoId) -> &'static str {
-        Demo::of(demo).tab()
-    }
-
-    fn demo_hint(&self, _demo: DemoId) -> Option<&'static str> {
-        Some(tr("investigation.demo_hint"))
-    }
-
-    fn resets_camera(&self, demo: DemoId) -> bool {
-        Demo::of(demo) == Demo::Room
-    }
-
-    fn param_default(&self, name: &str) -> Option<f32> {
-        shot::param_default(name)
-    }
-
-    fn shot_state(&self, demo: DemoId) -> ShotState {
-        shot::for_demo(Demo::of(demo))
+    fn text(&self, key: &'static str) -> &'static str {
+        text::tr_key(key)
     }
 
     fn backdrop(&self, t: f32) -> Option<ShotState> {

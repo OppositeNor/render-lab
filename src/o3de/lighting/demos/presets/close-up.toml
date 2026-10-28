@@ -1,0 +1,18 @@
+# The close-ups: the point at the top of the sphere (-1.05, 1.24, -0.55), the
+# light 55 degrees to its left and 1.5 m away (shot::close_up_light), and the
+# observer (the default observerX, observerY) 1.2 m away 35 degrees to its
+# right, all in the plane z = -0.55.
+
+[params]
+lightX = -2.278728
+lightY = 2.1003647
+lightZ = -0.55
+inspectX = -1.05
+inspectY = 1.24
+inspectZ = -0.55
+inspectNX = 0.0
+inspectNY = 1.0
+inspectNZ = 0.0
+observer = 1.0
+labels = 0.0
+vectors = 1.0

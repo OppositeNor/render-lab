@@ -16,15 +16,15 @@ pub const REFERENCE: Vec2 = vec2(1920.0, 1080.0);
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     // Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.
-    for (name, font) in [
-        ("DejaVuSans", &resources::FONT_DEJAVU_SANS),
-        ("DejaVuSans-Bold", &resources::FONT_DEJAVU_SANS_BOLD),
-        ("DejaVuSansMono", &resources::FONT_DEJAVU_SANS_MONO),
-        ("DejaVuSansMono-Bold", &resources::FONT_DEJAVU_SANS_MONO_BOLD),
-        ("SourceHanSans", &resources::FONT_SOURCE_HAN_SANS),
-        ("SourceHanSans-Bold", &resources::FONT_SOURCE_HAN_SANS_BOLD),
+    for (name, id) in [
+        ("DejaVuSans", "font/dejavu-sans"),
+        ("DejaVuSans-Bold", "font/dejavu-sans-bold"),
+        ("DejaVuSansMono", "font/dejavu-sans-mono"),
+        ("DejaVuSansMono-Bold", "font/dejavu-sans-mono-bold"),
+        ("SourceHanSans", "font/source-han-sans"),
+        ("SourceHanSans-Bold", "font/source-han-sans-bold"),
     ] {
-        fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_static(font.bytes)));
+        fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_static(resources::get(id).bytes())));
     }
     for (family, first) in [(FontFamily::Proportional, "DejaVuSans"), (FontFamily::Monospace, "DejaVuSansMono")] {
         let list = fonts.families.entry(family).or_default();

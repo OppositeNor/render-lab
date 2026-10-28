@@ -22,11 +22,11 @@
 
 use crate::investigations;
 use crate::lab::config::Config;
-use crate::lab::frame::Statics;
 use crate::lab::frost::Frost;
 use crate::lab::gpu::{self, Gpu, FRAME_FORMAT};
 use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation::{self, Investigation, TimelineInfo};
+use crate::lab::loading::Loading;
 use crate::lab::palette;
 use crate::lab::popup::{self, Popup, Popups};
 use crate::lab::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
@@ -421,7 +421,7 @@ impl Home {
     fn draw_select(&mut self, ctx: &egui::Context, ink: &ui::Ink, canvas: Vec2) -> Option<Choice> {
         let mut choice = None;
         let chosen = self.selected();
-        // The chrome's strings and the backdrop follow the chosen feature.
+        // The chrome's strings follow the chosen feature.
         investigation::set(chosen);
         let painter = ink.painter;
 
@@ -728,37 +728,59 @@ fn canvas_for(width: u32, height: u32, ui_scale: f32) -> (f32, Vec2) {
     (scale, vec2(width as f32 / scale, height as f32 / scale))
 }
 
-/// The scene behind the page: the renderer draws the current investigation's
-/// backdrop full-screen, and the frost blurs it.
+/// The scene behind the page: the title investigation's backdrop
+/// (`investigations::title`), drawn full-screen and blurred by the frost. It
+/// loads after the page appears (src/lab/loading.rs); until then the page has
+/// a plain background.
 struct Backdrop {
-    renderer: Renderer,
+    gpu: Gpu,
+    loading: Option<Loading>,
+    renderer: Option<Renderer>,
     frost: Frost,
 }
 
 impl Backdrop {
-    fn new(gpu: Gpu, size: [u32; 2], output: wgpu::TextureFormat) -> Result<Backdrop> {
-        let frost = Frost::new(&gpu.device, output);
-        let renderer = Renderer::new(gpu, Statics::prepare(crate::lab::investigation::current().first_scene())?, size[0].max(64), size[1].max(64))?;
-        Ok(Backdrop { renderer, frost })
+    /// Starts loading the scene; `wait` loads it before returning (offscreen
+    /// pages, so every frame shows it).
+    fn new(gpu: Gpu, size: [u32; 2], output: wgpu::TextureFormat, wait: bool) -> Result<Backdrop> {
+        let frost = Frost::new(&gpu.device, output)?;
+        let title = investigations::title();
+        let scene = investigation::scoped(title, || title.first_scene());
+        let loading = Loading::start(title, gpu.clone(), scene, size);
+        let (loading, renderer) = if wait { (None, Some(loading.wait()?)) } else { (Some(loading), None) };
+        Ok(Backdrop { gpu, loading, renderer, frost })
     }
 
     fn gpu(&self) -> &Gpu {
-        &self.renderer.gpu
+        &self.gpu
     }
 
-    /// Render the scene at `time` seconds into the frame target, at `size`.
+    /// Render the scene at `time` seconds into the frame target, at `size`,
+    /// once it has loaded.
     fn render(&mut self, size: [u32; 2], time: f32) {
-        let size = [size[0].max(64), size[1].max(64)];
-        if [self.renderer.width, self.renderer.height] != size {
-            self.renderer.resize(size[0], size[1]);
+        if let Some(result) = self.loading.as_mut().and_then(|l| l.poll()) {
+            self.loading = None;
+            match result {
+                Ok(renderer) => self.renderer = Some(renderer),
+                // The page stays on its plain background.
+                Err(e) => eprintln!("the homepage's backdrop did not load: {e:#}"),
+            }
         }
-        let state = investigation::current().backdrop(time);
-        self.renderer.render_backdrop(state.as_ref(), time);
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        let size = [size[0].max(64), size[1].max(64)];
+        if [renderer.width, renderer.height] != size {
+            renderer.resize(size[0], size[1]);
+        }
+        let title = investigations::title();
+        investigation::scoped(title, || {
+            let state = title.backdrop(time);
+            renderer.render_backdrop(state.as_ref(), time);
+        });
     }
 
-    /// The device, the rendered frame and its size, and the frost.
-    fn parts(&mut self) -> (&Gpu, &wgpu::TextureView, [u32; 2], &mut Frost) {
-        (&self.renderer.gpu, &self.renderer.frame_view, [self.renderer.width, self.renderer.height], &mut self.frost)
+    /// The device, the rendered frame and its size (once loaded), and the frost.
+    fn parts(&mut self) -> (&Gpu, Option<(&wgpu::TextureView, [u32; 2])>, &mut Frost) {
+        (&self.gpu, self.renderer.as_ref().map(|r| (&r.frame_view, [r.width, r.height])), &mut self.frost)
     }
 }
 
@@ -785,11 +807,14 @@ impl Painter {
         raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
         let mut choice = None;
         let mut output = self.ctx.run_pass(raw, |ctx| choice = home.draw(ctx, canvas, time));
-        // The backdrop follows the page's investigation (the selection page may have changed it).
         backdrop.render(size, time);
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
-        let (gpu, frame, frame_size, frost) = backdrop.parts();
+        let (gpu, frame, frost) = backdrop.parts();
+        // Before the backdrop has loaded, the page is on the plain background.
+        let loaded = frame.is_some();
+        let bg = palette::BACKGROUND;
+        let clear = if loaded { wgpu::Color::BLACK } else { wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 } };
         let (device, queue) = (&gpu.device, &gpu.queue);
         for (id, deltas) in output.textures_delta.set.drain() {
             for delta in &deltas {
@@ -798,19 +823,23 @@ impl Painter {
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("home") });
         let mut commands = self.renderer.update_buffers(device, queue, &mut encoder, &jobs, &screen);
-        frost.blur(device, &mut encoder, frame, frame_size);
+        if let Some((frame, frame_size)) = frame {
+            frost.blur(device, &mut encoder, frame, frame_size);
+        }
         {
             let mut pass = encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("home"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment { view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })],
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment { view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear), store: wgpu::StoreOp::Store } })],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
                     multiview_mask: None,
                 })
                 .forget_lifetime();
-            frost.draw(&mut pass);
+            if loaded {
+                frost.draw(&mut pass);
+            }
             self.renderer.render(&mut pass, &jobs, &screen);
         }
         if let Some((texture, buffer)) = readback {
@@ -863,7 +892,7 @@ impl Offscreen {
         let view = texture.create_view(&Default::default());
         let buffer = readback_buffer(&gpu.device, size[0], size[1]);
         let painter = Painter::new(&gpu.device, FRAME_FORMAT);
-        let backdrop = Backdrop::new(gpu, size, FRAME_FORMAT)?;
+        let backdrop = Backdrop::new(gpu, size, FRAME_FORMAT, true)?;
         Ok(Offscreen { backdrop, painter, texture, view, buffer, size, ui_scale: options.ui_scale, frames: 0, clicks: 0, heard: 0, hovers_heard: 0 })
     }
 
@@ -1083,7 +1112,7 @@ impl HomeApp<'_> {
             }
             surface.configure(&gpu.device, &config);
             let painter = Painter::new(&gpu.device, format);
-            let backdrop = Backdrop::new(gpu, [config.width, config.height], format)?;
+            let backdrop = Backdrop::new(gpu, [config.width, config.height], format, false)?;
             Ok(Surface { window, surface, config, backdrop, painter })
         })();
         match result {

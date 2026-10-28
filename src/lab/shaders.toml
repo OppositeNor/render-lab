@@ -1,0 +1,75 @@
+# The lab's WGSL (shaders/wgsl) and the modules composed from it at run time
+# (src/lab/shaders.rs). Included by resources.toml.
+
+[[resource]]
+id = "wgsl/types"
+kind = "file"
+source = "../../shaders/wgsl/types.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/bindings"
+kind = "file"
+source = "../../shaders/wgsl/bindings.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/common"
+kind = "file"
+source = "../../shaders/wgsl/common.wgsl"
+license = "MIT"
+
+# The prelude's last file: an optional module may override it with its own.
+[[resource]]
+id = "wgsl/surface-lookup"
+kind = "file"
+source = "../../shaders/wgsl/surface_fallback.wgsl"
+license = "MIT"
+overridable = true
+
+[[resource]]
+id = "wgsl/scene"
+kind = "file"
+source = "../../shaders/wgsl/scene.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/overlay"
+kind = "file"
+source = "../../shaders/wgsl/overlay.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/verify"
+kind = "file"
+source = "../../shaders/wgsl/verify.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/frost"
+kind = "file"
+source = "../../shaders/wgsl/frost.wgsl"
+license = "MIT"
+
+# Every pass module starts with the prelude: the records, the bindings, the
+# common maths, and the surface lookup.
+[[shader]]
+id = "shader/prelude"
+parts = ["wgsl/types", "wgsl/bindings", "wgsl/common", "wgsl/surface-lookup"]
+
+[[shader]]
+id = "shader/scene"
+parts = ["shader/prelude", "wgsl/scene"]
+
+[[shader]]
+id = "shader/overlay"
+parts = ["shader/prelude", "wgsl/overlay"]
+
+[[shader]]
+id = "shader/verify"
+parts = ["shader/prelude", "wgsl/verify"]
+
+# The homepage's frosted glass, without the prelude.
+[[shader]]
+id = "shader/frost"
+parts = ["wgsl/frost"]

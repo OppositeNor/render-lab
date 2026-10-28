@@ -11,7 +11,7 @@
 //! coverage, each term gets its own mask, so a drawing can dim the formula and
 //! light one term.
 
-use crate::lab::resources::{self, Resource};
+use crate::lab::resources;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -135,17 +135,13 @@ fn file_id(path: &str) -> FileId {
 }
 
 /// MiTeX's Typst scope (assets/mitex/specs), at the paths its files import each other by.
-const SPECS: [(&str, &Resource); 3] = [
-    ("/specs/mod.typ", &resources::MITEX_MOD),
-    ("/specs/prelude.typ", &resources::MITEX_PRELUDE),
-    ("/specs/latex/standard.typ", &resources::MITEX_LATEX_STANDARD),
-];
+const SPECS: [(&str, &str); 3] = [("/specs/mod.typ", "mitex/mod"), ("/specs/prelude.typ", "mitex/prelude"), ("/specs/latex/standard.typ", "mitex/latex/standard")];
 
 impl FormulaWorld {
     fn new() -> FormulaWorld {
         let fonts: Vec<Font> = typst_assets::fonts().flat_map(|data| Font::iter(Bytes::new(data))).collect();
         let book = FontBook::from_fonts(&fonts);
-        let files = SPECS.iter().map(|(path, spec)| (file_id(path), Bytes::from_string(spec.text()))).collect();
+        let files = SPECS.iter().map(|(path, spec)| (file_id(path), Bytes::from_string(resources::get(spec).text()))).collect();
         FormulaWorld { library: LazyHash::new(Library::default()), book: LazyHash::new(book), fonts, files, main: file_id("/main.typ") }
     }
 }

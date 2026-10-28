@@ -1,8 +1,9 @@
-# The lab's resources. build.rs processes them (pipeline/mod.rs) and the lab
-# embeds the results (src/lab/resources.rs). Paths are relative to this file;
+# The lab's resources (its package). The lab loads them at run time
+# (src/lab/resources.rs), processed by the resource pipeline (src/lab/pipeline)
+# and cached in build/resources. Paths are relative to this file;
 # THIRD_PARTY.md records each source's terms.
 
-include = ["files.toml"]
+include = ["files.toml", "shaders.toml"]
 
 # The sky and its lighting (src/lab/environment.rs): the sun's disc is capped
 # at 5 in the photograph's units (the glare one to two degrees from it), which
@@ -28,3 +29,16 @@ license = "Utah Teapot terms (THIRD_PARTY.md)"
 scale = 0.14
 leaf-triangles = 4
 max-depth = 30
+
+# The lab's scenes (src/lab/scene.rs), by key: `scene/<key>`.
+[[resource]]
+id = "scene/study-room"
+kind = "file"
+source = "scenes/study-room.toml"
+license = "MIT"
+
+[[resource]]
+id = "scene/terrain"
+kind = "file"
+source = "scenes/terrain.toml"
+license = "MIT"

@@ -112,10 +112,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     // ---- 1. Layouts and shader validation ---------------------------------
     let checks = layout::check_all(&renderer.statics.layouts);
     report.check("Rust struct layouts match the WGSL layouts computed by naga", checks.iter().all(|c| c.ok), serde_json::to_value(&checks)?);
-    let manifest: Value = serde_json::from_str(crate::lab::shaders::MANIFEST)?;
+    let manifest: Value = crate::lab::shaders::manifest();
     let modules = manifest["modules"].as_array().cloned().unwrap_or_default();
-    let ported = modules.iter().any(|m| m["module"] == "standard_lighting" && m["validated"] == true);
-    report.check("the WGSL port (scene module + standard_lighting.wgsl) validated by naga at build time", ported, json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()));
+    let ported = modules.iter().any(|m| m["module"] == super::SHADING.module && m["validated"] == true);
+    report.check("the WGSL port (scene module + standard_lighting.wgsl) validated by naga", ported, json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()));
 
     // A frame uploads the objects and gShading the kernels read.
     renderer.render_frame(request(&shot::for_demo(Demo::Specular), &still), None);
@@ -733,11 +733,12 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         crate::lab::record::write_png(&png, renderer.width, renderer.height, &renderer.read_frame())?;
         // The Code tab's panel.
         state.panel = crate::lab::shot::PanelMode::Code;
-        state.code = Some(demo.listing().to_string());
+        let listing = shot::demos().spec(demo.id()).listing.unwrap_or_default();
+        state.code = Some(listing.to_string());
         let code = renderer.render_frame(request(&state, &still), None);
-        let listing_ok = code.report.panel_code.as_deref() == Some(demo.listing()) && code.report.code_overflow == 0;
+        let listing_ok = code.report.panel_code.as_deref() == Some(listing) && code.report.code_overflow == 0;
         demos_ok &= ok && listing_ok;
-        demo_detail.push(json!({"demo": demo.key(), "minTextPt": result.report.min_text_pt, "readoutRows": values, "formula": formula, "formulaScale": result.report.formula_scale, "rowsBelowItCut": result.report.readout_overflow, "listing": demo.listing(), "listingFits": listing_ok, "snapshot": png}));
+        demo_detail.push(json!({"demo": demo.key(), "minTextPt": result.report.min_text_pt, "readoutRows": values, "formula": formula, "formulaScale": result.report.formula_scale, "rowsBelowItCut": result.report.readout_overflow, "listing": listing, "listingFits": listing_ok, "snapshot": png}));
     }
     report.check("every demonstration renders its formula at full size, its readout, and its listing with text of at least 24 px", demos_ok, json!(demo_detail));
 
@@ -785,12 +786,12 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         .filter(|l| !index.entries.contains_key(&l.source) || l.demo.as_deref().is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d)))
         .map(|l| l.name.to_string())
         .collect();
-    let demo_problems: Vec<&str> = Demo::ALL.iter().filter(|d| !listings.iter().any(|l| l.name == d.listing()) || !index.demos.contains_key(d.key())).map(|d| d.key()).collect();
+    let demo_problems: Vec<&str> = Demo::ALL.iter().filter(|d| !listings.iter().any(|l| Some(l.name) == shot::demos().spec(d.id()).listing) || !index.demos.contains_key(d.key())).map(|d| d.key()).collect();
     report.check("every listing cites a source entry and a demonstration; every demonstration has a listing and sources", listing_problems.is_empty() && demo_problems.is_empty(), json!({"listings": listing_problems, "demos": demo_problems}));
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
     let checkout = std::env::var_os("O3DE_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../o3de"));
     if checkout.join("engine.json").is_file() {
-        let index_json: Value = serde_json::from_str(super::sources::INDEX_JSON)?;
+        let index_json: Value = serde_json::from_str(super::sources::index_json())?;
         let mut mismatches = Vec::new();
         let mut cited = 0;
         for (key, entry) in index_json["entries"].as_object().into_iter().flatten() {

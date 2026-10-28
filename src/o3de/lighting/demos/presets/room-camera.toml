@@ -1,0 +1,8 @@
+# The overview camera of the study room.
+
+[camera]
+target = [0.0, 0.85, -0.3]
+yaw = 18.0
+pitch = 16.0
+distance = 6.4
+fov = 50.0

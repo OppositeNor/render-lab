@@ -27,9 +27,10 @@
 
 use crate::lab::animation::{Intro, IntroMove};
 use crate::lab::camera::Projector;
-use crate::lab::frame::{FrameContent, Statics};
+use crate::lab::frame::FrameContent;
 use crate::lab::gpu::{self, Gpu};
 use crate::lab::investigation;
+use crate::lab::loading::{self, Loading};
 use crate::lab::record::{beat_fade, ImageCache};
 use crate::lab::renderer::{FrameRequest, Renderer};
 use crate::lab::shot::{self, BeatKind, DemoId, PanelMode, ShotState, Timeline};
@@ -113,10 +114,22 @@ struct Drag {
     moved: f32,
 }
 
+/// The window while its scene loads (src/lab/loading.rs): the surface, and
+/// the device the loading page draws with.
+struct Pending {
+    window: Arc<Window>,
+    surface: wgpu::Surface<'static>,
+    config: wgpu::SurfaceConfiguration,
+    gpu: Gpu,
+    loading: Loading,
+    screen: loading::Screen,
+}
+
 pub struct App {
     options: ViewerOptions,
     pub surface: Option<Surface>,
     pub renderer: Option<Renderer>,
+    pending: Option<Pending>,
     pub state: ShotState,
     pub demo_time: f32,
     /// Demo time at which the camera sway of the playing animation started.
@@ -185,6 +198,7 @@ impl App {
             options,
             surface: None,
             renderer: None,
+            pending: None,
             state,
             demo_time: 0.0,
             drift_from: 0.0,
@@ -834,9 +848,9 @@ fn blit_group(renderer: &Renderer) -> wgpu::BindGroup {
 }
 
 impl App {
-    /// Create the window, the GPU, and the renderer (once per run).
+    /// Create the window and the GPU, and start loading the scene (once per run).
     fn open(&mut self, event_loop: &ActiveEventLoop) {
-        if self.surface.is_some() || self.error.is_some() {
+        if self.surface.is_some() || self.pending.is_some() || self.error.is_some() {
             return;
         }
         let title = format!("Render Lab · {}", investigation::current().title());
@@ -862,18 +876,75 @@ impl App {
             if let Some(a) = &self.audio {
                 eprintln!("Narration: {}", a.track().display());
             }
-            let statics = Statics::prepare(investigation::current().demo_scene(self.state.demo))?;
-            let mut renderer = Renderer::new(gpu, statics, size.width.max(64), size.height.max(64))?;
-            renderer.ui_scale = self.options.ui_scale;
-            let blit = renderer.pipelines.blit(&renderer.gpu.device, format);
-            let blit_group = blit_group(&renderer);
-            self.surface = Some(Surface { window, surface, config, blit, blit_group });
-            self.renderer = Some(renderer);
+            let scene = investigation::current().demo_scene(self.state.demo);
+            let loading = Loading::start(investigation::current(), gpu.clone(), scene, [size.width, size.height]);
+            let screen = loading::Screen::new(&gpu.device, format);
+            self.pending = Some(Pending { window, surface, config, gpu, loading, screen });
             Ok(())
         })();
         if let Err(e) = result {
             self.error = Some(e);
             event_loop.exit();
+        }
+    }
+
+    /// Draws the loading page, and opens the scene once its renderer is ready.
+    fn loading_frame(&mut self) -> Result<()> {
+        let pending = self.pending.as_mut().expect("loading");
+        if let Some(renderer) = pending.loading.poll() {
+            let mut renderer = renderer?;
+            let Pending { window, surface, config, .. } = self.pending.take().unwrap();
+            renderer.ui_scale = self.options.ui_scale;
+            let blit = renderer.pipelines.blit(&renderer.gpu.device, config.format);
+            let blit_group = blit_group(&renderer);
+            self.surface = Some(Surface { window, surface, config, blit, blit_group });
+            self.renderer = Some(renderer);
+            // The window may have changed size while it loaded; the clocks start now.
+            let size = self.surface.as_ref().unwrap().window.inner_size();
+            self.configure(size);
+            let now = Instant::now();
+            self.last_tick = now;
+            self.timeline_anchor = (now, self.timeline_frame);
+            if let Some((_, started)) = self.intro.as_mut() {
+                *started = now;
+            }
+            return Ok(());
+        }
+        let frame = match pending.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            _ => {
+                pending.surface.configure(&pending.gpu.device, &pending.config);
+                return Ok(());
+            }
+        };
+        let view = frame.texture.create_view(&Default::default());
+        let title = investigation::current().title();
+        pending.screen.draw(&pending.gpu, &view, [pending.config.width, pending.config.height], self.options.ui_scale, title, &pending.loading.progress());
+        pending.window.pre_present_notify();
+        pending.gpu.queue.present(frame);
+        Ok(())
+    }
+
+    /// The window's events while its scene loads.
+    fn loading_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
+        match event {
+            WindowEvent::CloseRequested => {
+                self.exit = ViewerExit::Closed;
+                event_loop.exit();
+            }
+            WindowEvent::Resized(size) => {
+                let pending = self.pending.as_mut().unwrap();
+                pending.config.width = size.width.max(1);
+                pending.config.height = size.height.max(1);
+                pending.surface.configure(&pending.gpu.device, &pending.config);
+            }
+            WindowEvent::RedrawRequested => {
+                if let Err(e) = self.loading_frame() {
+                    self.error = Some(e);
+                    event_loop.exit();
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -891,6 +962,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if self.pending.is_some() {
+            self.loading_event(event_loop, event);
+            return;
+        }
         if self.renderer.is_none() {
             return;
         }
@@ -964,6 +1039,9 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(s) = &self.surface {
             s.window.request_redraw();
+        }
+        if let Some(p) = &self.pending {
+            p.window.request_redraw();
         }
     }
 }

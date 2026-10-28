@@ -8,6 +8,7 @@
 //! it through a [`Table`]: `tr("viewer.playing")`, or
 //! `tr_with("ui.skip_back", args!(seconds = 10))` for text with values.
 
+use crate::lab::resources;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -38,25 +39,32 @@ pub fn zh() -> bool {
 }
 
 /// One layer's on-screen text: a JSON object of key → text for each locale
-/// (`text/en.json` and `text/zh-CN.json` beside the layer's code), read on
+/// (`text/en.json` and `text/zh-CN.json` beside the layer's code, the
+/// resources `<prefix>/en` and `<prefix>/zh-cn` of its package), read on
 /// first use. Text may name values in braces (`{seconds}`), which
 /// [`Table::format`] fills; `{{` and `}}` are literal braces. build.rs checks
 /// that every locale has the same keys and values, and that every key the
 /// layer's code names exists.
 pub struct Table {
-    sources: [&'static str; 2],
+    /// The resources' id without the locale (`o3de/lighting/text`).
+    prefix: &'static str,
     texts: OnceLock<[HashMap<String, String>; 2]>,
 }
 
 impl Table {
-    /// The texts of `Locale::En` and `Locale::ZhCn`.
-    pub const fn new(en: &'static str, zh: &'static str) -> Table {
-        Table { sources: [en, zh], texts: OnceLock::new() }
+    /// The texts of `Locale::En` and `Locale::ZhCn`: `<prefix>/en` and `<prefix>/zh-cn`.
+    pub const fn new(prefix: &'static str) -> Table {
+        Table { prefix, texts: OnceLock::new() }
     }
 
     /// The text of `key` in the current locale.
     pub fn get(&'static self, key: &str) -> &'static str {
-        let texts = self.texts.get_or_init(|| self.sources.map(|s| serde_json::from_str(s).expect("a text table is a JSON object of strings")));
+        let texts = self.texts.get_or_init(|| {
+            ["en", "zh-cn"].map(|locale| {
+                let id = format!("{}/{locale}", self.prefix);
+                serde_json::from_str(resources::get(&id).text()).unwrap_or_else(|e| panic!("{id}: a text table is a JSON object of strings: {e}"))
+            })
+        });
         texts[current() as usize].get(key).unwrap_or_else(|| panic!("no text for {key:?}"))
     }
 
@@ -102,10 +110,16 @@ macro_rules! args {
 pub(crate) use args;
 
 /// The shared lab's text.
-static TEXT: Table = Table::new(include_str!("text/en.json"), include_str!("text/zh-CN.json"));
+static TEXT: Table = Table::new("text");
 
 /// The lab's text of `key` in the current locale.
 pub fn tr(key: &'static str) -> &'static str {
+    TEXT.get(key)
+}
+
+/// The lab's text of a key its data names (a `-text` field: build.rs checks
+/// those keys as it checks `tr`'s).
+pub fn tr_key(key: &'static str) -> &'static str {
     TEXT.get(key)
 }
 
@@ -164,15 +178,9 @@ mod tests {
     }
 
     #[test]
-    fn tables() {
-        let _locale = LOCALE.lock().unwrap();
-        static TABLE: Table = Table::new(r#"{"skip": "back {seconds} s", "brace": "{{x}} = {x}"}"#, r#"{"skip": "后退 {seconds} 秒", "brace": "{{x}} = {x}"}"#);
-        set(Locale::En);
-        assert_eq!(TABLE.format("skip", args!(seconds = 10)), "back 10 s");
-        assert_eq!(TABLE.format("brace", args!(x = 1.5)), "{x} = 1.5");
-        set(Locale::ZhCn);
-        assert_eq!(TABLE.get("skip"), "后退 {seconds} 秒");
-        assert_eq!(TABLE.format("skip", args!(seconds = 20)), "后退 20 秒");
-        set(Locale::En);
+    fn placeholders() {
+        assert_eq!(fill("back {seconds} s", args!(seconds = 10)), "back 10 s");
+        assert_eq!(fill("{{x}} = {x}", args!(x = 1.5)), "{x} = 1.5");
+        assert_eq!(fill("后退 {seconds} 秒", args!(seconds = 20)), "后退 20 秒");
     }
 }

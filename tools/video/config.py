@@ -19,6 +19,23 @@ from typing import Any
 TOOLS = Path(__file__).resolve().parent            # render-lab/tools/video/
 LAB = TOOLS.parents[1]                             # render-lab/
 LANGS = ('en', 'zh-CN')
+# `--resolution` presets (16:9, by height); any other size is WIDTHxHEIGHT.
+RESOLUTIONS = {'720p': (1280, 720), '1080p': (1920, 1080), '1440p': (2560, 1440), '2160p': (3840, 2160), '4k': (3840, 2160)}
+
+
+def parse_resolution(value: str) -> tuple[int, int]:
+    """A preset or WIDTHxHEIGHT, as `render-lab render --resolution` takes it
+    (even sizes, for FFmpeg's yuv420p)."""
+    size = RESOLUTIONS.get(value.lower())
+    if size is None:
+        try:
+            w, h = value.lower().split('x')
+            size = (int(w), int(h))
+        except ValueError:
+            raise ValueError(f'{value}: expected WIDTHxHEIGHT or one of {", ".join(RESOLUTIONS)}') from None
+    if any(n < 2 or n > 8192 or n % 2 for n in size):
+        raise ValueError(f'{size[0]}x{size[1]}: width and height are even, from 2 to 8192')
+    return size
 
 
 def env_path(name: str, default: Path) -> Path:

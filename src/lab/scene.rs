@@ -4,9 +4,11 @@
 //! tracing, and the prepared Surface Cache texels; `selftest` compares them
 //! with the GPU versions.
 //!
-//! A scene is named by its `SceneId`; an investigation says which scene each
-//! of its demonstrations shows (`Investigation::demo_scene`), and the
-//! renderer switches to it when a frame needs it.
+//! A scene is named by its `SceneId` and described by the resource
+//! `scene/<key>` (src/lab/scenes/*.toml): its objects, its light, and its
+//! lighting constants. An investigation says which scene each of its
+//! demonstrations shows (`Investigation::demo_scene`), and the renderer
+//! switches to it when a frame needs it.
 //!
 //! Coordinates: right-handed, +Y up, metres. Some engines are left-handed, +Z up,
 //! and use centimetres.
@@ -53,21 +55,29 @@ impl SceneId {
         self.0
     }
 
+    /// The scene with this key, if a package declares `scene/<key>`.
+    pub fn find(key: &str) -> Option<SceneId> {
+        crate::lab::resources::find(&format!("scene/{key}"))?;
+        Some(SceneId(Box::leak(key.to_string().into_boxed_str())))
+    }
+
     /// The scene's name on the viewer's scene tabs, in the current locale.
     pub fn title(self) -> &'static str {
-        use crate::lab::i18n::tr;
-        match self {
-            SceneId::TERRAIN => tr("scene.terrain"),
-            _ => tr("scene.study_room"),
-        }
+        crate::lab::i18n::tr_key(description(self).title)
+    }
+
+    /// The resources the loading step prepares before the scene plays: its
+    /// sky, and the teapot, whose BVH the renderer binds in every scene.
+    pub fn resources(self) -> &'static [&'static str] {
+        &["environment", "teapot"]
     }
 
     /// Whether a camera at `eye` sees the scene from where it is meant to
     /// be seen (inside the room's walls, above the hills).
     pub fn camera_clear(self, eye: Vec3) -> bool {
-        match self {
-            SceneId::TERRAIN => eye.y > 3.0,
-            _ => Scene::inside_room(eye, 0.2),
+        match description(self).camera_clear {
+            CameraClear::Above(height) => eye.y > height,
+            CameraClear::Room(margin) => Scene::inside_room(eye, margin),
         }
     }
 }
@@ -132,6 +142,177 @@ fn deg(v: f32) -> f32 {
     v.to_radians()
 }
 
+/// Where a camera sees a scene from (`camera-clear`).
+#[derive(Clone, Copy, Debug)]
+enum CameraClear {
+    /// Inside the study room's walls, this far clear of them.
+    Room(f32),
+    /// Above this height.
+    Above(f32),
+}
+
+/// A scene as its resource describes it, read once.
+struct Description {
+    scene: Scene,
+    /// The text key of its name.
+    title: &'static str,
+    camera_clear: CameraClear,
+}
+
+fn description(id: SceneId) -> &'static Description {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static SCENES: Mutex<Option<HashMap<&'static str, &'static Description>>> = Mutex::new(None);
+    let mut scenes = SCENES.lock().unwrap();
+    let scenes = scenes.get_or_insert_with(HashMap::new);
+    if let Some(d) = scenes.get(id.0) {
+        return d;
+    }
+    let resource = format!("scene/{}", id.0);
+    let d: &'static Description = Box::leak(Box::new(read_scene(id, crate::lab::resources::get(&resource).text()).unwrap_or_else(|e| panic!("{resource}: {e:#}"))));
+    scenes.insert(id.0, d);
+    d
+}
+
+/// A number as Rust would read its literal: TOML's float, shortest decimal
+/// first, read as an f32 (so `0.16` is the f32 nearest 0.16).
+pub fn number(value: &toml_edit::Value) -> anyhow::Result<f32> {
+    match value {
+        toml_edit::Value::Float(f) => Ok(f.value().to_string().parse()?),
+        toml_edit::Value::Integer(i) => Ok(*i.value() as f32),
+        _ => anyhow::bail!("expected a number, found {value:?}"),
+    }
+}
+
+fn vec3(value: &toml_edit::Value) -> anyhow::Result<Vec3> {
+    let a = value.as_array().filter(|a| a.len() == 3).ok_or_else(|| anyhow::anyhow!("expected [x, y, z], found {value:?}"))?;
+    Ok(Vec3::new(number(&a.get(0).unwrap())?, number(&a.get(1).unwrap())?, number(&a.get(2).unwrap())?))
+}
+
+fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
+    use anyhow::{anyhow, bail, Context};
+    let document = toml_edit::Document::parse(text.to_string())?;
+    let root = document.as_table();
+    let leak = |s: &str| -> &'static str { Box::leak(s.to_string().into_boxed_str()) };
+    let value = |table: &toml_edit::Table, key: &str| -> anyhow::Result<toml_edit::Value> {
+        table.get(key).and_then(|i| i.as_value()).cloned().ok_or_else(|| anyhow!("`{key}` is missing"))
+    };
+    let title = leak(value(root, "title-text")?.as_str().context("`title-text` is a text key")?);
+    let clear = value(root, "camera-clear")?;
+    let clear = clear.as_inline_table().context("`camera-clear` is { room-margin = … } or { above = … }")?;
+    let camera_clear = match (clear.get("room-margin"), clear.get("above")) {
+        (Some(m), None) => CameraClear::Room(number(m)?),
+        (None, Some(h)) => CameraClear::Above(number(h)?),
+        _ => bail!("`camera-clear` is {{ room-margin = … }} or {{ above = … }}"),
+    };
+    let mut objects = Vec::new();
+    for table in root.get("object").and_then(|o| o.as_array_of_tables()).context("a scene has `[[object]]` tables")? {
+        let name = leak(value(table, "name")?.as_str().context("`name` is a string")?);
+        let at = |e: anyhow::Error| e.context(format!("object `{name}`"));
+        let shape_name = value(table, "shape").map_err(at)?;
+        let shape = match shape_name.as_str() {
+            Some("plane") => SHAPE_PLANE,
+            Some("box") => SHAPE_BOX,
+            Some("sphere") => SHAPE_SPHERE,
+            Some("panel") => SHAPE_PANEL,
+            Some("mesh") => SHAPE_MESH,
+            Some("terrain") => SHAPE_TERRAIN,
+            _ => bail!("object `{name}`: `shape` is plane, box, sphere, panel, mesh, or terrain"),
+        };
+        let optional = |key: &str, default: Vec3| -> anyhow::Result<Vec3> { table.get(key).and_then(|i| i.as_value()).map(vec3).unwrap_or(Ok(default)) };
+        let translation = optional("translation", Vec3::ZERO).map_err(at)?;
+        let rotation = match table.get("rotation").and_then(|i| i.as_value()).and_then(|v| v.as_inline_table()) {
+            None => Quat::IDENTITY,
+            Some(r) => match (r.get("x"), r.get("y"), r.get("z"), r.get("aim")) {
+                (Some(a), None, None, None) => Quat::from_rotation_x(deg(number(a)?)),
+                (None, Some(a), None, None) => Quat::from_rotation_y(deg(number(a)?)),
+                (None, None, Some(a), None) => Quat::from_rotation_z(deg(number(a)?)),
+                (None, None, None, Some(p)) => Quat::from_rotation_arc(Vec3::Y, (vec3(p)? - translation).normalize()),
+                _ => bail!("object `{name}`: `rotation` is one of {{ x }}, {{ y }}, {{ z }} (degrees) or {{ aim = [x, y, z] }}"),
+            },
+        };
+        // A mesh's and the terrain's bounds are their own.
+        let (local_center, local_extent) = match shape {
+            SHAPE_MESH => {
+                let mesh = value(table, "mesh").map_err(at)?;
+                if mesh.as_str() != Some("teapot") {
+                    bail!("object `{name}`: the lab's one mesh is `teapot` (src/lab/mesh.rs)");
+                }
+                let teapot = crate::lab::mesh::teapot();
+                (teapot.local_center(), teapot.local_extent())
+            }
+            SHAPE_TERRAIN => {
+                let terrain = crate::lab::terrain::terrain();
+                (terrain.local_center(), terrain.local_extent())
+            }
+            _ => (Vec3::ZERO, vec3(&value(table, "extent").map_err(at)?).map_err(at)?),
+        };
+        objects.push(SceneObject {
+            name,
+            shape,
+            local_center,
+            local_extent,
+            translation,
+            rotation,
+            scale: optional("scale", Vec3::ONE).map_err(at)?,
+            albedo: vec3(&value(table, "albedo").map_err(at)?).map_err(at)?,
+            roughness: number(&value(table, "roughness").map_err(at)?).map_err(at)?,
+            emissive: optional("emissive", Vec3::ZERO).map_err(at)?,
+            emissive_strength: table.get("emissive-strength").and_then(|i| i.as_value()).map(number).unwrap_or(Ok(0.0)).map_err(at)?,
+        });
+    }
+    let lighting = root.get("lighting").and_then(|l| l.as_table()).context("a scene has `[lighting]`")?;
+    let light_name = value(lighting, "light")?;
+    let panel = objects.iter().find(|o| Some(o.name) == light_name.as_str()).with_context(|| format!("`[lighting] light`: no object {light_name:?}"))?;
+    let light = Light {
+        center: panel.translation,
+        axis_u: panel.rotation * Vec3::new(panel.local_extent.x, 0.0, 0.0),
+        axis_v: panel.rotation * Vec3::new(0.0, 0.0, panel.local_extent.z),
+        color: panel.emissive,
+        radiance: panel.emissive_strength,
+    };
+    let lighting = Lighting {
+        light,
+        ambient: Vec3::splat(number(&value(lighting, "ambient")?)?),
+        f0: number(&value(lighting, "f0")?)?,
+        reflection_strength: number(&value(lighting, "reflection-strength")?)?,
+        ggx_samples: value(lighting, "ggx-samples")?.as_integer().filter(|n| *n > 0).context("`ggx-samples` is a whole number")? as u32,
+        exposure: number(&value(lighting, "exposure")?)?,
+    };
+    // Investigations name the study room's objects by index.
+    if id == SceneId::STUDY_ROOM {
+        let names = ["floor", "back wall", "left wall", "right wall", "emissive panel", "sphere", "rotated box", "small box", "teapot"];
+        let found: Vec<&str> = objects.iter().map(|o| o.name).collect();
+        if found != names {
+            bail!("the study room's objects are {names:?}, in the order of `scene::ids`; found {found:?}");
+        }
+    }
+    objects.shrink_to_fit();
+    Ok(Description { scene: Scene { id, objects, lighting }, title, camera_clear })
+}
+
+/// The terrain a scene's `[terrain]` table describes (src/lab/terrain.rs).
+pub fn terrain_table(id: SceneId) -> anyhow::Result<crate::lab::terrain::TerrainDesc> {
+    use anyhow::Context;
+    let resource = format!("scene/{}", id.0);
+    let document = toml_edit::Document::parse(crate::lab::resources::get(&resource).text().to_string())?;
+    let t = document.get("terrain").and_then(|t| t.as_table()).with_context(|| format!("{resource} has no `[terrain]`"))?;
+    let get = |key: &str| t.get(key).and_then(|i| i.as_value()).with_context(|| format!("{resource}: `[terrain] {key}` is missing"));
+    let half = get("half-size")?.as_array().filter(|a| a.len() == 2).context("`half-size` is [x, z]")?;
+    let perlin = get("perlin")?.as_inline_table().context("`perlin` is { seed, octaves, frequency }")?;
+    let int = |v: Option<&toml_edit::Value>, key: &str| v.and_then(|v| v.as_integer()).filter(|n| *n >= 0).with_context(|| format!("{resource}: `{key}` is a whole number"));
+    Ok(crate::lab::terrain::TerrainDesc {
+        resolution: int(Some(get("resolution")?), "resolution")? as u32,
+        half_size: Vec2::new(number(half.get(0).unwrap())?, number(half.get(1).unwrap())?),
+        height: number(get("height")?)?,
+        source: crate::lab::terrain::HeightSource::Perlin {
+            seed: int(perlin.get("seed"), "seed")? as u64,
+            octaves: int(perlin.get("octaves"), "octaves")? as u32,
+            frequency: number(perlin.get("frequency").context("`frequency` is missing")?)?,
+        },
+    })
+}
+
 impl Scene {
     /// Whether a point is inside the study room's walls, `margin` metres clear
     /// of them (its front is open, and it has no ceiling).
@@ -139,174 +320,13 @@ impl Scene {
         p.x.abs() < 3.0 - margin && p.z > -3.0 + margin && p.y > margin
     }
 
+    /// The scene its resource describes.
     pub fn build(id: SceneId) -> Scene {
-        match id {
-            SceneId::TERRAIN => Scene::terrain(),
-            _ => Scene::study_room(),
-        }
+        description(id).scene.clone()
     }
 
     pub fn study_room() -> Scene {
-        let plane = |name, center: Vec3, rotation: Quat, ex: f32, ez: f32, albedo: Vec3| SceneObject {
-            name,
-            shape: SHAPE_PLANE,
-            local_center: Vec3::ZERO,
-            local_extent: Vec3::new(ex, 0.0, ez),
-            translation: center,
-            rotation,
-            scale: Vec3::ONE,
-            albedo,
-            roughness: 1.0,
-            emissive: Vec3::ZERO,
-            emissive_strength: 0.0,
-        };
-        let light_color = Vec3::new(1.0, 0.88, 0.72);
-        let light_radiance = 6.0;
-        // A ceiling light: the panel's local +Y normal turned to face down.
-        let panel_rotation = Quat::from_rotation_x(deg(180.0));
-        let panel_center = Vec3::new(0.0, 2.95, -0.2);
-        let panel_extent = Vec3::new(1.2, 0.0, 0.6);
-        let mut objects = vec![
-            plane("floor", Vec3::ZERO, Quat::IDENTITY, 3.0, 3.0, Vec3::new(0.16, 0.17, 0.19)),
-            plane("back wall", Vec3::new(0.0, 1.5, -3.0), Quat::from_rotation_x(deg(90.0)), 3.0, 1.5, Vec3::new(0.72, 0.70, 0.66)),
-            plane("left wall", Vec3::new(-3.0, 1.5, 0.0), Quat::from_rotation_z(deg(-90.0)), 1.5, 3.0, Vec3::new(0.70, 0.24, 0.18)),
-            plane("right wall", Vec3::new(3.0, 1.5, 0.0), Quat::from_rotation_z(deg(90.0)), 1.5, 3.0, Vec3::new(0.16, 0.55, 0.50)),
-            SceneObject {
-                name: "emissive panel",
-                shape: SHAPE_PANEL,
-                local_center: Vec3::ZERO,
-                local_extent: panel_extent,
-                translation: panel_center,
-                rotation: panel_rotation,
-                scale: Vec3::ONE,
-                albedo: Vec3::splat(0.8),
-                roughness: 1.0,
-                emissive: light_color,
-                emissive_strength: light_radiance,
-            },
-            SceneObject {
-                name: "sphere",
-                shape: SHAPE_SPHERE,
-                local_center: Vec3::ZERO,
-                local_extent: Vec3::splat(0.62),
-                translation: Vec3::new(-1.05, 0.62, -0.55),
-                rotation: Quat::IDENTITY,
-                scale: Vec3::ONE,
-                albedo: Vec3::new(0.86, 0.82, 0.74),
-                roughness: 0.5,
-                emissive: Vec3::ZERO,
-                emissive_strength: 0.0,
-            },
-            SceneObject {
-                name: "rotated box",
-                shape: SHAPE_BOX,
-                local_center: Vec3::ZERO,
-                local_extent: Vec3::new(0.5, 0.45, 0.38),
-                translation: Vec3::new(1.05, 0.45, 0.15),
-                rotation: Quat::from_rotation_y(deg(30.0)),
-                scale: Vec3::ONE,
-                albedo: Vec3::new(0.22, 0.42, 0.85),
-                roughness: 0.6,
-                emissive: Vec3::ZERO,
-                emissive_strength: 0.0,
-            },
-            SceneObject {
-                name: "small box",
-                shape: SHAPE_BOX,
-                local_center: Vec3::ZERO,
-                local_extent: Vec3::splat(0.24),
-                translation: Vec3::new(1.95, 0.24, 1.45),
-                rotation: Quat::from_rotation_y(deg(20.0)),
-                scale: Vec3::ONE,
-                albedo: Vec3::new(0.92, 0.55, 0.22),
-                roughness: 0.6,
-                emissive: Vec3::ZERO,
-                emissive_strength: 0.0,
-            },
-            // The bounds demonstration's object: the spout reaches farther
-            // than the handle, so the local bounds' centre is off the pivot.
-            SceneObject {
-                name: "teapot",
-                shape: SHAPE_MESH,
-                local_center: crate::lab::mesh::teapot().local_center(),
-                local_extent: crate::lab::mesh::teapot().local_extent(),
-                translation: Vec3::new(-0.25, 0.0, -1.75),
-                rotation: Quat::from_rotation_y(deg(30.0)),
-                scale: Vec3::ONE,
-                albedo: Vec3::new(0.50, 0.66, 0.56),
-                roughness: 0.35,
-                emissive: Vec3::ZERO,
-                emissive_strength: 0.0,
-            },
-        ];
-        objects.shrink_to_fit();
-        let light = Light {
-            center: panel_center,
-            axis_u: panel_rotation * Vec3::new(panel_extent.x, 0.0, 0.0),
-            axis_v: panel_rotation * Vec3::new(0.0, 0.0, panel_extent.z),
-            color: light_color,
-            radiance: light_radiance,
-        };
-        Scene {
-            id: SceneId::STUDY_ROOM,
-            objects,
-            lighting: Lighting {
-                light,
-                ambient: Vec3::splat(0.12),
-                f0: 0.04,
-                reflection_strength: 1.0,
-                ggx_samples: 16,
-                exposure: 1.0,
-            },
-        }
-    }
-
-    /// Hills of the lab's terrain under the sky, lit by a large panel high
-    /// above them standing in for the sun.
-    pub fn terrain() -> Scene {
-        let terrain = crate::lab::terrain::terrain();
-        let solid = |name, shape, extent: Vec3, translation: Vec3, rotation: Quat, albedo: Vec3, roughness: f32| SceneObject {
-            name,
-            shape,
-            local_center: Vec3::ZERO,
-            local_extent: extent,
-            translation,
-            rotation,
-            scale: Vec3::ONE,
-            albedo,
-            roughness,
-            emissive: Vec3::ZERO,
-            emissive_strength: 0.0,
-        };
-        let light_color = Vec3::new(1.0, 0.93, 0.82);
-        let light_radiance = 16.0;
-        let panel_center = Vec3::new(-6.0, 10.0, 5.0);
-        let panel_extent = Vec3::new(2.0, 0.0, 2.0);
-        // The panel's local +Y normal turned toward the middle of the hills.
-        let panel_rotation = Quat::from_rotation_arc(Vec3::Y, (Vec3::new(0.0, 1.0, 0.0) - panel_center).normalize());
-        let objects = vec![
-            SceneObject {
-                local_center: terrain.local_center(),
-                ..solid("terrain", SHAPE_TERRAIN, terrain.local_extent(), Vec3::ZERO, Quat::IDENTITY, Vec3::new(0.30, 0.38, 0.20), 0.9)
-            },
-            SceneObject {
-                emissive: light_color,
-                emissive_strength: light_radiance,
-                ..solid("sun panel", SHAPE_PANEL, panel_extent, panel_center, panel_rotation, Vec3::splat(0.8), 1.0)
-            },
-        ];
-        let light = Light {
-            center: panel_center,
-            axis_u: panel_rotation * Vec3::new(panel_extent.x, 0.0, 0.0),
-            axis_v: panel_rotation * Vec3::new(0.0, 0.0, panel_extent.z),
-            color: light_color,
-            radiance: light_radiance,
-        };
-        Scene {
-            id: SceneId::TERRAIN,
-            objects,
-            lighting: Lighting { light, ambient: Vec3::splat(0.3), f0: 0.04, reflection_strength: 1.0, ggx_samples: 16, exposure: 1.0 },
-        }
+        Scene::build(SceneId::STUDY_ROOM)
     }
 
     pub fn records(&self) -> Vec<ObjectData> {

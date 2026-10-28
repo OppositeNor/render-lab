@@ -1,12 +1,12 @@
 //! The Utah teapot (assets/models/utah_teapot.obj, Cem Yuksel's 2026
-//! triangle mesh), as the resource pipeline makes it (pipeline/mesh.rs,
+//! triangle mesh), as the resource pipeline makes it (src/lab/pipeline/mesh.rs,
 //! declared in src/lab/resources.toml): scaled into the room's metres and
 //! arranged in a bounding-volume hierarchy. The raster pass draws its
 //! triangles; intersectMesh in common.wgsl and `TriangleMesh::intersect` below
 //! traverse the same nodes for shadow, reflection, probe, and card rays.
 
 use crate::lab::layout::{MeshNode, MeshTriangle};
-use crate::lab::resources::{self, Resource};
+use crate::lab::resources::{self, Loaded};
 use glam::Vec3;
 use std::sync::OnceLock;
 
@@ -25,7 +25,7 @@ pub struct TriangleMesh {
 
 pub fn teapot() -> &'static TriangleMesh {
     static TEAPOT: OnceLock<TriangleMesh> = OnceLock::new();
-    TEAPOT.get_or_init(|| TriangleMesh::load(&resources::TEAPOT))
+    TEAPOT.get_or_init(|| TriangleMesh::load(&resources::get("teapot").load()))
 }
 
 fn v3(a: [f32; 3]) -> Vec3 {
@@ -35,12 +35,12 @@ fn v3(a: [f32; 3]) -> Vec3 {
 impl TriangleMesh {
     /// A `mesh` resource: its header (node count, triangle count, depth), then
     /// the nodes and the triangles.
-    fn load(r: &Resource) -> TriangleMesh {
+    fn load(r: &Loaded) -> TriangleMesh {
         let (node_count, triangle_count, depth) = (r.word(0) as usize, r.word(1) as usize, r.word(2) as usize);
-        assert!(depth <= MAX_DEPTH, "{}: the BVH is {depth} levels deep (stack holds {MAX_DEPTH})", r.id);
+        assert!(depth <= MAX_DEPTH, "{}: the BVH is {depth} levels deep (stack holds {MAX_DEPTH})", r.id());
         let nodes: Vec<MeshNode> = r.array(12, node_count);
         let triangles: Vec<MeshTriangle> = r.array(12 + node_count * size_of::<MeshNode>(), triangle_count);
-        assert_eq!(r.bytes.len(), 12 + node_count * size_of::<MeshNode>() + triangle_count * size_of::<MeshTriangle>(), "{}: size", r.id);
+        assert_eq!(r.bytes.len(), 12 + node_count * size_of::<MeshNode>() + triangle_count * size_of::<MeshTriangle>(), "{}: size", r.id());
         let root = nodes[0];
         TriangleMesh { nodes, triangles, bounds_min: v3(root.bounds_min), bounds_max: v3(root.bounds_max), depth }
     }

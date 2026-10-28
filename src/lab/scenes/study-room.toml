@@ -1,0 +1,102 @@
+# The study room: three walls and a floor around a sphere, two boxes, and the
+# Utah teapot, lit by a ceiling panel and the sky (src/lab/scene.rs reads it).
+# Right-handed, +Y up, metres. A rotation is one turn about `x`, `y`, or `z`
+# in degrees, or `aim`: the object's local +Y turned toward that point.
+
+title-text = "scene.study_room"
+# A camera sees the room from inside its walls, this far clear of them.
+camera-clear = { room-margin = 0.2 }
+
+[lighting]
+# The light is the emissive panel's rectangle, colour, and radiance.
+light = "emissive panel"
+ambient = 0.12
+f0 = 0.04
+reflection-strength = 1.0
+ggx-samples = 16
+exposure = 1.0
+
+# The objects, in the order of `scene::ids`.
+[[object]]
+name = "floor"
+shape = "plane"
+extent = [3.0, 0.0, 3.0]
+albedo = [0.16, 0.17, 0.19]
+roughness = 1.0
+
+[[object]]
+name = "back wall"
+shape = "plane"
+extent = [3.0, 0.0, 1.5]
+translation = [0.0, 1.5, -3.0]
+rotation = { x = 90.0 }
+albedo = [0.72, 0.70, 0.66]
+roughness = 1.0
+
+[[object]]
+name = "left wall"
+shape = "plane"
+extent = [1.5, 0.0, 3.0]
+translation = [-3.0, 1.5, 0.0]
+rotation = { z = -90.0 }
+albedo = [0.70, 0.24, 0.18]
+roughness = 1.0
+
+[[object]]
+name = "right wall"
+shape = "plane"
+extent = [1.5, 0.0, 3.0]
+translation = [3.0, 1.5, 0.0]
+rotation = { z = 90.0 }
+albedo = [0.16, 0.55, 0.50]
+roughness = 1.0
+
+# A ceiling light: the panel's local +Y normal turned to face down.
+[[object]]
+name = "emissive panel"
+shape = "panel"
+extent = [1.2, 0.0, 0.6]
+translation = [0.0, 2.95, -0.2]
+rotation = { x = 180.0 }
+albedo = [0.8, 0.8, 0.8]
+roughness = 1.0
+emissive = [1.0, 0.88, 0.72]
+emissive-strength = 6.0
+
+[[object]]
+name = "sphere"
+shape = "sphere"
+extent = [0.62, 0.62, 0.62]
+translation = [-1.05, 0.62, -0.55]
+albedo = [0.86, 0.82, 0.74]
+roughness = 0.5
+
+[[object]]
+name = "rotated box"
+shape = "box"
+extent = [0.5, 0.45, 0.38]
+translation = [1.05, 0.45, 0.15]
+rotation = { y = 30.0 }
+albedo = [0.22, 0.42, 0.85]
+roughness = 0.6
+
+[[object]]
+name = "small box"
+shape = "box"
+extent = [0.24, 0.24, 0.24]
+translation = [1.95, 0.24, 1.45]
+rotation = { y = 20.0 }
+albedo = [0.92, 0.55, 0.22]
+roughness = 0.6
+
+# The bounds demonstration's object: the spout reaches farther than the
+# handle, so the local bounds' centre is off the pivot. Its bounds are the
+# mesh's.
+[[object]]
+name = "teapot"
+shape = "mesh"
+mesh = "teapot"
+translation = [-0.25, 0.0, -1.75]
+rotation = { y = 30.0 }
+albedo = [0.50, 0.66, 0.56]
+roughness = 0.35

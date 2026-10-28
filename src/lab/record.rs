@@ -29,6 +29,8 @@ pub struct RecordOptions {
     pub crf: u32,
     pub preset: String,
     pub frames: Option<(u64, u64)>,
+    /// Width and height of the frames; None for the timeline's.
+    pub resolution: Option<[u32; 2]>,
     pub snapshots: Vec<u64>,
     pub snapshot_dir: Option<PathBuf>,
     pub report: Option<PathBuf>,
@@ -158,7 +160,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let gpu_info = renderer::gpu_summary(&gpu);
     eprintln!("GPU: {}", gpu.info.name);
     let statics = Statics::prepare(crate::lab::investigation::current().first_scene())?;
-    let (width, height) = (timeline.width, timeline.height);
+    let [width, height] = options.resolution.unwrap_or([timeline.width, timeline.height]);
     let mut renderer = Renderer::new(gpu, statics, width, height)?;
     let (first, last) = options.frames.unwrap_or((0, timeline.total_frames));
     let last = last.min(timeline.total_frames);

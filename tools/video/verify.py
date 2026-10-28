@@ -92,7 +92,8 @@ def english_checksums(cfg: Config) -> dict[str, str]:
     return {name: sha256(path) for name, path in files.items() if path.exists()}
 
 
-def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Json, plans: dict[int, Json], decode: bool = True) -> bool:
+def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Json, plans: dict[int, Json], resolution: tuple[int, int] = (1920, 1080),
+           decode: bool = True) -> bool:
     build = cfg.build()
     checks: list[Json] = []
 
@@ -107,8 +108,8 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     a = next((s for s in info['streams'] if s['codec_type'] == 'audio'), None)
     duration = float(info['format']['duration'])
     colour = {k: v.get(k) for k in ('color_space', 'color_primaries', 'color_transfer', 'color_range')}
-    check('1080p, 30 fps, H.264 (yuv420p, BT.709 tagged) with AAC narration',
-          v['width'] == 1920 and v['height'] == 1080 and v['r_frame_rate'] == '30/1' and v['codec_name'] == 'h264' and v.get('pix_fmt') == 'yuv420p'
+    check(f'{resolution[0]}x{resolution[1]}, 30 fps, H.264 (yuv420p, BT.709 tagged) with AAC narration',
+          (v['width'], v['height']) == resolution and v['r_frame_rate'] == '30/1' and v['codec_name'] == 'h264' and v.get('pix_fmt') == 'yuv420p'
           and colour == {'color_space': 'bt709', 'color_primaries': 'bt709', 'color_transfer': 'bt709', 'color_range': 'tv'} and a is not None and a['codec_name'] == 'aac',
           {'width': v['width'], 'height': v['height'], 'fps': v['r_frame_rate'], 'video': v['codec_name'], 'audio': a and a['codec_name'], 'pixFmt': v.get('pix_fmt'), **colour})
     low, high = cfg.spec['durationMinutes']

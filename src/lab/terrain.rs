@@ -32,14 +32,10 @@ pub struct TerrainDesc {
     pub source: HeightSource,
 }
 
-/// The lab's terrain: rolling hills, 20 m across and up to 4 m high.
-fn lab_terrain() -> TerrainDesc {
-    TerrainDesc { resolution: 97, half_size: Vec2::splat(10.0), height: 4.0, source: HeightSource::Perlin { seed: 0x7e77_a1d5, octaves: 4, frequency: 0.11 } }
-}
-
+/// The lab's terrain: the terrain scene's `[terrain]` (src/lab/scenes/terrain.toml).
 pub fn terrain() -> &'static Terrain {
     static TERRAIN: OnceLock<Terrain> = OnceLock::new();
-    TERRAIN.get_or_init(|| Terrain::build(lab_terrain()))
+    TERRAIN.get_or_init(|| Terrain::build(crate::lab::scene::terrain_table(crate::lab::scene::SceneId::TERRAIN).unwrap_or_else(|e| panic!("{e:#}"))))
 }
 
 pub struct Terrain {

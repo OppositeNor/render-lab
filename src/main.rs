@@ -33,6 +33,10 @@ struct Cli {
     /// The investigation, as engine/feature (default: the first one).
     #[arg(long, global = true)]
     investigation: Option<String>,
+    /// The lab's root, where its packages and their content are (default:
+    /// RENDER_LAB_ROOT, or the crate's directory).
+    #[arg(long, global = true)]
+    root: Option<PathBuf>,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -51,7 +55,8 @@ enum Command {
         /// Render the homepage offscreen to this PNG instead of opening a window.
         #[arg(long)]
         snapshot: Option<PathBuf>,
-        /// The page the snapshot shows: title, select, config, or trial (the Config page's countdown).
+        /// The page the snapshot shows: title, select, config, trial (the Config page's countdown), or
+        /// loading (the viewer's loading page, while the current investigation's first scene loads).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -83,6 +88,10 @@ enum Command {
         /// Frame range START:END (END exclusive).
         #[arg(long)]
         frames: Option<String>,
+        /// Frame size: WIDTHxHEIGHT, or 720p, 1080p, 1440p, 2160p (4k)
+        /// (default: the timeline's, 1080p for the storyboards' videos).
+        #[arg(long, value_parser = parse_resolution)]
+        resolution: Option<[u32; 2]>,
         /// Comma-separated frame indices to save as PNG.
         #[arg(long, value_delimiter = ',')]
         snapshot: Vec<u64>,
@@ -115,12 +124,15 @@ enum Command {
         #[arg(long)]
         ffmpeg: Option<PathBuf>,
     },
-    /// List the embedded resources (the `resources.toml` manifests, as build.rs
-    /// processed them): id, kind, size, license, and source.
+    /// List the resources the packages declare (their `resources.toml`
+    /// manifests): id, kind, cached size, license, and source.
     Resources {
         #[arg(long)]
         json: bool,
     },
+    /// Process every resource that is not cached yet (build/resources), and
+    /// remove cached files no resource names any more.
+    Cook,
     /// Print the Rust and WGSL layouts of the displayed records.
     Layout {
         #[arg(long)]
@@ -143,9 +155,31 @@ enum Command {
     },
 }
 
+/// `--resolution`: a 16:9 preset by its height, or WIDTHxHEIGHT (even, for
+/// FFmpeg's yuv420p).
+fn parse_resolution(value: &str) -> Result<[u32; 2], String> {
+    let size = match value.to_ascii_lowercase().as_str() {
+        "720p" => [1280, 720],
+        "1080p" => [1920, 1080],
+        "1440p" => [2560, 1440],
+        "2160p" | "4k" => [3840, 2160],
+        other => {
+            let (w, h) = other.split_once('x').ok_or("expected WIDTHxHEIGHT or 720p, 1080p, 1440p, 2160p")?;
+            [w.parse().map_err(|_| format!("bad width `{w}`"))?, h.parse().map_err(|_| format!("bad height `{h}`"))?]
+        }
+    };
+    if size.iter().any(|&n| n < 2 || n > 8192 || n % 2 != 0) {
+        return Err(format!("{}x{}: width and height are even, from 2 to 8192", size[0], size[1]));
+    }
+    Ok(size)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if let Some(root) = &cli.root {
+        lab::resources::set_root(root.clone());
+    }
+    let manifest_dir = lab::resources::root().to_path_buf();
     let command = cli.command.unwrap_or(Command::Home { width: 1600, height: 900, ui_scale: DEFAULT_UI_SCALE, snapshot: None, page: "title".into(), autotest: None });
     let chosen = {
         let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
@@ -158,6 +192,7 @@ fn main() -> Result<()> {
         Command::Home { width, height, ui_scale, snapshot, page, autotest } => {
             let options = home::HomeOptions { manifest_dir: manifest_dir.clone(), width, height, ui_scale: ui_scale.clamp(0.4, 1.5), config_path: lab::config::Config::default_path() };
             match (snapshot, autotest) {
+                (Some(png), _) if page == "loading" => lab::loading::snapshot(&png, [width.max(64), height.max(64)], options.ui_scale),
                 (Some(png), _) => {
                     let trial = page == "trial";
                     home::snapshot(&options, if trial { home::Page::Config } else { home::Page::parse(&page)? }, trial, &png)
@@ -170,7 +205,7 @@ fn main() -> Result<()> {
             // Silent: the test plays the timeline without its narration.
             viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false })
         }
-        Command::Render { timeline, output, frames, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
+        Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             let frames = frames
                 .map(|r| -> Result<(u64, u64)> {
                     let (a, b) = r.split_once(':').context("--frames expects START:END")?;
@@ -188,6 +223,7 @@ fn main() -> Result<()> {
                 crf,
                 preset,
                 frames,
+                resolution,
                 snapshots: snapshot,
                 snapshot_dir,
                 report,
@@ -215,22 +251,39 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Resources { json } => {
-            let all = lab::resources::ALL;
+            let all = lab::resources::all();
+            let cache = lab::resources::cache_dir();
+            // The size of its cached output, if it is cooked; without cooking it.
+            let cached = |id: &str| -> Option<u64> {
+                let prefix = format!("{}-", id.replace('/', "-"));
+                let file = std::fs::read_dir(&cache).ok()?.flatten().find(|e| {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    name.strip_prefix(&prefix).is_some_and(|rest| rest.len() == 28 && rest.ends_with(".bin"))
+                })?;
+                Some(file.metadata().ok()?.len())
+            };
             if json {
                 let list: Vec<serde_json::Value> = all
                     .iter()
-                    .map(|r| serde_json::json!({"id": r.id, "kind": r.kind, "bytes": r.bytes.len(), "license": r.license, "manifest": r.manifest, "source": r.source}))
+                    .map(|r| serde_json::json!({"id": r.id(), "kind": r.kind(), "cachedBytes": cached(r.id()), "license": r.license(), "manifest": r.manifest(), "source": r.source()}))
                     .collect();
                 println!("{}", serde_json::to_string_pretty(&list)?);
             } else {
                 for r in all {
-                    println!("{:<28} {:<9} {:>10} B  {:<36} {}", r.id, r.kind, r.bytes.len(), r.license, r.source);
+                    let size = cached(r.id()).map(|b| format!("{b:>10} B")).unwrap_or_else(|| format!("{:>12}", "not cooked"));
+                    println!("{:<28} {:<9} {size}  {:<36} {}", r.id(), r.kind(), r.license(), r.source());
                 }
             }
             Ok(())
         }
+        Command::Cook => {
+            for c in lab::resources::cook()? {
+                println!("{:<28} {:<9} {:>10} B  {}", c.resource.id(), c.resource.kind(), c.bytes, if c.cached { "cached" } else { "cooked" });
+            }
+            Ok(())
+        }
         Command::Layout { json } => {
-            let layouts = layout::parse_layouts(shaders::LAYOUT_JSON)?;
+            let layouts = layout::parse_layouts(&shaders::layout_json()?)?;
             let checks = layout::check_all(&layouts);
             if json {
                 println!("{}", serde_json::to_string_pretty(&serde_json::json!({"wgsl": layouts, "checks": checks}))?);

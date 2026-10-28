@@ -1,52 +1,28 @@
-//! Validates the WGSL shader modules with naga (the shader compiler wgpu
-//! uses) and exports the struct layouts naga computes for shaders/wgsl/
-//! types.wgsl. A module that fails to parse or validate fails the build.
+//! Checks the lab's sources before it is built: every WGSL module the
+//! packages' manifests declare (`[[shader]]` in each `resources.toml` under
+//! src/ and the manifests it includes; src/lab/shaders.rs composes the same
+//! modules at run time) parses and validates with naga, and every layer's
+//! text tables match the code that names their keys. A failure fails the
+//! build; nothing is generated.
 //!
 //! It also decides whether the investigations of commercial engines are
 //! built. They live in src/commercial, which is not published (see
 //! .gitignore): when all of `HIDDEN` are present it sets the `commercial`
 //! cfg, and when none are, the lab builds with the public investigations
-//! alone and its shaders compose `FALLBACK` in place of `LOOKUP`.
-//!
-//! Outputs in OUT_DIR:
-//! - `wgsl-layout.json`: size, alignment, and member offsets of every struct,
-//!   used by the struct panel and checked against the Rust records;
-//! - `shader-manifest.json`: naga version, module hashes, and entry points;
-//! - `resources.rs` and `resources/`: the resources the `resources.toml`
-//!   manifests declare, processed by the resource pipeline (pipeline/mod.rs).
-//!
-
-#[path = "pipeline/mod.rs"]
-mod pipeline;
+//! alone.
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
-use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
-use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// Each shader module is the shared prelude followed by one pass file. Shader
-/// files are named by their path from the crate root, without `.wgsl`.
-const PRELUDE: &[&str] = &["shaders/wgsl/types", "shaders/wgsl/bindings", "shaders/wgsl/common"];
-/// The prelude's last file: src/commercial's Surface Cache lookup, or the
-/// public fallback without it.
-const LOOKUP: &str = "src/commercial/shaders/surface_lookup";
-const FALLBACK: &str = "shaders/wgsl/surface_fallback";
-const MODULES: &[&str] = &["shaders/wgsl/scene", "shaders/wgsl/overlay", "shaders/wgsl/verify"];
-/// Modules that need src/commercial.
-const COMMERCIAL_MODULES: &[&str] = &["src/commercial/shaders/surface_cache"];
-/// Investigations' own scene shading (`Investigation::scene_shading`), each
-/// composed after the scene module.
-const SCENE_SHADINGS: &[&str] = &["src/o3de/lighting/shaders/standard_lighting"];
 /// Each layer's on-screen text (`text/en.json`, `text/zh-CN.json`) and the
 /// code that names its keys (`tr("key")`, `tr_with("key", …)`).
 const TEXT_TABLES: &[(&str, &str)] = &[("src/lab/text", "src/lab"), ("src/o3de/lighting/text", "src/o3de/lighting")];
 const COMMERCIAL_TEXT_TABLES: &[(&str, &str)] = &[("src/commercial/unreal/lumen/text", "src/commercial/unreal/lumen")];
 const LOCALES: &[&str] = &["en", "zh-CN"];
-/// Modules without the prelude.
-const STANDALONE: &[&str] = &["shaders/wgsl/frost"];
 /// The files of src/commercial the build needs, relative to the crate root.
 /// They derive from commercial engines' source and stay local (.gitignore).
 const HIDDEN: &[&str] = &[
@@ -59,52 +35,95 @@ const HIDDEN: &[&str] = &[
     "src/commercial/shaders/surface_cache.wgsl",
 ];
 
-/// A shader's short name, for messages and the manifest.
-fn stem(path: &str) -> &str {
-    path.rsplit('/').next().unwrap_or(path)
+/// What the manifests declare that the shader check needs: each resource's
+/// source file (with the overlay applied), and each shader's parts.
+#[derive(Default)]
+struct Manifests {
+    sources: BTreeMap<String, PathBuf>,
+    overridable: Vec<String>,
+    shaders: BTreeMap<String, Vec<String>>,
 }
 
-fn scalar(s: Scalar) -> String {
-    let kind = match s.kind {
-        ScalarKind::Float => "f",
-        ScalarKind::Uint => "u",
-        ScalarKind::Sint => "i",
-        ScalarKind::Bool => return "bool".into(),
-        _ => "?",
-    };
-    format!("{kind}{}", s.width as u32 * 8)
-}
-
-fn size(v: VectorSize) -> u32 {
-    v as u32
-}
-
-fn type_name(module: &naga::Module, ty: naga::Handle<naga::Type>) -> String {
-    let t = &module.types[ty];
-    match &t.inner {
-        TypeInner::Scalar(s) => scalar(*s),
-        TypeInner::Vector { size: n, scalar: s } => format!("vec{}<{}>", size(*n), scalar(*s)),
-        TypeInner::Matrix { columns, rows, scalar: s } => format!("mat{}x{}<{}>", size(*columns), size(*rows), scalar(*s)),
-        TypeInner::Struct { .. } => t.name.clone().unwrap_or_else(|| "struct".into()),
-        _ => "?".into(),
-    }
-}
-
-fn naga_version() -> String {
-    let lock = fs::read_to_string(PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.lock")).unwrap_or_default();
-    let mut lines = lock.lines();
-    while let Some(line) = lines.next() {
-        if line == "name = \"naga\"" {
-            if let Some(v) = lines.next().and_then(|l| l.strip_prefix("version = \"")) {
-                return v.trim_end_matches('"').to_string();
-            }
+/// Every `resources.toml` under `dir`, sorted (the lab's own first, so the
+/// overlay applies in the order the lab mounts them).
+fn find_packages(dir: &Path, out: &mut Vec<PathBuf>) {
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir).map(|e| e.flatten().map(|e| e.path()).collect()).unwrap_or_default();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            find_packages(&path, out);
+        } else if path.file_name().is_some_and(|n| n == "resources.toml") {
+            out.push(path);
         }
     }
-    "unknown".into()
 }
 
-fn hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+fn read_manifest(path: &Path, out: &mut Manifests) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    let text = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let document = toml_edit::Document::parse(text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let dir = path.parent().unwrap();
+    for file in document.get("include").and_then(|i| i.as_array()).into_iter().flatten() {
+        read_manifest(&dir.join(file.as_str().unwrap_or_default()), out);
+    }
+    for table in document.get("resource").and_then(|r| r.as_array_of_tables()).into_iter().flatten() {
+        let id = table.get("id").and_then(|i| i.as_str()).unwrap_or_default().to_string();
+        let source = dir.join(table.get("source").and_then(|s| s.as_str()).unwrap_or_default());
+        let flag = |name: &str| table.get(name).and_then(|f| f.as_bool()).unwrap_or(false);
+        if flag("overridable") {
+            out.overridable.push(id.clone());
+        }
+        // The run time reports a clash; this check only needs the winner.
+        if !out.sources.contains_key(&id) || (flag("override") && out.overridable.contains(&id)) {
+            out.sources.insert(id, source);
+        }
+    }
+    for table in document.get("shader").and_then(|s| s.as_array_of_tables()).into_iter().flatten() {
+        let id = table.get("id").and_then(|i| i.as_str()).unwrap_or_default().to_string();
+        let parts = table.get("parts").and_then(|p| p.as_array()).into_iter().flatten().filter_map(|p| p.as_str().map(String::from)).collect();
+        out.shaders.insert(id, parts);
+    }
+}
+
+/// A shader's files, in order.
+fn shader_files(manifests: &Manifests, id: &str, out: &mut Vec<PathBuf>) {
+    for part in &manifests.shaders[id] {
+        if manifests.shaders.contains_key(part) {
+            shader_files(manifests, part, out);
+        } else {
+            out.push(manifests.sources.get(part).unwrap_or_else(|| panic!("shader `{id}`: no resource or shader `{part}`")).clone());
+        }
+    }
+}
+
+/// Every declared module parses and validates with naga.
+fn check_shaders(manifest_dir: &Path) {
+    let mut packages = Vec::new();
+    find_packages(&manifest_dir.join("src/lab"), &mut packages);
+    let mut others = Vec::new();
+    find_packages(&manifest_dir.join("src"), &mut others);
+    packages.extend(others.into_iter().filter(|p| !p.starts_with(manifest_dir.join("src/lab"))));
+    // A new manifest anywhere under src/ reruns the check.
+    println!("cargo:rerun-if-changed={}", manifest_dir.join("src").display());
+    let mut manifests = Manifests::default();
+    for package in &packages {
+        read_manifest(package, &mut manifests);
+    }
+    for id in manifests.shaders.keys() {
+        let mut files = Vec::new();
+        shader_files(&manifests, id, &mut files);
+        let source: String = files
+            .iter()
+            .map(|f| {
+                println!("cargo:rerun-if-changed={}", f.display());
+                fs::read_to_string(f).unwrap_or_else(|e| panic!("read {}: {e}", f.display()))
+            })
+            .collect();
+        let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("WGSL parse error in shader `{id}`:\n{}", e.emit_to_string(&source)));
+        Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&module)
+            .unwrap_or_else(|e| panic!("WGSL validation error in shader `{id}`:\n{}", e.emit_to_string(&source)));
+    }
 }
 
 /// The length of the tag at the start of `tail` (`{@ …}`, src/lab/rich_text.rs):
@@ -166,13 +185,28 @@ fn placeholders(text: &str) -> Vec<&str> {
     names
 }
 
-/// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`.
+/// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
+/// and the `-text` fields of its `.toml` files.
 fn text_keys_used(dir: &std::path::Path, keys: &mut Vec<(String, String)>) {
     let mut entries: Vec<_> = fs::read_dir(dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())).map(|e| e.unwrap().path()).collect();
     entries.sort();
     for path in entries {
         if path.is_dir() {
             text_keys_used(&path, keys);
+            continue;
+        }
+        // Data files name keys in fields ending in `-text` (`title-text = "scene.terrain"`).
+        if path.extension().is_some_and(|e| e == "toml") {
+            println!("cargo:rerun-if-changed={}", path.display());
+            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+                let Some((field, value)) = line.split_once('=') else { continue };
+                if !field.trim().ends_with("-text") || line.trim_start().starts_with('#') {
+                    continue;
+                }
+                let at = format!("{}:{}", path.display(), n + 1);
+                let key = value.trim().strip_prefix('"').and_then(|v| v.strip_suffix('"')).unwrap_or_else(|| panic!("{at}: a text key is a quoted string"));
+                keys.push((key.to_string(), at));
+            }
             continue;
         }
         if path.extension().is_none_or(|e| e != "rs") {
@@ -242,7 +276,6 @@ fn check_text(manifest_dir: &std::path::Path, tables: &[(&str, &str)]) {
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     println!("cargo::rustc-check-cfg=cfg(commercial)");
     for path in HIDDEN {
@@ -256,114 +289,9 @@ fn main() {
         let missing: Vec<&str> = HIDDEN.iter().copied().filter(|p| !present.contains(p)).collect();
         panic!("src/commercial is only partly present; missing: {}", missing.join(", "));
     }
-    pipeline::build(&manifest_dir, &out_dir);
     check_text(&manifest_dir, TEXT_TABLES);
     if commercial {
         check_text(&manifest_dir, COMMERCIAL_TEXT_TABLES);
     }
-    let read = |name: &str| {
-        let path = manifest_dir.join(format!("{name}.wgsl"));
-        println!("cargo:rerun-if-changed={}", path.display());
-        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-    };
-    let mut modules = Vec::new();
-    let prelude_files: Vec<&str> = PRELUDE.iter().copied().chain([if commercial { LOOKUP } else { FALLBACK }]).collect();
-    let prelude: String = prelude_files.iter().map(|name| read(name)).collect();
-    // Each module as its pass files after the prelude.
-    let mut compositions: Vec<Vec<&str>> = MODULES.iter().map(|m| vec![*m]).collect();
-    if commercial {
-        compositions.extend(COMMERCIAL_MODULES.iter().map(|m| vec![*m]));
-    }
-    compositions.extend(SCENE_SHADINGS.iter().map(|s| vec!["shaders/wgsl/scene", *s]));
-    for passes in &compositions {
-        let path = passes.last().unwrap();
-        let name = stem(path);
-        let source = format!("{prelude}{}", passes.iter().map(|p| read(p)).collect::<String>());
-        let module = naga::front::wgsl::parse_str(&source)
-            .unwrap_or_else(|e| panic!("WGSL parse error in {name} module:\n{}", e.emit_to_string(&source)));
-        Validator::new(ValidationFlags::all(), Capabilities::default())
-            .validate(&module)
-            .unwrap_or_else(|e| panic!("WGSL validation error in {name} module:\n{}", e.emit_to_string(&source)));
-        let entry_points: Vec<Value> = module
-            .entry_points
-            .iter()
-            .map(|e| json!({"name": e.name, "stage": format!("{:?}", e.stage)}))
-            .collect();
-        modules.push(json!({
-            "module": name,
-            "files": prelude_files.iter().chain(passes).map(|f| format!("{f}.wgsl")).collect::<Vec<_>>(),
-            "bytes": source.len(),
-            "sha256": hex(source.as_bytes()),
-            "validated": true,
-            "entryPoints": entry_points,
-        }));
-    }
-
-    for path in STANDALONE {
-        let name = stem(path);
-        let source = read(path);
-        let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("WGSL parse error in {name} module:\n{}", e.emit_to_string(&source)));
-        Validator::new(ValidationFlags::all(), Capabilities::default())
-            .validate(&module)
-            .unwrap_or_else(|e| panic!("WGSL validation error in {name} module:\n{}", e.emit_to_string(&source)));
-        let entry_points: Vec<Value> = module.entry_points.iter().map(|e| json!({"name": e.name, "stage": format!("{:?}", e.stage)})).collect();
-        modules.push(json!({
-            "module": name,
-            "files": [format!("{path}.wgsl")],
-            "bytes": source.len(),
-            "sha256": hex(source.as_bytes()),
-            "validated": true,
-            "entryPoints": entry_points,
-        }));
-    }
-
-    // Struct layouts of the type declarations alone.
-    let types_source = read("shaders/wgsl/types");
-    let types = naga::front::wgsl::parse_str(&types_source)
-        .unwrap_or_else(|e| panic!("WGSL parse error in types.wgsl:\n{}", e.emit_to_string(&types_source)));
-    let mut layouter = naga::proc::Layouter::default();
-    layouter.update(types.to_ctx()).expect("layout of types.wgsl");
-    let mut structs = serde_json::Map::new();
-    for (handle, ty) in types.types.iter() {
-        if let TypeInner::Struct { members, span } = &ty.inner {
-            let name = ty.name.clone().unwrap_or_default();
-            let layout = &layouter[handle];
-            let members: Vec<Value> = members
-                .iter()
-                .map(|m| {
-                    let inner = &types.types[m.ty].inner;
-                    let matrix = match inner {
-                        TypeInner::Matrix { columns, rows, .. } => json!([size(*columns), size(*rows)]),
-                        _ => Value::Null,
-                    };
-                    json!({
-                        "name": m.name.clone().unwrap_or_default(),
-                        "offset": m.offset,
-                        "size": layouter[m.ty].size,
-                        "alignment": layouter[m.ty].alignment.round_up(1),
-                        "type": type_name(&types, m.ty),
-                        "matrix": matrix,
-                    })
-                })
-                .collect();
-            structs.insert(name, json!({"size": span, "alignment": layout.alignment.round_up(1), "members": members}));
-        }
-    }
-    let layout_json = json!({
-        "source": "shaders/wgsl/types.wgsl",
-        "generator": format!("naga {} proc::Layouter", naga_version()),
-        "structs": structs,
-    });
-    fs::write(out_dir.join("wgsl-layout.json"), serde_json::to_string_pretty(&layout_json).unwrap()).unwrap();
-
-    let manifest = json!({
-        "shaderLanguage": "WGSL",
-        "validator": format!("naga {} (wgsl-in, ValidationFlags::all)", naga_version()),
-        "typesSha256": hex(types_source.as_bytes()),
-        "modules": modules,
-        "rustc": env::var("RUSTC").ok().and_then(|rustc| std::process::Command::new(rustc).arg("--version").output().ok())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default(),
-        "profile": env::var("PROFILE").unwrap_or_default(),
-    });
-    fs::write(out_dir.join("shader-manifest.json"), serde_json::to_string_pretty(&manifest).unwrap()).unwrap();
+    check_shaders(&manifest_dir);
 }

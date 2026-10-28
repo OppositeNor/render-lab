@@ -1,6 +1,6 @@
 //! The lab's environment: Poly Haven's "Tree Lined Driveway" HDRI
 //! (assets/environments, CC0), as the resource pipeline makes it
-//! (pipeline/radiance.rs, declared in src/lab/resources.toml): its sun is
+//! (src/lab/pipeline/radiance.rs, declared in src/lab/resources.toml): its sun is
 //! clipped, since no investigation has a light of its own for it, and it is
 //! scaled to a mean radiance of one over the sphere; each investigation sets
 //! its sky's level (`Lighting::ambient`, the frame's `ambientColor`). Level 0
@@ -31,11 +31,11 @@ pub struct Environment {
 impl Environment {
     pub fn get() -> &'static Environment {
         static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
-        ENVIRONMENT.get_or_init(|| Environment::load(&resources::ENVIRONMENT))
+        ENVIRONMENT.get_or_init(|| Environment::load(&resources::get("environment").load()))
     }
 
-    fn load(r: &resources::Resource) -> Environment {
-        assert_eq!(r.word(0) as usize, LEVELS, "{}: levels", r.id);
+    fn load(r: &resources::Loaded) -> Environment {
+        assert_eq!(r.word(0) as usize, LEVELS, "{}: levels", r.id());
         let sizes: [[usize; 2]; LEVELS] = std::array::from_fn(|i| [r.word(1 + 2 * i) as usize, r.word(2 + 2 * i) as usize]);
         let mut offset = 4 * (1 + 2 * LEVELS);
         let levels = std::array::from_fn(|i| {

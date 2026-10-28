@@ -7,14 +7,14 @@
 //! Output, little-endian: the number of levels, each level's width and
 //! height, then each level's RGB9E5 texels, row-major from the top row.
 
-use super::rgb9e5::encode_rgb9e5;
+use crate::lab::rgb9e5::encode_rgb9e5;
 use super::{put_u32, Kind, Params, Ty};
 use glam::Vec3;
 
 pub const KIND: Kind = Kind {
     name: "radiance",
     params: &[("sun-cap", Ty::Float), ("levels", Ty::Int)],
-    code: &[include_str!("radiance.rs"), include_str!("../src/lab/rgb9e5.rs")],
+    code: &[include_str!("radiance.rs"), include_str!("../rgb9e5.rs")],
     process,
 };
 

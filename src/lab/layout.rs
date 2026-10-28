@@ -396,7 +396,7 @@ pub fn dump_words_per_record<T: Record>() -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// Struct layouts exported by build.rs from naga's layout of types.wgsl.
+// Struct layouts naga computes for types.wgsl at run time (shaders::layout_json).
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ShaderField {

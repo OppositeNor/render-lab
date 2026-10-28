@@ -30,9 +30,14 @@ inside it before working on anything else.** It is never published, and nothing 
   present, and the public part alone (the files `git` would publish, plus `vendor/`) must also build without warnings.
 - Make the smallest change that solves the problem; do not refactor unrelated code. Do not modify `vendor/`.
 - Shaders are WGSL; do not introduce Slang or SPIR-V passthrough.
-- Files the lab embeds are resources: declared in a layer's `resources.toml` (the format is in `pipeline/mod.rs`),
-  processed by build.rs, and read through `crate::lab::resources`, not with `include_bytes!`.
-- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). build.rs fails on a key missing from a language, an unknown key, or an unused one.
+- Files the lab loads are resources: declared in a layer's `resources.toml` (the format is in
+  `src/lab/pipeline/mod.rs`; an investigation names its manifest with `Investigation::package`), processed at run time
+  into the cache in `build/resources`, and read through `crate::lab::resources`, not with `include_bytes!`.
+  Shaders (`[[shader]]` modules, src/lab/shaders.rs), text tables, listings, source indexes, scenes
+  (`src/lab/scenes/`), and demonstrations (an investigation's `params.toml` and `demos/`, src/lab/demo.rs) are such
+  content: an edit shows on the next launch, without a rebuild. Nothing a scene needs is read before it plays
+  (src/lab/loading.rs).
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json` (resources of its package, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). build.rs fails on a key missing from a language, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents on
   cheaper models: Sonnet, or Haiku for simple lookups. Keep design, edits, and final checks on the main model.
@@ -45,13 +50,15 @@ From this directory (set `CARGO_HOME=$PWD/.cache/cargo`):
 cargo build --release --locked --offline
 cargo run --release -- home --autotest /path/to/home.json   # the homepage's controls, offscreen (its own settings file)
 cargo run --release -- home --snapshot /path/to/home.png    # the title screen as a PNG, offscreen; look at it
+cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads
 cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
 python3 src/o3de/lighting/source_index.py                  # O3DE: rewrite source-index.json from the checkout
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 -m unittest tools/video/test_markup.py tools/video/test_story.py   # the .story format and its tags (cues and formulas)
 cargo run --release -- formulas --check src/o3de/lighting/text/en.json       # typeset a file's formula tags against the lab's limits
-cargo run --release -- resources                                             # the embedded resources, as the pipeline made them
+cargo run --release -- resources                                             # the packages' resources, and whether each is cooked
+cargo run --release -- cook                                                  # process every resource not cached yet
 ```
 
 The video builder is described in `tools/video/README.md`. Run one GPU job at a time. The zh-CN edition

@@ -5,6 +5,7 @@ use crate::lab::frame::{BoxInstance, CardInstance, PointInstance, SampleInstance
 use crate::lab::gpu::{DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
 use crate::lab::investigation::SceneShading;
 use crate::lab::scene::Vertex;
+use crate::lab::shaders;
 use anyhow::{anyhow, Result};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -245,9 +246,9 @@ impl Pipelines {
             immediate_size: 0,
         });
 
-        let scene_module = module(device, "scene.wgsl", crate::lab::shaders::SCENE);
-        let overlay_module = module(device, "overlay.wgsl", crate::lab::shaders::OVERLAY);
-        let verify_module = module(device, "verify.wgsl", crate::lab::shaders::VERIFY);
+        let scene_module = module(device, shaders::SCENE, shaders::module(shaders::SCENE)?);
+        let overlay_module = module(device, shaders::OVERLAY, shaders::module(shaders::OVERLAY)?);
+        let verify_module = module(device, shaders::VERIFY, shaders::module(shaders::VERIFY)?);
         let [mesh, objects] = mesh_layouts();
         let mesh_buffers = [Some(mesh), Some(objects)];
         let premultiplied = Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING);
@@ -337,7 +338,7 @@ impl Pipelines {
     /// verification kernels by entry point.
     pub fn shading(&self, device: &wgpu::Device, shading: &SceneShading) -> Result<ShadingPipelines> {
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let module = module(device, shading.fragment, format!("{}{}", crate::lab::shaders::SCENE, shading.source));
+        let module = module(device, shading.module, shaders::module(shading.module)?);
         let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| {
             let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
             for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))) {

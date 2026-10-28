@@ -1,0 +1,9 @@
+# The close-ups look at the top of the sphere from the front, so the plane
+# of N, L, and V faces the camera.
+
+[camera]
+target = [-1.05, 1.35, -0.55]
+yaw = 0.0
+pitch = 6.0
+distance = 3.1
+fov = 50.0

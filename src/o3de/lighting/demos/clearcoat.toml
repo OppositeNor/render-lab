@@ -1,0 +1,15 @@
+# A glossy coat over a rough metal: the coat's sharp highlight sits on the base's broad one.
+
+key = "clearcoat"
+title-text = "shot.clear_coat"
+tab-text = "shot.clear_coat"
+hint-text = "investigation.demo_hint"
+scene = "study-room"
+listing = "clear-coat"
+include = ["close-up", "sphere-camera"]
+
+[params]
+sphereMetallic = 1.0
+sphereRoughness = 0.55
+sphereClearCoat = 1.0
+clearCoatRoughness = 0.3

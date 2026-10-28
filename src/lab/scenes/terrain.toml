@@ -1,0 +1,42 @@
+# Hills of the lab's terrain under the sky, lit by a large panel high above
+# them standing in for the sun (src/lab/scene.rs reads it; the format is in
+# study-room.toml).
+
+title-text = "scene.terrain"
+# A camera sees the hills from above this height.
+camera-clear = { above = 3.0 }
+
+[lighting]
+light = "sun panel"
+ambient = 0.3
+f0 = 0.04
+reflection-strength = 1.0
+ggx-samples = 16
+exposure = 1.0
+
+# The heightfield (src/lab/terrain.rs): rolling hills, 20 m across and up to
+# 4 m high, from fractal Perlin noise.
+[terrain]
+resolution = 97
+half-size = [10.0, 10.0]
+height = 4.0
+perlin = { seed = 0x7e77a1d5, octaves = 4, frequency = 0.11 }
+
+# Its bounds are the terrain's.
+[[object]]
+name = "terrain"
+shape = "terrain"
+albedo = [0.30, 0.38, 0.20]
+roughness = 0.9
+
+# The panel's local +Y normal turned toward the middle of the hills.
+[[object]]
+name = "sun panel"
+shape = "panel"
+extent = [2.0, 0.0, 2.0]
+translation = [-6.0, 10.0, 5.0]
+rotation = { aim = [0.0, 1.0, 0.0] }
+albedo = [0.8, 0.8, 0.8]
+roughness = 1.0
+emissive = [1.0, 0.93, 0.82]
+emissive-strength = 16.0

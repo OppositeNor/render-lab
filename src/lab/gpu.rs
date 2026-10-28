@@ -13,6 +13,9 @@ pub const FRAME_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub const MSAA: u32 = 4;
 
+/// Cloning shares the device: a loading thread builds a renderer on it
+/// (src/lab/loading.rs) while the window draws.
+#[derive(Clone)]
 pub struct Gpu {
     /// Kept for the lifetime of the device and any surface created from it.
     _instance: wgpu::Instance,

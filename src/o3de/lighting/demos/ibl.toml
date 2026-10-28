@@ -1,0 +1,20 @@
+key = "ibl"
+title-text = "shot.image_based_lighting"
+tab = "IBL"
+hint-text = "investigation.demo_hint"
+scene = "study-room"
+listing = "ibl-passes"
+include = ["close-up"]
+
+[camera]
+target = [-0.6, 0.8, -0.6]
+yaw = 20.0
+pitch = 10.0
+distance = 3.6
+fov = 50.0
+
+[params]
+sphereMetallic = 1.0
+sphereRoughness = 0.2
+lightOn = 0.0
+walls = 0.0

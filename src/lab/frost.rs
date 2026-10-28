@@ -2,10 +2,8 @@
 //! frame target is halved twice, blurred at quarter resolution, and drawn
 //! tinted, grained, and vignetted behind the page.
 
+use crate::lab::shaders;
 use std::borrow::Cow;
-
-/// shaders/wgsl/frost.wgsl; it uses no prelude, so it does not come from src/lab/shaders.rs.
-const FROST: &str = include_str!("../../shaders/wgsl/frost.wgsl");
 
 /// The format of the intermediate targets: the frame's, sRGB-encoded bytes.
 const BLUR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
@@ -54,8 +52,9 @@ pub struct Frost {
 
 impl Frost {
     /// `output`: the format of the target the page is drawn into.
-    pub fn new(device: &wgpu::Device, output: wgpu::TextureFormat) -> Frost {
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("frost"), source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(FROST)) });
+    pub fn new(device: &wgpu::Device, output: wgpu::TextureFormat) -> anyhow::Result<Frost> {
+        // `shader/frost` has no prelude.
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("frost"), source: wgpu::ShaderSource::Wgsl(Cow::Owned(shaders::module(shaders::FROST)?)) });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("frost"),
             entries: &[
@@ -95,14 +94,14 @@ impl Frost {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             ..Default::default()
         });
-        Frost {
+        Ok(Frost {
             downsample: pipeline("downsampleFS", BLUR_FORMAT),
             blur: [pipeline("blurHorizontalFS", BLUR_FORMAT), pipeline("blurVerticalFS", BLUR_FORMAT)],
             frost: pipeline("frostFS", output),
             layout,
             sampler,
             targets: None,
-        }
+        })
     }
 
     fn group(&self, device: &wgpu::Device, view: &wgpu::TextureView) -> wgpu::BindGroup {

@@ -30,6 +30,8 @@ typst-layout = "=0.15.1"
 typst-render = "=0.15.1"
 typst-assets = { version = "=0.15.1", features = ["fonts"] }
 mitex = "=0.2.4"
+# WGSL validation and struct layouts at run time (src/lab/shaders.rs): the naga release wgpu 30.0.1 uses.
+naga = { version = "=30.0.1", features = ["wgsl-in"] }
 # MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
 # `prebuilt` makes it use the spec it does ship.
 mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
@@ -39,14 +41,11 @@ mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
 libc = "0.2"
 
 [build-dependencies]
-# The same naga release wgpu 30.0.1 uses, for build-time WGSL validation and layouts.
+# build.rs's checks: the same naga release wgpu 30.0.1 uses, for the WGSL modules,
+# the manifests that declare them, and the text tables.
 naga = { version = "=30.0.1", features = ["wgsl-in"] }
 serde_json = "1"
-sha2 = "0.10"
-# The resource pipeline (pipeline/): its manifests, and the lab's vector maths,
-# so a processed resource is what the lab would have computed.
 toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
-glam = "0.34"
 
 [profile.release]
 debug = "line-tables-only"

@@ -138,10 +138,10 @@ def lab(binary: Path, cfg: Config, *args: Any) -> list[Any]:
     return [binary, '--investigation', cfg.investigation, *args]
 
 
-def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None) -> None:
+def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int]) -> None:
     build = cfg.build()
-    args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--output', build / 'video.mp4', '--report', build / 'render-report.json',
-               '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
+    args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--output', build / 'video.mp4',
+               '--report', build / 'render-report.json', '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
     if frames:
         args += ['--frames', frames]
     log('Rendering the timeline with render-lab (every frame streams to FFmpeg).')
@@ -175,14 +175,15 @@ def mux(cfg: Config, env: Environment) -> Path:
     return out
 
 
-def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json) -> list[Path]:
+def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json, resolution: tuple[int, int]) -> list[Path]:
     """Beat-midpoint stills for review, a contact sheet, and the poster."""
     build = cfg.build()
     shots = build / 'snapshots'
     if shots.exists():
         shutil.rmtree(shots)
     frames = [b['startFrame'] + b['frames'] // 2 for b in timeline['beats']]
-    run(lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--snapshot', ','.join(map(str, frames)), '--snapshot-dir', shots, '--ffmpeg', env.ffmpeg),
+    run(lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--snapshot', ','.join(map(str, frames)),
+            '--snapshot-dir', shots, '--ffmpeg', env.ffmpeg),
         build / 'logs' / 'snapshots.log')
     chosen: list[Path] = []
     for chapter in timeline['chapters']:

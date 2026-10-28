@@ -1,7 +1,7 @@
 //! RGB9E5, EXT_texture_shared_exponent's encoding: nine-bit mantissas under
 //! one five-bit exponent (bias 15). The environment's texels are kept in it,
 //! the format of the GPU texture (gEnvironment). The resource pipeline
-//! (pipeline/radiance.rs) encodes with this file, and environment.rs's tests
+//! (src/lab/pipeline/radiance.rs) encodes with this file, and environment.rs's tests
 //! check it against `decode_rgb9e5`.
 
 use glam::Vec3;

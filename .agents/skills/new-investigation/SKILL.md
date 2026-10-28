@@ -87,12 +87,17 @@ An investigation is only as good as its claims. Each of these is required, not a
 ```
 src/<engine>/mod.rs                 pub static ENGINE: Engine { id, name, summary }; pub mod <feature>;
 src/<engine>/<feature>/mod.rs       the Investigation impl, Wording, TIMELINES
-                       shot.rs      Demo enum, PARAMS, for_demo, play_clip, demo_animation
+                       shot.rs      Demo enum, demos() (Demos::load), for_demo, play_clip, demo_animation
+                       params.toml  every shot parameter: name, default, doc
+                       demos/       index.toml (the order), <key>.toml per demonstration, presets/
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
                        selftest.rs  the verification suite
-                       sources.rs   include_str!("source-index.json") → SourceIndex
-                       pseudocode.rs + pseudocode/*.py
+                       resources.toml  its package (`Investigation::package`): text, source index,
+                                    listings, shaders, and data files, by id
+                       text.rs      Table::new("<engine>/<feature>/text") → tr
+                       sources.rs   the resource "<engine>/<feature>/source-index" → SourceIndex
+                       pseudocode.rs + pseudocode/*.py (NAMES; each the resource "<engine>/<feature>/listing/<name>")
                        source-index.json (+ a script that writes it from the checkout)
                        shaders/*.wgsl (optional own scene shading)
                        formulas.rs (optional readout formulas: tags in text/*.json)
@@ -105,23 +110,29 @@ Register it:
 - `src/main.rs` declares `mod <engine>;`, and `src/investigations.rs` adds it to `PUBLIC` (raise the array's length);
   the homepage lists it under its engine, and `--investigation <engine>/<feature>` selects it on the command line.
 - If it brings its own shading (`SceneShading`: WGSL composed after `shaders/wgsl/scene.wgsl`, a fragment entry point,
-  uniforms in `FrameContent::shading`, compute kernels for the selftest), list the file in `build.rs`'s
-  `SCENE_SHADINGS`. Ported shading code stays in the investigation, never in `shaders/wgsl`.
+  uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a resource and a
+  `[[shader]]` with `parts = ["shader/scene", "<its resource>"]` in the investigation's `resources.toml` (copy
+  `src/o3de/lighting/resources.toml`), and name that shader in `SceneShading::module`. Ported shading code stays in the
+  investigation, never in `shaders/wgsl`.
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `timelines`, `sources`, `listings`,
-`demos`, `demo_title`, `demo_tab`, `param_default`, `shot_state`, `build_frame`, `dock`, `click`, and `selftest`.
-Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `demo_hint`,
-`resets_camera`, and `demo_scene` (which of the lab's scenes in `src/lab/scene.rs` a demonstration shows; the study room
-by default). Follow `src/o3de/lighting/mod.rs`.
+`build_frame`, `dock`, `click`, and `selftest`. Return the demonstrations' files from `demo_specs` (and the
+investigation's text from `text`), and `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's
+scenes, `src/lab/scenes/*.toml` read by `src/lab/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
+and `shot_state` come from them. Optional ones include `backdrop` (its homepage scene), `animation` (Play), and
+`scene_shading`. Follow `src/o3de/lighting/mod.rs`.
 
 ## 4. Demonstrations and parameters (`shot.rs`, `demos.rs`, `controls.rs`)
 
-- A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `title()`, `tab()`, `id()` (`DemoId::new(key)`), and
-  `of(DemoId)`.
-- `PARAMS: &[(name, default, description)]`: every number a shot or the video can animate. **A parameter's default
-  must change nothing**, so existing frames stay byte-identical. An unknown name in a storyboard fails the build.
-- `for_demo(demo) -> ShotState`: the demonstration's camera, panel mode, and parameters. A storyboard `demo` key resets
-  to this state.
+- The demonstrations are data, in the investigation's package (the format is in `src/lab/demo.rs`; copy
+  `src/o3de/lighting/demos/` and `params.toml`, and declare each file in `resources.toml`):
+  - `params.toml`: every number a shot or the video can animate (`name`, `default`, `doc`). **A parameter's default
+    must change nothing**, so existing frames stay byte-identical. An unknown name in a storyboard fails the build.
+  - `demos/<key>.toml`: one demonstration (its title and tab text keys, hint, scene, listing, presets, camera, and the
+    parameters it changes); `demos/index.toml` orders them; `demos/presets/` holds cameras and parameters several share.
+    A storyboard `demo` key resets to the demonstration's state.
+- A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `id()` (`DemoId::new(key)`), and `of(DemoId)`, for
+  what stays code: `build_frame`, the dock, picking, and Play.
 - `build_frame` fills a `FrameContent` (`src/lab/frame.rs`): objects, uniforms, overlay draw lists (segments, points,
   boxes), labels, notes, and either a struct-panel record or a `Readout` (title, subtitle, rows of name, value, colour,
   and an optional formula). It must be a pure function of its arguments: no wall clock, no state from earlier frames.
@@ -130,11 +141,12 @@ by default). Follow `src/o3de/lighting/mod.rs`.
   `vectorsShown`, `ggxSamples`, `readoutRows`).
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
   `rows`, `slider`, `toggle`, `show`). Keep each demonstration's dock inside its width: a fourth row per group at most.
-- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `src/o3de/lighting/text.rs`), and build.rs's `TEXT_TABLES` lists them. Technical terms stay English in both.
-- Data files the investigation embeds (meshes, images, tables) are resources: declare them in a `resources.toml`
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `src/o3de/lighting/text.rs`; declare both files in its `resources.toml` as `<engine>/<feature>/text/en` and `…/text/zh-cn`), and build.rs's `TEXT_TABLES` lists them. Technical terms stay English in both.
+- Data files the investigation loads (meshes, images, tables) are resources: declare them in a `resources.toml`
   beside its code (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and
-  the kinds are in `pipeline/mod.rs`), and read them as `crate::lab::resources::<ID>`. A new kind of processing is a
-  processor in `pipeline/` (its `Kind`: parameters, code, and `process`). `render-lab resources` lists what was built.
+  the kinds are in `src/lab/pipeline/mod.rs`), return its path from `Investigation::package`, and read them with
+  `crate::lab::resources::get("id")`. A new kind of processing is a processor in `src/lab/pipeline/` (its `Kind`:
+  parameters, code, and `process`). `render-lab resources` lists them, and `render-lab cook` processes them.
 - Mirror and test: GPU logic the video explains keeps a CPU mirror (O3DE: `brdf.rs` beside `standard_lighting.wgsl`), and
   the selftest compares them.
 
