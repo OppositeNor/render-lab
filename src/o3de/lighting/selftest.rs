@@ -726,8 +726,8 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let result = renderer.render_frame(request(&state, &still), None);
         let values = result.content.as_ref().and_then(|c| c.readout.as_ref()).map_or(0, |r| r.rows.len());
         // Its formula above the readout, at full size, with every row below it.
-        let formula = result.content.as_ref().and_then(|c| c.readout.as_ref()?.formula);
-        let formula_ok = formula == Some(demo.key()) && result.report.formula_scale == Some(1.0) && result.report.readout_overflow == 0;
+        let formula = result.content.as_ref().and_then(|c| c.readout.as_ref()?.formula.clone());
+        let formula_ok = formula.as_deref() == Some(super::formulas::text(demo)) && result.report.formula_scale == Some(1.0) && result.report.readout_overflow == 0;
         let ok = result.report.min_text_pt >= MIN_TEXT_PT && values > 0 && formula_ok;
         let png = options.work_dir.join(format!("o3de-{}.png", demo.key()));
         crate::lab::record::write_png(&png, renderer.width, renderer.height, &renderer.read_frame())?;
@@ -757,29 +757,24 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         report.check("the narration's measured numbers: A + B about 57% at the multiscatter point; about 1.7 lux from 6 cd just under 2 m", ok, json!({"singleScatteringEnergy": energy, "distanceMetres": distance, "luxBeforeWindow": lux}));
     }
 
-    // ---- 7b. The formula images: what formulas.py made, each term lit ----
+    // ---- 7b. The formulas: each typesets within the lab's limits, and each term lights ----
     {
-        let manifest: Value = serde_json::from_str(include_str!("formulas/manifest.json"))?;
-        let mut made: Vec<String> = manifest["formulas"].as_object().into_iter().flatten().flat_map(|(_, f)| f["variants"].as_object().into_iter().flatten().map(|(k, _)| k.clone())).collect();
-        let mut embedded: Vec<String> = super::formulas::IMAGES.iter().map(|(k, _)| k.to_string()).collect();
-        made.sort();
-        embedded.sort();
-        let mut images_ok = made == embedded;
+        let mut formulas_ok = true;
         let mut detail = Vec::new();
-        for (key, bytes) in super::formulas::IMAGES {
-            let image = crate::lab::record::decode_png(std::io::Cursor::new(*bytes));
-            let size = image.as_ref().map(|i| i.size).unwrap_or_default();
-            let recorded = manifest["formulas"].as_object().into_iter().flatten().find_map(|(_, f)| f["variants"].get(*key).cloned()).unwrap_or_default();
-            // Within the readout panel's inner width, and at least 24 px glyphs.
-            let ok = image.is_ok() && size[0] <= 546 && recorded["width"] == json!(size[0]) && recorded["height"] == json!(size[1]) && recorded["minFontPx"].as_f64().is_some_and(|px| px >= MIN_TEXT_PT as f64);
-            images_ok &= ok;
-            detail.push(json!({"key": key, "size": size, "minFontPx": recorded["minFontPx"], "ok": ok}));
-        }
         for demo in Demo::ALL {
+            let tag = crate::lab::rich_text::first_formula(super::formulas::text(demo));
+            let checked = tag.as_ref().ok_or_else(|| "no formula tag".to_string()).and_then(|(latex, display, _)| crate::lab::formula::check(latex, *display));
             let terms = super::formulas::terms(demo);
-            images_ok &= terms > 0 && (1..=terms).all(|n| super::formulas::key(demo, n as f32).is_some_and(|k| k == format!("{}-{n}", demo.key()))) && super::formulas::key(demo, -1.0).is_none();
+            // One colour per \lit term, each term with some ink of its own.
+            let (ok, size, glyph, lit) = match &checked {
+                Ok(f) => (f.terms.len() == terms && f.terms.iter().all(|t| t.iter().any(|&c| c > 128)), [f.width, f.height], f.min_glyph_px, f.terms.len()),
+                Err(_) => (false, [0, 0], 0.0, 0),
+            };
+            let hidden = super::formulas::readout(demo, -1.0).0.is_none() && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
+            formulas_ok &= ok && hidden && terms > 0;
+            detail.push(json!({"demo": demo.key(), "size": size, "minGlyphPx": glyph, "terms": terms, "litMasks": lit, "error": checked.err(), "ok": ok}));
         }
-        report.check("formula images: one per entry of the manifest, decoded, inside the panel, glyphs >= 24 px; every term of each demonstration's formula has its image", images_ok && made == embedded, json!({"images": detail, "manifestMatchesEmbedded": made == embedded}));
+        report.check("formulas: each demonstration's typesets with glyphs >= 24 px inside the panel, one colour and one lit mask per term", formulas_ok, json!(detail));
     }
 
     // ---- 8. Listings and the source index ---------------------------------

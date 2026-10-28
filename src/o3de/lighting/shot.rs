@@ -394,6 +394,9 @@ pub fn for_demo(demo: Demo) -> ShotState {
         params,
         callout: None,
         code: None,
+        formula: None,
+        formula_term: 0,
+        formula_lit: 0.0,
     }
 }
 

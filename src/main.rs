@@ -120,6 +120,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Typeset every formula tag in these JSON files (text tables, storyboards,
+    /// timelines) and check the lab's limits: glyphs of at least 24 px, display
+    /// formulas at most 546 px wide. Prints a JSON report; fails on a problem.
+    Formulas {
+        #[arg(long, required = true, num_args = 1..)]
+        check: Vec<PathBuf>,
+    },
     #[cfg(commercial)]
     /// Write a summary of the prepared teaching data (and the atlas as PNG).
     Fixtures {
@@ -191,6 +198,14 @@ fn main() -> Result<()> {
                 bail!("selftest failed; see {}", report.display());
             }
             eprintln!("selftest passed; report: {}", report.display());
+            Ok(())
+        }
+        Command::Formulas { check } => {
+            let report = lab::formula::check_files(&check)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            if report.iter().any(|r| r["error"] != serde_json::Value::Null) {
+                bail!("a formula failed its check");
+            }
             Ok(())
         }
         Command::Layout { json } => {

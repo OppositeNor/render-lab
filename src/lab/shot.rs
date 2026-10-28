@@ -94,6 +94,22 @@ pub struct ShotState {
     /// The pseudo-code listing (src/lab/pseudocode.rs) shown in PanelMode::Code;
     /// `highlight` then names the tags of the lit lines.
     pub code: Option<String>,
+    /// The formula card in the viewport: a formula tag (src/lab/rich_text.rs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub formula: Option<String>,
+    /// The card's lit term (0: none), and how lit it is (0..1).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub formula_term: usize,
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub formula_lit: f32,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+fn is_zero_f32(x: &f32) -> bool {
+    *x == 0.0
 }
 
 impl ShotState {
@@ -233,6 +249,12 @@ pub struct Key {
     /// Pseudo-code listing for PanelMode::Code; `""` clears it.
     #[serde(default)]
     pub code: Option<String>,
+    /// The formula card: a formula tag (src/lab/rich_text.rs); `""` clears it.
+    #[serde(default)]
+    pub formula: Option<String>,
+    /// The card's lit term (0: none). It fades in over the key's `blend`.
+    #[serde(default)]
+    pub term: Option<usize>,
     /// Provenance for error messages (storyboard beat id).
     #[serde(default)]
     pub source: Option<String>,
@@ -285,6 +307,9 @@ impl Segment {
         self.start + (self.target - self.start) * self.ease.apply(x)
     }
 }
+
+/// The channel of the formula card's lit term's weight.
+const FORMULA_LIT: &str = "formula.lit";
 
 /// The camera's channels, as keys' `camera` and motions name them.
 const CAMERA_CHANNELS: [&str; 7] = ["camera.x", "camera.y", "camera.z", "camera.yaw", "camera.pitch", "camera.distance", "camera.fov"];
@@ -367,9 +392,12 @@ impl Timeline {
         for key in self.keys.iter().take_while(|k| k.frame <= frame) {
             if let Some(demo) = key.demo {
                 let callout = state.callout.clone();
+                let (formula, term) = (state.formula.clone(), state.formula_term);
                 let camera_now: Vec<f32> = CAMERA_CHANNELS.iter().map(|c| segments[*c].value(key.frame)).collect();
                 state = ShotState::for_demo(demo);
                 state.callout = callout;
+                // The formula card belongs to the narration, not the demonstration.
+                (state.formula, state.formula_term) = (formula, term);
                 reset(&mut segments, &state, key.frame);
                 // A demo switch cuts parameters but keeps the camera continuous
                 // when the key itself moves the camera.
@@ -394,7 +422,18 @@ impl Timeline {
             if let Some(code) = &key.code {
                 state.code = if code.is_empty() { None } else { Some(code.clone()) };
             }
+            if let Some(formula) = &key.formula {
+                state.formula = if formula.is_empty() { None } else { Some(formula.clone()) };
+            }
             let mut targets: Vec<(String, f32)> = key.params.iter().map(|(k, v)| (k.clone(), *v)).collect();
+            // A newly lit term fades in from dark; unlighting fades the term out.
+            if let Some(term) = key.term {
+                if term > 0 {
+                    state.formula_term = term;
+                    segments.insert(FORMULA_LIT.into(), Channel::hold(key.frame, 0.0));
+                }
+                targets.push((FORMULA_LIT.into(), if term > 0 { 1.0 } else { 0.0 }));
+            }
             if let Some(c) = &key.camera {
                 let names = CAMERA_CHANNELS;
                 if let Some(t) = c.target {
@@ -431,6 +470,10 @@ impl Timeline {
         let names: Vec<String> = state.params.keys().cloned().collect();
         for name in names {
             state.params.insert(name.clone(), value(&name));
+        }
+        state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
+        if state.formula_lit <= 0.0 {
+            state.formula_term = 0;
         }
         state
     }

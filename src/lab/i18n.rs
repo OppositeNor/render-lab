@@ -76,6 +76,11 @@ fn fill(text: &str, args: &[(&str, &dyn Display)]) -> String {
         if tail.starts_with("{{") || tail.starts_with("}}") {
             out.push_str(&tail[..1]);
             rest = &tail[2..];
+        } else if tail.starts_with("{@") {
+            // A tag (src/lab/rich_text.rs) is kept as it is.
+            let (_, len) = crate::lab::rich_text::parse_tag(tail, 2).unwrap_or_else(|e| panic!("{e} in {text:?}"));
+            out.push_str(&tail[..len]);
+            rest = &tail[len..];
         } else {
             let end = tail.find('}').filter(|_| tail.starts_with('{')).unwrap_or_else(|| panic!("unbalanced brace in {text:?}"));
             let name = &tail[1..end];

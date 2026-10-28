@@ -53,7 +53,7 @@ static WORDING: Wording = Wording {
     checkout_dir: "o3de/",
 };
 
-/// The narrated video's timelines (built by tools/video from video/storyboard.json).
+/// The narrated video's timelines (built by tools/video from video/storyboard.story).
 /// Both editions play the English narration.
 static TIMELINES: [TimelineInfo; 2] = [
     TimelineInfo {
@@ -234,10 +234,6 @@ impl Investigation for Lighting {
 
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         Some(&SHADING)
-    }
-
-    fn formula(&self, key: &str) -> Option<&'static [u8]> {
-        formulas::bytes(key)
     }
 
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {

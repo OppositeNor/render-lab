@@ -1,1 +1,3 @@
 piper-tts==1.3.0
+# Exposes the voice model's per-phoneme durations, for word timings (narration.py).
+onnx==1.23.2

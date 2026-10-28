@@ -44,13 +44,15 @@ def reexec_in_environment(env: Environment) -> None:
 
 def load_board(cfg: Config) -> Json:
     import zh
-    board = json.loads(cfg.storyboard.read_text())
+    import story
+    board = story.load_any(cfg.storyboard)
     if cfg.zh():
-        board = zh.localize(board, json.loads(cfg.translation.read_text()))
+        board = zh.localize(board, story.load_any(cfg.translation, translation=True))
     return board
 
 
 def validate(cfg: Config, board: Json, index: Json) -> None:
+    import markup
     from outputs import beat_listings, listing_path, read_listing
     from timeline import sentences_of
     keys = index['entries']
@@ -70,7 +72,8 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
             for key in beat.get('sources', []):
                 assert key in keys, f'{beat["id"]}: unknown source key {key}'
             for item in [beat] + sentences_of(beat):
-                for k in item.get('keys', []) + item.get('sequence', []):
+                tagged = markup.text_keys(beat, item) if item is not beat else []
+                for k in item.get('keys', []) + item.get('sequence', []) + tagged + list(item.get('cues', {}).values()):
                     if k.get('callout'):
                         assert k['callout'] in keys, f'{beat["id"]}: unknown callout {k["callout"]}'
             assert sentences_of(beat), f'{beat["id"]} has no narration'
@@ -85,6 +88,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     parser.add_argument('--investigation', required=True, help='engine/feature, e.g. o3de/lighting')
+    parser.add_argument('--investigation-dir', type=Path, help='its source directory, when not src/<engine>/<feature>')
     parser.add_argument('--lang', default='en', choices=LANGS)
     parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')
     parser.add_argument('--snapshots-only', action='store_true', help='prepare, then render beat-midpoint stills for review')
@@ -96,12 +100,11 @@ def main() -> None:
     env = Environment()
     reexec_in_environment(env)
 
-    import formulas
     import narration
     import outputs
     import timeline as timing
     import verify as checks
-    cfg = Config.load(args.investigation, args.lang)
+    cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
     build = cfg.build()
     for d in (build, build / 'logs'):
         d.mkdir(parents=True, exist_ok=True)
@@ -128,6 +131,11 @@ def main() -> None:
     cfg.timeline().write_text(json.dumps(tl, indent=1, ensure_ascii=False) + '\n')
     (build / 'chapter-plans.json').write_text(json.dumps(plans, indent=1) + '\n')
     log(f'Timeline: {tl["totalFrames"]} frames, {tl["totalFrames"] / tl["fps"] / 60:.2f} min, {len(tl["beats"])} beats, {len(tl["keys"])} keys.')
+    if '{@ formula=' in cfg.timeline().read_text():
+        # The lab typesets them; check each against its limits before anything is rendered.
+        binary = outputs.cargo_build(cfg)
+        run([binary, 'formulas', '--check', cfg.timeline()], build / 'logs' / 'formulas.log')
+        log('Formulas: each typesets within the lab\'s limits.')
     for c, b in zip(tl['chapters'], board['chapters']):
         log(f'  {c["number"]:02d} {c["title"]}: {(c["endFrame"] - c["startFrame"]) / tl["fps"]:.1f} s (budget {b["targetSeconds"]}, natural {plans[c["number"]]["natural"]:.1f})')
     outputs.write_audio(cfg, placements, tl['totalFrames'], tl['fps'])
@@ -140,8 +148,6 @@ def main() -> None:
         return
     log('Rendering the diagrams.')
     outputs.render_mermaid(cfg, env, board)
-    if (formulas.directory(cfg.investigation) / 'formulas.json').exists():
-        formulas.build(cfg.investigation, env)
     binary = outputs.cargo_build(cfg)
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl)

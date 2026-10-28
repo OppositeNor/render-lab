@@ -170,8 +170,11 @@ pub struct PanelRecord {
 pub struct Readout {
     pub title: String,
     pub subtitle: String,
-    /// A formula drawn above the rows (`Investigation::formula` has its image).
-    pub formula: Option<&'static str>,
+    /// A formula drawn above the rows: a string holding a formula tag,
+    /// `{@ formula="LaTeX" display=yes colors="#rrggbb,…"}` (src/lab/rich_text.rs).
+    pub formula: Option<String>,
+    /// The term lit in it, and how lit it is (0..1), in its tag's colour for that term.
+    pub formula_lit: Option<(usize, f32)>,
     pub rows: Vec<(String, String, Color32)>,
 }
 

@@ -2,7 +2,7 @@
  "fps": 30,
  "width": 1920,
  "height": 1080,
- "totalFrames": 66143,
+ "totalFrames": 66101,
  "title": "O3DE 如何照亮一帧",
  "engineLabel": "O3DE 2.8.0 · d363107e",
  "chapters": [
@@ -10,85 +10,85 @@
    "number": 1,
    "title": "O3DE 的不透明帧",
    "startFrame": 0,
-   "endFrame": 4612
+   "endFrame": 4607
   },
   {
    "number": 2,
    "title": "光源剔除",
-   "startFrame": 4612,
-   "endFrame": 10204
+   "startFrame": 4607,
+   "endFrame": 10208
   },
   {
    "number": 3,
    "title": "表面",
-   "startFrame": 10204,
-   "endFrame": 16271
+   "startFrame": 10208,
+   "endFrame": 16265
   },
   {
    "number": 4,
    "title": "Decal",
-   "startFrame": 16271,
-   "endFrame": 21000
+   "startFrame": 16265,
+   "endFrame": 20989
   },
   {
    "number": 5,
    "title": "GGX 高光",
-   "startFrame": 21000,
-   "endFrame": 25031
+   "startFrame": 20989,
+   "endFrame": 25028
   },
   {
    "number": 6,
    "title": "Clear coat",
-   "startFrame": 25031,
-   "endFrame": 28883
+   "startFrame": 25028,
+   "endFrame": 28888
   },
   {
    "number": 7,
    "title": "漫反射与它的 response",
-   "startFrame": 28883,
-   "endFrame": 31846
+   "startFrame": 28888,
+   "endFrame": 31853
   },
   {
    "number": 8,
    "title": "透射（EnhancedPBR）",
-   "startFrame": 31846,
-   "endFrame": 36369
+   "startFrame": 31853,
+   "endFrame": 36366
   },
   {
    "number": 9,
    "title": "BRDF 贴图与多次散射",
-   "startFrame": 36369,
-   "endFrame": 40893
+   "startFrame": 36366,
+   "endFrame": 40891
   },
   {
    "number": 10,
    "title": "Simple point light",
-   "startFrame": 40893,
-   "endFrame": 45421
+   "startFrame": 40891,
+   "endFrame": 45419
   },
   {
    "number": 11,
    "title": "全局 skylight",
-   "startFrame": 45421,
-   "endFrame": 51662
+   "startFrame": 45419,
+   "endFrame": 51661
   },
   {
    "number": 12,
    "title": "反射 probe",
-   "startFrame": 51662,
-   "endFrame": 59705
+   "startFrame": 51661,
+   "endFrame": 59699
   },
   {
    "number": 13,
    "title": "环境光遮蔽",
-   "startFrame": 59705,
-   "endFrame": 64441
+   "startFrame": 59699,
+   "endFrame": 64428
   },
   {
    "number": 14,
    "title": "回顾",
-   "startFrame": 64441,
-   "endFrame": 66143
+   "startFrame": 64428,
+   "endFrame": 66101
   }
  ],
  "beats": [
@@ -97,7 +97,7 @@
    "chapter": 1,
    "kind": "scene",
    "startFrame": 0,
-   "frames": 1103,
+   "frames": 1089,
    "headline": "一盏灯，一种材质",
    "captions": [
     {
@@ -106,23 +106,23 @@
      "text": "这是 Open 3D Engine 的 Atom 渲染器，用它的 StandardPBR\n材质着色器照亮实验程序的书房，着色器已移植到 WGSL。"
     },
     {
-     "start": 303,
-     "end": 526,
+     "start": 302,
+     "end": 512,
      "text": "房间里只有一盏灯：一盏 simple point light，\nO3DE 最朴素的点光源，没有形状，也没有阴影。"
     },
     {
-     "start": 573,
-     "end": 740,
+     "start": 557,
+     "end": 729,
      "text": "你将看到的每个公式都来自 O3DE 2.8 版，直接读自它的源码。"
     },
     {
-     "start": 787,
-     "end": 849,
+     "start": 774,
+     "end": 838,
      "text": "这里的每个表面都被照亮两次。"
     },
     {
-     "start": 877,
-     "end": 1045,
+     "start": 865,
+     "end": 1033,
      "text": "一次来自点光源，在 forward pass 中；\n一次来自天空，在它之后运行的 pass 中。"
     }
    ],
@@ -132,33 +132,33 @@
    "id": "c1-frame",
    "chapter": 1,
    "kind": "mermaid",
-   "startFrame": 1103,
-   "frames": 1276,
+   "startFrame": 1089,
+   "frames": 1307,
    "headline": "一个像素在一帧中的路径",
    "captions": [
     {
-     "start": 1115,
-     "end": 1200,
+     "start": 1101,
+     "end": 1185,
      "text": "这是一个像素在一帧中经过的路径。"
     },
     {
-     "start": 1228,
-     "end": 1405,
+     "start": 1212,
+     "end": 1392,
      "text": "深度预 pass 先画出场景的深度，光源剔除再把光源分到屏幕 tile 中。"
     },
     {
-     "start": 1452,
-     "end": 1690,
+     "start": 1437,
+     "end": 1675,
      "text": "forward pass 应用 decal，计算材质与它的光源，\n把漫反射和高光写入两个独立的 target。"
     },
     {
-     "start": 1737,
-     "end": 1968,
+     "start": 1720,
+     "end": 1964,
      "text": "它还写出乘以 diffuse response 的 albedo、\n带 roughness 的高光颜色，以及法线，供后面的 pass 读回。"
     },
     {
-     "start": 2015,
-     "end": 2321,
+     "start": 2009,
+     "end": 2340,
      "text": "然后全屏 pass 加上天空的漫反射和反射（来自天空与反射 probe）；\nSSAO 让漫反射变暗，合并 pass 再把两者相加。"
     }
    ],
@@ -169,38 +169,38 @@
    "id": "c1-code",
    "chapter": 1,
    "kind": "scene",
-   "startFrame": 2379,
-   "frames": 1229,
+   "startFrame": 2396,
+   "frames": 1209,
    "headline": "Forward 像素着色器",
    "captions": [
     {
-     "start": 2391,
-     "end": 2477,
+     "start": 2408,
+     "end": 2497,
      "text": "用伪代码写出来，forward 像素着色器很短。"
     },
     {
-     "start": 2524,
-     "end": 2673,
+     "start": 2542,
+     "end": 2698,
      "text": "它根据材质的输入计算表面，并初始化光照数据。"
     },
     {
-     "start": 2720,
-     "end": 2831,
+     "start": 2743,
+     "end": 2852,
      "text": "然后它加上像素所在屏幕 tile 列出的光源：先是方向光，"
     },
     {
-     "start": 2831,
-     "end": 3012,
+     "start": 2852,
+     "end": 3029,
      "text": "再是 simple point 与 spot light，然后是面光源。\n这个房间只有一盏 simple point light。"
     },
     {
-     "start": 3059,
-     "end": 3364,
+     "start": 3074,
+     "end": 3375,
      "text": "在这里，基于图像的光照只对透明材质运行，或者在 mesh\n或材质要求时只做高光部分；不透明材质由全屏 pass 获得它。"
     },
     {
-     "start": 3411,
-     "end": 3550,
+     "start": 3420,
+     "end": 3549,
      "text": "漫反射和高光写入不同的 target，由合并 pass 相加。"
     }
    ],
@@ -210,28 +210,28 @@
    "id": "c1-views",
    "chapter": 1,
    "kind": "scene",
-   "startFrame": 3608,
-   "frames": 642,
+   "startFrame": 3605,
+   "frames": 634,
    "headline": "把像素拆开",
    "captions": [
     {
-     "start": 3620,
-     "end": 3669,
+     "start": 3617,
+     "end": 3665,
      "text": "我们把结果拆开来看。"
     },
     {
-     "start": 3716,
-     "end": 3796,
+     "start": 3710,
+     "end": 3793,
      "text": "这是点光源单独的漫反射光照。"
     },
     {
-     "start": 3843,
-     "end": 3993,
+     "start": 3838,
+     "end": 3980,
      "text": "这是它的高光光照：小而锐利的亮点，在灯下方的地板上最亮。"
     },
     {
-     "start": 4040,
-     "end": 4192,
+     "start": 4025,
+     "end": 4183,
      "text": "这是全部加在一起的结果，\n包括 forward pass 之后的 pass 加上的天空光。"
     }
    ],
@@ -241,18 +241,18 @@
    "id": "c1-sources",
    "chapter": 1,
    "kind": "sources",
-   "startFrame": 4250,
-   "frames": 362,
+   "startFrame": 4239,
+   "frames": 368,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 4262,
-     "end": 4335,
+     "start": 4251,
+     "end": 4318,
      "text": "这些是本章跟随的函数。"
     },
     {
-     "start": 4363,
-     "end": 4573,
+     "start": 4345,
+     "end": 4569,
      "text": "本视频的每个结论都引用 O3DE 源码中的一个文件、\n一个符号和一行，构建过程会检查每一行是否仍在那里。"
     }
    ],
@@ -267,38 +267,38 @@
    "id": "c2-why",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 4612,
-   "frames": 1189,
+   "startFrame": 4607,
+   "frames": 1194,
    "headline": "一个 tile 需要哪些光源",
    "captions": [
     {
-     "start": 4624,
-     "end": 4776,
+     "start": 4619,
+     "end": 4767,
      "text": "以上是整帧的概览；下一部分看它的第一个光照步骤：light culling。"
     },
     {
-     "start": 4798,
-     "end": 4949,
+     "start": 4788,
+     "end": 4941,
      "text": "在 forward pass 之前，O3DE 先决定屏幕的每个部分需要哪些光源。"
     },
     {
-     "start": 4984,
-     "end": 5144,
+     "start": 4974,
+     "end": 5135,
      "text": "这里，二十四盏小的 simple point light\n悬在房间上方，每盏都用一个点标出。"
     },
     {
-     "start": 5166,
-     "end": 5337,
+     "start": 5156,
+     "end": 5332,
      "text": "屏幕被切成十六乘十六像素的 tile，每个 tile 有自己的光源列表。"
     },
     {
-     "start": 5372,
-     "end": 5591,
+     "start": 5365,
+     "end": 5589,
      "text": "伪彩色中，每个像素显示它所在 tile 在它的深度上保留了多少光源：\n深蓝表示没有，黄色表示八盏或更多。"
     },
     {
-     "start": 5613,
-     "end": 5755,
+     "start": 5610,
+     "end": 5757,
      "text": "三个 compute pass 构建这些列表，\n在深度预 pass 之后、任何着色之前。"
     }
    ],
@@ -309,31 +309,31 @@
    "chapter": 2,
    "kind": "scene",
    "startFrame": 5801,
-   "frames": 1133,
+   "frames": 1131,
    "headline": "每个 tile 的深度",
    "captions": [
     {
      "start": 5813,
-     "end": 5973,
+     "end": 5974,
      "text": "第一个是 LightCullingTilePrepare，\n每个像素一个线程，每个 tile 一个线程组。"
     },
     {
-     "start": 6008,
+     "start": 6007,
      "end": 6265,
      "text": "它找出 tile 最近的深度，以及除天空之外最远的深度，\n不透明与透明物体都算在内，所以以天空为背景的墙仍然很浅。"
     },
     {
-     "start": 6300,
-     "end": 6458,
+     "start": 6298,
+     "end": 6462,
      "text": "它在两者之间标记一个三十二段的掩码，每段有表面就置一位。"
     },
     {
-     "start": 6493,
-     "end": 6696,
+     "start": 6495,
+     "end": 6694,
      "text": "并按深度跨度（以米计）以二为底的对数，\n把范围分成一、二、四或八个深度 bin。"
     },
     {
-     "start": 6731,
+     "start": 6727,
      "end": 6888,
      "text": "这里画出的盒子是被检查点所在的 tile，\n在视图空间中，深度 bin 画成切片。"
     }
@@ -344,38 +344,38 @@
    "id": "c2-cull",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 6934,
-   "frames": 1387,
+   "startFrame": 6932,
+   "frames": 1375,
    "headline": "把光源与 tile 测试",
    "captions": [
     {
-     "start": 6946,
-     "end": 7058,
+     "start": 6944,
+     "end": 7062,
      "text": "第二个 pass 是 LightCulling，把每盏灯与每个 tile 测试。"
     },
     {
-     "start": 7093,
-     "end": 7278,
+     "start": 7095,
+     "end": 7288,
      "text": "当光源的球与 tile 的盒相交，\n并且它的深度范围碰到掩码中有表面的段时，它被保留。"
     },
     {
-     "start": 7313,
-     "end": 7502,
+     "start": 7321,
+     "end": 7504,
      "text": "每盏保留的光源写成它的索引左移十六位，\n再加上它所到达的每个深度 bin 的一位。"
     },
     {
      "start": 7537,
-     "end": 7793,
+     "end": 7788,
      "text": "光源按类型分组：先是 decal，然后是 simple point light、\nspot light 和面光源，每组以结束标记收尾。"
     },
     {
-     "start": 7828,
-     "end": 8145,
+     "start": 7821,
+     "end": 8131,
      "text": "O3DE 的线程按完成的先后追加一组中的光源，decal 除外，因为它\n们会被排序；实验室按索引顺序追加光源，所以它的画面不会变化。"
     },
     {
-     "start": 8180,
-     "end": 8275,
+     "start": 8164,
+     "end": 8263,
      "text": "光源半径变大时，更多 tile 会保留它们。"
     }
    ],
@@ -385,38 +385,38 @@
    "id": "c2-forward",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 8321,
-   "frames": 1245,
+   "startFrame": 8307,
+   "frames": 1281,
    "headline": "每个深度 bin 一个列表",
    "captions": [
     {
-     "start": 8333,
-     "end": 8491,
+     "start": 8319,
+     "end": 8480,
      "text": "第三个 pass 是 LightCullingRemap，\n把每个 tile 的列表改写成每个深度 bin 一个列表。"
     },
     {
-     "start": 8526,
-     "end": 8646,
+     "start": 8513,
+     "end": 8638,
      "text": "forward pass 找到自身深度所在的 bin，只遍历那一个列表。"
     },
     {
-     "start": 8681,
-     "end": 8902,
+     "start": 8671,
+     "end": 8892,
      "text": "在被检查的点上，readout 统计 tile 列表中的光源、\n它的 bin 保留的光源，以及球真正照到该点的光源。"
     },
     {
-     "start": 8937,
-     "end": 9078,
+     "start": 8925,
+     "end": 9090,
      "text": "带圈的点是该点的 bin 保留的光源，每盏都用虚线连到该点。"
     },
     {
-     "start": 9100,
-     "end": 9274,
+     "start": 9111,
+     "end": 9293,
      "text": "现在让光源移动：每盏光穿过 tile 和深度 bin 时，\n颜色和该点的列表都随之改变。"
     },
     {
-     "start": 9309,
-     "end": 9533,
+     "start": 9326,
+     "end": 9556,
      "text": "实验室把 GPU 上每个 tile 的列表与 CPU 副本比较，\n并检查照到表面的光源都没有从它的 bin 中漏掉。"
     }
    ],
@@ -426,18 +426,18 @@
    "id": "c2-finding",
    "chapter": 2,
    "kind": "scene",
-   "startFrame": 9566,
-   "frames": 434,
+   "startFrame": 9588,
+   "frames": 417,
    "headline": "一种从不着色的光源",
    "captions": [
     {
-     "start": 9578,
-     "end": 9702,
+     "start": 9600,
+     "end": 9717,
      "text": "一个发现：forward pass 还会遍历一组 polygon light。"
     },
     {
-     "start": 9737,
-     "end": 9954,
+     "start": 9750,
+     "end": 9961,
      "text": "但剔除 pass 从不写出这一组，所以在默认开启光源剔除时，\npolygon light 从不照亮任何东西。"
     }
    ],
@@ -447,13 +447,13 @@
    "id": "c2-sources",
    "chapter": 2,
    "kind": "sources",
-   "startFrame": 10000,
-   "frames": 204,
+   "startFrame": 10005,
+   "frames": 203,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 10012,
-     "end": 10171,
+     "start": 10017,
+     "end": 10176,
      "text": "这些条目对应三个剔除 pass、tile 迭代器，\n以及 polygon light 的发现。"
     }
    ],
@@ -474,28 +474,28 @@
    "id": "c3-inputs",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 10204,
-   "frames": 762,
+   "startFrame": 10208,
+   "frames": 773,
    "headline": "材质提供了什么",
    "captions": [
     {
-     "start": 10216,
-     "end": 10358,
+     "start": 10220,
+     "end": 10363,
      "text": "光源已经分进了列表；下一部分转向它们照亮的对象：表面。"
     },
     {
-     "start": 10388,
-     "end": 10485,
+     "start": 10393,
+     "end": 10489,
      "text": "每个光照函数都从同一条表面记录开始。"
     },
     {
-     "start": 10535,
-     "end": 10723,
+     "start": 10540,
+     "end": 10735,
      "text": "材质提供 base colour、metallic 值、\nspecular F0 factor 和 roughness。"
     },
     {
-     "start": 10773,
-     "end": 10887,
+     "start": 10786,
+     "end": 10901,
      "text": "O3DE 由这些值推导出光照真正使用的量。"
     }
    ],
@@ -505,28 +505,28 @@
    "id": "c3-metal",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 10966,
-   "frames": 1039,
+   "startFrame": 10981,
+   "frames": 1026,
    "headline": "Metallic 工作流",
    "captions": [
     {
-     "start": 10978,
-     "end": 11147,
+     "start": 10993,
+     "end": 11163,
      "text": "Albedo 等于 base colour 乘以一减 metallic，\n所以金属根本没有漫反射颜色。"
     },
     {
-     "start": 11197,
-     "end": 11345,
+     "start": 11214,
+     "end": 11360,
      "text": "随着 metallic 增大，specular F0 从电介质的值过渡到 base colour。"
     },
     {
-     "start": 11395,
-     "end": 11711,
+     "start": 11411,
+     "end": 11717,
      "text": "电介质的值是 0.08 乘以 factor，\n所以默认 factor 0.5 得到 0.04，这是大多数油漆和塑料的反射率。"
     },
     {
-     "start": 11761,
-     "end": 11944,
+     "start": 11768,
+     "end": 11945,
      "text": "0 到 1 之间的 metallic 值把两者混合，\n只适合表现过渡，比如金属上的灰尘。"
     }
    ],
@@ -536,28 +536,28 @@
    "id": "c3-rough",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 12005,
-   "frames": 778,
+   "startFrame": 12007,
+   "frames": 750,
    "headline": "Roughness 平方两次",
    "captions": [
     {
-     "start": 12017,
+     "start": 12019,
      "end": 12094,
      "text": "Roughness 按感知上均匀的尺度来设置。"
     },
     {
-     "start": 12144,
-     "end": 12340,
+     "start": 12145,
+     "end": 12321,
      "text": "O3DE 把它截断到至少零点零二四，平方得到 alpha，再平方一次。"
     },
     {
-     "start": 12390,
-     "end": 12575,
+     "start": 12372,
+     "end": 12550,
      "text": "所以 roughness 为一半时，alpha 平方是十六分之一，\n之后 anti-aliasing 还会加宽它。"
     },
     {
-     "start": 12625,
-     "end": 12722,
+     "start": 12601,
+     "end": 12695,
      "text": "看着球体，roughness 从抛光扫到哑光。"
     }
    ],
@@ -567,33 +567,33 @@
    "id": "c3-aa",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 12783,
-   "frames": 1182,
+   "startFrame": 12757,
+   "frames": 1189,
    "headline": "Specular anti-aliasing",
    "captions": [
     {
-     "start": 12795,
-     "end": 13007,
+     "start": 12769,
+     "end": 12985,
      "text": "然后，默认开启的 specular anti-aliasing\n在法线逐像素快速变化处加宽 alpha 平方。"
     },
     {
-     "start": 13057,
-     "end": 13246,
+     "start": 13036,
+     "end": 13221,
      "text": "它加上一个核：法线跨一个像素横向与\n纵向变化平方和的一半，最多零点一八。"
     },
     {
-     "start": 13296,
-     "end": 13469,
+     "start": 13272,
+     "end": 13449,
      "text": "然后据此重新计算 alpha 与线性 roughness，\n所以后面的每一项都看到更宽的 lobe。"
     },
     {
-     "start": 13519,
-     "end": 13677,
+     "start": 13500,
+     "end": 13658,
      "text": "在光滑的球上，加宽出现在靠近边缘处，\n那里法线跨过一个像素转得最快。"
     },
     {
-     "start": 13727,
-     "end": 13904,
+     "start": 13709,
+     "end": 13884,
      "text": "实验室像 O3DE 一样，用法线的精细屏幕空间导数求这些导数。"
     }
    ],
@@ -603,38 +603,38 @@
    "id": "c3-occlusion",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 13965,
-   "frames": 1337,
+   "startFrame": 13946,
+   "frames": 1343,
    "headline": "遮蔽贴图",
    "captions": [
     {
-     "start": 13977,
-     "end": 14208,
+     "start": 13958,
+     "end": 14190,
      "text": "材质还可以带两张遮蔽贴图：漫反射环境光遮蔽，\n以及高光遮蔽，有时叫作 cavity 贴图。"
     },
     {
-     "start": 14258,
-     "end": 14403,
+     "start": 14241,
+     "end": 14384,
      "text": "每张取贴图的红色通道，再取 factor 次幂，factor 默认为一。"
     },
     {
-     "start": 14453,
-     "end": 14548,
+     "start": 14435,
+     "end": 14530,
      "text": "没有贴图时两者都为一，什么也不变。"
     },
     {
-     "start": 14598,
-     "end": 14825,
+     "start": 14581,
+     "end": 14805,
      "text": "在 forward pass 的最后，\n漫反射光乘以环境光遮蔽，高光乘以高光遮蔽。"
     },
     {
-     "start": 14875,
-     "end": 15047,
+     "start": 14856,
+     "end": 15028,
      "text": "albedo target 把两者都带给 skylight 的 pass，\n高光遮蔽放在它的 alpha 中。"
     },
     {
-     "start": 15097,
-     "end": 15241,
+     "start": 15079,
+     "end": 15227,
      "text": "调高 factor 会加深凹处；把它降到接近零则让贴图淡出。"
     }
    ],
@@ -644,28 +644,28 @@
    "id": "c3-examples",
    "chapter": 3,
    "kind": "scene",
-   "startFrame": 15302,
-   "frames": 690,
+   "startFrame": 15289,
+   "frames": 699,
    "headline": "每个物体，同样的规则",
    "captions": [
     {
-     "start": 15314,
-     "end": 15400,
+     "start": 15301,
+     "end": 15395,
      "text": "同样的规则适用于房间里的每个物体。"
     },
     {
-     "start": 15430,
-     "end": 15579,
+     "start": 15425,
+     "end": 15577,
      "text": "把茶壶变成金属，它的绿色就离开漫反射光，进入高光。"
     },
     {
-     "start": 15629,
-     "end": 15745,
+     "start": 15628,
+     "end": 15748,
      "text": "把盒子变粗糙，它的高光就扩散开，几乎看不见。"
     },
     {
-     "start": 15795,
-     "end": 15931,
+     "start": 15799,
+     "end": 15926,
      "text": "它们在计算任何光照之前，都要经过同样的两个函数。"
     }
    ],
@@ -675,13 +675,13 @@
    "id": "c3-sources",
    "chapter": 3,
    "kind": "sources",
-   "startFrame": 15992,
-   "frames": 279,
+   "startFrame": 15988,
+   "frames": 277,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 16004,
-     "end": 16230,
+     "start": 16000,
+     "end": 16224,
      "text": "表面来自这四个地方：材质的计算、metallic 工作流、\n它的常量，以及 roughness 的重映射。"
     }
    ],
@@ -696,33 +696,33 @@
    "id": "c4-what",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 16271,
-   "frames": 1114,
+   "startFrame": 16265,
+   "frames": 1107,
    "headline": "盒子里的一张纹理",
    "captions": [
     {
-     "start": 16283,
-     "end": 16433,
+     "start": 16277,
+     "end": 16416,
      "text": "在任何光照到这个表面之前，decal 可以先改变它，这就是下一部分。"
     },
     {
-     "start": 16465,
-     "end": 16578,
+     "start": 16448,
+     "end": 16570,
      "text": "decal 把一张纹理投射到落在一个盒子里的任何表面上。"
     },
     {
-     "start": 16632,
-     "end": 16855,
+     "start": 16624,
+     "end": 16850,
      "text": "这里，一块颜料泼溅和一个面板网格铺在地面上；\n盒子和箭头标出它们的体积和投影轴。"
     },
     {
-     "start": 16887,
-     "end": 17051,
+     "start": 16882,
+     "end": 17040,
      "text": "decal 默认开启，而且直接修改表面本身，在设置光照数据之前。"
     },
     {
-     "start": 17105,
-     "end": 17320,
+     "start": 17094,
+     "end": 17307,
      "text": "所以每盏灯，以及 forward pass 之后的 skylight pass，\n看到的都是 decal 改过的 albedo、F0 和法线。"
     }
    ],
@@ -732,38 +732,38 @@
    "id": "c4-apply",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 17385,
-   "frames": 1383,
+   "startFrame": 17372,
+   "frames": 1400,
    "headline": "ApplyDecal",
    "captions": [
     {
-     "start": 17397,
-     "end": 17614,
+     "start": 17384,
+     "end": 17610,
      "text": "ApplyDecal 通过 decal 的旋转和半尺寸把点移进它的盒子，\n在负一到一之外就跳过。"
     },
     {
-     "start": 17668,
-     "end": 17790,
+     "start": 17664,
+     "end": 17783,
      "text": "盒子的 x 与 y 成为纹理坐标，v 被翻转。"
     },
     {
-     "start": 17844,
-     "end": 18061,
+     "start": 17837,
+     "end": 18057,
      "text": "base map 乘以 decal 的颜色，按贴图的 alpha、\ndecal 的 opacity 与角度衰减之积替换 albedo。"
     },
     {
-     "start": 18115,
-     "end": 18295,
+     "start": 18111,
+     "end": 18298,
      "text": "F0 也会变，变化量为该值乘以 metallic，\n所以金属上的 decal 会改变它反射的颜色。"
     },
     {
-     "start": 18349,
-     "end": 18476,
+     "start": 18352,
+     "end": 18480,
      "text": "它的 normal map 弯折法线，这里是面板之间的凹槽。"
     },
     {
-     "start": 18530,
-     "end": 18703,
+     "start": 18534,
+     "end": 18707,
      "text": "normal map 的两个通道被换回来，z 被重建，\n和 O3DE 的任何 normal map 一样。"
     }
    ],
@@ -773,28 +773,28 @@
    "id": "c4-angle",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 18768,
-   "frames": 827,
+   "startFrame": 18772,
+   "frames": 820,
    "headline": "随角度淡出",
    "captions": [
     {
-     "start": 18780,
-     "end": 18903,
+     "start": 18784,
+     "end": 18908,
      "text": "每个 decal 随表面与投影轴之间的夹角而淡出。"
     },
     {
-     "start": 18957,
-     "end": 19160,
+     "start": 18962,
+     "end": 19158,
      "text": "余弦被截断在零点五五，再 smoothstep 到一，\n所以 decal 在大约五十七度处消失。"
     },
     {
-     "start": 19214,
-     "end": 19316,
+     "start": 19212,
+     "end": 19317,
      "text": "把泼溅的轴从地面法线倾斜开，它就淡出了。"
     },
     {
-     "start": 19370,
-     "end": 19530,
+     "start": 19371,
+     "end": 19527,
      "text": "attenuation angle 设置默认为一，在不淡出与完全淡出之间插值。"
     }
    ],
@@ -804,38 +804,38 @@
    "id": "c4-order",
    "chapter": 4,
    "kind": "scene",
-   "startFrame": 19595,
-   "frames": 1171,
+   "startFrame": 19592,
+   "frames": 1161,
    "headline": "哪个 decal 在上面",
    "captions": [
     {
-     "start": 19607,
-     "end": 19720,
+     "start": 19604,
+     "end": 19719,
      "text": "decal 重叠时，它们的顺序决定哪个在上面。"
     },
     {
-     "start": 19752,
-     "end": 19909,
+     "start": 19751,
+     "end": 19908,
      "text": "光源剔除把 decal 放进每个 tile 列表的第一组，\n用包住盒子的球来表示。"
     },
     {
-     "start": 19963,
-     "end": 20162,
+     "start": 19962,
+     "end": 20148,
      "text": "然后按 sort key 排序，key 相同时按索引排序，\n所以 key 更大的后应用，盖在上面。"
     },
     {
-     "start": 20216,
-     "end": 20400,
+     "start": 20202,
+     "end": 20386,
      "text": "网格保持默认 key 十六，泼溅是十七，所以泼溅压在网格上面。"
     },
     {
-     "start": 20454,
-     "end": 20537,
+     "start": 20440,
+     "end": 20526,
      "text": "把泼溅改成十五，网格就盖住了它。"
     },
     {
-     "start": 20591,
-     "end": 20701,
+     "start": 20580,
+     "end": 20688,
      "text": "forward pass 在设置任何光照之前，先遍历这个排好序的组。"
     }
    ],
@@ -845,13 +845,13 @@
    "id": "c4-sources",
    "chapter": 4,
    "kind": "sources",
-   "startFrame": 20766,
-   "frames": 234,
+   "startFrame": 20753,
+   "frames": 236,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 20778,
-     "end": 20957,
+     "start": 20765,
+     "end": 20946,
      "text": "这些条目展示 decal 在 forward pass 中的位置、\n每个 decal 如何混合，以及它们如何被剔除和排序。"
     }
    ],
@@ -872,43 +872,43 @@
    "id": "c5-vectors",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 21000,
-   "frames": 950,
+   "startFrame": 20989,
+   "frames": 954,
    "headline": "四个方向",
    "captions": [
     {
-     "start": 21012,
-     "end": 21205,
+     "start": 21001,
+     "end": 21183,
      "text": "表面准备好之后，下一部分讲每盏光的高光如何计算：GGX specular。"
     },
     {
-     "start": 21205,
-     "end": 21298,
+     "start": 21183,
+     "end": 21281,
      "text": "高光光照取决于一个点上的四个方向。"
     },
     {
-     "start": 21319,
-     "end": 21363,
+     "start": 21302,
+     "end": 21342,
      "text": "表面法线 N。"
     },
     {
-     "start": 21384,
-     "end": 21437,
+     "start": 21363,
+     "end": 21420,
      "text": "指向光源的方向 L。"
     },
     {
-     "start": 21458,
-     "end": 21647,
+     "start": 21441,
+     "end": 21630,
      "text": "指向观察者的方向 V；我们从蓝色的观察者看过去，\n让四个方向都位于正对我们的平面内。"
     },
     {
-     "start": 21668,
-     "end": 21764,
+     "start": 21651,
+     "end": 21756,
      "text": "还有半程向量 H，位于 L 和 V 的正中间。"
     },
     {
-     "start": 21785,
-     "end": 21918,
+     "start": 21777,
+     "end": 21911,
      "text": "法线沿 H 的 microfacet 会把光直接反射到观察者眼中。"
     }
    ],
@@ -918,43 +918,43 @@
    "id": "c5-terms",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 21950,
-   "frames": 1596,
+   "startFrame": 21943,
+   "frames": 1591,
    "headline": "D、G 与 F",
    "captions": [
     {
-     "start": 21962,
-     "end": 22196,
+     "start": 21955,
+     "end": 22177,
      "text": "SpecularGGX 把三项 D、G、F 相乘，再乘以 N dot L 和多次散射补偿。"
     },
     {
-     "start": 22217,
-     "end": 22493,
+     "start": 22198,
+     "end": 22472,
      "text": "D 是 GGX 法线分布，即朝向 H 的微表面法线的密度；\n对于光滑表面，它远大于一。"
     },
     {
-     "start": 22514,
-     "end": 22664,
+     "start": 22493,
+     "end": 22629,
      "text": "在伪彩色中，D 只在 H 与法线重合处明亮：那是高光的核心。"
     },
     {
-     "start": 22685,
-     "end": 22841,
+     "start": 22650,
+     "end": 22817,
      "text": "G 是高度相关的 Smith 项：这些 microfacet\n中既没有被遮挡、也没有被挡住视线的比例。"
     },
     {
-     "start": 22862,
-     "end": 23079,
+     "start": 22838,
+     "end": 23055,
      "text": "O3DE 返回的值已经除以 4、N dot L 和 N dot V，省去了最后的除法。"
     },
     {
-     "start": 23100,
-     "end": 23325,
+     "start": 23076,
+     "end": 23306,
      "text": "F 是 Schlick 的 Fresnel，以 H dot V 计算：\n当光线与视线掠过微表面时，反射率趋向白色。"
     },
     {
-     "start": 23346,
-     "end": 23514,
+     "start": 23327,
+     "end": 23502,
      "text": "这个乘积就是高光响应；再乘以光源强度，就是高光光照。"
     }
    ],
@@ -964,33 +964,33 @@
    "id": "c5-sweep",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 23546,
-   "frames": 743,
+   "startFrame": 23534,
+   "frames": 770,
    "headline": "移动光源",
    "captions": [
     {
-     "start": 23558,
-     "end": 23632,
+     "start": 23546,
+     "end": 23620,
      "text": "现在看这个点上的数值和它的波瓣。"
     },
     {
-     "start": 23653,
-     "end": 23854,
+     "start": 23641,
+     "end": 23848,
      "text": "粉色曲线是这个平面内每个出射方向的高光响应，\n它绕着 L 的镜面方向倾斜。"
     },
     {
-     "start": 23875,
-     "end": 23973,
+     "start": 23869,
+     "end": 23979,
      "text": "把光源升向法线，波瓣也随之立起来。"
     },
     {
-     "start": 23994,
-     "end": 24151,
+     "start": 24000,
+     "end": 24164,
      "text": "把它降向地平线：N dot L 下降，Fresnel 增大，波瓣被拉长。"
     },
     {
-     "start": 24172,
-     "end": 24257,
+     "start": 24185,
+     "end": 24272,
      "text": "随着光源移动，readout 跟踪每一项。"
     }
    ],
@@ -1000,28 +1000,28 @@
    "id": "c5-rough",
    "chapter": 5,
    "kind": "scene",
-   "startFrame": 24289,
-   "frames": 531,
+   "startFrame": 24304,
+   "frames": 509,
    "headline": "Roughness 让 D 变宽",
    "captions": [
     {
-     "start": 24301,
-     "end": 24374,
+     "start": 24316,
+     "end": 24386,
      "text": "Roughness 对 D 的影响比什么都大。"
     },
     {
-     "start": 24395,
+     "start": 24407,
      "end": 24558,
      "text": "光滑的表面把光集中成又高又窄的波瓣，以及小而亮的高光。"
     },
     {
      "start": 24579,
-     "end": 24649,
+     "end": 24652,
      "text": "粗糙的表面把同样的光摊薄。"
     },
     {
-     "start": 24670,
-     "end": 24788,
+     "start": 24673,
+     "end": 24781,
      "text": "在伪彩色中，D 从一个亮点扩大成一片宽广的光晕。"
     }
    ],
@@ -1031,13 +1031,13 @@
    "id": "c5-sources",
    "chapter": 5,
    "kind": "sources",
-   "startFrame": 24820,
-   "frames": 211,
+   "startFrame": 24813,
+   "frames": 215,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 24832,
-     "end": 25004,
+     "start": 24825,
+     "end": 25002,
      "text": "SpecularGGX 及其三项位于 O3DE 着色器库中三个简短的文件里。"
     }
    ],
@@ -1053,28 +1053,28 @@
    "id": "c6-layer",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 25031,
-   "frames": 678,
+   "startFrame": 25028,
+   "frames": 699,
    "headline": "一层清漆",
    "captions": [
     {
-     "start": 25043,
-     "end": 25178,
+     "start": 25040,
+     "end": 25174,
      "text": "下一部分在 GGX 之上再加一层 specular：clear coat。"
     },
     {
-     "start": 25200,
-     "end": 25341,
+     "start": 25196,
+     "end": 25337,
      "text": "Clear coat 在底层材质之上加一层薄而透明的涂层，\n就像油漆上的清漆。"
     },
     {
-     "start": 25363,
-     "end": 25484,
+     "start": 25359,
+     "end": 25489,
      "text": "它默认关闭；这里的球是粗糙的金属，外面有一层光滑的涂层。"
     },
     {
-     "start": 25518,
-     "end": 25664,
+     "start": 25523,
+     "end": 25682,
      "text": "涂层是 F0 为百分之四的电介质，有自己的 factor 和 roughness。"
     }
    ],
@@ -1084,33 +1084,33 @@
    "id": "c6-base",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 25709,
+   "startFrame": 25727,
    "frames": 1016,
    "headline": "下面的底层",
    "captions": [
     {
-     "start": 25721,
-     "end": 25900,
+     "start": 25739,
+     "end": 25908,
      "text": "在涂层下面，底层的 F0 会变，\n因为光现在是从涂层而不是从空气进入它。"
     },
     {
-     "start": 25934,
-     "end": 26189,
+     "start": 25942,
+     "end": 26201,
      "text": "O3DE 使用 Filament 的形式：一减五倍根号 F0，\n除以五减根号 F0，再平方，按 factor 混合进去。"
     },
     {
-     "start": 26223,
-     "end": 26331,
+     "start": 26235,
+     "end": 26342,
      "text": "diffuse response 按涂层在视角下的 Fresnel 缩小。"
     },
     {
-     "start": 26365,
-     "end": 26498,
+     "start": 26376,
+     "end": 26508,
      "text": "每盏灯的漫反射又按涂层在半程向量处的 Fresnel 再缩小一次。"
     },
     {
-     "start": 26532,
-     "end": 26680,
+     "start": 26542,
+     "end": 26698,
      "text": "一个发现：涂层让漫反射暗了两次，\n一次通过 response，一次针对每盏灯。"
     }
    ],
@@ -1120,28 +1120,28 @@
    "id": "c6-specular",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 26725,
-   "frames": 894,
+   "startFrame": 26743,
+   "frames": 877,
    "headline": "两个高光 lobe",
    "captions": [
     {
-     "start": 26737,
-     "end": 26916,
+     "start": 26755,
+     "end": 26934,
      "text": "每盏灯的高光变成底层 lobe 乘以一减涂层 Fresnel，\n再加上涂层自己的 lobe。"
     },
     {
-     "start": 26950,
-     "end": 27218,
+     "start": 26968,
+     "end": 27224,
      "text": "涂层的 lobe 是 GGX，配 Kelemen 的可见性项，\nalpha 为其 roughness 的平方，不低于零点零零零五。"
     },
     {
-     "start": 27252,
-     "end": 27389,
+     "start": 27258,
+     "end": 27395,
      "text": "所以球上显示出涂层的锐利高光，叠在金属宽阔的高光之上。"
     },
     {
-     "start": 27423,
-     "end": 27574,
+     "start": 27429,
+     "end": 27575,
      "text": "factor 增大时，锐利的高光变强，底下金属的颜色变暗。"
     }
    ],
@@ -1151,33 +1151,33 @@
    "id": "c6-ibl",
    "chapter": 6,
    "kind": "scene",
-   "startFrame": 27619,
-   "frames": 1036,
+   "startFrame": 27620,
+   "frames": 1045,
    "headline": "在 forward pass 中的天空反射",
    "captions": [
     {
-     "start": 27631,
-     "end": 27758,
+     "start": 27632,
+     "end": 27764,
      "text": "Clear coat 还把材质的天空反射移进 forward pass。"
     },
     {
-     "start": 27792,
-     "end": 28019,
+     "start": 27798,
+     "end": 28035,
      "text": "全屏反射 pass 对涂层一无所知，\n所以网格绘制时不带高光 IBL 的 stencil 值，该 pass 就跳过它。"
     },
     {
-     "start": 28053,
-     "end": 28286,
+     "start": 28069,
+     "end": 28300,
      "text": "在 forward pass 中，底层反射乘以一减涂层\nFresnel 的平方，再加上涂层自己的反射。"
     },
     {
-     "start": 28320,
-     "end": 28435,
+     "start": 28334,
+     "end": 28448,
      "text": "所以全屏的 probe pass 从不作用于有 clear coat 的网格；"
     },
     {
-     "start": 28435,
-     "end": 28610,
+     "start": 28448,
+     "end": 28620,
      "text": "forward pass 会自己混合与网格重叠的最小 probe，\n按其 inner 与 outer 盒之间的权重。"
     }
    ],
@@ -1187,13 +1187,13 @@
    "id": "c6-sources",
    "chapter": 6,
    "kind": "sources",
-   "startFrame": 28655,
-   "frames": 228,
+   "startFrame": 28665,
+   "frames": 223,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 28667,
-     "end": 28850,
+     "start": 28677,
+     "end": 28855,
      "text": "这些条目从涂层的输入一路跟到它的高光、\n漫反射和 forward pass 中的 IBL。"
     }
    ],
@@ -1213,37 +1213,37 @@
    "id": "c7-lambert",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 28883,
-   "frames": 1286,
+   "startFrame": 28888,
+   "frames": 1282,
    "headline": "Lambert，加上一个 response",
    "captions": [
     {
-     "start": 28895,
-     "end": 29067,
+     "start": 28900,
+     "end": 29059,
      "text": "讲完 specular，下一部分转向每盏光的另一半：\ndiffuse 及其 response。"
     },
     {
-     "start": 29095,
-     "end": 29267,
+     "start": 29087,
+     "end": 29260,
      "text": "StandardPBR 的漫反射是 Lambert 的：\nalbedo 乘以 N dot L，再除以 pi。"
     },
     {
-     "start": 29312,
-     "end": 29459,
+     "start": 29306,
+     "end": 29457,
      "text": "但它要乘以一个 diffuse response：一减去视角处的 Fresnel 项。"
     },
     {
-     "start": 29504,
-     "end": 29685,
+     "start": 29503,
+     "end": 29678,
      "text": "这个 Fresnel 考虑了 roughness：\n它在掠射角的值是一减 roughness，但不小于 F0。"
     },
     {
-     "start": 29730,
-     "end": 29914,
+     "start": 29724,
+     "end": 29910,
      "text": "所以从掠射角看光滑表面时，\n它留给漫反射的光更少，因为更多的光进入了高光。"
     },
     {
-     "start": 29959,
+     "start": 29956,
      "end": 30113,
      "text": "没有这个 response，漫反射和高光加起来可能反射出比入射更多的光。"
     }
@@ -1254,23 +1254,23 @@
    "id": "c7-response",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 30169,
-   "frames": 602,
+   "startFrame": 30170,
+   "frames": 598,
    "headline": "Response 在哪里下降",
    "captions": [
     {
-     "start": 30181,
-     "end": 30345,
+     "start": 30182,
+     "end": 30342,
      "text": "在伪彩色中，diffuse response 保持在接近 1，\n只在球体边缘附近下降。"
     },
     {
-     "start": 30390,
-     "end": 30589,
+     "start": 30388,
+     "end": 30587,
      "text": "绿色波瓣显示了每个视线方向的结果：\n接近一个半圆，在 response 下降的地方被压扁。"
     },
     {
-     "start": 30634,
-     "end": 30715,
+     "start": 30633,
+     "end": 30711,
      "text": "越光滑的表面在掠射角下降得越多。"
     }
    ],
@@ -1280,28 +1280,28 @@
    "id": "c7-disney",
    "chapter": 7,
    "kind": "scene",
-   "startFrame": 30771,
-   "frames": 856,
+   "startFrame": 30768,
+   "frames": 864,
    "headline": "StandardPBR 不使用的漫反射模型",
    "captions": [
     {
-     "start": 30783,
-     "end": 30932,
+     "start": 30780,
+     "end": 30928,
      "text": "O3DE 的 BRDF 库还定义了归一化的 Disney 漫反射。"
     },
     {
-     "start": 30977,
-     "end": 31198,
+     "start": 30974,
+     "end": 31191,
      "text": "StandardPBR 从不调用它；Skin 材质调用它，\nEnhancedPBR 在开启次表面散射时也调用它。"
     },
     {
-     "start": 31243,
-     "end": 31424,
+     "start": 31237,
+     "end": 31421,
      "text": "它自带光进入和离开表面的 Fresnel 项，\n所以不使用 diffuse response。"
     },
     {
-     "start": 31469,
-     "end": 31571,
+     "start": 31467,
+     "end": 31575,
      "text": "回到 StandardPBR 使用的 Lambert 模型。"
     }
    ],
@@ -1311,13 +1311,13 @@
    "id": "c7-sources",
    "chapter": 7,
    "kind": "sources",
-   "startFrame": 31627,
-   "frames": 219,
+   "startFrame": 31632,
+   "frames": 221,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 31639,
-     "end": 31807,
+     "start": 31644,
+     "end": 31814,
      "text": "这些条目给出漫反射项、它的 response，\n以及哪些材质使用 Disney 模型。"
     }
    ],
@@ -1334,33 +1334,33 @@
    "id": "c8-why",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 31846,
-   "frames": 1076,
+   "startFrame": 31853,
+   "frames": 1071,
    "headline": "来自背后的光",
    "captions": [
     {
-     "start": 31858,
-     "end": 32030,
+     "start": 31865,
+     "end": 32032,
      "text": "到目前为止，光只在表面反射；下一部分让光穿过物体：transmission。"
     },
     {
-     "start": 32054,
-     "end": 32217,
+     "start": 32055,
+     "end": 32219,
      "text": "薄的或半透明的东西，比如树叶、蜡或皮肤，会让光从背后透过来。"
     },
     {
-     "start": 32241,
-     "end": 32470,
+     "start": 32242,
+     "end": 32489,
      "text": "StandardPBR 没有透射；EnhancedPBR 加入了它，\n默认关闭，有厚物体和薄物体两种模式。"
     },
     {
-     "start": 32509,
-     "end": 32689,
+     "start": 32526,
+     "end": 32696,
      "text": "只要次表面散射和各向异性保持关闭，\n它的其他光照就与 StandardPBR 相同。"
     },
     {
-     "start": 32728,
-     "end": 32887,
+     "start": 32733,
+     "end": 32890,
      "text": "这里茶壶是 EnhancedPBR，从背后照亮；simple point light 已关闭。"
     }
    ],
@@ -1370,28 +1370,28 @@
    "id": "c8-light",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 32922,
-   "frames": 761,
+   "startFrame": 32924,
+   "frames": 749,
    "headline": "另一种点光源",
    "captions": [
     {
-     "start": 32934,
-     "end": 33010,
+     "start": 32936,
+     "end": 33011,
      "text": "simple point light 完全不产生背光。"
     },
     {
-     "start": 33049,
-     "end": 33279,
+     "start": 33048,
+     "end": 33275,
      "text": "所以茶壶背后的光源是 O3DE 的 point light，\n一种球形面光源，用编辑器默认的五厘米半径。"
     },
     {
-     "start": 33318,
-     "end": 33553,
+     "start": 33312,
+     "end": 33541,
      "text": "它的照明与 simple point light 相同，\n但把高光方向移到灯泡上离反射光线最近的点，并加上背光。"
     },
     {
-     "start": 33592,
-     "end": 33648,
+     "start": 33578,
+     "end": 33639,
      "text": "这里它不投射阴影。"
     }
    ],
@@ -1401,38 +1401,38 @@
    "id": "c8-thick",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 33683,
-   "frames": 1382,
+   "startFrame": 33673,
+   "frames": 1395,
    "headline": "厚物体",
    "captions": [
     {
-     "start": 33695,
-     "end": 33871,
+     "start": 33685,
+     "end": 33859,
      "text": "厚物体模式采用 Barré-Brisebois 与 Bouchard 的方法：\n光透过物体直射向观察者的程度。"
     },
     {
-     "start": 33910,
-     "end": 34085,
+     "start": 33896,
+     "end": 34079,
      "text": "把视线方向与被法线弯折的光源方向比较，取六次幂，再缩放。"
     },
     {
-     "start": 34124,
-     "end": 34323,
+     "start": 34116,
+     "end": 34316,
      "text": "然后按厚度衰减：e 的负四倍厚度次方，再乘以一减厚度。"
     },
     {
-     "start": 34362,
-     "end": 34592,
+     "start": 34353,
+     "end": 34585,
      "text": "厚度取阴影贴图厚度与材质厚度中较大的一个；\n这个茶壶用零点一五，默认值是一半。"
     },
     {
-     "start": 34631,
-     "end": 34843,
+     "start": 34622,
+     "end": 34848,
      "text": "所有光源的总和乘以 tint，\n在乘以遮蔽之后并入漫反射，所以遮蔽不会让它变暗。"
     },
     {
-     "start": 34882,
-     "end": 35015,
+     "start": 34885,
+     "end": 35020,
      "text": "没有透射时茶壶的背面是暗的；有了透射，光就透了出来。"
     }
    ],
@@ -1442,33 +1442,33 @@
    "id": "c8-thin",
    "chapter": 8,
    "kind": "scene",
-   "startFrame": 35065,
-   "frames": 1090,
+   "startFrame": 35068,
+   "frames": 1084,
    "headline": "薄物体，以及一个发现",
    "captions": [
     {
-     "start": 35077,
-     "end": 35278,
+     "start": 35080,
+     "end": 35279,
      "text": "薄物体模式采用 Jimenez 等人的方法：\n在阴影贴图测得的穿过物体的距离上计算扩散剖面。"
     },
     {
-     "start": 35317,
-     "end": 35423,
+     "start": 35316,
+     "end": 35429,
      "text": "它的注释说，没有阴影数据时就不产生背光。"
     },
     {
-     "start": 35462,
-     "end": 35669,
+     "start": 35466,
+     "end": 35675,
      "text": "一个发现：对 point light 来说，即使光源没有阴影，\n阴影分支也会执行，因为它的选项默认为 true。"
     },
     {
-     "start": 35708,
-     "end": 35871,
+     "start": 35712,
+     "end": 35874,
      "text": "这时阴影查找返回的厚度是零，而不是表示没有数据的负值。"
     },
     {
-     "start": 35910,
-     "end": 36105,
+     "start": 35911,
+     "end": 36104,
      "text": "所以在无阴影的 point light 后面，\n薄物体得到扩散核的最大值，即它能有的最亮的背光。"
     }
    ],
@@ -1478,13 +1478,13 @@
    "id": "c8-sources",
    "chapter": 8,
    "kind": "sources",
-   "startFrame": 36155,
+   "startFrame": 36152,
    "frames": 214,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 36167,
-     "end": 36334,
+     "start": 36164,
+     "end": 36332,
      "text": "这些条目涵盖透射的输入、球形光源、两种模式，以及阴影分支的发现。"
     }
    ],
@@ -1509,33 +1509,33 @@
    "id": "c9-loss",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 36369,
-   "frames": 924,
+   "startFrame": 36366,
+   "frames": 910,
    "headline": "单次散射丢失的能量",
    "captions": [
     {
-     "start": 36381,
-     "end": 36549,
+     "start": 36378,
+     "end": 36550,
      "text": "下一部分回到 specular，以及 O3DE 在启动时填充的 BRDF 纹理。"
     },
     {
-     "start": 36571,
-     "end": 36682,
+     "start": 36573,
+     "end": 36678,
      "text": "在粗糙表面上，一次 GGX 反弹会丢失能量。"
     },
     {
-     "start": 36704,
-     "end": 36917,
+     "start": 36701,
+     "end": 36916,
      "text": "照到一个 microfacet 的光可能先弹到另一个 microfacet 再离开，\n而单次散射公式直接把它丢掉了。"
     },
     {
      "start": 36939,
-     "end": 37031,
+     "end": 37024,
      "text": "这是保留了这部分损失的粗糙金属球。"
     },
     {
-     "start": 37066,
-     "end": 37223,
+     "start": 37060,
+     "end": 37205,
      "text": "这是加上 O3DE 补偿后的样子：更亮，正如真实的粗糙金属那样。"
     }
    ],
@@ -1545,43 +1545,43 @@
    "id": "c9-texture",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 37293,
-   "frames": 1291,
+   "startFrame": 37276,
+   "frames": 1292,
    "headline": "BRDF 贴图",
    "captions": [
     {
-     "start": 37305,
-     "end": 37499,
+     "start": 37288,
+     "end": 37485,
      "text": "为了知道损失了多少，\nO3DE 在启动时一次性填充一张二百五十六乘二百五十六的贴图，"
     },
     {
-     "start": 37499,
-     "end": 37646,
+     "start": 37485,
+     "end": 37634,
      "text": "每个 texel 两个十六位浮点数；实验室用三十二位浮点数保存它。"
     },
     {
-     "start": 37681,
-     "end": 37788,
+     "start": 37670,
+     "end": 37768,
      "text": "每个 texel 代表一个视角和一个 roughness。"
     },
     {
-     "start": 37823,
-     "end": 37975,
+     "start": 37804,
+     "end": 37957,
      "text": "它取一千零二十四个 GGX 样本，把视线关于每个样本反射，"
     },
     {
-     "start": 37975,
-     "end": 38199,
+     "start": 37957,
+     "end": 38182,
      "text": "并对地平线以上的样本按可见性乘以四、\nV dot H 和 N dot L，再除以 N dot H 加权。"
     },
     {
-     "start": 38234,
-     "end": 38337,
+     "start": 38218,
+     "end": 38321,
      "text": "它把总和拆成作用于 F0 的 scale A 和 bias B。"
     },
     {
-     "start": 38372,
-     "end": 38538,
+     "start": 38357,
+     "end": 38521,
      "text": "各行上下颠倒地存储，\n所以光照按 smoothness 而不是 roughness 来查这张贴图。"
     }
    ],
@@ -1591,38 +1591,38 @@
    "id": "c9-compensation",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 38584,
-   "frames": 1055,
+   "startFrame": 38568,
+   "frames": 1052,
    "headline": "把能量补回来",
    "captions": [
     {
-     "start": 38596,
-     "end": 38687,
+     "start": 38580,
+     "end": 38675,
      "text": "A 加 B 是单次散射保留下来的能量。"
     },
     {
-     "start": 38722,
-     "end": 38872,
+     "start": 38711,
+     "end": 38863,
      "text": "在 roughness 零点八和这个视角下，它只有大约百分之五十七。"
     },
     {
-     "start": 38907,
-     "end": 39083,
+     "start": 38899,
+     "end": 39059,
      "text": "补偿按 F0 的比例把缺失的部分加回来，采用的是 Turquin 的方法。"
     },
     {
-     "start": 39118,
-     "end": 39281,
+     "start": 39095,
+     "end": 39258,
      "text": "它的 shader option 默认开启，但 StandardPBR 的材质属性默认关闭，"
     },
     {
-     "start": 39281,
-     "end": 39464,
+     "start": 39258,
+     "end": 39441,
      "text": "所以材质必须自己开启它，\nO3DE 的金属预设正是这样做的；实验室把它打开了。"
     },
     {
-     "start": 39499,
-     "end": 39593,
+     "start": 39477,
+     "end": 39573,
      "text": "在伪彩色中，补偿随 roughness 增大。"
     }
    ],
@@ -1632,33 +1632,33 @@
    "id": "c9-finding",
    "chapter": 9,
    "kind": "scene",
-   "startFrame": 39639,
-   "frames": 1039,
+   "startFrame": 39620,
+   "frames": 1063,
    "headline": "贴图着色器的一个细节",
    "captions": [
     {
-     "start": 39651,
-     "end": 39752,
+     "start": 39632,
+     "end": 39731,
      "text": "移植时，贴图着色器的一个细节引起了注意。"
     },
     {
-     "start": 39787,
-     "end": 39927,
+     "start": 39767,
+     "end": 39910,
      "text": "它的采样器计算一减 cos theta 平方的平方根，没有做保护。"
     },
     {
-     "start": 39962,
-     "end": 40238,
+     "start": 39946,
+     "end": 40215,
      "text": "在本实验使用的 GPU 上，对于几乎镜面的波瓣，cos theta\n可能被舍入到大于 1；这时平方根得到 NaN，这个样本就丢失了。"
     },
     {
-     "start": 40260,
-     "end": 40415,
+     "start": 40238,
+     "end": 40407,
      "text": "所以 WGSL 移植在 roughness 低于大约 0.03 时会丢失能量。"
     },
     {
-     "start": 40437,
-     "end": 40645,
+     "start": 40430,
+     "end": 40649,
      "text": "实验程序因此在 CPU 上生成这张贴图；\nO3DE 自己的贴图是否有这种损失，取决于 GPU。"
     }
    ],
@@ -1668,13 +1668,13 @@
    "id": "c9-sources",
    "chapter": 9,
    "kind": "sources",
-   "startFrame": 40678,
-   "frames": 215,
+   "startFrame": 40683,
+   "frames": 208,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 40690,
-     "end": 40860,
+     "start": 40695,
+     "end": 40857,
      "text": "贴图的着色器、它的尺寸、光照如何读取它，\n以及补偿，都在这些文件中。"
     }
    ],
@@ -1691,48 +1691,48 @@
    "id": "c10-record",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 40893,
-   "frames": 1875,
+   "startFrame": 40891,
+   "frames": 1897,
    "headline": "一个位置、一个强度、一个半径",
    "captions": [
     {
-     "start": 40905,
-     "end": 41039,
+     "start": 40903,
+     "end": 41041,
      "text": "到目前为止，光源本身一直是给定的；\n下一部分来看 simple point light 本身。"
     },
     {
-     "start": 41070,
-     "end": 41357,
+     "start": 41071,
+     "end": 41353,
      "text": "simple point light 保存一个位置、以 candela 计的 RGB 强度、\n衰减半径平方的倒数，以及它的 lighting channel 和 GI 标志。"
     },
     {
-     "start": 41410,
-     "end": 41550,
+     "start": 41403,
+     "end": 41541,
      "text": "它的强度随距离按平方反比衰减：地板上的虚线。"
     },
     {
-     "start": 41603,
+     "start": 41591,
      "end": 41746,
      "text": "然后一个窗口函数让它在衰减半径处平滑地降到零：实线。"
     },
     {
-     "start": 41799,
+     "start": 41796,
      "end": 41983,
-     "text": "这个窗口是一减去距离平方与半径平方之比的平方，整体再平方一次。"
+     "text": "窗口函数为 {@ formula=\"w = \\big(1 - (\\lit{1}{d^2} / r^2)^2\\big)^2\" display=yes colors=\"#ffd98a\"}：\n1 减去（距离平方与半径平方之比）的平方，再整体平方一次。"
     },
     {
-     "start": 42036,
-     "end": 42247,
+     "start": 42033,
+     "end": 42245,
      "text": "在半径的一半处它仍保留百分之八十八，\n所以实线紧跟虚线，只在边缘附近下降。"
     },
     {
-     "start": 42300,
-     "end": 42500,
+     "start": 42295,
+     "end": 42518,
      "text": "Readout 跟踪球体上的一个点：它的距离、\nfalloff 比值、窗口值，以及到达那里的照度。"
     },
     {
-     "start": 42553,
-     "end": 42704,
+     "start": 42568,
+     "end": 42727,
      "text": "六 candela 在不到两米处给出大约一点七 lux，这是在窗口函数之前。"
     }
    ],
@@ -1742,23 +1742,23 @@
    "id": "c10-radius",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 42768,
-   "frames": 684,
+   "startFrame": 42788,
+   "frames": 664,
    "headline": "衰减半径",
    "captions": [
     {
-     "start": 42780,
-     "end": 42933,
+     "start": 42800,
+     "end": 42956,
      "text": "在半径之外，这盏灯被完全跳过，所以半径也限制了它的开销。"
     },
     {
-     "start": 42986,
-     "end": 43067,
+     "start": 43006,
+     "end": 43080,
      "text": "增大半径，窗口就伸得更远。"
     },
     {
-     "start": 43120,
-     "end": 43388,
+     "start": 43130,
+     "end": 43391,
      "text": "在默认的自动模式下，半径是光源 lumen\n数乘以其颜色亮度、再除以零点一后的平方根。"
     }
    ],
@@ -1769,37 +1769,37 @@
    "chapter": 10,
    "kind": "scene",
    "startFrame": 43452,
-   "frames": 1183,
+   "frames": 1177,
    "headline": "Lighting channel",
    "captions": [
     {
      "start": 43464,
-     "end": 43579,
+     "end": 43584,
      "text": "光源和网格还带有 lighting channel：各有五位。"
     },
     {
-     "start": 43632,
-     "end": 43717,
+     "start": 43634,
+     "end": 43724,
      "text": "只有当二者的掩码有共同位时，光源才照亮表面。"
     },
     {
-     "start": 43770,
-     "end": 43932,
+     "start": 43774,
+     "end": 43926,
      "text": "组件一开始五个 channel 全部开启，\n所以默认情况下每盏灯都照到每个网格。"
     },
     {
-     "start": 43985,
-     "end": 44130,
+     "start": 43976,
+     "end": 44121,
      "text": "把光源的掩码设为一、球的掩码设为二，球就不再接收它的光。"
     },
     {
-     "start": 44183,
-     "end": 44306,
+     "start": 44171,
+     "end": 44292,
      "text": "skylight、反射 pass 和 decal 都忽略 channel。"
     },
     {
-     "start": 44359,
-     "end": 44571,
+     "start": 44342,
+     "end": 44568,
      "text": "一个发现：在方向光循环中，属于其他 channel\n的光源会结束整个循环，所以它后面的方向光也被跳过。"
     }
    ],
@@ -1809,23 +1809,23 @@
    "id": "c10-shadows",
    "chapter": 10,
    "kind": "scene",
-   "startFrame": 44635,
-   "frames": 558,
+   "startFrame": 44629,
+   "frames": 554,
    "headline": "没有阴影",
    "captions": [
     {
-     "start": 44647,
-     "end": 44718,
+     "start": 44641,
+     "end": 44711,
      "text": "Simple point light 不投射阴影。"
     },
     {
-     "start": 44771,
-     "end": 44893,
+     "start": 44761,
+     "end": 44880,
      "text": "光到达每一个朝向它的表面，即使在盒子后面也一样。"
     },
     {
-     "start": 44924,
-     "end": 45129,
+     "start": 44910,
+     "end": 45122,
      "text": "没有阴影贴图，又按屏幕 tile 剔除，\n每盏灯的开销只比给半径内的像素着色多一点。"
     }
    ],
@@ -1835,13 +1835,13 @@
    "id": "c10-sources",
    "chapter": 10,
    "kind": "sources",
-   "startFrame": 45193,
-   "frames": 228,
+   "startFrame": 45183,
+   "frames": 236,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 45205,
-     "end": 45379,
+     "start": 45195,
+     "end": 45378,
      "text": "光源的记录、它的衰减、跳过它的循环，以及自动半径都列在这里。"
     }
    ],
@@ -1859,28 +1859,28 @@
    "id": "c11-sky",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 45421,
-   "frames": 724,
+   "startFrame": 45419,
+   "frames": 745,
    "headline": "来自天空的光",
    "captions": [
     {
-     "start": 45433,
-     "end": 45566,
+     "start": 45431,
+     "end": 45574,
      "text": "simple point light 就讲到这里；下一部分离开点光源。"
     },
     {
-     "start": 45586,
-     "end": 45655,
+     "start": 45593,
+     "end": 45659,
      "text": "第二个光源是天空。"
     },
     {
-     "start": 45675,
-     "end": 45859,
+     "start": 45678,
+     "end": 45864,
      "text": "O3DE 的全局 skylight 是基于图像的光照：\n一个环境，存为两个 cubemap。"
     },
     {
-     "start": 45889,
-     "end": 46104,
+     "start": 45892,
+     "end": 46125,
      "text": "这个镜面球直接反射它；实验程序的天空是一张照片，\nPoly Haven 的 Tree Lined Driveway，太阳被截断。"
     }
    ],
@@ -1890,28 +1890,28 @@
    "id": "c11-bake",
    "chapter": 11,
    "kind": "mermaid",
-   "startFrame": 46145,
-   "frames": 988,
+   "startFrame": 46164,
+   "frames": 970,
    "headline": "离线烘焙",
    "captions": [
     {
-     "start": 46157,
-     "end": 46290,
+     "start": 46176,
+     "end": 46312,
      "text": "这些 cubemap 由 O3DE 的图像处理器离线烘焙。"
     },
     {
-     "start": 46310,
-     "end": 46655,
+     "start": 46331,
+     "end": 46663,
      "text": "GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，\n格式 R9G9B9E5，六级 mip，每级对应一档 roughness。"
     },
     {
-     "start": 46685,
-     "end": 46913,
+     "start": 46691,
+     "end": 46907,
      "text": "余弦滤波把它转换为每面三十二到一百二十八\ntexel 的漫反射 cubemap；实验室的是三十二。"
     },
     {
-     "start": 46943,
-     "end": 47102,
+     "start": 46935,
+     "end": 47104,
      "text": "另外，第五章的 BRDF 贴图提供 split sum 的各项。"
     }
    ],
@@ -1922,33 +1922,33 @@
    "id": "c11-prefilter",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 47133,
-   "frames": 951,
+   "startFrame": 47134,
+   "frames": 957,
    "headline": "预过滤高光 cubemap",
    "captions": [
     {
-     "start": 47145,
-     "end": 47268,
+     "start": 47146,
+     "end": 47276,
      "text": "高光 cubemap 的第 m 级 mip 按 m 除以 5 的 roughness 来滤波。"
     },
     {
-     "start": 47298,
-     "end": 47460,
+     "start": 47304,
+     "end": 47472,
      "text": "对每个 texel，滤波假设法线和视线都沿着这个 texel 的方向。"
     },
     {
-     "start": 47490,
-     "end": 47595,
+     "start": 47500,
+     "end": 47610,
      "text": "然后在它周围取 256 个 GGX 样本。"
     },
     {
-     "start": 47625,
-     "end": 47910,
+     "start": 47638,
+     "end": 47921,
      "text": "每个样本从比立体角匹配的 mip 再模糊一级的位置读取，\n并在两级 mip 之间混合，从而掩盖了样本这么少带来的噪点。"
     },
     {
-     "start": 47940,
-     "end": 48043,
+     "start": 47949,
+     "end": 48052,
      "text": "越粗糙的 mip 收集越宽的锥体，所以反射变模糊。"
     }
    ],
@@ -1958,23 +1958,23 @@
    "id": "c11-cosine",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 48084,
-   "frames": 629,
+   "startFrame": 48091,
+   "frames": 638,
    "headline": "漫反射 cubemap",
    "captions": [
     {
-     "start": 48096,
-     "end": 48258,
+     "start": 48103,
+     "end": 48274,
      "text": "漫反射 cubemap 是整个半球上的余弦加权平均，并按权重归一化。"
     },
     {
-     "start": 48288,
-     "end": 48467,
+     "start": 48302,
+     "end": 48488,
      "text": "所以它存的是辐照度除以 pi，\n漫反射 pass 直接乘以 albedo，不再做除法。"
     },
     {
-     "start": 48497,
-     "end": 48672,
+     "start": 48516,
+     "end": 48690,
      "text": "单独看，来自天空的漫反射光很柔和，\n被下方的地面和上方的蓝色染上颜色。"
     }
    ],
@@ -1984,33 +1984,33 @@
    "id": "c11-passes",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 48713,
-   "frames": 1304,
+   "startFrame": 48729,
+   "frames": 1270,
    "headline": "两个全屏 pass",
    "captions": [
     {
-     "start": 48725,
-     "end": 48985,
+     "start": 48741,
+     "end": 48998,
      "text": "运行时，forward pass 已经把乘以 diffuse response 和遮蔽的\nalbedo、F zero 以及 roughness 存下，每个都是八位。"
     },
     {
-     "start": 49015,
-     "end": 49145,
+     "start": 49026,
+     "end": 49155,
      "text": "漫反射 pass 把这个 albedo 乘以法线方向上的漫反射 cubemap。"
     },
     {
-     "start": 49175,
+     "start": 49183,
      "end": 49357,
      "text": "反射 pass 沿反射向量、\n在 mip roughness 乘以 5 处读取高光 cubemap。"
     },
     {
-     "start": 49387,
-     "end": 49701,
+     "start": 49385,
+     "end": 49694,
      "text": "它应用 split sum，即 F zero 乘以 A 再加 B，带上补偿，并把\nN dot V 限制在百分之一以上，然后乘以 skylight 的曝光和高光遮蔽。"
     },
     {
-     "start": 49731,
-     "end": 49976,
+     "start": 49722,
+     "end": 49960,
      "text": "漫反射 pass 直接加到 diffuse target 上；反射 pass 写入自己的\ntarget，再由一个合成 pass 加到 specular target 上。"
     }
    ],
@@ -2020,18 +2020,18 @@
    "id": "c11-readout",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 50017,
-   "frames": 445,
+   "startFrame": 49999,
+   "frames": 457,
    "headline": "一个点上的各项",
    "captions": [
     {
-     "start": 50029,
-     "end": 50255,
+     "start": 50011,
+     "end": 50239,
      "text": "在选中的点上，readout 显示每一步：\n8 位的 roughness、它的 mip、预过滤的光，以及 split sum。"
     },
     {
-     "start": 50285,
-     "end": 50421,
+     "start": 50267,
+     "end": 50417,
      "text": "随着 roughness 增大，mip 随之增大，反射变暗并扩散。"
     }
    ],
@@ -2041,23 +2041,23 @@
    "id": "c11-occlusion",
    "chapter": 11,
    "kind": "scene",
-   "startFrame": 50462,
-   "frames": 875,
+   "startFrame": 50456,
+   "frames": 876,
    "headline": "天空没有阴影",
    "captions": [
     {
-     "start": 50474,
-     "end": 50704,
+     "start": 50468,
+     "end": 50707,
      "text": "全局 skylight 不投射阴影：\n只有遮蔽贴图和默认开启的屏幕空间环境光遮蔽会让它变暗。"
     },
     {
-     "start": 50734,
-     "end": 50951,
+     "start": 50735,
+     "end": 50955,
      "text": "实验室的房间没有遮蔽贴图，所以在房间里只有\nSSAO 让天空的光变暗，在角落和物体下方。"
     },
     {
-     "start": 50981,
-     "end": 51296,
+     "start": 50983,
+     "end": 51293,
      "text": "对于室内，O3DE 用反射 probe（见下一章）取代天空的反射，\n用 diffuse probe grid 取代它的漫反射，实验室没有实现后者。"
     }
    ],
@@ -2067,12 +2067,12 @@
    "id": "c11-sources",
    "chapter": 11,
    "kind": "sources",
-   "startFrame": 51337,
-   "frames": 325,
+   "startFrame": 51332,
+   "frames": 329,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 51349,
+     "start": 51344,
      "end": 51631,
      "text": "烘焙、target 和两个 pass 都在这些文件中；\n滤波库 CubeMapGen 属于 AMD，采用 BSD 许可。"
     }
@@ -2092,38 +2092,38 @@
    "id": "c12-why",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 51662,
-   "frames": 1257,
+   "startFrame": 51661,
+   "frames": 1243,
    "headline": "房间的反射",
    "captions": [
     {
-     "start": 51674,
-     "end": 51891,
+     "start": 51673,
+     "end": 51880,
      "text": "天空的 cubemap 对整个场景一视同仁；\n下一部分的 reflection probe 让局部拥有自己的反射。"
     },
     {
-     "start": 51910,
-     "end": 52055,
+     "start": 51899,
+     "end": 52052,
      "text": "在房间里，反射出开阔的天空看起来是错的：墙应该出现在反射中。"
     },
     {
-     "start": 52074,
-     "end": 52262,
+     "start": 52071,
+     "end": 52252,
      "text": "反射 probe 解决这个问题：每个都是从场景中某一点烘焙的 cubemap，\n带一个 inner 盒和一个 outer 盒。"
     },
     {
-     "start": 52291,
-     "end": 52461,
+     "start": 52280,
+     "end": 52445,
      "text": "实验室放置了两个，并在 CPU 上自己烘焙，\n从每个 probe 的中心对房间着色。"
     },
     {
-     "start": 52480,
-     "end": 52714,
+     "start": 52464,
+     "end": 52704,
      "text": "它们的 cubemap 每面二百五十六 texel，\n与默认的 Medium 烘焙质量一致，并像天空的那样预过滤。"
     },
     {
-     "start": 52743,
-     "end": 52879,
+     "start": 52732,
+     "end": 52865,
      "text": "在抛光的金属地面上，probe 把房间自己的墙放进了反射里。"
     }
    ],
@@ -2133,43 +2133,43 @@
    "id": "c12-bake",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 52919,
-   "frames": 1943,
+   "startFrame": 52904,
+   "frames": 1934,
    "headline": "probe 烘焙了什么",
    "captions": [
     {
-     "start": 52931,
-     "end": 53170,
+     "start": 52916,
+     "end": 53152,
      "text": "烘焙一个 probe，会从 probe 的位置把场景渲染六次，\n立方体的每个面一次，每次是一个九十度宽的正方形视图。"
     },
     {
-     "start": 53199,
-     "end": 53452,
+     "start": 53180,
+     "end": 53433,
      "text": "O3DE 每帧绘制一个面，写入一千零二十四 texel\n的十六位浮点 target，并在五帧之后读回。"
     },
     {
-     "start": 53481,
-     "end": 53756,
+     "start": 53461,
+     "end": 53726,
      "text": "展开之后，probe 一的各个面显示：前方是后墙，\n左边是红墙，右边是青绿色的墙，上方是天空，下方是地面。"
     },
     {
-     "start": 53775,
-     "end": 54044,
+     "start": 53745,
+     "end": 54019,
      "text": "编辑器把六个面写进一个 DDS 文件，O3DE 的图像构建器再用\nskylight 自己的高光预设把它变成 probe 的 cubemap。"
     },
     {
-     "start": 54073,
-     "end": 54384,
+     "start": 54047,
+     "end": 54355,
      "text": "在默认的 Medium 质量下，就是每面二百五十六 texel 的 R9G9B9E5，\n以及六级 mip，每一级都用 GGX 为更粗糙的表面滤波。"
     },
     {
-     "start": 54413,
-     "end": 54609,
+     "start": 54383,
+     "end": 54591,
      "text": "实验室省去了大尺寸采集：\n它在 CPU 上直接着色二百五十六 texel 的面。"
     },
     {
-     "start": 54638,
-     "end": 54804,
+     "start": 54619,
+     "end": 54781,
      "text": "probe 二是右后角一个较小的 probe，后墙和青绿色的墙都近在身边。"
     }
    ],
@@ -2179,28 +2179,28 @@
    "id": "c12-ball",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 54862,
-   "frames": 835,
+   "startFrame": 54838,
+   "frames": 823,
    "headline": "可视化球",
    "captions": [
     {
-     "start": 54874,
-     "end": 55027,
+     "start": 54850,
+     "end": 55007,
      "text": "在编辑器中，每个 probe 还会在自己的位置显示一个球，默认开启。"
     },
     {
-     "start": 55056,
-     "end": 55236,
+     "start": 55035,
+     "end": 55213,
      "text": "它的材质是 roughness 为零的白色金属，\n所以它镜面反射 probe cubemap 最清晰的那级 mip。"
     },
     {
-     "start": 55265,
-     "end": 55388,
+     "start": 55241,
+     "end": 55354,
      "text": "采集时会排除这个球，所以 probe 不会把自己的球烘焙进去。"
     },
     {
-     "start": 55417,
-     "end": 55639,
+     "start": 55382,
+     "end": 55604,
      "text": "实验室画了自己的镜面球，它沿反射光线直接读取 cubemap；\nmip 越高，反射越模糊。"
     }
    ],
@@ -2210,33 +2210,33 @@
    "id": "c12-stencil",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 55697,
-   "frames": 1028,
+   "startFrame": 55661,
+   "frames": 1046,
    "headline": "Stencil 与混合权重",
    "captions": [
     {
-     "start": 55709,
-     "end": 55975,
+     "start": 55673,
+     "end": 55947,
      "text": "forward pass 之后运行五个 pass：一个 stencil pass、一个混合权重\npass、全局 pass，以及 outer 与 inner 两个 probe pass。"
     },
     {
-     "start": 56004,
-     "end": 56257,
+     "start": 55975,
+     "end": 56236,
      "text": "stencil pass 绘制每个 probe 稍微缩小的 inner 盒，\n给盒内每个使用反射 pass 的表面的 stencil 加一。"
     },
     {
-     "start": 56286,
-     "end": 56383,
+     "start": 56264,
+     "end": 56359,
      "text": "在所有 inner 盒之外的表面保持值三。"
     },
     {
-     "start": 56412,
-     "end": 56589,
+     "start": 56387,
+     "end": 56572,
      "text": "在那里，混合权重 pass 加上每个 probe 的权重：\n在 inner 盒处为一，到 outer 盒处降为零。"
     },
     {
-     "start": 56618,
-     "end": 56685,
+     "start": 56600,
+     "end": 56668,
      "text": "probe 重叠处，权重相加。"
     }
    ],
@@ -2246,38 +2246,38 @@
    "id": "c12-blend",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 56725,
+   "startFrame": 56707,
    "frames": 1129,
    "headline": "混合 probe",
    "captions": [
     {
-     "start": 56737,
-     "end": 56972,
+     "start": 56719,
+     "end": 56960,
      "text": "全局 pass 只在 inner 盒之外运行，\n并保留 probe 剩下的部分：一减它们的权重总和，最多为一。"
     },
     {
-     "start": 57001,
-     "end": 57183,
+     "start": 56988,
+     "end": 57172,
      "text": "outer pass 加上每个 probe 的反射乘以其权重，\n总和超过一时再除以总和。"
     },
     {
-     "start": 57212,
-     "end": 57359,
+     "start": 57200,
+     "end": 57346,
      "text": "在 inner 盒内，inner pass 直接用 probe 的反射替换。"
     },
     {
-     "start": 57388,
-     "end": 57539,
+     "start": 57374,
+     "end": 57526,
      "text": "probe 按从大到小绘制，所以大 probe 里的小 probe 最后写入。"
     },
     {
-     "start": 57568,
-     "end": 57679,
+     "start": 57554,
+     "end": 57667,
      "text": "与全局 pass 不同，probe 不乘高光遮蔽。"
     },
     {
-     "start": 57708,
-     "end": 57814,
+     "start": 57695,
+     "end": 57797,
      "text": "缩小 inner 盒，probe 混合的带就变宽了。"
     }
    ],
@@ -2287,28 +2287,28 @@
    "id": "c12-parallax",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 57854,
-   "frames": 814,
+   "startFrame": 57836,
+   "frames": 808,
    "headline": "视差校正",
    "captions": [
     {
-     "start": 57866,
-     "end": 57998,
+     "start": 57848,
+     "end": 57976,
      "text": "cubemap 是从一个点捕获的，但表面遍布整个盒子。"
     },
     {
-     "start": 58027,
-     "end": 58210,
+     "start": 58004,
+     "end": 58188,
      "text": "所以默认情况下，反射光线被追踪到 outer 盒，\n再从 probe 中心朝交点方向读取 cubemap。"
     },
     {
-     "start": 58239,
-     "end": 58482,
+     "start": 58216,
+     "end": 58462,
      "text": "所以 probe 的 outer 盒应当贴合它所在的房间：probe 在盒子之外\n看到的东西，会被当作位于盒面上来绘制，墙就会出现在错误的位置。"
     },
     {
-     "start": 58511,
-     "end": 58628,
+     "start": 58490,
+     "end": 58605,
      "text": "没有这一校正，反射中的墙就错位了。"
     }
    ],
@@ -2318,28 +2318,28 @@
    "id": "c12-composite",
    "chapter": 12,
    "kind": "scene",
-   "startFrame": 58668,
-   "frames": 838,
+   "startFrame": 58644,
+   "frames": 851,
    "headline": "合成，以及一个发现",
    "captions": [
     {
-     "start": 58680,
-     "end": 58861,
+     "start": 58656,
+     "end": 58845,
      "text": "然后 composite pass 在 stencil 标记了表面的地方，\n把 reflection target 加到高光上。"
     },
     {
-     "start": 58890,
-     "end": 59091,
+     "start": 58873,
+     "end": 59078,
      "text": "一个发现：这个 target 被清成零点四的灰色，\n而全局 pass 从不在 inner 盒内运行。"
     },
     {
-     "start": 59120,
-     "end": 59354,
+     "start": 59106,
+     "end": 59337,
      "text": "所以关闭基于图像的光照时，inner pass 会丢弃，\ninner 盒内的表面就会在高光上加上这层灰色。"
     },
     {
-     "start": 59383,
-     "end": 59466,
+     "start": 59365,
+     "end": 59456,
      "text": "实验室复现了这一点，如 readout 所示。"
     }
    ],
@@ -2349,13 +2349,13 @@
    "id": "c12-sources",
    "chapter": 12,
    "kind": "sources",
-   "startFrame": 59506,
-   "frames": 199,
+   "startFrame": 59495,
+   "frames": 204,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 59518,
-     "end": 59675,
+     "start": 59507,
+     "end": 59669,
      "text": "这些条目按顺序跟随五个反射 pass、probe 的高光，以及合成。"
     }
    ],
@@ -2381,33 +2381,33 @@
    "id": "c13-why",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 59705,
+   "startFrame": 59699,
    "frames": 883,
    "headline": "角落与缝隙",
    "captions": [
     {
-     "start": 59717,
-     "end": 59800,
+     "start": 59711,
+     "end": 59794,
      "text": "回顾之前的最后一部分是环境光遮蔽（ambient occlusion）。"
     },
     {
-     "start": 59822,
-     "end": 59957,
+     "start": 59816,
+     "end": 59953,
      "text": "天空的光照进角落和缝隙，和照在开阔地面上一样亮。"
     },
     {
-     "start": 59979,
-     "end": 60179,
+     "start": 59975,
+     "end": 60184,
      "text": "屏幕空间环境光遮蔽只凭深度缓冲让这些地方变暗，主管线默认运行它。"
     },
     {
-     "start": 60214,
-     "end": 60424,
+     "start": 60218,
+     "end": 60430,
      "text": "它在反射与次表面散射之后运行，\n只乘 diffuse target，直接光和天空光都一样。"
     },
     {
-     "start": 60459,
-     "end": 60542,
+     "start": 60464,
+     "end": 60537,
      "text": "这是它的结果，没有遮挡的地方是白色。"
     }
    ],
@@ -2417,43 +2417,43 @@
    "id": "c13-compute",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 60588,
-   "frames": 1623,
+   "startFrame": 60582,
+   "frames": 1605,
    "headline": "五十二个采样",
    "captions": [
     {
-     "start": 60600,
-     "end": 60755,
+     "start": 60594,
+     "end": 60752,
      "text": "它从线性深度开始：每个像素第一个 MSAA 采样的视图空间深度。"
     },
     {
-     "start": 60790,
-     "end": 60927,
+     "start": 60786,
+     "end": 60925,
      "text": "然后在半分辨率下工作，保留每个二乘二的左上像素。"
     },
     {
-     "start": 60962,
-     "end": 61280,
+     "start": 60959,
+     "end": 61265,
      "text": "SsaoCompute 由深度重建每个像素的位置和法线，并在其周围取五\n十二个采样：十二个近处的，以及与邻居共享的十轮、每轮四个。"
     },
     {
-     "start": 61315,
-     "end": 61605,
+     "start": 61299,
+     "end": 61590,
      "text": "每个采样贡献法线与指向它的方向之间的余弦，\n权重为一除以距离平方加零点零七，遮蔽就是它们的加权平均。"
     },
     {
-     "start": 61640,
-     "end": 61838,
+     "start": 61624,
+     "end": 61817,
      "text": "结果是一减遮蔽乘以 strength，再取二点二次幂，存为八位。"
     },
     {
-     "start": 61873,
-     "end": 62034,
+     "start": 61851,
+     "end": 62011,
      "text": "strength 默认为一，采样半径默认为半分辨率高度的百分之五。"
     },
     {
-     "start": 62069,
-     "end": 62165,
+     "start": 62045,
+     "end": 62142,
      "text": "半径越大，作用越远，变暗的范围越广。"
     }
    ],
@@ -2463,33 +2463,33 @@
    "id": "c13-blur",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 62211,
-   "frames": 1075,
+   "startFrame": 62187,
+   "frames": 1088,
    "headline": "深度感知模糊",
    "captions": [
     {
-     "start": 62223,
-     "end": 62373,
+     "start": 62199,
+     "end": 62357,
      "text": "原始结果有噪点，所以用深度感知模糊先竖直、再水平地平滑它。"
     },
     {
-     "start": 62408,
-     "end": 62639,
+     "start": 62391,
+     "end": 62636,
      "text": "它逐像素推进，保留前一个值的三分之二，\n深度斜率变化处保留得更少，所以边缘保持锐利。"
     },
     {
-     "start": 62674,
-     "end": 62819,
+     "start": 62670,
+     "end": 62814,
      "text": "每个输出一半来自其前八个像素开始的链，\n一半来自其后八个像素开始的链。"
     },
     {
-     "start": 62854,
-     "end": 63117,
+     "start": 62848,
+     "end": 63112,
      "text": "这些是模糊 pass 自己的默认值，在场景没有环境光遮蔽组件时使用；\n组件的默认值是零点八五和二百。"
     },
     {
-     "start": 63152,
-     "end": 63240,
+     "start": 63146,
+     "end": 63230,
      "text": "没有模糊时，采样的图案就会显露出来。"
     }
    ],
@@ -2499,28 +2499,28 @@
    "id": "c13-upsample",
    "chapter": 13,
    "kind": "scene",
-   "startFrame": 63286,
-   "frames": 923,
+   "startFrame": 63275,
+   "frames": 906,
    "headline": "回到全分辨率",
    "captions": [
     {
-     "start": 63298,
-     "end": 63549,
+     "start": 63287,
+     "end": 63527,
      "text": "DepthUpsample 从最近的四个半分辨率像素把它恢复到全分辨率，\n按距离和深度的接近程度加权。"
     },
     {
-     "start": 63584,
-     "end": 63754,
+     "start": 63561,
+     "end": 63729,
      "text": "然后 diffuse target 乘以它，合并 pass 再加上未受影响的高光。"
     },
     {
-     "start": 63789,
-     "end": 63967,
+     "start": 63763,
+     "end": 63941,
      "text": "实验室把这些阶段在 GPU 上逐一与 CPU 副本核对，\n误差在一个八位级以内。"
     },
     {
-     "start": 64002,
-     "end": 64176,
+     "start": 63975,
+     "end": 64148,
      "text": "由于它只看到深度，SSAO 对屏幕外或最近表面之后的东西一无所知。"
     }
    ],
@@ -2530,13 +2530,13 @@
    "id": "c13-sources",
    "chapter": 13,
    "kind": "sources",
-   "startFrame": 64209,
-   "frames": 232,
+   "startFrame": 64181,
+   "frames": 247,
    "headline": "源码在哪里",
    "captions": [
     {
-     "start": 64221,
-     "end": 64408,
+     "start": 64193,
+     "end": 64395,
      "text": "这些条目跟随 SSAO 从线性深度经过采样、\n模糊与上采样，直到对漫反射的乘法。"
     }
    ],
@@ -2564,53 +2564,53 @@
    "id": "c14-recap",
    "chapter": 14,
    "kind": "scene",
-   "startFrame": 64441,
-   "frames": 1702,
+   "startFrame": 64428,
+   "frames": 1673,
    "headline": "不透明帧总结",
    "captions": [
     {
-     "start": 64453,
-     "end": 64550,
+     "start": 64440,
+     "end": 64534,
      "text": "所有部分都讲完了；下面看看它们如何组合在一起。"
     },
     {
-     "start": 64550,
-     "end": 64683,
+     "start": 64534,
+     "end": 64673,
      "text": "总结一下：这就是 O3DE 的不透明帧，一个 pass 接一个 pass。"
     },
     {
-     "start": 64683,
-     "end": 64886,
+     "start": 64673,
+     "end": 64875,
      "text": "光源剔除把光源分到 tile 中；\nforward pass 先应用 decal，再计算每盏灯：GGX 高光、"
     },
     {
-     "start": 64886,
-     "end": 65109,
+     "start": 64875,
+     "end": 65099,
      "text": "开启时的 clear coat、按 response 缩放的\nLambertian 漫反射，以及 EnhancedPBR 的透射。"
     },
     {
-     "start": 65109,
-     "end": 65369,
+     "start": 65099,
+     "end": 65357,
      "text": "然后全屏 pass 加上 skylight 和反射 probe（从八位\ntarget 读回），SSAO 在合并之前让漫反射变暗。"
     },
     {
-     "start": 65369,
-     "end": 65592,
+     "start": 65357,
+     "end": 65568,
      "text": "实验程序把这些公式移植到 WGSL，\n逐一与 CPU 版本对照，并引用它所跟随的每一行。"
     },
     {
-     "start": 65592,
-     "end": 65842,
+     "start": 65568,
+     "end": 65808,
      "text": "它省略了阴影、面光源与方向光、默认关闭的屏幕空间反射，\n以及 diffuse probe grid。"
     },
     {
-     "start": 65842,
-     "end": 66086,
+     "start": 65808,
+     "end": 66038,
      "text": "本视频中的每个演示都可以在查看器中探索，\n滑块、伪代码和源码并排显示。"
     },
     {
-     "start": 66086,
-     "end": 66122,
+     "start": 66038,
+     "end": 66080,
      "text": "感谢观看。"
     }
    ],
@@ -2623,10 +2623,10 @@
    "blend": 0,
    "source": "c1-room",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
    "frame": 0,
@@ -2657,7 +2657,7 @@
         6.1
        ]
       ],
-      "seconds": 36.767
+      "seconds": 36.3
      }
     },
     {
@@ -2671,66 +2671,66 @@
        -0.3
       ],
       "degrees": 300.0,
-      "seconds": 36.767,
+      "seconds": 36.3,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 303,
+   "frame": 302,
    "blend": 0,
    "source": "c1-room",
    "callout": "point-light-loop"
   },
   {
-   "frame": 573,
+   "frame": 557,
    "blend": 0,
    "source": "c1-room",
    "callout": "engine-version"
   },
   {
-   "frame": 877,
+   "frame": 865,
    "blend": 0,
    "source": "c1-room",
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 1228,
+   "frame": 1212,
    "blend": 0,
    "source": "c1-frame",
    "callout": "light-culling-pass"
   },
   {
-   "frame": 1452,
+   "frame": 1437,
    "blend": 0,
    "source": "c1-frame",
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 1737,
+   "frame": 1720,
    "blend": 0,
    "source": "c1-frame",
    "callout": "forward-targets"
   },
   {
-   "frame": 2015,
+   "frame": 2009,
    "blend": 0,
    "source": "c1-frame",
    "callout": "opaque-pass-order"
   },
   {
-   "frame": 2379,
+   "frame": 2396,
    "blend": 0,
    "source": "c1-code",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 2379,
+   "frame": 2396,
    "blend": 0,
    "source": "c1-code",
    "animate": [
@@ -2758,13 +2758,13 @@
         6.2
        ]
       ],
-      "seconds": 40.967
+      "seconds": 40.3
      }
     }
    ]
   },
   {
-   "frame": 2391,
+   "frame": 2408,
    "blend": 0,
    "source": "c1-code",
    "panel": "code",
@@ -2774,7 +2774,7 @@
    ]
   },
   {
-   "frame": 2524,
+   "frame": 2542,
    "blend": 0,
    "source": "c1-code",
    "highlight": [
@@ -2784,7 +2784,7 @@
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 2720,
+   "frame": 2743,
    "blend": 0,
    "source": "c1-code",
    "highlight": [
@@ -2793,7 +2793,7 @@
    "callout": "direct-lighting"
   },
   {
-   "frame": 3059,
+   "frame": 3074,
    "blend": 0,
    "source": "c1-code",
    "highlight": [
@@ -2802,7 +2802,7 @@
    "callout": "ibl-forward-transparent"
   },
   {
-   "frame": 3411,
+   "frame": 3420,
    "blend": 0,
    "source": "c1-code",
    "highlight": [
@@ -2812,17 +2812,17 @@
    "callout": "diffuse-specular-merge"
   },
   {
-   "frame": 3608,
+   "frame": 3605,
    "blend": 0,
    "source": "c1-views",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 3608,
+   "frame": 3605,
    "blend": 0,
    "source": "c1-views",
    "animate": [
@@ -2850,7 +2850,7 @@
         6.2
        ]
       ],
-      "seconds": 21.4
+      "seconds": 21.133
      }
     },
     {
@@ -2864,20 +2864,20 @@
        -0.3
       ],
       "degrees": 180.0,
-      "seconds": 21.4,
+      "seconds": 21.133,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 3620,
+   "frame": 3617,
    "blend": 0,
    "source": "c1-views",
    "panel": "values"
   },
   {
-   "frame": 3716,
+   "frame": 3710,
    "blend": 0,
    "source": "c1-views",
    "params": {
@@ -2886,7 +2886,7 @@
    }
   },
   {
-   "frame": 3843,
+   "frame": 3838,
    "blend": 0,
    "source": "c1-views",
    "params": {
@@ -2895,27 +2895,27 @@
    }
   },
   {
-   "frame": 4040,
+   "frame": 4025,
    "blend": 0,
    "source": "c1-views",
+   "callout": "opaque-pass-order",
    "params": {
     "viewMode": 0.0,
     "formula": 0.0
-   },
-   "callout": "opaque-pass-order"
+   }
   },
   {
-   "frame": 4612,
+   "frame": 4607,
    "blend": 0,
    "source": "c2-why",
    "demo": "culling",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 4612,
+   "frame": 4607,
    "blend": 0,
    "source": "c2-why",
    "animate": [
@@ -2943,7 +2943,7 @@
         6.1
        ]
       ],
-      "seconds": 39.633
+      "seconds": 39.8
      }
     },
     {
@@ -2956,25 +2956,25 @@
         30.0
        ]
       ],
-      "seconds": 39.633
+      "seconds": 39.8
      }
     }
    ]
   },
   {
-   "frame": 4798,
+   "frame": 4788,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-pass"
   },
   {
-   "frame": 5166,
+   "frame": 5156,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-tile"
   },
   {
-   "frame": 5613,
+   "frame": 5610,
    "blend": 0,
    "source": "c2-why",
    "callout": "light-culling-pass"
@@ -2984,10 +2984,10 @@
    "blend": 0,
    "source": "c2-prepare",
    "demo": "culling",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
    "frame": 5801,
@@ -3018,7 +3018,7 @@
         6.2
        ]
       ],
-      "seconds": 37.767
+      "seconds": 37.7
      }
     }
    ]
@@ -3035,19 +3035,19 @@
    "callout": "tile-prepare"
   },
   {
-   "frame": 6008,
+   "frame": 6007,
    "blend": 0,
    "source": "c2-prepare",
    "callout": "tile-prepare"
   },
   {
-   "frame": 6300,
+   "frame": 6298,
    "blend": 0,
    "source": "c2-prepare",
    "callout": "tile-prepare"
   },
   {
-   "frame": 6493,
+   "frame": 6495,
    "blend": 0,
    "source": "c2-prepare",
    "callout": "tile-prepare",
@@ -3056,23 +3056,23 @@
    }
   },
   {
-   "frame": 6731,
+   "frame": 6727,
    "blend": 0,
    "source": "c2-prepare",
    "panel": "values"
   },
   {
-   "frame": 6934,
+   "frame": 6932,
    "blend": 0,
    "source": "c2-cull",
    "demo": "culling",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 6934,
+   "frame": 6932,
    "blend": 0,
    "source": "c2-cull",
    "animate": [
@@ -3100,13 +3100,13 @@
         6.2
        ]
       ],
-      "seconds": 46.233
+      "seconds": 45.833
      }
     }
    ]
   },
   {
-   "frame": 6946,
+   "frame": 6944,
    "blend": 0,
    "source": "c2-cull",
    "panel": "code",
@@ -3117,7 +3117,7 @@
    "callout": "light-culling-main"
   },
   {
-   "frame": 7093,
+   "frame": 7095,
    "blend": 0,
    "source": "c2-cull",
    "callout": "cull-point-light",
@@ -3126,7 +3126,7 @@
    }
   },
   {
-   "frame": 7313,
+   "frame": 7321,
    "blend": 0,
    "source": "c2-cull",
    "callout": "light-index-pack",
@@ -3141,13 +3141,13 @@
    "callout": "light-culling-main"
   },
   {
-   "frame": 7828,
+   "frame": 7821,
    "blend": 0,
    "source": "c2-cull",
    "callout": "light-culling-main"
   },
   {
-   "frame": 8180,
+   "frame": 8164,
    "blend": 0,
    "source": "c2-cull",
    "panel": "values",
@@ -3156,7 +3156,7 @@
    }
   },
   {
-   "frame": 8180,
+   "frame": 8164,
    "blend": 36,
    "source": "c2-cull",
    "params": {
@@ -3164,7 +3164,7 @@
    }
   },
   {
-   "frame": 8227,
+   "frame": 8199,
    "blend": 54,
    "source": "c2-cull",
    "params": {
@@ -3172,23 +3172,23 @@
    }
   },
   {
-   "frame": 8321,
+   "frame": 8307,
    "blend": 0,
    "source": "c2-forward",
    "demo": "culling",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 8333,
+   "frame": 8319,
    "blend": 0,
    "source": "c2-forward",
    "callout": "light-culling-remap"
   },
   {
-   "frame": 8526,
+   "frame": 8513,
    "blend": 0,
    "source": "c2-forward",
    "panel": "code",
@@ -3202,13 +3202,13 @@
    }
   },
   {
-   "frame": 8681,
+   "frame": 8671,
    "blend": 0,
    "source": "c2-forward",
    "panel": "values"
   },
   {
-   "frame": 9100,
+   "frame": 9111,
    "blend": 90,
    "source": "c2-forward",
    "params": {
@@ -3216,7 +3216,7 @@
    }
   },
   {
-   "frame": 9187,
+   "frame": 9204,
    "blend": 90,
    "source": "c2-forward",
    "params": {
@@ -3224,17 +3224,17 @@
    }
   },
   {
-   "frame": 9566,
+   "frame": 9588,
    "blend": 0,
    "source": "c2-finding",
    "demo": "culling",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 9566,
+   "frame": 9588,
    "blend": 0,
    "source": "c2-finding",
    "animate": [
@@ -3262,25 +3262,25 @@
         6.2
        ]
       ],
-      "seconds": 14.467
+      "seconds": 13.9
      }
     }
    ]
   },
   {
-   "frame": 9578,
+   "frame": 9600,
    "blend": 0,
    "source": "c2-finding",
    "callout": "polygon-not-culled"
   },
   {
-   "frame": 9737,
+   "frame": 9750,
    "blend": 0,
    "source": "c2-finding",
    "callout": "polygon-not-culled"
   },
   {
-   "frame": 10204,
+   "frame": 10208,
    "blend": 90,
    "source": "c3-inputs",
    "ease": "inOut",
@@ -3295,14 +3295,14 @@
     "pitch": 20.0,
     "distance": 3.5
    },
+   "callout": "",
    "params": {
     "readoutRows": 0.0,
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 10204,
+   "frame": 10208,
    "blend": 0,
    "source": "c3-inputs",
    "animate": [
@@ -3345,13 +3345,13 @@
         -0.55
        ]
       ],
-      "seconds": 25.4
+      "seconds": 25.767
      }
     }
    ]
   },
   {
-   "frame": 10388,
+   "frame": 10393,
    "blend": 0,
    "source": "c3-inputs",
    "callout": "surface-data",
@@ -3360,7 +3360,7 @@
    }
   },
   {
-   "frame": 10388,
+   "frame": 10393,
    "blend": 0,
    "source": "c3-inputs",
    "animate": [
@@ -3388,19 +3388,19 @@
         3.5
        ]
       ],
-      "seconds": 19.267
+      "seconds": 19.6
      }
     }
    ]
   },
   {
-   "frame": 10535,
+   "frame": 10540,
    "blend": 0,
    "source": "c3-inputs",
    "callout": "surface-eval"
   },
   {
-   "frame": 10773,
+   "frame": 10786,
    "blend": 0,
    "source": "c3-inputs",
    "params": {
@@ -3408,16 +3408,16 @@
    }
   },
   {
-   "frame": 10966,
+   "frame": 10981,
    "blend": 0,
    "source": "c3-metal",
+   "callout": "",
    "params": {
     "sphereMetallic": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 10966,
+   "frame": 10981,
    "blend": 0,
    "source": "c3-metal",
    "animate": [
@@ -3450,7 +3450,7 @@
         -0.55
        ]
       ],
-      "seconds": 34.633
+      "seconds": 34.2
      }
     },
     {
@@ -3482,13 +3482,13 @@
         3.5
        ]
       ],
-      "seconds": 34.633
+      "seconds": 34.2
      }
     }
    ]
   },
   {
-   "frame": 10978,
+   "frame": 10993,
    "blend": 0,
    "source": "c3-metal",
    "panel": "code",
@@ -3499,7 +3499,7 @@
    "callout": "material-utils"
   },
   {
-   "frame": 10978,
+   "frame": 10993,
    "blend": 24,
    "source": "c3-metal",
    "params": {
@@ -3507,7 +3507,7 @@
    }
   },
   {
-   "frame": 11062,
+   "frame": 11093,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3515,7 +3515,7 @@
    }
   },
   {
-   "frame": 11197,
+   "frame": 11214,
    "blend": 0,
    "source": "c3-metal",
    "highlight": [
@@ -3524,7 +3524,7 @@
    "callout": "set-albedo-f0"
   },
   {
-   "frame": 11197,
+   "frame": 11214,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3532,7 +3532,7 @@
    }
   },
   {
-   "frame": 11271,
+   "frame": 11301,
    "blend": 45,
    "source": "c3-metal",
    "params": {
@@ -3540,17 +3540,17 @@
    }
   },
   {
-   "frame": 11395,
+   "frame": 11411,
    "blend": 0,
    "source": "c3-metal",
+   "panel": "values",
    "callout": "material-utils",
    "params": {
     "formula": 2.0
-   },
-   "panel": "values"
+   }
   },
   {
-   "frame": 11761,
+   "frame": 11768,
    "blend": 30,
    "source": "c3-metal",
    "params": {
@@ -3558,13 +3558,13 @@
    }
   },
   {
-   "frame": 12005,
+   "frame": 12007,
    "blend": 0,
    "source": "c3-rough",
    "callout": ""
   },
   {
-   "frame": 12017,
+   "frame": 12019,
    "blend": 24,
    "source": "c3-rough",
    "panel": "values",
@@ -3574,7 +3574,7 @@
    }
   },
   {
-   "frame": 12017,
+   "frame": 12019,
    "blend": 75,
    "source": "c3-rough",
    "ease": "inOut",
@@ -3593,7 +3593,7 @@
    }
   },
   {
-   "frame": 12017,
+   "frame": 12019,
    "blend": 45,
    "source": "c3-rough",
    "params": {
@@ -3602,7 +3602,7 @@
    }
   },
   {
-   "frame": 12144,
+   "frame": 12145,
    "blend": 0,
    "source": "c3-rough",
    "panel": "code",
@@ -3613,7 +3613,7 @@
    "callout": "roughness-values"
   },
   {
-   "frame": 12144,
+   "frame": 12145,
    "blend": 0,
    "source": "c3-rough",
    "animate": [
@@ -3635,7 +3635,7 @@
    ]
   },
   {
-   "frame": 12242,
+   "frame": 12230,
    "blend": 0,
    "source": "c3-rough",
    "animate": [
@@ -3657,16 +3657,16 @@
    ]
   },
   {
-   "frame": 12390,
+   "frame": 12372,
    "blend": 30,
    "source": "c3-rough",
+   "callout": "roughness-values",
    "params": {
     "sphereRoughness": 0.5
-   },
-   "callout": "roughness-values"
+   }
   },
   {
-   "frame": 12390,
+   "frame": 12372,
    "blend": 0,
    "source": "c3-rough",
    "animate": [
@@ -3688,13 +3688,13 @@
    ]
   },
   {
-   "frame": 12625,
+   "frame": 12601,
    "blend": 0,
    "source": "c3-rough",
    "panel": "values"
   },
   {
-   "frame": 12625,
+   "frame": 12601,
    "blend": 30,
    "source": "c3-rough",
    "params": {
@@ -3702,7 +3702,7 @@
    }
   },
   {
-   "frame": 12657,
+   "frame": 12631,
    "blend": 36,
    "source": "c3-rough",
    "params": {
@@ -3710,7 +3710,7 @@
    }
   },
   {
-   "frame": 12689,
+   "frame": 12665,
    "blend": 36,
    "source": "c3-rough",
    "params": {
@@ -3718,19 +3718,10 @@
    }
   },
   {
-   "frame": 12783,
+   "frame": 12757,
    "blend": 90,
    "source": "c3-aa",
    "ease": "inOut",
-   "params": {
-    "cameraDrift": 1.0,
-    "lobe": 0.0,
-    "labels": 1.0,
-    "sphereRoughness": 0.35,
-    "formula": 0.0,
-    "readoutRows": 99.0
-   },
-   "callout": "",
    "camera": {
     "target": [
      -1.05,
@@ -3740,10 +3731,19 @@
     "yaw": -10.0,
     "pitch": 22.0,
     "distance": 3.5
+   },
+   "callout": "",
+   "params": {
+    "cameraDrift": 1.0,
+    "lobe": 0.0,
+    "labels": 1.0,
+    "sphereRoughness": 0.35,
+    "formula": 0.0,
+    "readoutRows": 99.0
    }
   },
   {
-   "frame": 12783,
+   "frame": 12757,
    "blend": 0,
    "source": "c3-aa",
    "animate": [
@@ -3782,7 +3782,7 @@
    ]
   },
   {
-   "frame": 12795,
+   "frame": 12769,
    "blend": 0,
    "source": "c3-aa",
    "panel": "code",
@@ -3793,13 +3793,13 @@
    "callout": "specular-aa-default"
   },
   {
-   "frame": 13057,
+   "frame": 13036,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 13057,
+   "frame": 13036,
    "blend": 0,
    "source": "c3-aa",
    "animate": [
@@ -3828,13 +3828,13 @@
    ]
   },
   {
-   "frame": 13296,
+   "frame": 13272,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 13519,
+   "frame": 13500,
    "blend": 30,
    "source": "c3-aa",
    "panel": "values",
@@ -3844,7 +3844,7 @@
    }
   },
   {
-   "frame": 13519,
+   "frame": 13500,
    "blend": 75,
    "source": "c3-aa",
    "ease": "inOut",
@@ -3860,7 +3860,7 @@
    }
   },
   {
-   "frame": 13519,
+   "frame": 13500,
    "blend": 0,
    "source": "c3-aa",
    "params": {
@@ -3868,7 +3868,7 @@
    }
   },
   {
-   "frame": 13598,
+   "frame": 13569,
    "blend": 0,
    "source": "c3-aa",
    "params": {
@@ -3876,13 +3876,13 @@
    }
   },
   {
-   "frame": 13727,
+   "frame": 13709,
    "blend": 0,
    "source": "c3-aa",
    "callout": "specular-aa"
   },
   {
-   "frame": 13727,
+   "frame": 13709,
    "blend": 75,
    "source": "c3-aa",
    "ease": "inOut",
@@ -3895,7 +3895,7 @@
    }
   },
   {
-   "frame": 13727,
+   "frame": 13709,
    "blend": 0,
    "source": "c3-aa",
    "animate": [
@@ -3918,7 +3918,7 @@
         3.6
        ]
       ],
-      "seconds": 7.933
+      "seconds": 7.9
      }
     },
     {
@@ -3935,24 +3935,24 @@
         0.5141
        ]
       ],
-      "seconds": 7.933
+      "seconds": 7.9
      }
     }
    ]
   },
   {
-   "frame": 13965,
+   "frame": 13946,
    "blend": 45,
    "source": "c3-occlusion",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0,
     "sphereRoughness": 0.35,
     "formula": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 13965,
+   "frame": 13946,
    "blend": 0,
    "source": "c3-occlusion",
    "animate": [
@@ -4017,13 +4017,13 @@
         3.5
        ]
       ],
-      "seconds": 44.567
+      "seconds": 44.767
      }
     }
    ]
   },
   {
-   "frame": 13977,
+   "frame": 13958,
    "blend": 0,
    "source": "c3-occlusion",
    "panel": "code",
@@ -4038,19 +4038,19 @@
    }
   },
   {
-   "frame": 14258,
+   "frame": 14241,
    "blend": 0,
    "source": "c3-occlusion",
    "callout": "occlusion-defaults"
   },
   {
-   "frame": 14453,
+   "frame": 14435,
    "blend": 0,
    "source": "c3-occlusion",
    "callout": "occlusion-input"
   },
   {
-   "frame": 14598,
+   "frame": 14581,
    "blend": 0,
    "source": "c3-occlusion",
    "highlight": [
@@ -4059,7 +4059,7 @@
    "callout": "occlusion-finalize"
   },
   {
-   "frame": 14875,
+   "frame": 14856,
    "blend": 0,
    "source": "c3-occlusion",
    "highlight": [
@@ -4068,13 +4068,13 @@
    "callout": "occlusion-finalize"
   },
   {
-   "frame": 15097,
+   "frame": 15079,
    "blend": 0,
    "source": "c3-occlusion",
    "panel": "values"
   },
   {
-   "frame": 15097,
+   "frame": 15079,
    "blend": 36,
    "source": "c3-occlusion",
    "params": {
@@ -4082,7 +4082,7 @@
    }
   },
   {
-   "frame": 15169,
+   "frame": 15164,
    "blend": 45,
    "source": "c3-occlusion",
    "params": {
@@ -4090,7 +4090,7 @@
    }
   },
   {
-   "frame": 15219,
+   "frame": 15200,
    "blend": 0,
    "source": "c3-occlusion",
    "animate": [
@@ -4108,21 +4108,16 @@
         0.95
        ]
       ],
-      "seconds": 2.767
+      "seconds": 2.967
      }
     }
    ]
   },
   {
-   "frame": 15302,
+   "frame": 15289,
    "blend": 90,
    "source": "c3-examples",
    "demo": "room",
-   "params": {
-    "labels": 1.0,
-    "cameraDrift": 1.0
-   },
-   "callout": "",
    "camera": {
     "target": [
      0.0,
@@ -4132,10 +4127,15 @@
     "yaw": 18.0,
     "pitch": 16.0,
     "distance": 6.4
+   },
+   "callout": "",
+   "params": {
+    "labels": 1.0,
+    "cameraDrift": 1.0
    }
   },
   {
-   "frame": 15302,
+   "frame": 15289,
    "blend": 0,
    "source": "c3-examples",
    "params": {
@@ -4143,7 +4143,7 @@
    }
   },
   {
-   "frame": 15430,
+   "frame": 15425,
    "blend": 45,
    "source": "c3-examples",
    "params": {
@@ -4151,7 +4151,7 @@
    }
   },
   {
-   "frame": 15629,
+   "frame": 15628,
    "blend": 45,
    "source": "c3-examples",
    "params": {
@@ -4159,27 +4159,27 @@
    }
   },
   {
-   "frame": 15795,
+   "frame": 15799,
    "blend": 45,
    "source": "c3-examples",
+   "callout": "set-albedo-f0",
    "params": {
     "teapotMetallic": 0.0,
     "boxRoughness": 0.55
-   },
-   "callout": "set-albedo-f0"
+   }
   },
   {
-   "frame": 16271,
+   "frame": 16265,
    "blend": 0,
    "source": "c4-what",
    "demo": "decals",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 16271,
+   "frame": 16265,
    "blend": 0,
    "source": "c4-what",
    "animate": [
@@ -4207,7 +4207,7 @@
         2.5
        ]
       ],
-      "seconds": 37.133
+      "seconds": 36.9
      }
     },
     {
@@ -4221,42 +4221,42 @@
        0.55
       ],
       "degrees": 360.0,
-      "seconds": 37.133,
+      "seconds": 36.9,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 16465,
+   "frame": 16448,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-apply"
   },
   {
-   "frame": 16887,
+   "frame": 16882,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-options"
   },
   {
-   "frame": 17105,
+   "frame": 17094,
    "blend": 0,
    "source": "c4-what",
    "callout": "decal-evaluate-order"
   },
   {
-   "frame": 17385,
+   "frame": 17372,
    "blend": 0,
    "source": "c4-apply",
    "demo": "decals",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 17385,
+   "frame": 17372,
    "blend": 0,
    "source": "c4-apply",
    "animate": [
@@ -4284,7 +4284,7 @@
         2.5
        ]
       ],
-      "seconds": 46.1
+      "seconds": 46.667
      }
     },
     {
@@ -4298,14 +4298,14 @@
        0.55
       ],
       "degrees": 360.0,
-      "seconds": 46.1,
+      "seconds": 46.667,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 17397,
+   "frame": 17384,
    "blend": 0,
    "source": "c4-apply",
    "panel": "code",
@@ -4316,13 +4316,13 @@
    "callout": "decal-apply"
   },
   {
-   "frame": 17668,
+   "frame": 17664,
    "blend": 0,
    "source": "c4-apply",
    "callout": "decal-apply"
   },
   {
-   "frame": 17844,
+   "frame": 17837,
    "blend": 0,
    "source": "c4-apply",
    "highlight": [
@@ -4334,7 +4334,7 @@
    }
   },
   {
-   "frame": 18115,
+   "frame": 18111,
    "blend": 0,
    "source": "c4-apply",
    "callout": "decal-apply",
@@ -4343,7 +4343,7 @@
    }
   },
   {
-   "frame": 18349,
+   "frame": 18352,
    "blend": 0,
    "source": "c4-apply",
    "highlight": [
@@ -4354,23 +4354,23 @@
    }
   },
   {
-   "frame": 18530,
+   "frame": 18534,
    "blend": 0,
    "source": "c4-apply",
    "callout": "tangent-space-normal"
   },
   {
-   "frame": 18768,
+   "frame": 18772,
    "blend": 0,
    "source": "c4-angle",
    "demo": "decals",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 18768,
+   "frame": 18772,
    "blend": 0,
    "source": "c4-angle",
    "animate": [
@@ -4398,13 +4398,13 @@
         2.5
        ]
       ],
-      "seconds": 27.567
+      "seconds": 27.333
      }
     }
    ]
   },
   {
-   "frame": 18780,
+   "frame": 18784,
    "blend": 0,
    "source": "c4-angle",
    "panel": "code",
@@ -4418,19 +4418,19 @@
    }
   },
   {
-   "frame": 18957,
+   "frame": 18962,
    "blend": 0,
    "source": "c4-angle",
    "callout": "decal-attenuation"
   },
   {
-   "frame": 19214,
+   "frame": 19212,
    "blend": 0,
    "source": "c4-angle",
    "panel": "values"
   },
   {
-   "frame": 19214,
+   "frame": 19212,
    "blend": 45,
    "source": "c4-angle",
    "params": {
@@ -4438,7 +4438,7 @@
    }
   },
   {
-   "frame": 19265,
+   "frame": 19263,
    "blend": 45,
    "source": "c4-angle",
    "params": {
@@ -4446,7 +4446,7 @@
    }
   },
   {
-   "frame": 19370,
+   "frame": 19371,
    "blend": 36,
    "source": "c4-angle",
    "callout": "decal-defaults",
@@ -4455,17 +4455,17 @@
    }
   },
   {
-   "frame": 19595,
+   "frame": 19592,
    "blend": 0,
    "source": "c4-order",
    "demo": "decals",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 19595,
+   "frame": 19592,
    "blend": 0,
    "source": "c4-order",
    "animate": [
@@ -4493,13 +4493,13 @@
         2.5
        ]
       ],
-      "seconds": 39.033
+      "seconds": 38.7
      }
     }
    ]
   },
   {
-   "frame": 19752,
+   "frame": 19751,
    "blend": 0,
    "source": "c4-order",
    "panel": "code",
@@ -4510,7 +4510,7 @@
    "callout": "decal-cull"
   },
   {
-   "frame": 19963,
+   "frame": 19962,
    "blend": 0,
    "source": "c4-order",
    "highlight": [
@@ -4519,14 +4519,14 @@
    "callout": "decal-sort"
   },
   {
-   "frame": 20216,
+   "frame": 20202,
    "blend": 0,
    "source": "c4-order",
    "panel": "values",
    "callout": "decal-defaults"
   },
   {
-   "frame": 20454,
+   "frame": 20440,
    "blend": 0,
    "source": "c4-order",
    "params": {
@@ -4534,7 +4534,7 @@
    }
   },
   {
-   "frame": 20591,
+   "frame": 20580,
    "blend": 0,
    "source": "c4-order",
    "panel": "code",
@@ -4545,20 +4545,20 @@
    "callout": "decal-forward"
   },
   {
-   "frame": 21000,
+   "frame": 20989,
    "blend": 0,
    "source": "c5-vectors",
    "demo": "specular",
    "camera": {},
+   "callout": "",
    "params": {
     "vectorsShown": 0.0,
     "lobe": 0.0,
     "readoutRows": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 21000,
+   "frame": 20989,
    "blend": 90,
    "source": "c5-vectors",
    "ease": "inOut",
@@ -4577,7 +4577,7 @@
    }
   },
   {
-   "frame": 21000,
+   "frame": 20989,
    "blend": 0,
    "source": "c5-vectors",
    "animate": [
@@ -4621,7 +4621,7 @@
    ]
   },
   {
-   "frame": 21205,
+   "frame": 21183,
    "blend": 0,
    "source": "c5-vectors",
    "params": {
@@ -4629,7 +4629,7 @@
    }
   },
   {
-   "frame": 21205,
+   "frame": 21183,
    "blend": 0,
    "source": "c5-vectors",
    "animate": [
@@ -4663,7 +4663,7 @@
    ]
   },
   {
-   "frame": 21319,
+   "frame": 21302,
    "blend": 18,
    "source": "c5-vectors",
    "params": {
@@ -4671,7 +4671,7 @@
    }
   },
   {
-   "frame": 21384,
+   "frame": 21363,
    "blend": 18,
    "source": "c5-vectors",
    "params": {
@@ -4679,7 +4679,7 @@
    }
   },
   {
-   "frame": 21458,
+   "frame": 21441,
    "blend": 18,
    "source": "c5-vectors",
    "params": {
@@ -4687,7 +4687,7 @@
    }
   },
   {
-   "frame": 21458,
+   "frame": 21441,
    "blend": 150,
    "source": "c5-vectors",
    "ease": "inOut",
@@ -4706,7 +4706,7 @@
    }
   },
   {
-   "frame": 21458,
+   "frame": 21441,
    "blend": 0,
    "source": "c5-vectors",
    "animate": [
@@ -4730,7 +4730,7 @@
    ]
   },
   {
-   "frame": 21668,
+   "frame": 21651,
    "blend": 18,
    "source": "c5-vectors",
    "params": {
@@ -4738,7 +4738,7 @@
    }
   },
   {
-   "frame": 21785,
+   "frame": 21777,
    "blend": 0,
    "source": "c5-vectors",
    "animate": [
@@ -4760,7 +4760,7 @@
    ]
   },
   {
-   "frame": 21851,
+   "frame": 21852,
    "blend": 0,
    "source": "c5-vectors",
    "animate": [
@@ -4782,17 +4782,17 @@
    ]
   },
   {
-   "frame": 21950,
+   "frame": 21943,
    "blend": 0,
    "source": "c5-terms",
    "demo": "specular",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 21962,
+   "frame": 21955,
    "blend": 0,
    "source": "c5-terms",
    "panel": "values",
@@ -4802,9 +4802,10 @@
    }
   },
   {
-   "frame": 22217,
+   "frame": 22198,
    "blend": 0,
    "source": "c5-terms",
+   "panel": "values",
    "highlight": [
     "d"
    ],
@@ -4812,11 +4813,10 @@
    "params": {
     "viewMode": 3.0,
     "formula": 1.0
-   },
-   "panel": "values"
+   }
   },
   {
-   "frame": 22514,
+   "frame": 22493,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4838,7 +4838,7 @@
    ]
   },
   {
-   "frame": 22589,
+   "frame": 22558,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4860,7 +4860,7 @@
    ]
   },
   {
-   "frame": 22685,
+   "frame": 22650,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
@@ -4873,13 +4873,13 @@
    }
   },
   {
-   "frame": 22862,
+   "frame": 22838,
    "blend": 0,
    "source": "c5-terms",
    "callout": "ggx-g"
   },
   {
-   "frame": 22862,
+   "frame": 22838,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4901,7 +4901,7 @@
    ]
   },
   {
-   "frame": 22970,
+   "frame": 22961,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4923,7 +4923,7 @@
    ]
   },
   {
-   "frame": 23100,
+   "frame": 23076,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
@@ -4936,7 +4936,7 @@
    }
   },
   {
-   "frame": 23100,
+   "frame": 23076,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4958,7 +4958,7 @@
    ]
   },
   {
-   "frame": 23212,
+   "frame": 23210,
    "blend": 0,
    "source": "c5-terms",
    "animate": [
@@ -4980,7 +4980,7 @@
    ]
   },
   {
-   "frame": 23346,
+   "frame": 23327,
    "blend": 0,
    "source": "c5-terms",
    "highlight": [
@@ -4994,17 +4994,17 @@
    }
   },
   {
-   "frame": 23546,
+   "frame": 23534,
    "blend": 0,
    "source": "c5-sweep",
    "demo": "specular",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 23558,
+   "frame": 23546,
    "blend": 15,
    "source": "c5-sweep",
    "panel": "values",
@@ -5015,7 +5015,7 @@
    }
   },
   {
-   "frame": 23653,
+   "frame": 23641,
    "blend": 0,
    "source": "c5-sweep",
    "animate": [
@@ -5037,7 +5037,7 @@
    ]
   },
   {
-   "frame": 23753,
+   "frame": 23749,
    "blend": 0,
    "source": "c5-sweep",
    "animate": [
@@ -5059,10 +5059,9 @@
    ]
   },
   {
-   "frame": 23875,
+   "frame": 23869,
    "blend": 0,
    "source": "c5-sweep",
-   "params": {},
    "animate": [
     {
      "orbit": {
@@ -5082,12 +5081,9 @@
    ]
   },
   {
-   "frame": 23994,
+   "frame": 24000,
    "blend": 0,
    "source": "c5-sweep",
-   "params": {
-    "formula": 3.0
-   },
    "animate": [
     {
      "orbit": {
@@ -5104,10 +5100,13 @@
       "ease": "smooth"
      }
     }
-   ]
+   ],
+   "params": {
+    "formula": 3.0
+   }
   },
   {
-   "frame": 24172,
+   "frame": 24185,
    "blend": 0,
    "source": "c5-sweep",
    "params": {
@@ -5115,7 +5114,7 @@
    }
   },
   {
-   "frame": 24172,
+   "frame": 24185,
    "blend": 0,
    "source": "c5-sweep",
    "animate": [
@@ -5137,7 +5136,7 @@
    ]
   },
   {
-   "frame": 24214,
+   "frame": 24225,
    "blend": 0,
    "source": "c5-sweep",
    "animate": [
@@ -5159,27 +5158,27 @@
    ]
   },
   {
-   "frame": 24289,
+   "frame": 24304,
    "blend": 0,
    "source": "c5-rough",
    "demo": "specular",
+   "callout": "",
    "params": {
     "lobe": 1.0,
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 24301,
+   "frame": 24316,
    "blend": 0,
    "source": "c5-rough",
+   "callout": "ggx-d",
    "params": {
     "formula": 1.0
-   },
-   "callout": "ggx-d"
+   }
   },
   {
-   "frame": 24395,
+   "frame": 24407,
    "blend": 45,
    "source": "c5-rough",
    "params": {
@@ -5195,7 +5194,7 @@
    }
   },
   {
-   "frame": 24670,
+   "frame": 24673,
    "blend": 0,
    "source": "c5-rough",
    "params": {
@@ -5203,7 +5202,7 @@
    }
   },
   {
-   "frame": 24670,
+   "frame": 24673,
    "blend": 36,
    "source": "c5-rough",
    "params": {
@@ -5211,7 +5210,7 @@
    }
   },
   {
-   "frame": 24729,
+   "frame": 24733,
    "blend": 45,
    "source": "c5-rough",
    "params": {
@@ -5219,17 +5218,17 @@
    }
   },
   {
-   "frame": 25031,
+   "frame": 25028,
    "blend": 0,
    "source": "c6-layer",
    "demo": "clearcoat",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 25031,
+   "frame": 25028,
    "blend": 0,
    "source": "c6-layer",
    "animate": [
@@ -5257,7 +5256,7 @@
         3.05
        ]
       ],
-      "seconds": 22.6
+      "seconds": 23.3
      }
     },
     {
@@ -5279,29 +5278,29 @@
    ]
   },
   {
-   "frame": 25363,
+   "frame": 25359,
    "blend": 0,
    "source": "c6-layer",
    "callout": "clear-coat-default"
   },
   {
-   "frame": 25518,
+   "frame": 25523,
    "blend": 0,
    "source": "c6-layer",
    "callout": "clear-coat-inputs"
   },
   {
-   "frame": 25709,
+   "frame": 25727,
    "blend": 0,
    "source": "c6-base",
    "demo": "clearcoat",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 25709,
+   "frame": 25727,
    "blend": 0,
    "source": "c6-base",
    "animate": [
@@ -5324,7 +5323,7 @@
    ]
   },
   {
-   "frame": 25721,
+   "frame": 25739,
    "blend": 0,
    "source": "c6-base",
    "panel": "code",
@@ -5338,13 +5337,13 @@
    }
   },
   {
-   "frame": 25934,
+   "frame": 25942,
    "blend": 0,
    "source": "c6-base",
    "callout": "clear-coat-f0"
   },
   {
-   "frame": 26223,
+   "frame": 26235,
    "blend": 0,
    "source": "c6-base",
    "highlight": [
@@ -5353,7 +5352,7 @@
    "callout": "clear-coat-response"
   },
   {
-   "frame": 26365,
+   "frame": 26376,
    "blend": 0,
    "source": "c6-base",
    "highlight": [
@@ -5365,23 +5364,23 @@
    }
   },
   {
-   "frame": 26532,
+   "frame": 26542,
    "blend": 0,
    "source": "c6-base",
    "callout": "clear-coat-diffuse"
   },
   {
-   "frame": 26725,
+   "frame": 26743,
    "blend": 0,
    "source": "c6-specular",
    "demo": "clearcoat",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 26725,
+   "frame": 26743,
    "blend": 0,
    "source": "c6-specular",
    "animate": [
@@ -5409,7 +5408,7 @@
         3.05
        ]
       ],
-      "seconds": 29.8
+      "seconds": 29.233
      }
     },
     {
@@ -5431,7 +5430,7 @@
    ]
   },
   {
-   "frame": 26737,
+   "frame": 26755,
    "blend": 0,
    "source": "c6-specular",
    "panel": "code",
@@ -5445,7 +5444,7 @@
    }
   },
   {
-   "frame": 26950,
+   "frame": 26968,
    "blend": 0,
    "source": "c6-specular",
    "callout": "clear-coat-specular",
@@ -5454,7 +5453,7 @@
    }
   },
   {
-   "frame": 27252,
+   "frame": 27258,
    "blend": 0,
    "source": "c6-specular",
    "panel": "values",
@@ -5463,7 +5462,7 @@
    }
   },
   {
-   "frame": 27423,
+   "frame": 27429,
    "blend": 0,
    "source": "c6-specular",
    "params": {
@@ -5472,7 +5471,7 @@
    }
   },
   {
-   "frame": 27423,
+   "frame": 27429,
    "blend": 30,
    "source": "c6-specular",
    "params": {
@@ -5480,7 +5479,7 @@
    }
   },
   {
-   "frame": 27498,
+   "frame": 27516,
    "blend": 60,
    "source": "c6-specular",
    "params": {
@@ -5488,17 +5487,17 @@
    }
   },
   {
-   "frame": 27619,
+   "frame": 27620,
    "blend": 0,
    "source": "c6-ibl",
    "demo": "clearcoat",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 27619,
+   "frame": 27620,
    "blend": 0,
    "source": "c6-ibl",
    "animate": [
@@ -5526,25 +5525,25 @@
         3.1
        ]
       ],
-      "seconds": 34.533
+      "seconds": 34.833
      }
     }
    ]
   },
   {
-   "frame": 27631,
+   "frame": 27632,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "clear-coat-forward-ibl"
   },
   {
-   "frame": 27792,
+   "frame": 27798,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "forward-ibl-stencil"
   },
   {
-   "frame": 28053,
+   "frame": 28069,
    "blend": 0,
    "source": "c6-ibl",
    "panel": "code",
@@ -5555,23 +5554,23 @@
    "callout": "clear-coat-ibl"
   },
   {
-   "frame": 28320,
+   "frame": 28334,
    "blend": 0,
    "source": "c6-ibl",
    "callout": "forward-probe-pick"
   },
   {
-   "frame": 28883,
+   "frame": 28888,
    "blend": 0,
    "source": "c7-lambert",
    "demo": "diffuse",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 28883,
+   "frame": 28888,
    "blend": 0,
    "source": "c7-lambert",
    "animate": [
@@ -5594,7 +5593,7 @@
    ]
   },
   {
-   "frame": 29095,
+   "frame": 29087,
    "blend": 0,
    "source": "c7-lambert",
    "panel": "code",
@@ -5605,7 +5604,7 @@
    "callout": "diffuse-lambert"
   },
   {
-   "frame": 29312,
+   "frame": 29306,
    "blend": 0,
    "source": "c7-lambert",
    "highlight": [
@@ -5614,42 +5613,42 @@
    "callout": "initialize-lighting-data"
   },
   {
-   "frame": 29504,
+   "frame": 29503,
+   "blend": 0,
+   "source": "c7-lambert",
+   "panel": "values",
+   "callout": "fresnel-roughness",
+   "params": {
+    "formula": 3.0
+   }
+  },
+  {
+   "frame": 29724,
    "blend": 0,
    "source": "c7-lambert",
    "callout": "fresnel-roughness",
    "params": {
-    "formula": 3.0
-   },
-   "panel": "values"
-  },
-  {
-   "frame": 29730,
-   "blend": 0,
-   "source": "c7-lambert",
-   "params": {
     "formula": 2.0
-   },
-   "callout": "fresnel-roughness"
+   }
   },
   {
-   "frame": 29959,
+   "frame": 29956,
    "blend": 0,
    "source": "c7-lambert",
    "callout": "initialize-lighting-data"
   },
   {
-   "frame": 30169,
+   "frame": 30170,
    "blend": 0,
    "source": "c7-response",
    "demo": "diffuse",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 30169,
+   "frame": 30170,
    "blend": 0,
    "source": "c7-response",
    "animate": [
@@ -5677,13 +5676,13 @@
         3.05
        ]
       ],
-      "seconds": 20.067
+      "seconds": 19.933
      }
     }
    ]
   },
   {
-   "frame": 30181,
+   "frame": 30182,
    "blend": 0,
    "source": "c7-response",
    "panel": "values",
@@ -5693,7 +5692,7 @@
    }
   },
   {
-   "frame": 30390,
+   "frame": 30388,
    "blend": 0,
    "source": "c7-response",
    "params": {
@@ -5702,7 +5701,7 @@
    }
   },
   {
-   "frame": 30634,
+   "frame": 30633,
    "blend": 36,
    "source": "c7-response",
    "params": {
@@ -5710,7 +5709,7 @@
    }
   },
   {
-   "frame": 30674,
+   "frame": 30675,
    "blend": 45,
    "source": "c7-response",
    "params": {
@@ -5718,17 +5717,17 @@
    }
   },
   {
-   "frame": 30771,
+   "frame": 30768,
    "blend": 0,
    "source": "c7-disney",
    "demo": "diffuse",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 30771,
+   "frame": 30768,
    "blend": 0,
    "source": "c7-disney",
    "animate": [
@@ -5756,7 +5755,7 @@
         3.05
        ]
       ],
-      "seconds": 28.533
+      "seconds": 28.8
      }
     },
     {
@@ -5778,7 +5777,7 @@
    ]
   },
   {
-   "frame": 30783,
+   "frame": 30780,
    "blend": 0,
    "source": "c7-disney",
    "callout": "diffuse-disney",
@@ -5788,38 +5787,38 @@
    }
   },
   {
-   "frame": 30977,
+   "frame": 30974,
    "blend": 0,
    "source": "c7-disney",
    "callout": "skin-diffuse"
   },
   {
-   "frame": 31243,
+   "frame": 31237,
    "blend": 0,
    "source": "c7-disney",
    "callout": "diffuse-disney"
   },
   {
-   "frame": 31469,
+   "frame": 31467,
    "blend": 0,
    "source": "c7-disney",
+   "callout": "diffuse-lambert",
    "params": {
     "diffuseModel": 0.0
-   },
-   "callout": "diffuse-lambert"
+   }
   },
   {
-   "frame": 31846,
+   "frame": 31853,
    "blend": 0,
    "source": "c8-why",
    "demo": "transmission",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 31846,
+   "frame": 31853,
    "blend": 0,
    "source": "c8-why",
    "animate": [
@@ -5847,7 +5846,7 @@
         1.85
        ]
       ],
-      "seconds": 35.867
+      "seconds": 35.7
      }
     },
     {
@@ -5855,36 +5854,36 @@
       "param": "sphereLightX",
       "amplitude": 0.4,
       "period": 11.0,
-      "seconds": 35.867,
+      "seconds": 35.7,
       "fade": 1.0
      }
     }
    ]
   },
   {
-   "frame": 32241,
+   "frame": 32242,
    "blend": 0,
    "source": "c8-why",
    "callout": "transmission-defaults"
   },
   {
-   "frame": 32509,
+   "frame": 32526,
    "blend": 0,
    "source": "c8-why",
    "callout": "enhanced-brdf"
   },
   {
-   "frame": 32922,
+   "frame": 32924,
    "blend": 0,
    "source": "c8-light",
    "demo": "transmission",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 32922,
+   "frame": 32924,
    "blend": 0,
    "source": "c8-light",
    "animate": [
@@ -5912,7 +5911,7 @@
         1.85
        ]
       ],
-      "seconds": 25.367
+      "seconds": 24.967
      }
     },
     {
@@ -5920,26 +5919,26 @@
       "param": "sphereLightX",
       "amplitude": 0.4,
       "period": 11.0,
-      "seconds": 25.367,
+      "seconds": 24.967,
       "fade": 1.0
      }
     }
    ]
   },
   {
-   "frame": 32934,
+   "frame": 32936,
    "blend": 0,
    "source": "c8-light",
    "callout": "simple-point-no-backlight"
   },
   {
-   "frame": 33049,
+   "frame": 33048,
    "blend": 0,
    "source": "c8-light",
    "callout": "sphere-light-bulb"
   },
   {
-   "frame": 33318,
+   "frame": 33312,
    "blend": 0,
    "source": "c8-light",
    "panel": "code",
@@ -5950,17 +5949,17 @@
    "callout": "sphere-light-apply"
   },
   {
-   "frame": 33683,
+   "frame": 33673,
    "blend": 0,
    "source": "c8-thick",
    "demo": "transmission",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 33683,
+   "frame": 33673,
    "blend": 0,
    "source": "c8-thick",
    "animate": [
@@ -5988,13 +5987,13 @@
         1.85
        ]
       ],
-      "seconds": 46.067
+      "seconds": 46.5
      }
     }
    ]
   },
   {
-   "frame": 33695,
+   "frame": 33685,
    "blend": 0,
    "source": "c8-thick",
    "panel": "code",
@@ -6008,13 +6007,13 @@
    }
   },
   {
-   "frame": 33910,
+   "frame": 33896,
    "blend": 0,
    "source": "c8-thick",
    "callout": "transmission-defaults"
   },
   {
-   "frame": 34124,
+   "frame": 34116,
    "blend": 0,
    "source": "c8-thick",
    "callout": "back-lighting",
@@ -6023,13 +6022,13 @@
    }
   },
   {
-   "frame": 34362,
+   "frame": 34353,
    "blend": 0,
    "source": "c8-thick",
    "callout": "back-lighting"
   },
   {
-   "frame": 34631,
+   "frame": 34622,
    "blend": 0,
    "source": "c8-thick",
    "highlight": [
@@ -6041,7 +6040,7 @@
    }
   },
   {
-   "frame": 34882,
+   "frame": 34885,
    "blend": 0,
    "source": "c8-thick",
    "panel": "values",
@@ -6050,7 +6049,7 @@
    }
   },
   {
-   "frame": 34882,
+   "frame": 34885,
    "blend": 0,
    "source": "c8-thick",
    "params": {
@@ -6058,7 +6057,7 @@
    }
   },
   {
-   "frame": 34948,
+   "frame": 34944,
    "blend": 0,
    "source": "c8-thick",
    "params": {
@@ -6066,17 +6065,17 @@
    }
   },
   {
-   "frame": 35065,
+   "frame": 35068,
    "blend": 0,
    "source": "c8-thin",
    "demo": "transmission",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 35065,
+   "frame": 35068,
    "blend": 0,
    "source": "c8-thin",
    "animate": [
@@ -6104,7 +6103,7 @@
         1.85
        ]
       ],
-      "seconds": 36.333
+      "seconds": 36.133
      }
     },
     {
@@ -6112,14 +6111,14 @@
       "param": "sphereLightX",
       "amplitude": 0.4,
       "period": 11.0,
-      "seconds": 36.333,
+      "seconds": 36.133,
       "fade": 1.0
      }
     }
    ]
   },
   {
-   "frame": 35077,
+   "frame": 35080,
    "blend": 0,
    "source": "c8-thin",
    "panel": "code",
@@ -6133,42 +6132,42 @@
    }
   },
   {
-   "frame": 35317,
+   "frame": 35316,
    "blend": 0,
    "source": "c8-thin",
    "callout": "back-lighting"
   },
   {
-   "frame": 35462,
+   "frame": 35466,
    "blend": 0,
    "source": "c8-thin",
    "callout": "sphere-light-shadow-branch"
   },
   {
-   "frame": 35708,
+   "frame": 35712,
    "blend": 0,
    "source": "c8-thin",
    "callout": "shadow-thickness-none"
   },
   {
-   "frame": 35910,
+   "frame": 35911,
    "blend": 0,
    "source": "c8-thin",
    "panel": "values",
    "callout": "sphere-light-shadow-branch"
   },
   {
-   "frame": 36369,
+   "frame": 36366,
    "blend": 0,
    "source": "c9-loss",
    "demo": "multiscatter",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 36369,
+   "frame": 36366,
    "blend": 0,
    "source": "c9-loss",
    "animate": [
@@ -6196,7 +6195,7 @@
         3.05
        ]
       ],
-      "seconds": 30.8
+      "seconds": 30.333
      }
     },
     {
@@ -6226,7 +6225,7 @@
    }
   },
   {
-   "frame": 37066,
+   "frame": 37060,
    "blend": 0,
    "source": "c9-loss",
    "params": {
@@ -6234,17 +6233,17 @@
    }
   },
   {
-   "frame": 37293,
+   "frame": 37276,
    "blend": 0,
    "source": "c9-texture",
    "demo": "multiscatter",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 37293,
+   "frame": 37276,
    "blend": 0,
    "source": "c9-texture",
    "animate": [
@@ -6272,13 +6271,13 @@
         3.05
        ]
       ],
-      "seconds": 43.033
+      "seconds": 43.067
      }
     }
    ]
   },
   {
-   "frame": 37305,
+   "frame": 37288,
    "blend": 0,
    "source": "c9-texture",
    "panel": "code",
@@ -6289,13 +6288,13 @@
    "callout": "brdf-texture-size"
   },
   {
-   "frame": 37681,
+   "frame": 37670,
    "blend": 0,
    "source": "c9-texture",
    "callout": "brdf-texture"
   },
   {
-   "frame": 37823,
+   "frame": 37804,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -6305,7 +6304,7 @@
    "callout": "brdf-texture"
   },
   {
-   "frame": 37823,
+   "frame": 37804,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -6313,7 +6312,7 @@
    }
   },
   {
-   "frame": 37948,
+   "frame": 37938,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -6321,7 +6320,7 @@
    }
   },
   {
-   "frame": 38073,
+   "frame": 38053,
    "blend": 0,
    "source": "c9-texture",
    "params": {
@@ -6329,7 +6328,7 @@
    }
   },
   {
-   "frame": 38234,
+   "frame": 38218,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -6338,7 +6337,7 @@
    "callout": "brdf-texture"
   },
   {
-   "frame": 38372,
+   "frame": 38357,
    "blend": 0,
    "source": "c9-texture",
    "highlight": [
@@ -6347,17 +6346,17 @@
    "callout": "lighting-init"
   },
   {
-   "frame": 38584,
+   "frame": 38568,
    "blend": 0,
    "source": "c9-compensation",
    "demo": "multiscatter",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 38596,
+   "frame": 38580,
    "blend": 0,
    "source": "c9-compensation",
    "panel": "code",
@@ -6366,19 +6365,19 @@
     "lookup",
     "energy"
    ],
+   "callout": "multiscatter",
    "params": {
     "ggxSamples": 0.0
-   },
-   "callout": "multiscatter"
+   }
   },
   {
-   "frame": 38722,
+   "frame": 38711,
    "blend": 0,
    "source": "c9-compensation",
    "callout": "lighting-init"
   },
   {
-   "frame": 38907,
+   "frame": 38899,
    "blend": 0,
    "source": "c9-compensation",
    "highlight": [
@@ -6387,7 +6386,7 @@
    "callout": "multiscatter"
   },
   {
-   "frame": 39118,
+   "frame": 39095,
    "blend": 0,
    "source": "c9-compensation",
    "highlight": [
@@ -6396,7 +6395,7 @@
    "callout": "ms-material-property"
   },
   {
-   "frame": 39499,
+   "frame": 39477,
    "blend": 0,
    "source": "c9-compensation",
    "panel": "values",
@@ -6406,7 +6405,7 @@
    }
   },
   {
-   "frame": 39499,
+   "frame": 39477,
    "blend": 36,
    "source": "c9-compensation",
    "params": {
@@ -6414,7 +6413,7 @@
    }
   },
   {
-   "frame": 39546,
+   "frame": 39515,
    "blend": 45,
    "source": "c9-compensation",
    "params": {
@@ -6422,17 +6421,17 @@
    }
   },
   {
-   "frame": 39639,
+   "frame": 39620,
    "blend": 0,
    "source": "c9-finding",
    "demo": "multiscatter",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 39639,
+   "frame": 39620,
    "blend": 0,
    "source": "c9-finding",
    "animate": [
@@ -6460,40 +6459,40 @@
         3.05
        ]
       ],
-      "seconds": 34.633
+      "seconds": 35.433
      }
     }
    ]
   },
   {
-   "frame": 39651,
+   "frame": 39632,
    "blend": 30,
    "source": "c9-finding",
+   "callout": "ggx-sample",
    "params": {
     "ggxSamples": 256.0,
     "sphereRoughness": 0.1,
     "formula": 0.0
-   },
-   "callout": "ggx-sample"
+   }
   },
   {
-   "frame": 39787,
+   "frame": 39767,
    "blend": 0,
    "source": "c9-finding",
    "callout": "ggx-sample"
   },
   {
-   "frame": 40893,
+   "frame": 40891,
    "blend": 0,
    "source": "c10-record",
    "demo": "pointlight",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 40893,
+   "frame": 40891,
    "blend": 0,
    "source": "c10-record",
    "animate": [
@@ -6521,19 +6520,19 @@
         7.0
        ]
       ],
-      "seconds": 62.5
+      "seconds": 63.233
      }
     }
    ]
   },
   {
-   "frame": 41070,
+   "frame": 41071,
    "blend": 0,
    "source": "c10-record",
    "callout": "point-light-struct"
   },
   {
-   "frame": 41410,
+   "frame": 41403,
    "blend": 0,
    "source": "c10-record",
    "panel": "code",
@@ -6545,7 +6544,7 @@
    "callout": "point-light-apply"
   },
   {
-   "frame": 41603,
+   "frame": 41591,
    "blend": 0,
    "source": "c10-record",
    "highlight": [
@@ -6554,23 +6553,29 @@
    "callout": "point-light-apply"
   },
   {
-   "frame": 41799,
+   "frame": 41796,
    "blend": 0,
    "source": "c10-record",
    "callout": "point-light-apply"
   },
   {
-   "frame": 42036,
+   "frame": 41817,
+   "blend": 0,
+   "source": "c10-record",
+   "formula": "{@ formula=\"w = \\big(1 - (\\lit{1}{d^2} / r^2)^2\\big)^2\" display=yes colors=\"#ffd98a\"}"
+  },
+  {
+   "frame": 42033,
    "blend": 0,
    "source": "c10-record",
    "panel": "values",
+   "callout": "point-light-apply",
    "params": {
     "formula": 2.0
-   },
-   "callout": "point-light-apply"
+   }
   },
   {
-   "frame": 42300,
+   "frame": 42295,
    "blend": 0,
    "source": "c10-record",
    "params": {
@@ -6578,7 +6583,7 @@
    }
   },
   {
-   "frame": 42553,
+   "frame": 42568,
    "blend": 0,
    "source": "c10-record",
    "params": {
@@ -6586,17 +6591,24 @@
    }
   },
   {
-   "frame": 42768,
+   "frame": 42788,
+   "blend": 0,
+   "source": "c10-record",
+   "formula": "",
+   "term": 0
+  },
+  {
+   "frame": 42788,
    "blend": 0,
    "source": "c10-radius",
    "demo": "pointlight",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 42768,
+   "frame": 42788,
    "blend": 0,
    "source": "c10-radius",
    "animate": [
@@ -6624,13 +6636,13 @@
         7.0
        ]
       ],
-      "seconds": 22.8
+      "seconds": 22.133
      }
     }
    ]
   },
   {
-   "frame": 42780,
+   "frame": 42800,
    "blend": 0,
    "source": "c10-radius",
    "highlight": [
@@ -6642,14 +6654,14 @@
    }
   },
   {
-   "frame": 42986,
+   "frame": 43006,
    "blend": 0,
    "source": "c10-radius",
    "panel": "values",
    "callout": "point-light-radius"
   },
   {
-   "frame": 42986,
+   "frame": 43006,
    "blend": 45,
    "source": "c10-radius",
    "params": {
@@ -6657,7 +6669,7 @@
    }
   },
   {
-   "frame": 43026,
+   "frame": 43039,
    "blend": 60,
    "source": "c10-radius",
    "params": {
@@ -6665,7 +6677,7 @@
    }
   },
   {
-   "frame": 43120,
+   "frame": 43130,
    "blend": 0,
    "source": "c10-radius",
    "callout": "point-light-auto-radius"
@@ -6675,10 +6687,10 @@
    "blend": 0,
    "source": "c10-channels",
    "demo": "pointlight",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
    "frame": 43452,
@@ -6709,7 +6721,7 @@
         7.0
        ]
       ],
-      "seconds": 39.433
+      "seconds": 39.233
      }
     }
    ]
@@ -6730,19 +6742,19 @@
    }
   },
   {
-   "frame": 43632,
+   "frame": 43634,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-test"
   },
   {
-   "frame": 43770,
+   "frame": 43774,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-default"
   },
   {
-   "frame": 43985,
+   "frame": 43976,
    "blend": 0,
    "source": "c10-channels",
    "panel": "values",
@@ -6752,29 +6764,29 @@
    }
   },
   {
-   "frame": 44183,
+   "frame": 44171,
    "blend": 0,
    "source": "c10-channels",
    "callout": "lighting-channels-test"
   },
   {
-   "frame": 44359,
+   "frame": 44342,
    "blend": 0,
    "source": "c10-channels",
    "callout": "directional-channel-return"
   },
   {
-   "frame": 44635,
+   "frame": 44629,
    "blend": 0,
    "source": "c10-shadows",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 44635,
+   "frame": 44629,
    "blend": 0,
    "source": "c10-shadows",
    "animate": [
@@ -6802,7 +6814,7 @@
         6.1
        ]
       ],
-      "seconds": 18.6
+      "seconds": 18.467
      }
     },
     {
@@ -6816,14 +6828,14 @@
        -0.3
       ],
       "degrees": 180.0,
-      "seconds": 18.6,
+      "seconds": 18.467,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 44647,
+   "frame": 44641,
    "blend": 0,
    "source": "c10-shadows",
    "panel": "code",
@@ -6837,23 +6849,23 @@
    }
   },
   {
-   "frame": 44924,
+   "frame": 44910,
    "blend": 0,
    "source": "c10-shadows",
    "callout": "light-culling-define"
   },
   {
-   "frame": 45421,
+   "frame": 45419,
    "blend": 0,
    "source": "c11-sky",
    "demo": "ibl",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 45421,
+   "frame": 45419,
    "blend": 0,
    "source": "c11-sky",
    "animate": [
@@ -6881,19 +6893,19 @@
         3.5
        ]
       ],
-      "seconds": 24.133
+      "seconds": 24.833
      }
     }
    ]
   },
   {
-   "frame": 45675,
+   "frame": 45678,
    "blend": 0,
    "source": "c11-sky",
    "callout": "ibl-srg"
   },
   {
-   "frame": 45889,
+   "frame": 45892,
    "blend": 0,
    "source": "c11-sky",
    "params": {
@@ -6901,29 +6913,29 @@
    }
   },
   {
-   "frame": 46310,
+   "frame": 46331,
    "blend": 0,
    "source": "c11-bake",
    "callout": "specular-preset"
   },
   {
-   "frame": 46685,
+   "frame": 46691,
    "blend": 0,
    "source": "c11-bake",
    "callout": "diffuse-preset"
   },
   {
-   "frame": 47133,
+   "frame": 47134,
    "blend": 0,
    "source": "c11-prefilter",
    "demo": "ibl",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 47145,
+   "frame": 47146,
    "blend": 0,
    "source": "c11-prefilter",
    "panel": "code",
@@ -6934,7 +6946,7 @@
    "callout": "cubemap-ggx"
   },
   {
-   "frame": 47298,
+   "frame": 47304,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -6943,7 +6955,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47490,
+   "frame": 47500,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -6952,7 +6964,7 @@
    "callout": "cubemap-ggx"
   },
   {
-   "frame": 47490,
+   "frame": 47500,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -6960,7 +6972,7 @@
    }
   },
   {
-   "frame": 47525,
+   "frame": 47524,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -6968,7 +6980,7 @@
    }
   },
   {
-   "frame": 47560,
+   "frame": 47553,
    "blend": 0,
    "source": "c11-prefilter",
    "params": {
@@ -6976,7 +6988,7 @@
    }
   },
   {
-   "frame": 47625,
+   "frame": 47638,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -6985,7 +6997,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47940,
+   "frame": 47949,
    "blend": 0,
    "source": "c11-prefilter",
    "highlight": [
@@ -6994,7 +7006,7 @@
    "callout": "filter-ggx"
   },
   {
-   "frame": 47940,
+   "frame": 47949,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -7002,7 +7014,7 @@
    }
   },
   {
-   "frame": 47991,
+   "frame": 47982,
    "blend": 60,
    "source": "c11-prefilter",
    "params": {
@@ -7010,17 +7022,17 @@
    }
   },
   {
-   "frame": 48084,
+   "frame": 48091,
    "blend": 0,
    "source": "c11-cosine",
    "demo": "ibl",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 48084,
+   "frame": 48091,
    "blend": 0,
    "source": "c11-cosine",
    "animate": [
@@ -7048,13 +7060,13 @@
         3.5
        ]
       ],
-      "seconds": 20.967
+      "seconds": 21.267
      }
     }
    ]
   },
   {
-   "frame": 48096,
+   "frame": 48103,
    "blend": 30,
    "source": "c11-cosine",
    "callout": "filter-cosine",
@@ -7064,13 +7076,13 @@
    }
   },
   {
-   "frame": 48288,
+   "frame": 48302,
    "blend": 0,
    "source": "c11-cosine",
    "callout": "diffuse-global"
   },
   {
-   "frame": 48497,
+   "frame": 48516,
    "blend": 0,
    "source": "c11-cosine",
    "params": {
@@ -7078,17 +7090,17 @@
    }
   },
   {
-   "frame": 48713,
+   "frame": 48729,
    "blend": 0,
    "source": "c11-passes",
    "demo": "ibl",
+   "callout": "",
    "params": {
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 48713,
+   "frame": 48729,
    "blend": 0,
    "source": "c11-passes",
    "animate": [
@@ -7116,13 +7128,13 @@
         3.5
        ]
       ],
-      "seconds": 43.467
+      "seconds": 42.333
      }
     }
    ]
   },
   {
-   "frame": 48725,
+   "frame": 48741,
    "blend": 0,
    "source": "c11-passes",
    "panel": "code",
@@ -7136,7 +7148,7 @@
    }
   },
   {
-   "frame": 49015,
+   "frame": 49026,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -7148,7 +7160,7 @@
    }
   },
   {
-   "frame": 49175,
+   "frame": 49183,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -7160,7 +7172,7 @@
    }
   },
   {
-   "frame": 49387,
+   "frame": 49385,
    "blend": 0,
    "source": "c11-passes",
    "highlight": [
@@ -7169,7 +7181,7 @@
    "callout": "reflection-global"
   },
   {
-   "frame": 49731,
+   "frame": 49722,
    "blend": 0,
    "source": "c11-passes",
    "callout": "reflection-composite",
@@ -7178,38 +7190,38 @@
    }
   },
   {
-   "frame": 50017,
+   "frame": 49999,
    "blend": 0,
    "source": "c11-readout",
    "demo": "ibl",
+   "callout": "",
    "params": {
     "readoutRows": 0.0,
     "cameraDrift": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 50029,
+   "frame": 50011,
    "blend": 0,
    "source": "c11-readout",
    "panel": "values",
+   "callout": "roughness-mip",
    "params": {
     "readoutRows": 11.0,
     "formula": 0.0
-   },
-   "callout": "roughness-mip"
+   }
   },
   {
-   "frame": 50285,
+   "frame": 50267,
    "blend": 0,
    "source": "c11-readout",
+   "callout": "roughness-mip",
    "params": {
     "formula": 1.0
-   },
-   "callout": "roughness-mip"
+   }
   },
   {
-   "frame": 50285,
+   "frame": 50267,
    "blend": 45,
    "source": "c11-readout",
    "params": {
@@ -7217,7 +7229,7 @@
    }
   },
   {
-   "frame": 50353,
+   "frame": 50341,
    "blend": 60,
    "source": "c11-readout",
    "params": {
@@ -7225,17 +7237,17 @@
    }
   },
   {
-   "frame": 50462,
+   "frame": 50456,
    "blend": 0,
    "source": "c11-occlusion",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 50462,
+   "frame": 50456,
    "blend": 0,
    "source": "c11-occlusion",
    "animate": [
@@ -7263,45 +7275,45 @@
         6.2
        ]
       ],
-      "seconds": 29.167
+      "seconds": 29.2
      }
     }
    ]
   },
   {
-   "frame": 50474,
+   "frame": 50468,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "ssao-default"
   },
   {
-   "frame": 50734,
+   "frame": 50735,
    "blend": 0,
    "source": "c11-occlusion",
+   "callout": "ssao-default",
    "params": {
     "viewMode": 0.0
-   },
-   "callout": "ssao-default"
+   }
   },
   {
-   "frame": 50981,
+   "frame": 50983,
    "blend": 0,
    "source": "c11-occlusion",
    "callout": "reflection-global"
   },
   {
-   "frame": 51662,
+   "frame": 51661,
    "blend": 0,
    "source": "c12-why",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0,
     "probes": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 51662,
+   "frame": 51661,
    "blend": 0,
    "source": "c12-why",
    "animate": [
@@ -7329,13 +7341,13 @@
         6.1
        ]
       ],
-      "seconds": 41.9
+      "seconds": 41.433
      }
     }
    ]
   },
   {
-   "frame": 52074,
+   "frame": 52071,
    "blend": 0,
    "source": "c12-why",
    "callout": "probe-defaults",
@@ -7344,13 +7356,13 @@
    }
   },
   {
-   "frame": 52480,
+   "frame": 52464,
    "blend": 0,
    "source": "c12-why",
    "callout": "cubemap-quality"
   },
   {
-   "frame": 52743,
+   "frame": 52732,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -7358,7 +7370,7 @@
    }
   },
   {
-   "frame": 52811,
+   "frame": 52798,
    "blend": 0,
    "source": "c12-why",
    "params": {
@@ -7366,19 +7378,19 @@
    }
   },
   {
-   "frame": 52919,
+   "frame": 52904,
    "blend": 0,
    "source": "c12-bake",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0,
     "probeBakeFaces": 0.0,
     "probeBoxes": 0.6
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 52919,
+   "frame": 52904,
    "blend": 0,
    "source": "c12-bake",
    "animate": [
@@ -7401,29 +7413,29 @@
         6.2
        ]
       ],
-      "seconds": 64.767
+      "seconds": 64.467
      }
     }
    ]
   },
   {
-   "frame": 52931,
+   "frame": 52916,
    "blend": 0,
    "source": "c12-bake",
    "callout": "probe-bake-capture"
   },
   {
-   "frame": 53199,
+   "frame": 53180,
    "blend": 30,
    "source": "c12-bake",
+   "panel": "hidden",
    "callout": "probe-bake-faces",
    "params": {
     "probeCubemap": 1.0
-   },
-   "panel": "hidden"
+   }
   },
   {
-   "frame": 53199,
+   "frame": 53180,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7431,7 +7443,7 @@
    }
   },
   {
-   "frame": 53241,
+   "frame": 53228,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7439,7 +7451,7 @@
    }
   },
   {
-   "frame": 53283,
+   "frame": 53263,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7447,7 +7459,7 @@
    }
   },
   {
-   "frame": 53325,
+   "frame": 53304,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7455,7 +7467,7 @@
    }
   },
   {
-   "frame": 53368,
+   "frame": 53344,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7463,7 +7475,7 @@
    }
   },
   {
-   "frame": 53410,
+   "frame": 53391,
    "blend": 12,
    "source": "c12-bake",
    "params": {
@@ -7471,19 +7483,19 @@
    }
   },
   {
-   "frame": 53775,
+   "frame": 53745,
    "blend": 0,
    "source": "c12-bake",
    "callout": "probe-bake-write"
   },
   {
-   "frame": 54073,
+   "frame": 54047,
    "blend": 0,
    "source": "c12-bake",
    "callout": "probe-bake-preset"
   },
   {
-   "frame": 54073,
+   "frame": 54047,
    "blend": 24,
    "source": "c12-bake",
    "params": {
@@ -7491,7 +7503,7 @@
    }
   },
   {
-   "frame": 54135,
+   "frame": 54107,
    "blend": 24,
    "source": "c12-bake",
    "params": {
@@ -7499,7 +7511,7 @@
    }
   },
   {
-   "frame": 54197,
+   "frame": 54146,
    "blend": 24,
    "source": "c12-bake",
    "params": {
@@ -7507,7 +7519,7 @@
    }
   },
   {
-   "frame": 54259,
+   "frame": 54240,
    "blend": 24,
    "source": "c12-bake",
    "params": {
@@ -7515,7 +7527,7 @@
    }
   },
   {
-   "frame": 54322,
+   "frame": 54295,
    "blend": 24,
    "source": "c12-bake",
    "params": {
@@ -7523,7 +7535,7 @@
    }
   },
   {
-   "frame": 54413,
+   "frame": 54383,
    "blend": 36,
    "source": "c12-bake",
    "params": {
@@ -7531,7 +7543,7 @@
    }
   },
   {
-   "frame": 54638,
+   "frame": 54619,
    "blend": 0,
    "source": "c12-bake",
    "params": {
@@ -7539,21 +7551,21 @@
    }
   },
   {
-   "frame": 54862,
+   "frame": 54838,
    "blend": 0,
    "source": "c12-ball",
    "demo": "reflections",
+   "panel": "hidden",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0,
     "probeCubemap": 1.0,
     "probeBoxes": 0.0,
     "probeBallRadius": 0.3
-   },
-   "callout": "",
-   "panel": "hidden"
+   }
   },
   {
-   "frame": 54874,
+   "frame": 54850,
    "blend": 36,
    "source": "c12-ball",
    "callout": "probe-visualization",
@@ -7563,7 +7575,7 @@
    }
   },
   {
-   "frame": 54874,
+   "frame": 54850,
    "blend": 90,
    "source": "c12-ball",
    "ease": "inOut",
@@ -7579,7 +7591,7 @@
    }
   },
   {
-   "frame": 55056,
+   "frame": 55035,
    "blend": 0,
    "source": "c12-ball",
    "callout": "probe-visualization-surface",
@@ -7608,19 +7620,19 @@
         2.0
        ]
       ],
-      "seconds": 21.367
+      "seconds": 20.867
      }
     }
    ]
   },
   {
-   "frame": 55265,
+   "frame": 55241,
    "blend": 0,
    "source": "c12-ball",
    "callout": "probe-visualization-hidden"
   },
   {
-   "frame": 55417,
+   "frame": 55382,
    "blend": 30,
    "source": "c12-ball",
    "params": {
@@ -7628,7 +7640,7 @@
    }
   },
   {
-   "frame": 55491,
+   "frame": 55445,
    "blend": 30,
    "source": "c12-ball",
    "params": {
@@ -7636,7 +7648,7 @@
    }
   },
   {
-   "frame": 55564,
+   "frame": 55519,
    "blend": 30,
    "source": "c12-ball",
    "params": {
@@ -7644,17 +7656,17 @@
    }
   },
   {
-   "frame": 55697,
+   "frame": 55661,
    "blend": 0,
    "source": "c12-stencil",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 55697,
+   "frame": 55661,
    "blend": 0,
    "source": "c12-stencil",
    "animate": [
@@ -7682,24 +7694,24 @@
         6.2
        ]
       ],
-      "seconds": 34.267
+      "seconds": 34.867
      }
     }
    ]
   },
   {
-   "frame": 55709,
+   "frame": 55673,
    "blend": 0,
    "source": "c12-stencil",
-   "callout": "reflections-order",
    "panel": "code",
    "code": "reflection-probes",
    "highlight": [
     "stencil"
-   ]
+   ],
+   "callout": "reflections-order"
   },
   {
-   "frame": 56004,
+   "frame": 55975,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-stencil",
@@ -7708,13 +7720,13 @@
    }
   },
   {
-   "frame": 56286,
+   "frame": 56264,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-stencil-reduced"
   },
   {
-   "frame": 56412,
+   "frame": 56387,
    "blend": 30,
    "source": "c12-stencil",
    "highlight": [
@@ -7728,23 +7740,23 @@
    }
   },
   {
-   "frame": 56618,
+   "frame": 56600,
    "blend": 0,
    "source": "c12-stencil",
    "callout": "probe-blend-weight"
   },
   {
-   "frame": 56725,
+   "frame": 56707,
    "blend": 0,
    "source": "c12-blend",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 56725,
+   "frame": 56707,
    "blend": 0,
    "source": "c12-blend",
    "animate": [
@@ -7778,7 +7790,7 @@
    ]
   },
   {
-   "frame": 56737,
+   "frame": 56719,
    "blend": 0,
    "source": "c12-blend",
    "panel": "code",
@@ -7793,7 +7805,7 @@
    }
   },
   {
-   "frame": 57001,
+   "frame": 56988,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
@@ -7805,7 +7817,7 @@
    }
   },
   {
-   "frame": 57212,
+   "frame": 57200,
    "blend": 0,
    "source": "c12-blend",
    "highlight": [
@@ -7814,19 +7826,19 @@
    "callout": "probe-render-inner"
   },
   {
-   "frame": 57388,
+   "frame": 57374,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-sort"
   },
   {
-   "frame": 57568,
+   "frame": 57554,
    "blend": 0,
    "source": "c12-blend",
    "callout": "probe-specular"
   },
   {
-   "frame": 57708,
+   "frame": 57695,
    "blend": 0,
    "source": "c12-blend",
    "panel": "values",
@@ -7836,7 +7848,7 @@
    }
   },
   {
-   "frame": 57708,
+   "frame": 57695,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -7844,7 +7856,7 @@
    }
   },
   {
-   "frame": 57761,
+   "frame": 57747,
    "blend": 45,
    "source": "c12-blend",
    "params": {
@@ -7852,17 +7864,17 @@
    }
   },
   {
-   "frame": 57854,
+   "frame": 57836,
    "blend": 0,
    "source": "c12-parallax",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 57854,
+   "frame": 57836,
    "blend": 0,
    "source": "c12-parallax",
    "animate": [
@@ -7890,13 +7902,13 @@
         6.0
        ]
       ],
-      "seconds": 27.133
+      "seconds": 26.933
      }
     }
    ]
   },
   {
-   "frame": 57866,
+   "frame": 57848,
    "blend": 0,
    "source": "c12-parallax",
    "panel": "code",
@@ -7910,25 +7922,25 @@
    }
   },
   {
-   "frame": 58027,
+   "frame": 58004,
    "blend": 0,
    "source": "c12-parallax",
    "callout": "parallax-obb"
   },
   {
-   "frame": 58239,
+   "frame": 58216,
    "blend": 0,
    "source": "c12-parallax",
    "callout": "parallax-obb"
   },
   {
-   "frame": 58511,
+   "frame": 58490,
    "blend": 0,
    "source": "c12-parallax",
    "panel": "values"
   },
   {
-   "frame": 58511,
+   "frame": 58490,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -7936,7 +7948,7 @@
    }
   },
   {
-   "frame": 58569,
+   "frame": 58554,
    "blend": 0,
    "source": "c12-parallax",
    "params": {
@@ -7944,17 +7956,17 @@
    }
   },
   {
-   "frame": 58668,
+   "frame": 58644,
    "blend": 0,
    "source": "c12-composite",
    "demo": "reflections",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 58668,
+   "frame": 58644,
    "blend": 0,
    "source": "c12-composite",
    "animate": [
@@ -7982,13 +7994,13 @@
         6.2
        ]
       ],
-      "seconds": 27.933
+      "seconds": 28.367
      }
     }
    ]
   },
   {
-   "frame": 58680,
+   "frame": 58656,
    "blend": 0,
    "source": "c12-composite",
    "panel": "code",
@@ -7999,13 +8011,13 @@
    "callout": "composite-stencil"
   },
   {
-   "frame": 58890,
+   "frame": 58873,
    "blend": 0,
    "source": "c12-composite",
    "callout": "reflection-clear"
   },
   {
-   "frame": 59120,
+   "frame": 59106,
    "blend": 0,
    "source": "c12-composite",
    "callout": "reflection-clear",
@@ -8014,25 +8026,25 @@
    }
   },
   {
-   "frame": 59383,
+   "frame": 59365,
    "blend": 0,
    "source": "c12-composite",
    "panel": "values"
   },
   {
-   "frame": 59705,
+   "frame": 59699,
    "blend": 0,
    "source": "c13-why",
    "demo": "ssao",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0,
     "viewMode": 0.0,
     "ssao": 0.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 59705,
+   "frame": 59699,
    "blend": 0,
    "source": "c13-why",
    "animate": [
@@ -8066,7 +8078,7 @@
    ]
   },
   {
-   "frame": 59979,
+   "frame": 59975,
    "blend": 30,
    "source": "c13-why",
    "callout": "ssao-default",
@@ -8075,32 +8087,32 @@
    }
   },
   {
-   "frame": 60214,
+   "frame": 60218,
    "blend": 0,
    "source": "c13-why",
    "callout": "ao-placement"
   },
   {
-   "frame": 60459,
+   "frame": 60464,
    "blend": 0,
    "source": "c13-why",
+   "callout": "ssao-modulate",
    "params": {
     "viewMode": 15.0
-   },
-   "callout": "ssao-modulate"
+   }
   },
   {
-   "frame": 60588,
+   "frame": 60582,
    "blend": 0,
    "source": "c13-compute",
    "demo": "ssao",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 60588,
+   "frame": 60582,
    "blend": 0,
    "source": "c13-compute",
    "animate": [
@@ -8128,13 +8140,13 @@
         6.2
        ]
       ],
-      "seconds": 54.1
+      "seconds": 53.5
      }
     }
    ]
   },
   {
-   "frame": 60600,
+   "frame": 60594,
    "blend": 0,
    "source": "c13-compute",
    "panel": "code",
@@ -8145,13 +8157,13 @@
    "callout": "depth-linear"
   },
   {
-   "frame": 60790,
+   "frame": 60786,
    "blend": 0,
    "source": "c13-compute",
    "callout": "depth-downsample"
   },
   {
-   "frame": 60962,
+   "frame": 60959,
    "blend": 0,
    "source": "c13-compute",
    "highlight": [
@@ -8163,13 +8175,13 @@
    }
   },
   {
-   "frame": 61315,
+   "frame": 61299,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-compute"
   },
   {
-   "frame": 61640,
+   "frame": 61624,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-format",
@@ -8178,13 +8190,13 @@
    }
   },
   {
-   "frame": 61873,
+   "frame": 61851,
    "blend": 0,
    "source": "c13-compute",
    "callout": "ssao-defaults"
   },
   {
-   "frame": 62069,
+   "frame": 62045,
    "blend": 0,
    "source": "c13-compute",
    "panel": "values",
@@ -8193,7 +8205,7 @@
    }
   },
   {
-   "frame": 62069,
+   "frame": 62045,
    "blend": 36,
    "source": "c13-compute",
    "params": {
@@ -8201,7 +8213,7 @@
    }
   },
   {
-   "frame": 62117,
+   "frame": 62084,
    "blend": 45,
    "source": "c13-compute",
    "params": {
@@ -8209,17 +8221,17 @@
    }
   },
   {
-   "frame": 62211,
+   "frame": 62187,
    "blend": 0,
    "source": "c13-blur",
    "demo": "ssao",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 62211,
+   "frame": 62187,
    "blend": 0,
    "source": "c13-blur",
    "animate": [
@@ -8247,13 +8259,13 @@
         6.2
        ]
       ],
-      "seconds": 35.833
+      "seconds": 36.267
      }
     }
    ]
   },
   {
-   "frame": 62223,
+   "frame": 62199,
    "blend": 0,
    "source": "c13-blur",
    "panel": "code",
@@ -8264,31 +8276,31 @@
    "callout": "blur-order"
   },
   {
-   "frame": 62408,
+   "frame": 62391,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 62674,
+   "frame": 62670,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-step"
   },
   {
-   "frame": 62854,
+   "frame": 62848,
    "blend": 0,
    "source": "c13-blur",
    "callout": "blur-defaults"
   },
   {
-   "frame": 63152,
+   "frame": 63146,
    "blend": 0,
    "source": "c13-blur",
    "panel": "values"
   },
   {
-   "frame": 63152,
+   "frame": 63146,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -8296,7 +8308,7 @@
    }
   },
   {
-   "frame": 63196,
+   "frame": 63175,
    "blend": 0,
    "source": "c13-blur",
    "params": {
@@ -8304,17 +8316,17 @@
    }
   },
   {
-   "frame": 63286,
+   "frame": 63275,
    "blend": 0,
    "source": "c13-upsample",
    "demo": "ssao",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 63286,
+   "frame": 63275,
    "blend": 0,
    "source": "c13-upsample",
    "animate": [
@@ -8342,13 +8354,13 @@
         6.2
        ]
       ],
-      "seconds": 30.767
+      "seconds": 30.2
      }
     }
    ]
   },
   {
-   "frame": 63298,
+   "frame": 63287,
    "blend": 0,
    "source": "c13-upsample",
    "panel": "code",
@@ -8359,7 +8371,7 @@
    "callout": "depth-upsample"
   },
   {
-   "frame": 63584,
+   "frame": 63561,
    "blend": 0,
    "source": "c13-upsample",
    "callout": "ssao-modulate",
@@ -8369,23 +8381,23 @@
    }
   },
   {
-   "frame": 63789,
+   "frame": 63763,
    "blend": 0,
    "source": "c13-upsample",
    "panel": "values"
   },
   {
-   "frame": 64441,
+   "frame": 64428,
    "blend": 0,
    "source": "c14-recap",
    "demo": "room",
+   "callout": "",
    "params": {
     "cameraDrift": 1.0
-   },
-   "callout": ""
+   }
   },
   {
-   "frame": 64441,
+   "frame": 64428,
    "blend": 0,
    "source": "c14-recap",
    "animate": [
@@ -8413,7 +8425,7 @@
         6.1
        ]
       ],
-      "seconds": 56.733
+      "seconds": 55.767
      }
     },
     {
@@ -8427,26 +8439,26 @@
        -0.3
       ],
       "degrees": 300.0,
-      "seconds": 56.733,
+      "seconds": 55.767,
       "ease": "sine"
      }
     }
    ]
   },
   {
-   "frame": 64683,
+   "frame": 64673,
    "blend": 0,
    "source": "c14-recap",
    "callout": "evaluate-lighting"
   },
   {
-   "frame": 65109,
+   "frame": 65099,
    "blend": 0,
    "source": "c14-recap",
    "callout": "opaque-pass-order"
   },
   {
-   "frame": 65592,
+   "frame": 65568,
    "blend": 0,
    "source": "c14-recap",
    "callout": "reflections-order"

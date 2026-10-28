@@ -23,6 +23,13 @@ clap = { version = "4.6", features = ["derive"] }
 sha2 = "0.10"
 # The user's settings file (parsing only; the lab writes the file itself). Already vendored.
 toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
+# Formulas: LaTeX translated to Typst math by MiTeX, typeset by Typst with its bundled fonts
+# (New Computer Modern Math), and rasterized into coverage masks (src/lab/formula.rs).
+typst = "=0.15.1"
+typst-layout = "=0.15.1"
+typst-render = "=0.15.1"
+typst-assets = { version = "=0.15.1", features = ["fonts"] }
+mitex = "=0.2.4"
 
 [build-dependencies]
 # The same naga release wgpu 30.0.1 uses, for build-time WGSL validation and layouts.

@@ -63,10 +63,12 @@ class Config:
     base: Path                       # the directory of video.json
 
     @staticmethod
-    def load(investigation: str, lang: str) -> Config:
+    def load(investigation: str, lang: str, directory: Path | None = None) -> Config:
+        """`directory`: the investigation's source directory, when it is not
+        src/<engine>/<feature> (a module built in from elsewhere)."""
         if lang not in LANGS:
             raise SystemExit(f'unknown language {lang}; use one of {", ".join(LANGS)}')
-        path = LAB / 'src' / Path(investigation) / 'video' / 'video.json'
+        path = (directory.resolve() if directory else LAB / 'src' / Path(investigation)) / 'video' / 'video.json'
         if not path.is_file():
             raise SystemExit(f'{investigation}: no {path.relative_to(LAB)}')
         spec = json.loads(path.read_text())
@@ -109,11 +111,16 @@ class Config:
         return self.timeline_dir(lang) / 'timeline.json'
 
     def build(self, lang: str | None = None) -> Path:
+        """The edition's build directory: build/video/<investigation>/<lang>, or video.json's `build`."""
+        if 'build' in self.spec:
+            return self.path(self.spec['build'][lang or self.lang])
         return LAB / 'build' / 'video' / Path(self.investigation) / (lang or self.lang)
 
     @property
     def audio_cache(self) -> Path:
-        """Shared by the editions: every edition speaks the English sentences."""
+        """Shared by the editions: every edition speaks the English sentences (video.json's `audioCache` if given)."""
+        if 'audioCache' in self.spec:
+            return self.path(self.spec['audioCache'])
         return LAB / 'build' / 'video' / Path(self.investigation) / 'audio'
 
     def video_name(self, lang: str | None = None) -> str:

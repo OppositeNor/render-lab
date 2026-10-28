@@ -185,8 +185,6 @@ pub struct Renderer {
     egui_renderer: egui_wgpu::Renderer,
     /// The Surface Cache picture (what the card quads show), for the atlas inset.
     pub atlas_texture: egui::TextureId,
-    /// Readout formulas, uploaded the first time each is shown and kept.
-    formulas: HashMap<&'static str, (egui::TextureHandle, egui::Vec2)>,
     last_layout: Layout,
 }
 
@@ -425,7 +423,6 @@ impl Renderer {
             egui_ctx,
             egui_renderer,
             atlas_texture,
-            formulas: HashMap::new(),
             last_layout: Layout::new(width, height),
             statics,
             other_scenes: HashMap::new(),
@@ -769,7 +766,6 @@ impl Renderer {
             self.upload(content);
             self.upload_draws(content);
         }
-        let formula = content.as_ref().and_then(|c| c.readout.as_ref()?.formula).and_then(|key| self.formula_texture(key));
 
         // egui pass content.
         let mut raw = request.raw_input;
@@ -783,7 +779,6 @@ impl Renderer {
             atlas_texture: self.atlas_texture,
             beat_kind: request.beat_kind,
             image: request.image,
-            formula,
             beat_sources: request.beat_sources,
             chapter_number: request.chapter_number,
             fade: request.fade,
@@ -866,18 +861,6 @@ impl Renderer {
             self.egui_renderer.free_texture(&id);
         }
         FrameResult { report, content }
-    }
-
-    /// A readout's formula as a texture. Its upload is part of the first frame
-    /// that shows it, and the texture never changes, so frames stay deterministic.
-    fn formula_texture(&mut self, key: &'static str) -> Option<(egui::TextureId, egui::Vec2)> {
-        if !self.formulas.contains_key(key) {
-            let image = crate::lab::record::decode_png(std::io::Cursor::new(investigation::current().formula(key)?)).ok()?;
-            let size = egui::vec2(image.size[0] as f32, image.size[1] as f32);
-            let handle = self.egui_ctx.load_texture(format!("formula {key}"), image, egui::TextureOptions::LINEAR);
-            self.formulas.insert(key, (handle, size));
-        }
-        self.formulas.get(key).map(|(h, s)| (h.id(), *s))
     }
 
     /// The Surface Cache picture, then the scene and overlay passes into the

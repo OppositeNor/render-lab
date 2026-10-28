@@ -13,8 +13,6 @@
 //!   used by the struct panel and checked against the Rust records;
 //! - `shader-manifest.json`: naga version, module hashes, and entry points.
 //!
-//! It also fails when an investigation's formula image no longer matches
-//! its LaTeX (tools/video/formulas.py renders them).
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
@@ -37,9 +35,6 @@ const COMMERCIAL_MODULES: &[&str] = &["src/commercial/shaders/surface_cache"];
 /// Investigations' own scene shading (`Investigation::scene_shading`), each
 /// composed after the scene module.
 const SCENE_SHADINGS: &[&str] = &["src/o3de/lighting/shaders/standard_lighting"];
-/// Investigations' readout formulas: formulas.json, the PNGs made from it,
-/// and manifest.json with their hashes.
-const FORMULAS: &[&str] = &["src/o3de/lighting/formulas"];
 /// Each layer's on-screen text (`text/en.json`, `text/zh-CN.json`) and the
 /// code that names its keys (`tr("key")`, `tr_with("key", …)`).
 const TEXT_TABLES: &[(&str, &str)] = &[("src/lab/text", "src/lab"), ("src/o3de/lighting/text", "src/o3de/lighting")];
@@ -107,38 +102,42 @@ fn hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Every formula's LaTeX hashes to what its manifest recorded, and every
-/// PNG to its recorded hash, so a formula edited without rendering it again
-/// fails the build.
-fn check_formulas(manifest_dir: &std::path::Path) {
-    for dir in FORMULAS {
-        let investigation = dir.trim_start_matches("src/").trim_end_matches("/formulas");
-        let fix = format!("run python3 tools/video/formulas.py --investigation {investigation}");
-        let read = |name: &str| {
-            let path = manifest_dir.join(dir).join(name);
-            println!("cargo:rerun-if-changed={}", path.display());
-            fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}; {fix}", path.display()))
-        };
-        let sources: serde_json::Map<String, Value> = serde_json::from_slice(&read("formulas.json")).unwrap_or_else(|e| panic!("{dir}/formulas.json: {e}"));
-        let manifest: Value = serde_json::from_slice(&read("manifest.json")).unwrap_or_else(|e| panic!("{dir}/manifest.json: {e}"));
-        let recorded = manifest["formulas"].as_object().unwrap_or_else(|| panic!("{dir}/manifest.json lists no formulas; {fix}"));
-        let mut names: Vec<&String> = sources.keys().collect();
-        let mut made: Vec<&String> = recorded.keys().collect();
-        names.sort();
-        made.sort();
-        assert!(names == made, "{dir}: formulas.json has {names:?}, the images were made for {made:?}; {fix}");
-        for (key, latex) in &sources {
-            let entry = &recorded[key];
-            assert!(entry["latexSha256"].as_str() == Some(hex(latex.as_str().unwrap_or_default().as_bytes()).as_str()), "{dir}: formula {key} changed since its images were made; {fix}");
-            for (variant, image) in entry["variants"].as_object().into_iter().flatten() {
-                let png = read(&format!("{variant}.png"));
-                assert!(image["pngSha256"].as_str() == Some(hex(&png).as_str()), "{dir}/{variant}.png is not the image its manifest records; {fix}");
-            }
+/// The length of the tag at the start of `tail` (`{@ …}`, src/lab/rich_text.rs):
+/// up to its closing brace, outside quoted values (where `\"` is a quote).
+fn tag_len(tail: &str) -> Option<usize> {
+    let bytes = tail.as_bytes();
+    let (mut i, mut quoted) = (2, false);
+    while let Some(&b) = bytes.get(i) {
+        match b {
+            b'\\' if quoted && bytes.get(i + 1) == Some(&b'"') => i += 1,
+            b'"' => quoted = !quoted,
+            b'}' if !quoted => return Some(i + 1),
+            _ => {}
         }
+        i += 1;
     }
+    None
 }
 
-/// A text's placeholder names (`{seconds}`; `{{` and `}}` are literal braces).
+/// The LaTeX of every formula tag in a text, in order.
+fn formulas(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("{@") {
+        let len = tag_len(&rest[i..]).unwrap_or_else(|| panic!("unclosed tag in text {text:?}"));
+        let tag = &rest[i..i + len];
+        if let Some(start) = tag.find("formula=\"") {
+            let body = &tag[start + 9..];
+            let end = body.char_indices().find(|&(j, c)| c == '"' && !body[..j].ends_with('\\')).map(|(j, _)| j).unwrap_or(body.len());
+            out.push(&body[..end]);
+        }
+        rest = &rest[i + len..];
+    }
+    out
+}
+
+/// A text's placeholder names (`{seconds}`; `{{` and `}}` are literal braces;
+/// tags, `{@ …}`, are skipped).
 fn placeholders(text: &str) -> Vec<&str> {
     let mut names = Vec::new();
     let mut rest = text;
@@ -146,6 +145,11 @@ fn placeholders(text: &str) -> Vec<&str> {
         let tail = &rest[i..];
         if tail.starts_with("{{") || tail.starts_with("}}") {
             rest = &tail[2..];
+            continue;
+        }
+        // A tag (a formula's LaTeX has braces of its own) is not a placeholder.
+        if tail.starts_with("{@") {
+            rest = &tail[tag_len(tail).unwrap_or_else(|| panic!("unclosed tag in text {text:?}"))..];
             continue;
         }
         let end = tail.find('}').filter(|_| tail.starts_with('{')).unwrap_or_else(|| panic!("unbalanced brace in text {text:?}"));
@@ -213,6 +217,8 @@ fn check_text(manifest_dir: &std::path::Path, tables: &[(&str, &str)]) {
                 let Some(other) = reference.get(key) else { panic!("{dir}/{locale}.json has {key}, {first}.json does not") };
                 let english = placeholders(other.as_str().unwrap_or_default());
                 assert!(placeholders(text).iter().all(|p| english.contains(p)), "{dir}/{locale}.json: {key} has a placeholder {first}.json does not");
+                // Formulas stay English: the same LaTeX in every language.
+                assert!(formulas(text) == formulas(other.as_str().unwrap_or_default()), "{dir}/{locale}.json: {key}'s formulas differ from {first}.json's");
             }
             for key in reference.keys() {
                 assert!(table.contains_key(key), "{dir}/{locale}.json has no {key}");
@@ -245,7 +251,6 @@ fn main() {
         let missing: Vec<&str> = HIDDEN.iter().copied().filter(|p| !present.contains(p)).collect();
         panic!("src/commercial is only partly present; missing: {}", missing.join(", "));
     }
-    check_formulas(&manifest_dir);
     check_text(&manifest_dir, TEXT_TABLES);
     if commercial {
         check_text(&manifest_dir, COMMERCIAL_TEXT_TABLES);

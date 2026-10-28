@@ -1,4 +1,8 @@
-# Formulas in on-screen text (plan, not started)
+# Formulas in on-screen text (superseded)
+
+Done, with a different syntax: formulas are tags, `{@ formula="…"}`, typeset by Typst through MiTeX at run time
+(`src/lab/formula.rs`, `src/lab/rich_text.rs`), and storyboards use the same tags with word-timed shot cues
+(`tools/video/README.md`). What follows is the original plan, kept for its measurements.
 
 An investigation's readout formulas are LaTeX in `src/<engine>/<feature>/formulas/formulas.json`. `tools/video/formulas.py`
 renders them with KaTeX in headless Chrome (`formulas.mjs`, Node) into coloured PNGs, which are committed with

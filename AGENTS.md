@@ -47,11 +47,12 @@ cargo run --release -- --investigation o3de/lighting selftest --report /path/to/
 python3 src/o3de/lighting/source_index.py                  # O3DE: rewrite source-index.json from the checkout
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
-python3 tools/video/formulas.py --investigation o3de/lighting                 # after editing formulas/formulas.json (Node; build.rs fails on stale images)
+python3 -m unittest tools/video/test_markup.py tools/video/test_story.py   # the .story format and its tags (cues and formulas)
+cargo run --release -- formulas --check src/o3de/lighting/text/en.json       # typeset a file's formula tags against the lab's limits
 ```
 
 The video builder is described in `tools/video/README.md`. Run one GPU job at a time. The zh-CN edition
-(`--lang zh-CN`) needs the English edition built first, and `src/o3de/lighting/video/zh-CN/translation.json` must keep one sentence per
+(`--lang zh-CN`) needs the English edition built first, and `src/o3de/lighting/video/storyboard.zh-CN.story` must keep one sentence per
 English sentence.
 
 To check the public build, copy the files `git ls-files --cached --others --exclude-standard` lists (with `cp -P --parents`, so

@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-import formulas
 import zh
 from config import LAB, Config, Environment, log, run
 from timeline import CAPTION_WIDTH
@@ -151,13 +150,6 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
           {k: render.get(k) for k in ('frames', 'min_text_pt', 'max_label_overlaps', 'max_labels_outside', 'frames_with_label_issues', 'seconds', 'gpu')})
     mermaid = json.loads((build / 'mermaid-metrics.json').read_text()) if (build / 'mermaid-metrics.json').exists() else []
     check('diagram labels >= 24 px', bool(mermaid) and all(m['fontPixels'] >= 24 for m in mermaid), {'diagrams': mermaid})
-    if (formulas.directory(cfg.investigation) / 'formulas.json').exists():
-        try:
-            made = formulas.build(cfg.investigation, env, check=True)
-            images = [dict(key=k, **v) for f in made['formulas'].values() for k, v in f['variants'].items()]
-            check('formula images current (their LaTeX and hashes), glyphs >= 24 px', all(i.get('minFontPx', 0) >= 24 for i in images), {'images': len(images), 'smallestGlyphPx': min((i.get('minFontPx', 0) for i in images), default=0)})
-        except SystemExit as e:
-            check('formula images current (their LaTeX and hashes), glyphs >= 24 px', False, {'problem': str(e)})
     sources = check_sources(cfg, index)
     check('every cited line still matches its recorded hash in the checkout', all(r['ok'] for r in sources), {'locations': len(sources), 'problems': [r for r in sources if not r['ok']]})
     links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])

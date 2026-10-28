@@ -203,7 +203,7 @@ environment where samples hit nothing (a dark background in the false-colour vie
 | `shot.rs`, `demos.rs`, `controls.rs` | Parameters and animations, what each shot shows, the dock |
 | `source-index.json`, `source_index.py` | Every cited O3DE file, symbol, and line; the script writes the index from the checkout |
 | `pseudocode/` | The Python listings |
-| `formulas/`, `formulas.rs` | The readout's formulas: LaTeX in `formulas.json`, the PNGs `tools/video/formulas.py` renders from it, and the table that embeds them |
+| `formulas.rs` | The readout's formulas: one formula tag per demonstration in `text/*.json` (`formula.<demo>`), and the lit term |
 | `selftest.rs` | The verification suite (with `--timeline`, every scene beat of the video) |
 | `video/`, `timelines/` | The narrated video's inputs, and the timelines it builds |
 
@@ -213,13 +213,13 @@ Above its readout, each demonstration shows the formula it evaluates: the forwar
 the roughness remap, SpecularGGX with D, G (the height-correlated Smith visibility) and F, the Lambertian diffuse and its
 response, the multiscatter compensation, the point light's falloff and window, and the split-sum IBL. The `formula`
 parameter (the dock's "formula term" slider) lights one term in the colour of its readout row; 0 lights none, and -1
-hides the formula. After editing [`formulas/formulas.json`](formulas/formulas.json), run
-`python3 tools/video/formulas.py --investigation o3de/lighting` (it needs the video environment's Node); the build fails
-until the images match.
+hides the formula. Each formula is a tag in [`text/en.json`](text/en.json) and [`text/zh-CN.json`](text/zh-CN.json)
+(`formula.<demo>`: its LaTeX, with `\lit{n}{…}` marking the terms and `colors` their readout rows' colours), typeset by
+the lab at run time (`src/lab/formula.rs`); the selftest checks that each typesets within the panel.
 
 ## The video
 
-[`video/`](video) holds the narrated video's storyboard (`storyboard.json`), its diagrams, the zh-CN translation, and
+[`video/`](video) holds the narrated video's storyboard (`storyboard.story`), its diagrams, the zh-CN translation (`storyboard.zh-CN.story`), and
 `video.json`; [`tools/video`](../../../tools/video/README.md) builds it. It runs about 35 minutes in fourteen chapters,
 following the opaque frame's passes in order. The timelines it writes to [`timelines/`](timelines) are tracked, so the
 homepage's Watch plays them; the narration and the video itself go to `build/video/o3de/lighting/`.

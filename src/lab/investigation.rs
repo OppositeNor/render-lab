@@ -224,11 +224,6 @@ pub trait Investigation: Sync {
     fn cache_status(&self, _state: &ShotState, _pages: usize, _layer: Layer) -> Option<String> {
         None
     }
-    /// The PNG of a formula a readout names (`Readout::formula`), drawn at
-    /// the top of the readout panel at one pixel per point.
-    fn formula(&self, _key: &str) -> Option<&'static [u8]> {
-        None
-    }
     /// The scene pass's shading, when the investigation brings its own.
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         None

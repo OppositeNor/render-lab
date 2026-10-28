@@ -1,8 +1,8 @@
 {
   "investigation": "o3de/lighting",
-  "storyboard": "storyboard.json",
+  "storyboard": "storyboard.story",
   "translations": {
-    "zh-CN": "zh-CN/translation.json"
+    "zh-CN": "storyboard.zh-CN.story"
   },
   "diagrams": {
     "en": "diagrams",

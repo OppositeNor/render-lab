@@ -51,15 +51,17 @@ cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
 An investigation's narrated video is built by [`tools/video`](tools/video/README.md) from its storyboard:
 
 ```bash
-bash tools/video/setup.sh --gpu                                     # once: Piper, FFmpeg, Node, Mermaid, and KaTeX under .cache/
+bash tools/video/setup.sh --gpu                                     # once: Piper, FFmpeg, Node, and Mermaid under .cache/
 python3 tools/video/build.py --investigation o3de/lighting          # build/video/o3de/lighting/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
-python3 tools/video/formulas.py --investigation o3de/lighting       # after editing formulas/formulas.json: its PNGs
 ```
 
-An investigation's readout can show a formula above its rows: LaTeX in `src/<engine>/<feature>/formulas/formulas.json`,
-rendered by KaTeX into committed PNGs (see [`tools/video`](tools/video/README.md#formulas)), which the investigation
-returns from `Investigation::formula`.
+On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout
+(`Readout::formula`). The lab typesets them itself at run time (`src/lab/formula.rs`: MiTeX translates the LaTeX into
+Typst math, and Typst typesets it), so no Node or committed images are needed; `render-lab formulas --check FILE…` checks
+a file's formulas against the lab's limits. A storyboard uses the same tags, with shot cues timed to the narration's
+words (see [`tools/video`](tools/video/README.md#text-driven-shots-tags-in-a-sentence)), and a timeline key's `formula`
+opens a formula card in the viewport.
 
 ## How it fits together
 
@@ -69,6 +71,7 @@ returns from `Investigation::formula`.
 | [`src/lab/home.rs`](src/lab/home.rs), [`src/lab/frost.rs`](src/lab/frost.rs), [`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | The homepage: the title, Config, and selection pages, over an investigation's backdrop scene (or a plain field), halved twice, blurred, tinted, and grained. |
 | [`src/lab/config.rs`](src/lab/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
 | [`src/lab/text.rs`](src/lab/text.rs), [`src/lab/readback.rs`](src/lab/readback.rs), [`src/lab/gpu.rs`](src/lab/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. |
+| [`src/lab/formula.rs`](src/lab/formula.rs), [`src/lab/rich_text.rs`](src/lab/rich_text.rs), [`assets/mitex/`](assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
 | [`src/lab/scene.rs`](src/lab/scene.rs), [`src/lab/terrain.rs`](src/lab/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |
 | `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). Under the `commercial` cfg the lab hands the optional module its generic extension points (`Extension`, `src/lab/extension.rs`) and nothing else. |
 | [`src/investigations.rs`](src/investigations.rs), [`src/o3de/`](src/o3de) | The list of investigations, and the Open 3D Engine's. |

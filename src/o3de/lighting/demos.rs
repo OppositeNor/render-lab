@@ -930,7 +930,8 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
         }
     };
     rows.truncate(state.p("readoutRows").round().max(0.0) as usize);
-    Readout { title: title.to_string(), subtitle, formula: super::formulas::key(demo, state.p("formula")), rows }
+    let (formula, formula_lit) = super::formulas::readout(demo, state.p("formula"));
+    Readout { title: title.to_string(), subtitle, formula, formula_lit, rows }
 }
 
 fn content_roughness(state: &ShotState, object: u32) -> f32 {

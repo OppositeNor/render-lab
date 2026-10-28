@@ -4,11 +4,13 @@
 //! the smallest size used so the recorder can prove nothing is below 24 px
 //! at 1080p.
 
+use crate::lab::formula;
 use crate::lab::frame::{FrameContent, Statics};
 use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation;
 use crate::lab::layout::{FieldKind, RustField};
 use crate::lab::palette::{self, field_colors};
+use crate::lab::rich_text;
 use crate::lab::shot::{BeatKind, DemoId, PanelMode, ShotState, Timeline};
 use crate::lab::sources;
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
@@ -215,8 +217,6 @@ pub struct UiInput<'a> {
     pub atlas_texture: egui::TextureId,
     pub beat_kind: BeatKind,
     pub image: Option<(egui::TextureId, Vec2)>,
-    /// The readout's formula (`Readout::formula`), as a texture and its size in pixels at 1080p.
-    pub formula: Option<(egui::TextureId, Vec2)>,
     pub beat_sources: &'a [String],
     pub chapter_number: u32,
     pub fade: f32,
@@ -308,6 +308,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
                     obstacles.extend(draw_callout(&ink, l, key, &insets));
+                }
+                if let Some(tag) = &input.state.formula {
+                    let insets = obstacles.clone();
+                    obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
                 }
                 draw_labels(&ink, input, content, &obstacles, &mut report);
                 draw_panel(&ink, input, content, &mut report);
@@ -448,7 +452,7 @@ fn draw_labels(ink: &Ink, input: &UiInput, content: &FrameContent, obstacles: &[
         if !l.viewport.contains(anchor) {
             continue;
         }
-        let size = ink.measure(&label.text, 24.0, FontFamily::Proportional) + vec2(22.0, 10.0);
+        let size = rich_text::measure(ink, &label.text, 24.0, FontFamily::Proportional) + vec2(22.0, 10.0);
         let near = [vec2(20.0, -size.y - 14.0), vec2(20.0, 14.0), vec2(-size.x - 20.0, -size.y - 14.0), vec2(-size.x - 20.0, 14.0), vec2(-size.x * 0.5, -size.y - 30.0), vec2(-size.x * 0.5, 30.0), vec2(36.0, -size.y * 0.5), vec2(-size.x - 36.0, -size.y * 0.5), vec2(20.0, -size.y - 60.0), vec2(20.0, 60.0)];
         // Farther rings for crowded anchors; the leader line keeps the link visible.
         let mut candidates: Vec<Rect> = near.iter().map(|o| Rect::from_min_size(anchor + *o, size)).collect();
@@ -483,7 +487,7 @@ fn draw_labels(ink: &Ink, input: &UiInput, content: &FrameContent, obstacles: &[
         painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(9, 22, 36, 235));
         painter.rect_filled(Rect::from_min_max(rect.min, pos2(rect.min.x + 5.0, rect.max.y)), CornerRadius::same(2), label.color);
         painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
-        ink.text(pos2(rect.min.x + 13.0, rect.center().y), Align2::LEFT_CENTER, &label.text, 24.0, FontFamily::Proportional, palette::TEXT);
+        rich_text::text(ink, pos2(rect.min.x + 13.0, rect.center().y), Align2::LEFT_CENTER, &label.text, 24.0, FontFamily::Proportional, palette::TEXT);
         report.labels.push(PlacedLabel { text: label.text.clone(), anchor: [anchor.x, anchor.y], rect: [rect.min.x, rect.min.y, rect.max.x, rect.max.y] });
     }
 }
@@ -505,6 +509,27 @@ fn translate_inside(r: Rect, bounds: Rect) -> Rect {
 
 /// The source callout in the viewport's bottom-left corner, raised above any
 /// inset it would overlap.
+/// The narration's formula card (`ShotState::formula`) in the viewport's
+/// top-right corner: the formula, with term `term` lit to `lit` in its tag's
+/// colour for it.
+fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, lit: f32, insets: &[Rect]) -> Option<Rect> {
+    let (latex, display, colors) = rich_text::first_formula(tag)?;
+    let f = formula::get(&latex, formula::FORMULA_PX, display).map_err(|e| eprintln!("formula card {latex:?}: {e}")).ok()?;
+    let pad = formula::PAD as f32;
+    let ink_size = vec2(f.width as f32, f.height as f32) - Vec2::splat(2.0 * pad);
+    let size = ink_size + vec2(36.0, 28.0);
+    let mut rect = Rect::from_min_size(pos2(l.viewport.max.x - 16.0 - size.x, l.viewport.min.y + 16.0), size);
+    // Below whatever already sits in that corner (an inset, the callout).
+    while let Some(inset) = insets.iter().find(|i| i.intersects(rect)) {
+        rect = rect.translate(vec2(0.0, inset.max.y + 8.0 - rect.min.y));
+    }
+    ink.painter.rect_filled(rect, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, 235));
+    ink.painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.5, palette::BORDER), StrokeKind::Inside);
+    let lit = (term > 0 && lit > 0.0).then(|| (rich_text::Lit { term, weight: lit, color: colors.get(term - 1).copied().unwrap_or(palette::ACCENT) }, palette::TEXT_DIM));
+    rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &latex, formula::FORMULA_PX, display, &f, 1.0, palette::TEXT, lit);
+    Some(rect.expand(4.0))
+}
+
 fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) -> Option<Rect> {
     let index = sources::index();
     let entry = index.entries.get(key)?;
@@ -549,7 +574,7 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     }
     let Some(record) = &content.panel_record else {
         if let Some(readout) = &content.readout {
-            draw_readout(ink, rect, readout, input.formula, &content.notes, report);
+            draw_readout(ink, rect, readout, &content.notes, report);
         }
         return;
     };
@@ -650,15 +675,14 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
         if y + line > bottom {
             break;
         }
-        let text = ink.fit_right(note, width, 24.0, FontFamily::Proportional);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, *color);
+        fitted_line(ink, pos2(x, y), note, width, *color);
         y += line;
     }
 }
 
 /// An investigation's readout (`FrameContent::readout`): its formula, names
 /// on the left and values on the right, then the frame's notes.
-fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::lab::frame::Readout, formula: Option<(egui::TextureId, Vec2)>, notes: &[(String, Color32)], report: &mut UiReport) {
+fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::lab::frame::Readout, notes: &[(String, Color32)], report: &mut UiReport) {
     let x = rect.min.x + 22.0;
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
@@ -674,15 +698,28 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::lab::frame::Readout, for
     y += 10.0;
     let line = 29.0;
     let bottom = rect.max.y - 14.0;
-    if let Some((texture, size)) = formula {
-        // Full size, unless the panel is too short for it and every row (the
-        // viewer's panel is shorter than the recorder's).
-        let rows: f32 = readout.rows.iter().map(|(n, v, _)| if n.is_empty() && v.is_empty() { 0.5 } else { 1.0 }).sum::<f32>() + notes.len() as f32;
-        let room = bottom - y - 12.0 - 6.0 - rows * line;
-        let scale = (width / size.x).min(room / size.y).clamp(0.5, 1.0);
-        ink.painter.image(texture, Rect::from_min_size(pos2(x, y), size * scale), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-        report.formula_scale = Some(scale);
-        y += size.y * scale + 12.0;
+    if let Some((latex, display, colors)) = readout.formula.as_deref().and_then(rich_text::first_formula) {
+        match formula::get(&latex, formula::FORMULA_PX, display) {
+            Ok(f) => {
+                // Full size, unless the panel is too short for it and every row (the
+                // viewer's panel is shorter than the recorder's). The padding around
+                // the ink overlaps the panel's margin.
+                // The ink with 4 px around it, as the readouts have always had.
+                let pad = formula::PAD as f32 - 4.0;
+                let size = vec2(f.width as f32, f.height as f32) - Vec2::splat(2.0 * pad);
+                let rows: f32 = readout.rows.iter().map(|(n, v, _)| if n.is_empty() && v.is_empty() { 0.5 } else { 1.0 }).sum::<f32>() + notes.len() as f32;
+                let room = bottom - y - 12.0 - 6.0 - rows * line;
+                let scale = (width / size.x).min(room / size.y).clamp(0.5, 1.0);
+                let lit = readout.formula_lit.map(|(term, weight)| (rich_text::Lit { term, weight, color: colors.get(term.wrapping_sub(1)).copied().unwrap_or(palette::ACCENT) }, palette::TEXT_DIM));
+                rich_text::draw_formula(ink, pos2(x, y) - Vec2::splat(pad * scale), &latex, formula::FORMULA_PX, display, &f, scale, palette::TEXT, lit);
+                report.formula_scale = Some(scale);
+                y += size.y * scale + 12.0;
+            }
+            Err(e) => {
+                ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&format!("formula: {e}"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::MISMATCH);
+                y += line;
+            }
+        }
     }
     for (i, (name, value, color)) in readout.rows.iter().enumerate() {
         if y + line > bottom {
@@ -694,8 +731,7 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::lab::frame::Readout, for
             continue;
         }
         let value_width = ink.measure(value, 24.0, FontFamily::Monospace).x;
-        let name = ink.fit_right(name, (width - value_width - 16.0).max(40.0), 24.0, FontFamily::Proportional);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, name, 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+        fitted_line(ink, pos2(x, y), name, (width - value_width - 16.0).max(40.0), palette::TEXT_DIM);
         ink.text(pos2(rect.max.x - 22.0, y), Align2::RIGHT_TOP, value, 24.0, FontFamily::Monospace, *color);
         y += line;
     }
@@ -705,9 +741,19 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::lab::frame::Readout, for
             report.readout_overflow = notes.len() - i;
             return;
         }
-        let text = ink.fit_right(note, width, 24.0, FontFamily::Proportional);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, *color);
+        fitted_line(ink, pos2(x, y), note, width, *color);
         y += line;
+    }
+}
+
+/// One line of 24 px text cut to `width`, or, holding a formula, drawn whole
+/// (src/lab/rich_text.rs).
+fn fitted_line(ink: &Ink, pos: Pos2, text: &str, width: f32, color: Color32) {
+    if rich_text::has_tags(text) {
+        rich_text::text(ink, pos, Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, color);
+    } else {
+        let text = ink.fit_right(text, width, 24.0, FontFamily::Proportional);
+        ink.text(pos, Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, color);
     }
 }
 
@@ -995,22 +1041,22 @@ fn draw_source_card(ink: &Ink, input: &UiInput) {
 fn draw_captions(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) {
     let (_, beat) = timeline.beat_at(frame);
     let Some(caption) = beat.captions.iter().find(|c| c.start <= frame && frame < c.end) else { return };
+    draw_caption_lines(ink, l, &caption.text);
+}
+
+/// A caption's lines with a shadow, 48 px apart, or more where a line holds a taller formula.
+fn draw_caption_lines(ink: &Ink, l: &Layout, text: &str) {
     let mut y = l.captions.min.y + 18.0;
-    for line in caption.text.lines() {
-        ink.text(pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, Color32::from_rgb(0x02, 0x08, 0x10));
-        ink.text(pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::TEXT);
-        y += 48.0;
+    for line in text.lines() {
+        rich_text::text(ink, pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, Color32::from_rgb(0x02, 0x08, 0x10));
+        let rect = rich_text::text(ink, pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::TEXT);
+        y += 48.0f32.max(rect.height() + 8.0);
     }
 }
 
 fn draw_caption_text(ink: &Ink, l: &Layout, caption: Option<&str>) {
     let Some(caption) = caption else { return };
-    let mut y = l.captions.min.y + 18.0;
-    for line in caption.lines() {
-        ink.text(pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, Color32::from_rgb(0x02, 0x08, 0x10));
-        ink.text(pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::TEXT);
-        y += 48.0;
-    }
+    draw_caption_lines(ink, l, caption);
 }
 
 /// How far the timeline just skipped, in a card on the viewport's left

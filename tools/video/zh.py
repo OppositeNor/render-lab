@@ -11,6 +11,8 @@ import re
 import unicodedata
 from typing import Any
 
+import markup
+
 CAPTION_UNITS = 64          # display units per caption line: a Chinese character is 2, Latin 1
 
 Board = dict[str, Any]
@@ -38,6 +40,10 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
             narration = []
             for s, text in zip(sentences, t['narration']):
                 s = dict(s) if isinstance(s, dict) else {'text': s}
+                # Formulas are shown in both languages: the same LaTeX, as many times.
+                english, chinese = markup.parse(s['text']).formulas, markup.parse(text, spoken_only=True).formulas
+                if sorted(english) != sorted(chinese):
+                    raise RuntimeError(f'translation: beat {beat["id"]}: the sentence {text!r} has formulas {chinese}, the English {english}')
                 s['en'], s['text'] = s['text'], text
                 narration.append(s)
             beat['narration'] = narration

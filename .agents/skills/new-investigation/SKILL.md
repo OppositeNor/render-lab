@@ -95,7 +95,7 @@ src/<engine>/<feature>/mod.rs       the Investigation impl, Wording, TIMELINES
                        pseudocode.rs + pseudocode/*.py
                        source-index.json (+ a script that writes it from the checkout)
                        shaders/*.wgsl (optional own scene shading)
-                       formulas/ + formulas.rs (optional readout formulas)
+                       formulas.rs (optional readout formulas: tags in text/*.json)
                        video/, timelines/ (the narrated video)
                        README.md
 ```
@@ -110,7 +110,7 @@ Register it:
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `timelines`, `sources`, `listings`,
 `demos`, `demo_title`, `demo_tab`, `param_default`, `shot_state`, `build_frame`, `dock`, `click`, and `selftest`.
-Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `formula`, `demo_hint`,
+Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `demo_hint`,
 `resets_camera`, and `demo_scene` (which of the lab's scenes in `src/lab/scene.rs` a demonstration shows; the study room
 by default). Follow `src/o3de/lighting/mod.rs`.
 
@@ -143,11 +143,12 @@ by default). Follow `src/o3de/lighting/mod.rs`.
 - **Pseudo-code** (`pseudocode/*.py`): a header `# title: English | 中文`, `# source: <index key>`, `# demo: <demo>`;
   a line ending in `# @tag` lights when a shot highlights `tag` with the code panel. It must compile as Python and fit
   the code panel at 24 px. Mirror the engine function's real steps and names; one listing per step.
-- **Formulas** (optional): LaTeX in `formulas/formulas.json`, `{key: latex}`, with `\lit{n}{#rrggbb}{...}` marking term n
-  in its readout row's colour. `python3 tools/video/formulas.py --investigation <engine>/<feature>` renders the PNGs
-  (KaTeX; glyphs at least 24 px, at most 546 px wide), commit them with `manifest.json`, embed them in `formulas.rs`
-  (`include_bytes!`), return them from `Investigation::formula`, and name one in `Readout::formula`. Add the directory
-  to `build.rs`'s `FORMULAS`, which fails the build on a stale image. A `formula` parameter can pick the lit term.
+- **Formulas** (optional): a formula tag in the text tables, `{@ formula="LaTeX" display=yes colors="#rrggbb,…"}`,
+  with `\lit{n}{…}` marking term n and `colors` giving each term its readout row's colour (the same LaTeX in every
+  language; `build.rs` checks it). Name the tag's text in `Readout::formula` and the lit term in `Readout::formula_lit`;
+  the lab typesets it (`src/lab/formula.rs`; glyphs at least 24 px, at most 546 px wide, which
+  `render-lab formulas --check` and the selftest enforce). A `formula` parameter can pick the lit term. Narration can
+  show formulas too, with a formula tag in a sentence (`tools/video/README.md`).
 
 ## 6. The Play animation
 
@@ -167,16 +168,15 @@ Inputs in `src/<engine>/<feature>/video/`:
   timelines), output names, `engineLabel`, `checkoutEnv`, `durationMinutes`, `readingPath` (index keys for the
   source-reading guide), `pronunciations`, and the documents' texts per language (intro, demo descriptions,
   simplifications). Copy O3DE's and adapt it.
-- **`storyboard.json`**: `chapters` (`number`, `title`, `targetSeconds`, `summary`, `sources`) of `beats` (`id`
-  `c<chapter>-<name>`, `kind`: `scene`, `mermaid`, or `sources`, `headline`, `narration`, `keys`). A sentence is a
-  string or `{text, keys?, sequence?, pause?}`. Keys apply at the sentence's start; `sequence` keys are spread over it.
-  A key sets `demo`, `camera`, `params`, `panel` (`values`, `code`, `hidden`, ...), `code` (a listing), `highlight`
-  (listing tags or fields), `callout` (an index key), or `record`, with `delay` and `blend` in seconds and `ease` for
-  the blend (`smooth`, `linear`, `in`, `out`, `inOut`, `sine`). `animate` starts motions on parameters or `camera.*`
-  channels: a `path` through waypoints, an `orbit`, or a `wave`, whose `seconds` may be `"sentence"` or `"beat"`
-  (`tools/video/README.md`).
+- **`storyboard.story`**: chapters (`# n · Title · N s`, with `summary:` and `sources:`) of beats
+  (`## c<chapter>-<name> · scene · Headline`; `kind`: `scene`, `mermaid`, or `sources`), each paragraph one sentence.
+  Shots are tags (`tools/video/README.md`): a line of tags before the first sentence sets the beat's keys,
+  `{@define name …}` names a cue, and tags in a sentence fire on the word they stand before (`demo`, `camera.*`,
+  shot parameters, `panel`, `code`, `highlight`, `callout`, `record`, `blend`, `ease`, `delay`, ranges
+  `{@name> p=a..b}`…`{<name}`, `animate=[…]` motions, and formulas `{@ formula="…" say="…"}`).
 - **`diagrams/*.mmd`**: Mermaid diagrams for `mermaid` beats (`focus` lights nodes); `zh-CN/diagrams/` for Chinese.
-- **`zh-CN/translation.json`**: one Chinese sentence per English sentence, per beat, plus titles and a glossary.
+- **`storyboard.zh-CN.story`**: the same headings in Chinese and one paragraph per English sentence (formulas, no
+  cues), plus `title:`, `subtitle:`, `locale:`, and `glossary:` lines.
 
 Animate, don't cut:
 

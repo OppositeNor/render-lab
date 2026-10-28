@@ -205,11 +205,19 @@ def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json) -> li
 # ---------------------------------------------------------------------------
 # Listings and links
 
+def script_text(cfg: Config, sentence: Json) -> str:
+    """A sentence as the script shows it: its tags gone, its formulas as `$LaTeX$`."""
+    import markup
+    return markup.readable(markup.parse(sentence['text'], spoken_only=cfg.zh()).caption)
+
+
 def beat_listings(beat: Json) -> list[str]:
     """Pseudo-code listings a beat shows, in order of first use."""
+    import markup
     names: list[str] = []
     for item in [beat] + sentences_of(beat):
-        for k in item.get('keys', []) + item.get('sequence', []):
+        tagged = markup.text_keys(beat, item) if item is not beat else []
+        for k in item.get('keys', []) + item.get('sequence', []) + tagged:
             if k.get('code') and k['code'] not in names:
                 names.append(k['code'])
     return names
@@ -288,7 +296,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
                 lines += [f'*{when} · {w["demo"]}{": " + demos.get(demo, demo) if demo else ""}*', '']
             else:
                 lines += [f'*{when} · {w["card"]}*', '']
-            lines += [joiner.join(s['text'] for s in sentences_of(beat)), '']
+            lines += [joiner.join(script_text(cfg, s) for s in sentences_of(beat)), '']
             for name in beat_listings(beat):
                 lines += listing_markdown(cfg, name, doc_dir, index, shown)
             if beat['kind'] == 'sources':
@@ -301,13 +309,13 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     build = cfg.build()
     lines += [f'## {w["files"]}', '',
               f'- {repo_link(doc_dir, cfg.video(), cfg.video_name())} · {repo_link(doc_dir, build / "captions.srt", "captions.srt")} · {repo_link(doc_dir, build / "captions.vtt", "captions.vtt")} · {repo_link(doc_dir, build / "chapters.txt", "chapters.txt")}',
-              f'- {repo_link(doc_dir, cfg.storyboard, "storyboard.json")} · {repo_link(doc_dir, cfg.source_index, "source-index.json")} · {repo_link(doc_dir, cfg.diagrams, "diagrams/")} · {repo_link(doc_dir, cfg.pseudocode, "pseudocode/")}', '']
+              f'- {repo_link(doc_dir, cfg.storyboard, cfg.storyboard.name)} · {repo_link(doc_dir, cfg.source_index, "source-index.json")} · {repo_link(doc_dir, cfg.diagrams, "diagrams/")} · {repo_link(doc_dir, cfg.pseudocode, "pseudocode/")}', '']
     (build / 'script.md').write_text('\n'.join(lines) + '\n')
     plain: list[str] = []
     for chapter in board['chapters']:
         plain.append(f'{chapter["number"]:02d}. {chapter["title"]}\n')
         for beat in chapter['beats']:
-            plain.append(joiner.join(s['text'] for s in sentences_of(beat)) + '\n')
+            plain.append(joiner.join(script_text(cfg, s) for s in sentences_of(beat)) + '\n')
     (build / 'script.txt').write_text('\n'.join(plain) + '\n')
 
 
