@@ -9,7 +9,7 @@ use crate::lab::fixtures::{self, Fixtures};
 use crate::lab::investigation;
 use crate::lab::layout::{self, CardData, Declaration, FrameUniforms, ObjectData, ProbeRecord, RadianceSample, RayDebugData, ShaderStruct};
 use crate::lab::palette::to_f32;
-use crate::lab::scene::{self, Meshes, Scene};
+use crate::lab::scene::{self, Meshes, Scene, SceneId};
 use crate::lab::shot::{DemoId, ShotState};
 #[cfg(commercial)]
 use crate::lab::surface_cache::Layer;
@@ -255,7 +255,7 @@ impl FrameContent {
     }
 }
 
-/// Data that never changes during a run.
+/// Data prepared once for one scene, which never changes during a run.
 pub struct Statics {
     pub scene: Scene,
     pub meshes: Meshes,
@@ -268,8 +268,8 @@ pub struct Statics {
 impl Statics {
     /// Everything but the Surface Cache's contents and the screen probes:
     /// `Renderer::new` lights the cache on the GPU, then traces the probes.
-    pub fn prepare() -> anyhow::Result<Statics> {
-        let scene = Scene::study_room();
+    pub fn prepare(id: SceneId) -> anyhow::Result<Statics> {
+        let scene = Scene::build(id);
         let meshes = scene::build_meshes(&scene);
         #[cfg(commercial)]
         let fixtures = Fixtures::prepare(&scene);
@@ -287,8 +287,8 @@ impl Statics {
 
     /// The CPU reference: the Surface Cache lit by src/lab/surface_cache.rs.
     #[cfg(commercial)]
-    pub fn prepare_cpu() -> anyhow::Result<Statics> {
-        let mut statics = Statics::prepare()?;
+    pub fn prepare_cpu(id: SceneId) -> anyhow::Result<Statics> {
+        let mut statics = Statics::prepare(id)?;
         statics.fixtures.surface_cache.light_on_cpu(&statics.scene.lighting, &statics.scene.records());
         statics.trace_probes();
         Ok(statics)
@@ -304,7 +304,8 @@ impl Statics {
 }
 
 impl Statics {
-    /// The current investigation's starting state, completed from the prepared data.
+    /// The current investigation's starting state, completed from the
+    /// prepared data (of whichever scene these are).
     pub fn default_state(&self, demo: impl Into<DemoId>) -> ShotState {
         investigation::current().default_state(demo.into(), self)
     }

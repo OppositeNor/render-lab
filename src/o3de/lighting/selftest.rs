@@ -105,7 +105,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let mut report = Report { checks: Vec::new() };
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let gpu_info = renderer::gpu_summary(&gpu);
-    let mut renderer = Renderer::new(gpu, Statics::prepare()?, 1920, 1080)?;
+    let mut renderer = Renderer::new(gpu, Statics::prepare(crate::lab::scene::SceneId::STUDY_ROOM)?, 1920, 1080)?;
     let still = still_timeline(1920, 1080);
     let map = BrdfMap::get();
 
@@ -447,6 +447,17 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             "transmission: o3dePixel with the sphere light matches brdf::pixel, thick and thin, with back lighting on the teapot",
             ok,
             json!({"settings": detail, "tolerance": 3e-3}),
+        );
+    }
+
+    // ---- 5d. The probes' capture camera ------------------------------------
+    {
+        let probes = super::reflections::bake_check(4096);
+        let ok = probes.iter().all(|&(share, median)| share > 0.9 && median < 0.01);
+        report.check(
+            "probe captures: each cubemap, read along 4096 directions, shows what the room traced from the probe's position shows along them (90% within 5%)",
+            ok,
+            json!(probes.iter().map(|&(share, median)| json!({"withinFivePercent": share, "medianRelativeDifference": median})).collect::<Vec<_>>()),
         );
     }
 

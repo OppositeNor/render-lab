@@ -106,5 +106,9 @@
   "object.rotated_box": "旋转的盒子",
   "object.small_box": "小盒子",
   "object.teapot": "茶壶",
-  "object.none": "无"
+  "object.none": "无",
+  "scene.study_room": "书房",
+  "scene.terrain": "地形",
+  "object.terrain": "地形",
+  "object.sun_panel": "太阳面板"
 }

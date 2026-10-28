@@ -15,6 +15,7 @@ use crate::lab::camera::Projector;
 use crate::lab::controls::Dock;
 use crate::lab::frame::{FrameContent, Statics};
 use crate::lab::pseudocode::Listing;
+use crate::lab::scene::SceneId;
 use crate::lab::shot::{DemoId, ShotState};
 use crate::lab::sources::SourceIndex;
 #[cfg(commercial)]
@@ -172,6 +173,11 @@ pub trait Investigation: Sync {
     fn demo_title(&self, demo: DemoId) -> &'static str;
     /// The demonstration's short name on the viewer's tab row.
     fn demo_tab(&self, demo: DemoId) -> &'static str;
+    /// The lab scene a demonstration shows (src/lab/scene.rs); the renderer
+    /// switches to it for the demonstration's frames.
+    fn demo_scene(&self, _demo: DemoId) -> SceneId {
+        SceneId::STUDY_ROOM
+    }
     /// The viewer's status-line hint, if the demonstration has its own.
     fn demo_hint(&self, _demo: DemoId) -> Option<&'static str> {
         None
@@ -246,6 +252,29 @@ impl dyn Investigation {
     /// `engine/feature`, as the command line names it.
     pub fn path(&self) -> String {
         format!("{}/{}", self.engine().id, self.id())
+    }
+
+    /// The scenes its demonstrations show, in the order they first appear:
+    /// the viewer's scene tabs.
+    pub fn scenes(&self) -> Vec<SceneId> {
+        let mut scenes = Vec::new();
+        for demo in self.demos() {
+            let scene = self.demo_scene(*demo);
+            if !scenes.contains(&scene) {
+                scenes.push(scene);
+            }
+        }
+        scenes
+    }
+
+    /// Its demonstrations of `scene`, in order.
+    pub fn scene_demos(&self, scene: SceneId) -> Vec<DemoId> {
+        self.demos().iter().copied().filter(|d| self.demo_scene(*d) == scene).collect()
+    }
+
+    /// The scene of its first demonstration, which the renderer prepares first.
+    pub fn first_scene(&self) -> SceneId {
+        self.demo_scene(self.demos()[0])
     }
 }
 

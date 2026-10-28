@@ -1,7 +1,12 @@
-//! The study room, its ObjectData records, and CPU mirrors of the scene
-//! math in shaders/wgsl/common.wgsl. The mirrors drive picking, the debug
-//! ray, probe tracing, and the prepared Surface Cache texels; `selftest`
-//! compares them with the GPU versions.
+//! The lab's scenes (the study room, and hills of terrain), their
+//! ObjectData records, and CPU mirrors of the scene math in
+//! shaders/wgsl/common.wgsl. The mirrors drive picking, the debug ray, probe
+//! tracing, and the prepared Surface Cache texels; `selftest` compares them
+//! with the GPU versions.
+//!
+//! A scene is named by its `SceneId`; an investigation says which scene each
+//! of its demonstrations shows (`Investigation::demo_scene`), and the
+//! renderer switches to it when a frame needs it.
 //!
 //! Coordinates: right-handed, +Y up, metres. Some engines are left-handed, +Z up,
 //! and use centimetres.
@@ -16,6 +21,11 @@ pub const SHAPE_SPHERE: u32 = 2;
 pub const SHAPE_PANEL: u32 = 3;
 /// The Utah teapot's triangles (src/lab/mesh.rs); local bounds are its box.
 pub const SHAPE_MESH: u32 = 4;
+/// The lab's terrain heightfield (src/lab/terrain.rs); local bounds are its box.
+pub const SHAPE_TERRAIN: u32 = 5;
+/// How far along a shadow ray the terrain starts testing itself, past the
+/// neighbouring triangles its smooth normals lean over (metres).
+pub const TERRAIN_SELF_SHADOW_BIAS: f32 = 0.03;
 pub const NO_HIT: u32 = u32::MAX;
 pub const PI: f32 = std::f32::consts::PI;
 
@@ -29,6 +39,37 @@ pub mod ids {
     pub const BOX: usize = 6;
     pub const SMALL_BOX: usize = 7;
     pub const TEAPOT: usize = 8;
+}
+
+/// One of the lab's scenes, by its key (`"study-room"`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SceneId(&'static str);
+
+impl SceneId {
+    pub const STUDY_ROOM: SceneId = SceneId("study-room");
+    pub const TERRAIN: SceneId = SceneId("terrain");
+
+    pub fn key(self) -> &'static str {
+        self.0
+    }
+
+    /// The scene's name on the viewer's scene tabs, in the current locale.
+    pub fn title(self) -> &'static str {
+        use crate::lab::i18n::tr;
+        match self {
+            SceneId::TERRAIN => tr("scene.terrain"),
+            _ => tr("scene.study_room"),
+        }
+    }
+
+    /// Whether a camera at `eye` sees the scene from where it is meant to
+    /// be seen (inside the room's walls, above the hills).
+    pub fn camera_clear(self, eye: Vec3) -> bool {
+        match self {
+            SceneId::TERRAIN => eye.y > 3.0,
+            _ => Scene::inside_room(eye, 0.2),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -82,6 +123,7 @@ pub struct Lighting {
 
 #[derive(Clone, Debug)]
 pub struct Scene {
+    pub id: SceneId,
     pub objects: Vec<SceneObject>,
     pub lighting: Lighting,
 }
@@ -95,6 +137,13 @@ impl Scene {
     /// of them (its front is open, and it has no ceiling).
     pub fn inside_room(p: Vec3, margin: f32) -> bool {
         p.x.abs() < 3.0 - margin && p.z > -3.0 + margin && p.y > margin
+    }
+
+    pub fn build(id: SceneId) -> Scene {
+        match id {
+            SceneId::TERRAIN => Scene::terrain(),
+            _ => Scene::study_room(),
+        }
     }
 
     pub fn study_room() -> Scene {
@@ -199,6 +248,7 @@ impl Scene {
             radiance: light_radiance,
         };
         Scene {
+            id: SceneId::STUDY_ROOM,
             objects,
             lighting: Lighting {
                 light,
@@ -208,6 +258,54 @@ impl Scene {
                 ggx_samples: 16,
                 exposure: 1.0,
             },
+        }
+    }
+
+    /// Hills of the lab's terrain under the sky, lit by a large panel high
+    /// above them standing in for the sun.
+    pub fn terrain() -> Scene {
+        let terrain = crate::lab::terrain::terrain();
+        let solid = |name, shape, extent: Vec3, translation: Vec3, rotation: Quat, albedo: Vec3, roughness: f32| SceneObject {
+            name,
+            shape,
+            local_center: Vec3::ZERO,
+            local_extent: extent,
+            translation,
+            rotation,
+            scale: Vec3::ONE,
+            albedo,
+            roughness,
+            emissive: Vec3::ZERO,
+            emissive_strength: 0.0,
+        };
+        let light_color = Vec3::new(1.0, 0.93, 0.82);
+        let light_radiance = 16.0;
+        let panel_center = Vec3::new(-6.0, 10.0, 5.0);
+        let panel_extent = Vec3::new(2.0, 0.0, 2.0);
+        // The panel's local +Y normal turned toward the middle of the hills.
+        let panel_rotation = Quat::from_rotation_arc(Vec3::Y, (Vec3::new(0.0, 1.0, 0.0) - panel_center).normalize());
+        let objects = vec![
+            SceneObject {
+                local_center: terrain.local_center(),
+                ..solid("terrain", SHAPE_TERRAIN, terrain.local_extent(), Vec3::ZERO, Quat::IDENTITY, Vec3::new(0.30, 0.38, 0.20), 0.9)
+            },
+            SceneObject {
+                emissive: light_color,
+                emissive_strength: light_radiance,
+                ..solid("sun panel", SHAPE_PANEL, panel_extent, panel_center, panel_rotation, Vec3::splat(0.8), 1.0)
+            },
+        ];
+        let light = Light {
+            center: panel_center,
+            axis_u: panel_rotation * Vec3::new(panel_extent.x, 0.0, 0.0),
+            axis_v: panel_rotation * Vec3::new(0.0, 0.0, panel_extent.z),
+            color: light_color,
+            radiance: light_radiance,
+        };
+        Scene {
+            id: SceneId::TERRAIN,
+            objects,
+            lighting: Lighting { light, ambient: Vec3::splat(0.3), f0: 0.04, reflection_strength: 1.0, ggx_samples: 16, exposure: 1.0 },
         }
     }
 
@@ -282,12 +380,13 @@ pub fn normal_to_world(o: &ObjectData, n_local: Vec3) -> Vec3 {
 }
 
 pub fn occludes_light(o: &ObjectData) -> bool {
-    o.shape_kind == SHAPE_BOX || o.shape_kind == SHAPE_SPHERE || o.shape_kind == SHAPE_MESH
+    o.shape_kind == SHAPE_BOX || o.shape_kind == SHAPE_SPHERE || o.shape_kind == SHAPE_MESH || o.shape_kind == SHAPE_TERRAIN
 }
 
 /// Distance from `p` to an object's surface, and the closest surface point,
 /// in world space. Closed shapes (sphere, boxes) are signed, negative
-/// inside; planes, the panel, and the open teapot mesh are unsigned.
+/// inside; planes, the panel, and the open teapot mesh are unsigned. The
+/// terrain's is the vertical distance to its surface, negative below it.
 pub fn object_distance(o: &ObjectData, p: Vec3) -> (f32, Vec3) {
     let l2w = m4(&o.local_to_world);
     let lp = m4(&o.world_to_local).transform_point3(p);
@@ -314,6 +413,12 @@ pub fn object_distance(o: &ObjectData, p: Vec3) -> (f32, Vec3) {
             (c + q, inside)
         }
         SHAPE_MESH => (crate::lab::mesh::teapot().closest_point(lp).1, false),
+        SHAPE_TERRAIN => {
+            let t = crate::lab::terrain::terrain();
+            let q = Vec3::new(lp.x.clamp(-t.half_size.x, t.half_size.x), 0.0, lp.z.clamp(-t.half_size.y, t.half_size.y));
+            let q = Vec3::new(q.x, t.height_at(q.x, q.z), q.z);
+            (q, lp.y < q.y)
+        }
         _ => (Vec3::new(lp.x.clamp(c.x - e.x, c.x + e.x), c.y, lp.z.clamp(c.z - e.z, c.z + e.z)), false),
     };
     let world = l2w.transform_point3(q);
@@ -380,6 +485,11 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             let n = normal_to_world(o, n_local);
             Some((t, if n.dot(rd) > 0.0 { -n } else { n }))
         }
+        SHAPE_TERRAIN => {
+            let (t, n_local) = crate::lab::terrain::terrain().intersect(lo, ld, t_max)?;
+            let n = normal_to_world(o, n_local);
+            Some((t, if n.dot(rd) > 0.0 { -n } else { n }))
+        }
         _ => {
             if ld.y.abs() < 1e-9 {
                 return None;
@@ -433,13 +543,17 @@ pub fn trace_one(objects: &[ObjectData], index: usize, ro: Vec3, rd: Vec3, t_max
 
 fn shadowed(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, self_object: u32) -> bool {
     objects.iter().enumerate().any(|(i, o)| {
-        if i as u32 == self_object || !occludes_light(o) {
+        // A surface does not shadow itself, except the terrain, whose hills do.
+        if (i as u32 == self_object && o.shape_kind != SHAPE_TERRAIN) || !occludes_light(o) {
             return false;
         }
         if o.shape_kind == SHAPE_MESH {
             // Any triangle in range blocks the light, as in shadowed() in common.wgsl.
             let w2l = m4(&o.world_to_local);
             return crate::lab::mesh::teapot().occludes(w2l.transform_point3(p), w2l.transform_vector3(dir), dist);
+        }
+        if i as u32 == self_object {
+            return intersect_object(o, p + dir * TERRAIN_SELF_SHADOW_BIAS, dir, dist - TERRAIN_SELF_SHADOW_BIAS).is_some();
         }
         intersect_object(o, p, dir, dist).is_some()
     })
@@ -456,8 +570,11 @@ pub fn shadow_blocker(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, sel
     objects
         .iter()
         .enumerate()
-        .filter(|(i, o)| *i as u32 != self_object && occludes_light(o))
-        .filter_map(|(_, o)| intersect_object(o, p, dir, dist).map(|h| h.0))
+        .filter(|(i, o)| (*i as u32 != self_object || o.shape_kind == SHAPE_TERRAIN) && occludes_light(o))
+        .filter_map(|(i, o)| {
+            let start = if i as u32 == self_object { TERRAIN_SELF_SHADOW_BIAS } else { 0.0 };
+            intersect_object(o, p + dir * start, dir, dist - start).map(|h| h.0 + start)
+        })
         .min_by(f32::total_cmp)
 }
 
@@ -624,6 +741,21 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
                     for (p, n) in [(tri.p0, tri.n0), (tri.p1, tri.n1), (tri.p2, tri.n2)] {
                         indices.push(vertices.len() as u32);
                         vertices.push(Vertex { position: p, normal: n });
+                    }
+                }
+            }
+            SHAPE_TERRAIN => {
+                let t = crate::lab::terrain::terrain();
+                for j in 0..t.resolution {
+                    for i in 0..t.resolution {
+                        vertices.push(Vertex { position: t.vertex(i, j).to_array(), normal: t.vertex_normal(i, j).to_array() });
+                    }
+                }
+                for j in 0..t.cells() {
+                    for i in 0..t.cells() {
+                        for tri in crate::lab::terrain::Terrain::cell_triangles(i, j) {
+                            indices.extend(tri.map(|(x, z)| base + z * t.resolution + x));
+                        }
                     }
                 }
             }

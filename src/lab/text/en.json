@@ -106,5 +106,9 @@
   "object.rotated_box": "rotated box",
   "object.small_box": "small box",
   "object.teapot": "teapot",
-  "object.none": "none"
+  "object.none": "none",
+  "scene.study_room": "Study room",
+  "scene.terrain": "Terrain",
+  "object.terrain": "terrain",
+  "object.sun_panel": "sun panel"
 }

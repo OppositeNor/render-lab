@@ -25,3 +25,5 @@
 // The lab's environment (src/lab/environment.rs): an equirectangular RGB9E5
 // image with three levels, read with textureLoad.
 @group(0) @binding(15) var gEnvironment: texture_2d<f32>;
+// The lab's terrain heightfield (src/lab/terrain.rs, static): see terrainHeight in common.wgsl.
+@group(0) @binding(16) var<storage, read> gTerrain: array<f32>;

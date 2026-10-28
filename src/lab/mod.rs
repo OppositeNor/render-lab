@@ -38,6 +38,7 @@ pub mod scene;
 pub mod shaders;
 pub mod shot;
 pub mod sources;
+pub mod terrain;
 pub mod text;
 pub mod ui;
 pub mod viewer;

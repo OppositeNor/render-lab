@@ -157,7 +157,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let gpu_info = renderer::gpu_summary(&gpu);
     eprintln!("GPU: {}", gpu.info.name);
-    let statics = Statics::prepare()?;
+    let statics = Statics::prepare(crate::lab::investigation::current().first_scene())?;
     let (width, height) = (timeline.width, timeline.height);
     let mut renderer = Renderer::new(gpu, statics, width, height)?;
     let (first, last) = options.frames.unwrap_or((0, timeline.total_frames));

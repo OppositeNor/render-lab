@@ -57,8 +57,15 @@ struct SceneOutput {
 fn sceneFS(input: SceneVaryings) -> SceneOutput {
     var n = normalize(input.worldNormal);
     let eye = gFrame.camera.position;
-    if (dot(n, eye - input.worldPosition) < 0.0) {
-        n = -n;
+    let v = normalize(eye - input.worldPosition);
+    if (dot(n, v) < 0.0) {
+        if (gObjects[input.objectIndex].shapeKind == SHAPE_TERRAIN) {
+            // The terrain is seen from above: past a ridge its smooth normal
+            // leans away from the eye, so turn it back to grazing instead.
+            n = normalize(n - v * (dot(n, v) - 1e-3));
+        } else {
+            n = -n;
+        }
     }
     var color: vec3<f32>;
     if (input.objectIndex == gFrame.counts.y) {

@@ -175,6 +175,7 @@ impl App {
             _ => ShotState::for_demo(investigation::current().demos()[0]),
         };
         let camera = state.camera;
+        let scene = investigation::current().demo_scene(state.demo);
         Ok(App {
             options,
             surface: None,
@@ -207,7 +208,7 @@ impl App {
             leaving: false,
             error: None,
             // The autotest checks the camera, so it opens straight on the shot.
-            intro: no_autotest.then(|| (Intro::random().fit(camera, |c| crate::lab::scene::Scene::inside_room(c.eye(), 0.2)), Instant::now())),
+            intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
         })
     }
 
@@ -239,9 +240,9 @@ impl App {
         s
     }
 
-    pub fn default_state(&self, demo: impl Into<DemoId>) -> ShotState {
+    pub fn default_state(&mut self, demo: impl Into<DemoId>) -> ShotState {
         let demo = demo.into();
-        self.renderer.as_ref().map(|r| r.statics.default_state(demo)).unwrap_or_else(|| ShotState::for_demo(demo))
+        self.renderer.as_mut().map(|r| r.default_state(demo)).unwrap_or_else(|| ShotState::for_demo(demo))
     }
 
     /// Stop the intro where it is, keeping its camera, so the user's camera input carries on from what they see.
@@ -506,7 +507,9 @@ impl App {
             KeyCode::Minus,
             KeyCode::Equal,
         ];
-        let demos = investigation::current().demos();
+        // The keys choose among the shown scene's demonstrations.
+        let investigation = investigation::current();
+        let demos = investigation.scene_demos(investigation.demo_scene(self.state.demo));
         if let Some(d) = DEMO_KEYS.iter().position(|k| *k == code).and_then(|i| demos.get(i)) {
             self.apply(ViewerAction::SelectDemo(*d));
             return;
@@ -837,7 +840,7 @@ impl App {
             if let Some(a) = &self.audio {
                 eprintln!("Narration: {}", a.track().display());
             }
-            let statics = Statics::prepare()?;
+            let statics = Statics::prepare(investigation::current().demo_scene(self.state.demo))?;
             let mut renderer = Renderer::new(gpu, statics, size.width.max(64), size.height.max(64))?;
             renderer.ui_scale = self.options.ui_scale;
             let blit = renderer.pipelines.blit(&renderer.gpu.device, format);

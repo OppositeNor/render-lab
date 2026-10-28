@@ -126,6 +126,8 @@ pub fn object_name(name: &str) -> String {
         ("rotated box", tr("object.rotated_box")),
         ("small box", tr("object.small_box")),
         ("teapot", tr("object.teapot")),
+        ("terrain", tr("object.terrain")),
+        ("sun panel", tr("object.sun_panel")),
         ("none", tr("object.none")),
     ];
     for (en, zh) in objects {

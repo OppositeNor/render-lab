@@ -110,8 +110,9 @@ Register it:
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `timelines`, `sources`, `listings`,
 `demos`, `demo_title`, `demo_tab`, `param_default`, `shot_state`, `build_frame`, `dock`, `click`, and `selftest`.
-Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `formula`, `demo_hint`, and
-`resets_camera`. Follow `src/o3de/lighting/mod.rs`.
+Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `formula`, `demo_hint`,
+`resets_camera`, and `demo_scene` (which of the lab's scenes in `src/lab/scene.rs` a demonstration shows; the study room
+by default). Follow `src/o3de/lighting/mod.rs`.
 
 ## 4. Demonstrations and parameters (`shot.rs`, `demos.rs`, `controls.rs`)
 

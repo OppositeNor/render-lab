@@ -211,7 +211,7 @@ fn main() -> Result<()> {
         #[cfg(commercial)]
         Command::Fixtures { output, atlas_png } => {
             // The CPU reference build: no GPU needed.
-            let statics = lab::frame::Statics::prepare_cpu()?;
+            let statics = lab::frame::Statics::prepare_cpu(lab::scene::SceneId::STUDY_ROOM)?;
             let fx = &statics.fixtures;
             let df = &fx.distance_field;
             let summary = serde_json::json!({

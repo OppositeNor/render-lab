@@ -738,7 +738,7 @@ struct Backdrop {
 impl Backdrop {
     fn new(gpu: Gpu, size: [u32; 2], output: wgpu::TextureFormat) -> Result<Backdrop> {
         let frost = Frost::new(&gpu.device, output);
-        let renderer = Renderer::new(gpu, Statics::prepare()?, size[0].max(64), size[1].max(64))?;
+        let renderer = Renderer::new(gpu, Statics::prepare(crate::lab::investigation::current().first_scene())?, size[0].max(64), size[1].max(64))?;
         Ok(Backdrop { renderer, frost })
     }
 

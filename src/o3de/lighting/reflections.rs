@@ -248,10 +248,22 @@ fn bake_scene() -> (Vec<ObjectData>, Shading) {
     (objects, super::demos::shading(&state))
 }
 
-/// Each probe's specular cubemap: the room shaded by the CPU mirror (the
-/// point light and the global skylight) from the probe's centre, 256 texels
-/// a face as the Medium bake quality's preset makes them, then prefiltered
-/// with the skylight's GGX filter into six mips. Built once per run.
+/// What a probe's capture sees along `dir` from its position `center`: the
+/// room shaded by the CPU mirror (the point light and the global skylight),
+/// with the eye at the probe, or the sky where nothing is hit.
+fn bake_radiance(objects: &[ObjectData], shading: &Shading, map: &BrdfMap, center: Vec3, dir: Vec3) -> Vec3 {
+    let hit = crate::lab::scene::trace_scene(objects, center, dir, 100.0, crate::lab::scene::ids::PANEL as u32);
+    if !hit.is_hit() {
+        return super::ibl::environment(dir);
+    }
+    let p = center + dir * hit.t;
+    let n = if hit.normal.dot(dir) > 0.0 { -hit.normal } else { hit.normal };
+    super::brdf::pixel(shading, objects, p, n, center, hit.object, 0.0, map, [Vec3::ZERO; 2]).color
+}
+
+/// Each probe's specular cubemap: `bake_radiance` from the probe's centre,
+/// 256 texels a face as the Medium bake quality's preset makes them, then
+/// prefiltered with the skylight's GGX filter into six mips. Built once per run.
 pub fn cubemaps() -> &'static Vec<Vec<Cubemap>> {
     static CUBES: OnceLock<Vec<Vec<Cubemap>>> = OnceLock::new();
     CUBES.get_or_init(|| {
@@ -259,23 +271,38 @@ pub fn cubemaps() -> &'static Vec<Vec<Cubemap>> {
         let map = BrdfMap::get();
         PLACEMENTS
             .iter()
-            .map(|&(center, _, _)| {
-                super::ibl::Ibl::build_specular(
-                    |dir| {
-                        let hit = crate::lab::scene::trace_scene(&objects, center, dir, 100.0, crate::lab::scene::ids::PANEL as u32);
-                        if !hit.is_hit() {
-                            return super::ibl::environment(dir);
-                        }
-                        let p = center + dir * hit.t;
-                        let n = if hit.normal.dot(dir) > 0.0 { -hit.normal } else { hit.normal };
-                        super::brdf::pixel(&shading, &objects, p, n, center, hit.object, 0.0, map, [Vec3::ZERO; 2]).color
-                    },
-                    SPECULAR_SIZE,
-                    super::ibl::GGX_SAMPLES,
-                )
-            })
+            .map(|&(center, _, _)| super::ibl::Ibl::build_specular(|dir| bake_radiance(&objects, &shading, map, center, dir), SPECULAR_SIZE, super::ibl::GGX_SAMPLES))
             .collect()
     })
+}
+
+/// The capture camera, checked: each probe's mip 0 read along `count`
+/// directions (a golden-angle spiral over the sphere) against the room traced
+/// from the probe's position along the same direction. Returns, per probe,
+/// the share of directions within 5% (relative to the larger of the two
+/// radiances and 0.05) and the median difference. A face turned or flipped in
+/// the capture would put the room's surfaces in the wrong directions.
+pub fn bake_check(count: usize) -> Vec<(f32, f32)> {
+    let (objects, shading) = bake_scene();
+    let map = BrdfMap::get();
+    PLACEMENTS
+        .iter()
+        .zip(cubemaps())
+        .map(|(&(center, _, _), mips)| {
+            let mut errors: Vec<f32> = (0..count)
+                .map(|i| {
+                    let z = 1.0 - 2.0 * (i as f32 + 0.5) / count as f32;
+                    let a = i as f32 * 2.399_963;
+                    let r = (1.0 - z * z).max(0.0).sqrt();
+                    let dir = Vec3::new(r * a.cos(), z, r * a.sin());
+                    let (baked, traced) = (mips[0].sample(dir), bake_radiance(&objects, &shading, map, center, dir));
+                    (baked - traced).abs().max_element() / baked.max_element().max(traced.max_element()).max(0.05)
+                })
+                .collect();
+            errors.sort_by(f32::total_cmp);
+            (errors.iter().filter(|&&e| e < 0.05).count() as f32 / count as f32, errors[count / 2])
+        })
+        .collect()
 }
 
 /// Which baked cubemap the cubemap views show (`probeShown`, 1 or 2).

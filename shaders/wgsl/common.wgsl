@@ -8,6 +8,8 @@ const SHAPE_BOX: u32 = 1u;     // box localCenter +/- localExtent
 const SHAPE_SPHERE: u32 = 2u;  // sphere at localCenter, radius localExtent.x
 const SHAPE_PANEL: u32 = 3u;   // emissive rectangle, local XZ plane
 const SHAPE_MESH: u32 = 4u;    // the teapot's triangles (gMeshNodes, gMeshTriangles)
+const SHAPE_TERRAIN: u32 = 5u; // the lab's terrain heightfield (gTerrain)
+const TERRAIN_SELF_SHADOW_BIAS: f32 = 0.03; // metres; scene.rs's TERRAIN_SELF_SHADOW_BIAS
 const MESH_STACK: u32 = 32u;   // src/lab/mesh.rs asserts the BVH is at most 30 levels deep
 const NO_HIT: u32 = 0xffffffffu;
 
@@ -42,8 +44,153 @@ fn normalToWorld(o: ObjectData, nLocal: vec3<f32>) -> vec3<f32> {
 }
 
 fn occludesLight(o: ObjectData) -> bool {
-    return o.shapeKind == SHAPE_BOX || o.shapeKind == SHAPE_SPHERE || o.shapeKind == SHAPE_MESH;
+    return o.shapeKind == SHAPE_BOX || o.shapeKind == SHAPE_SPHERE || o.shapeKind == SHAPE_MESH || o.shapeKind == SHAPE_TERRAIN;
 }
+
+// The terrain (src/lab/terrain.rs): gTerrain holds the vertices per side
+// (as bits), the half size, the lowest and highest heights, three unused
+// words, then the heights row by row along +Z.
+fn terrainResolution() -> u32 {
+    return bitcast<u32>(gTerrain[0]);
+}
+
+fn terrainHalfSize() -> vec2<f32> {
+    return vec2<f32>(gTerrain[1], gTerrain[2]);
+}
+
+fn terrainHeight(i: u32, j: u32) -> f32 {
+    return gTerrain[8u + j * terrainResolution() + i];
+}
+
+fn terrainVertex(i: u32, j: u32) -> vec3<f32> {
+    let cell = 2.0 * terrainHalfSize() / f32(terrainResolution() - 1u);
+    return vec3<f32>(-terrainHalfSize().x + cell.x * f32(i), terrainHeight(i, j), -terrainHalfSize().y + cell.y * f32(j));
+}
+
+// Central differences, one-sided at the edges (Terrain::vertex_normal).
+fn terrainVertexNormal(i: u32, j: u32) -> vec3<f32> {
+    let last = terrainResolution() - 1u;
+    let i0 = select(i - 1u, 0u, i == 0u);
+    let i1 = min(i + 1u, last);
+    let j0 = select(j - 1u, 0u, j == 0u);
+    let j1 = min(j + 1u, last);
+    let cell = 2.0 * terrainHalfSize() / f32(last);
+    let dx = (terrainHeight(i1, j) - terrainHeight(i0, j)) / (cell.x * f32(i1 - i0));
+    let dz = (terrainHeight(i, j1) - terrainHeight(i, j0)) / (cell.y * f32(j1 - j0));
+    return normalize(vec3<f32>(-dx, 1.0, -dz));
+}
+
+// Two-sided Moller-Trumbore: (t, u, v), t < 0 on a miss.
+fn terrainTriangle(o: vec3<f32>, d: vec3<f32>, p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>) -> vec3<f32> {
+    let e1 = p1 - p0;
+    let e2 = p2 - p0;
+    let pv = cross(d, e2);
+    let det = dot(e1, pv);
+    if (abs(det) < 1e-12) {
+        return vec3<f32>(-1.0, 0.0, 0.0);
+    }
+    let inv = 1.0 / det;
+    let tv = o - p0;
+    let u = dot(tv, pv) * inv;
+    if (u < 0.0 || u > 1.0) {
+        return vec3<f32>(-1.0, 0.0, 0.0);
+    }
+    let qv = cross(tv, e1);
+    let v = dot(d, qv) * inv;
+    if (v < 0.0 || u + v > 1.0) {
+        return vec3<f32>(-1.0, 0.0, 0.0);
+    }
+    return vec3<f32>(dot(e2, qv) * inv, u, v);
+}
+
+// Closest hit of a local-space ray with the terrain: the cells under the ray
+// in order (Amanatides & Woo 1987), each skipped when the ray passes above
+// or below its corners, then its two triangles. The same walk as
+// Terrain::intersect in src/lab/terrain.rs; the normal is the interpolated
+// vertex normal, in local space.
+fn intersectTerrain(lo: vec3<f32>, ld: vec3<f32>, tMax: f32) -> ObjectHit {
+    var result = ObjectHit(false, tMax, vec3<f32>(0.0, 1.0, 0.0));
+    let half = terrainHalfSize();
+    let bmin = vec3<f32>(-half.x, gTerrain[3], -half.y);
+    let bmax = vec3<f32>(half.x, gTerrain[4], half.y);
+    let inv = 1.0 / select(ld, vec3<f32>(1e-9), abs(ld) < vec3<f32>(1e-9));
+    let t0 = (bmin - lo) * inv;
+    let t1 = (bmax - lo) * inv;
+    let tn3 = min(t0, t1);
+    let tf3 = max(t0, t1);
+    let tEnter = max(max(max(tn3.x, tn3.y), tn3.z), 0.0);
+    let tExit = min(min(min(tf3.x, tf3.y), tf3.z), tMax);
+    if (tExit < tEnter) {
+        return result;
+    }
+    let cells = i32(terrainResolution()) - 1;
+    let last = cells - 1;
+    let cell = 2.0 * half / f32(cells);
+    let p = lo + ld * tEnter;
+    var i = clamp(i32(floor((p.x + half.x) / cell.x)), 0, last);
+    var j = clamp(i32(floor((p.z + half.y) / cell.y)), 0, last);
+    let si = select(-1, 1, ld.x >= 0.0);
+    let sj = select(-1, 1, ld.z >= 0.0);
+    let nextX = -half.x + cell.x * f32(i + select(0, 1, si > 0));
+    let nextZ = -half.y + cell.y * f32(j + select(0, 1, sj > 0));
+    var tx = (nextX - lo.x) * inv.x;
+    var tz = (nextZ - lo.z) * inv.z;
+    let dtx = abs(cell.x * inv.x);
+    let dtz = abs(cell.y * inv.z);
+    var tCell = tEnter;
+    for (var step = 0; step < 2 * cells + 2; step++) {
+        let tOut = min(min(tx, tz), tExit);
+        let ya = lo.y + ld.y * tCell;
+        let yb = lo.y + ld.y * tOut;
+        let ci = u32(i);
+        let cj = u32(j);
+        let h00 = terrainHeight(ci, cj);
+        let h10 = terrainHeight(ci + 1u, cj);
+        let h01 = terrainHeight(ci, cj + 1u);
+        let h11 = terrainHeight(ci + 1u, cj + 1u);
+        let loH = min(min(h00, h10), min(h01, h11));
+        let hiH = max(max(h00, h10), max(h01, h11));
+        if (min(ya, yb) <= hiH + 1e-4 && max(ya, yb) >= loH - 1e-4) {
+            // The cell's triangles: (i,j) (i,j+1) (i+1,j+1), then (i,j) (i+1,j+1) (i+1,j).
+            let a = terrainVertex(ci, cj);
+            let c = terrainVertex(ci + 1u, cj + 1u);
+            let first = terrainTriangle(lo, ld, a, terrainVertex(ci, cj + 1u), c);
+            let second = terrainTriangle(lo, ld, a, c, terrainVertex(ci + 1u, cj));
+            var best = tMax;
+            if (first.x > 1e-4 && first.x < best) {
+                best = first.x;
+                result.hit = true;
+                result.normal = normalize(terrainVertexNormal(ci, cj) * (1.0 - first.y - first.z) + terrainVertexNormal(ci, cj + 1u) * first.y + terrainVertexNormal(ci + 1u, cj + 1u) * first.z);
+            }
+            if (second.x > 1e-4 && second.x < best) {
+                best = second.x;
+                result.hit = true;
+                result.normal = normalize(terrainVertexNormal(ci, cj) * (1.0 - second.y - second.z) + terrainVertexNormal(ci + 1u, cj + 1u) * second.y + terrainVertexNormal(ci + 1u, cj) * second.z);
+            }
+            if (result.hit) {
+                result.t = best;
+                return result;
+            }
+        }
+        if (tOut >= tExit) {
+            return result;
+        }
+        if (tx < tz) {
+            i += si;
+            tCell = tx;
+            tx += dtx;
+        } else {
+            j += sj;
+            tCell = tz;
+            tz += dtz;
+        }
+        if (i < 0 || j < 0 || i > last || j > last) {
+            return result;
+        }
+    }
+    return result;
+}
+
 
 // Entry distance of a ray into a BVH node's box, or -1 if it misses or
 // enters at or after tMax. Mirrors box_entry in src/lab/mesh.rs.
@@ -219,6 +366,16 @@ fn intersectObject(o: ObjectData, ro: vec3<f32>, rd: vec3<f32>, tMax: f32) -> Ob
         }
         return result;
     }
+    if (o.shapeKind == SHAPE_TERRAIN) {
+        result = intersectTerrain(lo, ld, tMax);
+        if (result.hit) {
+            result.normal = normalToWorld(o, result.normal);
+            if (dot(result.normal, rd) > 0.0) {
+                result.normal = -result.normal;
+            }
+        }
+        return result;
+    }
     // Planes and the emissive panel are rectangles in the local XZ plane.
     if (abs(ld.y) < 1e-9) {
         return result;
@@ -274,10 +431,11 @@ fn shadowVisibility(p: vec3<f32>, dir: vec3<f32>, dist: f32, selfObject: u32) ->
     let count = gFrame.counts.x;
     for (var i = 0u; i < count; i++) {
         let presence = objectPresence(i);
-        if (i == selfObject || presence <= 0.0) {
+        let o = gObjects[i];
+        // A surface does not shadow itself, except the terrain, whose hills do.
+        if ((i == selfObject && o.shapeKind != SHAPE_TERRAIN) || presence <= 0.0) {
             continue;
         }
-        let o = gObjects[i];
         if (!occludesLight(o)) {
             continue;
         }
@@ -285,6 +443,10 @@ fn shadowVisibility(p: vec3<f32>, dir: vec3<f32>, dist: f32, selfObject: u32) ->
         if (o.shapeKind == SHAPE_MESH) {
             // Any triangle in range blocks the light; no need for the closest.
             blocked = intersectMesh(transformPoint(o.worldToLocal, p), transformVector(o.worldToLocal, dir), dist, true).hit;
+        } else if (i == selfObject) {
+            // The terrain shadowing itself: start a little along the ray, past
+            // the neighbouring triangles its smooth normal leans over.
+            blocked = intersectObject(o, p + dir * TERRAIN_SELF_SHADOW_BIAS, dir, dist - TERRAIN_SELF_SHADOW_BIAS).hit;
         } else {
             blocked = intersectObject(o, p, dir, dist).hit;
         }
@@ -342,7 +504,7 @@ fn ambientVisibility(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> f32 {
             continue;
         }
         let o = gObjects[i];
-        if (!occludesLight(o)) {
+        if (!occludesLight(o) || o.shapeKind == SHAPE_TERRAIN) {
             continue;
         }
         let toC = o.worldCenter - p;

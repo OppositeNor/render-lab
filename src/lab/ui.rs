@@ -380,13 +380,29 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
             ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, headline, 38.0, bold(), palette::TEXT);
         }
         Chrome::Viewer(viewer) => {
-            ink.text(pos2(40.0, 14.0), Align2::LEFT_TOP, format!("RENDER LAB · {}", input.state.demo.title().to_uppercase()), 24.0, bold(), palette::ACCENT);
+            let title = ink.text(pos2(40.0, 14.0), Align2::LEFT_TOP, format!("RENDER LAB · {}", input.state.demo.title().to_uppercase()), 24.0, bold(), palette::ACCENT);
             ink.font(24.0, FontFamily::Proportional);
+            // The scene tabs, on the title's line, when the demonstrations show more than one scene.
+            let investigation = investigation::current();
+            let shown = investigation.demo_scene(input.state.demo);
+            let scenes = investigation.scenes();
+            if scenes.len() > 1 {
+                egui::Area::new(egui::Id::unique("viewer-scenes")).fixed_pos(pos2(title.max.x + 28.0, 8.0)).show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        for scene in scenes {
+                            if ui.selectable_label(scene == shown, egui::RichText::new(scene.title()).strong()).clicked() && scene != shown {
+                                viewer.actions.push(ViewerAction::SelectDemo(investigation.scene_demos(scene)[0]));
+                            }
+                        }
+                    });
+                });
+            }
             let response = egui::Area::new(egui::Id::unique("viewer-controls")).fixed_pos(pos2(36.0, 50.0)).show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    for (i, demo) in investigation::current().demos().iter().enumerate() {
+                    // The shown scene's demonstrations.
+                    for (i, demo) in investigation.scene_demos(shown).iter().enumerate() {
                         let selected = input.state.demo == *demo && !viewer.timeline_mode;
-                        if ui.selectable_label(selected, format!("{} {}", i + 1, investigation::current().demo_tab(*demo))).clicked() {
+                        if ui.selectable_label(selected, format!("{} {}", i + 1, investigation.demo_tab(*demo))).clicked() {
                             viewer.actions.push(ViewerAction::SelectDemo(*demo));
                         }
                     }

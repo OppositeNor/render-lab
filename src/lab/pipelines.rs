@@ -212,6 +212,7 @@ impl Pipelines {
             count: None,
         });
         frame_entries.push(texture(15, wgpu::TextureViewDimension::D2));
+        frame_entries.push(storage(16, true));
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("frame"), entries: &frame_entries });
         let texture_pair_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture pair"),
