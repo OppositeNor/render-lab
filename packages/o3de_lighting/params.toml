@@ -1,0 +1,508 @@
+# The O3DE lighting investigation's shot parameters: every number a
+# demonstration, the dock, or a timeline may set, its default, and what it
+# is (lab/src/demo.rs reads them; a demonstration's file overrides some).
+
+[[param]]
+name = "lightX"
+default = 0.55
+doc = "simple point light position x, metres"
+
+[[param]]
+name = "lightY"
+default = 1.85
+doc = "simple point light position y, metres"
+
+[[param]]
+name = "lightZ"
+default = 0.95
+doc = "simple point light position z, metres"
+
+[[param]]
+name = "lightIntensity"
+default = 6.0
+doc = "light intensity, candelas (m_rgbIntensityCandelas over the light colour)"
+
+[[param]]
+name = "attenuationRadius"
+default = 7.0
+doc = "attenuation radius, metres (m_invAttenuationRadiusSquared = 1 / r^2)"
+
+[[param]]
+name = "lightOn"
+default = 1.0
+doc = "the point light on (1) or off (0)"
+
+[[param]]
+name = "lightChannels"
+default = 31.0
+doc = "the point light's lighting-channel mask (the editor's default: all five channels, 0x1F)"
+
+[[param]]
+name = "sphereLightingChannels"
+default = 31.0
+doc = "the sphere mesh's lighting-channel mask (0x1F by default)"
+
+[[param]]
+name = "extraLights"
+default = 0.0
+doc = "more simple point lights over the room, for light culling (0 to 48)"
+
+[[param]]
+name = "extraLightRadius"
+default = 1.0
+doc = "their attenuation radius, metres"
+
+[[param]]
+name = "extraLightIntensity"
+default = 0.4
+doc = "their intensity, candelas"
+
+[[param]]
+name = "extraLightMotion"
+default = 0.0
+doc = "how far the lights have moved, degrees: each height's ring turns about the room's centre, the three at different rates and directions"
+
+[[param]]
+name = "lightMarkers"
+default = 0.0
+doc = "a marker on each of those lights; the ones the inspected point's bin keeps (with cullTile on) are ringed and joined to the point"
+
+[[param]]
+name = "cullTile"
+default = 0.0
+doc = "the inspected point's 16 x 16 tile: its view-space box, its depth bins, and the lights its bin keeps"
+
+[[param]]
+name = "decals"
+default = 0.0
+doc = "two decals on the floor beside the sphere: a paint splat and a panel grid (decals.rs)"
+
+[[param]]
+name = "decalOpacity"
+default = 1.0
+doc = "the decals' m_opacity (the component's Opacity)"
+
+[[param]]
+name = "decalAngleAttenuation"
+default = 1.0
+doc = "the decals' m_angleAttenuation (the component's Attenuation Angle)"
+
+[[param]]
+name = "decalNormalOpacity"
+default = 1.0
+doc = "the decals' m_normalMapOpacity"
+
+[[param]]
+name = "decalSplatSortKey"
+default = 17.0
+doc = "the splat's sort key; the grid keeps the default 16, and larger keys draw on top"
+
+[[param]]
+name = "decalTurn"
+default = 0.0
+doc = "the panel grid's turn about the vertical, degrees"
+
+[[param]]
+name = "decalTilt"
+default = 0.0
+doc = "the splat's tilt about x, degrees: the angle between its projection axis and the floor's normal"
+
+[[param]]
+name = "decalBoxes"
+default = 0.0
+doc = "the decals' boxes and projection axes"
+
+[[param]]
+name = "sphereLight"
+default = 0.0
+doc = "an O3DE point light: a sphere area light, without shadows (simple point lights do no back lighting)"
+
+[[param]]
+name = "sphereLightX"
+default = -0.85
+doc = "the sphere light's position x, metres"
+
+[[param]]
+name = "sphereLightY"
+default = 0.3
+doc = "the sphere light's position y, metres"
+
+[[param]]
+name = "sphereLightZ"
+default = -2.6
+doc = "the sphere light's position z, metres"
+
+[[param]]
+name = "sphereLightIntensity"
+default = 2.5
+doc = "the sphere light's intensity, candelas"
+
+[[param]]
+name = "sphereLightRadius"
+default = 3.0
+doc = "the sphere light's attenuation radius, metres"
+
+[[param]]
+name = "sphereLightBulb"
+default = 0.05
+doc = "the sphere light's bulb radius, metres (the editor's default sphere shape, 0.05 m)"
+
+[[param]]
+name = "ssao"
+default = 1.0
+doc = "screen-space ambient occlusion (on by default in the main pipeline)"
+
+[[param]]
+name = "ssaoStrength"
+default = 1.0
+doc = "SSAO strength (DefaultSsaoStrength 1)"
+
+[[param]]
+name = "ssaoRadius"
+default = 0.05
+doc = "SSAO sampling radius, a fraction of the half-res height (DefaultSsaoSamplingRadius 0.05)"
+
+[[param]]
+name = "ssaoBlur"
+default = 1.0
+doc = "the SSAO's depth-aware blur"
+
+[[param]]
+name = "ssaoBlurConstFalloff"
+default = 0.6667
+doc = "the blur's constant falloff (2/3 without an AO component; the component's default is 0.85)"
+
+[[param]]
+name = "ssaoBlurDepthThreshold"
+default = 0.0
+doc = "the blur's depth falloff threshold (0)"
+
+[[param]]
+name = "ssaoBlurDepthStrength"
+default = 50.0
+doc = "the blur's depth falloff strength (50 without an AO component; the component's default is 200)"
+
+[[param]]
+name = "probes"
+default = 0.0
+doc = "two reflection probes in the room, their cubemaps baked from the room demonstration's start"
+
+[[param]]
+name = "probeParallax"
+default = 1.0
+doc = "the probes' parallax correction (the component's default: on)"
+
+[[param]]
+name = "probeInnerScale"
+default = 1.0
+doc = "the probes' inner extents as a fraction of the placed ones (clamped to the outer extents)"
+
+[[param]]
+name = "probeExposure"
+default = 0.0
+doc = "the probes' render exposure, stops (default 0)"
+
+[[param]]
+name = "probeBoxes"
+default = 0.0
+doc = "the probes' outer and inner boxes"
+
+[[param]]
+name = "probeShown"
+default = 1.0
+doc = "the probe whose baked cubemap the cubemap views show (1 or 2)"
+
+[[param]]
+name = "probeCubemap"
+default = 0.0
+doc = "that cubemap unfolded as a cross over the viewport (the lab's view, not an O3DE pass; a fraction fades it in)"
+
+[[param]]
+name = "probeCubemapMip"
+default = 0.0
+doc = "the cross's mip (0 the 256-texel capture, 5 the roughest prefiltered mip; a fraction blends two)"
+
+[[param]]
+name = "probeBakeFaces"
+default = 6.0
+doc = "how many of the cross's six faces are baked (the video fills them in, in the cubemap's face order: +X, -X, +Y, -Y, +Z, -Z)"
+
+[[param]]
+name = "probeBall"
+default = 0.0
+doc = "a mirror ball at the probe's position reflecting its cubemap (a fraction fades it in)"
+
+[[param]]
+name = "probeBallRadius"
+default = 0.22
+doc = "the mirror ball's radius, metres"
+
+[[param]]
+name = "probeBallMip"
+default = 0.0
+doc = "the mip the mirror ball reads"
+
+[[param]]
+name = "teapotTransmission"
+default = 0.0
+doc = "the teapot as EnhancedPBR with transmission: 0 None (the default), 1 ThickObject, 2 ThinObject"
+
+[[param]]
+name = "transmissionThickness"
+default = 0.5
+doc = "transmission thickness (the property's default 0.5)"
+
+[[param]]
+name = "transmissionPower"
+default = 6.0
+doc = "thick mode: transmission power (default 6)"
+
+[[param]]
+name = "transmissionDistortion"
+default = 0.1
+doc = "thick mode: transmission distortion (default 0.1)"
+
+[[param]]
+name = "transmissionAttenuation"
+default = 4.0
+doc = "thick mode: transmission attenuation coefficient (default 4)"
+
+[[param]]
+name = "transmissionScale"
+default = 1.0
+doc = "transmission scale (default 1)"
+
+[[param]]
+name = "transmissionNdLBias"
+default = 0.1
+doc = "thin mode: the NdotL bias (default 0.1)"
+
+[[param]]
+name = "transmissionDistanceAttenuation"
+default = 0.5
+doc = "thin mode: the distance attenuation (default 0.5)"
+
+[[param]]
+name = "viewMode"
+default = 0.0
+doc = "what the scene pass shows (brdf::view)"
+
+[[param]]
+name = "multiscatter"
+default = 1.0
+doc = "o_specularF0_enableMultiScatterCompensation"
+
+[[param]]
+name = "specularAA"
+default = 1.0
+doc = "specular anti-aliasing (the applySpecularAA material property, true by default)"
+
+[[param]]
+name = "sphereClearCoat"
+default = 0.0
+doc = "the sphere's clearCoat.enable (false by default)"
+
+[[param]]
+name = "clearCoatFactor"
+default = 1.0
+doc = "clearCoat.factor (1 by default)"
+
+[[param]]
+name = "clearCoatRoughness"
+default = 0.0
+doc = "clearCoat.roughness, linear (0 by default)"
+
+[[param]]
+name = "sphereOcclusion"
+default = 0.0
+doc = "the sphere's diffuse AO and specular cavity maps assigned (1) or not (0, O3DE's default: no texture, occlusion 1)"
+
+[[param]]
+name = "diffuseOcclusionFactor"
+default = 1.0
+doc = "diffuseOcclusion.factor: the exponent on the diffuse AO map"
+
+[[param]]
+name = "specularOcclusionFactor"
+default = 1.0
+doc = "specularOcclusion.factor: the exponent on the specular cavity map"
+
+[[param]]
+name = "diffuseModel"
+default = 0.0
+doc = "0 DiffuseLambertian (StandardPBR), 1 NormalizedDisneyDiffuse (Skin; EnhancedPBR with subsurface scattering)"
+
+[[param]]
+name = "ibl"
+default = 1.0
+doc = "the full-screen IBL passes (global skylight) on (1) or off (0)"
+
+[[param]]
+name = "iblExposure"
+default = 0.0
+doc = "the skylight's exposure, stops (m_iblExposure)"
+
+[[param]]
+name = "walls"
+default = 1.0
+doc = "the room's walls drawn (global IBL ignores them either way)"
+
+[[param]]
+name = "specularF0Factor"
+default = 0.5
+doc = "StandardPBR specularF0.factor of every object (0.5: F0 = 0.04)"
+
+[[param]]
+name = "sphereRoughness"
+default = 0.35
+doc = "sphere roughness (linear, as authored)"
+
+[[param]]
+name = "sphereMetallic"
+default = 0.0
+doc = "sphere metallic"
+
+[[param]]
+name = "teapotRoughness"
+default = 0.3
+doc = "teapot roughness"
+
+[[param]]
+name = "teapotMetallic"
+default = 0.0
+doc = "teapot metallic"
+
+[[param]]
+name = "boxRoughness"
+default = 0.55
+doc = "rotated box roughness"
+
+[[param]]
+name = "boxMetallic"
+default = 0.0
+doc = "rotated box metallic"
+
+[[param]]
+name = "floorRoughness"
+default = 0.45
+doc = "floor roughness"
+
+[[param]]
+name = "floorMetallic"
+default = 0.0
+doc = "floor metallic"
+
+[[param]]
+name = "floorBaseColorFactor"
+default = 1.0
+doc = "the floor's baseColor.factor, scaling its authored colour (0.16, 0.17, 0.19)"
+
+[[param]]
+name = "inspectX"
+default = -0.621
+doc = "inspected point x, metres (a click sets it)"
+
+[[param]]
+name = "inspectY"
+default = 0.900
+doc = "inspected point y"
+
+[[param]]
+name = "inspectZ"
+default = -0.201
+doc = "inspected point z"
+
+[[param]]
+name = "inspectNX"
+default = 0.693
+doc = "inspected point's normal x"
+
+[[param]]
+name = "inspectNY"
+default = 0.452
+doc = "inspected point's normal y"
+
+[[param]]
+name = "inspectNZ"
+default = 0.562
+doc = "inspected point's normal z"
+
+[[param]]
+name = "inspectObject"
+default = 5.0
+doc = "the object of the inspected point (scene ids)"
+
+[[param]]
+name = "observer"
+default = 0.0
+doc = "the readout and vectors see the point from the observer (1) or the camera (0)"
+
+[[param]]
+name = "observerX"
+default = -0.362
+doc = "observer position x, metres"
+
+[[param]]
+name = "observerY"
+default = 2.223
+doc = "observer position y"
+
+[[param]]
+name = "observerZ"
+default = -0.55
+doc = "observer position z"
+
+[[param]]
+name = "vectors"
+default = 0.0
+doc = "N, L, V, and H at the inspected point"
+
+[[param]]
+name = "lobe"
+default = 0.0
+doc = "the specular lobe at the inspected point, in the plane of N and L"
+
+[[param]]
+name = "falloff"
+default = 0.0
+doc = "the light's illuminance along the floor, as a curve"
+
+[[param]]
+name = "radius"
+default = 0.0
+doc = "the attenuation radius around the light"
+
+[[param]]
+name = "labels"
+default = 1.0
+doc = "object labels"
+
+[[param]]
+name = "exposure"
+default = 1.0
+doc = "tonemapper exposure"
+
+[[param]]
+name = "vectorsShown"
+default = 5.0
+doc = "how many of N, L, V, H, and R are drawn, in that order (the video reveals them one by one; a fraction grows the next one)"
+
+[[param]]
+name = "readoutRows"
+default = 99.0
+doc = "how many readout rows are shown (the video reveals them step by step)"
+
+[[param]]
+name = "formula"
+default = 0.0
+doc = "the term lit in the demonstration's formula above the readout (0: none; -1 hides the formula)"
+
+[[param]]
+name = "ggxSamples"
+default = 0.0
+doc = "GGX sample directions drawn around R at the inspected point, as the specular prefilter takes them (N = V = R)"
+
+[[param]]
+name = "cameraDrift"
+default = 0.0
+doc = "camera sway, as in the lab's other investigations"

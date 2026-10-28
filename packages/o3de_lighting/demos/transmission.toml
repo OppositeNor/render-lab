@@ -1,0 +1,32 @@
+# The teapot lit from behind by a sphere light, the simple point light off;
+# a thin teapot, and the skylight a stop down, so the glow shows. The point
+# is where the view's centre meets the teapot.
+
+key = "transmission"
+title-text = "shot.transmission_enhancedpbr"
+tab-text = "shot.transmission"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "transmission"
+
+[camera]
+target = [-0.25, 0.3, -1.75]
+yaw = 35.0
+pitch = 6.0
+distance = 1.8
+fov = 50.0
+
+[params]
+sphereLight = 1.0
+teapotTransmission = 1.0
+lightOn = 0.0
+labels = 0.0
+transmissionThickness = 0.15
+iblExposure = -1.0
+inspectObject = "teapot"
+inspectX = -0.1261
+inspectY = 0.3227
+inspectZ = -1.573
+inspectNX = 0.4914
+inspectNY = 0.4217
+inspectNZ = 0.7621

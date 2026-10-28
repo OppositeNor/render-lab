@@ -1,0 +1,57 @@
+# The lab's sky, mesh, and scenes, and the homepage's sounds (a collection of
+# the render_lab package, manifest.toml), built into the package beside the
+# binary (lab/src/cook.rs, processed by lab/src/pipeline) and read from there
+# at run time (lab/src/resources.rs). Paths are relative to this file;
+# THIRD_PARTY.md records each source's terms.
+
+# The sky and its lighting (lab/src/environment.rs): the sun's disc is capped
+# at 5 in the photograph's units (the glare one to two degrees from it), which
+# removes about two thirds of the image's light, all within three degrees of
+# the sun. Level 0 is the image, 4096 x 2048; the backdrop reads it, and
+# lighting reads level 2.
+[[resource]]
+id = "environment"
+kind = "radiance"
+source = "assets/environments/tree_lined_driveway_4k.hdr"
+license = "CC0-1.0"
+sun-cap = 5.0
+levels = 3
+
+# The Utah teapot (lab/src/mesh.rs). The OBJ is 3.15 units tall, base at y = 0;
+# the scale makes it 0.44 m tall. intersectMesh's traversal stack holds 30
+# levels (mesh::MAX_DEPTH).
+[[resource]]
+id = "teapot"
+kind = "mesh"
+source = "assets/models/utah_teapot.obj"
+license = "Utah Teapot terms (THIRD_PARTY.md)"
+scale = 0.14
+leaf-triangles = 4
+max-depth = 30
+
+# The lab's scenes (lab/src/scene.rs), by key: `scene/<key>`.
+[[resource]]
+id = "scene/study-room"
+kind = "file"
+source = "scenes/study-room.toml"
+license = "MIT"
+
+[[resource]]
+id = "scene/terrain"
+kind = "file"
+source = "scenes/terrain.toml"
+license = "MIT"
+
+# The homepage's music and click (lab/src/home.rs; assets/audio/README.md),
+# played from their files by FFplay.
+[[resource]]
+id = "audio/music"
+kind = "file"
+source = "assets/audio/music/soundza-bright-choir-loop-in-em.ogg"
+license = "soundza Standard License"
+
+[[resource]]
+id = "audio/click"
+kind = "file"
+source = "assets/audio/ui/soundza-ui-button-click.wav"
+license = "soundza Standard License"

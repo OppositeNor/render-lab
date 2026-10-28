@@ -1,0 +1,55 @@
+[package]
+name = "render-lab-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Render Lab's shared lab: the renderer, recorder, viewer, homepage, and the package loader"
+license = "MIT"
+
+# A Rust dylib, so the binary and every package's library (a cdylib that
+# depends on this crate alone, and on crates it depends on, with no more
+# features) share one lab: its code, and its state.
+[lib]
+name = "lab"
+crate-type = ["dylib"]
+
+[dependencies]
+# The command line (src/cli.rs).
+clap = { version = "4.6", features = ["derive"] }
+# Opening the packages' libraries (src/packages.rs, src/plugin.rs). Already vendored.
+libloading = "0.8"
+wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+winit = "=0.30.13"
+egui = "=0.37.0"
+egui-wgpu = { version = "=0.37.0", default-features = false }
+bytemuck = { version = "1.25", features = ["derive"] }
+glam = { version = "0.34", features = ["bytemuck"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pollster = "0.4"
+anyhow = "1"
+png = "0.18"
+sha2 = "0.10"
+# The user's settings file (parsing only; the lab writes the file itself). Already vendored.
+toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
+# Formulas: LaTeX translated to Typst math by MiTeX, typeset by Typst with its bundled fonts
+# (New Computer Modern Math), and rasterized into coverage masks (src/formula.rs).
+typst = "=0.15.1"
+typst-layout = "=0.15.1"
+typst-render = "=0.15.1"
+typst-assets = { version = "=0.15.1", features = ["fonts"] }
+mitex = "=0.2.4"
+# WGSL validation and struct layouts at run time (src/shaders.rs): the naga release wgpu 30.0.1 uses.
+naga = { version = "=30.0.1", features = ["wgsl-in"] }
+# MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
+# `prebuilt` makes it use the spec it does ship.
+mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
+
+[target.'cfg(unix)'.dependencies]
+# The local time, for screenshots' names (src/readback.rs). Already vendored.
+libc = "0.2"
+
+[build-dependencies]
+# build.rs's check of the lab's own package (render_lab).
+render-lab-check = { path = "check" }

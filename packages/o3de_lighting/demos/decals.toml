@@ -1,0 +1,24 @@
+# Looking down on the two decals; the point is where they overlap.
+
+key = "decals"
+title-text = "shot.decals"
+tab-text = "shot.decals"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "decals"
+include = ["decal-camera"]
+
+[params]
+decals = 1.0
+decalBoxes = 1.0
+labels = 0.0
+lightX = -0.6
+lightY = 1.2
+lightZ = 0.9
+inspectObject = "floor"
+inspectX = -0.55
+inspectY = 0.0
+inspectZ = 0.55
+inspectNX = 0.0
+inspectNY = 1.0
+inspectNZ = 0.0

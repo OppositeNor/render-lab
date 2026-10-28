@@ -1,3 +1,13 @@
+# Render Lab: the binary (src/main.rs), the lab it runs (lab/), and the
+# public packages' libraries (packages/<name>, each a cdylib the lab loads at
+# run time; src/packages.rs in the lab). A package's library depends on the lab
+# alone, and on crates the lab depends on, with no more features than the
+# lab's, so every crate sees one build of the lab.
+[workspace]
+members = ["lab", "lab/check", "packages/o3de_lighting"]
+default-members = [".", "packages/o3de_lighting"]
+resolver = "3"
+
 [package]
 name = "render-lab"
 version = "0.1.0"
@@ -7,45 +17,14 @@ publish = false
 description = "Rendering demonstration and experiment lab: interactive viewer and deterministic recorder"
 license = "MIT"
 
+# It only runs the lab; a test harness of it could not link the lab's dylib (the lab's tests are the lab's).
+[[bin]]
+name = "render-lab"
+path = "src/main.rs"
+test = false
+
 [dependencies]
-wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-winit = "=0.30.13"
-egui = "=0.37.0"
-egui-wgpu = { version = "=0.37.0", default-features = false }
-bytemuck = { version = "1.25", features = ["derive"] }
-glam = { version = "0.34", features = ["bytemuck"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-pollster = "0.4"
-anyhow = "1"
-png = "0.18"
-clap = { version = "4.6", features = ["derive"] }
-sha2 = "0.10"
-# The user's settings file (parsing only; the lab writes the file itself). Already vendored.
-toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
-# Formulas: LaTeX translated to Typst math by MiTeX, typeset by Typst with its bundled fonts
-# (New Computer Modern Math), and rasterized into coverage masks (src/lab/formula.rs).
-typst = "=0.15.1"
-typst-layout = "=0.15.1"
-typst-render = "=0.15.1"
-typst-assets = { version = "=0.15.1", features = ["fonts"] }
-mitex = "=0.2.4"
-# WGSL validation and struct layouts at run time (src/lab/shaders.rs): the naga release wgpu 30.0.1 uses.
-naga = { version = "=30.0.1", features = ["wgsl-in"] }
-# MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
-# `prebuilt` makes it use the spec it does ship.
-mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
-
-[target.'cfg(unix)'.dependencies]
-# The local time, for screenshots' names (src/lab/readback.rs). Already vendored.
-libc = "0.2"
-
-[build-dependencies]
-# build.rs's checks: the same naga release wgpu 30.0.1 uses, for the WGSL modules,
-# the manifests that declare them, and the text tables.
-naga = { version = "=30.0.1", features = ["wgsl-in"] }
-serde_json = "1"
-toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
+lab = { package = "render-lab-core", path = "lab" }
 
 [profile.release]
 debug = "line-tables-only"

@@ -13,19 +13,20 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # Chin
 | Option | Does |
 |---|---|
 | `--prepare-only` | Narration, timeline, captions, and documents (about 15 s once the narration is cached) |
-| `--snapshots-only` | Also the diagrams and one still per beat in `build/video/<engine>/<feature>/<lang>/snapshots/` |
+| `--snapshots-only` | Also the diagrams and one still per beat in the package's `build/video/<lang>/snapshots/` |
 | `--frames A:B` | Renders only those frames (testing; no mux or verification) |
 | `--skip-render` | Reuses the rendered `video.mp4` |
 | `--verify-only` | Only the checks of an existing build |
 | `--tts-device auto/cuda/cpu` | Where new narration is synthesised (`auto`: the GPU when the CUDA packages are installed) |
-| `--investigation-dir DIR` | The investigation's source directory, when it is not `src/<engine>/<feature>` |
+| `--investigation-dir DIR` | The directory of its `video/video.json`, when it is not its package in `packages/` |
 
 A full build of the 16-minute O3DE video takes about 15 minutes on an RTX 4050, almost all of it rendering. Run one GPU
 job at a time.
 
 ## Inputs
 
-An investigation keeps its video in `src/<engine>/<feature>/video/`:
+An investigation keeps its video in its package, `packages/<package>/video/` (the builder finds the `video.json` whose
+`investigation` names it):
 
 - **`video.json`**: paths (storyboard, translation, diagrams, source index, pseudo-code, timeline directories, and
   optionally `build` per language and `audioCache`), output names, the engine label, the duration the verification expects, the reading path, `pronunciations` (how words are
@@ -40,7 +41,7 @@ An investigation keeps its video in `src/<engine>/<feature>/video/`:
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
   `demo` switch), `record=probe:67` (or `ray`), `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON
-  (`src/lab/animation.rs`), each driving its channels until a later key sets them; a channel is a shot parameter or
+  (`lab/src/animation.rs`), each driving its channels until a later key sets them; a channel is a shot parameter or
   `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or `camera.fov`:
   - `{"path": {"params": [...], "through": [[...], ...], "seconds": ...}}` runs from the channels' values through the
     waypoints on a smooth curve, without stopping at each one (`ease` paces the whole curve; `closed` returns to the
@@ -81,15 +82,15 @@ Captions are cut at word boundaries, never inside a formula, and each one shows 
 (`formula`, `display`, `colors`; the same LaTeX, as many times) and no cues. The build typesets every formula of the
 timeline with `render-lab formulas --check` (glyphs of at least 24 px, display formulas at most 546 px wide).
 
-The lab draws formulas itself (src/lab/formula.rs: MiTeX translates the LaTeX into Typst math, and Typst typesets it),
+The lab draws formulas itself (lab/src/formula.rs: MiTeX translates the LaTeX into Typst math, and Typst typesets it),
 so the same tag works in its text tables, `{@ formula="…" display=yes colors="…"}`, as O3DE's readout formulas do.
 
 ## Outputs
 
-- `build/timelines/<engine>/<feature>/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
+- the package's `build/timelines/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
   and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, `--prepare-only` builds
   them (the homepage shows "Not built yet" until then).
-- `build/video/<engine>/<feature>/<lang>/`: the video, `narration.wav`, captions, `chapters.txt`, `script.md`,
+- the package's `build/video/<lang>/`: the video, `narration.wav`, captions, `chapters.txt`, `script.md`,
   `source-reading-guide.md`, `preview.html`, `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and
   `verification-report.{json,md}` (git-ignored). The narration cache is shared by the editions in `audio/`.
 

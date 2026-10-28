@@ -1,0 +1,10 @@
+# The study room lit by one simple point light, StandardPBR throughout.
+
+key = "room"
+title-text = "shot.one_point_light_standardpbr"
+tab-text = "shot.room"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "forward-pass"
+resets-camera = true
+include = ["room-camera"]

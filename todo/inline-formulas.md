@@ -54,7 +54,7 @@ Rust options (from a survey; versions and maintenance not checked):
 
 1. **Vendoring** `typst`, `typst-render`, and `mitex` as build dependencies, and updating `Cargo.lock`: the only change
    to `vendor/`, and a large one (many crates, slower clean builds).
-2. **Fonts:** bundle New Computer Modern Math (OFL) under `assets/fonts/`, plus a text font for `\text{}` and
+2. **Fonts:** bundle New Computer Modern Math (OFL) under `modules/render_lab/assets/fonts/`, plus a text font for `\text{}` and
    `\mathrm{}`.
 3. **Fallback** if the trial fails: keep KaTeX for rendering, and do only the inline `$...$` text and the masks
    (phases 2 to 5 without phase 1).

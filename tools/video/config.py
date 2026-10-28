@@ -1,11 +1,11 @@
 """What one video build works with: the investigation's video.json, the
 edition's paths, and the tools of the local environment (tools/video/setup.sh).
 
-An investigation lists its video in `src/<engine>/<feature>/video/video.json`;
-its paths are relative to that file. Intermediates and deliverables go to
-`build/video/<engine>/<feature>/<lang>/` (git-ignored); the timeline and its
-diagram frames go to the investigation's timeline directory, which the lab's
-viewer plays.
+An investigation lists its video in its package, `packages/<package>/video/video.json`
+(the one whose `investigation` names it); its paths are relative to that file. Everything a build writes
+stays in the package, under its `build/` (git-ignored): intermediates and deliverables in
+`build/video/<lang>/`, and the timeline and its diagram frames in `build/timelines/<lang>/`, which the
+package's demos name and the lab's viewer plays.
 """
 from __future__ import annotations
 
@@ -81,13 +81,19 @@ class Config:
 
     @staticmethod
     def load(investigation: str, lang: str, directory: Path | None = None) -> Config:
-        """`directory`: the investigation's source directory, when it is not
-        src/<engine>/<feature> (a module built in from elsewhere)."""
+        """`directory`: the directory whose video/video.json to use, when it is
+        not the investigation's package in packages/."""
         if lang not in LANGS:
             raise SystemExit(f'unknown language {lang}; use one of {", ".join(LANGS)}')
-        path = (directory.resolve() if directory else LAB / 'src' / Path(investigation)) / 'video' / 'video.json'
-        if not path.is_file():
-            raise SystemExit(f'{investigation}: no {path.relative_to(LAB)}')
+        if directory:
+            path = directory.resolve() / 'video' / 'video.json'
+            if not path.is_file():
+                raise SystemExit(f'{investigation}: no {path}')
+        else:
+            found = [p for p in sorted((LAB / 'packages').glob('*/video/video.json')) if json.loads(p.read_text()).get('investigation') == investigation]
+            if len(found) != 1:
+                raise SystemExit(f'{investigation}: {len(found)} packages/*/video/video.json name it, not one')
+            path = found[0]
         spec = json.loads(path.read_text())
         if spec['investigation'] != investigation:
             raise SystemExit(f'{path}: names {spec["investigation"]}, not {investigation}')
@@ -121,26 +127,31 @@ class Config:
     def pseudocode(self) -> Path:
         return self.path(self.spec['pseudocode'])
 
+    @property
+    def package(self) -> Path:
+        """The package video.json belongs to (its `video/` holds video.json)."""
+        return self.base.parent
+
     def timeline_dir(self, lang: str | None = None) -> Path:
-        """The edition's timeline and diagram frames: build/timelines/<investigation>/<lang> (generated, so git
-        ignores it; the investigation's `TimelineInfo` names the same path)."""
-        return LAB / 'build' / 'timelines' / Path(self.investigation) / (lang or self.lang)
+        """The edition's timeline and diagram frames: the package's build/timelines/<lang> (generated, so git
+        ignores it; the package's demo names the same file)."""
+        return self.package / 'build' / 'timelines' / (lang or self.lang)
 
     def timeline(self, lang: str | None = None) -> Path:
         return self.timeline_dir(lang) / 'timeline.json'
 
     def build(self, lang: str | None = None) -> Path:
-        """The edition's build directory: build/video/<investigation>/<lang>, or video.json's `build`."""
+        """The edition's build directory: the package's build/video/<lang>, or video.json's `build`."""
         if 'build' in self.spec:
             return self.path(self.spec['build'][lang or self.lang])
-        return LAB / 'build' / 'video' / Path(self.investigation) / (lang or self.lang)
+        return self.package / 'build' / 'video' / (lang or self.lang)
 
     @property
     def audio_cache(self) -> Path:
         """Shared by the editions: every edition speaks the English sentences (video.json's `audioCache` if given)."""
         if 'audioCache' in self.spec:
             return self.path(self.spec['audioCache'])
-        return LAB / 'build' / 'video' / Path(self.investigation) / 'audio'
+        return self.package / 'build' / 'video' / 'audio'
 
     def video_name(self, lang: str | None = None) -> str:
         return self.spec['video'][lang or self.lang]

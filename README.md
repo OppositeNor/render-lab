@@ -26,12 +26,12 @@ It uses **wgpu 30.0.1** on Vulkan, **winit 0.30.13**, **egui 0.37**, and **WGSL*
 The shared lab (the homepage, the settings, and the code an investigation builds on) and the investigations of engines
 whose license allows publishing code derived from them:
 
-- **Open 3D Engine: Lighting model** ([`src/o3de/lighting`](src/o3de/lighting/README.md)). How O3DE 2.8's Atom
+- **Open 3D Engine: Lighting model** ([`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)). How O3DE 2.8's Atom
   renderer lights a StandardPBR surface, with its shader code ported to WGSL: the metallic workflow, GGX specular and
   its D, G, and F, the diffuse response, the BRDF texture and multiscatter compensation, the simple point light, and the
   global skylight's image-based lighting.
 
-An optional module, not provided in this repo, can be built in with the `commercial` cfg (`build.rs` sets it when
+An optional module, not provided in this repo, can be built in with the `commercial` cfg (`lab/build.rs` sets it when
 `src/commercial/` is present). Without it the lab builds with the public investigations alone.
 
 Started without a command, `render-lab` opens a **title screen**, like a game's, behind frosted glass, with **Play**,
@@ -72,7 +72,7 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
 
 On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout
-(`Readout::formula`). The lab typesets them itself at run time (`src/lab/formula.rs`: MiTeX translates the LaTeX into
+(`Readout::formula`). The lab typesets them itself at run time (`lab/src/formula.rs`: MiTeX translates the LaTeX into
 Typst math, and Typst typesets it), so no Node or committed images are needed; `render-lab formulas --check FILE…` checks
 a file's formulas against the lab's limits. A storyboard uses the same tags, with shot cues timed to the narration's
 words (see [`tools/video`](tools/video/README.md#text-driven-shots-tags-in-a-sentence)), and a timeline key's `formula`
@@ -82,25 +82,28 @@ opens a formula card in the viewport.
 
 | Path | Role |
 |---|---|
-| [`src/main.rs`](src/main.rs) | The command line. |
-| [`src/lab/home.rs`](src/lab/home.rs), [`src/lab/frost.rs`](src/lab/frost.rs), [`shaders/wgsl/frost.wgsl`](shaders/wgsl/frost.wgsl) | The homepage: the title, Config, and selection pages, over the title investigation's backdrop scene (`investigations::title`, O3DE's lighting for now; a plain field until it has loaded), halved twice, blurred, tinted, and grained. |
-| [`src/lab/config.rs`](src/lab/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
-| [`src/lab/text.rs`](src/lab/text.rs), [`src/lab/readback.rs`](src/lab/readback.rs), [`src/lab/gpu.rs`](src/lab/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. Text tables, pseudo-code listings, and source indexes are resources of each layer's package, read when first used (`i18n::Table`). |
-| [`src/lab/formula.rs`](src/lab/formula.rs), [`src/lab/rich_text.rs`](src/lab/rich_text.rs), [`assets/mitex/`](assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
-| [`src/lab/scene.rs`](src/lab/scene.rs), [`src/lab/scenes/`](src/lab/scenes/study-room.toml), [`src/lab/terrain.rs`](src/lab/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each is a data file, the resource `scene/<key>` (its objects, shapes, materials, light, lighting constants, where a camera sees it from, and the terrain's heightfield), read when a scene is first built. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |
-| `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). Under the `commercial` cfg the lab hands the optional module its generic extension points (`Extension`, in `investigation.rs`) and nothing else. |
-| [`src/investigations.rs`](src/investigations.rs), [`src/o3de/`](src/o3de) | The list of investigations, and the Open 3D Engine's. |
+| [`src/main.rs`](src/main.rs), [`lab/`](lab/Cargo.toml), [`lab/src/cli.rs`](lab/src/cli.rs) | The binary, which only runs the lab: a Rust dylib that the binary and every package's library link, so they share one lab (its code and its state). The command line is the lab's. |
+| [`lab/src/home.rs`](lab/src/home.rs), [`lab/src/frost.rs`](lab/src/frost.rs), [`packages/render_lab/shaders/frost.wgsl`](packages/render_lab/shaders/frost.wgsl) | The homepage: the title, Config, and selection pages, over the title investigation's backdrop scene (`investigations::title`, O3DE's lighting for now; a plain field until it has loaded), halved twice, blurred, tinted, and grained. |
+| [`lab/src/config.rs`](lab/src/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
+| [`lab/src/text.rs`](lab/src/text.rs), [`lab/src/readback.rs`](lab/src/readback.rs), [`lab/src/gpu.rs`](lab/src/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. Text tables, pseudo-code listings, and source indexes are resources of each layer's package, read when first used (`i18n::Table`). |
+| [`lab/src/formula.rs`](lab/src/formula.rs), [`lab/src/rich_text.rs`](lab/src/rich_text.rs), [`packages/render_lab/assets/mitex/`](packages/render_lab/assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
+| [`lab/src/scene.rs`](lab/src/scene.rs), [`packages/render_lab/scenes/`](packages/render_lab/scenes/study-room.toml), [`lab/src/terrain.rs`](lab/src/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each is a data file, the resource `scene/<key>` (its objects, shapes, materials, light, lighting constants, where a camera sees it from, and the terrain's heightfield), read when a scene is first built. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |
+| `lab/src/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `packages/render_lab/shaders/types.wgsl`), and the `Investigation` trait (`investigation.rs`). Under the `commercial` cfg the lab builds the code only the optional module uses, and nothing else. |
+| [`lab/src/investigations.rs`](lab/src/investigations.rs), [`lab/src/plugin.rs`](lab/src/plugin.rs) | The investigations come from the packages' libraries. A package with code names its `library` (a cdylib) and its `negotiate` symbol; the loader opens the library at run time and calls that function with a C structure (the loader's interface version, its lab's build, and a map), and the function, which `lab::negotiate!` writes, checks them against the lab it was compiled with and registers the package's method handles in the map by name (`investigations`), the way the Vulkan loader negotiates with a layer. A library built against another lab is refused, not called. |
 | [`tools/video/`](tools/video/README.md) | The narrated-video builder: narration, timeline, render, mux, captions, documents, and verification. |
-| [`build.rs`](build.rs) | Checks that every WGSL module the manifests declare (each `[[shader]]`, investigations' scene shading included) validates with naga; decides whether the optional `commercial` module is built in, from the manifest that module carries; checks the text tables and their formula tags. It generates nothing. |
-| [`src/lab/pipeline/`](src/lab/pipeline/mod.rs), [`src/lab/resources.rs`](src/lab/resources.rs) | The resource pipeline: the lab mounts the packages (the lab's `resources.toml`, then each investigation's), and loads a resource by its id at run time, processed by kind (`file`, `radiance`: an HDRI made into the environment's levels, `mesh`: an OBJ made into a BVH) and cached in `build/resources` by a hash of its source, parameters, and processor. `render-lab resources` lists them; `render-lab cook` processes them all. |
-| [`src/lab/shaders.rs`](src/lab/shaders.rs), [`src/lab/shaders.toml`](src/lab/shaders.toml) | WGSL at run time: each `[[shader]]` a package declares is its `parts` in order (WGSL resources or other shaders; the lab's pass modules start with `shader/prelude`), composed and validated by naga when the lab creates it, so an edited shader shows on the next launch and an error names its file and line. naga also lays out `wgsl/types` for the struct panel. An optional module may override the prelude's `wgsl/surface-lookup` from its own package. |
-| [`src/lab/demo.rs`](src/lab/demo.rs) | Demonstrations as data: an investigation's package declares its parameters (`params.toml`), the order of its demonstrations, one file per demonstration (title, tab, hint, scene, listing, camera, and the parameters it changes, with shared presets), and the lab builds each demonstration's starting state from them. What a demonstration draws, its dock, and its Play animation stay the investigation's code (`src/o3de/lighting/demos/` is the example). |
-| [`src/lab/loading.rs`](src/lab/loading.rs) | The loading step: nothing a scene needs is read at start-up. When the viewer opens (or the homepage shows its backdrop), a worker thread prepares the scene's resources, its statics, and its renderer while the window shows the progress; `home --snapshot --page loading` draws that page offscreen. |
+| [`lab/build.rs`](lab/build.rs), [`lab/check/`](lab/check/src/lib.rs) | Each package's build checks its own shaders (with naga) and text tables (the lab's checks render_lab); the lab's also decides whether the optional `commercial` module is built in, and fingerprints the lab's build for the negotiation. They generate nothing. |
+| [`lab/src/packages.rs`](lab/src/packages.rs), [`packages/`](packages) | Packages: the lab's content comes in folders of `packages/`, each with a `manifest.toml` (name, author, contact, license, the packages it `import`s, the keys it `export`s, and what it `provides`: collections of resources, and demos, a narrated timeline and its audio). The lab scans them at start-up and orders them by their imports. A package names its own resources by key and another's as `<package>.<key>`, only of a package it imports and only what that package exports. [`render_lab`](packages/render_lab/manifest.toml) holds what every investigation shares (the sky, the teapot, the scenes, fonts, the lab's WGSL and text); each investigation has its own (`Investigation::package`; [`o3de_lighting`](packages/o3de_lighting/manifest.toml)). A package is self-contained: its manifest, content, code (`src/`, `Cargo.toml`), and what its tools write (`build/`: timelines, narration) are all in its folder, and it may come with its library built, in its `lib/`. `render-lab packages` lists them, with their libraries and handles. |
+| [`lab/src/pipeline/`](lab/src/pipeline/mod.rs), [`lab/src/resources.rs`](lab/src/resources.rs) | Built packages: the loader reads only `packages/` beside the binary (`target/release/packages/<name>/`: each a manifest, its resources, and its library), by full key (`render_lab.teapot`). Run from a source checkout, the lab first builds the checkout's packages there ([`lab/src/cook.rs`](lab/src/cook.rs)), incrementally: each resource is made by its kind (`file` and `directory`: linked; `radiance`: an HDRI made into the environment's levels; `mesh`: an OBJ made into a BVH) only when its source, parameters, or processor changed, so an edit shows on the next launch. A built package that did not come from the checkout is read as it is. `render-lab cook` runs the build and reports it; `render-lab resources` lists the resources. |
+| [`lab/src/shaders.rs`](lab/src/shaders.rs), [`packages/render_lab/shaders.toml`](packages/render_lab/shaders.toml) | WGSL at run time: each `[[shader]]` a package declares is its `parts` in order (WGSL resources or other shaders; the lab's pass modules start with `render_lab.shader/prelude`), composed and validated by naga when the lab creates it, so an edited shader shows on the next launch and an error names its file and line. naga also lays out `wgsl/types` for the struct panel. Another package may override the prelude's `render_lab.wgsl/surface-lookup` with its own. |
+| [`lab/src/demo.rs`](lab/src/demo.rs) | Demonstrations as data: an investigation's package declares its parameters (`params.toml`), the order of its demonstrations, one file per demonstration (title, tab, hint, scene, listing, camera, and the parameters it changes, with shared presets), and the lab builds each demonstration's starting state from them. What a demonstration draws, its dock, and its Play animation stay the investigation's code (`packages/o3de_lighting/demos/` is the example). |
+| [`lab/src/loading.rs`](lab/src/loading.rs) | The loading step: nothing a scene needs is read at start-up. When the viewer opens (or the homepage shows its backdrop), a worker thread prepares the scene's resources, its statics, and its renderer while the window shows the progress; `home --snapshot --page loading` draws that page offscreen. |
 
 ### Adding an investigation
 
-An investigation is a module in `src/<engine>/<feature>/` that implements `Investigation` (`src/lab/investigation.rs`) and
-is listed in `src/investigations.rs`. Keep anything derived from an engine's source code in it, out of the shared lab,
+An investigation is a package in `packages/<engine>_<feature>/`: its content, and its code, a library that implements
+`Investigation` (`lab/src/investigation.rs`) and hands it to the lab when it negotiates (copy
+[`packages/o3de_lighting/src/lib.rs`](packages/o3de_lighting/src/lib.rs), and add the package to the workspace in
+`Cargo.toml`). Keep anything derived from an engine's source code in it, out of the shared lab,
 and out of any public copy of the repository unless the engine's license allows it (then credit it in
 [`THIRD_PARTY.md`](THIRD_PARTY.md)).
 
@@ -110,7 +113,7 @@ data (`FrameContent::shading_frame`), static data, and compute kernels for its s
 It may also be a **pass chain**, for an engine that renders through several targets: the fragment shader writes the
 shading's `outputs` (multisampled targets), its `passes` run as compute passes over named targets at fixed bindings
 (`ShadingPass`), and the last one writes `"hdr"`, which the frame shows. Declare its WGSL in the investigation's package as a
-`[[shader]]` whose parts start with `shader/scene`, and name that shader in `SceneShading::module`; build.rs validates it, and so
+`[[shader]]` whose parts start with `render_lab.shader/scene`, and name that shader in `SceneShading::module`; build.rs validates it, and so
 does the lab when it loads it. A frame without a struct-panel record can show a `Readout` (names and values) in its place.
 
 ## Building and local caches
@@ -121,17 +124,17 @@ does the lab when it loads it. A frame without a struct-panel record can show a 
   `vendor/` and writes `.cache/cargo/config.toml`, so builds with `CARGO_HOME=$PWD/.cache/cargo` (as the video tools
   use) read `vendor/` offline. [`.cargo/config.toml`](.cargo/config.toml) keeps the build output in `target/`.
 - **Fonts:** DejaVu Sans and DejaVu Sans Mono, with Source Han Sans CN for Chinese text, are bundled in
-  [`assets/fonts`](assets/fonts) with their licenses.
+  [`packages/render_lab/assets/fonts`](packages/render_lab/assets/fonts) with their licenses.
 - **Environment:** the sky that lights the study room and shows behind it is Poly Haven's "Tree Lined Driveway"
-  HDRI (CC0), in [`assets/environments`](assets/environments); the resource pipeline clips its sun and scales it
-  ([`src/lab/resources.toml`](src/lab/resources.toml)), and each investigation sets its level.
-- **Resources:** the files the lab loads (the environment, the teapot, the fonts, MiTeX's scope) are declared in
-  [`src/lab/resources.toml`](src/lab/resources.toml) and processed at run time, the first time they are needed (see
-  `src/lab/pipeline/mod.rs` for the format). An investigation declares its own in a `resources.toml` beside its code,
-  names it with `Investigation::package`, and reads them through `crate::lab::resources`.
+  HDRI (CC0), in [`packages/render_lab/assets/environments`](packages/render_lab/assets/environments); the resource pipeline clips its sun and scales it
+  ([`packages/render_lab/resources.toml`](packages/render_lab/resources.toml)), and each investigation sets its level.
+- **Resources:** the files the lab loads (the environment, the teapot, the fonts, MiTeX's scope) are declared by the
+  [`render_lab`](packages/render_lab/manifest.toml) package and processed at run time, the first time they are needed
+  (see `lab/src/packages.rs` and `lab/src/pipeline/mod.rs` for the formats). An investigation declares its own in its
+  package, names it with `Investigation::package`, and reads them through `lab::resources`.
 - **Sound:** the homepage plays a music loop while it is shown, and a click for its controls (neither in
   demonstrations nor videos), through FFplay (the video environment's, `FFPLAY`, or PATH); without FFplay the lab is
-  silent. The sounds in [`assets/audio`](assets/audio) are licensed from soundza, not under the MIT License: they are
+  silent. The sounds in [`packages/render_lab/assets/audio`](packages/render_lab/assets/audio) are licensed from soundza, not under the MIT License: they are
   for this lab only (see [`THIRD_PARTY.md`](THIRD_PARTY.md)).
 
 ## License

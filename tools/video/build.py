@@ -99,7 +99,7 @@ def resolution_arg(value: str) -> tuple[int, int]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     parser.add_argument('--investigation', required=True, help='engine/feature, e.g. o3de/lighting')
-    parser.add_argument('--investigation-dir', type=Path, help='its source directory, when not src/<engine>/<feature>')
+    parser.add_argument('--investigation-dir', type=Path, help='the directory of its video/video.json, when not its package in packages/')
     parser.add_argument('--lang', default='en', choices=LANGS)
     parser.add_argument('--resolution', default='1080p', type=resolution_arg, help='frame size: 720p, 1080p (default), 1440p, 2160p, 4k, or WIDTHxHEIGHT')
     parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')

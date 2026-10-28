@@ -1,21 +1,21 @@
 ---
 name: new-investigation
-description: Start a new Render Lab investigation of a game-engine feature (a new src/<engine>/<feature>/ module implementing the Investigation trait) and animate it, both as the viewer's Play animation and as a narrated video built by tools/video from a storyboard. Use when asked to investigate a new engine or feature, add an engine to the homepage, port an engine's shader to WGSL for a demonstration, give an investigation its demonstrations, sliders, source index, pseudo-code, or formulas, or create, storyboard, and build its animation or video. Also the precision standard and procedure every investigation follows: use it when verifying or auditing an investigation's claims against the engine's source, or making one more precise.
+description: Start a new Render Lab investigation of a game-engine feature (a new package, packages/<engine>_<feature>/, whose library implements the Investigation trait) and animate it, both as the viewer's Play animation and as a narrated video built by tools/video from a storyboard. Use when asked to investigate a new engine or feature, add an engine to the homepage, port an engine's shader to WGSL for a demonstration, give an investigation its demonstrations, sliders, source index, pseudo-code, or formulas, or create, storyboard, and build its animation or video. Also the precision standard and procedure every investigation follows: use it when verifying or auditing an investigation's claims against the engine's source, or making one more precise.
 ---
 
 # A new investigation, and its animation
 
 An investigation is one engine feature, read from the engine's source and shown in the lab's study room: a set of
 demonstrations with sliders, a readout or struct panel, Python pseudo-code of the engine's functions, a source index
-that cites every claim by file, symbol, and line, and a narrated video. The lab (`src/lab`) is shared and knows nothing
-about any investigation; everything specific reaches it through the `Investigation` trait (`src/lab/investigation.rs`).
+that cites every claim by file, symbol, and line, and a narrated video. The lab (`lab/`) is shared and knows nothing
+about any investigation; everything specific reaches it through the `Investigation` trait (`lab/src/investigation.rs`).
 
-The worked example is the Open 3D Engine's lighting model, `src/o3de/lighting/`. Copy its shape; read its files
+The worked example is the Open 3D Engine's lighting model, `packages/o3de_lighting/src/o3de/lighting/`. Copy its shape; read its files
 alongside these steps.
 
 ## 0. Decide where it lives
 
-- **The engine's license allows publishing its code** (O3DE: Apache-2.0 or MIT): `src/<engine>/<feature>/`, published.
+- **The engine's license allows publishing its code** (O3DE: Apache-2.0 or MIT): a package, `packages/<engine>_<feature>/`, published.
   Code ported from the engine keeps its copyright; add a row to `THIRD_PARTY.md` and its license text to `LICENSES/`.
 - **It does not**: it belongs in the optional `commercial` module, which is not provided in this repo and stays local;
   nothing published may name the engine or reflect the module's contents. Read the module's own `AGENTS.md` files first.
@@ -82,50 +82,66 @@ An investigation is only as good as its claims. Each of these is required, not a
 9. **Build and review.** `--snapshots-only`, look at the stills (several per animated beat), then the full build in the
    background; report its checks and the corrections, and ask the user to watch it.
 
-## 3. The module
+## 3. The package
 
 ```
-src/<engine>/mod.rs                 pub static ENGINE: Engine { id, name, summary }; pub mod <feature>;
-src/<engine>/<feature>/mod.rs       the Investigation impl, Wording, TIMELINES
-                       shot.rs      Demo enum, demos() (Demos::load), for_demo, play_clip, demo_animation
-                       params.toml  every shot parameter: name, default, doc
-                       demos/       index.toml (the order), <key>.toml per demonstration, presets/
+packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depends on the lab and on crates the lab
+                                    depends on, with the lab's versions and features (copy O3DE's); build.rs runs
+                                    render-lab-check on the package
+                 src/lib.rs         `mod <engine>;`, investigations(), and lab::negotiate!(<package>_negotiate, …)
+                 src/<engine>/mod.rs              pub static ENGINE: Engine { id, name, summary }; pub mod <feature>;
+                 src/<engine>/<feature>/mod.rs    the Investigation impl, Wording, `package()` → "<package>"
+                       shot.rs      Demo enum, demos() (Demos::load("<package>")), for_demo, play_clip, demo_animation
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
                        selftest.rs  the verification suite
-                       resources.toml  its package (`Investigation::package`): text, source index,
-                                    listings, shaders, and data files, by id
-                       text.rs      Table::new("<engine>/<feature>/text") → tr
-                       sources.rs   the resource "<engine>/<feature>/source-index" → SourceIndex
-                       pseudocode.rs + pseudocode/*.py (NAMES; each the resource "<engine>/<feature>/listing/<name>")
-                       source-index.json (+ a script that writes it from the checkout)
-                       shaders/*.wgsl (optional own scene shading)
+                       text.rs      Table::new("<package>.text") → tr
+                       sources.rs   the resource "<package>.source-index" → SourceIndex
+                       pseudocode.rs (NAMES; each the resource "<package>.listing/<name>")
                        formulas.rs (optional readout formulas: tags in text/*.json)
-                       video/ (the narrated video; its timelines are built into build/timelines/)
+                       a script that writes source-index.json from the checkout
                        README.md
+                 manifest.toml      name, author, license, import = ["render_lab"], export, library = "<package>",
+                                    negotiate = "<package>_negotiate", and [[provides]]: its collections, and
+                                    its demos (the video's timelines and narration)
+                 resources.toml     a collection: text, source index, listings, shaders, demonstrations,
+                                    data files, and the built timelines (`built = true`), by key
+                 params.toml        every shot parameter: name, default, doc
+                 demos/             index.toml (the order), <key>.toml per demonstration, presets/
+                 text/              en.json, zh-CN.json
+                 pseudocode/*.py, source-index.json
+                 shaders/*.wgsl     (optional own scene shading)
+                 video/             the narrated video's inputs
+                 build/             what tools/video writes (git-ignored): build/timelines/<lang>, build/video/<lang>
 ```
+
+Everything the package is stays in its directory, so it can be packed and shared.
 
 Register it:
 
-- `src/main.rs` declares `mod <engine>;`, and `src/investigations.rs` adds it to `PUBLIC` (raise the array's length);
-  the homepage lists it under its engine, and `--investigation <engine>/<feature>` selects it on the command line.
-- If it brings its own shading (`SceneShading`: WGSL composed after `shaders/wgsl/scene.wgsl`, a fragment entry point,
+- Add the package to `[workspace] members` and `default-members` in `Cargo.toml` (a local package is a workspace of
+  its own instead; see AGENTS.md). Its library hands the lab its investigations when it negotiates
+  (`lab/src/plugin.rs`); the homepage lists them under their engine, and `--investigation <engine>/<feature>` selects
+  one on the command line. `render-lab packages` shows whether the library loaded, and its handles.
+- If it brings its own shading (`SceneShading`: WGSL composed after `packages/render_lab/shaders/scene.wgsl`, a fragment entry point,
   uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a resource and a
-  `[[shader]]` with `parts = ["shader/scene", "<its resource>"]` in the investigation's `resources.toml` (copy
-  `src/o3de/lighting/resources.toml`), and name that shader in `SceneShading::module`. Ported shading code stays in the
-  investigation, never in `shaders/wgsl`.
+  `[[shader]]` with `parts = ["render_lab.shader/scene", "<its resource>"]` in its package (copy
+  `packages/o3de_lighting/resources.toml`), and name that shader's full key in `SceneShading::module`. Ported shading code stays in the
+  investigation, never in `packages/render_lab/shaders`.
 
-The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `timelines`, `sources`, `listings`,
-`build_frame`, `dock`, `click`, and `selftest`. Return the demonstrations' files from `demo_specs` (and the
+The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `sources`, `listings`,
+`build_frame`, `dock`, `click`, and `selftest`; `package` names its package, and `timelines` comes from the package's
+demos. Return the demonstrations' files from `demo_specs` (and the
 investigation's text from `text`), and `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's
-scenes, `src/lab/scenes/*.toml` read by `src/lab/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
+scenes, `packages/render_lab/scenes/*.toml` read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
 and `shot_state` come from them. Optional ones include `backdrop` (its homepage scene), `animation` (Play), and
-`scene_shading`. Follow `src/o3de/lighting/mod.rs`.
+`scene_shading`. Follow `packages/o3de_lighting/src/o3de/lighting/mod.rs`.
 
 ## 4. Demonstrations and parameters (`shot.rs`, `demos.rs`, `controls.rs`)
 
-- The demonstrations are data, in the investigation's package (the format is in `src/lab/demo.rs`; copy
-  `src/o3de/lighting/demos/` and `params.toml`, and declare each file in `resources.toml`):
+- The demonstrations are data, in the investigation's package (the format is in `lab/src/demo.rs`; copy
+  `packages/o3de_lighting/demos/` and `params.toml`, and declare each file in its `resources.toml`; a demonstration's
+  `scene` is one `render_lab` exports, `render_lab.scene/study-room`):
   - `params.toml`: every number a shot or the video can animate (`name`, `default`, `doc`). **A parameter's default
     must change nothing**, so existing frames stay byte-identical. An unknown name in a storyboard fails the build.
   - `demos/<key>.toml`: one demonstration (its title and tab text keys, hint, scene, listing, presets, camera, and the
@@ -133,7 +149,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
     A storyboard `demo` key resets to the demonstration's state.
 - A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `id()` (`DemoId::new(key)`), and `of(DemoId)`, for
   what stays code: `build_frame`, the dock, picking, and Play.
-- `build_frame` fills a `FrameContent` (`src/lab/frame.rs`): objects, uniforms, overlay draw lists (segments, points,
+- `build_frame` fills a `FrameContent` (`lab/src/frame.rs`): objects, uniforms, overlay draw lists (segments, points,
   boxes), labels, notes, and either a struct-panel record or a `Readout` (title, subtitle, rows of name, value, colour,
   and an optional formula). It must be a pure function of its arguments: no wall clock, no state from earlier frames.
 - **Step parameters** show an algorithm's intermediate steps, so the video can animate them rather than cut from the
@@ -141,12 +157,13 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   `vectorsShown`, `ggxSamples`, `readoutRows`).
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
   `rows`, `slider`, `toggle`, `show`). Keep each demonstration's dock inside its width: a fourth row per group at most.
-- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `src/o3de/lighting/text.rs`; declare both files in its `resources.toml` as `<engine>/<feature>/text/en` and `…/text/zh-cn`), and build.rs's `TEXT_TABLES` lists them. Technical terms stay English in both.
-- Data files the investigation loads (meshes, images, tables) are resources: declare them in a `resources.toml`
-  beside its code (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and
-  the kinds are in `src/lab/pipeline/mod.rs`), return its path from `Investigation::package`, and read them with
-  `crate::lab::resources::get("id")`. A new kind of processing is a processor in `src/lab/pipeline/` (its `Kind`:
-  parameters, code, and `process`). `render-lab resources` lists them, and `render-lab cook` processes them.
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `packages/o3de_lighting/src/o3de/lighting/text.rs`; declare both files in its package as `text/en` and `text/zh-cn`), and build.rs checks them against the directory of the file with `Table::new("<package>.text")` and the package's data. Technical terms stay English in both.
+- Data files the investigation loads (meshes, images, tables) are resources: declare them in a collection of its
+  package (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and the kinds
+  are in `lab/src/pipeline/mod.rs`, the manifest's in `lab/src/packages.rs`), and read them with
+  `crate::lab::resources::get("<package>.<id>")`. Content that names another package's resource writes
+  `<package>.<key>`: the package must be in `import` and the key in its `export`. A new kind of processing is a processor in `lab/src/pipeline/` (its `Kind`:
+  parameters, code, and `process`). `render-lab resources` lists them; every launch builds them into the package beside the binary (`render-lab cook` reports it).
 - Mirror and test: GPU logic the video explains keeps a CPU mirror (O3DE: `brdf.rs` beside `standard_lighting.wgsl`), and
   the selftest compares them.
 
@@ -162,13 +179,13 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 - **Formulas** (optional): a formula tag in the text tables, `{@ formula="LaTeX" display=yes colors="#rrggbb,…"}`,
   with `\lit{n}{…}` marking term n and `colors` giving each term its readout row's colour (the same LaTeX in every
   language; `build.rs` checks it). Name the tag's text in `Readout::formula` and the lit term in `Readout::formula_lit`;
-  the lab typesets it (`src/lab/formula.rs`; glyphs at least 24 px, at most 546 px wide, which
+  the lab typesets it (`lab/src/formula.rs`; glyphs at least 24 px, at most 546 px wide, which
   `render-lab formulas --check` and the selftest enforce). A `formula` parameter can pick the lit term. Narration can
   show formulas too, with a formula tag in a sentence (`tools/video/README.md`).
 
 ## 6. The Play animation
 
-A demonstration's Play animation is a `Clip` (`src/lab/animation.rs`) of looping motions: a `Wave` (a sine about a
+A demonstration's Play animation is a `Clip` (`lab/src/animation.rs`) of looping motions: a `Wave` (a sine about a
 centre), an `Orbit` (a point turned about a centre; a `pingPong` of `Ease::Sine` swings it back and forth), or a `Path`
 through waypoints (`closed` with `Repeat::Loop` goes round). `play_clip(demo)` builds it, and
 `demo_animation(demo, t) -> Vec<(param, value)>` samples it `t` seconds after Play for the trait's `animation`. The
@@ -178,7 +195,7 @@ can reuse it for the homepage's scene.
 
 ## 7. The narrated video
 
-Inputs in `src/<engine>/<feature>/video/`:
+Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose `investigation` names it):
 
 - **`video.json`**: `investigation`, the paths (storyboard, translations, diagrams, source index, pseudo-code,
   timelines), output names, `engineLabel`, `checkoutEnv`, `durationMinutes`, `readingPath` (index keys for the
@@ -210,8 +227,8 @@ Animate, don't cut:
   `callout` or a chapter `sources` entry.
 - Budget each chapter (`targetSeconds`) near 1.2 times its narration; the builder fills the rest with pauses.
 
-Register the timelines in the investigation's `TIMELINES` (`TimelineInfo`: id, title, edition, timeline path,
-narration path) so the homepage's Watch plays them, and let its selftest honour `options.timeline` by rendering each
+Register the timelines as demos of its package (`[[provides]] type = "demo"`: key, title, edition, and the `built`
+resources of its timeline and narration) so the homepage's Watch plays them, and let its selftest honour `options.timeline` by rendering each
 scene beat and checking that text is at least 24 px, labels stay inside and apart, and listings and readouts fit.
 
 Build (one GPU job at a time; the full render runs in the background):
@@ -225,8 +242,8 @@ python3 tools/video/build.py --investigation <engine>/<feature> --lang zh-CN    
 ```
 
 Render a few stills across a beat (`render --timeline … --snapshot A,B,C --snapshot-dir D`) to see an animation's
-steps, not just its midpoint. Outputs go to `build/video/<engine>/<feature>/<lang>/` and the timelines to
-`build/timelines/<engine>/<feature>/<lang>/` (both ignored by git: generated files are never tracked). `tools/video/README.md` has the details.
+steps, not just its midpoint. Outputs go to the package's `build/video/<lang>/` and the timelines to
+its `build/timelines/<lang>/` (both ignored by git: generated files are never tracked). `tools/video/README.md` has the details.
 
 ## 8. Check
 
@@ -241,7 +258,7 @@ cargo run --release -- home --snapshot <scratch>/home.png                   # lo
 
 - Build the public-only tree too: copy what `git ls-files --others --exclude-standard` lists (with `--parents`) into
   an empty directory, link `vendor/` into it, and build there without warnings.
-- If you touched `src/lab` or `shaders/wgsl`, check that the other investigations' frames are byte-identical: hash a
+- If you touched `lab/` or `packages/render_lab/shaders`, check that the other investigations' frames are byte-identical: hash a
   dozen stills of their timelines before and after.
 - Never open windows or take screenshots on the user's screen; look at offscreen renders.
 - Write the investigation's `README.md`: what it shows, its demonstrations and sliders, what the lab simplifies, its

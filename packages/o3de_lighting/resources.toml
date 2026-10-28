@@ -1,0 +1,303 @@
+# The O3DE lighting investigation's resources (a collection of the
+# o3de_lighting package, manifest.toml): its scene shading, a WGSL port of
+# O3DE's shader code, composed after the lab's scene module
+# (`SceneShading::module`). Paths are relative to this file.
+
+[[resource]]
+id = "wgsl/standard-lighting"
+kind = "file"
+source = "shaders/standard_lighting.wgsl"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[shader]]
+id = "shader/standard-lighting"
+parts = ["render_lab.shader/scene", "wgsl/standard-lighting"]
+
+# Its on-screen text (text.rs), source index (sources.rs), and pseudo-code
+# listings (pseudocode.rs).
+[[resource]]
+id = "text/en"
+kind = "file"
+source = "text/en.json"
+license = "MIT"
+
+[[resource]]
+id = "text/zh-cn"
+kind = "file"
+source = "text/zh-CN.json"
+license = "MIT"
+
+[[resource]]
+id = "source-index"
+kind = "file"
+source = "source-index.json"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/forward-pass"
+kind = "file"
+source = "pseudocode/forward_pass.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/light-culling"
+kind = "file"
+source = "pseudocode/light_culling.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/surface-setup"
+kind = "file"
+source = "pseudocode/surface_setup.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/occlusion"
+kind = "file"
+source = "pseudocode/occlusion.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/decals"
+kind = "file"
+source = "pseudocode/decals.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/decal-culling"
+kind = "file"
+source = "pseudocode/decal_culling.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/specular-ggx"
+kind = "file"
+source = "pseudocode/specular_ggx.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/clear-coat"
+kind = "file"
+source = "pseudocode/clear_coat.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/clear-coat-specular"
+kind = "file"
+source = "pseudocode/clear_coat_specular.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/diffuse-response"
+kind = "file"
+source = "pseudocode/diffuse_response.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/transmission"
+kind = "file"
+source = "pseudocode/transmission.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/multiscatter"
+kind = "file"
+source = "pseudocode/multiscatter.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/brdf-texture"
+kind = "file"
+source = "pseudocode/brdf_texture.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/simple-point-light"
+kind = "file"
+source = "pseudocode/simple_point_light.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/ibl-passes"
+kind = "file"
+source = "pseudocode/ibl_passes.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/ibl-prefilter"
+kind = "file"
+source = "pseudocode/ibl_prefilter.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/reflection-probes"
+kind = "file"
+source = "pseudocode/reflection_probes.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/probe-specular"
+kind = "file"
+source = "pseudocode/probe_specular.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/ssao"
+kind = "file"
+source = "pseudocode/ssao.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+# Its demonstrations (lab/src/demo.rs): the parameters, the order, one file
+# per demonstration, and the presets they share.
+[[resource]]
+id = "params"
+kind = "file"
+source = "params.toml"
+license = "MIT"
+
+[[resource]]
+id = "demos"
+kind = "file"
+source = "demos/index.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/room"
+kind = "file"
+source = "demos/room.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/culling"
+kind = "file"
+source = "demos/culling.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/surface"
+kind = "file"
+source = "demos/surface.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/decals"
+kind = "file"
+source = "demos/decals.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/specular"
+kind = "file"
+source = "demos/specular.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/clearcoat"
+kind = "file"
+source = "demos/clearcoat.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/diffuse"
+kind = "file"
+source = "demos/diffuse.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/transmission"
+kind = "file"
+source = "demos/transmission.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/multiscatter"
+kind = "file"
+source = "demos/multiscatter.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/pointlight"
+kind = "file"
+source = "demos/pointlight.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/ibl"
+kind = "file"
+source = "demos/ibl.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/reflections"
+kind = "file"
+source = "demos/reflections.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/ssao"
+kind = "file"
+source = "demos/ssao.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/close-up"
+kind = "file"
+source = "demos/presets/close-up.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/room-camera"
+kind = "file"
+source = "demos/presets/room-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/sphere-camera"
+kind = "file"
+source = "demos/presets/sphere-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/decal-camera"
+kind = "file"
+source = "demos/presets/decal-camera.toml"
+license = "MIT"
+
+# The narrated video's timelines and narration, which tools/video builds from
+# video/ into build/ (`built`: missing until they are built).
+# Both editions play the English narration.
+[[resource]]
+id = "timeline/en"
+kind = "file"
+source = "build/timelines/en/timeline.json"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline/zh-cn"
+kind = "file"
+source = "build/timelines/zh-CN/timeline.json"
+license = "MIT"
+built = true
+
+# The diagram frames each timeline names beside it.
+[[resource]]
+id = "timeline-frames/en"
+kind = "directory"
+source = "build/timelines/en/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline-frames/zh-cn"
+kind = "directory"
+source = "build/timelines/zh-CN/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/en"
+kind = "file"
+source = "build/video/en/narration.wav"
+license = "MIT"
+built = true

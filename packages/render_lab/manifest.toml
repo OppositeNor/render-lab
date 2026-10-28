@@ -1,0 +1,26 @@
+# The lab's own package: what every investigation shares (lab/). The lab
+# finds every package in packages/ (lab/src/packages.rs); this one is imported by
+# the others, which name what it exports as `render_lab.<key>`.
+
+name = "render_lab"
+author = "OppositeNor"
+license = "MIT"
+import = []
+# The scenes demonstrations show, the shader modules investigations build on,
+# and the surface lookup a package may override.
+export = ["scene/study-room", "scene/terrain", "shader/prelude", "shader/scene", "wgsl/surface-lookup"]
+
+# The sky, the teapot, the scenes, and the homepage's sounds.
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+# Fonts, MiTeX's Typst scope, and the lab's on-screen text.
+[[provides]]
+type = "resource"
+path = "files.toml"
+
+# The lab's WGSL and its shader modules.
+[[provides]]
+type = "resource"
+path = "shaders.toml"

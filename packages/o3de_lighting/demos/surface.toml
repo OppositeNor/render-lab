@@ -1,0 +1,10 @@
+key = "surface"
+title-text = "shot.the_metallic_workflow"
+tab-text = "shot.surface"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "surface-setup"
+include = ["close-up", "sphere-camera"]
+
+[params]
+labels = 1.0

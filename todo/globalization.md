@@ -19,7 +19,7 @@ formats, and every translated piece of data shares one system.
   - timeline editions: `TimelineInfo::edition` ("English", "中文") and the per-edition titles
   - scene object names: `object.*` keys, prefix-matched by `object_name`
   - the video's narration translation: an investigation's `video/zh-CN/translation.json`
-    (`src/o3de/lighting/video/zh-CN/translation.json`), read by `tools/video`
+    (`modules/o3de_lighting/video/zh-CN/translation.json`), read by `tools/video`
 - **Fonts by hand.** Source Han Sans CN is bundled for Chinese (`src/lab/text.rs`). The check that every character
   has a glyph runs in only one investigation's selftest.
 

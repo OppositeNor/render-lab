@@ -2315,6 +2315,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "o3de_lighting"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "egui",
+ "glam",
+ "render-lab-check",
+ "render-lab-core",
+ "serde_json",
+ "sha2",
+ "wgpu",
+]
+
+[[package]]
 name = "objc-sys"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3206,6 +3220,22 @@ dependencies = [
 name = "render-lab"
 version = "0.1.0"
 dependencies = [
+ "render-lab-core",
+]
+
+[[package]]
+name = "render-lab-check"
+version = "0.1.0"
+dependencies = [
+ "naga",
+ "serde_json",
+ "toml_edit 0.25.17+spec-1.1.0",
+]
+
+[[package]]
+name = "render-lab-core"
+version = "0.1.0"
+dependencies = [
  "anyhow",
  "bytemuck",
  "clap",
@@ -3213,11 +3243,13 @@ dependencies = [
  "egui-wgpu",
  "glam",
  "libc",
+ "libloading",
  "mitex",
  "mitex-spec-gen",
  "naga",
  "png",
  "pollster",
+ "render-lab-check",
  "serde",
  "serde_json",
  "sha2",

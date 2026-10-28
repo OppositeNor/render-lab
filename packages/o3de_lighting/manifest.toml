@@ -1,0 +1,34 @@
+# The O3DE lighting investigation's package (its code is src/o3de/lighting,
+# which names it with `Investigation::package`): its scene shading, text,
+# source index, pseudo-code listings, demonstrations, and narrated video.
+
+name = "o3de_lighting"
+author = "OppositeNor"
+license = "MIT"
+import = ["render_lab"]
+# Its code (src/, Cargo.toml): the library the lab opens, and its negotiation
+# function, which hands the lab the package's investigations (lab/src/plugin.rs).
+library = "o3de_lighting"
+negotiate = "o3de_lighting_negotiate"
+export = []
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+# The narrated video, in its two editions.
+[[provides]]
+type = "demo"
+key = "video"
+title = "How O3DE Lights a Surface"
+edition = "English"
+timeline = "timeline/en"
+audio = "narration/en"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "O3DE 如何照亮一个表面"
+edition = "中文"
+timeline = "timeline/zh-cn"
+audio = "narration/en"
