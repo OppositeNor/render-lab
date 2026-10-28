@@ -1,7 +1,7 @@
 # Render Lab
 
 <p align="center">
-  <img src="media/o3de-tiled-light-culling.jpg" alt="Render Lab's viewer on O3DE's GGX specular: a metallic sphere with its N, L, V, and H vectors and specular lobe, beside the D, G, and F formulas and their values" width="100%">
+  <img src="media/o3de-attenuation-radius.jpg" alt="O3DE's simple point light: its irradiance across the study room as a heat map, fading to zero at the attenuation radius, beside the falloff formula and its values" width="100%">
 </p>
 
 A lab for rendering demonstrations and experiments, organised as **investigations of game-engine features**. Each
@@ -12,11 +12,11 @@ It uses **wgpu 30.0.1** on Vulkan, **winit 0.30.13**, **egui 0.37**, and **WGSL*
 
 <p align="center">
   <img src="media/title-screen.jpg" alt="The title screen: Play, Config, and Quit on frosted glass over the study room" width="49%">
-  <img src="media/o3de-point-light.jpg" alt="O3DE's forward pass at a point: the study room under one simple point light, with labelled objects, the lighting terms, and the dock's sliders" width="49%">
+  <img src="media/o3de-point-light.jpg" alt="O3DE's forward pass at a point: the study room under one simple point light, with labelled objects, the lighting terms, and the sliders" width="49%">
 </p>
 <p align="center">
-  <img src="media/o3de-point-light-window.jpg" alt="O3DE's simple point light while the narrated video plays: the falloff window as a heat map, its formula in the caption, and the pseudo-code line highlighted" width="49%">
-  <img src="media/o3de-ggx-specular.jpg" alt="O3DE's tiled light culling: per-tile light counts over the scene, with the culling formulas and the inspected tile's bins" width="49%">
+  <img src="media/o3de-tiled-light-culling.jpg" alt="O3DE's tiled light culling: the number of lights in each screen tile, with the culling formulas and the inspected tile's depth bins" width="49%">
+  <img src="media/o3de-ggx-specular.jpg" alt="O3DE's GGX specular: a metallic sphere with its N, L, V, and H vectors and specular lobe, beside the D, G, and F formulas and their values" width="49%">
 </p>
 
 ## What this repository contains
