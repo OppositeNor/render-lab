@@ -1,8 +1,8 @@
 //! The interactive viewer's dock: sliders for what the current demonstration
-//! shows, "Play animation" and "Reset parameters" buttons, and tabs with the
-//! demonstration's pseudo-code and engine source. Every control sends a
-//! `ViewerAction`; the viewer applies it to its `ShotState`, so the sliders
-//! always show the state that is rendered. The recorder never draws the dock.
+//! shows, "Play animation" and "Reset parameters" buttons, the narration's
+//! volume, and tabs with the demonstration's pseudo-code and engine source.
+//! Every control sends a `ViewerAction`; the viewer applies it to its
+//! `ShotState`, so the sliders always show the state that is rendered. The recorder never draws the dock.
 //!
 //! `Dock` is the kit an investigation builds its Sliders tab from
 //! (`Investigation::dock`): groups, slider rows, record indices, the camera,
@@ -14,6 +14,7 @@ use crate::investigation;
 use crate::palette;
 use crate::shot::{PanelMode, RecordRef, ShotState};
 use crate::ui::{self, DockTab, Ink, UiInput, ViewerAction, ViewerChrome};
+use crate::volume::{self, Volume};
 use egui::{pos2, vec2, Color32, CornerRadius, FontId, Rect, RichText, Stroke, StrokeKind, Ui};
 use std::ops::RangeInclusive;
 
@@ -42,6 +43,8 @@ pub struct Dock<'a> {
     playing: bool,
     /// Parameters the demonstration's animation drives.
     animated: Vec<&'static str>,
+    /// The narration's volume (src/volume.rs).
+    narration: Volume,
     pub actions: Vec<ViewerAction>,
     widgets: Vec<(String, Rect)>,
 }
@@ -60,6 +63,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
         input,
         playing: viewer.playing,
         animated: investigation::current().animation(demo, 0.0).into_iter().map(|p| p.0).collect(),
+        narration: viewer.narration,
         actions: Vec::new(),
         widgets: Vec::new(),
     };
@@ -121,6 +125,19 @@ impl Dock<'_> {
         let reset = ui.add(egui::Button::new(tr("controls.reset_parameters")).min_size(full));
         if reset.on_hover_text(tr("controls.reset_parameters_hint")).clicked() {
             self.actions.push(ViewerAction::ResetParameters);
+        }
+        // The narration's volume, playing or not; the timeline bar has it too.
+        let mut narration = self.narration;
+        let r = ui
+            .horizontal(|ui| {
+                ui.label(RichText::new(tr("controls.narration")).color(palette::TEXT_DIM)).on_hover_text(tr("controls.narration_hint"));
+                volume::slider(ui, &mut narration, 26.0, BUTTONS - 228.0)
+            })
+            .inner;
+        self.widgets.push(("narration".into(), r.rail));
+        self.widgets.push(("narration-mute".into(), r.mute));
+        if r.changed || r.committed {
+            self.actions.push(ViewerAction::SetNarration(narration, r.committed));
         }
     }
 

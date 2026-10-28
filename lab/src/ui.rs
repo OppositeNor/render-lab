@@ -157,6 +157,8 @@ pub enum ViewerAction {
     Seek(f32),
     /// Close the viewer and return to the homepage.
     Home,
+    /// The narration's volume; `true` when the change is finished (src/volume.rs).
+    SetNarration(crate::volume::Volume, bool),
 }
 
 /// What the viewer's dock shows.
@@ -203,6 +205,8 @@ pub struct ViewerChrome {
     pub widgets: Vec<(String, Rect)>,
     /// Messages over the viewer, above everything else (src/popup.rs).
     pub popups: crate::popup::Popups,
+    /// The narration's volume, which the dock and the timeline bar set.
+    pub narration: crate::volume::Volume,
 }
 
 pub enum Chrome<'a> {
@@ -1078,13 +1082,17 @@ fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
     ink.text(card.center(), Align2::CENTER_CENTER, text, 34.0, bold(), palette::TEXT.gamma_multiply(opacity));
 }
 
-/// The viewer's timeline: a play/pause button, the time, and a bar with the
-/// chapters that seeks where it is clicked or dragged.
+/// The narration's volume at the timeline bar's right end: its width.
+const BAR_VOLUME: f32 = 300.0;
+
+/// The viewer's timeline: a play/pause button, the time, a bar with the
+/// chapters that seeks where it is clicked or dragged, and the narration's volume.
 fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut ViewerChrome) {
     let Some((frame, total)) = viewer.timeline else { return };
     let painter = ink.painter;
     let button = Rect::from_min_size(pos2(l.footer.min.x, l.footer.min.y + 4.0), vec2(150.0, 40.0));
-    let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x, l.footer.min.y + 30.0));
+    let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x - BAR_VOLUME - 24.0, l.footer.min.y + 30.0));
+    let volume = Rect::from_min_max(pos2(bar.max.x + 24.0, l.footer.min.y + 4.0), pos2(l.footer.max.x, l.footer.min.y + 44.0));
     // In front of the dock, so the bar keeps its hover preview while the timeline is paused.
     let response = egui::Area::new(egui::Id::unique("timeline-bar")).order(egui::Order::Foreground).fixed_pos(l.footer.min).show(ctx, |ui| {
         ui.set_min_size(l.footer.size());
@@ -1098,6 +1106,15 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
                 viewer.actions.push(ViewerAction::Seek((p.x - bar.min.x) / bar.width()));
             }
         }
+        ui.scope_builder(egui::UiBuilder::new().max_rect(volume).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+            let mut narration = viewer.narration;
+            let r = crate::volume::slider(ui, &mut narration, 32.0, BAR_VOLUME - 150.0);
+            viewer.widgets.push(("bar:narration".into(), r.rail));
+            viewer.widgets.push(("bar:narration-mute".into(), r.mute));
+            if r.changed || r.committed {
+                viewer.actions.push(ViewerAction::SetNarration(narration, r.committed));
+            }
+        });
         hit.hover_pos().map(|p| ((p.x - bar.min.x) / bar.width()).clamp(0.0, 1.0))
     });
     viewer.ui_has_pointer |= response.response.hovered();

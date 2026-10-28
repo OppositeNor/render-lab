@@ -23,6 +23,8 @@
   "controls.distance": "distance",
   "controls.show": "show",
   "controls.listing_hint": "Python pseudo-code of the {engine} function named in the panel.",
+  "controls.narration": "Narration",
+  "controls.narration_hint": "The narration's volume, as on the Config page; it is kept when you leave the viewer.",
   "home.mit_license": "MIT License",
   "home.on": "on",
   "home.off": "off",
@@ -64,6 +66,12 @@
   "home.keep_these_settings": "Keep these settings?",
   "home.apply": "Apply",
   "home.countdown": "The previous settings come back in {seconds} s.",
+  "home.language": "LANGUAGE",
+  "home.language_hint": "The homepage's language, and the narrated edition it offers first (English when a feature has none in this language).",
+  "home.audio": "AUDIO",
+  "home.music": "Music",
+  "home.narration": "Narration",
+  "home.audio_hint": "The homepage's music, and a narrated video's voice. The viewer's dock also sets the narration's volume.",
   "ui.pause": "Pause",
   "ui.play": "Play",
   "ui.step": "Step",
@@ -119,5 +127,7 @@
   "popup.screenshot_saved": "Screenshot saved",
   "popup.screenshot_failed": "Screenshot not saved",
   "popup.open_folder": "Open Folder",
-  "popup.close": "Close"
+  "popup.close": "Close",
+  "volume.mute": "Mute",
+  "volume.unmute": "Unmute"
 }

@@ -42,8 +42,11 @@ enum Command {
         /// Render the homepage offscreen to this PNG instead of opening a window.
         #[arg(long)]
         snapshot: Option<PathBuf>,
-        /// The page the snapshot shows: title, select, config, trial (the Config page's countdown), or
-        /// loading (the viewer's loading page, while the current investigation's first scene loads).
+        /// The page the snapshot shows: title, select, config, trial (the Config page's countdown),
+        /// starting (the homepage's loading page, while the title's scene loads), loading (the
+        /// viewer's loading page, while the current investigation's first scene loads), viewer (the
+        /// viewer on its first demonstration, with the dock), or viewer-timeline (the viewer playing
+        /// the investigation's first timeline, with its bar).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -195,6 +198,8 @@ pub fn main(app: App) -> Result<()> {
             let options = home::HomeOptions { manifest_dir: manifest_dir.clone(), width, height, ui_scale: ui_scale.clamp(0.4, 1.5), config_path: crate::config::Config::default_path() };
             match (snapshot, autotest) {
                 (Some(png), _) if page == "loading" => crate::loading::snapshot(&png, [width.max(64), height.max(64)], options.ui_scale),
+                (Some(png), _) if page == "starting" => home::snapshot_starting(&options, &png),
+                (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", &png),
                 (Some(png), _) => {
                     let trial = page == "trial";
                     home::snapshot(&options, if trial { home::Page::Config } else { home::Page::parse(&page)? }, trial, &png)
@@ -205,7 +210,7 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false })
+            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration })
         }
         Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             let frames = frames

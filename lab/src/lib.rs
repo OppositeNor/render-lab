@@ -62,6 +62,7 @@ pub mod terrain;
 pub mod text;
 pub mod ui;
 pub mod viewer;
+pub mod volume;
 
 #[cfg(commercial)]
 #[path = "../../src/commercial/lab/fixtures.rs"]

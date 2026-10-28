@@ -1,4 +1,4 @@
-# The lab's sky, mesh, and scenes, and the homepage's sounds (a collection of
+# The lab's sky, mesh, and scenes, and the homepage's sounds and icon (a collection of
 # the render_lab package, manifest.toml), built into the package beside the
 # binary (lab/src/cook.rs, processed by lab/src/pipeline) and read from there
 # at run time (lab/src/resources.rs). Paths are relative to this file;
@@ -55,3 +55,10 @@ id = "audio/click"
 kind = "file"
 source = "assets/audio/ui/soundza-ui-button-click.wav"
 license = "soundza Standard License"
+
+# The title page's language button (lab/src/home.rs), drawn by tools/icons/globe.py.
+[[resource]]
+id = "icon/globe"
+kind = "file"
+source = "assets/icons/globe.png"
+license = "MIT"

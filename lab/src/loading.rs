@@ -110,16 +110,7 @@ impl Screen {
         let canvas = vec2(size[0] as f32, size[1] as f32) / scale;
         let mut raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, canvas)), ..Default::default() };
         raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
-        let output = self.ctx.run_pass(raw, |ctx| {
-            let painter = ctx.layer_painter(egui::LayerId::background());
-            let centre = pos2(canvas.x / 2.0, canvas.y / 2.0);
-            painter.text(centre - vec2(0.0, 60.0), Align2::CENTER_BOTTOM, title, FontId::new(40.0, FontFamily::Name("Bold".into())), palette::TEXT);
-            painter.text(centre - vec2(0.0, 20.0), Align2::CENTER_BOTTOM, &progress.step, FontId::new(24.0, FontFamily::Proportional), palette::TEXT_FAINT);
-            let bar = Rect::from_center_size(centre + vec2(0.0, 12.0), vec2(520.0, 10.0));
-            painter.rect_filled(bar, CornerRadius::same(5), Color32::from_white_alpha(24));
-            let filled = Rect::from_min_size(bar.min, vec2(bar.width() * progress.fraction(), bar.height()));
-            painter.rect_filled(filled, CornerRadius::same(5), palette::ACCENT);
-        });
+        let output = self.ctx.run_pass(raw, |ctx| page(ctx, canvas, title, progress));
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
         let (device, queue) = (&gpu.device, &gpu.queue);
@@ -155,6 +146,19 @@ impl Screen {
             self.renderer.free_texture(id);
         }
     }
+}
+
+/// The loading page on a canvas of `canvas` points, on the plain background:
+/// `title` over the progress. The homepage draws it too, while its backdrop loads.
+pub fn page(ctx: &egui::Context, canvas: egui::Vec2, title: &str, progress: &Progress) {
+    let painter = ctx.layer_painter(egui::LayerId::background());
+    let centre = pos2(canvas.x / 2.0, canvas.y / 2.0);
+    painter.text(centre - vec2(0.0, 60.0), Align2::CENTER_BOTTOM, title, FontId::new(40.0, FontFamily::Name("Bold".into())), palette::TEXT);
+    painter.text(centre - vec2(0.0, 20.0), Align2::CENTER_BOTTOM, &progress.step, FontId::new(24.0, FontFamily::Proportional), palette::TEXT_FAINT);
+    let bar = Rect::from_center_size(centre + vec2(0.0, 12.0), vec2(520.0, 10.0));
+    painter.rect_filled(bar, CornerRadius::same(5), Color32::from_white_alpha(24));
+    let filled = Rect::from_min_size(bar.min, vec2(bar.width() * progress.fraction(), bar.height()));
+    painter.rect_filled(filled, CornerRadius::same(5), palette::ACCENT);
 }
 
 /// The viewer's loading page offscreen (`home --snapshot --page loading`):

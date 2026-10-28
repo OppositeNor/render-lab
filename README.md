@@ -34,12 +34,18 @@ whose license allows publishing code derived from them:
 An optional module, not provided in this repo, can be built in with the `commercial` cfg (`lab/build.rs` sets it when
 `src/commercial/` is present). Without it the lab builds with the public investigations alone.
 
-Started without a command, `render-lab` opens a **title screen**, like a game's, behind frosted glass, with **Play**,
-**Config**, and **Quit**, and the copyright, license, and version in the bottom-left corner.
+Started without a command, `render-lab` shows a loading page while the scene behind its title screen loads, then the
+**title screen**, like a game's, behind frosted glass, with **Play**, **Config**, and **Quit**, a globe with the language
+in the top-right corner (it opens Config at the Language option), and the copyright, license, and version in the
+bottom-left corner.
 
 - **Play** opens the selection page: the engines and features of the installed investigations.
-- **Config** edits the settings in `~/.config/render-lab/config.toml` (or `$XDG_CONFIG_HOME/render-lab/config.toml`);
-  for now there is one, **Full Screen**. **Save and Apply** tries the edited settings behind a ten-second countdown:
+- **Config** edits the settings in `~/.config/render-lab/config.toml` (or `$XDG_CONFIG_HOME/render-lab/config.toml`):
+  the **Language** (English or 中文: the homepage's text, and the narrated edition the selection page offers first,
+  English when a feature has none in it; the demonstrations follow it too), **Full Screen**, and the volumes of the
+  **Music** and the **Narration**, each a slider with a mute button that keeps its level. The viewer's dock, and the
+  timeline bar while a video plays, also set the narration's volume; the viewer keeps it in the file when it closes.
+  **Save and Apply** tries the edited settings behind a ten-second countdown:
   **Apply** keeps them and writes the file, while **Restore**, Esc, or letting the time run out puts the previous ones
   back. Nothing is written before Apply. With nothing to save, the first button is **Return**; an option that differs
   from its default is marked, with a **Restore** for that option alone; **Discard** drops the edits, and **Restore
@@ -52,7 +58,7 @@ From this directory:
 
 ```bash
 cargo run --release                                   # the homepage
-cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select or config for the others)
+cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, or viewer-timeline for the others)
 cargo run --release -- home --autotest home.json      # click through the homepage offscreen (it uses its own settings file)
 ```
 
@@ -83,8 +89,8 @@ opens a formula card in the viewport.
 | Path | Role |
 |---|---|
 | [`src/main.rs`](src/main.rs), [`lab/`](lab/Cargo.toml), [`lab/src/cli.rs`](lab/src/cli.rs) | The binary, which only runs the lab: a Rust dylib that the binary and every package's library link, so they share one lab (its code and its state). The command line is the lab's. |
-| [`lab/src/home.rs`](lab/src/home.rs), [`lab/src/frost.rs`](lab/src/frost.rs), [`packages/render_lab/shaders/frost.wgsl`](packages/render_lab/shaders/frost.wgsl) | The homepage: the title, Config, and selection pages, over the title investigation's backdrop scene (`investigations::title`, O3DE's lighting for now; a plain field until it has loaded), halved twice, blurred, tinted, and grained. |
-| [`lab/src/config.rs`](lab/src/config.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it. |
+| [`lab/src/home.rs`](lab/src/home.rs), [`lab/src/frost.rs`](lab/src/frost.rs), [`packages/render_lab/shaders/frost.wgsl`](packages/render_lab/shaders/frost.wgsl) | The homepage: the title, Config, and selection pages, over the title investigation's backdrop scene (`investigations::title`, O3DE's lighting for now; the loading page until it has loaded, `home --snapshot --page starting`), halved twice, blurred, tinted, and grained. |
+| [`lab/src/config.rs`](lab/src/config.rs), [`lab/src/volume.rs`](lab/src/volume.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it; a sound's volume (a level and a mute switch) and its slider, on the Config page and in the viewer's dock. |
 | [`lab/src/text.rs`](lab/src/text.rs), [`lab/src/readback.rs`](lab/src/readback.rs), [`lab/src/gpu.rs`](lab/src/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. Text tables, pseudo-code listings, and source indexes are resources of each layer's package, read when first used (`i18n::Table`). |
 | [`lab/src/formula.rs`](lab/src/formula.rs), [`lab/src/rich_text.rs`](lab/src/rich_text.rs), [`packages/render_lab/assets/mitex/`](packages/render_lab/assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
 | [`lab/src/scene.rs`](lab/src/scene.rs), [`packages/render_lab/scenes/`](packages/render_lab/scenes/study-room.toml), [`lab/src/terrain.rs`](lab/src/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each is a data file, the resource `scene/<key>` (its objects, shapes, materials, light, lighting constants, where a camera sees it from, and the terrain's heightfield), read when a scene is first built. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |
@@ -134,7 +140,7 @@ does the lab when it loads it. A frame without a struct-panel record can show a 
   package, names it with `Investigation::package`, and reads them through `lab::resources`.
 - **Sound:** the homepage plays a music loop while it is shown, and a click for its controls (neither in
   demonstrations nor videos), through FFplay (the video environment's, `FFPLAY`, or PATH); without FFplay the lab is
-  silent. The sounds in [`packages/render_lab/assets/audio`](packages/render_lab/assets/audio) are licensed from soundza, not under the MIT License: they are
+  silent. The music and the narration play at the volumes Config sets ([`lab/src/volume.rs`](lab/src/volume.rs)). The sounds in [`packages/render_lab/assets/audio`](packages/render_lab/assets/audio) are licensed from soundza, not under the MIT License: they are
   for this lab only (see [`THIRD_PARTY.md`](THIRD_PARTY.md)).
 
 ## License

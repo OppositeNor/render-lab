@@ -24,6 +24,30 @@ pub enum Locale {
     ZhCn,
 }
 
+impl Locale {
+    pub const ALL: [Locale; 2] = [Locale::En, Locale::ZhCn];
+
+    /// Its name in timelines and the settings file (`en`, `zh-CN`).
+    pub fn code(self) -> &'static str {
+        match self {
+            Locale::En => "en",
+            Locale::ZhCn => "zh-CN",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<Locale> {
+        Locale::ALL.into_iter().find(|l| l.code() == code)
+    }
+
+    /// Its name in itself, as a language picker shows it in every locale.
+    pub fn name(self) -> &'static str {
+        match self {
+            Locale::En => "English",
+            Locale::ZhCn => "中文",
+        }
+    }
+}
+
 static CURRENT: AtomicU8 = AtomicU8::new(0);
 
 pub fn set(locale: Locale) {

@@ -16,7 +16,8 @@
 //! captions; the footer's bar seeks. Pausing hands the current shot to the
 //! user: the camera, the dock's sliders, and picking work on a copy of the
 //! timeline's state, and playing again returns to the timeline where it
-//! paused.
+//! paused. The narration's volume is set in the dock and at the bar's end,
+//! playing or not; a playing narration restarts where it is to take it.
 //!
 //! `viewer-autotest --report REPORT` drives the same input handlers with the
 //! investigation's scripted sequence (`ViewerTest`, including a real window
@@ -35,6 +36,7 @@ use crate::record::{beat_fade, ImageCache};
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, BeatKind, DemoId, PanelMode, ShotState, Timeline};
 use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
+use crate::volume::Volume;
 use anyhow::Result;
 use glam::Vec2;
 use std::path::PathBuf;
@@ -74,6 +76,8 @@ pub struct ViewerOptions {
     pub start_frame: u64,
     /// Open borderless fullscreen (the Config page's setting).
     pub fullscreen: bool,
+    /// The narration's volume (the Config page's setting); the dock changes it.
+    pub narration: Volume,
 }
 
 use crate::home::fullscreen_mode;
@@ -145,6 +149,8 @@ pub struct App {
     /// The last skip: the seconds skipped by presses in a row, and when the last one was.
     skip: Option<(i64, Instant)>,
     audio: Option<crate::audio::AudioPlayer>,
+    /// The narration's volume; the viewer hands it back when it closes.
+    pub narration: Volume,
     images: Option<ImageCache>,
     cursor: Vec2,
     drag: Option<Drag>,
@@ -183,7 +189,11 @@ impl App {
             Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(|| anyhow::anyhow!("{} has no viewer autotest", investigation::current().title()))?),
             None => None,
         };
-        let audio = options.audio.clone().and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
+        let mut audio = options.audio.clone().and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
+        if let Some(a) = audio.as_mut() {
+            a.set_gain(options.narration.gain());
+        }
+        let narration = options.narration;
         // A timeline opens on its first frame, paused; the autotest starts in the free demonstrations.
         let start_in_timeline = timeline.is_some() && autotest.is_none();
         let no_autotest = autotest.is_none();
@@ -211,6 +221,7 @@ impl App {
             timeline_mode: start_in_timeline,
             skip: None,
             audio,
+            narration,
             images,
             cursor: Vec2::ZERO,
             drag: None,
@@ -509,6 +520,16 @@ impl App {
                 self.exit = ViewerExit::Back;
                 self.leaving = true;
             }
+            ViewerAction::SetNarration(volume, finished) => {
+                self.narration = volume;
+                if let Some(a) = self.audio.as_mut() {
+                    a.set_gain(volume.gain());
+                }
+                // FFplay takes a volume when it starts: a playing narration restarts where it is.
+                if finished && self.timeline_playing() {
+                    self.start_audio();
+                }
+            }
             _ => {}
         }
     }
@@ -693,7 +714,9 @@ impl App {
         surface.blit_group = blit_group(renderer);
     }
 
-    fn redraw(&mut self) -> Result<()> {
+    /// Advance the clocks and render the frame with its chrome into the
+    /// renderer's target (and `readback`), applying what its controls did.
+    fn render(&mut self, readback: Option<&wgpu::Buffer>) -> Result<()> {
         let now = Instant::now();
         let dt = (now - self.last_tick).as_secs_f32().min(0.1);
         self.last_tick = now;
@@ -744,6 +767,7 @@ impl App {
             ui_has_pointer: false,
             widgets: Vec::new(),
             popups: std::mem::take(&mut self.popups),
+            narration: self.narration,
         };
         // The frame a screenshot is taken of shows no popup.
         chrome.popups.hidden = self.screenshot;
@@ -762,7 +786,7 @@ impl App {
         let renderer = self.renderer.as_mut().expect("renderer");
         let result = renderer.render_frame(
             FrameRequest { state: &state, beat_kind: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None },
-            None,
+            readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
         self.bar_hover = chrome.hover.take();
@@ -777,6 +801,11 @@ impl App {
         for action in chrome.actions {
             self.apply(action);
         }
+        Ok(())
+    }
+
+    fn redraw(&mut self) -> Result<()> {
+        self.render(None)?;
         // Present: blit the RGBA frame to the swapchain.
         let renderer = self.renderer.as_ref().unwrap();
         let surface = self.surface.as_ref().unwrap();
@@ -1054,8 +1083,8 @@ pub fn run(options: ViewerOptions) -> Result<()> {
 
 /// Run the viewer on an event loop that may be reused afterwards (the
 /// homepage's); its window closes when it returns.
-/// Returns how the viewer was left.
-pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<ViewerExit> {
+/// Returns how the viewer was left, and the narration's volume it was left with.
+pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<(ViewerExit, Volume)> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::new(options)?;
     event_loop.run_app_on_demand(&mut app)?;
@@ -1068,6 +1097,41 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
             anyhow::bail!("viewer autotest failed; see {}", test.report().display());
         }
     }
-    Ok(app.exit)
+    Ok((app.exit, app.narration))
 }
 
+
+/// The viewer offscreen, as a PNG (`home --snapshot --page viewer`): the
+/// current investigation's first demonstration with its dock, or, with
+/// `options.timeline`, the timeline playing at `options.start_frame` with its
+/// bar. No window opens and no sound plays.
+pub fn snapshot(options: ViewerOptions, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let size = [options.width.max(64), options.height.max(64)];
+    let playing = options.timeline.is_some();
+    let mut app = App::new(ViewerOptions { audio: None, ..options })?;
+    app.intro = None;
+    let gpu = Gpu::new(gpu::instance(None), None)?;
+    let scene = investigation::current().demo_scene(app.state.demo);
+    let mut renderer = Loading::start(investigation::current(), gpu.clone(), scene, size).wait()?;
+    renderer.ui_scale = app.options.ui_scale;
+    app.renderer = Some(renderer);
+    if playing {
+        app.playing = true;
+        // The clock holds the frame: it starts counting an hour from now.
+        app.timeline_anchor = (Instant::now() + std::time::Duration::from_secs(3600), app.timeline_frame);
+    } else {
+        app.state = app.default_state(app.state.demo);
+    }
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    // egui sizes its areas on the first passes, and fades them in over its clock.
+    for _ in 0..3 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], if playing { "the timeline playing" } else { "the first demonstration" });
+    Ok(())
+}

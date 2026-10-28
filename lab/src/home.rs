@@ -2,12 +2,19 @@
 //! a game's title screen. Behind it, the current investigation's scene renders
 //! full-screen under frosted glass (src/frost.rs).
 //!
-//! - The title page: "Render Lab", Play, Config, and Quit, and the copyright,
-//!   license, and version in the bottom-left corner.
-//! - The Config page edits the settings file (src/config.rs). Save and
+//! - While the scene behind it loads, the window shows the loading page
+//!   (src/loading.rs); the title page follows.
+//! - The title page: "Render Lab", Play, Config, and Quit, the language (a
+//!   globe) in the top-right corner, which opens the Config page at the
+//!   Language option, and the copyright, license, and version in the
+//!   bottom-left corner.
+//! - The Config page edits the settings file (src/config.rs): the language
+//!   (of the homepage, and of the narrated edition it offers first), full
+//!   screen, and the volumes of the music and the narration. Save and
 //!   Apply tries the edited settings for ten seconds behind a popup: Apply
 //!   keeps them and writes the file; Restore, or letting the time run out,
-//!   puts the previous ones back. Nothing is written before Apply.
+//!   puts the previous ones back. Nothing is written before Apply, except
+//!   the narration's volume as the viewer's dock leaves it.
 //! - Play opens the selection page: the engines the lab investigates, the
 //!   chosen engine's features, and the chosen feature's narrated timeline
 //!   (from the start or from a chapter) and demonstrations. Esc or Back
@@ -24,9 +31,9 @@ use crate::investigations;
 use crate::config::Config;
 use crate::frost::Frost;
 use crate::gpu::{self, Gpu, FRAME_FORMAT};
-use crate::i18n::{args, tr, tr_with};
+use crate::i18n::{self, args, tr, tr_with, Locale};
 use crate::investigation::{self, Investigation, TimelineInfo};
-use crate::loading::Loading;
+use crate::loading::{self, Loading, Progress};
 use crate::palette;
 use crate::popup::{self, Popup, Popups};
 use crate::resources;
@@ -35,6 +42,7 @@ use crate::renderer::Renderer;
 use crate::text::{self as ui, REFERENCE};
 use crate::audio::AudioPlayer;
 use crate::viewer::{self, ViewerExit, ViewerOptions};
+use crate::volume::{self, Volume};
 use anyhow::{Context, Result};
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2};
 use std::path::{Path, PathBuf};
@@ -71,12 +79,15 @@ pub struct HomeOptions {
 /// How long tried settings stay before they are put back unless kept.
 const TRIAL_SECONDS: f32 = 10.0;
 
+/// How long the Language option stays outlined after the title's globe opened the page.
+const FLASH_SECONDS: f32 = 2.5;
+
 /// Settings being tried: what to put back, and since when (page seconds).
 #[derive(Clone, Copy, Debug)]
 struct Trial {
     started: f32,
-    /// The session's fullscreen before the settings were applied.
-    fullscreen_before: bool,
+    /// The session's settings before the tried ones were applied.
+    before: Config,
 }
 
 /// The Config page's state.
@@ -89,6 +100,9 @@ struct Settings {
     trial: Option<Trial>,
     /// The last outcome (kept, restored, or an error), shown on the page.
     message: Option<String>,
+    /// When the title's globe opened the page (page seconds): the Language
+    /// option is outlined for a moment.
+    flash: Option<f32>,
 }
 
 /// Which page the homepage shows.
@@ -139,6 +153,7 @@ struct TimelineSummary {
     /// Number, title, and first frame of each chapter.
     chapters: Vec<(u32, String, u64)>,
     narrated: bool,
+    locale: Locale,
 }
 
 impl TimelineSummary {
@@ -156,6 +171,7 @@ impl TimelineSummary {
             total_frames: json["totalFrames"].as_u64().unwrap_or(0),
             chapters,
             narrated: manifest_dir.join(&info.narration).is_file(),
+            locale: serde_json::from_value(json["locale"].clone()).unwrap_or_default(),
         })
     }
 
@@ -171,6 +187,15 @@ struct TimelineRow {
     /// Title, length, chapters (number, "clock  title", first frame), and
     /// whether the narration is built; or why the timeline cannot be read.
     summary: Result<(String, String, Vec<(u32, String, u64)>, bool), String>,
+    /// Its language, once it has been read.
+    locale: Option<Locale>,
+}
+
+/// The edition a feature offers first: the first in `language`, else the
+/// first in English, else the first.
+fn preferred_edition(rows: &[TimelineRow], language: Locale) -> usize {
+    let first = |locale: Locale| rows.iter().position(|r| r.locale == Some(locale));
+    first(language).or_else(|| first(Locale::En)).unwrap_or(0)
 }
 
 /// An option's value as the Config page names it.
@@ -214,15 +239,18 @@ fn glass_button(ui: &mut egui::Ui, size: Vec2, label: &str, font: f32, enabled: 
 pub struct Home {
     manifest_dir: PathBuf,
     pub page: Page,
-    /// Fullscreen in this session: from the settings, then tried settings.
-    pub fullscreen: bool,
+    /// The settings in use this session: the saved ones, then tried ones.
+    pub applied: Config,
     settings: Settings,
     engine: usize,
     feature: usize,
     /// Per investigation (by `investigations::all()` index), per timeline.
     timelines: Vec<Option<Vec<Result<TimelineSummary, String>>>>,
-    /// The timeline (edition) the selection page offers, by index.
-    edition: usize,
+    /// The timeline (edition) picked on the selection page, by index; until
+    /// one is, the one in the language (`preferred_edition`).
+    edition: Option<usize>,
+    /// The title's globe icon, once loaded (None inside if it could not be).
+    globe: Option<Option<egui::TextureHandle>>,
     /// An error from the last viewer run, shown until the next choice.
     pub error: Option<String>,
     /// Canvas rectangle of every control, by name (for the autotest).
@@ -242,16 +270,18 @@ impl Home {
             Ok(config) => (config.unwrap_or_default(), None),
             Err(e) => (Config::default(), Some(format!("{e:#}"))),
         };
-        let settings = Settings { path: config_path, saved, pending: saved, trial: None, message };
+        let settings = Settings { path: config_path, saved, pending: saved, trial: None, message, flash: None };
+        i18n::set(saved.language);
         let mut home = Home {
             manifest_dir,
             page: Page::Title,
-            fullscreen: saved.fullscreen,
+            applied: saved,
             settings,
             engine: 0,
             feature: 0,
             timelines: investigations::all().iter().map(|_| None).collect(),
-            edition: 0,
+            edition: None,
+            globe: None,
             error: None,
             widgets: Vec::new(),
             min_text: f32::INFINITY,
@@ -287,6 +317,7 @@ impl Home {
             .zip(loaded.iter())
             .map(|(info, s)| TimelineRow {
                 info,
+                locale: s.as_ref().ok().map(|s| s.locale),
                 summary: s
                     .as_ref()
                     .map(|s| (s.title.clone(), s.clock(s.total_frames), s.chapters.iter().map(|(n, title, f)| (*n, format!("{}  {title}", s.clock(*f)), *f)).collect(), s.narrated))
@@ -317,8 +348,9 @@ impl Home {
 
     /// Save and Apply: try the edited settings until they are kept or put back.
     fn try_settings(&mut self, time: f32) {
-        self.settings.trial = Some(Trial { started: time, fullscreen_before: self.fullscreen });
-        self.fullscreen = self.settings.pending.fullscreen;
+        self.settings.trial = Some(Trial { started: time, before: self.applied });
+        self.applied = self.settings.pending;
+        i18n::set(self.applied.language);
         self.settings.message = None;
     }
 
@@ -346,7 +378,8 @@ impl Home {
     /// The popup's Restore, or the time running out: put the previous settings back.
     fn restore_settings(&mut self) {
         if let Some(trial) = self.settings.trial.take() {
-            self.fullscreen = trial.fullscreen_before;
+            self.applied = trial.before;
+            i18n::set(self.applied.language);
             self.settings.pending = self.settings.saved;
             self.settings.message = Some(tr("home.restored_the_previous_settings").to_string());
         }
@@ -356,7 +389,42 @@ impl Home {
     fn discard_settings(&mut self) {
         self.settings.pending = self.settings.saved;
         self.settings.message = None;
+        self.settings.flash = None;
         self.page = Page::Title;
+    }
+
+    /// The narration's volume as the viewer's dock left it: in use, and
+    /// written to the settings file (the Config page has no edits then).
+    fn keep_narration(&mut self, narration: Volume) {
+        if narration == self.applied.narration {
+            return;
+        }
+        self.applied.narration = narration;
+        self.settings.saved.narration = narration;
+        self.settings.pending.narration = narration;
+        if let Some(path) = &self.settings.path {
+            if let Err(e) = self.settings.saved.save(path) {
+                self.settings.message = Some(format!("{} {e:#}", tr("home.applied_but_not_saved")));
+            }
+        }
+    }
+
+    /// The globe icon's texture, loaded on first use; None if it cannot be read.
+    fn globe(&mut self, ctx: &egui::Context) -> Option<egui::TextureId> {
+        self.globe
+            .get_or_insert_with(|| {
+                let path = resources::get(GLOBE).path();
+                let image = std::fs::File::open(&path).map_err(anyhow::Error::from).and_then(|f| crate::record::decode_png(std::io::BufReader::new(f)));
+                match image {
+                    Ok(image) => Some(ctx.load_texture("home-globe", image, egui::TextureOptions::LINEAR)),
+                    Err(e) => {
+                        eprintln!("the globe icon did not load from {}: {e:#}", path.display());
+                        None
+                    }
+                }
+            })
+            .as_ref()
+            .map(|t| t.id())
     }
 
     /// Draw the page on a canvas of `canvas` points; returns the choice made.
@@ -369,7 +437,7 @@ impl Home {
         let painter = ctx.layer_painter(egui::LayerId::background());
         let ink = ui::Ink::new(&painter);
         let choice = match self.page {
-            Page::Title => self.draw_title(ctx, &ink, canvas),
+            Page::Title => self.draw_title(ctx, &ink, canvas, time),
             Page::Select => self.draw_select(ctx, &ink, canvas),
             Page::Config => {
                 self.draw_config(ctx, &ink, canvas, time);
@@ -384,8 +452,8 @@ impl Home {
         choice
     }
 
-    /// The title page: the name, Play and Quit on a glass card, and the credits.
-    fn draw_title(&mut self, ctx: &egui::Context, ink: &ui::Ink, canvas: Vec2) -> Option<Choice> {
+    /// The title page: the name, Play and Quit on a glass card, the language, and the credits.
+    fn draw_title(&mut self, ctx: &egui::Context, ink: &ui::Ink, canvas: Vec2, time: f32) -> Option<Choice> {
         let center = canvas.x / 2.0;
         let card = Rect::from_center_size(pos2(center, canvas.y * 0.5), vec2(900.0, 710.0));
         glass_panel(ink.painter, card, 28, false);
@@ -414,6 +482,27 @@ impl Home {
             }
         });
         ink.text(pos2(40.0, canvas.y - 52.0), Align2::LEFT_TOP, credits(), 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+
+        // The language, at the top right: the globe and the language's name. It opens the
+        // Config page with the Language option outlined.
+        let globe = self.globe(ctx);
+        let name = self.applied.language.name();
+        let icon = 44.0;
+        let size = vec2(20.0 + icon + 14.0 + ink.measure(name, 28.0, ui::bold()).x + 24.0, 64.0);
+        egui::Area::new(egui::Id::unique("home-language")).fixed_pos(pos2(canvas.x - 40.0 - size.x, 30.0)).fade_in(false).constrain(false).show(ctx, |ui| {
+            let r = glass_button(ui, size, "", 28.0, true);
+            let color = if r.hovered() { palette::ACCENT } else { palette::TEXT };
+            let icon_rect = Rect::from_min_size(pos2(r.rect.min.x + 20.0, r.rect.center().y - icon / 2.0), vec2(icon, icon));
+            if let Some(globe) = globe {
+                ui.painter().image(globe, icon_rect, Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), color);
+            }
+            ui.painter().text(pos2(icon_rect.max.x + 14.0, r.rect.center().y), Align2::LEFT_CENTER, name, FontId::new(28.0, ui::bold()), color);
+            self.widgets.push(("language".into(), r.rect));
+            if r.on_hover_text(tr("home.language_hint")).clicked() {
+                self.page = Page::Config;
+                self.settings.flash = Some(time);
+            }
+        });
         choice
     }
 
@@ -483,7 +572,7 @@ impl Home {
 
         // The chosen feature: what it covers, how to open it, its chapters and demonstrations.
         let rows = self.timeline_rows(chosen);
-        let edition = self.edition.min(rows.len().saturating_sub(1));
+        let edition = self.edition.unwrap_or_else(|| preferred_edition(&rows, self.applied.language)).min(rows.len().saturating_sub(1));
         let mut new_edition = None;
         let error = self.error.clone();
         self.column_area(ctx, "home-detail", detail_rect, chosen.title(), |home, ui| {
@@ -568,14 +657,14 @@ impl Home {
         if let Some(e) = new_engine {
             self.engine = e;
             self.feature = 0;
-            self.edition = 0;
+            self.edition = None;
         }
         if let Some(f) = new_feature {
             self.feature = f;
-            self.edition = 0;
+            self.edition = None;
         }
         if let Some(e) = new_edition {
-            self.edition = e;
+            self.edition = Some(e);
         }
         choice
     }
@@ -589,10 +678,11 @@ impl Home {
         let trying = self.settings.trial.is_some();
         ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::ACCENT);
         ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.config"), 38.0, ui::bold(), palette::TEXT);
-        let card = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(1240.0, 470.0));
-        glass_panel(ink.painter, card, 24, true);
-        let inner = card.shrink2(vec2(48.0, 40.0));
-        egui::Area::new(egui::Id::unique("home-config")).fixed_pos(inner.min).fade_in(false).constrain(false).show(ctx, |ui| {
+        // The card's top; it grows to fit what it holds (the path at its foot may wrap).
+        let card = Rect::from_min_size(pos2(canvas.x / 2.0 - 620.0, canvas.y * 0.53 - 410.0), vec2(1240.0, 820.0));
+        let inner = card.shrink2(vec2(48.0, 34.0));
+        let flash = self.settings.flash.map(|start| 1.0 - (time - start) / FLASH_SECONDS).filter(|a| *a > 0.0);
+        let area = egui::Area::new(egui::Id::unique("home-config")).fixed_pos(inner.min).fade_in(false).constrain(false).show(ctx, |ui| {
             ui.set_width(inner.width());
             // A checkbox as large as the text beside it.
             let spacing = ui.spacing_mut();
@@ -600,64 +690,92 @@ impl Home {
             spacing.icon_width_inner = 18.0;
             spacing.icon_spacing = 14.0;
             ui.add_enabled_ui(!trying, |ui| {
-                ui.label(RichText::new(tr("home.display")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
-                ui.add_space(10.0);
                 let defaults = Config::default();
-                // An option that differs from its default is marked, and its Restore puts the default back.
-                let changed = self.settings.pending.fullscreen != defaults.fullscreen;
-                let row = ui.horizontal(|ui| {
-                    let mut fullscreen = self.settings.pending.fullscreen;
-                    let r = ui.checkbox(&mut fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
-                    self.widgets.push(("option:fullscreen".into(), r.rect));
-                    self.settings.pending.fullscreen = fullscreen;
-                    if changed {
-                        ui.add_space(12.0);
-                        ui.label(RichText::new(format!("{} {}", tr("home.default"), on_off(defaults.fullscreen))).color(palette::ACCENT));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let restore = glass_button(ui, vec2(190.0, 48.0), tr("home.restore"), 26.0, !trying);
-                            self.widgets.push(("restore:fullscreen".into(), restore.rect));
-                            if restore.clicked() {
-                                self.settings.pending.fullscreen = defaults.fullscreen;
-                            }
-                        });
+                let Home { settings, widgets, .. } = self;
+                let heading = |ui: &mut egui::Ui, text: &str| {
+                    ui.label(RichText::new(text).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                    ui.add_space(6.0);
+                };
+                let hint = |ui: &mut egui::Ui, text: &str| {
+                    ui.add(egui::Label::new(RichText::new(text).color(palette::TEXT_DIM)).wrap());
+                    ui.add_space(24.0);
+                };
+
+                heading(ui, tr("home.language"));
+                let pending = &mut settings.pending;
+                let (row, restore) = option_row(ui, widgets, "language", pending.language != defaults.language, defaults.language.name(), !trying, |ui, widgets| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+                    for locale in Locale::ALL {
+                        let r = ui.add(egui::Button::selectable(pending.language == locale, RichText::new(locale.name()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(180.0, 48.0)));
+                        widgets.push((format!("option:language:{}", locale.code()), r.rect));
+                        if r.clicked() {
+                            pending.language = locale;
+                        }
                     }
                 });
-                if changed {
-                    let r = row.response.rect;
-                    ui.painter().rect_filled(Rect::from_min_max(pos2(r.min.x - 20.0, r.min.y + 4.0), pos2(r.min.x - 14.0, r.max.y - 4.0)), CornerRadius::same(3), palette::ACCENT);
+                if restore {
+                    pending.language = defaults.language;
                 }
-                ui.add(egui::Label::new(RichText::new(tr("home.full_screen_hint")).color(palette::TEXT_DIM)).wrap());
-                ui.add_space(36.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 18.0;
-                    let size = vec2((inner.width() - 36.0) / 3.0, 72.0);
-                    // Save and Apply only when something changed; otherwise Return.
-                    if self.settings.pending != self.settings.saved {
-                        let save = glass_button(ui, size, tr("home.save_and_apply"), 30.0, !trying);
-                        self.widgets.push(("save".into(), save.rect));
-                        if save.clicked() {
-                            self.try_settings(time);
-                        }
-                    } else {
-                        let back = glass_button(ui, size, tr("home.return"), 30.0, !trying);
-                        self.widgets.push(("return".into(), back.rect));
-                        if back.clicked() {
-                            self.page = Page::Title;
-                            self.settings.message = None;
-                        }
-                    }
-                    let discard = glass_button(ui, size, tr("home.discard"), 30.0, !trying);
-                    self.widgets.push(("discard".into(), discard.rect));
-                    if discard.clicked() {
-                        self.discard_settings();
-                    }
-                    let defaults = glass_button(ui, size, tr("home.restore_defaults"), 30.0, !trying);
-                    self.widgets.push(("defaults".into(), defaults.rect));
-                    if defaults.clicked() {
-                        self.settings.pending = Config::default();
-                        self.settings.message = Some(tr("home.defaults_shown").to_string());
-                    }
+                if let Some(alpha) = flash {
+                    ui.painter().rect_stroke(row.expand2(vec2(28.0, 8.0)), CornerRadius::same(12), Stroke::new(3.0, palette::ACCENT.gamma_multiply(alpha)), StrokeKind::Outside);
+                }
+                hint(ui, tr("home.language_hint"));
+
+                heading(ui, tr("home.display"));
+                let (_, restore) = option_row(ui, widgets, "fullscreen", pending.fullscreen != defaults.fullscreen, on_off(defaults.fullscreen), !trying, |ui, widgets| {
+                    let r = ui.checkbox(&mut pending.fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
+                    widgets.push(("option:fullscreen".into(), r.rect));
                 });
+                if restore {
+                    pending.fullscreen = defaults.fullscreen;
+                }
+                hint(ui, tr("home.full_screen_hint"));
+
+                heading(ui, tr("home.audio"));
+                for (name, label, volume, default) in [("music", tr("home.music"), &mut pending.music, defaults.music), ("narration", tr("home.narration"), &mut pending.narration, defaults.narration)] {
+                    let (_, restore) = option_row(ui, widgets, name, *volume != default, &format!("{} %", default.percent), !trying, |ui, widgets| {
+                        let (rect, _) = ui.allocate_exact_size(vec2(240.0, 48.0), Sense::hover());
+                        ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, label, FontId::new(30.0, ui::bold()), palette::TEXT);
+                        let r = volume::slider(ui, volume, 40.0, 360.0);
+                        widgets.push((format!("option:{name}"), r.rail));
+                        widgets.push((format!("mute:{name}"), r.mute));
+                    });
+                    if restore {
+                        *volume = default;
+                    }
+                }
+                hint(ui, tr("home.audio_hint"));
+
+                ui.add_space(12.0);
+                let changed = settings.pending != settings.saved;
+                let [first, discard, reset] = ui
+                    .horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 18.0;
+                        let size = vec2((inner.width() - 36.0) / 3.0, 72.0);
+                        // Save and Apply only when something changed; otherwise Return.
+                        let first = if changed { ("save", tr("home.save_and_apply")) } else { ("return", tr("home.return")) };
+                        [first, ("discard", tr("home.discard")), ("defaults", tr("home.restore_defaults"))].map(|(name, label)| {
+                            let r = glass_button(ui, size, label, 30.0, !trying);
+                            widgets.push((name.into(), r.rect));
+                            r.clicked()
+                        })
+                    })
+                    .inner;
+                if first && changed {
+                    self.try_settings(time);
+                }
+                if first && !changed {
+                    self.page = Page::Title;
+                    self.settings.message = None;
+                    self.settings.flash = None;
+                }
+                if discard {
+                    self.discard_settings();
+                }
+                if reset {
+                    self.settings.pending = Config::default();
+                    self.settings.message = Some(tr("home.defaults_shown").to_string());
+                }
                 ui.add_space(24.0);
                 if self.settings.pending != self.settings.saved {
                     ui.label(RichText::new(tr("home.unsaved_changes")).color(palette::ACCENT));
@@ -672,6 +790,8 @@ impl Home {
                 ui.add(egui::Label::new(RichText::new(stored).color(palette::TEXT_FAINT)).wrap());
             });
         });
+        // The background layer is drawn under every area, so the card can follow its content.
+        glass_panel(ink.painter, Rect::from_min_max(card.min, pos2(card.max.x, area.response.rect.max.y + 34.0)), 24, true);
         let footer = if trying { tr("home.esc_restores") } else { tr("home.esc_discards") };
         ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
 
@@ -723,6 +843,32 @@ impl Home {
     }
 }
 
+/// An option's row on the Config page: `add` draws its control, naming its
+/// widgets. An option that differs from its default is marked, names the
+/// default, and has a Restore; returns the row's rectangle and whether
+/// Restore was clicked.
+fn option_row(ui: &mut egui::Ui, widgets: &mut Vec<(String, Rect)>, name: &str, changed: bool, default: &str, enabled: bool, add: impl FnOnce(&mut egui::Ui, &mut Vec<(String, Rect)>)) -> (Rect, bool) {
+    let mut restore = false;
+    let row = ui.horizontal(|ui| {
+        ui.set_min_height(48.0);
+        add(ui, widgets);
+        if changed {
+            ui.add_space(12.0);
+            ui.label(RichText::new(format!("{} {default}", tr("home.default"))).color(palette::ACCENT));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let r = glass_button(ui, vec2(190.0, 48.0), tr("home.restore"), 26.0, enabled);
+                widgets.push((format!("restore:{name}"), r.rect));
+                restore = r.clicked();
+            });
+        }
+    });
+    let r = row.response.rect;
+    if changed {
+        ui.painter().rect_filled(Rect::from_min_max(pos2(r.min.x - 20.0, r.min.y + 4.0), pos2(r.min.x - 14.0, r.max.y - 4.0)), CornerRadius::same(3), palette::ACCENT);
+    }
+    (r, restore)
+}
+
 /// Points per pixel and the canvas in points for a target, as in `ui::Layout`.
 fn canvas_for(width: u32, height: u32, ui_scale: f32) -> (f32, Vec2) {
     let scale = (width as f32 / REFERENCE.x).min(height as f32 / REFERENCE.y) * ui_scale;
@@ -731,8 +877,8 @@ fn canvas_for(width: u32, height: u32, ui_scale: f32) -> (f32, Vec2) {
 
 /// The scene behind the page: the title investigation's backdrop
 /// (`investigations::title`), drawn full-screen and blurred by the frost. It
-/// loads after the page appears (src/loading.rs); until then the page has
-/// a plain background.
+/// loads after the window opens (src/loading.rs), which shows the loading
+/// page until then; if it fails, the page has a plain background.
 struct Backdrop {
     gpu: Gpu,
     loading: Option<Loading>,
@@ -756,9 +902,8 @@ impl Backdrop {
         &self.gpu
     }
 
-    /// Render the scene at `time` seconds into the frame target, at `size`,
-    /// once it has loaded.
-    fn render(&mut self, size: [u32; 2], time: f32) {
+    /// Take the scene once it has loaded; while it loads, how far it has come.
+    fn poll(&mut self) -> Option<Progress> {
         if let Some(result) = self.loading.as_mut().and_then(|l| l.poll()) {
             self.loading = None;
             match result {
@@ -767,6 +912,12 @@ impl Backdrop {
                 Err(e) => eprintln!("the homepage's backdrop did not load: {e:#}"),
             }
         }
+        self.loading.as_ref().map(Loading::progress)
+    }
+
+    /// Render the scene at `time` seconds into the frame target, at `size`,
+    /// once it has loaded.
+    fn render(&mut self, size: [u32; 2], time: f32) {
         let Some(renderer) = self.renderer.as_mut() else { return };
         let size = [size[0].max(64), size[1].max(64)];
         if [renderer.width, renderer.height] != size {
@@ -785,6 +936,15 @@ impl Backdrop {
     }
 }
 
+impl Drop for Backdrop {
+    /// A scene still loading is waited for: its worker uses the device.
+    fn drop(&mut self) {
+        if let Some(loading) = self.loading.take() {
+            let _ = loading.wait();
+        }
+    }
+}
+
 /// egui on wgpu: draws the homepage into any colour target.
 struct Painter {
     ctx: egui::Context,
@@ -800,14 +960,19 @@ impl Painter {
     }
 
     /// One frame of the page into `view` (`size` pixels): the backdrop at
-    /// `time`, frosted, then the page. Returns the choice made.
+    /// `time`, frosted, then the page; the loading page while the backdrop
+    /// loads. Returns the choice made.
     #[allow(clippy::too_many_arguments)]
     fn paint(&mut self, backdrop: &mut Backdrop, view: &wgpu::TextureView, size: [u32; 2], ui_scale: f32, events: Vec<egui::Event>, time: f32, home: &mut Home, readback: Option<(&wgpu::Texture, &wgpu::Buffer)>) -> Option<Choice> {
         let (scale, canvas) = canvas_for(size[0], size[1], ui_scale);
         let mut raw = egui::RawInput { time: Some(time as f64), events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, canvas)), ..Default::default() };
         raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
         let mut choice = None;
-        let mut output = self.ctx.run_pass(raw, |ctx| choice = home.draw(ctx, canvas, time));
+        let loading = backdrop.poll();
+        let mut output = self.ctx.run_pass(raw, |ctx| match &loading {
+            Some(progress) => loading::page(ctx, canvas, "Render Lab", progress),
+            None => choice = home.draw(ctx, canvas, time),
+        });
         backdrop.render(size, time);
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
@@ -877,7 +1042,8 @@ struct Offscreen {
 }
 
 impl Offscreen {
-    fn new(options: &HomeOptions) -> Result<Offscreen> {
+    /// `wait`: load the backdrop first, so every frame shows the page on it.
+    fn new(options: &HomeOptions, wait: bool) -> Result<Offscreen> {
         let gpu = Gpu::new(gpu::instance(None), None)?;
         let size = [options.width.max(64), options.height.max(64)];
         let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -893,7 +1059,7 @@ impl Offscreen {
         let view = texture.create_view(&Default::default());
         let buffer = readback_buffer(&gpu.device, size[0], size[1]);
         let painter = Painter::new(&gpu.device, FRAME_FORMAT);
-        let backdrop = Backdrop::new(gpu, size, FRAME_FORMAT, true)?;
+        let backdrop = Backdrop::new(gpu, size, FRAME_FORMAT, wait)?;
         Ok(Offscreen { backdrop, painter, texture, view, buffer, size, ui_scale: options.ui_scale, frames: 0, clicks: 0, heard: 0, hovers_heard: 0 })
     }
 
@@ -944,7 +1110,7 @@ pub fn snapshot(options: &HomeOptions, page: Page, trial: bool, png: &Path) -> R
         home.settings.pending.fullscreen = true;
         home.try_settings(0.0);
     }
-    let mut offscreen = Offscreen::new(options)?;
+    let mut offscreen = Offscreen::new(options, true)?;
     // egui sizes the areas on the first pass.
     offscreen.frame(&mut home, Vec::new());
     let rgba = offscreen.capture(&mut home);
@@ -953,13 +1119,43 @@ pub fn snapshot(options: &HomeOptions, page: Page, trial: bool, png: &Path) -> R
     Ok(())
 }
 
+/// Render the homepage's first frame offscreen to a PNG: the loading page,
+/// while the title's scene loads.
+pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {
+    let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let mut offscreen = Offscreen::new(options, false)?;
+    let rgba = offscreen.capture(&mut home);
+    let loading = offscreen.backdrop.loading.is_some();
+    crate::readback::write_png(png, offscreen.size[0], offscreen.size[1], &rgba)?;
+    eprintln!("homepage while it loads: {} ({}x{}){}", png.display(), offscreen.size[0], offscreen.size[1], if loading { "" } else { "; the scene had already loaded, so this is the title page" });
+    Ok(())
+}
+
+/// Render the viewer offscreen to a PNG as the homepage opens it, with the
+/// settings: the current investigation's demonstrations, or (`timeline`) its
+/// first timeline playing, in the edition the homepage offers first.
+pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, png: &Path) -> Result<()> {
+    let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let current = investigation::current();
+    let choice = if timeline {
+        let rows = home.timeline_rows(current);
+        let row = rows.get(preferred_edition(&rows, home.applied.language)).with_context(|| format!("{} has no timeline", current.path()))?;
+        Choice::Watch { investigation: current, timeline: row.info, start_frame: 0 }
+    } else {
+        Choice::Explore { investigation: current }
+    };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot(viewer_options, png)
+}
+
 /// Click through the homepage offscreen and check what each control opens.
 pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     // A settings file of its own beside the report, so the user's is never touched.
     let config_path = report.with_file_name("home-autotest-config.toml");
     let _ = std::fs::remove_file(&config_path);
     let mut home = Home::new(options.manifest_dir.clone(), Some(config_path.clone()));
-    let mut offscreen = Offscreen::new(options)?;
+    let mut offscreen = Offscreen::new(options, true)?;
     offscreen.frame(&mut home, Vec::new());
     offscreen.frame(&mut home, Vec::new());
     let mut checks = Vec::new();
@@ -977,32 +1173,82 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     check("with nothing changed, the first button is Return, and no option is marked", has(&home, "return") && !has(&home, "save") && !has(&home, "restore:fullscreen"), String::new());
     offscreen.click(&mut home, "option:fullscreen");
     check("a change turns Return into Save and Apply, and marks the option with its Restore", has(&home, "save") && !has(&home, "return") && has(&home, "restore:fullscreen"), String::new());
-    check("ticking Full Screen changes nothing until it is applied", home.settings.pending.fullscreen && !home.fullscreen && stored().is_none(), format!("pending {:?}, fullscreen {}", home.settings.pending, home.fullscreen));
+    check("ticking Full Screen changes nothing until it is applied", home.settings.pending.fullscreen && !home.applied.fullscreen && stored().is_none(), format!("pending {:?}, fullscreen {}", home.settings.pending, home.applied.fullscreen));
     offscreen.click(&mut home, "save");
-    let trying = home.settings.trial.is_some() && home.fullscreen;
-    check("Save and Apply tries the settings without writing them", trying && stored().is_none(), format!("trial {}, fullscreen {}, file {:?}", home.settings.trial.is_some(), home.fullscreen, stored()));
+    let trying = home.settings.trial.is_some() && home.applied.fullscreen;
+    check("Save and Apply tries the settings without writing them", trying && stored().is_none(), format!("trial {}, fullscreen {}, file {:?}", home.settings.trial.is_some(), home.applied.fullscreen, stored()));
     offscreen.click(&mut home, "trial:restore");
-    check("the popup's Restore puts the previous settings back", home.settings.trial.is_none() && !home.fullscreen && !home.settings.pending.fullscreen && stored().is_none(), format!("fullscreen {}, pending {:?}", home.fullscreen, home.settings.pending));
+    check("the popup's Restore puts the previous settings back", home.settings.trial.is_none() && !home.applied.fullscreen && !home.settings.pending.fullscreen && stored().is_none(), format!("fullscreen {}, pending {:?}", home.applied.fullscreen, home.settings.pending));
     offscreen.click(&mut home, "option:fullscreen");
     offscreen.click(&mut home, "save");
     offscreen.frames += (TRIAL_SECONDS * 60.0) as u64 + 30;
     offscreen.frame(&mut home, Vec::new());
-    check("after ten seconds without Apply, the previous settings come back", home.settings.trial.is_none() && !home.fullscreen && stored().is_none(), format!("fullscreen {}, file {:?}", home.fullscreen, stored()));
+    check("after ten seconds without Apply, the previous settings come back", home.settings.trial.is_none() && !home.applied.fullscreen && stored().is_none(), format!("fullscreen {}, file {:?}", home.applied.fullscreen, stored()));
     offscreen.click(&mut home, "option:fullscreen");
     offscreen.click(&mut home, "save");
     offscreen.click(&mut home, "trial:apply");
-    check("the popup's Apply keeps the settings and writes the file", home.fullscreen && stored() == Some(Config { fullscreen: true }), format!("fullscreen {}, file {:?}", home.fullscreen, stored()));
+    check("the popup's Apply keeps the settings and writes the file", home.applied.fullscreen && stored() == Some(Config { fullscreen: true, ..Config::default() }), format!("fullscreen {}, file {:?}", home.applied.fullscreen, stored()));
     check("right after saving, the first button is Return again", has(&home, "return") && !has(&home, "save"), String::new());
     offscreen.click(&mut home, "restore:fullscreen");
-    check("an option's Restore shows its default without applying it", !home.settings.pending.fullscreen && home.fullscreen && has(&home, "save") && !has(&home, "restore:fullscreen") && stored() == Some(Config { fullscreen: true }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.fullscreen));
+    check("an option's Restore shows its default without applying it", !home.settings.pending.fullscreen && home.applied.fullscreen && has(&home, "save") && !has(&home, "restore:fullscreen") && stored() == Some(Config { fullscreen: true, ..Config::default() }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.applied.fullscreen));
     offscreen.click(&mut home, "option:fullscreen");
     offscreen.click(&mut home, "defaults");
-    check("Restore Defaults shows the defaults without applying them", home.settings.pending == Config::default() && home.fullscreen && stored() == Some(Config { fullscreen: true }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.fullscreen));
+    check("Restore Defaults shows the defaults without applying them", home.settings.pending == Config::default() && home.applied.fullscreen && stored() == Some(Config { fullscreen: true, ..Config::default() }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.applied.fullscreen));
     offscreen.click(&mut home, "discard");
     check("Discard drops the edits and returns to the title", home.page == Page::Title && home.settings.pending == home.settings.saved, format!("{:?}, pending {:?}", home.page, home.settings.pending));
     offscreen.click(&mut home, "config");
     offscreen.click(&mut home, "return");
     check("Return goes back to the title", home.page == Page::Title, format!("{:?}", home.page));
+
+    // The language: the title's globe opens the Config page at it; tried, it changes the text.
+    offscreen.click(&mut home, "language");
+    check("the title's globe opens the Config page with the Language option outlined", home.page == Page::Config && home.settings.flash.is_some() && has(&home, "option:language:zh-CN"), format!("{:?}", home.page));
+    offscreen.click(&mut home, "option:language:zh-CN");
+    check("picking a language changes nothing until it is applied", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
+    offscreen.click(&mut home, "save");
+    check("a tried language changes the homepage's text", home.applied.language == Locale::ZhCn && i18n::current() == Locale::ZhCn && tr("home.config") != "Config", format!("text {:?}: {}", i18n::current(), tr("home.config")));
+    offscreen.click(&mut home, "trial:restore");
+    check("Restore puts the previous language back", home.applied.language == Locale::En && i18n::current() == Locale::En, format!("text {:?}", i18n::current()));
+    offscreen.click(&mut home, "option:language:zh-CN");
+    offscreen.click(&mut home, "save");
+    offscreen.click(&mut home, "trial:apply");
+    check("Apply keeps the language and writes it", i18n::current() == Locale::ZhCn && stored().is_some_and(|c| c.language == Locale::ZhCn), format!("file {:?}", stored()));
+    // The edition offered first is in the language, else English.
+    for i in investigations::all().iter().copied().filter(|i| !i.timelines().is_empty()) {
+        let rows = home.timeline_rows(i);
+        let offered = &rows[preferred_edition(&rows, Locale::ZhCn)];
+        let wanted = rows.iter().find(|r| r.locale == Some(Locale::ZhCn)).or_else(|| rows.iter().find(|r| r.locale == Some(Locale::En))).unwrap_or(&rows[0]);
+        check(&format!("{}: in Chinese, the edition offered first is the Chinese one, else the English one", i.path()), offered.info.id == wanted.info.id, format!("{} ({:?})", offered.info.id, offered.locale));
+    }
+
+    // The volumes: a slider and its mute button, tried and kept like the other settings.
+    offscreen.click(&mut home, "mute:music");
+    check("the music's mute button mutes it, and keeps its level", home.settings.pending.music.muted && home.settings.pending.music.percent == Config::default().music.percent && has(&home, "restore:music"), format!("{:?}", home.settings.pending.music));
+    let rail = home.widgets.iter().find(|w| w.0 == "option:narration").map(|w| w.1);
+    if let Some(rail) = rail {
+        // A click a quarter along the rail.
+        let at = pos2(rail.min.x + rail.width() * 0.25, rail.center().y);
+        let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        offscreen.frame(&mut home, vec![egui::Event::PointerMoved(at)]);
+        offscreen.frame(&mut home, vec![press(true)]);
+        offscreen.frame(&mut home, vec![press(false)]);
+        offscreen.frame(&mut home, vec![egui::Event::PointerGone]);
+        home.clicked = false;
+    }
+    let narration = home.settings.pending.narration;
+    check("a click on the narration's slider sets its level", rail.is_some() && narration.percent < 60 && !narration.muted, format!("{narration:?}"));
+    offscreen.click(&mut home, "save");
+    check("tried volumes are in use, not yet written", home.applied.music.muted && home.applied.narration == narration && stored().is_some_and(|c| c.music == Config::default().music), format!("music {:?}", home.applied.music));
+    offscreen.click(&mut home, "trial:apply");
+    check("Apply writes the volumes", stored().is_some_and(|c| c.music.muted && c.narration == narration), format!("file {:?}", stored()));
+    home.keep_narration(Volume::new(80));
+    check("the narration's volume as the viewer leaves it is kept and written", home.applied.narration == Volume::new(80) && stored().is_some_and(|c| c.narration == Volume::new(80) && c.language == Locale::ZhCn), format!("file {:?}", stored()));
+    offscreen.click(&mut home, "config");
+    offscreen.click(&mut home, "defaults");
+    offscreen.click(&mut home, "save");
+    offscreen.click(&mut home, "trial:apply");
+    check("Restore Defaults, applied, puts English and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && stored() == Some(Config::default()), format!("file {:?}", stored()));
+    offscreen.click(&mut home, "return");
     let _ = std::fs::remove_file(&config_path);
 
     // The title page.
@@ -1087,6 +1333,9 @@ struct HomeApp<'a> {
     error: Option<anyhow::Error>,
     /// The sound of a control being clicked.
     click: &'a mut Option<AudioPlayer>,
+    /// The music, and the volume it plays at now; it follows `Home::applied`.
+    music: &'a mut Option<AudioPlayer>,
+    heard_music: Volume,
 }
 
 impl HomeApp<'_> {
@@ -1094,7 +1343,7 @@ impl HomeApp<'_> {
         if self.surface.is_some() || self.error.is_some() {
             return;
         }
-        let attributes = Window::default_attributes().with_title("Render Lab").with_inner_size(self.size).with_fullscreen(fullscreen_mode(self.home.fullscreen));
+        let attributes = Window::default_attributes().with_title("Render Lab").with_inner_size(self.size).with_fullscreen(fullscreen_mode(self.home.applied.fullscreen));
         let result = (|| -> Result<Surface> {
             let window = Arc::new(event_loop.create_window(attributes)?);
             let instance = gpu::instance(Some(Box::new(event_loop.owned_display_handle())));
@@ -1119,7 +1368,7 @@ impl HomeApp<'_> {
         match result {
             Ok(s) => {
                 self.started = Instant::now();
-                self.shown_fullscreen = self.home.fullscreen;
+                self.shown_fullscreen = self.home.applied.fullscreen;
                 self.surface = Some(s);
             }
             Err(e) => {
@@ -1166,9 +1415,17 @@ impl HomeApp<'_> {
         s.window.pre_present_notify();
         s.backdrop.gpu().queue.present(frame);
         // Settings being tried or put back.
-        if self.shown_fullscreen != self.home.fullscreen {
-            self.shown_fullscreen = self.home.fullscreen;
+        if self.shown_fullscreen != self.home.applied.fullscreen {
+            self.shown_fullscreen = self.home.applied.fullscreen;
             s.window.set_fullscreen(fullscreen_mode(self.shown_fullscreen));
+        }
+        if self.heard_music != self.home.applied.music {
+            self.heard_music = self.home.applied.music;
+            // FFplay takes a volume when it starts: the loop starts again at the new one.
+            if let Some(m) = self.music.as_mut() {
+                m.set_gain(self.heard_music.gain());
+                m.play_from(0.0);
+            }
         }
         if let Some(c) = choice {
             self.choice = Some(c);
@@ -1256,6 +1513,8 @@ impl ApplicationHandler for HomeApp<'_> {
 /// lab is silent without them or without FFplay.
 const MUSIC: &str = "render_lab.audio/music";
 const CLICK: &str = "render_lab.audio/click";
+/// The title page's language button.
+const GLOBE: &str = "render_lab.icon/globe";
 
 /// The homepage, then whatever it opens, until it quits or a window is closed.
 pub fn run(options: HomeOptions) -> Result<()> {
@@ -1263,15 +1522,17 @@ pub fn run(options: HomeOptions) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let mut size = PhysicalSize::new(options.width, options.height);
     // The main theme's music plays while the homepage is shown, not in a demonstration or a video.
-    let mut music = AudioPlayer::new(resources::get(MUSIC).path(), &options.manifest_dir).map(|m| m.looping(0.5, 2.0));
+    let mut music = AudioPlayer::new(resources::get(MUSIC).path(), &options.manifest_dir).map(|m| m.looping(2.0));
     // So are its clicks. The player outlives each page, so the click that opens the viewer is heard.
     let mut click = AudioPlayer::new(resources::get(CLICK).path(), &options.manifest_dir);
     loop {
+        let heard_music = home.applied.music;
         if let Some(m) = music.as_mut() {
+            m.set_gain(heard_music.gain());
             m.play_from(0.0);
         }
         event_loop.set_control_flow(ControlFlow::Poll);
-        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, screenshot: false, choice: None, error: None, click: &mut click };
+        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, screenshot: false, choice: None, error: None, click: &mut click, music: &mut music, heard_music };
         event_loop.run_app_on_demand(&mut app)?;
         if let Some(e) = app.error.take() {
             return Err(e);
@@ -1288,16 +1549,17 @@ pub fn run(options: HomeOptions) -> Result<()> {
     }
 }
 
-/// Run the viewer on what the homepage chose; false to quit.
-fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
-    let (investigation, timeline, audio, start_frame) = match choice {
-        Choice::Quit => return false,
-        Choice::Watch { investigation, timeline, start_frame } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame),
-        Choice::Explore { investigation } => (investigation, None, None, 0),
+/// The viewer's options for what the homepage chose, with the settings in
+/// use (the investigation becomes the current one); None for Quit. A timeline
+/// is in its own language; the demonstrations are in the homepage's.
+fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: PhysicalSize<u32>) -> Option<ViewerOptions> {
+    let (investigation, timeline, audio, start_frame, locale) = match choice {
+        Choice::Quit => return None,
+        Choice::Watch { investigation, timeline, start_frame } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
+        Choice::Explore { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
     };
     investigation::set(investigation);
-    let locale = crate::i18n::current();
-    let viewer_options = ViewerOptions {
+    Some(ViewerOptions {
         timeline,
         audio,
         manifest_dir: options.manifest_dir.clone(),
@@ -1305,13 +1567,23 @@ fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options
         autotest: None,
         width: size.width,
         height: size.height,
-        locale: None,
+        locale,
         start_frame,
-        fullscreen: home.fullscreen,
-    };
+        fullscreen: home.applied.fullscreen,
+        narration: home.applied.narration,
+    })
+}
+
+/// Run the viewer on what the homepage chose; false to quit.
+fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
+    let Some(viewer_options) = viewer_options(choice, home, options, size) else { return false };
     let exit = viewer::run_on(event_loop, viewer_options);
     // A timeline in another language switched the text; the homepage keeps its own.
-    crate::i18n::set(locale);
+    i18n::set(home.applied.language);
+    let exit = exit.map(|(exit, narration)| {
+        home.keep_narration(narration);
+        exit
+    });
     match exit {
         Ok(ViewerExit::Back) => {}
         Ok(ViewerExit::Closed) => return false,

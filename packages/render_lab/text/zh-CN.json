@@ -23,6 +23,8 @@
   "controls.distance": "距离",
   "controls.show": "显示",
   "controls.listing_hint": "面板中所列 {engine} 函数的 Python 伪代码。",
+  "controls.narration": "旁白",
+  "controls.narration_hint": "旁白的音量，与设置页面的相同；离开查看器时会保留。",
   "home.mit_license": "MIT 许可证",
   "home.on": "开",
   "home.off": "关",
@@ -64,6 +66,12 @@
   "home.keep_these_settings": "保留这些设置？",
   "home.apply": "应用",
   "home.countdown": "{seconds} 秒后恢复之前的设置。",
+  "home.language": "语言",
+  "home.language_hint": "主页的语言，以及首先提供的旁白视频版本（某个特性没有这种语言的版本时，使用英文版）。",
+  "home.audio": "声音",
+  "home.music": "音乐",
+  "home.narration": "旁白",
+  "home.audio_hint": "主页的音乐，以及旁白视频的配音。查看器的面板也可以设置旁白的音量。",
   "ui.pause": "暂停",
   "ui.play": "播放",
   "ui.step": "单步",
@@ -119,5 +127,7 @@
   "popup.screenshot_saved": "截图已保存",
   "popup.screenshot_failed": "截图未能保存",
   "popup.open_folder": "打开文件夹",
-  "popup.close": "关闭"
+  "popup.close": "关闭",
+  "volume.mute": "静音",
+  "volume.unmute": "取消静音"
 }

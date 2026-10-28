@@ -10,7 +10,7 @@ import = []
 # and the surface lookup a package may override.
 export = ["scene/study-room", "scene/terrain", "shader/prelude", "shader/scene", "wgsl/surface-lookup"]
 
-# The sky, the teapot, the scenes, and the homepage's sounds.
+# The sky, the teapot, the scenes, and the homepage's sounds and icon.
 [[provides]]
 type = "resource"
 path = "resources.toml"
