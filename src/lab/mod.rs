@@ -35,6 +35,11 @@ pub mod pseudocode;
 pub mod readback;
 pub mod record;
 pub mod renderer;
+pub mod resources;
+/// The environment's encoding, which the resource pipeline builds with; the lab
+/// only decodes it.
+#[cfg(test)]
+mod rgb9e5;
 pub mod rich_text;
 pub mod scene;
 pub mod shaders;

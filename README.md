@@ -76,7 +76,8 @@ opens a formula card in the viewport.
 | `src/lab/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the struct-panel records (`layout.rs`, `shaders/wgsl/types.wgsl`), and the `Investigation` trait (`investigation.rs`). Under the `commercial` cfg the lab hands the optional module its generic extension points (`Extension`, `src/lab/extension.rs`) and nothing else. |
 | [`src/investigations.rs`](src/investigations.rs), [`src/o3de/`](src/o3de) | The list of investigations, and the Open 3D Engine's. |
 | [`tools/video/`](tools/video/README.md) | The narrated-video builder: narration, timeline, render, mux, captions, documents, and verification. |
-| [`build.rs`](build.rs) | Validates the WGSL modules (and each investigation's own scene shading) with naga and exports their struct layouts; decides whether the optional `commercial` module is built in, from the manifest that module carries; fails when an investigation's formula images no longer match their LaTeX. |
+| [`build.rs`](build.rs) | Validates the WGSL modules (and each investigation's own scene shading) with naga and exports their struct layouts; decides whether the optional `commercial` module is built in, from the manifest that module carries; checks the text tables and their formula tags; runs the resource pipeline. |
+| [`pipeline/`](pipeline/mod.rs), [`src/lab/resources.rs`](src/lab/resources.rs) | The resource pipeline: build.rs finds every `resources.toml` under `src/`, processes the resources they declare by kind (`file`, `radiance`: an HDRI made into the environment's levels, `mesh`: an OBJ made into a BVH), caches each result by a hash of its source, parameters, and processor, and the lab embeds them, each a static named after its id. `render-lab resources` lists them. |
 
 ### Adding an investigation
 
@@ -103,8 +104,12 @@ so the build validates it. A frame without a struct-panel record can show a `Rea
 - **Fonts:** DejaVu Sans and DejaVu Sans Mono, with Source Han Sans CN for Chinese text, are bundled in
   [`assets/fonts`](assets/fonts) with their licenses.
 - **Environment:** the sky that lights the study room and shows behind it is Poly Haven's "Tree Lined Driveway"
-  HDRI (CC0), in [`assets/environments`](assets/environments); `src/lab/environment.rs` clips its sun and scales it,
-  and each investigation sets its level.
+  HDRI (CC0), in [`assets/environments`](assets/environments); the resource pipeline clips its sun and scales it
+  ([`src/lab/resources.toml`](src/lab/resources.toml)), and each investigation sets its level.
+- **Resources:** the files the lab embeds (the environment, the teapot, the fonts, MiTeX's scope) are declared in
+  [`src/lab/resources.toml`](src/lab/resources.toml) and processed when the lab is built (see `pipeline/mod.rs` for the
+  format). An investigation declares its own in a `resources.toml` beside its code, and reads them through
+  `crate::lab::resources`.
 - **Sound:** the homepage plays a music loop while it is shown, and a click for its controls (neither in
   demonstrations nor videos), through FFplay (the video environment's, `FFPLAY`, or PATH); without FFplay the lab is
   silent. The sounds in [`assets/audio`](assets/audio) are licensed from soundza, not under the MIT License: they are

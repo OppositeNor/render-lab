@@ -86,8 +86,9 @@ so the same tag works in its text tables, `{@ formula="…" display=yes colors="
 
 ## Outputs
 
-- `src/<engine>/<feature>/timelines/<lang>/`: `timeline.json` and the diagram frames. They are tracked, so the viewer
-  plays them from any checkout.
+- `build/timelines/<engine>/<feature>/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
+  and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, `--prepare-only` builds
+  them (the homepage shows "Not built yet" until then).
 - `build/video/<engine>/<feature>/<lang>/`: the video, `narration.wav`, captions, `chapters.txt`, `script.md`,
   `source-reading-guide.md`, `preview.html`, `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and
   `verification-report.{json,md}` (git-ignored). The narration cache is shared by the editions in `audio/`.

@@ -11,8 +11,13 @@
 //! Outputs in OUT_DIR:
 //! - `wgsl-layout.json`: size, alignment, and member offsets of every struct,
 //!   used by the struct panel and checked against the Rust records;
-//! - `shader-manifest.json`: naga version, module hashes, and entry points.
+//! - `shader-manifest.json`: naga version, module hashes, and entry points;
+//! - `resources.rs` and `resources/`: the resources the `resources.toml`
+//!   manifests declare, processed by the resource pipeline (pipeline/mod.rs).
 //!
+
+#[path = "pipeline/mod.rs"]
+mod pipeline;
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
@@ -251,6 +256,7 @@ fn main() {
         let missing: Vec<&str> = HIDDEN.iter().copied().filter(|p| !present.contains(p)).collect();
         panic!("src/commercial is only partly present; missing: {}", missing.join(", "));
     }
+    pipeline::build(&manifest_dir, &out_dir);
     check_text(&manifest_dir, TEXT_TABLES);
     if commercial {
         check_text(&manifest_dir, COMMERCIAL_TEXT_TABLES);

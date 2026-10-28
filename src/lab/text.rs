@@ -1,7 +1,7 @@
 //! Text: the bundled fonts, the minimum text size the lab draws, and `Ink`,
 //! which draws text and records the smallest size it used.
 
-use crate::lab::palette;
+use crate::lab::{palette, resources};
 use egui::{vec2, Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -13,18 +13,18 @@ pub const DEFAULT_UI_SCALE: f32 = 0.75;
 pub const CODE_PANEL_WIDTH: f32 = 930.0;
 pub const REFERENCE: Vec2 = vec2(1920.0, 1080.0);
 
-static SANS: &[u8] = include_bytes!("../../assets/fonts/DejaVuSans.ttf");
-static SANS_BOLD: &[u8] = include_bytes!("../../assets/fonts/DejaVuSans-Bold.ttf");
-static MONO: &[u8] = include_bytes!("../../assets/fonts/DejaVuSansMono.ttf");
-static MONO_BOLD: &[u8] = include_bytes!("../../assets/fonts/DejaVuSansMono-Bold.ttf");
-// Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.
-static CJK: &[u8] = include_bytes!("../../assets/fonts/SourceHanSansCN-Regular.otf");
-static CJK_BOLD: &[u8] = include_bytes!("../../assets/fonts/SourceHanSansCN-Bold.otf");
-
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    for (name, bytes) in [("DejaVuSans", SANS), ("DejaVuSans-Bold", SANS_BOLD), ("DejaVuSansMono", MONO), ("DejaVuSansMono-Bold", MONO_BOLD), ("SourceHanSans", CJK), ("SourceHanSans-Bold", CJK_BOLD)] {
-        fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_static(bytes)));
+    // Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.
+    for (name, font) in [
+        ("DejaVuSans", &resources::FONT_DEJAVU_SANS),
+        ("DejaVuSans-Bold", &resources::FONT_DEJAVU_SANS_BOLD),
+        ("DejaVuSansMono", &resources::FONT_DEJAVU_SANS_MONO),
+        ("DejaVuSansMono-Bold", &resources::FONT_DEJAVU_SANS_MONO_BOLD),
+        ("SourceHanSans", &resources::FONT_SOURCE_HAN_SANS),
+        ("SourceHanSans-Bold", &resources::FONT_SOURCE_HAN_SANS_BOLD),
+    ] {
+        fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_static(font.bytes)));
     }
     for (family, first) in [(FontFamily::Proportional, "DejaVuSans"), (FontFamily::Monospace, "DejaVuSansMono")] {
         let list = fonts.families.entry(family).or_default();

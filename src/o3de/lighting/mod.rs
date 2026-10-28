@@ -60,14 +60,14 @@ static TIMELINES: [TimelineInfo; 2] = [
         id: "video",
         title: "How O3DE Lights a Surface",
         edition: "English",
-        path: "src/o3de/lighting/timelines/en/timeline.json",
+        path: "build/timelines/o3de/lighting/en/timeline.json",
         narration: "build/video/o3de/lighting/en/narration.wav",
     },
     TimelineInfo {
         id: "video-zh-CN",
         title: "O3DE 如何照亮一个表面",
         edition: "中文",
-        path: "src/o3de/lighting/timelines/zh-CN/timeline.json",
+        path: "build/timelines/o3de/lighting/zh-CN/timeline.json",
         narration: "build/video/o3de/lighting/en/narration.wav",
     },
 ];

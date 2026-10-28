@@ -105,7 +105,9 @@ class Config:
         return self.path(self.spec['pseudocode'])
 
     def timeline_dir(self, lang: str | None = None) -> Path:
-        return self.path(self.spec['timelines'][lang or self.lang])
+        """The edition's timeline and diagram frames: build/timelines/<investigation>/<lang> (generated, so git
+        ignores it; the investigation's `TimelineInfo` names the same path)."""
+        return LAB / 'build' / 'timelines' / Path(self.investigation) / (lang or self.lang)
 
     def timeline(self, lang: str | None = None) -> Path:
         return self.timeline_dir(lang) / 'timeline.json'

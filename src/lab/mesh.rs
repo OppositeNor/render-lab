@@ -1,18 +1,17 @@
 //! The Utah teapot (assets/models/utah_teapot.obj, Cem Yuksel's 2026
-//! triangle mesh): parsed once, scaled into the room's metres, and arranged
-//! in a bounding-volume hierarchy. The raster pass draws its triangles;
-//! intersectMesh in common.wgsl and `TriangleMesh::intersect` below traverse
-//! the same nodes for shadow, reflection, probe, and card rays.
+//! triangle mesh), as the resource pipeline makes it (pipeline/mesh.rs,
+//! declared in src/lab/resources.toml): scaled into the room's metres and
+//! arranged in a bounding-volume hierarchy. The raster pass draws its
+//! triangles; intersectMesh in common.wgsl and `TriangleMesh::intersect` below
+//! traverse the same nodes for shadow, reflection, probe, and card rays.
 
 use crate::lab::layout::{MeshNode, MeshTriangle};
+use crate::lab::resources::{self, Resource};
 use glam::Vec3;
 use std::sync::OnceLock;
 
-static TEAPOT_OBJ: &str = include_str!("../../assets/models/utah_teapot.obj");
-/// The OBJ is 3.15 units tall, base at y = 0; this makes the teapot 0.44 m tall.
-pub const TEAPOT_SCALE: f32 = 0.14;
-const LEAF_TRIANGLES: usize = 4;
-/// Traversal stack size in intersectMesh; the build asserts the tree fits.
+/// Traversal stack size in intersectMesh; the resource's `max-depth`, which
+/// the pipeline checks the tree against.
 pub const MAX_DEPTH: usize = 30;
 
 pub struct TriangleMesh {
@@ -26,43 +25,7 @@ pub struct TriangleMesh {
 
 pub fn teapot() -> &'static TriangleMesh {
     static TEAPOT: OnceLock<TriangleMesh> = OnceLock::new();
-    TEAPOT.get_or_init(|| TriangleMesh::build(parse_obj(TEAPOT_OBJ, TEAPOT_SCALE)))
-}
-
-/// Triangles as (positions, vertex normals). Faces are `v/vt/vn` triangles.
-fn parse_obj(text: &str, scale: f32) -> Vec<([Vec3; 3], [Vec3; 3])> {
-    let mut positions = Vec::new();
-    let mut normals = Vec::new();
-    let mut triangles = Vec::new();
-    let vec3 = |parts: &mut std::str::SplitWhitespace| -> Vec3 {
-        let mut v = [0.0f32; 3];
-        for c in &mut v {
-            *c = parts.next().and_then(|x| x.parse().ok()).expect("OBJ: three numbers");
-        }
-        Vec3::from(v)
-    };
-    for line in text.lines() {
-        let mut parts = line.split_whitespace();
-        match parts.next() {
-            Some("v") => positions.push(vec3(&mut parts) * scale),
-            Some("vn") => normals.push(vec3(&mut parts).normalize_or_zero()),
-            Some("f") => {
-                let corners: Vec<(usize, usize)> = parts
-                    .map(|c| {
-                        let mut ids = c.split('/');
-                        let v: usize = ids.next().and_then(|x| x.parse().ok()).expect("OBJ: vertex index");
-                        let n: usize = ids.nth(1).and_then(|x| x.parse().ok()).expect("OBJ: normal index");
-                        (v - 1, n - 1)
-                    })
-                    .collect();
-                assert_eq!(corners.len(), 3, "OBJ: only triangles are supported");
-                let [a, b, c] = [corners[0], corners[1], corners[2]];
-                triangles.push(([positions[a.0], positions[b.0], positions[c.0]], [normals[a.1], normals[b.1], normals[c.1]]));
-            }
-            _ => {}
-        }
-    }
-    triangles
+    TEAPOT.get_or_init(|| TriangleMesh::load(&resources::TEAPOT))
 }
 
 fn v3(a: [f32; 3]) -> Vec3 {
@@ -70,67 +33,14 @@ fn v3(a: [f32; 3]) -> Vec3 {
 }
 
 impl TriangleMesh {
-    /// Median split on the longest axis of the centroid bounds. Ties keep the
-    /// file order, so the tree (and every traversal) is the same on each run.
-    fn build(triangles: Vec<([Vec3; 3], [Vec3; 3])>) -> TriangleMesh {
-        let centroids: Vec<Vec3> = triangles.iter().map(|(p, _)| (p[0] + p[1] + p[2]) / 3.0).collect();
-        let mut order: Vec<u32> = (0..triangles.len() as u32).collect();
-        let mut nodes = vec![MeshNode::default()];
-        let mut depth = 0;
-        // (node, start, end, depth)
-        let mut work = vec![(0usize, 0usize, triangles.len(), 1usize)];
-        while let Some((node, start, end, level)) = work.pop() {
-            depth = depth.max(level);
-            let (mut lo, mut hi) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
-            let (mut clo, mut chi) = (lo, hi);
-            for &i in &order[start..end] {
-                for p in triangles[i as usize].0 {
-                    lo = lo.min(p);
-                    hi = hi.max(p);
-                }
-                clo = clo.min(centroids[i as usize]);
-                chi = chi.max(centroids[i as usize]);
-            }
-            nodes[node].bounds_min = lo.to_array();
-            nodes[node].bounds_max = hi.to_array();
-            if end - start <= LEAF_TRIANGLES {
-                nodes[node].first_or_left = start as u32;
-                nodes[node].triangle_count = (end - start) as u32;
-                continue;
-            }
-            let span = chi - clo;
-            let axis = if span.x >= span.y && span.x >= span.z { 0 } else if span.y >= span.z { 1 } else { 2 };
-            order[start..end].sort_by(|&a, &b| centroids[a as usize][axis].total_cmp(&centroids[b as usize][axis]).then(a.cmp(&b)));
-            let mid = (start + end) / 2;
-            let left = nodes.len();
-            nodes.push(MeshNode::default());
-            nodes.push(MeshNode::default());
-            nodes[node].first_or_left = left as u32;
-            nodes[node].triangle_count = 0;
-            work.push((left + 1, mid, end, level + 1));
-            work.push((left, start, mid, level + 1));
-        }
-        assert!(depth <= MAX_DEPTH, "teapot BVH is {depth} levels deep (stack holds {MAX_DEPTH})");
-        let triangles: Vec<MeshTriangle> = order
-            .iter()
-            .map(|&i| {
-                let (p, n) = triangles[i as usize];
-                MeshTriangle {
-                    p0: p[0].to_array(),
-                    _pad0: 0.0,
-                    p1: p[1].to_array(),
-                    _pad1: 0.0,
-                    p2: p[2].to_array(),
-                    _pad2: 0.0,
-                    n0: n[0].to_array(),
-                    _pad3: 0.0,
-                    n1: n[1].to_array(),
-                    _pad4: 0.0,
-                    n2: n[2].to_array(),
-                    _pad5: 0.0,
-                }
-            })
-            .collect();
+    /// A `mesh` resource: its header (node count, triangle count, depth), then
+    /// the nodes and the triangles.
+    fn load(r: &Resource) -> TriangleMesh {
+        let (node_count, triangle_count, depth) = (r.word(0) as usize, r.word(1) as usize, r.word(2) as usize);
+        assert!(depth <= MAX_DEPTH, "{}: the BVH is {depth} levels deep (stack holds {MAX_DEPTH})", r.id);
+        let nodes: Vec<MeshNode> = r.array(12, node_count);
+        let triangles: Vec<MeshTriangle> = r.array(12 + node_count * size_of::<MeshNode>(), triangle_count);
+        assert_eq!(r.bytes.len(), 12 + node_count * size_of::<MeshNode>() + triangle_count * size_of::<MeshTriangle>(), "{}: size", r.id);
         let root = nodes[0];
         TriangleMesh { nodes, triangles, bounds_min: v3(root.bounds_min), bounds_max: v3(root.bounds_max), depth }
     }
@@ -369,7 +279,7 @@ mod tests {
         assert_eq!(m.triangles.len(), 35634);
         assert!(m.depth <= MAX_DEPTH);
         let h = m.bounds_max.y - m.bounds_min.y;
-        assert!((h - 3.15 * TEAPOT_SCALE).abs() < 1e-3, "height {h}");
+        assert!((h - 0.441).abs() < 1e-3, "height {h}");
         // A ray straight down onto the lid hits the top of the teapot.
         let hit = m.intersect(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), 10.0).expect("hit");
         assert!((1.0 - hit.0 - m.bounds_max.y).abs() < 0.01);

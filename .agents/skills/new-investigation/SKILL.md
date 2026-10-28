@@ -96,7 +96,7 @@ src/<engine>/<feature>/mod.rs       the Investigation impl, Wording, TIMELINES
                        source-index.json (+ a script that writes it from the checkout)
                        shaders/*.wgsl (optional own scene shading)
                        formulas.rs (optional readout formulas: tags in text/*.json)
-                       video/, timelines/ (the narrated video)
+                       video/ (the narrated video; its timelines are built into build/timelines/)
                        README.md
 ```
 
@@ -131,6 +131,10 @@ by default). Follow `src/o3de/lighting/mod.rs`.
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
   `rows`, `slider`, `toggle`, `show`). Keep each demonstration's dock inside its width: a fourth row per group at most.
 - On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `src/o3de/lighting/text.rs`), and build.rs's `TEXT_TABLES` lists them. Technical terms stay English in both.
+- Data files the investigation embeds (meshes, images, tables) are resources: declare them in a `resources.toml`
+  beside its code (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and
+  the kinds are in `pipeline/mod.rs`), and read them as `crate::lab::resources::<ID>`. A new kind of processing is a
+  processor in `pipeline/` (its `Kind`: parameters, code, and `process`). `render-lab resources` lists what was built.
 - Mirror and test: GPU logic the video explains keeps a CPU mirror (O3DE: `brdf.rs` beside `standard_lighting.wgsl`), and
   the selftest compares them.
 
@@ -209,8 +213,8 @@ python3 tools/video/build.py --investigation <engine>/<feature> --lang zh-CN    
 ```
 
 Render a few stills across a beat (`render --timeline … --snapshot A,B,C --snapshot-dir D`) to see an animation's
-steps, not just its midpoint. Outputs go to `build/video/<engine>/<feature>/<lang>/` (ignored by git); the timelines
-are tracked. `tools/video/README.md` has the details.
+steps, not just its midpoint. Outputs go to `build/video/<engine>/<feature>/<lang>/` and the timelines to
+`build/timelines/<engine>/<feature>/<lang>/` (both ignored by git: generated files are never tracked). `tools/video/README.md` has the details.
 
 ## 8. Check
 

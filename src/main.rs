@@ -115,6 +115,12 @@ enum Command {
         #[arg(long)]
         ffmpeg: Option<PathBuf>,
     },
+    /// List the embedded resources (the `resources.toml` manifests, as build.rs
+    /// processed them): id, kind, size, license, and source.
+    Resources {
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the Rust and WGSL layouts of the displayed records.
     Layout {
         #[arg(long)]
@@ -205,6 +211,21 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&report)?);
             if report.iter().any(|r| r["error"] != serde_json::Value::Null) {
                 bail!("a formula failed its check");
+            }
+            Ok(())
+        }
+        Command::Resources { json } => {
+            let all = lab::resources::ALL;
+            if json {
+                let list: Vec<serde_json::Value> = all
+                    .iter()
+                    .map(|r| serde_json::json!({"id": r.id, "kind": r.kind, "bytes": r.bytes.len(), "license": r.license, "manifest": r.manifest, "source": r.source}))
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&list)?);
+            } else {
+                for r in all {
+                    println!("{:<28} {:<9} {:>10} B  {:<36} {}", r.id, r.kind, r.bytes.len(), r.license, r.source);
+                }
             }
             Ok(())
         }

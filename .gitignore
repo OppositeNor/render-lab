@@ -22,6 +22,7 @@ Thumbs.db
 # The optional commercial module, not provided in this repo (see build.rs).
 /src/commercial/
 
-# Video builds (tools/video): intermediates and deliverables, and the Node packages.
+# Generated files, all under build/: the video builds (tools/video) and the timelines the homepage plays
+# (build/timelines), never tracked, so they cannot conflict. And the video tools' Node packages.
 /build/
 /tools/video/node_modules/

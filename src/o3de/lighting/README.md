@@ -205,7 +205,7 @@ environment where samples hit nothing (a dark background in the false-colour vie
 | `pseudocode/` | The Python listings |
 | `formulas.rs` | The readout's formulas: one formula tag per demonstration in `text/*.json` (`formula.<demo>`), and the lit term |
 | `selftest.rs` | The verification suite (with `--timeline`, every scene beat of the video) |
-| `video/`, `timelines/` | The narrated video's inputs, and the timelines it builds |
+| `video/` | The narrated video's inputs (its timelines are built into `build/timelines/o3de/lighting/`) |
 
 ## Formulas
 
@@ -221,8 +221,9 @@ the lab at run time (`src/lab/formula.rs`); the selftest checks that each typese
 
 [`video/`](video) holds the narrated video's storyboard (`storyboard.story`), its diagrams, the zh-CN translation (`storyboard.zh-CN.story`), and
 `video.json`; [`tools/video`](../../../tools/video/README.md) builds it. It runs about 35 minutes in fourteen chapters,
-following the opaque frame's passes in order. The timelines it writes to [`timelines/`](timelines) are tracked, so the
-homepage's Watch plays them; the narration and the video itself go to `build/video/o3de/lighting/`.
+following the opaque frame's passes in order. The timelines it writes to `build/timelines/o3de/lighting/` (generated, so
+git ignores them; `--prepare-only` builds them in a fresh checkout) are what the homepage's Watch plays; the narration
+and the video itself go to `build/video/o3de/lighting/`.
 
 ```sh
 python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--snapshots-only]

@@ -30,6 +30,8 @@ inside it before working on anything else.** It is never published, and nothing 
   present, and the public part alone (the files `git` would publish, plus `vendor/`) must also build without warnings.
 - Make the smallest change that solves the problem; do not refactor unrelated code. Do not modify `vendor/`.
 - Shaders are WGSL; do not introduce Slang or SPIR-V passthrough.
+- Files the lab embeds are resources: declared in a layer's `resources.toml` (the format is in `pipeline/mod.rs`),
+  processed by build.rs, and read through `crate::lab::resources`, not with `include_bytes!`.
 - On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). build.rs fails on a key missing from a language, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents on
@@ -49,6 +51,7 @@ python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # 
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 -m unittest tools/video/test_markup.py tools/video/test_story.py   # the .story format and its tags (cues and formulas)
 cargo run --release -- formulas --check src/o3de/lighting/text/en.json       # typeset a file's formula tags against the lab's limits
+cargo run --release -- resources                                             # the embedded resources, as the pipeline made them
 ```
 
 The video builder is described in `tools/video/README.md`. Run one GPU job at a time. The zh-CN edition

@@ -10,10 +10,6 @@
   },
   "sourceIndex": "../source-index.json",
   "pseudocode": "../pseudocode",
-  "timelines": {
-    "en": "../timelines/en",
-    "zh-CN": "../timelines/zh-CN"
-  },
   "video": {
     "en": "o3de-lighting.mp4",
     "zh-CN": "o3de-lighting-zh-CN.mp4"

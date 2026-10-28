@@ -1,0 +1,57 @@
+# The lab's fonts (src/lab/text.rs) and MiTeX's Typst scope for formulas
+# (src/lab/formula.rs), embedded as they are. Included by resources.toml.
+
+[[resource]]
+id = "font/dejavu-sans"
+kind = "file"
+source = "../../assets/fonts/DejaVuSans.ttf"
+license = "DejaVu fonts license"
+
+[[resource]]
+id = "font/dejavu-sans-bold"
+kind = "file"
+source = "../../assets/fonts/DejaVuSans-Bold.ttf"
+license = "DejaVu fonts license"
+
+[[resource]]
+id = "font/dejavu-sans-mono"
+kind = "file"
+source = "../../assets/fonts/DejaVuSansMono.ttf"
+license = "DejaVu fonts license"
+
+[[resource]]
+id = "font/dejavu-sans-mono-bold"
+kind = "file"
+source = "../../assets/fonts/DejaVuSansMono-Bold.ttf"
+license = "DejaVu fonts license"
+
+# Chinese text falls back to Source Han Sans in every family.
+[[resource]]
+id = "font/source-han-sans"
+kind = "file"
+source = "../../assets/fonts/SourceHanSansCN-Regular.otf"
+license = "OFL-1.1"
+
+[[resource]]
+id = "font/source-han-sans-bold"
+kind = "file"
+source = "../../assets/fonts/SourceHanSansCN-Bold.otf"
+license = "OFL-1.1"
+
+[[resource]]
+id = "mitex/mod"
+kind = "file"
+source = "../../assets/mitex/specs/mod.typ"
+license = "Apache-2.0"
+
+[[resource]]
+id = "mitex/prelude"
+kind = "file"
+source = "../../assets/mitex/specs/prelude.typ"
+license = "Apache-2.0"
+
+[[resource]]
+id = "mitex/latex/standard"
+kind = "file"
+source = "../../assets/mitex/specs/latex/standard.typ"
+license = "Apache-2.0"
