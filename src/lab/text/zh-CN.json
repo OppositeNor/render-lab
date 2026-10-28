@@ -45,12 +45,12 @@
   "home.start_from_a_chapter": "从某一章开始：",
   "home.not_built_yet": "尚未构建：",
   "home.demonstrations": "演示",
-  "home.esc_hint": "在查看器中按 Esc 返回此页；在此页按 Esc 返回标题。F11：全屏。",
+  "home.esc_hint": "在查看器中按 Esc 返回此页；在此页按 Esc 返回标题。F11：截图。",
   "home.display": "显示",
   "home.full_screen": "全屏",
   "home.default": "默认：",
   "home.restore": "恢复",
-  "home.full_screen_hint": "以无边框全屏打开主页和查看器。F11 只在本次会话中切换全屏，不会被保存。",
+  "home.full_screen_hint": "以无边框全屏打开主页和查看器。",
   "home.save_and_apply": "保存并应用",
   "home.return": "返回",
   "home.discard": "放弃",
@@ -110,5 +110,9 @@
   "scene.study_room": "书房",
   "scene.terrain": "地形",
   "object.terrain": "地形",
-  "object.sun_panel": "太阳面板"
+  "object.sun_panel": "太阳面板",
+  "popup.screenshot_saved": "截图已保存",
+  "popup.screenshot_failed": "截图未能保存",
+  "popup.open_folder": "打开文件夹",
+  "popup.close": "关闭"
 }

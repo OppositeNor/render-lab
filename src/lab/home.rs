@@ -13,8 +13,8 @@
 //!   (from the start or from a chapter) and demonstrations. Esc or Back
 //!   returns to the title.
 //!
-//! F11 toggles borderless fullscreen here and in the viewer, and it carries
-//! over between them; it is for the session only and never saved. Opening a timeline or the demonstrations runs the viewer on the same event
+//! F11 saves a screenshot of the window, here and in the viewer
+//! (build/screenshots). Opening a timeline or the demonstrations runs the viewer on the same event
 //! loop; Esc in the viewer comes back to the selection page, and closing a
 //! window quits. The page is drawn by `Home::draw`, which the window and the
 //! offscreen `--snapshot` and `--autotest` modes share, so the page can be
@@ -28,6 +28,7 @@ use crate::lab::gpu::{self, Gpu, FRAME_FORMAT};
 use crate::lab::i18n::{args, tr, tr_with};
 use crate::lab::investigation::{self, Investigation, TimelineInfo};
 use crate::lab::palette;
+use crate::lab::popup::{self, Popup, Popups};
 use crate::lab::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
 use crate::lab::renderer::Renderer;
 use crate::lab::text::{self as ui, REFERENCE};
@@ -212,7 +213,7 @@ fn glass_button(ui: &mut egui::Ui, size: Vec2, label: &str, font: f32, enabled: 
 pub struct Home {
     manifest_dir: PathBuf,
     pub page: Page,
-    /// Fullscreen in this session: from the settings, then F11 and tried settings.
+    /// Fullscreen in this session: from the settings, then tried settings.
     pub fullscreen: bool,
     settings: Settings,
     engine: usize,
@@ -229,6 +230,8 @@ pub struct Home {
     pub min_text: f32,
     /// Whether a control was clicked since the window last played a click.
     pub clicked: bool,
+    /// Messages over the page (src/lab/popup.rs), such as where a screenshot went.
+    pub popups: Popups,
 }
 
 impl Home {
@@ -252,6 +255,7 @@ impl Home {
             widgets: Vec::new(),
             min_text: f32::INFINITY,
             clicked: false,
+            popups: Popups::default(),
         };
         // Start on the investigation chosen on the command line.
         let current = investigation::current().path();
@@ -308,11 +312,6 @@ impl Home {
                 true
             }
         }
-    }
-
-    /// F11: fullscreen for this session only; the settings are untouched.
-    pub fn toggle_fullscreen(&mut self) {
-        self.fullscreen = !self.fullscreen;
     }
 
     /// Save and Apply: try the edited settings until they are kept or put back.
@@ -376,6 +375,7 @@ impl Home {
                 None
             }
         };
+        self.popups.draw(ctx, canvas);
         self.min_text = self.min_text.min(ink.min_size.get());
         if choice.is_some() {
             self.error = None;
@@ -966,9 +966,6 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "restore:fullscreen");
     check("an option's Restore shows its default without applying it", !home.settings.pending.fullscreen && home.fullscreen && has(&home, "save") && !has(&home, "restore:fullscreen") && stored() == Some(Config { fullscreen: true }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.fullscreen));
     offscreen.click(&mut home, "option:fullscreen");
-    home.toggle_fullscreen();
-    check("F11 changes the session only", !home.fullscreen && stored() == Some(Config { fullscreen: true }) && home.settings.pending.fullscreen, format!("fullscreen {}, file {:?}", home.fullscreen, stored()));
-    home.toggle_fullscreen();
     offscreen.click(&mut home, "defaults");
     check("Restore Defaults shows the defaults without applying them", home.settings.pending == Config::default() && home.fullscreen && stored() == Some(Config { fullscreen: true }), format!("pending {:?}, fullscreen {}", home.settings.pending, home.fullscreen));
     offscreen.click(&mut home, "discard");
@@ -1054,6 +1051,8 @@ struct HomeApp<'a> {
     started: Instant,
     /// Whether the window is fullscreen now; it follows `Home::fullscreen`.
     shown_fullscreen: bool,
+    /// F11: save the next presented frame (`readback::screenshot`).
+    screenshot: bool,
     choice: Option<Choice>,
     error: Option<anyhow::Error>,
     /// The sound of a control being clicked.
@@ -1078,6 +1077,10 @@ impl HomeApp<'_> {
             let mut config = surface.get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1)).context("surface unsupported")?;
             config.format = format;
             config.present_mode = wgpu::PresentMode::Fifo;
+            // So F11 can copy the frame it presents.
+            if caps.usages.contains(wgpu::TextureUsages::COPY_SRC) {
+                config.usage |= wgpu::TextureUsages::COPY_SRC;
+            }
             surface.configure(&gpu.device, &config);
             let painter = Painter::new(&gpu.device, format);
             let backdrop = Backdrop::new(gpu, [config.width, config.height], format)?;
@@ -1114,15 +1117,25 @@ impl HomeApp<'_> {
         let view = frame.texture.create_view(&Default::default());
         let events = std::mem::take(&mut self.events);
         let time = self.started.elapsed().as_secs_f32();
+        // The frame a screenshot is taken of shows no popup.
+        self.home.popups.hidden = self.screenshot;
         let choice = s.painter.paint(&mut s.backdrop, &view, [s.config.width, s.config.height], self.options.ui_scale, events, time, self.home, None);
         if std::mem::take(&mut self.home.clicked) {
             if let Some(click) = self.click.as_mut() {
                 click.play_from(0.0);
             }
         }
+        if std::mem::take(&mut self.screenshot) {
+            let gpu = s.backdrop.gpu();
+            let saved = crate::lab::readback::screenshot(&gpu.device, &gpu.queue, &frame.texture, &self.options.manifest_dir);
+            self.home.popups.push(Popup::screenshot(&saved));
+        }
+        for action in self.home.popups.take_actions() {
+            popup::perform(action);
+        }
         s.window.pre_present_notify();
         s.backdrop.gpu().queue.present(frame);
-        // F11, or settings being tried or put back.
+        // Settings being tried or put back.
         if self.shown_fullscreen != self.home.fullscreen {
             self.shown_fullscreen = self.home.fullscreen;
             s.window.set_fullscreen(fullscreen_mode(self.shown_fullscreen));
@@ -1193,8 +1206,8 @@ impl ApplicationHandler for HomeApp<'_> {
                     self.choice = Some(Choice::Quit);
                     event_loop.exit();
                 }
-                // The window follows on the next redraw.
-                PhysicalKey::Code(KeyCode::F11) => self.home.toggle_fullscreen(),
+                // Saved when the next frame is presented.
+                PhysicalKey::Code(KeyCode::F11) => self.screenshot = true,
                 _ => {}
             },
             WindowEvent::RedrawRequested => self.redraw(event_loop),
@@ -1228,7 +1241,7 @@ pub fn run(options: HomeOptions) -> Result<()> {
             m.play_from(0.0);
         }
         event_loop.set_control_flow(ControlFlow::Poll);
-        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, choice: None, error: None, click: &mut click };
+        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, screenshot: false, choice: None, error: None, click: &mut click };
         event_loop.run_app_on_demand(&mut app)?;
         if let Some(e) = app.error.take() {
             return Err(e);
@@ -1270,8 +1283,8 @@ fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options
     // A timeline in another language switched the text; the homepage keeps its own.
     crate::lab::i18n::set(locale);
     match exit {
-        Ok((ViewerExit::Back, still_fullscreen)) => home.fullscreen = still_fullscreen,
-        Ok((ViewerExit::Closed, _)) => return false,
+        Ok(ViewerExit::Back) => {}
+        Ok(ViewerExit::Closed) => return false,
         // Show what went wrong on the selection page instead of quitting.
         Err(e) => home.error = Some(format!("{e:#}")),
     }

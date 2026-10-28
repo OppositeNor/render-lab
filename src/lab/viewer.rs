@@ -5,7 +5,7 @@
 //! 1–9, 0, −, = the investigation's demonstrations in order, Space
 //! play/pause, Right or . step (on a timeline, Left and Right skip 10 s
 //! back and forward), R reset, T switch between the timeline and
-//! the free demonstrations (with a timeline), F11 fullscreen, Esc or the
+//! the free demonstrations (with a timeline), F11 a screenshot, Esc or the
 //! header's Home button back to the homepage. The dock's sliders
 //! (`controls.rs`) edit the demonstration's parameters.
 //!
@@ -71,11 +71,12 @@ pub struct ViewerOptions {
     pub locale: Option<crate::lab::i18n::Locale>,
     /// Open the timeline at this frame (a chapter chosen on the homepage).
     pub start_frame: u64,
-    /// Open borderless fullscreen (F11 toggles it).
+    /// Open borderless fullscreen (the Config page's setting).
     pub fullscreen: bool,
 }
 
 use crate::lab::home::fullscreen_mode;
+use crate::lab::popup::{self, Popup, Popups};
 
 /// How the viewer was left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,6 +152,10 @@ pub struct App {
     pub exit: ViewerExit,
     /// The Home button was pressed: the event loop exits after this frame.
     pub leaving: bool,
+    /// F11: save the next presented frame (`readback::screenshot`).
+    screenshot: bool,
+    /// Messages over the viewer (src/lab/popup.rs), such as where a screenshot went.
+    popups: Popups,
     error: Option<anyhow::Error>,
     /// The camera's move into the first shot, and when it started (src/lab/animation.rs).
     intro: Option<(IntroMove, Instant)>,
@@ -206,6 +211,8 @@ impl App {
             autotest,
             exit: ViewerExit::Closed,
             leaving: false,
+            screenshot: false,
+            popups: Popups::default(),
             error: None,
             // The autotest checks the camera, so it opens straight on the shot.
             intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
@@ -722,7 +729,10 @@ impl App {
             actions: Vec::new(),
             ui_has_pointer: false,
             widgets: Vec::new(),
+            popups: std::mem::take(&mut self.popups),
         };
+        // The frame a screenshot is taken of shows no popup.
+        chrome.popups.hidden = self.screenshot;
         let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing()) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
@@ -743,6 +753,10 @@ impl App {
         self.ui_has_pointer = chrome.ui_has_pointer;
         self.bar_hover = chrome.hover.take();
         self.dock_widgets = std::mem::take(&mut chrome.widgets);
+        self.popups = std::mem::take(&mut chrome.popups);
+        for action in self.popups.take_actions() {
+            popup::perform(action);
+        }
         if result.content.is_some() {
             self.last_content = result.content;
         }
@@ -778,6 +792,10 @@ impl App {
             pass.draw(0..3, 0..1);
         }
         renderer.gpu.queue.submit([encoder.finish()]);
+        if std::mem::take(&mut self.screenshot) {
+            let saved = crate::lab::readback::screenshot(&renderer.gpu.device, &renderer.gpu.queue, &frame.texture, &self.options.manifest_dir);
+            self.popups.push(Popup::screenshot(&saved));
+        }
         surface.window.pre_present_notify();
         renderer.gpu.queue.present(frame);
         self.frames += 1;
@@ -835,6 +853,10 @@ impl App {
             let mut config = surface.get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1)).ok_or_else(|| anyhow::anyhow!("surface unsupported"))?;
             config.format = format;
             config.present_mode = wgpu::PresentMode::Fifo;
+            // So F11 can copy the frame it presents.
+            if caps.usages.contains(wgpu::TextureUsages::COPY_SRC) {
+                config.usage |= wgpu::TextureUsages::COPY_SRC;
+            }
             surface.configure(&gpu.device, &config);
             eprintln!("GPU: {} · swapchain {:?}", gpu.info.name, format);
             if let Some(a) = &self.audio {
@@ -905,10 +927,7 @@ impl ApplicationHandler for App {
                 self.modifiers = egui::Modifiers { alt: m.alt_key(), ctrl: m.control_key(), shift: m.shift_key(), mac_cmd: false, command: m.control_key() };
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed && !event.repeat && event.physical_key == PhysicalKey::Code(KeyCode::F11) => {
-                self.options.fullscreen = !self.options.fullscreen;
-                if let Some(s) = &self.surface {
-                    s.window.set_fullscreen(fullscreen_mode(self.options.fullscreen));
-                }
+                self.screenshot = true;
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if self.renderer().egui_ctx.egui_wants_keyboard_input() {
@@ -957,8 +976,8 @@ pub fn run(options: ViewerOptions) -> Result<()> {
 
 /// Run the viewer on an event loop that may be reused afterwards (the
 /// homepage's); its window closes when it returns.
-/// Returns how the viewer was left, and whether it was fullscreen then.
-pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<(ViewerExit, bool)> {
+/// Returns how the viewer was left.
+pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<ViewerExit> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::new(options)?;
     event_loop.run_app_on_demand(&mut app)?;
@@ -971,6 +990,6 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
             anyhow::bail!("viewer autotest failed; see {}", test.report().display());
         }
     }
-    Ok((app.exit, app.options.fullscreen))
+    Ok(app.exit)
 }
 

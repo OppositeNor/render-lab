@@ -2,7 +2,7 @@
 //! (`~/.config/render-lab/config.toml` by default) and edited on the
 //! homepage's Config page. The file is written only when a tried setting is
 //! kept (see `Settings` in src/lab/home.rs); a missing file means the
-//! defaults. F11's fullscreen is a session toggle and never reaches the file.
+//! defaults.
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};

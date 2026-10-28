@@ -30,6 +30,7 @@ pub mod investigation;
 pub mod layout;
 pub mod mesh;
 pub mod palette;
+pub mod popup;
 pub mod pipelines;
 pub mod pseudocode;
 pub mod readback;

@@ -201,6 +201,8 @@ pub struct ViewerChrome {
     pub ui_has_pointer: bool,
     /// Canvas rectangle of each dock slider, by parameter (for the autotest).
     pub widgets: Vec<(String, Rect)>,
+    /// Messages over the viewer, above everything else (src/lab/popup.rs).
+    pub popups: crate::lab::popup::Popups,
 }
 
 pub enum Chrome<'a> {
@@ -352,6 +354,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             } else {
                 draw_footer(&ink, l, None);
             }
+            viewer.popups.draw(ctx, l.canvas);
             viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
         }
     }

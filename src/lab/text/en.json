@@ -45,12 +45,12 @@
   "home.start_from_a_chapter": "Start from a chapter:",
   "home.not_built_yet": "Not built yet:",
   "home.demonstrations": "Demonstrations",
-  "home.esc_hint": "In the viewer, Esc returns here. Esc here returns to the title. F11: fullscreen.",
+  "home.esc_hint": "In the viewer, Esc returns here. Esc here returns to the title. F11: screenshot.",
   "home.display": "DISPLAY",
   "home.full_screen": "Full Screen",
   "home.default": "Default:",
   "home.restore": "Restore",
-  "home.full_screen_hint": "Open the homepage and the viewer in borderless full screen. F11 switches full screen for this session only; that is never saved.",
+  "home.full_screen_hint": "Open the homepage and the viewer in borderless full screen.",
   "home.save_and_apply": "Save and Apply",
   "home.return": "Return",
   "home.discard": "Discard",
@@ -110,5 +110,9 @@
   "scene.study_room": "Study room",
   "scene.terrain": "Terrain",
   "object.terrain": "terrain",
-  "object.sun_panel": "sun panel"
+  "object.sun_panel": "sun panel",
+  "popup.screenshot_saved": "Screenshot saved",
+  "popup.screenshot_failed": "Screenshot not saved",
+  "popup.open_folder": "Open Folder",
+  "popup.close": "Close"
 }

@@ -30,6 +30,13 @@ typst-layout = "=0.15.1"
 typst-render = "=0.15.1"
 typst-assets = { version = "=0.15.1", features = ["fonts"] }
 mitex = "=0.2.4"
+# MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
+# `prebuilt` makes it use the spec it does ship.
+mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
+
+[target.'cfg(unix)'.dependencies]
+# The local time, for screenshots' names (src/lab/readback.rs). Already vendored.
+libc = "0.2"
 
 [build-dependencies]
 # The same naga release wgpu 30.0.1 uses, for build-time WGSL validation and layouts.
