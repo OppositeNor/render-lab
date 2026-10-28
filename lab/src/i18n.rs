@@ -149,6 +149,29 @@ pub fn tr_key(key: &'static str) -> &'static str {
     TEXT.get(key)
 }
 
+/// The text of `key` in `package`'s table (`render_lab` is the lab's): what a
+/// value's declaration names (src/values.rs). The package's build checks its
+/// keys.
+pub fn package_text(package: &str, key: &str) -> &'static str {
+    if package == "render_lab" {
+        return TEXT.get(key);
+    }
+    static TABLES: std::sync::Mutex<Vec<&'static Table>> = std::sync::Mutex::new(Vec::new());
+    let prefix = format!("{package}.text");
+    let table = {
+        let mut tables = TABLES.lock().unwrap();
+        match tables.iter().find(|t| t.prefix == prefix) {
+            Some(t) => *t,
+            None => {
+                let t: &'static Table = Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
+                tables.push(t);
+                t
+            }
+        }
+    };
+    table.get(key)
+}
+
 /// The lab's text of `key`, with its values (`args!`).
 pub fn tr_with(key: &'static str, args: &[(&str, &dyn Display)]) -> String {
     TEXT.format(key, args)

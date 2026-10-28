@@ -760,7 +760,7 @@ impl Renderer {
         }
         let content = match prepared {
             Some(c) => Some(c),
-            None => scene_beat.then(|| investigation::current().build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)),
+            None => scene_beat.then(|| crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)),
         };
         if let Some(content) = &content {
             self.upload(content);
@@ -1019,7 +1019,7 @@ impl Renderer {
         if let Some(s) = state {
             self.switch_scene(investigation::current().demo_scene(s.demo));
         }
-        let content = state.map(|s| investigation::current().build_frame(s, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, time));
+        let content = state.map(|s| crate::shader_data::build_frame(s, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, time));
         if let Some(content) = &content {
             self.upload(content);
             self.upload_draws(content);

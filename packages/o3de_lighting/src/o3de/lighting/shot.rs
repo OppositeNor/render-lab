@@ -1,7 +1,7 @@
 //! The demonstrations of the lighting investigation: their files (what each
-//! shows by default, in demos/, and every numeric parameter the dock may set,
-//! in params.toml; lab/src/demo.rs reads them), and the viewer's Play
-//! animations.
+//! shows by default, in demos/, and every value the dock may set, in
+//! values.rs and the shader's tags; lab/src/demo.rs reads them), and the
+//! viewer's Play animations.
 
 use lab::animation::{Clip, Ease, Motion, Orbit, Repeat, Wave};
 use lab::demo::Demos;
@@ -64,10 +64,11 @@ pub fn close_up_light(angle: f32) -> [(&'static str, f32); 2] {
     [("lightX", SPHERE_TOP[0] - 1.5 * a.sin()), ("lightY", SPHERE_TOP[1] + 1.5 * a.cos())]
 }
 
-/// The demonstrations' files (demos/, params.toml; lab/src/demo.rs).
+/// The demonstrations' files (demos/; lab/src/demo.rs), with the values
+/// they set (values.rs, and the shader's tagged ones).
 pub fn demos() -> &'static Demos {
     static DEMOS: std::sync::OnceLock<Demos> = std::sync::OnceLock::new();
-    DEMOS.get_or_init(|| Demos::load("o3de_lighting").unwrap_or_else(|e| panic!("{e:#}")))
+    DEMOS.get_or_init(|| Demos::with_values::<super::values::LightingValues>("o3de_lighting").unwrap_or_else(|e| panic!("{e:#}")))
 }
 
 /// A demonstration's starting state, from its file.

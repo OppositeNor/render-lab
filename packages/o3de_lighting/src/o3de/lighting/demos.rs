@@ -115,7 +115,10 @@ pub fn extra_lights(state: &ShotState) -> Vec<PointLight> {
         .collect()
 }
 
-pub fn shading(state: &ShotState) -> Shading {
+/// Each object's material from the shot: metallic, specularF0Factor,
+/// lighting channels, occlusion, and clear coat (`shading` adds the
+/// teapot's transmission and each mesh's forward-pass probe).
+fn base_materials(state: &ShotState) -> [Material; 12] {
     let mut materials = [Material { metallic: 0.0, specular_f0_factor: state.p("specularF0Factor"), diffuse_occlusion: None, specular_occlusion: None, clear_coat: None, lighting_channels: brdf::ALL_LIGHTING_CHANNELS, transmission: None, forward_probe: None }; 12];
     materials[ids::SPHERE].lighting_channels = state.p("sphereLightingChannels").round() as u32;
     for (i, m) in materials.iter_mut().enumerate() {
@@ -133,6 +136,29 @@ pub fn shading(state: &ShotState) -> Shading {
     if state.p("sphereClearCoat") > 0.5 {
         materials[ids::SPHERE].clear_coat = Some((state.p("clearCoatFactor"), state.p("clearCoatRoughness")));
     }
+    materials
+}
+
+/// gShading's derived members (shaders/standard_lighting.wgsl; the lab packs
+/// its values, lab/src/shader_data.rs): the light's inverse squared radius
+/// and intensity, the inspected object, and each object's material.
+pub fn shader_data(block: &mut lab::shader_data::Block, state: &ShotState) {
+    let light = light(state);
+    block.set("invAttenuationRadiusSquared", light.inv_attenuation_radius_squared);
+    block.set("rgbIntensityCandelas", light.rgb_intensity_candelas.to_array());
+    block.set("inspectedObject", inspected_object(state) as f32);
+    let materials: Vec<f32> = base_materials(state).iter().flat_map(|m| [m.metallic, m.specular_f0_factor, m.diffuse_occlusion.unwrap_or(-1.0), m.specular_occlusion.unwrap_or(-1.0)]).collect();
+    block.write("materials", &materials);
+}
+
+/// The option of the choice `key` the shot holds (the last for an index past them).
+fn choice<T: lab::values::Choice>(state: &ShotState, key: &str) -> T {
+    let last = T::choices().options.len() as u32 - 1;
+    T::from_index((state.p(key).round().max(0.0) as u32).min(last)).expect("an option")
+}
+
+pub fn shading(state: &ShotState) -> Shading {
+    let mut materials = base_materials(state);
     // The teapot as EnhancedPBR with transmission, when its mode is not None.
     materials[ids::TEAPOT].transmission = transmission(state);
     // Each mesh's forward-pass probe, from the room's fixed bounds.
@@ -144,9 +170,9 @@ pub fn shading(state: &ShotState) -> Shading {
         light: light(state),
         light_on: state.p("lightOn") > 0.5,
         extra_lights: extra_lights(state),
-        view: (state.p("viewMode").round().max(0.0) as u32).min(brdf::view::COUNT - 1),
+        view: choice(state, "viewMode"),
         multiscatter: state.p("multiscatter") > 0.5,
-        diffuse_model: if state.p("diffuseModel") > 0.5 { DiffuseModel::NormalizedDisney } else { DiffuseModel::Lambertian },
+        diffuse_model: choice(state, "diffuseModel"),
         inspected: inspected_object(state),
         ibl: state.p("ibl") > 0.5,
         ibl_exposure: state.p("iblExposure"),
@@ -297,8 +323,8 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         counts2: [0, 0, 0, 0],
         cache_view: [0.0, 0.0, 1.0, 0.0],
     };
+    // gShading is the lab's to pack (`shader_data`).
     let mut content = FrameContent::new(objects, uniforms);
-    content.shading = shading.uniforms();
     // The full-screen passes rebuild positions from depth (shaders/standard_lighting.wgsl).
     let inverse = glam::Mat4::from_cols_array_2d(&uniforms.camera.world_to_clip).inverse();
     content.shading_frame = inverse.to_cols_array_2d().to_vec();

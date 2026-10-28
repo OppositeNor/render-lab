@@ -862,7 +862,7 @@ fn bar_sections(t: &Timeline) -> Vec<crate::ui::BarSection> {
 
 /// The camera sway of a state (0 when the investigation has no `cameraDrift`).
 fn drift(state: &ShotState) -> f32 {
-    state.params.get("cameraDrift").copied().unwrap_or(0.0)
+    state.try_get("cameraDrift").map_or(0.0, |v| v.f32())
 }
 
 fn blit_group(renderer: &Renderer) -> wgpu::BindGroup {
@@ -1104,13 +1104,17 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
 /// The viewer offscreen, as a PNG (`home --snapshot --page viewer`): the
 /// current investigation's first demonstration with its dock, or, with
 /// `options.timeline`, the timeline playing at `options.start_frame` with its
-/// bar. No window opens and no sound plays.
-pub fn snapshot(options: ViewerOptions, png: &std::path::Path) -> Result<()> {
+/// bar; `demo` (a key) chooses the demonstration. No window opens and no
+/// sound plays.
+pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
     use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
     let size = [options.width.max(64), options.height.max(64)];
     let playing = options.timeline.is_some();
     let mut app = App::new(ViewerOptions { audio: None, ..options })?;
     app.intro = None;
+    if let Some(key) = demo {
+        app.state.demo = *investigation::current().demos().iter().find(|d| d.key() == key).ok_or_else(|| anyhow::anyhow!("no demonstration `{key}`"))?;
+    }
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let scene = investigation::current().demo_scene(app.state.demo);
     let mut renderer = Loading::start(investigation::current(), gpu.clone(), scene, size).wait()?;

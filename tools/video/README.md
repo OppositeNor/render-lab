@@ -37,7 +37,10 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `sources:`, `hold:` lines). Before the first sentence, a line of tags sets the beat's keys, and
   `{@define name …}` defines a named cue. Then each paragraph is one sentence, with its tags (below); a tag before
   its first word fires at the sentence's start, and `{@ pause=0.5}` at its end adds silence. A tag's attributes:
-  shot parameters (a name a tag reserves, such as `formula`, is written `param.formula`), `demo`,
+  shot parameters (a name a tag reserves, such as `formula`, is written `param.formula`; `render-lab --investigation
+  <path> values` lists every key, the shaders' tagged values and their components included; a value is a number,
+  `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
+  lab checks against the value's declaration when it loads the timeline), `demo`,
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
   `demo` switch), `record=probe:67` (or `ray`), `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON

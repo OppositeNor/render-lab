@@ -8,15 +8,27 @@ use serde::{Deserialize, Serialize};
 pub const NEAR: f32 = 0.03;
 pub const FAR: f32 = 60.0;
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+/// Its values are `camera.yaw`, `camera.pitch`, `camera.distance`,
+/// `camera.fov`, and `camera.target` (`camera.x`, `camera.y`, `camera.z`),
+/// as timelines and stories name them (src/values.rs); the dock's camera
+/// group shows those labelled `view`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, crate::Values)]
+#[values(scope = "camera", package = "render_lab")]
 pub struct OrbitCamera {
+    /// The point it orbits.
+    #[value(components(x, y, z))]
     pub target: [f32; 3],
     /// Degrees around +Y; 0 looks down -Z.
+    #[value(range = -180.0..=180.0, unit = deg, wrap, label(view))]
     pub yaw: f32,
     /// Degrees above the horizon.
+    #[value(range = -85.0..=85.0, unit = deg, label(view))]
     pub pitch: f32,
+    /// Metres from the target.
+    #[value(range = 0.4..=15.0, unit = m, label(view), text = "controls.distance")]
     pub distance: f32,
     /// Vertical field of view in degrees.
+    #[value(range = 20.0..=90.0, unit = deg, label(view))]
     pub fov: f32,
 }
 

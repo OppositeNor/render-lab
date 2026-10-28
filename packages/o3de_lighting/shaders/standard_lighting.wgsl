@@ -12,17 +12,57 @@
 // The lab keeps O3DE's arithmetic in f32 (O3DE's `real` may be half precision
 // on some platforms).
 
-// gShading (FrameContent::shading, written by src/o3de/lighting/demos.rs):
-//   [0] the simple point light's m_position, m_invAttenuationRadiusSquared
-//   [1] its m_rgbIntensityCandelas, light on (1) or off (0)
-//   [2] view mode (VIEW_*), multiscatter compensation on (1), diffuse model
-//       (0 DiffuseLambertian, 1 NormalizedDisneyDiffuse), the inspected object
-//   [3] image-based lighting on (1), its exposure (m_iblExposure, in stops),
-//       unused, specular anti-aliasing on (1: the applySpecularAA property)
-//   [4 + i] object i: metallic, specularF0Factor, and the diffuse and specular
-//       occlusion factors when its occlusion maps are assigned (else -1)
-// The roughness of object i is gObjects[i].albedoRoughness.w.
-@group(1) @binding(0) var<uniform> gShading: array<vec4<f32>, 16>;
+// gShading: the investigation's values (the `///` tags; the lab packs them
+// from the shot, lab/src/shader_data.rs, and `render-lab values` lists them)
+// and what src/o3de/lighting/demos.rs derives from them. The roughness of
+// object i is gObjects[i].albedoRoughness.w.
+struct O3deShading {
+    /// The simple point light's m_position, in metres.
+    /// {@ key=lightPosition components=lightX,lightY,lightZ default=0.55,1.85,0.95}
+    /// {@ range=-2.8,2.8,0.1,2.9,-2.8,2.8 unit=m label=light}
+    lightPosition: vec3<f32>,
+    /// Its m_invAttenuationRadiusSquared, from attenuationRadius.
+    /// {@ derived}
+    invAttenuationRadiusSquared: f32,
+    /// Its m_rgbIntensityCandelas: the light's colour times lightIntensity.
+    /// {@ derived}
+    rgbIntensityCandelas: vec3<f32>,
+    /// The point light on or off.
+    /// {@ key=lightOn toggle default=true label=toggles text=controls.light_on}
+    lightOn: f32,
+    /// What the scene pass shows (VIEW_*; brdf::ViewMode).
+    /// {@ key=viewMode choice=ViewMode default=final}
+    viewMode: u32,
+    /// o_specularF0_enableMultiScatterCompensation.
+    /// {@ key=multiscatter toggle default=true label=toggles text=controls.multiscatter}
+    multiscatter: f32,
+    /// 0 DiffuseLambertian (StandardPBR), 1 NormalizedDisneyDiffuse (Skin;
+    /// EnhancedPBR with subsurface scattering).
+    /// {@ key=diffuseModel choice=DiffuseModel default=lambertian}
+    diffuseModel: f32,
+    /// The object whose point the readout inspects (inspectObject, or the
+    /// demonstration's subject).
+    /// {@ derived}
+    inspectedObject: f32,
+    /// The full-screen IBL passes (global skylight) on or off.
+    /// {@ key=ibl toggle default=true label=toggles}
+    ibl: f32,
+    /// The skylight's exposure, in stops (m_iblExposure).
+    /// {@ key=iblExposure default=0 range=-4,4 label=light text=controls.ibl_exposure}
+    iblExposure: f32,
+    /// Unused.
+    /// {@ derived}
+    reserved: f32,
+    /// Specular anti-aliasing (the applySpecularAA material property, true by default).
+    /// {@ key=specularAA toggle default=true label=toggles}
+    specularAA: f32,
+    /// Object i: metallic, specularF0Factor, and the diffuse and specular
+    /// occlusion factors when its occlusion maps are assigned (else -1).
+    /// {@ derived}
+    materials: array<vec4<f32>, 12>,
+}
+/// {@ shader_data}
+@group(1) @binding(0) var<uniform> gShading: O3deShading;
 // gShadingData (ibl::shading_data): the BRDF texture (BRDFTextureCS),
 // BRDF_MAP_SIZE^2 texels row-major from the top row, (A, B) in xy; then the
 // specular cubemap's SPECULAR_MIPS mips and the diffuse cubemap, each six
@@ -40,23 +80,8 @@
 const FRAME_MATERIALS: u32 = 4u;
 const FRAME_LIGHTS: u32 = 16u;
 
-const VIEW_FINAL: u32 = 0u;
-const VIEW_DIFFUSE: u32 = 1u;
-const VIEW_SPECULAR: u32 = 2u;
-const VIEW_D: u32 = 3u;
-const VIEW_G: u32 = 4u;
-const VIEW_F: u32 = 5u;
-const VIEW_MULTISCATTER: u32 = 6u;
-const VIEW_DIFFUSE_RESPONSE: u32 = 7u;
-const VIEW_NDOTL: u32 = 8u;
-const VIEW_ATTENUATION: u32 = 9u;
-const VIEW_IBL_DIFFUSE: u32 = 10u;
-const VIEW_IBL_SPECULAR: u32 = 11u;
-const VIEW_LIGHT_COUNT: u32 = 12u;
-const VIEW_PROBE_STENCIL: u32 = 13u;
-const VIEW_PROBE_WEIGHT: u32 = 14u;
-const VIEW_SSAO: u32 = 15u;
-const MATERIALS: u32 = 4u;
+// The VIEW_* constants are ViewMode's (src/o3de/lighting/brdf.rs), generated into
+// the package's build/generated/view_mode.wgsl by the lab, and composed before this file.
 const MAX_MATERIALS: u32 = 12u;
 
 // Atom/RPI/Math.azsli.
@@ -130,7 +155,7 @@ fn o3deSurface(position: vec3<f32>, normal: vec3<f32>, baseColor: vec3<f32>, met
     s.roughnessLinear = max(roughness, MIN_ROUGHNESS_LINEAR);
     s.roughnessA = s.roughnessLinear * s.roughnessLinear;
     s.roughnessA2 = s.roughnessA * s.roughnessA;
-    if (gShading[3].w > 0.5) {
+    if (gShading.specularAA > 0.5) {
         s.roughnessA2 = calculateSpecularAA(dndx, dndy, s.roughnessA2);
         // "Apply backwards so we get consistent behavior".
         s.roughnessA = sqrt(s.roughnessA2);
@@ -708,7 +733,7 @@ fn applySphereLight(i: u32, objectIndex: u32, s: O3deSurface, l: ptr<function, O
     radiusAttenuation = radiusAttenuation * radiusAttenuation;
     lightDistanceSquared = max(0.001 * 0.001, lightDistanceSquared);
     let lightIntensity = b.xyz / lightDistanceSquared * radiusAttenuation;
-    (*l).diffuseLighting += o3deDiffuse(s, *l, lightIntensity, surfaceToLightDirection, u32(gShading[2].z));
+    (*l).diffuseLighting += o3deDiffuse(s, *l, lightIntensity, surfaceToLightDirection, u32(gShading.diffuseModel));
     let posToLightDist = length(surfaceToLight);
     (*l).translucentBackLighting += getBackLighting(s, *l, lightIntensity, surfaceToLightDirection, transmissionDistance, posToLightDist);
     // The bulb's size: the direction to the closest point of the sphere to the reflection ray, and an energy normalization.
@@ -762,7 +787,7 @@ fn forwardIblSpecular(s: O3deSurface, l: O3deLightingData, probeIndex: i32) -> v
         iblSpecular = iblSpecular * (1.0 - clearCoatResponse) * (1.0 - clearCoatResponse) + coatSpecular;
     }
     // A probe's exposure replaces the skylight's.
-    let exposure = select(pow(2.0, gShading[3].y), pow(2.0, probeAt(u32(max(probeIndex, 0))).exposure), probeIndex >= 0);
+    let exposure = select(pow(2.0, gShading.iblExposure), pow(2.0, probeAt(u32(max(probeIndex, 0))).exposure), probeIndex >= 0);
     return iblSpecular * exposure;
 }
 
@@ -1029,7 +1054,7 @@ fn reflectionSample(input: ReflectionInputs) -> ReflectionSample {
             let compensation = getMultiScatterCompensation(input.specularF0, brdf, input.multiscatter);
             let weight = 1.0 - min(total, 1.0);
             reflection = weight * globalSpecular * compensation * (input.specularF0 * brdf.x + brdf.y);
-            reflection *= pow(2.0, gShading[3].y);
+            reflection *= pow(2.0, gShading.iblExposure);
             reflection *= input.specularOcclusion;
         }
     }
@@ -1098,7 +1123,7 @@ fn o3deIbl(s: O3deSurface, l: O3deLightingData, eye: vec3<f32>, multiscatter: bo
     out.albedo = unorm8(out.albedo);
     out.specularF0 = unorm8(out.specularF0);
     out.roughness = round(saturate(out.roughness) * 255.0) / 255.0;
-    let exposure = pow(2.0, gShading[3].y);
+    let exposure = pow(2.0, gShading.iblExposure);
     out.irradiance = sampleDiffuseEnv(s.normal);
     out.diffuse = out.albedo * out.irradiance * exposure;
     let dirToCamera = normalize(eye - s.position);
@@ -1110,7 +1135,7 @@ fn o3deIbl(s: O3deSurface, l: O3deLightingData, eye: vec3<f32>, multiscatter: bo
     out.compensation = getMultiScatterCompensation(out.specularF0, out.brdf, multiscatter);
     // The reflection passes at this point, with specular occlusion from the
     // albedo target's 8-bit alpha: what ReflectionComposite adds.
-    let input = ReflectionInputs(s.position, s.normal, gShading[3].x > 0.5, multiscatter, out.specularF0, out.roughness, round(saturate(s.specularOcclusion) * 255.0) / 255.0, select(STENCIL_USE_IBL_SPECULAR_PASS, 0u, s.clearCoat) | STENCIL_USE_DIFFUSE_GI_PASS);
+    let input = ReflectionInputs(s.position, s.normal, gShading.ibl > 0.5, multiscatter, out.specularF0, out.roughness, round(saturate(s.specularOcclusion) * 255.0) / 255.0, select(STENCIL_USE_IBL_SPECULAR_PASS, 0u, s.clearCoat) | STENCIL_USE_DIFFUSE_GI_PASS);
     let r = reflectionSample(input);
     out.specular = r.composited;
     out.stencil = r.stencil;
@@ -1168,7 +1193,7 @@ struct O3dePixelStart {
 // The surface (EvaluateSurface), before decals.
 fn o3dePixelSurface(p: vec3<f32>, n: vec3<f32>, objectIndex: u32, dndx: vec3<f32>, dndy: vec3<f32>) -> O3deSurface {
     let o = gObjects[objectIndex];
-    let material = gShading[MATERIALS + min(objectIndex, MAX_MATERIALS - 1u)];
+    let material = gShading.materials[min(objectIndex, MAX_MATERIALS - 1u)];
     var s = o3deSurface(p, n, o.albedoRoughness.rgb, material.x, material.y, o.albedoRoughness.w, dndx, dndy);
     // The occlusion maps, on the sphere's UVs.
     if (material.z >= 0.0 || material.w >= 0.0) {
@@ -1181,7 +1206,7 @@ fn o3dePixelSurface(p: vec3<f32>, n: vec3<f32>, objectIndex: u32, dndx: vec3<f32
 
 // InitializeLightingData, after the decals.
 fn o3dePixelStart(s: O3deSurface, eye: vec3<f32>) -> O3dePixelStart {
-    return O3dePixelStart(s, o3deLightingData(s, eye, gShading[2].y > 0.5));
+    return O3dePixelStart(s, o3deLightingData(s, eye, gShading.multiscatter > 0.5));
 }
 
 fn simplePointLightCount() -> u32 {
@@ -1206,7 +1231,7 @@ fn applySimplePointLight(i: u32, objectIndex: u32, s: O3deSurface, l: ptr<functi
     }
     let light = simplePointLightAt(i, s.position);
     if (light.falloff < 1.0) {
-        o3deApplyLight(s, l, light.intensity, light.dirToLight, u32(gShading[2].z));
+        o3deApplyLight(s, l, light.intensity, light.dirToLight, u32(gShading.diffuseModel));
     }
 }
 
@@ -1238,11 +1263,10 @@ fn o3dePixelFinish(start: O3dePixelStart, eye: vec3<f32>, objectIndex: u32, ligh
     let s = start.s;
     var l = start.l;
     let o = gObjects[objectIndex];
-    let options = gShading[2];
     let p = s.position;
     let light = simplePointLightAt(0u, p);
     // Image-based lighting in the forward pass, for clear coat.
-    let ibl = select(0.0, 1.0, gShading[3].x > 0.5);
+    let ibl = select(0.0, 1.0, gShading.ibl > 0.5);
     if (s.clearCoat) {
         l.specularLighting += forwardIblSpecular(s, l, forwardProbe(objectIndex)) * ibl;
     }
@@ -1262,11 +1286,11 @@ fn o3dePixelFinish(start: O3dePixelStart, eye: vec3<f32>, objectIndex: u32, ligh
     out.diffuse = l.diffuseLighting;
     out.specular = l.specularLighting;
     // A forward-IBL material's stencil (0x80) keeps it out of the reflection passes.
-    out.ibl = o3deIbl(s, l, eye, options.y > 0.5);
+    out.ibl = o3deIbl(s, l, eye, gShading.multiscatter > 0.5);
     out.clearCoat = s.clearCoat;
     out.surface = s;
     let emissive = o.emissive.rgb * o.emissive.w;
-    let view = u32(options.x);
+    let view = gShading.viewMode;
     // The reflection passes test the IBL flag themselves.
     var color = out.diffuse + out.specular + out.ibl.diffuse * ibl + out.ibl.specular + emissive;
     if (view == VIEW_DIFFUSE) {
@@ -1794,8 +1818,8 @@ fn o3deForwardFS(input: SceneVaryings) -> O3deForwardOutput {
     out.specular = vec4<f32>(px.specular + o.emissive.rgb * o.emissive.w, 1.0);
     out.albedo = vec4<f32>(s.albedo * px.lighting.diffuseResponse * px.diffuseAO, px.specularOcclusion);
     out.specularF0 = vec4<f32>(s.specularF0, s.roughnessLinear);
-    out.normal = vec4<f32>(encodeNormalSignedOctahedron(s.normal), encodeUnorm2BitFlags(gShading[3].x > 0.5, gShading[2].y > 0.5));
-    let view = u32(gShading[2].x);
+    out.normal = vec4<f32>(encodeNormalSignedOctahedron(s.normal), encodeUnorm2BitFlags(gShading.ibl > 0.5, gShading.multiscatter > 0.5));
+    let view = gShading.viewMode;
     out.debug = vec4<f32>(px.color, select(0.0, 1.0, (view >= VIEW_D && view <= VIEW_ATTENUATION) || view == VIEW_LIGHT_COUNT));
     // UseIBLSpecularPass unless the material needs forward-pass IBL specular (clear coat), and always UseDiffuseGIPass.
     out.stencil = f32(select(STENCIL_USE_IBL_SPECULAR_PASS, 0u, px.clearCoat) | STENCIL_USE_DIFFUSE_GI_PASS) / 255.0;
@@ -1859,10 +1883,10 @@ fn o3deDiffuseGlobalCS(@builtin(global_invocation_id) id: vec3<u32>) {
         // DiffuseGlobalFullscreen.shader: stencil Equal, ReadMask 0x80, StencilRef 128.
         // Its MainPS reads no IBL flag; the lab's IBL toggle stands for a scene
         // without the global skylight.
-        if ((stencilAt(pixel, i) & STENCIL_USE_DIFFUSE_GI_PASS) == STENCIL_USE_DIFFUSE_GI_PASS && gShading[3].x > 0.5) {
+        if ((stencilAt(pixel, i) & STENCIL_USE_DIFFUSE_GI_PASS) == STENCIL_USE_DIFFUSE_GI_PASS && gShading.ibl > 0.5) {
             let normal = decodeNormalSignedOctahedron(encoded.rgb);
             let irradiance = sampleDiffuseEnv(normal);
-            diffuse += textureLoad(tAlbedo, pixel, i).rgb * irradiance * pow(2.0, gShading[3].y);
+            diffuse += textureLoad(tAlbedo, pixel, i).rgb * irradiance * pow(2.0, gShading.iblExposure);
         }
         sum += diffuse;
     }
@@ -2250,7 +2274,7 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     let diffuseLit = textureLoad(tDiffuseLit, pixel, 0).rgb * ao;
     let specularLit = textureLoad(tSpecularLit, pixel, 0).rgb;
     var color = diffuseLit + specularLit;
-    let view = u32(gShading[2].x);
+    let view = gShading.viewMode;
     if (view == VIEW_DIFFUSE) {
         color = diffuse / n;
     } else if (view == VIEW_SPECULAR) {

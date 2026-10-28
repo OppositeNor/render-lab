@@ -18,7 +18,7 @@ sources: key-a, key-b
 
 ## c1-one · scene · One beat
 sources: key-c
-{@ demo=room camera.target=0,1,2 camera.yaw=30 opacity=1 param.formula=2}
+{@ demo=room camera.target=0,1,2 camera.yaw=30 opacity=1 param.formula=2 viewMode=ggxD lightOn=false lightPosition=0.4,1.9,0.8}
 {@define wide camera.distance=8 blend=3}
 
 Diffuse: a sentence that looks like a property, {@ callout=key-a}with a cue.
@@ -46,7 +46,8 @@ class Story(unittest.TestCase):
         chapter = board['chapters'][0]
         self.assertEqual((chapter['number'], chapter['title'], chapter['targetSeconds'], chapter['sources']), (1, 'First chapter', 60.0, ['key-a', 'key-b']))
         one, two = chapter['beats']
-        self.assertEqual(one['keys'], [{'demo': 'room', 'camera': {'target': [0.0, 1.0, 2.0], 'yaw': 30.0}, 'params': {'opacity': 1.0, 'formula': 2.0}}])
+        # A parameter is a number, a flag, an option's name, or a vector, as the lab's declarations read them.
+        self.assertEqual(one['keys'], [{'demo': 'room', 'camera': {'target': [0.0, 1.0, 2.0], 'yaw': 30.0}, 'params': {'opacity': 1.0, 'formula': 2.0, 'viewMode': 'ggxD', 'lightOn': False, 'lightPosition': [0.4, 1.9, 0.8]}}])
         self.assertEqual(one['cues'], {'wide': {'camera': {'distance': 8.0}, 'blend': 3.0}})
         self.assertTrue(one['narration'][0]['text'].startswith('Diffuse: a sentence'))
         self.assertIn(r'formula="\frac{1}{1+\lit{1}{n}}"', one['narration'][1]['text'])

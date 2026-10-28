@@ -2,8 +2,12 @@
 //! demonstrations in files (`Investigation::demo_specs`) declares, in its
 //! package (`o3de_lighting`, src/packages.rs):
 //!
-//! - `params`: every shot parameter, as `[[param]]` tables of `name`,
-//!   `default`, and `doc`;
+//! - `params` (optional): shot parameters, as `[[param]]` tables of `name`,
+//!   `default`, and `doc`. Its parameters are those, the values its shaders
+//!   declare (src/shader_data.rs), and the fields of its struct of values
+//!   when it has one (`Demos::with_values`, a `#[derive(Values)]` struct,
+//!   src/values.rs). A shot holds a declared value in its type
+//!   (`ShotState::values`), a vector as one value;
 //! - `demos`: `demos = [keys…]`, the order of the viewer's keys;
 //! - `demo/<key>`: one demonstration (below);
 //! - `demo-preset/<name>`: a camera or parameters several share.
@@ -24,8 +28,8 @@ use crate::packages::{self, Package};
 use crate::resources;
 use crate::scene::{self, Scene, SceneId};
 use crate::shot::{DemoId, PanelMode, RecordRef, ShotState};
+use crate::values::{self, Entry, Reflect, Value, ValueMap};
 use anyhow::{anyhow, bail, Context, Result};
-use std::collections::BTreeMap;
 
 /// A shot parameter: its name and default (its file also says what it is,
 /// in `doc`).
@@ -61,6 +65,10 @@ pub struct DemoSpec {
 /// An investigation's demonstrations and parameters.
 pub struct Demos {
     pub params: Vec<Param>,
+    /// The parameters whose declarations give their metadata (src/values.rs).
+    pub entries: Vec<&'static crate::values::Entry>,
+    /// Each entry by its key and by its components' keys.
+    index: std::collections::HashMap<&'static str, &'static Entry>,
     pub specs: Vec<DemoSpec>,
     ids: Vec<DemoId>,
 }
@@ -120,13 +128,59 @@ fn apply(prefix: &str, table: &toml_edit::Table, scene: &Scene, defaults: &[Para
     Ok(())
 }
 
+/// A declared value as a parameter by each of its components, with its default.
+fn declare(entry: &'static Entry, params: &mut Vec<Param>, entries: &mut Vec<&'static Entry>) -> Result<()> {
+    let default = entry.default.ok_or_else(|| anyhow!("value `{}` needs a default", entry.key))?.components();
+    for (channel, value) in entry.channels().into_iter().zip(default) {
+        if params.iter().any(|p: &Param| p.name == channel) {
+            bail!("parameter `{channel}` is declared twice");
+        }
+        params.push(Param { name: channel, default: value });
+    }
+    entries.push(entry);
+    Ok(())
+}
+
+/// Each entry by its key and by its components' keys.
+fn index_of(entries: &[&'static Entry]) -> std::collections::HashMap<&'static str, &'static Entry> {
+    let mut index = std::collections::HashMap::new();
+    for entry in entries {
+        index.insert(entry.key, *entry);
+        for c in entry.components {
+            index.insert(*c, *entry);
+        }
+    }
+    index
+}
+
 impl Demos {
     /// Reads the demonstrations the package `prefix` declares.
     pub fn load(prefix: &str) -> Result<Demos> {
+        Demos::load_with(prefix, &[])
+    }
+
+    /// Reads them, with the values `T`'s fields declare (`#[derive(Values)]`,
+    /// every field with a `default`).
+    pub fn with_values<T: Reflect>(prefix: &str) -> Result<Demos> {
+        Demos::load_with(prefix, T::schema())
+    }
+
+    fn load_with(prefix: &str, declared: &'static [Entry]) -> Result<Demos> {
         let package: &Package = resources::packages().iter().find(|m| m.name == prefix).ok_or_else(|| anyhow!("no package `{prefix}`"))?;
-        let params_doc = document(&format!("{prefix}.params"))?;
         let mut params = Vec::new();
-        for table in params_doc.get("param").and_then(|p| p.as_array_of_tables()).context("`params` has `[[param]]` tables")? {
+        let mut entries: Vec<&'static Entry> = Vec::new();
+        for entry in declared {
+            declare(entry, &mut params, &mut entries)?;
+        }
+        let params_doc = match resources::find(&format!("{prefix}.params")) {
+            Some(_) => Some(document(&format!("{prefix}.params"))?),
+            None => None,
+        };
+        let tables = match &params_doc {
+            Some(doc) => doc.get("param").and_then(|p| p.as_array_of_tables()).context("`params` has `[[param]]` tables")?.iter().collect(),
+            None => Vec::new(),
+        };
+        for table in tables {
             let name = string(table, "name")?.context("a parameter needs `name`")?;
             let default = scene::number(table.get("default").and_then(|i| i.as_value()).with_context(|| format!("parameter `{name}` needs `default`"))?)?;
             if params.iter().any(|p: &Param| p.name == name) {
@@ -135,6 +189,20 @@ impl Demos {
             string(table, "doc")?.with_context(|| format!("parameter `{name}` needs `doc`, what it is"))?;
             params.push(Param { name: leak(name), default });
         }
+        // The values its shaders declare (src/shader_data.rs) are parameters too, by component.
+        for shader in resources::shaders().iter().filter(|s| s.id.strip_prefix(prefix).is_some_and(|rest| rest.starts_with('.'))) {
+            let Some(schema) = crate::shader_data::schema(&shader.id)? else { continue };
+            for entry in schema.entries() {
+                if let Some(same) = entries.iter().find(|e| e.key == entry.key) {
+                    if *same != entry {
+                        bail!("`{}` is declared differently by two shaders ({})", entry.key, shader.id);
+                    }
+                    continue;
+                }
+                declare(entry, &mut params, &mut entries).with_context(|| format!("the shader {}", shader.id))?;
+            }
+        }
+        let by_key = index_of(&entries);
         let index = document(&format!("{prefix}.demos"))?;
         let keys = index.get("demos").and_then(|d| d.as_array()).context("`demos` is a list of keys")?;
         let mut specs = Vec::new();
@@ -174,7 +242,7 @@ impl Demos {
             specs.push(spec);
         }
         let ids = specs.iter().map(|s| s.id).collect();
-        Ok(Demos { params, specs, ids })
+        Ok(Demos { params, entries, index: by_key, specs, ids })
     }
 
     /// The demonstrations in order.
@@ -190,12 +258,63 @@ impl Demos {
         self.params.iter().find(|p| p.name == name).map(|p| p.default)
     }
 
+    /// Every value at its default: each declared one in its type, each other
+    /// parameter as a number.
+    pub fn defaults(&self) -> ValueMap {
+        let mut values = ValueMap::default();
+        for entry in &self.entries {
+            values.insert(entry.key.to_string(), entry.default.expect("a declared value has a default"));
+        }
+        for p in self.params.iter().filter(|p| self.entry(p.name).is_none()) {
+            values.insert(p.name.to_string(), Value::F32(p.default));
+        }
+        values
+    }
+
+    /// Demonstrations of nothing, with these declared values and other
+    /// parameters (the lab's tests).
+    #[cfg(test)]
+    pub(crate) fn for_tests(declared: &'static [Entry], others: &[(&'static str, f32)]) -> Demos {
+        let mut params: Vec<Param> = others.iter().map(|(name, default)| Param { name, default: *default }).collect();
+        let mut entries = Vec::new();
+        for entry in declared {
+            declare(entry, &mut params, &mut entries).unwrap();
+        }
+        let index = index_of(&entries);
+        Demos { params, entries, index, specs: Vec::new(), ids: Vec::new() }
+    }
+
+    /// The declared value whose key, or one of whose components' keys, is `key`.
+    pub fn entry(&self, key: &str) -> Option<&'static Entry> {
+        self.index.get(key).copied()
+    }
+
+    /// Sets parameter `name` (a value's key or a component's) to the number
+    /// `value` in `values`, in its declared type (a flag on above 0.5, an
+    /// index the nearest whole number); false for a name it does not declare.
+    pub fn set(&self, values: &mut ValueMap, name: &str, value: f32) -> bool {
+        match self.entry(name) {
+            Some(entry) => {
+                let mut numbers = values.get(entry.key).copied().or(entry.default).expect("a declared value has a default").components();
+                assert!(entry.ty.components() == 1 || entry.key != name, "{name} is a {}: set it by component, or with set_value", entry.ty.name());
+                numbers[values::component(entry, name)] = value;
+                values.insert(entry.key.to_string(), Value::from_components(entry.ty, &numbers));
+                true
+            }
+            None if self.param_default(name).is_some() => {
+                values.insert(name.to_string(), Value::F32(value));
+                true
+            }
+            None => false,
+        }
+    }
+
     /// A demonstration's starting state: every default, its own values, its camera.
     pub fn shot_state(&self, demo: DemoId) -> ShotState {
         let spec = self.spec(demo);
-        let mut params: BTreeMap<String, f32> = self.params.iter().map(|p| (p.name.to_string(), p.default)).collect();
+        let mut values = self.defaults();
         for (name, value) in &spec.params {
-            params.insert(name.to_string(), *value);
+            self.set(&mut values, name, *value);
         }
         ShotState {
             demo,
@@ -203,7 +322,7 @@ impl Demos {
             record: RecordRef::None,
             highlight: Vec::new(),
             panel: PanelMode::Values,
-            params,
+            values,
             callout: None,
             code: None,
             formula: None,

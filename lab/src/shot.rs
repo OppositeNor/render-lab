@@ -13,6 +13,7 @@
 use crate::animation::{Ease, Motion};
 use crate::camera::OrbitCamera;
 use crate::investigation;
+use crate::values::{self, Reflect, Value, ValueMap};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -89,7 +90,12 @@ pub struct ShotState {
     pub record: RecordRef,
     pub highlight: Vec<String>,
     pub panel: PanelMode,
-    pub params: BTreeMap<String, f32>,
+    /// Every value of the investigation by key (src/values.rs): a declared
+    /// one in its type (a vector as one value), any other parameter as a
+    /// number. `state["key"]` reads or writes one; `p`, `set`, `get`, and
+    /// `set_value` also reach a vector's components; `view` and `store`
+    /// convert them to and from a typed struct.
+    pub values: ValueMap,
     pub callout: Option<String>,
     /// The pseudo-code listing (src/pseudocode.rs) shown in PanelMode::Code;
     /// `highlight` then names the tags of the lit lines.
@@ -118,13 +124,126 @@ impl ShotState {
         investigation::current().shot_state(demo.into())
     }
 
+    /// A number by name: a value's (a flag is 0 or 1), a component's, a
+    /// parameter's, or the camera's. Panics for a name the investigation lacks.
     pub fn p(&self, name: &str) -> f32 {
-        *self.params.get(name).unwrap_or_else(|| panic!("unknown shot parameter {name}"))
+        if let Some(v) = self.values.get(name) {
+            return v.f32();
+        }
+        self.try_get(name).unwrap_or_else(|| panic!("unknown shot parameter {name}")).f32()
     }
 
+    /// Sets a number by name: a value (in its type: a flag on above 0.5, an
+    /// index the nearest whole number), a component, a parameter, or the camera's.
     pub fn set(&mut self, name: &str, value: f32) {
-        assert!(investigation::current().param_default(name).is_some(), "unknown shot parameter {name}");
-        self.params.insert(name.to_string(), value);
+        if self.camera.set(name, Value::F32(value)) {
+            return;
+        }
+        let investigation = investigation::current();
+        if let Some(demos) = investigation.demo_specs() {
+            assert!(demos.set(&mut self.values, name, value), "unknown shot parameter {name}");
+            return;
+        }
+        assert!(investigation.param_default(name).is_some(), "unknown shot parameter {name}");
+        self.values.insert(name.to_string(), Value::F32(value));
+    }
+
+    /// The values as a typed struct (`#[derive(serde::Deserialize)]`, its
+    /// fields named as the keys), converted on each call: for code that reads
+    /// many values at once, not for a hot loop.
+    pub fn view<T: serde::de::DeserializeOwned>(&self) -> T {
+        // A choice by its option's name, so a field can be its enum.
+        let json_of = |k: &str, v: &Value| match values::entry(k).and_then(|e| e.choices) {
+            Some(c) => serde_json::json!(c.options.get(v.u32() as usize).map_or("", |o| o.name)),
+            None => v.to_json(),
+        };
+        let json: serde_json::Map<String, serde_json::Value> = self.values.iter().map(|(k, v)| (k.clone(), json_of(k, v))).collect();
+        serde_json::from_value(serde_json::Value::Object(json)).unwrap_or_else(|e| panic!("the shot's values as {}: {e}", std::any::type_name::<T>()))
+    }
+
+    /// Sets every value a typed struct holds (`#[derive(serde::Serialize)]`),
+    /// by its fields' names (a choice's enum by its option's name).
+    pub fn store<T: serde::Serialize>(&mut self, typed: &T) {
+        let serde_json::Value::Object(fields) = serde_json::to_value(typed).expect("a struct of values") else { panic!("{} is not a struct", std::any::type_name::<T>()) };
+        for (key, json) in fields {
+            for (channel, number) in values::resolve(&key, &json).unwrap_or_else(|e| panic!("{e}")) {
+                self.set(&channel, number);
+            }
+        }
+    }
+
+    /// The numbers of the values a timeline blends, by channel: each
+    /// declared value's components, and each other parameter.
+    fn value_channels(&self) -> Vec<(String, f32)> {
+        let mut out = Vec::new();
+        for (key, value) in self.values.iter() {
+            match values::entry(key).filter(|e| e.key == key && !e.components.is_empty()) {
+                Some(e) => out.extend(e.components.iter().zip(value.components()).map(|(c, n)| (c.to_string(), n))),
+                None => out.push((key.clone(), value.f32())),
+            }
+        }
+        out
+    }
+
+    #[cfg(test)]
+    pub(crate) fn channels_for_tests(&self) -> Vec<(String, f32)> {
+        self.channels()
+    }
+
+    /// Every channel a timeline blends: the camera's, then the values'.
+    fn channels(&self) -> Vec<(String, f32)> {
+        let camera = camera_channels().into_iter().map(|c| (c.to_string(), self.camera.get(c).expect("a camera channel").f32()));
+        camera.chain(self.value_channels()).collect()
+    }
+
+    /// The value of `key` (src/values.rs): the camera's, a stored one, a
+    /// vector's component (an `F32`), or None for no such key.
+    pub fn try_get(&self, key: &str) -> Option<Value> {
+        if let Some(v) = self.camera.get(key) {
+            return Some(v);
+        }
+        if let Some(v) = self.values.get(key) {
+            return Some(*v);
+        }
+        let entry = values::entry(key)?;
+        let stored = self.values.get(entry.key)?;
+        Some(Value::F32(stored.components()[values::component(entry, key)]))
+    }
+
+    /// The value of `key`; panics for a key the investigation does not have.
+    pub fn get(&self, key: &str) -> Value {
+        self.try_get(key).unwrap_or_else(|| panic!("unknown value {key}"))
+    }
+
+    /// Sets `key` to `value`, in the key's declared type: a camera value, a
+    /// stored value (a vector whole), a component, or a parameter.
+    pub fn set_value(&mut self, key: &str, value: impl Into<Value>) {
+        let value = value.into();
+        if self.camera.set(key, value) {
+            return;
+        }
+        match values::entry(key).filter(|e| e.key == key) {
+            Some(e) => {
+                let value = Value::from_json(e.ty, &value.to_json()).unwrap_or_else(|| panic!("{key} is a {}, not a {}", e.ty.name(), value.ty().name()));
+                self.values.insert(key.to_string(), value);
+            }
+            None => self.set(key, value.f32()),
+        }
+    }
+}
+
+/// `state["key"]`: a stored value (not a component, nor the camera's: use
+/// `get`). Writing through it does not check the type; `set_value` does.
+impl std::ops::Index<&str> for ShotState {
+    type Output = Value;
+    fn index(&self, key: &str) -> &Value {
+        self.values.get(key).unwrap_or_else(|| panic!("no stored value `{key}` (a component or the camera's is read with `get`)"))
+    }
+}
+
+impl std::ops::IndexMut<&str> for ShotState {
+    fn index_mut(&mut self, key: &str) -> &mut Value {
+        self.values.get_mut(key).unwrap_or_else(|| panic!("no stored value `{key}` (a component or the camera's is set with `set_value`)"))
     }
 }
 
@@ -241,8 +360,14 @@ pub struct Key {
     pub highlight: Option<Vec<String>>,
     #[serde(default)]
     pub panel: Option<PanelMode>,
+    /// The values it sets, as a story writes them (src/values.rs, `resolve`):
+    /// a number, `true` or `false`, an option's name, or an array for a vector.
     #[serde(default)]
-    pub params: BTreeMap<String, f32>,
+    pub params: BTreeMap<String, serde_json::Value>,
+    /// `params` as the numbers of the channels they set, read on first use
+    /// (`targets`).
+    #[serde(skip)]
+    resolved: std::sync::OnceLock<Result<Vec<(String, f32)>, String>>,
     /// `""` clears the callout.
     #[serde(default)]
     pub callout: Option<String>,
@@ -258,6 +383,29 @@ pub struct Key {
     /// Provenance for error messages (storyboard beat id).
     #[serde(default)]
     pub source: Option<String>,
+}
+
+impl Key {
+    /// The numbers its values set, by channel (a vector by component, a flag
+    /// as 1 or 0, an option as its index); why not, for a value the
+    /// investigation does not declare or one that does not fit its type.
+    pub fn targets(&self) -> Result<&[(String, f32)], String> {
+        self.resolved
+            .get_or_init(|| {
+                let mut out = Vec::new();
+                for (name, json) in &self.params {
+                    out.extend(values::resolve(name, json)?);
+                }
+                Ok(out)
+            })
+            .as_deref()
+            .map_err(Clone::clone)
+    }
+
+    /// Whether it sets `channel` (by itself, or as a component of a value it sets).
+    fn sets(&self, channel: &str) -> bool {
+        self.targets().is_ok_and(|t| t.iter().any(|(c, _)| c == channel))
+    }
 }
 
 /// A channel's value over time: eased from its value at a key to the key's
@@ -311,11 +459,10 @@ impl Segment {
 /// The channel of the formula card's lit term's weight.
 const FORMULA_LIT: &str = "formula.lit";
 
-/// The camera's channels, as keys' `camera` and motions name them.
-const CAMERA_CHANNELS: [&str; 7] = ["camera.x", "camera.y", "camera.z", "camera.yaw", "camera.pitch", "camera.distance", "camera.fov"];
-
-fn camera_channels(c: &OrbitCamera) -> [f32; 7] {
-    [c.target[0], c.target[1], c.target[2], c.yaw, c.pitch, c.distance, c.fov]
+/// The camera's channels, as keys' `camera` and motions name them: its
+/// values' (src/camera.rs), by component (`camera.x`, …, `camera.yaw`, …).
+fn camera_channels() -> Vec<&'static str> {
+    OrbitCamera::schema().iter().flat_map(|e| e.channels()).collect()
 }
 
 impl Timeline {
@@ -329,20 +476,18 @@ impl Timeline {
 
     pub fn validate(&self) -> Result<()> {
         for key in &self.keys {
-            for name in key.params.keys() {
-                if investigation::current().param_default(name).is_none() {
-                    bail!("unknown shot parameter `{name}` in key at frame {} ({:?})", key.frame, key.source);
-                }
+            if let Err(e) = key.targets() {
+                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
             for motion in &key.animate {
                 if let Some(problem) = motion.problem() {
                     bail!("{problem}, in key at frame {} ({:?})", key.frame, key.source);
                 }
                 for name in motion.params() {
-                    if investigation::current().param_default(name).is_none() && !CAMERA_CHANNELS.contains(&name) {
+                    if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) {
                         bail!("unknown channel `{name}` in a motion of the key at frame {} ({:?})", key.frame, key.source);
                     }
-                    if key.params.contains_key(name) {
+                    if key.sets(name) {
                         bail!("`{name}` is both set and animated by the key at frame {} ({:?})", key.frame, key.source);
                     }
                 }
@@ -380,12 +525,10 @@ impl Timeline {
         // Before the first key, the investigation's first demonstration.
         let mut state = ShotState::for_demo(investigation::current().demos()[0]);
         let mut segments: BTreeMap<String, Channel> = BTreeMap::new();
+        let camera = camera_channels();
         let reset = |segments: &mut BTreeMap<String, Channel>, state: &ShotState, at: u64| {
-            for (name, value) in &state.params {
-                segments.insert(name.clone(), Channel::hold(at, *value));
-            }
-            for (name, value) in CAMERA_CHANNELS.iter().zip(camera_channels(&state.camera)) {
-                segments.insert(name.to_string(), Channel::hold(at, value));
+            for (name, value) in state.channels() {
+                segments.insert(name, Channel::hold(at, value));
             }
         };
         reset(&mut segments, &state, 0);
@@ -393,7 +536,7 @@ impl Timeline {
             if let Some(demo) = key.demo {
                 let callout = state.callout.clone();
                 let (formula, term) = (state.formula.clone(), state.formula_term);
-                let camera_now: Vec<f32> = CAMERA_CHANNELS.iter().map(|c| segments[*c].value(key.frame)).collect();
+                let camera_now: Vec<f32> = camera.iter().map(|c| segments[*c].value(key.frame)).collect();
                 state = ShotState::for_demo(demo);
                 state.callout = callout;
                 // The formula card belongs to the narration, not the demonstration.
@@ -402,7 +545,7 @@ impl Timeline {
                 // A demo switch cuts parameters but keeps the camera continuous
                 // when the key itself moves the camera.
                 if key.camera.is_some() {
-                    for (i, c) in CAMERA_CHANNELS.iter().enumerate() {
+                    for (i, c) in camera.iter().enumerate() {
                         segments.insert(c.to_string(), Channel::hold(key.frame, camera_now[i]));
                     }
                 }
@@ -425,7 +568,7 @@ impl Timeline {
             if let Some(formula) = &key.formula {
                 state.formula = if formula.is_empty() { None } else { Some(formula.clone()) };
             }
-            let mut targets: Vec<(String, f32)> = key.params.iter().map(|(k, v)| (k.clone(), *v)).collect();
+            let mut targets: Vec<(String, f32)> = key.targets().unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)).to_vec();
             // A newly lit term fades in from dark; unlighting fades the term out.
             if let Some(term) = key.term {
                 if term > 0 {
@@ -435,13 +578,13 @@ impl Timeline {
                 targets.push((FORMULA_LIT.into(), if term > 0 { 1.0 } else { 0.0 }));
             }
             if let Some(c) = &key.camera {
-                let names = CAMERA_CHANNELS;
                 if let Some(t) = c.target {
-                    targets.extend([(names[0].into(), t[0]), (names[1].into(), t[1]), (names[2].into(), t[2])]);
+                    let target = OrbitCamera::schema().iter().find(|e| e.key == "camera.target").expect("the camera's target");
+                    targets.extend(target.channels().into_iter().zip(t).map(|(n, v)| (n.to_string(), v)));
                 }
-                for (i, v) in [(3, c.yaw), (4, c.pitch), (5, c.distance), (6, c.fov)] {
+                for (name, v) in [("camera.yaw", c.yaw), ("camera.pitch", c.pitch), ("camera.distance", c.distance), ("camera.fov", c.fov)] {
                     if let Some(v) = v {
-                        targets.push((names[i].into(), v));
+                        targets.push((name.into(), v));
                     }
                 }
             }
@@ -459,17 +602,13 @@ impl Timeline {
             }
         }
         let value = |name: &str| segments[name].value(frame);
-        let keyed = OrbitCamera {
-            target: [value("camera.x"), value("camera.y"), value("camera.z")],
-            yaw: value("camera.yaw"),
-            pitch: value("camera.pitch"),
-            distance: value("camera.distance"),
-            fov: value("camera.fov"),
-        };
+        let mut keyed = state.camera;
+        for name in &camera {
+            keyed.set(name, Value::F32(value(name)));
+        }
         state.camera = camera_drift(keyed, 0.0, frame as f32 / self.fps as f32, segments.get("cameraDrift").map_or(0.0, |s| s.value(frame)));
-        let names: Vec<String> = state.params.keys().cloned().collect();
-        for name in names {
-            state.params.insert(name.clone(), value(&name));
+        for (name, _) in state.value_channels() {
+            state.set(&name, value(&name));
         }
         state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
         if state.formula_lit <= 0.0 {

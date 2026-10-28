@@ -4,7 +4,7 @@
 # alone, and on crates the lab depends on, with no more features than the
 # lab's, so every crate sees one build of the lab.
 [workspace]
-members = ["lab", "lab/check", "packages/o3de_lighting"]
+members = ["lab", "lab/check", "lab/derive", "packages/o3de_lighting"]
 default-members = [".", "packages/o3de_lighting"]
 resolver = "3"
 

@@ -243,6 +243,24 @@ def number(value: str, where: str) -> float:
         raise MarkupError(f'{where}: {value!r} is not a number') from None
 
 
+def param_value(value: str, where: str) -> float | bool | str | list[float]:
+    """A parameter's value as a tag writes it: a number, `true` or `false`, a
+    comma-separated list of numbers (a vector), or a name (a choice's option).
+    The lab checks it against the parameter's declaration when it loads the
+    timeline (lab/src/values.rs, `resolve`)."""
+    if value in ('true', 'false'):
+        return value == 'true'
+    if ',' in value:
+        return [number(x, where) for x in value.split(',')]
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    if value[:1].isalpha() and all(c.isalnum() or c == '_' for c in value):
+        return value
+    raise MarkupError(f'{where}: {value!r} is not a number, true or false, a list of numbers, or a name')
+
+
 def cue_key(tag: Tag, cues: Json, where: str) -> Json:
     """The shot key a point cue or a range's start sets, before timing:
     fields as the storyboard writes them (`blend` in seconds)."""

@@ -45,7 +45,7 @@ enum Command {
         /// The page the snapshot shows: title, select, config, trial (the Config page's countdown),
         /// starting (the homepage's loading page, while the title's scene loads), loading (the
         /// viewer's loading page, while the current investigation's first scene loads), viewer (the
-        /// viewer on its first demonstration, with the dock), or viewer-timeline (the viewer playing
+        /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
         /// the investigation's first timeline, with its bar).
         #[arg(long, default_value = "title")]
         page: String,
@@ -114,6 +114,23 @@ enum Command {
         #[arg(long)]
         ffmpeg: Option<PathBuf>,
     },
+    /// List the current investigation's values (lab/src/values.rs): the
+    /// keys its dock, timelines, and stories set, with each one's type,
+    /// default, range, unit, labels, and what it is.
+    Values {
+        #[arg(long)]
+        json: bool,
+        /// Only the values with this label.
+        #[arg(long)]
+        label: Option<String>,
+        /// Only the values whose keys start with this scope (`camera`).
+        #[arg(long)]
+        scope: Option<String>,
+    },
+    /// List the current investigation's choices (`#[derive(Choice)]` enums),
+    /// their options, and the WGSL constants the lab writes for its shaders
+    /// (its package's `build/generated/<name>.wgsl`) whenever it loads it.
+    Choices,
     /// List the packages in packages/ (their `manifest.toml`): name, author,
     /// license, imports, exports, and demos.
     Packages {
@@ -199,7 +216,8 @@ pub fn main(app: App) -> Result<()> {
             match (snapshot, autotest) {
                 (Some(png), _) if page == "loading" => crate::loading::snapshot(&png, [width.max(64), height.max(64)], options.ui_scale),
                 (Some(png), _) if page == "starting" => home::snapshot_starting(&options, &png),
-                (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", &png),
+                (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", None, &png),
+                (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
                 (Some(png), _) => {
                     let trial = page == "trial";
                     home::snapshot(&options, if trial { home::Page::Config } else { home::Page::parse(&page)? }, trial, &png)
@@ -254,6 +272,49 @@ pub fn main(app: App) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&report)?);
             if report.iter().any(|r| r["error"] != serde_json::Value::Null) {
                 bail!("a formula failed its check");
+            }
+            Ok(())
+        }
+        Command::Values { json, label, scope } => {
+            use crate::values::Value;
+            let entries: Vec<&crate::values::Entry> = crate::values::list()
+                .into_iter()
+                .filter(|e| label.as_deref().is_none_or(|l| e.has_label(l)))
+                .filter(|e| scope.as_deref().is_none_or(|s| e.key.starts_with(&format!("{s}."))))
+                .collect();
+            let numbers = |v: Option<Value>| v.map(|v| v.components().iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", "));
+            if json {
+                let list: Vec<serde_json::Value> = entries
+                    .iter()
+                    .map(|e| {
+                        serde_json::json!({"key": e.key, "type": e.ty.name(), "default": e.default.map(|v| v.components()), "range": e.range.map(|r| [r.0, r.1]), "componentRanges": e.component_ranges.iter().map(|r| [r.0, r.1]).collect::<Vec<_>>(),
+                            "step": e.step, "unit": format!("{:?}", e.unit), "wrap": e.wrap, "labels": e.labels, "text": e.text.map(|_| e.label_text()), "doc": e.doc, "components": e.components, "choices": e.choices.map(|c| c.options.iter().map(|o| o.name).collect::<Vec<_>>())})
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&list)?);
+            } else {
+                for e in entries {
+                    let channels = if e.components.is_empty() { String::new() } else { format!(" ({})", e.components.join(", ")) };
+                    let default = numbers(e.default).map(|d| format!(" = {d}")).unwrap_or_default();
+                    let ranges: Vec<String> = (0..e.ty.components()).filter_map(|i| e.range_of(i)).map(|r| format!("{}..{}", r.0, r.1)).collect();
+                    let range = if ranges.is_empty() { String::new() } else if e.component_ranges.is_empty() { format!(" in {}", ranges[0]) } else { format!(" in {}", ranges.join(", ")) };
+                    let labels = if e.labels.is_empty() { String::new() } else { format!(" [{}]", e.labels.join(", ")) };
+                    let choice = e.choices.map(|c| format!(" choice of {} ({})", c.name, c.names())).unwrap_or_default();
+                    println!("{}{channels}: {}{default}{range} {:?}{labels}{choice}", e.key, e.ty.name(), e.unit);
+                    if !e.doc.is_empty() {
+                        println!("    {}", e.doc);
+                    }
+                }
+            }
+            Ok(())
+        }
+        Command::Choices => {
+            for choices in investigation::current().choices() {
+                let options: Vec<String> = (0..choices.options.len()).map(|i| format!("{i} {} ({})", choices.options[i].name, choices.option_text(i))).collect();
+                println!("{}: {}", choices.name, options.join(", "));
+                if let Some(prefix) = choices.wgsl {
+                    println!("    WGSL {prefix}_*, written to {}'s {}", choices.package, choices.wgsl_file());
+                }
             }
             Ok(())
         }

@@ -1,0 +1,19 @@
+# `#[derive(Values)]` (src/lib.rs): a struct's fields reachable by key, with
+# their metadata (the lab's src/values.rs). The lab re-exports it as
+# `lab::Values`, so a package needs no dependency of its own.
+[package]
+name = "render-lab-derive"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Render Lab's derive of values by key (lab::values::Reflect)"
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

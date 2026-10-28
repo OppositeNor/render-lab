@@ -38,7 +38,12 @@ pub fn libraries() -> &'static [Library] {
 
 pub fn all() -> &'static [&'static dyn Investigation] {
     static ALL: OnceLock<Vec<&'static dyn Investigation>> = OnceLock::new();
-    ALL.get_or_init(|| libraries().iter().filter_map(|l| l.loaded.as_ref().ok()?.investigations()).flat_map(|f| f().iter().copied()).collect())
+    ALL.get_or_init(|| {
+        let all: Vec<&'static dyn Investigation> = libraries().iter().filter_map(|l| l.loaded.as_ref().ok()?.investigations()).flat_map(|f| f().iter().copied()).collect();
+        // Their choices' WGSL constants, before any shader composes them.
+        crate::shader_data::write_choices(&all);
+        all
+    })
 }
 
 /// The investigation whose backdrop the homepage shows behind every page:

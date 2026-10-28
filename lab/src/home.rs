@@ -1133,8 +1133,9 @@ pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {
 
 /// Render the viewer offscreen to a PNG as the homepage opens it, with the
 /// settings: the current investigation's demonstrations, or (`timeline`) its
-/// first timeline playing, in the edition the homepage offers first.
-pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, png: &Path) -> Result<()> {
+/// first timeline playing, in the edition the homepage offers first; or the
+/// demonstration `demo` (its key).
+pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, demo: Option<&str>, png: &Path) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let current = investigation::current();
     let choice = if timeline {
@@ -1146,7 +1147,7 @@ pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, png: &Path) -> Res
     };
     let size = PhysicalSize::new(options.width, options.height);
     let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
-    viewer::snapshot(viewer_options, png)
+    viewer::snapshot(viewer_options, demo, png)
 }
 
 /// Click through the homepage offscreen and check what each control opens.

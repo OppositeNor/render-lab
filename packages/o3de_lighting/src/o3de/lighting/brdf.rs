@@ -23,26 +23,49 @@ pub const BRDF_MAP_SIZE: usize = 256;
 /// BRDFTextureCS's NumSamples.
 pub const BRDF_MAP_SAMPLES: u32 = 1024;
 
-/// The views of `gShading[2].x` (VIEW_* in the shader); 0 is the lit result.
-pub mod view {
-    pub const DIFFUSE: u32 = 1;
-    pub const SPECULAR: u32 = 2;
-    pub const D: u32 = 3;
-    pub const G: u32 = 4;
-    pub const F: u32 = 5;
-    pub const MULTISCATTER: u32 = 6;
-    pub const DIFFUSE_RESPONSE: u32 = 7;
-    pub const NDOTL: u32 = 8;
-    pub const ATTENUATION: u32 = 9;
-    pub const IBL_DIFFUSE: u32 = 10;
-    pub const IBL_SPECULAR: u32 = 11;
+/// What the scene pass shows (gShading.viewMode): a choice (`render-lab
+/// values`), whose WGSL constants (VIEW_*) the lab writes into
+/// build/generated/view_mode.wgsl, which the shader composes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, lab::Choice, serde::Serialize, serde::Deserialize)]
+#[choice(package = "o3de_lighting", wgsl = "VIEW")]
+#[serde(rename_all = "camelCase")]
+pub enum ViewMode {
+    /// The lit result.
+    #[choice(text = "controls.final")]
+    Final,
+    #[choice(text = "controls.diffuse_lighting")]
+    Diffuse,
+    #[choice(text = "controls.specular_lighting")]
+    Specular,
+    #[choice(label = "D (GGX)")]
+    D,
+    #[choice(label = "G (Smith)")]
+    G,
+    #[choice(label = "F (Schlick)")]
+    F,
+    #[choice(text = "controls.multiscatter_compensation")]
+    Multiscatter,
+    #[choice(label = "diffuseResponse")]
+    DiffuseResponse,
+    #[choice(label = "NdotL")]
+    Ndotl,
+    #[choice(text = "controls.radius_attenuation")]
+    Attenuation,
+    #[choice(text = "common.diffuse_ibl")]
+    IblDiffuse,
+    #[choice(text = "common.specular_ibl")]
+    IblSpecular,
     /// The lights in the pixel's tile and depth bin (the forward pass's list; 0 without tiles).
-    pub const LIGHT_COUNT: u32 = 12;
+    #[choice(text = "controls.lights_per_tile")]
+    LightCount,
     /// The reflection probes' stencil and blend weight.
-    pub const PROBE_STENCIL: u32 = 13;
-    pub const PROBE_WEIGHT: u32 = 14;
-    /// 15, the upsampled SSAO, is screen space: the CPU mirror shows the final pixel.
-    pub const COUNT: u32 = 16;
+    #[choice(text = "controls.probe_stencil")]
+    ProbeStencil,
+    #[choice(text = "controls.probe_blend_weight")]
+    ProbeWeight,
+    /// The upsampled SSAO, which is screen space: the CPU mirror shows the final pixel.
+    #[choice(label = "SSAO")]
+    Ssao,
 }
 
 pub fn saturate(x: f32) -> f32 {
@@ -411,13 +434,17 @@ pub fn simple_point_light(light: &PointLight, surface_position: Vec3) -> PointLi
     }
 }
 
-/// The diffuse model of `gShading[2].z`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The diffuse model (gShading.diffuseModel): a choice (`render-lab values`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, lab::Choice, serde::Serialize, serde::Deserialize)]
+#[choice(package = "o3de_lighting")]
+#[serde(rename_all = "camelCase")]
 pub enum DiffuseModel {
     /// DiffuseLambertian, which StandardPBR uses.
+    #[choice(label = "DiffuseLambertian")]
     Lambertian,
     /// NormalizedDisneyDiffuse, which StandardPBR does not call (EnhancedPBR does
     /// with subsurface scattering on, Skin always).
+    #[choice(label = "NormalizedDisneyDiffuse")]
     NormalizedDisney,
 }
 
@@ -500,7 +527,8 @@ pub struct Material {
     pub forward_probe: Option<usize>,
 }
 
-/// Everything gShading holds.
+/// The shading the CPU mirror computes with (gShading holds its values and
+/// what demos::shader_data derives from them; gShadingFrame the rest).
 #[derive(Clone, Debug)]
 pub struct Shading {
     /// The light the readout and views describe (light 0 of the frame's list).
@@ -508,7 +536,7 @@ pub struct Shading {
     pub light_on: bool,
     /// More simple point lights (the light-culling demonstration's).
     pub extra_lights: Vec<PointLight>,
-    pub view: u32,
+    pub view: ViewMode,
     pub multiscatter: bool,
     pub diffuse_model: DiffuseModel,
     /// The object whose point the readout inspects.
@@ -530,20 +558,6 @@ pub struct Shading {
 }
 
 impl Shading {
-    pub fn uniforms(&self) -> [[f32; 4]; lab::frame::SHADING_UNIFORMS] {
-        let mut u = [[0.0; 4]; lab::frame::SHADING_UNIFORMS];
-        u[0] = self.light.position.extend(self.light.inv_attenuation_radius_squared).to_array();
-        u[1] = self.light.rgb_intensity_candelas.extend(if self.light_on { 1.0 } else { 0.0 }).to_array();
-        let model = if self.diffuse_model == DiffuseModel::NormalizedDisney { 1.0 } else { 0.0 };
-        u[2] = [self.view as f32, if self.multiscatter { 1.0 } else { 0.0 }, model, self.inspected as f32];
-        let flag = |b: bool| if b { 1.0 } else { 0.0 };
-        u[3] = [flag(self.ibl), self.ibl_exposure, 0.0, flag(self.specular_aa)];
-        for (i, m) in self.materials.iter().enumerate() {
-            u[4 + i] = [m.metallic, m.specular_f0_factor, m.diffuse_occlusion.unwrap_or(-1.0), m.specular_occlusion.unwrap_or(-1.0)];
-        }
-        u
-    }
-
     /// The per-object material records of gShadingFrame (from FRAME_MATERIALS):
     /// the clear coat's factor (-1 without it) and roughness.
     pub fn frame_materials(&self) -> Vec<[f32; 4]> {
@@ -757,23 +771,23 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
     let emissive = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
     let shown = |c: Vec3| untonemap(c.clamp(Vec3::ZERO, Vec3::ONE), exposure);
     let color = match shading.view {
-        view::DIFFUSE => l.diffuse_lighting,
-        view::SPECULAR => l.specular_lighting,
-        view::D => untonemap(heat(terms.d / (terms.d + 1.0)), exposure),
-        view::G => untonemap(heat(terms.g * 4.0 * terms.n_dot_l * l.n_dot_v), exposure),
-        view::F => shown(terms.f),
-        view::MULTISCATTER => untonemap(heat((l.multi_scatter_compensation.y - 1.0) / 0.6), exposure),
-        view::DIFFUSE_RESPONSE => shown(l.diffuse_response),
-        view::NDOTL => untonemap(heat(terms.n_dot_l), exposure),
-        view::ATTENUATION => untonemap(heat(if sample.falloff < 1.0 { sample.radius_attenuation } else { 0.0 }), exposure),
-        view::IBL_DIFFUSE => ibl.diffuse,
-        view::IBL_SPECULAR => ibl.specular,
+        ViewMode::Diffuse => l.diffuse_lighting,
+        ViewMode::Specular => l.specular_lighting,
+        ViewMode::D => untonemap(heat(terms.d / (terms.d + 1.0)), exposure),
+        ViewMode::G => untonemap(heat(terms.g * 4.0 * terms.n_dot_l * l.n_dot_v), exposure),
+        ViewMode::F => shown(terms.f),
+        ViewMode::Multiscatter => untonemap(heat((l.multi_scatter_compensation.y - 1.0) / 0.6), exposure),
+        ViewMode::DiffuseResponse => shown(l.diffuse_response),
+        ViewMode::Ndotl => untonemap(heat(terms.n_dot_l), exposure),
+        ViewMode::Attenuation => untonemap(heat(if sample.falloff < 1.0 { sample.radius_attenuation } else { 0.0 }), exposure),
+        ViewMode::IblDiffuse => ibl.diffuse,
+        ViewMode::IblSpecular => ibl.specular,
         // The CPU mirror has no tiles, like the verification kernels.
-        view::LIGHT_COUNT => untonemap(heat(0.0), exposure),
-        view::PROBE_STENCIL => untonemap(super::reflections::stencil_color(ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK), exposure),
-        view::PROBE_WEIGHT => untonemap(heat(ibl.reflection.blend_weight / 2.0), exposure),
-        // The reflection passes test the IBL flag themselves.
-        _ => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
+        ViewMode::LightCount => untonemap(heat(0.0), exposure),
+        ViewMode::ProbeStencil => untonemap(super::reflections::stencil_color(ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK), exposure),
+        ViewMode::ProbeWeight => untonemap(heat(ibl.reflection.blend_weight / 2.0), exposure),
+        // The reflection passes test the IBL flag themselves; SSAO is screen space.
+        ViewMode::Final | ViewMode::Ssao => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
     };
     Pixel { color, surface: s, lighting: l, light: sample, terms, ibl }
 }

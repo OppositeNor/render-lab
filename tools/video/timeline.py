@@ -132,12 +132,13 @@ def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, in
 
 
 def numbers(params: Json, where: str) -> Json:
-    """A point cue's parameters as numbers."""
+    """A point cue's parameters as values: numbers, flags, lists of numbers,
+    or names (markup.param_value)."""
     out: Json = {}
     for name, value in params.items():
         if isinstance(value, str) and ('..' in value or value.startswith('=')):
             raise markup.MarkupError(f'{where}: {name}={value} blends over a range; write it in {{@name> …}} … {{<name}}')
-        out[name] = markup.number(value, where) if isinstance(value, str) else value
+        out[name] = markup.param_value(value, where) if isinstance(value, str) else value
     return out
 
 

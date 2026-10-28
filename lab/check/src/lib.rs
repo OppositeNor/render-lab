@@ -18,6 +18,9 @@ const LOCALES: &[&str] = &["en", "zh-CN"];
 #[derive(Default)]
 struct Manifests {
     sources: BTreeMap<String, PathBuf>,
+    /// The `built = true` resources (a tool's or the lab's output, in the
+    /// package's `build/`), which may not exist yet.
+    built: BTreeMap<String, PathBuf>,
     shaders: BTreeMap<String, Vec<String>>,
 }
 
@@ -69,11 +72,12 @@ fn read_collection(package: &str, path: &Path, out: &mut Manifests, overrides: &
     let document = toml_edit::Document::parse(text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let dir = path.parent().unwrap();
     for table in document.get("resource").and_then(|r| r.as_array_of_tables()).into_iter().flatten() {
-        if table.get("built").and_then(|b| b.as_bool()) == Some(true) {
-            continue;
-        }
         let id = full_key(package, table.get("id").and_then(|i| i.as_str()).unwrap_or_default());
         let source = dir.join(table.get("source").and_then(|s| s.as_str()).unwrap_or_default());
+        if table.get("built").and_then(|b| b.as_bool()) == Some(true) {
+            out.built.insert(id, source);
+            continue;
+        }
         if let Some(target) = table.get("override").and_then(|o| o.as_str()) {
             overrides.push((target.to_string(), source.clone()));
         }
@@ -86,18 +90,28 @@ fn read_collection(package: &str, path: &Path, out: &mut Manifests, overrides: &
     }
 }
 
-/// A shader's files, in order.
-fn shader_files(manifests: &Manifests, id: &str, out: &mut Vec<PathBuf>) {
+/// A shader's files, in order; false when a part is a built resource not
+/// written yet (the lab writes the generated ones when it first runs).
+fn shader_files(manifests: &Manifests, id: &str, out: &mut Vec<PathBuf>) -> bool {
     for part in &manifests.shaders[id] {
         if manifests.shaders.contains_key(part) {
-            shader_files(manifests, part, out);
+            if !shader_files(manifests, part, out) {
+                return false;
+            }
+        } else if let Some(built) = manifests.built.get(part) {
+            if !built.is_file() {
+                return false;
+            }
+            out.push(built.clone());
         } else {
             out.push(manifests.sources.get(part).unwrap_or_else(|| panic!("shader `{id}`: no resource or shader `{part}`")).clone());
         }
     }
+    true
 }
 
-/// Every shader `package` declares parses and validates with naga, composed
+/// Every shader `package` declares parses and validates with naga (once its
+/// built parts exist), composed
 /// from the packages beside it with its own overrides applied (the run time
 /// validates every shader again as it composes it, with every package's).
 fn check_shaders(packages: &[Package], package: &str) {
@@ -117,7 +131,10 @@ fn check_shaders(packages: &[Package], package: &str) {
     }
     for id in manifests.shaders.keys().filter(|id| id.split_once('.').is_some_and(|(m, _)| m == package)) {
         let mut files = Vec::new();
-        shader_files(&manifests, id, &mut files);
+        // A shader that composes a part not written yet is checked once it is (the run time checks it as it composes it).
+        if !shader_files(&manifests, id, &mut files) {
+            continue;
+        }
         let source: String = files
             .iter()
             .map(|f| {
@@ -192,8 +209,11 @@ fn placeholders(text: &str) -> Vec<&str> {
 }
 
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
-/// and the `-text` fields of its `.toml` files (not under links, nor in what
-/// a build writes: `build/`, `target/`).
+/// with the `text = "…"` of their `#[value(…)]` attributes (the lab's
+/// values, lab/src/values.rs), the `text=` of the `{@ …}` tags in its
+/// `.wgsl` files' `///` comments (lab/src/shader_data.rs), and the `-text` fields of its
+/// `.toml` files (not under links, nor in what a build writes: `build/`,
+/// `target/`).
 fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
     let mut entries: Vec<_> = fs::read_dir(dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())).map(|e| e.unwrap().path()).collect();
     entries.sort();
@@ -219,6 +239,22 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             }
             continue;
         }
+        // A shader value's name on screen: `/// {@ … text=key …}`.
+        if path.extension().is_some_and(|e| e == "wgsl") {
+            println!("cargo:rerun-if-changed={}", path.display());
+            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+                let Some(comment) = line.trim_start().strip_prefix("///").filter(|c| c.contains("{@")) else { continue };
+                for (i, _) in comment.match_indices("text=") {
+                    if comment[..i].chars().next_back().is_some_and(|c| !c.is_whitespace()) {
+                        continue;
+                    }
+                    let rest = comment[i + 5..].trim_start_matches('"');
+                    let key = &rest[..rest.find(|c: char| c == '"' || c == '}' || c.is_whitespace()).unwrap_or(rest.len())];
+                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                }
+            }
+            continue;
+        }
         if path.extension().is_none_or(|e| e != "rs") {
             continue;
         }
@@ -227,6 +263,15 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
         for (n, line) in source.lines().enumerate() {
             if line.trim_start().starts_with("//") {
                 continue;
+            }
+            // A derived value's or a choice option's name on screen: `#[value(… text = "key" …)]`, `#[choice(text = "key")]`.
+            if line.trim_start().starts_with("#[value(") || line.trim_start().starts_with("#[choice(") {
+                for (i, _) in line.match_indices("text = \"") {
+                    let rest = &line[i + 8..];
+                    let at = format!("{}:{}", path.display(), n + 1);
+                    let key = &rest[..rest.find('"').unwrap_or_else(|| panic!("{at}: unterminated text key"))];
+                    keys.push((key.to_string(), at));
+                }
             }
             for call in ["tr(", "tr_with("] {
                 for (i, _) in line.match_indices(call) {

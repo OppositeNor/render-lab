@@ -106,7 +106,7 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                                     its demos (the video's timelines and narration)
                  resources.toml     a collection: text, source index, listings, shaders, demonstrations,
                                     data files, and the built timelines (`built = true`), by key
-                 params.toml        every shot parameter: name, default, doc
+                 src/…/values.rs    every value: a #[derive(lab::Values)] struct (or params.toml: name, default, doc)
                  demos/             index.toml (the order), <key>.toml per demonstration, presets/
                  text/              en.json, zh-CN.json
                  pseudocode/*.py, source-index.json
@@ -140,10 +140,30 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 ## 4. Demonstrations and parameters (`shot.rs`, `demos.rs`, `controls.rs`)
 
 - The demonstrations are data, in the investigation's package (the format is in `lab/src/demo.rs`; copy
-  `packages/o3de_lighting/demos/` and `params.toml`, and declare each file in its `resources.toml`; a demonstration's
+  `packages/o3de_lighting/demos/` and `src/o3de/lighting/values.rs`, and declare each file in its `resources.toml`; a demonstration's
   `scene` is one `render_lab` exports, `render_lab.scene/study-room`):
-  - `params.toml`: every number a shot or the video can animate (`name`, `default`, `doc`). **A parameter's default
-    must change nothing**, so existing frames stay byte-identical. An unknown name in a storyboard fails the build.
+  - The values: every number a shot or the video can animate, as the fields of a `#[derive(lab::Values,
+    serde::Serialize, serde::Deserialize)]` struct (`#[values(package = "…", rename_all = "camelCase")]`; each field's
+    `#[value(default = …, range = a..=b, unit = m, text = "…" or name = "…", color = …, label(group), toggle)]` and its
+    `///` doc), given to `Demos::with_values::<T>(package)`. A field the video fades through fractions stays `f32`
+    (`toggle` only marks it as on/off for the dock). A shot stores the values by key (`state.p("key")`,
+    `state["key"]`, `state.view::<T>()` for the struct). `params.toml` (`name`, `default`, `doc`) still works for
+    plain numbers. **A value's default must change nothing**, so existing frames stay byte-identical. An unknown name
+    in a storyboard fails the build.
+  - A value the shader reads goes in its uniform struct instead, declared by a tag in a `///` comment
+    (`lab/src/shader_data.rs`): `/// {@ key=lightIntensity default=6 range=0,30 unit=m label=light text=controls.x}`
+    on a member, `/// {@ derived}` on one the investigation computes (`Investigation::shader_data`), and
+    `/// {@ shader_data}` on the `@group(1) @binding(0)` uniform. The lab adds its values to the package's parameters
+    (so demonstrations, timelines, and stories set them by key), packs them each frame, and `Dock::values(ui, title,
+    hint, label)` or `Dock::value(ui, key)` draws their sliders, as for the struct's values (a field's `label` names its
+    group). A value that picks one of several options is a choice: a `#[derive(lab::Choice, serde::Serialize,
+    serde::Deserialize)]` enum (`#[choice(package = "…", wgsl = "PREFIX")]`, each variant's `text` or `label`; see
+    `brdf::ViewMode`), returned by `Investigation::choices`, named by the member's tag (`{@ key=viewMode
+    choice=ViewMode default=final}`), and drawn with `Dock::choice(ui, key)`. The lab writes its WGSL constants (`PREFIX_<VARIANT>`) into the package's
+    git-ignored `build/generated/<name>.wgsl` whenever it loads the investigation: declare that file a `built = true`
+    resource and compose it in the shader (a fresh clone's build checks that shader once the lab has run). Stories then
+    write `viewMode=ndotl`. `render-lab values` lists every key
+    (`packages/o3de_lighting/shaders/standard_lighting.wgsl`'s `O3deShading` is the example).
   - `demos/<key>.toml`: one demonstration (its title and tab text keys, hint, scene, listing, presets, camera, and the
     parameters it changes); `demos/index.toml` orders them; `demos/presets/` holds cameras and parameters several share.
     A storyboard `demo` key resets to the demonstration's state.
@@ -156,7 +176,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   input to the result: how many vectors are drawn, how many samples or rays, how many readout rows (O3DE:
   `vectorsShown`, `ggxSamples`, `readoutRows`).
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
-  `rows`, `slider`, `toggle`, `show`). Keep each demonstration's dock inside its width: a fourth row per group at most.
+  `rows`, `slider`, `toggle`, `show`; `values` and `value` for declared values, `camera` for the camera's). Keep each demonstration's dock inside its width: a fourth row per group at most.
 - On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `packages/o3de_lighting/src/o3de/lighting/text.rs`; declare both files in its package as `text/en` and `text/zh-cn`), and build.rs checks them against the directory of the file with `Table::new("<package>.text")` and the package's data. Technical terms stay English in both.
 - Data files the investigation loads (meshes, images, tables) are resources: declare them in a collection of its
   package (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and the kinds

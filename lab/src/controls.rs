@@ -14,6 +14,7 @@ use crate::investigation;
 use crate::palette;
 use crate::shot::{PanelMode, RecordRef, ShotState};
 use crate::ui::{self, DockTab, Ink, UiInput, ViewerAction, ViewerChrome};
+use crate::values::{self, Entry, Reflect, Type, Value};
 use crate::volume::{self, Volume};
 use egui::{pos2, vec2, Color32, CornerRadius, FontId, Rect, RichText, Stroke, StrokeKind, Ui};
 use std::ops::RangeInclusive;
@@ -24,14 +25,7 @@ const BUTTONS: f32 = 300.0;
 pub const SLIDER_WIDTH: f32 = 120.0;
 pub const AXES: [(&str, Color32); 3] = [("X", palette::AXIS_X), ("Y", palette::AXIS_Y), ("Z", palette::AXIS_Z)];
 
-#[derive(Clone, Copy)]
-pub enum Unit {
-    Metres,
-    Degrees,
-    Factor,
-    Plain,
-    Index,
-}
+pub use crate::values::Unit;
 
 /// The records the Layouts demonstration can show: struct, element count,
 /// and the record reference of element `i`.
@@ -134,8 +128,6 @@ impl Dock<'_> {
                 volume::slider(ui, &mut narration, 26.0, BUTTONS - 228.0)
             })
             .inner;
-        self.widgets.push(("narration".into(), r.rail));
-        self.widgets.push(("narration-mute".into(), r.mute));
         if r.changed || r.committed {
             self.actions.push(ViewerAction::SetNarration(narration, r.committed));
         }
@@ -253,27 +245,103 @@ impl Dock<'_> {
         });
     }
 
+    /// The camera's values labelled `view` (src/camera.rs).
     pub fn camera(&mut self, ui: &mut Ui) {
-        let c = self.state.camera;
-        let hint = tr("controls.camera_hint");
-        self.group(ui, tr("controls.camera"), Some(hint), |d, ui| {
-            d.rows(ui, "camera", |d, ui| {
-                let wrapped = (c.yaw + 180.0).rem_euclid(360.0) - 180.0;
-                let set = |d: &mut Self, camera: OrbitCamera| d.actions.push(ViewerAction::SetCamera(camera));
-                if let Some(yaw) = d.number(ui, "cam.yaw", "yaw", palette::TEXT, wrapped, -180.0..=180.0, Unit::Degrees) {
-                    set(d, OrbitCamera { yaw, ..c });
-                }
-                if let Some(pitch) = d.number(ui, "cam.pitch", "pitch", palette::TEXT, c.pitch, -85.0..=85.0, Unit::Degrees) {
-                    set(d, OrbitCamera { pitch, ..c });
-                }
-                if let Some(distance) = d.number(ui, "cam.distance", tr("controls.distance"), palette::TEXT, c.distance, 0.4..=15.0, Unit::Metres) {
-                    set(d, OrbitCamera { distance, ..c });
-                }
-                if let Some(fov) = d.number(ui, "cam.fov", "fov", palette::TEXT, c.fov, 20.0..=90.0, Unit::Degrees) {
-                    set(d, OrbitCamera { fov, ..c });
+        let entries = OrbitCamera::schema().iter().filter(|e| e.has_label("view")).collect();
+        self.entries(ui, tr("controls.camera"), Some(tr("controls.camera_hint")), "camera", entries);
+    }
+
+    /// A group of the values labelled `label` (src/values.rs), one row each
+    /// with the range, unit, and name its declaration gives: a vector's
+    /// components in rows of their own, a toggle as a checkbox.
+    pub fn values(&mut self, ui: &mut Ui, title: &str, hint: Option<&str>, label: &str) {
+        self.entries(ui, title, hint, label, values::labelled(label));
+    }
+
+    /// A group of these values' rows (`id` names its grid).
+    fn entries(&mut self, ui: &mut Ui, title: &str, hint: Option<&str>, id: &str, entries: Vec<&'static Entry>) {
+        if entries.is_empty() {
+            return;
+        }
+        self.group(ui, title, hint, |d, ui| {
+            d.rows(ui, id, |d, ui| {
+                for entry in entries {
+                    d.value_rows(ui, entry);
                 }
             })
         });
+    }
+
+    /// The rows of the value `key` (src/values.rs), inside `rows`: for a
+    /// group that mixes values with sliders of its own.
+    pub fn value(&mut self, ui: &mut Ui, key: &str) {
+        let entry = values::entry(key).unwrap_or_else(|| panic!("no value `{key}`"));
+        self.value_rows(ui, entry);
+    }
+
+    /// The options of the choice `key` (src/values.rs), without its name: a
+    /// combo box for more than three, else one selectable label each.
+    pub fn choice(&mut self, ui: &mut Ui, key: &str) {
+        let entry = values::entry(key).unwrap_or_else(|| panic!("no value `{key}`"));
+        let choices = entry.choices.unwrap_or_else(|| panic!("`{key}` is not a choice"));
+        let count = choices.options.len();
+        let current = (self.state.p(entry.key).round().max(0.0) as usize).min(count - 1);
+        let mut picked = None;
+        if count > 3 {
+            egui::ComboBox::from_id_salt(entry.key).selected_text(choices.option_text(current)).width(250.0).show_ui(ui, |ui| {
+                for i in 0..count {
+                    if ui.selectable_label(i == current, choices.option_text(i)).clicked() {
+                        picked = Some(i);
+                    }
+                }
+            });
+        } else {
+            for i in 0..count {
+                if ui.selectable_label(i == current, choices.option_text(i)).clicked() {
+                    picked = Some(i);
+                }
+            }
+        }
+        if let Some(i) = picked {
+            self.actions.push(ViewerAction::SetParam(entry.key, i as f32));
+        }
+    }
+
+    /// One value's rows.
+    fn value_rows(&mut self, ui: &mut Ui, entry: &'static Entry) {
+        if entry.choices.is_some() {
+            ui.label(RichText::new(entry.label_text()).color(self.color(entry.key, entry.color.unwrap_or(palette::TEXT))));
+            ui.horizontal(|ui| self.choice(ui, entry.key));
+            ui.end_row();
+            return;
+        }
+        let camera = OrbitCamera::schema().iter().any(|c| std::ptr::eq(c, entry));
+        let channels = entry.channels();
+        for (i, channel) in channels.iter().copied().enumerate() {
+            let range = entry.range_of(i).unwrap_or((0.0, 1.0));
+            let current = if camera { self.state.camera.get(channel).expect("a camera value").f32() } else { self.state.p(channel) };
+            if entry.ty == Type::Bool || entry.toggle {
+                ui.label(RichText::new(entry.label_text()).color(self.color(channel, entry.color.unwrap_or(palette::TEXT))));
+                let mut on = current > 0.5;
+                if ui.checkbox(&mut on, "").changed() {
+                    self.actions.push(ViewerAction::SetParam(channel, if on { 1.0 } else { 0.0 }));
+                }
+                ui.end_row();
+                continue;
+            }
+            let (label, color) = if channels.len() > 1 { (["x", "y", "z", "w"][i], AXES.get(i).map_or(palette::TEXT, |a| a.1)) } else { (entry.label_text(), entry.color.unwrap_or(palette::TEXT)) };
+            // An angle shows wrapped into its range (a yaw of 400° as 40°).
+            let shown = if entry.wrap { (current - range.0).rem_euclid(range.1 - range.0) + range.0 } else { current };
+            if let Some(v) = self.number(ui, channel, label, color, shown, range.0..=range.1, entry.unit) {
+                if camera {
+                    let mut c = self.state.camera;
+                    c.set(channel, Value::F32(v));
+                    self.actions.push(ViewerAction::SetCamera(c));
+                } else {
+                    self.actions.push(ViewerAction::SetParam(channel, v));
+                }
+            }
+        }
     }
 
     /// Checkboxes for overlay parameters (0 hidden, 1 shown), four per column.

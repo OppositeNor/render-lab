@@ -71,6 +71,17 @@ def number_text(x: float) -> str:
     return str(int(x)) if float(x).is_integer() else repr(float(x))
 
 
+def param_text(x: float | bool | str | list[float]) -> str:
+    """A parameter's value as a tag writes it (markup.param_value reads it back)."""
+    if isinstance(x, bool):
+        return 'true' if x else 'false'
+    if isinstance(x, str):
+        return x
+    if isinstance(x, list):
+        return ','.join(number_text(n) for n in x)
+    return number_text(x)
+
+
 def attr_text(name: str, value: str) -> str:
     if value[:1] in ('[', '{'):
         return f'{name}={value}'
@@ -101,7 +112,7 @@ def key_attrs(key: Json) -> list[tuple[str, str]]:
         elif field == 'highlight':
             out.append(('highlight', ','.join(v)))
         elif field == 'params':
-            out.extend((f'param.{name}' if name in markup.RESERVED else name, number_text(x)) for name, x in v.items())
+            out.extend((f'param.{name}' if name in markup.RESERVED else name, param_text(x)) for name, x in v.items())
         elif field == 'animate':
             out.append(('animate', json.dumps(v, ensure_ascii=False)))
         elif field in ('blend', 'delay', 'term'):
@@ -122,7 +133,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
     params: Json = {}
     for name, v in attrs:
         if name.startswith('param.'):
-            params[name[6:]] = markup.number(v, where)
+            params[name[6:]] = markup.param_value(v, where)
         elif name == 'camera' and v == 'continuous':
             key.setdefault('camera', {})
         elif name.startswith('camera.'):
@@ -147,7 +158,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
         elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula'):
             key[name] = v
         else:
-            params[name] = markup.number(v, where)
+            params[name] = markup.param_value(v, where)
     if params:
         key['params'] = params
     return key

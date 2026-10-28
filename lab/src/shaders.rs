@@ -61,7 +61,7 @@ pub fn validate(id: &str, source: &str) -> Result<naga::Module> {
 
 /// ", at file:line" for a line of the composed module (each file ends with
 /// a newline, so the composed lines are the files' lines in order).
-fn locate(id: &str, line: Option<u32>) -> String {
+pub(crate) fn locate(id: &str, line: Option<u32>) -> String {
     let Some(mut line) = line else { return String::new() };
     for file in files(id).unwrap_or_default() {
         let resource = resources::get(file);
@@ -72,6 +72,46 @@ fn locate(id: &str, line: Option<u32>) -> String {
         line -= lines;
     }
     String::new()
+}
+
+/// A module as naga reads it with its `///` comments, which carry the tags of
+/// its values (src/shader_data.rs).
+pub struct Reflected {
+    pub id: &'static str,
+    /// Its composed WGSL.
+    pub source: String,
+    pub module: naga::Module,
+}
+
+impl Reflected {
+    /// ", at file:line" for the first line of the composed module that holds `text`.
+    pub fn locate(&self, text: &str) -> String {
+        let line = self.source.lines().position(|l| l.contains(text)).map(|i| i as u32 + 1);
+        locate(self.id, line)
+    }
+}
+
+/// The module `id`, composed, validated, and read with its doc comments;
+/// once per run (the packages do not change while the lab runs).
+pub fn reflect(id: &str) -> Result<&'static Reflected> {
+    static CACHE: std::sync::Mutex<Vec<&'static Reflected>> = std::sync::Mutex::new(Vec::new());
+    if let Some(r) = CACHE.lock().unwrap().iter().find(|r| r.id == id) {
+        return Ok(r);
+    }
+    let source = module(id)?;
+    let mut options = naga::front::wgsl::Options::new();
+    options.parse_doc_comments = true;
+    let module = naga::front::wgsl::Frontend::new_with_options(options)
+        .parse(&source)
+        .map_err(|e| anyhow!("WGSL parse error (with doc comments) in {}{}:\n{}", describe(id), locate(id, e.location(&source).map(|l| l.line_number)), e.emit_to_string(&source)))?;
+    let reflected: &'static Reflected = Box::leak(Box::new(Reflected { id: Box::leak(id.to_string().into_boxed_str()), source, module }));
+    let mut cache = CACHE.lock().unwrap();
+    // Another thread may have read it meanwhile; keep one.
+    if let Some(r) = cache.iter().find(|r| r.id == id) {
+        return Ok(r);
+    }
+    cache.push(reflected);
+    Ok(reflected)
 }
 
 /// The module `id`, composed and validated: what the lab hands wgpu.

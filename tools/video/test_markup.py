@@ -47,6 +47,13 @@ class Parse(unittest.TestCase):
             with self.assertRaises(markup.MarkupError, msg=bad):
                 markup.parse(bad)
 
+    def test_parameter_values(self) -> None:
+        where = 'test'
+        self.assertEqual([markup.param_value(v, where) for v in ('1.5', 'true', 'false', '0.4,1.9,0.8', 'ggxD')], [1.5, True, False, [0.4, 1.9, 0.8], 'ggxD'])
+        for bad in ('a-b', '"x"', '1,b', ''):
+            with self.assertRaises(markup.MarkupError):
+                markup.param_value(bad, where)
+
     def test_readable_and_protect(self) -> None:
         caption = f'with {{@ formula="{FORMULA}"}}, up to ten.'
         self.assertEqual(markup.readable(caption), r'with $\alpha = \frac{1}{1 + n}$, up to ten.')

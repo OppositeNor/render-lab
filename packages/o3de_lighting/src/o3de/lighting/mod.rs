@@ -29,6 +29,7 @@ pub mod ssao;
 pub mod sources;
 pub mod text;
 pub mod transmission;
+pub mod values;
 
 use lab::camera::Projector;
 use lab::controls::Dock;
@@ -192,8 +193,18 @@ impl Investigation for Lighting {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
+    fn choices(&self) -> &'static [&'static lab::values::Choices] {
+        use lab::values::Choice;
+        static CHOICES: std::sync::OnceLock<[&'static lab::values::Choices; 2]> = std::sync::OnceLock::new();
+        CHOICES.get_or_init(|| [brdf::ViewMode::choices(), brdf::DiffuseModel::choices()])
+    }
+
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         Some(&SHADING)
+    }
+
+    fn shader_data(&self, block: &mut lab::shader_data::Block, state: &ShotState) {
+        demos::shader_data(block, state)
     }
 
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {

@@ -19,6 +19,13 @@
 
 #![cfg_attr(not(commercial), allow(dead_code))]
 
+// So `#[derive(Values)]`'s `::lab::values` paths resolve inside the lab too.
+extern crate self as lab;
+
+/// `#[derive(Values)]`: a struct's fields reachable by key; `#[derive(Choice)]`:
+/// an enum's variants as a choice's options (src/values.rs).
+pub use render_lab_derive::{Choice, Values};
+
 pub mod animation;
 pub mod audio;
 pub mod camera;
@@ -55,12 +62,14 @@ pub mod resources;
 pub mod rgb9e5;
 pub mod rich_text;
 pub mod scene;
+pub mod shader_data;
 pub mod shaders;
 pub mod shot;
 pub mod sources;
 pub mod terrain;
 pub mod text;
 pub mod ui;
+pub mod values;
 pub mod viewer;
 pub mod volume;
 

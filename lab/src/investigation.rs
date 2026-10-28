@@ -69,8 +69,10 @@ pub struct Wording {
 /// shared prelude and scene.wgsl, so it may use `SceneVaryings`,
 /// `SceneOutput`, and everything in common.wgsl), and it declares bind group 1:
 ///
-/// - binding 0: `var<uniform> gShading: array<vec4<f32>, SHADING_UNIFORMS>`,
-///   the frame's `FrameContent::shading`;
+/// - binding 0: `var<uniform> gShading`, at most `SHADING_UNIFORMS` vec4s:
+///   the frame's `FrameContent::shading`, or, when it is a struct tagged
+///   `{@ shader_data}`, its values packed by the lab and its derived members
+///   filled by `shader_data` (src/shader_data.rs);
 /// - binding 1: `var<storage, read> gShadingData: array<vec4<f32>>`, `data()`,
 ///   computed once per renderer;
 /// - binding 2: `var<storage, read> gShadingFrame: array<vec4<f32>>`, the
@@ -173,6 +175,13 @@ pub trait Investigation: Sync {
     fn package(&self) -> Option<&'static str> {
         None
     }
+    /// The choices its values use (`#[derive(Choice)]` enums, src/values.rs):
+    /// a shader's tag names one (`choice=ViewMode`), and the lab writes the
+    /// WGSL constants of those with a prefix into the package's `build/`
+    /// when it loads the investigations (`shader_data::write_choices`).
+    fn choices(&self) -> &'static [&'static crate::values::Choices] {
+        &[]
+    }
 
     fn listing(&self, name: &str) -> Option<&'static Listing> {
         self.listings().iter().find(|l| l.name == name)
@@ -268,6 +277,9 @@ pub trait Investigation: Sync {
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         None
     }
+    /// The derived members of the scene shading's `@shader_data` uniform
+    /// (src/shader_data.rs), from the state; the lab has packed its values.
+    fn shader_data(&self, _block: &mut crate::shader_data::Block, _state: &ShotState) {}
     /// The dock's Sliders tab for the current demonstration.
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui);
     /// A click in the viewport at `pixel` on the frame of `shown` (the state on

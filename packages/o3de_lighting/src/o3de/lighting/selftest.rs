@@ -5,6 +5,7 @@
 //! worst difference.
 
 use super::brdf::{self, BrdfMap, BRDF_MAP_SIZE};
+use lab::values::Choice;
 use super::demos;
 use super::shot::{self, Demo};
 use lab::camera::Projector;
@@ -116,6 +117,23 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let modules = manifest["modules"].as_array().cloned().unwrap_or_default();
     let ported = modules.iter().any(|m| m["module"] == super::SHADING.module && m["validated"] == true);
     report.check("the WGSL port (scene module + standard_lighting.wgsl) validated by naga", ported, json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()));
+
+    // The values (values.rs): each demonstration's, read through the typed struct and stored back, are the same.
+    {
+        let mut detail = Vec::new();
+        for demo in Demo::ALL {
+            let state = shot::for_demo(demo);
+            let typed = state.view::<super::values::LightingValues>();
+            let fields = serde_json::to_value(&typed)?;
+            let mut stored = state.clone();
+            stored.store(&typed);
+            let same = stored == state && fields.as_object().is_some_and(|f| f.iter().all(|(k, v)| v.as_f64() == Some(state.p(k) as f64)));
+            if !same {
+                detail.push(demo.key());
+            }
+        }
+        report.check("every demonstration's values read the same through the typed struct (view) and back (store)", detail.is_empty(), json!({"differing": detail}));
+    }
 
     // A frame uploads the objects and gShading the kernels read.
     renderer.render_frame(request(&shot::for_demo(Demo::Specular), &still), None);
@@ -276,7 +294,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     // ---- 5. Whole pixels: o3dePixel on the GPU against brdf::pixel ---------
     let mut pixel_detail = Vec::new();
     let mut pixels_ok = true;
-    for view in 0..brdf::view::COUNT {
+    for view in 0..brdf::ViewMode::choices().options.len() {
         let mut state = shot::for_demo(Demo::Specular);
         state.set("viewMode", view as f32);
         // Every other view with the sphere's occlusion maps assigned.
