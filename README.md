@@ -1,5 +1,7 @@
 # Render Lab
 
+English | [简体中文](README.zh-CN.md)
+
 <p align="center">
   <img src="media/o3de-attenuation-radius.jpg" alt="O3DE's simple point light: its irradiance across the study room as a heat map, fading to zero at the attenuation radius, beside the falloff formula and its values" width="100%">
 </p>
