@@ -272,8 +272,8 @@ pub trait Investigation: Sync {
     fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
         &[]
     }
-    /// The actions a story can run (src/actions.rs): `&Self::ACTIONS` of a
-    /// `#[lab::actions]` block.
+    /// The actions a story can run and the click handlers it can give an
+    /// image (src/actions.rs): `&Self::ACTIONS` of a `#[lab::actions]` block.
     fn actions(&self) -> &'static crate::actions::Actions {
         &crate::actions::NONE
     }

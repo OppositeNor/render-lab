@@ -231,6 +231,12 @@ A picture the story shows is an image by key (`packages/rlstd/src/inset.rs`). De
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
 The story writes `{@ image=key imageCorner=top-left}` and `{@ imageHide=key}`, and chooses the corner and the title.
+A click on an inset never reaches the scene behind it. What a click on an image's picture does is a click handler, a
+`#[click]` function in the `#[lab::actions]` block, `fn select_page(frame: &mut ClickFrame) -> bool` (the state on
+screen, the state it sets, and `frame.uv`, the point clicked, 0..1 with y down). The story gives an image one,
+`{@ image=atlas imageClick=selectPage}`; an inset the package draws names one in `PictureInset::click`. A click happens
+while no timeline drives the state (a demonstration, or a timeline paused). Lumen's `selectPage` picks a page's card,
+then the page.
 
 A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`, Godot's
 `shaders/sdfgi_views.wgsl`): a `texture_storage_2d<rgba8unorm, write>` at `@group(3) @binding(0)` tagged

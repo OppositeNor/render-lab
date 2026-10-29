@@ -134,7 +134,8 @@ enum Command {
     Choices,
     /// List the current investigation's actions (lab/src/actions.rs): what a
     /// story starts with `run=<key>` and stops with `stop=<key>`, and the
-    /// arguments it gives them (`run.<argument>=…`).
+    /// arguments it gives them (`run.<argument>=…`); and its click handlers,
+    /// which a story gives an image (`imageClick=<key>`).
     Actions,
     /// List the images the current investigation publishes for a story to
     /// show (`{@ image=<key>}`), and the image kinds its package's shaders
@@ -330,7 +331,14 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
         Command::Actions => {
-            for spec in investigation::current().actions().specs {
+            let actions = investigation::current().actions();
+            for click in actions.clicks {
+                println!("click {}", click.key);
+                if !click.doc.is_empty() {
+                    println!("    {}", click.doc);
+                }
+            }
+            for spec in actions.specs {
                 let args: Vec<String> = spec.args.iter().map(|a| format!("{}: {}{}", a.key, a.kind.describe(), if a.required { "" } else { " (optional)" })).collect();
                 println!("{}({})", spec.key, args.join(", "));
                 if !spec.doc.is_empty() {

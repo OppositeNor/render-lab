@@ -21,7 +21,7 @@ GAP = 0.32       # silence between sentences
 TAIL = 0.70      # silence after a beat's last sentence
 MAX_EXTRA_PAUSE = 2.2
 CAPTION_WIDTH = 58
-KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide'}
+KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick'}
 # How long a lit term takes to fade in when its cue names no blend (seconds).
 TERM_FADE = 0.4
 # How a key's blend moves (src/lab/shot.rs `Ease`); smooth when a key names none.

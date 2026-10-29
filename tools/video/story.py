@@ -50,7 +50,7 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageParams', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
+KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageClick', 'imageParams', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -165,7 +165,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key[name] = markup.number(v.removesuffix('s'), where)
         elif name == 'term':
             key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom'):
+        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick'):
             key[name] = v
         elif markup.action_attr(key, name, v, where) or markup.image_attr(key, name, v, where):
             continue

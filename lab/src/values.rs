@@ -689,6 +689,13 @@ mod tests {
             }
         }
 
+        /// Selects the probe count the click's x picks (0 to 8).
+        #[click]
+        fn pick_count(frame: &mut crate::actions::ClickFrame) -> bool {
+            frame.state.set("probe.count", (frame.uv.x * 8.0).round());
+            true
+        }
+
         /// Fails, to show its error.
         #[action(key = "fail")]
         fn failing(_frame: &mut crate::actions::ActionFrame) -> Result<(), String> {
@@ -977,6 +984,18 @@ mod tests {
         with_test(|| {
             let error = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageParams": {"probe": 1}}])).validate().unwrap_err().to_string();
             assert!(error.contains("not one (make it with imageFrom"), "{error}");
+        });
+    }
+
+    #[test]
+    fn an_image_names_a_declared_click_handler() {
+        with_test(|| {
+            assert_eq!(Test::ACTIONS.clicks.iter().map(|c| c.key).collect::<Vec<_>>(), ["pickCount"]);
+            let t = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageClick": "pickCount"}]));
+            t.validate().unwrap();
+            assert_eq!(t.state_at(5).images[0].click.as_deref(), Some("pickCount"));
+            let error = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageClick": "pick"}])).validate().unwrap_err().to_string();
+            assert!(error.contains("no click handler `pick` (the investigation's: pickCount)"), "{error}");
         });
     }
 }

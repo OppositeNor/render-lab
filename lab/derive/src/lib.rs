@@ -524,9 +524,39 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
     }
     let ty = input.self_ty.clone();
     let (mut specs, mut arms) = (Vec::new(), Vec::new());
+    let (mut clicks, mut click_arms) = (Vec::new(), Vec::new());
     let mut keys: Vec<String> = Vec::new();
     for item in &mut input.items {
         let syn::ImplItem::Fn(f) = item else { continue };
+        // A click handler: a function of its frame alone.
+        if let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("click")) {
+            let attr = f.attrs.remove(at);
+            let ident = f.sig.ident.clone();
+            let mut key = camel(&ident.to_string());
+            if !matches!(attr.meta, syn::Meta::Path(_)) {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("key") {
+                        key = meta.value()?.parse::<LitStr>()?.value();
+                        Ok(())
+                    } else {
+                        Err(meta.error("unknown `#[click]` attribute (key)"))
+                    }
+                })?;
+            }
+            if f.sig.inputs.len() != 1 || matches!(f.sig.inputs.first(), Some(syn::FnArg::Receiver(_))) {
+                return Err(Error::new(f.sig.span(), "a click handler is a function of its `&mut ClickFrame` alone"));
+            }
+            if clicks.iter().any(|(k, _): &(String, String)| *k == key) {
+                return Err(Error::new(ident.span(), format!("two click handlers have the key `{key}`")));
+            }
+            clicks.push((key.clone(), doc(&f.attrs)));
+            let call = quote! { <#ty>::#ident(frame) };
+            click_arms.push(match f.sig.output {
+                syn::ReturnType::Default => quote! { #key => { #call; Ok(true) } },
+                _ => quote! { #key => Ok(#call) },
+            });
+            continue;
+        }
         let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("action")) else { continue };
         let attr = f.attrs.remove(at);
         let ident = f.sig.ident.clone();
@@ -575,17 +605,28 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
             _ => quote! { #key => #call.map_err(|e| format!("the action `{}`: {e}", #key)) },
         });
     }
-    if specs.is_empty() {
-        return Err(Error::new(input.span(), "`#[lab::actions]` finds no `#[action]` function in the block"));
+    if specs.is_empty() && clicks.is_empty() {
+        return Err(Error::new(input.span(), "`#[lab::actions]` finds no `#[action]` or `#[click]` function in the block"));
     }
+    let click_specs = clicks.iter().map(|(key, doc)| quote! { ::lab::actions::ClickSpec { key: #key, doc: #doc } });
     Ok(quote! {
         #input
 
         impl #ty {
             /// The actions of this block's `#[action]` functions (`Investigation::actions`).
-            pub const ACTIONS: ::lab::actions::Actions = ::lab::actions::Actions { specs: &[#(#specs),*], run: <#ty>::__lab_run_action };
+            pub const ACTIONS: ::lab::actions::Actions = ::lab::actions::Actions { specs: &[#(#specs),*], run: <#ty>::__lab_run_action, clicks: &[#(#click_specs),*], click: <#ty>::__lab_run_click };
 
             #[doc(hidden)]
+            #[allow(unused_variables)]
+            fn __lab_run_click(key: &str, frame: &mut ::lab::actions::ClickFrame) -> ::std::result::Result<bool, ::std::string::String> {
+                match key {
+                    #(#click_arms,)*
+                    other => Err(format!("no click handler `{other}`")),
+                }
+            }
+
+            #[doc(hidden)]
+            #[allow(unused_variables)]
             fn __lab_run_action(action: &::lab::actions::RunningAction, frame: &mut ::lab::actions::ActionFrame) -> ::std::result::Result<(), ::std::string::String> {
                 match action.key.as_str() {
                     #(#arms,)*

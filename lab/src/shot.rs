@@ -411,6 +411,9 @@ pub struct Key {
     /// The images it fades out.
     #[serde(default)]
     pub image_hide: Vec<String>,
+    /// The click handler a click on `image`'s picture runs (src/actions.rs, `#[click]`).
+    #[serde(default)]
+    pub image_click: Option<String>,
     /// Its title: a text key of the investigation's package (the
     /// investigation's own title of it, or none, by default).
     #[serde(default)]
@@ -527,8 +530,11 @@ fn components(value: &serde_json::Value) -> Result<Vec<f32>, String> {
 /// instances made by the keys before it, by name.
 fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>) -> Result<(), String> {
     let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) else {
-        return if key.image_from.is_some() || !key.image_params.is_empty() { Err("imageFrom and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
+        return if key.image_from.is_some() || !key.image_params.is_empty() || key.image_click.is_some() { Err("imageFrom, imageClick, and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
     };
+    if let Some(click) = &key.image_click {
+        investigation::current().actions().check_click(click)?;
+    }
     let package = investigation::current().package().unwrap_or("rlstd");
     if let Some(from) = &key.image_from {
         instances.insert(name.to_string(), crate::views::kind(package, from)?);
@@ -701,7 +707,7 @@ impl Timeline {
                     }
                     None => {
                         let source = made.unwrap_or_else(|| image_source(name).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)));
-                        state.images.push(StoryImage { name: name.to_string(), source, title: None, corner: Corner::TopRight, alpha: 0.0 });
+                        state.images.push(StoryImage { name: name.to_string(), source, title: None, corner: Corner::TopRight, alpha: 0.0, click: None });
                     }
                 }
                 let image = state.images.iter_mut().find(|i| i.name == name).expect("the image just shown");
@@ -710,6 +716,9 @@ impl Timeline {
                 }
                 if let Some(corner) = key.image_corner {
                     image.corner = corner;
+                }
+                if let Some(click) = &key.image_click {
+                    image.click = Some(click.clone());
                 }
                 if !shown {
                     segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));

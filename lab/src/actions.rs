@@ -25,6 +25,13 @@
 //! }
 //! ```
 //!
+//! The same block declares the package's click handlers, `#[click]`
+//! functions of a `&mut ClickFrame`: what a click on an image's picture does
+//! when a story names it (`{@ image=atlas imageClick=selectPage}`) or an
+//! inset the package draws does (`PictureInset::click`). A click happens in
+//! the viewer, on what is on screen, while no timeline drives the state (a
+//! demonstration, or a timeline paused); a handler sets that state.
+//!
 //! The macro gives the type `ACTIONS`, which the investigation returns from
 //! `Investigation::actions`. An action's key is its function's name in
 //! camelCase (`jumpFlood`; `#[action(key = "…")]` names another), and its
@@ -41,6 +48,22 @@ use std::collections::BTreeMap;
 pub struct ActionFrame<'a> {
     pub state: &'a mut ShotState,
     pub elapsed: f32,
+}
+
+/// What a click handler runs in: the state on screen, the state it sets,
+/// and the point clicked on the image's picture (0..1, y down).
+pub struct ClickFrame<'a> {
+    pub shown: &'a ShotState,
+    pub state: &'a mut ShotState,
+    pub uv: glam::Vec2,
+    pub content: &'a crate::frame::FrameContent,
+    pub statics: &'a crate::frame::Statics,
+}
+
+/// A click handler a package declares (`#[click]`).
+pub struct ClickSpec {
+    pub key: &'static str,
+    pub doc: &'static str,
 }
 
 /// The kind of an action's argument, as a story writes it.
@@ -201,16 +224,29 @@ pub struct ActionSpec {
     pub args: &'static [ArgSpec],
 }
 
-/// A package's actions: what they are, and how one runs (`#[lab::actions]` writes both).
+/// A package's actions and click handlers: what they are, and how one runs
+/// (`#[lab::actions]` writes both).
 pub struct Actions {
     pub specs: &'static [ActionSpec],
     pub run: fn(&RunningAction, &mut ActionFrame) -> Result<(), String>,
+    pub clicks: &'static [ClickSpec],
+    /// Runs click handler `key`: whether it set the state.
+    pub click: fn(&str, &mut ClickFrame) -> Result<bool, String>,
 }
 
-/// An investigation without actions.
-pub static NONE: Actions = Actions { specs: &[], run: |action, _| Err(format!("no action `{}`", action.key)) };
+/// An investigation without actions or click handlers.
+pub static NONE: Actions = Actions { specs: &[], run: |action, _| Err(format!("no action `{}`", action.key)), clicks: &[], click: |key, _| Err(format!("no click handler `{key}`")) };
 
 impl Actions {
+    /// Why a story cannot name click handler `key`: one these do not declare.
+    pub fn check_click(&self, key: &str) -> Result<(), String> {
+        if self.clicks.iter().any(|c| c.key == key) {
+            return Ok(());
+        }
+        let known: Vec<&str> = self.clicks.iter().map(|c| c.key).collect();
+        Err(format!("no click handler `{key}` (the investigation's: {})", if known.is_empty() { "none".into() } else { known.join(", ") }))
+    }
+
     pub fn spec(&self, key: &str) -> Option<&'static ActionSpec> {
         self.specs.iter().find(|s| s.key == key)
     }

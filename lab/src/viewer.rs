@@ -168,6 +168,8 @@ pub struct App {
     /// The dock's slider rectangles from the last frame.
     pub dock_widgets: Vec<(String, egui::Rect)>,
     pub last_content: Option<FrameContent>,
+    /// The insets of the last frame drawn, for clicks (`UiReport::insets`).
+    last_insets: Vec<crate::ui::InsetArea>,
     /// Every beat of the timeline, for the bar's hover preview.
     bar_sections: Vec<crate::ui::BarSection>,
     /// The bar's hover preview drawn last frame (for the autotest).
@@ -242,6 +244,7 @@ impl App {
             tab: DockTab::default(),
             dock_widgets: Vec::new(),
             last_content: None,
+            last_insets: Vec::new(),
             last_tick: Instant::now(),
             frames: 0,
             autotest,
@@ -743,11 +746,29 @@ impl App {
         }
     }
 
+    /// The insets of the last frame drawn, in canvas points (for a viewer test's clicks).
+    pub fn inset_areas(&self) -> &[crate::ui::InsetArea] {
+        &self.last_insets
+    }
+
     fn click(&mut self, at: Vec2) {
         let Some(pixel) = self.viewport_pixel(at) else { return };
         let Some(content) = &self.last_content else { return };
         let shown = self.render_state();
         let Some(renderer) = &self.renderer else { return };
+        // An inset covers the scene behind it; a click on the picture of one
+        // with a click handler (`PictureInset::click`) runs the handler.
+        let point = self.to_egui(at);
+        if let Some(inset) = self.last_insets.iter().rev().find(|i| i.frame.contains(point)) {
+            if let Some(handler) = inset.click.as_deref().filter(|_| inset.picture.contains(point)) {
+                let uv = (point - inset.picture.min) / inset.picture.size();
+                let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
+                if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
+                    eprintln!("click on an image: {e}");
+                }
+            }
+            return;
+        }
         let projector = Projector::new(&content.uniforms.camera);
         investigation::current().click(&shown, &mut self.state, content, &renderer.statics, &projector, pixel);
     }
@@ -890,6 +911,7 @@ impl App {
         }
         if result.content.is_some() {
             self.last_content = result.content;
+            self.last_insets = result.report.insets;
         }
         for action in chrome.actions {
             self.apply(action);

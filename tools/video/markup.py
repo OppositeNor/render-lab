@@ -13,7 +13,8 @@ the same tags in on-screen text (src/lab/rich_text.rs).
   stops them; and `image=name` (`imageTitle=text-key`, `imageCorner=top-left`),
   an image the investigation publishes, a PNG resource, or, with
   `imageFrom=kind` and `image.<param>=value`, an instance of an image kind its
-  shaders define, in an inset (`imageHide=a,b` hides some, `image=""` all).
+  shaders define, in an inset (`imageHide=a,b` hides some, `image=""` all;
+  `imageClick=handler` runs the package's click handler on a click on it).
 - `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
   (a full shot key, for cameras, records, and motions).
 - `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
@@ -36,7 +37,7 @@ from typing import Any
 Json = dict[str, Any]
 
 # Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom')
+STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
 RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide')

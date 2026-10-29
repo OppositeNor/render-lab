@@ -132,6 +132,17 @@ pub struct UiReport {
     /// how many readout rows and notes did not fit below it.
     pub formula_scale: Option<f32>,
     pub readout_overflow: usize,
+    /// The insets drawn: where each is, where its picture is, and its name
+    /// for clicks (`PictureInset::click`), in canvas points.
+    #[serde(skip)]
+    pub insets: Vec<InsetArea>,
+}
+
+#[derive(Clone, Debug)]
+pub struct InsetArea {
+    pub frame: Rect,
+    pub picture: Rect,
+    pub click: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -342,7 +353,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 let package = investigation::current().package().unwrap_or("rlstd");
                 let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
                 for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0) {
-                    obstacles.push(crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset));
+                    let (frame, picture) = crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset);
+                    obstacles.push(frame);
+                    report.insets.push(InsetArea { frame, picture, click: inset.click.clone() });
                 }
                 #[cfg(commercial)]
                 if let Some(history) = &content.history {

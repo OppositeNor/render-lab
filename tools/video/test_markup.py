@@ -41,6 +41,8 @@ class Parse(unittest.TestCase):
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0], 'gain': 2.0}})
         self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'image': 'floor', 'imageParams': {'gain': 4.0}, 'blend': 1.0})
         self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'imageHide': ['floor', 'ceiling']})
+        s = markup.parse('{@ image=atlas imageClick=selectPage} A.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'atlas', 'imageClick': 'selectPage'})
 
     def test_named_cues(self) -> None:
         s = markup.parse('{@wide}A ray.')

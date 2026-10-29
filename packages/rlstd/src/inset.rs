@@ -56,6 +56,9 @@ pub struct StoryImage {
     pub corner: Corner,
     /// How far it has faded in (0..1).
     pub alpha: f32,
+    /// The click handler a click on its picture runs (`imageClick=`), in
+    /// place of the investigation's own.
+    pub click: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -91,6 +94,9 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
     };
     inset.alpha *= image.alpha;
     inset.corner = image.corner;
+    if image.click.is_some() {
+        inset.click = image.click.clone();
+    }
     if let Some(title) = &image.title {
         inset.title = vec![crate::i18n::package_text(package, title).to_string()];
     }
@@ -172,6 +178,9 @@ pub struct PictureInset {
     pub link: Option<Link>,
     /// Lines under the picture.
     pub lines: Vec<(String, Color32)>,
+    /// Its click handler (`#[click]`, lab/src/actions.rs): a click on the
+    /// picture runs it with the point clicked.
+    pub click: Option<String>,
 }
 
 impl PictureInset {
@@ -191,12 +200,13 @@ impl PictureInset {
             marker: None,
             link: None,
             lines: Vec::new(),
+            click: None,
         }
     }
 }
 
-/// Draw `inset` over the viewport; returns the rectangle it covers.
-pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, textures: &Textures, inset: &PictureInset) -> Rect {
+/// Draw `inset` over the viewport; returns the rectangle it covers and its picture's.
+pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, textures: &Textures, inset: &PictureInset) -> (Rect, Rect) {
     let painter = ink.painter;
     let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
     let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
@@ -305,7 +315,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
         ink.text(pos2(frame.min.x + 14.0, y), Align2::LEFT_TOP, ink.fit_right(line, width - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(*color));
         y += 32.0;
     }
-    frame.expand(4.0)
+    (frame.expand(4.0), image)
 }
 
 /// The picture's texture, and its own size in pixels when known: the
