@@ -49,8 +49,6 @@ pub const SPECULAR: Color32 = palette::rgb(0xff8fc8);
 pub const HALF: Color32 = palette::rgb(0xb49cff);
 /// GGX's G term (and the IBL's F0 · A + B), apart from D's pink.
 pub const TERM_G: Color32 = palette::rgb(0xffa14a);
-/// GGX's F term.
-pub const TERM_F: Color32 = palette::TEXT;
 
 /// The object a roughness or metallic parameter belongs to.
 fn material_params(object: usize) -> Option<(&'static str, &'static str)> {
@@ -279,12 +277,12 @@ fn cubemap_cross_labels(labels: &mut Vec<Label>, state: &ShotState, camera: &lab
         eye + dir
     };
     for (x, y, name) in [(1.0, 0.0, "+Y"), (0.0, 1.0, "-X"), (1.0, 1.0, "-Z"), (2.0, 1.0, "+X"), (3.0, 1.0, "+Z"), (1.0, 2.0, "-Y")] {
-        labels.push(Label { anchor: at(x + 0.5, y + 0.12), text: name.into(), color: palette::TEXT });
+        labels.push(Label { anchor: at(x + 0.5, y + 0.12), text: name.into(), color: palette::text() });
     }
     let mip = state.p("probeCubemapMip").clamp(0.0, (super::ibl::SPECULAR_MIPS - 1) as f32);
     let texels = super::ibl::SPECULAR_SIZE >> mip.round() as u32;
     let text = format!("{} {} · mip {:.1} · {texels} × {texels}", tr("demos.probe"), super::reflections::shown_cubemap(state) + 1, mip);
-    labels.push(Label { anchor: at(3.0, 2.5), text, color: palette::ACCENT });
+    labels.push(Label { anchor: at(3.0, 2.5), text, color: palette::accent() });
 }
 
 /// A direction perpendicular to `n` in the plane of `n` and `l`.
@@ -426,13 +424,13 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         for (i, anchor) in [(ids::SPHERE, Vec3::new(-1.05, 1.36, -0.55)), (ids::TEAPOT, Vec3::new(-0.25, 0.72, -1.75)), (ids::BOX, Vec3::new(1.05, 1.02, 0.15))] {
             let Some((roughness, metallic)) = material_params(i) else { continue };
             let text = format!("{} · metallic {:.2} · roughness {:.2}", object_name(statics.scene.objects[i].name), state.p(metallic), state.p(roughness));
-            labels.push(Label { anchor, text, color: palette::TEXT });
+            labels.push(Label { anchor, text, color: palette::text() });
         }
     }
 
     if state.p("probeBoxes") > 0.0 {
         for probe in &shading.probes {
-            let color = [palette::ACCENT, palette::REFLECTED][probe.cubemap.min(1)];
+            let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
             obb_edges(&mut content.draw, probe.position, probe.rotation, probe.outer_half, color, state.p("probeBoxes") * 0.6, 2.0);
             obb_edges(&mut content.draw, probe.position, probe.rotation, probe.inner_half, color, state.p("probeBoxes"), 3.0);
             content.draw.point(probe.position, 9.0, color, state.p("probeBoxes"));
@@ -485,7 +483,7 @@ fn obb_edges(draw: &mut DrawLists, center: Vec3, rotation: glam::Quat, half: Vec
 /// axis (local z, the decalUp of GetDecalAttenuation), and its sort key.
 fn decal_boxes(draw: &mut DrawLists, labels: &mut Vec<Label>, decals: &[super::decals::Decal], alpha: f32) {
     for d in decals {
-        let color = [palette::ACCENT, palette::REFLECTED][d.texture.min(1)];
+        let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
         let [x, y, z] = d.axes();
         let corner = |i: u32| d.position + x * d.half_size.x * if i & 1 != 0 { 1.0 } else { -1.0 } + y * d.half_size.y * if i & 2 != 0 { 1.0 } else { -1.0 } + z * d.half_size.z * if i & 4 != 0 { 1.0 } else { -1.0 };
         for i in 0..8u32 {
@@ -533,12 +531,12 @@ fn falloff_curve(draw: &mut DrawLists, labels: &mut Vec<Label>, light: &PointLig
         plain.push(point(x, candelas / s.distance_squared));
         attenuated.push(point(x, if s.falloff < 1.0 { s.intensity.y } else { 0.0 }));
     }
-    draw.segment(foot, foot + dir * reach, palette::TEXT_FAINT, alpha * 0.6, 1.5, FLAG_ARROW);
+    draw.segment(foot, foot + dir * reach, palette::text_faint(), alpha * 0.6, 1.5, FLAG_ARROW);
     for w in plain.windows(2) {
-        draw.segment(w[0], w[1], palette::TEXT_DIM, alpha * 0.8, 2.0, FLAG_DASHED);
+        draw.segment(w[0], w[1], palette::text_dim(), alpha * 0.8, 2.0, FLAG_DASHED);
     }
     draw.polyline(&attenuated, LIGHT, alpha, 3.5);
-    labels.push(Label { anchor: plain[40], text: "I / d²".into(), color: palette::TEXT_DIM });
+    labels.push(Label { anchor: plain[40], text: "I / d²".into(), color: palette::text_dim() });
     labels.push(Label { anchor: attenuated[70], text: "I / d² · (1 − (d²/r²)²)²".into(), color: LIGHT });
 }
 
@@ -632,13 +630,13 @@ pub fn culling_view(state: &ShotState, shading: &Shading, objects: &[ObjectData]
     let listed: Vec<u32> = list.split(|&e| e >> 16 == culling::END_OF_GROUP).nth(culling::GROUP_SIMPLE_POINT as usize).unwrap_or(&[]).iter().map(|e| e >> 16).collect();
     let reach = lights.iter().filter(|l| (l.position - p).length_squared() * l.inv_attenuation_radius_squared < 1.0).count();
     let rows = vec![
-        (tr("demos.tile_16_x_16_px").to_string(), format!("({}, {})", tile[0], tile[1]), palette::TEXT),
-        ("zNear … zFar".to_string(), format!("{:.2} … {:.2} m", data.z_near, data.z_far), palette::ACCENT),
-        (tr("demos.depth_bins_2_logmaxbins").to_string(), format!("{}", 1u32 << data.log_max_bins), palette::ACCENT),
-        (tr("demos.32_slice_mask").to_string(), format!("0x{:08X}", data.mask), palette::ACCENT),
+        (tr("demos.tile_16_x_16_px").to_string(), format!("({}, {})", tile[0], tile[1]), palette::text()),
+        ("zNear … zFar".to_string(), format!("{:.2} … {:.2} m", data.z_near, data.z_far), palette::accent()),
+        (tr("demos.depth_bins_2_logmaxbins").to_string(), format!("{}", 1u32 << data.log_max_bins), palette::accent()),
+        (tr("demos.32_slice_mask").to_string(), format!("0x{:08X}", data.mask), palette::accent()),
         (tr("demos.simple_point_lights").to_string(), format!("{}", lights.len()), LIGHT),
         (tr("demos.in_the_tile_s_list").to_string(), format!("{in_tile}"), LIGHT),
-        (tr("demos.the_point_s_bin").to_string(), format!("{bin}  ({:.2} m)", distance), palette::ACCENT),
+        (tr("demos.the_point_s_bin").to_string(), format!("{bin}  ({:.2} m)", distance), palette::accent()),
         (tr("demos.in_that_bin").to_string(), format!("{}", kept.len()), LIGHT),
         (tr("demos.lights_reaching_the_point").to_string(), format!("{reach}"), DIFFUSE),
     ];
@@ -662,11 +660,11 @@ fn tile_overlay(draw: &mut DrawLists, camera: &lab::layout::CameraData, tile: &C
     for k in 0..=bins {
         let z = tile.data.z_near + (tile.data.z_far - tile.data.z_near) * k as f32 / bins as f32;
         let ring: Vec<Vec3> = uvs.iter().chain(std::iter::once(&uvs[0])).map(|uv| corner(*uv, z)).collect();
-        let color = if k == tile.bin || k == tile.bin + 1 { palette::SELECTED } else { palette::ACCENT };
+        let color = if k == tile.bin || k == tile.bin + 1 { palette::SELECTED } else { palette::accent() };
         draw.polyline(&ring, color, alpha, 2.0);
     }
     for uv in uvs {
-        draw.segment(corner(uv, tile.data.z_near), corner(uv, tile.data.z_far), palette::ACCENT, alpha * 0.7, 1.5, 0);
+        draw.segment(corner(uv, tile.data.z_near), corner(uv, tile.data.z_far), palette::accent(), alpha * 0.7, 1.5, 0);
     }
     draw.point(tile.point, 9.0, palette::SELECTED, alpha);
 }
@@ -678,9 +676,9 @@ fn tile_overlay(draw: &mut DrawLists, camera: &lab::layout::CameraData, tile: &C
 /// it keeps its own marker, and is ringed and joined the same way.
 fn light_markers(draw: &mut DrawLists, shading: &Shading, tile: Option<&CullTile>, alpha: f32) {
     if let Some(t) = tile.filter(|t| shading.light_on && t.kept.contains(&0)) {
-        draw.point(shading.light.position, 17.0, palette::TEXT, alpha);
+        draw.point(shading.light.position, 17.0, palette::text(), alpha);
         draw.point(shading.light.position, 11.0, LIGHT, alpha);
-        draw.segment(t.point, shading.light.position, palette::TEXT, alpha * 0.8, 2.0, FLAG_DASHED);
+        draw.segment(t.point, shading.light.position, palette::text(), alpha * 0.8, 2.0, FLAG_DASHED);
     }
     for (i, light) in shading.extra_lights.iter().enumerate() {
         let index = i as u32 + 1;
@@ -689,10 +687,10 @@ fn light_markers(draw: &mut DrawLists, shading: &Shading, tile: Option<&CullTile
         let kept = tile.is_some_and(|t| t.kept.contains(&index));
         let listed = tile.is_some_and(|t| t.listed.contains(&index));
         if kept {
-            draw.point(light.position, 16.0, palette::TEXT, alpha);
+            draw.point(light.position, 16.0, palette::text(), alpha);
             draw.point(light.position, 11.0, color, alpha);
             if let Some(t) = tile {
-                draw.segment(t.point, light.position, palette::TEXT, alpha * 0.8, 2.0, FLAG_DASHED);
+                draw.segment(t.point, light.position, palette::text(), alpha * 0.8, 2.0, FLAG_DASHED);
             }
         } else {
             draw.point(light.position, if listed { 10.0 } else { 8.0 }, color, alpha * if listed { 0.85 } else { 0.4 });
@@ -713,13 +711,13 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             row("light position", f3(shading.light.position), LIGHT);
             row(tr("demos.intensity_cd"), f3(shading.light.rgb_intensity_candelas), LIGHT);
             row(tr("common.attenuation_radius"), format!("{:.2} m", shading.light.attenuation_radius()), LIGHT);
-            row("", String::new(), palette::TEXT);
+            row("", String::new(), palette::text());
             row("diffuseLighting", f3(px.diffuse()), DIFFUSE);
             row("specularLighting", f3(px.specular()), SPECULAR);
             let ibl_on = if shading.ibl { 1.0 } else { 0.0 };
             row(tr("demos.ibl_diffuse"), f3(px.ibl.diffuse * ibl_on), DIFFUSE);
             row(tr("demos.ibl_specular"), f3(px.ibl.specular * ibl_on), SPECULAR);
-            row(tr("demos.pixel"), f3(px.diffuse() + px.specular() + (px.ibl.diffuse + px.ibl.specular) * ibl_on), palette::TEXT);
+            row(tr("demos.pixel"), f3(px.diffuse() + px.specular() + (px.ibl.diffuse + px.ibl.specular) * ibl_on), palette::text());
             (tr("demos.forward_pass_at_the_point"), object)
         }
         Demo::Culling => {
@@ -731,16 +729,16 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
         }
         Demo::Surface => {
             let material = shading.material(shading.inspected);
-            row("baseColor", f3(s.base_color), palette::TEXT);
-            row("metallic", f1(s.metallic), palette::TEXT);
-            row("specularF0Factor", f1(material.specular_f0_factor), palette::TEXT);
-            row("roughness (authored)", f1(content_roughness(state, shading.inspected)), palette::TEXT);
-            row("", String::new(), palette::TEXT);
+            row("baseColor", f3(s.base_color), palette::text());
+            row("metallic", f1(s.metallic), palette::text());
+            row("specularF0Factor", f1(material.specular_f0_factor), palette::text());
+            row("roughness (authored)", f1(content_roughness(state, shading.inspected)), palette::text());
+            row("", String::new(), palette::text());
             row("albedo", f3(s.albedo), DIFFUSE);
             row("specularF0", f3(s.specular_f0), SPECULAR);
-            row("roughnessLinear", f1(s.roughness_linear), palette::ACCENT);
-            row("roughnessA", f1(s.roughness_a), palette::ACCENT);
-            row("roughnessA2", f1(s.roughness_a2), palette::ACCENT);
+            row("roughnessLinear", f1(s.roughness_linear), palette::accent());
+            row("roughnessA", f1(s.roughness_a), palette::accent());
+            row("roughnessA2", f1(s.roughness_a2), palette::accent());
             row("diffuseAmbientOcclusion", f1(s.diffuse_ao), DIFFUSE);
             row("specularOcclusion", f1(s.specular_occlusion), SPECULAR);
             ("SetAlbedoAndSpecularF0", object)
@@ -752,18 +750,18 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             let before = brdf::pixel(&plain, objects, p, n, p + n, shading.inspected, 1.0, BrdfMap::get(), [Vec3::ZERO; 2]).surface;
             row(tr("demos.albedo_surface"), f3(before.albedo), DIFFUSE);
             if shading.decals.is_empty() {
-                row("decals", tr("demos.off").into(), palette::TEXT_DIM);
+                row("decals", tr("demos.off").into(), palette::text_dim());
             }
             for i in super::decals::sorted(&shading.decals) {
                 let d = &shading.decals[i];
                 let name = format!("{} (key {})", decal_name(d.texture), d.sort_key);
-                let color = [palette::ACCENT, palette::REFLECTED][d.texture.min(1)];
+                let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
                 match super::decals::sample(d, p, n) {
                     Some(k) => {
                         row(&name, format!("uvw ({:.2}, {:.2}, {:.2})", k.uvw.x, k.uvw.y, k.uvw.z), color);
                         row(tr("demos.opacity_angle"), format!("{:.2}·{:.2}·{:.2} = {:.2}", k.base[3], d.opacity, k.attenuation, k.albedo_opacity), color);
                     }
-                    None => row(&name, tr("demos.outside_its_box").into(), palette::TEXT_DIM),
+                    None => row(&name, tr("demos.outside_its_box").into(), palette::text_dim()),
                 }
             }
             row(tr("demos.albedo_after"), f3(s.albedo), DIFFUSE);
@@ -772,15 +770,16 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             ("ApplyDecal", object)
         }
         Demo::Specular => {
-            row("roughnessA2", f1(s.roughness_a2), palette::ACCENT);
+            row("roughnessA2", f1(s.roughness_a2), palette::accent());
             row("NdotL", f1(g.n_dot_l), LIGHT);
             row("NdotV", f1(l.n_dot_v), palette::VIEW);
             row("NdotH", f1(g.n_dot_h), HALF);
             row("HdotV", f1(g.h_dot_v), HALF);
             row("D  NormalDistributionGGX", f1(g.d), SPECULAR);
             row("G  (visibility, ÷ 4 NdotL NdotV)", f1(g.g), TERM_G);
-            row("F  FresnelSchlick", f3(g.f), TERM_F);
-            row(tr("demos.compensation"), f3(l.multi_scatter_compensation), palette::TEXT_DIM);
+            // GGX's F term, in the text's colour.
+            row("F  FresnelSchlick", f3(g.f), palette::text());
+            row(tr("demos.compensation"), f3(l.multi_scatter_compensation), palette::text_dim());
             row("D·G·F·NdotL·comp", f3(brdf::specular_ggx(l.dir_to_camera, px.light.dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2, l.multi_scatter_compensation)), SPECULAR);
             row(tr("demos.light_lux"), f3(px.specular()), SPECULAR);
             ("SpecularGGX", object)
@@ -793,8 +792,8 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                     let h = (to_light + l.dir_to_camera).normalize();
                     let fc = brdf::fresnel_schlick(brdf::saturate(h.dot(to_light)), Vec3::splat(0.04)) * c.factor;
                     let coated = brdf::clear_coat_specular(to_light, l.dir_to_camera, &c, base);
-                    row("clearCoat.factor", f1(c.factor), palette::ACCENT);
-                    row("clearCoat.roughness", f1(c.roughness), palette::ACCENT);
+                    row("clearCoat.factor", f1(c.factor), palette::accent());
+                    row("clearCoat.roughness", f1(c.roughness), palette::accent());
                     row(tr("demos.specularf0_base"), f3(s.specular_f0), SPECULAR);
                     row("diffuseResponse", f3(l.diffuse_response), DIFFUSE);
                     row("Fc = F(HdotL, 0.04) · factor", f1(fc.x), HALF);
@@ -802,7 +801,7 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                     row(tr("demos.coat_specular"), f3(coated - base * (Vec3::ONE - fc)), HALF);
                     row(tr("demos.light_lux"), f3(px.specular()), SPECULAR);
                 }
-                None => row("clearCoat.enable", tr("demos.off").into(), palette::TEXT_DIM),
+                None => row("clearCoat.enable", tr("demos.off").into(), palette::text_dim()),
             }
             (tr("demos.clearcoatspecular"), object)
         }
@@ -813,26 +812,26 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                 Some(super::transmission::TransmissionMode::ThinObject) => "ThinObject",
                 None => "None",
             };
-            row("o_transmission_mode", mode.into(), palette::ACCENT);
+            row("o_transmission_mode", mode.into(), palette::accent());
             match (s.transmission, shading.sphere_lights.first()) {
                 (Some(tm), Some(light)) => {
                     let to_light = (light.position - s.position).normalize();
-                    row(tr("demos.thickness_no_shadow_data"), f1(tm.thickness), palette::ACCENT);
+                    row(tr("demos.thickness_no_shadow_data"), f1(tm.thickness), palette::accent());
                     if tm.mode == super::transmission::TransmissionMode::ThickObject {
                         let k = super::transmission::thick_terms(&tm, n, l.dir_to_camera, to_light, 0.0);
                         row("V·−(L + N·distortion)", f1(k.v_dot), palette::VIEW);
-                        row(tr("demos.power_scale"), f1(k.transmittance), palette::ACCENT);
-                        row("exp(−t·k)·saturate(1 − t)", f1(k.lamber_attenuation), palette::ACCENT);
+                        row(tr("demos.power_scale"), f1(k.transmittance), palette::accent());
+                        row("exp(−t·k)·saturate(1 − t)", f1(k.lamber_attenuation), palette::accent());
                     } else {
                         let e = s.albedo * brdf::saturate(tm.params.y + (-n).dot(to_light));
                         row(tr("demos.e_albedo_sat_bias_n"), f3(e), DIFFUSE);
-                        row(tr("demos.kernel_at_s_0"), f3(super::transmission::transmission_kernel(0.0, Vec3::ONE)), palette::ACCENT);
+                        row(tr("demos.kernel_at_s_0"), f3(super::transmission::transmission_kernel(0.0, Vec3::ONE)), palette::accent());
                     }
                     row(tr("demos.back_lighting_lux"), f3(l.translucent_back_lighting), SPHERE_LIGHT);
                     row(tr("demos.tint"), f3(l.translucent_back_lighting * tm.tint), SPHERE_LIGHT);
                     row("diffuseLighting", f3(px.diffuse()), DIFFUSE);
                 }
-                (Some(_), None) => row(tr("demos.point_light"), tr("demos.off").into(), palette::TEXT_DIM),
+                (Some(_), None) => row(tr("demos.point_light"), tr("demos.off").into(), palette::text_dim()),
                 (None, _) => {}
             }
             (tr("demos.getbacklighting"), object)
@@ -844,23 +843,23 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             row("NdotL", f1(g.n_dot_l), LIGHT);
             row("F with roughness", f3(l.specular_response), SPECULAR);
             row("1 − F (response)", f3(l.diffuse_response), DIFFUSE);
-            row("albedo", f3(s.albedo), palette::TEXT);
+            row("albedo", f3(s.albedo), palette::text());
             row("DiffuseLambertian", f3(lambert), DIFFUSE);
-            row(tr("demos.disney_skin"), f3(disney), palette::TEXT_DIM);
+            row(tr("demos.disney_skin"), f3(disney), palette::text_dim());
             row(tr("demos.light_lux"), f3(px.diffuse()), DIFFUSE);
             (tr("demos.diffuse_lighting"), object)
         }
         Demo::Multiscatter => {
             let e_ss = l.brdf.x + l.brdf.y;
             let single = brdf::specular_ggx(l.dir_to_camera, px.light.dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2, Vec3::ONE);
-            row("roughnessLinear", f1(s.roughness_linear), palette::ACCENT);
-            row(tr("demos.uv_ndotv_smoothness"), format!("({:.3}, {:.3})", l.n_dot_v, 1.0 - s.roughness_linear), palette::TEXT_DIM);
-            row("brdf.x  (A, scale)", f1(l.brdf.x), palette::ACCENT);
-            row("brdf.y  (B, bias)", f1(l.brdf.y), palette::ACCENT);
-            row(tr("demos.a_b_single_scattering_energy"), f1(e_ss), palette::ACCENT);
+            row("roughnessLinear", f1(s.roughness_linear), palette::accent());
+            row(tr("demos.uv_ndotv_smoothness"), format!("({:.3}, {:.3})", l.n_dot_v, 1.0 - s.roughness_linear), palette::text_dim());
+            row("brdf.x  (A, scale)", f1(l.brdf.x), palette::accent());
+            row("brdf.y  (B, bias)", f1(l.brdf.y), palette::accent());
+            row(tr("demos.a_b_single_scattering_energy"), f1(e_ss), palette::accent());
             row("specularF0", f3(s.specular_f0), SPECULAR);
             row(tr("demos.compensation"), f3(l.multi_scatter_compensation), SPECULAR);
-            row(tr("demos.single_scattering"), f3(single), palette::TEXT_DIM);
+            row(tr("demos.single_scattering"), f3(single), palette::text_dim());
             row(tr("demos.compensated"), f3(single * l.multi_scatter_compensation), SPECULAR);
             ("GetMultiScatterCompensation", object)
         }
@@ -869,13 +868,13 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             row(tr("demos.albedo_target"), f3(i.albedo), DIFFUSE);
             row(tr("demos.irradiance_at_n"), f3(i.irradiance), DIFFUSE);
             row(tr("common.diffuse_ibl"), f3(i.diffuse), DIFFUSE);
-            row("", String::new(), palette::TEXT);
-            row(tr("demos.roughness_8_bit"), f1(i.roughness), palette::ACCENT);
-            row(tr("demos.mip_roughness_5"), f1(i.mip), palette::ACCENT);
+            row("", String::new(), palette::text());
+            row(tr("demos.roughness_8_bit"), f1(i.roughness), palette::accent());
+            row(tr("demos.mip_roughness_5"), f1(i.mip), palette::accent());
             row(tr("demos.prefiltered_at_r"), f3(i.prefiltered), palette::REFLECTED);
             row("NdotV (≥ 0.01)", f1(i.n_dot_v), palette::VIEW);
             row("F0 · A + B", f3(i.specular_f0 * i.brdf.x + Vec3::splat(i.brdf.y)), TERM_G);
-            row(tr("demos.compensation"), f3(i.compensation), palette::TEXT_DIM);
+            row(tr("demos.compensation"), f3(i.compensation), palette::text_dim());
             row(tr("common.specular_ibl"), f3(i.specular), SPECULAR);
             (tr("demos.global_ibl_passes"), object)
         }
@@ -887,10 +886,10 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                 3 => tr("demos.outside_the_inners"),
                 _ => tr("demos.inside_an_inner"),
             };
-            row("stencil", format!("{masked} · {region}"), palette::ACCENT);
+            row("stencil", format!("{masked} · {region}"), palette::accent());
             for probe in &shading.probes {
                 let name = format!("{} {}", tr("demos.probe"), probe.cubemap + 1);
-                let color = [palette::ACCENT, palette::REFLECTED][probe.cubemap.min(1)];
+                let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
                 let value = if probe.contains(probe.inner_half, s.position) {
                     tr("demos.inner_weight_1").to_string()
                 } else if probe.contains(probe.outer_half, s.position) {
@@ -900,8 +899,8 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                 };
                 row(&name, value, color);
             }
-            row(tr("demos.blend_weight_sum"), f1(r.blend_weight), palette::ACCENT);
-            row(tr("demos.global_1_min_sum_1"), f1(r.global_weight), palette::TEXT_DIM);
+            row(tr("demos.blend_weight_sum"), f1(r.blend_weight), palette::accent());
+            row(tr("demos.global_1_min_sum_1"), f1(r.global_weight), palette::text_dim());
             row(tr("demos.reflection_target"), f3(r.reflection), SPECULAR);
             row(tr("demos.composited"), f3(r.composited), SPECULAR);
             (tr("common.reflection_probes"), object)
@@ -924,31 +923,31 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                 Some((pixel, _)) => {
                     let (x, y) = (pixel.x.floor() as i32, pixel.y.floor() as i32);
                     let k = super::ssao::at_pixel(&linear_depth, size, &settings, tan, x, y);
-                    row(tr("demos.pixel_half_res"), format!("({x}, {y}) · ({}, {})", k.half_pixel[0], k.half_pixel[1]), palette::TEXT);
-                    row(tr("demos.linear_depth"), format!("{:.3} m", k.linear_depth), palette::ACCENT);
-                    row(tr("demos.strength_radius"), format!("{:.2} · {:.3}", settings.strength, settings.sampling_radius), palette::ACCENT);
-                    row(tr("demos.ssaocompute_52_samples"), f1(k.raw), palette::TEXT);
-                    row(tr("demos.blur_vertical"), f1(k.blur_vertical), palette::TEXT);
-                    row(tr("demos.blur_horizontal"), f1(k.blurred), palette::TEXT);
-                    row(tr("demos.upsampled_ao"), f1(k.upsampled), palette::TEXT);
+                    row(tr("demos.pixel_half_res"), format!("({x}, {y}) · ({}, {})", k.half_pixel[0], k.half_pixel[1]), palette::text());
+                    row(tr("demos.linear_depth"), format!("{:.3} m", k.linear_depth), palette::accent());
+                    row(tr("demos.strength_radius"), format!("{:.2} · {:.3}", settings.strength, settings.sampling_radius), palette::accent());
+                    row(tr("demos.ssaocompute_52_samples"), f1(k.raw), palette::text());
+                    row(tr("demos.blur_vertical"), f1(k.blur_vertical), palette::text());
+                    row(tr("demos.blur_horizontal"), f1(k.blurred), palette::text());
+                    row(tr("demos.upsampled_ao"), f1(k.upsampled), palette::text());
                     let diffuse = px.diffuse() + px.ibl.diffuse * if shading.ibl { 1.0 } else { 0.0 };
                     row(tr("demos.diffuse"), f3(diffuse), DIFFUSE);
                     row(tr("demos.ao"), f3(diffuse * k.upsampled), DIFFUSE);
                 }
-                None => row(tr("demos.point"), tr("demos.off_screen").into(), palette::TEXT_DIM),
+                None => row(tr("demos.point"), tr("demos.off_screen").into(), palette::text_dim()),
             }
             ("SsaoCompute", object)
         }
         Demo::PointLight => {
             let d2 = px.light.distance_squared;
-            row(tr("common.distance_d"), format!("{:.3} m", d2.sqrt()), palette::TEXT);
+            row(tr("common.distance_d"), format!("{:.3} m", d2.sqrt()), palette::text());
             row(tr("demos.attenuation_radius_r"), format!("{:.3} m", shading.light.attenuation_radius()), LIGHT);
             row("m_invAttenuationRadiusSquared", f1(shading.light.inv_attenuation_radius_squared), LIGHT);
             row("falloff = d² / r²", f1(px.light.falloff), LIGHT);
             row("(1 − falloff²)²", f1(px.light.radius_attenuation), LIGHT);
-            row("I / max(d², 1e-6)", f3(shading.light.rgb_intensity_candelas / d2.max(1e-6)), palette::TEXT_DIM);
+            row("I / max(d², 1e-6)", f3(shading.light.rgb_intensity_candelas / d2.max(1e-6)), palette::text_dim());
             row(tr("demos.lightintensity_lux"), f3(px.light.intensity), LIGHT);
-            row(tr("demos.skipped_falloff_1"), if px.light.falloff >= 1.0 { tr("demos.yes") } else { tr("demos.no") }.into(), palette::TEXT);
+            row(tr("demos.skipped_falloff_1"), if px.light.falloff >= 1.0 { tr("demos.yes") } else { tr("demos.no") }.into(), palette::text());
             let surface_channels = shading.material(shading.inspected).lighting_channels;
             let same = shading.light.lighting_channel_mask & surface_channels != 0;
             row(tr("demos.lighting_channels_light_surface"), format!("0x{:02X} & 0x{:02X} → {}", shading.light.lighting_channel_mask, surface_channels, if same { tr("demos.lit") } else { tr("demos.skipped") }), LIGHT);
@@ -970,27 +969,27 @@ fn content_roughness(state: &ShotState, object: u32) -> f32 {
 fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
     let mut notes = Vec::new();
     match demo {
-        Demo::Room | Demo::PointLight => notes.push((tr("demos.simple_point_lights_cast_no").to_string(), palette::TEXT_FAINT)),
+        Demo::Room | Demo::PointLight => notes.push((tr("demos.simple_point_lights_cast_no").to_string(), palette::text_faint())),
         Demo::Ssao => {
-            notes.push((tr("demos.half_resolution_8_bits_a").to_string(), palette::TEXT_FAINT));
-            notes.push((tr("demos.the_diffuse_target_only_light").to_string(), palette::TEXT_FAINT));
+            notes.push((tr("demos.half_resolution_8_bits_a").to_string(), palette::text_faint()));
+            notes.push((tr("demos.the_diffuse_target_only_light").to_string(), palette::text_faint()));
         }
         Demo::Reflections => {
-            notes.push((tr("demos.the_lab_bakes_the_probes").to_string(), palette::TEXT_FAINT));
-            notes.push((tr("demos.with_the_room_s_light").to_string(), palette::TEXT_FAINT));
+            notes.push((tr("demos.the_lab_bakes_the_probes").to_string(), palette::text_faint()));
+            notes.push((tr("demos.with_the_room_s_light").to_string(), palette::text_faint()));
         }
         Demo::Transmission => {
-            notes.push((tr("demos.simple_point_lights_add_no").to_string(), palette::TEXT_FAINT));
-            notes.push((tr("demos.the_sphere_light_here_has").to_string(), palette::TEXT_FAINT));
+            notes.push((tr("demos.simple_point_lights_add_no").to_string(), palette::text_faint()));
+            notes.push((tr("demos.the_sphere_light_here_has").to_string(), palette::text_faint()));
         }
         Demo::Diffuse if shading.diffuse_model == DiffuseModel::NormalizedDisney => {
             notes.push((tr("demos.disney_diffuse_note").to_string(), palette::MISMATCH))
         }
         Demo::Multiscatter if !shading.multiscatter => notes.push((tr("demos.compensation_off_note").to_string(), palette::MISMATCH)),
-        Demo::Multiscatter => notes.push((tr("demos.compensation_1_f0_1_a").to_string(), palette::TEXT_FAINT)),
+        Demo::Multiscatter => notes.push((tr("demos.compensation_1_f0_1_a").to_string(), palette::text_faint())),
         Demo::Ibl => {
-            notes.push((tr("demos.the_global_skylight_casts_no").to_string(), palette::TEXT_FAINT));
-            notes.push((tr("demos.walls_or_not_only_occlusion").to_string(), palette::TEXT_FAINT));
+            notes.push((tr("demos.the_global_skylight_casts_no").to_string(), palette::text_faint()));
+            notes.push((tr("demos.walls_or_not_only_occlusion").to_string(), palette::text_faint()));
         }
         _ => {}
     }
@@ -998,8 +997,8 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
         notes.push((tr("demos.ibl_off_direct_lighting_only").to_string(), palette::MISMATCH));
     }
     if !shading.ibl && shading.material(shading.inspected).metallic > 0.5 && demo != Demo::PointLight {
-        notes.push((tr("demos.metals_have_no_diffuse_term").to_string(), palette::TEXT_FAINT));
-        notes.push((tr("demos.without_ibl_only_the_highlight").to_string(), palette::TEXT_FAINT));
+        notes.push((tr("demos.metals_have_no_diffuse_term").to_string(), palette::text_faint()));
+        notes.push((tr("demos.without_ibl_only_the_highlight").to_string(), palette::text_faint()));
     }
     notes
 }

@@ -70,7 +70,7 @@ fn view(dock: &mut Dock, ui: &mut Ui) {
         let terms = super::formulas::terms(Demo::of(d.state.demo)) as f32;
         d.rows(ui, "o3de-exposure", |d, ui| {
             d.value(ui, "exposure");
-            d.slider(ui, "formula", tr("controls.formula_term"), palette::TEXT, -1.0..=terms, Unit::Index);
+            d.slider(ui, "formula", tr("controls.formula_term"), palette::text(), -1.0..=terms, Unit::Index);
         });
     });
 }

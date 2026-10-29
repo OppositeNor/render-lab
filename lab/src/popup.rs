@@ -103,16 +103,16 @@ impl Popups {
                 let left = popup.seconds.map(|s| s - (now - popup.since).as_secs_f32());
                 let opacity = left.map_or(1.0, |left| (left / FADE).clamp(0.0, 1.0));
                 let frame = egui::Frame::new()
-                    .fill(palette::PANEL.gamma_multiply(0.95 * opacity))
-                    .stroke(Stroke::new(2.0, palette::ACCENT.gamma_multiply(opacity)))
+                    .fill(palette::panel().gamma_multiply(0.95 * opacity))
+                    .stroke(Stroke::new(2.0, palette::accent().gamma_multiply(opacity)))
                     .corner_radius(CornerRadius::same(16))
                     .inner_margin(egui::Margin::symmetric(28, 22));
                 let card = frame.show(area, |ui| {
                     ui.set_width(WIDTH);
                     ui.multiply_opacity(opacity);
-                    ui.label(RichText::new(&popup.title).font(FontId::new(30.0, ui::bold())).color(palette::TEXT));
+                    ui.label(RichText::new(&popup.title).font(FontId::new(30.0, ui::bold())).color(palette::text()));
                     ui.add_space(6.0);
-                    ui.add(egui::Label::new(RichText::new(&popup.message).font(FontId::new(24.0, FontFamily::Proportional)).color(palette::TEXT_DIM)).wrap());
+                    ui.add(egui::Label::new(RichText::new(&popup.message).font(FontId::new(24.0, FontFamily::Proportional)).color(palette::text_dim())).wrap());
                     if !popup.buttons.is_empty() {
                         ui.add_space(14.0);
                         // A row as tall as its buttons, laid out from the right edge.

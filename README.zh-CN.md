@@ -34,12 +34,21 @@
 右上角是地球图标和当前语言（点击后打开设置页面的语言选项），左下角显示版权、许可证和版本。
 
 - **开始**打开选择页面：已安装研究中的引擎与功能。
-- **设置**编辑 `~/.config/render-lab/config.toml`（或 `$XDG_CONFIG_HOME/render-lab/config.toml`）中的设置：**语言**（English 或中文：
-  主页的文字，以及选择页面首先提供的旁白视频版本，某个特性没有这种语言的版本时使用英文版；演示也使用该语言）、**全屏**，以及**音乐**和**旁白**的音量，
-  每个音量都是一个滑块加一个静音按钮（静音时保留音量）。查看器的面板，以及视频播放时的时间轴，也可以设置旁白的音量；查看器关闭时会把它写入文件。
-  **保存并应用**会在十秒倒计时内试用修改后的设置：**应用**保留它们并写入文件，而**恢复**、Esc 或等待倒计时结束都会还原之前的设置。
-  点击应用之前不会写入任何内容。没有需要保存的内容时，第一个按钮是**返回**；与默认值不同的选项会被标记，并带有只恢复该项的**恢复**按钮；
-  **放弃**丢弃修改，**恢复默认**显示默认值。
+- **设置**编辑 `~/.config/render-lab/config.toml`（或 `$XDG_CONFIG_HOME/render-lab/config.toml`）中的设置，每个类别一个标签页：
+  - **界面**：**语言**（English 或中文：主页的文字，以及选择页面首先提供的旁白视频版本，某个特性没有这种语言的版本时使用英文版；演示也使用该语言）
+    和**主题**，即主页和查看器的配色（见下）。
+  - **渲染**：**全屏**。
+  - **声音**：**音乐**和**旁白**的音量，每个音量都是一个滑块加一个静音按钮（静音时保留音量）。查看器的面板，以及视频播放时的时间轴，也可以设置旁白的音量；
+    查看器关闭时会把它写入文件。
+
+  **保存并应用**会立即应用界面和声音设置并写入文件。渲染设置的更改则先在十秒倒计时内试用：**应用**保留它并写入文件，而**恢复**、Esc
+  或等待倒计时结束都会还原之前的设置。点击保存并应用之前不会写入任何内容。没有需要保存的内容时，第一个按钮是**返回**；有修改的标签页带一个圆点，
+  与默认值不同的选项会被标记，并带有只恢复该项的**恢复**按钮；**放弃**丢弃修改，**恢复默认**显示默认值。
+- **主题**是 TOML 文件，每个主题一个，以文件名（不含扩展名）命名（设置中写作 `theme = "tokyo-night"`）。实验室在运行时从程序旁边的
+  `themes/` 读取它们，构建会把自带的主题（来自 [`themes/`](themes)：**One Dark Pro**、**Tokyo Night** 和 **VS Code**）放在那里；
+  也从 `~/.config/render-lab/themes/` 读取，其中的文件取代程序旁边的同名文件。主题给出自己的名称并设置界面的每一种颜色；
+  [`themes/one-dark-pro.toml`](themes/one-dark-pro.toml) 说明了每个键。实验室自己的配色是内置主题 **Render Lab**，它是默认主题，录制始终使用它，
+  因此录制的画面从不依赖设置。
 - **F11** 把窗口（主页或查看器）的截图保存到 `build/screenshots/`。
 
 ## 命令
@@ -79,6 +88,7 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 | [`src/main.rs`](src/main.rs)、[`lab/`](lab/Cargo.toml)、[`lab/src/cli.rs`](lab/src/cli.rs) | 二进制程序，只负责运行实验室：实验室是一个 Rust dylib，二进制程序和每个包的库都链接它，因此共享同一个实验室（它的代码和状态）。命令行属于实验室。 |
 | [`lab/src/home.rs`](lab/src/home.rs)、[`lab/src/frost.rs`](lab/src/frost.rs)、[`packages/render_lab/shaders/frost.wgsl`](packages/render_lab/shaders/frost.wgsl) | 主页：标题、设置和选择页面，背景是标题研究的场景（`investigations::title`，目前为 O3DE 的光照；加载完成前显示加载页面，`home --snapshot --page starting`），经过两次减半、模糊、着色并加上颗粒。 |
 | [`lab/src/config.rs`](lab/src/config.rs)、[`lab/src/volume.rs`](lab/src/volume.rs) | 设置文件：它的位置、读取（使用 `toml_edit`）和写入；声音的音量（音量值和静音开关）及其滑块，用于设置页面和查看器的面板。 |
+| [`lab/src/theme.rs`](lab/src/theme.rs)、[`lab/src/palette.rs`](lab/src/palette.rs)、[`themes/`](themes) | 主题：查找并读取主题文件（构建会把 `themes/` 复制到程序旁边），以及正在使用的界面颜色（`palette::theme()`、`palette::text()` 等），设置主题之前是实验室自己的配色；叠加图形的颜色保持不变。 |
 | [`lab/src/text.rs`](lab/src/text.rs)、[`lab/src/readback.rs`](lab/src/readback.rs)、[`lab/src/gpu.rs`](lab/src/gpu.rs) | 字体与文字、回读画面并保存为 PNG，以及 GPU 设备。文本表、伪代码清单和源码索引都是各层包中的资源，首次使用时读取（`i18n::Table`）。 |
 | [`lab/src/formula.rs`](lab/src/formula.rs)、[`lab/src/rich_text.rs`](lab/src/rich_text.rs)、[`packages/render_lab/assets/mitex/`](packages/render_lab/assets/mitex) | 公式：LaTeX 由 Typst（通过 MiTeX 的 scope）排版为绘制时着色的覆盖遮罩，以及把带公式标签的文字排在同一条基线上。 |
 | [`lab/src/scene.rs`](lab/src/scene.rs)、[`packages/render_lab/scenes/`](packages/render_lab/scenes/study-room.toml)、[`lab/src/terrain.rs`](lab/src/terrain.rs) | 实验室的场景，按 `SceneId` 区分：书房，以及天空下的丘陵地形。每个场景是一个数据文件，即资源 `scene/<key>`（其物体、形状、材质、光源、光照常数、相机从何处观看，以及地形的高度场），在首次构建场景时读取。每个演示显示其中一个（`Investigation::demo_scene`，默认为书房）；渲染器在某帧首次需要时准备场景，并保留它以便切换回来；当一项研究的演示使用多个场景时，查看器为每个场景显示一个标签页，旁边是该场景的演示。地形是网格上的高度场（`SHAPE_TERRAIN`），绘制为三角形，并在 GPU（`intersectTerrain`）和 CPU（`Terrain::intersect`）上逐格追踪；其高度来自给定的采样，或者（可选）固定种子的分形 Perlin 噪声。 |

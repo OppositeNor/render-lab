@@ -3,32 +3,76 @@
 //! homepage's Config page. The file is written only when a tried setting is
 //! kept (see `Settings` in src/home.rs); a missing file means the
 //! defaults.
+//!
+//! The settings come in categories (`Category`): the interface's (the
+//! language and the theme) and the audio's apply when they are saved; the
+//! render settings (full screen) are tried first, behind a popup.
 
 use crate::i18n::Locale;
+use crate::theme;
 use crate::volume::Volume;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
+/// What the Config page groups the settings by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Category {
+    /// The language and the theme.
+    Interface,
+    /// How the lab renders: full screen. A change is tried before it is kept.
+    Render,
+    /// The volumes.
+    Audio,
+}
+
+impl Category {
+    pub const ALL: [Category; 3] = [Category::Interface, Category::Render, Category::Audio];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Category::Interface => "interface",
+            Category::Render => "render",
+            Category::Audio => "audio",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// Open the homepage and the viewer in borderless fullscreen.
-    pub fullscreen: bool,
-    /// The homepage's language, and the edition of a narrated timeline it
-    /// offers first (English when a feature has none in this language).
+    /// Interface: the homepage's language, and the edition of a narrated
+    /// timeline it offers first (English when a feature has none in this language).
     pub language: Locale,
-    /// The homepage's music.
+    /// Interface: the theme (src/theme.rs), by its file's stem.
+    pub theme: String,
+    /// Render: open the homepage and the viewer in borderless fullscreen.
+    pub fullscreen: bool,
+    /// Audio: the homepage's music.
     pub music: Volume,
-    /// The narration of a timeline in the viewer, which its dock also sets.
+    /// Audio: the narration of a timeline in the viewer, which its dock also sets.
     pub narration: Volume,
 }
 
 impl Default for Config {
     fn default() -> Config {
-        Config { fullscreen: false, language: Locale::En, music: Volume::new(50), narration: Volume::new(100) }
+        Config { language: Locale::En, theme: theme::DEFAULT.into(), fullscreen: false, music: Volume::new(50), narration: Volume::new(100) }
     }
 }
 
 impl Config {
+    /// Whether `self` and `other` differ in `category`'s settings.
+    pub fn differs_in(&self, other: &Config, category: Category) -> bool {
+        match category {
+            Category::Interface => self.language != other.language || self.theme != other.theme,
+            Category::Render => self.fullscreen != other.fullscreen,
+            Category::Audio => self.music != other.music || self.narration != other.narration,
+        }
+    }
+
+    /// These settings with `other`'s render settings.
+    pub fn with_render_of(&self, other: &Config) -> Config {
+        Config { fullscreen: other.fullscreen, ..self.clone() }
+    }
+
     /// `$XDG_CONFIG_HOME/render-lab/config.toml`, else `~/.config/render-lab/config.toml`.
     pub fn default_path() -> Option<PathBuf> {
         let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
@@ -53,6 +97,9 @@ impl Config {
             let codes = Locale::ALL.map(Locale::code).join(", ");
             config.language = Locale::from_code(code).with_context(|| format!("{}: unknown `language` \"{code}\" (one of {codes})", path.display()))?;
         }
+        if let Some(item) = document.get("theme") {
+            config.theme = item.as_str().with_context(|| format!("{}: `theme` must be a string", path.display()))?.to_string();
+        }
         for (name, volume) in [("music", &mut config.music), ("narration", &mut config.narration)] {
             let key = format!("{name}_volume");
             if let Some(item) = document.get(&key) {
@@ -69,12 +116,13 @@ impl Config {
 
     pub fn to_toml(&self) -> String {
         let mut text = format!(
-            "# Render Lab settings, written by the homepage's Config page.\n\n# Open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n\n# The homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n",
-            self.fullscreen,
+            "# Render Lab settings, written by the homepage's Config page.\n\n# Interface: the homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n\n# Interface: the theme, a file's stem in a themes/ folder beside the binary or beside this file.\ntheme = \"{}\"\n\n# Render: open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n",
             Locale::ALL.map(Locale::code).join(", "),
-            self.language.code()
+            self.language.code(),
+            self.theme.replace('\\', "\\\\").replace('"', "\\\""),
+            self.fullscreen
         );
-        for (name, what, volume) in [("music", "The homepage's music", self.music), ("narration", "The narration", self.narration)] {
+        for (name, what, volume) in [("music", "Audio: the homepage's music", self.music), ("narration", "Audio: the narration", self.narration)] {
             text.push_str(&format!("\n# {what}: its volume (0 to 100) and whether it is muted.\n{name}_volume = {}\n{name}_muted = {}\n", volume.percent, volume.muted));
         }
         text
@@ -101,7 +149,7 @@ mod tests {
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::ZhCn, music: Volume { percent: 30, muted: true }, narration: Volume::new(75) };
+        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), music: Volume { percent: 30, muted: true }, narration: Volume::new(75) };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.

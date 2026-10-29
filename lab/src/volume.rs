@@ -56,7 +56,7 @@ pub fn slider(ui: &mut Ui, volume: &mut Volume, size: f32, rail: f32) -> SliderR
         if mute.clicked() {
             volume.muted = !volume.muted;
         }
-        let color = if mute.hovered() { palette::ACCENT } else if volume.silent() { palette::TEXT_FAINT } else { palette::TEXT };
+        let color = if mute.hovered() { palette::accent() } else if volume.silent() { palette::text_faint() } else { palette::text() };
         speaker(ui.painter(), mute_rect, *volume, color);
         ui.spacing_mut().slider_width = rail;
         let mut percent = volume.percent;

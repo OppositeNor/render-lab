@@ -46,11 +46,11 @@ pub struct Dock<'a> {
 pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let rect = input.layout.captions;
     let painter = ink.painter;
-    painter.rect_filled(rect, CornerRadius::same(10), palette::PANEL);
-    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(10), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let inner = rect.shrink2(vec2(16.0, 10.0));
     let divider = inner.min.x + BUTTONS + 16.0;
-    painter.vline(divider, rect.y_range().shrink(12.0), Stroke::new(1.0, palette::BORDER));
+    painter.vline(divider, rect.y_range().shrink(12.0), Stroke::new(1.0, palette::border()));
     let demo = input.state.demo;
     let mut dock = Dock {
         state: input.state,
@@ -124,7 +124,7 @@ impl Dock<'_> {
         let mut narration = self.narration;
         let r = ui
             .horizontal(|ui| {
-                ui.label(RichText::new(tr("controls.narration")).color(palette::TEXT_DIM)).on_hover_text(tr("controls.narration_hint"));
+                ui.label(RichText::new(tr("controls.narration")).color(palette::text_dim())).on_hover_text(tr("controls.narration_hint"));
                 volume::slider(ui, &mut narration, 26.0, BUTTONS - 228.0)
             })
             .inner;
@@ -139,7 +139,7 @@ impl Dock<'_> {
         let demo = self.state.demo;
         let listings: Vec<_> = investigation::current().listings().iter().filter(|l| l.demo.as_deref() == Some(demo.key())).collect();
         if listings.is_empty() {
-            ui.label(RichText::new(tr("controls.no_listing")).color(palette::TEXT_DIM));
+            ui.label(RichText::new(tr("controls.no_listing")).color(palette::text_dim()));
             return;
         }
         let engine = investigation::current().wording().engine_short;
@@ -310,7 +310,7 @@ impl Dock<'_> {
     /// One value's rows.
     fn value_rows(&mut self, ui: &mut Ui, entry: &'static Entry) {
         if entry.choices.is_some() {
-            ui.label(RichText::new(entry.label_text()).color(self.color(entry.key, entry.color.unwrap_or(palette::TEXT))));
+            ui.label(RichText::new(entry.label_text()).color(self.color(entry.key, entry.color.map_or(palette::text(), palette::themed))));
             ui.horizontal(|ui| self.choice(ui, entry.key));
             ui.end_row();
             return;
@@ -321,7 +321,7 @@ impl Dock<'_> {
             let range = entry.range_of(i).unwrap_or((0.0, 1.0));
             let current = if camera { self.state.camera.get(channel).expect("a camera value").f32() } else { self.state.p(channel) };
             if entry.ty == Type::Bool || entry.toggle {
-                ui.label(RichText::new(entry.label_text()).color(self.color(channel, entry.color.unwrap_or(palette::TEXT))));
+                ui.label(RichText::new(entry.label_text()).color(self.color(channel, entry.color.map_or(palette::text(), palette::themed))));
                 let mut on = current > 0.5;
                 if ui.checkbox(&mut on, "").changed() {
                     self.actions.push(ViewerAction::SetParam(channel, if on { 1.0 } else { 0.0 }));
@@ -329,7 +329,7 @@ impl Dock<'_> {
                 ui.end_row();
                 continue;
             }
-            let (label, color) = if channels.len() > 1 { (["x", "y", "z", "w"][i], AXES.get(i).map_or(palette::TEXT, |a| a.1)) } else { (entry.label_text(), entry.color.unwrap_or(palette::TEXT)) };
+            let (label, color) = if channels.len() > 1 { (["x", "y", "z", "w"][i], AXES.get(i).map_or(palette::text(), |a| a.1)) } else { (entry.label_text(), entry.color.map_or(palette::text(), palette::themed)) };
             // An angle shows wrapped into its range (a yaw of 400° as 40°).
             let shown = if entry.wrap { (current - range.0).rem_euclid(range.1 - range.0) + range.0 } else { current };
             if let Some(v) = self.number(ui, channel, label, color, shown, range.0..=range.1, entry.unit) {
@@ -365,7 +365,7 @@ impl Dock<'_> {
     /// One checkbox for an overlay parameter (0 hidden, 1 shown).
     pub fn toggle(&mut self, ui: &mut Ui, param: &'static str, label: &str) {
         let mut on = self.state.p(param) > 0.5;
-        let r = ui.checkbox(&mut on, RichText::new(label).color(self.color(param, palette::TEXT)));
+        let r = ui.checkbox(&mut on, RichText::new(label).color(self.color(param, palette::text())));
         self.widgets.push((param.to_string(), r.rect));
         if r.changed() {
             self.actions.push(ViewerAction::SetParam(param, if on { 1.0 } else { 0.0 }));
@@ -374,7 +374,7 @@ impl Dock<'_> {
 
     pub fn group(&mut self, ui: &mut Ui, title: &str, hint: Option<&str>, add: impl FnOnce(&mut Self, &mut Ui)) {
         ui.vertical(|ui| {
-            let heading = ui.label(RichText::new(title).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+            let heading = ui.label(RichText::new(title).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
             if let Some(hint) = hint {
                 heading.on_hover_text(hint);
             }
@@ -391,7 +391,7 @@ impl Dock<'_> {
     /// Animated parameters are drawn in the accent colour while they play.
     pub fn color(&self, key: &str, normal: Color32) -> Color32 {
         if self.playing && self.animated.contains(&key) {
-            palette::ACCENT
+            palette::accent()
         } else {
             normal
         }

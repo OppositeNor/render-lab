@@ -8,13 +8,16 @@
 //!   globe) in the top-right corner, which opens the Config page at the
 //!   Language option, and the copyright, license, and version in the
 //!   bottom-left corner.
-//! - The Config page edits the settings file (src/config.rs): the language
-//!   (of the homepage, and of the narrated edition it offers first), full
-//!   screen, and the volumes of the music and the narration. Save and
-//!   Apply tries the edited settings for ten seconds behind a popup: Apply
-//!   keeps them and writes the file; Restore, or letting the time run out,
-//!   puts the previous ones back. Nothing is written before Apply, except
-//!   the narration's volume as the viewer's dock leaves it.
+//! - The Config page edits the settings file (src/config.rs), a tab per
+//!   category: the interface (the language of the homepage, and of the
+//!   narrated edition it offers first, and the theme, src/theme.rs), the
+//!   render settings (full screen), and the audio (the volumes of the music
+//!   and the narration). Save and Apply applies and writes the interface's
+//!   and the audio's at once; a change to the render settings is tried for
+//!   ten seconds behind a popup: Apply keeps it and writes the file;
+//!   Restore, or letting the time run out, puts the previous one back.
+//!   Nothing is written before Save and Apply, except the narration's volume
+//!   as the viewer's dock leaves it.
 //! - Play opens the selection page: the engines the lab investigates, the
 //!   chosen engine's features, and the chosen feature's narrated timeline
 //!   (from the start or from a chapter) and demonstrations. Esc or Back
@@ -28,7 +31,7 @@
 //! checked without opening a window.
 
 use crate::investigations;
-use crate::config::Config;
+use crate::config::{Category, Config};
 use crate::frost::Frost;
 use crate::gpu::{self, Gpu, FRAME_FORMAT};
 use crate::i18n::{self, args, tr, tr_with, Locale};
@@ -37,6 +40,7 @@ use crate::loading::{self, Loading, Progress};
 use crate::palette;
 use crate::popup::{self, Popup, Popups};
 use crate::resources;
+use crate::theme;
 use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
 use crate::renderer::Renderer;
 use crate::text::{self as ui, REFERENCE};
@@ -76,14 +80,14 @@ pub struct HomeOptions {
     pub config_path: Option<PathBuf>,
 }
 
-/// How long tried settings stay before they are put back unless kept.
+/// How long tried render settings stay before they are put back unless kept.
 const TRIAL_SECONDS: f32 = 10.0;
 
 /// How long the Language option stays outlined after the title's globe opened the page.
 const FLASH_SECONDS: f32 = 2.5;
 
-/// Settings being tried: what to put back, and since when (page seconds).
-#[derive(Clone, Copy, Debug)]
+/// Render settings being tried: what to put back, and since when (page seconds).
+#[derive(Clone, Debug)]
 struct Trial {
     started: f32,
     /// The session's settings before the tried ones were applied.
@@ -103,6 +107,11 @@ struct Settings {
     /// When the title's globe opened the page (page seconds): the Language
     /// option is outlined for a moment.
     flash: Option<f32>,
+    /// The tab shown.
+    category: Category,
+    /// The themes offered (read when the page opens), and why a file was left out.
+    themes: Vec<theme::Entry>,
+    theme_errors: Vec<String>,
 }
 
 /// Which page the homepage shows.
@@ -210,7 +219,7 @@ fn glass(alpha: u8) -> Color32 {
 
 /// A frosted-glass panel; `smoked` darkens it, for panels full of text.
 fn glass_panel(painter: &egui::Painter, rect: Rect, radius: u8, smoked: bool) {
-    let fill = if smoked { Color32::from_rgba_unmultiplied(6, 14, 24, 120) } else { glass(14) };
+    let fill = if smoked { palette::theme().smoke } else { glass(14) };
     painter.rect_filled(rect, CornerRadius::same(radius), fill);
     painter.rect_stroke(rect, CornerRadius::same(radius), Stroke::new(1.5, glass(48)), StrokeKind::Inside);
 }
@@ -228,8 +237,8 @@ fn glass_button(ui: &mut egui::Ui, size: Vec2, label: &str, font: f32, enabled: 
     };
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(16), glass(fill));
-    painter.rect_stroke(rect, CornerRadius::same(16), Stroke::new(if hot { 2.0 } else { 1.5 }, if hot { palette::ACCENT } else { glass(70) }), StrokeKind::Inside);
-    let color = if enabled { palette::TEXT } else { palette::TEXT_FAINT };
+    painter.rect_stroke(rect, CornerRadius::same(16), Stroke::new(if hot { 2.0 } else { 1.5 }, if hot { palette::accent() } else { glass(70) }), StrokeKind::Inside);
+    let color = if enabled { palette::text() } else { palette::text_faint() };
     painter.text(rect.center(), Align2::CENTER_CENTER, label, FontId::new(font, ui::bold()), color);
     response
 }
@@ -270,8 +279,10 @@ impl Home {
             Ok(config) => (config.unwrap_or_default(), None),
             Err(e) => (Config::default(), Some(format!("{e:#}"))),
         };
-        let settings = Settings { path: config_path, saved, pending: saved, trial: None, message, flash: None };
+        let (themes, theme_errors) = theme::list();
+        let settings = Settings { path: config_path, saved: saved.clone(), pending: saved.clone(), trial: None, message, flash: None, category: Category::Interface, themes, theme_errors };
         i18n::set(saved.language);
+        let message = theme::apply(&saved.theme).err().map(|e| format!("{e:#}"));
         let mut home = Home {
             manifest_dir,
             page: Page::Title,
@@ -288,6 +299,9 @@ impl Home {
             clicked: false,
             popups: Popups::default(),
         };
+        if message.is_some() {
+            home.settings.message = message;
+        }
         // Start on the investigation chosen on the command line.
         let current = investigation::current().path();
         if let Some(chosen) = investigations::find(&current) {
@@ -346,48 +360,83 @@ impl Home {
         }
     }
 
-    /// Save and Apply: try the edited settings until they are kept or put back.
-    fn try_settings(&mut self, time: f32) {
-        self.settings.trial = Some(Trial { started: time, before: self.applied });
-        self.applied = self.settings.pending;
-        i18n::set(self.applied.language);
-        self.settings.message = None;
+    /// The Config page, at `category`; the themes are read again.
+    fn open_config(&mut self, category: Category) {
+        self.page = Page::Config;
+        self.settings.category = category;
+        (self.settings.themes, self.settings.theme_errors) = theme::list();
     }
 
-    /// The popup's Apply: keep the tried settings and write them to the file.
-    fn keep_settings(&mut self) {
-        if self.settings.trial.take().is_none() {
-            return;
+    /// Use `config` this session: its language, its theme, and the rest
+    /// (which the window and the viewer read from `applied`).
+    fn apply(&mut self, config: Config) {
+        i18n::set(config.language);
+        if config.theme != self.applied.theme {
+            if let Err(e) = theme::apply(&config.theme) {
+                self.settings.message = Some(format!("{e:#}"));
+            }
         }
-        let pending = self.settings.pending;
+        self.applied = config;
+    }
+
+    /// Write `config` to the settings file; the message says where, or why not.
+    fn save(&mut self, config: Config) {
         self.settings.message = Some(match &self.settings.path {
-            Some(path) => match pending.save(path) {
+            Some(path) => match config.save(path) {
                 Ok(()) => {
-                    self.settings.saved = pending;
+                    self.settings.saved = config;
                     format!("{} {}", tr("home.saved_to"), path.display())
                 }
                 Err(e) => format!("{} {e:#}", tr("home.applied_but_not_saved")),
             },
             None => {
-                self.settings.saved = pending;
+                self.settings.saved = config;
                 tr("home.applied_for_session").to_string()
             }
         });
     }
 
-    /// The popup's Restore, or the time running out: put the previous settings back.
+    /// Save and Apply: the interface's and the audio's settings are applied
+    /// and written at once; changed render settings are tried until they
+    /// are kept or put back.
+    fn try_settings(&mut self, time: f32) {
+        let pending = self.settings.pending.clone();
+        self.settings.message = None;
+        self.apply(pending.with_render_of(&self.applied));
+        // A theme that did not load says so over where the file went.
+        let theme_error = self.settings.message.take();
+        let kept = pending.with_render_of(&self.settings.saved);
+        if kept != self.settings.saved {
+            self.save(kept);
+        }
+        if pending.differs_in(&self.applied, Category::Render) {
+            self.settings.trial = Some(Trial { started: time, before: self.applied.clone() });
+            self.apply(pending);
+        }
+        if theme_error.is_some() {
+            self.settings.message = theme_error;
+        }
+    }
+
+    /// The popup's Apply: keep the tried settings and write them to the file.
+    fn keep_settings(&mut self) {
+        if self.settings.trial.take().is_some() {
+            self.save(self.settings.pending.clone());
+        }
+    }
+
+    /// The popup's Restore, or the time running out: put the previous render settings back.
     fn restore_settings(&mut self) {
         if let Some(trial) = self.settings.trial.take() {
-            self.applied = trial.before;
-            i18n::set(self.applied.language);
-            self.settings.pending = self.settings.saved;
+            self.apply(trial.before);
+            self.settings.pending = self.settings.saved.clone();
             self.settings.message = Some(tr("home.restored_the_previous_settings").to_string());
         }
     }
 
     /// Discard: forget the edits and leave the page.
     fn discard_settings(&mut self) {
-        self.settings.pending = self.settings.saved;
+        self.settings.pending = self.settings.saved.clone();
         self.settings.message = None;
         self.settings.flash = None;
         self.page = Page::Title;
@@ -457,10 +506,10 @@ impl Home {
         let center = canvas.x / 2.0;
         let card = Rect::from_center_size(pos2(center, canvas.y * 0.5), vec2(900.0, 710.0));
         glass_panel(ink.painter, card, 28, false);
-        ink.text(pos2(center, card.min.y + 64.0), Align2::CENTER_TOP, "Render Lab", 128.0, ui::bold(), palette::TEXT);
+        ink.text(pos2(center, card.min.y + 64.0), Align2::CENTER_TOP, "Render Lab", 128.0, ui::bold(), palette::text());
         let rule = card.min.y + 230.0;
-        ink.painter.line_segment([pos2(center - 150.0, rule), pos2(center + 150.0, rule)], Stroke::new(2.0, palette::ACCENT));
-        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, tr("home.subtitle"), 28.0, FontFamily::Proportional, palette::TEXT_DIM);
+        ink.painter.line_segment([pos2(center - 150.0, rule), pos2(center + 150.0, rule)], Stroke::new(2.0, palette::accent()));
+        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, tr("home.subtitle"), 28.0, FontFamily::Proportional, palette::text_dim());
         let button = vec2(460.0, 84.0);
         let mut choice = None;
         egui::Area::new(egui::Id::unique("home-title")).fixed_pos(pos2(center - button.x / 2.0, rule + 96.0)).fade_in(false).constrain(false).show(ctx, |ui| {
@@ -473,7 +522,7 @@ impl Home {
             let config = glass_button(ui, button, tr("home.config"), 40.0, true);
             self.widgets.push(("config".into(), config.rect));
             if config.clicked() {
-                self.page = Page::Config;
+                self.open_config(Category::Interface);
             }
             let quit = glass_button(ui, button, tr("home.quit"), 40.0, true);
             self.widgets.push(("quit".into(), quit.rect));
@@ -481,7 +530,7 @@ impl Home {
                 choice = Some(Choice::Quit);
             }
         });
-        ink.text(pos2(40.0, canvas.y - 52.0), Align2::LEFT_TOP, credits(), 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+        ink.text(pos2(40.0, canvas.y - 52.0), Align2::LEFT_TOP, credits(), 24.0, FontFamily::Proportional, palette::text_faint());
 
         // The language, at the top right: the globe and the language's name. It opens the
         // Config page with the Language option outlined.
@@ -491,7 +540,7 @@ impl Home {
         let size = vec2(20.0 + icon + 14.0 + ink.measure(name, 28.0, ui::bold()).x + 24.0, 64.0);
         egui::Area::new(egui::Id::unique("home-language")).fixed_pos(pos2(canvas.x - 40.0 - size.x, 30.0)).fade_in(false).constrain(false).show(ctx, |ui| {
             let r = glass_button(ui, size, "", 28.0, true);
-            let color = if r.hovered() { palette::ACCENT } else { palette::TEXT };
+            let color = if r.hovered() { palette::accent() } else { palette::text() };
             let icon_rect = Rect::from_min_size(pos2(r.rect.min.x + 20.0, r.rect.center().y - icon / 2.0), vec2(icon, icon));
             if let Some(globe) = globe {
                 ui.painter().image(globe, icon_rect, Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), color);
@@ -499,7 +548,7 @@ impl Home {
             ui.painter().text(pos2(icon_rect.max.x + 14.0, r.rect.center().y), Align2::LEFT_CENTER, name, FontId::new(28.0, ui::bold()), color);
             self.widgets.push(("language".into(), r.rect));
             if r.on_hover_text(tr("home.language_hint")).clicked() {
-                self.page = Page::Config;
+                self.open_config(Category::Interface);
                 self.settings.flash = Some(time);
             }
         });
@@ -515,8 +564,8 @@ impl Home {
         investigation::set(chosen);
         let painter = ink.painter;
 
-        ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::ACCENT);
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.choose"), 38.0, ui::bold(), palette::TEXT);
+        ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::accent());
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.choose"), 38.0, ui::bold(), palette::text());
         let back_size = vec2(200.0, 60.0);
         egui::Area::new(egui::Id::unique("home-back")).fixed_pos(pos2(canvas.x - 40.0 - back_size.x, 30.0)).fade_in(false).constrain(false).show(ctx, |ui| {
             let back = glass_button(ui, back_size, tr("home.back"), 28.0, true);
@@ -547,7 +596,7 @@ impl Home {
                 }
                 if i == home.engine {
                     ui.add_space(4.0);
-                    ui.add(egui::Label::new(RichText::new(engine.summary).color(palette::TEXT_DIM)).wrap());
+                    ui.add(egui::Label::new(RichText::new(engine.summary).color(palette::text_dim())).wrap());
                     ui.add_space(12.0);
                 }
             }
@@ -565,7 +614,7 @@ impl Home {
                 }
                 let engine = &feature.sources().engine;
                 let commit = engine.commit.get(..8).unwrap_or(&engine.commit);
-                ui.label(RichText::new(format!("{} {} · {commit}", engine.name, engine.version)).color(palette::TEXT_FAINT));
+                ui.label(RichText::new(format!("{} {} · {commit}", engine.name, engine.version)).color(palette::text_faint()));
                 ui.add_space(12.0);
             }
         });
@@ -576,7 +625,7 @@ impl Home {
         let mut new_edition = None;
         let error = self.error.clone();
         self.column_area(ctx, "home-detail", detail_rect, chosen.title(), |home, ui| {
-            ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::TEXT)).wrap());
+            ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
             ui.add_space(14.0);
             if let Some(e) = &error {
                 ui.add(egui::Label::new(RichText::new(e).color(palette::HISTORY_REJECT)).wrap());
@@ -606,7 +655,7 @@ impl Home {
                     // With several editions, a picker; the chapters and Watch follow it.
                     if rows.len() > 1 {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(tr("home.edition")).color(palette::TEXT_DIM));
+                            ui.label(RichText::new(tr("home.edition")).color(palette::text_dim()));
                             for (i, row) in rows.iter().enumerate() {
                                 let r = ui.selectable_label(i == edition, RichText::new(&row.info.edition).font(FontId::new(24.0, ui::bold())));
                                 home.widgets.push((format!("edition:{}", row.info.id), r.rect));
@@ -620,11 +669,11 @@ impl Home {
                     if let Some(row) = rows.get(edition) {
                         match &row.summary {
                             Ok((title, length, chapters, narrated)) => {
-                                ui.label(RichText::new(format!("{title} · {length}")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                                ui.label(RichText::new(format!("{title} · {length}")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
                                 if !narrated {
-                                    ui.label(RichText::new(tr("home.no_narration")).color(palette::TEXT_FAINT));
+                                    ui.label(RichText::new(tr("home.no_narration")).color(palette::text_faint()));
                                 }
-                                ui.label(RichText::new(tr("home.start_from_a_chapter")).color(palette::TEXT_DIM));
+                                ui.label(RichText::new(tr("home.start_from_a_chapter")).color(palette::text_dim()));
                                 for (number, label, frame) in chapters {
                                     let r = ui.add(egui::Button::new(RichText::new(format!("{number:02}  {label}"))).frame(false).truncate());
                                     home.widgets.push((format!("chapter:{number}"), r.rect));
@@ -634,8 +683,8 @@ impl Home {
                                 }
                             }
                             Err(e) => {
-                                ui.label(RichText::new(&row.info.title).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
-                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", tr("home.not_built_yet"))).color(palette::TEXT_FAINT)).wrap());
+                                ui.label(RichText::new(&row.info.title).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
+                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", tr("home.not_built_yet"))).color(palette::text_faint())).wrap());
                             }
                         }
                         ui.add_space(10.0);
@@ -643,16 +692,16 @@ impl Home {
                 });
                 // The demonstrations, with their keys in the viewer.
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(tr("home.demonstrations")).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                    ui.label(RichText::new(tr("home.demonstrations")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
                     const KEYS: [&str; 12] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "−", "="];
                     for (i, demo) in chosen.demos().iter().enumerate() {
-                        ui.add(egui::Label::new(RichText::new(format!("{}  {}", KEYS.get(i).unwrap_or(&" "), chosen.demo_title(*demo))).color(palette::TEXT_DIM)).truncate());
+                        ui.add(egui::Label::new(RichText::new(format!("{}  {}", KEYS.get(i).unwrap_or(&" "), chosen.demo_title(*demo))).color(palette::text_dim())).truncate());
                     }
                 });
             });
         });
         let footer = tr("home.esc_hint");
-        ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+        ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::text_faint());
 
         if let Some(e) = new_engine {
             self.engine = e;
@@ -672,12 +721,12 @@ impl Home {
     /// The Config page: the settings, Save and Apply, Discard, and Restore
     /// Defaults; while settings are tried, a popup counts down over it.
     fn draw_config(&mut self, ctx: &egui::Context, ink: &ui::Ink, canvas: Vec2, time: f32) {
-        if self.settings.trial.is_some_and(|trial| time - trial.started >= TRIAL_SECONDS) {
+        if self.settings.trial.as_ref().is_some_and(|trial| time - trial.started >= TRIAL_SECONDS) {
             self.restore_settings();
         }
         let trying = self.settings.trial.is_some();
-        ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::ACCENT);
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.config"), 38.0, ui::bold(), palette::TEXT);
+        ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::accent());
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.config"), 38.0, ui::bold(), palette::text());
         // The card's top; it grows to fit what it holds (the path at its foot may wrap).
         let card = Rect::from_min_size(pos2(canvas.x / 2.0 - 620.0, canvas.y * 0.53 - 410.0), vec2(1240.0, 820.0));
         let inner = card.shrink2(vec2(48.0, 34.0));
@@ -693,58 +742,112 @@ impl Home {
                 let defaults = Config::default();
                 let Home { settings, widgets, .. } = self;
                 let heading = |ui: &mut egui::Ui, text: &str| {
-                    ui.label(RichText::new(text).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+                    ui.label(RichText::new(text).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
                     ui.add_space(6.0);
                 };
                 let hint = |ui: &mut egui::Ui, text: &str| {
-                    ui.add(egui::Label::new(RichText::new(text).color(palette::TEXT_DIM)).wrap());
+                    ui.add(egui::Label::new(RichText::new(text).color(palette::text_dim())).wrap());
                     ui.add_space(24.0);
                 };
 
-                heading(ui, tr("home.language"));
-                let pending = &mut settings.pending;
-                let (row, restore) = option_row(ui, widgets, "language", pending.language != defaults.language, defaults.language.name(), !trying, |ui, widgets| {
-                    ui.spacing_mut().item_spacing.x = 12.0;
-                    for locale in Locale::ALL {
-                        let r = ui.add(egui::Button::selectable(pending.language == locale, RichText::new(locale.name()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(180.0, 48.0)));
-                        widgets.push((format!("option:language:{}", locale.code()), r.rect));
-                        if r.clicked() {
-                            pending.language = locale;
+                // A tab per category, on the left; a tab whose settings were edited is marked.
+                let tabs = 250.0;
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = 36.0;
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 14.0;
+                        for category in Category::ALL {
+                            let edited = settings.pending.differs_in(&settings.saved, category);
+                            let r = tab_button(ui, vec2(tabs, 64.0), category_name(category), settings.category == category, edited, !trying);
+                            widgets.push((format!("category:{}", category.key()), r.rect));
+                            if r.clicked() {
+                                settings.category = category;
+                            }
                         }
-                    }
-                });
-                if restore {
-                    pending.language = defaults.language;
-                }
-                if let Some(alpha) = flash {
-                    ui.painter().rect_stroke(row.expand2(vec2(28.0, 8.0)), CornerRadius::same(12), Stroke::new(3.0, palette::ACCENT.gamma_multiply(alpha)), StrokeKind::Outside);
-                }
-                hint(ui, tr("home.language_hint"));
-
-                heading(ui, tr("home.display"));
-                let (_, restore) = option_row(ui, widgets, "fullscreen", pending.fullscreen != defaults.fullscreen, on_off(defaults.fullscreen), !trying, |ui, widgets| {
-                    let r = ui.checkbox(&mut pending.fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
-                    widgets.push(("option:fullscreen".into(), r.rect));
-                });
-                if restore {
-                    pending.fullscreen = defaults.fullscreen;
-                }
-                hint(ui, tr("home.full_screen_hint"));
-
-                heading(ui, tr("home.audio"));
-                for (name, label, volume, default) in [("music", tr("home.music"), &mut pending.music, defaults.music), ("narration", tr("home.narration"), &mut pending.narration, defaults.narration)] {
-                    let (_, restore) = option_row(ui, widgets, name, *volume != default, &format!("{} %", default.percent), !trying, |ui, widgets| {
-                        let (rect, _) = ui.allocate_exact_size(vec2(240.0, 48.0), Sense::hover());
-                        ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, label, FontId::new(30.0, ui::bold()), palette::TEXT);
-                        let r = volume::slider(ui, volume, 40.0, 360.0);
-                        widgets.push((format!("option:{name}"), r.rail));
-                        widgets.push((format!("mute:{name}"), r.mute));
                     });
-                    if restore {
-                        *volume = default;
-                    }
-                }
-                hint(ui, tr("home.audio_hint"));
+                    ui.vertical(|ui| {
+                        ui.set_width(inner.width() - tabs - 36.0);
+                        ui.set_min_height(420.0);
+                        let pending = &mut settings.pending;
+                        match settings.category {
+                            Category::Interface => {
+                                heading(ui, tr("home.language"));
+                                let (row, restore) = option_row(ui, widgets, "language", pending.language != defaults.language, defaults.language.name(), !trying, |ui, widgets| {
+                                    ui.spacing_mut().item_spacing.x = 12.0;
+                                    for locale in Locale::ALL {
+                                        let r = ui.add(egui::Button::selectable(pending.language == locale, RichText::new(locale.name()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(180.0, 48.0)));
+                                        widgets.push((format!("option:language:{}", locale.code()), r.rect));
+                                        if r.clicked() {
+                                            pending.language = locale;
+                                        }
+                                    }
+                                });
+                                if restore {
+                                    pending.language = defaults.language;
+                                }
+                                if let Some(alpha) = flash {
+                                    ui.painter().rect_stroke(row.expand2(vec2(28.0, 8.0)), CornerRadius::same(12), Stroke::new(3.0, palette::accent().gamma_multiply(alpha)), StrokeKind::Outside);
+                                }
+                                hint(ui, tr("home.language_hint"));
+
+                                heading(ui, tr("home.theme"));
+                                let themes = &settings.themes;
+                                let name = |id: &str| themes.iter().find(|t| t.id == id).map_or(id.to_string(), |t| t.name.clone());
+                                let (_, restore) = option_row(ui, widgets, "theme", pending.theme != defaults.theme, &name(&defaults.theme), !trying, |ui, widgets| {
+                                    // A list, one to a row, so the default and Restore fit beside it.
+                                    ui.vertical(|ui| {
+                                        ui.spacing_mut().item_spacing.y = 8.0;
+                                        for entry in themes {
+                                            let r = ui.add(egui::Button::selectable(pending.theme == entry.id, RichText::new(&entry.name).font(FontId::new(26.0, ui::bold()))).min_size(vec2(280.0, 44.0)));
+                                            widgets.push((format!("option:theme:{}", entry.id), r.rect));
+                                            if r.clicked() {
+                                                pending.theme = entry.id.clone();
+                                            }
+                                        }
+                                    });
+                                });
+                                if restore {
+                                    pending.theme = defaults.theme.clone();
+                                }
+                                ui.add(egui::Label::new(RichText::new(tr("home.theme_hint")).color(palette::text_dim())).wrap());
+                                let folders = theme::dirs().iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join("\n");
+                                ui.add(egui::Label::new(RichText::new(folders).color(palette::text_faint())).wrap());
+                                ui.add_space(24.0);
+                                for error in &settings.theme_errors {
+                                    ui.add(egui::Label::new(RichText::new(error).color(palette::text_faint())).wrap());
+                                }
+                            }
+                            Category::Render => {
+                                heading(ui, tr("home.display"));
+                                let (_, restore) = option_row(ui, widgets, "fullscreen", pending.fullscreen != defaults.fullscreen, on_off(defaults.fullscreen), !trying, |ui, widgets| {
+                                    let r = ui.checkbox(&mut pending.fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
+                                    widgets.push(("option:fullscreen".into(), r.rect));
+                                });
+                                if restore {
+                                    pending.fullscreen = defaults.fullscreen;
+                                }
+                                hint(ui, tr("home.full_screen_hint"));
+                                hint(ui, tr("home.render_hint"));
+                            }
+                            Category::Audio => {
+                                heading(ui, tr("home.volume"));
+                                for (name, label, volume, default) in [("music", tr("home.music"), &mut pending.music, defaults.music), ("narration", tr("home.narration"), &mut pending.narration, defaults.narration)] {
+                                    let (_, restore) = option_row(ui, widgets, name, *volume != default, &format!("{} %", default.percent), !trying, |ui, widgets| {
+                                        let (rect, _) = ui.allocate_exact_size(vec2(240.0, 48.0), Sense::hover());
+                                        ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, label, FontId::new(30.0, ui::bold()), palette::text());
+                                        let r = volume::slider(ui, volume, 40.0, 360.0);
+                                        widgets.push((format!("option:{name}"), r.rail));
+                                        widgets.push((format!("mute:{name}"), r.mute));
+                                    });
+                                    if restore {
+                                        *volume = default;
+                                    }
+                                }
+                                hint(ui, tr("home.audio_hint"));
+                            }
+                        }
+                    });
+                });
 
                 ui.add_space(12.0);
                 let changed = settings.pending != settings.saved;
@@ -778,35 +881,35 @@ impl Home {
                 }
                 ui.add_space(24.0);
                 if self.settings.pending != self.settings.saved {
-                    ui.label(RichText::new(tr("home.unsaved_changes")).color(palette::ACCENT));
+                    ui.label(RichText::new(tr("home.unsaved_changes")).color(palette::accent()));
                 }
                 if let Some(message) = &self.settings.message {
-                    ui.add(egui::Label::new(RichText::new(message).color(palette::TEXT_DIM)).wrap());
+                    ui.add(egui::Label::new(RichText::new(message).color(palette::text_dim())).wrap());
                 }
                 let stored = match &self.settings.path {
                     Some(path) => format!("{} {}", tr("home.stored_in"), path.display()),
                     None => tr("home.no_config_dir").to_string(),
                 };
-                ui.add(egui::Label::new(RichText::new(stored).color(palette::TEXT_FAINT)).wrap());
+                ui.add(egui::Label::new(RichText::new(stored).color(palette::text_faint())).wrap());
             });
         });
         // The background layer is drawn under every area, so the card can follow its content.
         glass_panel(ink.painter, Rect::from_min_max(card.min, pos2(card.max.x, area.response.rect.max.y + 34.0)), 24, true);
         let footer = if trying { tr("home.esc_restores") } else { tr("home.esc_discards") };
-        ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+        ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::text_faint());
 
         // The countdown popup, above everything else on the page.
-        let Some(trial) = self.settings.trial else { return };
-        let left = (TRIAL_SECONDS - (time - trial.started)).ceil().max(1.0) as u32;
+        let Some(started) = self.settings.trial.as_ref().map(|t| t.started) else { return };
+        let left = (TRIAL_SECONDS - (time - started)).ceil().max(1.0) as u32;
         egui::Area::new(egui::Id::unique("home-config-popup")).order(egui::Order::Foreground).fixed_pos(Pos2::ZERO).fade_in(false).constrain(false).show(ctx, |ui| {
             let painter = ui.painter();
-            painter.rect_filled(Rect::from_min_size(Pos2::ZERO, canvas), CornerRadius::ZERO, Color32::from_rgba_unmultiplied(2, 6, 12, 150));
+            painter.rect_filled(Rect::from_min_size(Pos2::ZERO, canvas), CornerRadius::ZERO, palette::theme().dim);
             let popup = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(820.0, 360.0));
-            painter.rect_filled(popup, CornerRadius::same(22), Color32::from_rgba_unmultiplied(10, 22, 36, 235));
-            painter.rect_stroke(popup, CornerRadius::same(22), Stroke::new(2.0, palette::ACCENT), StrokeKind::Inside);
-            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, tr("home.keep_these_settings"), FontId::new(38.0, ui::bold()), palette::TEXT);
+            painter.rect_filled(popup, CornerRadius::same(22), palette::theme().popup);
+            painter.rect_stroke(popup, CornerRadius::same(22), Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
+            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, tr("home.keep_these_settings"), FontId::new(38.0, ui::bold()), palette::text());
             let countdown = tr_with("home.countdown", args!(seconds = left));
-            painter.text(pos2(popup.center().x, popup.min.y + 110.0), Align2::CENTER_TOP, countdown, FontId::new(28.0, FontFamily::Proportional), palette::TEXT_DIM);
+            painter.text(pos2(popup.center().x, popup.min.y + 110.0), Align2::CENTER_TOP, countdown, FontId::new(28.0, FontFamily::Proportional), palette::text_dim());
             let size = vec2(300.0, 72.0);
             let row = Rect::from_center_size(pos2(popup.center().x, popup.max.y - 80.0), vec2(size.x * 2.0 + 24.0, size.y));
             let mut keep = false;
@@ -836,7 +939,7 @@ impl Home {
             ui.set_width(inner.width());
             ui.set_max_width(inner.width());
             ui.set_clip_rect(inner);
-            ui.label(RichText::new(heading).font(FontId::new(24.0, ui::bold())).color(palette::ACCENT));
+            ui.label(RichText::new(heading).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
             ui.add_space(8.0);
             add(self, ui);
         });
@@ -854,7 +957,7 @@ fn option_row(ui: &mut egui::Ui, widgets: &mut Vec<(String, Rect)>, name: &str, 
         add(ui, widgets);
         if changed {
             ui.add_space(12.0);
-            ui.label(RichText::new(format!("{} {default}", tr("home.default"))).color(palette::ACCENT));
+            ui.label(RichText::new(format!("{} {default}", tr("home.default"))).color(palette::accent()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let r = glass_button(ui, vec2(190.0, 48.0), tr("home.restore"), 26.0, enabled);
                 widgets.push((format!("restore:{name}"), r.rect));
@@ -864,9 +967,33 @@ fn option_row(ui: &mut egui::Ui, widgets: &mut Vec<(String, Rect)>, name: &str, 
     });
     let r = row.response.rect;
     if changed {
-        ui.painter().rect_filled(Rect::from_min_max(pos2(r.min.x - 20.0, r.min.y + 4.0), pos2(r.min.x - 14.0, r.max.y - 4.0)), CornerRadius::same(3), palette::ACCENT);
+        ui.painter().rect_filled(Rect::from_min_max(pos2(r.min.x - 20.0, r.min.y + 4.0), pos2(r.min.x - 14.0, r.max.y - 4.0)), CornerRadius::same(3), palette::accent());
     }
     (r, restore)
+}
+
+/// A category's name on its tab.
+fn category_name(category: Category) -> &'static str {
+    match category {
+        Category::Interface => tr("home.interface"),
+        Category::Render => tr("home.render"),
+        Category::Audio => tr("home.audio"),
+    }
+}
+
+/// A Config page tab: a glass button, outlined when it is the tab shown,
+/// with a dot when its settings were edited.
+fn tab_button(ui: &mut egui::Ui, size: Vec2, label: &str, selected: bool, edited: bool, enabled: bool) -> egui::Response {
+    let r = glass_button(ui, size, label, 30.0, enabled);
+    let painter = ui.painter();
+    if selected {
+        painter.rect_filled(r.rect, CornerRadius::same(16), palette::accent().gamma_multiply(0.18));
+        painter.rect_stroke(r.rect, CornerRadius::same(16), Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
+    }
+    if edited {
+        painter.circle_filled(pos2(r.rect.max.x - 22.0, r.rect.center().y), 6.0, palette::accent());
+    }
+    r
 }
 
 /// Points per pixel and the canvas in points for a target, as in `ui::Layout`.
@@ -969,6 +1096,7 @@ impl Painter {
         raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
         let mut choice = None;
         let loading = backdrop.poll();
+        ui::restyle(&self.ctx);
         let mut output = self.ctx.run_pass(raw, |ctx| match &loading {
             Some(progress) => loading::page(ctx, canvas, "Render Lab", progress),
             None => choice = home.draw(ctx, canvas, time),
@@ -979,7 +1107,7 @@ impl Painter {
         let (gpu, frame, frost) = backdrop.parts();
         // Before the backdrop has loaded, the page is on the plain background.
         let loaded = frame.is_some();
-        let bg = palette::BACKGROUND;
+        let bg = palette::background();
         let clear = if loaded { wgpu::Color::BLACK } else { wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 } };
         let (device, queue) = (&gpu.device, &gpu.queue);
         for (id, deltas) in output.textures_delta.set.drain() {
@@ -1107,6 +1235,7 @@ pub fn snapshot(options: &HomeOptions, page: Page, trial: bool, png: &Path) -> R
     home.page = page;
     if trial {
         home.page = Page::Config;
+        home.settings.category = Category::Render;
         home.settings.pending.fullscreen = true;
         home.try_settings(0.0);
     }
@@ -1166,18 +1295,20 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     };
     let describe = |c: Option<Choice>| c.map(|c| c.describe()).unwrap_or_else(|| "nothing".into());
 
-    // The Config page: settings are tried, then kept or put back; only Apply writes the file.
+    // The Config page: render settings are tried, then kept or put back; only Apply writes them.
     let stored = || Config::load(&config_path).ok().filter(|_| config_path.exists());
     let has = |home: &Home, name: &str| home.widgets.iter().any(|w| w.0 == name);
     offscreen.click(&mut home, "config");
-    check("the title's Config opens the Config page", home.page == Page::Config, format!("{:?}", home.page));
-    check("with nothing changed, the first button is Return, and no option is marked", has(&home, "return") && !has(&home, "save") && !has(&home, "restore:fullscreen"), String::new());
+    check("the title's Config opens the Config page at the Interface tab", home.page == Page::Config && home.settings.category == Category::Interface && has(&home, "option:language:zh-CN") && !has(&home, "option:fullscreen"), format!("{:?}, {:?}", home.page, home.settings.category));
+    check("with nothing changed, the first button is Return, and no option is marked", has(&home, "return") && !has(&home, "save") && !has(&home, "restore:language"), String::new());
+    offscreen.click(&mut home, "category:render");
+    check("the Render tab shows Full Screen", home.settings.category == Category::Render && has(&home, "option:fullscreen"), format!("{:?}", home.settings.category));
     offscreen.click(&mut home, "option:fullscreen");
     check("a change turns Return into Save and Apply, and marks the option with its Restore", has(&home, "save") && !has(&home, "return") && has(&home, "restore:fullscreen"), String::new());
     check("ticking Full Screen changes nothing until it is applied", home.settings.pending.fullscreen && !home.applied.fullscreen && stored().is_none(), format!("pending {:?}, fullscreen {}", home.settings.pending, home.applied.fullscreen));
     offscreen.click(&mut home, "save");
     let trying = home.settings.trial.is_some() && home.applied.fullscreen;
-    check("Save and Apply tries the settings without writing them", trying && stored().is_none(), format!("trial {}, fullscreen {}, file {:?}", home.settings.trial.is_some(), home.applied.fullscreen, stored()));
+    check("Save and Apply tries a render setting without writing it", trying && stored().is_none(), format!("trial {}, fullscreen {}, file {:?}", home.settings.trial.is_some(), home.applied.fullscreen, stored()));
     offscreen.click(&mut home, "trial:restore");
     check("the popup's Restore puts the previous settings back", home.settings.trial.is_none() && !home.applied.fullscreen && !home.settings.pending.fullscreen && stored().is_none(), format!("fullscreen {}, pending {:?}", home.applied.fullscreen, home.settings.pending));
     offscreen.click(&mut home, "option:fullscreen");
@@ -1201,19 +1332,13 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "return");
     check("Return goes back to the title", home.page == Page::Title, format!("{:?}", home.page));
 
-    // The language: the title's globe opens the Config page at it; tried, it changes the text.
+    // The language: the title's globe opens the Config page at it; saved, it changes the text at once.
     offscreen.click(&mut home, "language");
     check("the title's globe opens the Config page with the Language option outlined", home.page == Page::Config && home.settings.flash.is_some() && has(&home, "option:language:zh-CN"), format!("{:?}", home.page));
     offscreen.click(&mut home, "option:language:zh-CN");
-    check("picking a language changes nothing until it is applied", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
+    check("picking a language changes nothing until it is saved", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
     offscreen.click(&mut home, "save");
-    check("a tried language changes the homepage's text", home.applied.language == Locale::ZhCn && i18n::current() == Locale::ZhCn && tr("home.config") != "Config", format!("text {:?}: {}", i18n::current(), tr("home.config")));
-    offscreen.click(&mut home, "trial:restore");
-    check("Restore puts the previous language back", home.applied.language == Locale::En && i18n::current() == Locale::En, format!("text {:?}", i18n::current()));
-    offscreen.click(&mut home, "option:language:zh-CN");
-    offscreen.click(&mut home, "save");
-    offscreen.click(&mut home, "trial:apply");
-    check("Apply keeps the language and writes it", i18n::current() == Locale::ZhCn && stored().is_some_and(|c| c.language == Locale::ZhCn), format!("file {:?}", stored()));
+    check("a saved language applies and is written at once, without the popup", home.settings.trial.is_none() && i18n::current() == Locale::ZhCn && tr("home.config") != "Config" && stored().is_some_and(|c| c.language == Locale::ZhCn && c.fullscreen), format!("text {:?}: {}, file {:?}", i18n::current(), tr("home.config"), stored()));
     // The edition offered first is in the language, else English.
     for i in investigations::all().iter().copied().filter(|i| !i.timelines().is_empty()) {
         let rows = home.timeline_rows(i);
@@ -1222,7 +1347,23 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         check(&format!("{}: in Chinese, the edition offered first is the Chinese one, else the English one", i.path()), offered.info.id == wanted.info.id, format!("{} ({:?})", offered.info.id, offered.locale));
     }
 
-    // The volumes: a slider and its mute button, tried and kept like the other settings.
+    // The theme: offered from the themes beside the binary, the default first in use.
+    let ids: Vec<String> = home.settings.themes.iter().map(|t| t.id.clone()).collect();
+    let offered = home.settings.themes.clone();
+    let colors = |id: &str| offered.iter().find(|t| t.id == id).map(|t| t.theme);
+    check("the Interface tab offers the built-in theme and the default one, which is in use", has(&home, &format!("option:theme:{}", theme::BUILT_IN)) && has(&home, &format!("option:theme:{}", theme::DEFAULT)) && colors(theme::DEFAULT) == Some(palette::theme()), format!("{ids:?}"));
+    let other = ids.iter().find(|id| *id != theme::DEFAULT && *id != theme::BUILT_IN).cloned().unwrap_or_else(|| theme::BUILT_IN.into());
+    // A theme and a render setting at once: the theme applies and is written; the render setting is tried.
+    offscreen.click(&mut home, &format!("option:theme:{other}"));
+    offscreen.click(&mut home, "category:render");
+    offscreen.click(&mut home, "option:fullscreen");
+    offscreen.click(&mut home, "save");
+    check("a saved theme applies and is written at once, while a render change beside it is tried", home.settings.trial.is_some() && colors(&other) == Some(palette::theme()) && stored().is_some_and(|c| c.theme == other && c.fullscreen), format!("trial {}, file {:?}", home.settings.trial.is_some(), stored()));
+    offscreen.click(&mut home, "trial:restore");
+    check("Restore puts back the render setting and keeps the theme", home.applied.fullscreen && home.applied.theme == other && colors(&other) == Some(palette::theme()) && home.settings.pending == home.settings.saved, format!("applied {:?}", home.applied));
+
+    // The volumes: a slider and its mute button, applied and written at once.
+    offscreen.click(&mut home, "category:audio");
     offscreen.click(&mut home, "mute:music");
     check("the music's mute button mutes it, and keeps its level", home.settings.pending.music.muted && home.settings.pending.music.percent == Config::default().music.percent && has(&home, "restore:music"), format!("{:?}", home.settings.pending.music));
     let rail = home.widgets.iter().find(|w| w.0 == "option:narration").map(|w| w.1);
@@ -1239,16 +1380,14 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     let narration = home.settings.pending.narration;
     check("a click on the narration's slider sets its level", rail.is_some() && narration.percent < 60 && !narration.muted, format!("{narration:?}"));
     offscreen.click(&mut home, "save");
-    check("tried volumes are in use, not yet written", home.applied.music.muted && home.applied.narration == narration && stored().is_some_and(|c| c.music == Config::default().music), format!("music {:?}", home.applied.music));
-    offscreen.click(&mut home, "trial:apply");
-    check("Apply writes the volumes", stored().is_some_and(|c| c.music.muted && c.narration == narration), format!("file {:?}", stored()));
+    check("saved volumes are in use and written at once, without the popup", home.settings.trial.is_none() && home.applied.music.muted && home.applied.narration == narration && stored().is_some_and(|c| c.music.muted && c.narration == narration), format!("music {:?}, file {:?}", home.applied.music, stored()));
     home.keep_narration(Volume::new(80));
     check("the narration's volume as the viewer leaves it is kept and written", home.applied.narration == Volume::new(80) && stored().is_some_and(|c| c.narration == Volume::new(80) && c.language == Locale::ZhCn), format!("file {:?}", stored()));
     offscreen.click(&mut home, "config");
     offscreen.click(&mut home, "defaults");
     offscreen.click(&mut home, "save");
     offscreen.click(&mut home, "trial:apply");
-    check("Restore Defaults, applied, puts English and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && stored() == Some(Config::default()), format!("file {:?}", stored()));
+    check("Restore Defaults, applied, puts English, the default theme, and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && colors(theme::DEFAULT) == Some(palette::theme()) && stored() == Some(Config::default()), format!("file {:?}", stored()));
     offscreen.click(&mut home, "return");
     let _ = std::fs::remove_file(&config_path);
 

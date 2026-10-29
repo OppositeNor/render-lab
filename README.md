@@ -40,16 +40,29 @@ in the top-right corner (it opens Config at the Language option), and the copyri
 bottom-left corner.
 
 - **Play** opens the selection page: the engines and features of the installed investigations.
-- **Config** edits the settings in `~/.config/render-lab/config.toml` (or `$XDG_CONFIG_HOME/render-lab/config.toml`):
-  the **Language** (English or 中文: the homepage's text, and the narrated edition the selection page offers first,
-  English when a feature has none in it; the demonstrations follow it too), **Full Screen**, and the volumes of the
-  **Music** and the **Narration**, each a slider with a mute button that keeps its level. The viewer's dock, and the
-  timeline bar while a video plays, also set the narration's volume; the viewer keeps it in the file when it closes.
-  **Save and Apply** tries the edited settings behind a ten-second countdown:
-  **Apply** keeps them and writes the file, while **Restore**, Esc, or letting the time run out puts the previous ones
-  back. Nothing is written before Apply. With nothing to save, the first button is **Return**; an option that differs
-  from its default is marked, with a **Restore** for that option alone; **Discard** drops the edits, and **Restore
-  Defaults** shows the defaults.
+- **Config** edits the settings in `~/.config/render-lab/config.toml` (or `$XDG_CONFIG_HOME/render-lab/config.toml`),
+  a tab per category:
+  - **Interface**: the **Language** (English or 中文: the homepage's text, and the narrated edition the selection page
+    offers first, English when a feature has none in it; the demonstrations follow it too) and the **Theme**, the colours
+    of the homepage and the viewer (below).
+  - **Render**: **Full Screen**.
+  - **Audio**: the volumes of the **Music** and the **Narration**, each a slider with a mute button that keeps its
+    level. The viewer's dock, and the timeline bar while a video plays, also set the narration's volume; the viewer
+    keeps it in the file when it closes.
+
+  **Save and Apply** applies the Interface and Audio settings and writes the file at once. A change to the Render
+  settings is tried behind a ten-second countdown instead: **Apply** keeps it and writes the file, while **Restore**,
+  Esc, or letting the time run out puts the previous one back. Nothing is written before Save and Apply. With nothing to
+  save, the first button is **Return**; a tab with edits has a dot, and an option that differs from its default is
+  marked, with a **Restore** for that option alone; **Discard** drops the edits, and **Restore Defaults** shows the
+  defaults.
+- **Themes** are TOML files, one per theme, named by their file's stem (`theme = "tokyo-night"` in the settings).
+  The lab reads them at run time from `themes/` beside the binary, where the build puts the ones it offers (from
+  [`themes/`](themes): **One Dark Pro**, **Tokyo Night**, and **VS Code**), and from
+  `~/.config/render-lab/themes/`, whose files take the place of the binary's of the same name. A theme names itself and
+  sets every colour of the interface; [`themes/one-dark-pro.toml`](themes/one-dark-pro.toml) describes each key. The
+  lab's own colours are the built-in theme **Render Lab**, the default, which recordings always use, so a recorded frame never depends
+  on the settings.
 - **F11** saves a screenshot of the window (the homepage or the viewer) to `build/screenshots/`.
 
 ## Commands
@@ -91,6 +104,7 @@ opens a formula card in the viewport.
 | [`src/main.rs`](src/main.rs), [`lab/`](lab/Cargo.toml), [`lab/src/cli.rs`](lab/src/cli.rs) | The binary, which only runs the lab: a Rust dylib that the binary and every package's library link, so they share one lab (its code and its state). The command line is the lab's. |
 | [`lab/src/home.rs`](lab/src/home.rs), [`lab/src/frost.rs`](lab/src/frost.rs), [`packages/render_lab/shaders/frost.wgsl`](packages/render_lab/shaders/frost.wgsl) | The homepage: the title, Config, and selection pages, over the title investigation's backdrop scene (`investigations::title`, O3DE's lighting for now; the loading page until it has loaded, `home --snapshot --page starting`), halved twice, blurred, tinted, and grained. |
 | [`lab/src/config.rs`](lab/src/config.rs), [`lab/src/volume.rs`](lab/src/volume.rs) | The settings file: its location, reading it (with `toml_edit`), and writing it; a sound's volume (a level and a mute switch) and its slider, on the Config page and in the viewer's dock. |
+| [`lab/src/theme.rs`](lab/src/theme.rs), [`lab/src/palette.rs`](lab/src/palette.rs), [`themes/`](themes) | Themes: finding and reading the theme files (the build copies `themes/` beside the binary), and the interface's colours in use (`palette::theme()`, `palette::text()`, ...), the lab's own until a theme is set; the overlays' colours stay constant. |
 | [`lab/src/text.rs`](lab/src/text.rs), [`lab/src/readback.rs`](lab/src/readback.rs), [`lab/src/gpu.rs`](lab/src/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. Text tables, pseudo-code listings, and source indexes are resources of each layer's package, read when first used (`i18n::Table`). |
 | [`lab/src/formula.rs`](lab/src/formula.rs), [`lab/src/rich_text.rs`](lab/src/rich_text.rs), [`packages/render_lab/assets/mitex/`](packages/render_lab/assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
 | [`lab/src/scene.rs`](lab/src/scene.rs), [`packages/render_lab/scenes/`](packages/render_lab/scenes/study-room.toml), [`lab/src/terrain.rs`](lab/src/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each is a data file, the resource `scene/<key>` (its objects, shapes, materials, light, lighting constants, where a camera sees it from, and the terrain's heightfield), read when a scene is first built. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |

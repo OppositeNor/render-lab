@@ -30,7 +30,7 @@ pub struct LightingValues {
     #[value(default = 31.0, range = 0.0..=31.0, unit = index, text = "controls.light_mask", color = LIGHT, label(channels))]
     pub light_channels: f32,
     /// The sphere mesh's lighting-channel mask (0x1F by default).
-    #[value(default = 31.0, range = 0.0..=31.0, unit = index, text = "controls.sphere_mask", color = palette::TEXT, label(channels))]
+    #[value(default = 31.0, range = 0.0..=31.0, unit = index, text = "controls.sphere_mask", label(channels))]
     pub sphere_lighting_channels: f32,
     /// More simple point lights over the room, for light culling (0 to 48).
     #[value(default = 0.0, range = 0.0..=48.0, unit = index, text = "controls.lights", color = LIGHT, label(culling))]
@@ -54,19 +54,19 @@ pub struct LightingValues {
     #[value(default = 0.0, toggle)]
     pub decals: f32,
     /// The decals' m_opacity (the component's Opacity).
-    #[value(default = 1.0, range = 0.0..=1.0, name = "opacity", color = palette::ACCENT, label(decals))]
+    #[value(default = 1.0, range = 0.0..=1.0, name = "opacity", color = palette::THEME_ACCENT, label(decals))]
     pub decal_opacity: f32,
     /// The decals' m_normalMapOpacity.
     #[value(default = 1.0, range = 0.0..=1.0, text = "controls.normal_map_opacity", color = palette::NORMAL, label(decals))]
     pub decal_normal_opacity: f32,
     /// The decals' m_angleAttenuation (the component's Attenuation Angle).
-    #[value(default = 1.0, range = 0.0..=1.0, text = "controls.attenuation_angle", color = palette::ACCENT, label(decals))]
+    #[value(default = 1.0, range = 0.0..=1.0, text = "controls.attenuation_angle", color = palette::THEME_ACCENT, label(decals))]
     pub decal_angle_attenuation: f32,
     /// The splat's sort key; the grid keeps the default 16, and larger keys draw on top.
-    #[value(default = 17.0, range = 0.0..=32.0, unit = index, text = "controls.splat_sort_key", color = palette::ACCENT, label(decals))]
+    #[value(default = 17.0, range = 0.0..=32.0, unit = index, text = "controls.splat_sort_key", color = palette::THEME_ACCENT, label(decals))]
     pub decal_splat_sort_key: f32,
     /// The splat's tilt about x, degrees: the angle between its projection axis and the floor's normal.
-    #[value(default = 0.0, range = -80.0..=80.0, unit = deg, text = "controls.splat_tilt", color = palette::ACCENT, label(decals))]
+    #[value(default = 0.0, range = -80.0..=80.0, unit = deg, text = "controls.splat_tilt", color = palette::THEME_ACCENT, label(decals))]
     pub decal_tilt: f32,
     /// The panel grid's turn about the vertical, degrees.
     #[value(default = 0.0, range = -180.0..=180.0, unit = deg, text = "controls.grid_turn", color = palette::REFLECTED, label(decals))]
@@ -99,22 +99,22 @@ pub struct LightingValues {
     #[value(default = 1.0, toggle)]
     pub ssao: f32,
     /// SSAO strength (DefaultSsaoStrength 1).
-    #[value(default = 1.0, range = 0.0..=1.0, name = "strength", color = palette::ACCENT, label(ssao))]
+    #[value(default = 1.0, range = 0.0..=1.0, name = "strength", color = palette::THEME_ACCENT, label(ssao))]
     pub ssao_strength: f32,
     /// SSAO sampling radius, a fraction of the half-res height (DefaultSsaoSamplingRadius 0.05).
-    #[value(default = 0.05, range = 0.0..=0.2, text = "controls.sampling_radius", color = palette::ACCENT, label(ssao))]
+    #[value(default = 0.05, range = 0.0..=0.2, text = "controls.sampling_radius", color = palette::THEME_ACCENT, label(ssao))]
     pub ssao_radius: f32,
     /// The SSAO's depth-aware blur.
     #[value(default = 1.0, toggle)]
     pub ssao_blur: f32,
     /// The blur's constant falloff (2/3 without an AO component; the component's default is 0.85).
-    #[value(default = 0.6667, range = 0.0..=1.0, text = "controls.blur_falloff", color = palette::ACCENT, label(ssao))]
+    #[value(default = 0.6667, range = 0.0..=1.0, text = "controls.blur_falloff", color = palette::THEME_ACCENT, label(ssao))]
     pub ssao_blur_const_falloff: f32,
     /// The blur's depth falloff threshold (0).
-    #[value(default = 0.0, range = 0.0..=1.0, text = "controls.depth_threshold", color = palette::ACCENT, label(ssao))]
+    #[value(default = 0.0, range = 0.0..=1.0, text = "controls.depth_threshold", color = palette::THEME_ACCENT, label(ssao))]
     pub ssao_blur_depth_threshold: f32,
     /// The blur's depth falloff strength (50 without an AO component; the component's default is 200).
-    #[value(default = 50.0, range = 0.0..=400.0, text = "controls.depth_strength", color = palette::ACCENT, label(ssao))]
+    #[value(default = 50.0, range = 0.0..=400.0, text = "controls.depth_strength", color = palette::THEME_ACCENT, label(ssao))]
     pub ssao_blur_depth_strength: f32,
     /// Two reflection probes in the room, their cubemaps baked from the room demonstration's start.
     #[value(default = 0.0, toggle)]
@@ -123,25 +123,25 @@ pub struct LightingValues {
     #[value(default = 1.0, toggle)]
     pub probe_parallax: f32,
     /// The probes' inner extents as a fraction of the placed ones (clamped to the outer extents).
-    #[value(default = 1.0, range = 0.0..=1.0, text = "controls.inner_extents", color = palette::ACCENT, label(probes))]
+    #[value(default = 1.0, range = 0.0..=1.0, text = "controls.inner_extents", color = palette::THEME_ACCENT, label(probes))]
     pub probe_inner_scale: f32,
     /// The probes' render exposure, stops (default 0).
-    #[value(default = 0.0, range = -4.0..=4.0, text = "controls.exposure_stops", color = palette::ACCENT, label(probes))]
+    #[value(default = 0.0, range = -4.0..=4.0, text = "controls.exposure_stops", color = palette::THEME_ACCENT, label(probes))]
     pub probe_exposure: f32,
     /// The probes' outer and inner boxes.
     #[value(default = 0.0, toggle)]
     pub probe_boxes: f32,
     /// The probe whose baked cubemap the cubemap views show (1 or 2).
-    #[value(default = 1.0, range = 1.0..=2.0, unit = index, text = "demos.probe", color = palette::ACCENT, label(cubemap))]
+    #[value(default = 1.0, range = 1.0..=2.0, unit = index, text = "demos.probe", color = palette::THEME_ACCENT, label(cubemap))]
     pub probe_shown: f32,
     /// That cubemap unfolded as a cross over the viewport (the lab's view, not an O3DE pass; a fraction fades it in).
     #[value(default = 0.0, toggle)]
     pub probe_cubemap: f32,
     /// The cross's mip (0 the 256-texel capture, 5 the roughest prefiltered mip; a fraction blends two).
-    #[value(default = 0.0, range = 0.0..=5.0, name = "mip", color = palette::ACCENT, label(cubemap))]
+    #[value(default = 0.0, range = 0.0..=5.0, name = "mip", color = palette::THEME_ACCENT, label(cubemap))]
     pub probe_cubemap_mip: f32,
     /// How many of the cross's six faces are baked (the video fills them in, in the cubemap's face order: +X, -X, +Y, -Y, +Z, -Z).
-    #[value(default = 6.0, range = 0.0..=6.0, text = "controls.faces_baked", color = palette::ACCENT, label(cubemap))]
+    #[value(default = 6.0, range = 0.0..=6.0, text = "controls.faces_baked", color = palette::THEME_ACCENT, label(cubemap))]
     pub probe_bake_faces: f32,
     /// A mirror ball at the probe's position reflecting its cubemap (a fraction fades it in).
     #[value(default = 0.0, toggle)]
@@ -153,37 +153,37 @@ pub struct LightingValues {
     #[value(default = 0.0, range = 0.0..=5.0, text = "controls.ball_mip", color = palette::REFLECTED, label(cubemap))]
     pub probe_ball_mip: f32,
     /// The teapot as EnhancedPBR with transmission: 0 None (the default), 1 ThickObject, 2 ThinObject.
-    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls.mode", color = palette::ACCENT, label(transmission))]
+    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls.mode", color = palette::THEME_ACCENT, label(transmission))]
     pub teapot_transmission: f32,
     /// Transmission thickness (the property's default 0.5).
-    #[value(default = 0.5, range = 0.0..=1.0, name = "thickness", color = palette::ACCENT, label(transmission))]
+    #[value(default = 0.5, range = 0.0..=1.0, name = "thickness", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_thickness: f32,
     /// Thick mode: transmission power (default 6).
-    #[value(default = 6.0, range = 0.0..=20.0, name = "power", color = palette::ACCENT, label(transmission))]
+    #[value(default = 6.0, range = 0.0..=20.0, name = "power", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_power: f32,
     /// Thick mode: transmission distortion (default 0.1).
-    #[value(default = 0.1, range = 0.0..=1.0, name = "distortion", color = palette::ACCENT, label(transmission))]
+    #[value(default = 0.1, range = 0.0..=1.0, name = "distortion", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_distortion: f32,
     /// Thick mode: transmission attenuation coefficient (default 4).
-    #[value(default = 4.0, range = 0.0..=10.0, name = "attenuation", color = palette::ACCENT, label(transmission))]
+    #[value(default = 4.0, range = 0.0..=10.0, name = "attenuation", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_attenuation: f32,
     /// Transmission scale (default 1).
-    #[value(default = 1.0, range = 0.0..=4.0, name = "scale", color = palette::ACCENT, label(transmission))]
+    #[value(default = 1.0, range = 0.0..=4.0, name = "scale", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_scale: f32,
     /// Thin mode: the NdotL bias (default 0.1).
-    #[value(default = 0.1, range = -1.0..=1.0, text = "controls.ndotl_bias_thin", color = palette::ACCENT, label(transmission))]
+    #[value(default = 0.1, range = -1.0..=1.0, text = "controls.ndotl_bias_thin", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_nd_l_bias: f32,
     /// Thin mode: the distance attenuation (default 0.5).
-    #[value(default = 0.5, range = 0.0..=4.0, text = "controls.distance_attenuation_thin", color = palette::ACCENT, label(transmission))]
+    #[value(default = 0.5, range = 0.0..=4.0, text = "controls.distance_attenuation_thin", color = palette::THEME_ACCENT, label(transmission))]
     pub transmission_distance_attenuation: f32,
     /// The sphere's clearCoat.enable (false by default).
     #[value(default = 0.0, toggle)]
     pub sphere_clear_coat: f32,
     /// ClearCoat.factor (1 by default).
-    #[value(default = 1.0, range = 0.0..=1.0, name = "factor", color = palette::ACCENT, label(clear_coat))]
+    #[value(default = 1.0, range = 0.0..=1.0, name = "factor", color = palette::THEME_ACCENT, label(clear_coat))]
     pub clear_coat_factor: f32,
     /// ClearCoat.roughness, linear (0 by default).
-    #[value(default = 0.0, range = 0.0..=1.0, name = "roughness", color = palette::ACCENT, label(clear_coat))]
+    #[value(default = 0.0, range = 0.0..=1.0, name = "roughness", color = palette::THEME_ACCENT, label(clear_coat))]
     pub clear_coat_roughness: f32,
     /// The sphere's diffuse AO and specular cavity maps assigned (1) or not (0, O3DE's default: no texture, occlusion 1).
     #[value(default = 0.0, toggle)]
@@ -201,31 +201,31 @@ pub struct LightingValues {
     #[value(default = 0.5, range = 0.0..=1.0, name = "specularF0 factor", color = SPECULAR, label(material))]
     pub specular_f0_factor: f32,
     /// Sphere roughness (linear, as authored).
-    #[value(default = 0.35, range = 0.0..=1.0, name = "roughness", color = palette::ACCENT, label(material))]
+    #[value(default = 0.35, range = 0.0..=1.0, name = "roughness", color = palette::THEME_ACCENT, label(material))]
     pub sphere_roughness: f32,
     /// Sphere metallic.
-    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", color = palette::TEXT, label(material))]
+    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", label(material))]
     pub sphere_metallic: f32,
     /// Teapot roughness.
-    #[value(default = 0.3, range = 0.0..=1.0, name = "roughness", color = palette::ACCENT, label(material))]
+    #[value(default = 0.3, range = 0.0..=1.0, name = "roughness", color = palette::THEME_ACCENT, label(material))]
     pub teapot_roughness: f32,
     /// Teapot metallic.
-    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", color = palette::TEXT, label(material))]
+    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", label(material))]
     pub teapot_metallic: f32,
     /// Rotated box roughness.
-    #[value(default = 0.55, range = 0.0..=1.0, name = "roughness", color = palette::ACCENT, label(material))]
+    #[value(default = 0.55, range = 0.0..=1.0, name = "roughness", color = palette::THEME_ACCENT, label(material))]
     pub box_roughness: f32,
     /// Rotated box metallic.
-    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", color = palette::TEXT, label(material))]
+    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", label(material))]
     pub box_metallic: f32,
     /// Floor roughness.
-    #[value(default = 0.45, range = 0.0..=1.0, name = "roughness", color = palette::ACCENT, label(material))]
+    #[value(default = 0.45, range = 0.0..=1.0, name = "roughness", color = palette::THEME_ACCENT, label(material))]
     pub floor_roughness: f32,
     /// Floor metallic.
-    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", color = palette::TEXT, label(material))]
+    #[value(default = 0.0, range = 0.0..=1.0, name = "metallic", label(material))]
     pub floor_metallic: f32,
     /// The floor's baseColor.factor, scaling its authored colour (0.16, 0.17, 0.19).
-    #[value(default = 1.0, range = 0.0..=5.0, unit = factor, name = "baseColor factor", color = palette::TEXT, label(material))]
+    #[value(default = 1.0, range = 0.0..=5.0, unit = factor, name = "baseColor factor", label(material))]
     pub floor_base_color_factor: f32,
     /// Inspected point x, metres (a click sets it).
     #[value(default = -0.621)]
@@ -276,7 +276,7 @@ pub struct LightingValues {
     #[value(default = 1.0, toggle)]
     pub labels: f32,
     /// Tonemapper exposure.
-    #[value(default = 1.0, range = 0.2..=4.0, unit = factor, text = "controls.exposure", color = palette::TEXT, label(display))]
+    #[value(default = 1.0, range = 0.2..=4.0, unit = factor, text = "controls.exposure", label(display))]
     pub exposure: f32,
     /// How many of N, L, V, H, and R are drawn, in that order (the video reveals them one by one; a fraction grows the next one).
     #[value(default = 5.0)]

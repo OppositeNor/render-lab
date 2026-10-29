@@ -41,10 +41,25 @@ pub fn install_fonts(ctx: &egui::Context) {
         }
         style.spacing.button_padding = vec2(12.0, 6.0);
         style.spacing.item_spacing = vec2(8.0, 6.0);
+    });
+    restyle(ctx);
+}
+
+/// Gives `ctx` the theme's colours (src/palette.rs) when they changed since
+/// it last had them; every egui pass of the lab starts with it.
+pub fn restyle(ctx: &egui::Context) {
+    let id = egui::Id::unique("render-lab-theme-generation");
+    let generation = palette::theme_generation();
+    if ctx.data(|d| d.get_temp::<u64>(id)) == Some(generation) {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(id, generation));
+    let theme = palette::theme();
+    ctx.all_styles_mut(|style| {
         style.visuals = egui::Visuals::dark();
-        style.visuals.widgets.inactive.weak_bg_fill = palette::PANEL_RAISED;
-        style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(0x1c, 0x3a, 0x52);
-        style.visuals.selection.bg_fill = Color32::from_rgb(0x14, 0x5a, 0x59);
+        style.visuals.widgets.inactive.weak_bg_fill = theme.panel_raised;
+        style.visuals.widgets.hovered.weak_bg_fill = theme.hover;
+        style.visuals.selection.bg_fill = theme.selection;
     });
 }
 

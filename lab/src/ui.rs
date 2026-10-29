@@ -15,7 +15,7 @@ use crate::shot::{BeatKind, DemoId, PanelMode, ShotState, Timeline};
 use crate::sources;
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
 
-pub use crate::text::{bold, install_fonts, Ink, CODE_PANEL_WIDTH, MIN_TEXT_PT, REFERENCE};
+pub use crate::text::{bold, install_fonts, restyle, Ink, CODE_PANEL_WIDTH, MIN_TEXT_PT, REFERENCE};
 use crate::text::mono_bold;
 
 /// Screen layout in logical points: a 1920 x 1080 canvas scaled uniformly to
@@ -298,7 +298,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     let scene_beat = input.beat_kind == BeatKind::Scene;
     match input.beat_kind {
         BeatKind::Scene => {
-            painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::BORDER), StrokeKind::Outside);
+            painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.
                 #[cfg_attr(not(commercial), allow(unused_mut))]
@@ -337,7 +337,8 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     }
     if input.fade > 0.0 {
         let a = (input.fade.clamp(0.0, 1.0) * 255.0) as u8;
-        painter.rect_filled(l.content.expand(4.0), CornerRadius::ZERO, Color32::from_rgba_unmultiplied(palette::BACKGROUND.r(), palette::BACKGROUND.g(), palette::BACKGROUND.b(), a));
+        let bg = palette::background();
+        painter.rect_filled(l.content.expand(4.0), CornerRadius::ZERO, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), a));
     }
     match &mut chrome {
         Chrome::Recording { timeline, frame } => {
@@ -380,18 +381,18 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
     let l = &input.layout;
     let engine = sources::index();
     let right = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
-    ink.text(pos2(l.canvas.x - 40.0, 26.0), Align2::RIGHT_TOP, &right, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+    ink.text(pos2(l.canvas.x - 40.0, 26.0), Align2::RIGHT_TOP, &right, 24.0, FontFamily::Proportional, palette::text_faint());
     match chrome {
         Chrome::Recording { timeline, frame } => {
             let chapter = timeline.chapter_at(*frame);
             let (_, beat) = timeline.beat_at(*frame);
             let tag = format!("{:02} / {:02}   {}", chapter.number, timeline.chapters.len(), chapter.title.to_uppercase());
-            ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, &tag, 24.0, bold(), palette::ACCENT);
+            ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, &tag, 24.0, bold(), palette::accent());
             let headline = ink.fit_right(&beat.headline, l.canvas.x - 80.0, 38.0, bold());
-            ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, headline, 38.0, bold(), palette::TEXT);
+            ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, headline, 38.0, bold(), palette::text());
         }
         Chrome::Viewer(viewer) => {
-            let title = ink.text(pos2(40.0, 14.0), Align2::LEFT_TOP, format!("RENDER LAB · {}", input.state.demo.title().to_uppercase()), 24.0, bold(), palette::ACCENT);
+            let title = ink.text(pos2(40.0, 14.0), Align2::LEFT_TOP, format!("RENDER LAB · {}", input.state.demo.title().to_uppercase()), 24.0, bold(), palette::accent());
             ink.font(24.0, FontFamily::Proportional);
             // The scene tabs, on the title's line, when the demonstrations show more than one scene.
             let investigation = investigation::current();
@@ -441,7 +442,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
             let room = l.canvas.x - 40.0 - response.response.rect.max.x - 24.0;
             if room > 60.0 {
                 let status = ink.fit_right(&viewer.status, room, 24.0, FontFamily::Proportional);
-                ink.text(pos2(l.canvas.x - 40.0, 62.0), Align2::RIGHT_TOP, status, 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+                ink.text(pos2(l.canvas.x - 40.0, 62.0), Align2::RIGHT_TOP, status, 24.0, FontFamily::Proportional, palette::text_dim());
             }
         }
     }
@@ -493,8 +494,8 @@ fn draw_labels(ink: &Ink, input: &UiInput, content: &FrameContent, obstacles: &[
         painter.circle_filled(anchor, 4.0, label.color);
         painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(9, 22, 36, 235));
         painter.rect_filled(Rect::from_min_max(rect.min, pos2(rect.min.x + 5.0, rect.max.y)), CornerRadius::same(2), label.color);
-        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
-        rich_text::text(ink, pos2(rect.min.x + 13.0, rect.center().y), Align2::LEFT_CENTER, &label.text, 24.0, FontFamily::Proportional, palette::TEXT);
+        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+        rich_text::text(ink, pos2(rect.min.x + 13.0, rect.center().y), Align2::LEFT_CENTER, &label.text, 24.0, FontFamily::Proportional, palette::text());
         report.labels.push(PlacedLabel { text: label.text.clone(), anchor: [anchor.x, anchor.y], rect: [rect.min.x, rect.min.y, rect.max.x, rect.max.y] });
     }
 }
@@ -531,9 +532,9 @@ fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, lit: f32, in
         rect = rect.translate(vec2(0.0, inset.max.y + 8.0 - rect.min.y));
     }
     ink.painter.rect_filled(rect, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, 235));
-    ink.painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.5, palette::BORDER), StrokeKind::Inside);
-    let lit = (term > 0 && lit > 0.0).then(|| (rich_text::Lit { term, weight: lit, color: colors.get(term - 1).copied().unwrap_or(palette::ACCENT) }, palette::TEXT_DIM));
-    rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &latex, formula::FORMULA_PX, display, &f, 1.0, palette::TEXT, lit);
+    ink.painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Inside);
+    let lit = (term > 0 && lit > 0.0).then(|| (rich_text::Lit { term, weight: lit, color: colors.get(term - 1).copied().unwrap_or(palette::accent()) }, palette::text_dim()));
+    rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &latex, formula::FORMULA_PX, display, &f, 1.0, palette::text(), lit);
     Some(rect.expand(4.0))
 }
 
@@ -549,8 +550,8 @@ fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) -> Option<Rec
         }
     }
     ink.painter.rect_filled(rect, CornerRadius::same(8), Color32::from_rgba_premultiplied(7, 18, 31, 235));
-    ink.painter.rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.5, palette::ACCENT), StrokeKind::Inside);
-    ink.text(rect.left_center() + vec2(14.0, 0.0), Align2::LEFT_CENTER, text, 24.0, FontFamily::Monospace, palette::ACCENT);
+    ink.painter.rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.5, palette::accent()), StrokeKind::Inside);
+    ink.text(rect.left_center() + vec2(14.0, 0.0), Align2::LEFT_CENTER, text, 24.0, FontFamily::Monospace, palette::accent());
     Some(rect.expand(4.0))
 }
 
@@ -571,8 +572,8 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     }
     let painter = ink.painter;
     let rect = l.panel;
-    painter.rect_filled(rect, CornerRadius::same(12), palette::PANEL);
-    painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     if state.panel == PanelMode::Code {
         if let Some(listing) = state.code.as_deref().and_then(|c| investigation::current().listing(c)) {
             draw_code(ink, rect, listing, &state.highlight, report);
@@ -591,18 +592,18 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     let x = rect.min.x + 22.0;
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, record.struct_name, 30.0, mono_bold(), palette::TEXT);
-    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, tr("ui.element")), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, record.struct_name, 30.0, mono_bold(), palette::text());
+    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, tr("ui.element")), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 42.0;
     let title = ink.fit_right(&record.title, width, 24.0, FontFamily::Proportional);
-    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::ACCENT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::accent());
     y += 32.0;
     if let Some(mapping) = sources::index().mapping(record.struct_name) {
         let text = ink.fit_right(&format!("≈ {}: {}", investigation::current().wording().engine_short, mapping.engine_short()), width, 24.0, FontFamily::Proportional);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::text_faint());
         y += 34.0;
     }
-    painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::BORDER));
+    painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::border()));
     y += 10.0;
     let rust = rust_fields(record.struct_name);
     let highlighted = |name: &str| state.highlight.iter().any(|h| h == name);
@@ -612,32 +613,32 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     }
     // Declaration rows with byte offsets and padding.
     let line = 27.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("struct {} {{", record.struct_name), 24.0, FontFamily::Monospace, palette::TEXT_DIM);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("struct {} {{", record.struct_name), 24.0, FontFamily::Monospace, palette::text_dim());
     y += line;
     let pads = layout.padding();
     let mut cursor = 0usize;
     for (_, field_name, code) in &decl.fields {
         let Some(f) = layout.field(field_name) else { continue };
         if f.offset > cursor {
-            ink.text(pos2(x + 8.0, y), Align2::LEFT_TOP, format!("{:>3}  ·· {} B padding", cursor, f.offset - cursor), 24.0, FontFamily::Monospace, palette::PADDING);
+            ink.text(pos2(x + 8.0, y), Align2::LEFT_TOP, format!("{:>3}  ·· {} B padding", cursor, f.offset - cursor), 24.0, FontFamily::Monospace, palette::padding());
             y += line;
         }
         let row = Rect::from_min_size(pos2(x - 8.0, y - 2.0), vec2(width + 16.0, line));
         if highlighted(field_name) {
-            painter.rect_filled(row, CornerRadius::same(4), palette::HIGHLIGHT_ROW);
+            painter.rect_filled(row, CornerRadius::same(4), palette::highlight_row());
             swatch(painter, Rect::from_min_size(pos2(x - 6.0, y + 2.0), vec2(6.0, line - 8.0)), &field_colors(record.struct_name, field_name));
         }
-        let color = if highlighted(field_name) { palette::TEXT } else { palette::TEXT_DIM };
+        let color = if highlighted(field_name) { palette::text() } else { palette::text_dim() };
         let text = ink.fit_right(&format!("{:>3}  {code}", f.offset), width - 8.0, 24.0, FontFamily::Monospace);
         ink.text(pos2(x + 8.0, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Monospace, color);
         y += line;
         cursor = f.offset + f.size;
     }
     if layout.size > cursor {
-        ink.text(pos2(x + 8.0, y), Align2::LEFT_TOP, format!("{:>3}  ·· {} B padding", cursor, layout.size - cursor), 24.0, FontFamily::Monospace, palette::PADDING);
+        ink.text(pos2(x + 8.0, y), Align2::LEFT_TOP, format!("{:>3}  ·· {} B padding", cursor, layout.size - cursor), 24.0, FontFamily::Monospace, palette::padding());
         y += line;
     }
-    ink.text(pos2(x, y), Align2::LEFT_TOP, "}", 24.0, FontFamily::Monospace, palette::TEXT_DIM);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, "}", 24.0, FontFamily::Monospace, palette::text_dim());
     y += line + 4.0;
     let _ = pads;
     if state.panel != PanelMode::Values {
@@ -656,24 +657,24 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
         if lines.len() == 1 {
             let one_line = format!("{name} = {}", lines[0]);
             if ink.measure(&one_line, 24.0, FontFamily::Monospace).x <= width {
-                ink.text(pos2(x, y), Align2::LEFT_TOP, one_line, 24.0, FontFamily::Monospace, palette::TEXT);
+                ink.text(pos2(x, y), Align2::LEFT_TOP, one_line, 24.0, FontFamily::Monospace, palette::text());
                 y += line;
             } else {
                 if y + 2.0 * line > bottom {
                     break;
                 }
-                ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name} ="), 24.0, FontFamily::Monospace, palette::TEXT);
+                ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name} ="), 24.0, FontFamily::Monospace, palette::text());
                 y += line;
                 let value = ink.fit_right(&format!("  {}", lines[0]), width, 24.0, FontFamily::Monospace);
-                ink.text(pos2(x, y), Align2::LEFT_TOP, value, 24.0, FontFamily::Monospace, palette::TEXT);
+                ink.text(pos2(x, y), Align2::LEFT_TOP, value, 24.0, FontFamily::Monospace, palette::text());
                 y += line;
             }
         } else {
             let storage = if matches!(field.kind, FieldKind::Mat3) { tr("ui.3_cols_16_b") } else { tr("ui.4_cols_16_b") };
-            ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name}  ({storage})"), 24.0, FontFamily::Monospace, palette::TEXT);
+            ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name}  ({storage})"), 24.0, FontFamily::Monospace, palette::text());
             y += line;
             for row in &lines {
-                ink.text(pos2(x, y), Align2::LEFT_TOP, row, 24.0, FontFamily::Monospace, palette::TEXT);
+                ink.text(pos2(x, y), Align2::LEFT_TOP, row, 24.0, FontFamily::Monospace, palette::text());
                 y += line;
             }
         }
@@ -694,14 +695,14 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::frame::Readout, notes: &
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     let title = ink.fit_right(&readout.title, width, 30.0, bold());
-    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 30.0, bold(), palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 30.0, bold(), palette::text());
     y += 42.0;
     if !readout.subtitle.is_empty() {
         let subtitle = ink.fit_right(&readout.subtitle, width, 24.0, FontFamily::Proportional);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, subtitle, 24.0, FontFamily::Proportional, palette::ACCENT);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, subtitle, 24.0, FontFamily::Proportional, palette::accent());
         y += 32.0;
     }
-    ink.painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::BORDER));
+    ink.painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::border()));
     y += 10.0;
     let line = 29.0;
     let bottom = rect.max.y - 14.0;
@@ -717,8 +718,8 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::frame::Readout, notes: &
                 let rows: f32 = readout.rows.iter().map(|(n, v, _)| if n.is_empty() && v.is_empty() { 0.5 } else { 1.0 }).sum::<f32>() + notes.len() as f32;
                 let room = bottom - y - 12.0 - 6.0 - rows * line;
                 let scale = (width / size.x).min(room / size.y).clamp(0.5, 1.0);
-                let lit = readout.formula_lit.map(|(term, weight)| (rich_text::Lit { term, weight, color: colors.get(term.wrapping_sub(1)).copied().unwrap_or(palette::ACCENT) }, palette::TEXT_DIM));
-                rich_text::draw_formula(ink, pos2(x, y) - Vec2::splat(pad * scale), &latex, formula::FORMULA_PX, display, &f, scale, palette::TEXT, lit);
+                let lit = readout.formula_lit.map(|(term, weight)| (rich_text::Lit { term, weight, color: colors.get(term.wrapping_sub(1)).copied().unwrap_or(palette::accent()) }, palette::text_dim()));
+                rich_text::draw_formula(ink, pos2(x, y) - Vec2::splat(pad * scale), &latex, formula::FORMULA_PX, display, &f, scale, palette::text(), lit);
                 report.formula_scale = Some(scale);
                 y += size.y * scale + 12.0;
             }
@@ -738,7 +739,7 @@ fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::frame::Readout, notes: &
             continue;
         }
         let value_width = ink.measure(value, 24.0, FontFamily::Monospace).x;
-        fitted_line(ink, pos2(x, y), name, (width - value_width - 16.0).max(40.0), palette::TEXT_DIM);
+        fitted_line(ink, pos2(x, y), name, (width - value_width - 16.0).max(40.0), palette::text_dim());
         ink.text(pos2(rect.max.x - 22.0, y), Align2::RIGHT_TOP, value, 24.0, FontFamily::Monospace, *color);
         y += line;
     }
@@ -773,10 +774,10 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     report.panel_code = Some(listing.name.to_string());
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.python_pseudo_code"), 30.0, bold(), palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.python_pseudo_code"), 30.0, bold(), palette::text());
     y += 42.0;
     let title = ink.fit_right(listing.title(), width, 24.0, FontFamily::Proportional);
-    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::ACCENT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::accent());
     y += 32.0;
     if let Some(entry) = sources::index().entries.get(&listing.source) {
         let engine = investigation::current().wording().engine_short;
@@ -788,12 +789,12 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
         };
         for text in lines {
             let text = ink.fit_right(&text, width, 24.0, FontFamily::Proportional);
-            ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+            ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::text_faint());
             y += 30.0;
         }
         y += 4.0;
     }
-    painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::BORDER));
+    painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::border()));
     y += 12.0;
     let line = 28.0;
     let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
@@ -805,8 +806,8 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
         }
         let lit = listing.lit(code_line, highlight);
         if lit {
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, line)), CornerRadius::same(4), palette::HIGHLIGHT_ROW);
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y + 1.0), vec2(4.0, line - 6.0)), CornerRadius::same(2), palette::ACCENT);
+            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, line)), CornerRadius::same(4), palette::highlight_row());
+            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y + 1.0), vec2(4.0, line - 6.0)), CornerRadius::same(2), palette::accent());
         }
         if code_line.text.chars().count() as f32 * column > width {
             report.code_overflow += 1;
@@ -816,12 +817,12 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
         let mut col = 0usize;
         for (kind, text) in crate::pseudocode::tokens(&code_line.text) {
             let color = match kind {
-                Token::Keyword => palette::CODE_KEYWORD,
-                Token::Name => palette::CODE_NAME,
-                Token::Number => palette::CODE_NUMBER,
-                Token::Text => palette::CODE_STRING,
-                Token::Comment => palette::TEXT_FAINT,
-                Token::Plain => palette::TEXT,
+                Token::Keyword => palette::code_keyword(),
+                Token::Name => palette::code_name(),
+                Token::Number => palette::code_number(),
+                Token::Text => palette::code_string(),
+                Token::Comment => palette::text_faint(),
+                Token::Plain => palette::text(),
             };
             let color = if dim { color.gamma_multiply(0.55) } else { color };
             if !text.trim().is_empty() {
@@ -843,19 +844,19 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, l
     let pads = layout.padding();
     let is_pad = |byte: usize| pads.iter().any(|(o, s, _)| byte >= *o && byte < o + s);
     let field_at = |byte: usize| layout.fields.iter().position(|f| byte >= f.offset && byte < f.offset + f.size);
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.byte_0_15"), 24.0, FontFamily::Monospace, palette::TEXT_FAINT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.byte_0_15"), 24.0, FontFamily::Monospace, palette::text_faint());
     y += row_h;
     for r in 0..rows {
         if y + row_h > bottom - 3.0 * row_h {
             break;
         }
-        ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{:>4}", r * 16), 24.0, FontFamily::Monospace, palette::TEXT_DIM);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{:>4}", r * 16), 24.0, FontFamily::Monospace, palette::text_dim());
         let mut label = String::new();
         for b in 0..16 {
             let byte = r * 16 + b;
             let cell_rect = Rect::from_min_size(pos2(x + 68.0 + b as f32 * cell, y + 3.0), vec2(cell - 2.0, row_h - 8.0));
             let color = if is_pad(byte) {
-                palette::PADDING
+                palette::padding()
             } else if let Some(fi) = field_at(byte) {
                 let f = &layout.fields[fi];
                 if label.is_empty() {
@@ -869,22 +870,22 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, l
                     let column = f.matrix.map(|_| (byte - f.offset) / 16).unwrap_or(0);
                     colors[column.min(colors.len() - 1)]
                 } else if fi % 2 == 0 {
-                    Color32::from_rgb(0x3d, 0x5f, 0x7d)
+                    palette::theme().field_even
                 } else {
-                    Color32::from_rgb(0x2b, 0x47, 0x60)
+                    palette::theme().field_odd
                 }
             } else {
-                palette::PADDING
+                palette::padding()
             };
             painter.rect_filled(cell_rect, CornerRadius::same(2), color);
         }
         let text = ink.fit_right(&label, x + width - label_x, 24.0, FontFamily::Monospace);
-        ink.text(pos2(label_x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Monospace, palette::TEXT_DIM);
+        ink.text(pos2(label_x, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Monospace, palette::text_dim());
         y += row_h;
     }
     y += 8.0;
     let pad_total: usize = pads.iter().map(|p| p.1).sum();
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, tr("ui.data"), pad_total), 24.0, FontFamily::Proportional, palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, tr("ui.data"), pad_total), 24.0, FontFamily::Proportional, palette::text());
     y += row_h + 2.0;
     for name in &state.highlight {
         if let (Some(f), Some(rf)) = (layout.field(name), rust.iter().find(|r| r.name == name.as_str())) {
@@ -926,11 +927,11 @@ fn draw_atlas_inset(ink: &Ink, input: &UiInput, content: &FrameContent, inset: &
     let rect = Rect::from_min_size(pos2(l.viewport.max.x - 18.0 - size.x, y), size);
     let frame = rect.expand2(vec2(10.0, 10.0)).with_min_y(rect.min.y - title_height);
     painter.rect_filled(frame, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, (alpha as f32 * 0.94) as u8));
-    painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
+    painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     for (k, text) in lines.iter().enumerate() {
         // The frame reaches 10 points past the image on the right.
         let text = ink.fit_right(text, size.x + 10.0, 24.0, FontFamily::Proportional);
-        ink.text(pos2(rect.min.x, frame.min.y + 6.0 + 30.0 * k as f32), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+        ink.text(pos2(rect.min.x, frame.min.y + 6.0 + 30.0 * k as f32), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::text_dim());
     }
     painter.image(input.atlas_texture, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::from_white_alpha(alpha));
     let page_size = vec2(size.x / crate::fixtures::ATLAS_PAGES[0] as f32, size.y / crate::fixtures::ATLAS_PAGES[1] as f32);
@@ -986,9 +987,9 @@ fn draw_history(ink: &Ink, input: &UiInput, history: &crate::frame::HistoryInset
     let width = n as f32 * cell + 28.0;
     let rect = Rect::from_min_size(l.viewport.min + vec2(16.0, 16.0), vec2(width.max(520.0), 170.0));
     painter.rect_filled(rect, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, 238));
-    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
+    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let title = ink.fit_right(tr("ui.history_title"), rect.width() - 28.0, 24.0, FontFamily::Proportional);
-    ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+    ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::text_dim());
     let exposure = content.uniforms.overlay_params[0];
     let top = rect.min.y + 52.0;
     for (i, s) in history.steps.iter().enumerate() {
@@ -1001,7 +1002,7 @@ fn draw_history(ink: &Ink, input: &UiInput, history: &crate::frame::HistoryInset
             painter.rect_stroke(r.expand(2.0), CornerRadius::same(3), Stroke::new(3.0, palette::HISTORY_REJECT), StrokeKind::Outside);
         }
         if i == history.current {
-            painter.rect_stroke(r.expand(4.0), CornerRadius::same(4), Stroke::new(3.0, palette::TEXT), StrokeKind::Outside);
+            painter.rect_stroke(r.expand(4.0), CornerRadius::same(4), Stroke::new(3.0, palette::text()), StrokeKind::Outside);
         }
     }
     let s = &history.steps[history.current];
@@ -1011,7 +1012,7 @@ fn draw_history(ink: &Ink, input: &UiInput, history: &crate::frame::HistoryInset
         text = format!("{frame} · {} {:.1} → {} {}", tr("ui.fast_update"), s.fast_update, s.frames, tr("ui.history_frames"));
     }
     let text = ink.fit_right(&text, rect.width() - 28.0, 24.0, FontFamily::Proportional);
-    ink.text(pos2(rect.min.x + 14.0, top + 50.0), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, if s.fast_update > 0.0 { palette::HISTORY_REJECT } else { palette::TEXT });
+    ink.text(pos2(rect.min.x + 14.0, top + 50.0), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, if s.fast_update > 0.0 { palette::HISTORY_REJECT } else { palette::text() });
     let _ = history.alpha;
     rect.expand(4.0)
 }
@@ -1021,27 +1022,27 @@ fn draw_source_card(ink: &Ink, input: &UiInput) {
     let painter = ink.painter;
     let index = sources::index();
     let rect = l.content;
-    painter.rect_filled(rect, CornerRadius::same(14), palette::PANEL);
-    painter.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, palette::BORDER), StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(14), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let x = rect.min.x + 40.0;
     let width = rect.width() - 80.0;
     let mut y = rect.min.y + 28.0;
     let heading = tr_with("ui.read_it_in", args!(engine = index.engine.name, version = index.engine.version, chapter = input.chapter_number));
-    ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 36.0, bold(), palette::TEXT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 36.0, bold(), palette::text());
     y += 50.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", tr("ui.paths_are_relative_to"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::TEXT_DIM);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", tr("ui.paths_are_relative_to"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 46.0;
     for key in input.beat_sources {
         let Some(entry) = index.entries.get(key) else { continue };
         if y > rect.max.y - 100.0 {
             break;
         }
-        ink.text(pos2(x, y), Align2::LEFT_TOP, &entry.symbol, 28.0, mono_bold(), palette::ACCENT);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, &entry.symbol, 28.0, mono_bold(), palette::accent());
         y += 38.0;
         let path = ink.fit_left(&format!("{}:{}", entry.path, entry.line), width, 24.0, FontFamily::Monospace);
-        ink.text(pos2(x, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::TEXT);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::text());
         y += 32.0;
-        y = ink.wrapped(pos2(x, y), width, entry.inspect_text(), 24.0, FontFamily::Proportional, palette::TEXT_DIM) + 22.0;
+        y = ink.wrapped(pos2(x, y), width, entry.inspect_text(), 24.0, FontFamily::Proportional, palette::text_dim()) + 22.0;
     }
 }
 
@@ -1055,8 +1056,8 @@ fn draw_captions(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) {
 fn draw_caption_lines(ink: &Ink, l: &Layout, text: &str) {
     let mut y = l.captions.min.y + 18.0;
     for line in text.lines() {
-        rich_text::text(ink, pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, Color32::from_rgb(0x02, 0x08, 0x10));
-        let rect = rich_text::text(ink, pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::TEXT);
+        rich_text::text(ink, pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::theme().shadow);
+        let rect = rich_text::text(ink, pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::text());
         y += 48.0f32.max(rect.height() + 8.0);
     }
 }
@@ -1077,9 +1078,9 @@ fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
     let size = ink.measure(&text, 34.0, bold()) + vec2(56.0, 28.0);
     let x = if seconds < 0 { l.viewport.min.x + l.viewport.width() * 0.2 } else { l.viewport.max.x - l.viewport.width() * 0.2 };
     let card = Rect::from_center_size(pos2(x, l.viewport.center().y), size);
-    ink.painter.rect_filled(card, CornerRadius::same(12), palette::PANEL.gamma_multiply(0.85 * opacity));
-    ink.painter.rect_stroke(card, CornerRadius::same(12), Stroke::new(1.5, palette::ACCENT.gamma_multiply(opacity)), StrokeKind::Inside);
-    ink.text(card.center(), Align2::CENTER_CENTER, text, 34.0, bold(), palette::TEXT.gamma_multiply(opacity));
+    ink.painter.rect_filled(card, CornerRadius::same(12), palette::panel().gamma_multiply(0.85 * opacity));
+    ink.painter.rect_stroke(card, CornerRadius::same(12), Stroke::new(1.5, palette::accent().gamma_multiply(opacity)), StrokeKind::Inside);
+    ink.text(card.center(), Align2::CENTER_CENTER, text, 34.0, bold(), palette::text().gamma_multiply(opacity));
 }
 
 /// The narration's volume at the timeline bar's right end: its width.
@@ -1094,7 +1095,9 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
     let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x - BAR_VOLUME - 24.0, l.footer.min.y + 30.0));
     let volume = Rect::from_min_max(pos2(bar.max.x + 24.0, l.footer.min.y + 4.0), pos2(l.footer.max.x, l.footer.min.y + 44.0));
     // In front of the dock, so the bar keeps its hover preview while the timeline is paused.
-    let response = egui::Area::new(egui::Id::unique("timeline-bar")).order(egui::Order::Foreground).fixed_pos(l.footer.min).show(ctx, |ui| {
+    // Not kept on screen: its controls are placed at the footer's rectangles, so an area
+    // moved up to fit would grow over the dock every frame and take its pointer.
+    let response = egui::Area::new(egui::Id::unique("timeline-bar")).order(egui::Order::Foreground).fixed_pos(l.footer.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(l.footer.size());
         let play = ui.put(button, egui::Button::new(if viewer.playing { tr("ui.bar_pause") } else { tr("ui.bar_play") }));
         if play.clicked() {
@@ -1119,15 +1122,15 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
     });
     viewer.ui_has_pointer |= response.response.hovered();
     viewer.widgets.push(("timeline-bar".into(), bar));
-    painter.rect_filled(bar, CornerRadius::same(4), Color32::from_rgb(0x26, 0x3e, 0x51));
+    painter.rect_filled(bar, CornerRadius::same(4), palette::theme().track);
     for &c in &viewer.chapters {
         let x = bar.min.x + bar.width() * c;
-        painter.rect_filled(Rect::from_min_size(pos2(x, bar.min.y - 6.0), vec2(2.0, bar.height() + 12.0)), CornerRadius::ZERO, palette::TEXT_FAINT);
+        painter.rect_filled(Rect::from_min_size(pos2(x, bar.min.y - 6.0), vec2(2.0, bar.height() + 12.0)), CornerRadius::ZERO, palette::text_faint());
     }
     let share = frame as f32 / total.max(1) as f32;
     let x = bar.min.x + bar.width() * share;
-    painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::same(4), palette::ACCENT);
-    painter.circle_filled(pos2(x, bar.center().y), 10.0, palette::ACCENT);
+    painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::same(4), palette::accent());
+    painter.circle_filled(pos2(x, bar.center().y), 10.0, palette::accent());
     if let Some(share) = response.inner {
         draw_bar_preview(ctx, bar, share, total, viewer);
     }
@@ -1146,7 +1149,7 @@ fn draw_bar_preview(ctx: &egui::Context, bar: Rect, share: f32, total: u64, view
     let span = Rect::from_min_max(pos2(bar.min.x + bar.width() * section.start, bar.min.y - 3.0), pos2(bar.min.x + bar.width() * end, bar.max.y + 3.0));
     painter.rect_filled(span, CornerRadius::same(3), Color32::from_rgba_unmultiplied(255, 255, 255, 60));
     let x = bar.min.x + bar.width() * share;
-    painter.rect_filled(Rect::from_min_size(pos2(x - 1.0, bar.min.y - 8.0), vec2(2.0, bar.height() + 16.0)), CornerRadius::ZERO, palette::TEXT);
+    painter.rect_filled(Rect::from_min_size(pos2(x - 1.0, bar.min.y - 8.0), vec2(2.0, bar.height() + 16.0)), CornerRadius::ZERO, palette::text());
 
     let fps = viewer.fps.max(1) as u64;
     let clock = |frame: u64| {
@@ -1161,11 +1164,11 @@ fn draw_bar_preview(ctx: &egui::Context, bar: Rect, share: f32, total: u64, view
     let size = vec2(width + 36.0, 108.0);
     let left = (x - size.x / 2.0).clamp(bar.min.x - 150.0, bar.max.x - size.x);
     let card = Rect::from_min_size(pos2(left, bar.min.y - 26.0 - size.y), size);
-    painter.rect_filled(card, CornerRadius::same(12), Color32::from_rgba_unmultiplied(7, 18, 31, 240));
-    painter.rect_stroke(card, CornerRadius::same(12), Stroke::new(1.5, palette::ACCENT), StrokeKind::Inside);
-    ink.text(card.min + vec2(18.0, 14.0), Align2::LEFT_TOP, &chapter_line, 24.0, bold(), palette::ACCENT);
-    ink.text(pos2(card.max.x - 18.0, card.min.y + 14.0), Align2::RIGHT_TOP, clock(at), 24.0, FontFamily::Monospace, palette::TEXT_DIM);
-    ink.text(card.min + vec2(18.0, 54.0), Align2::LEFT_TOP, &headline, 26.0, bold(), palette::TEXT);
+    painter.rect_filled(card, CornerRadius::same(12), palette::theme().card);
+    painter.rect_stroke(card, CornerRadius::same(12), Stroke::new(1.5, palette::accent()), StrokeKind::Inside);
+    ink.text(card.min + vec2(18.0, 14.0), Align2::LEFT_TOP, &chapter_line, 24.0, bold(), palette::accent());
+    ink.text(pos2(card.max.x - 18.0, card.min.y + 14.0), Align2::RIGHT_TOP, clock(at), 24.0, FontFamily::Monospace, palette::text_dim());
+    ink.text(card.min + vec2(18.0, 54.0), Align2::LEFT_TOP, &headline, 26.0, bold(), palette::text());
     viewer.hover = Some(format!("{chapter} | {} | {}", section.headline, clock(at)));
 }
 
@@ -1176,16 +1179,16 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
     let x = rect.min.x + 20.0;
     let mut y = rect.min.y + 10.0;
     let heading = tr_with("ui.source_list_heading", args!(engine = wording.engine_short, demo = demo.title(), checkout = wording.checkout_dir));
-    ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 24.0, bold(), palette::ACCENT);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 24.0, bold(), palette::accent());
     y += 34.0;
     let keys = index.demos.get(demo.key()).cloned().unwrap_or_default();
     for key in keys.iter().take(4) {
         let entry = index.entry(key);
         let symbol_width = 520.0;
         let symbol = ink.fit_right(&entry.short_symbol(), symbol_width - 16.0, 24.0, mono_bold());
-        ink.text(pos2(x, y), Align2::LEFT_TOP, symbol, 24.0, mono_bold(), palette::TEXT);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, symbol, 24.0, mono_bold(), palette::text());
         let path = ink.fit_left(&format!("{}:{}", entry.path, entry.line), rect.width() - symbol_width - 40.0, 24.0, FontFamily::Monospace);
-        ink.text(pos2(x + symbol_width, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::TEXT_DIM);
+        ink.text(pos2(x + symbol_width, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::text_dim());
         y += 29.0;
     }
 }
@@ -1193,16 +1196,16 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
 fn draw_footer(ink: &Ink, l: &Layout, timeline: Option<(&&Timeline, u64)>) {
     let painter = ink.painter;
     let bar = Rect::from_min_size(pos2(l.footer.min.x, l.footer.min.y + 2.0), vec2(l.footer.width(), 4.0));
-    painter.rect_filled(bar, CornerRadius::same(2), Color32::from_rgb(0x26, 0x3e, 0x51));
+    painter.rect_filled(bar, CornerRadius::same(2), palette::theme().track);
     if let Some((timeline, frame)) = timeline {
         let total = timeline.total_frames.max(1) as f32;
         for c in &timeline.chapters {
             let x = bar.min.x + bar.width() * c.start_frame as f32 / total;
-            painter.rect_filled(Rect::from_min_size(pos2(x, bar.min.y - 5.0), vec2(2.0, 14.0)), CornerRadius::ZERO, palette::TEXT_FAINT);
+            painter.rect_filled(Rect::from_min_size(pos2(x, bar.min.y - 5.0), vec2(2.0, 14.0)), CornerRadius::ZERO, palette::text_faint());
         }
         let x = bar.min.x + bar.width() * frame as f32 / total;
-        painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::same(2), palette::ACCENT);
-        painter.circle_filled(pos2(x, bar.center().y), 7.0, palette::ACCENT);
+        painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::same(2), palette::accent());
+        painter.circle_filled(pos2(x, bar.center().y), 7.0, palette::accent());
     }
-    ink.text(pos2(l.footer.min.x, l.footer.min.y + 16.0), Align2::LEFT_TOP, investigation::current().footer(), 24.0, FontFamily::Proportional, palette::TEXT_FAINT);
+    ink.text(pos2(l.footer.min.x, l.footer.min.y + 16.0), Align2::LEFT_TOP, investigation::current().footer(), 24.0, FontFamily::Proportional, palette::text_faint());
 }

@@ -68,6 +68,7 @@ pub mod shot;
 pub mod sources;
 pub mod terrain;
 pub mod text;
+pub mod theme;
 pub mod ui;
 pub mod values;
 pub mod viewer;

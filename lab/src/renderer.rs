@@ -791,6 +791,7 @@ impl Renderer {
         // which moves glyph texels and changes text pixels by a level, so a
         // frame would depend on the frames rendered before it.
         self.egui_ctx.set_glyph_rasterizers(Vec::new());
+        ui::restyle(&self.egui_ctx);
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
             let chrome = match &mut chrome {
                 Chrome::Recording { timeline, frame } => Chrome::Recording { timeline, frame: *frame },
@@ -817,7 +818,7 @@ impl Renderer {
         let targets = self.viewport.as_ref().unwrap();
 
         {
-            let bg = crate::palette::BACKGROUND;
+            let bg = crate::palette::background();
             let mut pass = encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("composite + ui"),
@@ -1029,7 +1030,7 @@ impl Renderer {
             self.encode_scene(&mut encoder, content);
         }
         {
-            let bg = crate::palette::BACKGROUND;
+            let bg = crate::palette::background();
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("backdrop composite"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {

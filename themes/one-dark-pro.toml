@@ -1,0 +1,30 @@
+# One Dark Pro: the colours of Atom's One Dark, as the One Dark Pro theme for
+# VS Code has them. A theme sets every colour of the interface (src/theme.rs
+# in the lab): "#rrggbb", or "#rrggbbaa" with alpha.
+name = "One Dark Pro"
+
+[colors]
+background = "#282c34"     # the viewport's surround, the loading pages
+panel = "#21252b"          # the dock, the panels, the popups
+panel_raised = "#2c313a"   # buttons and other widgets
+border = "#3e4452"
+text = "#d7dae0"
+text_dim = "#abb2bf"
+text_faint = "#7f848e"
+accent = "#61afef"         # headings, highlighted controls
+highlight_row = "#3e4451d0" # a highlighted row of a struct or a listing
+padding = "#4b5263"        # a struct's padding bytes
+hover = "#353b45"          # a widget under the pointer
+selection = "#3e4f6e"      # a selected item
+field_even = "#4d5666"     # a struct's byte cells, even and odd fields
+field_odd = "#3a404b"
+track = "#3a3f4b"          # a bar's and a slider's rail
+card = "#21252bf0"         # the timeline's hover card
+smoke = "#1b1e2378"        # the homepage's smoked glass
+popup = "#282c34eb"        # the homepage's popup
+dim = "#0f111496"          # what dims the page under the popup
+shadow = "#0f1114"         # the shadow under captions
+code_keyword = "#c678dd"   # pseudo-code listings
+code_name = "#61afef"
+code_number = "#d19a66"
+code_string = "#98c379"
