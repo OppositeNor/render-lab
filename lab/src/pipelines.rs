@@ -1,5 +1,5 @@
 //! Every pipeline of the scene renderer, built from the WGSL modules in
-//! src/shaders.rs. Bind group 0 mirrors packages/render_lab/shaders/bindings.wgsl.
+//! src/shaders.rs. Bind group 0 mirrors packages/rlstd/shaders/bindings.wgsl.
 
 use crate::frame::{BoxInstance, CardInstance, PointInstance, SampleInstance, SegmentInstance};
 use crate::gpu::{DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};

@@ -10,7 +10,7 @@ Total budget: 1,830 s (about 30 minutes), eleven chapters.
 
 ## The subject and the scene
 
-- **The study room** (`render_lab.scene/study-room`): 6 × 3 × 6 m, three coloured walls, the emissive ceiling
+- **The study room** (`rlstd.scene/study-room`): 6 × 3 × 6 m, three coloured walls, the emissive ceiling
   panel, the sphere, two boxes, and the teapot. Its colour bleeding (red and teal walls onto the sphere and the
   floor) is what SDFGI is for.
 - **Scale.** Cascade 0 is 25.6 m wide, so the whole room lies inside it: about 30 × 22 × 30 of its 128 × 128 × 128
@@ -194,7 +194,7 @@ Bridge: from one pixel back to the whole frame.
 ## The tools it needs
 
 From the lab (reuse): boxes, segments, points, labels (frame.rs `DrawLists`); the struct panel (`PanelRecord`);
-the readout with formulas (`Readout`); the picture inset (`ImageInset`, for slices and octahedral maps); the
+the readout with formulas (`Readout`); the picture inset (`PictureInset`, packages/rlstd/src/inset.rs, for slices and octahedral maps); the
 history inset (`HistoryInset`, for the ring of thirty); a mermaid diagram beat; the dock kit.
 
 To build, in the package (no other investigation needs them yet):

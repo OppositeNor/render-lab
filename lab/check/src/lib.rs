@@ -1,5 +1,5 @@
 //! The checks a package's build runs (its build.rs, and the lab's for its own
-//! package, render_lab): every shader the package declares parses and validates
+//! package, rlstd): every shader the package declares parses and validates
 //! with naga, and its text tables match the code and data that name their
 //! keys. A failure fails the build; nothing is generated. They read only the
 //! package's directory, its code, and the packages beside it it imports.

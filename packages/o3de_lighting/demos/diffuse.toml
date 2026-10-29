@@ -2,7 +2,7 @@ key = "diffuse"
 title-text = "shot.diffuse_and_its_response"
 tab-text = "shot.diffuse"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "diffuse-response"
 include = ["close-up", "sphere-camera"]
 

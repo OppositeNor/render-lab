@@ -1,4 +1,4 @@
-//! Rust mirrors of the WGSL records in packages/render_lab/shaders/types.wgsl, their field
+//! Rust mirrors of the WGSL records in packages/rlstd/shaders/types.wgsl, their field
 //! metadata, and the comparison against the layouts naga computes for them.
 //!
 //! Matrices are stored column-major: `[[f32; 4]; 4]` is four columns, which is

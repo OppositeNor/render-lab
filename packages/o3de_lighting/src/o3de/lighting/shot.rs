@@ -145,7 +145,5 @@ pub fn play_clip(demo: Demo) -> Clip {
 
 /// The viewer's Play animation: parameter values `t` seconds after it started.
 pub fn demo_animation(demo: Demo, t: f32) -> Vec<(&'static str, f32)> {
-    let params = &demos().params;
-    let name = |param: &str| params.iter().find(|p| p.name == param).map(|p| p.name).unwrap_or_else(|| panic!("{param} is not a shot parameter"));
-    play_clip(demo).sample(t, |param| demos().param_default(param).unwrap_or(0.0)).into_iter().map(|(param, value)| (name(&param), value)).collect()
+    lab::utility::demo::animation(demos(), &play_clip(demo), t)
 }

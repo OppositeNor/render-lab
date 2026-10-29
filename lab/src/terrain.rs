@@ -32,7 +32,7 @@ pub struct TerrainDesc {
     pub source: HeightSource,
 }
 
-/// The lab's terrain: the terrain scene's `[terrain]` (packages/render_lab/scenes/terrain.toml).
+/// The lab's terrain: the terrain scene's `[terrain]` (packages/rlstd/scenes/terrain.toml).
 pub fn terrain() -> &'static Terrain {
     static TERRAIN: OnceLock<Terrain> = OnceLock::new();
     TERRAIN.get_or_init(|| Terrain::build(crate::scene::terrain_table(crate::scene::SceneId::TERRAIN).unwrap_or_else(|e| panic!("{e:#}"))))

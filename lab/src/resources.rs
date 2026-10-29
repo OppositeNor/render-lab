@@ -4,7 +4,7 @@
 //! first brings the built packages up to date with their sources
 //! (src/cook.rs, incrementally); a binary without sources reads what is
 //! beside it. A resource is named by its full key
-//! (`resources::get("render_lab.font/dejavu-sans")`).
+//! (`resources::get("rlstd.font/dejavu-sans")`).
 //!
 //! Nothing is read until it is asked for. Data a scene decodes (the sky, a
 //! mesh) is read with `load`, which keeps no copy; the lab's loading step

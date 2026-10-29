@@ -12,6 +12,7 @@ use crate::shot::{BeatKind, ShotState};
 #[cfg(commercial)]
 use crate::surface_cache_gpu::{self, CacheInputs, SurfaceCacheGpu};
 use crate::ui::{self, Chrome, Layout, UiInput, UiReport};
+use crate::utility::inset::Textures;
 use bytemuck::Pod;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
@@ -183,9 +184,21 @@ pub struct Renderer {
     viewport: Option<ViewportTargets>,
     pub egui_ctx: egui::Context,
     egui_renderer: egui_wgpu::Renderer,
-    /// The Surface Cache picture (what the card quads show), for the atlas inset.
-    pub atlas_texture: egui::TextureId,
+    /// The GPU textures an inset's picture can show, by key (packages/rlstd/src/inset.rs).
+    textures: Textures,
     last_layout: Layout,
+}
+
+/// Show `view` as the inset texture `key` (`Picture::Texture`): registered
+/// with egui the first time, pointed at the new view after.
+fn show_texture(egui_renderer: &mut egui_wgpu::Renderer, device: &wgpu::Device, textures: &mut Textures, key: &str, view: &wgpu::TextureView) {
+    match textures.get(key) {
+        Some(&id) => egui_renderer.update_egui_texture_from_wgpu_texture(device, view, wgpu::FilterMode::Linear, id),
+        None => {
+            let id = egui_renderer.register_native_texture(device, view, wgpu::FilterMode::Linear);
+            textures.insert(key.to_string(), id);
+        }
+    }
 }
 
 /// The pipelines and data of one investigation's `SceneShading`.
@@ -373,8 +386,12 @@ impl Renderer {
         let vertex = wgpu::BufferUsages::VERTEX;
         let egui_ctx = egui::Context::default();
         ui::install_fonts(&egui_ctx);
+        #[cfg_attr(not(commercial), allow(unused_mut))]
         let mut egui_renderer = egui_wgpu::Renderer::new(device, FRAME_FORMAT, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
-        let atlas_texture = egui_renderer.register_native_texture(device, &scene.surface_display_view, wgpu::FilterMode::Linear);
+        #[cfg_attr(not(commercial), allow(unused_mut))]
+        let mut textures = Textures::new();
+        #[cfg(commercial)]
+        show_texture(&mut egui_renderer, device, &mut textures, surface_cache_gpu::DISPLAY_TEXTURE, &scene.surface_display_view);
         let frame = Self::frame_texture(device, width, height);
         let frame_view = frame.create_view(&Default::default());
         let shading_uniforms = device.create_buffer(&wgpu::BufferDescriptor {
@@ -422,7 +439,7 @@ impl Renderer {
             viewport: None,
             egui_ctx,
             egui_renderer,
-            atlas_texture,
+            textures,
             last_layout: Layout::new(width, height),
             statics,
             other_scenes: HashMap::new(),
@@ -549,7 +566,8 @@ impl Renderer {
         self.surface_cache_view = scene.surface_cache_view;
         self._surface_display = scene.surface_display;
         self.surface_display_view = scene.surface_display_view;
-        self.egui_renderer.update_egui_texture_from_wgpu_texture(device, &self.surface_display_view, wgpu::FilterMode::Linear, self.atlas_texture);
+        #[cfg(commercial)]
+        show_texture(&mut self.egui_renderer, device, &mut self.textures, surface_cache_gpu::DISPLAY_TEXTURE, &self.surface_display_view);
         self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.brick_atlas_view, &self.surface_display_view, &self.surface_cache_view, &self.environment_view, &self.sampler);
         #[cfg(commercial)]
         {
@@ -776,7 +794,7 @@ impl Renderer {
             state: request.state,
             content: content.as_ref(),
             statics: &self.statics,
-            atlas_texture: self.atlas_texture,
+            textures: &self.textures,
             beat_kind: request.beat_kind,
             image: request.image,
             beat_sources: request.beat_sources,

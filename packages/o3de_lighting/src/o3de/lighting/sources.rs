@@ -3,16 +3,7 @@
 //! the checkout. `selftest` checks each line's hash against the checkout
 //! when it is present.
 
-use lab::resources;
-use lab::sources::SourceIndex;
-use std::sync::OnceLock;
 
-/// The index as its JSON reads.
-pub fn index_json() -> &'static str {
-    resources::get("o3de_lighting.source-index").text()
-}
+use lab::utility::sources::PackageIndex;
 
-pub fn index() -> &'static SourceIndex {
-    static INDEX: OnceLock<SourceIndex> = OnceLock::new();
-    INDEX.get_or_init(|| SourceIndex::parse(index_json()).expect("packages/o3de_lighting/source-index.json is valid"))
-}
+pub static INDEX: PackageIndex = PackageIndex::new("o3de_lighting.source-index");

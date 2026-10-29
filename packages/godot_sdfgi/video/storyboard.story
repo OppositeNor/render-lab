@@ -7,7 +7,7 @@ fps: 30
 width: 1920
 height: 1080
 
-# 1 · Where SDFGI runs · 165 s
+# 1 · Where SDFGI runs · 150 s
 summary: The frame's SDFGI work, what turns it on, and two settings that are not what they say.
 sources: frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table
 
@@ -66,7 +66,7 @@ These are the functions this chapter followed: the frame's order, the update, an
 
 Every claim in this video cites a file, a symbol, and a line in the Godot checkout, and the build checks each line is still there.
 
-# 2 · Cascades that follow the camera · 130 s
+# 2 · Cascades that follow the camera · 115 s
 summary: Four nested grids, their squashed height, their probes, and how they jump after the camera.
 sources: cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule
 
@@ -115,7 +115,7 @@ sources: cascade-create, y-mult-table, probe-axis-count, scroll-update
 
 These are the lines that place and move the cascades.
 
-# 3 · What is voxelized, and which lights · 95 s
+# 3 · What is voxelized, and which lights · 90 s
 summary: The dirty slab becomes a box; Static meshes and static lights are listed for it.
 sources: pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index
 
@@ -155,7 +155,7 @@ sources: pending-regions, sdfgi-cull, gi-mode, static-lights-index
 
 These are the culling lines.
 
-# 4 · Voxelization · 110 s
+# 4 · Voxelization · 105 s
 summary: Three orthographic views write albedo, facing, and emission into the grid.
 sources: render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack
 
@@ -206,7 +206,7 @@ sources: render-sdfgi, sdf-fragment, albedo-pack, facing-mask
 
 These are the voxelizer's lines.
 
-# 5 · The distance field · 145 s
+# 5 · The distance field · 130 s
 summary: A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells.
 sources: jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store
 
@@ -286,7 +286,7 @@ sources: occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read
 
 These are the occlusion lines.
 
-# 7 · Light in the voxels · 150 s
+# 7 · Light in the voxels · 140 s
 summary: Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce.
 sources: update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback
 
@@ -351,7 +351,7 @@ sources: update-light, shadow-march, static-pass, bounce-feedback
 
 These are the light pass's lines.
 
-# 8 · Probes trace the field · 120 s
+# 8 · Probes trace the field · 110 s
 summary: Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames.
 sources: update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring
 
@@ -403,7 +403,7 @@ sources: vogel-rays, probe-march, sh-accum, history-ring
 
 These are the probe tracing lines.
 
-# 9 · From coefficients to maps · 80 s
+# 9 · From coefficients to maps · 85 s
 summary: Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes.
 sources: store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed
 
@@ -438,7 +438,7 @@ sources: oct-store, sh-gain, oct-read, parent-seed
 
 These are the probe map lines.
 
-# 10 · Shading a pixel · 120 s
+# 10 · Shading a pixel · 110 s
 summary: The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them.
 sources: process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi
 
@@ -493,7 +493,7 @@ sources: process-gi, cascade-blend, probe-weights, gi-compose
 
 These are the screen pass's lines.
 
-# 11 · The frame again · 45 s
+# 11 · The frame again · 40 s
 summary: The frame, in order.
 sources: frame-order
 

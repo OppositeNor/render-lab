@@ -46,7 +46,8 @@ enum Command {
         /// starting (the homepage's loading page, while the title's scene loads), loading (the
         /// viewer's loading page, while the current investigation's first scene loads), viewer (the
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
-        /// the investigation's first timeline, with its bar).
+        /// the investigation's first timeline, with its bar), or viewer-diagram (that timeline paused on its first diagram
+        /// beat, the diagram panel zoomed in).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -217,6 +218,7 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "loading" => crate::loading::snapshot(&png, [width.max(64), height.max(64)], options.ui_scale),
                 (Some(png), _) if page == "starting" => home::snapshot_starting(&options, &png),
                 (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", None, &png),
+                (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, true, &png),
                 (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
                 (Some(png), _) => {
                     let trial = page == "trial";

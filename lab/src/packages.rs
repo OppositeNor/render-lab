@@ -5,7 +5,7 @@
 //! (src/cook.rs). A manifest has:
 //!
 //! - `name`: the directory's name, lower-case words joined by `_`
-//!   (`render_lab`);
+//!   (`rlstd`);
 //! - `author`, `license`, and, if given, `contact`;
 //! - `import`: the packages it names resources of;
 //! - `export`: its keys other packages may name;
@@ -25,7 +25,7 @@
 //!
 //! A package's keys are its own (`font/dejavu-sans`); everywhere else a
 //! resource is named by its full key, `<package>.<key>`
-//! (`render_lab.font/dejavu-sans`). In a package's content, a reference
+//! (`rlstd.font/dejavu-sans`). In a package's content, a reference
 //! without a `.` is to one of its own keys, and `<package>.<key>` is to a key
 //! that an imported package exports. The lab's code names full keys.
 //!

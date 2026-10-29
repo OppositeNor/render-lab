@@ -1,4 +1,4 @@
-"""Draw the homepage's globe icon (packages/render_lab/assets/icons/globe.png).
+"""Draw the homepage's globe icon (packages/rlstd/assets/icons/globe.png).
 
 A white globe on a transparent background: its outline, the equator, two
 parallels, the central meridian, and one pair of meridians as an ellipse.
@@ -59,7 +59,7 @@ def chunk(kind: bytes, data: bytes) -> bytes:
 
 def main(argv: list[str]) -> None:
     root = Path(__file__).resolve().parents[2]
-    out = Path(argv[1]) if len(argv) > 1 else root / "packages/render_lab/assets/icons/globe.png"
+    out = Path(argv[1]) if len(argv) > 1 else root / "packages/rlstd/assets/icons/globe.png"
     header = struct.pack(">IIBBBBB", SIZE, SIZE, 8, 6, 0, 0, 0)
     png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(pixels(), 9)) + chunk(b"IEND", b"")
     out.parent.mkdir(parents=True, exist_ok=True)

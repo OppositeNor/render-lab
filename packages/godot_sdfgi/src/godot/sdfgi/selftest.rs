@@ -11,52 +11,16 @@ use super::shot::{self, Demo};
 use anyhow::Result;
 use glam::{IVec3, Vec3};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use lab::utility::selftest::{request, still_timeline, Report};
 use std::path::PathBuf;
-
-struct Report {
-    checks: Vec<Value>,
-}
-
-impl Report {
-    fn check(&mut self, name: &str, passed: bool, detail: Value) {
-        eprintln!("{} {name}", if passed { "PASS" } else { "FAIL" });
-        self.checks.push(json!({"name": name, "passed": passed, "detail": detail}));
-    }
-}
 
 fn close(a: Vec3, b: Vec3) -> bool {
     (a - b).abs().max_element() < 1e-4
 }
 
-fn still_timeline(width: u32, height: u32) -> lab::shot::Timeline {
-    serde_json::from_value(json!({
-        "fps": 30, "width": width, "height": height, "totalFrames": 1, "title": "selftest", "engineLabel": "",
-        "chapters": [{"number": 1, "title": "Selftest", "startFrame": 0, "endFrame": 1}],
-        "beats": [{"id": "still", "chapter": 1, "kind": "scene", "startFrame": 0, "frames": 1, "headline": "Selftest frame", "captions": []}],
-        "keys": []
-    }))
-    .unwrap()
-}
-
-fn request<'a>(state: &'a lab::shot::ShotState, timeline: &'a lab::shot::Timeline) -> lab::renderer::FrameRequest<'a> {
-    lab::renderer::FrameRequest {
-        state,
-        beat_kind: lab::shot::BeatKind::Scene,
-        image: None,
-        beat_sources: &[],
-        chapter_number: 1,
-        fade: 0.0,
-        time: 0.0,
-        raw_input: egui::RawInput { time: Some(0.0), ..Default::default() },
-        chrome: lab::ui::Chrome::Recording { timeline, frame: 0 },
-        stamp: None,
-    }
-}
-
 pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     std::fs::create_dir_all(&options.work_dir)?;
-    let mut report = Report { checks: Vec::new() };
+    let mut report = Report::new();
 
     // ---- 1. The cascades (gi.cpp create, update, get_pending_region_data) ----
     let settings = Settings::default();
@@ -455,7 +419,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
 
     // Listings: each cites a source entry and a demonstration, and every demonstration has one.
     {
-        let index = super::sources::index();
+        let index = super::sources::INDEX.get();
         let listings = super::pseudocode::all();
         let bad: Vec<&str> = listings.iter().filter(|l| !index.entries.contains_key(&l.source) || l.demo.as_deref().is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d))).map(|l| l.name).collect();
         let without: Vec<&str> = Demo::ALL.iter().filter(|d| shot::demos().spec(d.id()).listing.is_none()).map(|d| d.key()).collect();
@@ -467,35 +431,12 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     report.check("every demonstration's file loads", states_ok, json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()));
 
     // ---- 3. The source index against the checkout ----------------------------
-    let index_json: Value = serde_json::from_str(super::sources::index_json())?;
-    let index = super::sources::index();
+    let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
     let checkout = std::env::var_os("GODOT_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| lab::resources::root().join("../../godot"));
-    if checkout.join("version.py").is_file() {
-        let mut mismatches = Vec::new();
-        let mut cited = 0;
-        for (key, entry) in index_json["entries"].as_object().into_iter().flatten() {
-            let path = entry["path"].as_str().unwrap_or_default();
-            let text = std::fs::read_to_string(checkout.join(path)).unwrap_or_default();
-            let lines: Vec<&str> = text.lines().collect();
-            let mut lines_cited = vec![(entry["line"].as_u64().unwrap_or(0), entry["lineHash"].as_str().unwrap_or_default().to_string())];
-            for d in entry["details"].as_array().into_iter().flatten() {
-                lines_cited.push((d["line"].as_u64().unwrap_or(0), d["lineHash"].as_str().unwrap_or_default().to_string()));
-            }
-            for (line, hash) in lines_cited {
-                cited += 1;
-                let actual = lines.get(line.saturating_sub(1) as usize).map(|l| Sha256::digest(l.trim().as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
-                if actual.as_deref() != Some(hash.as_str()) {
-                    mismatches.push(json!({"key": key, "path": path, "line": line}));
-                }
-            }
-        }
-        report.check("every cited Godot line is unchanged in the checkout", mismatches.is_empty(), json!({"checkout": checkout, "linesCited": cited, "mismatches": mismatches}));
-    } else {
-        report.check("every cited Godot line is unchanged in the checkout (skipped: no checkout)", true, json!({"checkout": checkout}));
-    }
+    report.cited_lines("Godot", &super::sources::INDEX, &checkout, "version.py")?;
 
-    let passed = report.checks.iter().all(|c| c["passed"] == true);
+    let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;
     Ok(passed)
 }

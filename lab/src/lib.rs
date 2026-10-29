@@ -14,7 +14,7 @@
 //! published (see .gitignore and build.rs): they derive from such an engine
 //! and live in src/commercial/lab. Without them the Surface Cache, the distance-field
 //! fixtures, and the probes are absent, and the shaders compose the lab's
-//! `render_lab.wgsl/surface-lookup` (packages/render_lab/shaders/surface_fallback.wgsl),
+//! `rlstd.wgsl/surface-lookup` (packages/rlstd/shaders/surface_fallback.wgsl),
 //! which another package may override.
 
 #![cfg_attr(not(commercial), allow(dead_code))]
@@ -70,6 +70,10 @@ pub mod terrain;
 pub mod text;
 pub mod theme;
 pub mod ui;
+/// The standard package's code (packages/rlstd/src): the picture inset, a
+/// selftest's pieces, a package's source index and text table.
+#[path = "../../packages/rlstd/src/mod.rs"]
+pub mod utility;
 pub mod values;
 pub mod viewer;
 pub mod volume;

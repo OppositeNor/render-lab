@@ -4,7 +4,7 @@ key = "decals"
 title-text = "shot.decals"
 tab-text = "shot.decals"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "decals"
 include = ["decal-camera"]
 

@@ -1265,6 +1265,11 @@ pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {
 /// first timeline playing, in the edition the homepage offers first; or the
 /// demonstration `demo` (its key).
 pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, demo: Option<&str>, png: &Path) -> Result<()> {
+    snapshot_viewer_page(options, timeline, demo, false, png)
+}
+
+/// `snapshot_viewer`, or with `diagram`, its timeline paused on a diagram beat.
+pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<&str>, diagram: bool, png: &Path) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let current = investigation::current();
     let choice = if timeline {
@@ -1276,7 +1281,7 @@ pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, demo: Option<&str>
     };
     let size = PhysicalSize::new(options.width, options.height);
     let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
-    viewer::snapshot(viewer_options, demo, png)
+    viewer::snapshot_page(viewer_options, demo, diagram, png)
 }
 
 /// Click through the homepage offscreen and check what each control opens.
@@ -1651,12 +1656,12 @@ impl ApplicationHandler for HomeApp<'_> {
     }
 }
 
-/// The homepage's music and the sound of its controls (packages/render_lab/assets/audio/README.md); the
+/// The homepage's music and the sound of its controls (packages/rlstd/assets/audio/README.md); the
 /// lab is silent without them or without FFplay.
-const MUSIC: &str = "render_lab.audio/music";
-const CLICK: &str = "render_lab.audio/click";
+const MUSIC: &str = "rlstd.audio/music";
+const CLICK: &str = "rlstd.audio/click";
 /// The title page's language button.
-const GLOBE: &str = "render_lab.icon/globe";
+const GLOBE: &str = "rlstd.icon/globe";
 
 /// The homepage, then whatever it opens, until it quits or a window is closed.
 pub fn run(options: HomeOptions) -> Result<()> {

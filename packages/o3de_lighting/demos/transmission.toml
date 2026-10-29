@@ -6,7 +6,7 @@ key = "transmission"
 title-text = "shot.transmission_enhancedpbr"
 tab-text = "shot.transmission"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "transmission"
 
 [camera]

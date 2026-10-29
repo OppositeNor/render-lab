@@ -13,7 +13,8 @@ use super::voxels::{self, index, inside, CELLS};
 use crate::godot::sdfgi::text::{tr, tr_with};
 use egui::Color32;
 use glam::{IVec3, Vec3};
-use lab::frame::{FrameContent, ImageInset, Label, Readout, Statics};
+use lab::frame::{FrameContent, Label, Readout, Statics};
+use lab::utility::inset::{Corner, Marker, Picture, PictureInset};
 use lab::layout::FrameUniforms;
 use lab::palette;
 use lab::scene::{ids, Scene};
@@ -44,6 +45,22 @@ fn wire_box(content: &mut FrameContent, min: Vec3, size: Vec3, color: Color32, a
     for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
         content.draw.segment(c(a), c(b), color, alpha, width, 0);
     }
+}
+
+/// The investigation's far plane: the lab's camera stops at 60 m, and the
+/// cascades reach 205 m, so its frames draw out to 1 km.
+pub const FAR_PLANE: f32 = 1000.0;
+
+/// `camera` with its projection rebuilt for `FAR_PLANE` (the lab's reversed
+/// depth, far then near, as lab/src/camera.rs builds it).
+fn far_camera(mut camera: lab::layout::CameraData) -> lab::layout::CameraData {
+    let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
+    let proj = glam::camera::rh::proj::directx::perspective(camera.vertical_fov, aspect, FAR_PLANE, camera.near_plane);
+    let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
+    camera.view_to_clip = proj.to_cols_array_2d();
+    camera.world_to_clip = (proj * view).to_cols_array_2d();
+    camera.far_plane = FAR_PLANE;
+    camera
 }
 
 /// The size in pixels of `r` metres at `p`, for the frame's camera (points
@@ -109,7 +126,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let demo = Demo::of(state.demo);
     let objects = objects_for(state, statics);
     let lighting = statics.scene.lighting;
-    let camera = state.camera.camera_data(viewport);
+    let camera = far_camera(state.camera.camera_data(viewport));
     let uniforms = FrameUniforms {
         camera,
         light_center_radiance: lighting.light.center.extend(lighting.light.radiance).to_array(),
@@ -378,14 +395,14 @@ fn voxel_passes(passes: usize) -> &'static voxels::RenderVoxels {
 /// A horizontal slice of cascade 0 around the room, as an inset: 48 x 48 cells.
 const SLICE_CELLS: i32 = 34;
 
-fn slice_inset(state: &ShotState, world: &World, title: String, key: String, pixel: impl Fn(IVec3) -> [u8; 4], marker: Option<IVec3>, lines: Vec<(String, Color32)>) -> ImageInset {
+fn slice_inset(state: &ShotState, world: &World, title: String, key: String, pixel: impl Fn(IVec3) -> [u8; 4], marker: Option<IVec3>, lines: Vec<(String, Color32)>) -> PictureInset {
     let min = world_cell(world, 0, Vec3::new(-SLICE_CELLS as f32 * 0.1, 0.0, -SLICE_CELLS as f32 * 0.1));
     slice_window(state, world, title, key, pixel, marker, lines, min, SLICE_CELLS)
 }
 
 /// A slice inset of `cells` x `cells` from cell `min` (x and z).
 #[allow(clippy::too_many_arguments)]
-fn slice_window(state: &ShotState, world: &World, title: String, key: String, pixel: impl Fn(IVec3) -> [u8; 4], marker: Option<IVec3>, lines: Vec<(String, Color32)>, min: IVec3, cells: i32) -> ImageInset {
+fn slice_window(state: &ShotState, world: &World, title: String, key: String, pixel: impl Fn(IVec3) -> [u8; 4], marker: Option<IVec3>, lines: Vec<(String, Color32)>, min: IVec3, cells: i32) -> PictureInset {
     let y = world_cell(world, 0, Vec3::new(0.0, state.p("sliceHeight"), 0.0)).y;
     let n = cells as usize;
     // Each cell drawn as a block of k x k pixels, so the inset's filtering keeps cells sharp.
@@ -405,8 +422,16 @@ fn slice_window(state: &ShotState, world: &World, title: String, key: String, pi
             }
         }
     }
-    let marker = marker.map(|m| ([((m.x - min.x) as f32 + 0.5) / n as f32, 1.0 - ((m.z - min.z) as f32 + 0.5) / n as f32], palette::SELECTED, String::new()));
-    ImageInset { alpha: 1.0, right: true, title, key: format!("{key}-{y}"), size: [size, size], rgba: Arc::new(rgba), x_axis: "x".into(), y_axis: "z".into(), marker, lines }
+    let marker = marker.map(|m| ([((m.x - min.x) as f32 + 0.5) / n as f32, 1.0 - ((m.z - min.z) as f32 + 0.5) / n as f32], palette::SELECTED));
+    picture(Corner::TopRight, title, format!("{key}-{y}"), size, rgba, "x".into(), "z".into(), marker, lines)
+}
+
+/// A square picture of `size` pixels in an inset, 220 points a side, with its
+/// axes and a marked point.
+#[allow(clippy::too_many_arguments)]
+fn picture(corner: Corner, title: String, key: String, size: usize, rgba: Vec<u8>, x_axis: String, y_axis: String, marker: Option<([f32; 2], Color32)>, lines: Vec<(String, Color32)>) -> PictureInset {
+    let marker = marker.map(|(at, color)| Marker { at, color, label: String::new() });
+    PictureInset { corner, x_axis, y_axis, marker, lines, ..PictureInset::new(title, Picture::Pixels { key, size: [size, size], rgba: Arc::new(rgba) }, [220.0, 220.0]) }
 }
 
 fn grey(v: f32) -> [u8; 4] {
@@ -455,7 +480,7 @@ fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
                 }
             }
         }, Some(worked), vec![]);
-        content.image_inset = Some(inset);
+        content.insets.push(inset);
     }
     let seed = seeds_at(worked);
     let byte = data.stored.sdf[index(worked)];
@@ -540,7 +565,7 @@ fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) 
         }
         grey(super::occlusion::class_value(data.occlusion[index(p)], class))
     }, Some(probe_cell), vec![], probe_cell - IVec3::new(10, 0, 10), 20);
-    content.image_inset = Some(inset);
+    content.insets.push(inset);
     ball(content, cell_world(world, 0, probe_cell), 0.1, palette::PROBE_SELECTED, 1.0);
     let packed = data.occlusion[index(probe_cell + IVec3::new(2, -2, 1))];
     content.readout = Some(Readout {
@@ -737,8 +762,8 @@ fn probes_demo(state: &ShotState, world: &World, content: &mut FrameContent, map
                 rgba[i..i + 4].copy_from_slice(&if lit { [90, 200, 130, 255] } else { [40, 70, 60, 255] });
             }
         }
-        let marker = Some(([k as f32 / sim::CONVERGED_FRAMES as f32, values[k.min(values.len() - 1)] / top], palette::SELECTED, String::new()));
-        content.image_inset = Some(ImageInset { alpha: 1.0, right: true, title: tr("demos.history_chart").into(), key: "history-chart".into(), size: [n, n], rgba: Arc::new(rgba), x_axis: tr("demos.frames_axis").into(), y_axis: tr("demos.irradiance_axis").into(), marker, lines: vec![] });
+        let marker = Some(([k as f32 / sim::CONVERGED_FRAMES as f32, values[k.min(values.len() - 1)] / top], palette::SELECTED));
+        content.insets.push(picture(Corner::TopRight, tr("demos.history_chart").into(), "history-chart".into(), n, rgba, tr("demos.frames_axis").into(), tr("demos.irradiance_axis").into(), marker, vec![]));
     }
     if maps {
         // Both maps, 8 x 8 texels each with their border, side by side in a square, nearest-filtered.
@@ -772,7 +797,7 @@ fn probes_demo(state: &ShotState, world: &World, content: &mut FrameContent, map
                 }
             }
         }
-        content.image_inset = Some(ImageInset { alpha: 1.0, right: false, title: tr("demos.oct_maps").into(), key: "oct-maps".into(), size: [size, size], rgba: Arc::new(rgba), x_axis: tr("demos.oct_axes").into(), y_axis: "v".into(), marker: None, lines: vec![(tr("demos.oct_border").into(), palette::text_dim())] });
+        content.insets.push(picture(Corner::TopLeft, tr("demos.oct_maps").into(), "oct-maps".into(), size, rgba, tr("demos.oct_axes").into(), "v".into(), None, vec![(tr("demos.oct_border").into(), palette::text_dim())]));
         if state.p("showGain") > 0.5 {
             let gain = 4.0 / std::f32::consts::PI;
             rows.push(row(tr("demos.sky_gain"), format!("4/pi = {gain:.3}"), palette::MISMATCH));

@@ -9,7 +9,7 @@ Total budget: 2,275 s (about 38 minutes), fifteen chapters.
 
 ## The subject and the scene
 
-- **The study room** (`render_lab.scene/study-room`) lit by one simple point light and the global skylight, as
+- **The study room** (`rlstd.scene/study-room`) lit by one simple point light and the global skylight, as
   today. StandardPBR everywhere; the teapot turns EnhancedPBR for transmission.
 - **Subjects by chapter.** The floor beside the sphere for culling and decals; the sphere for the surface, the BRDF,
   clear coat, and multiscatter (its curvature sweeps N·L and N·V across one surface); the teapot for transmission;

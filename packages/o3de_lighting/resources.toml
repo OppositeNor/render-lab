@@ -20,7 +20,7 @@ built = true
 
 [[shader]]
 id = "shader/standard-lighting"
-parts = ["render_lab.shader/scene", "wgsl/view-mode", "wgsl/standard-lighting"]
+parts = ["rlstd.shader/scene", "wgsl/view-mode", "wgsl/standard-lighting"]
 
 # Its on-screen text (text.rs), source index (sources.rs), and pseudo-code
 # listings (pseudocode.rs).

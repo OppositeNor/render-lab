@@ -97,14 +97,15 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                        shot.rs      Demo enum, demos() (Demos::load("<package>")), for_demo, play_clip, demo_animation
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
-                       selftest.rs  the verification suite
-                       text.rs      Table::new("<package>.text") → tr
-                       sources.rs   the resource "<package>.source-index" → SourceIndex
+                       selftest.rs  the verification suite (lab::utility::selftest: Report, still_timeline,
+                                    request, Rng, Report::cited_lines for the checkout)
+                       text.rs      lab::text_table!("<package>.text") → tr, tr_with, tr_key
+                       sources.rs   pub static INDEX: PackageIndex = PackageIndex::new("<package>.source-index")
                        pseudocode.rs (NAMES; each the resource "<package>.listing/<name>")
                        formulas.rs (optional readout formulas: tags in text/*.json)
                        a script that writes source-index.json from the checkout
                        README.md
-                 manifest.toml      name, author, license, import = ["render_lab"], export, library = "<package>",
+                 manifest.toml      name, author, license, import = ["rlstd"], export, library = "<package>",
                                     negotiate = "<package>_negotiate", and [[provides]]: its collections, and
                                     its demos (the video's timelines and narration)
                  resources.toml     a collection: text, source index, listings, shaders, demonstrations,
@@ -126,17 +127,17 @@ Register it:
   its own instead; see AGENTS.md). Its library hands the lab its investigations when it negotiates
   (`lab/src/plugin.rs`); the homepage lists them under their engine, and `--investigation <engine>/<feature>` selects
   one on the command line. `render-lab packages` shows whether the library loaded, and its handles.
-- If it brings its own shading (`SceneShading`: WGSL composed after `packages/render_lab/shaders/scene.wgsl`, a fragment entry point,
+- If it brings its own shading (`SceneShading`: WGSL composed after `packages/rlstd/shaders/scene.wgsl`, a fragment entry point,
   uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a resource and a
-  `[[shader]]` with `parts = ["render_lab.shader/scene", "<its resource>"]` in its package (copy
+  `[[shader]]` with `parts = ["rlstd.shader/scene", "<its resource>"]` in its package (copy
   `packages/o3de_lighting/resources.toml`), and name that shader's full key in `SceneShading::module`. Ported shading code stays in the
-  investigation, never in `packages/render_lab/shaders`.
+  investigation, never in `packages/rlstd/shaders`.
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `sources`, `listings`,
 `build_frame`, `dock`, `click`, and `selftest`; `package` names its package, and `timelines` comes from the package's
 demos. Return the demonstrations' files from `demo_specs` (and the
 investigation's text from `text`), and `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's
-scenes, `packages/render_lab/scenes/*.toml` read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
+scenes, `packages/rlstd/scenes/*.toml` read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
 and `shot_state` come from them. Optional ones include `backdrop` (its homepage scene), `animation` (Play), and
 `scene_shading`. Follow `packages/o3de_lighting/src/o3de/lighting/mod.rs`.
 
@@ -144,7 +145,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 
 - The demonstrations are data, in the investigation's package (the format is in `lab/src/demo.rs`; copy
   `packages/o3de_lighting/demos/` and `src/o3de/lighting/values.rs`, and declare each file in its `resources.toml`; a demonstration's
-  `scene` is one `render_lab` exports, `render_lab.scene/study-room`):
+  `scene` is one `rlstd` exports, `rlstd.scene/study-room`):
   - The values: every number a shot or the video can animate, as the fields of a `#[derive(lab::Values,
     serde::Serialize, serde::Deserialize)]` struct (`#[values(package = "…", rename_all = "camelCase")]`; each field's
     `#[value(default = …, range = a..=b, unit = m, text = "…" or name = "…", color = …, label(group), toggle)]` and its
@@ -180,7 +181,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   `vectorsShown`, `ggxSamples`, `readoutRows`).
 - Every demonstration parameter gets a slider or toggle in `controls.rs`, built with the dock kit (`Dock::group`,
   `rows`, `slider`, `toggle`, `show`; `values` and `value` for declared values, `camera` for the camera's). Keep each demonstration's dock inside its width: a fourth row per group at most.
-- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (copy `packages/o3de_lighting/src/o3de/lighting/text.rs`; declare both files in its package as `text/en` and `text/zh-cn`), and build.rs checks them against the directory of the file with `Table::new("<package>.text")` and the package's data. Technical terms stay English in both.
+- On-screen text is a key in the layer's `text/en.json` and `text/zh-CN.json`, read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages); the investigation's `text.rs` reads its own tables (`lab::text_table!("<package>.text");`; declare both files in its package as `text/en` and `text/zh-cn`), and build.rs checks them against the directory of the file with `Table::new("<package>.text")` and the package's data. Technical terms stay English in both.
 - Data files the investigation loads (meshes, images, tables) are resources: declare them in a collection of its
   package (`[[resource]]` with `id`, `kind`, `source`, `license`, and the kind's parameters; the format and the kinds
   are in `lab/src/pipeline/mod.rs`, the manifest's in `lab/src/packages.rs`), and read them with
@@ -211,7 +212,8 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 A demonstration's Play animation is a `Clip` (`lab/src/animation.rs`) of looping motions: a `Wave` (a sine about a
 centre), an `Orbit` (a point turned about a centre; a `pingPong` of `Ease::Sine` swings it back and forth), or a `Path`
 through waypoints (`closed` with `Repeat::Loop` goes round). `play_clip(demo)` builds it, and
-`demo_animation(demo, t) -> Vec<(param, value)>` samples it `t` seconds after Play for the trait's `animation`. The
+`demo_animation(demo, t) -> Vec<(param, value)>` samples it `t` seconds after Play for the trait's `animation`
+(`lab::utility::demo::animation(demos(), &play_clip(demo), t)`). The
 viewer adds the camera's slow sway, the sliders follow, and stopping leaves the values in them. Sweep the parameter the
 demonstration is about (O3DE: the light circles the room; roughness sweeps through the cubemap's mips). `backdrop(t)`
 can reuse it for the homepage's scene.
@@ -281,7 +283,7 @@ cargo run --release -- home --snapshot <scratch>/home.png                   # lo
 
 - Build the public-only tree too: copy what `git ls-files --others --exclude-standard` lists (with `--parents`) into
   an empty directory, link `vendor/` into it, and build there without warnings.
-- If you touched `lab/` or `packages/render_lab/shaders`, check that the other investigations' frames are byte-identical: hash a
+- If you touched `lab/` or `packages/rlstd/shaders`, check that the other investigations' frames are byte-identical: hash a
   dozen stills of their timelines before and after.
 - Never open windows or take screenshots on the user's screen; look at offscreen renders.
 - Write the investigation's `README.md`: what it shows, its demonstrations and sliders, what the lab simplifies, its

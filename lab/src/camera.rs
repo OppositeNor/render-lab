@@ -13,7 +13,7 @@ pub const FAR: f32 = 60.0;
 /// as timelines and stories name them (src/values.rs); the dock's camera
 /// group shows those labelled `view`.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, crate::Values)]
-#[values(scope = "camera", package = "render_lab")]
+#[values(scope = "camera", package = "rlstd")]
 pub struct OrbitCamera {
     /// The point it orbits.
     #[value(components(x, y, z))]

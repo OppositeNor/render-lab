@@ -53,5 +53,5 @@ mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
 libc = "0.2"
 
 [build-dependencies]
-# build.rs's check of the lab's own package (render_lab).
+# build.rs's check of the lab's own package (rlstd).
 render-lab-check = { path = "check" }

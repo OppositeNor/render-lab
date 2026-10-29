@@ -15,7 +15,7 @@
 //! A demonstration's file has its `key`; its title (`title-text`, a key of
 //! the investigation's text) and tab (`tab-text`, or `tab` for a name that is
 //! not translated); `hint-text` for the status line; the `scene` it shows (a
-//! scene the lab's package exports, `render_lab.scene/study-room`); the
+//! scene the lab's package exports, `rlstd.scene/study-room`); the
 //! `listing` its Code tab opens; `resets-camera` (Reset parameters also
 //! resets the camera); `include`, presets applied in order; a `[camera]`
 //! (`target`, `yaw`, `pitch`, `distance`, `fov`); and `[params]`, the values

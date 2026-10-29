@@ -1,4 +1,4 @@
-//! The Utah teapot (packages/render_lab/assets/models/utah_teapot.obj, Cem Yuksel's 2026
+//! The Utah teapot (packages/rlstd/assets/models/utah_teapot.obj, Cem Yuksel's 2026
 //! triangle mesh), as the resource pipeline makes it (src/pipeline/mesh.rs,
 //! declared in src/resources.toml): scaled into the room's metres and
 //! arranged in a bounding-volume hierarchy. The raster pass draws its
@@ -25,7 +25,7 @@ pub struct TriangleMesh {
 
 pub fn teapot() -> &'static TriangleMesh {
     static TEAPOT: OnceLock<TriangleMesh> = OnceLock::new();
-    TEAPOT.get_or_init(|| TriangleMesh::load(&resources::get("render_lab.teapot").load()))
+    TEAPOT.get_or_init(|| TriangleMesh::load(&resources::get("rlstd.teapot").load()))
 }
 
 fn v3(a: [f32; 3]) -> Vec3 {

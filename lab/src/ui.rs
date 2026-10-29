@@ -183,6 +183,36 @@ pub struct BarSection {
     pub headline: String,
 }
 
+/// How a paused timeline's diagram is shown in its panel: the zoom (1 fits the
+/// panel), and the point of the picture (0..1 across, 0..1 down) at the panel's centre.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DiagramView {
+    pub zoom: f32,
+    pub center: Vec2,
+}
+
+impl Default for DiagramView {
+    fn default() -> DiagramView {
+        DiagramView { zoom: 1.0, center: vec2(0.5, 0.5) }
+    }
+}
+
+impl DiagramView {
+    pub const MAX_ZOOM: f32 = 8.0;
+
+    /// The picture's rectangle for a fitted rectangle `fit`.
+    pub fn rect(&self, fit: Rect) -> Rect {
+        let size = fit.size() * self.zoom;
+        Rect::from_min_size(fit.center() - vec2(self.center.x * size.x, self.center.y * size.y), size)
+    }
+}
+
+/// The rectangle a picture of `size` fits in `area`, centred.
+pub fn fit_rect(area: Rect, size: Vec2) -> Rect {
+    let s = (area.width() / size.x).min(area.height() / size.y);
+    Rect::from_center_size(area.center(), size * s)
+}
+
 pub struct ViewerChrome {
     pub playing: bool,
     pub timeline: Option<(u64, u64)>,
@@ -211,6 +241,8 @@ pub struct ViewerChrome {
     pub popups: crate::popup::Popups,
     /// The narration's volume, which the dock and the timeline bar set.
     pub narration: crate::volume::Volume,
+    /// Paused on a diagram beat: the diagram panel's zoom and pan.
+    pub diagram: Option<DiagramView>,
 }
 
 pub enum Chrome<'a> {
@@ -223,8 +255,8 @@ pub struct UiInput<'a> {
     pub state: &'a ShotState,
     pub content: Option<&'a FrameContent>,
     pub statics: &'a Statics,
-    /// The Surface Cache picture (src/surface_cache_gpu.rs draws it each frame).
-    pub atlas_texture: egui::TextureId,
+    /// The GPU textures an inset's picture can show (packages/rlstd/src/inset.rs).
+    pub textures: &'a crate::utility::inset::Textures,
     pub beat_kind: BeatKind,
     pub image: Option<(egui::TextureId, Vec2)>,
     pub beat_sources: &'a [String],
@@ -305,18 +337,13 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.
-                #[cfg_attr(not(commercial), allow(unused_mut))]
                 let mut obstacles = Vec::new();
-                #[cfg(commercial)]
-                if let Some(inset) = &content.atlas_inset {
-                    obstacles.push(draw_atlas_inset(&ink, input, content, inset));
+                for inset in content.insets.iter().filter(|i| i.alpha > 0.0) {
+                    obstacles.push(crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset));
                 }
                 #[cfg(commercial)]
                 if let Some(history) = &content.history {
                     obstacles.push(draw_history(&ink, input, history, content));
-                }
-                if let Some(inset) = content.image_inset.as_ref().filter(|i| i.alpha > 0.0) {
-                    obstacles.push(draw_image_inset(ctx, &ink, l, inset));
                 }
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
@@ -335,9 +362,28 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
         BeatKind::Mermaid => {
             if let Some((texture, size)) = input.image {
                 let area = l.content;
-                let s = (area.width() / size.x).min(area.height() / size.y);
-                let rect = Rect::from_center_size(area.center(), size * s);
-                painter.image(texture, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                let fit = fit_rect(area, size);
+                let view = match &chrome {
+                    Chrome::Viewer(v) => v.diagram,
+                    Chrome::Recording { .. } => None,
+                };
+                match view {
+                    None => {
+                        painter.image(texture, fit, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                    }
+                    Some(v) => {
+                        // The diagram panel of a paused timeline: zoomed and panned, clipped to the panel.
+                        let clipped = painter.with_clip_rect(area);
+                        clipped.rect_filled(area, CornerRadius::ZERO, Color32::from_rgb(7, 18, 31));
+                        clipped.image(texture, v.rect(fit), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                        painter.rect_stroke(area, CornerRadius::same(6), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+                        let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{:.1}", v.zoom)));
+                        let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
+                        let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
+                        painter.rect_filled(Rect::from_min_size(at - vec2(8.0, galley.size().y + 4.0), galley.size() + vec2(16.0, 8.0)), CornerRadius::same(6), Color32::from_rgba_unmultiplied(7, 18, 31, 220));
+                        ink.text(at, Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_dim());
+                    }
+                }
             }
         }
         BeatKind::Sources => draw_source_card(&ink, input),
@@ -909,127 +955,6 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, l
             y += row_h;
         }
     }
-}
-
-#[cfg(commercial)]
-fn draw_atlas_inset(ink: &Ink, input: &UiInput, content: &FrameContent, inset: &crate::frame::AtlasInset) -> Rect {
-    let l = &input.layout;
-    let painter = ink.painter;
-    let cache = &input.statics.fixtures.surface_cache;
-    // Smaller beside the code panel, where the viewport is narrow.
-    let size = if l.viewport.width() < 1100.0 { vec2(400.0, 200.0) } else { vec2(520.0, 260.0) };
-    let top = inset.top;
-    let alpha = (inset.alpha.clamp(0.0, 1.0) * 255.0) as u8;
-    // The title names the atlas and its format, on two lines when one is too short.
-    let layer = inset.layer;
-    let (atlas, format) = layer.name_and_format();
-    let gain = if layer == crate::surface_cache::Layer::IndirectLighting { format!(" (×{})", crate::surface_cache::INDIRECT_DISPLAY_GAIN) } else { String::new() };
-    let one_line = format!("{atlas} · {format}{gain}");
-    let mut lines = if ink.measure(&one_line, 24.0, FontFamily::Proportional).x <= size.x + 10.0 { vec![one_line] } else { vec![atlas.to_string(), format!("{format}{gain}")] };
-    if let Some(status) = investigation::current().cache_status(input.state, cache.pages.len(), layer) {
-        lines.push(status);
-    }
-    let title_height = 30.0 * lines.len() as f32 + 14.0;
-    let y = if top { l.viewport.min.y + 18.0 + title_height } else { l.viewport.max.y - 18.0 - size.y };
-    let rect = Rect::from_min_size(pos2(l.viewport.max.x - 18.0 - size.x, y), size);
-    let frame = rect.expand2(vec2(10.0, 10.0)).with_min_y(rect.min.y - title_height);
-    painter.rect_filled(frame, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, (alpha as f32 * 0.94) as u8));
-    painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
-    for (k, text) in lines.iter().enumerate() {
-        // The frame reaches 10 points past the image on the right.
-        let text = ink.fit_right(text, size.x + 10.0, 24.0, FontFamily::Proportional);
-        ink.text(pos2(rect.min.x, frame.min.y + 6.0 + 30.0 * k as f32), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, palette::text_dim());
-    }
-    painter.image(input.atlas_texture, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::from_white_alpha(alpha));
-    let page_size = vec2(size.x / crate::fixtures::ATLAS_PAGES[0] as f32, size.y / crate::fixtures::ATLAS_PAGES[1] as f32);
-    let page_rect = |i: usize| {
-        let p = cache.pages[i].physical_page;
-        Rect::from_min_size(rect.min + vec2(p[0] as f32 * page_size.x, p[1] as f32 * page_size.y), page_size)
-    };
-    let grid = Color32::from_rgba_unmultiplied(160, 190, 215, (alpha as f32 * 0.35) as u8);
-    for i in 0..=crate::fixtures::ATLAS_PAGES[0] {
-        let x = rect.min.x + i as f32 * page_size.x;
-        painter.line_segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], Stroke::new(1.0, grid));
-    }
-    for j in 0..=crate::fixtures::ATLAS_PAGES[1] {
-        let y = rect.min.y + j as f32 * page_size.y;
-        painter.line_segment([pos2(rect.min.x, y), pos2(rect.max.x, y)], Stroke::new(1.0, grid));
-    }
-    for &p in &inset.card_pages {
-        painter.rect_stroke(page_rect(p), CornerRadius::ZERO, Stroke::new(2.0, palette::CARD), StrokeKind::Inside);
-    }
-    if let Some(p) = inset.page {
-        let pr = page_rect(p);
-        painter.rect_stroke(pr.expand(2.0), CornerRadius::ZERO, Stroke::new(4.0, palette::PAGE), StrokeKind::Outside);
-        if let Some(world) = inset.page_world {
-            let projector = crate::camera::Projector::new(&content.uniforms.camera);
-            if let Some((px, _)) = projector.project(world) {
-                let a = l.viewport_pixel_to_canvas(px);
-                if l.viewport.contains(a) {
-                    dashed(painter, a, if top { pr.center_bottom() } else { pr.center_top() }, Stroke::new(2.5, palette::PAGE));
-                }
-            }
-        }
-    }
-    frame.expand(4.0)
-}
-
-fn dashed(painter: &Painter, a: Pos2, b: Pos2, stroke: Stroke) {
-    let d = b - a;
-    let len = d.length();
-    let n = (len / 14.0).ceil() as usize;
-    for i in (0..n).step_by(2) {
-        let t0 = i as f32 / n as f32;
-        let t1 = ((i + 1) as f32 / n as f32).min(1.0);
-        painter.line_segment([a + d * t0, a + d * t1], stroke);
-    }
-}
-
-/// An investigation's picture (`ImageInset`), with its axes and marked point;
-/// returns the rectangle it covers.
-fn draw_image_inset(ctx: &egui::Context, ink: &Ink, l: &Layout, inset: &crate::frame::ImageInset) -> Rect {
-    let painter = ink.painter;
-    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
-    let side = 220.0;
-    // As wide as its title and lines need, within half the viewport.
-    let widest = std::iter::once((&inset.title, 24.0)).chain(inset.lines.iter().map(|(line, _)| (line, 24.0))).map(|(t, size)| rich_text::measure(ink, t, size, FontFamily::Proportional).x).fold(0.0, f32::max);
-    let width = (widest + 28.0).clamp(side + 92.0, l.viewport.width() * 0.5);
-    let size = vec2(width, side + 94.0 + 32.0 * inset.lines.len() as f32);
-    let min = if inset.right { pos2(l.viewport.max.x - 16.0 - size.x, l.viewport.min.y + 16.0) } else { l.viewport.min + vec2(16.0, 16.0) };
-    let rect = Rect::from_min_size(min, size);
-    painter.rect_filled(rect, CornerRadius::same(10), fade(Color32::from_rgba_premultiplied(7, 18, 31, 238)));
-    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);
-    ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, ink.fit_right(&inset.title, rect.width() - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(palette::text()));
-    let image = Rect::from_min_size(rect.min + vec2(62.0, 48.0), vec2(side, side));
-    let id = egui::Id::unique(("image-inset", &inset.key));
-    let texture = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)).unwrap_or_else(|| {
-        let picture = egui::ColorImage::from_rgba_unmultiplied(inset.size, &inset.rgba);
-        let t = ctx.load_texture(format!("inset {}", inset.key), picture, egui::TextureOptions::LINEAR);
-        ctx.data_mut(|d| d.insert_temp(id, t.clone()));
-        t
-    });
-    painter.image(texture.id(), image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), fade(Color32::WHITE));
-    painter.rect_stroke(image, CornerRadius::ZERO, Stroke::new(1.0, fade(palette::border())), StrokeKind::Outside);
-    ink.text(pos2(image.center().x, image.max.y + 6.0), Align2::CENTER_TOP, &inset.x_axis, 24.0, FontFamily::Proportional, fade(palette::text_dim()));
-    let galley = painter.layout_no_wrap(inset.y_axis.clone(), egui::FontId::proportional(24.0), fade(palette::text_dim()));
-    let at = pos2(image.min.x - 34.0, image.center().y + galley.size().x / 2.0);
-    painter.add(egui::epaint::TextShape::new(at, galley, fade(palette::text_dim())).with_angle(-std::f32::consts::FRAC_PI_2));
-    if let Some((uv, color, label)) = &inset.marker {
-        let p = pos2(image.min.x + uv[0].clamp(0.0, 1.0) * side, image.max.y - uv[1].clamp(0.0, 1.0) * side);
-        painter.circle_stroke(p, 9.0, Stroke::new(3.0, fade(Color32::BLACK)));
-        painter.circle_stroke(p, 9.0, Stroke::new(2.0, fade(*color)));
-        let right = p.x < image.center().x;
-        let (anchor, offset) = if right { (Align2::LEFT_CENTER, 14.0) } else { (Align2::RIGHT_CENTER, -14.0) };
-        let size = rich_text::measure(ink, label, 24.0, FontFamily::Proportional);
-        painter.rect_filled(anchor.anchor_size(pos2(p.x + offset, p.y), size).expand(3.0), CornerRadius::same(3), fade(Color32::from_rgba_premultiplied(7, 18, 31, 220)));
-        ink.text(pos2(p.x + offset, p.y), anchor, label, 24.0, FontFamily::Proportional, fade(*color));
-    }
-    let mut y = image.max.y + 40.0;
-    for (line, color) in &inset.lines {
-        ink.text(pos2(rect.min.x + 14.0, y), Align2::LEFT_TOP, ink.fit_right(line, rect.width() - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(*color));
-        y += 32.0;
-    }
-    rect.expand(4.0)
 }
 
 #[cfg(commercial)]

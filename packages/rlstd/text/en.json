@@ -129,6 +129,7 @@
   "loading.renderer": "Preparing the renderer",
   "loading.done": "Ready",
   "scene.study_room": "Study room",
+  "scene.study_room_grounds": "Study room, grounds",
   "scene.terrain": "Terrain",
   "object.terrain": "terrain",
   "object.sun_panel": "sun panel",
@@ -137,5 +138,6 @@
   "popup.open_folder": "Open Folder",
   "popup.close": "Close",
   "volume.mute": "Mute",
-  "volume.unmute": "Unmute"
+  "volume.unmute": "Unmute",
+  "viewer.diagram_hint": "scroll to zoom ({zoom}x) · drag to pan · double-click to fit"
 }

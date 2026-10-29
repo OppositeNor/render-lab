@@ -1,14 +1,16 @@
 # The lab's own package: what every investigation shares (lab/). The lab
 # finds every package in packages/ (lab/src/packages.rs); this one is imported by
-# the others, which name what it exports as `render_lab.<key>`.
+# the others, which name what it exports as `rlstd.<key>`.
+# Its code (src/) is not a library of its own: the lab builds it in as
+# `lab::utility` (lab/src/lib.rs), the pieces investigations share.
 
-name = "render_lab"
+name = "rlstd"
 author = "OppositeNor"
 license = "MIT"
 import = []
 # The scenes demonstrations show, the shader modules investigations build on,
 # and the surface lookup a package may override.
-export = ["scene/study-room", "scene/terrain", "shader/prelude", "shader/scene", "wgsl/surface-lookup"]
+export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "wgsl/surface-lookup"]
 
 # The sky, the teapot, the scenes, and the homepage's sounds and icon.
 [[provides]]

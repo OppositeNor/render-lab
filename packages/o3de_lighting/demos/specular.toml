@@ -2,7 +2,7 @@ key = "specular"
 title-text = "shot.ggx_specular_d_g_and"
 tab-text = "shot.specular"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "specular-ggx"
 include = ["close-up", "sphere-camera"]
 

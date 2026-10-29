@@ -111,13 +111,14 @@ Write `story/outline.md`:
 
 For each tool the outline needs, look for it first:
 
-- **In the lab** (`lab/`, `packages/render_lab`): use it.
+- **In the lab** (`lab/`, `packages/rlstd`): use it.
 - **In a public package**: reuse it in place, or, when a second investigation needs it, move it into the lab as
   a generic extension point (the `Investigation` trait, `FrameContent`, the dock kit) that names no investigation.
 - **In a commercial package**: code derived from an engine whose license does not allow publishing never moves
   into the lab or a public package, however generic it looks. What can move is a generic mechanism written from
   scratch or from published methods (papers, talks), with no engine names, parameters, or text keys: for example,
-  a picture inset the lab draws, while the engine-specific table that fills it stays in the package. If you are
+  a picture inset the lab draws (`lab::utility::inset::PictureInset`, in `FrameContent::insets`: CPU pixels or a
+  GPU texture the renderer keeps by key), while the engine-specific table that fills it stays in the package. If you are
   unsure whether a piece is derived, it stays where it is; ask the user.
 - **Nowhere**: build it, in the investigation's package unless other investigations will need it.
 
@@ -174,7 +175,13 @@ A pass over the drafted chapters for what the story shows, not what it says:
 - **Each check, per beat:**
   - *The change is visible.* A sweep that leaves every value the same (because it is clamped or capped over
     that range) shows nothing: move the sweep to where the values change, or say why they don't.
-  - *Nothing blocks the subject.* Fade an object that hides the worked example, and bring it back for wide shots.
+  - *Nothing blocks the subject.* Validate, from stills at the start, middle, and end of every beat (a camera
+    path or a moving light can swing an occluder in mid-beat), that what the sentence is about is in view:
+    no wall, object, panel, inset, or readout between the camera and the worked example, the vector, the ray,
+    or the label being named, and the subject inside the viewport and the camera's near and far planes. A
+    camera outside the room sees the room through its walls: keep it inside, move it, or fade the walls. Fade an
+    object that hides the worked example, and bring it back for wide shots. Look at the stills yourself; a check
+    that only reads numbers cannot see this.
   - *Labels fit.* Labels inside the viewport and apart, text at least 24 px, the dock inside its width (the
     selftest checks these).
 
@@ -193,6 +200,8 @@ these questions:
 - **Highlighting.** Is each key concept lit (a highlight, a callout, a lit formula term, a label) while it is
   named?
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
+- **Visibility.** In every still, is what the sentence names in view, or does a wall, an object, an inset, or
+  the readout block it, or does it fall outside the frame or past the far plane?
 - **Flow.** Does the chapter's first sentence bridge from the one before, and does each beat follow from the
   last? Where does the viewer lose the thread?
 - **Fit.** Is the chapter near its budget?

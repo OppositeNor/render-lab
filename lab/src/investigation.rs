@@ -21,8 +21,6 @@ use crate::resources;
 use crate::scene::SceneId;
 use crate::shot::{DemoId, ShotState};
 use crate::sources::SourceIndex;
-#[cfg(commercial)]
-use crate::surface_cache::Layer;
 use crate::viewer::ViewerTest;
 use glam::Vec2;
 use std::cell::Cell;
@@ -63,9 +61,9 @@ pub struct Wording {
 }
 
 /// An investigation's own shading of the scene pass, in place of the lab's
-/// (`sceneFS` in packages/render_lab/shaders/scene.wgsl). `module` is a shader its
+/// (`sceneFS` in packages/rlstd/shaders/scene.wgsl). `module` is a shader its
 /// package declares (src/shaders.rs), composed after the lab's
-/// `render_lab.shader/scene` (the
+/// `rlstd.shader/scene` (the
 /// shared prelude and scene.wgsl, so it may use `SceneVaryings`,
 /// `SceneOutput`, and everything in common.wgsl), and it declares bind group 1:
 ///
@@ -266,11 +264,6 @@ pub trait Investigation: Sync {
     /// renderer rebuilds that data when it changes. None keeps it as built.
     #[cfg(commercial)]
     fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
-        None
-    }
-    /// A status line under the Surface Cache inset's title.
-    #[cfg(commercial)]
-    fn cache_status(&self, _state: &ShotState, _pages: usize, _layer: Layer) -> Option<String> {
         None
     }
     /// The scene pass's shading, when the investigation brings its own.

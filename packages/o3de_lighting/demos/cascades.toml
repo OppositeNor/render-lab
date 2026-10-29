@@ -6,7 +6,7 @@ key = "cascades"
 title-text = "shot.cascaded_shadow_maps"
 tab-text = "shot.cascades"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "cascades"
 
 [camera]

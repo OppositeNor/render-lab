@@ -136,7 +136,7 @@ license = "MIT (Godot, THIRD_PARTY.md)"
 
 [[shader]]
 id = "shader/sdfgi-shading"
-parts = ["render_lab.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes"]
+parts = ["rlstd.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes"]
 
 # The pseudo-code listings (pseudocode.rs).
 [[resource]]

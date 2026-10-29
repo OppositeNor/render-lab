@@ -1,5 +1,5 @@
 //! The lab's environment: Poly Haven's "Tree Lined Driveway" HDRI
-//! (packages/render_lab/assets/environments, CC0), as the resource pipeline makes it
+//! (packages/rlstd/assets/environments, CC0), as the resource pipeline makes it
 //! (src/pipeline/radiance.rs, declared in src/resources.toml): its sun is
 //! clipped, since no investigation has a light of its own for it, and it is
 //! scaled to a mean radiance of one over the sphere; each investigation sets
@@ -31,7 +31,7 @@ pub struct Environment {
 impl Environment {
     pub fn get() -> &'static Environment {
         static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
-        ENVIRONMENT.get_or_init(|| Environment::load(&resources::get("render_lab.environment").load()))
+        ENVIRONMENT.get_or_init(|| Environment::load(&resources::get("rlstd.environment").load()))
     }
 
     fn load(r: &resources::Loaded) -> Environment {

@@ -4,7 +4,7 @@ key = "reflections"
 title-text = "common.reflection_probes"
 tab-text = "shot.probes"
 hint-text = "investigation.demo_hint"
-scene = "render_lab.scene/study-room"
+scene = "rlstd.scene/study-room"
 listing = "reflection-probes"
 include = ["room-camera"]
 

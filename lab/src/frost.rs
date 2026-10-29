@@ -1,4 +1,4 @@
-//! Frosted glass for the homepage (packages/render_lab/shaders/frost.wgsl): the renderer's
+//! Frosted glass for the homepage (packages/rlstd/shaders/frost.wgsl): the renderer's
 //! frame target is halved twice, blurred at quarter resolution, and drawn
 //! tinted, grained, and vignetted behind the page.
 

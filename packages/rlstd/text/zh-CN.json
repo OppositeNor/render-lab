@@ -129,6 +129,7 @@
   "loading.renderer": "正在准备渲染器",
   "loading.done": "就绪",
   "scene.study_room": "书房",
+  "scene.study_room_grounds": "书房与场地",
   "scene.terrain": "地形",
   "object.terrain": "地形",
   "object.sun_panel": "太阳面板",
@@ -137,5 +138,6 @@
   "popup.open_folder": "打开文件夹",
   "popup.close": "关闭",
   "volume.mute": "静音",
-  "volume.unmute": "取消静音"
+  "volume.unmute": "取消静音",
+  "viewer.diagram_hint": "滚轮缩放（{zoom}x）· 拖动平移 · 双击复原"
 }

@@ -3,7 +3,7 @@
 //!
 //! ```ignore
 //! #[derive(Clone, lab::Values)]
-//! #[values(scope = "camera", package = "render_lab")]
+//! #[values(scope = "camera", package = "rlstd")]
 //! pub struct OrbitCamera {
 //!     #[value(components(x, y, z))]
 //!     pub target: [f32; 3],                  // camera.target; camera.x, camera.y, camera.z

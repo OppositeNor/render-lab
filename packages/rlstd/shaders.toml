@@ -1,5 +1,5 @@
 # The lab's WGSL (shaders/) and the modules composed from it at run time
-# (lab/src/shaders.rs). A collection of the render_lab module (manifest.toml).
+# (lab/src/shaders.rs). A collection of the rlstd module (manifest.toml).
 
 [[resource]]
 id = "wgsl/types"

@@ -154,7 +154,7 @@ impl Investigation for Lighting {
     }
 
     fn sources(&self) -> &'static SourceIndex {
-        sources::index()
+        sources::INDEX.get()
     }
 
     fn listings(&self) -> &'static [Listing] {

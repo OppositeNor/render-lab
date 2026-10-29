@@ -11,8 +11,7 @@ use crate::layout::{self, CardData, Declaration, FrameUniforms, ObjectData, Prob
 use crate::palette::to_f32;
 use crate::scene::{self, Meshes, Scene, SceneId};
 use crate::shot::{DemoId, ShotState};
-#[cfg(commercial)]
-use crate::surface_cache::Layer;
+use crate::utility::inset::PictureInset;
 #[cfg(commercial)]
 use crate::surface_cache_gpu::DisplayParams;
 use bytemuck::{Pod, Zeroable};
@@ -25,7 +24,7 @@ pub const PROBE_DISPLAY_GAIN: f32 = 3.0;
 
 
 // Overlay instance records (vertex buffers, instance step). Layouts match
-// the @location attributes in packages/render_lab/shaders/overlay.wgsl.
+// the @location attributes in packages/rlstd/shaders/overlay.wgsl.
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
@@ -180,41 +179,6 @@ pub struct Readout {
 
 #[cfg(commercial)]
 #[derive(Clone, Debug)]
-pub struct AtlasInset {
-    pub alpha: f32,
-    /// The atlas layer the picture shows, and whether the inset sits at the viewport's top.
-    pub layer: Layer,
-    pub top: bool,
-    pub card_pages: Vec<usize>,
-    pub page: Option<usize>,
-    pub page_world: Option<Vec3>,
-}
-
-/// A picture an investigation computes (a lookup table, a chart), drawn in
-/// a top corner of the viewport: its pixels, what its axes are, and one
-/// point on it marked.
-#[derive(Clone, Debug)]
-pub struct ImageInset {
-    pub alpha: f32,
-    /// In the top-right corner, rather than the top-left.
-    pub right: bool,
-    pub title: String,
-    /// Names the pixels, so their texture is made once.
-    pub key: String,
-    pub size: [usize; 2],
-    /// RGBA, row by row from the top.
-    pub rgba: std::sync::Arc<Vec<u8>>,
-    /// The horizontal axis, left to right, and the vertical one, bottom to top.
-    pub x_axis: String,
-    pub y_axis: String,
-    /// A point (0..1 along each axis, y up), its colour, and its label.
-    pub marker: Option<([f32; 2], Color32, String)>,
-    /// Lines under the picture.
-    pub lines: Vec<(String, Color32)>,
-}
-
-#[cfg(commercial)]
-#[derive(Clone, Debug)]
 pub struct HistoryInset {
     pub alpha: f32,
     pub steps: Vec<fixtures::HistoryStep>,
@@ -239,9 +203,8 @@ pub struct FrameContent {
     /// Without a panel record, what the struct panel shows instead.
     pub readout: Option<Readout>,
     pub notes: Vec<(String, Color32)>,
-    pub image_inset: Option<ImageInset>,
-    #[cfg(commercial)]
-    pub atlas_inset: Option<AtlasInset>,
+    /// Pictures in the viewport's corners (packages/rlstd/src/inset.rs).
+    pub insets: Vec<PictureInset>,
     #[cfg(commercial)]
     pub history: Option<HistoryInset>,
     /// What the Surface Cache picture (card quads and the inset) shows.
@@ -270,9 +233,7 @@ impl FrameContent {
             panel_record: None,
             readout: None,
             notes: Vec::new(),
-            image_inset: None,
-            #[cfg(commercial)]
-            atlas_inset: None,
+            insets: Vec::new(),
             #[cfg(commercial)]
             history: None,
             #[cfg(commercial)]

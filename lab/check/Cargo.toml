@@ -1,5 +1,5 @@
 # The checks a package's build runs (src/lib.rs): a build-dependency of the
-# lab (for its own package, render_lab) and of every package's library.
+# lab (for its own package, rlstd) and of every package's library.
 [package]
 name = "render-lab-check"
 version = "0.1.0"

@@ -1,5 +1,5 @@
 # The lab's sky, mesh, and scenes, and the homepage's sounds and icon (a collection of
-# the render_lab package, manifest.toml), built into the package beside the
+# the rlstd package, manifest.toml), built into the package beside the
 # binary (lab/src/cook.rs, processed by lab/src/pipeline) and read from there
 # at run time (lab/src/resources.rs). Paths are relative to this file;
 # THIRD_PARTY.md records each source's terms.
@@ -34,6 +34,12 @@ max-depth = 30
 id = "scene/study-room"
 kind = "file"
 source = "scenes/study-room.toml"
+license = "MIT"
+
+[[resource]]
+id = "scene/study-room-grounds"
+kind = "file"
+source = "scenes/study-room-grounds.toml"
 license = "MIT"
 
 [[resource]]

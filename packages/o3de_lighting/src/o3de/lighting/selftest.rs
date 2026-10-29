@@ -14,54 +14,15 @@ use lab::gpu::{self, Gpu};
 use crate::o3de::lighting::text::tr;
 use lab::investigation::SelftestOptions;
 use lab::layout;
-use lab::renderer::{self, FrameRequest, Renderer};
+use lab::renderer::{self, Renderer};
 use lab::scene::{self, ids, SHAPE_BOX, SHAPE_PLANE};
-use lab::shot::{BeatKind, ShotState, Timeline};
+use lab::shot::{BeatKind, Timeline};
 use lab::ui::{Chrome, MIN_TEXT_PT};
 use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use lab::utility::selftest::{request, still_timeline, Report, Rng};
 use std::path::PathBuf;
-
-struct Report {
-    checks: Vec<Value>,
-}
-
-impl Report {
-    fn check(&mut self, name: &str, passed: bool, detail: Value) {
-        eprintln!("{} {name}", if passed { "PASS" } else { "FAIL" });
-        self.checks.push(json!({"name": name, "passed": passed, "detail": detail}));
-    }
-}
-
-/// Deterministic pseudo-random numbers (xorshift) for test inputs.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        (self.0 >> 40) as f32 / (1u64 << 24) as f32
-    }
-    fn range(&mut self, lo: f32, hi: f32) -> f32 {
-        lo + (hi - lo) * self.next()
-    }
-    fn unit(&mut self) -> Vec3 {
-        loop {
-            let v = Vec3::new(self.range(-1.0, 1.0), self.range(-1.0, 1.0), self.range(-1.0, 1.0));
-            if v.length_squared() > 0.01 && v.length_squared() <= 1.0 {
-                return v.normalize();
-            }
-        }
-    }
-    /// A direction in the hemisphere around `n`.
-    fn above(&mut self, n: Vec3) -> Vec3 {
-        let v = self.unit();
-        if v.dot(n) < 0.05 { (v - n * (v.dot(n) - 0.05 - self.next())).normalize() } else { v }
-    }
-}
 
 /// The relative difference, against a floor so values near zero compare absolutely.
 fn rel(a: f32, b: f32) -> f32 {
@@ -76,34 +37,9 @@ fn f3(words: &[u32], i: usize) -> Vec3 {
     Vec3::new(f(words, i), f(words, i + 1), f(words, i + 2))
 }
 
-fn still_timeline(width: u32, height: u32) -> Timeline {
-    serde_json::from_value(json!({
-        "fps": 30, "width": width, "height": height, "totalFrames": 1, "title": "selftest", "engineLabel": "",
-        "chapters": [{"number": 1, "title": "Selftest", "startFrame": 0, "endFrame": 1}],
-        "beats": [{"id": "still", "chapter": 1, "kind": "scene", "startFrame": 0, "frames": 1, "headline": "Selftest frame", "captions": []}],
-        "keys": []
-    }))
-    .unwrap()
-}
-
-fn request<'a>(state: &'a ShotState, timeline: &'a Timeline) -> FrameRequest<'a> {
-    FrameRequest {
-        state,
-        beat_kind: BeatKind::Scene,
-        image: None,
-        beat_sources: &[],
-        chapter_number: 1,
-        fade: 0.0,
-        time: 0.0,
-        raw_input: egui::RawInput { time: Some(0.0), ..Default::default() },
-        chrome: Chrome::Recording { timeline, frame: 0 },
-        stamp: None,
-    }
-}
-
 pub fn run(options: &SelftestOptions) -> Result<bool> {
     std::fs::create_dir_all(&options.work_dir)?;
-    let mut report = Report { checks: Vec::new() };
+    let mut report = Report::new();
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let gpu_info = renderer::gpu_summary(&gpu);
     let mut renderer = Renderer::new(gpu, Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?, 1920, 1080)?;
@@ -840,7 +776,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     }
 
     // ---- 8. Listings and the source index ---------------------------------
-    let index = super::sources::index();
+    let index = super::sources::INDEX.get();
     let listings = super::pseudocode::all();
     let listing_problems: Vec<String> = listings
         .iter()
@@ -851,30 +787,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     report.check("every listing cites a source entry and a demonstration; every demonstration has a listing and sources", listing_problems.is_empty() && demo_problems.is_empty(), json!({"listings": listing_problems, "demos": demo_problems}));
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
     let checkout = std::env::var_os("O3DE_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| lab::resources::root().join("../../o3de"));
-    if checkout.join("engine.json").is_file() {
-        let index_json: Value = serde_json::from_str(super::sources::index_json())?;
-        let mut mismatches = Vec::new();
-        let mut cited = 0;
-        for (key, entry) in index_json["entries"].as_object().into_iter().flatten() {
-            let path = entry["path"].as_str().unwrap_or_default();
-            let text = std::fs::read_to_string(checkout.join(path)).unwrap_or_default();
-            let lines: Vec<&str> = text.lines().collect();
-            let mut lines_cited = vec![(entry["line"].as_u64().unwrap_or(0), entry["lineHash"].as_str().unwrap_or_default().to_string())];
-            for d in entry["details"].as_array().into_iter().flatten() {
-                lines_cited.push((d["line"].as_u64().unwrap_or(0), d["lineHash"].as_str().unwrap_or_default().to_string()));
-            }
-            for (line, hash) in lines_cited {
-                cited += 1;
-                let actual = lines.get(line.saturating_sub(1) as usize).map(|l| Sha256::digest(l.trim().as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
-                if actual.as_deref() != Some(hash.as_str()) {
-                    mismatches.push(format!("{key}: {path}:{line}"));
-                }
-            }
-        }
-        report.check("every cited O3DE line is unchanged in the checkout", mismatches.is_empty(), json!({"checkout": checkout, "linesCited": cited, "mismatches": mismatches}));
-    } else {
-        report.check("every cited O3DE line is unchanged in the checkout (skipped: no checkout)", true, json!({"checkout": checkout}));
-    }
+    report.cited_lines("O3DE", &super::sources::INDEX, &checkout, "engine.json")?;
 
     // ---- 9. The narrated timeline: every scene beat readable ---------------
     if let Some(path) = &options.timeline {
@@ -896,7 +809,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         report.check("every scene beat of the timeline: text >= 24 px, labels inside and apart, listings, formulas, and readouts fit", problems.is_empty() && beats > 0, json!({"timeline": path, "sceneBeats": beats, "problems": problems}));
     }
 
-    let passed = report.checks.iter().all(|c| c["passed"] == true);
+    let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"investigation": "o3de/lighting", "passed": passed, "gpu": gpu_info, "checks": report.checks}))?)?;
     Ok(passed)
 }

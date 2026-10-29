@@ -35,7 +35,7 @@ use crate::loading::{self, Loading};
 use crate::record::{beat_fade, ImageCache};
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, BeatKind, DemoId, PanelMode, ShotState, Timeline};
-use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
+use crate::ui::{Chrome, DiagramView, DockTab, ViewerAction, ViewerChrome};
 use crate::volume::Volume;
 use anyhow::Result;
 use glam::Vec2;
@@ -152,6 +152,13 @@ pub struct App {
     /// The narration's volume; the viewer hands it back when it closes.
     pub narration: Volume,
     images: Option<ImageCache>,
+    /// Paused on a diagram beat: its panel's zoom and pan, the beat it is for
+    /// (its first frame), the fitted picture's rectangle (egui points), and
+    /// the last click (a second one soon after resets the view).
+    diagram: DiagramView,
+    diagram_beat: Option<u64>,
+    diagram_fit: Option<egui::Rect>,
+    last_click: Option<Instant>,
     cursor: Vec2,
     drag: Option<Drag>,
     pub ui_has_pointer: bool,
@@ -223,6 +230,10 @@ impl App {
             audio,
             narration,
             images,
+            diagram: DiagramView::default(),
+            diagram_beat: None,
+            diagram_fit: None,
+            last_click: None,
             cursor: Vec2::ZERO,
             drag: None,
             ui_has_pointer: false,
@@ -251,6 +262,23 @@ impl App {
     /// Whether the timeline is playing (and owns the shot).
     pub fn timeline_playing(&self) -> bool {
         self.timeline_mode && self.playing && self.timeline.is_some()
+    }
+
+    /// Paused on a diagram beat of the timeline: the viewport is the diagram's panel.
+    pub fn paused_diagram(&self) -> bool {
+        match (&self.timeline, self.timeline_mode && !self.playing) {
+            (Some(t), true) => {
+                let (_, beat) = t.beat_at(self.timeline_frame);
+                beat.kind == BeatKind::Mermaid && beat.image.is_some()
+            }
+            _ => false,
+        }
+    }
+
+    /// A pointer position in window pixels, in egui points.
+    fn points(&self, p: Vec2) -> egui::Vec2 {
+        let scale = self.renderer().layout().scale;
+        egui::vec2(p.x / scale, p.y / scale)
     }
 
     /// The state that is rendered: the playing timeline's frame, or the
@@ -605,6 +633,15 @@ impl App {
         if self.timeline_playing() {
             return;
         }
+        if self.paused_diagram() {
+            if let Some(fit) = self.diagram_fit {
+                let d = self.points(delta);
+                let size = fit.size() * self.diagram.zoom;
+                self.diagram.center -= egui::vec2(d.x / size.x, d.y / size.y);
+                self.diagram.center = self.diagram.center.clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
+            }
+            return;
+        }
         self.end_intro();
         let height = self.viewport_height();
         match drag.button {
@@ -617,6 +654,15 @@ impl App {
     pub fn pointer_up(&mut self, button: MouseButton, at: Vec2) {
         let Some(drag) = self.drag.take() else { return };
         if drag.button == button && button == MouseButton::Left && drag.moved < 4.0 {
+            if self.paused_diagram() {
+                // A double click on the diagram fits it to its panel again.
+                let now = Instant::now();
+                if self.last_click.is_some_and(|t| now.duration_since(t).as_secs_f32() < 0.4) {
+                    self.diagram = DiagramView::default();
+                }
+                self.last_click = Some(now);
+                return;
+            }
             self.click(at);
         }
     }
@@ -675,6 +721,22 @@ impl App {
     }
 
     pub fn wheel(&mut self, steps: f32) {
+        if self.paused_diagram() && !self.ui_has_pointer {
+            // Zoom about the point under the pointer, which stays where it is.
+            if let Some(fit) = self.diagram_fit {
+                let p = self.points(self.cursor);
+                let offset = egui::pos2(p.x, p.y) - fit.center();
+                let before = fit.size() * self.diagram.zoom;
+                let under = self.diagram.center + egui::vec2(offset.x / before.x, offset.y / before.y);
+                self.diagram.zoom = (self.diagram.zoom * 1.15f32.powf(steps)).clamp(1.0, DiagramView::MAX_ZOOM);
+                let after = fit.size() * self.diagram.zoom;
+                self.diagram.center = (under - egui::vec2(offset.x / after.x, offset.y / after.y)).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
+                if self.diagram.zoom <= 1.0 {
+                    self.diagram = DiagramView::default();
+                }
+            }
+            return;
+        }
         if !self.timeline_playing() && !self.ui_has_pointer {
             self.end_intro();
             self.state.camera.zoom(steps);
@@ -785,20 +847,34 @@ impl App {
             widgets: Vec::new(),
             popups: std::mem::take(&mut self.popups),
             narration: self.narration,
+            diagram: None,
         };
         // The frame a screenshot is taken of shows no popup.
         chrome.popups.hidden = self.screenshot;
-        let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing()) {
+        // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
+        let paused_diagram = self.paused_diagram();
+        let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing() || paused_diagram) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
                 let image = match (&beat.kind, &beat.image, self.images.as_mut(), self.renderer.as_ref()) {
                     (BeatKind::Mermaid, Some(p), Some(cache), Some(r)) => Some(cache.get(&r.egui_ctx, p)?),
                     _ => None,
                 };
-                (beat.kind, image, beat.sources.clone(), beat.chapter, beat_fade(t, self.timeline_frame))
+                if paused_diagram && self.diagram_beat != Some(beat.start_frame) {
+                    self.diagram = DiagramView::default();
+                    self.diagram_beat = Some(beat.start_frame);
+                }
+                let fade = if paused_diagram { 0.0 } else { beat_fade(t, self.timeline_frame) };
+                (beat.kind, image, beat.sources.clone(), beat.chapter, fade)
             }
             _ => (BeatKind::Scene, None, Vec::new(), 0, 0.0),
         };
+        if paused_diagram {
+            chrome.diagram = Some(self.diagram);
+            self.diagram_fit = image.map(|(_, size)| crate::ui::fit_rect(self.renderer().layout().content, size));
+        } else {
+            self.diagram_fit = None;
+        }
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
         let result = renderer.render_frame(
@@ -1124,9 +1200,15 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
 /// bar; `demo` (a key) chooses the demonstration. No window opens and no
 /// sound plays.
 pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
+    snapshot_page(options, demo, false, png)
+}
+
+/// `snapshot`, or with `diagram`, the timeline paused on its first diagram beat
+/// with the diagram panel zoomed in (`home --snapshot … --page viewer-diagram`).
+pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, diagram: bool, png: &std::path::Path) -> Result<()> {
     use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
     let size = [options.width.max(64), options.height.max(64)];
-    let playing = options.timeline.is_some();
+    let playing = options.timeline.is_some() && !diagram;
     let mut app = App::new(ViewerOptions { audio: None, ..options })?;
     app.intro = None;
     if let Some(key) = demo {
@@ -1141,6 +1223,13 @@ pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Pat
         app.playing = true;
         // The clock holds the frame: it starts counting an hour from now.
         app.timeline_anchor = (Instant::now() + std::time::Duration::from_secs(3600), app.timeline_frame);
+    } else if diagram {
+        let beat = app.timeline.as_ref().and_then(|t| t.beats.iter().find(|b| b.kind == BeatKind::Mermaid && b.image.is_some())).ok_or_else(|| anyhow::anyhow!("the timeline has no diagram beat"))?;
+        app.timeline_frame = beat.start_frame + beat.frames / 2;
+        app.timeline_mode = true;
+        app.playing = false;
+        app.render(None)?;
+        app.diagram = DiagramView { zoom: 2.5, center: egui::vec2(0.35, 0.5) };
     } else {
         app.state = app.default_state(app.state.demo);
     }
@@ -1153,6 +1242,6 @@ pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Pat
     let padded = padded_row_bytes(size[0]) as u64;
     let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
     write_png(png, size[0], size[1], &rgba)?;
-    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], if playing { "the timeline playing" } else { "the first demonstration" });
+    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], if playing { "the timeline playing" } else if diagram { "paused on a diagram" } else { "the first demonstration" });
     Ok(())
 }

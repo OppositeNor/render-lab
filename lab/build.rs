@@ -1,4 +1,4 @@
-//! Checks the lab's own package, render_lab, before the lab is built: its
+//! Checks the lab's own package, rlstd, before the lab is built: its
 //! shaders validate with naga and its text tables match the lab's code
 //! (render-lab-check; every other package's build checks its own). A failure
 //! fails the build.
@@ -73,5 +73,5 @@ fn main() {
     // instructions as the repository's and does not rerun this.
     println!("cargo:rerun-if-changed=src");
 
-    render_lab_check::check_package(&root.join("packages/render_lab"), Path::new("src"));
+    render_lab_check::check_package(&root.join("packages/rlstd"), Path::new("src"));
 }

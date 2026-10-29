@@ -4,7 +4,7 @@
 //! only the prose around them is translated.
 //!
 //! Text is named by key. Each layer keeps its text in its package's
-//! `text/en.json` and `text/zh-CN.json` (the lab's in packages/render_lab/text/)
+//! `text/en.json` and `text/zh-CN.json` (the lab's in packages/rlstd/text/)
 //! and reads it through a [`Table`]: `tr("viewer.playing")`, or
 //! `tr_with("ui.skip_back", args!(seconds = 10))` for text with values.
 
@@ -136,7 +136,7 @@ macro_rules! args {
 pub use crate::args;
 
 /// The shared lab's text.
-static TEXT: Table = Table::new("render_lab.text");
+static TEXT: Table = Table::new("rlstd.text");
 
 /// The lab's text of `key` in the current locale.
 pub fn tr(key: &'static str) -> &'static str {
@@ -149,11 +149,11 @@ pub fn tr_key(key: &'static str) -> &'static str {
     TEXT.get(key)
 }
 
-/// The text of `key` in `package`'s table (`render_lab` is the lab's): what a
+/// The text of `key` in `package`'s table (`rlstd` is the lab's): what a
 /// value's declaration names (src/values.rs). The package's build checks its
 /// keys.
 pub fn package_text(package: &str, key: &str) -> &'static str {
-    if package == "render_lab" {
+    if package == "rlstd" {
         return TEXT.get(key);
     }
     static TABLES: std::sync::Mutex<Vec<&'static Table>> = std::sync::Mutex::new(Vec::new());

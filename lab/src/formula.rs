@@ -3,7 +3,7 @@
 //! notes, labels, and the formula card; src/rich_text.rs).
 //!
 //! MiTeX translates the LaTeX into Typst math, evaluated in MiTeX's own Typst
-//! scope (packages/render_lab/assets/mitex/specs, Apache-2.0); Typst typesets it with its bundled
+//! scope (packages/rlstd/assets/mitex/specs, Apache-2.0); Typst typesets it with its bundled
 //! New Computer Modern fonts, and typst-render rasterizes it. The same LaTeX at
 //! the same size always gives the same bytes, so frames stay deterministic.
 //!
@@ -134,8 +134,8 @@ fn file_id(path: &str) -> FileId {
     RootedPath::new(VirtualRoot::Project, VirtualPath::new(path).expect("a valid virtual path")).intern()
 }
 
-/// MiTeX's Typst scope (packages/render_lab/assets/mitex/specs), at the paths its files import each other by.
-const SPECS: [(&str, &str); 3] = [("/specs/mod.typ", "render_lab.mitex/mod"), ("/specs/prelude.typ", "render_lab.mitex/prelude"), ("/specs/latex/standard.typ", "render_lab.mitex/latex/standard")];
+/// MiTeX's Typst scope (packages/rlstd/assets/mitex/specs), at the paths its files import each other by.
+const SPECS: [(&str, &str); 3] = [("/specs/mod.typ", "rlstd.mitex/mod"), ("/specs/prelude.typ", "rlstd.mitex/prelude"), ("/specs/latex/standard.typ", "rlstd.mitex/latex/standard")];
 
 impl FormulaWorld {
     fn new() -> FormulaWorld {

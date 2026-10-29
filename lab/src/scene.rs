@@ -1,11 +1,11 @@
 //! The lab's scenes (the study room, and hills of terrain), their
 //! ObjectData records, and CPU mirrors of the scene math in
-//! packages/render_lab/shaders/common.wgsl. The mirrors drive picking, the debug ray, probe
+//! packages/rlstd/shaders/common.wgsl. The mirrors drive picking, the debug ray, probe
 //! tracing, and the prepared Surface Cache texels; `selftest` compares them
 //! with the GPU versions.
 //!
 //! A scene is named by its `SceneId` and described by the resource
-//! `render_lab.scene/<key>` (packages/render_lab/scenes/*.toml): its objects, its light, and its
+//! `rlstd.scene/<key>` (packages/rlstd/scenes/*.toml): its objects, its light, and its
 //! lighting constants. An investigation says which scene each of its
 //! demonstrations shows (`Investigation::demo_scene`), and the renderer
 //! switches to it when a frame needs it.
@@ -47,8 +47,8 @@ pub mod ids {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SceneId(&'static str);
 
-/// The scenes' resources: `render_lab.scene/<key>`.
-const SCENE_PREFIX: &str = "render_lab.scene/";
+/// The scenes' resources: `rlstd.scene/<key>`.
+const SCENE_PREFIX: &str = "rlstd.scene/";
 
 impl SceneId {
     pub const STUDY_ROOM: SceneId = SceneId("study-room");
@@ -64,7 +64,7 @@ impl SceneId {
         Some(SceneId(Box::leak(key.to_string().into_boxed_str())))
     }
 
-    /// The scene a resource's full key names (`render_lab.scene/terrain`).
+    /// The scene a resource's full key names (`rlstd.scene/terrain`).
     pub fn from_resource(id: &str) -> Option<SceneId> {
         SceneId::find(id.strip_prefix(SCENE_PREFIX)?)
     }
@@ -77,7 +77,7 @@ impl SceneId {
     /// The resources the loading step prepares before the scene plays: its
     /// sky, and the teapot, whose BVH the renderer binds in every scene.
     pub fn resources(self) -> &'static [&'static str] {
-        &["render_lab.environment", "render_lab.teapot"]
+        &["rlstd.environment", "rlstd.teapot"]
     }
 
     /// Whether a camera at `eye` sees the scene from where it is meant to
@@ -645,7 +645,7 @@ pub fn reflect(i: Vec3, n: Vec3) -> Vec3 {
 
 // Reflections (the CPU side of common.wgsl's reflection section). The parts
 // that follow an engine's code are in src/commercial/lab/reflection_rays.rs,
-// mirroring the optional package's override of `render_lab.wgsl/surface-lookup`.
+// mirroring the optional package's override of `rlstd.wgsl/surface-lookup`.
 #[cfg(commercial)]
 pub use crate::reflection_rays::*;
 

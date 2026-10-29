@@ -1,16 +1,4 @@
 //! The investigation's on-screen text, by key, in `text/en.json` and
-//! `text/zh-CN.json` (see `lab::i18n::Table`).
+//! `text/zh-CN.json`: `tr`, `tr_with`, and `tr_key` (`lab::text_table!`).
 
-use lab::i18n::Table;
-
-static TEXT: Table = Table::new("o3de_lighting.text");
-
-/// The text of `key` in the current locale.
-pub fn tr(key: &'static str) -> &'static str {
-    TEXT.get(key)
-}
-
-/// The text of a key its data names (a `-text` field).
-pub fn tr_key(key: &'static str) -> &'static str {
-    TEXT.get(key)
-}
+lab::text_table!("o3de_lighting.text");
