@@ -672,6 +672,9 @@ mod tests {
         fn shot_state(&self, _: crate::shot::DemoId) -> ShotState {
             shot()
         }
+        fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
+            &[crate::utility::inset::ImageSpec { key: "chart", doc: "" }]
+        }
     }
 
     #[lab::actions]
@@ -708,6 +711,8 @@ mod tests {
             formula_term: 0,
             formula_lit: 0.0,
             actions: Vec::new(),
+            image: None,
+            image_alpha: 0.0,
         }
     }
 
@@ -940,6 +945,28 @@ mod tests {
     fn an_action_s_error_names_it() {
         with_test(|| {
             timeline(serde_json::json!([{"frame": 0, "run": {"name": "fail"}}])).state_at(1);
+        });
+    }
+
+    #[test]
+    fn a_story_shows_and_hides_a_published_image() {
+        use crate::utility::inset::{Corner, ImageSource};
+        with_test(|| {
+            let t = timeline(serde_json::json!([
+                {"frame": 10, "blend": 10, "image": "chart", "imageCorner": "bottom-left", "imageTitle": "demos.chart"},
+                {"frame": 50, "blend": 10, "image": ""}
+            ]));
+            t.validate().unwrap();
+            assert!(t.state_at(5).image.is_none());
+            let half = t.state_at(15);
+            let image = half.image.as_ref().unwrap();
+            assert_eq!((&image.source, image.corner, image.title.as_deref()), (&ImageSource::Published("chart".into()), Corner::BottomLeft, Some("demos.chart")));
+            assert!(half.image_alpha > 0.0 && half.image_alpha < 1.0, "{}", half.image_alpha);
+            assert!(half.shows_image("chart") && !half.shows_image("other"));
+            assert_eq!(t.state_at(30).image_alpha, 1.0);
+            // Fading out, then gone.
+            assert!(t.state_at(55).shows_image("chart"));
+            assert!(t.state_at(70).image.is_none());
         });
     }
 }

@@ -338,7 +338,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.
                 let mut obstacles = Vec::new();
-                for inset in content.insets.iter().filter(|i| i.alpha > 0.0) {
+                // The investigation's insets, then the image the story shows.
+                let package = investigation::current().package().unwrap_or("rlstd");
+                let story = input.state.image.as_ref().and_then(|image| crate::utility::inset::story(image, input.state.image_alpha, &content.images, package));
+                for inset in content.insets.iter().chain(story.as_ref()).filter(|i| i.alpha > 0.0) {
                     obstacles.push(crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset));
                 }
                 #[cfg(commercial)]

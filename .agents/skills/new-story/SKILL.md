@@ -152,6 +152,8 @@ visual often names something nothing can show.
 - Work that unfolds over time (an algorithm's passes, a sweep) is an action the package declares, run from the story
   (`{@ run=jumpFlood run.seconds=0.5}` … `{@ stop=jumpFlood}`; `render-lab actions`), rather than a parameter keyed
   step by step: the story says when and how fast, the package's code what each moment shows.
+- A picture (a slice, a table, a chart, a PNG) is an image the story shows by key, `{@ image=floodSeeds
+  imageCorner=top-left}` … `{@ image=""}` (`render-lab images`): the package describes it, the story places it.
 - Keep the camera floating in 3D (`animate=[{"path": …}]`, `cameraDrift`), and glide to a still, 2D view
   (`cameraDrift=0`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.

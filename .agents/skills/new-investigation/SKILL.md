@@ -226,6 +226,12 @@ indices, toggles, vectors, names; `Option` for optional ones); the function sets
 `&Self::ACTIONS` from `Investigation::actions`, and test one through a timeline in the selftest (Godot's
 `actions.rs`). The story writes `{@ run=jumpFlood run.seconds=0.5}` and `{@ stop=jumpFlood}`.
 
+A picture the story shows is an image by key (`packages/rlstd/src/inset.rs`). Declare the ones the package computes in
+`Investigation::images` (`ImageSpec { key, doc }`), and publish each in `FrameContent::images` as a `PictureInset`
+(its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
+`field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
+The story writes `{@ image=key imageCorner=top-left}` and `{@ image=""}`, and chooses the corner and the title.
+
 ## 7. The narrated video
 
 Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose `investigation` names it):

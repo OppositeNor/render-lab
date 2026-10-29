@@ -2,9 +2,17 @@
 //! and a status line above it; axes, a grid, outlined regions, and a marked
 //! point on it; a dashed link from a point of the scene to one region; and
 //! lines under it. The picture is pixels the investigation computes
-//! (`Picture::Pixels`, put in a texture that is rewritten when they change) or
-//! a GPU texture the renderer keeps under a key (`Picture::Texture`, drawn as
-//! it holds when the frame is drawn, so passes that write it each frame show).
+//! (`Picture::Pixels`, put in a texture that is rewritten when they change), a
+//! PNG resource (`Picture::Resource`, read once), or a GPU texture the
+//! renderer keeps under a key (`Picture::Texture`, drawn as it holds when the
+//! frame is drawn, so passes that write it each frame show).
+//!
+//! A story shows an image by its key (`{@ image=key}`, `StoryImage`): one
+//! the investigation declares (`Investigation::images`) and publishes in the
+//! frames that show it (`FrameContent::images`), or a PNG resource of its
+//! package or one an imported package exports. The investigation describes
+//! the picture; the story says when it shows, in which corner, and with what
+//! title.
 
 use crate::camera::Projector;
 use crate::layout::CameraData;
@@ -25,13 +33,57 @@ pub enum Picture {
     /// The texture the renderer keeps under this key (`Textures`); a key it
     /// does not keep is drawn as an empty picture.
     Texture(String),
+    /// The PNG resource of this full key (`<package>.<key>`).
+    Resource(String),
+}
+
+/// An image an investigation publishes for its story (`Investigation::images`).
+pub struct ImageSpec {
+    /// Its key in a story (`{@ image=<key>}`) and in `FrameContent::images`.
+    pub key: &'static str,
+    pub doc: &'static str,
+}
+
+/// The image a story shows (`{@ image=key imageTitle=text-key imageCorner=top-left}`).
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct StoryImage {
+    pub source: ImageSource,
+    /// A text key of the package of the investigation playing the story, for its title.
+    pub title: Option<String>,
+    pub corner: Corner,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub enum ImageSource {
+    /// One the investigation publishes (`ImageSpec`), by its key.
+    Published(String),
+    /// A PNG resource, by its full key.
+    Resource(String),
+}
+
+/// The inset of the image the story shows, faded in by `alpha`: the
+/// investigation's picture of it with the story's corner and title (`package`'s
+/// text), or the PNG at its own size. None when it shows none, or an image the
+/// frame does not publish.
+pub fn story(image: &StoryImage, alpha: f32, images: &[(String, PictureInset)], package: &str) -> Option<PictureInset> {
+    let mut inset = match &image.source {
+        ImageSource::Published(key) => images.iter().find(|(k, _)| k == key)?.1.clone(),
+        ImageSource::Resource(key) => PictureInset::new(String::new(), Picture::Resource(key.clone()), [0.0, 0.0]),
+    };
+    inset.alpha *= alpha;
+    inset.corner = image.corner;
+    if let Some(title) = &image.title {
+        inset.title = vec![crate::i18n::package_text(package, title).to_string()];
+    }
+    Some(inset)
 }
 
 /// The GPU textures a picture can show, by key, as the renderer registered
 /// them with egui.
 pub type Textures = HashMap<String, egui::TextureId>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Corner {
     TopLeft,
     TopRight,
@@ -87,7 +139,8 @@ pub struct PictureInset {
     pub status: Option<String>,
     pub picture: Picture,
     /// The picture's size, points; shrunk, keeping its shape, so the inset
-    /// fits in half the viewport's width.
+    /// fits in half the viewport's width. `[0, 0]`: its own size in pixels, its
+    /// longer side at most 360.
     pub size: [f32; 2],
     /// The horizontal axis, left to right, and the vertical one, bottom to
     /// top (empty: not drawn).
@@ -132,13 +185,24 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     // Room on the left for the vertical axis' name.
     let (left, right) = if axes { (62.0, 30.0) } else { (10.0, 10.0) };
     let room = l.viewport.width() * 0.5;
-    let mut size = vec2(inset.size[0], inset.size[1]);
+    let (id, own) = texture(ctx, textures, &inset.picture).unzip();
+    let mut size = match (inset.size, own.flatten()) {
+        ([0.0, 0.0], Some(own)) => own * (360.0 / own.max_elem()).min(1.0),
+        ([0.0, 0.0], None) => vec2(220.0, 220.0),
+        (size, _) => vec2(size[0], size[1]),
+    };
     if size.x + left + right > room {
         size *= ((room - left - right) / size.x).max(0.1);
     }
     let base = size.x + left + right;
     let joined = inset.title.join(" · ");
-    let title = if inset.title.len() > 1 && measure(&joined) + 28.0 > base { inset.title.clone() } else { vec![joined] };
+    let title = if inset.title.iter().all(String::is_empty) {
+        Vec::new()
+    } else if inset.title.len() > 1 && measure(&joined) + 28.0 > base {
+        inset.title.clone()
+    } else {
+        vec![joined]
+    };
     let above: Vec<(&String, Color32)> = title.iter().map(|t| (t, palette::text())).chain(inset.status.iter().map(|s| (s, palette::text_dim()))).collect();
     // As wide as its text needs, within half the viewport.
     let widest = above.iter().map(|(t, _)| *t).chain(inset.lines.iter().map(|(t, _)| t)).map(|t| measure(t)).fold(0.0, f32::max);
@@ -158,7 +222,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     }
 
     let image = Rect::from_min_size(frame.min + vec2(left, top), size);
-    match texture(ctx, textures, &inset.picture) {
+    match id {
         Some(id) => {
             painter.image(id, image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), fade(Color32::WHITE));
         }
@@ -225,13 +289,16 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     frame.expand(4.0)
 }
 
-/// The picture's texture: the renderer's, or the pixels' own, made on first
-/// use and rewritten when they change.
-fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Option<egui::TextureId> {
+/// The picture's texture, and its own size in pixels when known: the
+/// renderer's; a resource's, read the first time; or the pixels' own, made on
+/// first use and rewritten when they change.
+fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Option<(egui::TextureId, Option<egui::Vec2>)> {
     let (key, size, rgba) = match picture {
-        Picture::Texture(key) => return textures.get(key).copied(),
+        Picture::Texture(key) => return textures.get(key).map(|&id| (id, None)),
+        Picture::Resource(key) => return resource_texture(ctx, key).map(|t| (t.id(), Some(t.size_vec2()))),
         Picture::Pixels { key, size, rgba } => (key, *size, rgba),
     };
+    let own = Some(vec2(size[0] as f32, size[1] as f32));
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     size.hash(&mut hasher);
     rgba.hash(&mut hasher);
@@ -239,7 +306,7 @@ fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Optio
     let id = egui::Id::unique(("picture-inset", key));
     let image = || egui::ColorImage::from_rgba_unmultiplied(size, rgba);
     let texture = match ctx.data(|d| d.get_temp::<(egui::TextureHandle, u64)>(id)) {
-        Some((texture, made)) if made == hash => return Some(texture.id()),
+        Some((texture, made)) if made == hash => return Some((texture.id(), own)),
         Some((mut texture, _)) => {
             texture.set(image(), egui::TextureOptions::LINEAR);
             texture
@@ -247,7 +314,25 @@ fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Optio
         None => ctx.load_texture(format!("inset {key}"), image(), egui::TextureOptions::LINEAR),
     };
     ctx.data_mut(|d| d.insert_temp(id, (texture.clone(), hash)));
-    Some(texture.id())
+    Some((texture.id(), own))
+}
+
+/// The PNG resource `key` as a texture, decoded the first time it is drawn;
+/// None (and the reason, once) when it is not a PNG.
+fn resource_texture(ctx: &egui::Context, key: &str) -> Option<egui::TextureHandle> {
+    let id = egui::Id::unique(("picture-resource", key));
+    if let Some(texture) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
+        return texture;
+    }
+    let texture = match crate::resources::find(key).ok_or_else(|| anyhow::anyhow!("no resource `{key}`")).and_then(|r| crate::record::decode_png(std::io::Cursor::new(r.bytes()))) {
+        Ok(image) => Some(ctx.load_texture(format!("image {key}"), image, egui::TextureOptions::LINEAR)),
+        Err(e) => {
+            eprintln!("image `{key}`: {e:#}");
+            None
+        }
+    };
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    texture
 }
 
 fn dashed(painter: &Painter, a: Pos2, b: Pos2, stroke: Stroke) {

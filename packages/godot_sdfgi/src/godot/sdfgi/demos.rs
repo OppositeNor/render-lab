@@ -452,11 +452,16 @@ fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
             _ => data.flood.seeds[index(p)],
         }
     };
+    // The slices: an inset while `slice` picks one, an image while the story shows it (super::IMAGES).
     let slice = state.p("slice").round() as i32;
-    if slice == 1 || slice == 2 {
-        let title = if slice == 1 { tr("demos.sdf_slice").to_string() } else { tr_with("demos.seed_slice", lab::args!(step = step)) };
-        let inset = slice_inset(state, world, title, format!("sdf-{slice}-{step}"), |p| {
-            if slice == 1 {
+    for (n, key) in [(1, "distanceField"), (2, "floodSeeds")] {
+        let (inset_on, image_on) = (slice == n, state.shows_image(key));
+        if !inset_on && !image_on {
+            continue;
+        }
+        let title = if n == 1 { tr("demos.sdf_slice").to_string() } else { tr_with("demos.seed_slice", lab::args!(step = step)) };
+        let inset = slice_inset(state, world, title, format!("sdf-{n}-{step}"), |p| {
+            if n == 1 {
                 grey(data.stored.sdf[index(p)] as f32 / 24.0)
             } else {
                 let s = seeds_at(p);
@@ -480,7 +485,12 @@ fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
                 }
             }
         }, Some(worked), vec![]);
-        content.insets.push(inset);
+        if image_on {
+            content.images.push((key.to_string(), inset.clone()));
+        }
+        if inset_on {
+            content.insets.push(inset);
+        }
     }
     let seed = seeds_at(worked);
     let byte = data.stored.sdf[index(worked)];

@@ -33,6 +33,11 @@ class Parse(unittest.TestCase):
         with self.assertRaises(markup.MarkupError):
             markup.cue_key(s.tags[3], {}, 'x')
 
+    def test_images(self) -> None:
+        s = markup.parse('A {@ image=floodSeeds imageTitle=demos.seeds imageCorner=top-left} slice, {@ image=""} gone.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'floodSeeds', 'imageTitle': 'demos.seeds', 'imageCorner': 'top-left'})
+        self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'image': ''})
+
     def test_named_cues(self) -> None:
         s = markup.parse('{@wide}A ray.')
         self.assertEqual(markup.cue_key(s.tags[0], {'wide': {'camera': {'yaw': 3}}}, 'x'), {'camera': {'yaw': 3}})

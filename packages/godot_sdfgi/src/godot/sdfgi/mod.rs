@@ -36,6 +36,7 @@ use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, W
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
+use lab::utility::inset::ImageSpec;
 use glam::Vec2;
 use shot::Demo;
 
@@ -66,12 +67,21 @@ pub static SHADING: SceneShading = SceneShading {
     scene_reads: &[],
 };
 
+/// The images its story can show (`{@ image=key}`), which `demos::field_demo` publishes.
+pub static IMAGES: &[ImageSpec] = &[
+    ImageSpec { key: "distanceField", doc: "A slice of cascade 0's distance field at sliceHeight, the worked cell marked." },
+    ImageSpec { key: "floodSeeds", doc: "The same slice's jump-flood seeds at floodStep, the cells the step changed in orange." },
+];
+
 impl Investigation for Sdfgi {
     fn engine(&self) -> &'static Engine {
         &crate::godot::ENGINE
     }
     fn actions(&self) -> &'static lab::actions::Actions {
         &Self::ACTIONS
+    }
+    fn images(&self) -> &'static [ImageSpec] {
+        IMAGES
     }
 
     fn id(&self) -> &'static str {

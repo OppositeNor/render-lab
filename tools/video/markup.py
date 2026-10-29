@@ -10,7 +10,9 @@ the same tags in on-screen text (src/lab/rich_text.rs).
   `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5`
   (seconds), `term=n`, and the package's actions (src/lab/actions.rs):
   `run=jumpFlood run.seconds=0.5` starts one with its arguments, `stop=a,b`
-  stops them.
+  stops them; and `image=key` (`imageTitle=text-key`, `imageCorner=top-left`),
+  an image the investigation publishes or a PNG resource, in an inset
+  (`image=""` hides it).
 - `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
   (a full shot key, for cameras, records, and motions).
 - `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
@@ -33,7 +35,7 @@ from typing import Any
 Json = dict[str, Any]
 
 # Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease')
+STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
 RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop')

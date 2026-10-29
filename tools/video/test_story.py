@@ -22,6 +22,7 @@ sources: key-c
 {@define wide camera.distance=8 blend=3}
 {@define flood run=jumpFlood run.seconds=0.5 run.cell=1,2,3}
 {@define halt stop=jumpFlood,sweep}
+{@define seeds image=rlstd.icon/globe imageCorner=bottom-left blend=0.5}
 
 Diffuse: a sentence that looks like a property, {@ callout=key-a}with a cue.
 
@@ -54,6 +55,7 @@ class Story(unittest.TestCase):
         # An action with its arguments, typed as a parameter's are, and the actions a cue stops.
         self.assertEqual(one['cues']['flood'], {'run': {'name': 'jumpFlood', 'args': {'seconds': 0.5, 'cell': [1.0, 2.0, 3.0]}}})
         self.assertEqual(one['cues']['halt'], {'stop': ['jumpFlood', 'sweep']})
+        self.assertEqual(one['cues']['seeds'], {'image': 'rlstd.icon/globe', 'imageCorner': 'bottom-left', 'blend': 0.5})
         self.assertTrue(one['narration'][0]['text'].startswith('Diffuse: a sentence'))
         self.assertIn(r'formula="\frac{1}{1+\lit{1}{n}}"', one['narration'][1]['text'])
         self.assertEqual(one['narration'][1]['pause'], 0.5)

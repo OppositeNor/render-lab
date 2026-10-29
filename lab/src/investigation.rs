@@ -266,6 +266,12 @@ pub trait Investigation: Sync {
     fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
         None
     }
+    /// The images it publishes for a story to show (`{@ image=key}`,
+    /// packages/rlstd/src/inset.rs), in `FrameContent::images` of the frames
+    /// that show them.
+    fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
+        &[]
+    }
     /// The actions a story can run (src/actions.rs): `&Self::ACTIONS` of a
     /// `#[lab::actions]` block.
     fn actions(&self) -> &'static crate::actions::Actions {

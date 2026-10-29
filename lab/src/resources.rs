@@ -150,6 +150,14 @@ fn mount() -> Result<Registry> {
     Ok(Registry { packages, resources, shaders, timelines })
 }
 
+/// The full key `reference` names in `package`'s content: its own key, or
+/// one an imported package exports (src/packages.rs, `resolve`).
+pub fn resolve(package: &str, reference: &str) -> Result<String, String> {
+    let packages = &registry().packages;
+    let at = packages.iter().position(|p| p.name == package).ok_or_else(|| format!("no package `{package}`"))?;
+    packages::resolve(&packages[at], &packages[..at], reference)
+}
+
 fn registry() -> &'static Registry {
     REGISTRY.get_or_init(|| mount().unwrap_or_else(|e| panic!("{e:#}")))
 }

@@ -12,6 +12,7 @@
 
 use crate::actions::{ActionCall, ActionFrame, RunningAction};
 use crate::animation::{Ease, Motion};
+use crate::utility::inset::{Corner, ImageSource, StoryImage};
 use crate::camera::OrbitCamera;
 use crate::investigation;
 use crate::values::{self, Reflect, Value, ValueMap};
@@ -113,6 +114,11 @@ pub struct ShotState {
     /// which have already set this state.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<RunningAction>,
+    /// The image the story shows (`Key::image`), and how far it has faded in (0..1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<StoryImage>,
+    #[serde(skip_serializing_if = "is_zero_f32")]
+    pub image_alpha: f32,
 }
 
 fn is_zero(n: &usize) -> bool {
@@ -127,6 +133,12 @@ impl ShotState {
     /// The current investigation's starting state for a demonstration.
     pub fn for_demo(demo: impl Into<DemoId>) -> ShotState {
         investigation::current().shot_state(demo.into())
+    }
+
+    /// Whether the story shows the image the investigation publishes as `key`
+    /// (so its frame publishes it, in `FrameContent::images`).
+    pub fn shows_image(&self, key: &str) -> bool {
+        matches!(&self.image, Some(StoryImage { source: ImageSource::Published(k), .. }) if k == key)
     }
 
     /// A number by name: a value's (a flag is 0 or 1), a component's, a
@@ -385,6 +397,18 @@ pub struct Key {
     /// The card's lit term (0: none). It fades in over the key's `blend`.
     #[serde(default)]
     pub term: Option<usize>,
+    /// An image to show in an inset (packages/rlstd/src/inset.rs): one the
+    /// investigation publishes, or a PNG resource (`<package>.<key>`, or its
+    /// package's own key); `""` fades it out. It fades in over `blend`.
+    #[serde(default)]
+    pub image: Option<String>,
+    /// Its title: a text key of the investigation's package (the
+    /// investigation's own title of it, or none, by default).
+    #[serde(default)]
+    pub image_title: Option<String>,
+    /// Its corner (`top-right` by default).
+    #[serde(default)]
+    pub image_corner: Option<Corner>,
     /// An action it starts (src/actions.rs), in place of a running one of the
     /// same name.
     #[serde(default)]
@@ -470,6 +494,24 @@ impl Segment {
 
 /// The channel of the formula card's lit term's weight.
 const FORMULA_LIT: &str = "formula.lit";
+/// The story image's fade (`ShotState::image_alpha`).
+const IMAGE_ALPHA: &str = "image.alpha";
+
+/// What a story's `image=` names: an image the investigation publishes, else
+/// a PNG resource its package names; why not, for neither.
+fn image_source(reference: &str) -> Result<ImageSource, String> {
+    let current = investigation::current();
+    if current.images().iter().any(|i| i.key == reference) {
+        return Ok(ImageSource::Published(reference.to_string()));
+    }
+    let package = current.package().unwrap_or("rlstd");
+    let published: Vec<&str> = current.images().iter().map(|i| i.key).collect();
+    let full = crate::resources::resolve(package, reference).map_err(|e| format!("image `{reference}`: {e}"))?;
+    if crate::resources::find(&full).is_none() {
+        return Err(format!("image `{reference}`: neither an image the investigation publishes ({}) nor a resource (`{full}`)", if published.is_empty() { "none".into() } else { published.join(", ") }));
+    }
+    Ok(ImageSource::Resource(full))
+}
 
 /// The camera's channels, as keys' `camera` and motions name them: its
 /// values' (src/camera.rs), by component (`camera.x`, …, `camera.yaw`, …).
@@ -502,6 +544,11 @@ impl Timeline {
                     if key.sets(name) {
                         bail!("`{name}` is both set and animated by the key at frame {} ({:?})", key.frame, key.source);
                     }
+                }
+            }
+            if let Some(image) = key.image.as_deref().filter(|i| !i.is_empty()) {
+                if let Err(e) = image_source(image) {
+                    bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
                 }
             }
             if let Some(call) = &key.run {
@@ -592,6 +639,16 @@ impl Timeline {
                 state.actions.push(RunningAction { key: call.name.clone(), args: call.args.clone(), started: key.frame, elapsed: 0.0 });
             }
             let mut targets: Vec<(String, f32)> = key.targets().unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)).to_vec();
+            match key.image.as_deref() {
+                Some("") => targets.push((IMAGE_ALPHA.into(), 0.0)),
+                Some(image) => {
+                    let source = image_source(image).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
+                    state.image = Some(StoryImage { source, title: key.image_title.clone(), corner: key.image_corner.unwrap_or(Corner::TopRight) });
+                    segments.insert(IMAGE_ALPHA.into(), Channel::hold(key.frame, 0.0));
+                    targets.push((IMAGE_ALPHA.into(), 1.0));
+                }
+                None => {}
+            }
             // A newly lit term fades in from dark; unlighting fades the term out.
             if let Some(term) = key.term {
                 if term > 0 {
@@ -636,6 +693,10 @@ impl Timeline {
         state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
         if state.formula_lit <= 0.0 {
             state.formula_term = 0;
+        }
+        state.image_alpha = segments.get(IMAGE_ALPHA).map_or(0.0, |s| s.value(frame));
+        if state.image_alpha <= 0.0 {
+            state.image = None;
         }
         // The running actions set the state last, in the order they started.
         let actions = investigation::current().actions();

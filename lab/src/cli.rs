@@ -136,6 +136,9 @@ enum Command {
     /// story starts with `run=<key>` and stops with `stop=<key>`, and the
     /// arguments it gives them (`run.<argument>=…`).
     Actions,
+    /// List the images the current investigation publishes for a story to
+    /// show (`{@ image=<key>}`); a story can also show a PNG resource by its key.
+    Images,
     /// List the packages in packages/ (their `manifest.toml`): name, author,
     /// license, imports, exports, and demos.
     Packages {
@@ -330,6 +333,15 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}({})", spec.key, args.join(", "));
                 if !spec.doc.is_empty() {
                     println!("    {}", spec.doc);
+                }
+            }
+            Ok(())
+        }
+        Command::Images => {
+            for image in investigation::current().images() {
+                println!("{}", image.key);
+                if !image.doc.is_empty() {
+                    println!("    {}", image.doc);
                 }
             }
             Ok(())

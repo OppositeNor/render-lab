@@ -31,7 +31,8 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
   camera running through a `demo` switch), `record=probe:67` (or `ray`),
   `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `ease`, `delay` (seconds),
   `formula`, `term`, `animate=[…]` (motions, as JSON), `run=action` with
-  `run.<arg>=value` (an action the package declares) and `stop=a,b`. A parameter whose
+  `run.<arg>=value` (an action the package declares) and `stop=a,b`, `image=key`
+  (`imageTitle`, `imageCorner`; `image=""` hides it). A parameter whose
   name a tag reserves (`formula`, `term`, …) is written `param.formula=1`.
 
 The translation file has the same headings (its own titles and headlines) and
@@ -48,7 +49,7 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
+KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'image', 'imageTitle', 'imageCorner', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -161,7 +162,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key[name] = markup.number(v.removesuffix('s'), where)
         elif name == 'term':
             key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula'):
+        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner'):
             key[name] = v
         elif markup.action_attr(key, name, v, where):
             continue

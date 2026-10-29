@@ -205,6 +205,9 @@ pub struct FrameContent {
     pub notes: Vec<(String, Color32)>,
     /// Pictures in the viewport's corners (packages/rlstd/src/inset.rs).
     pub insets: Vec<PictureInset>,
+    /// The images it publishes for its story (`Investigation::images`), by
+    /// key: drawn only while the story shows one (`ShotState::shows_image`).
+    pub images: Vec<(String, PictureInset)>,
     #[cfg(commercial)]
     pub history: Option<HistoryInset>,
     /// What the Surface Cache picture (card quads and the inset) shows.
@@ -234,6 +237,7 @@ impl FrameContent {
             readout: None,
             notes: Vec::new(),
             insets: Vec::new(),
+            images: Vec::new(),
             #[cfg(commercial)]
             history: None,
             #[cfg(commercial)]

@@ -215,7 +215,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
 /// with the `text = "…"` of their `#[value(…)]` attributes (the lab's
 /// values, lab/src/values.rs), the `text=` of the `{@ …}` tags in its
-/// `.wgsl` files' `///` comments (lab/src/shader_data.rs), and the `-text` fields of its
+/// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle=` of the tags
+/// in its `.story` files, and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
 /// `target/`).
 fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
@@ -240,6 +241,18 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
                 let at = format!("{}:{}", path.display(), n + 1);
                 let key = value.trim().strip_prefix('"').and_then(|v| v.strip_suffix('"')).unwrap_or_else(|| panic!("{at}: a text key is a quoted string"));
                 keys.push((key.to_string(), at));
+            }
+            continue;
+        }
+        // A story's image title: `{@ … imageTitle=key …}`.
+        if path.extension().is_some_and(|e| e == "story") {
+            println!("cargo:rerun-if-changed={}", path.display());
+            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+                for (i, _) in line.match_indices("imageTitle=") {
+                    let rest = line[i + 11..].trim_start_matches('"');
+                    let key = &rest[..rest.find(|c: char| c == '"' || c == '}' || c.is_whitespace()).unwrap_or(rest.len())];
+                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                }
             }
             continue;
         }
