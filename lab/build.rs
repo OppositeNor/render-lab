@@ -68,7 +68,10 @@ fn main() {
         hash_dir(&root.join("src/commercial/lab"), &root, &mut hash);
     }
     println!("cargo:rustc-env=LAB_SOURCE_HASH={:016x}", hash.finish());
-    println!("cargo:rerun-if-changed={}", manifest_dir.join("src").display());
+    // The lab's own files are named relative to it (a build script runs in its
+    // package's directory), so a build through the link prints the same
+    // instructions as the repository's and does not rerun this.
+    println!("cargo:rerun-if-changed=src");
 
-    render_lab_check::check_package(&root.join("packages/render_lab"), &manifest_dir.join("src"));
+    render_lab_check::check_package(&root.join("packages/render_lab"), Path::new("src"));
 }

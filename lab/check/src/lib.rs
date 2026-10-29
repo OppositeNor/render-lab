@@ -31,22 +31,26 @@ struct Package {
     collections: Vec<PathBuf>,
 }
 
-/// Every package of a packages directory, by name (the run time checks their manifests in full).
-fn find_packages(dir: &Path) -> Vec<Package> {
-    // A new package reruns the checks.
-    println!("cargo:rerun-if-changed={}", dir.display());
-    let mut entries: Vec<PathBuf> = fs::read_dir(dir).map(|e| e.flatten().map(|e| e.path()).collect()).unwrap_or_default();
-    entries.sort();
-    let mut packages = Vec::new();
-    for dir in entries {
-        let path = dir.join("manifest.toml");
-        if !path.is_file() {
+/// A package and the packages it imports, directly or through another, from
+/// the packages directory beside it (a package's directory is its name; the
+/// run time checks their manifests in full). Only their manifests rerun the
+/// checks: the packages directory itself would rerun them on any change under
+/// it, other packages' content and tools' build/ output alike.
+fn find_packages(module_dir: &Path) -> Vec<Package> {
+    let packages_dir = module_dir.parent().expect("a package is a directory of a packages directory");
+    let mut packages: Vec<Package> = Vec::new();
+    let mut pending = vec![module_dir.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        if packages.iter().any(|m| m.dir == dir) {
             continue;
         }
+        let path = dir.join("manifest.toml");
         println!("cargo:rerun-if-changed={}", path.display());
         let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         let document = toml_edit::Document::parse(text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         let name = document.get("name").and_then(|n| n.as_str()).unwrap_or_else(|| panic!("{}: no `name`", path.display())).to_string();
+        let imports = document.get("import").and_then(|i| i.as_array()).into_iter().flatten().filter_map(|i| i.as_str());
+        pending.extend(imports.map(|import| packages_dir.join(import)));
         let collections = document
             .get("provides")
             .and_then(|p| p.as_array_of_tables())
@@ -337,8 +341,8 @@ fn check_text(tables: &[(PathBuf, Vec<PathBuf>)]) {
 /// (the `.rs` files under `code`) and its data (`-text` fields of the TOML
 /// files in its directory) name.
 pub fn check_package(module_dir: &Path, code: &Path) {
-    let packages = find_packages(module_dir.parent().expect("a package is a directory of a packages directory"));
-    let name = packages.iter().find(|m| m.dir == module_dir).unwrap_or_else(|| panic!("{}: no manifest.toml", module_dir.display())).name.clone();
+    let packages = find_packages(module_dir);
+    let name = packages[0].name.clone();
     if module_dir.join("text/en.json").is_file() {
         check_text(&[(module_dir.join("text"), vec![code.to_path_buf(), module_dir.to_path_buf()])]);
     }
