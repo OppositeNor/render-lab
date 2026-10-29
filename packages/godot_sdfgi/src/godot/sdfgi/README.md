@@ -75,7 +75,6 @@ selftest reproduces F1, F2, F4, F26, and F27); all of them are listed with their
 | `demos.rs`, `shot.rs`, `controls.rs`, `values.rs` | The demonstrations, their values, the dock |
 | `selftest.rs` | The checks |
 | `source_index.py` | Writes `source-index.json` from the checkout |
-| `AGENTS.md` | The investigation's guide for agents |
 
 ## Verify
 

@@ -3,7 +3,7 @@
 O3DE 2.8.0 (`d363107e`). Claims cite `research.md` by claim number (`R2.07`) or finding (`F6`), and the checkout by
 file:line with the abbreviations of `research.md` §0. The story is rebuilt with the `new-story` process on the base
 of the existing investigation (its port, CPU mirror, demonstrations, and storyboard); the agent decided the scope,
-chapters, and budgets for the user (2026-10-29, `src/o3de/lighting/AGENTS.md`).
+chapters, and budgets for the user (2026-10-29).
 
 Total budget: 2,275 s (about 38 minutes), fifteen chapters.
 

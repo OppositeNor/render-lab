@@ -27,10 +27,13 @@ They are published with the package, like the video that cites the same lines: c
 and keep quotes short (none at all for an engine whose license forbids them). For an investigation of the optional
 `commercial` module they stay local, as the package does.
 
-Keep a guide for the investigation beside its code (`src/<engine>/<feature>/AGENTS.md`): the checkout and its
-commit, the user's preferences for this story (the subject object, what to hide in close-ups, a camera style),
-decisions the user made and ones an agent made that are open to change, and pending requests with what doing them
-would take. Read it before each phase, and add to it whenever the user decides something.
+Keep a guide for the investigation beside its code (`src/<engine>/<feature>/AGENTS.md`) while the story is being
+made: the checkout and its commit, the user's preferences for this story (the subject object, what to hide in
+close-ups, a camera style), decisions the user made and ones an agent made that are open to change, and pending
+requests with what doing them would take. Read it before each phase, and add to it whenever the user decides
+something. It is a working file: git ignores it (`.gitignore`, `/packages/**/AGENTS.md`), so it is never published.
+**When the story is finished** (the user has watched the built video and has nothing left to adjust), delete the
+guide, and tell the user about any pending request in it that was not done, so none is lost with it.
 
 ## Phase 1: Research
 

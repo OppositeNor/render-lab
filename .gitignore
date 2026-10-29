@@ -27,4 +27,6 @@ Thumbs.db
 # video builds and the timelines the homepage plays, tools/video). And the video tools' Node packages.
 /build/
 /packages/*/build/
+# The guides agents keep in a package while they work on its story (new-story); deleted when it is done.
+/packages/**/AGENTS.md
 /tools/video/node_modules/
