@@ -35,6 +35,8 @@ pub struct Dock<'a> {
     pub state: &'a ShotState,
     pub input: &'a UiInput<'a>,
     playing: bool,
+    /// A timeline is shown (it adds the Captions tab).
+    timeline: bool,
     /// Parameters the demonstration's animation drives.
     animated: Vec<&'static str>,
     /// The narration's volume (src/volume.rs).
@@ -56,6 +58,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
         state: input.state,
         input,
         playing: viewer.playing,
+        timeline: viewer.timeline_mode,
         animated: investigation::current().animation(demo, 0.0).into_iter().map(|p| p.0).collect(),
         narration: viewer.narration,
         actions: Vec::new(),
@@ -80,7 +83,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
                 dock.buttons(ui, tab);
             });
             ui.add_space((divider + 16.0 - ui.cursor().min.x).max(0.0));
-            if tab != DockTab::Sources {
+            if !matches!(tab, DockTab::Sources | DockTab::Captions) {
                 // Each direction scrolls once the groups overflow it (as of last frame), so a
                 // tall group's lower rows stay reachable; with one direction, the wheel drives it.
                 let room = vec2(inner.max.x - ui.cursor().min.x, inner.max.y - ui.cursor().min.y);
@@ -93,8 +96,11 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
             }
         });
     });
-    if tab == DockTab::Sources {
-        ui::draw_source_list(ink, Rect::from_min_max(pos2(divider, rect.min.y), rect.max), demo);
+    let side = Rect::from_min_max(pos2(divider, rect.min.y), rect.max);
+    match tab {
+        DockTab::Sources => ui::draw_source_list(ink, side, demo),
+        DockTab::Captions => ui::draw_caption_tab(ink, side.shrink2(vec2(16.0, 0.0)), viewer.previous_caption.as_deref(), viewer.caption.as_deref()),
+        _ => {}
     }
     viewer.actions.extend(dock.actions);
     viewer.widgets = dock.widgets;
@@ -103,7 +109,8 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
 impl Dock<'_> {
     fn buttons(&mut self, ui: &mut Ui, tab: DockTab) {
         ui.horizontal(|ui| {
-            for (value, label) in [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))] {
+            let captions = self.timeline.then(|| (DockTab::Captions, tr("controls.captions")));
+            for (value, label) in [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))].into_iter().chain(captions) {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
                 }

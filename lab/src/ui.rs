@@ -169,6 +169,8 @@ pub enum DockTab {
     /// The demonstration's pseudo-code in the panel; the dock picks a listing and lights its steps.
     Code,
     Sources,
+    /// A paused timeline's caption, to read again (only with a timeline).
+    Captions,
 }
 
 /// One beat of the timeline, as the bar's hover preview names it.
@@ -192,8 +194,10 @@ pub struct ViewerChrome {
     pub fps: u32,
     /// Output: the preview shown under the pointer this frame, if any.
     pub hover: Option<String>,
-    /// The caption on screen while the timeline plays.
+    /// The caption on screen while the timeline plays; paused, the one at or
+    /// last before the frame (the Captions tab), with the one before it.
     pub caption: Option<String>,
+    pub previous_caption: Option<String>,
     /// The seconds the timeline just skipped (Left and Right), and the notice's opacity.
     pub skip: Option<(i64, f32)>,
     pub status: String,
@@ -1059,6 +1063,27 @@ fn draw_caption_lines(ink: &Ink, l: &Layout, text: &str) {
         rich_text::text(ink, pos2(l.captions.center().x + 1.5, y + 2.0), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::theme().shadow);
         let rect = rich_text::text(ink, pos2(l.captions.center().x, y), Align2::CENTER_TOP, line, 34.0, FontFamily::Proportional, palette::text());
         y += 48.0f32.max(rect.height() + 8.0);
+    }
+}
+
+/// The Captions tab: the paused caption at the size it plays, and the one
+/// before it, dimmer and smaller, above it for context.
+pub fn draw_caption_tab(ink: &Ink, rect: Rect, previous: Option<&str>, caption: Option<&str>) {
+    let painter = ink.painter.with_clip_rect(rect);
+    let ink = Ink::new(&painter);
+    let Some(caption) = caption else {
+        ink.text(rect.center(), Align2::CENTER_CENTER, tr("ui.no_caption"), 24.0, FontFamily::Proportional, palette::text_dim());
+        return;
+    };
+    let mut y = rect.min.y + 14.0;
+    for line in previous.into_iter().flat_map(str::lines) {
+        let r = rich_text::text(&ink, pos2(rect.center().x, y), Align2::CENTER_TOP, line, 24.0, FontFamily::Proportional, palette::text_dim());
+        y += 34.0f32.max(r.height() + 6.0);
+    }
+    y += 10.0;
+    for line in caption.lines() {
+        let r = rich_text::text(&ink, pos2(rect.center().x, y), Align2::CENTER_TOP, line, 32.0, FontFamily::Proportional, palette::text());
+        y += 44.0f32.max(r.height() + 8.0);
     }
 }
 

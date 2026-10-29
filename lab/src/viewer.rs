@@ -311,6 +311,9 @@ impl App {
     /// The Code tab shows the demonstration's first listing in the panel;
     /// the other tabs show its struct panel.
     fn show_tab(&mut self) {
+        if self.tab == DockTab::Captions && !self.timeline_mode {
+            self.tab = DockTab::Parameters;
+        }
         let defaults = self.default_state(self.state.demo);
         if self.tab == DockTab::Code {
             if self.state.panel != PanelMode::Code {
@@ -357,6 +360,9 @@ impl App {
         if self.playing && self.timeline_mode {
             self.stop_audio();
             self.take_timeline_shot();
+            // Paused, the dock shows the caption, to read again.
+            self.tab = DockTab::Captions;
+            self.show_tab();
         }
         self.playing = false;
     }
@@ -466,6 +472,7 @@ impl App {
                     if self.timeline_mode {
                         self.take_timeline_shot();
                     }
+                    self.show_tab();
                 }
             }
             ViewerAction::Seek(fraction) => {
@@ -745,6 +752,18 @@ impl App {
         }
         let state = self.render_state();
         let state = self.with_intro(state, now);
+        // Playing, the caption on screen; paused, the one at or last before
+        // the frame, and the one before that.
+        let captions = self.timeline.as_ref().filter(|_| self.timeline_mode).map_or((None, None), |t| {
+            let (_, beat) = t.beat_at(self.timeline_frame);
+            let frame = self.timeline_frame;
+            if self.playing {
+                (None, beat.captions.iter().find(|c| c.start <= frame && frame < c.end).map(|c| c.text.clone()))
+            } else {
+                let at = beat.captions.iter().rposition(|c| c.start <= frame);
+                (at.and_then(|i| i.checked_sub(1)).map(|i| beat.captions[i].text.clone()), at.map(|i| beat.captions[i].text.clone()))
+            }
+        });
         let mut chrome = ViewerChrome {
             playing: self.playing,
             timeline: self.timeline.as_ref().map(|t| (self.timeline_frame, t.total_frames)),
@@ -753,10 +772,8 @@ impl App {
             sections: self.bar_sections.clone(),
             fps: self.timeline.as_ref().map_or(30, |t| t.fps),
             hover: None,
-            caption: self.timeline.as_ref().filter(|_| self.timeline_playing()).and_then(|t| {
-                let (_, beat) = t.beat_at(self.timeline_frame);
-                beat.captions.iter().find(|c| c.start <= self.timeline_frame && self.timeline_frame < c.end).map(|c| c.text.clone())
-            }),
+            caption: captions.1,
+            previous_caption: captions.0,
             skip: self.skip.filter(|_| self.timeline_mode).and_then(|(s, at)| {
                 let left = 1.0 - (now - at).as_secs_f32() / SKIP_NOTICE.as_secs_f32();
                 (left > 0.0).then(|| (s, (left * 3.0).min(1.0)))
