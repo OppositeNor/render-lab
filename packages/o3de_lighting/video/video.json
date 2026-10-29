@@ -36,6 +36,9 @@
     "multiscatter",
     "point-light-apply",
     "point-light-loop",
+    "cascade-splits",
+    "cascade-sphere-fit",
+    "cascade-select",
     "forward-targets",
     "diffuse-global",
     "reflection-global",
@@ -48,6 +51,7 @@
     "back-lighting",
     "probe-blend-weight",
     "probe-render-outer",
+    "msaa-resolve-custom",
     "ssao-compute",
     "blur-step"
   ],
@@ -68,7 +72,8 @@
         "clearcoat": "clear coat over a rough metal",
         "transmission": "an EnhancedPBR teapot lit from behind",
         "reflections": "two reflection probes",
-        "ssao": "screen-space ambient occlusion"
+        "ssao": "screen-space ambient occlusion",
+        "cascades": "the directional light's four cascades for an observer camera, drawn from O3DE's arithmetic (the lab has no directional light)"
       },
       "simplifications": [
         "The port keeps O3DE's arithmetic in f32; O3DE's `real` can be half precision on some platforms.",
@@ -95,7 +100,8 @@
         "clearcoat": "粗糙金属上的 clear coat",
         "transmission": "从背后照亮的 EnhancedPBR 茶壶",
         "reflections": "两个反射 probe",
-        "ssao": "屏幕空间环境光遮蔽"
+        "ssao": "屏幕空间环境光遮蔽",
+        "cascades": "观察相机的方向光四个级联，按 O3DE 的算法绘制（实验室没有方向光）"
       },
       "simplifications": [
         "移植保持 O3DE 的 f32 运算；O3DE 的 `real` 在某些平台上可能是半精度。",

@@ -14,6 +14,7 @@
 //! pseudo-code in pseudocode/, and the readout's formulas in `formulas`.
 
 pub mod brdf;
+pub mod cascades;
 pub mod controls;
 pub mod culling;
 pub mod decals;
@@ -103,7 +104,7 @@ const BUFFERS: &[ShadingBuffer] = &[
 const PASSES: &[ShadingPass] = &[
     ShadingPass { entry: "o3deDiffuseGlobalCS", reads: &["diffuse", "normal", "albedo", "stencil"], writes: &["diffuseLit"], workgroup: [8, 8] },
     ShadingPass { entry: "o3deReflectionsCS", reads: &["normal", "albedo", "specularF0", "stencil", "depth"], writes: &["reflection", "probeView"], workgroup: [8, 8] },
-    ShadingPass { entry: "o3deReflectionCompositeCS", reads: &["specular", "reflection"], writes: &["specularLit"], workgroup: [8, 8] },
+    ShadingPass { entry: "o3deReflectionCompositeCS", reads: &["specular", "reflection", "depth"], writes: &["specularLit"], workgroup: [8, 8] },
     // AoParent.pass (SsaoParent.pass), after the MSAA resolves; ModulateWithSsao is in the merge.
     ShadingPass { entry: "o3deLinearDepthCS", reads: &["depth"], writes: &["linearDepth"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deDepthDownsampleCS", reads: &["depth"], writes: &["halfDepth", "linearDepth"], workgroup: [16, 16] },
@@ -118,7 +119,7 @@ pub static SHADING: SceneShading = SceneShading {
     module: "o3de_lighting.shader/standard-lighting",
     fragment: "o3deForwardFS",
     data: ibl::shading_data,
-    verify: &["o3deBrdfTests", "o3dePixelTests", "o3deBrdfMapTests", "o3deIblTests"],
+    verify: &["o3deBrdfTests", "o3dePixelTests", "o3deBrdfMapTests", "o3deIblTests", "o3deResolveTests"],
     targets: TARGETS,
     outputs: &["diffuse", "specular", "albedo", "specularF0", "normal", "debug", "stencil"],
     passes: PASSES,

@@ -1,4 +1,4 @@
 # The lighting investigation's demonstrations, in the order of the viewer's
 # keys (1-9, 0, -, =); each is demos/<key>.toml (src/lab/demo.rs reads them).
 
-demos = ["room", "culling", "surface", "decals", "specular", "clearcoat", "diffuse", "transmission", "multiscatter", "pointlight", "ibl", "reflections", "ssao"]
+demos = ["room", "culling", "surface", "decals", "specular", "clearcoat", "diffuse", "transmission", "multiscatter", "pointlight", "cascades", "ibl", "reflections", "ssao"]

@@ -1,0 +1,27 @@
+# The directional light's cascaded shadow maps for an observer camera in the
+# room (cascades.rs): the lab has no directional light, so this is drawn from
+# a CPU computation that follows DirectionalLightFeatureProcessor.
+
+key = "cascades"
+title-text = "shot.cascaded_shadow_maps"
+tab-text = "shot.cascades"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "cascades"
+
+[camera]
+target = [0.0, 1.0, -0.5]
+yaw = 32.0
+pitch = 34.0
+distance = 11.0
+fov = 50.0
+
+[params]
+cascades = 1.0
+cascadeSpheres = 1.0
+cascadeBoxes = 1.0
+shadowFar = 12.0
+labels = 0.0
+radius = 0.0
+falloff = 0.0
+inspectObject = "sphere"

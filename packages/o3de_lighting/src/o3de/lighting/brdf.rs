@@ -66,6 +66,9 @@ pub enum ViewMode {
     /// The upsampled SSAO, which is screen space: the CPU mirror shows the final pixel.
     #[choice(label = "SSAO")]
     Ssao,
+    /// How much MSAAResolveCustom changes the specular, relative to a plain mean (heat ramp, 0 to 10 percent).
+    #[choice(text = "controls.resolve_difference")]
+    ResolveDifference,
 }
 
 pub fn saturate(x: f32) -> f32 {
@@ -786,8 +789,28 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
         ViewMode::LightCount => untonemap(heat(0.0), exposure),
         ViewMode::ProbeStencil => untonemap(super::reflections::stencil_color(ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK), exposure),
         ViewMode::ProbeWeight => untonemap(heat(ibl.reflection.blend_weight / 2.0), exposure),
-        // The reflection passes test the IBL flag themselves; SSAO is screen space.
-        ViewMode::Final | ViewMode::Ssao => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
+        // The reflection passes test the IBL flag themselves; SSAO and the resolve are screen space.
+        ViewMode::Final | ViewMode::Ssao | ViewMode::ResolveDifference => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
     };
     Pixel { color, surface: s, lighting: l, light: sample, terms, ibl }
+}
+
+/// MSAAResolveCustom's luminance (CalcLuminance).
+pub fn resolve_luminance(c: Vec3) -> f32 {
+    c.dot(Vec3::new(0.299, 0.587, 0.114))
+}
+
+/// MSAAResolveCustom MainPS for one pixel, as MSAAResolveSpecularPass runs it:
+/// each sample scaled down to at most `contrast` times the brightest
+/// luminance of the diagonal neighbours' samples, then the mean taken in the
+/// log domain (LOG_TONEMAPPING_STRATEGY).
+pub fn msaa_resolve_custom(samples: &[Vec3], brightest_neighbor: f32, contrast: f32) -> Vec3 {
+    let sum: Vec3 = samples
+        .iter()
+        .map(|&s| {
+            let factor = contrast * brightest_neighbor / resolve_luminance(s);
+            (s * 1.0f32.min(factor)).to_array().map(f32::ln).into()
+        })
+        .fold(Vec3::ZERO, |a, b: Vec3| a + b);
+    (sum / samples.len() as f32).to_array().map(f32::exp).into()
 }

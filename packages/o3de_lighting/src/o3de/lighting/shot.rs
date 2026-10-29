@@ -22,10 +22,11 @@ pub enum Demo {
     Ibl,
     Reflections,
     Ssao,
+    Cascades,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 13] = [Demo::Room, Demo::Culling, Demo::Surface, Demo::Decals, Demo::Specular, Demo::ClearCoat, Demo::Diffuse, Demo::Transmission, Demo::Multiscatter, Demo::PointLight, Demo::Ibl, Demo::Reflections, Demo::Ssao];
+    pub const ALL: [Demo; 14] = [Demo::Room, Demo::Culling, Demo::Surface, Demo::Decals, Demo::Specular, Demo::ClearCoat, Demo::Diffuse, Demo::Transmission, Demo::Multiscatter, Demo::PointLight, Demo::Cascades, Demo::Ibl, Demo::Reflections, Demo::Ssao];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -42,6 +43,7 @@ impl Demo {
             Demo::Ibl => "ibl",
             Demo::Reflections => "reflections",
             Demo::Ssao => "ssao",
+            Demo::Cascades => "cascades",
         }
     }
 
@@ -136,6 +138,8 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Ssao => vec![wave("ssaoRadius", 0.05, 0.04, 10.0)],
         // Roughness walks through the specular cubemap's mips.
         Demo::Ibl => vec![cosine("sphereRoughness", 0.5, -0.5, 12.0)],
+        // The observer looks around, so the slices turn and the snapped boxes hold still; the split ratio swings.
+        Demo::Cascades => vec![wave("observerYaw", 0.0, 35.0, 16.0), cosine("cascadeSplitRatio", 0.6, 0.3, 11.0)],
     })
 }
 

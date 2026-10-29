@@ -33,6 +33,7 @@ directional lights and their shadows) and the other material types come later. L
 | 0 | The simple point light | `SimplePointLightUtil_PBR`, `ApplySimplePointLight`, `IsSameLightChannel`, `SimplePointLightDelegate::CalculateAttenuationRadius` |
 | = | Reflection probes | `ReflectionProbeStencil`, `ReflectionProbeBlendWeight`, `ReflectionGlobalFullscreen`, `ReflectionProbeRenderOuter` and `Inner`, `ComputeProbeSpecular`, `ApplyParallaxCorrectionOBB`, `ReflectionComposite` |
 | (header) | Screen-space ambient occlusion | `DepthDownsample`, `SsaoCompute`, `FastDepthAwareBlurVer` and `Hor`, `DepthUpsample`, `ModulateTexture` |
+| (tab) | The directional light's cascades (schematic) | `UpdateBorderDepthsForSegments`, `CascadeShadowCameraConfiguration::GetDepthCenter`, `CalculateShadowViewAabb`, `SnapAabbToPixelIncrements`, `GetShadowCascadeRange` |
 | − | Image-based lighting | `DiffuseGlobalFullscreen`, `ReflectionGlobalFullscreen`, `ReflectionComposite`, `CCubeMapProcessor::FilterCubeSurfacesGGX` and its cosine filter, the IBL presets |
 
 Each demonstration has a **readout** in the struct panel's place: every term at the inspected point, computed by the CPU
@@ -85,7 +86,7 @@ probe's position.
   texel, indexed by (NdotV, 1 - roughness), and stores it as R16G16_FLOAT (the lab keeps f32). The compensation's
   shader option is declared `true`, but StandardPBR connects it to the material property
   `specularF0.enableMultiScatterCompensation`, which has no default and so loads as `false`: compensation is **off**
-  unless a material turns it on, as 37 of the 39 PBR presets do. The lab turns it on (the `multiscatter` parameter).
+  unless a material turns it on, as 37 of the 38 PBR material presets do. The lab turns it on (the `multiscatter` parameter).
 - **Transmission** is EnhancedPBR's (its mode defaults to None). Simple point lights add no back lighting, so it needs
   another light type; O3DE's point light, a sphere area light (bulb radius 0.05 m by the editor's default), lights like
   a simple one, moves its specular direction to the bulb's nearest point to the reflection ray, and adds
@@ -148,6 +149,27 @@ probe's position.
   filter over the sphere, normalised by its weights, so it holds irradiance / π, which is why the diffuse pass
   multiplies by albedo with no 1 / π. CubeMapGen's lookups map a face onto texel indices rather than texel centres, so
   they sit up to half a texel off at the face's edges.
+
+- **The directional light** is in lux (the component's default, 4 EV100, is 40 lux); its angular diameter is
+  adjusted for in `DirectionalLight.azsli` and then not used, since the specular call takes the plain direction.
+  Only one directional light shadows. Its four cascades split the view between near and min(camera far, shadow
+  far, 100 m by default) at `ratio * log + (1 - ratio) * uniform` (ratio 0.9); each slice is fitted with a
+  bounding sphere, whose cube in the light's frame (stretched toward the light and behind the camera) is floored to
+  whole texels of the 1024-texel map, and a pixel takes the first cascade whose map holds it 1.5 texels inside.
+  Opaque forward shading reads one value a pixel from the full-screen R8 shadow buffer. The lab has no
+  directional light: `cascades.rs` follows this arithmetic for an observer camera, and the cascades demonstration
+  draws it.
+- **The specular target resolves** through `MSAAResolveCustom` (enableNeighborClamping 1, maxNeighborContrast
+  1.5): each sample is scaled to at most 1.5 times the brightest luminance of the four diagonal neighbours'
+  samples, and the samples are averaged in the log domain. The lab ports it (the `specularResolve` toggle, off
+  by default, and a false-colour view of its relative difference); diffuse resolves as a plain average.
+- **Decal colours** are blended into the ACEScg surface without the linear-sRGB-to-ACEScg conversion every
+  material and light colour gets (finding).
+- **The light groups' order is implicit:** with `o_enablePunctualLights` off on a material, the forward pass
+  skips the two simple-light groups without advancing the tile iterator, so the area lights read the wrong
+  groups (finding, read from the code).
+- **In a project from the default template**, the DiffuseProbeGrid gem disables `DiffuseGlobalFullscreenPass`
+  and its `DiffuseComposite` applies the skylight's diffuse instead.
 
 ### Observed in the lab
 
@@ -220,7 +242,7 @@ the lab at run time (`lab/src/formula.rs`); the selftest checks that each typese
 ## The video
 
 [`video/`](../../../video) holds the narrated video's storyboard (`storyboard.story`), its diagrams, the zh-CN translation (`storyboard.zh-CN.story`), and
-`video.json`; [`tools/video`](../../../../../tools/video/README.md) builds it. It runs about 35 minutes in fourteen chapters,
+`video.json`; [`tools/video`](../../../../../tools/video/README.md) builds it. It runs about 42 minutes in fifteen chapters,
 following the opaque frame's passes in order. The timelines it writes into the module, `build/timelines/` (generated, so
 git ignores them; `--prepare-only` builds them in a fresh checkout), are what the homepage's Watch plays; the narration
 and the video itself go to its `build/video/`.

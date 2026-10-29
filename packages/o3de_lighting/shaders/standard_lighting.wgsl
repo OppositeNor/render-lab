@@ -50,9 +50,11 @@ struct O3deShading {
     /// The skylight's exposure, in stops (m_iblExposure).
     /// {@ key=iblExposure default=0 range=-4,4 label=light text=controls.ibl_exposure}
     iblExposure: f32,
-    /// Unused.
-    /// {@ derived}
-    reserved: f32,
+    /// MSAAResolveSpecularPass's custom resolve (MSAAResolveCustom: the
+    /// neighbour clamp and the log-domain mean) instead of the lab's plain
+    /// average of the specular samples.
+    /// {@ key=specularResolve toggle default=false label=toggles text=controls.specular_resolve}
+    specularResolve: f32,
     /// Specular anti-aliasing (the applySpecularAA material property, true by default).
     /// {@ key=specularAA toggle default=true label=toggles}
     specularAA: f32,
@@ -1958,7 +1960,77 @@ fn o3deReflectionCompositeCS(@builtin(global_invocation_id) id: vec3<u32>) {
         specular += textureLoad(tSpecular, pixel, i).rgb;
     }
     specular = specular / f32(samples) + textureLoad(tReflection, pixel, 0).rgb;
+    let view = gShading.viewMode;
+    if (gShading.specularResolve > 0.5 || view == VIEW_RESOLVE_DIFFERENCE) {
+        let resolved = msaaResolveSpecular(vec2<i32>(pixel), samples);
+        if (view == VIEW_RESOLVE_DIFFERENCE) {
+            // How much the custom resolve changes the pixel, relative to a
+            // plain mean of the same composited samples (the sky where nothing
+            // was drawn), on the heat ramp: 0 to 10 percent.
+            var mean = vec3<f32>(0.0);
+            for (var i = 0u; i < samples; i++) {
+                mean += compositedSpecular(vec2<i32>(pixel), i);
+            }
+            mean /= f32(samples);
+            let relative = resolveLuminance(abs(resolved - mean)) / max(resolveLuminance(mean), 1e-3);
+            specular = untonemap(heat(saturate(relative * 10.0)));
+        } else {
+            specular = resolved;
+        }
+    }
     textureStore(oSpecularLit, pixel, vec4<f32>(specular, 1.0));
+}
+
+// MSAAResolveCustom.azsl, as MSAAResolveSpecularPass runs it (OpaqueParent.pass:
+// enableNeighborClamping 1, maxNeighborContrast 1.5; TONEMAPPING_STRATEGY
+// LOG, CLAMPING_STRATEGY CLAMP_NEIGHBOR_MAX_LUMINANCE). O3DE resolves after
+// ReflectionComposite has added the reflections onto the specular target,
+// and the sky box has written the sky where nothing was drawn, so the lab
+// resolves those composited samples (compositedSpecular); it renders four
+// samples where O3DE renders two.
+const RESOLVE_MAX_NEIGHBOR_CONTRAST: f32 = 1.5;
+
+// CalcLuminance.
+fn resolveLuminance(color: vec3<f32>) -> f32 {
+    return dot(color, vec3<f32>(0.299, 0.587, 0.114));
+}
+
+// Sample i of the specular target at pixel, after the composite; zero off the
+// target, as Texture2DMS.Load gives out of bounds.
+fn compositedSpecular(pixel: vec2<i32>, i: u32) -> vec3<f32> {
+    let size = vec2<i32>(textureDimensions(tSpecular));
+    if (any(pixel < vec2<i32>(0)) || any(pixel >= size)) {
+        return vec3<f32>(0.0);
+    }
+    let p = vec2<u32>(pixel);
+    if (!covered(textureLoad(tDepth, p, i))) {
+        return skyRadiance(viewRay((vec2<f32>(p) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
+    }
+    return textureLoad(tSpecular, p, i).rgb + textureLoad(tReflection, p, 0).rgb;
+}
+
+// MainPS: the brightest luminance of every sample of the four diagonal
+// neighbours, then each of the pixel's samples scaled down to at most 1.5
+// times it, and their mean taken in the log domain (a geometric mean).
+fn msaaResolveSpecular(pixel: vec2<i32>, samples: u32) -> vec3<f32> {
+    var brightest = 0.0;
+    for (var i = 0u; i < samples; i++) {
+        brightest = max(brightest, resolveLuminance(compositedSpecular(pixel + vec2<i32>(1, 1), i)));
+        brightest = max(brightest, resolveLuminance(compositedSpecular(pixel + vec2<i32>(1, -1), i)));
+        brightest = max(brightest, resolveLuminance(compositedSpecular(pixel + vec2<i32>(-1, 1), i)));
+        brightest = max(brightest, resolveLuminance(compositedSpecular(pixel + vec2<i32>(-1, -1), i)));
+    }
+    var color = vec3<f32>(0.0);
+    for (var i = 0u; i < samples; i++) {
+        color += resolveSample(compositedSpecular(pixel, i), brightest, RESOLVE_MAX_NEIGHBOR_CONTRAST);
+    }
+    return exp(color / f32(samples));
+}
+
+// One sample: clamped against the brightest neighbour, then ConvertLighting (log).
+fn resolveSample(sampleColor: vec3<f32>, brightest: f32, contrast: f32) -> vec3<f32> {
+    let lumFactor = contrast * brightest / resolveLuminance(sampleColor);
+    return log(sampleColor * min(1.0, lumFactor));
 }
 
 // ---------------------------------------------------------------------------
@@ -2275,6 +2347,8 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     let specularLit = textureLoad(tSpecularLit, pixel, 0).rgb;
     var color = diffuseLit + specularLit;
     let view = gShading.viewMode;
+    // The custom resolve already holds the sky where nothing was drawn.
+    let skyResolved = gShading.specularResolve > 0.5;
     if (view == VIEW_DIFFUSE) {
         color = diffuse / n;
     } else if (view == VIEW_SPECULAR) {
@@ -2291,6 +2365,8 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
         color = untonemap(heat(textureLoad(tProbeView, pixel, 0).a / 2.0));
     } else if (view == VIEW_SSAO) {
         color = untonemap(vec3<f32>(ao));
+    } else if (view == VIEW_RESOLVE_DIFFERENCE) {
+        color = specularLit;
     }
     // Where samples hit nothing, the sky box: the environment the skylight's
     // cubemaps were baked from, unfiltered and without m_iblExposure (the lab
@@ -2300,7 +2376,9 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     if (view == VIEW_FINAL) {
         background = skyRadiance(viewRay((vec2<f32>(pixel) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
     }
-    color += background * (1.0 - coverage / n);
+    if (!(skyResolved && view == VIEW_FINAL)) {
+        color += background * (1.0 - coverage / n);
+    }
     color = probeCubemapViews(pixel, color);
     textureStore(oHdr, pixel, vec4<f32>(color, 1.0));
 }
@@ -2461,6 +2539,22 @@ fn o3deIblTests(@builtin(workgroup_id) id: vec3<u32>) {
     o3dePut3(sampleSpecularEnv(input.xyz, input.w));
     o3dePut3(sampleDiffuseEnv(input.xyz));
     o3dePut(0.0);
+    o3dePut(0.0);
+}
+
+// MSAAResolveCustom for one pixel: input (four samples, unused), (brightest
+// neighbour luminance, contrast, sample count, unused); output 4 words: the
+// resolved colour, unused.
+@compute @workgroup_size(1)
+fn o3deResolveTests(@builtin(workgroup_id) id: vec3<u32>) {
+    let p = gO3deTests[id.x * 5u + 4u];
+    o3deCursor = id.x * 4u;
+    let count = u32(p.z);
+    var color = vec3<f32>(0.0);
+    for (var i = 0u; i < count; i++) {
+        color += resolveSample(gO3deTests[id.x * 5u + i].xyz, p.x, p.y);
+    }
+    o3dePut3(exp(color / f32(count)));
     o3dePut(0.0);
 }
 

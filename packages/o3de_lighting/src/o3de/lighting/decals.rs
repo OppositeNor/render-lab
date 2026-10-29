@@ -154,3 +154,16 @@ pub fn apply_decal(d: &Decal, s: &mut Surface, vertex_normal: Vec3) {
     s.specular_f0 = s.specular_f0.lerp(k.blended, k.albedo_opacity * s.metallic);
     s.normal = s.normal.lerp(k.normal, k.normal_opacity).normalize();
 }
+
+/// RPI's LinearSrgb_To_AcesCg (TransformColor.cpp; GeneratedTransforms/
+/// ColorConversionConstants.inl): XYZ to ACEScg, times D65 to D60, times
+/// sRGB to XYZ. O3DE converts every material and light colour this way
+/// before lighting; a decal's colour and its texture are blended in as
+/// stored, without it (DecalTextureArrayFeatureProcessor::SetDecalColor).
+pub fn linear_srgb_to_acescg(c: Vec3) -> Vec3 {
+    let rows = |r: [[f32; 3]; 3]| glam::Mat3::from_cols_array_2d(&r).transpose();
+    let xyz_to_acescg = rows([[1.6410233797, -0.3248032942, -0.2364246952], [-0.6636628587, 1.6153315917, 0.0167563477], [0.0117218943, -0.0082844420, 0.9883948585]]);
+    let d65_to_d60 = rows([[1.01303, 0.00610531, -0.014971], [0.00769823, 0.998165, -0.00503203], [-0.00284131, 0.00468516, 0.924507]]);
+    let srgb_to_xyz = rows([[0.41239089, 0.35758430, 0.18048084], [0.21263906, 0.71516860, 0.07219233], [0.01933082, 0.11919472, 0.95053232]]);
+    xyz_to_acescg * d65_to_d60 * srgb_to_xyz * c
+}

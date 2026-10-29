@@ -41,12 +41,16 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     if demo == Demo::PointLight {
         lighting_channels(dock, ui);
     }
+    if demo == Demo::Cascades {
+        dock.values(ui, tr("controls.cascades_group"), Some(tr("controls.cascades_hint")), "cascades");
+        dock.values(ui, tr("controls.cascades_view"), None, "cascades_view");
+    }
     let mut toggles: Vec<(&'static str, &str)> = vec![("lightOn", tr("controls.light_on"))];
     match demo {
         Demo::Room => toggles.extend([("labels", tr("controls.labels")), ("vectors", tr("controls.vectors")), ("lobe", tr("controls.lobes"))]),
         Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("lightMarkers", tr("controls.light_markers")), ("labels", tr("controls.labels"))]),
         Demo::Surface => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("sphereOcclusion", tr("controls.occlusion_maps")), ("labels", tr("controls.labels"))]),
-        Demo::Ssao => toggles.extend([("ssao", "SSAO"), ("ssaoBlur", tr("controls.blur")), ("walls", tr("controls.walls"))]),
+        Demo::Ssao => toggles.extend([("ssao", "SSAO"), ("ssaoBlur", tr("controls.blur")), ("specularResolve", tr("controls.specular_resolve")), ("walls", tr("controls.walls"))]),
         Demo::Reflections => toggles.extend([("probes", tr("controls.probes")), ("probeParallax", tr("controls.parallax_correction")), ("probeBoxes", tr("controls.probe_boxes")), ("walls", tr("controls.walls")), ("probeCubemap", tr("controls.cubemap_cross")), ("probeBall", tr("controls.mirror_ball"))]),
         Demo::Transmission => toggles.extend([("sphereLight", tr("common.point_light_sphere")), ("vectors", tr("controls.n_l_v")), ("labels", tr("controls.labels"))]),
         Demo::Decals => toggles.extend([("decals", tr("controls.decals")), ("decalBoxes", tr("controls.decal_boxes")), ("vectors", tr("controls.n_l_v_h"))]),
@@ -54,6 +58,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
         Demo::Specular | Demo::Diffuse | Demo::Multiscatter => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("lobe", tr("controls.lobes")), ("labels", tr("controls.labels"))]),
         Demo::PointLight => toggles.extend([("falloff", tr("controls.falloff_curve")), ("radius", tr("common.attenuation_radius")), ("vectors", tr("controls.vectors"))]),
         Demo::Ibl => toggles.extend([("vectors", tr("controls.n_v_r")), ("walls", tr("controls.walls"))]),
+        Demo::Cascades => toggles.extend([("cascades", tr("shot.cascades")), ("walls", tr("controls.walls"))]),
     }
     toggles.extend([("multiscatter", tr("controls.multiscatter")), ("specularAA", "specular AA"), ("ibl", "IBL")]);
     dock.show(ui, &toggles);

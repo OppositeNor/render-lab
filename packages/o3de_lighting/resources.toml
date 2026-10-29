@@ -151,6 +151,18 @@ source = "pseudocode/probe_specular.py"
 license = "MIT (O3DE, THIRD_PARTY.md)"
 
 [[resource]]
+id = "listing/cascades"
+kind = "file"
+source = "pseudocode/cascades.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/cascade-select"
+kind = "file"
+source = "pseudocode/cascade_select.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
 id = "listing/ssao"
 kind = "file"
 source = "pseudocode/ssao.py"
@@ -235,6 +247,12 @@ license = "MIT"
 id = "demo/reflections"
 kind = "file"
 source = "demos/reflections.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/cascades"
+kind = "file"
+source = "demos/cascades.toml"
 license = "MIT"
 
 [[resource]]

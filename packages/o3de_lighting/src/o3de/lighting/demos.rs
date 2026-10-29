@@ -449,6 +449,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
             light_markers(&mut content.draw, &shading, (state.p("cullTile") > 0.0).then_some(&tile), state.p("lightMarkers"));
         }
     }
+    if state.p("cascades") > 0.0 {
+        cascade_overlay(&mut content.draw, &mut content.labels, state, p, n);
+    }
     let readout = readout(demo, state, &shading, &px, statics, &content.objects, &uniforms.camera);
     content.readout = Some(readout);
     content.notes = notes(demo, &shading);
@@ -459,6 +462,93 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         cubemap_cross_labels(&mut content.labels, state, &content.uniforms.camera);
     }
     content
+}
+
+/// The observer camera of the cascades demonstration: in the room's front
+/// corner, looking at the sphere, turned by `observerYaw`, with the shadow
+/// far as its depth (cascades.rs).
+pub fn cascade_observer(state: &ShotState) -> super::cascades::Observer {
+    let position = Vec3::new(2.3, 1.6, 2.3);
+    let look = (Vec3::new(-1.05, 0.9, -0.55) - position).normalize();
+    let forward = glam::Quat::from_rotation_y(state.p("observerYaw").to_radians()) * look;
+    super::cascades::Observer { position, forward, fov_y: 60f32.to_radians(), aspect: 16.0 / 9.0, near: 0.1, far: state.p("shadowFar").max(0.2) }
+}
+
+/// The directional light's direction, from `sunYaw` and `sunPitch` (below the horizon).
+pub fn sun_direction(state: &ShotState) -> Vec3 {
+    let (yaw, pitch) = (state.p("sunYaw").to_radians(), state.p("sunPitch").to_radians());
+    Vec3::new(pitch.cos() * yaw.sin(), -pitch.sin(), pitch.cos() * yaw.cos()).normalize()
+}
+
+pub const CASCADE_COLORS: [Color32; 4] = [palette::rgb(0x64dfd1), palette::rgb(0x8fb8ff), palette::rgb(0xffd98a), palette::rgb(0xff8fc8)];
+
+/// The observer's frustum split into its cascades (the first `cascadesShown`,
+/// a fraction growing the next), each cascade's bounding sphere and snapped
+/// light-space box, the light's direction, and the inspected point's cascade.
+fn cascade_overlay(draw: &mut DrawLists, labels: &mut Vec<Label>, state: &ShotState, p: Vec3, n: Vec3) {
+    use super::cascades;
+    let alpha = state.p("cascades");
+    let observer = cascade_observer(state);
+    let dir = sun_direction(state);
+    let set = cascades::cascades(observer, dir, state.p("cascadeSplitRatio"));
+    let shown = state.p("cascadesShown").clamp(0.0, cascades::CASCADES as f32);
+    draw.point(observer.position, 12.0, palette::VIEW, alpha);
+    labels.push(Label { anchor: observer.position + Vec3::Y * 0.12, text: tr("demos.observer_camera").into(), color: palette::VIEW });
+    let near = observer.corners(observer.near);
+    for (i, c) in set.cascades.iter().enumerate() {
+        let grown = (shown - i as f32).clamp(0.0, 1.0);
+        if grown <= 0.0 {
+            break;
+        }
+        let color = CASCADE_COLORS[i];
+        let far = c.near + (c.far - c.near) * Ease::Smooth.apply(grown);
+        let (a, b) = (observer.corners(c.near), observer.corners(far));
+        let ring: Vec<Vec3> = b.iter().chain(std::iter::once(&b[0])).copied().collect();
+        draw.polyline(&ring, color, alpha, 3.0);
+        for k in 0..4 {
+            draw.segment(if i == 0 { near[k] } else { a[k] }, b[k], color, alpha * 0.8, 2.0, 0);
+        }
+        if grown >= 1.0 {
+            labels.push(Label { anchor: (b[2] + b[3]) * 0.5, text: format!("{} {i} · {:.2} m", tr("demos.cascade"), c.far), color });
+        }
+        let spheres = state.p("cascadeSpheres") * grown;
+        if spheres > 0.0 {
+            for (u, v) in [(set.frame.x, set.frame.y), (set.frame.y, set.frame.z), (set.frame.x, set.frame.z)] {
+                let circle: Vec<Vec3> = (0..=64).map(|t| {
+                    let a = t as f32 / 64.0 * std::f32::consts::TAU;
+                    c.center + (u * a.cos() + v * a.sin()) * c.radius
+                }).collect();
+                draw.polyline(&circle, color, alpha * spheres * 0.55, 1.5);
+            }
+            draw.point(c.center, 7.0, color, alpha * spheres);
+        }
+        let boxes = state.p("cascadeBoxes") * grown;
+        if boxes > 0.0 {
+            let (lo, hi) = (c.snapped_min, c.snapped_max);
+            let corner = |x: bool, y: bool, z: bool| set.frame.to_world(Vec3::new(if x { hi.x } else { lo.x }, if y { hi.y } else { lo.y }, if z { hi.z } else { lo.z }));
+            for (x0, y0, z0, x1, y1, z1) in [
+                (0, 0, 0, 1, 0, 0), (0, 1, 0, 1, 1, 0), (0, 0, 1, 1, 0, 1), (0, 1, 1, 1, 1, 1),
+                (0, 0, 0, 0, 1, 0), (1, 0, 0, 1, 1, 0), (0, 0, 1, 0, 1, 1), (1, 0, 1, 1, 1, 1),
+                (0, 0, 0, 0, 0, 1), (1, 0, 0, 1, 0, 1), (0, 1, 0, 0, 1, 1), (1, 1, 0, 1, 1, 1),
+            ] {
+                draw.segment(corner(x0 == 1, y0 == 1, z0 == 1), corner(x1 == 1, y1 == 1, z1 == 1), color, alpha * boxes * 0.7, 1.5, 0);
+            }
+        }
+    }
+    // The light, shining along its direction.
+    let from = Vec3::new(-2.2, 2.7, -2.2) - dir * 0.9;
+    draw.segment(from, from + dir * 0.9, LIGHT, alpha, 4.0, FLAG_ARROW);
+    labels.push(Label { anchor: from - dir * 0.1, text: tr("demos.directional_light").into(), color: LIGHT });
+    // The inspected point's cascade.
+    draw.point(p, 9.0, palette::SELECTED, alpha);
+    let text = match set.select(p, n) {
+        Some(i) if (i as f32) < shown => format!("{} {i}", tr("demos.cascade")),
+        Some(_) => String::new(),
+        None => tr("demos.outside_every_cascade").into(),
+    };
+    if !text.is_empty() {
+        labels.push(Label { anchor: p + Vec3::Y * 0.1, text, color: palette::SELECTED });
+    }
 }
 
 /// The names the demonstration gives the scene's decals (decals::scene_decals).
@@ -752,7 +842,9 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             if shading.decals.is_empty() {
                 row("decals", tr("demos.off").into(), palette::text_dim());
             }
-            for i in super::decals::sorted(&shading.decals) {
+            let sorted = super::decals::sorted(&shading.decals);
+            let top = sorted.iter().rev().copied().find(|&i| super::decals::sample(&shading.decals[i], p, n).is_some());
+            for i in sorted {
                 let d = &shading.decals[i];
                 let name = format!("{} (key {})", decal_name(d.texture), d.sort_key);
                 let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
@@ -760,6 +852,12 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
                     Some(k) => {
                         row(&name, format!("uvw ({:.2}, {:.2}, {:.2})", k.uvw.x, k.uvw.y, k.uvw.z), color);
                         row(tr("demos.opacity_angle"), format!("{:.2}·{:.2}·{:.2} = {:.2}", k.base[3], d.opacity, k.attenuation, k.albedo_opacity), color);
+                        // The decal on top: what BlendBaseColor blends (its texture times its colour),
+                        // and that colour converted to ACEScg, as a material's would be.
+                        if top == Some(i) {
+                            row("b", f3(k.blended), color);
+                            row(tr("demos.b_in_acescg"), f3(super::decals::linear_srgb_to_acescg(k.blended)), palette::text_dim());
+                        }
                     }
                     None => row(&name, tr("demos.outside_its_box").into(), palette::text_dim()),
                 }
@@ -938,6 +1036,27 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             }
             ("SsaoCompute", object)
         }
+        Demo::Cascades => {
+            use super::cascades;
+            let (p, n) = inspected_point(state);
+            let observer = cascade_observer(state);
+            let set = cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
+            row(tr("demos.near_shadow_far"), format!("{:.2} … {:.1} m", observer.near, observer.far), palette::text());
+            row(tr("demos.split_ratio"), format!("{:.2}", state.p("cascadeSplitRatio")), palette::accent());
+            for (i, c) in set.cascades.iter().enumerate() {
+                row(&format!("{} {i}", tr("demos.cascade")), format!("{:.2}–{:.2} m · R {:.2}", c.near, c.far, c.radius), CASCADE_COLORS[i]);
+            }
+            let texels: Vec<String> = set.cascades.iter().map(|c| format!("{:.1}", c.texel() * 1000.0)).collect();
+            row(tr("demos.texel_mm"), texels.join(" · "), palette::accent());
+            match set.select(p, n) {
+                Some(i) => {
+                    let t = set.texel_of(i, p, n);
+                    row(tr("demos.point_s_cascade"), format!("{i} · texel ({:.0}, {:.0})", t.x, t.y), CASCADE_COLORS[i]);
+                }
+                None => row(tr("demos.point_s_cascade"), tr("demos.outside_every_cascade").into(), palette::text_dim()),
+            }
+            ("DirectionalLightFeatureProcessor", object)
+        }
         Demo::PointLight => {
             let d2 = px.light.distance_squared;
             row(tr("common.distance_d"), format!("{:.3} m", d2.sqrt()), palette::text());
@@ -970,6 +1089,7 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
     let mut notes = Vec::new();
     match demo {
         Demo::Room | Demo::PointLight => notes.push((tr("demos.simple_point_lights_cast_no").to_string(), palette::text_faint())),
+        Demo::Cascades => notes.push((tr("demos.cascades_schematic").to_string(), palette::text_faint())),
         Demo::Ssao => {
             notes.push((tr("demos.half_resolution_8_bits_a").to_string(), palette::text_faint()));
             notes.push((tr("demos.the_diffuse_target_only_light").to_string(), palette::text_faint()));

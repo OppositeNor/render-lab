@@ -24,11 +24,13 @@ summary: Forward 像素着色器、它的 target，以及其后的 pass。
 
 深度预 pass 先画出场景的深度，光源剔除再把光源分到屏幕 tile 中。
 
-forward pass 应用 decal，计算材质与它的光源，把漫反射和高光写入两个独立的 target。
+forward pass 先计算材质，再应用 decal，然后处理每个光源，把漫反射和高光写入两个独立的 target。
 
 它还写出乘以 diffuse response 的 albedo、带 roughness 的高光颜色，以及法线，供后面的 pass 读回。
 
 然后全屏 pass 加上天空的漫反射和反射（来自天空与反射 probe）；SSAO 让漫反射变暗，合并 pass 再把两者相加。
+
+在用 O3DE 默认模板创建的项目中，DiffuseProbeGrid gem 会用它自己的合成 pass 替换漫反射 pass；它施加同样的天空光，按 probe grid 留下的权重加权，并且只在基于图像的光照标志开启处施加。
 
 ## c1-code · Forward 像素着色器
 
@@ -81,7 +83,7 @@ summary: tile、深度 bin，以及 forward pass 遍历的列表。
 
 它找出 tile 最近的深度，以及除天空之外最远的深度，不透明与透明物体都算在内，所以以天空为背景的墙仍然很浅。
 
-它在两者之间标记一个三十二段的掩码，每段有表面就置一位。
+它在两者之间标记一个三十二段的掩码：每个不透明 sample 所在的那一段各占一位，透明表面则填满其最近与最远深度之间的所有段。
 
 并按深度跨度（以米计）以二为底的对数，把范围分成一、二、四或八个深度 bin。
 
@@ -115,15 +117,19 @@ forward pass 找到自身深度所在的 bin，只遍历那一个列表。
 
 实验室把 GPU 上每个 tile 的列表与 CPU 副本比较，并检查照到表面的光源都没有从它的 bin 中漏掉。
 
-## c2-finding · 一种从不着色的光源
+## c2-finding · 隐含的顺序，读自代码
 
 一个发现：forward pass 还会遍历一组 polygon light。
 
 但剔除 pass 从不写出这一组，所以在默认开启光源剔除时，polygon light 从不照亮任何东西。
 
+第二个发现来自同一个顺序：只有在启用点光源（punctual light）时，forward pass 才遍历两组 simple light。
+
+在某个材质上关闭这个选项，之后的面光源就会读到排在它们前面的光源的组；相比之下，decal 仍会遍历自己的组。
+
 ## c2-sources · 源码在哪里
 
-这些条目对应三个剔除 pass、tile 迭代器，以及 polygon light 的发现。
+这些条目对应三个剔除 pass、tile 迭代器，以及关于其分组顺序的两个发现。
 
 # 3 · 表面
 summary: Metallic 工作流与 roughness 的重映射。
@@ -146,7 +152,7 @@ Albedo 等于 base colour 乘以一减 metallic，所以金属根本没有漫反
 
 电介质的值是 0.08 乘以 factor，所以默认 factor 0.5 得到 0.04，这是大多数油漆和塑料的反射率。
 
-0 到 1 之间的 metallic 值把两者混合，只适合表现过渡，比如金属上的灰尘。
+介于零和一之间的 metallic 值对两者做线性混合。
 
 ## c3-rough · Roughness 平方两次
 
@@ -251,16 +257,81 @@ decal 重叠时，它们的顺序决定哪个在上面。
 
 forward pass 在设置任何光照之前，先遍历这个排好序的组。
 
+## c4-colour · 两种色彩空间
+
+O3DE 在 ACEScg 中计算光照：每个材质颜色和光源颜色在输入时都从 linear sRGB 转换过来。
+
+一个发现：decal 的颜色按给定值存储，不经转换就混合进 ACEScg 的 albedo。
+
+readout 显示 b，也就是最上层 decal 混合进来的颜色（贴图乘以它的颜色），以及同样数值作为材质颜色时会变成什么。
+
+接近灰色的颜色两者几乎相同；饱和的 decal 色相会偏移。
+
 ## c4-sources · 源码在哪里
 
 这些条目展示 decal 在 forward pass 中的位置、每个 decal 如何混合，以及它们如何被剔除和排序。
 
-# 5 · GGX 高光
+# 5 · Simple point light
+summary: 平方反比、半径窗口、没有阴影、自动半径。
+
+## c5-record · 一个位置、一个强度、一个半径
+
+表面已经准备好，decal 也已应用；接下来是照到它的光，先从最朴素的一种开始：simple point light。
+
+simple point light 保存一个位置、以 candela 计的 RGB 强度、衰减半径平方的倒数，以及它的 lighting channel 和 GI 标志。
+
+它的强度随距离按平方反比衰减：地板上的虚线。
+
+然后一个窗口函数让它在衰减半径处平滑地降到零：实线。
+
+窗口函数为 {@ formula="w = \big(1 - (\lit{1}{d^2} / r^2)^2\big)^2" display=yes colors="#ffd98a"}：1 减去（距离平方与半径平方之比）的平方，再整体平方一次。
+
+在半径的一半处它仍保留百分之八十八，所以实线紧跟虚线，只在边缘附近下降。
+
+Readout 跟踪球体上的一个点：它的距离、falloff 比值、窗口值，以及到达那里的照度。
+
+六 candela 在不到两米处给出大约一点七 lux，这是在窗口函数之前。
+
+## c5-radius · 衰减半径
+
+在半径之外，这盏灯被完全跳过，所以半径也限制了它的开销。
+
+增大半径，窗口就伸得更远。
+
+在默认的自动模式下，半径是光源 lumen 按其颜色亮度加权、再除以零点一之后的平方根。
+
+## c5-channels · Lighting channel
+
+光源和网格还带有 lighting channel：各有五位。
+
+只有当二者的掩码有共同位时，光源才照亮表面。
+
+组件一开始五个 channel 全部开启，所以默认情况下每盏灯都照到每个网格。
+
+给光源 mask 一、给球 mask 二，球就不再接收它：这里只显示点光源的漫反射。
+
+skylight、反射 pass 和 decal 都忽略 channel。
+
+一个发现：在方向光循环中，属于其他 channel 的光源会结束整个循环，所以它后面的方向光也被跳过。
+
+## c5-shadows · 没有阴影
+
+Simple point light 不投射阴影。
+
+光到达每一个朝向它的表面，即使在盒子后面也一样。
+
+没有阴影贴图，又按屏幕 tile 剔除，每盏灯的开销只比给半径内的像素着色多一点。
+
+## c5-sources · 源码在哪里
+
+光源的记录、它的衰减、跳过它的循环，以及自动半径都列在这里。
+
+# 6 · GGX 高光
 summary: N、L、V 与 H；D、G、F 三项；高光波瓣。
 
-## c5-vectors · 四个方向
+## c6-vectors · 四个方向
 
-表面准备好之后，下一部分讲每盏光的高光如何计算：GGX specular。
+这样就得到了该点处的光强；表面把其中多少送回来由 BRDF 决定，先讲它的高光部分：GGX。
 
 高光光照取决于一个点上的四个方向。
 
@@ -274,7 +345,7 @@ summary: N、L、V 与 H；D、G、F 三项；高光波瓣。
 
 法线沿 H 的 microfacet 会把光直接反射到观察者眼中。
 
-## c5-terms · D、G 与 F
+## c6-terms · D、G 与 F
 
 SpecularGGX 把三项 D、G、F 相乘，再乘以 N dot L 和多次散射补偿。
 
@@ -290,7 +361,7 @@ F 是 Schlick 的 Fresnel，以 H dot V 计算：当光线与视线掠过微表�
 
 这个乘积就是高光响应；再乘以光源强度，就是高光光照。
 
-## c5-sweep · 移动光源
+## c6-sweep · 移动光源
 
 现在看这个点上的数值和它的波瓣。
 
@@ -302,7 +373,7 @@ F 是 Schlick 的 Fresnel，以 H dot V 计算：当光线与视线掠过微表�
 
 随着光源移动，readout 跟踪每一项。
 
-## c5-rough · Roughness 让 D 变宽
+## c6-rough · Roughness 让 D 变宽
 
 Roughness 对 D 的影响比什么都大。
 
@@ -312,58 +383,9 @@ Roughness 对 D 的影响比什么都大。
 
 在伪彩色中，D 从一个亮点扩大成一片宽广的光晕。
 
-## c5-sources · 源码在哪里
-
-SpecularGGX 及其三项位于 O3DE 着色器库中三个简短的文件里。
-
-# 6 · Clear coat
-summary: 底层之上的电介质层：它的 F0、漫反射、高光与 IBL。
-
-## c6-layer · 一层清漆
-
-下一部分在 GGX 之上再加一层 specular：clear coat。
-
-Clear coat 在底层材质之上加一层薄而透明的涂层，就像油漆上的清漆。
-
-它默认关闭；这里的球是粗糙的金属，外面有一层光滑的涂层。
-
-涂层是 F0 为百分之四的电介质，有自己的 factor 和 roughness。
-
-## c6-base · 下面的底层
-
-在涂层下面，底层的 F0 会变，因为光现在是从涂层而不是从空气进入它。
-
-O3DE 使用 Filament 的形式：一减五倍根号 F0，除以五减根号 F0，再平方，按 factor 混合进去。
-
-diffuse response 按涂层在视角下的 Fresnel 缩小。
-
-每盏灯的漫反射又按涂层在半程向量处的 Fresnel 再缩小一次。
-
-一个发现：涂层让漫反射暗了两次，一次通过 response，一次针对每盏灯。
-
-## c6-specular · 两个高光 lobe
-
-每盏灯的高光变成底层 lobe 乘以一减涂层 Fresnel，再加上涂层自己的 lobe。
-
-涂层的 lobe 是 GGX，配 Kelemen 的可见性项，alpha 为其 roughness 的平方，不低于零点零零零五。
-
-所以球上显示出涂层的锐利高光，叠在金属宽阔的高光之上。
-
-factor 增大时，锐利的高光变强，底下金属的颜色变暗。
-
-## c6-ibl · 在 forward pass 中的天空反射
-
-Clear coat 还把材质的天空反射移进 forward pass。
-
-全屏反射 pass 对涂层一无所知，所以网格绘制时不带高光 IBL 的 stencil 值，该 pass 就跳过它。
-
-在 forward pass 中，底层反射乘以一减涂层 Fresnel 的平方，再加上涂层自己的反射。
-
-所以全屏的 probe pass 从不作用于有 clear coat 的网格；forward pass 会自己混合与网格重叠的最小 probe，按其 inner 与 outer 盒之间的权重。
-
 ## c6-sources · 源码在哪里
 
-这些条目从涂层的输入一路跟到它的高光、漫反射和 forward pass 中的 IBL。
+SpecularGGX 及其三项位于 O3DE 着色器库中三个简短的文件里。
 
 # 7 · 漫反射与它的 response
 summary: Lambert 漫反射乘以一减去考虑 roughness 的 Fresnel；对比 Disney 漫反射。
@@ -404,67 +426,61 @@ StandardPBR 从不调用它；Skin 材质调用它，EnhancedPBR 在开启次表
 
 这些条目给出漫反射项、它的 response，以及哪些材质使用 Disney 模型。
 
-# 8 · 透射（EnhancedPBR）
-summary: 穿过厚物体与薄物体的光，以及它需要的 point light。
+# 8 · Clear coat
+summary: 底层之上的电介质层：它的 F0、漫反射、高光与 IBL。
 
-## c8-why · 来自背后的光
+## c8-layer · 一层清漆
 
-到目前为止，光只在表面反射；下一部分让光穿过物体：transmission。
+高光与漫反射合起来构成一层；clear coat 在其上再加一层透明的涂层。
 
-薄的或半透明的东西，比如树叶、蜡或皮肤，会让光从背后透过来。
+Clear coat 在底层材质之上加一层薄而透明的涂层，就像油漆上的清漆。
 
-StandardPBR 没有透射；EnhancedPBR 加入了它，默认关闭，有厚物体和薄物体两种模式。
+它默认关闭；这里的球是粗糙的金属，外面有一层光滑的涂层。
 
-只要次表面散射和各向异性保持关闭，它的其他光照就与 StandardPBR 相同。
+涂层是 F0 为百分之四的电介质，有自己的 factor 和 roughness。
 
-这里茶壶是 EnhancedPBR，从背后照亮；simple point light 已关闭。
+## c8-base · 下面的底层
 
-## c8-light · 另一种点光源
+在涂层下面，底层的 F0 会变，因为光现在是从涂层而不是从空气进入它。
 
-simple point light 完全不产生背光。
+O3DE 使用 Filament 的形式：一减五倍根号 F0，除以五减根号 F0，再平方，按 factor 混合进去。
 
-所以茶壶背后的光源是 O3DE 的 point light，一种球形面光源，用编辑器默认的五厘米半径。
+diffuse response 按涂层在视角下的 Fresnel 缩小。
 
-它的照明与 simple point light 相同，但把高光方向移到灯泡上离反射光线最近的点，并加上背光。
+每盏灯的漫反射又按涂层在半程向量处的 Fresnel 再缩小一次。
 
-这里它不投射阴影。
+一个发现：涂层让漫反射暗了两次，一次通过 response，一次针对每盏灯。
 
-## c8-thick · 厚物体
+## c8-specular · 两个高光 lobe
 
-厚物体模式采用 Barré-Brisebois 与 Bouchard 的方法：光透过物体直射向观察者的程度。
+每盏灯的高光变成底层 lobe 乘以一减涂层 Fresnel，再加上涂层自己的 lobe。
 
-把视线方向与被法线弯折的光源方向比较，取六次幂，再缩放。
+涂层的 lobe 是 GGX，配 Kelemen 的可见性项，alpha 为其 roughness 的平方，不低于零点零零零五。
 
-然后按厚度衰减：e 的负四倍厚度次方，再乘以一减厚度。
+所以球上显示出涂层的锐利高光，叠在金属宽阔的高光之上。
 
-厚度取阴影贴图厚度与材质厚度中较大的一个；这个茶壶用零点一五，默认值是一半。
+factor 增大时，锐利的高光变强，底下金属的颜色变暗。
 
-所有光源的总和乘以 tint，在乘以遮蔽之后并入漫反射，所以遮蔽不会让它变暗。
+## c8-ibl · 在 forward pass 中的天空反射
 
-没有透射时茶壶的背面是暗的；有了透射，光就透了出来。
+Clear coat 还把材质的天空反射移进 forward pass。
 
-## c8-thin · 薄物体，以及一个发现
+全屏反射 pass 对涂层一无所知，所以网格绘制时不带高光 IBL 的 stencil 值，该 pass 就跳过它。
 
-薄物体模式采用 Jimenez 等人的方法：在阴影贴图测得的穿过物体的距离上计算扩散剖面。
+在 forward pass 中，底层反射乘以一减涂层 Fresnel 的平方，再加上涂层自己的反射。
 
-它的注释说，没有阴影数据时就不产生背光。
-
-一个发现：对 point light 来说，即使光源没有阴影，阴影分支也会执行，因为它的选项默认为 true。
-
-这时阴影查找返回的厚度是零，而不是表示没有数据的负值。
-
-所以在无阴影的 point light 后面，薄物体得到扩散核的最大值，即它能有的最亮的背光。
+所以全屏的 probe pass 从不作用于有 clear coat 的网格；forward pass 会自己混合与网格重叠的最小 probe，按其 inner 与 outer 盒之间的权重。
 
 ## c8-sources · 源码在哪里
 
-这些条目涵盖透射的输入、球形光源、两种模式，以及阴影分支的发现。
+这些条目从涂层的输入一路跟到它的高光、漫反射和 forward pass 中的 IBL。
 
 # 9 · BRDF 贴图与多次散射
 summary: BRDFTextureCS、单次散射丢失的能量，以及补偿。
 
 ## c9-loss · 单次散射丢失的能量
 
-下一部分回到 specular，以及 O3DE 在启动时填充的 BRDF 纹理。
+涂层讲完了，底层自己的高光在高 roughness 时仍会丢失光能，而 O3DE 在启动时填充的一张纹理会把它补回来。
 
 在粗糙表面上，一次 GGX 反弹会丢失能量。
 
@@ -514,67 +530,130 @@ A 加 B 是单次散射保留下来的能量。
 
 贴图的着色器、它的尺寸、光照如何读取它，以及补偿，都在这些文件中。
 
-# 10 · Simple point light
-summary: 平方反比、半径窗口、没有阴影、自动半径。
+# 10 · 透射（EnhancedPBR）
+summary: 穿过厚物体与薄物体的光，以及它需要的 point light。
 
-## c10-record · 一个位置、一个强度、一个半径
+## c10-why · 来自背后的光
 
-到目前为止，光源本身一直是给定的；下一部分来看 simple point light 本身。
+到目前为止，光只在表面反射；下一部分让光穿过物体：transmission。
 
-simple point light 保存一个位置、以 candela 计的 RGB 强度、衰减半径平方的倒数，以及它的 lighting channel 和 GI 标志。
+薄的或半透明的东西，比如树叶、蜡或皮肤，会让光从背后透过来。
 
-它的强度随距离按平方反比衰减：地板上的虚线。
+StandardPBR 没有透射；EnhancedPBR 加入了它，默认关闭，有厚物体和薄物体两种模式。
 
-然后一个窗口函数让它在衰减半径处平滑地降到零：实线。
+只要次表面散射和各向异性保持关闭，它的其他光照就与 StandardPBR 相同。
 
-窗口函数为 {@ formula="w = \big(1 - (\lit{1}{d^2} / r^2)^2\big)^2" display=yes colors="#ffd98a"}：1 减去（距离平方与半径平方之比）的平方，再整体平方一次。
+这里茶壶是 EnhancedPBR，从背后照亮；simple point light 已关闭。
 
-在半径的一半处它仍保留百分之八十八，所以实线紧跟虚线，只在边缘附近下降。
+## c10-light · 另一种点光源
 
-Readout 跟踪球体上的一个点：它的距离、falloff 比值、窗口值，以及到达那里的照度。
+simple point light 完全不产生背光。
 
-六 candela 在不到两米处给出大约一点七 lux，这是在窗口函数之前。
+所以茶壶背后的光源是 O3DE 的 point light，一种球形面光源，用编辑器默认的五厘米半径。
 
-## c10-radius · 衰减半径
+它的照明与 simple point light 相同，但把高光方向移到灯泡上离反射光线最近的点，并加上背光。
 
-在半径之外，这盏灯被完全跳过，所以半径也限制了它的开销。
+这里它不投射阴影。
 
-增大半径，窗口就伸得更远。
+## c10-thick · 厚物体
 
-在默认的自动模式下，半径是光源 lumen 数乘以其颜色亮度、再除以零点一后的平方根。
+厚物体模式采用 Barré-Brisebois 与 Bouchard 的方法：光透过物体直射向观察者的程度。
 
-## c10-channels · Lighting channel
+把视线方向与被法线弯折的光源方向比较，取六次幂，再缩放。
 
-光源和网格还带有 lighting channel：各有五位。
+然后按厚度衰减：e 的负四倍厚度次方，再乘以一减厚度。
 
-只有当二者的掩码有共同位时，光源才照亮表面。
+厚度取阴影贴图厚度与材质厚度中较大的一个；这个茶壶用零点一五，默认值是一半。
 
-组件一开始五个 channel 全部开启，所以默认情况下每盏灯都照到每个网格。
+所有光源的总和乘以 tint，在乘以遮蔽之后并入漫反射，所以遮蔽不会让它变暗。
 
-把光源的掩码设为一、球的掩码设为二，球就不再接收它的光。
+没有透射时茶壶的背面是暗的；有了透射，光就透了出来。
 
-skylight、反射 pass 和 decal 都忽略 channel。
+## c10-thin · 薄物体，以及一个发现
 
-一个发现：在方向光循环中，属于其他 channel 的光源会结束整个循环，所以它后面的方向光也被跳过。
+薄物体模式采用 Jimenez 等人的方法：在阴影贴图测得的穿过物体的距离上计算扩散剖面。
 
-## c10-shadows · 没有阴影
+它的注释说，没有阴影数据时就不产生背光。
 
-Simple point light 不投射阴影。
+一个发现：对 point light 来说，即使光源没有阴影，阴影分支也会执行，因为它的选项默认为 true。
 
-光到达每一个朝向它的表面，即使在盒子后面也一样。
+这时阴影查找返回的厚度是零，而不是表示没有数据的负值。
 
-没有阴影贴图，又按屏幕 tile 剔除，每盏灯的开销只比给半径内的像素着色多一点。
+所以在无阴影的 point light 后面，薄物体得到扩散核的最大值，即它能有的最亮的背光。
 
 ## c10-sources · 源码在哪里
 
-光源的记录、它的衰减、跳过它的循环，以及自动半径都列在这里。
+这些条目涵盖透射的输入、球形光源、两种模式，以及阴影分支的发现。
 
-# 11 · 全局 skylight
+# 11 · 太阳的级联
+summary: 方向光、它的四个级联，以及不透明像素读取的那一个阴影值。
+
+## c11-light · Lux，且没有大小
+
+点光源只照到几米远；照到一切的是方向光，也就是太阳，它的阴影是下一部分。
+
+它的强度是以 lux 计的照度：组件默认的四 EV100 就是四十 lux。
+
+它还有一个角直径，默认半度；一个发现：forward pass 为它调整了一个方向，却把原始方向传给高光，所以在那里这个大小不起任何作用。
+
+只有一个方向光投射阴影；其余的方向光不带阴影地照明。
+
+实验室没有方向光，所以本章在 CPU 上按 O3DE 的算法，为一台站在房间里的观察相机画出这些计算。
+
+## c11-splits · 视野的四段
+
+阴影覆盖相机视野直到光源的阴影距离（默认一百米），若相机远平面更近则到远平面为止；这里设为十二米，让级联围在房间周围。
+
+视野被切成四个级联，切分深度把对数划分与均匀划分混合起来。
+
+整个视野只用一张 map，远处和近处就会分到同样多的 texel；默认比例零点九偏向对数划分，所以第一个级联又短又清晰，之后的一个比一个长。
+
+比例为零时各段等长；为一时每段都比上一段长出一个固定倍数。
+
+加大阴影距离，每一段都随之变长，于是每个 texel 覆盖房间中更大的范围。
+
+## c11-fit · 每段一个球，并对齐到 texel
+
+每一段用一个包围球拟合：球心位于到近角与远角距离相等的位置；若该位置超出远平面，则放在远平面上，房间里的前三段就是这样。
+
+在光源坐标系中，级联的包围盒就是这个球的立方体，并朝光源方向拉长，以容纳它与视野之间以及相机背后的遮挡物。
+
+然后它的角点向下取整到这张一千零二十四 texel 的 shadow map 的整数 texel。
+
+相机转动时球的大小不变，所以每个盒子保持尺寸不变；对齐又让它只按整数 texel 移动，从而让阴影边缘不闪烁。
+
+readout 给出每个级联的半径和它的 texel 大小：近处是毫米，远处是厘米。
+
+## c11-select · 像素选择它的级联
+
+为了找到自己的阴影，像素先沿法线移动二点五乘以二除以 map 尺寸，大约五毫米。
+
+然后它取第一个能把它包含在距边缘至少一点五 texel 以内的级联：选择依据是 map 的范围，而不是像素的深度。
+
+readout 显示球上被检查的点落在哪个级联，以及它在那里的 texel。
+
+不透明像素在 forward pass 中从不采样这些 map：一个全屏 pass 把每个像素的可见度写进它自己的 target，加以模糊，forward pass 读取那一个值。
+
+那个 target 是八位的，与输出同尺寸：每像素一个值，而不是每个 sample 一个。
+
+## c11-others · forward pass 的其他光源
+
+在方向光之后，forward pass 依次处理 simple light，然后是五种面光源。
+
+Quad light 用 linearly transformed cosines 积分，查两张三十二乘三十二的表格，或者使用光源可以要求的更快的近似。
+
+Disk、capsule 和 polygon light 各有自己的方法；实验室一个也没有移植，而且正如第二章所示，开启剔除时 polygon light 从不着色。
+
+## c11-sources · 源码在哪里
+
+先读 feature processor 中的划分、拟合与对齐，再读 shadow calculator 中像素的选择。
+
+# 12 · 全局 skylight
 summary: 离线的 GGX 与余弦预过滤；两个全屏 pass；没有遮蔽。
 
-## c11-sky · 来自天空的光
+## c12-sky · 来自天空的光
 
-simple point light 就讲到这里；下一部分离开点光源。
+forward pass 计算的光源就讲到这里；不透明帧在它之后加上的光来自天空。
 
 第二个光源是天空。
 
@@ -582,7 +661,7 @@ O3DE 的全局 skylight 是基于图像的光照：一个环境，存为两个 c
 
 这个镜面球直接反射它；实验程序的天空是一张照片，Poly Haven 的 Tree Lined Driveway，太阳被截断。
 
-## c11-bake · 离线烘焙
+## c12-bake · 离线烘焙
 
 这些 cubemap 由 O3DE 的图像处理器离线烘焙。
 
@@ -590,9 +669,9 @@ GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，格�
 
 余弦滤波把它转换为每面三十二到一百二十八 texel 的漫反射 cubemap；实验室的是三十二。
 
-另外，第五章的 BRDF 贴图提供 split sum 的各项。
+另外，第九章的 BRDF 贴图提供 split sum 的各项。
 
-## c11-prefilter · 预过滤高光 cubemap
+## c12-prefilter · 预过滤高光 cubemap
 
 高光 cubemap 的第 m 级 mip 按 m 除以 5 的 roughness 来滤波。
 
@@ -604,7 +683,7 @@ GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，格�
 
 越粗糙的 mip 收集越宽的锥体，所以反射变模糊。
 
-## c11-cosine · 漫反射 cubemap
+## c12-cosine · 漫反射 cubemap
 
 漫反射 cubemap 是整个半球上的余弦加权平均，并按权重归一化。
 
@@ -612,11 +691,11 @@ GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，格�
 
 单独看，来自天空的漫反射光很柔和，被下方的地面和上方的蓝色染上颜色。
 
-## c11-passes · 两个全屏 pass
+## c12-passes · 两个全屏 pass
 
 运行时，forward pass 已经把乘以 diffuse response 和遮蔽的 albedo、F zero 以及 roughness 存下，每个都是八位。
 
-漫反射 pass 把这个 albedo 乘以法线方向上的漫反射 cubemap。
+漫反射 pass 用该 albedo 乘以法线方向上的漫反射 cubemap；在默认模板下，由 DiffuseComposite 做同样的事。
 
 反射 pass 沿反射向量、在 mip roughness 乘以 5 处读取高光 cubemap。
 
@@ -624,13 +703,13 @@ GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，格�
 
 漫反射 pass 直接加到 diffuse target 上；反射 pass 写入自己的 target，再由一个合成 pass 加到 specular target 上。
 
-## c11-readout · 一个点上的各项
+## c12-readout · 一个点上的各项
 
 在选中的点上，readout 显示每一步：8 位的 roughness、它的 mip、预过滤的光，以及 split sum。
 
 随着 roughness 增大，mip 随之增大，反射变暗并扩散。
 
-## c11-occlusion · 天空没有阴影
+## c12-occlusion · 天空没有阴影
 
 全局 skylight 不投射阴影：只有遮蔽贴图和默认开启的屏幕空间环境光遮蔽会让它变暗。
 
@@ -638,14 +717,14 @@ GGX 滤波把环境转换为高光 cubemap：每面二百五十六 texel，格�
 
 对于室内，O3DE 用反射 probe（见下一章）取代天空的反射，用 diffuse probe grid 取代它的漫反射，实验室没有实现后者。
 
-## c11-sources · 源码在哪里
+## c12-sources · 源码在哪里
 
 烘焙、target 和两个 pass 都在这些文件中；滤波库 CubeMapGen 属于 AMD，采用 BSD 许可。
 
-# 12 · 反射 probe
+# 13 · 反射 probe
 summary: probe cubemap、它们的 stencil 与混合权重、视差，以及合成。
 
-## c12-why · 房间的反射
+## c13-why · 房间的反射
 
 天空的 cubemap 对整个场景一视同仁；下一部分的 reflection probe 让局部拥有自己的反射。
 
@@ -659,11 +738,11 @@ summary: probe cubemap、它们的 stencil 与混合权重、视差，以及合�
 
 在抛光的金属地面上，probe 把房间自己的墙放进了反射里。
 
-## c12-bake · probe 烘焙了什么
+## c13-bake · probe 烘焙了什么
 
 烘焙一个 probe，会从 probe 的位置把场景渲染六次，立方体的每个面一次，每次是一个九十度宽的正方形视图。
 
-O3DE 每帧绘制一个面，写入一千零二十四 texel 的十六位浮点 target，并在五帧之后读回。
+O3DE 一次绘制一个面，画进一个一千零二十四 texel 的十六位浮点 target，等待五帧后读回，再转向下一个面。
 
 展开之后，probe 一的各个面显示：前方是后墙，左边是红墙，右边是青绿色的墙，上方是天空，下方是地面。
 
@@ -675,7 +754,7 @@ O3DE 每帧绘制一个面，写入一千零二十四 texel 的十六位浮点 t
 
 probe 二是右后角一个较小的 probe，后墙和青绿色的墙都近在身边。
 
-## c12-ball · 可视化球
+## c13-ball · 可视化球
 
 在编辑器中，每个 probe 还会在自己的位置显示一个球，默认开启。
 
@@ -685,7 +764,7 @@ probe 二是右后角一个较小的 probe，后墙和青绿色的墙都近在�
 
 实验室画了自己的镜面球，它沿反射光线直接读取 cubemap；mip 越高，反射越模糊。
 
-## c12-stencil · Stencil 与混合权重
+## c13-stencil · Stencil 与混合权重
 
 forward pass 之后运行五个 pass：一个 stencil pass、一个混合权重 pass、全局 pass，以及 outer 与 inner 两个 probe pass。
 
@@ -697,9 +776,9 @@ stencil pass 绘制每个 probe 稍微缩小的 inner 盒，给盒内每个使�
 
 probe 重叠处，权重相加。
 
-## c12-blend · 混合 probe
+## c13-blend · 混合 probe
 
-全局 pass 只在 inner 盒之外运行，并保留 probe 剩下的部分：一减它们的权重总和，最多为一。
+随后全局 pass 只在 inner 盒之外运行，保留 probe 剩下的部分：一减去它们的权重之和，而权重之和最多为一。
 
 outer pass 加上每个 probe 的反射乘以其权重，总和超过一时再除以总和。
 
@@ -711,7 +790,7 @@ probe 按从大到小绘制，所以大 probe 里的小 probe 最后写入。
 
 缩小 inner 盒，probe 混合的带就变宽了。
 
-## c12-parallax · 视差校正
+## c13-parallax · 视差校正
 
 cubemap 是从一个点捕获的，但表面遍布整个盒子。
 
@@ -719,9 +798,9 @@ cubemap 是从一个点捕获的，但表面遍布整个盒子。
 
 所以 probe 的 outer 盒应当贴合它所在的房间：probe 在盒子之外看到的东西，会被当作位于盒面上来绘制，墙就会出现在错误的位置。
 
-没有这一校正，反射中的墙就错位了。
+没有这个校正，反射中的墙就会错位；有了它，墙又重新对齐。
 
-## c12-composite · 合成，以及一个发现
+## c13-composite · 合成，以及一个发现
 
 然后 composite pass 在 stencil 标记了表面的地方，把 reflection target 加到高光上。
 
@@ -731,16 +810,30 @@ cubemap 是从一个点捕获的，但表面遍布整个盒子。
 
 实验室复现了这一点，如 readout 所示。
 
-## c12-sources · 源码在哪里
+## c13-sources · 源码在哪里
 
 这些条目按顺序跟随五个反射 pass、probe 的高光，以及合成。
 
-# 13 · 环境光遮蔽
-summary: 半分辨率的 SSAO：采样、模糊、上采样，以及对漫反射的乘法。
+# 14 · Resolve、环境光遮蔽与合并
+summary: 自定义的高光 resolve、半分辨率的 SSAO，以及合并。
 
-## c13-why · 角落与缝隙
+## c14-resolve · 带钳制的高光 resolve
 
-回顾之前的最后一部分是环境光遮蔽（ambient occlusion）。
+probe 合成之后，每一项都放在两个 target 中，每像素若干个 sample；最后的 pass 对它们做 resolve，让漫反射变暗，再把两者相加。
+
+漫反射 target 用普通平均做 resolve，而高光 target 走一个自定义的 resolve。
+
+每个 sample 先被压低到不超过四个对角邻居所有 sample 中最亮亮度的一点五倍。
+
+然后在对数域对这些 sample 求平均，也就是几何平均，这样一个很亮的 sample 不会主导一条边缘。
+
+在伪彩色中，它与普通平均的相对差（零到百分之十）只在 sample 差别很大的地方亮起：轮廓边缘，以及最小的高光。
+
+O3DE 的管线渲染两个 sample，实验室渲染四个，并以同样的方式 resolve。
+
+## c14-why · 角落与缝隙
+
+sample 完成 resolve 之后，环境光遮蔽让漫反射 target 变暗。
 
 天空的光照进角落和缝隙，和照在开阔地面上一样亮。
 
@@ -750,7 +843,7 @@ summary: 半分辨率的 SSAO：采样、模糊、上采样，以及对漫反射
 
 这是它的结果，没有遮挡的地方是白色。
 
-## c13-compute · 五十二个采样
+## c14-compute · 五十二个采样
 
 它从线性深度开始：每个像素第一个 MSAA 采样的视图空间深度。
 
@@ -764,9 +857,9 @@ SsaoCompute 由深度重建每个像素的位置和法线，并在其周围取�
 
 strength 默认为一，采样半径默认为半分辨率高度的百分之五。
 
-半径越大，作用越远，变暗的范围越广。
+半径越大，影响越远、变暗的范围越广；半径小则只留在最窄的缝隙里。
 
-## c13-blur · 深度感知模糊
+## c14-blur · 深度感知模糊
 
 原始结果有噪点，所以用深度感知模糊先竖直、再水平地平滑它。
 
@@ -776,9 +869,9 @@ strength 默认为一，采样半径默认为半分辨率高度的百分之五�
 
 这些是模糊 pass 自己的默认值，在场景没有环境光遮蔽组件时使用；组件的默认值是零点八五和二百。
 
-没有模糊时，采样的图案就会显露出来。
+没有模糊，采样的图案就会透出来；有了模糊，图案就消失了。
 
-## c13-upsample · 回到全分辨率
+## c14-upsample · 回到全分辨率
 
 DepthUpsample 从最近的四个半分辨率像素把它恢复到全分辨率，按距离和深度的接近程度加权。
 
@@ -788,27 +881,32 @@ DepthUpsample 从最近的四个半分辨率像素把它恢复到全分辨率，
 
 由于它只看到深度，SSAO 对屏幕外或最近表面之后的东西一无所知。
 
-## c13-sources · 源码在哪里
+## c14-sources · 源码在哪里
 
-这些条目跟随 SSAO 从线性深度经过采样、模糊与上采样，直到对漫反射的乘法。
+这些条目先跟随高光 resolve，再跟随 SSAO 从线性深度经过采样、模糊与上采样，直到对漫反射的乘法。
 
-# 14 · 回顾
+# 15 · 回顾
 summary: StandardPBR 做了什么，实验程序省略了什么。
 
-## c14-recap · 不透明帧总结
+## c15-recap · 不透明帧总结
 
-所有部分都讲完了；下面看看它们如何组合在一起。
+这就是不透明帧的全部；下面按顺序再走一遍。
 
-总结一下：这就是 O3DE 的不透明帧，一个 pass 接一个 pass。
+先是深度预 pass，然后光源剔除把光源和 decal 分进 tile 与深度 bin。
 
-光源剔除把光源分到 tile 中；forward pass 先应用 decal，再计算每盏灯：GGX 高光、开启时的 clear coat、按 response 缩放的 Lambertian 漫反射，以及 EnhancedPBR 的透射。
+方向光的级联根据视野拟合，它的阴影被解析成每像素一个值。
 
-然后全屏 pass 加上 skylight 和反射 probe（从八位 target 读回），SSAO 在合并之前让漫反射变暗。
+forward pass 先把 decal 应用到表面，再处理每个光源：GGX 高光、按 response 缩放的 Lambertian 漫反射、启用时的 clear coat，以及 EnhancedPBR 的透射。
 
-实验程序把这些公式移植到 WGSL，逐一与 CPU 版本对照，并引用它所跟随的每一行。
+全屏 pass 加上 skylight 和反射 probe，数据读回自 forward pass 的 target。
 
-它省略了阴影、面光源与方向光、默认关闭的屏幕空间反射，以及 diffuse probe grid。
+各 sample 完成 resolve（高光带邻域钳制），SSAO 让漫反射变暗，合并 pass 把两者相加。
 
-本视频中的每个演示都可以在查看器中探索，滑块、伪代码和源码并排显示。
+实验室把这些公式移植到 WGSL，用 CPU 副本逐一核对，并引用它遵循的每一行代码。
+
+它没有包含渲染出的阴影、面光源、默认关闭的屏幕空间反射，以及 diffuse probe grid。
+
+本视频中的每个演示都可以在查看器里探索，滑块、伪代码和源码并排显示。
 
 感谢观看。
+

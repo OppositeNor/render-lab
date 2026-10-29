@@ -293,4 +293,31 @@ pub struct LightingValues {
     /// Camera sway, as in the lab's other investigations.
     #[value(default = 0.0)]
     pub camera_drift: f32,
+    /// The directional light's cascades for the observer camera (cascades.rs; schematic, the lab has no directional light).
+    #[value(default = 0.0, toggle)]
+    pub cascades: f32,
+    /// How many of the four cascades are drawn (the video adds them one by one; a fraction grows the next one).
+    #[value(default = 4.0, range = 0.0..=4.0, text = "controls.cascades_shown", label(cascades))]
+    pub cascades_shown: f32,
+    /// The automatic split's ratio between the logarithmic and the uniform split (the component's default 0.9).
+    #[value(default = 0.9, range = 0.0..=1.0, text = "controls.split_ratio", label(cascades))]
+    pub cascade_split_ratio: f32,
+    /// The shadow's far distance, metres (the component's default 100 m; the observer's far plane is larger).
+    #[value(default = 100.0, range = 1.0..=100.0, unit = m, text = "controls.shadow_far", label(cascades))]
+    pub shadow_far: f32,
+    /// Each cascade's bounding sphere drawn (a fraction fades it in).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "controls.cascade_spheres", label(cascades))]
+    pub cascade_spheres: f32,
+    /// Each cascade's light-space box, snapped to texels, drawn (a fraction fades it in).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "controls.cascade_boxes", label(cascades_view))]
+    pub cascade_boxes: f32,
+    /// The observer camera's turn about the vertical, degrees, from looking at the sphere.
+    #[value(default = 0.0, range = -90.0..=90.0, unit = deg, text = "controls.observer_turn", label(cascades_view))]
+    pub observer_yaw: f32,
+    /// The light's direction: its turn about the vertical, degrees.
+    #[value(default = 35.0, range = -180.0..=180.0, unit = deg, text = "controls.sun_yaw", label(cascades_view))]
+    pub sun_yaw: f32,
+    /// The light's direction: its angle below the horizon, degrees.
+    #[value(default = 55.0, range = 5.0..=90.0, unit = deg, text = "controls.sun_pitch", label(cascades_view))]
+    pub sun_pitch: f32,
 }

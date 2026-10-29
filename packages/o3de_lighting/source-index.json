@@ -987,8 +987,8 @@
       "line": 264,
       "symbol": "LightCullingTilePrepare MainCS",
       "lineHash": "75de0f902482228e",
-      "inspect": "One thread per depth pixel, one group per tile: the tile's nearest sample and its farthest one short of the sky, then a 32-slice mask with one bit per sample, and 1, 2, 4, or 8 bins from log2 of the depth span in metres.",
-      "inspectZh": "每个深度像素一个线程，每个 tile 一个线程组：tile 中最近的样本和除天空外最远的样本，然后是每个样本一位的 32 段掩码，并按以米计的深度跨度的 log2 得到 1、2、4 或 8 个 bin。",
+      "inspect": "One thread per depth pixel, one group per tile: the tile's nearest sample and its farthest one short of the sky, then a 32-slice mask with one bit for each opaque sample's slice (and every slice between a transparent surface's nearest and farthest depth), and 1, 2, 4, or 8 bins from log2 of the depth span in metres.",
+      "inspectZh": "每个深度像素一个线程，每个 tile 一个线程组：tile 中最近的样本和除天空外最远的样本，然后是 32 段掩码：每个不透明样本所在的段一位（透明表面则填满其最近与最远深度之间的所有段），并按以米计的深度跨度的 log2 得到 1、2、4 或 8 个 bin。",
       "details": [
         {
           "line": 317,
@@ -1288,8 +1288,8 @@
       "line": 14,
       "symbol": "metal_gold.material",
       "lineHash": "706819dab01ddf8b",
-      "inspect": "O3DE's PBR presets set the compensation explicitly (37 of the 39 in Materials/Presets/PBR), this metal among them.",
-      "inspectZh": "O3DE 的 PBR 预设会显式开启补偿（Materials/Presets/PBR 中 39 个里有 37 个），这个金属预设也是。",
+      "inspect": "O3DE's PBR presets set the compensation explicitly (37 of the 38 .material presets in Materials/Presets/PBR; the one without it is default_grid), this metal among them.",
+      "inspectZh": "O3DE 的 PBR 预设会显式开启补偿（Materials/Presets/PBR 的 38 个 .material 预设中有 37 个；没有开启的是 default_grid），这个金属预设也是。",
       "details": []
     },
     "specular-aa-default": {
@@ -2825,66 +2825,401 @@
           "noteZh": "它的材质"
         }
       ]
+    },
+    "punctual-group-skip": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassDirectLighting.azsli",
+      "line": 33,
+      "symbol": "ApplyDirectLighting_ForwardPass (simple lights)",
+      "lineHash": "aa2172d91da6ae87",
+      "inspect": "The simple point and simple spot groups of the tile's list are walked only inside `if (o_enablePunctualLights)`: with the option off, the iterator does not advance past them, so the area lights after them read the wrong groups. Decals, by contrast, keep walking their group when o_enableDecals is off.",
+      "inspectZh": "simple point 与 simple spot 两组只在 `if (o_enablePunctualLights)` 内遍历：该选项关闭时 iterator 不会越过它们，之后的面光源会读到错误的组。相比之下，o_enableDecals 关闭时 decal 仍会遍历自己的组。",
+      "details": [
+        {
+          "line": 30,
+          "lineHash": "9acd469b3afdfa49",
+          "note": "the option that skips both groups",
+          "noteZh": "跳过这两组的选项"
+        }
+      ]
+    },
+    "decal-colour-raw": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/Decals/DecalTextureArrayFeatureProcessor.cpp",
+      "line": 239,
+      "symbol": "DecalTextureArrayFeatureProcessor::SetDecalColor",
+      "lineHash": "0c9905d35268042d",
+      "inspect": "A decal's colour is stored as given, with no colour-space conversion, and ApplyDecal blends it and the decal texture into the ACEScg albedo and specularF0.",
+      "inspectZh": "decal 的颜色按给定值存储，不做色彩空间转换；ApplyDecal 把它和 decal 贴图混合进 ACEScg 的 albedo 与 specularF0。",
+      "details": []
+    },
+    "base-colour-acescg": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/Materials/MaterialInputs/BaseColorInput.azsli",
+      "line": 55,
+      "symbol": "GetBaseColorInput",
+      "lineHash": "a0da291069d6b05c",
+      "inspect": "A material's base-colour texture is converted from linear sRGB to ACEScg, the forward pass's working space; its colour factor is converted on the CPU by TransformColor.",
+      "inspectZh": "材质的 base colour 贴图从 linear sRGB 转换到 ACEScg（forward pass 的工作色彩空间）；颜色系数则在 CPU 上由 TransformColor 转换。",
+      "details": []
+    },
+    "directional-lux": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/DirectionalLightFeatureProcessor.cpp",
+      "line": 434,
+      "symbol": "DirectionalLightFeatureProcessor::SetRgbIntensity",
+      "lineHash": "a1fbc01586c0641f",
+      "inspect": "The directional light's intensity is an illuminance in lux; the component's default is 4 EV100, which is 40 lux.",
+      "inspectZh": "方向光的强度是以 lux 为单位的照度；组件默认 4 EV100，即 40 lux。",
+      "details": []
+    },
+    "directional-angular-unused": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/DirectionalLight.azsli",
+      "line": 62,
+      "symbol": "DirectionalLightUtil::Apply",
+      "lineHash": "c7897137670d5c38",
+      "inspect": "The direction adjusted for the sun's angular size is computed, but the specular call on the next line passes the plain direction to the light, so the angular diameter changes nothing.",
+      "inspectZh": "按太阳角直径调整后的方向被计算出来，但下一行的高光调用传入的是原始光照方向，所以角直径不起任何作用。",
+      "details": [
+        {
+          "line": 63,
+          "lineHash": "c0b3beea0e1412de",
+          "note": "specular takes the unadjusted direction",
+          "noteZh": "高光使用未调整的方向"
+        }
+      ]
+    },
+    "one-shadow-light": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/DirectionalLightFeatureProcessor.h",
+      "line": 380,
+      "symbol": "DirectionalLightFeatureProcessor (m_shadowingLightHandle)",
+      "lineHash": "159e02c1aae0d5d4",
+      "inspect": "Only one directional light casts shadows; the others are lit without shadowing.",
+      "inspectZh": "只有一个方向光投射阴影；其他方向光不做阴影。",
+      "details": []
+    },
+    "cascade-defaults": {
+      "path": "Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/CoreLights/DirectionalLightComponentConfig.h",
+      "line": 73,
+      "symbol": "DirectionalLightComponentConfig",
+      "lineHash": "75351241ebaaea98",
+      "inspect": "The component's defaults: four cascades, a 1024-texel shadow map, a shadow far distance of 100 m, and an automatic split at ratio 0.9.",
+      "inspectZh": "组件默认值：四个级联、1024 texel 的 shadow map、100 m 的阴影远距离、按 0.9 比例自动划分。",
+      "details": [
+        {
+          "line": 70,
+          "lineHash": "8021c038752824cc",
+          "note": "1024 texels",
+          "noteZh": "1024 texel"
+        },
+        {
+          "line": 64,
+          "lineHash": "4447fa227a5f38b7",
+          "note": "100 m",
+          "noteZh": "100 m"
+        },
+        {
+          "line": 85,
+          "lineHash": "cde3b4688a86ee9a",
+          "note": "split ratio 0.9",
+          "noteZh": "划分比例 0.9"
+        },
+        {
+          "line": 55,
+          "lineHash": "c6a93329bd58cfbd",
+          "note": "the light's intensity, 4 EV100 (40 lux)",
+          "noteZh": "光源强度 4 EV100（40 lux）"
+        }
+      ]
+    },
+    "cascade-splits": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/DirectionalLightFeatureProcessor.cpp",
+      "line": 1340,
+      "symbol": "DirectionalLightFeatureProcessor::UpdateBorderDepthsForSegments",
+      "lineHash": "9afce8338a53ae3a",
+      "inspect": "Each cascade's far depth blends the logarithmic split near (far/near)^((i+1)/N) and the uniform split by the ratio; the last cascade ends at the far depth.",
+      "inspectZh": "每个级联的远深度按比例混合对数划分 near (far/near)^((i+1)/N) 与均匀划分；最后一个级联止于远深度。",
+      "details": [
+        {
+          "line": 1338,
+          "lineHash": "837a429223d0557c",
+          "note": "the uniform split",
+          "noteZh": "均匀划分"
+        },
+        {
+          "line": 1339,
+          "lineHash": "ec0eb82223427a03",
+          "note": "the logarithmic split",
+          "noteZh": "对数划分"
+        }
+      ]
+    },
+    "cascade-sphere-fit": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/DirectionalLightFeatureProcessor.cpp",
+      "line": 113,
+      "symbol": "CascadeShadowCameraConfiguration::GetDepthCenter",
+      "lineHash": "e4ecffc2be24a7d5",
+      "inspect": "Each cascade is fitted with a bounding sphere of its slice of the camera's frustum: its centre at depth (near + far) / 2 (1 + tan^2(fov/2)(1 + aspect^2)), held at the slice's far depth; the light-space box is the sphere's cube, so its size does not change as the camera turns; its position follows the camera, snapped to texels.",
+      "inspectZh": "每个级联用相机视锥对应切片的包围球拟合：球心深度为 (near + far) / 2 (1 + tan^2(fov/2)(1 + aspect^2))，最多到切片远深度；光空间包围盒取该球的立方体，所以相机转动时它的大小不变；它的位置跟随相机，并对齐到 texel。",
+      "details": [
+        {
+          "line": 1476,
+          "lineHash": "b1516e9347a16ff2",
+          "note": "CalculateShadowViewAabb: the sphere's cube, extended toward the light",
+          "noteZh": "CalculateShadowViewAabb：球的立方体，朝光源方向延伸"
+        },
+        {
+          "line": 1524,
+          "lineHash": "db309bf7e67c621e",
+          "note": "and behind the camera",
+          "noteZh": "以及相机后方"
+        }
+      ]
+    },
+    "cascade-snap": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/DirectionalLightFeatureProcessor.cpp",
+      "line": 1369,
+      "symbol": "DirectionalLightFeatureProcessor::SnapAabbToPixelIncrements",
+      "lineHash": "7ea3b19a2d4b7294",
+      "inspect": "The light-space box's corners are floored to whole shadow-map texels, so moving the camera does not make shadow edges shimmer.",
+      "inspectZh": "光空间包围盒的角点向下取整到整数个 shadow map texel，所以移动相机时阴影边缘不会闪烁。",
+      "details": []
+    },
+    "cascade-select": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Shadow/DirectionalLightShadowCalculator.azsli",
+      "line": 18,
+      "symbol": "DirectionalLightShadowCalculator (GetShadowCascadeRange)",
+      "lineHash": "ab1769ecb400b59d",
+      "inspect": "A pixel's cascade is chosen by the shadow-map bounds, not by its depth: the first cascade whose texel coordinates hold it at least 1.5 texels inside the map.",
+      "inspectZh": "像素的级联按 shadow map 的范围选择，而不是按深度：第一个让它距离边缘至少 1.5 texel 的级联。",
+      "details": [
+        {
+          "line": 108,
+          "lineHash": "7113cc3d3d8a7601",
+          "note": "the margin on both sides",
+          "noteZh": "两侧的边距"
+        }
+      ]
+    },
+    "fullscreen-shadow": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Shadow/DirectionalLightShadow.azsli",
+      "line": 134,
+      "symbol": "DirectionalLightShadow::GetVisibility",
+      "lineHash": "f136e47f6c0c740b",
+      "inspect": "Opaque forward shading reads the directional light's visibility from the full-screen shadow buffer, one value per pixel, instead of sampling the shadow maps itself.",
+      "inspectZh": "不透明物体的 forward shading 从全屏阴影缓冲读取方向光的可见度（每像素一个值），而不是自己采样 shadow map。",
+      "details": []
+    },
+    "area-lights": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/PBR/Lights/QuadLight.azsli",
+      "line": 147,
+      "symbol": "QuadLightUtil::Apply",
+      "lineHash": "60665f3e721b6484",
+      "inspect": "Quad lights are integrated with linearly transformed cosines (Heitz et al. 2016) from two 32 x 32 tables, unless the light asks for the fast approximation; disk, capsule, and polygon lights have methods of their own.",
+      "inspectZh": "Quad light 用 linearly transformed cosines（Heitz 等 2016）基于两张 32 x 32 表格积分，除非光源要求快速近似；disk、capsule 与 polygon light 各有自己的方法。",
+      "details": [
+        {
+          "line": 132,
+          "lineHash": "3784329586d933d8",
+          "note": "the per-light fast approximation",
+          "noteZh": "逐光源的快速近似"
+        }
+      ]
+    },
+    "msaa-resolve-custom": {
+      "path": "Gems/Atom/Feature/Common/Assets/Shaders/PostProcessing/MSAAResolveCustom.azsl",
+      "line": 156,
+      "symbol": "MSAAResolveCustom MainPS",
+      "lineHash": "96e49ca301c10e43",
+      "inspect": "The specular target's resolve scales each sample down to at most maxNeighborContrast times the brightest luminance among the four diagonal neighbours' samples, then averages the samples in the log domain (a geometric mean).",
+      "inspectZh": "specular target 的 resolve 把每个 sample 压到不超过四个对角邻居所有 sample 中最亮亮度的 maxNeighborContrast 倍，再在对数域求平均（几何平均）。",
+      "details": [
+        {
+          "line": 117,
+          "lineHash": "713280e9248925a8",
+          "note": "the diagonal neighbours",
+          "noteZh": "对角邻居"
+        },
+        {
+          "line": 62,
+          "lineHash": "e8a80d7fbc0bdac9",
+          "note": "ConvertLighting: log",
+          "noteZh": "ConvertLighting：log"
+        },
+        {
+          "line": 75,
+          "lineHash": "fd5ecca77c85851f",
+          "note": "ConvertBack: exp",
+          "noteZh": "ConvertBack：exp"
+        }
+      ]
+    },
+    "diffuse-composite": {
+      "path": "Gems/DiffuseProbeGrid/Code/Source/Render/DiffuseProbeGridFeatureProcessor.cpp",
+      "line": 922,
+      "symbol": "DiffuseProbeGridFeatureProcessor",
+      "lineHash": "4403e6a9fb7bc6d4",
+      "inspect": "With the DiffuseProbeGrid gem enabled, as the default project template enables it, its feature processor disables DiffuseGlobalFullscreenPass in every pipeline, and its DiffuseComposite pass applies the global skylight's diffuse instead (probe grid in the level or not).",
+      "inspectZh": "启用 DiffuseProbeGrid gem 时（默认项目模板会启用），它的 feature processor 会在每条管线中禁用 DiffuseGlobalFullscreenPass，改由 DiffuseComposite pass 施加全局 skylight 的漫反射（无论关卡中是否有 probe grid）。",
+      "details": []
+    },
+    "decals-advance": {
+      "path": "Gems/Atom/Feature/Common/Assets/ShaderLib/Atom/Features/Pipeline/Forward/ForwardPassDecals.azsli",
+      "line": 25,
+      "symbol": "ApplyDecals_ForwardPass",
+      "lineHash": "e660df928146336e",
+      "inspect": "Decals keep walking their group of the tile's list when o_enableDecals is off, so the light groups after them stay aligned.",
+      "inspectZh": "o_enableDecals 关闭时 decal 仍遍历自己在 tile 列表中的组，所以其后的光源组保持对齐。",
+      "details": []
+    },
+    "transform-color": {
+      "path": "Gems/Atom/RPI/Code/Source/RPI.Public/ColorManagement/TransformColor.cpp",
+      "line": 27,
+      "symbol": "TransformColor",
+      "lineHash": "a96ab450c2f390f3",
+      "inspect": "Material and light colours are converted from linear sRGB to ACEScg on the CPU.",
+      "inspectZh": "材质与光源颜色在 CPU 上从 linear sRGB 转换到 ACEScg。",
+      "details": []
+    },
+    "fullscreen-shadow-format": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/FullscreenShadow.pass",
+      "line": 68,
+      "symbol": "FullscreenShadow.pass",
+      "lineHash": "fee3f0d2e3310eba",
+      "inspect": "The full-screen shadow buffer is R8_UNORM at the pipeline's output size, one value per pixel, not per MSAA sample.",
+      "inspectZh": "全屏阴影缓冲为 R8_UNORM，与管线输出同尺寸，每像素一个值，而不是每个 MSAA sample 一个。",
+      "details": []
+    },
+    "resolve-contrast": {
+      "path": "Gems/Atom/Feature/Common/Assets/Passes/OpaqueParent.pass",
+      "line": 428,
+      "symbol": "MSAAResolveSpecularPass (OpaqueParent.pass)",
+      "lineHash": "d99513f6a3c87ae6",
+      "inspect": "MSAAResolveSpecularPass sets enableNeighborClamping to 1 and maxNeighborContrast to 1.5.",
+      "inspectZh": "MSAAResolveSpecularPass 把 enableNeighborClamping 设为 1，maxNeighborContrast 设为 1.5。",
+      "details": []
+    },
+    "diffuse-probe-grid-template": {
+      "path": "Templates/DefaultProject/Template/project.json",
+      "line": 27,
+      "symbol": "DefaultProject template (gem_names)",
+      "lineHash": "465f0c55b529ffaa",
+      "inspect": "The default project template enables the DiffuseProbeGrid gem.",
+      "inspectZh": "默认项目模板启用了 DiffuseProbeGrid gem。",
+      "details": []
     }
   },
   "chapters": [
     {
       "number": 1,
-      "title": "StandardPBR in O3DE's frame, and light culling",
-      "titleZh": "O3DE 一帧中的 StandardPBR 与光源剔除",
+      "title": "O3DE's opaque frame",
+      "titleZh": "O3DE 的不透明帧",
+      "reading": [
+        "forward-pixel",
+        "evaluate-lighting",
+        "direct-lighting",
+        "diffuse-specular-merge",
+        "opaque-pass-order",
+        "ssao-default",
+        "msaa-default",
+        "light-culling-define",
+        "forward-opaque"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Light culling",
+      "titleZh": "光源剔除",
       "reading": [
         "light-culling-pass",
         "light-culling-tile",
         "tile-prepare",
-        "nvlc-constants",
         "is-object-inside-tile",
         "cull-point-light",
         "light-culling-main",
         "light-culling-remap",
         "tile-iterator",
         "polygon-not-culled",
-        "forward-pixel",
-        "evaluate-lighting",
-        "light-culling-define",
-        "direct-lighting",
-        "ibl-forward-transparent",
-        "forward-opaque",
-        "forward-targets",
-        "target-formats",
-        "opaque-pass-order",
-        "ssao-default",
-        "diffuse-specular-merge",
-        "msaa-default"
-      ]
-    },
-    {
-      "number": 2,
-      "title": "The surface",
-      "titleZh": "表面",
-      "reading": [
-        "surface-eval",
-        "surface-data",
-        "set-albedo-f0",
-        "material-utils",
-        "roughness-values",
-        "specular-aa-default",
-        "specular-aa",
-        "occlusion-eval",
-        "occlusion-input",
-        "occlusion-defaults",
-        "occlusion-finalize"
+        "nvlc-constants",
+        "punctual-group-skip",
+        "decals-advance"
       ]
     },
     {
       "number": 3,
-      "title": "GGX specular, and clear coat",
-      "titleZh": "GGX 高光与 clear coat",
+      "title": "The surface",
+      "titleZh": "表面",
+      "reading": [
+        "surface-eval",
+        "set-albedo-f0",
+        "material-utils",
+        "roughness-values",
+        "specular-aa-default",
+        "specular-aa"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Decals",
+      "titleZh": "Decal",
+      "reading": [
+        "decal-evaluate-order",
+        "decal-apply",
+        "decal-attenuation",
+        "decal-cull",
+        "decal-sort",
+        "decal-defaults",
+        "decal-options",
+        "decal-forward",
+        "tangent-space-normal",
+        "decal-half-size",
+        "decal-colour-raw",
+        "transform-color",
+        "base-colour-acescg"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "The simple point light",
+      "titleZh": "Simple point light",
+      "reading": [
+        "point-light-struct",
+        "point-light-apply",
+        "point-light-loop",
+        "point-light-auto-radius",
+        "point-light-luminance",
+        "point-light-init",
+        "point-light-radius",
+        "cutoff-intensity"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "GGX specular",
+      "titleZh": "GGX 高光",
       "reading": [
         "specular-ggx",
         "ggx-d",
         "ggx-g",
         "fresnel-schlick",
         "standard-brdf",
+        "clear-coat-default"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Diffuse and its response",
+      "titleZh": "漫反射与它的 response",
+      "reading": [
+        "diffuse-lambert",
+        "initialize-lighting-data",
+        "fresnel-roughness",
+        "diffuse-disney",
+        "skin-diffuse",
+        "enhanced-diffuse"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Clear coat",
+      "titleZh": "Clear coat",
+      "reading": [
         "clear-coat-default",
         "clear-coat-inputs",
         "clear-coat-f0",
@@ -2897,32 +3232,18 @@
       ]
     },
     {
-      "number": 4,
-      "title": "Diffuse and its response",
-      "titleZh": "漫反射与它的 response",
-      "reading": [
-        "diffuse-lambert",
-        "initialize-lighting-data",
-        "fresnel-roughness",
-        "diffuse-disney",
-        "enhanced-diffuse",
-        "skin-diffuse"
-      ]
-    },
-    {
-      "number": 5,
+      "number": 9,
       "title": "The BRDF texture and multiscatter",
       "titleZh": "BRDF 贴图与多次散射",
       "reading": [
         "brdf-texture",
-        "brdf-texture-size",
-        "rhi-format",
-        "brdf-execute-once",
-        "ggx-sample",
-        "hammersley",
         "lighting-init",
         "multiscatter",
         "ms-option",
+        "ggx-sample",
+        "brdf-texture-size",
+        "rhi-format",
+        "brdf-execute-once",
         "ms-material-property",
         "bool-property-default",
         "property-init",
@@ -2931,151 +3252,127 @@
       ]
     },
     {
-      "number": 6,
-      "title": "The simple point light, and lighting channels",
-      "titleZh": "Simple point light 与 lighting channel",
-      "reading": [
-        "lighting-channels-test",
-        "lighting-channels-default",
-        "directional-channel-return",
-        "point-light-struct",
-        "point-light-init",
-        "point-light-apply",
-        "point-light-loop",
-        "point-light-radius",
-        "point-light-auto-radius",
-        "point-light-luminance",
-        "cutoff-intensity"
-      ]
-    },
-    {
-      "number": 7,
-      "title": "The global skylight",
-      "titleZh": "全局 skylight",
-      "reading": [
-        "specular-preset",
-        "diffuse-preset",
-        "cubemap-ggx",
-        "filter-ggx",
-        "filter-cosine",
-        "vect-to-texel",
-        "diffuse-global",
-        "diffuse-global-blend",
-        "reflection-global",
-        "reflection-target",
-        "reflection-composite",
-        "roughness-mip",
-        "cubemap-coords",
-        "ibl-srg",
-        "ibl-exposure-default",
-        "ao-defaults"
-      ]
-    },
-    {
-      "number": 8,
-      "title": "What the lab leaves out",
-      "titleZh": "实验室省略了什么",
-      "reading": [
-        "specular-aa-default",
-        "ssao-default",
-        "msaa-default",
-        "clear-coat-default",
-        "direct-lighting",
-        "reflection-target"
-      ]
-    },
-    {
-      "number": 9,
-      "title": "Decals",
-      "titleZh": "Decal",
-      "reading": [
-        "decal-evaluate-order",
-        "decal-options",
-        "decal-forward",
-        "decal-apply",
-        "decal-attenuation",
-        "tangent-space-normal",
-        "forward-linear-sampler",
-        "decal-cull",
-        "decal-sort",
-        "decal-struct",
-        "decal-defaults",
-        "decal-half-size"
-      ]
-    },
-    {
-      "number": 12,
-      "title": "Ambient occlusion",
-      "titleZh": "环境光遮蔽",
-      "reading": [
-        "ao-placement",
-        "ao-parent",
-        "ssao-default",
-        "ao-defaults",
-        "ssao-order",
-        "depth-resolve",
-        "depth-linear",
-        "depth-downsample",
-        "ssao-compute",
-        "ssao-format",
-        "ssao-defaults",
-        "blur-order",
-        "blur-step",
-        "blur-defaults",
-        "blur-component-defaults",
-        "depth-upsample",
-        "ssao-modulate"
-      ]
-    },
-    {
-      "number": 11,
-      "title": "Reflection probes",
-      "titleZh": "反射 probe",
-      "reading": [
-        "reflections-order",
-        "probe-stencil",
-        "probe-stencil-reduced",
-        "probe-blend-weight",
-        "reflection-global-stencil",
-        "reflection-global-weight",
-        "probe-render-outer",
-        "probe-render-inner",
-        "probe-specular",
-        "parallax-obb",
-        "obb-lerp",
-        "probe-sort",
-        "probe-defaults",
-        "reflection-clear",
-        "composite-stencil",
-        "cubemap-quality",
-        "probe-bake-capture",
-        "probe-bake-faces",
-        "probe-bake-write",
-        "probe-bake-preset",
-        "probe-visualization",
-        "probe-visualization-surface",
-        "probe-visualization-hidden"
-      ]
-    },
-    {
       "number": 10,
       "title": "Transmission (EnhancedPBR)",
       "titleZh": "透射（EnhancedPBR）",
       "reading": [
         "transmission-defaults",
-        "transmission-option",
-        "transmission-params",
         "enhanced-brdf",
         "simple-point-no-backlight",
         "sphere-light-apply",
-        "sphere-light-bulb",
-        "sphere-light-shadow-branch",
-        "sphere-light-shadow-option",
-        "per-mesh-flags",
-        "shadow-thickness-none",
         "back-lighting",
+        "transmission-finalize",
+        "sphere-light-shadow-branch",
+        "shadow-thickness-none",
+        "transmission-option",
+        "transmission-params",
+        "sphere-light-bulb",
         "transmission-kernel",
-        "transmission-finalize"
+        "sphere-light-shadow-option",
+        "per-mesh-flags"
+      ]
+    },
+    {
+      "number": 11,
+      "title": "The sun's cascades",
+      "titleZh": "太阳的级联",
+      "reading": [
+        "directional-lux",
+        "directional-angular-unused",
+        "one-shadow-light",
+        "cascade-defaults",
+        "cascade-splits",
+        "cascade-sphere-fit",
+        "cascade-snap",
+        "cascade-select",
+        "fullscreen-shadow",
+        "fullscreen-shadow-format",
+        "area-lights"
+      ]
+    },
+    {
+      "number": 12,
+      "title": "The global skylight",
+      "titleZh": "全局 skylight",
+      "reading": [
+        "filter-ggx",
+        "filter-cosine",
+        "forward-targets",
+        "diffuse-global",
+        "reflection-global",
+        "reflection-target",
+        "reflection-composite",
+        "ibl-srg",
+        "ssao-default",
+        "ao-defaults",
+        "ibl-forward-transparent",
+        "target-formats",
+        "vect-to-texel"
+      ]
+    },
+    {
+      "number": 13,
+      "title": "Reflection probes",
+      "titleZh": "反射 probe",
+      "reading": [
+        "reflections-order",
+        "probe-stencil",
+        "probe-blend-weight",
+        "reflection-global-weight",
+        "probe-render-outer",
+        "probe-render-inner",
+        "probe-specular",
+        "parallax-obb",
+        "reflection-clear",
+        "probe-bake-capture",
+        "probe-bake-preset",
+        "probe-visualization-surface",
+        "probe-stencil-reduced",
+        "reflection-global-stencil",
+        "obb-lerp",
+        "probe-sort",
+        "probe-defaults",
+        "composite-stencil"
+      ]
+    },
+    {
+      "number": 14,
+      "title": "Resolve, ambient occlusion, and the merge",
+      "titleZh": "Resolve、环境光遮蔽与合并",
+      "reading": [
+        "msaa-resolve-custom",
+        "resolve-contrast",
+        "ao-placement",
+        "ssao-default",
+        "depth-linear",
+        "depth-downsample",
+        "ssao-compute",
+        "ssao-defaults",
+        "blur-step",
+        "blur-defaults",
+        "depth-upsample",
+        "ssao-modulate",
+        "ao-parent",
+        "ao-defaults",
+        "ssao-order",
+        "depth-resolve",
+        "ssao-format",
+        "blur-order",
+        "blur-component-defaults"
+      ]
+    },
+    {
+      "number": 15,
+      "title": "Recap",
+      "titleZh": "回顾",
+      "reading": [
+        "light-culling-pass",
+        "evaluate-lighting",
+        "cascade-splits",
+        "opaque-pass-order",
+        "msaa-resolve-custom",
+        "ssao-default",
+        "msaa-default"
       ]
     }
   ],
@@ -3238,6 +3535,19 @@
       "reflection-composite",
       "ibl-srg",
       "ssao-default"
+    ],
+    "cascades": [
+      "cascade-defaults",
+      "cascade-splits",
+      "cascade-sphere-fit",
+      "cascade-snap",
+      "cascade-select",
+      "fullscreen-shadow",
+      "fullscreen-shadow-format",
+      "directional-lux",
+      "directional-angular-unused",
+      "one-shadow-light",
+      "area-lights"
     ],
     "pointlight": [
       "lighting-channels-test",

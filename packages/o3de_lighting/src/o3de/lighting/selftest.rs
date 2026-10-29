@@ -281,6 +281,49 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         worst_ibl = worst_ibl.max(rel3(f3(&words, 8 * k), cubes.sample_specular(dir, t[3]))).max(rel3(f3(&words, 8 * k + 3), cubes.sample_diffuse(dir)));
     }
     report.check("the cubemap lookups on the GPU match the CPU (96 directions and mips)", worst_ibl < 1e-4, json!({"worstRelativeDifference": worst_ibl, "tolerance": 1e-4}));
+    // MSAAResolveCustom: four samples clamped against the brightest
+    // neighbour and averaged in the log domain, on the GPU and the CPU.
+    let mut tests: Vec<[f32; 4]> = Vec::new();
+    let mut cases = Vec::new();
+    for k in 0..64 {
+        let samples: Vec<Vec3> = (0..4).map(|_| Vec3::new(rng.next(), rng.next(), rng.next()) * if k % 4 == 0 { 8.0 } else { 1.0 } + Vec3::splat(1e-3)).collect();
+        let brightest = rng.next() * 2.0;
+        let count = [2, 4][k % 2];
+        tests.extend(samples.iter().map(|s| s.extend(0.0).to_array()));
+        tests.push([brightest, 1.5, count as f32, 0.0]);
+        cases.push((samples, brightest, count));
+    }
+    let words = renderer.run_shading_verify("o3deResolveTests", cases.len() as u32, &tests, 4 * cases.len());
+    let mut worst_resolve = 0.0f32;
+    let mut clamped = 0;
+    for (k, (samples, brightest, count)) in cases.iter().enumerate() {
+        let cpu = brdf::msaa_resolve_custom(&samples[..*count], *brightest, 1.5);
+        let gpu = f3(&words, 4 * k);
+        worst_resolve = worst_resolve.max((gpu - cpu).abs().max_element() / cpu.max_element().max(0.05));
+        clamped += samples[..*count].iter().filter(|s| brdf::resolve_luminance(**s) > 1.5 * brightest).count();
+    }
+    report.check("MSAAResolveCustom (neighbour clamp, log-domain mean) on the GPU matches the CPU (64 pixels)", worst_resolve < 1e-4 && clamped > 0, json!({"worstRelativeDifference": worst_resolve, "clampedSamples": clamped, "tolerance": 1e-4}));
+    // The directional light's cascades (cascades.rs): the split of research.md
+    // §6's worked example, boxes floored to whole texels, and the first cascade
+    // holding a point at the camera's focus.
+    {
+        use super::cascades;
+        let splits = cascades::split_depths(0.1, 100.0, 0.9);
+        let splits_ok = splits.iter().zip([3.014, 7.851, 23.507, 100.0]).all(|(a, b)| (a - b).abs() < 2e-3);
+        let uniform_ok = cascades::split_depths(0.1, 100.0, 0.0).iter().zip([25.075, 50.05, 75.025, 100.0]).all(|(a, b)| (a - b).abs() < 1e-3);
+        let observer = cascades::Observer { position: Vec3::new(1.0, 1.5, 2.0), forward: Vec3::new(-0.4, -0.2, -1.0).normalize(), fov_y: 60f32.to_radians(), aspect: 16.0 / 9.0, near: 0.1, far: 12.0 };
+        let set = cascades::cascades(observer, Vec3::new(0.3, -1.0, 0.2), 0.9);
+        let snapped = set.cascades.iter().all(|k| {
+            let cells = k.snapped_min / k.snap;
+            (cells - cells.round()).abs().max_element() < 1e-3 && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
+        });
+        let first = set.select(observer.position + observer.forward * 0.3, Vec3::Y);
+        report.check(
+            "the directional light's cascades follow DirectionalLightFeatureProcessor: log/uniform splits, snapped boxes, selection by bounds",
+            splits_ok && uniform_ok && snapped && first == Some(0),
+            json!({"splits": splits, "radii": set.cascades.iter().map(|k| k.radius).collect::<Vec<_>>(), "focusCascade": first}),
+        );
+    }
     // A white furnace: both filters are normalised averages, so a constant
     // environment comes out constant in every mip and in the diffuse cubemap.
     let constant = Vec3::new(0.7, 0.5, 0.3);

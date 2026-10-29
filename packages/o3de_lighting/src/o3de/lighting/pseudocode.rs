@@ -23,6 +23,8 @@ const NAMES: &[&str] = &[
     "multiscatter",
     "brdf-texture",
     "simple-point-light",
+    "cascades",
+    "cascade-select",
     "ibl-passes",
     "ibl-prefilter",
     "reflection-probes",
