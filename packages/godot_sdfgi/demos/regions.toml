@@ -1,0 +1,15 @@
+# The dirty slab, its geometry, and its lights.
+
+key = "regions"
+title-text = "shot.regions_title"
+tab-text = "shot.regions"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "regions"
+resets-camera = true
+include = ["wide-camera"]
+
+[params]
+regions = 1.0
+cascadesShown = 1.0
+cameraX = 1.0

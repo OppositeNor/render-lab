@@ -1,0 +1,15 @@
+# A probe's octahedral maps.
+
+key = "maps"
+title-text = "shot.maps_title"
+tab-text = "shot.maps"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "probe-store"
+resets-camera = true
+include = ["sphere-camera"]
+
+[params]
+probeRays = 1.0
+rayFrames = 0.0
+probeMaps = 1.0

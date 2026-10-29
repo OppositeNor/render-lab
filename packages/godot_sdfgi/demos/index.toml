@@ -1,0 +1,4 @@
+# The SDFGI investigation's demonstrations, in the order of the viewer's keys
+# (1-9, 0, -, =); each is demos/<key>.toml (lab/src/demo.rs reads them).
+
+demos = ["room", "cascades", "regions", "voxels", "field", "occlusion", "light", "probes", "maps", "pixel"]

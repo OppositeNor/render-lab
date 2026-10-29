@@ -1305,6 +1305,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "godot_sdfgi"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "egui",
+ "glam",
+ "render-lab-check",
+ "render-lab-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wgpu",
+]
+
+[[package]]
 name = "gpu-allocator"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

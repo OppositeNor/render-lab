@@ -1,0 +1,6 @@
+flowchart LR
+    UPD["Cascade<br/>与剔除"] --> VOX["体素与<br/>距离场"]
+    VOX --> LIGHT["体素中的光"]
+    LIGHT --> PRE["Probe 光线<br/>（depth pre-pass）"]
+    PRE --> STORE["Probe 贴图"]
+    STORE --> GI["屏幕 pass"]

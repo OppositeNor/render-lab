@@ -1,0 +1,122 @@
+{
+  "investigation": "godot/sdfgi",
+  "storyboard": "storyboard.story",
+  "translations": {
+    "zh-CN": "storyboard.zh-CN.story"
+  },
+  "diagrams": {
+    "en": "diagrams",
+    "zh-CN": "zh-CN/diagrams"
+  },
+  "sourceIndex": "../source-index.json",
+  "pseudocode": "../pseudocode",
+  "video": {
+    "en": "godot-sdfgi.mp4",
+    "zh-CN": "godot-sdfgi-zh-CN.mp4"
+  },
+  "engineLabel": "Godot 4.7.2-stable · ed1daf0b",
+  "checkoutEnv": "GODOT_SOURCE_DIR",
+  "durationMinutes": [
+    14,
+    32
+  ],
+  "readingPath": [
+    "frame-order",
+    "sdfgi-update",
+    "scroll-update",
+    "pending-regions",
+    "sdfgi-cull",
+    "render-sdfgi",
+    "sdf-fragment",
+    "jump-flood-schedule",
+    "sdf-store",
+    "solid-cell-store",
+    "occlusion-shells",
+    "update-light",
+    "shadow-march",
+    "aniso-pack",
+    "static-pass",
+    "update-probes",
+    "vogel-rays",
+    "probe-march",
+    "sh-accum",
+    "history-ring",
+    "oct-store",
+    "process-gi",
+    "cascade-select",
+    "probe-weights",
+    "gi-compose"
+  ],
+  "documents": {
+    "en": {
+      "guideTitle": "Source-reading guide: SDFGI in Godot 4.7",
+      "intro": "**What this is.** A narrated walkthrough of how Godot 4.7's Forward+ renderer computes signed distance field global illumination (SDFGI), built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`, Python pseudo-code of the Godot functions involved, and a Mermaid diagram. The lab follows SDFGI on the CPU at the engine's sizes (four cascades of 128 cubed cells), shades its own study room with a WGSL port of Godot's screen pass, and checks the WGSL ports of the light pass, the probe rays, and the probe store against the CPU model; the scene is the lab's own.",
+      "demos": {
+        "room": "the study room with SDFGI",
+        "cascades": "the cascades and the camera's walk",
+        "regions": "the dirty slab and its lists",
+        "voxels": "the room's voxels",
+        "field": "the distance field and the jump flood",
+        "occlusion": "one probe's occlusion",
+        "light": "light in the voxels",
+        "probes": "a probe's rays and history",
+        "maps": "a probe's octahedral maps",
+        "pixel": "a pixel's eight probes"
+      },
+      "simplifications": [
+        "The voxels are found by tracing each pixel of the engine's three orthographic views through the room's shapes on the CPU, with the shapes' exact normals, rather than by rasterizing triangles; writes the GPU orders by scheduling follow the lab's loop order.",
+        "SDFGI follows a camera that stays at the room's centre; the viewer's camera only looks. The light and the probes run 60 frames from creation at the default settings, and the screen pass reads the maps of that state.",
+        "The screen pass is evaluated per fragment of the scene pass, not as a compute pass over the depth and normal buffers, and without the specular march below roughness 0.2.",
+        "The room's ceiling panel stands for a dynamic AreaLight3D of its size (range 10 m, attenuation 2) with its energy chosen so Godot's forward pass would match the lab's direct light; its mesh is left out of the voxels.",
+        "Textures are sampled with full-precision weights; the probes' sky is the lab's environment at full resolution where Godot reads mip 2; hashf3's sin is evaluated in f32 on the CPU, so a probe's ray rotation differs from a GPU's.",
+        "Occlusion is recomputed over the whole cascade after a scroll, where Godot recomputes only the windows a new slab touches."
+      ]
+    },
+    "zh-CN": {
+      "guideTitle": "源码阅读指南：Godot 4.7 的 SDFGI",
+      "intro": "**这是什么。** 一段带旁白的讲解，说明 Godot 4.7 的 Forward+ 渲染器如何计算基于有符号距离场的全局光照（SDFGI）。画面来自 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，配有相关 Godot 函数的 Python 伪代码和一张 Mermaid 图。实验室按引擎的尺寸（四个 128 立方单元格的 cascade）在 CPU 上复现 SDFGI，用 Godot 屏幕 pass 的 WGSL 移植为自己的书房着色，并把光照 pass、probe 光线和 probe 存储的 WGSL 移植与 CPU 模型逐项对比；场景是实验室自己的。",
+      "demos": {
+        "room": "使用 SDFGI 的书房",
+        "cascades": "cascade 与相机的移动",
+        "regions": "脏区域及其列表",
+        "voxels": "书房的体素",
+        "field": "距离场与 jump flood",
+        "occlusion": "一个 probe 的遮蔽",
+        "light": "体素中的光",
+        "probes": "一个 probe 的光线与历史",
+        "maps": "一个 probe 的八面体贴图",
+        "pixel": "一个像素的八个 probe"
+      },
+      "simplifications": [
+        "体素由 CPU 沿引擎三个正交视图的每个像素穿过书房的形状追踪得到，使用形状的精确法线，而不是光栅化三角形；GPU 按调度顺序决定的写入采用实验室的循环顺序。",
+        "SDFGI 跟随一台停在书房中央的相机；查看器的相机只负责观察。光照与 probe 在默认设置下从创建起运行 60 帧，屏幕 pass 读取该状态的贴图。",
+        "屏幕 pass 在场景 pass 的每个片元上计算，而不是在深度与法线缓冲上运行的 compute pass，并且不包含 roughness 0.2 以下的高光步进。",
+        "书房的天花板面板代表一个同样大小的动态 AreaLight3D（range 10 m，attenuation 2），其 energy 的选取使 Godot 的 forward pass 与实验室的直接光一致；面板的网格不参与体素化。",
+        "纹理以全精度权重采样；probe 的天空是实验室的全分辨率环境，而 Godot 读取 mip 2；hashf3 的 sin 在 CPU 上以 f32 计算，因此 probe 光线的旋转与 GPU 不同。",
+        "滚动之后，遮蔽在整个 cascade 上重新计算，而 Godot 只重算新区域涉及的窗口。"
+      ]
+    }
+  },
+  "pronunciations": {
+    "SDFGI": "S D F G I",
+    "SDF": "S D F",
+    "GI": "G I",
+    "WGSL": "W G S L",
+    "GPU": "G P U",
+    "CPU": "C P U",
+    "UBO": "U B O",
+    "RGBE": "R G B E",
+    "LTC": "L T C",
+    "SH": "S H",
+    "VoxelGI": "voxel G I",
+    "AreaLight3D": "area light 3 D",
+    "GeometryInstance3D": "geometry instance 3 D",
+    "Light3D": "light 3 D",
+    "Vogel": "Fogel",
+    "octahedral": "octa-heedral",
+    "albedo": "al-bee-doh",
+    "E5B9G9R9": "E 5 B 9 G 9 R 9",
+    "R16": "R 16",
+    "y_mult": "y mult"
+  }
+}

@@ -1,0 +1,15 @@
+# Light in the voxels.
+
+key = "light"
+title-text = "shot.light_title"
+tab-text = "shot.light"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "direct-light"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+cellLight = 1.0
+extraLight = 1.0
+shadowRay = 1.0

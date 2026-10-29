@@ -30,6 +30,10 @@ whose license allows publishing code derived from them:
   renderer lights a StandardPBR surface, with its shader code ported to WGSL: the metallic workflow, GGX specular and
   its D, G, and F, the diffuse response, the BRDF texture and multiscatter compensation, the simple point light, and the
   global skylight's image-based lighting.
+- **Godot Engine: SDFGI** ([`packages/godot_sdfgi/src/godot/sdfgi`](packages/godot_sdfgi/src/godot/sdfgi/README.md)). How Godot
+  4.7's Forward+ renderer computes signed distance field global illumination, followed on the CPU at the engine's sizes:
+  the cascades and their scrolling, voxelization, the jump-flood distance field, occlusion, light injection and bounce,
+  probe tracing and its history, the octahedral probe maps, and the screen pass, ported to WGSL.
 
 An optional module, not provided in this repo, can be built in with the `commercial` cfg (`lab/build.rs` sets it when
 `src/commercial/` is present). Without it the lab builds with the public investigations alone.

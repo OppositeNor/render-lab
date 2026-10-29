@@ -1,0 +1,13 @@
+# Shading a pixel.
+
+key = "pixel"
+title-text = "shot.pixel_title"
+tab-text = "shot.pixel"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "screen-pass"
+resets-camera = true
+include = ["wall-camera"]
+
+[params]
+pixelProbes = 1.0

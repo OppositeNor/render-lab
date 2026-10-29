@@ -1,0 +1,32 @@
+# The Godot SDFGI investigation's library: a cdylib the lab loads at run
+# time (manifest.toml's `library` and `negotiate`). It depends on the lab,
+# and on crates the lab depends on, with the lab's own versions and features
+# (lab/Cargo.toml), so the binary, the lab, and this library share one build.
+[package]
+name = "godot_sdfgi"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Render Lab's investigation of Godot's SDFGI"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+# No unit tests: a test harness of a library that links the lab's dylib cannot link (its checks are its selftest).
+test = false
+doctest = false
+
+[dependencies]
+lab = { package = "render-lab-core", path = "../../lab" }
+anyhow = "1"
+egui = "=0.37.0"
+glam = { version = "0.34", features = ["bytemuck"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+
+[build-dependencies]
+# build.rs's check of this package.
+render-lab-check = { path = "../../lab/check" }

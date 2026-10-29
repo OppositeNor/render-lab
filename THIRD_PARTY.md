@@ -18,7 +18,8 @@ The following are **not** covered by that license; they keep their own terms.
 | Rust crates | `vendor/` (not committed; recreated by `setup.sh`) | Each crate's own license, mostly MIT or Apache-2.0 |
 | Open 3D Engine shader code, ported to WGSL and Rust | `packages/o3de_lighting/shaders/standard_lighting.wgsl`, `packages/o3de_lighting/src/o3de/lighting/brdf.rs`, and the pseudo-code in `packages/o3de_lighting/pseudocode/` | Copyright Contributors to the Open 3D Engine Project. O3DE is licensed under Apache-2.0 or MIT at the user's option; Render Lab uses it under the MIT License ([`LICENSES/O3DE-MIT.txt`](LICENSES/O3DE-MIT.txt)). |
 | CubeMapGen's cubemap filtering, as bundled in O3DE, ported to Rust | `packages/o3de_lighting/src/o3de/lighting/ibl.rs` | Copyright (c) 2011, Advanced Micro Devices, Inc. Modified BSD License ([`LICENSES/CubeMapGen-BSD.txt`](LICENSES/CubeMapGen-BSD.txt)); O3DE's changes to it under the MIT License as above. |
+| Godot Engine's SDFGI code, ported to Rust and WGSL | `packages/godot_sdfgi/src/godot/sdfgi/`, `packages/godot_sdfgi/shaders/`, and the pseudo-code in `packages/godot_sdfgi/pseudocode/` | Copyright (c) 2014-present Godot Engine contributors; Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur. MIT License ([`LICENSES/Godot-MIT.txt`](LICENSES/Godot-MIT.txt)). |
 
-Investigations of engines whose source may not be published are not part of this repository; the investigation of the
-Open 3D Engine is, because O3DE's license allows it. Engine names are trademarks of their owners; Render Lab is not
+Investigations of engines whose source may not be published are not part of this repository; the investigations of the
+Open 3D Engine and the Godot Engine are, because their licenses allow it. Engine names are trademarks of their owners; Render Lab is not
 affiliated with or endorsed by any engine's maker.

@@ -1,0 +1,13 @@
+# Voxelizing the room.
+
+key = "voxels"
+title-text = "shot.voxels_title"
+tab-text = "shot.voxels"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "voxelize"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+voxels = 1.0

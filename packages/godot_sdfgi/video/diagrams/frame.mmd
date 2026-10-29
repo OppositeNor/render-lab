@@ -1,0 +1,6 @@
+flowchart LR
+    UPD["Cascades<br/>and culling"] --> VOX["Voxels and<br/>distance field"]
+    VOX --> LIGHT["Light in<br/>the voxels"]
+    LIGHT --> PRE["Probe rays<br/>(depth pre-pass)"]
+    PRE --> STORE["Probe maps"]
+    STORE --> GI["Screen pass"]

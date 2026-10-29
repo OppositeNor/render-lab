@@ -1,0 +1,8 @@
+# The sphere and the probe beside it.
+
+[camera]
+target = [-1.05, 1.0, -0.55]
+yaw = 25.0
+pitch = 18.0
+distance = 3.6
+fov = 50.0

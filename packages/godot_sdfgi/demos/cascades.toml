@@ -1,0 +1,14 @@
+# Cascades that follow the camera.
+
+key = "cascades"
+title-text = "shot.cascades_title"
+tab-text = "shot.cascades"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "cascade-update"
+resets-camera = true
+include = ["wide-camera"]
+
+[params]
+cascadesShown = 4.0
+probes = 1.0

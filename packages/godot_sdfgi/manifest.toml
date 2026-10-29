@@ -1,0 +1,34 @@
+# The Godot SDFGI investigation's package (its code is src/godot/sdfgi, which
+# names it with `Investigation::package`): its text, source index, pseudo-code
+# listings, demonstrations, and narrated video.
+
+name = "godot_sdfgi"
+author = "OppositeNor"
+license = "MIT"
+import = ["render_lab"]
+# Its code (src/, Cargo.toml): the library the lab opens, and its negotiation
+# function, which hands the lab the package's investigations (lab/src/plugin.rs).
+library = "godot_sdfgi"
+negotiate = "godot_sdfgi_negotiate"
+export = []
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+# The narrated video, in its two editions.
+[[provides]]
+type = "demo"
+key = "video"
+title = "How Godot's SDFGI Lights a Room"
+edition = "English"
+timeline = "timeline/en"
+audio = "narration/en"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "Godot 的 SDFGI 如何照亮一个房间"
+edition = "中文"
+timeline = "timeline/zh-cn"
+audio = "narration/en"

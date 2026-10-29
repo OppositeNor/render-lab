@@ -1,0 +1,13 @@
+# A probe traces the field.
+
+key = "probes"
+title-text = "shot.probes_title"
+tab-text = "shot.probes"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "probe-rays"
+resets-camera = true
+include = ["sphere-camera"]
+
+[params]
+probeRays = 1.0

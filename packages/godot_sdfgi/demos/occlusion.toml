@@ -1,0 +1,15 @@
+# A probe's occlusion.
+
+key = "occlusion"
+title-text = "shot.occlusion_title"
+tab-text = "shot.occlusion"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "occlusion"
+resets-camera = true
+include = ["top-camera"]
+
+[params]
+slice = 3.0
+sliceHeight = 1.07
+probes = 1.0

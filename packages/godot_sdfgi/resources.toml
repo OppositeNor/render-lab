@@ -1,0 +1,251 @@
+# The Godot SDFGI investigation's resources (a collection of the godot_sdfgi
+# package, manifest.toml). Paths are relative to this file.
+
+# Its on-screen text (text.rs) and source index (sources.rs).
+[[resource]]
+id = "text/en"
+kind = "file"
+source = "text/en.json"
+license = "MIT"
+
+[[resource]]
+id = "text/zh-cn"
+kind = "file"
+source = "text/zh-CN.json"
+license = "MIT"
+
+[[resource]]
+id = "source-index"
+kind = "file"
+source = "source-index.json"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+# The demonstrations (lab/src/demo.rs): the order, one file per
+# demonstration, and the presets they share. Their values are declared in
+# src/godot/sdfgi/values.rs.
+[[resource]]
+id = "demos"
+kind = "file"
+source = "demos/index.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/room"
+kind = "file"
+source = "demos/room.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/cascades"
+kind = "file"
+source = "demos/cascades.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/regions"
+kind = "file"
+source = "demos/regions.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/voxels"
+kind = "file"
+source = "demos/voxels.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/field"
+kind = "file"
+source = "demos/field.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/occlusion"
+kind = "file"
+source = "demos/occlusion.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/light"
+kind = "file"
+source = "demos/light.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/probes"
+kind = "file"
+source = "demos/probes.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/maps"
+kind = "file"
+source = "demos/maps.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/pixel"
+kind = "file"
+source = "demos/pixel.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/room-camera"
+kind = "file"
+source = "demos/presets/room-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/wide-camera"
+kind = "file"
+source = "demos/presets/wide-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/top-camera"
+kind = "file"
+source = "demos/presets/top-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/sphere-camera"
+kind = "file"
+source = "demos/presets/sphere-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/wall-camera"
+kind = "file"
+source = "demos/presets/wall-camera.toml"
+license = "MIT"
+
+# The scene shading: a WGSL port of Godot's SDFGI screen pass (gi.glsl),
+# composed after the lab's scene module (`SceneShading::module`).
+[[resource]]
+id = "wgsl/sdfgi-shading"
+kind = "file"
+source = "shaders/sdfgi_shading.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+# The light and probe passes, ported for the selftest's kernels.
+[[resource]]
+id = "wgsl/sdfgi-passes"
+kind = "file"
+source = "shaders/sdfgi_passes.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[shader]]
+id = "shader/sdfgi-shading"
+parts = ["render_lab.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes"]
+
+# The pseudo-code listings (pseudocode.rs).
+[[resource]]
+id = "listing/frame"
+kind = "file"
+source = "pseudocode/frame.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/cascade-update"
+kind = "file"
+source = "pseudocode/cascade_update.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/regions"
+kind = "file"
+source = "pseudocode/regions.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/voxelize"
+kind = "file"
+source = "pseudocode/voxelize.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/jump-flood"
+kind = "file"
+source = "pseudocode/jump_flood.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/store"
+kind = "file"
+source = "pseudocode/store.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/occlusion"
+kind = "file"
+source = "pseudocode/occlusion.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/direct-light"
+kind = "file"
+source = "pseudocode/direct_light.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/shadow-march"
+kind = "file"
+source = "pseudocode/shadow_march.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/probe-rays"
+kind = "file"
+source = "pseudocode/probe_rays.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/probe-store"
+kind = "file"
+source = "pseudocode/probe_store.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/screen-pass"
+kind = "file"
+source = "pseudocode/screen_pass.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+# The narrated video's timelines and narration, which tools/video builds from
+# video/ into build/ (`built`: missing until they are built).
+# Both editions play the English narration.
+[[resource]]
+id = "timeline/en"
+kind = "file"
+source = "build/timelines/en/timeline.json"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline/zh-cn"
+kind = "file"
+source = "build/timelines/zh-CN/timeline.json"
+license = "MIT"
+built = true
+
+# The diagram frames each timeline names beside it.
+[[resource]]
+id = "timeline-frames/en"
+kind = "directory"
+source = "build/timelines/en/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline-frames/zh-cn"
+kind = "directory"
+source = "build/timelines/zh-CN/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/en"
+kind = "file"
+source = "build/video/en/narration.wav"
+license = "MIT"
+built = true

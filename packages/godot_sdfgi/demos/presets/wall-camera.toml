@@ -1,0 +1,8 @@
+# The red wall near the sphere.
+
+[camera]
+target = [-2.2, 0.9, -0.4]
+yaw = 60.0
+pitch = 10.0
+distance = 3.2
+fov = 50.0
