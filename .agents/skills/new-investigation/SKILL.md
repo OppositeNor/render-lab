@@ -218,6 +218,14 @@ viewer adds the camera's slow sway, the sliders follow, and stopping leaves the 
 demonstration is about (O3DE: the light circles the room; roughness sweeps through the cubemap's mips). `backdrop(t)`
 can reuse it for the homepage's scene.
 
+A story drives the package's code through actions (`lab/src/actions.rs`): `#[lab::actions]` on an `impl` block of the
+investigation's type, one `#[action]` function each, `fn jump_flood(frame: &mut ActionFrame, seconds: f32, from:
+Option<u32>)`. The parameters after the frame are its arguments, their kinds read from their types (`ActionArg`: numbers,
+indices, toggles, vectors, names; `Option` for optional ones); the function sets the shot's values from
+`frame.elapsed`, the seconds since the story started it, so any frame still renders on its own. Return
+`&Self::ACTIONS` from `Investigation::actions`, and test one through a timeline in the selftest (Godot's
+`actions.rs`). The story writes `{@ run=jumpFlood run.seconds=0.5}` and `{@ stop=jumpFlood}`.
+
 ## 7. The narrated video
 
 Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose `investigation` names it):

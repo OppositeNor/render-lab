@@ -662,6 +662,35 @@ mod tests {
         fn demo_specs(&self) -> Option<&'static crate::demo::Demos> {
             Some(demos())
         }
+        fn actions(&self) -> &'static crate::actions::Actions {
+            &Self::ACTIONS
+        }
+        fn demos(&self) -> &'static [crate::shot::DemoId] {
+            static IDS: std::sync::OnceLock<[crate::shot::DemoId; 1]> = std::sync::OnceLock::new();
+            IDS.get_or_init(|| [crate::shot::DemoId::new("test")])
+        }
+        fn shot_state(&self, _: crate::shot::DemoId) -> ShotState {
+            shot()
+        }
+    }
+
+    #[lab::actions]
+    impl Test {
+        /// Raises the exposure to `to` over `seconds`.
+        #[action]
+        fn raise_exposure(frame: &mut crate::actions::ActionFrame, to: f32, seconds: f32, at: Option<glam::IVec3>) {
+            let t = (frame.elapsed / seconds).min(1.0);
+            frame.state.set("exposure", 1.0 + (to - 1.0) * t);
+            if let Some(at) = at {
+                frame.state.set("probe.count", at.x as f32);
+            }
+        }
+
+        /// Fails, to show its error.
+        #[action(key = "fail")]
+        fn failing(_frame: &mut crate::actions::ActionFrame) -> Result<(), String> {
+            Err("on purpose".into())
+        }
     }
 
     /// A shot of `Test` at its defaults.
@@ -678,6 +707,7 @@ mod tests {
             formula: None,
             formula_term: 0,
             formula_lit: 0.0,
+            actions: Vec::new(),
         }
     }
 
@@ -851,5 +881,65 @@ mod tests {
         assert_eq!(Value::from_components(Type::U32, &[-2.0]), Value::U32(0));
         assert_eq!(Value::from_components(Type::Vec2, &[1.0, 2.0]).components(), [1.0, 2.0]);
         assert_eq!(Value::Bool(true).f32(), 1.0);
+    }
+
+    fn timeline(keys: serde_json::Value) -> crate::shot::Timeline {
+        serde_json::from_value(serde_json::json!({
+            "fps": 10, "width": 64, "height": 64, "totalFrames": 100, "title": "test", "engineLabel": "",
+            "chapters": [{"number": 1, "title": "Test", "startFrame": 0, "endFrame": 100}],
+            "beats": [{"id": "all", "chapter": 1, "kind": "scene", "startFrame": 0, "frames": 100, "headline": "", "captions": []}],
+            "keys": keys
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn actions_declare_their_arguments_from_their_parameters() {
+        let specs = Test::ACTIONS.specs;
+        assert_eq!(specs.iter().map(|s| s.key).collect::<Vec<_>>(), ["raiseExposure", "fail"]);
+        let args = specs[0].args;
+        assert_eq!(args.iter().map(|a| (a.key, a.kind, a.required)).collect::<Vec<_>>(), [("to", crate::actions::ArgKind::Number, true), ("seconds", crate::actions::ArgKind::Number, true), ("at", crate::actions::ArgKind::Vector(3), false)]);
+        assert_eq!(specs[0].doc, "Raises the exposure to `to` over `seconds`.");
+    }
+
+    #[test]
+    fn a_story_runs_and_stops_an_action() {
+        with_test(|| {
+            let t = timeline(serde_json::json!([
+                {"frame": 10, "run": {"name": "raiseExposure", "args": {"to": 3, "seconds": 2, "at": [5, 0, 0]}}},
+                {"frame": 60, "stop": ["raiseExposure"]}
+            ]));
+            t.validate().unwrap();
+            // Before it starts, half way (1 s of 2), done, and stopped.
+            assert_eq!(t.state_at(5).p("exposure"), 1.0);
+            assert_eq!(t.state_at(20).p("exposure"), 2.0);
+            assert_eq!(t.state_at(20).p("probe.count"), 5.0);
+            assert_eq!(t.state_at(40).p("exposure"), 3.0);
+            assert_eq!(t.state_at(40).actions[0].elapsed, 3.0);
+            assert_eq!(t.state_at(70).p("exposure"), 1.0);
+            assert!(t.state_at(70).actions.is_empty());
+            // Any frame alone is the same as after the frames before it.
+            assert_eq!(t.state_at(20), t.state_at(20));
+        });
+    }
+
+    #[test]
+    fn a_timeline_with_a_wrong_action_does_not_load() {
+        with_test(|| {
+            let error = |run: serde_json::Value| timeline(serde_json::json!([{"frame": 0, "run": run}])).validate().unwrap_err().to_string();
+            assert!(error(serde_json::json!({"name": "nope"})).contains("no action `nope`"), "{}", error(serde_json::json!({"name": "nope"})));
+            assert!(error(serde_json::json!({"name": "raiseExposure", "args": {"to": 1}})).contains("argument `seconds`"));
+            assert!(error(serde_json::json!({"name": "raiseExposure", "args": {"to": 1, "seconds": 1, "speed": 2}})).contains("no argument `speed`"));
+            assert!(error(serde_json::json!({"name": "raiseExposure", "args": {"to": "high", "seconds": 1}})).contains("not a number"));
+            assert!(error(serde_json::json!({"name": "raiseExposure", "args": {"to": 1, "seconds": 1, "at": [1.5, 0, 0]}})).contains("whole numbers"));
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "the action `fail`: on purpose")]
+    fn an_action_s_error_names_it() {
+        with_test(|| {
+            timeline(serde_json::json!([{"frame": 0, "run": {"name": "fail"}}])).state_at(1);
+        });
     }
 }

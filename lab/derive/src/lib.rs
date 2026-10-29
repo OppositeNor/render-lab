@@ -472,3 +472,126 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
         }
     })
 }
+
+/// `#[lab::actions]` on an `impl` block: its `#[action]` functions are the
+/// package's actions, which a story starts (`{@ run=key run.arg=…}`) and stops
+/// (the lab's src/actions.rs). It gives the type `ACTIONS: lab::actions::Actions`.
+///
+/// ```ignore
+/// #[lab::actions]
+/// impl Sdfgi {
+///     /// Steps the jump flood, one pass every `seconds`.
+///     #[action]
+///     fn jump_flood(frame: &mut ActionFrame, seconds: f32) { … }
+/// }
+/// ```
+///
+/// An action is a function, not a method: its first parameter is the
+/// `&mut ActionFrame` it runs in, and the rest are its arguments, each a type
+/// that implements `lab::actions::ActionArg` (their kinds come from those
+/// types). It returns nothing, or a `Result` whose error is shown. Its key is
+/// its name in camelCase, unless `#[action(key = "…")]` names another; an
+/// argument's key is its parameter's name in camelCase; its `///` comment is
+/// its doc. The block's other items are left as they are.
+#[proc_macro_attribute]
+pub fn actions(attr: TokenStream, item: TokenStream) -> TokenStream {
+    if !attr.is_empty() {
+        return Error::new(Tokens::from(attr).span(), "`#[lab::actions]` takes no arguments").into_compile_error().into();
+    }
+    let input = parse_macro_input!(item as syn::ItemImpl);
+    expand_actions(input).unwrap_or_else(Error::into_compile_error).into()
+}
+
+fn camel(name: &str) -> String {
+    let mut out = String::new();
+    let mut upper = false;
+    for c in name.trim_start_matches('_').chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
+    if input.trait_.is_some() {
+        return Err(Error::new(input.span(), "`#[lab::actions]` goes on a type's own `impl` block, not a trait's"));
+    }
+    let ty = input.self_ty.clone();
+    let (mut specs, mut arms) = (Vec::new(), Vec::new());
+    let mut keys: Vec<String> = Vec::new();
+    for item in &mut input.items {
+        let syn::ImplItem::Fn(f) = item else { continue };
+        let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("action")) else { continue };
+        let attr = f.attrs.remove(at);
+        let ident = f.sig.ident.clone();
+        let mut key = camel(&ident.to_string());
+        if !matches!(attr.meta, syn::Meta::Path(_)) {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("key") {
+                    key = meta.value()?.parse::<LitStr>()?.value();
+                    Ok(())
+                } else {
+                    Err(meta.error("unknown `#[action]` attribute (key)"))
+                }
+            })?;
+        }
+        if keys.contains(&key) {
+            return Err(Error::new(ident.span(), format!("two actions have the key `{key}`")));
+        }
+        keys.push(key.clone());
+        let doc = doc(&f.attrs);
+        let mut inputs = f.sig.inputs.iter();
+        match inputs.next() {
+            Some(syn::FnArg::Typed(_)) => {}
+            Some(syn::FnArg::Receiver(r)) => return Err(Error::new(r.span(), "an action is a function of its frame and arguments, without `self`")),
+            None => return Err(Error::new(f.sig.span(), "an action's first parameter is its `&mut ActionFrame`")),
+        }
+        let (mut args, mut reads) = (Vec::new(), Vec::new());
+        for input in inputs {
+            let syn::FnArg::Typed(pt) = input else { unreachable!("only the first parameter can be `self`") };
+            let syn::Pat::Ident(name) = &*pt.pat else { return Err(Error::new(pt.pat.span(), "an action's argument is a plain name")) };
+            let arg_key = camel(&name.ident.to_string());
+            let arg_ty = &pt.ty;
+            args.push(quote! {
+                ::lab::actions::ArgSpec {
+                    key: #arg_key,
+                    kind: <#arg_ty as ::lab::actions::ActionArg>::KIND,
+                    required: <#arg_ty as ::lab::actions::ActionArg>::REQUIRED,
+                    check: <#arg_ty as ::lab::actions::ActionArg>::check,
+                }
+            });
+            reads.push(quote! { action.arg::<#arg_ty>(#arg_key)? });
+        }
+        specs.push(quote! { ::lab::actions::ActionSpec { key: #key, doc: #doc, args: &[#(#args),*] } });
+        let call = quote! { <#ty>::#ident(frame, #(#reads),*) };
+        arms.push(match f.sig.output {
+            syn::ReturnType::Default => quote! { #key => { #call; Ok(()) } },
+            _ => quote! { #key => #call.map_err(|e| format!("the action `{}`: {e}", #key)) },
+        });
+    }
+    if specs.is_empty() {
+        return Err(Error::new(input.span(), "`#[lab::actions]` finds no `#[action]` function in the block"));
+    }
+    Ok(quote! {
+        #input
+
+        impl #ty {
+            /// The actions of this block's `#[action]` functions (`Investigation::actions`).
+            pub const ACTIONS: ::lab::actions::Actions = ::lab::actions::Actions { specs: &[#(#specs),*], run: <#ty>::__lab_run_action };
+
+            #[doc(hidden)]
+            fn __lab_run_action(action: &::lab::actions::RunningAction, frame: &mut ::lab::actions::ActionFrame) -> ::std::result::Result<(), ::std::string::String> {
+                match action.key.as_str() {
+                    #(#arms,)*
+                    other => Err(format!("no action `{other}`")),
+                }
+            }
+        }
+    })
+}

@@ -266,6 +266,11 @@ pub trait Investigation: Sync {
     fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
         None
     }
+    /// The actions a story can run (src/actions.rs): `&Self::ACTIONS` of a
+    /// `#[lab::actions]` block.
+    fn actions(&self) -> &'static crate::actions::Actions {
+        &crate::actions::NONE
+    }
     /// The scene pass's shading, when the investigation brings its own.
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         None

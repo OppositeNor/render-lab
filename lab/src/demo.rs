@@ -328,6 +328,7 @@ impl Demos {
             formula: None,
             formula_term: 0,
             formula_lit: 0.0,
+            actions: Vec::new(),
         }
     }
 }

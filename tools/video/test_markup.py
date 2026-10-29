@@ -24,6 +24,15 @@ class Parse(unittest.TestCase):
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'callout': 'x', 'params': {'opacity': '1'}})
         self.assertEqual(markup.cue_key(s.tags[4], {}, 'x'), {'term': 1})
 
+    def test_actions(self) -> None:
+        s = markup.parse('A {@ run=jumpFlood run.seconds=0.5 run.cell=34,52,61 opacity=1} flood {@ stop=jumpFlood} ends {@ run=sweep} and {@ run.seconds=1} fails.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'run': {'name': 'jumpFlood', 'args': {'seconds': 0.5, 'cell': [34.0, 52.0, 61.0]}}, 'params': {'opacity': '1'}})
+        self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'stop': ['jumpFlood']})
+        self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'run': {'name': 'sweep'}})
+        # An argument without the action it belongs to.
+        with self.assertRaises(markup.MarkupError):
+            markup.cue_key(s.tags[3], {}, 'x')
+
     def test_named_cues(self) -> None:
         s = markup.parse('{@wide}A ray.')
         self.assertEqual(markup.cue_key(s.tags[0], {'wide': {'camera': {'yaw': 3}}}, 'x'), {'camera': {'yaw': 3}})

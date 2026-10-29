@@ -30,7 +30,8 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
   and `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the
   camera running through a `demo` switch), `record=probe:67` (or `ray`),
   `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `ease`, `delay` (seconds),
-  `formula`, `term`, and `animate=[…]` (motions, as JSON). A parameter whose
+  `formula`, `term`, `animate=[…]` (motions, as JSON), `run=action` with
+  `run.<arg>=value` (an action the package declares) and `stop=a,b`. A parameter whose
   name a tag reserves (`formula`, `term`, …) is written `param.formula=1`.
 
 The translation file has the same headings (its own titles and headlines) and
@@ -47,7 +48,7 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'params', 'formula', 'term', 'animate', 'blend', 'ease', 'delay')
+KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -115,6 +116,11 @@ def key_attrs(key: Json) -> list[tuple[str, str]]:
             out.extend((f'param.{name}' if name in markup.RESERVED else name, param_text(x)) for name, x in v.items())
         elif field == 'animate':
             out.append(('animate', json.dumps(v, ensure_ascii=False)))
+        elif field == 'stop':
+            out.append(('stop', ','.join(v)))
+        elif field == 'run':
+            out.append(('run', v['name']))
+            out.extend((f'run.{name}', param_text(x)) for name, x in v.get('args', {}).items())
         elif field in ('blend', 'delay', 'term'):
             out.append((field, number_text(v)))
         else:
@@ -157,8 +163,11 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key['term'] = int(markup.number(v, where))
         elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula'):
             key[name] = v
+        elif markup.action_attr(key, name, v, where):
+            continue
         else:
             params[name] = markup.param_value(v, where)
+    markup.check_action(key, where)
     if params:
         key['params'] = params
     return key

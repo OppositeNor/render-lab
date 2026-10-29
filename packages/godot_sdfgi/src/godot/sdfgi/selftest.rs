@@ -430,6 +430,19 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check("every demonstration's file loads", states_ok, json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()));
 
+    // The story's actions (actions.rs): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
+    {
+        let mut timeline = still_timeline(64, 64);
+        (timeline.total_frames, timeline.beats[0].frames, timeline.chapters[0].end_frame) = (400, 400, 400);
+        timeline.keys = serde_json::from_value(json!([{"frame": 0, "demo": "field"}, {"frame": 30, "run": {"name": "jumpFlood", "args": {"seconds": 0.5}}}, {"frame": 120, "stop": ["jumpFlood"]}]))?;
+        let valid = timeline.validate().map_err(|e| e.to_string());
+        let frames = [20u64, 30, 44, 45, 60, 119, 120];
+        let steps: Vec<f32> = frames.iter().map(|&f| timeline.state_at(f).p("floodStep")).collect();
+        // Before it, the demonstration's own step (the full-size pass); then 0, 0, 1, 2, 5; once stopped, the demonstration's again.
+        let expected = [8.0, 0.0, 0.0, 1.0, 2.0, 5.0, 8.0];
+        report.check("the jumpFlood action steps floodStep through a timeline, and stopping it hands floodStep back", valid.is_ok() && steps == expected, json!({"valid": valid, "frames": frames, "steps": steps, "expected": expected}));
+    }
+
     // ---- 3. The source index against the checkout ----------------------------
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));

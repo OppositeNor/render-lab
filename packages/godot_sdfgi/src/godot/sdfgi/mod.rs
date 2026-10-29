@@ -10,6 +10,7 @@
 //! source-index.json (written by source_index.py), and the pseudo-code in
 //! pseudocode/.
 
+pub mod actions;
 pub mod controls;
 pub mod demos;
 pub mod light;
@@ -68,6 +69,9 @@ pub static SHADING: SceneShading = SceneShading {
 impl Investigation for Sdfgi {
     fn engine(&self) -> &'static Engine {
         &crate::godot::ENGINE
+    }
+    fn actions(&self) -> &'static lab::actions::Actions {
+        &Self::ACTIONS
     }
 
     fn id(&self) -> &'static str {

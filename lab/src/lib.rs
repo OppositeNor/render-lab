@@ -23,9 +23,11 @@
 extern crate self as lab;
 
 /// `#[derive(Values)]`: a struct's fields reachable by key; `#[derive(Choice)]`:
-/// an enum's variants as a choice's options (src/values.rs).
-pub use render_lab_derive::{Choice, Values};
+/// an enum's variants as a choice's options (src/values.rs); `#[actions]`:
+/// an `impl` block's functions as actions a story runs (src/actions.rs).
+pub use render_lab_derive::{actions, Choice, Values};
 
+pub mod actions;
 pub mod animation;
 pub mod audio;
 pub mod camera;

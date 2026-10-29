@@ -42,7 +42,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
   lab checks against the value's declaration when it loads the timeline), `demo`,
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
-  `demo` switch), `record=probe:67` (or `ray`), `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `delay` (seconds),
+  `demo` switch), `record=probe:67` (or `ray`), `highlight=a,b`, `panel`, `code`, `callout`, `run=action` with
+  `run.<arg>=value` and `stop=a,b` (the package's actions, `render-lab actions`), `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON
   (`lab/src/animation.rs`), each driving its channels until a later key sets them; a channel is a shot parameter or
   `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or `camera.fov`:
@@ -75,6 +76,7 @@ storyboard they work alongside `keys`, `sequence`, and `pause`; `markup.py` pars
 | Tag | Does |
 |---|---|
 | `{@ opacity=1 callout=source-key}` | A point cue: shot parameters, `callout`, `code`, `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5` (seconds), `term=n` |
+| `{@ run=jumpFlood run.seconds=0.5}`, `{@ stop=jumpFlood}` | An action of the package (`lab/src/actions.rs`; `render-lab actions` lists them): `run` starts it with its arguments (a later `run` of it restarts it), `stop` stops it, and a `demo` switch stops every one. While it runs, it sets the shot's values from the seconds since it started, after every key; the lab checks its name and arguments when it loads the timeline |
 | `{@wide}` | The named cue `wide` from the sentence's or the beat's `cues` (a full key: cameras, records, motions) |
 | `{@grow> radius=0..2}` … `{<grow}` | A range, inside one sentence: `a..b` jumps to `a` where it opens and blends to `b` exactly where it closes (`=b` blends from the current value). `{@name>}` alone blends the cue `name` over the range; its motions with `"seconds": "range"` run for it |
 | `{@ formula="\frac{1}{1+\lit{1}{n}}" say="one over one plus n"}` | A formula: the caption shows it, typeset; the voice says `say`; the formula card in the viewport opens on it and closes with the beat (or at `{@ formula=off}`). `display=yes` sets it in display style on the card, `colors="#rrggbb,…"` colours its `\lit{n}{…}` terms, `card=no` keeps it to the caption |

@@ -149,6 +149,9 @@ visual often names something nothing can show.
 - The beat's first line of tags sets its starting keys, and resets the step parameters of the beat before it
   (instant keys, no `blend`).
 - Cue each visual on the word that names it: `{@ rayStep=2}its distance`, not at the sentence's start.
+- Work that unfolds over time (an algorithm's passes, a sweep) is an action the package declares, run from the story
+  (`{@ run=jumpFlood run.seconds=0.5}` … `{@ stop=jumpFlood}`; `render-lab actions`), rather than a parameter keyed
+  step by step: the story says when and how fast, the package's code what each moment shows.
 - Keep the camera floating in 3D (`animate=[{"path": …}]`, `cameraDrift`), and glide to a still, 2D view
   (`cameraDrift=0`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.

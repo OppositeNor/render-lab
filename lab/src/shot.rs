@@ -10,6 +10,7 @@
 //! choice (src/investigation.rs); the lab only names a demonstration by
 //! its key and reads parameters by name.
 
+use crate::actions::{ActionCall, ActionFrame, RunningAction};
 use crate::animation::{Ease, Motion};
 use crate::camera::OrbitCamera;
 use crate::investigation;
@@ -108,6 +109,10 @@ pub struct ShotState {
     pub formula_term: usize,
     #[serde(skip_serializing_if = "is_zero_f32")]
     pub formula_lit: f32,
+    /// The actions the story has started and not stopped (src/actions.rs),
+    /// which have already set this state.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<RunningAction>,
 }
 
 fn is_zero(n: &usize) -> bool {
@@ -380,6 +385,13 @@ pub struct Key {
     /// The card's lit term (0: none). It fades in over the key's `blend`.
     #[serde(default)]
     pub term: Option<usize>,
+    /// An action it starts (src/actions.rs), in place of a running one of the
+    /// same name.
+    #[serde(default)]
+    pub run: Option<ActionCall>,
+    /// The actions it stops.
+    #[serde(default)]
+    pub stop: Vec<String>,
     /// Provenance for error messages (storyboard beat id).
     #[serde(default)]
     pub source: Option<String>,
@@ -492,6 +504,11 @@ impl Timeline {
                     }
                 }
             }
+            if let Some(call) = &key.run {
+                if let Err(e) = investigation::current().actions().check(call) {
+                    bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
+                }
+            }
             if let Some(code) = key.code.as_deref().filter(|c| !c.is_empty()) {
                 if investigation::current().listing(code).is_none() {
                     bail!("unknown pseudo-code listing `{code}` in key at frame {} ({:?})", key.frame, key.source);
@@ -568,6 +585,12 @@ impl Timeline {
             if let Some(formula) = &key.formula {
                 state.formula = if formula.is_empty() { None } else { Some(formula.clone()) };
             }
+            // A demonstration's switch above stops every action (its state is new).
+            state.actions.retain(|a| !key.stop.contains(&a.key));
+            if let Some(call) = &key.run {
+                state.actions.retain(|a| a.key != call.name);
+                state.actions.push(RunningAction { key: call.name.clone(), args: call.args.clone(), started: key.frame, elapsed: 0.0 });
+            }
             let mut targets: Vec<(String, f32)> = key.targets().unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)).to_vec();
             // A newly lit term fades in from dark; unlighting fades the term out.
             if let Some(term) = key.term {
@@ -613,6 +636,15 @@ impl Timeline {
         state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
         if state.formula_lit <= 0.0 {
             state.formula_term = 0;
+        }
+        // The running actions set the state last, in the order they started.
+        let actions = investigation::current().actions();
+        for a in &mut state.actions {
+            a.elapsed = (frame - a.started) as f32 / self.fps as f32;
+        }
+        for action in state.actions.clone() {
+            let elapsed = action.elapsed;
+            (actions.run)(&action, &mut ActionFrame { state: &mut state, elapsed }).unwrap_or_else(|e| panic!("{e}, at frame {frame}"));
         }
         state
     }

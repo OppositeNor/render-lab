@@ -132,6 +132,10 @@ enum Command {
     /// their options, and the WGSL constants the lab writes for its shaders
     /// (its package's `build/generated/<name>.wgsl`) whenever it loads it.
     Choices,
+    /// List the current investigation's actions (lab/src/actions.rs): what a
+    /// story starts with `run=<key>` and stops with `stop=<key>`, and the
+    /// arguments it gives them (`run.<argument>=…`).
+    Actions,
     /// List the packages in packages/ (their `manifest.toml`): name, author,
     /// license, imports, exports, and demos.
     Packages {
@@ -316,6 +320,16 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}: {}", choices.name, options.join(", "));
                 if let Some(prefix) = choices.wgsl {
                     println!("    WGSL {prefix}_*, written to {}'s {}", choices.package, choices.wgsl_file());
+                }
+            }
+            Ok(())
+        }
+        Command::Actions => {
+            for spec in investigation::current().actions().specs {
+                let args: Vec<String> = spec.args.iter().map(|a| format!("{}: {}{}", a.key, a.kind.describe(), if a.required { "" } else { " (optional)" })).collect();
+                println!("{}({})", spec.key, args.join(", "));
+                if !spec.doc.is_empty() {
+                    println!("    {}", spec.doc);
                 }
             }
             Ok(())

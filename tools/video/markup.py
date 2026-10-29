@@ -8,7 +8,9 @@ the same tags in on-screen text (src/lab/rich_text.rs).
 - `{@ opacity=1 callout=source-key}`: a point cue. Its keys fire when the
   next word starts. Attributes: any shot parameter, `callout`, `code`,
   `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5`
-  (seconds), and `term=n`.
+  (seconds), `term=n`, and the package's actions (src/lab/actions.rs):
+  `run=jumpFlood run.seconds=0.5` starts one with its arguments, `stop=a,b`
+  stops them.
 - `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
   (a full shot key, for cameras, records, and motions).
 - `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
@@ -34,7 +36,7 @@ Json = dict[str, Any]
 STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
-RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param')
+RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop')
 
 
 class MarkupError(RuntimeError):
@@ -261,6 +263,29 @@ def param_value(value: str, where: str) -> float | bool | str | list[float]:
     raise MarkupError(f'{where}: {value!r} is not a number, true or false, a list of numbers, or a name')
 
 
+def action_attr(key: Json, name: str, value: str, where: str) -> bool:
+    """Reads an action's attribute into `key`: `run=name` starts the action,
+    `run.<arg>=value` gives it an argument, `stop=a,b` stops actions. False
+    for any other attribute."""
+    if name == 'run':
+        key.setdefault('run', {'name': '', 'args': {}})['name'] = value
+    elif name.startswith('run.'):
+        key.setdefault('run', {'name': '', 'args': {}})['args'][name[4:]] = param_value(value, where)
+    elif name == 'stop':
+        key['stop'] = [v for v in value.split(',') if v]
+    else:
+        return False
+    return True
+
+
+def check_action(key: Json, where: str) -> None:
+    run = key.get('run')
+    if run is not None and not run['name']:
+        raise MarkupError(f'{where}: run.{next(iter(run["args"]), "…")} gives an argument, but no run=… names the action')
+    if run is not None and not run['args']:
+        del run['args']
+
+
 def cue_key(tag: Tag, cues: Json, where: str) -> Json:
     """The shot key a point cue or a range's start sets, before timing:
     fields as the storyboard writes them (`blend` in seconds)."""
@@ -287,6 +312,8 @@ def cue_key(tag: Tag, cues: Json, where: str) -> Json:
                 raise MarkupError(f'{where}: animate is JSON: {e}') from None
         elif name == 'delay':
             key['delay'] = number(value.removesuffix('s'), where)
+        elif action_attr(key, name, value, where):
+            continue
         elif name in STRING_FIELDS:
             key[name] = value
         elif name == 'highlight':
@@ -306,6 +333,7 @@ def cue_key(tag: Tag, cues: Json, where: str) -> Json:
             params[name] = value
     if tag.kind == 'formula' and tag.attr('card') == 'no':
         key.pop('formula', None)
+    check_action(key, where)
     if params:
         key['params'] = params
     return key
