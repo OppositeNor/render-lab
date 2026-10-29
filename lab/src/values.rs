@@ -673,7 +673,7 @@ mod tests {
             shot()
         }
         fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
-            &[crate::utility::inset::ImageSpec { key: "chart", doc: "" }]
+            &[crate::utility::inset::ImageSpec { key: "chart", doc: "" }, crate::utility::inset::ImageSpec { key: "table", doc: "" }]
         }
     }
 
@@ -711,8 +711,7 @@ mod tests {
             formula_term: 0,
             formula_lit: 0.0,
             actions: Vec::new(),
-            image: None,
-            image_alpha: 0.0,
+            images: Vec::new(),
         }
     }
 
@@ -949,24 +948,35 @@ mod tests {
     }
 
     #[test]
-    fn a_story_shows_and_hides_a_published_image() {
+    fn a_story_shows_and_hides_published_images() {
         use crate::utility::inset::{Corner, ImageSource};
         with_test(|| {
             let t = timeline(serde_json::json!([
                 {"frame": 10, "blend": 10, "image": "chart", "imageCorner": "bottom-left", "imageTitle": "demos.chart"},
-                {"frame": 50, "blend": 10, "image": ""}
+                {"frame": 30, "blend": 10, "image": "table"},
+                {"frame": 50, "blend": 10, "imageHide": ["chart"]},
+                {"frame": 80, "blend": 10, "image": ""}
             ]));
             t.validate().unwrap();
-            assert!(t.state_at(5).image.is_none());
+            assert!(t.state_at(5).images.is_empty());
             let half = t.state_at(15);
-            let image = half.image.as_ref().unwrap();
-            assert_eq!((&image.source, image.corner, image.title.as_deref()), (&ImageSource::Published("chart".into()), Corner::BottomLeft, Some("demos.chart")));
-            assert!(half.image_alpha > 0.0 && half.image_alpha < 1.0, "{}", half.image_alpha);
-            assert!(half.shows_image("chart") && !half.shows_image("other"));
-            assert_eq!(t.state_at(30).image_alpha, 1.0);
-            // Fading out, then gone.
-            assert!(t.state_at(55).shows_image("chart"));
-            assert!(t.state_at(70).image.is_none());
+            let image = &half.images[0];
+            assert_eq!((image.name.as_str(), &image.source, image.corner, image.title.as_deref()), ("chart", &ImageSource::Published("chart".into()), Corner::BottomLeft, Some("demos.chart")));
+            assert!(image.alpha > 0.0 && image.alpha < 1.0, "{}", image.alpha);
+            assert!(half.shows_image("chart") && !half.shows_image("table"));
+            // Two at once, then the first hidden, then all.
+            let both = t.state_at(45);
+            assert_eq!(both.images.iter().map(|i| (i.name.as_str(), i.alpha)).collect::<Vec<_>>(), [("chart", 1.0), ("table", 1.0)]);
+            assert_eq!(t.state_at(70).images.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(), ["table"]);
+            assert!(t.state_at(95).images.is_empty());
+        });
+    }
+
+    #[test]
+    fn image_parameters_need_an_instance() {
+        with_test(|| {
+            let error = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageParams": {"probe": 1}}])).validate().unwrap_err().to_string();
+            assert!(error.contains("not one (make it with imageFrom"), "{error}");
         });
     }
 }

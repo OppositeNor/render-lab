@@ -134,9 +134,16 @@ kind = "file"
 source = "shaders/sdfgi_passes.wgsl"
 license = "MIT (Godot, THIRD_PARTY.md)"
 
+# The image kinds a story makes (lab/src/views.rs).
+[[resource]]
+id = "wgsl/sdfgi-views"
+kind = "file"
+source = "shaders/sdfgi_views.wgsl"
+license = "MIT"
+
 [[shader]]
 id = "shader/sdfgi-shading"
-parts = ["rlstd.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes"]
+parts = ["rlstd.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes", "wgsl/sdfgi-views"]
 
 # The pseudo-code listings (pseudocode.rs).
 [[resource]]

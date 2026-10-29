@@ -230,7 +230,16 @@ A picture the story shows is an image by key (`packages/rlstd/src/inset.rs`). De
 `Investigation::images` (`ImageSpec { key, doc }`), and publish each in `FrameContent::images` as a `PictureInset`
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
-The story writes `{@ image=key imageCorner=top-left}` and `{@ image=""}`, and chooses the corner and the title.
+The story writes `{@ image=key imageCorner=top-left}` and `{@ imageHide=key}`, and chooses the corner and the title.
+
+A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`, Godot's
+`shaders/sdfgi_views.wgsl`): a `texture_storage_2d<rgba8unorm, write>` at `@group(3) @binding(0)` tagged
+`/// {@ view=probeMap entry=<compute entry> size=w,h text=<title key>}`, and its parameters' uniform at
+`@group(3) @binding(1)` tagged `/// {@ view_params=probeMap}`, its members tagged `{@ key=probe default=7,7,8
+range=0,16}`. The entry point runs with the frame (group 0) and the scene shading (group 1) bound, one invocation per
+texel, and writes display colours. No Rust: the story makes instances and drives their parameters
+(`{@ image=near imageFrom=probeMap image.probe=7,7,8}`). Keep `//` comments away from just above a tagged
+declaration: naga then drops its `///` lines.
 
 ## 7. The narrated video
 

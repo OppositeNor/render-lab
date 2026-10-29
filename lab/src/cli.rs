@@ -137,7 +137,9 @@ enum Command {
     /// arguments it gives them (`run.<argument>=…`).
     Actions,
     /// List the images the current investigation publishes for a story to
-    /// show (`{@ image=<key>}`); a story can also show a PNG resource by its key.
+    /// show (`{@ image=<key>}`), and the image kinds its package's shaders
+    /// define (`{@ image=<name> imageFrom=<kind> image.<param>=…}`, GPU
+    /// images); a story can also show a PNG resource by its key.
     Images,
     /// List the packages in packages/ (their `manifest.toml`): name, author,
     /// license, imports, exports, and demos.
@@ -342,6 +344,14 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}", image.key);
                 if !image.doc.is_empty() {
                     println!("    {}", image.doc);
+                }
+            }
+            let package = investigation::current().package().unwrap_or("rlstd");
+            for kind in crate::views::kinds(package)? {
+                let params: Vec<String> = kind.params.iter().map(|p| format!("{} = {}", p.key, p.default.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))).collect();
+                println!("kind {} ({}x{}, {} · {}): {}", kind.key, kind.size[0], kind.size[1], kind.module, kind.entry, params.join(", "));
+                if !kind.doc.is_empty() {
+                    println!("    {}", kind.doc);
                 }
             }
             Ok(())

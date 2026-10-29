@@ -7,12 +7,13 @@
 //! renderer keeps under a key (`Picture::Texture`, drawn as it holds when the
 //! frame is drawn, so passes that write it each frame show).
 //!
-//! A story shows an image by its key (`{@ image=key}`, `StoryImage`): one
-//! the investigation declares (`Investigation::images`) and publishes in the
-//! frames that show it (`FrameContent::images`), or a PNG resource of its
-//! package or one an imported package exports. The investigation describes
-//! the picture; the story says when it shows, in which corner, and with what
-//! title.
+//! A story shows images by name (`{@ image=key}`, `StoryImage`): one the
+//! investigation declares (`Investigation::images`) and publishes in the
+//! frames that show it (`FrameContent::images`), a PNG resource of its
+//! package or one an imported package exports, or an instance of an image
+//! kind its shaders define (`{@ image=floor imageFrom=probeMap}`, a GPU
+//! image, src/views.rs). The investigation describes the picture; the story
+//! says when it shows, in which corner, with what title and parameters.
 
 use crate::camera::Projector;
 use crate::layout::CameraData;
@@ -44,13 +45,17 @@ pub struct ImageSpec {
     pub doc: &'static str,
 }
 
-/// The image a story shows (`{@ image=key imageTitle=text-key imageCorner=top-left}`).
+/// An image a story shows (`{@ image=name imageTitle=text-key imageCorner=top-left}`).
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct StoryImage {
+    /// Its name in the story: a published image's key, a resource's, or an instance's own.
+    pub name: String,
     pub source: ImageSource,
     /// A text key of the package of the investigation playing the story, for its title.
     pub title: Option<String>,
     pub corner: Corner,
+    /// How far it has faded in (0..1).
+    pub alpha: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -59,18 +64,32 @@ pub enum ImageSource {
     Published(String),
     /// A PNG resource, by its full key.
     Resource(String),
+    /// An instance of the investigation's package's image kind `kind`
+    /// (src/views.rs), with the parameters the story set (the others at
+    /// their defaults).
+    View { kind: String, params: std::collections::BTreeMap<String, Vec<f32>> },
 }
 
-/// The inset of the image the story shows, faded in by `alpha`: the
-/// investigation's picture of it with the story's corner and title (`package`'s
-/// text), or the PNG at its own size. None when it shows none, or an image the
+/// The key of the texture of the story's image instance `name` (`Textures`).
+pub fn view_texture(name: &str) -> String {
+    format!("view:{name}")
+}
+
+/// The inset of an image the story shows: the investigation's picture of it
+/// with the story's corner and title (`package`'s text), the PNG at its own
+/// size, or the instance's texture at its kind's size. None for an image the
 /// frame does not publish.
-pub fn story(image: &StoryImage, alpha: f32, images: &[(String, PictureInset)], package: &str) -> Option<PictureInset> {
+pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &str) -> Option<PictureInset> {
     let mut inset = match &image.source {
         ImageSource::Published(key) => images.iter().find(|(k, _)| k == key)?.1.clone(),
         ImageSource::Resource(key) => PictureInset::new(String::new(), Picture::Resource(key.clone()), [0.0, 0.0]),
+        ImageSource::View { kind, .. } => {
+            let kind = crate::views::kind(package, kind).ok()?;
+            let title = kind.text.as_deref().map_or(String::new(), |t| crate::i18n::package_text(&kind.package, t).to_string());
+            PictureInset::new(title, Picture::Texture(view_texture(&image.name)), [kind.size[0] as f32, kind.size[1] as f32])
+        }
     };
-    inset.alpha *= alpha;
+    inset.alpha *= image.alpha;
     inset.corner = image.corner;
     if let Some(title) = &image.title {
         inset.title = vec![crate::i18n::package_text(package, title).to_string()];

@@ -340,8 +340,8 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 let mut obstacles = Vec::new();
                 // The investigation's insets, then the image the story shows.
                 let package = investigation::current().package().unwrap_or("rlstd");
-                let story = input.state.image.as_ref().and_then(|image| crate::utility::inset::story(image, input.state.image_alpha, &content.images, package));
-                for inset in content.insets.iter().chain(story.as_ref()).filter(|i| i.alpha > 0.0) {
+                let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
+                for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0) {
                     obstacles.push(crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset));
                 }
                 #[cfg(commercial)]

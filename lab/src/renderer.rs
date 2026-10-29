@@ -186,6 +186,12 @@ pub struct Renderer {
     egui_renderer: egui_wgpu::Renderer,
     /// The GPU textures an inset's picture can show, by key (packages/rlstd/src/inset.rs).
     textures: Textures,
+    /// The story's image instances (src/views.rs) by name, and each kind's pipeline.
+    views: HashMap<String, ViewInstance>,
+    view_pipelines: HashMap<(String, String), wgpu::ComputePipeline>,
+    view_layout: wgpu::BindGroupLayout,
+    /// Group 1 of a kind's entry point when the investigation has no scene shading.
+    view_shading: Option<wgpu::BindGroup>,
     last_layout: Layout,
 }
 
@@ -199,6 +205,16 @@ fn show_texture(egui_renderer: &mut egui_wgpu::Renderer, device: &wgpu::Device, 
             textures.insert(key.to_string(), id);
         }
     }
+}
+
+/// A story's image of an image kind (src/views.rs): its texture, written
+/// each frame by the kind's entry point, and shown through egui.
+struct ViewInstance {
+    kind: &'static crate::views::ViewKind,
+    _texture: wgpu::Texture,
+    params: wgpu::Buffer,
+    group: wgpu::BindGroup,
+    id: egui::TextureId,
 }
 
 /// The pipelines and data of one investigation's `SceneShading`.
@@ -440,6 +456,16 @@ impl Renderer {
             egui_ctx,
             egui_renderer,
             textures,
+            views: HashMap::new(),
+            view_pipelines: HashMap::new(),
+            view_layout: device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("image kind"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: wgpu::TextureFormat::Rgba8Unorm, view_dimension: wgpu::TextureViewDimension::D2 }, count: None },
+                    wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+                ],
+            }),
+            view_shading: None,
             last_layout: Layout::new(width, height),
             statics,
             other_scenes: HashMap::new(),
@@ -694,6 +720,98 @@ impl Renderer {
         }
     }
 
+    /// The textures of the image instances `state` shows (src/views.rs): made
+    /// for a new one and registered with egui, their parameters written, and
+    /// those it no longer shows let go.
+    fn prepare_views(&mut self, state: &ShotState) {
+        use crate::utility::inset::{view_texture, ImageSource};
+        let package = investigation::current().package().unwrap_or("rlstd");
+        let shown: Vec<(&str, &str, &std::collections::BTreeMap<String, Vec<f32>>)> = state.images.iter().filter_map(|i| match &i.source {
+            ImageSource::View { kind, params } => Some((i.name.as_str(), kind.as_str(), params)),
+            _ => None,
+        }).collect();
+        let gone: Vec<String> = self.views.iter().filter(|(name, v)| !shown.iter().any(|(n, k, _)| n == name && *k == v.kind.key && v.kind.package == package)).map(|(name, _)| name.clone()).collect();
+        for name in gone {
+            let view = self.views.remove(&name).expect("an instance");
+            self.egui_renderer.free_texture(&view.id);
+            self.textures.remove(&view_texture(&name));
+        }
+        let device = &self.gpu.device;
+        for (name, kind, params) in shown {
+            if !self.views.contains_key(name) {
+                let kind = crate::views::kind(package, kind).unwrap_or_else(|e| panic!("{e}"));
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some(name),
+                    size: wgpu::Extent3d { width: kind.size[0], height: kind.size[1], depth_or_array_layers: 1 },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                });
+                // The entry point writes display colours, shown as they are (as a CPU picture's pixels are).
+                let storage = texture.create_view(&Default::default());
+                let shown = texture.create_view(&Default::default());
+                let params = device.create_buffer(&wgpu::BufferDescriptor { label: Some(name), size: kind.params_size.max(16) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some(name),
+                    layout: &self.view_layout,
+                    entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&storage) }, wgpu::BindGroupEntry { binding: 1, resource: params.as_entire_binding() }],
+                });
+                let id = self.egui_renderer.register_native_texture(device, &shown, wgpu::FilterMode::Linear);
+                self.textures.insert(view_texture(name), id);
+                self.views.insert(name.to_string(), ViewInstance { kind, _texture: texture, params, group, id });
+            }
+            let view = &self.views[name];
+            self.gpu.queue.write_buffer(&view.params, 0, &view.kind.pack(params));
+        }
+    }
+
+    /// Runs each image instance's entry point into its texture.
+    fn dispatch_views(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        if self.views.is_empty() {
+            return;
+        }
+        let shading = match self.shading().map(|s| s.group.clone()) {
+            Some(group) => group,
+            None => self.view_shading.get_or_insert_with(|| {
+                let device = &self.gpu.device;
+                let storage = |label| device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: 16, usage: wgpu::BufferUsages::STORAGE, mapped_at_creation: false });
+                let (data, frame) = (storage("no shading data"), storage("no shading frame"));
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("no scene shading"),
+                    layout: &self.pipelines.shading_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: self.shading_uniforms.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 1, resource: data.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 2, resource: frame.as_entire_binding() },
+                    ],
+                })
+            }).clone(),
+        };
+        let device = &self.gpu.device;
+        for view in self.views.values() {
+            let kind = view.kind;
+            let pipeline = self.view_pipelines.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| {
+                let source = crate::shaders::module(&kind.module).unwrap_or_else(|e| panic!("{e:#}"));
+                let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(&kind.module), source: wgpu::ShaderSource::Wgsl(source.into()) });
+                let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some(&kind.entry),
+                    bind_group_layouts: &[Some(&self.pipelines.frame_layout), Some(&self.pipelines.shading_layout), None, Some(&self.view_layout)],
+                    immediate_size: 0,
+                });
+                device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(&kind.entry), layout: Some(&layout), module: &module, entry_point: Some(&kind.entry), compilation_options: Default::default(), cache: None })
+            });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(&kind.key), timestamp_writes: None });
+            pass.set_pipeline(pipeline);
+            pass.set_bind_group(0, &self.frame_bind_group, &[]);
+            pass.set_bind_group(1, &shading, &[]);
+            pass.set_bind_group(3, &view.group, &[]);
+            pass.dispatch_workgroups(kind.size[0].div_ceil(kind.workgroup[0].max(1)), kind.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
+        }
+    }
+
     /// The current investigation's own scene shading, built on first use.
     fn shading(&mut self) -> Option<&Shading> {
         let source = investigation::current().scene_shading()?;
@@ -785,6 +903,9 @@ impl Renderer {
             self.upload_draws(content);
         }
 
+        if content.is_some() {
+            self.prepare_views(request.state);
+        }
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));
@@ -831,6 +952,7 @@ impl Renderer {
         let mut commands = self.egui_renderer.update_buffers(device, queue, &mut encoder, &paint_jobs, &screen);
 
         if let Some(content) = &content {
+            self.dispatch_views(&mut encoder);
             self.encode_scene(&mut encoder, content);
         }
         let targets = self.viewport.as_ref().unwrap();

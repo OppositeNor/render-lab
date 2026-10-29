@@ -153,7 +153,9 @@ visual often names something nothing can show.
   (`{@ run=jumpFlood run.seconds=0.5}` … `{@ stop=jumpFlood}`; `render-lab actions`), rather than a parameter keyed
   step by step: the story says when and how fast, the package's code what each moment shows.
 - A picture (a slice, a table, a chart, a PNG) is an image the story shows by key, `{@ image=floodSeeds
-  imageCorner=top-left}` … `{@ image=""}` (`render-lab images`): the package describes it, the story places it.
+  imageCorner=top-left}` … `{@ imageHide=floodSeeds}` (`render-lab images`): the package describes it, the story places
+  it. A GPU image is an instance of an image kind the package's shaders define, made and driven by the story:
+  `{@ image=near imageFrom=probeMap image.probe=7,7,8}`, then `{@ image=near image.probe=10,7,8 blend=2}`.
 - Keep the camera floating in 3D (`animate=[{"path": …}]`, `cameraDrift`), and glide to a still, 2D view
   (`cameraDrift=0`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.

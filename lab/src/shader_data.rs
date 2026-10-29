@@ -95,15 +95,15 @@ impl Schema {
 
 /// One attribute of a tag: `name=a,b,c` (its arguments) or a bare `name`.
 #[derive(Clone, Debug, PartialEq)]
-struct Tag {
-    name: String,
-    args: Vec<String>,
+pub(crate) struct Tag {
+    pub(crate) name: String,
+    pub(crate) args: Vec<String>,
 }
 
 /// The tags of a comment's lines (each with its `///`): every `{@ …}` in
 /// them, read as a story's tags are (src/rich_text.rs), and the rest of the
 /// text, its doc.
-fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
+pub(crate) fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
     let mut tags = Vec::new();
     let mut doc = Vec::new();
     for line in lines {
@@ -130,7 +130,7 @@ fn leak(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-fn number(text: &str) -> Result<f32> {
+pub(crate) fn number(text: &str) -> Result<f32> {
     match text {
         "true" => Ok(1.0),
         "false" => Ok(0.0),
@@ -139,7 +139,7 @@ fn number(text: &str) -> Result<f32> {
 }
 
 /// The scalar kind and component count of a value's WGSL type.
-fn wgsl_value_type(inner: &TypeInner) -> Option<(Storage, usize)> {
+pub(crate) fn wgsl_value_type(inner: &TypeInner) -> Option<(Storage, usize)> {
     let storage = |kind: ScalarKind, width: u8| match (kind, width) {
         (ScalarKind::Float, 4) => Some(Storage::F32),
         (ScalarKind::Uint, 4) => Some(Storage::U32),

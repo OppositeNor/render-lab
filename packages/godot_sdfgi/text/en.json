@@ -138,6 +138,7 @@
   "demos.irradiance_up": "irradiance, up",
   "demos.irradiance_wall": "irradiance, toward the red wall",
   "demos.oct_maps": "irradiance | radiance",
+  "demos.probe_maps_gpu": "irradiance | radiance (GPU)",
   "demos.oct_axes": "u (two maps)",
   "demos.oct_border": "6 x 6 texels and a one-texel border each",
   "demos.sky_gain": "a uniform sky stores",

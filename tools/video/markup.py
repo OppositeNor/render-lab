@@ -10,9 +10,10 @@ the same tags in on-screen text (src/lab/rich_text.rs).
   `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5`
   (seconds), `term=n`, and the package's actions (src/lab/actions.rs):
   `run=jumpFlood run.seconds=0.5` starts one with its arguments, `stop=a,b`
-  stops them; and `image=key` (`imageTitle=text-key`, `imageCorner=top-left`),
-  an image the investigation publishes or a PNG resource, in an inset
-  (`image=""` hides it).
+  stops them; and `image=name` (`imageTitle=text-key`, `imageCorner=top-left`),
+  an image the investigation publishes, a PNG resource, or, with
+  `imageFrom=kind` and `image.<param>=value`, an instance of an image kind its
+  shaders define, in an inset (`imageHide=a,b` hides some, `image=""` all).
 - `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
   (a full shot key, for cameras, records, and motions).
 - `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
@@ -35,10 +36,10 @@ from typing import Any
 Json = dict[str, Any]
 
 # Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner')
+STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
-RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop')
+RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide')
 
 
 class MarkupError(RuntimeError):
@@ -280,6 +281,19 @@ def action_attr(key: Json, name: str, value: str, where: str) -> bool:
     return True
 
 
+def image_attr(key: Json, name: str, value: str, where: str) -> bool:
+    """Reads an image's attribute into `key`: `image.<param>=value` sets a
+    parameter of an image kind's instance, `imageHide=a,b` hides images. False
+    for any other attribute."""
+    if name.startswith('image.'):
+        key.setdefault('imageParams', {})[name[6:]] = param_value(value, where)
+    elif name == 'imageHide':
+        key['imageHide'] = [v for v in value.split(',') if v]
+    else:
+        return False
+    return True
+
+
 def check_action(key: Json, where: str) -> None:
     run = key.get('run')
     if run is not None and not run['name']:
@@ -314,7 +328,7 @@ def cue_key(tag: Tag, cues: Json, where: str) -> Json:
                 raise MarkupError(f'{where}: animate is JSON: {e}') from None
         elif name == 'delay':
             key['delay'] = number(value.removesuffix('s'), where)
-        elif action_attr(key, name, value, where):
+        elif action_attr(key, name, value, where) or image_attr(key, name, value, where):
             continue
         elif name in STRING_FIELDS:
             key[name] = value

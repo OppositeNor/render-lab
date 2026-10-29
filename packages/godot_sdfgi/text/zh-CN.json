@@ -138,6 +138,7 @@
   "demos.irradiance_up": "irradiance，向上",
   "demos.irradiance_wall": "irradiance，朝向红墙",
   "demos.oct_maps": "irradiance | radiance",
+  "demos.probe_maps_gpu": "irradiance | radiance（GPU）",
   "demos.oct_axes": "u（两张贴图）",
   "demos.oct_border": "每张 6 x 6 texel 加一圈 texel 的边框",
   "demos.sky_gain": "均匀天空存为",

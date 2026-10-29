@@ -31,8 +31,9 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
   camera running through a `demo` switch), `record=probe:67` (or `ray`),
   `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `ease`, `delay` (seconds),
   `formula`, `term`, `animate=[…]` (motions, as JSON), `run=action` with
-  `run.<arg>=value` (an action the package declares) and `stop=a,b`, `image=key`
-  (`imageTitle`, `imageCorner`; `image=""` hides it). A parameter whose
+  `run.<arg>=value` (an action the package declares) and `stop=a,b`, `image=name`
+  (`imageTitle`, `imageCorner`, `imageFrom=kind` with `image.<param>=value`;
+  `imageHide=a,b`, and `image=""` hides all). A parameter whose
   name a tag reserves (`formula`, `term`, …) is written `param.formula=1`.
 
 The translation file has the same headings (its own titles and headlines) and
@@ -49,7 +50,7 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'image', 'imageTitle', 'imageCorner', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
+KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageParams', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -117,8 +118,10 @@ def key_attrs(key: Json) -> list[tuple[str, str]]:
             out.extend((f'param.{name}' if name in markup.RESERVED else name, param_text(x)) for name, x in v.items())
         elif field == 'animate':
             out.append(('animate', json.dumps(v, ensure_ascii=False)))
-        elif field == 'stop':
-            out.append(('stop', ','.join(v)))
+        elif field in ('stop', 'imageHide'):
+            out.append((field, ','.join(v)))
+        elif field == 'imageParams':
+            out.extend((f'image.{name}', param_text(x)) for name, x in v.items())
         elif field == 'run':
             out.append(('run', v['name']))
             out.extend((f'run.{name}', param_text(x)) for name, x in v.get('args', {}).items())
@@ -162,9 +165,9 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key[name] = markup.number(v.removesuffix('s'), where)
         elif name == 'term':
             key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner'):
+        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom'):
             key[name] = v
-        elif markup.action_attr(key, name, v, where):
+        elif markup.action_attr(key, name, v, where) or markup.image_attr(key, name, v, where):
             continue
         else:
             params[name] = markup.param_value(v, where)

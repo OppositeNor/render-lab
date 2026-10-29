@@ -114,11 +114,9 @@ pub struct ShotState {
     /// which have already set this state.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<RunningAction>,
-    /// The image the story shows (`Key::image`), and how far it has faded in (0..1).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<StoryImage>,
-    #[serde(skip_serializing_if = "is_zero_f32")]
-    pub image_alpha: f32,
+    /// The images the story shows (`Key::image`), in the order it showed them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<StoryImage>,
 }
 
 fn is_zero(n: &usize) -> bool {
@@ -138,7 +136,7 @@ impl ShotState {
     /// Whether the story shows the image the investigation publishes as `key`
     /// (so its frame publishes it, in `FrameContent::images`).
     pub fn shows_image(&self, key: &str) -> bool {
-        matches!(&self.image, Some(StoryImage { source: ImageSource::Published(k), .. }) if k == key)
+        self.images.iter().any(|i| matches!(&i.source, ImageSource::Published(k) if k == key))
     }
 
     /// A number by name: a value's (a flag is 0 or 1), a component's, a
@@ -397,11 +395,22 @@ pub struct Key {
     /// The card's lit term (0: none). It fades in over the key's `blend`.
     #[serde(default)]
     pub term: Option<usize>,
-    /// An image to show in an inset (packages/rlstd/src/inset.rs): one the
-    /// investigation publishes, or a PNG resource (`<package>.<key>`, or its
-    /// package's own key); `""` fades it out. It fades in over `blend`.
+    /// An image to show in an inset (packages/rlstd/src/inset.rs), by name:
+    /// one the investigation publishes, a PNG resource (`<package>.<key>`, or
+    /// its package's own key), or, with `image_from`, an instance of an image
+    /// kind (src/views.rs) of that name. It fades in over `blend`; `""` fades
+    /// out every image.
     #[serde(default)]
     pub image: Option<String>,
+    /// The image kind of the package that `image` is an instance of.
+    #[serde(default)]
+    pub image_from: Option<String>,
+    /// The instance's parameters it sets (`image.<param>=…`), blended over `blend`.
+    #[serde(default)]
+    pub image_params: BTreeMap<String, serde_json::Value>,
+    /// The images it fades out.
+    #[serde(default)]
+    pub image_hide: Vec<String>,
     /// Its title: a text key of the investigation's package (the
     /// investigation's own title of it, or none, by default).
     #[serde(default)]
@@ -494,8 +503,42 @@ impl Segment {
 
 /// The channel of the formula card's lit term's weight.
 const FORMULA_LIT: &str = "formula.lit";
-/// The story image's fade (`ShotState::image_alpha`).
-const IMAGE_ALPHA: &str = "image.alpha";
+/// The channel of the fade of the story's image `name`.
+fn image_alpha(name: &str) -> String {
+    format!("image.{name}.alpha")
+}
+
+/// The channel of component `k` of parameter `param` of the story's image instance `name`.
+fn image_param(name: &str, param: &str, k: usize) -> String {
+    format!("image.{name}.param.{param}#{k}")
+}
+
+/// A parameter's value as a key holds it: a number, a flag, or numbers.
+fn components(value: &serde_json::Value) -> Result<Vec<f32>, String> {
+    match value {
+        serde_json::Value::Bool(b) => Ok(vec![if *b { 1.0 } else { 0.0 }]),
+        serde_json::Value::Array(a) => a.iter().map(|v| v.as_f64().map(|n| n as f32).ok_or_else(|| format!("{value} is not numbers"))).collect(),
+        v => v.as_f64().map(|n| vec![n as f32]).ok_or_else(|| format!("{value} is not a number or numbers")),
+    }
+}
+
+/// Why `key`'s image cannot show: an image or a kind the investigation does
+/// not have, or parameters its kind does not take. `instances` are the
+/// instances made by the keys before it, by name.
+fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>) -> Result<(), String> {
+    let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) else {
+        return if key.image_from.is_some() || !key.image_params.is_empty() { Err("imageFrom and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
+    };
+    let package = investigation::current().package().unwrap_or("rlstd");
+    if let Some(from) = &key.image_from {
+        instances.insert(name.to_string(), crate::views::kind(package, from)?);
+    }
+    match instances.get(name) {
+        Some(kind) => key.image_params.iter().try_for_each(|(param, value)| kind.check(param, &components(value)?)),
+        None if !key.image_params.is_empty() => Err(format!("image.<param> sets the parameters of an image kind's instance; `{name}` is not one (make it with imageFrom=<kind>)")),
+        None => image_source(name).map(|_| ()),
+    }
+}
 
 /// What a story's `image=` names: an image the investigation publishes, else
 /// a PNG resource its package names; why not, for neither.
@@ -529,6 +572,7 @@ impl Timeline {
     }
 
     pub fn validate(&self) -> Result<()> {
+        let mut instances = BTreeMap::new();
         for key in &self.keys {
             if let Err(e) = key.targets() {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
@@ -546,10 +590,8 @@ impl Timeline {
                     }
                 }
             }
-            if let Some(image) = key.image.as_deref().filter(|i| !i.is_empty()) {
-                if let Err(e) = image_source(image) {
-                    bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
-                }
+            if let Err(e) = check_image(key, &mut instances) {
+                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
             if let Some(call) = &key.run {
                 if let Err(e) = investigation::current().actions().check(call) {
@@ -600,10 +642,12 @@ impl Timeline {
             if let Some(demo) = key.demo {
                 let callout = state.callout.clone();
                 let (formula, term) = (state.formula.clone(), state.formula_term);
+                let images = std::mem::take(&mut state.images);
                 let camera_now: Vec<f32> = camera.iter().map(|c| segments[*c].value(key.frame)).collect();
                 state = ShotState::for_demo(demo);
                 state.callout = callout;
-                // The formula card belongs to the narration, not the demonstration.
+                // The images and the formula card belong to the narration, not the demonstration.
+                state.images = images;
                 (state.formula, state.formula_term) = (formula, term);
                 reset(&mut segments, &state, key.frame);
                 // A demo switch cuts parameters but keeps the camera continuous
@@ -639,15 +683,42 @@ impl Timeline {
                 state.actions.push(RunningAction { key: call.name.clone(), args: call.args.clone(), started: key.frame, elapsed: 0.0 });
             }
             let mut targets: Vec<(String, f32)> = key.targets().unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)).to_vec();
-            match key.image.as_deref() {
-                Some("") => targets.push((IMAGE_ALPHA.into(), 0.0)),
-                Some(image) => {
-                    let source = image_source(image).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
-                    state.image = Some(StoryImage { source, title: key.image_title.clone(), corner: key.image_corner.unwrap_or(Corner::TopRight) });
-                    segments.insert(IMAGE_ALPHA.into(), Channel::hold(key.frame, 0.0));
-                    targets.push((IMAGE_ALPHA.into(), 1.0));
+            if key.image.as_deref() == Some("") {
+                targets.extend(state.images.iter().map(|i| (image_alpha(&i.name), 0.0)));
+            }
+            targets.extend(key.image_hide.iter().map(|name| (image_alpha(name), 0.0)));
+            if let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) {
+                let made = key.image_from.as_ref().map(|kind| ImageSource::View { kind: kind.clone(), params: BTreeMap::new() });
+                let shown = segments.get(&image_alpha(name)).is_some_and(|s| s.value(key.frame) > 0.0);
+                match state.images.iter().position(|i| i.name == name) {
+                    // A new kind for an instance starts its parameters over.
+                    Some(i) => {
+                        if let Some(made) = made.filter(|m| *m != state.images[i].source) {
+                            let prefix = format!("image.{name}.param.");
+                            segments.retain(|channel, _| !channel.starts_with(&prefix));
+                            state.images[i].source = made;
+                        }
+                    }
+                    None => {
+                        let source = made.unwrap_or_else(|| image_source(name).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)));
+                        state.images.push(StoryImage { name: name.to_string(), source, title: None, corner: Corner::TopRight, alpha: 0.0 });
+                    }
                 }
-                None => {}
+                let image = state.images.iter_mut().find(|i| i.name == name).expect("the image just shown");
+                if let Some(title) = &key.image_title {
+                    image.title = Some(title.clone());
+                }
+                if let Some(corner) = key.image_corner {
+                    image.corner = corner;
+                }
+                if !shown {
+                    segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));
+                }
+                targets.push((image_alpha(name), 1.0));
+                for (param, value) in &key.image_params {
+                    let value = components(value).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
+                    targets.extend(value.into_iter().enumerate().map(|(k, v)| (image_param(name, param, k), v)));
+                }
             }
             // A newly lit term fades in from dark; unlighting fades the term out.
             if let Some(term) = key.term {
@@ -694,10 +765,21 @@ impl Timeline {
         if state.formula_lit <= 0.0 {
             state.formula_term = 0;
         }
-        state.image_alpha = segments.get(IMAGE_ALPHA).map_or(0.0, |s| s.value(frame));
-        if state.image_alpha <= 0.0 {
-            state.image = None;
+        // Each image's fade and an instance's parameters; the faded-out ones are gone.
+        for image in &mut state.images {
+            image.alpha = segments.get(&image_alpha(&image.name)).map_or(0.0, |s| s.value(frame));
+            if let ImageSource::View { params, .. } = &mut image.source {
+                let prefix = format!("image.{}.param.", image.name);
+                for (channel, segment) in segments.range(prefix.clone()..).take_while(|(c, _)| c.starts_with(&prefix)) {
+                    let (param, k) = channel[prefix.len()..].rsplit_once('#').expect("a parameter's channel");
+                    let k: usize = k.parse().expect("a component's index");
+                    let value = params.entry(param.to_string()).or_default();
+                    value.resize(value.len().max(k + 1), 0.0);
+                    value[k] = segment.value(frame);
+                }
+            }
         }
+        state.images.retain(|i| i.alpha > 0.0);
         // The running actions set the state last, in the order they started.
         let actions = investigation::current().actions();
         for a in &mut state.actions {

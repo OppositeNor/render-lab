@@ -78,6 +78,7 @@ pub mod ui;
 pub mod utility;
 pub mod values;
 pub mod viewer;
+pub mod views;
 pub mod volume;
 
 #[cfg(commercial)]

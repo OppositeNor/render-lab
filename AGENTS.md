@@ -79,7 +79,7 @@ cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # 
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{@ run=… run.<arg>=…}`, `stop=…`) and their arguments
-cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too)
+cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom=`) with their parameters
 cargo run --release -- packages                                               # the packages: metadata, imports, exports, libraries and their handles, demos
 cargo run --release -- resources                                             # the built packages' resources: file size, or not built yet
 cargo run --release -- cook                                                  # build the checkout's packages beside the binary, and report it

@@ -443,6 +443,21 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         report.check("the jumpFlood action steps floodStep through a timeline, and stopping it hands floodStep back", valid.is_ok() && steps == expected, json!({"valid": valid, "frames": frames, "steps": steps, "expected": expected}));
     }
 
+    // The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.
+    {
+        let kinds = lab::views::kinds("godot_sdfgi").map_err(|e| anyhow::anyhow!("{e:#}"))?;
+        let kind = kinds.iter().find(|k| k.key == "probeMap");
+        let params: Vec<(&str, Vec<f32>)> = kind.map(|k| k.params.iter().map(|p| (p.key.as_str(), p.default.clone())).collect()).unwrap_or_default();
+        let declared = kind.is_some_and(|k| k.size == [208, 104] && k.entry == "sdfgiProbeMapView") && params == [("probe", vec![7.0, 7.0, 8.0]), ("cascade", vec![0.0]), ("gain", vec![3.0])];
+        let mut timeline = still_timeline(64, 64);
+        timeline.keys = serde_json::from_value(json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7, 8]}}]))?;
+        let valid = timeline.validate().map_err(|e| e.to_string());
+        let mut wrong = still_timeline(64, 64);
+        wrong.keys = serde_json::from_value(json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7]}}]))?;
+        let refused = wrong.validate().map_err(|e| e.to_string()).err();
+        report.check("the probeMap image kind: its size, entry point, and parameters; a story's instance of it loads, and a wrong parameter does not", declared && valid.is_ok() && refused.is_some(), json!({"params": format!("{params:?}"), "valid": valid, "refused": refused}));
+    }
+
     // ---- 3. The source index against the checkout ----------------------------
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
