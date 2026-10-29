@@ -92,7 +92,8 @@ links stay links) into an empty directory, link `vendor/` into it, and build the
 ## Skills
 
 Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout); `.claude/skills` holds
-one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it) and `packages`
+one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it), `new-story`
+(researching, outlining, writing, and reviewing an investigation's story, in phases with subagents), and `packages`
 (packages: manifests, collections, references, code and its negotiation, local packages, packing) are published.
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.

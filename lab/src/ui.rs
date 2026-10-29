@@ -315,6 +315,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 if let Some(history) = &content.history {
                     obstacles.push(draw_history(&ink, input, history, content));
                 }
+                if let Some(inset) = content.image_inset.as_ref().filter(|i| i.alpha > 0.0) {
+                    obstacles.push(draw_image_inset(ctx, &ink, l, inset));
+                }
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
                     obstacles.extend(draw_callout(&ink, l, key, &insets));
@@ -980,6 +983,53 @@ fn dashed(painter: &Painter, a: Pos2, b: Pos2, stroke: Stroke) {
         let t1 = ((i + 1) as f32 / n as f32).min(1.0);
         painter.line_segment([a + d * t0, a + d * t1], stroke);
     }
+}
+
+/// An investigation's picture (`ImageInset`), with its axes and marked point;
+/// returns the rectangle it covers.
+fn draw_image_inset(ctx: &egui::Context, ink: &Ink, l: &Layout, inset: &crate::frame::ImageInset) -> Rect {
+    let painter = ink.painter;
+    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
+    let side = 220.0;
+    // As wide as its title and lines need, within half the viewport.
+    let widest = std::iter::once((&inset.title, 24.0)).chain(inset.lines.iter().map(|(line, _)| (line, 24.0))).map(|(t, size)| rich_text::measure(ink, t, size, FontFamily::Proportional).x).fold(0.0, f32::max);
+    let width = (widest + 28.0).clamp(side + 92.0, l.viewport.width() * 0.5);
+    let size = vec2(width, side + 94.0 + 32.0 * inset.lines.len() as f32);
+    let min = if inset.right { pos2(l.viewport.max.x - 16.0 - size.x, l.viewport.min.y + 16.0) } else { l.viewport.min + vec2(16.0, 16.0) };
+    let rect = Rect::from_min_size(min, size);
+    painter.rect_filled(rect, CornerRadius::same(10), fade(Color32::from_rgba_premultiplied(7, 18, 31, 238)));
+    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);
+    ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, ink.fit_right(&inset.title, rect.width() - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(palette::text()));
+    let image = Rect::from_min_size(rect.min + vec2(62.0, 48.0), vec2(side, side));
+    let id = egui::Id::unique(("image-inset", &inset.key));
+    let texture = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)).unwrap_or_else(|| {
+        let picture = egui::ColorImage::from_rgba_unmultiplied(inset.size, &inset.rgba);
+        let t = ctx.load_texture(format!("inset {}", inset.key), picture, egui::TextureOptions::LINEAR);
+        ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+        t
+    });
+    painter.image(texture.id(), image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), fade(Color32::WHITE));
+    painter.rect_stroke(image, CornerRadius::ZERO, Stroke::new(1.0, fade(palette::border())), StrokeKind::Outside);
+    ink.text(pos2(image.center().x, image.max.y + 6.0), Align2::CENTER_TOP, &inset.x_axis, 24.0, FontFamily::Proportional, fade(palette::text_dim()));
+    let galley = painter.layout_no_wrap(inset.y_axis.clone(), egui::FontId::proportional(24.0), fade(palette::text_dim()));
+    let at = pos2(image.min.x - 34.0, image.center().y + galley.size().x / 2.0);
+    painter.add(egui::epaint::TextShape::new(at, galley, fade(palette::text_dim())).with_angle(-std::f32::consts::FRAC_PI_2));
+    if let Some((uv, color, label)) = &inset.marker {
+        let p = pos2(image.min.x + uv[0].clamp(0.0, 1.0) * side, image.max.y - uv[1].clamp(0.0, 1.0) * side);
+        painter.circle_stroke(p, 9.0, Stroke::new(3.0, fade(Color32::BLACK)));
+        painter.circle_stroke(p, 9.0, Stroke::new(2.0, fade(*color)));
+        let right = p.x < image.center().x;
+        let (anchor, offset) = if right { (Align2::LEFT_CENTER, 14.0) } else { (Align2::RIGHT_CENTER, -14.0) };
+        let size = rich_text::measure(ink, label, 24.0, FontFamily::Proportional);
+        painter.rect_filled(anchor.anchor_size(pos2(p.x + offset, p.y), size).expand(3.0), CornerRadius::same(3), fade(Color32::from_rgba_premultiplied(7, 18, 31, 220)));
+        ink.text(pos2(p.x + offset, p.y), anchor, label, 24.0, FontFamily::Proportional, fade(*color));
+    }
+    let mut y = image.max.y + 40.0;
+    for (line, color) in &inset.lines {
+        ink.text(pos2(rect.min.x + 14.0, y), Align2::LEFT_TOP, ink.fit_right(line, rect.width() - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(*color));
+        y += 32.0;
+    }
+    rect.expand(4.0)
 }
 
 #[cfg(commercial)]

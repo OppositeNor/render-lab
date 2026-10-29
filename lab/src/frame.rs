@@ -190,6 +190,29 @@ pub struct AtlasInset {
     pub page_world: Option<Vec3>,
 }
 
+/// A picture an investigation computes (a lookup table, a chart), drawn in
+/// a top corner of the viewport: its pixels, what its axes are, and one
+/// point on it marked.
+#[derive(Clone, Debug)]
+pub struct ImageInset {
+    pub alpha: f32,
+    /// In the top-right corner, rather than the top-left.
+    pub right: bool,
+    pub title: String,
+    /// Names the pixels, so their texture is made once.
+    pub key: String,
+    pub size: [usize; 2],
+    /// RGBA, row by row from the top.
+    pub rgba: std::sync::Arc<Vec<u8>>,
+    /// The horizontal axis, left to right, and the vertical one, bottom to top.
+    pub x_axis: String,
+    pub y_axis: String,
+    /// A point (0..1 along each axis, y up), its colour, and its label.
+    pub marker: Option<([f32; 2], Color32, String)>,
+    /// Lines under the picture.
+    pub lines: Vec<(String, Color32)>,
+}
+
 #[cfg(commercial)]
 #[derive(Clone, Debug)]
 pub struct HistoryInset {
@@ -216,6 +239,7 @@ pub struct FrameContent {
     /// Without a panel record, what the struct panel shows instead.
     pub readout: Option<Readout>,
     pub notes: Vec<(String, Color32)>,
+    pub image_inset: Option<ImageInset>,
     #[cfg(commercial)]
     pub atlas_inset: Option<AtlasInset>,
     #[cfg(commercial)]
@@ -246,6 +270,7 @@ impl FrameContent {
             panel_record: None,
             readout: None,
             notes: Vec::new(),
+            image_inset: None,
             #[cfg(commercial)]
             atlas_inset: None,
             #[cfg(commercial)]

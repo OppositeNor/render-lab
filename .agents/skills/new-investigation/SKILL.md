@@ -63,6 +63,9 @@ An investigation is only as good as its claims. Each of these is required, not a
 
 ## 2. Procedure
 
+For the story (the research, the outline, the storyboard, and its review, in phases with subagents), follow the
+`new-story` skill; it builds on these steps.
+
 1. **Scope.** Name the feature's entry points and list its passes in frame order. Note the engine version and commit.
 2. **Sweep.** For a broad question (every pass a feature touches, every caller of a function), delegate the search to an
    Explore agent: give it the checkout path and the question, and ask for file, symbol, and line triples. Verify each
