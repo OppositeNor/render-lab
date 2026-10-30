@@ -5,7 +5,7 @@
 use crate::frame::Statics;
 use crate::gpu::{self, Gpu};
 use crate::renderer::{self, FrameRequest, Renderer};
-use crate::shot::{BeatKind, Timeline};
+use crate::shot::{SceneType, Timeline};
 use crate::ui::{Chrome, UiReport};
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
@@ -86,7 +86,7 @@ pub fn beat_fade(timeline: &Timeline, frame: u64) -> f32 {
     let (i, beat) = timeline.beat_at(frame);
     let local = frame - beat.start_frame;
     let mut fade = 0.0f32;
-    let differs = |a: &crate::shot::TimelineBeat, b: &crate::shot::TimelineBeat| a.kind != b.kind || a.chapter != b.chapter || a.kind != BeatKind::Scene;
+    let differs = |a: &crate::shot::TimelineBeat, b: &crate::shot::TimelineBeat| a.kind != b.kind || a.chapter != b.chapter || a.kind != SceneType::ThreeD;
     if i > 0 && differs(&timeline.beats[i - 1], beat) && local < FADE_FRAMES {
         fade = fade.max(1.0 - (local as f32 + 1.0) / (FADE_FRAMES as f32 + 1.0));
     }
@@ -231,7 +231,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         let state = timeline.state_at(f);
         let (_, beat) = timeline.beat_at(f);
         let image = match (&beat.kind, &beat.image) {
-            (BeatKind::Mermaid, Some(path)) => {
+            (SceneType::TwoD, Some(path)) => {
                 images.retain(&[path.as_str()]);
                 Some(images.get(&renderer.egui_ctx, path)?)
             }
@@ -239,7 +239,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         };
         let request = FrameRequest {
             state: &state,
-            beat_kind: beat.kind,
+            scene_type: beat.kind,
             image,
             beat_sources: &beat.sources,
             chapter_number: beat.chapter,
@@ -287,9 +287,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     Ok(summary)
 }
 
-fn track(summary: &mut RecordSummary, frame: u64, report: &UiReport, kind: BeatKind) {
+fn track(summary: &mut RecordSummary, frame: u64, report: &UiReport, kind: SceneType) {
     summary.min_text_pt = summary.min_text_pt.min(report.min_text_pt);
-    if kind == BeatKind::Scene {
+    if kind == SceneType::ThreeD {
         summary.max_label_overlaps = summary.max_label_overlaps.max(report.label_overlaps);
         summary.max_labels_outside = summary.max_labels_outside.max(report.labels_outside);
         if (report.label_overlaps > 0 || report.labels_outside > 0) && summary.frames_with_label_issues.len() < 200 {

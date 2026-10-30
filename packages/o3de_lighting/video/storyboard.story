@@ -7,15 +7,15 @@ fps: 30
 width: 1920
 height: 1080
 
-# 1 · O3DE's opaque frame · 165 s
+# 1 | O3DE's opaque frame | 165 s
 summary: The forward pixel shader, its targets, and the passes that follow it.
 sources: forward-pixel, evaluate-lighting, direct-lighting, diffuse-specular-merge, opaque-pass-order, ssao-default, msaa-default, light-culling-define, forward-opaque
 
-## c1-room · scene · One light, one material
+## c1-room | 3d | One light, one material
 {@ demo=room callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [0.0, -0.3], "degrees": 300.0, "seconds": "beat", "ease": "sine"}}]}
 
-This is the Open 3D Engine's Atom renderer, lighting the lab's study room with the shaders of its StandardPBR material, ported to WGSL.
+This is the Open 3D Engine's Atom renderer, lighting the lab's study room with the shaders of its {@ codespan="StandardPBR"} material, ported to WGSL.
 
 {@ callout=point-light-loop} One light hangs in the room: a simple point light, O3DE's plainest punctual light, with no shape and no shadows.
 
@@ -25,7 +25,7 @@ Each surface here is lit twice.
 
 {@ callout=evaluate-lighting} Once by the point light, in the forward pass, and once by the sky, in passes that run after it.
 
-## c1-frame · mermaid · A pixel's path through the frame
+## c1-frame | 2d | A pixel's path through the frame
 diagram: frame
 focus: CULL, FWD, TARGETS, DIFF, REFL, COMP, AO, MERGE
 
@@ -39,9 +39,9 @@ Here is the path one pixel takes through the frame.
 
 {@ callout=opaque-pass-order} Full-screen passes then add the sky's diffuse light and the reflections, from the sky and from reflection probes; SSAO darkens the diffuse, and a merge pass adds the two together.
 
-{@ callout=diffuse-composite} In a project made from O3DE's default template, the DiffuseProbeGrid gem swaps the diffuse pass for a composite of its own, which applies the same sky light, weighted by what any probe grid leaves, and only where the image-based-lighting flag is on.
+{@ callout=diffuse-composite} In a project made from O3DE's default template, the {@ codespan="DiffuseProbeGrid"} gem swaps the diffuse pass for a composite of its own, which applies the same sky light, weighted by what any probe grid leaves, and only where the image-based-lighting flag is on.
 
-## c1-code · scene · The forward pixel shader
+## c1-code | 3d | The forward pixel shader
 {@ demo=room callout="" labels=0 cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -55,7 +55,7 @@ Here is the path one pixel takes through the frame.
 
 {@ highlight=targets,merge callout=diffuse-specular-merge} Diffuse and specular end up in separate targets, and the merge pass sums them.
 
-## c1-views · scene · Taking the pixel apart
+## c1-views | 3d | Taking the pixel apart
 {@ demo=room callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [0.0, -0.3], "degrees": 180.0, "seconds": "beat", "ease": "sine"}}]}
 
@@ -67,18 +67,18 @@ Here is the path one pixel takes through the frame.
 
 {@ callout=opaque-pass-order viewMode=0 param.formula=0} And this is everything together, with the sky's light added by the passes after the forward pass.
 
-## c1-sources · sources · Where to read
+## c1-sources | 2d | Where to read
 sources: forward-pixel, evaluate-lighting, direct-lighting, diffuse-specular-merge
 
 These are the functions this chapter followed.
 
 Every claim in this video cites a file, a symbol, and a line in the O3DE checkout, and the build checks each line is still there.
 
-# 2 · Light culling · 205 s
+# 2 | Light culling | 205 s
 summary: Tiles, depth bins, and the lists the forward pass walks.
 sources: light-culling-pass, light-culling-tile, tile-prepare, is-object-inside-tile, cull-point-light, light-culling-main, light-culling-remap, tile-iterator, polygon-not-culled
 
-## c2-why · scene · Which lights a tile needs
+## c2-why | 3d | Which lights a tile needs
 {@ demo=culling callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}, {"path": {"params": ["extraLightMotion"], "through": [[30.0]], "seconds": "beat"}}]}
 
@@ -94,11 +94,11 @@ In false colour, each pixel shows how many lights its tile keeps at its depth: d
 
 {@ callout=light-culling-pass} Three compute passes build these lists, after a depth pre-pass and before any shading.
 
-## c2-prepare · scene · Each tile's depth
+## c2-prepare | 3d | Each tile's depth
 {@ demo=culling callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
-{@ panel=code code=light-culling highlight=prepare callout=tile-prepare} The first, LightCullingTilePrepare, runs one thread per pixel and one group per tile.
+{@ panel=code code=light-culling highlight=prepare callout=tile-prepare} The first, {@ codespan="LightCullingTilePrepare"}, runs one thread per pixel and one group per tile.
 
 {@ callout=tile-prepare} It finds the tile's nearest depth, and its farthest one short of the sky, opaque and transparent alike, so a wall seen against the sky stays shallow.
 
@@ -108,11 +108,11 @@ In false colour, each pixel shows how many lights its tile keeps at its depth: d
 
 {@ panel=values} The box drawn here is the inspected point's tile in view space, with its bins as slices.
 
-## c2-cull · scene · Testing lights against tiles
+## c2-cull | 3d | Testing lights against tiles
 {@ demo=culling callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
-{@ panel=code code=light-culling highlight=cull callout=light-culling-main} The second pass, LightCulling, tests each light against each tile.
+{@ panel=code code=light-culling highlight=cull callout=light-culling-main} The second pass, {@ codespan="LightCulling"}, tests each light against each tile.
 
 {@ callout=cull-point-light param.formula=1} A light is kept when its sphere touches the tile's box, and its depth range touches a filled slice of the mask.
 
@@ -124,10 +124,10 @@ In false colour, each pixel shows how many lights its tile keeps at its depth: d
 
 {@ panel=values param.formula=0} {@ extraLightRadius=0.5 blend=1.2} As the lights' radius {@ extraLightRadius=1.8 blend=1.8} grows, more tiles keep them.
 
-## c2-forward · scene · One list per depth bin
+## c2-forward | 3d | One list per depth bin
 {@ demo=culling callout="" cameraDrift=0}
 
-{@ callout=light-culling-remap} The third pass, LightCullingRemap, rewrites each tile's list as one list per depth bin.
+{@ callout=light-culling-remap} The third pass, {@ codespan="LightCullingRemap"}, rewrites each tile's list as one list per depth bin.
 
 {@ panel=code code=light-culling highlight=forward callout=tile-iterator param.formula=3} The forward pass finds the bin at its own depth, and walks only that list.
 
@@ -139,7 +139,7 @@ The ringed dots are the lights the point's bin keeps, each joined to the point b
 
 The lab compares every tile's list on the GPU with a CPU copy, and checks that no light reaching a surface is missing from its bin.
 
-## c2-finding · scene · The implicit order, read from the code
+## c2-finding | 3d | The implicit order, read from the code
 {@ demo=culling callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -151,16 +151,16 @@ The lab compares every tile's list on the GPU with a CPU copy, and checks that n
 
 {@ callout=punctual-group-skip} Switch that option off on a material, and the area lights after them read the groups of the lights before them; decals, by contrast, keep walking theirs.
 
-## c2-sources · sources · Where to read
+## c2-sources | 2d | Where to read
 sources: light-culling-pass, light-culling-tile, tile-prepare, nvlc-constants, is-object-inside-tile, cull-point-light, light-culling-main, light-culling-remap, tile-iterator, polygon-not-culled, punctual-group-skip, decals-advance
 
 These entries follow the three culling passes, the tile iterator, and the two findings about the order of its groups.
 
-# 3 · The surface · 204 s
+# 3 | The surface | 204 s
 summary: The metallic workflow and the roughness remap.
 sources: surface-eval, set-albedo-f0, material-utils, roughness-values, specular-aa-default, specular-aa
 
-## c3-inputs · scene · What the material provides
+## c3-inputs | 3d | What the material provides
 {@ demo=surface camera.target=-1.05,1.2,-0.55 camera.yaw=40 camera.pitch=20 camera.distance=3.5 callout="" readoutRows=0 cameraDrift=1 blend=3 ease=inOut}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-1.8677, 2.0349, 0.4245], [-0.7072, 1.9442, 0.7293], [-1.5321, 2.3891, 0.285], [-2.0467, 2.3007, -0.9128], [-1.8298, 1.8739, -1.6636], [-2.2787, 2.1004, -0.55]], "seconds": "beat"}}]}
 
@@ -172,7 +172,7 @@ With the lights sorted into lists, the next part turns to what they light: the s
 
 {@ readoutRows=10} From these, O3DE derives what the lighting actually uses. {@ pause=0.6}
 
-## c3-metal · scene · The metallic workflow
+## c3-metal | 3d | The metallic workflow
 {@ callout="" sphereMetallic=0}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-1.6245, 2.2042, 0.4451], [-0.597, 1.9442, 0.6945], [-1.7318, 2.3007, -1.3625], [-2.2787, 2.1004, -0.55]], "seconds": "beat"}}, {"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[45, 20, 3.5], [10, 24, 3.5], [32, 18, 3.7], [20, 14, 3.5]], "seconds": "beat"}}]}
 
@@ -184,7 +184,7 @@ With the lights sorted into lists, the next part turns to what they light: the s
 
 {@ sphereMetallic=0.5 blend=1} Metallic values between zero and one blend the two linearly.
 
-## c3-rough · scene · Roughness, squared twice
+## c3-rough | 3d | Roughness, squared twice
 {@ callout=""}
 
 {@ panel=values sphereMetallic=0 param.formula=3 blend=0.8} {@ camera.target=-1.15,1.6,-0.55 camera.yaw=0 camera.pitch=4 camera.distance=2.6 cameraDrift=0 blend=2.5 ease=inOut} {@ lobe=1 labels=0 blend=1.5} Roughness is authored on a perceptual scale.
@@ -195,7 +195,7 @@ With the lights sorted into lists, the next part turns to what they light: the s
 
 {@ panel=values} {@ sphereRoughness=0.05 blend=1} Watch the sphere {@ sphereRoughness=0.4 blend=1.2} as roughness sweeps from {@ sphereRoughness=0.85 blend=1.2} polished to matte.
 
-## c3-aa · scene · Specular anti-aliasing
+## c3-aa | 3d | Specular anti-aliasing
 {@ camera.target=-1.05,1.2,-0.55 camera.yaw=-10 camera.pitch=22 camera.distance=3.5 callout="" cameraDrift=1 lobe=0 labels=1 sphereRoughness=0.35 param.formula=0 readoutRows=99 blend=3 ease=inOut}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-1.05, 2.1004, 0.6787], [-1.885, 2.3891, -0.0679], [-1.9013, 1.9442, -1.5646], [-2.2787, 2.1004, -0.55]], "seconds": 24.0}}]}
 
@@ -209,7 +209,7 @@ With the lights sorted into lists, the next part turns to what they light: the s
 
 {@ callout=specular-aa} {@ camera.target=-1.05,1.2,-0.55 blend=2.5 ease=inOut} {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[10, 20, 3.5], [25, 18, 3.6]], "seconds": "beat"}}, {"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-1.6644, 2.1004, 0.5141]], "seconds": "beat"}}]} The lab takes those derivatives as O3DE does, from the fine screen-space derivatives of the normal.
 
-## c3-occlusion · scene · Occlusion maps
+## c3-occlusion | 3d | Occlusion maps
 {@ callout="" cameraDrift=1 sphereRoughness=0.35 param.formula=0 blend=1.5}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-0.4903, 1.9442, 0.6503], [-1.7318, 2.3007, 0.2625], [-1.9995, 2.3891, -0.7174], [-1.8097, 1.9442, -1.6349], [-2.2787, 2.1004, -0.55]], "seconds": 36.0}}, {"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[35, 24, 3.5], [-10, 20, 3.5], [20, 18, 3.5]], "seconds": "beat"}}]}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[0.55, 1.85, 0.95]], "seconds": "beat"}}] delay=41.8}
@@ -226,7 +226,7 @@ With the lights sorted into lists, the next part turns to what they light: the s
 
 {@ panel=values} {@ diffuseOcclusionFactor=2 blend=1.2} Raising the factor deepens the creases; lowering {@ diffuseOcclusionFactor=0.2 blend=1.5} it toward zero fades the map out.
 
-## c3-examples · scene · Every object, the same rules
+## c3-examples | 3d | Every object, the same rules
 {@ demo=room camera.target=0,0.85,-0.3 camera.yaw=18 camera.pitch=16 camera.distance=6.4 callout="" labels=1 cameraDrift=1 blend=3}
 {@ cameraDrift=1}
 
@@ -238,16 +238,16 @@ The same rules apply to every object in the room.
 
 {@ callout=set-albedo-f0 teapotMetallic=0 boxRoughness=0.55 blend=1.5} Each of them goes through the same two functions before any light is evaluated.
 
-## c3-sources · sources · Where to read
+## c3-sources | 2d | Where to read
 sources: surface-eval, set-albedo-f0, material-utils, roughness-values
 
 The surface comes from these four places: the material's evaluation, the metallic workflow, its constants, and the roughness remap.
 
-# 4 · Decals · 190 s
+# 4 | Decals | 190 s
 summary: Box-projected textures blended into the surface before lighting.
 sources: decal-evaluate-order, decal-apply, decal-attenuation, decal-cull, decal-sort, decal-defaults
 
-## c4-what · scene · A texture in a box
+## c4-what | 3d | A texture in a box
 {@ demo=decals callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[30, 46, 2.6], [-12, 58, 2.3], [14, 50, 2.5]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [-0.7, 0.55], "degrees": 360.0, "seconds": "beat", "ease": "sine"}}]}
 
@@ -261,11 +261,11 @@ Here, a paint splat and a panel grid lie on the floor; the boxes and arrows show
 
 {@ callout=decal-evaluate-order} So every light, and the skylight's passes after the forward pass, see the decal's albedo, F zero, and normal.
 
-## c4-apply · scene · ApplyDecal
+## c4-apply | 3d | ApplyDecal
 {@ demo=decals callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[30, 46, 2.6], [-12, 58, 2.3], [14, 50, 2.5]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [-0.7, 0.55], "degrees": 360.0, "seconds": "beat", "ease": "sine"}}]}
 
-{@ panel=code code=decals highlight=box callout=decal-apply} ApplyDecal moves the point into the decal's box, through its rotation and its half size, and skips it outside minus one to one.
+{@ panel=code code=decals highlight=box callout=decal-apply} {@ codespan="ApplyDecal"} moves the point into the decal's box, through its rotation and its half size, and skips it outside minus one to one.
 
 {@ callout=decal-apply} The box's x and y become the texture coordinates, with v flipped.
 
@@ -277,7 +277,7 @@ Here, a paint splat and a panel grid lie on the floor; the boxes and arrows show
 
 {@ callout=tangent-space-normal} The normal map's two channels are swapped back and its z is rebuilt, as for any O3DE normal map.
 
-## c4-angle · scene · Fading with the angle
+## c4-angle | 3d | Fading with the angle
 {@ demo=decals callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[30, 46, 2.6], [-12, 58, 2.3], [14, 50, 2.5]], "seconds": "beat"}}]}
 
@@ -289,7 +289,7 @@ Here, a paint splat and a panel grid lie on the floor; the boxes and arrows show
 
 {@ callout=decal-defaults decalAngleAttenuation=0 blend=1.2} The attenuation-angle setting, one by default, blends between none of that fade and all of it.
 
-## c4-order · scene · Which decal is on top
+## c4-order | 3d | Which decal is on top
 {@ demo=decals callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[30, 46, 2.6], [-12, 58, 2.3], [14, 50, 2.5]], "seconds": "beat"}}]}
 
@@ -305,7 +305,7 @@ Where decals overlap, their order decides which one lands on top.
 
 {@ panel=code code=decal-culling highlight=forward callout=decal-forward} The forward pass walks that sorted group before it sets up any lighting.
 
-## c4-colour · scene · Two colour spaces
+## c4-colour | 3d | Two colour spaces
 {@ demo=decals callout="" cameraDrift=1 decalSplatSortKey=17}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[30, 46, 2.6], [-12, 58, 2.3], [14, 50, 2.5]], "seconds": "beat"}}]}
 
@@ -317,16 +317,16 @@ Where decals overlap, their order decides which one lands on top.
 
 For colours near grey the two barely differ; saturated decals shift in hue.
 
-## c4-sources · sources · Where to read
+## c4-sources | 2d | Where to read
 sources: decal-evaluate-order, decal-options, decal-forward, decal-apply, decal-attenuation, tangent-space-normal, decal-cull, decal-sort, decal-defaults, decal-half-size, decal-colour-raw, transform-color, base-colour-acescg
 
 These entries show where decals enter the forward pass, how each one is blended, and how they are culled and sorted.
 
-# 5 · The simple point light · 152 s
+# 5 | The simple point light | 152 s
 summary: Inverse square, the radius window, no shadows, the automatic radius.
 sources: point-light-struct, point-light-apply, point-light-loop, point-light-auto-radius, point-light-luminance
 
-## c5-record · scene · A position, an intensity, a radius
+## c5-record | 3d | A position, an intensity, a radius
 {@ demo=pointlight callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[15, 24, 6.8], [8, 32, 7.5], [15, 26, 7.0]], "seconds": "beat"}}]}
 
@@ -346,7 +346,7 @@ The surface is ready, decals included; next comes the light that reaches it, sta
 
 {@ param.formula=1} Six candelas at just under two metres give about one point seven lux, before the window.
 
-## c5-radius · scene · The attenuation radius
+## c5-radius | 3d | The attenuation radius
 {@ demo=pointlight callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[15, 24, 6.8], [8, 32, 7.5], [15, 26, 7.0]], "seconds": "beat"}}]}
 
@@ -356,7 +356,7 @@ The surface is ready, decals included; next comes the light that reaches it, sta
 
 {@ callout=point-light-auto-radius} In the automatic mode, the default, the radius is the square root of the light's lumens, weighted by its colour's luminance, divided by zero point one.
 
-## c5-channels · scene · Lighting channels
+## c5-channels | 3d | Lighting channels
 {@ demo=pointlight callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[15, 24, 6.8], [8, 32, 7.5], [15, 26, 7.0]], "seconds": "beat"}}]}
 
@@ -372,7 +372,7 @@ The surface is ready, decals included; next comes the light that reaches it, sta
 
 {@ callout=directional-channel-return} A finding: in the directional-light loop, a light of another channel ends the whole loop, so the directional lights after it are skipped too.
 
-## c5-shadows · scene · No shadows
+## c5-shadows | 3d | No shadows
 {@ demo=room callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [0.0, -0.3], "degrees": 180.0, "seconds": "beat", "ease": "sine"}}]}
 
@@ -382,16 +382,16 @@ Light reaches every surface that faces it, even behind the boxes.
 
 {@ callout=light-culling-define} With no shadow maps, and culled per screen tile, each one costs little more than shading the pixels inside its radius.
 
-## c5-sources · sources · Where to read
+## c5-sources | 2d | Where to read
 sources: point-light-struct, point-light-init, point-light-apply, point-light-loop, point-light-radius, point-light-auto-radius, cutoff-intensity
 
 The light's record, its falloff, the loop that skips it, and the automatic radius are listed here.
 
-# 6 · GGX specular · 155 s
+# 6 | GGX specular | 155 s
 summary: N, L, V, and H; the D, G, and F terms; the specular lobe.
 sources: specular-ggx, ggx-d, ggx-g, fresnel-schlick, standard-brdf, clear-coat-default
 
-## c6-vectors · scene · Four directions
+## c6-vectors | 3d | Four directions
 {@ demo=specular camera=continuous callout="" vectorsShown=0 lobe=0 readoutRows=0}
 {@ camera.target=-1.05,1.3,-0.55 camera.yaw=35 camera.pitch=22 camera.distance=3 cameraDrift=1 blend=3 ease=inOut}
 {@ animate=[{"path": {"params": ["lightX", "lightY", "lightZ"], "through": [[-1.6245, 2.2042, 0.4451], [-0.585, 1.8739, 0.7275], [-1.7886, 2.3891, 0.0698], [-2.0451, 1.99, -1.385], [-2.1298, 2.2042, -0.157]], "seconds": 15.0}}]}
@@ -410,10 +410,10 @@ That gives the light's intensity at the point; what the surface sends back of it
 
 {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": -25.0, "seconds": 2.2, "ease": "sine"}}]} A microfacet whose normal points along H {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 25.0, "seconds": 2.2, "ease": "sine"}}]} mirrors the light straight into the viewer.
 
-## c6-terms · scene · D, G, and F
+## c6-terms | 3d | D, G, and F
 {@ demo=specular callout="" cameraDrift=0}
 
-{@ panel=values callout=specular-ggx param.formula=0} SpecularGGX multiplies three terms, D, G, and F, with N dot L and the multiscatter compensation.
+{@ panel=values callout=specular-ggx param.formula=0} {@ codespan="SpecularGGX"} multiplies three terms, D, G, and F, with N dot L and the multiscatter compensation.
 
 {@ panel=values highlight=d callout=ggx-d viewMode=3 param.formula=1} D, the GGX normal distribution, is the density of microfacet normals that point along H; for a smooth surface it rises far above one.
 
@@ -427,7 +427,7 @@ That gives the light's intensity at the point; what the surface sends back of it
 
 {@ highlight=product,light callout=standard-brdf viewMode=0 param.formula=4} That product is the specular response; times the light's intensity, it is the specular lighting.
 
-## c6-sweep · scene · Moving the light
+## c6-sweep | 3d | Moving the light
 {@ demo=specular callout="" cameraDrift=0}
 
 {@ panel=values lobe=1 readoutRows=11 param.formula=0 blend=0.5} Now the numbers at the point, and its lobe.
@@ -440,7 +440,7 @@ That gives the light's intensity at the point; what the surface sends back of it
 
 {@ param.formula=0} {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": -30.0, "seconds": 1.4, "ease": "sine"}}]} The readout follows every {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 15.0, "seconds": 2.2, "ease": "sine"}}]} term as the light moves.
 
-## c6-rough · scene · Roughness widens D
+## c6-rough | 3d | Roughness widens D
 {@ demo=specular callout="" lobe=1 cameraDrift=0}
 
 {@ callout=ggx-d param.formula=1} Roughness changes D more than anything else.
@@ -451,22 +451,22 @@ That gives the light's intensity at the point; what the surface sends back of it
 
 {@ viewMode=3} {@ sphereRoughness=0.15 blend=1.2} In false colour, D grows from {@ sphereRoughness=0.7 blend=1.5} a pinpoint to a broad glow.
 
-## c6-sources · sources · Where to read
+## c6-sources | 2d | Where to read
 sources: specular-ggx, ggx-d, ggx-g, fresnel-schlick, standard-brdf
 
-SpecularGGX and its three terms live in three short files of O3DE's shader library.
+{@ codespan="SpecularGGX"} and its three terms live in three short files of O3DE's shader library.
 
-# 7 · Diffuse and its response · 100 s
+# 7 | Diffuse and its response | 100 s
 summary: Lambertian diffuse, scaled by one minus a roughness-aware Fresnel; Disney diffuse compared.
 sources: diffuse-lambert, initialize-lighting-data, fresnel-roughness, diffuse-disney, skin-diffuse
 
-## c7-lambert · scene · Lambertian, with a response
+## c7-lambert | 3d | Lambertian, with a response
 {@ demo=diffuse callout="" cameraDrift=0}
 {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
 From specular, the next part turns to the other half of each light: diffuse, and its response.
 
-{@ panel=code code=diffuse-response highlight=lambert callout=diffuse-lambert} Diffuse light in StandardPBR is Lambertian: albedo, times N dot L, over pi.
+{@ panel=code code=diffuse-response highlight=lambert callout=diffuse-lambert} Diffuse light in {@ codespan="StandardPBR"} is Lambertian: albedo, times N dot L, over pi.
 
 {@ highlight=response callout=initialize-lighting-data} But it is scaled by a diffuse response: one minus a Fresnel term at the view angle.
 
@@ -476,7 +476,7 @@ From specular, the next part turns to the other half of each light: diffuse, and
 
 {@ callout=initialize-lighting-data} Without that response, diffuse and specular together could send back more light than arrives.
 
-## c7-response · scene · Where the response dips
+## c7-response | 3d | Where the response dips
 {@ demo=diffuse callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}]}
 
@@ -486,28 +486,28 @@ From specular, the next part turns to the other half of each light: diffuse, and
 
 {@ sphereRoughness=0.1 blend=1.2} Smoother surfaces dip more {@ sphereRoughness=0.9 blend=1.5} at grazing angles.
 
-## c7-disney · scene · A diffuse model StandardPBR does not use
+## c7-disney | 3d | A diffuse model StandardPBR does not use
 {@ demo=diffuse callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
 {@ callout=diffuse-disney diffuseModel=1 param.formula=0} O3DE's BRDF library also defines a normalized Disney diffuse.
 
-{@ callout=skin-diffuse} StandardPBR never calls it; the Skin material does, and EnhancedPBR does when subsurface scattering is on.
+{@ callout=skin-diffuse} {@ codespan="StandardPBR"} never calls it; the Skin material does, and {@ codespan="EnhancedPBR"} does when subsurface scattering is on.
 
 {@ callout=diffuse-disney} It carries its own Fresnel terms for light entering and leaving the surface, so it takes no diffuse response.
 
-{@ callout=diffuse-lambert diffuseModel=0} Back to the Lambertian model that StandardPBR uses.
+{@ callout=diffuse-lambert diffuseModel=0} Back to the Lambertian model that {@ codespan="StandardPBR"} uses.
 
-## c7-sources · sources · Where to read
+## c7-sources | 2d | Where to read
 sources: diffuse-lambert, initialize-lighting-data, fresnel-roughness, diffuse-disney, enhanced-diffuse, skin-diffuse
 
 These entries show the diffuse term, its response, and which materials use the Disney model.
 
-# 8 · Clear coat · 130 s
+# 8 | Clear coat | 130 s
 summary: A dielectric layer over the base: its F zero, diffuse, specular, and IBL.
 sources: clear-coat-default, clear-coat-inputs, clear-coat-f0, clear-coat-response, clear-coat-diffuse, clear-coat-specular, clear-coat-ibl, clear-coat-forward-ibl, forward-ibl-stencil
 
-## c8-layer · scene · A layer of varnish
+## c8-layer | 3d | A layer of varnish
 {@ demo=clearcoat callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
@@ -519,7 +519,7 @@ Clear coat adds a thin, clear layer over the base material, like varnish over pa
 
 {@ callout=clear-coat-inputs} The coat is a dielectric with an F zero of four percent, and its own factor and roughness.
 
-## c8-base · scene · The base beneath
+## c8-base | 3d | The base beneath
 {@ demo=clearcoat callout="" cameraDrift=0}
 {@ animate=[{"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
@@ -533,7 +533,7 @@ Clear coat adds a thin, clear layer over the base material, like varnish over pa
 
 {@ callout=clear-coat-diffuse} A finding: the coat dims diffuse light twice, once through the response and once per light.
 
-## c8-specular · scene · Two specular lobes
+## c8-specular | 3d | Two specular lobes
 {@ demo=clearcoat callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
@@ -545,7 +545,7 @@ Clear coat adds a thin, clear layer over the base material, like varnish over pa
 
 {@ viewMode=0 param.formula=0} {@ clearCoatFactor=0 blend=1} As the factor rises, the sharp highlight grows, {@ clearCoatFactor=1 blend=2} and the metal's colour dims beneath it.
 
-## c8-ibl · scene · The sky's reflection, in the forward pass
+## c8-ibl | 3d | The sky's reflection, in the forward pass
 {@ demo=clearcoat callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[40, 14, 3.0], [-30, 8, 2.92], [10, 10, 3.1]], "seconds": "beat"}}]}
 
@@ -557,16 +557,16 @@ Clear coat adds a thin, clear layer over the base material, like varnish over pa
 
 {@ callout=forward-probe-pick} So the full-screen probe passes never touch a clear-coated mesh; instead the forward pass blends in the smallest probe that overlaps it, between its inner and outer boxes.
 
-## c8-sources · sources · Where to read
+## c8-sources | 2d | Where to read
 sources: clear-coat-default, clear-coat-inputs, clear-coat-f0, clear-coat-response, clear-coat-diffuse, clear-coat-specular, clear-coat-ibl, clear-coat-forward-ibl, forward-ibl-stencil
 
 These entries follow the coat from its inputs to its specular, its diffuse, and its forward-pass IBL.
 
-# 9 · The BRDF texture and multiscatter · 152 s
+# 9 | The BRDF texture and multiscatter | 152 s
 summary: BRDFTextureCS, the energy single scattering loses, and the compensation.
 sources: brdf-texture, lighting-init, multiscatter, ms-option, ggx-sample, brdf-texture-size, rhi-format, brdf-execute-once, ms-material-property, bool-property-default, property-init, property-apply, ms-preset
 
-## c9-loss · scene · Energy that single scattering loses
+## c9-loss | 3d | Energy that single scattering loses
 {@ demo=multiscatter callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightY"], "center": [-1.05, 1.24], "degrees": 22.0, "seconds": 5.0, "ease": "sine", "repeat": "pingPong"}}]}
 
@@ -580,7 +580,7 @@ Light that strikes one microfacet can bounce to another before it escapes, and t
 
 {@ multiscatter=1} And here it is with O3DE's compensation: brighter, as a real rough metal would be. {@ pause=0.8}
 
-## c9-texture · scene · The BRDF texture
+## c9-texture | 3d | The BRDF texture
 {@ demo=multiscatter callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}]}
 
@@ -594,7 +594,7 @@ Light that strikes one microfacet can bounce to another before it escapes, and t
 
 {@ highlight=store callout=lighting-init} The rows are stored upside down, so lighting looks the texture up by smoothness rather than roughness.
 
-## c9-compensation · scene · Putting the energy back
+## c9-compensation | 3d | Putting the energy back
 {@ demo=multiscatter callout="" cameraDrift=0}
 
 {@ panel=code code=multiscatter highlight=lookup,energy callout=multiscatter ggxSamples=0} A plus B is the energy that single scattering keeps.
@@ -603,11 +603,11 @@ Light that strikes one microfacet can bounce to another before it escapes, and t
 
 {@ highlight=compensate callout=multiscatter} The compensation adds the missing part back, in proportion to F zero, following Turquin's method.
 
-{@ highlight=apply callout=ms-material-property} Its shader option defaults to on, but StandardPBR's material property defaults to off, so a material must turn it on, as O3DE's metal presets do; the lab turns it on.
+{@ highlight=apply callout=ms-material-property} Its shader option defaults to on, but {@ codespan="StandardPBR"}'s material property defaults to off, so a material must turn it on, as O3DE's metal presets do; the lab turns it on.
 
 {@ panel=values viewMode=6 param.formula=1} {@ sphereRoughness=0.2 blend=1.2} In false colour, the {@ sphereRoughness=0.95 blend=1.5} compensation grows with roughness.
 
-## c9-finding · scene · A detail of the texture shader
+## c9-finding | 3d | A detail of the texture shader
 {@ demo=multiscatter callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 12, 3.0], [-14, 8, 3.25], [6, 10, 3.05]], "seconds": "beat"}}]}
 
@@ -621,16 +621,16 @@ So the WGSL port loses energy below a roughness of about zero point zero three.
 
 The lab fills its texture on the CPU instead; whether O3DE's own texture shows the loss depends on the GPU.
 
-## c9-sources · sources · Where to read
+## c9-sources | 2d | Where to read
 sources: brdf-texture, brdf-texture-size, lighting-init, multiscatter, ms-option, ggx-sample
 
 The texture's shader, its size, how lighting reads it, and the compensation are in these files.
 
-# 10 · Transmission (EnhancedPBR) · 152 s
+# 10 | Transmission (EnhancedPBR) | 152 s
 summary: Light through thick and thin objects, and the point light it needs.
 sources: transmission-defaults, enhanced-brdf, simple-point-no-backlight, sphere-light-apply, back-lighting, transmission-finalize, sphere-light-shadow-branch, shadow-thickness-none
 
-## c10-why · scene · Light from behind
+## c10-why | 3d | Light from behind
 {@ demo=transmission callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[52, 10, 1.95], [20, 4, 1.7], [38, 8, 1.85]], "seconds": "beat"}}, {"wave": {"param": "sphereLightX", "amplitude": 0.4, "period": 11.0, "seconds": "beat", "fade": 1.0}}]}
 
@@ -638,13 +638,13 @@ So far light has only bounced off surfaces; the next part lets it pass through t
 
 Thin or translucent things, like leaves, wax, or skin, let light through from behind.
 
-{@ callout=transmission-defaults} StandardPBR has no transmission; EnhancedPBR adds it, off by default, with a thick-object and a thin-object mode.
+{@ callout=transmission-defaults} {@ codespan="StandardPBR"} has no transmission; {@ codespan="EnhancedPBR"} adds it, off by default, with a thick-object and a thin-object mode.
 
-{@ callout=enhanced-brdf} Its other lighting is StandardPBR's, as long as subsurface scattering and anisotropy stay off.
+{@ callout=enhanced-brdf} Its other lighting is {@ codespan="StandardPBR"}'s, as long as subsurface scattering and anisotropy stay off.
 
-{@ teapotTransmission=0} Here the teapot is EnhancedPBR, lit from behind {@ teapotTransmission=1} by a point light; the simple point light is off.
+{@ teapotTransmission=0} Here the teapot is {@ codespan="EnhancedPBR"}, lit from behind {@ teapotTransmission=1} by a point light; the simple point light is off.
 
-## c10-light · scene · A different kind of point light
+## c10-light | 3d | A different kind of point light
 {@ demo=transmission callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[52, 10, 1.95], [20, 4, 1.7], [38, 8, 1.85]], "seconds": "beat"}}, {"wave": {"param": "sphereLightX", "amplitude": 0.4, "period": 11.0, "seconds": "beat", "fade": 1.0}}]}
 
@@ -656,7 +656,7 @@ Thin or translucent things, like leaves, wax, or skin, let light through from be
 
 Here it casts no shadows.
 
-## c10-thick · scene · Thick objects
+## c10-thick | 3d | Thick objects
 {@ demo=transmission callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[52, 10, 1.95], [20, 4, 1.7], [38, 8, 1.85]], "seconds": "beat"}}]}
 
@@ -672,7 +672,7 @@ Here it casts no shadows.
 
 {@ panel=values param.formula=0} {@ teapotTransmission=0} Without transmission the teapot's back is {@ teapotTransmission=1} dark; with it, the light glows through.
 
-## c10-thin · scene · Thin objects, and a finding
+## c10-thin | 3d | Thin objects, and a finding
 {@ demo=transmission callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[52, 10, 1.95], [20, 4, 1.7], [38, 8, 1.85]], "seconds": "beat"}}, {"wave": {"param": "sphereLightX", "amplitude": 0.4, "period": 11.0, "seconds": "beat", "fade": 1.0}}]}
 
@@ -686,16 +686,16 @@ Here it casts no shadows.
 
 {@ panel=values callout=sphere-light-shadow-branch} So a thin object behind a shadowless point light gets the kernel's full value, the brightest back lighting it can have.
 
-## c10-sources · sources · Where to read
+## c10-sources | 2d | Where to read
 sources: transmission-defaults, transmission-option, transmission-params, enhanced-brdf, simple-point-no-backlight, sphere-light-apply, sphere-light-bulb, back-lighting, transmission-kernel, transmission-finalize, sphere-light-shadow-branch, sphere-light-shadow-option, per-mesh-flags, shadow-thickness-none
 
 These entries cover transmission's inputs, the sphere light, both modes, and the shadow-branch finding.
 
-# 11 · The sun's cascades · 220 s
+# 11 | The sun's cascades | 220 s
 summary: The directional light, its four cascades, and the one shadow value an opaque pixel reads.
 sources: directional-lux, directional-angular-unused, one-shadow-light, cascade-defaults, cascade-splits, cascade-sphere-fit, cascade-snap, cascade-select, fullscreen-shadow, fullscreen-shadow-format, area-lights
 
-## c11-light · scene · Lux, and no size
+## c11-light | 3d | Lux, and no size
 {@ demo=cascades callout="" cameraDrift=1 cascadesShown=0 cascadeSpheres=0 cascadeBoxes=0 readoutRows=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 36, 14.5], [48, 30, 13.5], [30, 38, 14.0]], "seconds": "beat"}}]}
 
@@ -709,7 +709,7 @@ Point lights reach a few metres; the light that reaches everything is the direct
 
 {@ callout=cascade-defaults} The lab has no directional light, so this chapter draws O3DE's arithmetic on the CPU, for an observer camera standing in the room.
 
-## c11-splits · scene · Four slices of the view
+## c11-splits | 3d | Four slices of the view
 {@ callout="" cascadesShown=0 cascadeSpheres=0 cascadeBoxes=0 shadowFar=12 cascadeSplitRatio=0.9}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 36, 15.5], [48, 30, 14.5], [30, 38, 15.0]], "seconds": "beat"}}]}
 
@@ -723,7 +723,7 @@ Point lights reach a few metres; the light that reaches everything is the direct
 
 {@ cascadeSplitRatio=0.9 blend=1.5} {@ shadowFar=40 blend=3} Raise the shadow distance, and every slice grows with it, so each texel covers more of the room.
 
-## c11-fit · scene · A sphere for each slice, snapped to texels
+## c11-fit | 3d | A sphere for each slice, snapped to texels
 {@ callout="" cascadesShown=4 shadowFar=12 cascadeSplitRatio=0.9 readoutRows=99 param.formula=0 blend=1.5}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 36, 15.5], [48, 30, 14.5], [30, 38, 15.0]], "seconds": "beat"}}]}
 
@@ -737,7 +737,7 @@ Point lights reach a few metres; the light that reaches everything is the direct
 
 {@ panel=values param.formula=4} {@ observerYaw=0 blend=3} The readout gives each cascade's radius and its texel: millimetres close by, centimetres far away.
 
-## c11-select · scene · A pixel picks its cascade
+## c11-select | 3d | A pixel picks its cascade
 {@ callout="" cascadesShown=4 cascadeSpheres=0.4 cascadeBoxes=0.4 observerYaw=0 param.formula=0 blend=1.5}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 36, 15.5], [48, 30, 14.5], [30, 38, 15.0]], "seconds": "beat"}}]}
 
@@ -751,7 +751,7 @@ Point lights reach a few metres; the light that reaches everything is the direct
 
 {@ callout=fullscreen-shadow-format} That target is eight-bit, at the output's size: one value per pixel, not one per sample.
 
-## c11-others · scene · The forward pass's other lights
+## c11-others | 3d | The forward pass's other lights
 {@ demo=room callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}]}
 
@@ -761,16 +761,16 @@ Point lights reach a few metres; the light that reaches everything is the direct
 
 Disk, capsule, and polygon lights have methods of their own; the lab ports none of them, and polygon lights, as chapter two showed, never shade while culling is on.
 
-## c11-sources · sources · Where to read
+## c11-sources | 2d | Where to read
 sources: directional-lux, directional-angular-unused, one-shadow-light, cascade-defaults, cascade-splits, cascade-sphere-fit, cascade-snap, cascade-select, fullscreen-shadow, fullscreen-shadow-format, area-lights
 
 Read the feature processor for the split, the fit, and the snap, then the shadow calculator for a pixel's choice.
 
-# 12 · The global skylight · 210 s
+# 12 | The global skylight | 210 s
 summary: Offline GGX and cosine prefiltering; the two full-screen passes; no occlusion.
 sources: filter-ggx, filter-cosine, forward-targets, diffuse-global, reflection-global, reflection-target, reflection-composite, ibl-srg, ssao-default, ao-defaults
 
-## c12-sky · scene · Light from the sky
+## c12-sky | 3d | Light from the sky
 {@ demo=ibl callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[44, 14, 3.4], [-4, 8, 3.9], [26, 12, 3.5]], "seconds": "beat"}}]}
 
@@ -782,7 +782,7 @@ The second source of light is the sky.
 
 {@ vectorsShown=5} This chrome sphere reflects it directly; the lab's sky is a photograph, Poly Haven's Tree Lined Driveway, with its sun clipped.
 
-## c12-bake · mermaid · Baked offline
+## c12-bake | 2d | Baked offline
 diagram: bake
 focus: GGX, COS
 
@@ -794,7 +794,7 @@ The cubemaps are baked offline, by O3DE's image processor.
 
 And, separately, the BRDF texture from chapter nine supplies the split-sum terms.
 
-## c12-prefilter · scene · Prefiltering the specular cubemap
+## c12-prefilter | 3d | Prefiltering the specular cubemap
 {@ demo=ibl callout="" cameraDrift=0}
 
 {@ panel=code code=ibl-prefilter highlight=roughness callout=cubemap-ggx} Mip m of the specular cubemap is filtered for a roughness of m over five.
@@ -807,7 +807,7 @@ And, separately, the BRDF texture from chapter nine supplies the split-sum terms
 
 {@ highlight=accumulate callout=filter-ggx} {@ sphereRoughness=0.4 blend=2} Rougher mips gather a {@ sphereRoughness=0.8 blend=2} wider cone, so reflections blur.
 
-## c12-cosine · scene · The diffuse cubemap
+## c12-cosine | 3d | The diffuse cubemap
 {@ demo=ibl callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[44, 14, 3.4], [-4, 8, 3.9], [26, 12, 3.5]], "seconds": "beat"}}]}
 
@@ -817,13 +817,13 @@ And, separately, the BRDF texture from chapter nine supplies the split-sum terms
 
 {@ viewMode=10} Seen alone, the diffuse light from the sky is soft, and coloured by the ground below and the blue above.
 
-## c12-passes · scene · The two full-screen passes
+## c12-passes | 3d | The two full-screen passes
 {@ demo=ibl callout="" cameraDrift=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[44, 14, 3.4], [-4, 8, 3.9], [26, 12, 3.5]], "seconds": "beat"}}]}
 
 {@ panel=code code=ibl-passes highlight=targets callout=target-formats viewMode=0} At run time, the forward pass has already stored albedo times the diffuse response and occlusion, F zero, and roughness, each in eight bits.
 
-{@ highlight=diffuse callout=diffuse-global viewMode=10} The diffuse pass multiplies that albedo by the diffuse cubemap at the normal; under the default template, DiffuseComposite does the same.
+{@ highlight=diffuse callout=diffuse-global viewMode=10} The diffuse pass multiplies that albedo by the diffuse cubemap at the normal; under the default template, {@ codespan="DiffuseComposite"} does the same.
 
 {@ highlight=reflect callout=reflection-global viewMode=11} The reflection pass reads the specular cubemap along the reflection vector, at mip roughness times five.
 
@@ -831,14 +831,14 @@ And, separately, the BRDF texture from chapter nine supplies the split-sum terms
 
 {@ callout=reflection-composite viewMode=0} The diffuse pass adds straight onto the diffuse target; the reflection pass writes its own target, which a composite pass adds onto the specular one.
 
-## c12-readout · scene · The terms at one point
+## c12-readout | 3d | The terms at one point
 {@ demo=ibl callout="" readoutRows=0 cameraDrift=0}
 
 {@ panel=values callout=roughness-mip readoutRows=11 param.formula=0} At the inspected point, the readout shows each step: the eight-bit roughness, its mip, the prefiltered light, and the split sum.
 
 {@ callout=roughness-mip param.formula=1} {@ sphereRoughness=0.1 blend=1.5} As roughness rises, the mip rises with {@ sphereRoughness=0.6 blend=2} it, and the reflection dims and spreads.
 
-## c12-occlusion · scene · No shadows from the sky
+## c12-occlusion | 3d | No shadows from the sky
 {@ demo=room callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -848,16 +848,16 @@ And, separately, the BRDF texture from chapter nine supplies the split-sum terms
 
 {@ callout=reflection-global} For interiors, O3DE replaces the sky's reflections with reflection probes, in the next chapter, and its diffuse light with a diffuse probe grid, which the lab leaves out.
 
-## c12-sources · sources · Where to read
+## c12-sources | 2d | Where to read
 sources: diffuse-composite, ibl-forward-transparent, forward-targets, target-formats, diffuse-global, reflection-global, filter-ggx, filter-cosine, vect-to-texel
 
-The bake, the targets, and the two passes are in these files; CubeMapGen, the filter library, is AMD's, under a BSD license.
+The bake, the targets, and the two passes are in these files; {@ codespan="CubeMapGen"}, the filter library, is AMD's, under a BSD license.
 
-# 13 · Reflection probes · 270 s
+# 13 | Reflection probes | 270 s
 summary: Probe cubemaps, their stencil and blend weights, parallax, and the composite.
 sources: reflections-order, probe-stencil, probe-blend-weight, reflection-global-weight, probe-render-outer, probe-render-inner, probe-specular, parallax-obb, reflection-clear, probe-bake-capture, probe-bake-preset, probe-visualization-surface
 
-## c13-why · scene · Reflections of the room
+## c13-why | 3d | Reflections of the room
 {@ demo=reflections callout="" cameraDrift=1 probes=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}]}
 
@@ -873,7 +873,7 @@ The lab places two, and bakes them itself on the CPU, shading the room from each
 
 {@ probes=0} On the polished metal floor, the probes put {@ probes=1} the room's own walls into the reflections.
 
-## c13-bake · scene · What a probe bakes
+## c13-bake | 3d | What a probe bakes
 {@ demo=reflections callout="" cameraDrift=1 probeBakeFaces=0 probeBoxes=0.6}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 18, 5.8], [12, 14, 6.2]], "seconds": "beat"}}]}
 
@@ -891,7 +891,7 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ probeShown=2} Probe two, a smaller one in the back-right corner, has the back wall and the teal wall close by. {@ pause=0.6}
 
-## c13-ball · scene · The visualization sphere
+## c13-ball | 3d | The visualization sphere
 {@ demo=reflections panel=hidden callout="" cameraDrift=1 probeCubemap=1 probeBoxes=0 probeBallRadius=0.3}
 
 {@ callout=probe-visualization probeCubemap=0 probeBall=1 blend=1.2} {@ camera.target=0,1.2,-0.1 camera.yaw=-20 camera.pitch=12 camera.distance=2 blend=3 ease=inOut} In the editor, every probe also shows a sphere at its position, on by default.
@@ -902,7 +902,7 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ probeBallMip=2 blend=1} The lab draws its own mirror ball, {@ probeBallMip=4 blend=1} which reads the cubemap straight along the reflection {@ probeBallMip=0 blend=1} ray; at higher mips, its reflection blurs. {@ pause=0.6}
 
-## c13-stencil · scene · Stencil and blend weight
+## c13-stencil | 3d | Stencil and blend weight
 {@ demo=reflections callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -916,7 +916,7 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ callout=probe-blend-weight} Where probes overlap, the weights add up.
 
-## c13-blend · scene · Blending the probes
+## c13-blend | 3d | Blending the probes
 {@ demo=reflections callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -932,7 +932,7 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ panel=values viewMode=14 param.formula=0} {@ probeInnerScale=0.4 blend=1.5} Shrinking the inner boxes widens {@ probeInnerScale=1 blend=1.5} the bands where probes blend.
 
-## c13-parallax · scene · Parallax correction
+## c13-parallax | 3d | Parallax correction
 {@ demo=reflections callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[24, 22, 5.6], [8, 14, 6.4], [21, 18, 6.0]], "seconds": "beat"}}]}
 
@@ -944,7 +944,7 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ panel=values} Without that correction, {@ probeParallax=0} the reflected walls slide out of place; {@ probeParallax=1} with it, they line up again.
 
-## c13-composite · scene · The composite, and a finding
+## c13-composite | 3d | The composite, and a finding
 {@ demo=reflections callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -956,16 +956,16 @@ Unfolded, probe one's faces show the back wall ahead, the red wall to its left, 
 
 {@ panel=values param.formula=-1} The lab reproduces it, as its readout shows.
 
-## c13-sources · sources · Where to read
+## c13-sources | 2d | Where to read
 sources: reflections-order, probe-stencil, probe-stencil-reduced, probe-blend-weight, reflection-global-stencil, reflection-global-weight, probe-render-outer, probe-render-inner, probe-specular, parallax-obb, obb-lerp, probe-sort, probe-defaults, reflection-clear, composite-stencil
 
 These entries follow the five reflection passes in order, the probe's specular, and the composite.
 
-# 14 · Resolve, ambient occlusion, and the merge · 205 s
+# 14 | Resolve, ambient occlusion, and the merge | 205 s
 summary: The custom specular resolve, SSAO at half resolution, and the merge.
 sources: msaa-resolve-custom, resolve-contrast, ao-placement, ssao-default, depth-linear, depth-downsample, ssao-compute, ssao-defaults, blur-step, blur-defaults, depth-upsample, ssao-modulate
 
-## c14-resolve · scene · Specular resolves with a clamp
+## c14-resolve | 3d | Specular resolves with a clamp
 {@ demo=ssao callout="" panel=hidden viewMode=0 ssao=1 specularResolve=0 sphereRoughness=0.06 camera.target=-1.05,1.1,-0.55 camera.yaw=24 camera.pitch=14 camera.distance=2.4 cameraDrift=0 blend=3 ease=inOut}
 
 With the probes composited, every term sits in two targets, at several samples a pixel; the last passes resolve them, darken the diffuse, and add the two.
@@ -980,7 +980,7 @@ With the probes composited, every term sits in two targets, at several samples a
 
 {@ viewMode=0} The lab renders four samples where O3DE's pipeline renders two, and resolves them the same way.
 
-## c14-why · scene · Corners and creases
+## c14-why | 3d | Corners and creases
 {@ demo=ssao callout="" cameraDrift=1 viewMode=0 ssao=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}]}
 
@@ -994,7 +994,7 @@ Light from the sky reaches into corners and creases as brightly as onto open flo
 
 {@ callout=ssao-modulate viewMode=15} This is its result, white where nothing occludes.
 
-## c14-compute · scene · Fifty-two samples
+## c14-compute | 3d | Fifty-two samples
 {@ demo=ssao callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -1002,7 +1002,7 @@ Light from the sky reaches into corners and creases as brightly as onto open flo
 
 {@ callout=depth-downsample} Then it works at half resolution, keeping the upper-left pixel of every two by two.
 
-{@ highlight=compute callout=ssao-compute param.formula=1} SsaoCompute rebuilds each pixel's position and normal from depth, and gathers fifty-two samples around it: twelve close by, and ten rotations of four shared with its neighbours.
+{@ highlight=compute callout=ssao-compute param.formula=1} {@ codespan="SsaoCompute"} rebuilds each pixel's position and normal from depth, and gathers fifty-two samples around it: twelve close by, and ten rotations of four shared with its neighbours.
 
 {@ callout=ssao-compute} Each sample adds the cosine between the normal and the direction to it, weighted by one over its squared distance plus zero point zero seven, and the occlusion is their weighted average.
 
@@ -1012,7 +1012,7 @@ Light from the sky reaches into corners and creases as brightly as onto open flo
 
 {@ panel=values param.formula=0} {@ ssaoRadius=0.12 blend=1.2} A wider radius reaches farther and darkens more broadly; {@ ssaoRadius=0.03 blend=1.5} a narrow one keeps to the tightest creases.
 
-## c14-blur · scene · A depth-aware blur
+## c14-blur | 3d | A depth-aware blur
 {@ demo=ssao callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
@@ -1026,11 +1026,11 @@ Light from the sky reaches into corners and creases as brightly as onto open flo
 
 {@ panel=values} {@ ssaoBlur=0} Without the blur, the samples' pattern shows through; {@ ssaoBlur=1} with it, the pattern is gone.
 
-## c14-upsample · scene · Back to full resolution
+## c14-upsample | 3d | Back to full resolution
 {@ demo=ssao callout="" cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 21, 5.9], [4, 13, 6.7], [20, 18, 6.2]], "seconds": "beat"}}]}
 
-{@ panel=code code=ssao highlight=upsample callout=depth-upsample} DepthUpsample brings it back to full resolution from the four nearest half-resolution pixels, weighted by distance and by how close their depths are.
+{@ panel=code code=ssao highlight=upsample callout=depth-upsample} {@ codespan="DepthUpsample"} brings it back to full resolution from the four nearest half-resolution pixels, weighted by distance and by how close their depths are.
 
 {@ callout=ssao-modulate param.formula=3 viewMode=0} Then the diffuse target is multiplied by it, and the merge pass adds the specular light, untouched.
 
@@ -1038,16 +1038,16 @@ Light from the sky reaches into corners and creases as brightly as onto open flo
 
 Because it only sees depth, SSAO knows nothing of what lies off screen or behind the nearest surface.
 
-## c14-sources · sources · Where to read
+## c14-sources | 2d | Where to read
 sources: msaa-resolve-custom, resolve-contrast, ao-placement, ao-parent, ssao-default, ao-defaults, ssao-order, depth-resolve, depth-linear, depth-downsample, ssao-compute, ssao-format, ssao-defaults, blur-order, blur-step, blur-defaults, blur-component-defaults, depth-upsample, ssao-modulate
 
 These entries follow the specular resolve, then SSAO from the linear depth through the samples, the blur, and the upsample to the diffuse multiply.
 
-# 15 · Recap · 75 s
+# 15 | Recap | 75 s
 summary: What StandardPBR does, and what the lab leaves out.
 sources: light-culling-pass, evaluate-lighting, cascade-splits, opaque-pass-order, msaa-resolve-custom, ssao-default, msaa-default
 
-## c15-recap · scene · The opaque frame, in summary
+## c15-recap | 3d | The opaque frame, in summary
 {@ demo=room callout="" labels=0 cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[23, 22, 5.8], [-6, 12, 6.8], [20, 19, 6.1]], "seconds": "beat"}}, {"orbit": {"params": ["lightX", "lightZ"], "center": [0.0, -0.3], "degrees": 300.0, "seconds": "beat", "ease": "sine"}}]}
 
@@ -1057,7 +1057,7 @@ That is every part of the opaque frame; here it is once more, in order.
 
 {@ callout=cascade-splits} The directional light's cascades are fitted to the view, and its shadow is resolved into one value a pixel.
 
-{@ callout=evaluate-lighting} The forward pass applies the decals to the surface, then each light: GGX specular, a Lambertian diffuse scaled by its response, clear coat where enabled, and transmission for EnhancedPBR.
+{@ callout=evaluate-lighting} The forward pass applies the decals to the surface, then each light: GGX specular, a Lambertian diffuse scaled by its response, clear coat where enabled, and transmission for {@ codespan="EnhancedPBR"}.
 
 {@ callout=opaque-pass-order} Full-screen passes add the skylight and the reflection probes, read back from the forward pass's targets.
 

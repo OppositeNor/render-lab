@@ -73,6 +73,12 @@ pub static IMAGES: &[ImageSpec] = &[
     ImageSpec { key: "floodSeeds", doc: "The same slice's jump-flood seeds at floodStep, the cells the step changed in orange." },
 ];
 
+/// The points its story's arrows and labels can name, which `demos::field_demo` publishes.
+pub static ANNOTATIONS: &[lab::utility::annotations::AnnotationSpec] = &[
+    lab::utility::annotations::AnnotationSpec { key: "field.worked", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The field demonstration's worked cell, at sliceHeight." },
+    lab::utility::annotations::AnnotationSpec { key: "field.seed", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The seed the jump flood has given that cell at floodStep (none before it has one)." },
+];
+
 impl Investigation for Sdfgi {
     fn engine(&self) -> &'static Engine {
         &crate::godot::ENGINE
@@ -82,6 +88,9 @@ impl Investigation for Sdfgi {
     }
     fn images(&self) -> &'static [ImageSpec] {
         IMAGES
+    }
+    fn annotations(&self) -> &'static [lab::utility::annotations::AnnotationSpec] {
+        ANNOTATIONS
     }
 
     fn id(&self) -> &'static str {

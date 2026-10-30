@@ -672,6 +672,10 @@ mod tests {
         fn shot_state(&self, _: crate::shot::DemoId) -> ShotState {
             shot()
         }
+        fn annotations(&self) -> &'static [crate::utility::annotations::AnnotationSpec] {
+            use crate::utility::annotations::{AnnotationKind, AnnotationSpec};
+            &[AnnotationSpec { key: "probe.top", kind: AnnotationKind::Point, doc: "" }, AnnotationSpec { key: "rays", kind: AnnotationKind::ArrowSet, doc: "" }]
+        }
         fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
             &[crate::utility::inset::ImageSpec { key: "chart", doc: "" }, crate::utility::inset::ImageSpec { key: "table", doc: "" }]
         }
@@ -719,6 +723,7 @@ mod tests {
             formula_lit: 0.0,
             actions: Vec::new(),
             images: Vec::new(),
+            notes: Vec::new(),
         }
     }
 
@@ -997,5 +1002,60 @@ mod tests {
             let error = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageClick": "pick"}])).validate().unwrap_err().to_string();
             assert!(error.contains("no click handler `pick` (the investigation's: pickCount)"), "{error}");
         });
+    }
+
+    #[test]
+    fn a_story_shows_moves_and_hides_arrows_and_labels() {
+        use crate::utility::annotations::{Anchor, NoteKind};
+        with_test(|| {
+            let t = timeline(serde_json::json!([
+                {"frame": 10, "blend": 10, "arrow": "a", "arrowFrom": [0, 0, 0], "arrowTo": "probe.top", "arrowColor": "#50d7ff"},
+                {"frame": 30, "blend": 10, "arrow": "a", "arrowFrom": [2, 0, 0]},
+                {"frame": 30, "label": "l", "labelAt": [1, 2, 3], "labelText": "demos.hit"},
+                {"frame": 40, "arrows": "rays"},
+                {"frame": 60, "blend": 10, "arrowHide": ["a"], "labelHide": ["l"]},
+                {"frame": 80, "arrow": ""}
+            ]));
+            t.validate().unwrap();
+            assert!(t.state_at(5).notes.is_empty());
+            let half = t.state_at(15);
+            assert_eq!(half.notes[0].color, Some([0x50, 0xd7, 0xff]));
+            assert!(half.notes[0].alpha > 0.0 && half.notes[0].alpha < 1.0);
+            // The fixed end blends to its new place; the named one stays named.
+            let moving = t.state_at(35);
+            let NoteKind::Arrow { from, to, .. } = &moving.notes[0].kind else { panic!("an arrow") };
+            assert!(matches!(from, Anchor::At(p) if p[0] > 0.0 && p[0] < 2.0), "{from:?}");
+            assert_eq!(to, &Anchor::Named("probe.top".into()));
+            let all = t.state_at(50);
+            assert_eq!(all.notes.iter().map(|n| n.name.as_str()).collect::<Vec<_>>(), ["a", "l", "rays"]);
+            assert!(all.shows_arrows("rays") && !all.shows_arrows("a"));
+            assert_eq!(t.state_at(75).notes.iter().map(|n| n.name.as_str()).collect::<Vec<_>>(), ["rays"]);
+            assert!(t.state_at(85).notes.is_empty());
+        });
+    }
+
+    #[test]
+    fn a_timeline_with_wrong_annotations_does_not_load() {
+        with_test(|| {
+            let error = |key: serde_json::Value| timeline(serde_json::json!([key])).validate().unwrap_err().to_string();
+            assert!(error(serde_json::json!({"frame": 0, "arrow": "a", "arrowFrom": [0, 0, 0]})).contains("names both its ends"));
+            assert!(error(serde_json::json!({"frame": 0, "arrow": "a", "arrowFrom": [0, 0, 0], "arrowTo": "nowhere"})).contains("no point `nowhere`"));
+            assert!(error(serde_json::json!({"frame": 0, "arrows": "beams"})).contains("no arrow set `beams` (the investigation's: rays)"));
+            assert!(error(serde_json::json!({"frame": 0, "label": "l", "labelAt": [0, 0], "labelText": "x"})).contains("not a point"));
+            assert!(error(serde_json::json!({"frame": 0, "arrow": "a", "arrowFrom": [0, 0, 0], "arrowTo": [1, 1, 1], "arrowColor": "cyan"})).contains("not a colour"));
+        });
+    }
+
+    #[test]
+    fn beats_name_their_scene_type_and_the_older_kinds_still_read() {
+        use crate::shot::{SceneType, TimelineBeat};
+        let beat = |kind: &str, image: Option<&str>| -> TimelineBeat {
+            serde_json::from_value(serde_json::json!({"id": "b", "chapter": 1, "kind": kind, "startFrame": 0, "frames": 1, "headline": "", "image": image})).unwrap()
+        };
+        assert_eq!(beat("3d", None).kind, SceneType::ThreeD);
+        assert!(beat("2d", Some("mermaid/b.png")).shows_image());
+        assert!(!beat("2d", None).shows_image());
+        assert_eq!((beat("scene", None).kind, beat("mermaid", Some("x.png")).kind, beat("sources", None).kind), (SceneType::ThreeD, SceneType::TwoD, SceneType::TwoD));
+        assert_eq!(serde_json::to_value(SceneType::TwoD).unwrap(), serde_json::json!("2d"));
     }
 }

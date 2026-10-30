@@ -43,11 +43,13 @@ pub mod ids {
     pub const TEAPOT: usize = 8;
 }
 
-/// One of the lab's scenes, by its key (`"study-room"`).
+/// One of the lab's scenes, by its key: the lab's own by theirs
+/// (`"study-room"`, the resource `rlstd.scene/study-room`), another
+/// package's by its resource's full key (`"<package>.scene/<name>"`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SceneId(&'static str);
 
-/// The scenes' resources: `rlstd.scene/<key>`.
+/// The lab's scenes' resources: `rlstd.scene/<key>`.
 const SCENE_PREFIX: &str = "rlstd.scene/";
 
 impl SceneId {
@@ -58,20 +60,45 @@ impl SceneId {
         self.0
     }
 
-    /// The scene with this key, if the lab's package declares `scene/<key>`.
+    /// The scene with this key, if its package declares it: the lab's
+    /// `scene/<key>`, or the resource a full key names.
     pub fn find(key: &str) -> Option<SceneId> {
-        crate::resources::find(&format!("{SCENE_PREFIX}{key}"))?;
-        Some(SceneId(Box::leak(key.to_string().into_boxed_str())))
+        crate::resources::find(&SceneId(Box::leak(key.to_string().into_boxed_str())).resource())?;
+        static FOUND: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+        let mut found = FOUND.lock().unwrap();
+        let key = match found.iter().find(|k| **k == key) {
+            Some(k) => *k,
+            None => {
+                let k: &'static str = Box::leak(key.to_string().into_boxed_str());
+                found.push(k);
+                k
+            }
+        };
+        Some(SceneId(key))
     }
 
-    /// The scene a resource's full key names (`rlstd.scene/terrain`).
+    /// The scene a resource's full key names (`rlstd.scene/terrain`, `<package>.scene/<name>`).
     pub fn from_resource(id: &str) -> Option<SceneId> {
-        SceneId::find(id.strip_prefix(SCENE_PREFIX)?)
+        match id.strip_prefix(SCENE_PREFIX) {
+            Some(key) => SceneId::find(key),
+            None if id.contains(".scene/") => SceneId::find(id),
+            None => None,
+        }
+    }
+
+    /// Its resource's full key.
+    fn resource(self) -> String {
+        if self.0.contains('.') { self.0.to_string() } else { format!("{SCENE_PREFIX}{}", self.0) }
+    }
+
+    /// The package that declares it, whose text its `title-text` names.
+    fn package(self) -> &'static str {
+        self.0.split_once('.').map_or("rlstd", |(package, _)| package)
     }
 
     /// The scene's name on the viewer's scene tabs, in the current locale.
     pub fn title(self) -> &'static str {
-        crate::i18n::tr_key(description(self).title)
+        crate::i18n::package_text(self.package(), description(self).title)
     }
 
     /// The resources the loading step prepares before the scene plays: its
@@ -103,9 +130,15 @@ pub struct SceneObject {
     pub roughness: f32,
     pub emissive: Vec3,
     pub emissive_strength: f32,
+    /// Words an investigation reads for its own flags of the object (`tags = ["…"]`).
+    pub tags: Vec<&'static str>,
 }
 
 impl SceneObject {
+    pub fn has_tag(&self, tag: &str) -> bool {
+        self.tags.contains(&tag)
+    }
+
     pub fn local_to_world(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
@@ -176,7 +209,7 @@ fn description(id: SceneId) -> &'static Description {
     if let Some(d) = scenes.get(id.0) {
         return d;
     }
-    let resource = format!("{SCENE_PREFIX}{}", id.0);
+    let resource = id.resource();
     let d: &'static Description = Box::leak(Box::new(read_scene(id, crate::resources::get(&resource).text()).unwrap_or_else(|e| panic!("{resource}: {e:#}"))));
     scenes.insert(id.0, d);
     d
@@ -267,6 +300,10 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
             roughness: number(&value(table, "roughness").map_err(at)?).map_err(at)?,
             emissive: optional("emissive", Vec3::ZERO).map_err(at)?,
             emissive_strength: table.get("emissive-strength").and_then(|i| i.as_value()).map(number).unwrap_or(Ok(0.0)).map_err(at)?,
+            tags: match table.get("tags").and_then(|i| i.as_value()) {
+                None => Vec::new(),
+                Some(v) => v.as_array().context("`tags` is a list of words").map_err(at)?.iter().map(|t| t.as_str().map(leak).context("a tag is a word")).collect::<anyhow::Result<_>>().map_err(at)?,
+            },
         });
     }
     let lighting = root.get("lighting").and_then(|l| l.as_table()).context("a scene has `[lighting]`")?;
@@ -302,7 +339,7 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
 /// The terrain a scene's `[terrain]` table describes (src/terrain.rs).
 pub fn terrain_table(id: SceneId) -> anyhow::Result<crate::terrain::TerrainDesc> {
     use anyhow::Context;
-    let resource = format!("{SCENE_PREFIX}{}", id.0);
+    let resource = id.resource();
     let document = toml_edit::Document::parse(crate::resources::get(&resource).text().to_string())?;
     let t = document.get("terrain").and_then(|t| t.as_table()).with_context(|| format!("{resource} has no `[terrain]`"))?;
     let get = |key: &str| t.get(key).and_then(|i| i.as_value()).with_context(|| format!("{resource}: `[terrain] {key}` is missing"));

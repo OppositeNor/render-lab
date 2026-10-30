@@ -14,13 +14,19 @@ the same tags in on-screen text (src/lab/rich_text.rs).
   an image the investigation publishes, a PNG resource, or, with
   `imageFrom=kind` and `image.<param>=value`, an instance of an image kind its
   shaders define, in an inset (`imageHide=a,b` hides some, `image=""` all;
-  `imageClick=handler` runs the package's click handler on a click on it).
+  `imageClick=handler` runs the package's click handler on a click on it);
+  arrows and labels: `arrow=name arrowFrom=x,y,z arrowTo=point arrowColor=#rrggbb
+  arrowWidth=3`, `arrows=set`, `label=name labelAt=x,y,z labelText=text-key
+  labelColor=#rrggbb`, a point three numbers or one the package publishes,
+  `arrowHide=a,b`, `labelHide=a,b` (`arrow=""`, `label=""` hide all).
 - `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
   (a full shot key, for cameras, records, and motions).
 - `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
   opens and blends to `b` exactly where it closes; `=b` blends from the current
   value. A range named after a cue in `cues` blends that cue's values over the
   range, and its motions run for the range.
+- `{@ codespan="LightCullingTilePrepare"}`: a code name, shown in the caption as
+  code and voiced as written (or as `say="…"`); a translation carries it too.
 - `{@ formula="\\alpha = \\frac{1}{1+n}" say="alpha equals one over one plus n"}`:
   a formula. The caption shows it, the voice says `say`, and the formula card
   opens on it (`card=no`: the caption only; `display=yes`: display style;
@@ -37,10 +43,10 @@ from typing import Any
 Json = dict[str, Any]
 
 # Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick')
+STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
-RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide')
+RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide', 'arrowFrom', 'arrowTo', 'arrowWidth', 'arrowHide', 'labelAt', 'labelHide')
 
 
 class MarkupError(RuntimeError):
@@ -140,6 +146,11 @@ def quote(value: str) -> str:
     return '"' + value.replace('"', '\\"') + '"'
 
 
+def codespan_tag(code: str) -> str:
+    """A code span as the lab draws it."""
+    return '{@ codespan=' + quote(code) + '}'
+
+
 def formula_tag(tag: Tag) -> str:
     """The formula as the lab draws it: its LaTeX, and display style and term colours if given."""
     parts = [f'formula={quote(tag.attr("formula") or "")}']
@@ -182,6 +193,16 @@ def parse(text: str, spoken_only: bool = False) -> Sentence:
             continue
         if text.startswith('{@', i):
             attrs, end = parse_tag(text, i + 2)
+            if attrs and attrs[0][0] == 'codespan':
+                tag = Tag('code', None, attrs, len(pieces))
+                code = tag.attr('codespan') or ''
+                if not code or any(k not in ('codespan', 'say') for k, _ in attrs):
+                    raise MarkupError(f'a code span is {{@ codespan="name"}}, with an optional say="…": {text[i:end]!r}')
+                caption.append(codespan_tag(code))
+                # It is said as written (or as its say="…"), in the words around it.
+                pieces[-1] += tag.attr('say') or code
+                i = end
+                continue
             if any(k == 'formula' for k, _ in attrs):  # (a parameter named formula is `param.formula`)
                 tag = Tag('formula', None, attrs, len(pieces))
                 latex = tag.attr('formula') or ''
@@ -282,14 +303,31 @@ def action_attr(key: Json, name: str, value: str, where: str) -> bool:
     return True
 
 
+def point_value(value: str, where: str) -> list[float] | str:
+    """An arrow's end or a label's point as a tag writes it: three numbers,
+    or the key of a point the package publishes (`probe.top`)."""
+    if ',' in value:
+        point = [number(x, where) for x in value.split(',')]
+        if len(point) != 3:
+            raise MarkupError(f'{where}: {value!r} is not a point (three numbers)')
+        return point
+    if value and all(c.isalnum() or c in '._-' for c in value):
+        return value
+    raise MarkupError(f'{where}: {value!r} is not a point (three numbers, or a point\'s key)')
+
+
 def image_attr(key: Json, name: str, value: str, where: str) -> bool:
     """Reads an image's attribute into `key`: `image.<param>=value` sets a
     parameter of an image kind's instance, `imageHide=a,b` hides images. False
     for any other attribute."""
     if name.startswith('image.'):
         key.setdefault('imageParams', {})[name[6:]] = param_value(value, where)
-    elif name == 'imageHide':
-        key['imageHide'] = [v for v in value.split(',') if v]
+    elif name in ('imageHide', 'arrowHide', 'labelHide'):
+        key[name] = [v for v in value.split(',') if v]
+    elif name in ('arrowFrom', 'arrowTo', 'labelAt'):
+        key[name] = point_value(value, where)
+    elif name == 'arrowWidth':
+        key[name] = number(value, where)
     else:
         return False
     return True
@@ -357,6 +395,9 @@ def cue_key(tag: Tag, cues: Json, where: str) -> Json:
 
 
 FORMULA_TAG = re.compile(r'\{@ formula="((?:[^"\\]|\\.)*)"[^}]*\}')
+CODESPAN_TAG = re.compile(r'\{@ codespan="((?:[^"\\]|\\.)*)"\}')
+# A caption's drawn tags: formulas and code spans.
+DRAWN_TAG = re.compile(r'\{@ (formula|codespan)="((?:[^"\\]|\\.)*)"[^}]*\}')
 
 
 def unlit(latex: str) -> str:
@@ -377,22 +418,24 @@ def unlit(latex: str) -> str:
 
 
 def readable(caption: str) -> str:
-    """A caption with its formulas as `$LaTeX$` (term markers dropped), for documents and subtitle files."""
+    """A caption with its formulas as `$LaTeX$` (term markers dropped) and
+    its code spans as their text, for documents and subtitle files."""
+    caption = CODESPAN_TAG.sub(lambda m: m.group(1).replace('\\"', '"'), caption)
     return FORMULA_TAG.sub(lambda m: '$' + unlit(m.group(1).replace('\\"', '"')) + '$', caption)
 
 
 def protect(caption: str) -> tuple[str, list[str]]:
-    """A caption with each formula tag replaced by one placeholder word about
-    as wide as the formula, so captions wrap and chunk around formulas, never
-    inside one; `restore` puts them back."""
+    """A caption with each formula tag and code span replaced by one
+    placeholder word about as wide as it is drawn, so captions wrap and chunk
+    around them, never inside one; `restore` puts them back."""
     tags: list[str] = []
 
     def hold(m: re.Match[str]) -> str:
         tags.append(m.group(0))
-        latex = m.group(1)
-        visible = re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', latex)
+        body = m.group(2)
+        visible = body if m.group(1) == 'codespan' else re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', body)
         return f'QQF{len(tags) - 1}' + 'Q' * max(0, len(visible) - 4)
-    return FORMULA_TAG.sub(hold, caption), tags
+    return DRAWN_TAG.sub(hold, caption), tags
 
 
 def restore(text: str, tags: list[str]) -> str:

@@ -152,6 +152,8 @@ visual often names something nothing can show.
 - The beat's first line of tags sets its starting keys, and resets the step parameters of the beat before it
   (instant keys, no `blend`).
 - Cue each visual on the word that names it: `{@ rayStep=2}its distance`, not at the sentence's start.
+- Wrap each code name the narration says (a function, struct, file, or console variable) in a code span,
+  `{@ codespan="LightCullingTilePrepare"}`, in the translation too; give it `say="…"` when the voice would misread it.
 - Work that unfolds over time (an algorithm's passes, a sweep) is an action the package declares, run from the story
   (`{@ run=jumpFlood run.seconds=0.5}` … `{@ stop=jumpFlood}`; `render-lab actions`), rather than a parameter keyed
   step by step: the story says when and how fast, the package's code what each moment shows.
@@ -159,8 +161,11 @@ visual often names something nothing can show.
   imageCorner=top-left}` … `{@ imageHide=floodSeeds}` (`render-lab images`): the package describes it, the story places
   it. A GPU image is an instance of an image kind the package's shaders define, made and driven by the story:
   `{@ image=near imageFrom=probeMap image.probe=7,7,8}`, then `{@ image=near image.probe=10,7,8 blend=2}`. An image a
-  viewer may click when paused names the package's click handler: `{@ image=atlas imageClick=selectPage}`
+  viewer may click when paused names the package's click handler: `{@ image=map imageClick=pickCell}`
   (`render-lab actions` lists them).
+- An arrow or label that points something out is the story's: `{@ arrow=a arrowFrom=x,y,z arrowTo=field.seed}`,
+  `{@ label=l labelAt=… labelText=<text key>}` (`arrowHide`, `labelHide`), its points fixed or ones the package publishes,
+  and `{@ arrows=<set>}` for a set the package computes (`render-lab images` lists the points and sets).
 - Keep the camera floating in 3D (`animate=[{"path": …}]`, `cameraDrift`), and glide to a still, 2D view
   (`cameraDrift=0`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.

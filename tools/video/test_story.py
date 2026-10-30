@@ -12,11 +12,11 @@ import story  # noqa: E402
 STORY = r'''title: A test
 fps: 30
 
-# 1 · First chapter · 60 s
+# 1 | First chapter | 60 s
 summary: What it covers.
 sources: key-a, key-b
 
-## c1-one · scene · One beat
+## c1-one | 3d | One beat
 sources: key-c
 {@ demo=room camera.target=0,1,2 camera.yaw=30 opacity=1 param.formula=2 viewMode=ggxD lightOn=false lightPosition=0.4,1.9,0.8}
 {@define wide camera.distance=8 blend=3}
@@ -24,12 +24,13 @@ sources: key-c
 {@define halt stop=jumpFlood,sweep}
 {@define seeds image=rlstd.icon/globe imageCorner=bottom-left blend=0.5}
 {@define maps image=floor imageFrom=probeMap image.probe=7,7,8 imageHide=seeds}
+{@define point arrow=a arrowFrom=0,1,2 arrowTo=probe.top arrowWidth=4 label=l labelAt=1,2,3 labelText=demos.hit labelHide=old}
 
 Diffuse: a sentence that looks like a property, {@ callout=key-a}with a cue.
 
 {@wide}A formula {@ formula="\frac{1}{1+\lit{1}{n}}" say="one over one plus n"} with single backslashes. {@ pause=0.5}
 
-## c1-two · mermaid · A diagram
+## c1-two | 2d | A diagram
 diagram: frame
 focus: A, B
 
@@ -57,6 +58,7 @@ class Story(unittest.TestCase):
         self.assertEqual(one['cues']['flood'], {'run': {'name': 'jumpFlood', 'args': {'seconds': 0.5, 'cell': [1.0, 2.0, 3.0]}}})
         self.assertEqual(one['cues']['halt'], {'stop': ['jumpFlood', 'sweep']})
         self.assertEqual(one['cues']['seeds'], {'image': 'rlstd.icon/globe', 'imageCorner': 'bottom-left', 'blend': 0.5})
+        self.assertEqual(one['cues']['point'], {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowWidth': 4.0, 'label': 'l', 'labelAt': [1.0, 2.0, 3.0], 'labelText': 'demos.hit', 'labelHide': ['old']})
         self.assertEqual(one['cues']['maps'], {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0]}, 'imageHide': ['seeds']})
         self.assertTrue(one['narration'][0]['text'].startswith('Diffuse: a sentence'))
         self.assertIn(r'formula="\frac{1}{1+\lit{1}{n}}"', one['narration'][1]['text'])
@@ -72,8 +74,19 @@ class Story(unittest.TestCase):
             beat.setdefault('cues', {})
         self.assertEqual(again, board)
 
+    def test_scene_types(self) -> None:
+        board = self.load(STORY)
+        one, two = board['chapters'][0]['beats']
+        self.assertEqual((one['kind'], two['kind']), ('3d', '2d'))
+        self.assertTrue(story.is_3d(one) and story.is_diagram(two) and not story.is_card(two))
+        # A 2d beat shows a diagram or a sources card; the separator is ` | ` only.
+        with self.assertRaises(story.StoryError):
+            self.load(STORY.replace('diagram: frame\nfocus: A, B\n', ''))
+        with self.assertRaises(story.StoryError):
+            self.load(STORY.replace('# 1 | First chapter | 60 s', '# 1 · First chapter · 60 s'))
+
     def test_translation(self) -> None:
-        translation = self.load('title: 测试\nlocale: zh-CN\n\n# 1 · 第一章\nsummary: 内容。\n\n## c1-one · 一个\n\n第一句。\n\n第二句，{@ formula="\\frac{1}{1+n}"}。\n', 'board.zh-CN.story')
+        translation = self.load('title: 测试\nlocale: zh-CN\n\n# 1 | 第一章\nsummary: 内容。\n\n## c1-one | 一个\n\n第一句。\n\n第二句，{@ formula="\\frac{1}{1+n}"}。\n', 'board.zh-CN.story')
         self.assertEqual(translation['chapters'], [{'number': 1, 'title': '第一章', 'summary': '内容。'}])
         self.assertEqual(translation['beats']['c1-one']['narration'], ['第一句。', '第二句，{@ formula="\\frac{1}{1+n}"}。'])
 

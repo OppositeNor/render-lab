@@ -493,6 +493,8 @@ impl Block {
 pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
     let current = investigation::current();
     let mut content = current.build_frame(state, statics, viewport, pixel_scale, time);
+    // The story's arrows and labels, over what the investigation drew.
+    crate::utility::annotations::draw(&state.notes, &mut content, current.package().unwrap_or("rlstd"));
     if let Some(block) = scene_block(state) {
         let floats: &[f32] = bytemuck::cast_slice(block.bytes());
         for (i, f) in floats.iter().enumerate() {

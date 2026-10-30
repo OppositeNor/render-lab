@@ -27,7 +27,7 @@
 //!
 //! The same block declares the package's click handlers, `#[click]`
 //! functions of a `&mut ClickFrame`: what a click on an image's picture does
-//! when a story names it (`{@ image=atlas imageClick=selectPage}`) or an
+//! when a story names it (`{@ image=map imageClick=pickCell}`) or an
 //! inset the package draws does (`PictureInset::click`). A click happens in
 //! the viewer, on what is on screen, while no timeline drives the state (a
 //! demonstration, or a timeline paused); a handler sets that state.

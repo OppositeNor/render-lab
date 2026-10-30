@@ -330,6 +330,7 @@ impl Demos {
             formula_lit: 0.0,
             actions: Vec::new(),
             images: Vec::new(),
+            notes: Vec::new(),
         }
     }
 }

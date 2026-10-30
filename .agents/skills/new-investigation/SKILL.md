@@ -231,12 +231,16 @@ A picture the story shows is an image by key (`packages/rlstd/src/inset.rs`). De
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
 The story writes `{@ image=key imageCorner=top-left}` and `{@ imageHide=key}`, and chooses the corner and the title.
+A story's arrows and labels name points the package publishes (`lab/src/frame.rs`, `FrameContent::points`) and
+arrow sets it computes (`FrameContent::arrow_sets`, only while `state.shows_arrows(key)`), declared in
+`Investigation::annotations` (`AnnotationSpec`): publish what an arrow would follow (a hit, a seed, a probe) rather
+than drawing a fixed annotation in Rust. Godot's `field_demo` publishes `field.worked` and `field.seed`.
+
 A click on an inset never reaches the scene behind it. What a click on an image's picture does is a click handler, a
-`#[click]` function in the `#[lab::actions]` block, `fn select_page(frame: &mut ClickFrame) -> bool` (the state on
+`#[click]` function in the `#[lab::actions]` block, `fn pick_cell(frame: &mut ClickFrame) -> bool` (the state on
 screen, the state it sets, and `frame.uv`, the point clicked, 0..1 with y down). The story gives an image one,
-`{@ image=atlas imageClick=selectPage}`; an inset the package draws names one in `PictureInset::click`. A click happens
-while no timeline drives the state (a demonstration, or a timeline paused). Lumen's `selectPage` picks a page's card,
-then the page.
+`{@ image=map imageClick=pickCell}`; an inset the package draws names one in `PictureInset::click`. A click happens
+while no timeline drives the state (a demonstration, or a timeline paused).
 
 A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`, Godot's
 `shaders/sdfgi_views.wgsl`): a `texture_storage_2d<rgba8unorm, write>` at `@group(3) @binding(0)` tagged
@@ -255,8 +259,9 @@ Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose 
   timelines), output names, `engineLabel`, `checkoutEnv`, `durationMinutes`, `readingPath` (index keys for the
   source-reading guide), `pronunciations`, and the documents' texts per language (intro, demo descriptions,
   simplifications). Copy O3DE's and adapt it.
-- **`storyboard.story`**: chapters (`# n · Title · N s`, with `summary:` and `sources:`) of beats
-  (`## c<chapter>-<name> · scene · Headline`; `kind`: `scene`, `mermaid`, or `sources`), each paragraph one sentence.
+- **`storyboard.story`**: chapters (`# n | Title | N s`, with `summary:` and `sources:`) of beats
+  (`## c<chapter>-<name> | 3d | Headline`; the scene type `3d`, or `2d` for a diagram (`diagram:`) or a sources
+  card (`sources:`)), each paragraph one sentence.
   Shots are tags (`tools/video/README.md`): a line of tags before the first sentence sets the beat's keys,
   `{@define name …}` names a cue, and tags in a sentence fire on the word they stand before (`demo`, `camera.*`,
   shot parameters, `panel`, `code`, `highlight`, `callout`, `record`, `blend`, `ease`, `delay`, ranges

@@ -3,7 +3,7 @@
 
 use super::sources::PackageIndex;
 use crate::renderer::FrameRequest;
-use crate::shot::{BeatKind, ShotState, Timeline};
+use crate::shot::{SceneType, ShotState, Timeline};
 use crate::ui::Chrome;
 use glam::Vec3;
 use serde_json::{json, Value};
@@ -66,7 +66,7 @@ pub fn request<'a>(state: &'a ShotState, timeline: &'a Timeline) -> FrameRequest
 pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) -> FrameRequest<'a> {
     FrameRequest {
         state,
-        beat_kind: BeatKind::Scene,
+        scene_type: SceneType::ThreeD,
         image: None,
         beat_sources: &[],
         chapter_number: 1,

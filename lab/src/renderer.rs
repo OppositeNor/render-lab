@@ -8,7 +8,7 @@ use crate::investigation::{self, SceneShading};
 use crate::gpu::{self, Gpu, Pipelines, DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
 use crate::layout::{FrameUniforms, ObjectData, RayDebugData};
 use crate::scene::SceneId;
-use crate::shot::{BeatKind, ShotState};
+use crate::shot::{SceneType, ShotState};
 #[cfg(commercial)]
 use crate::surface_cache_gpu::{self, CacheInputs, SurfaceCacheGpu};
 use crate::ui::{self, Chrome, Layout, UiInput, UiReport};
@@ -325,7 +325,7 @@ impl ChainTargets {
 /// Everything a frame needs besides the shot state.
 pub struct FrameRequest<'a> {
     pub state: &'a ShotState,
-    pub beat_kind: BeatKind,
+    pub scene_type: SceneType,
     pub image: Option<(egui::TextureId, egui::Vec2)>,
     pub beat_sources: &'a [String],
     pub chapter_number: u32,
@@ -669,13 +669,13 @@ impl Renderer {
     }
 
     /// `dock`: the interactive viewer's layout with the slider dock.
-    pub fn layout_for(&self, state: &ShotState, beat_kind: BeatKind, dock: bool) -> Layout {
-        let panel = beat_kind != BeatKind::Scene || state.panel != crate::shot::PanelMode::Hidden;
+    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool) -> Layout {
+        let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden;
         let mut layout = self.layout();
         if dock {
             layout = layout.with_dock();
         }
-        if beat_kind == BeatKind::Scene && state.panel == crate::shot::PanelMode::Code {
+        if scene_type == SceneType::ThreeD && state.panel == crate::shot::PanelMode::Code {
             layout = layout.with_code_panel();
         }
         layout.for_panel(panel)
@@ -879,9 +879,9 @@ impl Renderer {
     /// Like `render_frame`, but with prepared frame content (used by the
     /// selftest to draw known markers).
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
-        self.switch_scene(investigation::current().demo_scene(request.state.demo));
+        self.switch_scene(investigation::current().scene(request.state));
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let layout = self.layout_for(request.state, request.beat_kind, dock);
+        let layout = self.layout_for(request.state, request.scene_type, dock);
         self.last_layout = layout;
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
@@ -889,7 +889,7 @@ impl Renderer {
             self.chain = None;
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
         }
-        let scene_beat = request.beat_kind == BeatKind::Scene;
+        let scene_beat = request.scene_type == SceneType::ThreeD;
         #[cfg(commercial)]
         if let Some(setting) = investigation::current().prepared_setting(request.state) {
             self.cache_gpu.rebuild(&self.gpu.device, &self.gpu.queue, &mut self.statics, [&self.records.mesh_nodes, &self.records.mesh_triangles, &self.records.terrain], &self.environment_view, &self._surface_cache, setting);
@@ -916,7 +916,7 @@ impl Renderer {
             content: content.as_ref(),
             statics: &self.statics,
             textures: &self.textures,
-            beat_kind: request.beat_kind,
+            scene_type: request.scene_type,
             image: request.image,
             beat_sources: request.beat_sources,
             chapter_number: request.chapter_number,
@@ -1158,7 +1158,7 @@ impl Renderer {
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, [vp[2], vp[3]]));
         }
         if let Some(s) = state {
-            self.switch_scene(investigation::current().demo_scene(s.demo));
+            self.switch_scene(investigation::current().scene(s));
         }
         let content = state.map(|s| crate::shader_data::build_frame(s, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, time));
         if let Some(content) = &content {

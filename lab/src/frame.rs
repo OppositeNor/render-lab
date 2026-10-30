@@ -208,6 +208,12 @@ pub struct FrameContent {
     /// The images it publishes for its story (`Investigation::images`), by
     /// key: drawn only while the story shows one (`ShotState::shows_image`).
     pub images: Vec<(String, PictureInset)>,
+    /// The points it publishes for its story's arrows and labels
+    /// (`Investigation::annotations`), by key.
+    pub points: Vec<(String, Vec3)>,
+    /// The arrow sets it publishes, by key: computed only while the story
+    /// shows one (`ShotState::shows_arrows`).
+    pub arrow_sets: Vec<(String, Vec<crate::utility::annotations::Arrow>)>,
     #[cfg(commercial)]
     pub history: Option<HistoryInset>,
     /// What the Surface Cache picture (card quads and the inset) shows.
@@ -238,6 +244,8 @@ impl FrameContent {
             notes: Vec::new(),
             insets: Vec::new(),
             images: Vec::new(),
+            points: Vec::new(),
+            arrow_sets: Vec::new(),
             #[cfg(commercial)]
             history: None,
             #[cfg(commercial)]

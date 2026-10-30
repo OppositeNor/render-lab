@@ -352,7 +352,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
             let timeline = lab::shot::Timeline::load(path)?;
             let mut problems = Vec::new();
             let mut beats = 0;
-            for beat in timeline.beats.iter().filter(|b| b.kind == lab::shot::BeatKind::Scene) {
+            for beat in timeline.beats.iter().filter(|b| b.kind == lab::shot::SceneType::ThreeD) {
                 let frame = beat.start_frame + beat.frames / 2;
                 let state = timeline.state_at(frame);
                 let mut req = request(&state, &timeline);

@@ -12,6 +12,7 @@ import textwrap
 from typing import Any
 
 import markup
+import story
 import zh
 from config import Config
 from narration import Durations, Narration
@@ -21,7 +22,7 @@ GAP = 0.32       # silence between sentences
 TAIL = 0.70      # silence after a beat's last sentence
 MAX_EXTRA_PAUSE = 2.2
 CAPTION_WIDTH = 58
-KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick'}
+KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
 # How long a lit term takes to fade in when its cue names no blend (seconds).
 TERM_FADE = 0.4
 # How a key's blend moves (src/lab/shot.rs `Ease`); smooth when a key names none.
@@ -221,11 +222,13 @@ def caption_cues(text: str, s: Json, narration: Narration, start: int, end: int,
         # words said for it, scaled to the words the voice says; a chunk
         # starts when its first word does.
         parsed = markup.parse(s.get('en', s['text']))
-        says = [len((t.attr('say') or '').split()) for t in parsed.tags if t.kind == 'formula' and t.attr('formula') != 'off']
+        says = iter([len((t.attr('say') or '').split()) for t in parsed.tags if t.kind == 'formula' and t.attr('formula') != 'off'])
+        # A formula weighs the words said for it; a code span the words it is said as.
+        held = [next(says) if tag.startswith('{@ formula') else len(markup.readable(tag).split()) for tag in tags]
 
         def weight(word: str) -> int:
             m = re.match(r'QQF(\d+)', word)
-            return says[int(m.group(1))] if m else 1
+            return held[int(m.group(1))] if m else 1
         words = narration.words
         scale = len(words) / max(1, sum(weight(w) for c in chunks for w in c.split()))
         seen = 0
@@ -260,7 +263,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         plans[chapter['number']] = {'natural': natural, 'extraPauses': sum(extras), 'leftover': leftover}
         chapter_start = frame
         sentence_index = 0
-        scene_beats = [b for b in chapter['beats'] if b['kind'] == 'scene'] or chapter['beats']
+        scene_beats = [b for b in chapter['beats'] if story.is_3d(b)] or chapter['beats']
         leftover_per_beat = leftover / len(scene_beats)
         for beat in chapter['beats']:
             beat_start = frame
@@ -300,7 +303,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'id': beat['id'], 'chapter': chapter['number'], 'kind': beat['kind'], 'startFrame': beat_start,
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
-            if beat['kind'] == 'mermaid':
+            if story.is_diagram(beat):
                 entry['image'] = f'mermaid/{beat["id"]}.png'
             beats_out.append(entry)
             cues.extend({'start': c['start'] / fps, 'end': c['end'] / fps, 'text': markup.readable(c['text']), 'beat': beat['id']} for c in captions)

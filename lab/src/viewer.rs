@@ -34,7 +34,7 @@ use crate::investigation;
 use crate::loading::{self, Loading};
 use crate::record::{beat_fade, ImageCache};
 use crate::renderer::{FrameRequest, Renderer};
-use crate::shot::{self, BeatKind, DemoId, PanelMode, ShotState, Timeline};
+use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
 use crate::ui::{Chrome, DiagramView, DockTab, ViewerAction, ViewerChrome};
 use crate::volume::Volume;
 use anyhow::Result;
@@ -267,15 +267,18 @@ impl App {
         self.timeline_mode && self.playing && self.timeline.is_some()
     }
 
-    /// Paused on a diagram beat of the timeline: the viewport is the diagram's panel.
-    pub fn paused_diagram(&self) -> bool {
+    /// Paused on a 2D scene of the timeline: the viewport keeps showing its
+    /// page (a diagram or a sources card), not the 3D state behind it.
+    pub fn paused_page(&self) -> bool {
         match (&self.timeline, self.timeline_mode && !self.playing) {
-            (Some(t), true) => {
-                let (_, beat) = t.beat_at(self.timeline_frame);
-                beat.kind == BeatKind::Mermaid && beat.image.is_some()
-            }
+            (Some(t), true) => t.beat_at(self.timeline_frame).1.kind == SceneType::TwoD,
             _ => false,
         }
+    }
+
+    /// Paused on a 2D scene that shows an image: the viewport is the image's panel, zoomed and panned.
+    pub fn paused_diagram(&self) -> bool {
+        self.paused_page() && self.timeline.as_ref().is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_image())
     }
 
     /// A pointer position in window pixels, in egui points.
@@ -874,21 +877,21 @@ impl App {
         chrome.popups.hidden = self.screenshot;
         // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
         let paused_diagram = self.paused_diagram();
-        let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing() || paused_diagram) {
+        let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
                 let image = match (&beat.kind, &beat.image, self.images.as_mut(), self.renderer.as_ref()) {
-                    (BeatKind::Mermaid, Some(p), Some(cache), Some(r)) => Some(cache.get(&r.egui_ctx, p)?),
+                    (SceneType::TwoD, Some(p), Some(cache), Some(r)) => Some(cache.get(&r.egui_ctx, p)?),
                     _ => None,
                 };
                 if paused_diagram && self.diagram_beat != Some(beat.start_frame) {
                     self.diagram = DiagramView::default();
                     self.diagram_beat = Some(beat.start_frame);
                 }
-                let fade = if paused_diagram { 0.0 } else { beat_fade(t, self.timeline_frame) };
+                let fade = if self.paused_page() { 0.0 } else { beat_fade(t, self.timeline_frame) };
                 (beat.kind, image, beat.sources.clone(), beat.chapter, fade)
             }
-            _ => (BeatKind::Scene, None, Vec::new(), 0, 0.0),
+            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0),
         };
         if paused_diagram {
             chrome.diagram = Some(self.diagram);
@@ -899,7 +902,7 @@ impl App {
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
         let result = renderer.render_frame(
-            FrameRequest { state: &state, beat_kind: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None },
+            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
@@ -1222,15 +1225,24 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
 /// bar; `demo` (a key) chooses the demonstration. No window opens and no
 /// sound plays.
 pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
-    snapshot_page(options, demo, false, png)
+    snapshot_page(options, demo, None, png)
 }
 
-/// `snapshot`, or with `diagram`, the timeline paused on its first diagram beat
-/// with the diagram panel zoomed in (`home --snapshot … --page viewer-diagram`).
-pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, diagram: bool, png: &std::path::Path) -> Result<()> {
+/// A 2D scene a snapshot pauses the timeline on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PausedPage {
+    /// The first 2D scene with an image, its panel zoomed in (`--page viewer-diagram`).
+    Diagram,
+    /// The first sources card (`--page viewer-sources`).
+    Sources,
+}
+
+/// `snapshot`, or with `paused`, the timeline paused on its first 2D scene of
+/// that page (`home --snapshot … --page viewer-diagram` or `viewer-sources`).
+pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<PausedPage>, png: &std::path::Path) -> Result<()> {
     use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
     let size = [options.width.max(64), options.height.max(64)];
-    let playing = options.timeline.is_some() && !diagram;
+    let playing = options.timeline.is_some() && paused.is_none();
     let mut app = App::new(ViewerOptions { audio: None, ..options })?;
     app.intro = None;
     if let Some(key) = demo {
@@ -1245,13 +1257,16 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, diagram: bool, 
         app.playing = true;
         // The clock holds the frame: it starts counting an hour from now.
         app.timeline_anchor = (Instant::now() + std::time::Duration::from_secs(3600), app.timeline_frame);
-    } else if diagram {
-        let beat = app.timeline.as_ref().and_then(|t| t.beats.iter().find(|b| b.kind == BeatKind::Mermaid && b.image.is_some())).ok_or_else(|| anyhow::anyhow!("the timeline has no diagram beat"))?;
+    } else if let Some(page) = paused {
+        let wanted = |b: &crate::shot::TimelineBeat| b.kind == SceneType::TwoD && b.shows_image() == (page == PausedPage::Diagram);
+        let beat = app.timeline.as_ref().and_then(|t| t.beats.iter().find(|b| wanted(b))).ok_or_else(|| anyhow::anyhow!("the timeline has no {page:?} 2D scene"))?;
         app.timeline_frame = beat.start_frame + beat.frames / 2;
         app.timeline_mode = true;
         app.playing = false;
         app.render(None)?;
-        app.diagram = DiagramView { zoom: 2.5, center: egui::vec2(0.35, 0.5) };
+        if page == PausedPage::Diagram {
+            app.diagram = DiagramView { zoom: 2.5, center: egui::vec2(0.35, 0.5) };
+        }
     } else {
         app.state = app.default_state(app.state.demo);
     }
@@ -1264,6 +1279,6 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, diagram: bool, 
     let padded = padded_row_bytes(size[0]) as u64;
     let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
     write_png(png, size[0], size[1], &rgba)?;
-    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], if playing { "the timeline playing" } else if diagram { "paused on a diagram" } else { "the first demonstration" });
+    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], match (playing, paused) { (true, _) => "the timeline playing", (_, Some(PausedPage::Diagram)) => "paused on a diagram", (_, Some(PausedPage::Sources)) => "paused on a sources card", _ => "the first demonstration" });
     Ok(())
 }

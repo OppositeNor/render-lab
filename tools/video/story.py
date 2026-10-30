@@ -5,11 +5,11 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
     title: The opaque frame of O3DE 2.8
     fps: 30
 
-    # 11 · Other trace paths · 150 s
+    # 11 | Other trace paths | 150 s
     summary: …
     sources: key-a, key-b
 
-    ## beat-id · scene · The headline
+    ## beat-id | 3d | The headline
     sources: key-c
     {@ demo=terrain camera.target=0,1.2,0.5 camera.yaw=32 hfBounds=1}
     {@define wide camera.distance=25 blend=3}
@@ -21,7 +21,10 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
 - `key: value` lines: the storyboard's header (before the first chapter), a
   chapter's `summary` and `sources`, a beat's `diagram`, `focus`, `sources`,
   and `hold`. A value that reads as JSON (a number, a list) is that value.
-- `# number · title · N s` starts a chapter; `## id · kind · headline` a beat.
+- `# number | title | N s` starts a chapter; `## id | type | headline` a beat,
+  its scene's type `3d` (the lab's 3D frame) or `2d` (a page: the image a
+  `diagram:` names, else the sources card of its `sources:`). The older type
+  names `scene`, `mermaid`, and `sources` read as `3d`, `2d`, and `2d`.
 - Before a beat's first sentence, a line of tags only sets the beat's keys
   (one key per tag); `{@define name …}` defines a named cue.
 - Each paragraph (lines up to a blank line) is one sentence. A tag before its
@@ -50,7 +53,7 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageClick', 'imageParams', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
+KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageClick', 'imageParams', 'arrowHide', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'labelHide', 'label', 'labelAt', 'labelText', 'labelColor', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -118,8 +121,12 @@ def key_attrs(key: Json) -> list[tuple[str, str]]:
             out.extend((f'param.{name}' if name in markup.RESERVED else name, param_text(x)) for name, x in v.items())
         elif field == 'animate':
             out.append(('animate', json.dumps(v, ensure_ascii=False)))
-        elif field in ('stop', 'imageHide'):
+        elif field in ('stop', 'imageHide', 'arrowHide', 'labelHide'):
             out.append((field, ','.join(v)))
+        elif field in ('arrowFrom', 'arrowTo', 'labelAt'):
+            out.append((field, param_text(v)))
+        elif field == 'arrowWidth':
+            out.append((field, number_text(v)))
         elif field == 'imageParams':
             out.extend((f'image.{name}', param_text(x)) for name, x in v.items())
         elif field == 'run':
@@ -165,7 +172,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key[name] = markup.number(v.removesuffix('s'), where)
         elif name == 'term':
             key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick'):
+        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor'):
             key[name] = v
         elif markup.action_attr(key, name, v, where) or markup.image_attr(key, name, v, where):
             continue
@@ -248,11 +255,33 @@ def properties(lines: list[str], names: tuple[str, ...] | None = None) -> tuple[
     return props, rest
 
 
+# A heading's fields.
+SEPARATOR = re.compile(r' \| ')
+
+# A beat's scene type, and the older names of the types.
+SCENE_TYPES = {'3d': '3d', '2d': '2d', 'scene': '3d', 'mermaid': '2d', 'sources': '2d'}
+
+
 def heading(text: str, parts: int, path: Path, what: str) -> list[str]:
-    fields = [f.strip() for f in text.split(' · ', parts - 1)]
+    fields = [f.strip() for f in SEPARATOR.split(text, parts - 1)]
     if len(fields) != parts:
-        raise StoryError(f'{path}: a {what} heading is {" · ".join(["…"] * parts)}: {text!r}')
+        raise StoryError(f'{path}: a {what} heading is {" | ".join(["…"] * parts)}: {text!r}')
     return fields
+
+
+def is_3d(beat: Json) -> bool:
+    """A beat whose scene is the lab's 3D frame."""
+    return beat['kind'] == '3d'
+
+
+def is_diagram(beat: Json) -> bool:
+    """A 2D beat that shows an image: its diagram."""
+    return beat['kind'] == '2d' and 'diagram' in beat
+
+
+def is_card(beat: Json) -> bool:
+    """A 2D beat that shows its sources card."""
+    return beat['kind'] == '2d' and 'diagram' not in beat
 
 
 def as_list(value: Any) -> list[str]:
@@ -266,14 +295,19 @@ def load(path: Path) -> Json:
     board['chapters'] = []
     for chapter_heading, chapter_lines, beats in chapters:
         number, rest_heading = heading(chapter_heading, 2, path, 'chapter')
-        title, seconds = [f.strip() for f in rest_heading.rsplit(' · ', 1)]
+        *title, seconds = [f.strip() for f in SEPARATOR.split(rest_heading)]
+        title = ' | '.join(title)
         props, _ = properties(chapter_lines, ('summary', 'sources'))
         chapter: Json = {'number': int(number), 'title': title, 'targetSeconds': markup.number(seconds.removesuffix(' s'), str(path)),
                          'summary': props.get('summary', ''), 'sources': as_list(props.get('sources', [])), 'beats': []}
         for beat_heading, beat_lines in beats:
             beat_id, kind, headline = heading(beat_heading, 3, path, 'beat')
+            if kind not in SCENE_TYPES:
+                raise StoryError(f'{path}: {beat_id}: the scene type is 3d or 2d, not {kind!r}')
             props, rest = properties(beat_lines, ('diagram', 'focus', 'sources', 'hold'))
-            beat: Json = {'id': beat_id, 'kind': kind, 'headline': headline}
+            beat: Json = {'id': beat_id, 'kind': SCENE_TYPES[kind], 'headline': headline}
+            if beat['kind'] == '2d' and 'diagram' not in props and 'sources' not in props:
+                raise StoryError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram:) or a sources card (sources:)')
             for name in ('diagram', 'hold'):
                 if name in props:
                     beat[name] = props[name]
@@ -335,7 +369,11 @@ def load_any(path: Path, translation: bool = False) -> Json:
     """A storyboard or translation from `.story` or (older) `.json`."""
     if path.suffix == '.story':
         return load_translation(path) if translation else load(path)
-    return json.loads(path.read_text())
+    board = json.loads(path.read_text())
+    for chapter in [] if translation else board.get('chapters', []):
+        for beat in chapter['beats']:
+            beat['kind'] = SCENE_TYPES[beat['kind']]
+    return board
 
 
 # ---------------------------------------------------------------------------
@@ -371,10 +409,10 @@ def sentence_text(s: Json, beat: Json) -> str:
 def dump(board: Json) -> str:
     lines = [header_line(k, v) for k, v in board.items() if k != 'chapters'] + ['']
     for chapter in board['chapters']:
-        lines += [f'# {chapter["number"]} · {chapter["title"]} · {number_text(chapter["targetSeconds"])} s',
+        lines += [f'# {chapter["number"]} | {chapter["title"]} | {number_text(chapter["targetSeconds"])} s',
                   header_line('summary', chapter['summary']), 'sources: ' + ', '.join(chapter['sources']), '']
         for beat in chapter['beats']:
-            lines.append(f'## {beat["id"]} · {beat["kind"]} · {beat["headline"]}')
+            lines.append(f'## {beat["id"]} | {beat["kind"]} | {beat["headline"]}')
             for name in ('diagram', 'hold'):
                 if name in beat:
                     lines.append(header_line(name, beat[name]))
@@ -400,10 +438,10 @@ def dump_translation(translation: Json, board: Json) -> str:
     chapters = {c['number']: c for c in translation['chapters']}
     for chapter in board['chapters']:
         c = chapters[chapter['number']]
-        lines += [f'# {chapter["number"]} · {c["title"]}', header_line('summary', c['summary']), '']
+        lines += [f'# {chapter["number"]} | {c["title"]}', header_line('summary', c['summary']), '']
         for beat in chapter['beats']:
             t = translation['beats'][beat['id']]
-            lines += [f'## {beat["id"]} · {t["headline"]}', '']
+            lines += [f'## {beat["id"]} | {t["headline"]}', '']
             for s in t['narration']:
                 lines += [s, '']
     return '\n'.join(lines).rstrip() + '\n'

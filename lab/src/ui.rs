@@ -11,7 +11,7 @@ use crate::investigation;
 use crate::layout::{FieldKind, RustField};
 use crate::palette::{self, field_colors};
 use crate::rich_text;
-use crate::shot::{BeatKind, DemoId, PanelMode, ShotState, Timeline};
+use crate::shot::{SceneType, DemoId, PanelMode, ShotState, Timeline};
 use crate::sources;
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
 
@@ -268,7 +268,7 @@ pub struct UiInput<'a> {
     pub statics: &'a Statics,
     /// The GPU textures an inset's picture can show (packages/rlstd/src/inset.rs).
     pub textures: &'a crate::utility::inset::Textures,
-    pub beat_kind: BeatKind,
+    pub scene_type: SceneType,
     pub image: Option<(egui::TextureId, Vec2)>,
     pub beat_sources: &'a [String],
     pub chapter_number: u32,
@@ -342,9 +342,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     let mut report = UiReport::default();
 
     draw_header(&ink, input, &mut chrome, ctx);
-    let scene_beat = input.beat_kind == BeatKind::Scene;
-    match input.beat_kind {
-        BeatKind::Scene => {
+    let scene_beat = input.scene_type == SceneType::ThreeD;
+    match input.scene_type {
+        SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.
@@ -375,7 +375,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_callout(&ink, l, key, &[]);
             }
         }
-        BeatKind::Mermaid => {
+        // A 2D scene: the beat's image, or its sources card.
+        SceneType::TwoD if input.image.is_none() => draw_source_card(&ink, input),
+        SceneType::TwoD => {
             if let Some((texture, size)) = input.image {
                 let area = l.content;
                 let fit = fit_rect(area, size);
@@ -402,7 +404,6 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 }
             }
         }
-        BeatKind::Sources => draw_source_card(&ink, input),
     }
     if input.fade > 0.0 {
         let a = (input.fade.clamp(0.0, 1.0) * 255.0) as u8;

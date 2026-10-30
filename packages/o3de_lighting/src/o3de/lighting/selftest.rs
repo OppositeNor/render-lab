@@ -16,7 +16,7 @@ use lab::investigation::SelftestOptions;
 use lab::layout;
 use lab::renderer::{self, Renderer};
 use lab::scene::{self, ids, SHAPE_BOX, SHAPE_PLANE};
-use lab::shot::{BeatKind, Timeline};
+use lab::shot::{SceneType, Timeline};
 use lab::ui::{Chrome, MIN_TEXT_PT};
 use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
@@ -794,7 +794,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let timeline = Timeline::load(path)?;
         let mut problems = Vec::new();
         let mut beats = 0;
-        for beat in timeline.beats.iter().filter(|b| b.kind == BeatKind::Scene) {
+        for beat in timeline.beats.iter().filter(|b| b.kind == SceneType::ThreeD) {
             let frame = beat.start_frame + beat.frames / 2;
             let state = timeline.state_at(frame);
             let mut req = request(&state, &timeline);

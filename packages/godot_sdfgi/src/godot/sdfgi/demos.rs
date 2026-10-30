@@ -497,8 +497,11 @@ fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
     let seed_cell = IVec3::new(seed[0] as i32, seed[1] as i32, seed[2] as i32);
     let w = cell_world(world, 0, worked);
     ball(content, w, 0.06, palette::SELECTED, 1.0);
+    // The worked cell and its seed, for a story's arrows and labels (super::ANNOTATIONS).
+    content.points.push(("field.worked".into(), w));
     if seed[3] != 0 {
         let s = cell_world(world, 0, seed_cell);
+        content.points.push(("field.seed".into(), s));
         content.draw.segment(w, s, palette::OUTSIDE, 1.0, 2.0, lab::frame::FLAG_ARROW);
         ball(content, s, 0.05, palette::INSIDE, 1.0);
     }

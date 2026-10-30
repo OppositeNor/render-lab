@@ -3,6 +3,8 @@
 //! links it as `lab::utility` (lab/src/lib.rs), so it reaches the lab's types
 //! and every package's library reaches it through the lab.
 
+/// Arrows and labels a story declares, and the points and sets an investigation publishes for them.
+pub mod annotations;
 /// The Play animation of a demonstration, sampled.
 pub mod demo;
 /// Pictures in the viewport's corners.

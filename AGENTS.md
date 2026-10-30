@@ -69,7 +69,8 @@ cargo run --release -- home --snapshot /path/to/home.png    # the title screen a
 cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads
 cargo run --release -- home --snapshot /path/to/starting.png --page starting # the homepage's loading page, while the title's scene loads
 cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # the viewer offscreen: the dock (viewer:<demo> for one demonstration; viewer-timeline: a timeline playing, its bar)
-cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a diagram beat: the diagram panel, zoomed
+cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a 2d scene with an image: its panel, zoomed
+cargo run --release -- home --snapshot /path/to/sources.png --page viewer-sources   # a timeline paused on a 2d scene's sources card
 cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
 python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the checkout
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them

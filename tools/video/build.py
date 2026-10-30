@@ -57,6 +57,7 @@ def load_board(cfg: Config) -> Json:
 
 def validate(cfg: Config, board: Json, index: Json) -> None:
     import markup
+    import story
     from outputs import beat_listings, listing_path, read_listing
     from timeline import sentences_of
     keys = index['entries']
@@ -67,8 +68,8 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
         for beat in chapter['beats']:
             assert beat['id'] not in ids, f'duplicate beat {beat["id"]}'
             ids.add(beat['id'])
-            assert beat['kind'] in ('scene', 'mermaid', 'sources'), beat['id']
-            if beat['kind'] == 'mermaid':
+            assert beat['kind'] in ('3d', '2d'), beat['id']
+            if story.is_diagram(beat):
                 graph = (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text()
                 for node in beat.get('focus', []):
                     if not re.search(r'\b' + re.escape(node) + r'\s*[\[({]', graph):

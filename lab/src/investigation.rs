@@ -216,6 +216,11 @@ pub trait Investigation: Sync {
             Tab::Plain(name) => name,
         }
     }
+    /// The scene a shot shows: its demonstration's, unless the shot's state
+    /// picks one of several prepared variants of it (each prepared once).
+    fn scene(&self, state: &ShotState) -> SceneId {
+        self.demo_scene(state.demo)
+    }
     /// The lab scene a demonstration shows (src/scene.rs); the renderer
     /// switches to it for the demonstration's frames.
     fn demo_scene(&self, demo: DemoId) -> SceneId {
@@ -265,6 +270,12 @@ pub trait Investigation: Sync {
     #[cfg(commercial)]
     fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
         None
+    }
+    /// The points and arrow sets it publishes for a story's arrows and labels
+    /// (packages/rlstd/src/annotations.rs), in `FrameContent::points` and
+    /// `arrow_sets`.
+    fn annotations(&self) -> &'static [crate::utility::annotations::AnnotationSpec] {
+        &[]
     }
     /// The images it publishes for a story to show (`{@ image=key}`,
     /// packages/rlstd/src/inset.rs), in `FrameContent::images` of the frames

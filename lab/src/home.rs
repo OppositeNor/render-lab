@@ -1265,11 +1265,11 @@ pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {
 /// first timeline playing, in the edition the homepage offers first; or the
 /// demonstration `demo` (its key).
 pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, demo: Option<&str>, png: &Path) -> Result<()> {
-    snapshot_viewer_page(options, timeline, demo, false, png)
+    snapshot_viewer_page(options, timeline, demo, None, png)
 }
 
-/// `snapshot_viewer`, or with `diagram`, its timeline paused on a diagram beat.
-pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<&str>, diagram: bool, png: &Path) -> Result<()> {
+/// `snapshot_viewer`, or with `paused`, its timeline paused on a 2D scene.
+pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<&str>, paused: Option<viewer::PausedPage>, png: &Path) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let current = investigation::current();
     let choice = if timeline {
@@ -1281,7 +1281,7 @@ pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<
     };
     let size = PhysicalSize::new(options.width, options.height);
     let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
-    viewer::snapshot_page(viewer_options, demo, diagram, png)
+    viewer::snapshot_page(viewer_options, demo, paused, png)
 }
 
 /// Click through the homepage offscreen and check what each control opens.

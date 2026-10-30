@@ -41,8 +41,27 @@ class Parse(unittest.TestCase):
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0], 'gain': 2.0}})
         self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'image': 'floor', 'imageParams': {'gain': 4.0}, 'blend': 1.0})
         self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'imageHide': ['floor', 'ceiling']})
-        s = markup.parse('{@ image=atlas imageClick=selectPage} A.')
-        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'atlas', 'imageClick': 'selectPage'})
+        s = markup.parse('{@ arrow=a arrowFrom=0,1,2 arrowTo=probe.top arrowColor=#50d7ff arrowWidth=4} A {@ label=l labelAt=probe.top labelText=demos.hit} b {@ arrows=rays arrowHide=a labelHide=l} c.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowColor': '#50d7ff', 'arrowWidth': 4.0})
+        self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos.hit'})
+        self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
+        s = markup.parse('{@ image=map imageClick=pickCell} A.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'map', 'imageClick': 'pickCell'})
+
+    def test_code_spans(self) -> None:
+        s = markup.parse('Then {@ callout=x} {@ codespan="LightCullingTilePrepare"} adds it, and {@ codespan="r.Example.MaxIntensity" say="max ray intensity"} clamps.')
+        # Voiced as written (or as its say), drawn as a code span, and not a cue.
+        self.assertEqual(s.spoken, 'Then LightCullingTilePrepare adds it, and max ray intensity clamps.')
+        self.assertEqual(s.caption, 'Then {@ codespan="LightCullingTilePrepare"} adds it, and {@ codespan="r.Example.MaxIntensity"} clamps.')
+        self.assertEqual([t.kind for t in s.tags], ['cue'])
+        self.assertEqual(markup.readable(s.caption), 'Then LightCullingTilePrepare adds it, and r.Example.MaxIntensity clamps.')
+        held, tags = markup.protect(s.caption)
+        self.assertNotIn('{@', held)
+        self.assertEqual(markup.restore(held, tags), s.caption)
+        # A translation carries code spans; a malformed one fails.
+        self.assertIn('{@ codespan="LightCullingTilePrepare"}', markup.parse('再由 {@ codespan="LightCullingTilePrepare"} 加上。', spoken_only=True).caption)
+        with self.assertRaises(markup.MarkupError):
+            markup.parse('A {@ codespan="X" blend=1} b.')
 
     def test_named_cues(self) -> None:
         s = markup.parse('{@wide}A ray.')

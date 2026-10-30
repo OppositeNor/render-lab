@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from config import LAB, TOOLS, Config, Environment, log, run
+import story
 from timeline import sentences_of
 
 Json = dict[str, Any]
@@ -113,7 +114,7 @@ def render_mermaid(cfg: Config, env: Environment, board: Json) -> list[Json]:
     build = cfg.build()
     jobs = [{'id': beat['id'], 'diagram': str(cfg.diagrams / f'{beat["diagram"]}.mmd'), 'focus': beat.get('focus', []),
              'output': str(cfg.timeline_dir() / 'mermaid' / f'{beat["id"]}.png')}
-            for chapter in board['chapters'] for beat in chapter['beats'] if beat['kind'] == 'mermaid']
+            for chapter in board['chapters'] for beat in chapter['beats'] if story.is_diagram(beat)]
     if not jobs:
         return []
     spec: Json = {'width': 1840, 'height': 728, 'jobs': jobs, 'metrics': str(build / 'mermaid-metrics.json'), 'nodeModules': str(env.node_modules)}
@@ -187,7 +188,7 @@ def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json, resol
         build / 'logs' / 'snapshots.log')
     chosen: list[Path] = []
     for chapter in timeline['chapters']:
-        beats = [b for b in timeline['beats'] if b['chapter'] == chapter['number'] and b['kind'] == 'scene']
+        beats = [b for b in timeline['beats'] if b['chapter'] == chapter['number'] and b['kind'] == '3d']
         if beats:
             b = beats[len(beats) // 2]
             chosen.append(shots / f'frame-{b["startFrame"] + b["frames"] // 2:06d}.png')
@@ -290,9 +291,9 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
         for beat in chapter['beats']:
             when = clock(beat_frames[beat['id']]['startFrame'] / fps)
             lines += [f'### {beat["headline"]}', '']
-            if beat['kind'] == 'mermaid':
+            if story.is_diagram(beat):
                 lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.mmd`*', '', '```mermaid', (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text().strip(), '```', '']
-            elif beat['kind'] == 'scene':
+            elif story.is_3d(beat):
                 demo = next((k['demo'] for k in beat.get('keys', []) if 'demo' in k), None)
                 lines += [f'*{when} · {w["demo"]}{": " + demos.get(demo, demo) if demo else ""}*', '']
             else:
@@ -300,7 +301,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             lines += [joiner.join(script_text(cfg, s) for s in sentences_of(beat)), '']
             for name in beat_listings(beat):
                 lines += listing_markdown(cfg, name, doc_dir, index, shown)
-            if beat['kind'] == 'sources':
+            if story.is_card(beat):
                 for key in beat.get('sources', []):
                     entry = index['entries'][key]
                     inspect = entry.get('inspectZh', entry['inspect']) if cfg.zh() else entry['inspect']

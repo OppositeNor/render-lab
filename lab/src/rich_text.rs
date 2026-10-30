@@ -1,7 +1,9 @@
-//! Text with formulas in it. A string may hold tags, `{@ name=value …}`; the
-//! lab draws the formula tags, `{@ formula="LaTeX"}`, typeset by
-//! src/formula.rs, on the text's baseline and in the text's colour. Other
-//! tags (a storyboard's cues) are the video builder's and are not drawn.
+//! Text with formulas and code in it. A string may hold tags, `{@ name=value …}`;
+//! the lab draws the formula tags, `{@ formula="LaTeX"}`, typeset by
+//! src/formula.rs, and the code spans, `{@ codespan="LightCullingTilePrepare"}`,
+//! in the monospace font on a soft chip, both on the text's baseline and in
+//! the text's colour. Other tags (a storyboard's cues) are the video
+//! builder's and are not drawn.
 //!
 //! Inside a quoted value only `\"` is an escape, so LaTeX keeps its
 //! backslashes as written (`\\` is a line break). egui cannot place images in
@@ -18,6 +20,14 @@ pub enum Run {
     Text(String),
     /// `colors`: the term colours a readout lights its terms in (`colors="#rrggbb,…"`).
     Formula { latex: String, display: bool, colors: Vec<Color32> },
+    /// A code name (`{@ codespan="…"}`).
+    Code(String),
+}
+
+/// A code span's chip: its padding either side of the text, and its fill.
+const CODE_PAD: f32 = 5.0;
+fn code_fill(color: Color32) -> Color32 {
+    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), (color.a() as f32 * 0.14) as u8)
 }
 
 /// Whether a string holds any tag (strings without one keep the plain text path).
@@ -84,7 +94,7 @@ pub fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usi
     }
 }
 
-/// The runs of a string: its text, and its formula tags. Other tags are dropped.
+/// The runs of a string: its text, its formula tags, and its code spans. Other tags are dropped.
 pub fn parse(text: &str) -> Result<Vec<Run>, String> {
     let mut runs = Vec::new();
     let mut plain = String::new();
@@ -92,7 +102,12 @@ pub fn parse(text: &str) -> Result<Vec<Run>, String> {
     while let Some(at) = text[rest..].find("{@").map(|i| rest + i) {
         plain.push_str(&text[rest..at]);
         let (attrs, end) = parse_tag(text, at + 2)?;
-        if let Some((_, latex)) = attrs.iter().find(|(k, _)| k == "formula") {
+        if let Some((_, code)) = attrs.iter().find(|(k, _)| k == "codespan") {
+            if !plain.is_empty() {
+                runs.push(Run::Text(std::mem::take(&mut plain)));
+            }
+            runs.push(Run::Code(code.clone()));
+        } else if let Some((_, latex)) = attrs.iter().find(|(k, _)| k == "formula") {
             if latex != "off" {
                 if !plain.is_empty() {
                     runs.push(Run::Text(std::mem::take(&mut plain)));
@@ -121,7 +136,7 @@ fn hex_color(text: &str) -> Result<Color32, String> {
 pub fn first_formula(text: &str) -> Option<(String, bool, Vec<Color32>)> {
     parse(text).ok()?.into_iter().find_map(|r| match r {
         Run::Formula { latex, display, colors } => Some((latex, display, colors)),
-        Run::Text(_) => None,
+        Run::Text(_) | Run::Code(_) => None,
     })
 }
 
@@ -188,6 +203,8 @@ enum Piece {
     Formula { latex: String, display: bool, formula: Arc<Formula>, size: f32 },
     /// A formula that failed to typeset, shown as its LaTeX.
     Broken { text: String, width: f32, ascent: f32, height: f32 },
+    /// A code span: its text's metrics in the monospace font (the chip's padding not included).
+    Code { text: String, width: f32, ascent: f32, height: f32 },
 }
 
 fn text_metrics(ink: &Ink, text: &str, size: f32, family: &FontFamily) -> (f32, f32, f32) {
@@ -204,6 +221,10 @@ fn pieces(ink: &Ink, text: &str, size: f32, family: &FontFamily) -> Vec<Piece> {
             Run::Text(t) => {
                 let (width, ascent, height) = text_metrics(ink, &t, size, family);
                 Piece::Text { text: t, width, ascent, height }
+            }
+            Run::Code(t) => {
+                let (width, ascent, height) = text_metrics(ink, &t, size, &FontFamily::Monospace);
+                Piece::Code { text: t, width, ascent, height }
             }
             // In a line of text a formula is set inline, whatever its tag says
             // (display style is for the readout and the formula card).
@@ -227,6 +248,7 @@ impl Piece {
     fn extent(&self) -> (f32, f32, f32) {
         match self {
             Piece::Text { width, ascent, height, .. } | Piece::Broken { width, ascent, height, .. } => (*width, *ascent, height - ascent),
+            Piece::Code { width, ascent, height, .. } => (width + 2.0 * CODE_PAD, *ascent, height - ascent),
             Piece::Formula { formula, .. } => {
                 let pad = PAD as f32;
                 (formula.width as f32 - 2.0 * pad, formula.baseline - pad, formula.height as f32 - pad - formula.baseline)
@@ -264,6 +286,11 @@ pub fn text(ink: &Ink, pos: Pos2, align: Align2, text: &str, size: f32, family: 
                 let pad = PAD as f32;
                 draw_formula(ink, pos2(x - pad, baseline - formula.baseline), latex, *fsize, *display, formula, 1.0, color, None);
             }
+            Piece::Code { text, ascent, height, .. } => {
+                let chip = Rect::from_min_size(pos2(x + 1.0, baseline - ascent - 1.0), vec2(w - 2.0, height + 2.0));
+                ink.painter.rect_filled(chip, egui::CornerRadius::same(4), code_fill(color));
+                ink.text(pos2(x + CODE_PAD, baseline - ascent), Align2::LEFT_TOP, text, size, FontFamily::Monospace, color);
+            }
         }
         x += w;
     }
@@ -281,6 +308,12 @@ mod tests {
             runs,
             vec![Run::Text("blend with ".into()), Run::Formula { latex: r"\alpha = \frac{1}{1+n}".into(), display: false, colors: vec![] }, Run::Text(", done".into())]
         );
+    }
+
+    #[test]
+    fn parses_code_spans() {
+        let runs = parse(r#"then {@ codespan="LightCullingTilePrepare"} adds it"#).unwrap();
+        assert_eq!(runs, vec![Run::Text("then ".into()), Run::Code("LightCullingTilePrepare".into()), Run::Text(" adds it".into())]);
     }
 
     #[test]

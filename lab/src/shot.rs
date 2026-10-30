@@ -12,6 +12,7 @@
 
 use crate::actions::{ActionCall, ActionFrame, RunningAction};
 use crate::animation::{Ease, Motion};
+use crate::utility::annotations::{Anchor, AnnotationKind, NoteKind, StoryNote};
 use crate::utility::inset::{Corner, ImageSource, StoryImage};
 use crate::camera::OrbitCamera;
 use crate::investigation;
@@ -117,6 +118,9 @@ pub struct ShotState {
     /// The images the story shows (`Key::image`), in the order it showed them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub images: Vec<StoryImage>,
+    /// The arrows, labels, and arrow sets the story shows (`Key::arrow`, `label`, `arrows`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<StoryNote>,
 }
 
 fn is_zero(n: &usize) -> bool {
@@ -131,6 +135,12 @@ impl ShotState {
     /// The current investigation's starting state for a demonstration.
     pub fn for_demo(demo: impl Into<DemoId>) -> ShotState {
         investigation::current().shot_state(demo.into())
+    }
+
+    /// Whether the story shows the image the investigation publishes as `key`
+    /// (so its frame publishes it, in `FrameContent::images`).
+    pub fn shows_arrows(&self, key: &str) -> bool {
+        self.notes.iter().any(|n| n.kind == NoteKind::Arrows && n.name == key)
     }
 
     /// Whether the story shows the image the investigation publishes as `key`
@@ -310,12 +320,22 @@ pub struct TimelineChapter {
     pub end_frame: u64,
 }
 
+/// The type of a beat's scene: the lab's 3D frame, or a 2D page in its
+/// place, the beat's image (a diagram) or, without one, its sources card.
+/// Timelines written before name them `scene`, `mermaid`, and `sources`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum BeatKind {
-    Scene,
-    Mermaid,
-    Sources,
+pub enum SceneType {
+    #[serde(rename = "3d", alias = "scene")]
+    ThreeD,
+    #[serde(rename = "2d", alias = "mermaid", alias = "sources")]
+    TwoD,
+}
+
+impl TimelineBeat {
+    /// A 2D scene that shows an image (a diagram), not its sources card.
+    pub fn shows_image(&self) -> bool {
+        self.kind == SceneType::TwoD && self.image.is_some()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -323,7 +343,7 @@ pub enum BeatKind {
 pub struct TimelineBeat {
     pub id: String,
     pub chapter: u32,
-    pub kind: BeatKind,
+    pub kind: SceneType,
     pub start_frame: u64,
     pub frames: u64,
     pub headline: String,
@@ -414,6 +434,43 @@ pub struct Key {
     /// The click handler a click on `image`'s picture runs (src/actions.rs, `#[click]`).
     #[serde(default)]
     pub image_click: Option<String>,
+    /// An arrow to show, by name (packages/rlstd/src/annotations.rs); `""`
+    /// fades out every arrow and set. A new one names both ends.
+    #[serde(default)]
+    pub arrow: Option<String>,
+    /// Its ends: three numbers (blended over `blend`) or a point the
+    /// investigation publishes, by key.
+    #[serde(default)]
+    pub arrow_from: Option<serde_json::Value>,
+    #[serde(default)]
+    pub arrow_to: Option<serde_json::Value>,
+    /// Its colour (`#rrggbb`; a set's arrows keep their own without one).
+    #[serde(default)]
+    pub arrow_color: Option<String>,
+    /// Its width, in reference pixels (3 by default).
+    #[serde(default)]
+    pub arrow_width: Option<f32>,
+    /// An arrow set the investigation publishes, to show.
+    #[serde(default)]
+    pub arrows: Option<String>,
+    /// The arrows and sets it fades out.
+    #[serde(default)]
+    pub arrow_hide: Vec<String>,
+    /// A label to show, by name; `""` fades out every label. A new one names
+    /// its point and its text.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// Its point: three numbers or a published point's key.
+    #[serde(default)]
+    pub label_at: Option<serde_json::Value>,
+    /// Its text: a key of the investigation's package's text.
+    #[serde(default)]
+    pub label_text: Option<String>,
+    #[serde(default)]
+    pub label_color: Option<String>,
+    /// The labels it fades out.
+    #[serde(default)]
+    pub label_hide: Vec<String>,
     /// Its title: a text key of the investigation's package (the
     /// investigation's own title of it, or none, by default).
     #[serde(default)]
@@ -528,6 +585,172 @@ fn components(value: &serde_json::Value) -> Result<Vec<f32>, String> {
 /// Why `key`'s image cannot show: an image or a kind the investigation does
 /// not have, or parameters its kind does not take. `instances` are the
 /// instances made by the keys before it, by name.
+/// The channel of the fade of the story's note `name`.
+fn note_alpha(name: &str) -> String {
+    format!("note.{name}.alpha")
+}
+
+/// The channel of component `k` of a fixed point `end` (`from`, `to`, `at`) of note `name`.
+fn note_point(name: &str, end: &str, k: usize) -> String {
+    format!("note.{name}.{end}#{k}")
+}
+
+/// A point as a key holds it: three numbers, or a published point's key.
+enum PointValue {
+    At([f32; 3]),
+    Named(String),
+}
+
+fn point_value(value: &serde_json::Value) -> Result<PointValue, String> {
+    if let Some(key) = value.as_str() {
+        let declared = investigation::current().annotations().iter().any(|a| a.key == key && a.kind == AnnotationKind::Point);
+        if !declared {
+            let known: Vec<&str> = investigation::current().annotations().iter().filter(|a| a.kind == AnnotationKind::Point).map(|a| a.key).collect();
+            return Err(format!("no point `{key}` (the investigation's: {})", if known.is_empty() { "none".into() } else { known.join(", ") }));
+        }
+        return Ok(PointValue::Named(key.to_string()));
+    }
+    let n = components(value)?;
+    let [x, y, z] = n[..] else { return Err(format!("{value} is not a point (three numbers, or a point's key)")) };
+    Ok(PointValue::At([x, y, z]))
+}
+
+/// Why `key`'s arrows and labels cannot show: a point, a set, or a colour
+/// the investigation does not have, or a new one without its ends, point, or
+/// text. `made` are the notes the keys before it made.
+fn check_notes(key: &Key, made: &mut BTreeMap<String, &'static str>) -> Result<(), String> {
+    for (field, value) in [("arrowFrom", &key.arrow_from), ("arrowTo", &key.arrow_to), ("labelAt", &key.label_at)] {
+        if let Some(v) = value {
+            point_value(v).map_err(|e| format!("{field}: {e}"))?;
+        }
+    }
+    for color in [&key.arrow_color, &key.label_color].into_iter().flatten() {
+        crate::utility::annotations::parse_color(color)?;
+    }
+    if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
+        if !made.contains_key(name) && (key.arrow_from.is_none() || key.arrow_to.is_none()) {
+            return Err(format!("the new arrow `{name}` names both its ends (arrowFrom, arrowTo)"));
+        }
+        made.insert(name.to_string(), "arrow");
+    } else if key.arrow_from.is_some() || key.arrow_to.is_some() || key.arrow_width.is_some() || (key.arrow_color.is_some() && key.arrows.is_none()) {
+        return Err("arrowFrom, arrowTo, arrowColor, and arrowWidth go with the arrow they set (`arrow=<name>`)".into());
+    }
+    if let Some(set) = &key.arrows {
+        let declared = investigation::current().annotations().iter().any(|a| a.key == set && a.kind == AnnotationKind::ArrowSet);
+        if !declared {
+            let known: Vec<&str> = investigation::current().annotations().iter().filter(|a| a.kind == AnnotationKind::ArrowSet).map(|a| a.key).collect();
+            return Err(format!("no arrow set `{set}` (the investigation's: {})", if known.is_empty() { "none".into() } else { known.join(", ") }));
+        }
+    }
+    if let Some(name) = key.label.as_deref().filter(|n| !n.is_empty()) {
+        if !made.contains_key(name) && (key.label_at.is_none() || key.label_text.is_none()) {
+            return Err(format!("the new label `{name}` names its point and its text (labelAt, labelText)"));
+        }
+        made.insert(name.to_string(), "label");
+    } else if key.label_at.is_some() || key.label_text.is_some() || key.label_color.is_some() {
+        return Err("labelAt, labelText, and labelColor go with the label they set (`label=<name>`)".into());
+    }
+    Ok(())
+}
+
+/// Applies `key`'s arrows and labels to `state`: shown ones fade in over the
+/// key's blend, hidden ones out, fixed points blend to their new place.
+fn apply_notes(key: &Key, state: &mut ShotState, segments: &mut BTreeMap<String, Channel>, targets: &mut Vec<(String, f32)>) {
+    let hide = |state: &ShotState, targets: &mut Vec<(String, f32)>, which: &dyn Fn(&StoryNote) -> bool| {
+        targets.extend(state.notes.iter().filter(|n| which(n)).map(|n| (note_alpha(&n.name), 0.0)));
+    };
+    if key.arrow.as_deref() == Some("") {
+        hide(state, targets, &|n| !matches!(n.kind, NoteKind::Label { .. }));
+    }
+    if key.label.as_deref() == Some("") {
+        hide(state, targets, &|n| matches!(n.kind, NoteKind::Label { .. }));
+    }
+    targets.extend(key.arrow_hide.iter().chain(&key.label_hide).map(|name| (note_alpha(name), 0.0)));
+    let color = |c: &Option<String>| c.as_deref().map(|c| crate::utility::annotations::parse_color(c).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)));
+    // A point's anchor: published, or fixed and blended over its channels.
+    let set_point = |name: &str, end: &str, value: &serde_json::Value, segments: &mut BTreeMap<String, Channel>, targets: &mut Vec<(String, f32)>| -> Anchor {
+        match point_value(value).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)) {
+            PointValue::Named(k) => Anchor::Named(k),
+            PointValue::At(p) => {
+                for (k, v) in p.into_iter().enumerate() {
+                    let channel = note_point(name, end, k);
+                    if !segments.contains_key(&channel) {
+                        segments.insert(channel.clone(), Channel::hold(key.frame, v));
+                    }
+                    targets.push((channel, v));
+                }
+                Anchor::At(p)
+            }
+        }
+    };
+    let show = |name: &str, kind: NoteKind, color: Option<[u8; 3]>, state: &mut ShotState, segments: &mut BTreeMap<String, Channel>, targets: &mut Vec<(String, f32)>| {
+        let shown = segments.get(&note_alpha(name)).is_some_and(|s| s.value(key.frame) > 0.0);
+        match state.notes.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.kind = kind;
+                if color.is_some() {
+                    n.color = color;
+                }
+            }
+            None => state.notes.push(StoryNote { name: name.to_string(), kind, color, alpha: 0.0 }),
+        }
+        if !shown {
+            segments.insert(note_alpha(name), Channel::hold(key.frame, 0.0));
+        }
+        targets.push((note_alpha(name), 1.0));
+    };
+    if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
+        let old = state.notes.iter().find(|n| n.name == name).map(|n| n.kind.clone());
+        let (old_from, old_to, old_width) = match old {
+            Some(NoteKind::Arrow { from, to, width }) => (Some(from), Some(to), width),
+            _ => (None, None, 3.0),
+        };
+        let from = key.arrow_from.as_ref().map(|v| set_point(name, "from", v, segments, targets)).or(old_from).expect("a new arrow names its ends (checked)");
+        let to = key.arrow_to.as_ref().map(|v| set_point(name, "to", v, segments, targets)).or(old_to).expect("a new arrow names its ends (checked)");
+        show(name, NoteKind::Arrow { from, to, width: key.arrow_width.unwrap_or(old_width) }, color(&key.arrow_color), state, segments, targets);
+    }
+    if let Some(set) = &key.arrows {
+        show(set, NoteKind::Arrows, color(&key.arrow_color), state, segments, targets);
+    }
+    if let Some(name) = key.label.as_deref().filter(|n| !n.is_empty()) {
+        let old = state.notes.iter().find(|n| n.name == name).map(|n| n.kind.clone());
+        let (old_at, old_text) = match old {
+            Some(NoteKind::Label { at, text }) => (Some(at), Some(text)),
+            _ => (None, None),
+        };
+        let at = key.label_at.as_ref().map(|v| set_point(name, "at", v, segments, targets)).or(old_at).expect("a new label names its point (checked)");
+        let text = key.label_text.clone().or(old_text).expect("a new label names its text (checked)");
+        show(name, NoteKind::Label { at, text }, color(&key.label_color), state, segments, targets);
+    }
+}
+
+/// The notes at `frame`: each one's fade and its fixed points from their
+/// channels; the faded-out ones are gone.
+fn finish_notes(state: &mut ShotState, segments: &BTreeMap<String, Channel>, frame: u64) {
+    let point = |name: &str, end: &str, anchor: &mut Anchor| {
+        if let Anchor::At(p) = anchor {
+            for k in 0..3 {
+                if let Some(s) = segments.get(&note_point(name, end, k)) {
+                    p[k] = s.value(frame);
+                }
+            }
+        }
+    };
+    for note in &mut state.notes {
+        note.alpha = segments.get(&note_alpha(&note.name)).map_or(0.0, |s| s.value(frame));
+        let name = note.name.clone();
+        match &mut note.kind {
+            NoteKind::Arrow { from, to, .. } => {
+                point(&name, "from", from);
+                point(&name, "to", to);
+            }
+            NoteKind::Label { at, .. } => point(&name, "at", at),
+            NoteKind::Arrows => {}
+        }
+    }
+    state.notes.retain(|n| n.alpha > 0.0);
+}
+
 fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>) -> Result<(), String> {
     let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) else {
         return if key.image_from.is_some() || !key.image_params.is_empty() || key.image_click.is_some() { Err("imageFrom, imageClick, and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
@@ -579,6 +802,7 @@ impl Timeline {
 
     pub fn validate(&self) -> Result<()> {
         let mut instances = BTreeMap::new();
+        let mut notes = BTreeMap::new();
         for key in &self.keys {
             if let Err(e) = key.targets() {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
@@ -595,6 +819,9 @@ impl Timeline {
                         bail!("`{name}` is both set and animated by the key at frame {} ({:?})", key.frame, key.source);
                     }
                 }
+            }
+            if let Err(e) = check_notes(key, &mut notes) {
+                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
             if let Err(e) = check_image(key, &mut instances) {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
@@ -649,11 +876,13 @@ impl Timeline {
                 let callout = state.callout.clone();
                 let (formula, term) = (state.formula.clone(), state.formula_term);
                 let images = std::mem::take(&mut state.images);
+                let notes = std::mem::take(&mut state.notes);
                 let camera_now: Vec<f32> = camera.iter().map(|c| segments[*c].value(key.frame)).collect();
                 state = ShotState::for_demo(demo);
                 state.callout = callout;
                 // The images and the formula card belong to the narration, not the demonstration.
                 state.images = images;
+                state.notes = notes;
                 (state.formula, state.formula_term) = (formula, term);
                 reset(&mut segments, &state, key.frame);
                 // A demo switch cuts parameters but keeps the camera continuous
@@ -730,6 +959,7 @@ impl Timeline {
                 }
             }
             // A newly lit term fades in from dark; unlighting fades the term out.
+            apply_notes(key, &mut state, &mut segments, &mut targets);
             if let Some(term) = key.term {
                 if term > 0 {
                     state.formula_term = term;
@@ -789,6 +1019,7 @@ impl Timeline {
             }
         }
         state.images.retain(|i| i.alpha > 0.0);
+        finish_notes(&mut state, &segments, frame);
         // The running actions set the state last, in the order they started.
         let actions = investigation::current().actions();
         for a in &mut state.actions {
