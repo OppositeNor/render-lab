@@ -171,5 +171,8 @@
   "controls.blend_point": "测试点",
   "controls.light_z": "光源 z",
   "controls.cell_x": "单元格 x",
-  "controls.cell_z": "单元格 z"
+  "controls.cell_z": "单元格 z",
+  "notice.copyright": "这里的 SDFGI 代码移植自 Godot Engine。Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md); Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur。依据 MIT 许可证使用。",
+  "notice.trademark": "Godot 和 Godot Engine 是其所有者的商标，这里仅用于指称该引擎。Render Lab 与 Godot Engine 项目及其基金会没有关联，也未获其认可。",
+  "notice.credit": "{@ symbol=copyright} 2014-present Godot Engine contributors，MIT 许可证。"
 }

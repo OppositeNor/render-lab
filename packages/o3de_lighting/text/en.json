@@ -245,5 +245,9 @@
   "demos.cascades_schematic": "Schematic: the lab renders no shadow maps.",
   "formula.cascades": "{@ formula=\"\\begin{aligned}u_i &= \\lit{1}{n + (f-n)\\,\\tfrac{i+1}{4}}\\\\[3pt]\\ell_i &= \\lit{1}{n\\,(f/n)^{(i+1)/4}}\\\\[3pt]d_i &= \\lit{2}{r\\,\\ell_i + (1-r)\\,u_i}\\\\[3pt]R_i &= \\lit{3}{\\mathrm{sphere}(d_{i-1},\\ d_i)}\\\\[3pt]\\text{lo, hi} &= \\lit{4}{\\lfloor\\cdot/\\text{texel}\\rfloor\\,\\text{texel}}\\end{aligned}\" display=yes colors=\"#64dfd1,#8fb8ff,#ffd98a,#ff8fc8\"}",
   "demos.texel_mm": "texel, mm (2R / 1024)",
-  "demos.b_in_acescg": "b in ACEScg"
+  "demos.b_in_acescg": "b in ACEScg",
+  "notice.copyright": "The lighting code here is ported from the Open 3D Engine. Copyright Contributors to the Open 3D Engine Project. O3DE is offered under Apache-2.0 or MIT; it is used here under the MIT License.",
+  "notice.cubemapgen": "Its cubemap filtering is CubeMapGen, as bundled with O3DE. Copyright (c) 2011, Advanced Micro Devices, Inc. Modified BSD License; O3DE's changes to it under the MIT License.",
+  "notice.trademark": "Open 3D Engine and O3DE are trademarks of their owner, used here only to name the engine. Render Lab is not affiliated with or endorsed by the Open 3D Engine project or its foundation.",
+  "notice.credit": "{@ symbol=copyright} Contributors to the Open 3D Engine Project. MIT License."
 }

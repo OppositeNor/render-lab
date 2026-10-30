@@ -171,5 +171,8 @@
   "controls.blend_point": "test point",
   "controls.light_z": "light z",
   "controls.cell_x": "cell x",
-  "controls.cell_z": "cell z"
+  "controls.cell_z": "cell z",
+  "notice.copyright": "SDFGI's code here is ported from the Godot Engine. Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md); Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur. Used under the MIT License.",
+  "notice.trademark": "Godot and Godot Engine are trademarks of their owner, used here only to name the engine. Render Lab is not affiliated with or endorsed by the Godot Engine project or its foundation.",
+  "notice.credit": "{@ symbol=copyright} 2014-present Godot Engine contributors. MIT License."
 }

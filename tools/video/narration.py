@@ -125,6 +125,9 @@ def create_voice(env: Environment, device: str, workdir: Path) -> Any:
     np.random.seed(SEED)
     model = durations_model(env)
     link = workdir / 'espeak-ng-data'
+    if link.is_symlink() and not link.exists():
+        # A link to an environment that has since moved.
+        link.unlink()
     if not link.exists():
         link.symlink_to(os.path.relpath(ESPEAK_DATA_DIR, workdir), target_is_directory=True)
     options = ort.SessionOptions()
@@ -165,6 +168,9 @@ def create_phonemizer(env: Environment, workdir: Path) -> Any:
     from piper.config import PiperConfig
     from piper.phonemize_espeak import ESPEAK_DATA_DIR
     link = workdir / 'espeak-ng-data'
+    if link.is_symlink() and not link.exists():
+        # A link to an environment that has since moved.
+        link.unlink()
     if not link.exists():
         link.symlink_to(os.path.relpath(ESPEAK_DATA_DIR, workdir), target_is_directory=True)
     config = PiperConfig.from_dict(json.loads((env.voices / f'{VOICE}.onnx.json').read_text()))

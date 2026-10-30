@@ -20,6 +20,7 @@ from narration import Durations, Narration
 LEAD = 0.40      # silence before a beat's first sentence
 GAP = 0.32       # silence between sentences
 TAIL = 0.70      # silence after a beat's last sentence
+NOTICES = 8.0    # the closing card of the package's legal notices
 MAX_EXTRA_PAUSE = 2.2
 CAPTION_WIDTH = 58
 KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
@@ -309,9 +310,17 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
             cues.extend({'start': c['start'] / fps, 'end': c['end'] / fps, 'text': markup.readable(c['text']), 'beat': beat['id']} for c in captions)
             frame = beat_end
         chapters_out.append({'number': chapter['number'], 'title': chapter['title'], 'startFrame': chapter_start, 'endFrame': frame})
+    # The package's legal notices close the video: a silent card at the end of the last chapter.
+    notice_frames = 0
+    if cfg.notices() and chapters_out:
+        notice_frames = to_frames(NOTICES)
+        beats_out.append({'id': 'notices', 'chapter': chapters_out[-1]['number'], 'kind': '2d', 'startFrame': frame, 'frames': notice_frames,
+                          'headline': cfg.lab_text('ui.notices_title'), 'captions': [], 'sources': [], 'notices': True})
+        frame += notice_frames
+        chapters_out[-1]['endFrame'] = frame
     keys_out.sort(key=lambda k: k['frame'])
     timeline: Json = {
-        'fps': fps, 'width': board['width'], 'height': board['height'], 'totalFrames': frame,
+        'fps': fps, 'width': board['width'], 'height': board['height'], 'totalFrames': frame, 'noticeFrames': notice_frames,
         'title': board['title'], 'engineLabel': cfg.spec['engineLabel'],
         'chapters': chapters_out, 'beats': beats_out, 'keys': keys_out,
     }

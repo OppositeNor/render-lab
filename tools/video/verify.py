@@ -120,7 +120,9 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     rows: list[Json] = []
     within = True
     for c, b in zip(timeline['chapters'], board['chapters']):
-        seconds = (c['endFrame'] - c['startFrame']) / fps
+        # The closing notices card is not the chapter's: it is left out of its budget.
+        notices = timeline.get('noticeFrames', 0) if c is timeline['chapters'][-1] else 0
+        seconds = (c['endFrame'] - c['startFrame'] - notices) / fps
         deviation = (seconds - b['targetSeconds']) / b['targetSeconds']
         within &= abs(deviation) <= 0.10
         rows.append({'chapter': c['number'], 'title': c['title'], 'seconds': round(seconds, 1), 'target': b['targetSeconds'], 'deviation': f'{deviation:+.1%}', **plans.get(c['number'], {})})

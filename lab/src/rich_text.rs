@@ -2,8 +2,10 @@
 //! the lab draws the formula tags, `{@ formula="LaTeX"}`, typeset by
 //! src/formula.rs, and the code spans, `{@ codespan="LightCullingTilePrepare"}`,
 //! in the monospace font on a soft chip, both on the text's baseline and in
-//! the text's colour. Other tags (a storyboard's cues) are the video
-//! builder's and are not drawn.
+//! the text's colour, and writes a symbol tag, `{@ symbol=copyright}`, as its
+//! character (`SYMBOLS`: ©, ®, ™), so a text table needs no hard-to-type
+//! characters. Other tags (a storyboard's cues) are the video builder's and
+//! are not drawn.
 //!
 //! Inside a quoted value only `\"` is an escape, so LaTeX keeps its
 //! backslashes as written (`\\` is a line break). egui cannot place images in
@@ -94,6 +96,37 @@ pub fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usi
     }
 }
 
+/// The symbols a `{@ symbol=name}` tag writes.
+pub const SYMBOLS: &[(&str, char)] = &[("copyright", '©'), ("registered", '®'), ("trademark", '™')];
+
+/// `text` with its symbol tags written as their characters, every other tag kept
+/// (for text drawn as plain text: a label, a notice, a file).
+pub fn symbols(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = 0;
+    while let Some(at) = text[rest..].find("{@").map(|i| rest + i) {
+        out.push_str(&text[rest..at]);
+        match parse_tag(text, at + 2) {
+            Ok((attrs, end)) => {
+                match attrs.as_slice() {
+                    [(k, v)] if k == "symbol" => match SYMBOLS.iter().find(|(name, _)| name == v) {
+                        Some((_, c)) => out.push(*c),
+                        None => out.push_str(&format!("({v}: no such symbol)")),
+                    },
+                    _ => out.push_str(&text[at..end]),
+                }
+                rest = end;
+            }
+            Err(_) => {
+                out.push_str(&text[at..]);
+                return out;
+            }
+        }
+    }
+    out.push_str(&text[rest..]);
+    out
+}
+
 /// The runs of a string: its text, its formula tags, and its code spans. Other tags are dropped.
 pub fn parse(text: &str) -> Result<Vec<Run>, String> {
     let mut runs = Vec::new();
@@ -102,7 +135,10 @@ pub fn parse(text: &str) -> Result<Vec<Run>, String> {
     while let Some(at) = text[rest..].find("{@").map(|i| rest + i) {
         plain.push_str(&text[rest..at]);
         let (attrs, end) = parse_tag(text, at + 2)?;
-        if let Some((_, code)) = attrs.iter().find(|(k, _)| k == "codespan") {
+        if let Some((_, name)) = attrs.iter().find(|(k, _)| k == "symbol") {
+            let c = SYMBOLS.iter().find(|(s, _)| s == name).map(|(_, c)| *c).ok_or_else(|| format!("no symbol `{name}` (the symbols: copyright, registered, trademark)"))?;
+            plain.push(c);
+        } else if let Some((_, code)) = attrs.iter().find(|(k, _)| k == "codespan") {
             if !plain.is_empty() {
                 runs.push(Run::Text(std::mem::take(&mut plain)));
             }
@@ -312,6 +348,8 @@ mod tests {
 
     #[test]
     fn parses_code_spans() {
+        assert_eq!(parse("{@ symbol=copyright} 2026 x").unwrap(), vec![Run::Text("© 2026 x".into())]);
+        assert_eq!(symbols("Unreal{@ symbol=registered} Engine {@ codespan=\"A\"}"), "Unreal® Engine {@ codespan=\"A\"}");
         let runs = parse(r#"then {@ codespan="LightCullingTilePrepare"} adds it"#).unwrap();
         assert_eq!(runs, vec![Run::Text("then ".into()), Run::Code("LightCullingTilePrepare".into()), Run::Text(" adds it".into())]);
     }

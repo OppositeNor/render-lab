@@ -15,6 +15,14 @@
 //!   negotiation function (src/plugin.rs), which hands the lab its method
 //!   handles (its investigations);
 //! - `cooked-from`, in a built package: the source package it was built from;
+//! - `credit-text`, if given: a key of its text tables, a short line of the
+//!   copyright and license of what it holds, shown after the engine's version
+//!   at the top right of its frames (`{year}` in it is the current year);
+//! - `[[notice]]` tables, the legal notices of what it holds (an engine's
+//!   copyright, license, and trademarks), shown wherever its content is (the
+//!   homepage's selection page, the end of its videos, beside a video's file):
+//!   each a `notice-text`, a key of its text tables, and, if it has terms of
+//!   its own, its `license`, a file of the package that is built with it;
 //! - `[[provides]]` tables, each of a `type`:
 //!   - `"resource"`: a collection, the file at `path` (relative to the
 //!     manifest), of `[[resource]]` and `[[shader]]` tables (the format is in
@@ -39,6 +47,14 @@ use crate::plugin::{self, Handles, NegotiateFn};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// A legal notice of a package (`[[notice]]`): its text, a key of the
+/// package's text tables, and the file of its terms, relative to the package.
+#[derive(Clone)]
+pub struct Notice {
+    pub text: String,
+    pub license: Option<String>,
+}
 
 /// A narrated timeline a package provides, with its references resolved to full keys.
 pub struct Demo {
@@ -68,9 +84,13 @@ pub struct Package {
     /// Its collections, in the order the manifest lists them.
     pub collections: Vec<PathBuf>,
     pub demos: Vec<Demo>,
+    /// Its legal notices, in the order the manifest lists them.
+    pub notices: Vec<Notice>,
+    /// Its copyright and license line (`credit-text`), a text key.
+    pub credit: Option<String>,
 }
 
-const FIELDS: &[&str] = &["name", "author", "contact", "license", "import", "export", "library", "negotiate", "cooked-from", "provides"];
+const FIELDS: &[&str] = &["name", "author", "contact", "license", "import", "export", "library", "negotiate", "cooked-from", "provides", "notice", "credit-text"];
 
 /// A package's name: lower-case words joined by `_`.
 pub fn valid_name(name: &str) -> bool {
@@ -160,7 +180,26 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
             demos.push(Demo { key, title: field("title")?, edition: field("edition")?, timeline: String::new(), audio: String::new() });
         }
     }
-    let package = Package { author: required("author")?, contact: string(table, "contact", &fail)?, license: required("license")?, cooked_from: string(table, "cooked-from", &fail)?, name, dir: dir.to_path_buf(), manifest, imports, exports, library, collections, demos };
+    let mut notices = Vec::new();
+    let listed = match table.get("notice") {
+        None => Vec::new(),
+        Some(item) => item.as_array_of_tables().ok_or_else(|| fail("`notice` is a list of `[[notice]]` tables".into()))?.iter().collect(),
+    };
+    for entry in listed {
+        if let Some((key, _)) = entry.iter().find(|(key, _)| !["notice-text", "license"].contains(key)) {
+            return Err(fail(format!("a notice has no field `{key}` (it has notice-text, license)")));
+        }
+        let text = string(entry, "notice-text", &fail)?.ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
+        let license = string(entry, "license", &fail)?;
+        if let Some(file) = &license {
+            if Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file() {
+                return Err(fail(format!("notice license `{file}`: no such file (a path inside the package)")));
+            }
+        }
+        notices.push(Notice { text, license });
+    }
+    let credit = string(table, "credit-text", &fail)?;
+    let package = Package { author: required("author")?, contact: string(table, "contact", &fail)?, license: required("license")?, cooked_from: string(table, "cooked-from", &fail)?, name, dir: dir.to_path_buf(), manifest, imports, exports, library, collections, demos, notices, credit };
     Ok((package, references))
 }
 

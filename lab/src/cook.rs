@@ -10,7 +10,8 @@
 //!   from), and the shaders;
 //! - the outputs: a `file` resource at its path in the package (linked to its
 //!   source, or copied), a processed one at `cooked/<key>.bin`;
-//! - `lib/`: its library, from where the Cargo build put it (beside the binary).
+//! - `lib/`: its library, from where the Cargo build put it (beside the binary);
+//! - its notices' license files, at their paths in the package.
 //!
 //! The build is incremental: an output whose stamp has not changed is kept,
 //! so running it on every launch from a checkout costs a look at each
@@ -208,6 +209,14 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
         }
         kept_files.insert(format!("lib/{file}"));
     }
+    // Its notices' terms travel with it.
+    for file in package.notices.iter().filter_map(|n| n.license.as_ref()) {
+        let (from, to) = (package.dir.join(file), out.join(file));
+        if !same_file(&from, &to) {
+            link(&from, &to)?;
+        }
+        kept_files.insert(file.clone());
+    }
     write(&out.join("resources.toml"), &collection)?;
     let mut manifest = format!("# Built from {source}; rebuilt when it changes. Do not edit.\n");
     writeln!(manifest, "name = {}\nauthor = {}", quote(&package.name), quote(&package.author)).unwrap();
@@ -218,9 +227,19 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
     if let Some((library, negotiate)) = &package.library {
         writeln!(manifest, "library = {}\nnegotiate = {}", quote(library), quote(negotiate)).unwrap();
     }
+    // Top-level keys before the first table.
+    if let Some(credit) = &package.credit {
+        writeln!(manifest, "credit-text = {}", quote(credit)).unwrap();
+    }
     writeln!(manifest, "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"", quote(&source)).unwrap();
     for demo in &package.demos {
         writeln!(manifest, "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\nedition = {}\ntimeline = {}\naudio = {}", quote(&demo.key), quote(&demo.title), quote(&demo.edition), quote(&demo.timeline), quote(&demo.audio)).unwrap();
+    }
+    for notice in &package.notices {
+        writeln!(manifest, "\n[[notice]]\nnotice-text = {}", quote(&notice.text)).unwrap();
+        if let Some(file) = &notice.license {
+            writeln!(manifest, "license = {}", quote(file)).unwrap();
+        }
     }
     write(&out.join("manifest.toml"), &manifest)?;
     // What no source names any more, and what an interrupted build left

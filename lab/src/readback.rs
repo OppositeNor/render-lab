@@ -103,6 +103,34 @@ pub fn screenshot(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Te
     Ok(path)
 }
 
+/// The local clock time `seconds` from now, `14:52` (with the date when it is
+/// not today, `2026-10-28 02:10`); in UTC, marked `Z`, where the local time
+/// zone is unknown.
+pub fn local_clock_after(seconds: u64) -> String {
+    #[cfg(unix)]
+    {
+        // SAFETY: `time` with a null pointer only returns the time, and
+        // `localtime_r` writes only to the `tm` it is given.
+        let now = unsafe { libc::time(std::ptr::null_mut()) };
+        let then = now + seconds as libc::time_t;
+        let (mut a, mut b): (libc::tm, libc::tm) = unsafe { (std::mem::zeroed(), std::mem::zeroed()) };
+        if !unsafe { libc::localtime_r(&now, &mut a) }.is_null() && !unsafe { libc::localtime_r(&then, &mut b) }.is_null() {
+            return if (a.tm_year, a.tm_yday) == (b.tm_year, b.tm_yday) {
+                format!("{:02}:{:02}", b.tm_hour, b.tm_min)
+            } else {
+                format!("{:04}-{:02}-{:02} {:02}:{:02}", b.tm_year + 1900, b.tm_mon + 1, b.tm_mday, b.tm_hour, b.tm_min)
+            };
+        }
+    }
+    let then = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() + seconds;
+    format!("{:02}:{:02}Z", then % 86_400 / 3600, then % 3600 / 60)
+}
+
+/// The local year (UTC's where the local time zone is unknown).
+pub fn local_year() -> i32 {
+    local_stamp()[..4].parse().unwrap_or(1970)
+}
+
 /// The local date and time, `2026-10-27_22-15-43`; in UTC, marked `Z`, where
 /// the local time zone is unknown.
 fn local_stamp() -> String {

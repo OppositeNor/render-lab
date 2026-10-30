@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -163,9 +165,29 @@ class Config:
         """A document text of this edition (video.json `documents`)."""
         return self.spec['documents'][self.lang][key]
 
+    def lab_text(self, key: str) -> str:
+        """A text of the lab's own package (rlstd), in this edition's language."""
+        return json.loads((LAB / 'packages' / 'rlstd' / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))[key]
+
+    def notices(self) -> list[tuple[str, Path | None]]:
+        """The package's legal notices (its manifest's `[[notice]]`, lab/src/packages.rs): each one's text in this
+        edition's language, and the file of its terms, if it has one."""
+        manifest = tomllib.loads((self.package / 'manifest.toml').read_text(encoding='utf-8'))
+        texts = json.loads((self.package / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))
+        return [(symbols(texts[n['notice-text']]), self.package / n['license'] if 'license' in n else None) for n in manifest.get('notice', [])]
+
     def checkout(self, index: dict[str, Any]) -> Path:
         override = os.environ.get(self.spec.get('checkoutEnv', ''), '')
         return Path(override).resolve() if override else (LAB / index['engine']['checkoutFromLabRoot']).resolve()
+
+
+# The lab's symbol tags (lab/src/rich_text.rs SYMBOLS), for text a file shows as plain text.
+SYMBOLS = {'copyright': '©', 'registered': '®', 'trademark': '™'}
+
+
+def symbols(text: str) -> str:
+    """`text` with its `{@ symbol=name}` tags written as their characters."""
+    return re.sub(r'\{@ symbol=(\w+)\}', lambda m: SYMBOLS[m.group(1)], text)
 
 
 def log(message: str) -> None:

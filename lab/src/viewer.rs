@@ -902,7 +902,7 @@ impl App {
         chrome.popups.hidden = self.screenshot;
         // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
         let paused_diagram = self.paused_diagram();
-        let (kind, image, sources, chapter, fade) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
+        let (kind, image, sources, chapter, fade, notices) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
                 let image = match (&beat.kind, &beat.image, self.images.as_mut(), self.renderer.as_ref()) {
@@ -914,9 +914,9 @@ impl App {
                     self.diagram_beat = Some(beat.start_frame);
                 }
                 let fade = if self.paused_page() { 0.0 } else { beat_fade(t, self.timeline_frame) };
-                (beat.kind, image, beat.sources.clone(), beat.chapter, fade)
+                (beat.kind, image, beat.sources.clone(), beat.chapter, fade, beat.notices)
             }
-            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0),
+            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false),
         };
         if paused_diagram {
             chrome.diagram = Some(self.diagram);
@@ -927,7 +927,7 @@ impl App {
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
+            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;

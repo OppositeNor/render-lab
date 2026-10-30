@@ -218,6 +218,8 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     } else {
         (first..last).collect()
     };
+    // The rate so far, from the first frame on, for the progress line's estimate.
+    let rendering = std::time::Instant::now();
     for (n, f) in frame_list.into_iter().enumerate() {
         // Slots are used round-robin in render order, so the slot needed next
         // is always the oldest one in flight: frames leave in the order they entered.
@@ -242,6 +244,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             scene_type: beat.kind,
             image,
             beat_sources: &beat.sources,
+            notices: beat.notices,
             chapter_number: beat.chapter,
             fade: beat_fade(&timeline, f),
             time: f as f32 / timeline.fps as f32,
@@ -260,7 +263,16 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         device.poll(wgpu::PollType::Poll).ok();
         summary.frames += 1;
         if options.output.is_some() && (f - first) % progress_every == 0 {
-            eprintln!("frame {f} / {last} ({:.0}%)", 100.0 * (f - first) as f64 / (last - first) as f64);
+            let done = f - first;
+            let elapsed = rendering.elapsed().as_secs_f64();
+            let estimate = if done > 0 && elapsed > 0.0 {
+                let fps = done as f64 / elapsed;
+                let left = ((last - f) as f64 / fps).round() as u64;
+                format!(" · {fps:.1} fps · {} left, done about {}", duration_text(left), crate::readback::local_clock_after(left))
+            } else {
+                String::new()
+            };
+            eprintln!("frame {f} / {last} ({:.0}%){estimate}", 100.0 * done as f64 / (last - first) as f64);
         }
     }
     while let Some((index, s, done)) = pending.pop_front() {
@@ -310,4 +322,13 @@ pub fn default_ffmpeg(manifest_dir: &Path) -> PathBuf {
     }
     let local = manifest_dir.join("video/.conda-env/bin/ffmpeg");
     if local.is_file() { local } else { PathBuf::from("ffmpeg") }
+}
+
+/// A duration as `1 h 05 min`, `12 min 30 s`, or `45 s`.
+fn duration_text(seconds: u64) -> String {
+    match seconds {
+        s if s >= 3600 => format!("{} h {:02} min", s / 3600, s / 60 % 60),
+        s if s >= 60 => format!("{} min {:02} s", s / 60, s % 60),
+        s => format!("{s} s"),
+    }
 }

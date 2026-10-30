@@ -104,8 +104,10 @@ so the same tag works in its text tables, `{@ formula="…" display=yes colors="
   and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, `--prepare-only` builds
   them (the homepage shows "Not built yet" until then).
 - the package's `build/video/<lang>/`: the video, `narration.wav`, captions, `chapters.txt`, `script.md`,
-  `source-reading-guide.md`, `preview.html`, `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and
-  `verification-report.{json,md}` (git-ignored). The narration cache is shared by the editions in `audio/`.
+  `source-reading-guide.md`, `preview.html`, `NOTICE.txt` (the package's `[[notice]]`s and each one's license
+  text), `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and `verification-report.{json,md}` (git-ignored).
+  A package with notices gets a closing notices card (a silent 2D beat, `timeline.py` `NOTICES` seconds) at the end of
+  its last chapter, left out of that chapter's budget. The narration cache is shared by the editions in `audio/`.
 
 ## Environment
 

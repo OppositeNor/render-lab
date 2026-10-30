@@ -636,6 +636,11 @@ impl Home {
         let error = self.error.clone();
         self.column_area(ctx, "home-detail", detail_rect, chosen.title(), |home, ui| {
             ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
+            // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
+            for (text, _) in crate::resources::notices(chosen.package().unwrap_or("rlstd")) {
+                ui.add_space(6.0);
+                ui.add(egui::Label::new(RichText::new(text).size(24.0).color(palette::text_faint())).wrap());
+            }
             ui.add_space(14.0);
             if let Some(e) = &error {
                 ui.add(egui::Label::new(RichText::new(e).color(palette::HISTORY_REJECT)).wrap());
@@ -1270,6 +1275,8 @@ impl Offscreen {
 pub fn snapshot(options: &HomeOptions, page: Page, trial: bool, png: &Path) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     home.page = page;
+    // The photosensitivity warning covers the title, as at start; another page shows itself.
+    home.pse = page == Page::Title;
     if trial {
         home.page = Page::Config;
         home.settings.category = Category::Render;

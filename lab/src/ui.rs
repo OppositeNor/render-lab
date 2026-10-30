@@ -271,6 +271,8 @@ pub struct UiInput<'a> {
     pub scene_type: SceneType,
     pub image: Option<(egui::TextureId, Vec2)>,
     pub beat_sources: &'a [String],
+    /// A 2D scene of the legal notices, not the sources card.
+    pub notices: bool,
     pub chapter_number: u32,
     pub fade: f32,
     pub stamp: Option<u64>,
@@ -384,7 +386,8 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_callout(&ink, l, key, &[]);
             }
         }
-        // A 2D scene: the beat's image, or its sources card.
+        // A 2D scene: the beat's image, its sources card, or the notices.
+        SceneType::TwoD if input.image.is_none() && input.notices => draw_notices_card(&ink, input),
         SceneType::TwoD if input.image.is_none() => draw_source_card(&ink, input),
         SceneType::TwoD => {
             if let Some((texture, size)) = input.image {
@@ -459,7 +462,27 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
 fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Context) {
     let l = &input.layout;
     let engine = sources::index();
-    let right = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
+    // The engine's version and commit, then its package's copyright and license
+    // line (`credit-text`), fitted beside what the left of the header holds.
+    let mut right = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
+    if let Some(credit) = crate::resources::credit(investigation::current().package().unwrap_or("rlstd")) {
+        right = format!("{right} · {credit}");
+    }
+    let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
+    let left = match chrome {
+        // The chapter's tag, in bold as it is drawn below.
+        Chrome::Recording { timeline, frame } => {
+            let chapter = timeline.chapter_at(*frame);
+            rich_text::measure(ink, &format!("{:02} / {:02}   {}", chapter.number, timeline.chapters.len(), chapter.title.to_uppercase()), 24.0, bold()).x
+        }
+        Chrome::Viewer(_) => {
+            let investigation = investigation::current();
+            let title = measure(&format!("RENDER LAB · {}", input.state.demo.title().to_uppercase()));
+            let scenes = investigation.scenes();
+            title + if scenes.len() > 1 { 28.0 + scenes.iter().map(|s| measure(s.title()) + 24.0).sum::<f32>() } else { 0.0 }
+        }
+    };
+    let right = ink.fit_right(&right, (l.canvas.x - 80.0 - left - 24.0).max(200.0), 24.0, FontFamily::Proportional);
     ink.text(pos2(l.canvas.x - 40.0, 26.0), Align2::RIGHT_TOP, &right, 24.0, FontFamily::Proportional, palette::text_faint());
     match chrome {
         Chrome::Recording { timeline, frame } => {
@@ -1014,6 +1037,33 @@ fn draw_source_card(ink: &Ink, input: &UiInput) {
         ink.text(pos2(x, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::text());
         y += 32.0;
         y = ink.wrapped(pos2(x, y), width, entry.inspect_text(), 24.0, FontFamily::Proportional, palette::text_dim()) + 22.0;
+    }
+}
+
+/// The legal notices of the investigation's package (`[[notice]]`): each
+/// notice, and the file of its terms, which comes with the package.
+fn draw_notices_card(ink: &Ink, input: &UiInput) {
+    let l = &input.layout;
+    let painter = ink.painter;
+    let rect = l.content;
+    painter.rect_filled(rect, CornerRadius::same(14), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    let x = rect.min.x + 40.0;
+    let width = rect.width() - 80.0;
+    let mut y = rect.min.y + 28.0;
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.notices_title"), 36.0, bold(), palette::text());
+    y += 64.0;
+    let package = investigation::current().package().unwrap_or("rlstd");
+    for (text, license) in crate::resources::notices(package) {
+        if y > rect.max.y - 90.0 {
+            break;
+        }
+        y = ink.wrapped(pos2(x, y), width, &text, 28.0, FontFamily::Proportional, palette::text()) + 8.0;
+        if let Some(file) = license.as_ref().and_then(|f| f.file_name()).map(|f| f.to_string_lossy().into_owned()) {
+            ink.text(pos2(x, y), Align2::LEFT_TOP, tr_with("ui.notice_terms", args!(file = file)), 24.0, FontFamily::Proportional, palette::text_dim());
+            y += 32.0;
+        }
+        y += 24.0;
     }
 }
 

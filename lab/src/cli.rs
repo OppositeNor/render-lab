@@ -17,9 +17,13 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(name = "render-lab", version, about = "Illustrated investigations of game-engine features: homepage, viewer, recorder, and verification")]
 struct Cli {
-    /// The investigation, as engine/feature (default: the first one).
+    /// The investigation, as engine/feature (default: the first one; `--list` lists them).
     #[arg(long, global = true)]
     investigation: Option<String>,
+    /// List the installed investigations (the values `--investigation` takes),
+    /// with their titles and packages, and exit.
+    #[arg(long)]
+    list: bool,
     /// The lab's root, where its packages are (default:
     /// RENDER_LAB_ROOT, or the repository's directory).
     #[arg(long, global = true)]
@@ -206,11 +210,22 @@ pub fn main(app: App) -> Result<()> {
     }
     investigations::set_title(app.title);
     let manifest_dir = crate::resources::root().to_path_buf();
+    if cli.list {
+        let all = investigations::all();
+        if all.is_empty() {
+            println!("no investigation is installed");
+        }
+        let width = all.iter().map(|i| i.path().len()).max().unwrap_or(0);
+        for i in all {
+            println!("{:width$}  {} ({}, package {})", i.path(), i.title(), i.engine().name, i.package().unwrap_or("rlstd"));
+        }
+        return Ok(());
+    }
     let command = cli.command.unwrap_or(Command::Home { width: 1600, height: 900, ui_scale: DEFAULT_UI_SCALE, snapshot: None, page: "title".into(), autotest: None });
     let chosen = {
         let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
         let path = cli.investigation.clone().or_else(|| known.first().cloned()).context("no investigation is installed")?;
-        let chosen = investigations::find(&path).with_context(|| format!("unknown investigation `{path}`; known: {}", known.join(", ")))?;
+        let chosen = investigations::find(&path).with_context(|| format!("unknown investigation `{path}`; known: {} (render-lab --list)", known.join(", ")))?;
         investigation::set(chosen);
         chosen
     };

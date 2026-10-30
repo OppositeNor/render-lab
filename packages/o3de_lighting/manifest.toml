@@ -12,6 +12,9 @@ library = "o3de_lighting"
 negotiate = "o3de_lighting_negotiate"
 export = []
 
+# The copyright and license line shown after the engine's version (src/packages.rs).
+credit-text = "notice.credit"
+
 [[provides]]
 type = "resource"
 path = "resources.toml"
@@ -32,3 +35,16 @@ title = "O3DE 如何照亮一个表面"
 edition = "中文"
 timeline = "timeline/zh-cn"
 audio = "narration/en"
+
+# Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
+
+[[notice]]
+notice-text = "notice.copyright"
+license = "LICENSE-O3DE.txt"
+
+[[notice]]
+notice-text = "notice.cubemapgen"
+license = "LICENSE-CubeMapGen.txt"
+
+[[notice]]
+notice-text = "notice.trademark"

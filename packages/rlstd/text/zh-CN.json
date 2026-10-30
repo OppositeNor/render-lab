@@ -106,6 +106,8 @@
   "ui.source_list_heading": "{demo} 的 {engine} 源码（路径相对于 {checkout}）",
   "ui.skip_back": "后退 {seconds} 秒",
   "ui.skip_forward": "快进 {seconds} 秒",
+  "ui.notices_title": "声明",
+  "ui.notice_terms": "其条款：{file}，随包及本视频（NOTICE.txt）一同提供。",
   "viewer.playing": "播放中",
   "viewer.paused_hint": "已暂停：可旋转、拾取并使用滑块",
   "viewer.no_narration_track": " · 没有旁白音轨",

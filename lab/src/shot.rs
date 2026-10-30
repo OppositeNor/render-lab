@@ -340,6 +340,10 @@ pub struct TimelineBeat {
     pub sources: Vec<String>,
     #[serde(default)]
     pub captions: Vec<Caption>,
+    /// A 2D scene that shows the investigation's package's legal notices
+    /// (`[[notice]]`; the video builder ends a video with one).
+    #[serde(default)]
+    pub notices: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

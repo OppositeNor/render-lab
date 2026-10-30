@@ -150,13 +150,15 @@ def main() -> None:
         run([binary, 'formulas', '--check', cfg.timeline()], build / 'logs' / 'formulas.log')
         log('Formulas: each typesets within the lab\'s limits.')
     for c, b in zip(tl['chapters'], board['chapters']):
-        log(f'  {c["number"]:02d} {c["title"]}: {(c["endFrame"] - c["startFrame"]) / tl["fps"]:.1f} s (budget {b["targetSeconds"]}, natural {plans[c["number"]]["natural"]:.1f})')
+        notices = tl.get('noticeFrames', 0) if c is tl['chapters'][-1] else 0
+        log(f'  {c["number"]:02d} {c["title"]}: {(c["endFrame"] - c["startFrame"] - notices) / tl["fps"]:.1f} s (budget {b["targetSeconds"]}, natural {plans[c["number"]]["natural"]:.1f})')
     outputs.write_audio(cfg, placements, tl['totalFrames'], tl['fps'])
     outputs.write_captions(cfg, cues)
     outputs.write_chapters(cfg, board, tl)
     outputs.write_script(cfg, board, index, tl)
     outputs.write_guide(cfg, board, index, tl)
     outputs.write_preview(cfg, board, tl)
+    outputs.write_notice(cfg)
     if args.prepare_only:
         return
     log('Rendering the diagrams.')

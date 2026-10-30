@@ -359,6 +359,20 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     (build / 'source-reading-guide.md').write_text('\n'.join(lines) + '\n')
 
 
+def write_notice(cfg: Config) -> None:
+    """NOTICE.txt beside the video: the package's legal notices, then the full text of each one's terms."""
+    notices = cfg.notices()
+    out = cfg.build() / 'NOTICE.txt'
+    if not notices:
+        out.unlink(missing_ok=True)
+        return
+    parts = [cfg.lab_text('ui.notices_title'), ''] + [text for text, _ in notices]
+    for text, license in notices:
+        if license is not None:
+            parts += ['', '-' * 78, license.name, '-' * 78, '', license.read_text(encoding='utf-8').rstrip()]
+    out.write_text('\n'.join(parts) + '\n', encoding='utf-8')
+
+
 def write_preview(cfg: Config, board: Json, timeline: Json) -> None:
     w = WORDS[cfg.lang]
     fps = timeline['fps']
@@ -370,5 +384,6 @@ def write_preview(cfg: Config, board: Json, timeline: Json) -> None:
 <h1>{html.escape(board["title"])}</h1><p>{html.escape(board["subtitle"])}</p>
 <video controls preload="metadata" poster="poster.png"><source src="{cfg.video_name()}" type="video/mp4"><track kind="captions" src="captions.vtt" srclang="{lang}" label="{label}"{" default" if cfg.zh() else ""}></video>
 <nav>{buttons}</nav><p><a href="script.md">{w["script"]}</a> · <a href="source-reading-guide.md">{w["guide"]}</a> · <a href="verification-report.md">{w["verification"]}</a></p>
+{"".join(f"<p>{html.escape(text)}</p>" for text, _ in cfg.notices())}{f'<p><a href="NOTICE.txt">NOTICE.txt</a></p>' if any(lic for _, lic in cfg.notices()) else ""}
 <script>const v=document.querySelector('video');for(const b of document.querySelectorAll('button'))b.onclick=()=>{{v.currentTime=+b.dataset.time;v.play();}};</script></html>'''
     (cfg.build() / 'preview.html').write_text(page)

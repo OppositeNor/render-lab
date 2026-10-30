@@ -106,6 +106,8 @@
   "ui.source_list_heading": "{engine} source for {demo} (paths relative to {checkout})",
   "ui.skip_back": "back {seconds} s",
   "ui.skip_forward": "forward {seconds} s",
+  "ui.notices_title": "Notices",
+  "ui.notice_terms": "Its terms: {file}, which comes with the package and with this video (NOTICE.txt).",
   "viewer.playing": "playing",
   "viewer.paused_hint": "paused: orbit, pick, and use the sliders",
   "viewer.no_narration_track": " · no narration track",

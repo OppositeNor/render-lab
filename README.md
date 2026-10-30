@@ -76,6 +76,7 @@ From this directory:
 
 ```bash
 cargo run --release                                   # the homepage
+cargo run --release -- --list                         # the installed investigations (the values --investigation takes)
 cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, or viewer-timeline for the others)
 cargo run --release -- home --autotest home.json      # click through the homepage offscreen (it uses its own settings file)
 ```

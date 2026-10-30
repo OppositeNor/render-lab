@@ -24,7 +24,14 @@ pub fn install_fonts(ctx: &egui::Context) {
         ("SourceHanSans", "rlstd.font/source-han-sans"),
         ("SourceHanSans-Bold", "rlstd.font/source-han-sans-bold"),
     ] {
-        fonts.font_data.insert(name.to_owned(), Arc::new(egui::FontData::from_static(resources::get(id).bytes())));
+        let mut data = egui::FontData::from_static(resources::get(id).bytes());
+        // Source Han Sans' metrics put its glyphs lower than DejaVu's on a shared
+        // line (by about 0.145 em, measured on the lab's 24 px text): raised, a
+        // mixed line ("MIT 许可证") keeps one baseline.
+        if name.starts_with("SourceHanSans") {
+            data.tweak.y_offset_factor = -0.145;
+        }
+        fonts.font_data.insert(name.to_owned(), Arc::new(data));
     }
     for (family, first) in [(FontFamily::Proportional, "DejaVuSans"), (FontFamily::Monospace, "DejaVuSansMono")] {
         let list = fonts.families.entry(family).or_default();

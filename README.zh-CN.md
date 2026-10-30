@@ -58,6 +58,7 @@
 
 ```bash
 cargo run --release                                   # 主页
+cargo run --release -- --list                         # 已安装的研究（--investigation 可用的取值）
 cargo run --release -- home --snapshot home.png       # 离屏渲染标题画面（--page select、config、starting、viewer 或 viewer-timeline 渲染其他页面）
 cargo run --release -- home --autotest home.json      # 离屏点击测试主页（使用自己的设置文件）
 ```

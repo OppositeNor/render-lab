@@ -54,6 +54,7 @@ import = ["rlstd"]              # the packages whose resources it names (a list,
 export = ["scene/garden"]            # its own keys other packages may name (a list, may be empty)
 library = "my_feature"               # optional, with `negotiate`: its code (section 5)
 negotiate = "my_feature_negotiate"
+credit-text = "notice.credit"        # optional: a short copyright and license line, after the engine's version at the top right
 
 [[provides]]
 type = "resource"                    # a collection, relative to the manifest
@@ -66,12 +67,24 @@ title = "How My Feature Works"
 edition = "English"                  # its name on the homepage's edition picker
 timeline = "timeline/en"             # resources (keys of this package, or `<package>.<key>`)
 audio = "narration/en"
+
+[[notice]]                           # optional: a legal notice of what the package holds
+notice-text = "notice.copyright"     # a key of its text tables (both languages)
+license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the package; built with it
 ```
 
 - Unknown keys are errors. `library` and `negotiate` come together or not at all.
 - Packages load after the packages they import (then by name); an import that is not in `packages/`, or a cycle, is
   an error. The homepage lists investigations in that order.
 - Every `export` must name a resource or shader the package declares.
+- A package that holds an engine's code, or names it, gives its **notices**: the copyright and license of code ported
+  from it (the license's own requirement, e.g. MIT's notice in every copy of a substantial portion) and the engine's
+  trademarks, with no claim of affiliation. The lab shows them on the homepage's selection page and on a card that ends
+  every video of the package, and the video builder writes them, with each license's full text, to `NOTICE.txt`
+  beside the video.
+- Notice and credit texts write symbols as tags, `{@ symbol=copyright}` (©), `registered` (®), `trademark` (™), so
+  the text tables need no hard-to-type characters (`lab/src/rich_text.rs` `SYMBOLS`); `{year}` in a credit is the
+  current year.
 
 ## 3. Collections and keys
 

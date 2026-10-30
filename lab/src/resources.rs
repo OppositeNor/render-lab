@@ -168,6 +168,20 @@ pub fn packages() -> &'static [Package] {
 }
 
 /// The package `name`'s demos, as the viewer plays them.
+/// The legal notices of package `name` (`[[notice]]`, src/packages.rs):
+/// each one's text in the current language (its symbol tags written out), and the file of its terms in
+/// the built package.
+pub fn notices(name: &str) -> Vec<(String, Option<PathBuf>)> {
+    packages().iter().find(|p| p.name == name).map_or_else(Vec::new, |p| p.notices.iter().map(|n| (crate::rich_text::symbols(crate::i18n::package_text(name, &n.text)), n.license.as_ref().map(|f| p.dir.join(f)))).collect())
+}
+
+/// The copyright and license line of package `name` (`credit-text`), in the
+/// current language, `{year}` the current year.
+pub fn credit(name: &str) -> Option<String> {
+    let key = packages().iter().find(|p| p.name == name)?.credit.as_ref()?;
+    Some(crate::rich_text::symbols(crate::i18n::package_text(name, key)).replace("{year}", &crate::readback::local_year().to_string()))
+}
+
 pub fn timelines(name: &str) -> &'static [TimelineInfo] {
     registry().timelines.get(name).map(Vec::as_slice).unwrap_or_else(|| panic!("no package `{name}` in {}", packages_dir().display()))
 }

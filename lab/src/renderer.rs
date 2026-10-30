@@ -358,6 +358,8 @@ pub struct FrameRequest<'a> {
     pub scene_type: SceneType,
     pub image: Option<(egui::TextureId, egui::Vec2)>,
     pub beat_sources: &'a [String],
+    /// A 2D scene of the legal notices (`TimelineBeat::notices`).
+    pub notices: bool,
     pub chapter_number: u32,
     pub fade: f32,
     pub time: f32,
@@ -806,6 +808,7 @@ impl Renderer {
             scene_type: request.scene_type,
             image: request.image,
             beat_sources: request.beat_sources,
+            notices: request.notices,
             chapter_number: request.chapter_number,
             fade: request.fade,
             stamp: request.stamp,

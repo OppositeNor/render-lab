@@ -21,5 +21,8 @@ The following are **not** covered by that license; they keep their own terms.
 | Godot Engine's SDFGI code, ported to Rust and WGSL | `packages/godot_sdfgi/src/godot/sdfgi/`, `packages/godot_sdfgi/shaders/`, and the pseudo-code in `packages/godot_sdfgi/pseudocode/` | Copyright (c) 2014-present Godot Engine contributors; Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur. MIT License ([`LICENSES/Godot-MIT.txt`](LICENSES/Godot-MIT.txt)). |
 
 Investigations of engines whose source may not be published are not part of this repository; the investigations of the
-Open 3D Engine and the Godot Engine are, because their licenses allow it. Engine names are trademarks of their owners; Render Lab is not
+Open 3D Engine and the Godot Engine are, because their licenses allow it. Each of those packages carries its notices and
+a copy of its licenses (`packages/godot_sdfgi/LICENSE-Godot.txt`, `packages/o3de_lighting/LICENSE-O3DE.txt` and
+`LICENSE-CubeMapGen.txt`), which the lab shows on its selection page and at the end of its videos, and which go with
+the built package and beside each video (`NOTICE.txt`). Engine names are trademarks of their owners; Render Lab is not
 affiliated with or endorsed by any engine's maker.

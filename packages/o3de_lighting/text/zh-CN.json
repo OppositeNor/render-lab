@@ -245,5 +245,9 @@
   "demos.cascades_schematic": "示意图：实验室不渲染 shadow map。",
   "formula.cascades": "{@ formula=\"\\begin{aligned}u_i &= \\lit{1}{n + (f-n)\\,\\tfrac{i+1}{4}}\\\\[3pt]\\ell_i &= \\lit{1}{n\\,(f/n)^{(i+1)/4}}\\\\[3pt]d_i &= \\lit{2}{r\\,\\ell_i + (1-r)\\,u_i}\\\\[3pt]R_i &= \\lit{3}{\\mathrm{sphere}(d_{i-1},\\ d_i)}\\\\[3pt]\\text{lo, hi} &= \\lit{4}{\\lfloor\\cdot/\\text{texel}\\rfloor\\,\\text{texel}}\\end{aligned}\" display=yes colors=\"#64dfd1,#8fb8ff,#ffd98a,#ff8fc8\"}",
   "demos.texel_mm": "texel，毫米（2R / 1024）",
-  "demos.b_in_acescg": "b 换算到 ACEScg"
+  "demos.b_in_acescg": "b 换算到 ACEScg",
+  "notice.copyright": "这里的光照代码移植自 Open 3D Engine。Copyright Contributors to the Open 3D Engine Project。O3DE 以 Apache-2.0 或 MIT 许可证提供；这里依据 MIT 许可证使用。",
+  "notice.cubemapgen": "其 cubemap 滤波来自 O3DE 附带的 CubeMapGen。Copyright (c) 2011, Advanced Micro Devices, Inc。修改版 BSD 许可证；O3DE 对它的修改依据 MIT 许可证。",
+  "notice.trademark": "Open 3D Engine 和 O3DE 是其所有者的商标，这里仅用于指称该引擎。Render Lab 与 Open 3D Engine 项目及其基金会没有关联，也未获其认可。",
+  "notice.credit": "{@ symbol=copyright} Contributors to the Open 3D Engine Project，MIT 许可证。"
 }
