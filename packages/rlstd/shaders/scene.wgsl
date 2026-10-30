@@ -15,28 +15,11 @@ struct SceneVaryings {
     @location(2) @interpolate(flat) objectIndex: u32,
 }
 
-// The deformation demo squashes one object in its local space. Only the
-// raster mesh deforms: shadows, reflections, and the distance field keep
-// the rigid shape, which is the mismatch that chapter illustrates.
-fn deformLocal(p: vec3<f32>, objectIndex: u32, o: ObjectData) -> vec3<f32> {
-    let squash = gFrame.deformParams.x;
-    if (squash == 0.0 || objectIndex != u32(gFrame.deformParams.y)) {
-        return p;
-    }
-    let q = p - o.localCenter;
-    let bottom = -o.localExtent.y;
-    let y = (q.y - bottom) * (1.0 - squash) + bottom;
-    let h = q.y / o.localExtent.y;
-    let bulge = 1.0 + 0.6 * squash * (1.0 - h * h);
-    return o.localCenter + vec3<f32>(q.x * bulge, y, q.z * bulge);
-}
-
 @vertex
 fn sceneVS(input: SceneVertex) -> SceneVaryings {
     let o = gObjects[input.objectIndex];
-    let local = deformLocal(input.position, input.objectIndex, o);
     var output: SceneVaryings;
-    output.worldPosition = transformPoint(o.localToWorld, local);
+    output.worldPosition = transformPoint(o.localToWorld, input.position);
     output.worldNormal = normalToWorld(o, input.normal);
     output.objectIndex = input.objectIndex;
     output.clip = gFrame.camera.worldToClip * vec4<f32>(output.worldPosition, 1.0);
@@ -69,7 +52,7 @@ fn sceneFS(input: SceneVaryings) -> SceneOutput {
     }
     var color: vec3<f32>;
     if (input.objectIndex == gFrame.counts.y) {
-        color = shadeFloor(input.worldPosition, n, eye, input.objectIndex, input.clip.xy);
+        color = shadeFloor(input.worldPosition, n, eye, input.objectIndex);
     } else {
         color = shadeSurface(input.worldPosition, n, input.objectIndex);
     }

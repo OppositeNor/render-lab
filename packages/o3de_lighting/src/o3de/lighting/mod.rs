@@ -127,6 +127,7 @@ pub static SHADING: SceneShading = SceneShading {
     early: EARLY,
     buffers: BUFFERS,
     scene_reads: &["tileData", "lightListRemapped"],
+    depth_views: None,
 };
 
 impl Investigation for Lighting {

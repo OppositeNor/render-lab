@@ -1,7 +1,7 @@
 //! Every pipeline of the scene renderer, built from the WGSL modules in
 //! src/shaders.rs. Bind group 0 mirrors packages/rlstd/shaders/bindings.wgsl.
 
-use crate::frame::{BoxInstance, CardInstance, PointInstance, SampleInstance, SegmentInstance};
+use crate::frame::{BoxInstance, PointInstance, SegmentInstance};
 use crate::gpu::{DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
 use crate::investigation::SceneShading;
 use crate::scene::Vertex;
@@ -12,19 +12,10 @@ use std::collections::BTreeMap;
 
 pub const VERIFY_ENTRIES: &[&str] = &[
     "dumpObjects",
-    "dumpVoxels",
-    "dumpBricks",
-    "dumpCards",
-    "dumpPages",
-    "dumpRays",
-    "dumpProbes",
-    "dumpRadiance",
     "dumpFrame",
     "traceTests",
     "projectTests",
     "lightingTests",
-    "surfaceCacheTests",
-    "ggxTests",
 ];
 
 /// Size of the uniform buffer behind `gShading` (`FrameContent::shading`).
@@ -40,8 +31,6 @@ pub struct Pipelines {
     /// The backdrop, drawn first in a scene pass that has no pass chain.
     pub sky: wgpu::RenderPipeline,
     pub ghost: wgpu::RenderPipeline,
-    pub card: wgpu::RenderPipeline,
-    pub sample: wgpu::RenderPipeline,
     pub segment: wgpu::RenderPipeline,
     pub segment_xray: wgpu::RenderPipeline,
     pub boxes: wgpu::RenderPipeline,
@@ -58,6 +47,8 @@ pub struct ShadingPipelines {
     pub scene: wgpu::RenderPipeline,
     /// The depth pre-pass, when the shading has one.
     pub prepass: Option<wgpu::RenderPipeline>,
+    /// One pipeline per layer of the depth views (`SceneShading::depth_views`).
+    pub depth_views: Vec<wgpu::RenderPipeline>,
     /// Group 2 of the scene pass (`SceneShading::scene_reads`).
     pub scene_group: wgpu::BindGroupLayout,
     /// The early passes, then the passes after the scene pass, in order.
@@ -70,6 +61,9 @@ pub fn chain_binding(shading: &SceneShading, name: &str, written: bool) -> u32 {
     let n = shading.targets.len() as u32;
     if let Some(k) = shading.buffers.iter().position(|b| b.name == name) {
         return 2 * n + 2 + k as u32;
+    }
+    if shading.depth_views.is_some_and(|d| d.name == name) {
+        return 2 * n + 2 + shading.buffers.len() as u32;
     }
     match (name, written) {
         ("depth", false) => 2 * n,
@@ -123,7 +117,6 @@ const SEGMENT_ATTRS: [wgpu::VertexAttribute; 6] = [
     attr(5, 48, wgpu::VertexFormat::Uint32x4),
 ];
 const BOX_ATTRS: [wgpu::VertexAttribute; 3] = [attr(0, 0, wgpu::VertexFormat::Uint32x4), attr(1, 16, wgpu::VertexFormat::Float32x4), attr(2, 32, wgpu::VertexFormat::Float32x4)];
-const PAIR_ATTRS: [wgpu::VertexAttribute; 2] = [attr(0, 0, wgpu::VertexFormat::Uint32x4), attr(1, 16, wgpu::VertexFormat::Float32x4)];
 const POINT_ATTRS: [wgpu::VertexAttribute; 4] = [
     attr(0, 0, wgpu::VertexFormat::Float32x3),
     attr(1, 12, wgpu::VertexFormat::Float32),
@@ -196,24 +189,16 @@ impl Pipelines {
             },
             count: None,
         }];
-        frame_entries.extend((1..=8).map(|b| storage(b, true)));
-        frame_entries.push(texture(9, wgpu::TextureViewDimension::D3));
-        frame_entries.push(texture(10, wgpu::TextureViewDimension::D2));
+        frame_entries.push(storage(1, true));
         frame_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 11,
+            binding: 2,
             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         });
-        frame_entries.extend([storage(12, true), storage(13, true)]);
-        frame_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 14,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Uint, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false },
-            count: None,
-        });
-        frame_entries.push(texture(15, wgpu::TextureViewDimension::D2));
-        frame_entries.push(storage(16, true));
+        frame_entries.extend([storage(3, true), storage(4, true)]);
+        frame_entries.push(texture(5, wgpu::TextureViewDimension::D2));
+        frame_entries.push(storage(6, true));
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("frame"), entries: &frame_entries });
         let texture_pair_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("texture pair"),
@@ -271,8 +256,6 @@ impl Pipelines {
         };
         let segments = [Some(instance_layout::<SegmentInstance>(&SEGMENT_ATTRS))];
         let boxes = [Some(instance_layout::<BoxInstance>(&BOX_ATTRS))];
-        let cards = [Some(instance_layout::<CardInstance>(&PAIR_ATTRS))];
-        let samples = [Some(instance_layout::<SampleInstance>(&PAIR_ATTRS))];
         let points = [Some(instance_layout::<PointInstance>(&POINT_ATTRS))];
         let sky = render_pipeline(device, &frame_only, PipelineSpec {
             label: "sky",
@@ -288,8 +271,6 @@ impl Pipelines {
         let pipelines = Pipelines {
             sky,
             ghost: overlay("ghost", "ghostVS", "ghostFS", &mesh_buffers, (GreaterEqual, false)),
-            card: overlay("card", "cardVS", "cardFS", &cards, (GreaterEqual, false)),
-            sample: overlay("sample", "sampleVS", "sampleFS", &samples, (GreaterEqual, true)),
             segment: overlay("segment", "segmentVS", "lineFS", &segments, (GreaterEqual, false)),
             segment_xray: overlay("segment x-ray", "segmentVS", "lineFS", &segments, (Always, false)),
             boxes: overlay("box", "boxVS", "lineFS", &boxes, (GreaterEqual, false)),
@@ -346,7 +327,9 @@ impl Pipelines {
                 if entries.iter().any(|e| e.binding == binding) {
                     continue;
                 }
-                let ty = if shading.buffers.iter().any(|b| b.name == name) {
+                let ty = if shading.depth_views.is_some_and(|d| d.name == name) {
+                    wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }
+                } else if shading.buffers.iter().any(|b| b.name == name) {
                     wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: false }, has_dynamic_offset: false, min_binding_size: None }
                 } else if written {
                     wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: target_format(shading, name), view_dimension: wgpu::TextureViewDimension::D2 }
@@ -400,6 +383,30 @@ impl Pipelines {
                 cache: None,
             })
         });
+        // The depth views: the scene's meshes, depth only, one pipeline per layer.
+        let views_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame + shading (depth views)"),
+            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout)],
+            immediate_size: 0,
+        });
+        let depth_views = shading.depth_views.map_or_else(Vec::new, |d| {
+            d.vertices
+                .iter()
+                .map(|&entry| {
+                    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some(entry),
+                        layout: Some(&views_layout),
+                        vertex: wgpu::VertexState { module: &module, entry_point: Some(entry), compilation_options: Default::default(), buffers: &[Some(mesh_layouts()[0].clone()), Some(mesh_layouts()[1].clone())] },
+                        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, cull_mode: None, ..Default::default() },
+                        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FORMAT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Greater), stencil: Default::default(), bias: Default::default() }),
+                        multisample: wgpu::MultisampleState::default(),
+                        fragment: None,
+                        multiview_mask: None,
+                        cache: None,
+                    })
+                })
+                .collect()
+        });
         let passes = shading
             .early
             .iter()
@@ -445,7 +452,7 @@ impl Pipelines {
         if let Some(error) = pollster::block_on(scope.pop()) {
             return Err(anyhow!("{} pipeline creation failed: {error}", shading.fragment));
         }
-        Ok(ShadingPipelines { scene, prepass, scene_group, passes, verify })
+        Ok(ShadingPipelines { scene, prepass, depth_views, scene_group, passes, verify })
     }
 
     /// The viewer's swapchain blit. sRGB swapchains decode before writing.

@@ -31,7 +31,7 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
   first word fires at the sentence's start; `{@ pause=s}` adds silence after it.
 - A tag's attributes: shot parameters (`hfBounds=1`), `demo`, `camera.target=x,y,z`
   and `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the
-  camera running through a `demo` switch), `record=probe:67` (or `ray`),
+  camera running through a `demo` switch), `record=object:3` (or `camera`),
   `highlight=a,b`, `panel`, `code`, `callout`, `blend`, `ease`, `delay` (seconds),
   `formula`, `term`, `animate=[…]` (motions, as JSON), `run=action` with
   `run.<arg>=value` (an action the package declares) and `stop=a,b`, `image=name`

@@ -80,8 +80,13 @@ For the story (the research, the outline, the storyboard, and its review, in pha
 7. **Storyboard.** Draft each factual sentence from an index entry and attach its callout as you write it. Use spoken
    numbers, and say where the lab differs.
 8. **Audit.** Before the full build, have a fresh agent (not anchored on your drafts) check every factual sentence and
-   every `inspect` against the checkout, classifying each as exact, imprecise, wrong, or unverifiable with file:line
-   evidence. Fix every imprecise or wrong one, in the narration, the index, the README, and the translation.
+   every `inspect` against the checkout, with file:line evidence, classifying each as **verified**, **correct but
+   simplified** (fine only if the narration or README says it is simplified), **potentially misleading**,
+   **incorrect**, or **needs investigation**. It also checks that the version and commit the story names are the
+   checkout's, that no claim carries over from another version or from how similar systems usually work, and that
+   the lab's own demonstrations are never presented as the engine's behaviour. Fix every claim not verified or
+   stated as a simplification, in the narration, the index, the README, and the translation; an uncertain claim is
+   verified, narrated as uncertain, or cut, never rewritten as fact.
 9. **Build and review.** `--snapshots-only`, look at the stills (several per animated beat), then the full build in the
    background; report its checks and the corrections, and ask the user to watch it.
 

@@ -311,15 +311,8 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         ambient_color: [super::ibl::SKY_LEVEL, super::ibl::SKY_LEVEL, super::ibl::SKY_LEVEL, 1.0],
         floor_params: [state.p("floorRoughness"), lighting.f0, 0.0, 1.0],
         overlay_params: [exposure, pixel_scale, time, 0.0],
-        cut_plane: [0.0; 4],
-        deform_params: [0.0, u32::MAX as f32, 0.0, 0.0],
-        sdf_volume: [0.0; 4],
-        atlas_display: [0.0; 4],
         counts: [objects.len() as u32, ids::FLOOR as u32, 0, hidden],
-        selection: [inspected_object(state), u32::MAX, u32::MAX, u32::MAX],
-        selection2: [u32::MAX; 4],
-        counts2: [0, 0, 0, 0],
-        cache_view: [0.0, 0.0, 1.0, 0.0],
+        view_params: [1.0, 0.0, 0.0, 0.0],
     };
     // gShading is the lab's to pack (`shader_data`).
     let mut content = FrameContent::new(objects, uniforms);

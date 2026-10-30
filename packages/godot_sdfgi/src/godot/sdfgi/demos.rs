@@ -136,16 +136,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         ambient_color: lighting.ambient.extend(1.0).to_array(),
         floor_params: [objects[ids::FLOOR].albedo_roughness[3], lighting.f0, 0.0, 1.0],
         overlay_params: [lighting.exposure, pixel_scale, time, 0.0],
-        cut_plane: [0.0; 4],
-        deform_params: [0.0, u32::MAX as f32, 0.0, 0.0],
-        sdf_volume: [0.0; 4],
-        atlas_display: [0.0; 4],
         // The panel would hide the room from the top camera of the slices.
         counts: [objects.len() as u32, ids::FLOOR as u32, 0, if matches!(demo, Demo::Field | Demo::Occlusion | Demo::Cascades | Demo::Regions) { 1 << ids::PANEL } else { 0 }],
-        selection: [u32::MAX; 4],
-        selection2: [u32::MAX; 4],
-        counts2: [0; 4],
-        cache_view: [0.0, 0.0, 1.0, 0.0],
+        view_params: [1.0, 0.0, 0.0, 0.0],
     };
     let mut content = FrameContent::new(objects, uniforms);
     let world = sim::converged();

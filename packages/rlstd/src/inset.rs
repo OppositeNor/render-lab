@@ -205,10 +205,20 @@ impl PictureInset {
     }
 }
 
-/// Draw `inset` over the viewport; returns the rectangle it covers and its picture's.
-pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, textures: &Textures, inset: &PictureInset) -> (Rect, Rect) {
-    let painter = ink.painter;
-    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
+/// An inset's measures: its picture's texture and size, the margins beside
+/// it, the lines over it, and its frame's size.
+struct Measures {
+    id: Option<egui::TextureId>,
+    size: egui::Vec2,
+    left: f32,
+    title: Vec<String>,
+    width: f32,
+    top: f32,
+    under: f32,
+    frame_size: egui::Vec2,
+}
+
+fn measures(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, inset: &PictureInset) -> Measures {
     let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
     let axes = !inset.y_axis.is_empty();
     // Room on the left for the vertical axis' name.
@@ -240,8 +250,23 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     let under = if inset.x_axis.is_empty() { 8.0 } else { 40.0 };
     let below = if inset.x_axis.is_empty() && inset.lines.is_empty() { 10.0 } else { under + 32.0 * inset.lines.len() as f32 + 6.0 };
     let frame_size = vec2(width, top + size.y + below);
-    let x = if inset.corner.right() { l.viewport.max.x - 16.0 - width } else { l.viewport.min.x + 16.0 };
-    let y = if inset.corner.top() { l.viewport.min.y + 16.0 } else { l.viewport.max.y - 16.0 - frame_size.y };
+    Measures { id, size, left, title, width, top, under, frame_size }
+}
+
+/// The size of `inset`'s frame, as `draw` lays it out.
+pub fn frame_size(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, inset: &PictureInset) -> egui::Vec2 {
+    measures(ctx, ink, l, textures, inset).frame_size
+}
+
+/// Draw `inset` over the viewport, `offset` in from its corner (insets
+/// sharing a corner stack); returns the rectangle it covers and its picture's.
+pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, textures: &Textures, inset: &PictureInset, offset: egui::Vec2) -> (Rect, Rect) {
+    let painter = ink.painter;
+    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
+    let Measures { id, size, left, title, width, top, under, frame_size } = measures(ctx, ink, l, textures, inset);
+    let above: Vec<(&String, Color32)> = title.iter().map(|t| (t, palette::text())).chain(inset.status.iter().map(|s| (s, palette::text_dim()))).collect();
+    let x = if inset.corner.right() { l.viewport.max.x - 16.0 - width - offset.x } else { l.viewport.min.x + 16.0 + offset.x };
+    let y = if inset.corner.top() { l.viewport.min.y + 16.0 + offset.y } else { l.viewport.max.y - 16.0 - frame_size.y - offset.y };
     let frame = Rect::from_min_size(pos2(x, y), frame_size);
     painter.rect_filled(frame, CornerRadius::same(10), fade(Color32::from_rgba_premultiplied(7, 18, 31, 238)));
     painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);
@@ -293,7 +318,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     if !inset.x_axis.is_empty() {
         ink.text(pos2(image.center().x, image.max.y + 6.0), Align2::CENTER_TOP, &inset.x_axis, 24.0, FontFamily::Proportional, fade(palette::text_dim()));
     }
-    if axes {
+    if !inset.y_axis.is_empty() {
         let galley = painter.layout_no_wrap(inset.y_axis.clone(), egui::FontId::proportional(24.0), fade(palette::text_dim()));
         let at = pos2(image.min.x - 34.0, image.center().y + galley.size().x / 2.0);
         painter.add(egui::epaint::TextShape::new(at, galley, fade(palette::text_dim())).with_angle(-std::f32::consts::FRAC_PI_2));

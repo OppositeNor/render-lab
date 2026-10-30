@@ -107,6 +107,21 @@ pub struct SceneShading {
     /// The chain's storage buffers, besides its targets.
     pub buffers: &'static [ShadingBuffer],
     pub scene_reads: &'static [&'static str],
+    /// Depth-only views of the scene's meshes (shadow maps), drawn first.
+    pub depth_views: Option<&'static DepthViews>,
+}
+
+/// Depth-only views of the scene's meshes, drawn before anything else of the
+/// frame: a square depth texture array of `size` texels and one layer per
+/// entry of `vertices`, each layer drawn by that vertex entry point (it
+/// places the meshes in its view; a vertex outside the clip volume drops its
+/// triangle). Reversed depth, as the scene pass: cleared to 0, nearer is
+/// greater. The passes and the scene pass read it by `name`
+/// (`texture_depth_2d_array`, binding `2 N + 2 + B` with `B` buffers).
+pub struct DepthViews {
+    pub name: &'static str,
+    pub size: u32,
+    pub vertices: &'static [&'static str],
 }
 
 /// A storage buffer of an investigation's pass chain: `words_per_tile` u32
@@ -265,12 +280,6 @@ pub trait Investigation: Sync {
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;
-    /// A setting of this shot that the prepared data is built with; the
-    /// renderer rebuilds that data when it changes. None keeps it as built.
-    #[cfg(commercial)]
-    fn prepared_setting(&self, _state: &ShotState) -> Option<f32> {
-        None
-    }
     /// The points and arrow sets it publishes for a story's arrows and labels
     /// (packages/rlstd/src/annotations.rs), in `FrameContent::points` and
     /// `arrow_sets`.

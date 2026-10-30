@@ -19,9 +19,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# The optional commercial module, not provided in this repo (see build.rs).
-/src/commercial/
-
 # Generated files, never tracked, so they cannot conflict: the lab's under build/ (screenshots, formula
 # renders; the built packages are beside the binary, in target/), and each package's under its build/ (its
 # video builds and the timelines the homepage plays, tools/video). And the video tools' Node packages.

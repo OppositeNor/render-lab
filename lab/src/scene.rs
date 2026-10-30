@@ -1,8 +1,8 @@
 //! The lab's scenes (the study room, and hills of terrain), their
 //! ObjectData records, and CPU mirrors of the scene math in
-//! packages/rlstd/shaders/common.wgsl. The mirrors drive picking, the debug ray, probe
-//! tracing, and the prepared Surface Cache texels; `selftest` compares them
-//! with the GPU versions.
+//! packages/rlstd/shaders/common.wgsl. The mirrors drive picking and an
+//! investigation's CPU references; a selftest compares them with the GPU
+//! versions.
 //!
 //! A scene is named by its `SceneId` and described by the resource
 //! `rlstd.scene/<key>` (packages/rlstd/scenes/*.toml): its objects, its light, and its
@@ -680,11 +680,7 @@ pub fn reflect(i: Vec3, n: Vec3) -> Vec3 {
     i - 2.0 * n.dot(i) * n
 }
 
-// Reflections (the CPU side of common.wgsl's reflection section). The parts
-// that follow an engine's code are in src/commercial/lab/reflection_rays.rs,
-// mirroring the optional package's override of `rlstd.wgsl/surface-lookup`.
-#[cfg(commercial)]
-pub use crate::reflection_rays::*;
+// Reflections and sampling (the CPU side of common.wgsl's reflection section).
 
 /// A visible GGX normal by spherical caps over the bounded range, tangent space
 /// (Dupuy & Benyoub 2023; Eto & Tokuyoshi 2023), as importanceSampleVisibleGGX in common.wgsl.
@@ -710,6 +706,39 @@ pub fn tangent_basis(n: Vec3) -> [Vec3; 3] {
 /// The k-th of `count` Hammersley points (sampleSequence without the per-pixel rotation).
 pub fn hammersley(k: u32, count: u32) -> Vec2 {
     Vec2::new((k as f32 + 0.5) / count as f32, k.reverse_bits() as f32 * 2.328_306_4e-10)
+}
+
+/// A 32-bit integer hash: Wellons' lowbias32 ("Prospecting for Hash
+/// Functions", 2018; public domain). Deterministic per input, for jitter
+/// and random choices that must not depend on the frames before.
+pub fn hash_u32(mut x: u32) -> u32 {
+    x ^= x >> 16;
+    x = x.wrapping_mul(0x7feb_352d);
+    x ^= x >> 15;
+    x = x.wrapping_mul(0x846c_a68b);
+    x ^ (x >> 16)
+}
+
+/// A hash's top 24 bits as a float in [0, 1).
+pub fn hash_unit(h: u32) -> f32 {
+    (h >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// The real spherical harmonics of bands 0 and 1 along the unit direction
+/// `d`, in the standard order Y00, Y1-1, Y10, Y11 (y, z, x for the band-1
+/// terms; Ramamoorthi & Hanrahan, "An Efficient Representation for
+/// Irradiance Environment Maps", 2001).
+pub fn sh_l1_basis(d: Vec3) -> [f32; 4] {
+    [0.282_095, 0.488_603 * d.y, 0.488_603 * d.z, 0.488_603 * d.x]
+}
+
+/// The clamped-cosine lobe about `n` in the same basis (the convolution
+/// weights pi and 2 pi / 3 of Ramamoorthi & Hanrahan 2001): the dot product of
+/// a radiance's coefficients with it is the irradiance at normal `n`.
+pub fn sh_l1_cosine_lobe(n: Vec3) -> [f32; 4] {
+    let b = sh_l1_basis(n);
+    let (a0, a1) = (PI, 2.0 * PI / 3.0);
+    [b[0] * a0, b[1] * a1, b[2] * a1, b[3] * a1]
 }
 
 /// Karis's analytic environment BRDF fit ("Physically Based Shading on Mobile", 2014), with a grey F0.
@@ -835,4 +864,47 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
         ranges.push(first..indices.len() as u32);
     }
     Meshes { vertices, indices, ranges }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hash_is_deterministic_and_spread() {
+        assert_eq!(hash_u32(1), hash_u32(1));
+        // lowbias32 maps 0 to 0 and is a bijection, so distinct inputs differ.
+        assert_eq!(hash_u32(0), 0);
+        let values: std::collections::HashSet<u32> = (0..1000).map(hash_u32).collect();
+        assert_eq!(values.len(), 1000);
+        let mean = (1..=10_000).map(|i| hash_unit(hash_u32(i))).sum::<f32>() / 10_000.0;
+        assert!((mean - 0.5).abs() < 0.01, "mean {mean}");
+        assert!((0..1000).all(|i| (0.0..1.0).contains(&hash_unit(hash_u32(i)))));
+    }
+
+    #[test]
+    fn sh_cosine_lobe_gives_irradiance() {
+        // A constant radiance L has coefficients (L / Y00, 0, 0, 0) = (sqrt(4 pi) L, 0, 0, 0);
+        // the irradiance at any normal is then pi L.
+        let l = 2.0;
+        let radiance = [l * (4.0 * PI).sqrt(), 0.0, 0.0, 0.0];
+        for n in [Vec3::Y, Vec3::X, Vec3::new(0.3, -0.5, 0.8).normalize()] {
+            let lobe = sh_l1_cosine_lobe(n);
+            let e: f32 = radiance.iter().zip(lobe).map(|(a, b)| a * b).sum();
+            assert!((e - PI * l).abs() < 1e-3, "{e}");
+        }
+        // The basis is orthonormal over the sphere: integrate Y1-1 * Y1-1 numerically.
+        let mut sum = 0.0;
+        let steps = 200;
+        for j in 0..steps {
+            let theta = (j as f32 + 0.5) / steps as f32 * PI;
+            for i in 0..steps * 2 {
+                let phi = (i as f32 + 0.5) / (steps * 2) as f32 * 2.0 * PI;
+                let d = Vec3::new(theta.sin() * phi.cos(), theta.sin() * phi.sin(), theta.cos());
+                let b = sh_l1_basis(d);
+                sum += b[1] * b[1] * theta.sin() * (PI / steps as f32) * (PI / steps as f32);
+            }
+        }
+        assert!((sum - 1.0).abs() < 1e-2, "{sum}");
+    }
 }

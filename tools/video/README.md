@@ -44,7 +44,7 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
   lab checks against the value's declaration when it loads the timeline), `demo`,
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
-  `demo` switch), `record=probe:67` (or `ray`), `highlight=a,b`, `panel`, `code`, `callout`, `run=action` with
+  `demo` switch), `record=object:3` (or `camera`), `highlight=a,b`, `panel`, `code`, `callout`, `run=action` with
   `run.<arg>=value` and `stop=a,b` (the package's actions, `render-lab actions`), `image=name` with `imageTitle`,
   `imageCorner`, `imageFrom=kind` and `image.<param>=value`, and `imageHide=a,b` (images, `render-lab images`), `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON
@@ -78,7 +78,7 @@ storyboard they work alongside `keys`, `sequence`, and `pause`; `markup.py` pars
 
 | Tag | Does |
 |---|---|
-| `{@ opacity=1 callout=source-key}` | A point cue: shot parameters, `callout`, `code`, `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5` (seconds), `term=n` |
+| `{@ opacity=1 callout=source-key}` | A point cue: shot parameters, `callout`, `code`, `panel`, `demo`, `highlight=a,b`, `record=object:3`, `ease`, `blend=0.5` (seconds), `term=n` |
 | `{@ image=floodSeeds imageCorner=top-left imageTitle=demos.seeds}`, `{@ image=""}` | An image in an inset, by key: one the investigation publishes (`render-lab images`; its own title and axes), or a PNG resource of the package (`test/globe`) or one an imported package exports (`rlstd.<key>`), at its own size. It fades in and out over the key's `blend`; `imageCorner` is `top-left`, `top-right` (the default), `bottom-left`, or `bottom-right`; `imageTitle` is a text key of the package. The lab checks the key when it loads the timeline |
 | `{@ image=maps imageFrom=probeMap image.probe=7,7,8}`, `{@ image=maps image.probe=10,7,8 blend=2}`, `{@ imageHide=maps}` | A GPU image: an instance, named by the story, of an image kind the package's shaders define (`lab/src/views.rs`; `render-lab images` lists the kinds and their parameters). The lab runs the kind's compute entry point into the instance's own texture every frame and shows it live. A later `image=` of the name sets its parameters (blended over `blend`), title, or corner; several images show at once; `imageHide` fades some out and `image=""` all. The lab checks the kind and each parameter when it loads the timeline |
 | `{@ arrow=toWall arrowFrom=-2.2,0.3,-2.2 arrowTo=field.seed arrowColor=#50d7ff arrowWidth=3}`, `{@ label=hot labelAt=x,y,z labelText=demos.key}`, `{@ arrows=probe.rays}` | Arrows and labels the story declares (`packages/rlstd/src/annotations.rs`), drawn over the frame: a point is three numbers (blended over `blend` when a later key moves it) or a point the package publishes (`render-lab images` lists them), so an arrow can follow what it computes; `arrows=` shows an arrow set the package publishes. A later `arrow=`/`label=` of the name changes it; they fade over `blend`; `arrowHide=a,b`, `labelHide=a,b` hide some, `arrow=""` and `label=""` all. The lab checks every point, set, colour, and text key when it loads the timeline |

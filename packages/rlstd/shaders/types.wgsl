@@ -14,7 +14,7 @@
 // like glam's `Mat4 * Vec4` in Rust. `render-lab selftest` checks every offset
 // against the Rust structs and reads the records back on the GPU.
 
-// One object: its transforms and bounds, and its distance field's volume.
+// One object: its transforms and bounds, and its material.
 struct ObjectData {
     localToWorld: mat4x4<f32>,
     worldToLocal: mat4x4<f32>,
@@ -29,70 +29,6 @@ struct ObjectData {
     emissive: vec4<f32>,
 }
 
-// One sample of a mesh distance field, for display. A renderer keeps only
-// the 8-bit encoded value inside a brick.
-struct VoxelSample {
-    localPosition: vec3<f32>,
-    signedDistance: f32,
-    voxel: vec3<u32>,
-    encoded: u32,
-}
-
-// One entry of a distance field's indirection table (a brick index, or the
-// invalid index for an empty cell), with its mip's decode values. The
-// coordinates are explicit here so they can be shown.
-struct BrickEntry {
-    virtualBrick: vec3<u32>,
-    mipLevel: u32,
-    physicalBrick: vec3<u32>,
-    physicalIndex: u32,
-    distanceScaleBias: vec2<f32>,
-    voxelSize: f32,
-    flags: u32,
-}
-
-// One surface-cache card, unpacked: a renderer packs it tighter; this record
-// keeps named fields.
-struct CardData {
-    center: vec3<f32>,
-    objectIndex: u32,
-    tangentFrame: mat3x3<f32>,   // columns: tangent, bitangent, normal
-    halfExtents: vec3<f32>,
-    pageIndex: u32,
-    sizeInPages: vec2<u32>,
-    resLevel: u32,
-    flags: u32,
-}
-
-// One page-table entry of the surface cache: where a card's page sits in the
-// physical atlas.
-struct PageEntry {
-    physicalPage: vec2<u32>,
-    cardIndex: u32,
-    mipLevel: u32,
-    cardUVRect: vec4<f32>,
-    flags: u32,
-}
-
-// Debug record for one reflection query. Real reflection passes keep similar
-// quantities in textures and registers rather than one struct.
-struct RayDebugData {
-    origin: vec3<f32>,
-    roughness: f32,
-    incidentDir: vec3<f32>,
-    hitDistance: f32,
-    hitPosition: vec3<f32>,
-    hitObject: u32,
-    normal: vec3<f32>,
-    envBRDF: f32,                     // EnvBRDFApprox(F0, roughness, N.V)
-    viewDir: vec3<f32>,
-    ggxAlpha: f32,                    // roughness^2, the VNDF lobe width
-    reflectedDir: vec3<f32>,
-    reflectedHitDistance: f32,
-    reflectedHitPosition: vec3<f32>,
-    reflectedHitObject: u32,
-}
-
 // The camera: a small part of a renderer's view constants.
 struct CameraData {
     worldToView: mat4x4<f32>,
@@ -105,27 +41,6 @@ struct CameraData {
     farPlane: f32,
 }
 
-// One screen probe of a screen-probe gather, which a renderer keeps as depth,
-// normal, and an octahedral radiance tile in textures.
-struct ProbeRecord {
-    position: vec3<f32>,
-    firstSample: u32,
-    normal: vec3<f32>,
-    sampleCount: u32,
-    screenPixel: vec2<u32>,
-    historyWeight: f32,
-    framesAccumulated: u32,
-    irradiance: vec4<f32>,
-}
-
-// One traced direction of a probe: the radiance that came back.
-struct RadianceSample {
-    direction: vec3<f32>,
-    hitDistance: f32,
-    radiance: vec3<f32>,
-    hitObject: u32,
-}
-
 // Per-frame constants (uniform buffer). Not shown in the struct panel.
 struct FrameUniforms {
     camera: CameraData,
@@ -135,16 +50,9 @@ struct FrameUniforms {
     lightColor: vec4<f32>,
     ambientColor: vec4<f32>,
     floorParams: vec4<f32>,           // roughness, F0, reflection strength, GGX samples per pixel
-    overlayParams: vec4<f32>,         // exposure, pixel scale, time, card spread (display offset along card normals)
-    cutPlane: vec4<f32>,              // keep local samples with dot(xyz, p) <= w
-    deformParams: vec4<f32>,          // squash amount, deformed object, ghost opacity, unused
-    sdfVolume: vec4<f32>,             // local volume minimum, distance-field object
-    atlasDisplay: vec4<f32>,          // world origin of the brick-atlas display, slot size
-    counts: vec4<u32>,                // objects, floor object, voxel samples, raster-hidden mask
-    selection: vec4<u32>,             // object, card, page, brick
-    selection2: vec4<u32>,            // voxel sample, probe, ray, unused
-    counts2: vec4<u32>,               // Surface Cache cards, pages, objects fading out of the frame (bit mask), unused
-    cacheView: vec4<f32>,             // radiosity frames shown (6 = finished), indirect light scale, presence of the fading objects, unused
+    overlayParams: vec4<f32>,         // exposure, pixel scale, time, unused
+    counts: vec4<u32>,                // objects, floor object, objects fading out of the frame (bit mask), raster-hidden mask
+    viewParams: vec4<f32>,            // presence of the fading objects, indirect light scale, ghost opacity, 1 + frames the view held still (<= 255) + 256 x frames the scene held still (0: no history; FrameRequest::history)
 }
 
 // The Utah teapot's triangles, in its local space, under a bounding-volume

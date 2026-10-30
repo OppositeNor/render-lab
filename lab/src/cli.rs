@@ -170,14 +170,6 @@ enum Command {
         #[arg(long, required = true, num_args = 1..)]
         check: Vec<PathBuf>,
     },
-    #[cfg(commercial)]
-    /// Write a summary of the prepared teaching data (and the atlas as PNG).
-    Fixtures {
-        #[arg(long)]
-        output: PathBuf,
-        #[arg(long)]
-        atlas_png: Option<PathBuf>,
-    },
 }
 
 /// `--resolution`: a 16:9 preset by its height, or WIDTHxHEIGHT (even, for
@@ -457,41 +449,6 @@ pub fn main(app: App) -> Result<()> {
                     for f in &c.fields {
                         println!("    {:>4}  {:<22} {:<12} {:>3} B{}", f.wgsl_offset, f.name, f.wgsl_type, f.wgsl_size, if f.ok { "" } else { "  <-- mismatch" });
                     }
-                }
-            }
-            Ok(())
-        }
-        #[cfg(commercial)]
-        Command::Fixtures { output, atlas_png } => {
-            // The CPU reference build: no GPU needed.
-            let statics = crate::frame::Statics::prepare_cpu(crate::scene::SceneId::STUDY_ROOM)?;
-            let fx = &statics.fixtures;
-            let df = &fx.distance_field;
-            let summary = serde_json::json!({
-                "note": "Prepared teaching data, generated deterministically by src/commercial/lab/fixtures.rs; not produced by an engine's builders.",
-                "distanceField": {
-                    "object": "sphere", "radius": df.radius, "volumeMin": df.volume_min.to_array(), "volumeSize": df.volume_size,
-                    "mips": df.mips.iter().enumerate().map(|(i, m)| serde_json::json!({"mip": i, "bricksPerAxis": m.dims, "voxelSize": m.voxel_size, "band": m.band, "scaleBias": m.scale_bias, "stored": m.stored, "virtual": m.dims.pow(3)})).collect::<Vec<_>>(),
-                    "atlasBricks": df.atlas_bricks, "denseDisplaySamples": df.voxels.len(),
-                },
-                "surfaceCache": {
-                    "cards": fx.surface_cache.cards.iter().map(|c| serde_json::json!({"name": c.name, "object": c.object, "sizeInPages": c.size_in_pages, "resLevel": c.res_level, "pageIndex": c.page_index})).collect::<Vec<_>>(),
-                    "pages": fx.surface_cache.pages.len(), "atlasTexels": fx.surface_cache.atlas_size, "pageTexels": crate::fixtures::PHYSICAL_PAGE_SIZE,
-                },
-                "probes": {
-                    "count": fx.probes.records.len(), "samples": fx.probes.samples.len(), "selected": fx.probes.selected,
-                    "selectedPosition": fx.probes.records[fx.probes.selected].position, "selectedNormal": fx.probes.records[fx.probes.selected].normal,
-                    "historySteps": fx.probes.history.len(), "historyMoveStep": crate::fixtures::HISTORY_MOVE_STEP, "spacingPx": crate::fixtures::PROBE_SPACING_PX,
-                    "history": fx.probes.history.iter().map(|h| serde_json::json!({"frames": h.frames, "weight": h.weight, "fastUpdate": h.fast_update})).collect::<Vec<_>>(),
-                },
-            });
-            std::fs::write(&output, serde_json::to_string_pretty(&summary)?)?;
-            if let Some(png) = atlas_png {
-                // One PNG per layer: <stem>-<layer>.png.
-                let s = fx.surface_cache.atlas_size;
-                for layer in crate::surface_cache::Layer::ALL {
-                    let name = format!("{}-{}.png", png.file_stem().and_then(|n| n.to_str()).unwrap_or("atlas"), layer.name_and_format().0);
-                    record::write_png(&png.with_file_name(name), s[0], s[1], &fx.surface_cache.display_rgba(layer, statics.scene.lighting.exposure))?;
                 }
             }
             Ok(())

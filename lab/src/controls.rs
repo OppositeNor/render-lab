@@ -184,36 +184,14 @@ impl Dock<'_> {
     /// Any element of any record buffer, its struct panel mode, and the highlighted field.
     pub fn layouts(&mut self, ui: &mut Ui) {
         let statics = self.input.statics;
-        #[cfg(commercial)]
-        let fx = &statics.fixtures;
-        // Without src/commercial there are no distance fields or cards.
-        #[cfg(commercial)]
-        let [voxels, bricks, cards, pages] = [fx.distance_field.voxels.len(), fx.distance_field.bricks.len(), fx.surface_cache.cards.len(), fx.surface_cache.pages.len()];
-        #[cfg(not(commercial))]
-        let [voxels, bricks, cards, pages] = [0; 4];
-        let content = self.input.content;
-        let kinds: [RecordKind; 9] = [
+        let kinds: [RecordKind; 2] = [
             ("ObjectData", statics.scene.objects.len(), |i| RecordRef::Object { index: i }),
-            ("VoxelSample", voxels, |i| RecordRef::Voxel { index: i }),
-            ("BrickEntry", bricks, |i| RecordRef::Brick { index: i }),
-            ("CardData", cards, |i| RecordRef::Card { index: i }),
-            ("PageEntry", pages, |i| RecordRef::Page { index: i }),
-            ("RayDebugData", 1, |_| RecordRef::Ray),
             ("CameraData", 1, |_| RecordRef::Camera),
-            ("ProbeRecord", content.map_or(0, |c| c.probes.len()), |i| RecordRef::Probe { index: i }),
-            ("RadianceSample", content.map_or(0, |c| c.radiance.len()), |i| RecordRef::Radiance { index: i }),
         ];
         let (kind, index) = match self.state.record {
             RecordRef::Object { index } => (0, index),
-            RecordRef::Voxel { index } => (1, index),
-            RecordRef::Brick { index } => (2, index),
-            RecordRef::Card { index } => (3, index),
-            RecordRef::Page { index } => (4, index),
-            RecordRef::Ray => (5, 0),
-            RecordRef::Camera => (6, 0),
-            RecordRef::Probe { index } => (7, index),
-            RecordRef::Radiance { index } => (8, index),
-            RecordRef::None => (3, 0),
+            RecordRef::Camera => (1, 0),
+            RecordRef::None => (0, 0),
         };
         let (name, count, make) = kinds[kind];
         self.group(ui, tr("controls.record"), None, |d, ui| {

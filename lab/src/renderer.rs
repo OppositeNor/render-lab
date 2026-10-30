@@ -6,11 +6,9 @@
 use crate::frame::{self, FrameContent, Statics};
 use crate::investigation::{self, SceneShading};
 use crate::gpu::{self, Gpu, Pipelines, DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
-use crate::layout::{FrameUniforms, ObjectData, RayDebugData};
+use crate::layout::{FrameUniforms, ObjectData};
 use crate::scene::SceneId;
 use crate::shot::{SceneType, ShotState};
-#[cfg(commercial)]
-use crate::surface_cache_gpu::{self, CacheInputs, SurfaceCacheGpu};
 use crate::ui::{self, Chrome, Layout, UiInput, UiReport};
 use crate::utility::inset::Textures;
 use bytemuck::Pod;
@@ -104,13 +102,6 @@ impl ViewportTargets {
 pub struct RecordBuffers {
     pub uniforms: wgpu::Buffer,
     pub objects: GrowBuffer,
-    pub voxels: GrowBuffer,
-    pub bricks: GrowBuffer,
-    pub cards: GrowBuffer,
-    pub pages: GrowBuffer,
-    pub rays: GrowBuffer,
-    pub probes: GrowBuffer,
-    pub radiance: GrowBuffer,
     /// The teapot's BVH and triangles (static, local space).
     pub mesh_nodes: wgpu::Buffer,
     pub mesh_triangles: wgpu::Buffer,
@@ -124,17 +115,12 @@ struct SceneResources {
     mesh_vertices: wgpu::Buffer,
     mesh_indices: wgpu::Buffer,
     object_ids: wgpu::Buffer,
-    brick_atlas: wgpu::Texture,
-    brick_atlas_view: wgpu::TextureView,
-    surface_cache: wgpu::Texture,
-    surface_cache_view: wgpu::TextureView,
-    surface_display: wgpu::Texture,
-    surface_display_view: wgpu::TextureView,
-    #[cfg(commercial)]
-    cache_gpu: SurfaceCacheGpu,
 }
 
 pub struct Renderer {
+    /// The last frame's `still_key` and `scene_key`, and how many frames in a row had each.
+    still: (Option<u64>, u32),
+    still_scene: (Option<u64>, u32),
     pub gpu: Gpu,
     pub pipelines: Pipelines,
     /// The prepared data of the scene the renderer shows.
@@ -145,20 +131,9 @@ pub struct Renderer {
     mesh_vertices: wgpu::Buffer,
     mesh_indices: wgpu::Buffer,
     object_ids: wgpu::Buffer,
-    _brick_atlas: wgpu::Texture,
-    brick_atlas_view: wgpu::TextureView,
-    _surface_cache: wgpu::Texture,
-    surface_cache_view: wgpu::TextureView,
-    _surface_display: wgpu::Texture,
-    surface_display_view: wgpu::TextureView,
     /// The lab's environment (environment.rs), gEnvironment.
     _environment: wgpu::Texture,
     environment_view: wgpu::TextureView,
-    /// The Surface Cache passes (built once, then the per-frame picture).
-    #[cfg(commercial)]
-    cache_gpu: SurfaceCacheGpu,
-    #[cfg(commercial)]
-    cache_inputs: wgpu::BindGroup,
     sampler: wgpu::Sampler,
     /// `FrameContent::shading`, group 1 of an investigation's own scene shading.
     shading_uniforms: wgpu::Buffer,
@@ -171,8 +146,6 @@ pub struct Renderer {
     segments_xray: GrowBuffer,
     boxes: GrowBuffer,
     boxes_xray: GrowBuffer,
-    samples: GrowBuffer,
-    cards: GrowBuffer,
     points: GrowBuffer,
     ghost_ids: GrowBuffer,
     pub width: u32,
@@ -193,18 +166,6 @@ pub struct Renderer {
     /// Group 1 of a kind's entry point when the investigation has no scene shading.
     view_shading: Option<wgpu::BindGroup>,
     last_layout: Layout,
-}
-
-/// Show `view` as the inset texture `key` (`Picture::Texture`): registered
-/// with egui the first time, pointed at the new view after.
-fn show_texture(egui_renderer: &mut egui_wgpu::Renderer, device: &wgpu::Device, textures: &mut Textures, key: &str, view: &wgpu::TextureView) {
-    match textures.get(key) {
-        Some(&id) => egui_renderer.update_egui_texture_from_wgpu_texture(device, view, wgpu::FilterMode::Linear, id),
-        None => {
-            let id = egui_renderer.register_native_texture(device, view, wgpu::FilterMode::Linear);
-            textures.insert(key.to_string(), id);
-        }
-    }
 }
 
 /// A story's image of an image kind (src/views.rs): its texture, written
@@ -235,6 +196,11 @@ struct ChainTargets {
     /// The targets by name: the scene pass's outputs multisampled, the rest single-sample.
     views: Vec<(&'static str, wgpu::TextureView)>,
     buffers: Vec<(&'static str, wgpu::Buffer)>,
+    /// The depth views' texture array as one view (bound by name), and each of its layers (drawn into).
+    depth_views: Option<(wgpu::TextureView, Vec<wgpu::TextureView>)>,
+    /// What the depth views were last drawn from (`depth_views_key`): they
+    /// are drawn again only when that changes.
+    depth_views_drawn: std::cell::Cell<Option<u64>>,
     /// Group 2 of each early pass, then of each later pass.
     groups: Vec<wgpu::BindGroup>,
     /// Group 2 of the scene pass.
@@ -268,9 +234,29 @@ impl ChainTargets {
             .iter()
             .map(|b| (b.name, device.create_buffer(&wgpu::BufferDescriptor { label: Some(b.name), size: tiles(b.tile) * b.words_per_tile as u64 * 4, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false })))
             .collect();
+        let depth_views = source.depth_views.map(|d| {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(d.name),
+                size: wgpu::Extent3d { width: d.size, height: d.size, depth_or_array_layers: d.vertices.len() as u32 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: crate::gpu::DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let all = texture.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
+            let layers = (0..d.vertices.len() as u32).map(|layer| texture.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2), base_array_layer: layer, array_layer_count: Some(1), ..Default::default() })).collect();
+            (all, layers)
+        });
         let resource = |name: &str| -> wgpu::BindingResource {
             if let Some((_, buffer)) = buffers.iter().find(|(n, _)| *n == name) {
                 return buffer.as_entire_binding();
+            }
+            if let (Some(d), Some((all, _))) = (source.depth_views, &depth_views) {
+                if d.name == name {
+                    return wgpu::BindingResource::TextureView(all);
+                }
             }
             wgpu::BindingResource::TextureView(match name {
                 "hdr" => &viewport.hdr,
@@ -290,7 +276,7 @@ impl ChainTargets {
         };
         let groups = source.early.iter().chain(source.passes).zip(&shading.pipelines.passes).map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes)).collect();
         let scene_group = group("scene reads", &shading.pipelines.scene_group, source.scene_reads, &[]);
-        ChainTargets { source, size, views, buffers, groups, scene_group }
+        ChainTargets { source, size, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
     }
 
     fn view(&self, name: &str) -> &wgpu::TextureView {
@@ -322,9 +308,53 @@ impl ChainTargets {
     }
 }
 
+/// What a frame shows, but its clock: its records, uniforms (with the
+/// overlay's time and the history count cleared), shading values, and size;
+/// with `camera` false, all of it but the camera (and the shading's frame
+/// data, which follows the camera).
+fn still_key(content: &FrameContent, viewport: [u32; 2], camera: bool) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut uniforms = content.uniforms;
+    uniforms.overlay_params[2] = 0.0;
+    uniforms.view_params[3] = 0.0;
+    if !camera {
+        uniforms.camera = bytemuck::Zeroable::zeroed();
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    bytemuck::bytes_of(&uniforms).hash(&mut h);
+    bytemuck::cast_slice::<_, u8>(&content.objects).hash(&mut h);
+    bytemuck::cast_slice::<_, u8>(&content.shading).hash(&mut h);
+    if camera {
+        bytemuck::cast_slice::<_, u8>(&content.shading_frame).hash(&mut h);
+    }
+    viewport.hash(&mut h);
+    h.finish()
+}
+
+/// What the depth views see: the records, the light, the fading objects, and
+/// the shading values (not the camera).
+fn depth_views_key(content: &FrameContent) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let u = &content.uniforms;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    bytemuck::cast_slice::<_, u8>(&content.objects).hash(&mut h);
+    bytemuck::cast_slice::<_, u8>(&[u.light_center_radiance, u.light_axis_u, u.light_axis_v, [u.view_params[0], 0.0, 0.0, 0.0]]).hash(&mut h);
+    u.counts.hash(&mut h);
+    bytemuck::cast_slice::<_, u8>(&content.shading).hash(&mut h);
+    h.finish()
+}
+
 /// Everything a frame needs besides the shot state.
 pub struct FrameRequest<'a> {
     pub state: &'a ShotState,
+    /// Whether this frame may build on the frames before it (the viewer's
+    /// live frames): the renderer then counts the frames the whole view has
+    /// held still (`a`, at most 255) and the frames the scene has held still
+    /// while only the camera may have moved (`b`, at most 32767), and puts
+    /// `1 + a + 256 b` in `viewParams.w`, which a scene shading may use to keep
+    /// a history (reprojected while only the camera moves). 0 otherwise, so
+    /// each frame of a recording renders on its own.
+    pub history: bool,
     pub scene_type: SceneType,
     pub image: Option<(egui::TextureId, egui::Vec2)>,
     pub beat_sources: &'a [String],
@@ -343,10 +373,8 @@ pub struct FrameResult {
 }
 
 impl Renderer {
-    /// `statics` from `Statics::prepare`: the Surface Cache is captured and
-    /// lit here on the GPU, read back into `statics`, and the screen probes
-    /// are traced from it. A cache already lit on the CPU is uploaded as is.
-    pub fn new(gpu: Gpu, #[cfg_attr(not(commercial), allow(unused_mut))] mut statics: Statics, width: u32, height: u32) -> anyhow::Result<Renderer> {
+    /// A renderer of the scene `statics` prepares (`Statics::prepare`).
+    pub fn new(gpu: Gpu, statics: Statics, width: u32, height: u32) -> anyhow::Result<Renderer> {
         let device = &gpu.device;
         let queue = &gpu.queue;
         let pipelines = Pipelines::new(device)?;
@@ -373,7 +401,7 @@ impl Renderer {
         let environment_view = environment.create_view(&Default::default());
 
         let terrain = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("terrain heights"), contents: bytemuck::cast_slice(&crate::terrain::terrain().gpu_words()), usage: wgpu::BufferUsages::STORAGE });
-        let mut records = RecordBuffers {
+        let records = RecordBuffers {
             uniforms: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("frame uniforms"),
                 size: std::mem::size_of::<FrameUniforms>() as u64,
@@ -381,18 +409,11 @@ impl Renderer {
                 mapped_at_creation: false,
             }),
             objects: GrowBuffer::new(device, "objects", storage, (statics.scene.objects.len() * std::mem::size_of::<ObjectData>()) as u64),
-            voxels: GrowBuffer::new(device, "voxels", storage, 0),
-            bricks: GrowBuffer::new(device, "bricks", storage, 0),
-            cards: GrowBuffer::new(device, "cards", storage, 0),
-            pages: GrowBuffer::new(device, "pages", storage, 0),
-            rays: GrowBuffer::new(device, "rays", storage, std::mem::size_of::<RayDebugData>() as u64),
-            probes: GrowBuffer::new(device, "probes", storage, 0),
-            radiance: GrowBuffer::new(device, "radiance", storage, 0),
             mesh_nodes,
             mesh_triangles,
             terrain,
         };
-        let scene = Self::scene_resources(device, queue, &mut statics, &mut records, &environment_view);
+        let scene = Self::scene_resources(device, &statics);
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("linear clamp"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -402,12 +423,8 @@ impl Renderer {
         let vertex = wgpu::BufferUsages::VERTEX;
         let egui_ctx = egui::Context::default();
         ui::install_fonts(&egui_ctx);
-        #[cfg_attr(not(commercial), allow(unused_mut))]
-        let mut egui_renderer = egui_wgpu::Renderer::new(device, FRAME_FORMAT, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
-        #[cfg_attr(not(commercial), allow(unused_mut))]
-        let mut textures = Textures::new();
-        #[cfg(commercial)]
-        show_texture(&mut egui_renderer, device, &mut textures, surface_cache_gpu::DISPLAY_TEXTURE, &scene.surface_display_view);
+        let egui_renderer = egui_wgpu::Renderer::new(device, FRAME_FORMAT, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
+        let textures = Textures::new();
         let frame = Self::frame_texture(device, width, height);
         let frame_view = frame.create_view(&Default::default());
         let shading_uniforms = device.create_buffer(&wgpu::BufferDescriptor {
@@ -417,11 +434,9 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let mut renderer = Renderer {
-            frame_bind_group: Self::frame_bind_group(device, &pipelines, &records, &scene.brick_atlas_view, &scene.surface_display_view, &scene.surface_cache_view, &environment_view, &sampler),
-            #[cfg(commercial)]
-            cache_inputs: Self::cache_inputs(device, &scene.cache_gpu, &records, &scene.surface_cache_view, &environment_view),
-            #[cfg(commercial)]
-            cache_gpu: scene.cache_gpu,
+            still: (None, 0),
+            still_scene: (None, 0),
+            frame_bind_group: Self::frame_bind_group(device, &pipelines, &records, &environment_view, &sampler),
             shading_uniforms,
             shadings: Vec::new(),
             chain: None,
@@ -430,12 +445,6 @@ impl Renderer {
             mesh_vertices: scene.mesh_vertices,
             mesh_indices: scene.mesh_indices,
             object_ids: scene.object_ids,
-            _brick_atlas: scene.brick_atlas,
-            brick_atlas_view: scene.brick_atlas_view,
-            _surface_cache: scene.surface_cache,
-            surface_cache_view: scene.surface_cache_view,
-            _surface_display: scene.surface_display,
-            surface_display_view: scene.surface_display_view,
             _environment: environment,
             environment_view,
             sampler,
@@ -443,8 +452,6 @@ impl Renderer {
             segments_xray: GrowBuffer::new(device, "segments x-ray", vertex, 1 << 16),
             boxes: GrowBuffer::new(device, "boxes", vertex, 1 << 16),
             boxes_xray: GrowBuffer::new(device, "boxes x-ray", vertex, 1 << 16),
-            samples: GrowBuffer::new(device, "samples", vertex, 1 << 20),
-            cards: GrowBuffer::new(device, "card instances", vertex, 1 << 12),
             points: GrowBuffer::new(device, "points", vertex, 1 << 14),
             ghost_ids: GrowBuffer::new(device, "ghost ids", vertex, 256),
             width,
@@ -475,89 +482,18 @@ impl Renderer {
         Ok(renderer)
     }
 
-    /// The GPU data of the scene `statics` prepares, with its records'
-    /// contents written into `records`: the meshes, the brick atlas, and the
-    /// Surface Cache, which is captured and lit here on the GPU, read back
-    /// into `statics`, and the screen probes traced from it (a cache already
-    /// lit, on the CPU or before a switch, is uploaded as is).
-    fn scene_resources(device: &wgpu::Device, #[cfg_attr(not(commercial), allow(unused_variables))] queue: &wgpu::Queue, #[cfg_attr(not(commercial), allow(unused_variables))] statics: &mut Statics, #[cfg_attr(not(commercial), allow(unused_variables))] records: &mut RecordBuffers, #[cfg_attr(not(commercial), allow(unused_variables))] environment_view: &wgpu::TextureView) -> SceneResources {
-        // The Surface Cache: the atlases as stored (u32 per texel, the engine's
-        // encodings) plus the radiosity snapshots, and the picture of them.
-        #[cfg(commercial)]
-        let (surface_cache, surface_display, cache_gpu) = {
-            let atlas_size = statics.fixtures.surface_cache.atlas_size;
-            let surface_cache = surface_cache_gpu::atlas_texture(device, atlas_size);
-            let surface_display = surface_cache_gpu::display_texture(device, atlas_size);
-            let cache_gpu = SurfaceCacheGpu::new(device, &statics.fixtures.surface_cache, &surface_display);
-            if statics.fixtures.surface_cache.lit {
-                upload_lit_cache(queue, &surface_cache, &statics.fixtures.surface_cache);
-            } else {
-                let objects = statics.scene.records();
-                let start = std::time::Instant::now();
-                let texels = cache_gpu.build(device, queue, &statics.fixtures.surface_cache, &objects, &statics.scene.lighting, [&records.mesh_nodes, &records.mesh_triangles, &records.terrain], environment_view, &surface_cache);
-                statics.fixtures.surface_cache.set_lit_texels(texels, start.elapsed().as_secs_f32());
-                statics.trace_probes();
-            }
-            (surface_cache, surface_display, cache_gpu)
-        };
-        // Without src/commercial there is no Surface Cache: one-texel stand-ins.
-        #[cfg(not(commercial))]
-        let (surface_cache, surface_display) = (
-            placeholder(device, "surface cache (none)", wgpu::TextureDimension::D2, wgpu::TextureFormat::R32Uint),
-            placeholder(device, "surface display (none)", wgpu::TextureDimension::D2, wgpu::TextureFormat::Rgba8Unorm),
-        );
-        #[cfg(commercial)]
-        {
-            let (df, cache) = (&statics.fixtures.distance_field, &statics.fixtures.surface_cache);
-            records.voxels.write(device, queue, &df.voxels);
-            records.bricks.write(device, queue, &df.bricks);
-            records.pages.write(device, queue, &cache.pages);
-        }
-
+    /// The GPU data of the scene `statics` prepares: its raster meshes.
+    fn scene_resources(device: &wgpu::Device, statics: &Statics) -> SceneResources {
         let meshes = &statics.meshes;
         let mesh_vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("mesh vertices"), contents: bytemuck::cast_slice(&meshes.vertices), usage: wgpu::BufferUsages::VERTEX });
         let mesh_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("mesh indices"), contents: bytemuck::cast_slice(&meshes.indices), usage: wgpu::BufferUsages::INDEX });
         let ids: Vec<u32> = (0..statics.scene.objects.len() as u32).collect();
         let object_ids = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("object ids"), contents: bytemuck::cast_slice(&ids), usage: wgpu::BufferUsages::VERTEX });
 
-        #[cfg(commercial)]
-        let df = &statics.fixtures.distance_field;
-        #[cfg(commercial)]
-        let atlas_dims = [df.atlas_bricks[0] * 8, df.atlas_bricks[1] * 8, df.atlas_bricks[2] * 8];
-        #[cfg(commercial)]
-        let brick_atlas = device.create_texture_with_data(
-            queue,
-            &wgpu::TextureDescriptor {
-                label: Some("brick atlas (R8)"),
-                size: wgpu::Extent3d { width: atlas_dims[0], height: atlas_dims[1], depth_or_array_layers: atlas_dims[2] },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D3,
-                format: wgpu::TextureFormat::R8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            },
-            wgpu::util::TextureDataOrder::LayerMajor,
-            &df.atlas,
-        );
-        #[cfg(not(commercial))]
-        let brick_atlas = placeholder(device, "brick atlas (none)", wgpu::TextureDimension::D3, wgpu::TextureFormat::R8Unorm);
-        let brick_atlas_view = brick_atlas.create_view(&Default::default());
-        let surface_cache_view = surface_cache.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
-        // Sampled as sRGB: the card shader and egui read linear colour.
-        let surface_display_view = surface_display.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), usage: Some(wgpu::TextureUsages::TEXTURE_BINDING), ..Default::default() });
         SceneResources {
             mesh_vertices,
             mesh_indices,
             object_ids,
-            brick_atlas,
-            brick_atlas_view,
-            surface_cache,
-            surface_cache_view,
-            surface_display,
-            surface_display_view,
-            #[cfg(commercial)]
-            cache_gpu,
         }
     }
 
@@ -581,32 +517,17 @@ impl Renderer {
         };
         let previous = std::mem::replace(&mut self.statics, next);
         self.other_scenes.insert(previous.scene.id, previous);
-        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        let scene = Self::scene_resources(device, queue, &mut self.statics, &mut self.records, &self.environment_view);
+        let scene = Self::scene_resources(&self.gpu.device, &self.statics);
         self.mesh_vertices = scene.mesh_vertices;
         self.mesh_indices = scene.mesh_indices;
         self.object_ids = scene.object_ids;
-        self._brick_atlas = scene.brick_atlas;
-        self.brick_atlas_view = scene.brick_atlas_view;
-        self._surface_cache = scene.surface_cache;
-        self.surface_cache_view = scene.surface_cache_view;
-        self._surface_display = scene.surface_display;
-        self.surface_display_view = scene.surface_display_view;
-        #[cfg(commercial)]
-        show_texture(&mut self.egui_renderer, device, &mut self.textures, surface_cache_gpu::DISPLAY_TEXTURE, &self.surface_display_view);
-        self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.brick_atlas_view, &self.surface_display_view, &self.surface_cache_view, &self.environment_view, &self.sampler);
-        #[cfg(commercial)]
-        {
-            self.cache_gpu = scene.cache_gpu;
-            self.cache_inputs = Self::cache_inputs(device, &self.cache_gpu, &self.records, &self.surface_cache_view, &self.environment_view);
-        }
     }
 
     fn frame_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
         target(device, "frame (RGBA8)", [width, height], FRAME_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING)
     }
 
-    fn frame_bind_group(device: &wgpu::Device, pipelines: &Pipelines, r: &RecordBuffers, bricks: &wgpu::TextureView, pictures: &wgpu::TextureView, cache: &wgpu::TextureView, environment: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
+    fn frame_bind_group(device: &wgpu::Device, pipelines: &Pipelines, r: &RecordBuffers, environment: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
         fn buffer(binding: u32, b: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
             wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }
         }
@@ -616,37 +537,12 @@ impl Renderer {
             entries: &[
                 buffer(0, &r.uniforms),
                 buffer(1, &r.objects.buffer),
-                buffer(2, &r.voxels.buffer),
-                buffer(3, &r.bricks.buffer),
-                buffer(4, &r.cards.buffer),
-                buffer(5, &r.pages.buffer),
-                buffer(6, &r.rays.buffer),
-                buffer(7, &r.probes.buffer),
-                buffer(8, &r.radiance.buffer),
-                wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::TextureView(bricks) },
-                wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(pictures) },
-                wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::Sampler(sampler) },
-                buffer(12, &r.mesh_nodes),
-                buffer(13, &r.mesh_triangles),
-                buffer(16, &r.terrain),
-                wgpu::BindGroupEntry { binding: 14, resource: wgpu::BindingResource::TextureView(cache) },
-                wgpu::BindGroupEntry { binding: 15, resource: wgpu::BindingResource::TextureView(environment) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
+                buffer(3, &r.mesh_nodes),
+                buffer(4, &r.mesh_triangles),
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(environment) },
+                buffer(6, &r.terrain),
             ],
-        })
-    }
-
-    #[cfg(commercial)]
-    fn cache_inputs(device: &wgpu::Device, cache_gpu: &SurfaceCacheGpu, r: &RecordBuffers, atlas: &wgpu::TextureView, environment: &wgpu::TextureView) -> wgpu::BindGroup {
-        cache_gpu.inputs(device, &CacheInputs {
-            uniforms: &r.uniforms,
-            objects: &r.objects.buffer,
-            cards: &r.cards.buffer,
-            pages: &r.pages.buffer,
-            mesh_nodes: &r.mesh_nodes,
-            mesh_triangles: &r.mesh_triangles,
-            terrain: &r.terrain,
-            atlas,
-            environment,
         })
     }
 
@@ -704,19 +600,8 @@ impl Renderer {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         queue.write_buffer(&self.records.uniforms, 0, bytemuck::bytes_of(&content.uniforms));
         queue.write_buffer(&self.shading_uniforms, 0, bytemuck::cast_slice(&content.shading));
-        let r = &mut self.records;
-        let mut grown = r.objects.write(device, queue, &content.objects);
-        grown |= r.cards.write(device, queue, &content.cards);
-        grown |= r.rays.write(device, queue, std::slice::from_ref(&content.ray));
-        grown |= r.probes.write(device, queue, &content.probes);
-        grown |= r.radiance.write(device, queue, &content.radiance);
-        if grown {
-            self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.brick_atlas_view, &self.surface_display_view, &self.surface_cache_view, &self.environment_view, &self.sampler);
-            #[cfg(commercial)]
-            {
-                self.cache_inputs = Self::cache_inputs(device, &self.cache_gpu, &self.records, &self.surface_cache_view, &self.environment_view);
-                self.cache_gpu.invalidate();
-            }
+        if self.records.objects.write(device, queue, &content.objects) {
+            self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.environment_view, &self.sampler);
         }
     }
 
@@ -864,8 +749,6 @@ impl Renderer {
         self.segments_xray.write(device, queue, &seg_xray);
         self.boxes.write(device, queue, &d.boxes);
         self.boxes_xray.write(device, queue, &box_xray);
-        self.samples.write(device, queue, &d.samples);
-        self.cards.write(device, queue, &d.cards);
         self.points.write(device, queue, &d.points);
         self.ghost_ids.write(device, queue, &d.ghosts);
     }
@@ -890,14 +773,18 @@ impl Renderer {
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
         }
         let scene_beat = request.scene_type == SceneType::ThreeD;
-        #[cfg(commercial)]
-        if let Some(setting) = investigation::current().prepared_setting(request.state) {
-            self.cache_gpu.rebuild(&self.gpu.device, &self.gpu.queue, &mut self.statics, [&self.records.mesh_nodes, &self.records.mesh_triangles, &self.records.terrain], &self.environment_view, &self._surface_cache, setting);
-        }
-        let content = match prepared {
+        let mut content = match prepared {
             Some(c) => Some(c),
             None => scene_beat.then(|| crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)),
         };
+        if let Some(content) = content.as_mut() {
+            // The frames the view has held still: the same records, uniforms
+            // (but the clock), shading values, and viewport as the last frame.
+            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+            self.still = count(self.still, still_key(content, viewport_size, true));
+            self.still_scene = count(self.still_scene, still_key(content, viewport_size, false));
+            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+        }
         if let Some(content) = &content {
             self.upload(content);
             self.upload_draws(content);
@@ -1004,16 +891,9 @@ impl Renderer {
         FrameResult { report, content }
     }
 
-    /// The Surface Cache picture, then the scene and overlay passes into the
-    /// viewport targets (the composite reads them).
+    /// The scene and overlay passes into the viewport targets (the composite
+    /// reads them).
     fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent) {
-        // The Surface Cache picture the card quads and the atlas inset show.
-        #[cfg(commercial)]
-        {
-            let params = content.cache_display;
-            let view = [content.uniforms.overlay_params[0], content.uniforms.cache_view[0]];
-            self.cache_gpu.display(&self.gpu.queue, encoder, &self.cache_inputs, params, view);
-        }
         self.shading();
         let shading = investigation::current().scene_shading().and_then(|source| self.shadings.iter().find(|s| std::ptr::eq(s.source, source)));
         let targets = self.viewport.as_ref().unwrap();
@@ -1038,6 +918,30 @@ impl Renderer {
         // The chain's depth pre-pass and early passes, before the scene pass.
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
         if let (Some(s), Some(c)) = (chained, chain) {
+            // The depth views (shadow maps), one layer at a time, when what
+            // they see (the objects, the light, the shading values) changed.
+            let key = depth_views_key(content);
+            if let Some((_, layers)) = c.depth_views.as_ref().filter(|_| c.depth_views_drawn.replace(Some(key)) != Some(key)) {
+                for (pipeline, layer) in s.pipelines.depth_views.iter().zip(layers) {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("depth view"),
+                        color_attachments: &[],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    pass.set_pipeline(pipeline);
+                    pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                    pass.set_bind_group(1, &s.group, &[]);
+                    pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
+                    pass.set_vertex_buffer(1, self.object_ids.slice(..));
+                    pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
+                    for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
+                        pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
+                    }
+                }
+            }
             if let Some(prepass) = &s.pipelines.prepass {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("depth pre-pass"),
@@ -1127,8 +1031,6 @@ impl Renderer {
                 pass.draw(0..vertices, 0..buffer.count);
             }
         };
-        draw(&mut pass, &self.pipelines.card, &self.cards, 6);
-        draw(&mut pass, &self.pipelines.sample, &self.samples, 36);
         if self.ghost_ids.count > 0 {
             pass.set_pipeline(&self.pipelines.ghost);
             pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
@@ -1276,13 +1178,6 @@ impl Renderer {
     pub fn read_record_bytes(&self, buffer: &str, offset: u64, size: u64) -> Vec<u8> {
         let b = match buffer {
             "objects" => &self.records.objects.buffer,
-            "voxels" => &self.records.voxels.buffer,
-            "bricks" => &self.records.bricks.buffer,
-            "cards" => &self.records.cards.buffer,
-            "pages" => &self.records.pages.buffer,
-            "rays" => &self.records.rays.buffer,
-            "probes" => &self.records.probes.buffer,
-            "radiance" => &self.records.radiance.buffer,
             _ => return Vec::new(),
         };
         let device = &self.gpu.device;
@@ -1291,43 +1186,6 @@ impl Renderer {
         encoder.copy_buffer_to_buffer(b, offset, &staging, 0, size);
         self.gpu.queue.submit([encoder.finish()]);
         read_buffer(device, &self.gpu.queue, &staging, 0, size)
-    }
-}
-
-/// A one-texel texture for a binding nothing reads in this build.
-#[cfg(not(commercial))]
-fn placeholder(device: &wgpu::Device, label: &str, dimension: wgpu::TextureDimension, format: wgpu::TextureFormat) -> wgpu::Texture {
-    device.create_texture(&wgpu::TextureDescriptor {
-        label: Some(label),
-        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension,
-        format,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: if format == wgpu::TextureFormat::Rgba8Unorm { &[wgpu::TextureFormat::Rgba8UnormSrgb] } else { &[] },
-    })
-}
-
-/// Upload a cache lit on the CPU; every radiosity snapshot is the finished layer.
-#[cfg(commercial)]
-fn upload_lit_cache(queue: &wgpu::Queue, atlas: &wgpu::Texture, cache: &crate::surface_cache::SurfaceCache) {
-    use crate::surface_cache::Layer;
-    let [w, h] = cache.atlas_size;
-    let write = |layer: u32, data: &[u32]| {
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo { texture: atlas, mip_level: 0, origin: wgpu::Origin3d { x: 0, y: 0, z: layer }, aspect: wgpu::TextureAspect::All },
-            bytemuck::cast_slice(data),
-            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
-            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-        );
-    };
-    for (i, &layer) in Layer::ALL.iter().enumerate() {
-        write(i as u32, cache.layer(layer));
-    }
-    for frame in 0..=crate::surface_cache::RADIOSITY_FRAMES {
-        write(surface_cache_gpu::HISTORY_FINAL + frame, cache.layer(Layer::FinalLighting));
-        write(surface_cache_gpu::HISTORY_INDIRECT + frame, cache.layer(Layer::IndirectLighting));
     }
 }
 

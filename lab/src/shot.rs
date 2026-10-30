@@ -65,14 +65,7 @@ impl<'de> Deserialize<'de> for DemoId {
 pub enum RecordRef {
     None,
     Object { index: u32 },
-    Voxel { index: u32 },
-    Brick { index: u32 },
-    Card { index: u32 },
-    Page { index: u32 },
-    Ray,
     Camera,
-    Probe { index: u32 },
-    Radiance { index: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -276,12 +269,6 @@ impl std::ops::IndexMut<&str> for ShotState {
 pub fn default_highlight(record: RecordRef) -> Vec<String> {
     let fields: &[&str] = match record {
         RecordRef::Object { .. } => &["localToWorld", "worldExtent"],
-        RecordRef::Voxel { .. } => &["signedDistance", "encoded"],
-        RecordRef::Brick { .. } => &["virtualBrick", "physicalBrick"],
-        RecordRef::Card { .. } => &["tangentFrame", "pageIndex"],
-        RecordRef::Page { .. } => &["physicalPage", "cardUVRect"],
-        RecordRef::Ray => &["incidentDir", "normal", "reflectedDir"],
-        RecordRef::Probe { .. } => &["position", "framesAccumulated"],
         _ => &[],
     };
     fields.iter().map(|s| s.to_string()).collect()

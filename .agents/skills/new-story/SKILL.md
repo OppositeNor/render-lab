@@ -1,6 +1,6 @@
 ---
 name: new-story
-description: Plan, research, write, and review a Render Lab investigation's narrated story (its storyboard and the demonstrations it needs), in phases with subagents - an overview agent, one research agent per subtopic with a round of follow-up questions, a merged research report, a chapter outline pairing every claim with what shows it, the shared tools the demonstrations need, the storyboard written chapter by chapter with its camera and parameter cues, and a per-chapter review from rendered stills. Use when asked to create or plan a new story or video for an investigation, to research a game-engine feature for one, to outline its chapters, or to review a story's depth and animations.
+description: Plan, research, write, and review a Render Lab investigation's narrated story (its storyboard and the demonstrations it needs), in phases with subagents - an overview agent, one research agent per subtopic with a round of follow-up questions, a merged research report, a chapter outline pairing every claim with what shows it, a demonstration phase that mirrors how the engine stores each structure and gives the viewer interactions to explore it, the shared tools the demonstrations need, the storyboard written chapter by chapter with its camera and parameter cues, and a per-chapter review from rendered stills. Use when asked to create or plan a new story or video for an investigation, to research a game-engine feature for one, to outline its chapters, or to review a story's depth and animations.
 ---
 
 # A new story for an investigation
@@ -18,9 +18,10 @@ starting a fresh one.
 The phases write their work into the package, in `story/`:
 
 ```
-packages/<package>/story/research.md    phase 1: the merged report
-                         outline.md     phase 2: the chapters, and what shows each claim
-                         reviews/       phase 6: one review per chapter
+packages/<package>/story/research.md        phase 1: the merged report
+                         outline.md         phase 2: the chapters, and what shows each claim
+                         demonstrations.md  phase 3: how each structure is stored, shown, and explored
+                         reviews/           phase 7: one review per chapter
 ```
 
 They are published with the package, like the video that cites the same lines: cite by file, symbol, and line,
@@ -75,17 +76,58 @@ Write `story/outline.md`:
 
 ### The shape of a story
 
-- **Open with where the feature runs.** The first chapter places it in the engine's frame (a Mermaid beat of the
-  passes, the feature's lit) and says what decides whether it runs at all: project settings, quality levels,
-  platform paths, and their defaults.
+- **Open with what the feature adds, and the problem it solves.** The first beat shows the feature's
+  contribution as a comparison: the same camera, exposure, and scene with the feature off and on, cued on what it
+  adds (the bounced light, the colour bleeding), not two renders that merely differ. Then state the problem in
+  one sentence ("how can the engine light a room with bounced light without tracing many rays for every
+  pixel?"), show the architecture map (below), and say what the viewer will be able to explain by the end. Keep
+  new terms out of the opening; each arrives in its own chapter.
+- **Then where it runs.** The first chapter places it in the engine's frame (a Mermaid beat of the passes, the
+  feature's lit) and says what decides whether it runs at all: project settings, quality levels, platform paths,
+  and their defaults.
+- **Explain each mechanism; showing its data is not explaining it.** A viewer who sees what a structure looks
+  like may still not know what it is for. For every mechanism, the story answers, in this order where it fits:
+  the **problem** it solves (and what would go wrong without it), an **intuitive example**, the **data** it
+  keeps, the **algorithm** (its inputs, the calculation, its outputs), the **result** on screen, the
+  **trade-off** it makes (quality, memory, time), and **where its output goes next**. The outline records the
+  answers per chapter; a chapter that only shows a structure's layout is not finished.
+- **One architecture map, reused.** One diagram of how the feature's parts relate, true to the engine (its
+  feedback loops, caches, parallel or once-only stages; never forced into a line it is not), with the same
+  names and colours everywhere. Each chapter opens on it with its own part lit, and ends by showing what its
+  output feeds. Its terms are the narration's terms.
+- **One encoding per kind of data.** Geometry, cells, distances, occlusion, and light (radiance, irradiance)
+  are different things, even where one is derived from another: give each its own colour and graphic treatment
+  for the whole story (the palette's roles), and never draw one so it reads as another.
 - **Follow the data.** Order the chapters the way the data is made and used: built (often offline), stored,
   updated each frame, then read by the passes that need it. Each chapter's first beat says what the structure is
   for, before how it is built.
 - **One, then many.** Work one example fully (one sample, one record, one ray, one page), then show it
   generalised across the scene, then several more examples. The worked one is a record in the struct panel
-  (`record=…`, `panel=values`, `highlight=` on the field the sentence names).
-- **The code, step by step.** For a shading or lookup step, show its pseudo-code listing (`panel=code`) and light
-  the line the sentence is on (`highlight=<tag>`), while the demonstration runs the same step.
+  (`record=…`, `panel=values`, `highlight=` on the field the sentence names). Work it as: highlight the one
+  element (a cell, a probe, a texel) in the 3D scene, show its inputs, animate the calculation step by step,
+  show its result, then say where that result goes. Simplify the scene to a single object first when the full
+  room would hide the step, then return to the room.
+- **One continuous example across stages.** Where data passes through several stages, follow the same element
+  through all of them (one probe: its rays gather light, the light is compressed, the compressed form is
+  evaluated later), so the viewer never rebuilds the picture. Near the end, follow one shaded point on a visible
+  surface back through every mechanism it depends on (which data it reads, how it finds it, how occlusion
+  weights it, what light it adds), in the engine's real order.
+- **Compact representations, intuition first.** Before showing a representation's coefficients (spherical
+  harmonics, an octahedral map, a quantised format), say in plain words what it does ("a few numbers that
+  describe how light varies smoothly with direction"), then what it keeps, what it loses, why that is worth it,
+  and where it is read back. Never assume a method because other systems use it: show what this engine's code
+  does.
+- **The code, step by step.** Animation comes first; pseudo-code is shown only alongside it. For a shading or
+  lookup step, show its pseudo-code listing (`panel=code`) and light the line the sentence is on
+  (`highlight=<tag>`), and with every highlight change the demonstration too, so the scene shows what that line
+  does (its rays, its samples, its threshold, its result); a highlight that changes nothing on screen is cut, or
+  the demonstration gains the step it lacks. Show only the
+  lines the step needs, at a size that reads on a laptop, with the inputs and outputs of the lit line beside it
+  (a readout row or label), and say whether it is the engine's code, the lab's pseudo-code of it, or the lab's
+  own demonstration.
+- **End with the whole, and three takeaways.** The recap returns to the full scene, shows each mechanism's
+  contribution (switched off and on, in frame order), and closes on three takeaways: how the feature organises
+  its data, how it computes and reuses light, and what accuracy it trades for speed.
 - **Show the bytes.** Where the story names a format or a layout, show the record's fields and sizes, and how a
   stored value decodes to what the shader uses; map each record to the engine's structure in the index's
   `mappings`.
@@ -104,6 +146,8 @@ Write `story/outline.md`:
 
   Beats within a chapter link the same way when the step changes ("once every brick is stored, the lookup …"),
   and the story ends with a short recap chapter that walks the frame again, naming each part in order.
+- **Recap each chapter.** Before its sources beat, a chapter ends with two or three sentences: what it just
+  explained, why it matters to the final image, and what the next chapter does with it.
 - **Close each chapter with its sources**: a `sources` beat, "where to read it", listing the chapter's index keys
   in reading order, and a reading table in the index's `chapters`. The build turns them into the source-reading
   guide (`readingPath` in `video.json` orders its recommended path).
@@ -128,7 +172,37 @@ For each tool the outline needs, look for it first:
 Moving code keeps the layering: the lab never depends on an investigation, and nothing published names or
 mirrors the commercial module's contents (AGENTS.md).
 
-## Phase 3: The base
+## Phase 3: Demonstrations, and how a viewer explores them
+
+A phase of its own, before anything is built on the outline: find what each structure the story explains can
+show, and give the viewer a way to explore it. Write it to `story/demonstrations.md`.
+
+1. **How the engine stores it.** For each data structure in the outline (a texture, an atlas, a buffer, a
+   table), send a research agent to the checkout (Phase 1's brief) for: its resources, each one's dimension,
+   format, and size; which are separate resources and which are packed together (channels, layers, tiles of one
+   atlas); how an element is addressed (page tables, indirection, tile coordinates); and the engine's own debug
+   views of it (its visualize modes, show flags, debug draws). A debug view says what its authors found worth
+   seeing.
+2. **Mirror the storage.** Show the structure as the engine keeps it. Separate resources are separate views,
+   side by side, each titled with its name and format, sharing its layout (the same element outlined in each);
+   channels packed in one resource are one view with its channels decoded. Do not merge what the engine
+   separates, or split what it packs, for convenience.
+3. **Choose the subject.** Show each structure on the object whose data reads best: an irregular one (a teapot,
+   a sphere) rather than a wall or a box, whose cards, bricks, or probes are too simple to tell apart, and the
+   same object across chapters, so the viewer does not have to learn a new one. Keep the story's worked
+   examples where its thread needs them.
+4. **Interaction for each view.** For each one, write what a viewer can do with it in the viewer (a click on the
+   scene or on an inset, a slider, a toggle), and what that shows. A click picks an element and shows it
+   everywhere it lives at once: in the scene, in every view of the same layout, and in a readout of its value in
+   each resource. Interactions use the lab's extension points (`Investigation::click`, `#[click]` handlers on
+   an inset, the dock's values), and the values they set are values a story can set too, so a story can show
+   the same pick.
+5. **Build and check them** before the base: the views, the clicks, their values, and a selftest check that a
+   pick round-trips (a click on what an element stands for picks it). Render stills of each view, and look at
+   them.
+6. **Check in with the user**: the views, the subjects, and the interactions.
+
+## Phase 4: The base
 
 Before the storyboard, build what it stands on (`new-investigation` §2, steps 3 to 6):
 
@@ -138,7 +212,7 @@ Before the storyboard, build what it stands on (`new-investigation` §2, steps 3
 - a step parameter for every intermediate step the outline shows, each defaulting to "no change", with a slider
   in the dock.
 
-## Phase 4: The storyboard, a chapter at a time
+## Phase 5: The storyboard, a chapter at a time
 
 Write each chapter's sentences and their cues together, not the prose first: a sentence written without its
 visual often names something nothing can show.
@@ -147,10 +221,18 @@ visual often names something nothing can show.
   before it is written, so it names what that chapter really ended on.
 - One paragraph per sentence; spoken numbers; say where the lab differs. Add a word the voice gets wrong to
   `pronunciations` in `video.json`.
+- Motivation before mechanism, a concrete example before the abstraction, and at most one new term per
+  sentence, each introduced the first time it is needed. Say each conclusion once, and give it a pause
+  (`delay`) before the next idea. Never speed the voice up or cut explanation to fit a budget: raise the
+  chapter's budget instead.
 - Numbers about the lab's scene come from the lab (its code computes them, the selftest asserts the ones that
   matter): never type a measured value into the narration.
 - The beat's first line of tags sets its starting keys, and resets the step parameters of the beat before it
   (instant keys, no `blend`).
+- Images, the callout, the camera, and the panel are not step parameters: they carry into the next beat, across a
+  demonstration switch too. Give each beat's first line `callout=""` and `image=""` (or `imageHide=` of the
+  images it no longer needs) unless it keeps them, a `panel` (`hidden` when the investigation has no struct and
+  the beat no readout or listing), and reset any camera key the beat before set.
 - Cue each visual on the word that names it: `{@ rayStep=2}its distance`, not at the sentence's start.
 - Wrap each code name the narration says (a function, struct, file, or console variable) in a code span,
   `{@ codespan="LightCullingTilePrepare"}`, in the translation too; give it `say="…"` when the voice would misread it.
@@ -182,14 +264,32 @@ cargo run --release -- --investigation <engine>/<feature> render --timeline <tim
 The caption frames are in the timeline's `beats[].captions` (start, end, text). Look at the stills yourself
 before moving on.
 
-## Phase 5: Showing the data
+## Phase 6: Showing the data
 
-A pass over the drafted chapters for what the story shows, not what it says:
+A pass over the drafted chapters for what the story shows, not what it says.
+
+**Make this feel more like a video instead of a powerpoint.** Something on screen moves while every sentence is
+said: a sweep, a step, a camera glide, rays drawing in, a value counting. Still beats are the exception.
+
+- **At least 16 animations per chapter**: parameter sweeps, step-by-step reveals, actions (`run=`), camera paths.
+  Each is driven by a value the interactive view shows (a slider or a toggle in the dock), so a viewer can replay
+  it, stop it anywhere, and change it; a timeline sets only values the dock can set. Count them per chapter
+  before the review.
+- **Interactions**: clicking scene elements (an object, a card, a probe, a point) and image elements (a texel, a
+  probe's map, a slice) picks them; the pick is shown everywhere it lives at once, with arrows and connection
+  lines between them (from a texel in an inset to its point in the scene, from a probe to its map, from a ray's
+  hit to the record it reads). Stories show the same picks by setting the values a click sets, with the same
+  arrows and lines.
 
 - **Vectors, lobes, rays, and points** drawn where the narration names them, labelled, in the palette's colours.
 - **Textures and the data in them**: show the texture, which texel a sample reads, and how its channels map to
   the values in the readout or struct panel.
 - **Each check, per beat:**
+  - *One moment, one idea.* What is on screen at once serves the sentence being said: one lit element, the
+    rest dimmed or faded; no second dense panel (a listing and a readout and an inset together) unless the
+    sentence compares them; complex pictures revealed in steps, not all at once; intermediate values only where
+    they help. Nothing decorative that takes time without explaining. It must still read at laptop and phone
+    size.
   - *The change is visible.* A sweep that leaves every value the same (because it is clamped or capped over
     that range) shows nothing: move the sweep to where the values change, or say why they don't.
   - *Nothing blocks the subject.* Validate, from stills at the start, middle, and end of every beat (a camera
@@ -202,7 +302,7 @@ A pass over the drafted chapters for what the story shows, not what it says:
   - *Labels fit.* Labels inside the viewport and apart, text at least 24 px, the dock inside its width (the
     selftest checks these).
 
-## Phase 6: Review, per chapter
+## Phase 7: Review, per chapter
 
 Render a contact sheet of stills for each chapter (several per animated beat). Renders are GPU jobs, so the main
 agent makes them one at a time and gives the reviewers the image paths.
@@ -216,22 +316,39 @@ these questions:
   nothing on screen?
 - **Highlighting.** Is each key concept lit (a highlight, a callout, a lit formula term, a label) while it is
   named?
+- **Code and animation.** At each listing highlight, does the scene change to show that line's work? Which
+  highlight leaves the scene as it was?
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
 - **Visibility.** In every still, is what the sentence names in view, or does a wall, an object, an inset, or
   the readout block it, or does it fall outside the frame or past the far plane?
 - **Flow.** Does the chapter's first sentence bridge from the one before, and does each beat follow from the
   last? Where does the viewer lose the thread?
 - **Fit.** Is the chapter near its budget?
+- **Purpose.** Could a viewer who has just watched it explain not only what happens, but why, and where the
+  result is used next? For each mechanism, which of the questions in "The shape of a story" (problem, data,
+  algorithm, result, trade-off, next stage) does it leave unanswered?
+- **Mental model.** Act as a senior rendering engineer and a graphics professor, and do not simply agree with
+  the draft: find missing reasoning steps, wrong causal links, unexplained terms, terms used inconsistently,
+  data shown as if it were computation (or one kind of data drawn as another), oversimplified mechanisms, and
+  visuals that look convincing but teach the wrong model. Don't ask for complexity for its own sake, nor for
+  less depth to make it easier.
+- **Load.** Does any moment show more than one idea, or a panel denser than the sentence needs? Is the code
+  only the lines that matter, and readable?
+
+Each reviewer returns a table, `| Beat (or timestamp) | Issue | Severity | Why it matters | Specific correction |`,
+specific enough to act on ("add a sweep of `rayCount` 1 → 16 while the second sentence is said", never "improve
+clarity").
 
 Send one more agent, not anchored on the drafts, to check the facts (`new-investigation` §2, step 8): every
-factual sentence and every `inspect`, against the checkout, classed as exact, imprecise, wrong, or unverifiable,
-with file:line evidence.
+factual sentence and every `inspect`, against the checkout, in the classes of that step, with file:line
+evidence. Uncertain claims are never rewritten as facts: they are verified, narrated as uncertain, or cut.
 
 Save the reviews in `story/reviews/`. Then revise: more animation where the reviewers found a still idea, more
-explanation where they found a gap, and every imprecise or wrong fact fixed in the narration, the index, the
-README, and the translation. Report the corrections to the user with their evidence.
+explanation where they found a gap, and every fact that is not verified (or a stated simplification) fixed in
+the narration, the index, the README, and the translation. Report the corrections to the user with their
+evidence.
 
-## Phase 7: Translate and build
+## Phase 8: Translate and build
 
 - Write `storyboard.zh-CN.story`: the same headings, one paragraph per English sentence, the same formulas, no
   cues. Technical terms stay English; keep its `glossary:` of the terms' translations consistent. The Chinese
@@ -243,3 +360,19 @@ README, and the translation. Report the corrections to the user with their evide
   - the stills of every beat (`--snapshots-only`);
   - the full build in the background, English first, then `--lang zh-CN`.
 - Report the checks and the corrections, and ask the user to watch the result.
+
+## Revising a finished story
+
+When a story is built and a viewer (the user, or a review they pass on) asks for it to be better, improve it;
+don't remake it. Review feedback is input to check, not a script: verify each point against the video and the
+checkout before acting on it, say where it is wrong, and look for what it missed.
+
+1. **Audit.** Watch the built edition through its stills (the beats the feedback names, and the rest) and map
+   each point to beats (feedback timestamps are approximate: use the edition's `chapters.txt` and the timeline's
+   captions). Run Phase 7's reviews and fact check over the whole story.
+2. **Plan.** Rank the corrections by what they do for understanding and correctness, in a table like the
+   reviewers'. Keep what works (named, so it is not lost in the rewrite); change only what is needed.
+3. **Revise** the storyboard, its translation, the demonstrations, and the diagrams, in Phase 5 and 6's rules.
+   A chapter may grow longer when that buys understanding.
+4. **Validate and deliver** as in Phase 8, with a short change log of what changed and why, and the
+   corrections with their evidence.

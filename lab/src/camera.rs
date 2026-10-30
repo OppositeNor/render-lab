@@ -6,7 +6,7 @@ use glam::{Mat4, Vec2, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 pub const NEAR: f32 = 0.03;
-pub const FAR: f32 = 60.0;
+pub const FAR: f32 = 1000.0;
 
 /// Its values are `camera.yaw`, `camera.pitch`, `camera.distance`,
 /// `camera.fov`, and `camera.target` (`camera.x`, `camera.y`, `camera.z`),

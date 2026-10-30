@@ -1,5 +1,5 @@
 // Scene intersection, lighting, and reflection math shared by the raster
-// passes and the verification kernels. src/lab/scene.rs mirrors these functions
+// passes and the verification kernels. lab/src/scene.rs mirrors these functions
 // on the CPU; `render-lab selftest` compares the two.
 
 const PI: f32 = 3.14159265358979;
@@ -10,7 +10,7 @@ const SHAPE_PANEL: u32 = 3u;   // emissive rectangle, local XZ plane
 const SHAPE_MESH: u32 = 4u;    // the teapot's triangles (gMeshNodes, gMeshTriangles)
 const SHAPE_TERRAIN: u32 = 5u; // the lab's terrain heightfield (gTerrain)
 const TERRAIN_SELF_SHADOW_BIAS: f32 = 0.03; // metres; scene.rs's TERRAIN_SELF_SHADOW_BIAS
-const MESH_STACK: u32 = 32u;   // src/lab/mesh.rs asserts the BVH is at most 30 levels deep
+const MESH_STACK: u32 = 32u;   // lab/src/mesh.rs asserts the BVH is at most 30 levels deep
 const NO_HIT: u32 = 0xffffffffu;
 
 struct SceneHit {
@@ -47,7 +47,7 @@ fn occludesLight(o: ObjectData) -> bool {
     return o.shapeKind == SHAPE_BOX || o.shapeKind == SHAPE_SPHERE || o.shapeKind == SHAPE_MESH || o.shapeKind == SHAPE_TERRAIN;
 }
 
-// The terrain (src/lab/terrain.rs): gTerrain holds the vertices per side
+// The terrain (lab/src/terrain.rs): gTerrain holds the vertices per side
 // (as bits), the half size, the lowest and highest heights, three unused
 // words, then the heights row by row along +Z.
 fn terrainResolution() -> u32 {
@@ -106,7 +106,7 @@ fn terrainTriangle(o: vec3<f32>, d: vec3<f32>, p0: vec3<f32>, p1: vec3<f32>, p2:
 // Closest hit of a local-space ray with the terrain: the cells under the ray
 // in order (Amanatides & Woo 1987), each skipped when the ray passes above
 // or below its corners, then its two triangles. The same walk as
-// Terrain::intersect in src/lab/terrain.rs; the normal is the interpolated
+// Terrain::intersect in lab/src/terrain.rs; the normal is the interpolated
 // vertex normal, in local space.
 fn intersectTerrain(lo: vec3<f32>, ld: vec3<f32>, tMax: f32) -> ObjectHit {
     var result = ObjectHit(false, tMax, vec3<f32>(0.0, 1.0, 0.0));
@@ -193,7 +193,7 @@ fn intersectTerrain(lo: vec3<f32>, ld: vec3<f32>, tMax: f32) -> ObjectHit {
 
 
 // Entry distance of a ray into a BVH node's box, or -1 if it misses or
-// enters at or after tMax. Mirrors box_entry in src/lab/mesh.rs.
+// enters at or after tMax. Mirrors box_entry in lab/src/mesh.rs.
 fn meshBoxEntry(node: MeshNode, ro: vec3<f32>, invD: vec3<f32>, tMax: f32) -> f32 {
     let t0 = (node.boundsMin - ro) * invD;
     let t1 = (node.boundsMax - ro) * invD;
@@ -209,7 +209,7 @@ fn meshBoxEntry(node: MeshNode, ro: vec3<f32>, invD: vec3<f32>, tMax: f32) -> f3
 
 // Closest hit of a local-space ray with the teapot: a nearest-child-first
 // walk of the BVH and two-sided Moller-Trumbore triangle tests. The same
-// traversal as TriangleMesh::intersect in src/lab/mesh.rs. With anyHit (shadow
+// traversal as TriangleMesh::intersect in lab/src/mesh.rs. With anyHit (shadow
 // rays) it stops at the first triangle in range.
 fn intersectMesh(lo: vec3<f32>, ld: vec3<f32>, tMax: f32, anyHit: bool) -> ObjectHit {
     var result = ObjectHit(false, tMax, vec3<f32>(0.0, 1.0, 0.0));
@@ -398,11 +398,11 @@ fn intersectObject(o: ObjectData, ro: vec3<f32>, rd: vec3<f32>, tMax: f32) -> Ob
     return result;
 }
 
-// Objects faded out of the frame for a clear view (gFrame.counts2.z, one
-// bit per object) are present to the degree gFrame.cacheView.z: at 0 they
+// Objects faded out of the frame for a clear view (gFrame.counts.z, one
+// bit per object) are present to the degree gFrame.viewParams.x: at 0 they
 // are not drawn, not hit, and cast no shadow; in between they fade.
 fn objectPresence(i: u32) -> f32 {
-    return select(1.0, gFrame.cacheView.z, i < 32u && (gFrame.counts2.z & (1u << i)) != 0u);
+    return select(1.0, gFrame.viewParams.x, i < 32u && (gFrame.counts.z & (1u << i)) != 0u);
 }
 
 fn traceScene(ro: vec3<f32>, rd: vec3<f32>, tMax: f32, skipObject: u32) -> SceneHit {
@@ -519,7 +519,7 @@ fn ambientVisibility(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> f32 {
     return visibility;
 }
 
-// The lab's environment (src/lab/environment.rs) along `dir` at one level:
+// The lab's environment (lab/src/environment.rs) along `dir` at one level:
 // bilinear between texel centres, wrapping around the vertical axis and
 // clamped at the poles, filtered by hand so it matches the CPU's lookup.
 // The constants are environment.rs's TURN and LIGHTING_LEVEL.
@@ -563,82 +563,23 @@ fn viewRay(uv: vec2<f32>) -> vec3<f32> {
 }
 
 // ---------------------------------------------------------------------------
-// The Surface Cache (src/lab/surface_cache.rs). gSurfaceCache holds one u32 per
-// texel per layer, in the engine's encodings; the layers are:
-const SURFACE_LAYER_FINAL: i32 = 0;     // FinalLightingAtlas, R11G11B10F radiance
-const SURFACE_LAYER_ALBEDO: i32 = 1;    // AlbedoAtlas, RGBA8 sqrt(diffuse colour)
-const SURFACE_LAYER_NORMAL: i32 = 2;    // NormalAtlas, RG8 card-space xy
-const SURFACE_LAYER_DEPTH: i32 = 3;     // DepthAtlas, G16: 0 card face .. 1 back
-const SURFACE_LAYER_DIRECT: i32 = 4;    // DirectLightingAtlas, R11G11B10F irradiance
-const SURFACE_LAYER_INDIRECT: i32 = 5;  // IndirectLightingAtlas, R11G11B10F irradiance
-const SURFACE_LAYER_EMISSIVE: i32 = 6;  // EmissiveAtlas, R11G11B10F radiance
-const SURFACE_DEPTH_INVALID: u32 = 0xffffu;
-// Snapshots the GPU build keeps of the two layers radiosity changes: final
-// lighting and indirect irradiance after 0..RADIOSITY_FRAMES frames
-// (src/lab/surface_cache_gpu.rs). The video steps through them bounce by bounce.
-const RADIOSITY_FRAMES: i32 = 6;
-const SURFACE_HISTORY_FINAL: i32 = 7;
-const SURFACE_HISTORY_INDIRECT: i32 = 14;
-// Depth bias of a traced hit.
-const SURFACE_CACHE_BIAS: f32 = 0.05;
-const PHYSICAL_PAGE_SIZE: f32 = 128.0;
-
-fn smallFloat(code: u32, mantissa: u32) -> f32 {
-    let e = code >> mantissa;
-    let m = f32(code & ((1u << mantissa) - 1u)) / f32(1u << mantissa);
-    if (e == 0u) {
-        return m * exp2(-14.0);
-    }
-    return (1.0 + m) * exp2(f32(e) - 15.0);
-}
-
-// PF_FloatR11G11B10: red bits 0..11, green 11..22, blue 22..32.
-fn unpackR11G11B10(v: u32) -> vec3<f32> {
-    return vec3<f32>(smallFloat(v & 0x7ffu, 6u), smallFloat((v >> 11u) & 0x7ffu, 6u), smallFloat(v >> 22u, 5u));
-}
-
-fn surfaceTexel(layer: i32, texel: vec2<i32>) -> u32 {
-    return textureLoad(gSurfaceCache, texel, layer, 0).r;
-}
-
-// A lighting layer as it stood after gFrame.cacheView.x radiosity frames:
-// the finished layer at RADIOSITY_FRAMES, a blend of two snapshots between
-// whole frames.
-fn surfaceLighting(layer: i32, texel: vec2<i32>) -> vec3<f32> {
-    let frame = clamp(gFrame.cacheView.x, 0.0, f32(RADIOSITY_FRAMES));
-    if (frame >= f32(RADIOSITY_FRAMES) || (layer != SURFACE_LAYER_FINAL && layer != SURFACE_LAYER_INDIRECT)) {
-        return unpackR11G11B10(surfaceTexel(layer, texel));
-    }
-    let base = select(SURFACE_HISTORY_INDIRECT, SURFACE_HISTORY_FINAL, layer == SURFACE_LAYER_FINAL);
-    let whole = i32(floor(frame));
-    let a = unpackR11G11B10(surfaceTexel(base + whole, texel));
-    let b = unpackR11G11B10(surfaceTexel(base + whole + 1, texel));
-    return mix(a, b, frame - f32(whole));
-}
-
-// Diffuse indirect irradiance at a visible surface: the Surface Cache's
-// IndirectLighting, the lab's stand-in for a final gather. Points no
-// card sees fall back to a flat ambient term. gFrame.cacheView.y scales it
-// (the video fades bounced light in and out).
-fn indirectIrradiance(p: vec3<f32>, n: vec3<f32>, objectIndex: u32) -> vec3<f32> {
-    let cache = sampleSurfaceCache(objectIndex, p, n, SURFACE_CACHE_BIAS);
-    if (cache.valid) {
-        return cache.indirect * gFrame.cacheView.y;
-    }
-    return gFrame.ambientColor.rgb * (0.55 + 0.45 * n.y) * PI * gFrame.cacheView.y;
+// The default study-room shading, for an investigation without its own
+// (SceneShading). Indirect light is a flat ambient term, scaled by
+// gFrame.viewParams.y.
+fn indirectIrradiance(n: vec3<f32>) -> vec3<f32> {
+    return gFrame.ambientColor.rgb * (0.55 + 0.45 * n.y) * PI * gFrame.viewParams.y;
 }
 
 // Radiance leaving a non-reflective surface: direct light from the panel,
-// indirect light from the Surface Cache, and emission.
+// the ambient term, and emission.
 fn shadeSurface(p: vec3<f32>, n: vec3<f32>, objectIndex: u32) -> vec3<f32> {
     let o = gObjects[objectIndex];
     let albedo = o.albedoRoughness.rgb;
-    return albedo * (directIrradiance(p, n, objectIndex) + indirectIrradiance(p, n, objectIndex)) / PI + o.emissive.rgb * o.emissive.w;
+    return albedo * (directIrradiance(p, n, objectIndex) + indirectIrradiance(n)) / PI + o.emissive.rgb * o.emissive.w;
 }
 
 // ---------------------------------------------------------------------------
-// Reflections. The parts that follow an engine's code (the ray directions,
-// the roughness range, the ray clamp) are in src/commercial/shaders/surface_lookup.wgsl.
+// Reflections. The default shading traces the floor's mirror direction only.
 
 // The half vector of a visible GGX normal, sampled with spherical caps
 // (Dupuy & Benyoub, "Sampling Visible GGX Normals with Spherical Caps", 2023)
@@ -681,48 +622,33 @@ fn sampleSequence(k: u32, count: u32, pixel: vec2<f32>) -> vec2<f32> {
     return fract(h + rotation);
 }
 
-// Radiance along one reflection ray: the hit's lighting from the Surface
-// Cache (zero where no card is valid, as in software tracing), the sky on
-// a miss, clamped to MaxRayIntensity.
-fn hitRadiance(hit: SceneHit, origin: vec3<f32>, dir: vec3<f32>) -> vec3<f32> {
+// Radiance along one reflection ray: the sky on a miss. The default shading
+// keeps no radiance for the surfaces a ray hits, so a hit is black.
+fn hitRadiance(hit: SceneHit, dir: vec3<f32>) -> vec3<f32> {
     if (hit.object == NO_HIT) {
         return environmentRadiance(dir);
     }
-    let cache = sampleSurfaceCache(hit.object, origin + dir * hit.t, hit.normal, SURFACE_CACHE_BIAS);
-    return select(vec3<f32>(0.0), cache.finalLighting, cache.valid);
+    return vec3<f32>(0.0);
 }
 
 fn reflectionRayRadiance(origin: vec3<f32>, dir: vec3<f32>, selfObject: u32) -> vec3<f32> {
     let hit = traceScene(origin, dir, 100.0, selfObject);
-    var radiance = hitRadiance(hit, origin, dir);
+    var radiance = hitRadiance(hit, dir);
     // An object fading out of the frame is seen partly through.
     if (hit.object != NO_HIT && objectPresence(hit.object) < 1.0) {
         let behind = traceSceneSkipping(origin, dir, 100.0, selfObject, hit.object);
-        radiance = mix(hitRadiance(behind, origin, dir), radiance, objectPresence(hit.object));
+        radiance = mix(hitRadiance(behind, dir), radiance, objectPresence(hit.object));
     }
-    let peak = max(max(radiance.x, radiance.y), max(radiance.z, 1e-6));
-    return radiance * min(1.0, REFLECTION_MAX_RAY_INTENSITY / peak);
+    return radiance;
 }
 
-// The floor's reflection: `count` VNDF rays averaged in one frame, standing
-// in for one ray per pixel plus a resolve and a temporal filter.
-fn reflectedRadiance(p: vec3<f32>, n: vec3<f32>, incident: vec3<f32>, selfObject: u32, roughness: f32, pixel: vec2<f32>) -> vec3<f32> {
-    var count = 1u;
-    if (roughness >= 0.001) {
-        count = max(1u, u32(gFrame.floorParams.w));
+// The floor's reflection: the radiance along the mirror direction.
+fn reflectedRadiance(p: vec3<f32>, n: vec3<f32>, incident: vec3<f32>, selfObject: u32) -> vec3<f32> {
+    let dir = reflect(incident, n);
+    if (dot(dir, n) <= 0.0) {
+        return vec3<f32>(0.0);
     }
-    let origin = p + n * 2e-3;
-    var sum = vec3<f32>(0.0);
-    var used = 0.0;
-    for (var k = 0u; k < count; k++) {
-        let dir = reflectionRayDirection(incident, n, roughness, sampleSequence(k, count, pixel));
-        if (dot(dir, n) <= 0.0) {
-            continue;
-        }
-        sum += reflectionRayRadiance(origin, dir, selfObject);
-        used += 1.0;
-    }
-    return sum / max(used, 1.0);
+    return reflectionRayRadiance(p + n * 2e-3, dir, selfObject);
 }
 
 // The analytic fit of the pre-integrated split-sum environment BRDF that
@@ -736,21 +662,14 @@ fn envBRDFApprox(f0: f32, roughness: f32, noV: f32) -> f32 {
     return f0 * ab.x + saturate(50.0 * f0) * ab.y;
 }
 
-// The floor as DiffuseIndirectComposite combines it: diffuse lighting, plus
-// traced reflections faded into the rough-specular fallback (the indirect
-// irradiance over pi, which a screen-probe gather returns at high
-// roughness), times EnvBRDF.
-fn shadeFloor(p: vec3<f32>, n: vec3<f32>, eye: vec3<f32>, floorIndex: u32, pixel: vec2<f32>) -> vec3<f32> {
+// The floor: diffuse lighting, plus its mirror reflection weighted by the
+// environment BRDF at the floor's roughness.
+fn shadeFloor(p: vec3<f32>, n: vec3<f32>, eye: vec3<f32>, floorIndex: u32) -> vec3<f32> {
     let incident = normalize(p - eye);
     let roughness = gFrame.floorParams.x;
     let o = gObjects[floorIndex];
-    let indirect = indirectIrradiance(p, n, floorIndex);
-    let diffuse = o.albedoRoughness.rgb * (directIrradiance(p, n, floorIndex) + indirect) / PI;
-    let traced = tracedReflectionAlpha(roughness);
-    var specular = indirect / PI;
-    if (traced > 0.0) {
-        specular = mix(specular, reflectedRadiance(p, n, incident, floorIndex, roughness, pixel), traced);
-    }
+    let diffuse = o.albedoRoughness.rgb * (directIrradiance(p, n, floorIndex) + indirectIrradiance(n)) / PI;
+    let specular = reflectedRadiance(p, n, incident, floorIndex);
     let envBRDF = envBRDFApprox(gFrame.floorParams.y, roughness, saturate(dot(n, -incident)));
     return diffuse + specular * envBRDF * gFrame.floorParams.z;
 }
@@ -771,7 +690,7 @@ fn tonemap(hdr: vec3<f32>) -> vec3<f32> {
 }
 
 // Diverging colormap for signed distances: warm inside, cool outside.
-// Matches palette::INSIDE, SURFACE, and OUTSIDE in src/lab/palette.rs.
+// Matches palette::INSIDE, SURFACE, and OUTSIDE in lab/src/palette.rs.
 fn distanceColor(normalizedDistance: f32) -> vec3<f32> {
     let s = clamp(normalizedDistance, -1.0, 1.0);
     let inside = vec3<f32>(0.980, 0.420, 0.180);

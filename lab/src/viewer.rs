@@ -1,7 +1,8 @@
 //! Interactive viewer. It renders through the same Renderer and RGBA target
 //! as the recorder, then blits the target to the window.
 //!
-//! Controls: left-drag orbit, right/middle-drag pan, wheel zoom, click pick,
+//! Controls: left-drag orbit (on a clickable inset: pick, and keep picking
+//! under the cursor while dragging), right/middle-drag pan, wheel zoom, click pick,
 //! 1–9, 0, −, = the investigation's demonstrations in order, Space
 //! play/pause, Right or . step (on a timeline, Left and Right skip 10 s
 //! back and forward), R reset, T switch between the timeline and
@@ -49,9 +50,6 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
-
-#[cfg(commercial)]
-pub use crate::text::DEFAULT_UI_SCALE;
 
 /// How long FFplay takes from starting to sounding (measured on this lab's
 /// machine: 0.11–0.17 s of overhead for one second of audio, start and end together).
@@ -111,11 +109,14 @@ pub struct Surface {
     blit_group: wgpu::BindGroup,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Drag {
     button: MouseButton,
     last: Vec2,
     moved: f32,
+    /// A press on an inset's picture with a click handler: the handler and
+    /// the picture (canvas points); the drag moves the picked point.
+    inset: Option<(String, egui::Rect)>,
 }
 
 /// The window while its scene loads (src/loading.rs): the surface, and
@@ -626,17 +627,44 @@ impl App {
         if self.ui_has_pointer || self.viewport_pixel(at).is_none() {
             return;
         }
-        self.drag = Some(Drag { button, last: at, moved: 0.0 });
+        // A left press on a picture with a click handler picks there at once,
+        // and dragging keeps picking under the cursor.
+        let point = self.to_egui(at);
+        let inset = (button == MouseButton::Left && !self.timeline_playing())
+            .then(|| self.last_insets.iter().rev().find(|i| i.frame.contains(point)))
+            .flatten()
+            .and_then(|i| i.click.clone().filter(|_| i.picture.contains(point)).map(|h| (h, i.picture)));
+        if let Some((handler, picture)) = &inset {
+            self.run_inset_click(handler, *picture, point);
+        }
+        self.drag = Some(Drag { button, last: at, moved: 0.0, inset });
+    }
+
+    /// Run an inset's click handler at `point` (canvas points), clamped to its picture.
+    fn run_inset_click(&mut self, handler: &str, picture: egui::Rect, point: egui::Pos2) {
+        let Some(content) = &self.last_content else { return };
+        let shown = self.render_state();
+        let Some(renderer) = &self.renderer else { return };
+        let uv = ((point - picture.min) / picture.size()).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
+        let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
+        if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
+            eprintln!("click on an image: {e}");
+        }
     }
 
     pub fn pointer_move(&mut self, at: Vec2) {
         self.cursor = at;
-        let Some(mut drag) = self.drag else { return };
+        let Some(mut drag) = self.drag.clone() else { return };
         let delta = at - drag.last;
         drag.moved += delta.length();
         drag.last = at;
-        self.drag = Some(drag);
+        self.drag = Some(drag.clone());
         if self.timeline_playing() {
+            return;
+        }
+        if let Some((handler, picture)) = &drag.inset {
+            let point = self.to_egui(at);
+            self.run_inset_click(handler, *picture, point);
             return;
         }
         if self.paused_diagram() {
@@ -659,6 +687,10 @@ impl App {
 
     pub fn pointer_up(&mut self, button: MouseButton, at: Vec2) {
         let Some(drag) = self.drag.take() else { return };
+        // A press on a picture already picked, and its drag kept picking.
+        if drag.inset.is_some() {
+            return;
+        }
         if drag.button == button && button == MouseButton::Left && drag.moved < 4.0 {
             if self.paused_diagram() {
                 // A double click on the diagram fits it to its panel again.
@@ -762,14 +794,7 @@ impl App {
         // An inset covers the scene behind it; a click on the picture of one
         // with a click handler (`PictureInset::click`) runs the handler.
         let point = self.to_egui(at);
-        if let Some(inset) = self.last_insets.iter().rev().find(|i| i.frame.contains(point)) {
-            if let Some(handler) = inset.click.as_deref().filter(|_| inset.picture.contains(point)) {
-                let uv = (point - inset.picture.min) / inset.picture.size();
-                let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
-                if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
-                    eprintln!("click on an image: {e}");
-                }
-            }
+        if self.last_insets.iter().rev().any(|i| i.frame.contains(point)) {
             return;
         }
         let projector = Projector::new(&content.uniforms.camera);
@@ -902,7 +927,7 @@ impl App {
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None },
+            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
@@ -1271,8 +1296,9 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
         app.state = app.default_state(app.state.demo);
     }
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    // egui sizes its areas on the first passes, and fades them in over its clock.
-    for _ in 0..3 {
+    // egui sizes its areas on the first passes, and fades them in over its
+    // clock; a still view's history (FrameRequest::history) fills over 16 frames.
+    for _ in 0..16 {
         app.render(Some(&buffer))?;
         app.frames += 30;
     }

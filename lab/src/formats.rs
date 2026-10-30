@@ -1,7 +1,6 @@
-//! Texel formats of the Surface Cache atlases, packed on the CPU exactly as
-//! the GPU reads them back.
+//! Texel formats packed on the CPU exactly as the GPU reads them back.
 //!
-//! PF_FloatR11G11B10 (wgpu `Rg11b10Ufloat`) stores three unsigned floats
+//! R11G11B10 float (wgpu `Rg11b10Ufloat`) stores three unsigned floats
 //! with a 5-bit exponent (bias 15) and 6, 6, and 5 mantissa bits: red in
 //! bits 0..11, green in 11..22, blue in 22..32.
 

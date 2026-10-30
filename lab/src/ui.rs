@@ -280,14 +280,7 @@ pub fn rust_fields(name: &str) -> Vec<RustField> {
     use crate::layout::*;
     match name {
         "ObjectData" => ObjectData::fields(),
-        "VoxelSample" => VoxelSample::fields(),
-        "BrickEntry" => BrickEntry::fields(),
-        "CardData" => CardData::fields(),
-        "PageEntry" => PageEntry::fields(),
-        "RayDebugData" => RayDebugData::fields(),
         "CameraData" => CameraData::fields(),
-        "ProbeRecord" => ProbeRecord::fields(),
-        "RadianceSample" => RadianceSample::fields(),
         "FrameUniforms" => FrameUniforms::fields(),
         _ => vec![],
     }
@@ -352,14 +345,30 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 // The investigation's insets, then the image the story shows.
                 let package = investigation::current().package().unwrap_or("rlstd");
                 let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
+                // Insets sharing a corner stack in a row away from it, and in a
+                // new row once the next would leave the viewport.
+                let mut rows: Vec<(crate::utility::inset::Corner, egui::Vec2, f32)> = Vec::new();
                 for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0) {
-                    let (frame, picture) = crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset);
+                    let size = crate::utility::inset::frame_size(ctx, &ink, l, input.textures, inset);
+                    let offset = match rows.iter_mut().find(|(corner, _, _)| *corner == inset.corner) {
+                        None => {
+                            rows.push((inset.corner, vec2(size.x + 12.0, 0.0), size.y));
+                            Vec2::ZERO
+                        }
+                        Some((_, at, tallest)) => {
+                            if at.x + size.x > l.viewport.width() - 32.0 {
+                                *at = vec2(0.0, at.y + *tallest + 12.0);
+                                *tallest = 0.0;
+                            }
+                            let offset = *at;
+                            at.x += size.x + 12.0;
+                            *tallest = tallest.max(size.y);
+                            offset
+                        }
+                    };
+                    let (frame, picture) = crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset, offset);
                     obstacles.push(frame);
                     report.insets.push(InsetArea { frame, picture, click: inset.click.clone() });
-                }
-                #[cfg(commercial)]
-                if let Some(history) = &content.history {
-                    obstacles.push(draw_history(&ink, input, history, content));
                 }
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
@@ -611,7 +620,12 @@ fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, lit: f32, in
 fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) -> Option<Rect> {
     let index = sources::index();
     let entry = index.entries.get(key)?;
-    let text = format!("{} · {}", entry.file_name(), entry.short_symbol());
+    // Within the viewport: the symbol alone when the file name does not fit beside it.
+    let room = l.viewport.width() - 32.0 - 28.0;
+    let mut text = format!("{} · {}", entry.file_name(), entry.short_symbol());
+    if ink.measure(&text, 24.0, FontFamily::Monospace).x > room {
+        text = ink.fit_right(&entry.short_symbol(), room, 24.0, FontFamily::Monospace);
+    }
     let size = ink.measure(&text, 24.0, FontFamily::Monospace) + vec2(28.0, 14.0);
     let mut rect = Rect::from_min_size(pos2(l.viewport.min.x + 16.0, l.viewport.max.y - 16.0 - size.y), size);
     for inset in insets {
@@ -972,45 +986,6 @@ fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, l
             y += row_h;
         }
     }
-}
-
-#[cfg(commercial)]
-fn draw_history(ink: &Ink, input: &UiInput, history: &crate::frame::HistoryInset, content: &FrameContent) -> Rect {
-    let l = &input.layout;
-    let painter = ink.painter;
-    let n = history.steps.len();
-    let cell = 34.0;
-    let width = n as f32 * cell + 28.0;
-    let rect = Rect::from_min_size(l.viewport.min + vec2(16.0, 16.0), vec2(width.max(520.0), 170.0));
-    painter.rect_filled(rect, CornerRadius::same(10), Color32::from_rgba_premultiplied(7, 18, 31, 238));
-    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
-    let title = ink.fit_right(tr("ui.history_title"), rect.width() - 28.0, 24.0, FontFamily::Proportional);
-    ink.text(rect.min + vec2(14.0, 10.0), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::text_dim());
-    let exposure = content.uniforms.overlay_params[0];
-    let top = rect.min.y + 52.0;
-    for (i, s) in history.steps.iter().enumerate() {
-        let r = Rect::from_min_size(pos2(rect.min.x + 14.0 + i as f32 * cell, top), vec2(cell - 4.0, 34.0));
-        let rgb = crate::scene::display_rgb(s.irradiance * crate::frame::PROBE_DISPLAY_GAIN, exposure);
-        let visible = i <= history.current;
-        let color = if visible { Color32::from_rgb(rgb[0], rgb[1], rgb[2]) } else { Color32::from_rgb(0x18, 0x2a, 0x3c) };
-        painter.rect_filled(r, CornerRadius::same(3), color);
-        if s.fast_update > 0.0 && visible {
-            painter.rect_stroke(r.expand(2.0), CornerRadius::same(3), Stroke::new(3.0, palette::HISTORY_REJECT), StrokeKind::Outside);
-        }
-        if i == history.current {
-            painter.rect_stroke(r.expand(4.0), CornerRadius::same(4), Stroke::new(3.0, palette::text()), StrokeKind::Outside);
-        }
-    }
-    let s = &history.steps[history.current];
-    let frame = tr_with("ui.history_frame", args!(frame = history.current));
-    let mut text = format!("{frame} · framesAccumulated {} · historyWeight {:.2}", s.frames, s.weight);
-    if s.fast_update > 0.0 {
-        text = format!("{frame} · {} {:.1} → {} {}", tr("ui.fast_update"), s.fast_update, s.frames, tr("ui.history_frames"));
-    }
-    let text = ink.fit_right(&text, rect.width() - 28.0, 24.0, FontFamily::Proportional);
-    ink.text(pos2(rect.min.x + 14.0, top + 50.0), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, if s.fast_update > 0.0 { palette::HISTORY_REJECT } else { palette::text() });
-    let _ = history.alpha;
-    rect.expand(4.0)
 }
 
 fn draw_source_card(ink: &Ink, input: &UiInput) {

@@ -29,73 +29,6 @@ pub struct ObjectData {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct VoxelSample {
-    pub local_position: [f32; 3],
-    pub signed_distance: f32,
-    pub voxel: [u32; 3],
-    pub encoded: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct BrickEntry {
-    pub virtual_brick: [u32; 3],
-    pub mip_level: u32,
-    pub physical_brick: [u32; 3],
-    pub physical_index: u32,
-    pub distance_scale_bias: [f32; 2],
-    pub voxel_size: f32,
-    pub flags: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct CardData {
-    pub center: [f32; 3],
-    pub object_index: u32,
-    /// Columns tangent, bitangent, normal; `w` of each column is padding.
-    pub tangent_frame: [[f32; 4]; 3],
-    pub half_extents: [f32; 3],
-    pub page_index: u32,
-    pub size_in_pages: [u32; 2],
-    pub res_level: u32,
-    pub flags: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct PageEntry {
-    pub physical_page: [u32; 2],
-    pub card_index: u32,
-    pub mip_level: u32,
-    pub card_uv_rect: [f32; 4],
-    pub flags: u32,
-    pub _pad0: [u32; 3],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct RayDebugData {
-    pub origin: [f32; 3],
-    pub roughness: f32,
-    pub incident_dir: [f32; 3],
-    pub hit_distance: f32,
-    pub hit_position: [f32; 3],
-    pub hit_object: u32,
-    pub normal: [f32; 3],
-    /// EnvBRDFApprox(F0, roughness, N·V): the specular weight of the composite.
-    pub env_brdf: f32,
-    pub view_dir: [f32; 3],
-    /// GGX alpha = roughness²: the width of the VNDF lobe the rays sample.
-    pub ggx_alpha: f32,
-    pub reflected_dir: [f32; 3],
-    pub reflected_hit_distance: f32,
-    pub reflected_hit_position: [f32; 3],
-    pub reflected_hit_object: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct CameraData {
     pub world_to_view: [[f32; 4]; 4],
     pub view_to_clip: [[f32; 4]; 4],
@@ -109,28 +42,6 @@ pub struct CameraData {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct ProbeRecord {
-    pub position: [f32; 3],
-    pub first_sample: u32,
-    pub normal: [f32; 3],
-    pub sample_count: u32,
-    pub screen_pixel: [u32; 2],
-    pub history_weight: f32,
-    pub frames_accumulated: u32,
-    pub irradiance: [f32; 4],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
-pub struct RadianceSample {
-    pub direction: [f32; 3],
-    pub hit_distance: f32,
-    pub radiance: [f32; 3],
-    pub hit_object: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct FrameUniforms {
     pub camera: CameraData,
     pub light_center_radiance: [f32; 4],
@@ -140,15 +51,8 @@ pub struct FrameUniforms {
     pub ambient_color: [f32; 4],
     pub floor_params: [f32; 4],
     pub overlay_params: [f32; 4],
-    pub cut_plane: [f32; 4],
-    pub deform_params: [f32; 4],
-    pub sdf_volume: [f32; 4],
-    pub atlas_display: [f32; 4],
     pub counts: [u32; 4],
-    pub selection: [u32; 4],
-    pub selection2: [u32; 4],
-    pub counts2: [u32; 4],
-    pub cache_view: [f32; 4],
+    pub view_params: [f32; 4],
 }
 
 #[repr(C)]
@@ -234,7 +138,7 @@ macro_rules! record {
     };
 }
 
-use FieldKind::{F32, Mat3, Mat4, Nested, U32};
+use FieldKind::{F32, Mat4, Nested, U32};
 
 record!(ObjectData {
     "localToWorld" => local_to_world: Mat4,
@@ -249,54 +153,6 @@ record!(ObjectData {
     "albedoRoughness" => albedo_roughness: F32(4),
     "emissive" => emissive: F32(4),
 });
-record!(VoxelSample {
-    "localPosition" => local_position: F32(3),
-    "signedDistance" => signed_distance: F32(1),
-    "voxel" => voxel: U32(3),
-    "encoded" => encoded: U32(1),
-});
-record!(BrickEntry {
-    "virtualBrick" => virtual_brick: U32(3),
-    "mipLevel" => mip_level: U32(1),
-    "physicalBrick" => physical_brick: U32(3),
-    "physicalIndex" => physical_index: U32(1),
-    "distanceScaleBias" => distance_scale_bias: F32(2),
-    "voxelSize" => voxel_size: F32(1),
-    "flags" => flags: U32(1),
-});
-record!(CardData {
-    "center" => center: F32(3),
-    "objectIndex" => object_index: U32(1),
-    "tangentFrame" => tangent_frame: Mat3,
-    "halfExtents" => half_extents: F32(3),
-    "pageIndex" => page_index: U32(1),
-    "sizeInPages" => size_in_pages: U32(2),
-    "resLevel" => res_level: U32(1),
-    "flags" => flags: U32(1),
-});
-record!(PageEntry {
-    "physicalPage" => physical_page: U32(2),
-    "cardIndex" => card_index: U32(1),
-    "mipLevel" => mip_level: U32(1),
-    "cardUVRect" => card_uv_rect: F32(4),
-    "flags" => flags: U32(1),
-});
-record!(RayDebugData {
-    "origin" => origin: F32(3),
-    "roughness" => roughness: F32(1),
-    "incidentDir" => incident_dir: F32(3),
-    "hitDistance" => hit_distance: F32(1),
-    "hitPosition" => hit_position: F32(3),
-    "hitObject" => hit_object: U32(1),
-    "normal" => normal: F32(3),
-    "envBRDF" => env_brdf: F32(1),
-    "viewDir" => view_dir: F32(3),
-    "ggxAlpha" => ggx_alpha: F32(1),
-    "reflectedDir" => reflected_dir: F32(3),
-    "reflectedHitDistance" => reflected_hit_distance: F32(1),
-    "reflectedHitPosition" => reflected_hit_position: F32(3),
-    "reflectedHitObject" => reflected_hit_object: U32(1),
-});
 record!(CameraData {
     "worldToView" => world_to_view: Mat4,
     "viewToClip" => view_to_clip: Mat4,
@@ -306,22 +162,6 @@ record!(CameraData {
     "viewportSize" => viewport_size: F32(2),
     "nearPlane" => near_plane: F32(1),
     "farPlane" => far_plane: F32(1),
-});
-record!(ProbeRecord {
-    "position" => position: F32(3),
-    "firstSample" => first_sample: U32(1),
-    "normal" => normal: F32(3),
-    "sampleCount" => sample_count: U32(1),
-    "screenPixel" => screen_pixel: U32(2),
-    "historyWeight" => history_weight: F32(1),
-    "framesAccumulated" => frames_accumulated: U32(1),
-    "irradiance" => irradiance: F32(4),
-});
-record!(RadianceSample {
-    "direction" => direction: F32(3),
-    "hitDistance" => hit_distance: F32(1),
-    "radiance" => radiance: F32(3),
-    "hitObject" => hit_object: U32(1),
 });
 record!(MeshNode {
     "boundsMin" => bounds_min: F32(3),
@@ -346,15 +186,8 @@ record!(FrameUniforms {
     "ambientColor" => ambient_color: F32(4),
     "floorParams" => floor_params: F32(4),
     "overlayParams" => overlay_params: F32(4),
-    "cutPlane" => cut_plane: F32(4),
-    "deformParams" => deform_params: F32(4),
-    "sdfVolume" => sdf_volume: F32(4),
-    "atlasDisplay" => atlas_display: F32(4),
     "counts" => counts: U32(4),
-    "selection" => selection: U32(4),
-    "selection2" => selection2: U32(4),
-    "counts2" => counts2: U32(4),
-    "cacheView" => cache_view: F32(4),
+    "viewParams" => view_params: F32(4),
 });
 
 /// Words a dump kernel in verify.wgsl writes for one record:
@@ -545,14 +378,7 @@ pub fn check_record<T: Record>(layouts: &BTreeMap<String, ShaderStruct>) -> Layo
 pub fn check_all(layouts: &BTreeMap<String, ShaderStruct>) -> Vec<LayoutCheck> {
     vec![
         check_record::<ObjectData>(layouts),
-        check_record::<VoxelSample>(layouts),
-        check_record::<BrickEntry>(layouts),
-        check_record::<CardData>(layouts),
-        check_record::<PageEntry>(layouts),
-        check_record::<RayDebugData>(layouts),
         check_record::<CameraData>(layouts),
-        check_record::<ProbeRecord>(layouts),
-        check_record::<RadianceSample>(layouts),
         check_record::<FrameUniforms>(layouts),
         check_record::<MeshNode>(layouts),
         check_record::<MeshTriangle>(layouts),

@@ -19,14 +19,6 @@ kind = "file"
 source = "shaders/common.wgsl"
 license = "MIT"
 
-# The prelude's last file: another module may override it with its own.
-[[resource]]
-id = "wgsl/surface-lookup"
-kind = "file"
-source = "shaders/surface_fallback.wgsl"
-license = "MIT"
-overridable = true
-
 [[resource]]
 id = "wgsl/scene"
 kind = "file"
@@ -51,11 +43,11 @@ kind = "file"
 source = "shaders/frost.wgsl"
 license = "MIT"
 
-# Every pass module starts with the prelude: the records, the bindings, the
-# common maths, and the surface lookup.
+# Every pass module starts with the prelude: the records, the bindings, and
+# the common maths.
 [[shader]]
 id = "shader/prelude"
-parts = ["wgsl/types", "wgsl/bindings", "wgsl/common", "wgsl/surface-lookup"]
+parts = ["wgsl/types", "wgsl/bindings", "wgsl/common"]
 
 [[shader]]
 id = "shader/scene"

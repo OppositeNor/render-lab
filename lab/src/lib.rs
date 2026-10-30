@@ -1,23 +1,12 @@
 //! The lab: everything an investigation reuses, built as a Rust dylib that the
 //! binary (src/main.rs in the repository) and every package's library link. The renderer (wgpu and WGSL)
-//! draws the study room, its distance fields, cards, Surface Cache, probes,
-//! and the overlays of a frame; the recorder renders a timeline frame by
+//! draws the study room and the overlays of a frame; the recorder renders a timeline frame by
 //! frame into FFmpeg; the viewer plays a timeline with its narration or lets
 //! the user explore the demonstrations; the homepage chooses the engine and
 //! the feature. What a feature shows comes from its `Investigation`
 //! (src/investigation.rs); the investigations come from the packages'
 //! libraries, which the loader opens at run time (src/packages.rs,
 //! src/plugin.rs, src/investigations.rs).
-//!
-//! Modules marked `commercial` build only when the optional commercial
-//! module is present (the repository's src/commercial). They are not
-//! published (see .gitignore and build.rs): they derive from such an engine
-//! and live in src/commercial/lab. Without them the Surface Cache, the distance-field
-//! fixtures, and the probes are absent, and the shaders compose the lab's
-//! `rlstd.wgsl/surface-lookup` (packages/rlstd/shaders/surface_fallback.wgsl),
-//! which another package may override.
-
-#![cfg_attr(not(commercial), allow(dead_code))]
 
 // So `#[derive(Values)]`'s `::lab::values` paths resolve inside the lab too.
 extern crate self as lab;
@@ -81,15 +70,3 @@ pub mod viewer;
 pub mod views;
 pub mod volume;
 
-#[cfg(commercial)]
-#[path = "../../src/commercial/lab/fixtures.rs"]
-pub mod fixtures;
-#[cfg(commercial)]
-#[path = "../../src/commercial/lab/reflection_rays.rs"]
-pub mod reflection_rays;
-#[cfg(commercial)]
-#[path = "../../src/commercial/lab/surface_cache.rs"]
-pub mod surface_cache;
-#[cfg(commercial)]
-#[path = "../../src/commercial/lab/surface_cache_gpu.rs"]
-pub mod surface_cache_gpu;

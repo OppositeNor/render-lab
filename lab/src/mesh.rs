@@ -3,7 +3,7 @@
 //! declared in src/resources.toml): scaled into the room's metres and
 //! arranged in a bounding-volume hierarchy. The raster pass draws its
 //! triangles; intersectMesh in common.wgsl and `TriangleMesh::intersect` below
-//! traverse the same nodes for shadow, reflection, probe, and card rays.
+//! traverse the same nodes for shadow and reflection rays.
 
 use crate::layout::{MeshNode, MeshTriangle};
 use crate::resources::{self, Loaded};

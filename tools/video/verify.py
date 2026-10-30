@@ -142,7 +142,9 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     width: Callable[[str], int] = zh.display_width if cfg.zh() else len
     limit = zh.CAPTION_UNITS if cfg.zh() else CAPTION_WIDTH
     caption_lines = [line for line in srt.splitlines() if line and not re.fullmatch(r'\d+|[\d:,]+ --> [\d:,]+', line)]
-    longest = max(width(line) for line in caption_lines)
+    # A formula ($LaTeX$ in the files) is measured as drawn, as the captions wrap it (markup.protect).
+    drawn = lambda line: re.sub(r'\$([^$]*)\$', lambda m: 'Q' * max(4, len(re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', m.group(1)))), line)
+    longest = max(width(drawn(line)) for line in caption_lines)
     check('captions cover the narration (SRT and WebVTT) within the line limit', cue_count > 50 and last <= duration and (build / 'captions.vtt').exists() and longest <= limit,
           {'cues': cue_count, 'lastCueEnd': last, 'longestLine': longest, 'lineLimit': limit})
     render = json.loads((build / 'render-report.json').read_text()) if (build / 'render-report.json').exists() else {}

@@ -3,7 +3,7 @@
 Render Lab is a Rust/wgpu/WGSL program for rendering demonstrations and experiments, organised as investigations of
 game-engine features. `README.md` describes the shared lab.
 
-**If the optional `commercial` module (`src/commercial/`, and its packages in `packages/`; not provided in this repo) is
+**If the optional `commercial` module (its local packages in `packages/`; not provided in this repo) is
 present, read every `AGENTS.md` inside them before working on anything else.** It is never published, and nothing published may reflect what it holds.
 
 ## Rules
@@ -13,13 +13,13 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   anything derived from such an engine's source out of the shared lab (`lab/`, `packages/rlstd`); cite published
   methods (papers, talks) by their publication.
 - **Nothing outside the `commercial` module reflects what is inside it.** Published files (everything `git` would
-  publish) may know only that an optional module, not provided in this repo, can be built in with the `commercial` cfg.
+  publish) may know only that an optional module, not provided in this repo, can add local packages to `packages/`.
   They must not name, describe, or mirror its contents: no engine or feature names, no code, records, shaders,
   parameters, text keys, comments, or file names that exist for it. What it needs from the lab goes through generic
   extension points (the `Investigation` trait, a package's library and negotiation, its imports and overrides) that any
   investigation could use. Its investigations are packages of their own in `packages/` (code, content, and a Cargo
   workspace of their own, so the published `Cargo.lock` never names them), ignored with a pattern in
-  `.git/info/exclude`; the lab code only they use stays in `src/commercial/lab`. Local-only ignore patterns go in
+  `.git/info/exclude`; lab code only they use stays in those packages. Local-only ignore patterns go in
   `.git/info/exclude`, not `.gitignore`.
 - **Open-source engines are published.** The Open 3D Engine (Apache-2.0 or MIT) is investigated in `packages/o3de_lighting/`, which
   is public; code ported from it keeps O3DE's copyright and is credited in `THIRD_PARTY.md` (MIT). Its checkout is
@@ -28,7 +28,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 - **Layering.** The lab (`lab/`, a Rust dylib the binary and every package's library link) must not depend on an
   investigation; everything feature-specific reaches it through the `Investigation` trait (including an investigation's
   own scene shading, `SceneShading`), from the libraries the loader opens at run time. The binary (`src/main.rs`) only
-  runs the lab. The lab's `commercial` cfg code only serves the optional module; the rest of the lab always builds.
+  runs the lab. The lab has no code that only one investigation uses; it builds the same with or without the optional module.
 - **Packages are self-contained.** Everything a package is lives in its directory: its manifest, content, code
   (`src/`, `Cargo.toml`, `build.rs`), and what its tools write (`build/`, git-ignored: timelines, narration, video
   builds). A package's library is a cdylib that depends on the lab, and on crates the lab depends on with the lab's

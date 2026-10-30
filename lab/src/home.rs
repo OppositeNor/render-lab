@@ -7,7 +7,8 @@
 //! - The title page: "Render Lab", Play, Config, and Quit, the language (a
 //!   globe) in the top-right corner, which opens the Config page at the
 //!   Language option, and the copyright, license, and version in the
-//!   bottom-left corner.
+//!   bottom-left corner. A photosensitivity warning covers it at start, and
+//!   again after a saved setting changes the language, until Continue.
 //! - The Config page edits the settings file (src/config.rs), a tab per
 //!   category: the interface (the language of the homepage, and of the
 //!   narrated edition it offers first, and the theme, src/theme.rs), the
@@ -270,6 +271,9 @@ pub struct Home {
     pub clicked: bool,
     /// Messages over the page (src/popup.rs), such as where a screenshot went.
     pub popups: Popups,
+    /// The photosensitivity warning is up: at start, and again when a saved
+    /// setting changes the language, over the page until Continue.
+    pub pse: bool,
 }
 
 impl Home {
@@ -298,6 +302,7 @@ impl Home {
             min_text: f32::INFINITY,
             clicked: false,
             popups: Popups::default(),
+            pse: true,
         };
         if message.is_some() {
             home.settings.message = message;
@@ -370,6 +375,8 @@ impl Home {
     /// Use `config` this session: its language, its theme, and the rest
     /// (which the window and the viewer read from `applied`).
     fn apply(&mut self, config: Config) {
+        // The warning again, in the language just chosen.
+        self.pse |= config.language != self.applied.language;
         i18n::set(config.language);
         if config.theme != self.applied.theme {
             if let Err(e) = theme::apply(&config.theme) {
@@ -493,6 +500,9 @@ impl Home {
                 None
             }
         };
+        if self.pse {
+            self.draw_pse(ctx, canvas);
+        }
         self.popups.draw(ctx, canvas);
         self.min_text = self.min_text.min(ink.min_size.get());
         if choice.is_some() {
@@ -931,6 +941,33 @@ impl Home {
         });
     }
 
+    /// The photosensitivity warning: over the whole page, which it keeps from
+    /// being clicked, until its Continue.
+    fn draw_pse(&mut self, ctx: &egui::Context, canvas: Vec2) {
+        egui::Area::new(egui::Id::unique("home-pse")).order(egui::Order::Foreground).fixed_pos(Pos2::ZERO).fade_in(false).constrain(false).show(ctx, |ui| {
+            let full = Rect::from_min_size(Pos2::ZERO, canvas);
+            ui.allocate_rect(full, egui::Sense::click_and_drag());
+            let painter = ui.painter();
+            painter.rect_filled(full, CornerRadius::ZERO, palette::theme().dim);
+            // The card as tall as its text, opaque over the dimmed page.
+            let width = 1080.0f32.min(canvas.x - 80.0);
+            let text = painter.layout(tr("home.pse_message").to_string(), FontId::new(30.0, FontFamily::Proportional), palette::text(), width - 112.0);
+            let card = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(width, (110.0 + text.size().y + 140.0).min(canvas.y - 80.0)));
+            painter.rect_filled(card, CornerRadius::same(22), palette::theme().popup.to_opaque());
+            painter.rect_stroke(card, CornerRadius::same(22), Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
+            painter.text(pos2(card.center().x, card.min.y + 40.0), Align2::CENTER_TOP, tr("home.pse_title"), FontId::new(40.0, ui::bold()), palette::text());
+            painter.galley(pos2(card.min.x + 56.0, card.min.y + 110.0), text, palette::text());
+            let button = Rect::from_center_size(pos2(card.center().x, card.max.y - 70.0), vec2(360.0, 72.0));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(button).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+                let r = glass_button(ui, button.size(), tr("home.pse_continue"), 32.0, true);
+                self.widgets.push(("pse:continue".into(), r.rect));
+                if r.clicked() {
+                    self.pse = false;
+                }
+            });
+        });
+    }
+
     /// A column: its heading, then `add` in an area clipped to the column.
     fn column_area(&mut self, ctx: &egui::Context, id: &str, rect: Rect, heading: &str, add: impl FnOnce(&mut Self, &mut egui::Ui)) {
         let inner = rect.shrink2(vec2(22.0, 18.0));
@@ -1303,6 +1340,10 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     // The Config page: render settings are tried, then kept or put back; only Apply writes them.
     let stored = || Config::load(&config_path).ok().filter(|_| config_path.exists());
     let has = |home: &Home, name: &str| home.widgets.iter().any(|w| w.0 == name);
+    // The photosensitivity warning first, over the title, until Continue.
+    check("the photosensitivity warning is up at start, in the configured language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") == "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    offscreen.click(&mut home, "pse:continue");
+    check("Continue closes the warning", !home.pse && !has(&home, "pse:continue"), String::new());
     offscreen.click(&mut home, "config");
     check("the title's Config opens the Config page at the Interface tab", home.page == Page::Config && home.settings.category == Category::Interface && has(&home, "option:language:zh-CN") && !has(&home, "option:fullscreen"), format!("{:?}, {:?}", home.page, home.settings.category));
     check("with nothing changed, the first button is Return, and no option is marked", has(&home, "return") && !has(&home, "save") && !has(&home, "restore:language"), String::new());
@@ -1344,6 +1385,8 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     check("picking a language changes nothing until it is saved", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
     offscreen.click(&mut home, "save");
     check("a saved language applies and is written at once, without the popup", home.settings.trial.is_none() && i18n::current() == Locale::ZhCn && tr("home.config") != "Config" && stored().is_some_and(|c| c.language == Locale::ZhCn && c.fullscreen), format!("text {:?}: {}, file {:?}", i18n::current(), tr("home.config"), stored()));
+    check("a new language shows the photosensitivity warning again, in that language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") != "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    offscreen.click(&mut home, "pse:continue");
     // The edition offered first is in the language, else English.
     for i in investigations::all().iter().copied().filter(|i| !i.timelines().is_empty()) {
         let rows = home.timeline_rows(i);
@@ -1392,6 +1435,8 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "defaults");
     offscreen.click(&mut home, "save");
     offscreen.click(&mut home, "trial:apply");
+    check("back in English, the photosensitivity warning shows again, in English", home.pse && tr("home.pse_title") == "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    offscreen.click(&mut home, "pse:continue");
     check("Restore Defaults, applied, puts English, the default theme, and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && colors(theme::DEFAULT) == Some(palette::theme()) && stored() == Some(Config::default()), format!("file {:?}", stored()));
     offscreen.click(&mut home, "return");
     let _ = std::fs::remove_file(&config_path);

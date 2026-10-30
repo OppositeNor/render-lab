@@ -248,6 +248,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             raw_input: egui::RawInput { time: Some(f as f64 / timeline.fps as f64), ..Default::default() },
             chrome: Chrome::Recording { timeline: &timeline, frame: f },
             stamp: options.frame_stamp.then_some(f),
+            history: false,
         };
         let result = renderer.render_frame(request, Some(&buffers[slot]));
         track(&mut summary, f, &result.report, beat.kind);

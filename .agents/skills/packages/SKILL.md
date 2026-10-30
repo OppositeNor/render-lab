@@ -110,7 +110,7 @@ parts = ["rlstd.shader/scene", "wgsl/my-shading"]
   an output only when its stamp changes (its kind, processor code, parameters, and its source's size and time). A new
   kind is a processor in `lab/src/pipeline/`. A source must be inside its package.
 - **Overrides.** A resource marked `overridable = true` (and exported) may be replaced, for everyone, by a resource of
-  a package that imports it: `override = "rlstd.wgsl/surface-lookup"`. Two packages may not override the same key.
+  a package that imports it: `override = "<package>.<key>"`. Two packages may not override the same key.
 - **Tool outputs.** `built = true` marks a file (or directory) a tool writes into the source package
   (`source = "build/timelines/en/timeline.json"`). It may be missing until the tool runs; the next launch builds it
   into the built package, and `render-lab resources` shows `not built` until then. Demos name such resources:

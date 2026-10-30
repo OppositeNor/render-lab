@@ -1,8 +1,7 @@
 //! WGSL shader modules, composed at run time from the packages' `[[shader]]`
 //! tables (packages/rlstd/shaders.toml, and each investigation's package): a module is its
 //! parts in order, each a WGSL resource or another module. The lab's pass
-//! modules start with `shader/prelude` (types, bindings, common math, and the
-//! surface lookup, which another package may override). naga, the
+//! modules start with `shader/prelude` (types, bindings, and common math). naga, the
 //! compiler wgpu uses, validates a module before the lab creates it, so a
 //! broken edit is an error that names the file and the line; it also computes
 //! the struct layouts of `wgsl/types` that the struct panel shows and
