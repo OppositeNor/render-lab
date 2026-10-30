@@ -271,10 +271,16 @@ A pass over the drafted chapters for what the story shows, not what it says.
 **Make this feel more like a video instead of a powerpoint.** Something on screen moves while every sentence is
 said: a sweep, a step, a camera glide, rays drawing in, a value counting. Still beats are the exception.
 
-- **At least 16 animations per chapter**: parameter sweeps, step-by-step reveals, actions (`run=`), camera paths.
+- **At least 32 animations per chapter**: parameter sweeps, step-by-step reveals, actions (`run=`), camera paths.
   Each is driven by a value the interactive view shows (a slider or a toggle in the dock), so a viewer can replay
   it, stop it anywhere, and change it; a timeline sets only values the dock can set. Count them per chapter
   before the review.
+- **Every animation demonstrates something.** Reach the count with animations that show how the feature works:
+  a ray marching to its hit, a texel picked and read, a count growing until the noise settles, a step of the
+  algorithm played out. Don't pad it with motion that explains nothing: a filler sweep, a camera move with no
+  subject, a value changed and changed back, or a whole-image swing (a mix or a frame count jumping mid-beat),
+  which also flashes. When a chapter falls short, add a demonstration where a sentence names a mechanism, and
+  cut an animation that only adds motion.
 - **Interactions**: clicking scene elements (an object, a card, a probe, a point) and image elements (a texel, a
   probe's map, a slice) picks them; the pick is shown everywhere it lives at once, with arrows and connection
   lines between them (from a texel in an inset to its point in the scene, from a probe to its map, from a ray's

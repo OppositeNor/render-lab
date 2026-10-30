@@ -906,18 +906,18 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
     let line = 28.0;
     let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
     let any_lit = listing.lines.iter().any(|l| listing.lit(l, highlight));
+    let columns = ((width / column).floor() as usize).max(8);
     for code_line in &listing.lines {
-        if y + line > rect.max.y - 12.0 {
+        let rows = wrap_code(&code_line.text, columns);
+        let height = line * rows.len() as f32;
+        if y + height > rect.max.y - 12.0 {
             report.code_overflow += 1;
             continue;
         }
         let lit = listing.lit(code_line, highlight);
         if lit {
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, line)), CornerRadius::same(4), palette::highlight_row());
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y + 1.0), vec2(4.0, line - 6.0)), CornerRadius::same(2), palette::accent());
-        }
-        if code_line.text.chars().count() as f32 * column > width {
-            report.code_overflow += 1;
+            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, height)), CornerRadius::same(4), palette::highlight_row());
+            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y + 1.0), vec2(4.0, height - 6.0)), CornerRadius::same(2), palette::accent());
         }
         // Unlit lines dim while some lines are lit.
         let dim = any_lit && !lit;
@@ -932,13 +932,45 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
                 Token::Plain => palette::text(),
             };
             let color = if dim { color.gamma_multiply(0.55) } else { color };
-            if !text.trim().is_empty() {
-                ink.text(pos2(x + col as f32 * column, y), Align2::LEFT_TOP, text, 24.0, FontFamily::Monospace, color);
+            let end = col + text.chars().count();
+            // The token's part on each row it reaches.
+            for (row, &(start, stop, indent)) in rows.iter().enumerate() {
+                let (from, to) = (col.max(start), end.min(stop));
+                if from >= to {
+                    continue;
+                }
+                let part: String = text.chars().skip(from - col).take(to - from).collect();
+                if !part.trim().is_empty() {
+                    let at = pos2(x + (indent + from - start) as f32 * column, y + row as f32 * line);
+                    ink.text(at, Align2::LEFT_TOP, part, 24.0, FontFamily::Monospace, color);
+                }
             }
-            col += text.chars().count();
+            col = end;
         }
-        y += line;
+        y += height;
     }
+}
+
+/// A code line's rows within `columns`: each row's character range and the
+/// column it starts at. A long line breaks after its last space or comma that
+/// fits, and continues four columns deeper than its indentation.
+fn wrap_code(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
+    let chars: Vec<char> = text.chars().collect();
+    let deeper = chars.iter().take_while(|c| **c == ' ').count() + 4;
+    let mut rows = Vec::new();
+    let (mut start, mut indent) = (0, 0);
+    while chars.len() - start > columns - indent {
+        let limit = start + (columns - indent).max(1);
+        let stop = (start + 1..=limit).rev().find(|&b| matches!(chars[b - 1], ' ' | ',')).unwrap_or(limit);
+        rows.push((start, stop, indent));
+        start = stop;
+        while start < chars.len() && chars[start] == ' ' {
+            start += 1;
+        }
+        indent = deeper.min(columns / 2);
+    }
+    rows.push((start, chars.len(), indent));
+    rows
 }
 
 fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, layout: &crate::layout::ShaderStruct, rust: &[RustField], x: f32, width: f32, mut y: f32, bottom: f32) {
