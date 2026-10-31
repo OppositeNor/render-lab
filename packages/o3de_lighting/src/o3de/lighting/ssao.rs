@@ -84,49 +84,78 @@ pub fn compute(half: &Image, s: &Settings, tan: Vec2) -> Image {
 
 /// SsaoCompute at one half-res pixel, reading the clamped half-res depth through `half`.
 pub fn compute_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Settings, tan: Vec2, x: i32, y: i32) -> f32 {
+    let samples = samples_at(half, half_size, s, tan, x, y);
+    let (mut occlusion, mut total) = (0.0, 0.0);
+    for o in &samples.occluders {
+        accumulate(samples.position, samples.normal, *o, &mut occlusion, &mut total);
+    }
+    let ao = occlusion / f32::max(total, 10e-5);
+    unorm8((1.0 - ao * s.strength).powf(2.2))
+}
+
+/// One half-res pixel's SSAO inputs: its view-space position and the normal
+/// rebuilt from its neighbours' depths, and its 52 occluders in the order
+/// SsaoCompute accumulates them (12 local taps from the depth tile, then 10
+/// rounds of 4 spiral samples shared within its 4 x 4 subgroup), in the view
+/// space GetViewSpacePosition gives (x right, y up, z the distance forward).
+pub struct PixelSamples {
+    pub position: Vec3,
+    pub normal: Vec3,
+    pub occluders: Vec<Vec3>,
+}
+
+impl PixelSamples {
+    /// Each occluder's saturate(cos) against the normal and its weight 1 / (d^2 + 0.07).
+    pub fn terms(&self) -> Vec<(f32, f32)> {
+        self.occluders.iter().map(|o| {
+            let diff = *o - self.position;
+            let d2 = diff.dot(diff);
+            ((diff / d2.sqrt()).dot(self.normal).clamp(0.0, 1.0), 1.0 / (d2 + 0.07))
+        }).collect()
+    }
+}
+
+pub fn samples_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Settings, tan: Vec2, x: i32, y: i32) -> PixelSamples {
     let size = Vec2::new(half_size[0] as f32, half_size[1] as f32);
     let pixel_size = Vec2::ONE / size;
     let at = |x: i32, y: i32| half(x.clamp(0, half_size[0] as i32 - 1), y.clamp(0, half_size[1] as i32 - 1));
     let position_at = |x: i32, y: i32| view_position((Vec2::new(x as f32, y as f32) + 0.5) * pixel_size, at(x, y), tan);
-    {
-        let (group, local) = ([x as u32 / 16, y as u32 / 16], [x as u32 % 16, y as u32 % 16]);
-        let subgroup = [local[0] / 4, local[1] / 4];
-        let sub = [local[0] % 4, local[1] % 4];
-        let linear = (sub[0] & 1) | ((sub[1] & 1) << 1) | ((sub[0] >> 1) << 2) | ((sub[1] >> 1) << 3) | (subgroup[0] << 4) | (subgroup[1] << 6);
-        let p = position_at(x, y);
-        let (l, r, u, d) = (position_at(x - 1, y), position_at(x + 1, y), position_at(x, y - 1), position_at(x, y + 1));
-        let (dl, dr) = (p - l, r - p);
-        let dx = if dl.z.abs() < dr.z.abs() { dl } else { dr };
-        let (du, dd) = (p - u, d - p);
-        let dy = if du.z.abs() < dd.z.abs() { du } else { dd };
-        let n = dx.cross(dy).normalize();
-        let (mut occlusion, mut total) = (0.0, 0.0);
-        for [ox, oy] in LOCAL_SAMPLES {
-            accumulate(p, n, position_at(x + ox, y + oy), &mut occlusion, &mut total);
-        }
-        let group_offset = Vec2::new(group[0] as f32, group[1] as f32) * 16.0 + 2.0;
-        let subgroup_offset = Vec2::new(subgroup[0] as f32, subgroup[1] as f32) * 4.0 + group_offset;
-        let outer = |id: u32, i: u32| {
-            let angle_offset = ((id >> 4) & 0x0F) as f32 * (OUTER_SAMPLE_ANGLE / 16.0) + i as f32 * OUTER_SAMPLE_ANGLE;
-            let factor = ((id & 0x0F) as f32 + 1.0) / 16.0;
-            let radius = factor.sqrt() * (size.y * s.sampling_radius);
-            let angle = factor * (OUTER_SAMPLE_ANGLE / 16.0) + angle_offset;
-            let pixel = (Vec2::new(angle.cos(), angle.sin()) * radius + subgroup_offset).floor();
-            let uv = pixel * pixel_size + 0.5 * pixel_size;
-            let texel = (uv * size).floor();
-            view_position(uv, at(texel.x as i32, texel.y as i32), tan)
-        };
-        for i in 0..10 {
-            let mut other = linear;
-            accumulate(p, n, outer(other, i), &mut occlusion, &mut total);
-            for _ in 1..4 {
-                other = (other & 0xF0) + ((other + 4) & 0x0F);
-                accumulate(p, n, outer(other, i), &mut occlusion, &mut total);
-            }
-        }
-        let ao = occlusion / f32::max(total, 10e-5);
-        unorm8((1.0 - ao * s.strength).powf(2.2))
+    let (group, local) = ([x as u32 / 16, y as u32 / 16], [x as u32 % 16, y as u32 % 16]);
+    let subgroup = [local[0] / 4, local[1] / 4];
+    let sub = [local[0] % 4, local[1] % 4];
+    let linear = (sub[0] & 1) | ((sub[1] & 1) << 1) | ((sub[0] >> 1) << 2) | ((sub[1] >> 1) << 3) | (subgroup[0] << 4) | (subgroup[1] << 6);
+    let p = position_at(x, y);
+    let (l, r, u, d) = (position_at(x - 1, y), position_at(x + 1, y), position_at(x, y - 1), position_at(x, y + 1));
+    let (dl, dr) = (p - l, r - p);
+    let dx = if dl.z.abs() < dr.z.abs() { dl } else { dr };
+    let (du, dd) = (p - u, d - p);
+    let dy = if du.z.abs() < dd.z.abs() { du } else { dd };
+    let n = dx.cross(dy).normalize();
+    let mut occluders = Vec::with_capacity(52);
+    for [ox, oy] in LOCAL_SAMPLES {
+        occluders.push(position_at(x + ox, y + oy));
     }
+    let group_offset = Vec2::new(group[0] as f32, group[1] as f32) * 16.0 + 2.0;
+    let subgroup_offset = Vec2::new(subgroup[0] as f32, subgroup[1] as f32) * 4.0 + group_offset;
+    let outer = |id: u32, i: u32| {
+        let angle_offset = ((id >> 4) & 0x0F) as f32 * (OUTER_SAMPLE_ANGLE / 16.0) + i as f32 * OUTER_SAMPLE_ANGLE;
+        let factor = ((id & 0x0F) as f32 + 1.0) / 16.0;
+        let radius = factor.sqrt() * (size.y * s.sampling_radius);
+        let angle = factor * (OUTER_SAMPLE_ANGLE / 16.0) + angle_offset;
+        let pixel = (Vec2::new(angle.cos(), angle.sin()) * radius + subgroup_offset).floor();
+        let uv = pixel * pixel_size + 0.5 * pixel_size;
+        let texel = (uv * size).floor();
+        view_position(uv, at(texel.x as i32, texel.y as i32), tan)
+    };
+    for i in 0..10 {
+        let mut other = linear;
+        occluders.push(outer(other, i));
+        for _ in 1..4 {
+            other = (other & 0xF0) + ((other + 4) & 0x0F);
+            occluders.push(outer(other, i));
+        }
+    }
+    PixelSamples { position: p, normal: n, occluders }
 }
 
 /// FastDepthAwareBlur along x (`horizontal`) or y: each output is half the

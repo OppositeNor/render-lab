@@ -47,6 +47,11 @@ class Parse(unittest.TestCase):
         self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
         s = markup.parse('{@ image=map imageClick=pickCell} A.')
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'map', 'imageClick': 'pickCell'})
+        s = markup.parse('{@ image=map imageMark=0,0.5,0.25,1 imageMarkText=demos.near blend=1} A {@ image=map imageMark="" imageMarkText=""} b.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'map', 'imageMark': [0.0, 0.5, 0.25, 1.0], 'imageMarkText': 'demos.near', 'blend': 1.0})
+        self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'image': 'map', 'imageMark': [], 'imageMarkText': ''})
+        with self.assertRaises(markup.MarkupError):
+            markup.cue_key(markup.parse('{@ image=map imageMark=0,1} A.').tags[0], {}, 'x')
 
     def test_code_spans(self) -> None:
         s = markup.parse('Then {@ callout=x} {@ codespan="LightCullingTilePrepare"} adds it, and {@ codespan="r.Example.MaxIntensity" say="max ray intensity"} clamps.')

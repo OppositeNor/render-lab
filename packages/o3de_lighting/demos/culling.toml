@@ -10,7 +10,10 @@ include = ["room-camera"]
 
 [params]
 extraLights = 24.0
-viewMode = 12.0
+# The tiles' light counts on the left, the lit frame on the right, one camera.
+viewMode = 0.0
+splitView = 1.0
+splitViewMode = 12.0
 labels = 0.0
 cullTile = 1.0
 lightMarkers = 1.0

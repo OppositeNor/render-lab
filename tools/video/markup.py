@@ -43,10 +43,10 @@ from typing import Any
 Json = dict[str, Any]
 
 # Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor')
+STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'imageMarkText', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
-RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide', 'arrowFrom', 'arrowTo', 'arrowWidth', 'arrowHide', 'labelAt', 'labelHide')
+RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide', 'imageMark', 'arrowFrom', 'arrowTo', 'arrowWidth', 'arrowHide', 'labelAt', 'labelHide')
 
 
 class MarkupError(RuntimeError):
@@ -318,10 +318,16 @@ def point_value(value: str, where: str) -> list[float] | str:
 
 def image_attr(key: Json, name: str, value: str, where: str) -> bool:
     """Reads an image's attribute into `key`: `image.<param>=value` sets a
-    parameter of an image kind's instance, `imageHide=a,b` hides images. False
-    for any other attribute."""
+    parameter of an image kind's instance, `imageMark=u0,v0,u1,v1` points out a
+    region of it, `imageHide=a,b` hides images. False for any other attribute."""
     if name.startswith('image.'):
         key.setdefault('imageParams', {})[name[6:]] = param_value(value, where)
+    elif name == 'imageMark':
+        # u0,v0,u1,v1 (fractions of the picture), or empty to fade the mark out.
+        mark = [number(v, where) for v in value.split(',') if v]
+        if len(mark) not in (0, 4):
+            raise MarkupError(f'{where}: imageMark is u0,v0,u1,v1 or "", not {value!r}')
+        key[name] = mark
     elif name in ('imageHide', 'arrowHide', 'labelHide'):
         key[name] = [v for v in value.split(',') if v]
     elif name in ('arrowFrom', 'arrowTo', 'labelAt'):

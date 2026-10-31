@@ -615,8 +615,16 @@ impl App {
         }
     }
 
-    fn viewport_pixel(&self, window_px: Vec2) -> Option<Vec2> {
-        self.renderer().frame_layout().target_to_viewport_pixel(window_px.x, window_px.y)
+    /// The pixel of the scene under a window pixel: in the main view, or in a
+    /// view beside it at the same place of the main one (the views share
+    /// one size, and usually the camera), so a drag or a click in any view
+    /// moves or picks through the main view's camera.
+    fn scene_pixel(&self, window_px: Vec2) -> Option<Vec2> {
+        let renderer = self.renderer();
+        let layout = renderer.frame_layout();
+        layout.target_to_viewport_pixel(window_px.x, window_px.y).or_else(|| {
+            renderer.frame_panes().iter().find_map(|rect| crate::ui::Layout { viewport: *rect, ..layout }.target_to_viewport_pixel(window_px.x, window_px.y))
+        })
     }
 
     pub fn viewport_height(&self) -> f32 {
@@ -624,7 +632,7 @@ impl App {
     }
 
     pub fn pointer_down(&mut self, button: MouseButton, at: Vec2) {
-        if self.ui_has_pointer || self.viewport_pixel(at).is_none() {
+        if self.ui_has_pointer || self.scene_pixel(at).is_none() {
             return;
         }
         // A left press on a picture with a click handler picks there at once,
@@ -787,7 +795,7 @@ impl App {
     }
 
     fn click(&mut self, at: Vec2) {
-        let Some(pixel) = self.viewport_pixel(at) else { return };
+        let Some(pixel) = self.scene_pixel(at) else { return };
         let Some(content) = &self.last_content else { return };
         let shown = self.render_state();
         let Some(renderer) = &self.renderer else { return };

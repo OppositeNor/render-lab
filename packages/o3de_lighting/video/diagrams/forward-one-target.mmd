@@ -1,0 +1,8 @@
+flowchart LR
+    DEPTH["Depth pre-pass<br/>(LowEnd only)"] --> FWD1["Forward pass<br/>one colour target<br/>direct light + IBL"]
+    SHADOW["Shadows"] --> FWD1
+    FWD1 --> SKY["Sky"]
+    SKY --> TRANS["Transparent"]
+    TRANS --> POST["Post"]
+    VIS["Deferred: visibility buffer<br/>no pass draws it"]
+    style VIS stroke-dasharray: 5 5

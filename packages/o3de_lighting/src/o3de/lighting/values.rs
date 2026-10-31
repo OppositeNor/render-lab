@@ -50,6 +50,15 @@ pub struct LightingValues {
     /// The inspected point's 16 x 16 tile: its view-space box, its depth bins, and the lights its bin keeps.
     #[value(default = 0.0, toggle)]
     pub cull_tile: f32,
+    /// The scene area split in two (Investigation::panes): on the left the
+    /// same camera's view in `splitViewMode`, on the right the frame as
+    /// `viewMode` shows it.
+    #[value(default = 0.0, toggle)]
+    pub split_view: f32,
+    /// The left view's view mode: an index of ViewMode (12, the lights in
+    /// each pixel's tile and bin).
+    #[value(default = 12.0, range = 0.0..=17.0, text = "controls.split_view_mode")]
+    pub split_view_mode: f32,
     /// Two decals on the floor beside the sphere: a paint splat and a panel grid (decals.rs).
     #[value(default = 0.0, toggle)]
     pub decals: f32,
@@ -293,7 +302,7 @@ pub struct LightingValues {
     /// Camera sway, as in the lab's other investigations.
     #[value(default = 0.0)]
     pub camera_drift: f32,
-    /// The directional light's cascades for the observer camera (cascades.rs; schematic, the lab has no directional light).
+    /// The sun's cascades for the observer camera drawn in the scene: its frustum and split planes (cascades.rs).
     #[value(default = 0.0, toggle)]
     pub cascades: f32,
     /// How many of the four cascades are drawn (the video adds them one by one; a fraction grows the next one).
@@ -320,4 +329,39 @@ pub struct LightingValues {
     /// The light's direction: its angle below the horizon, degrees.
     #[value(default = 55.0, range = 5.0..=90.0, unit = deg, text = "controls.sun_pitch", label(cascades_view))]
     pub sun_pitch: f32,
+    /// The sun, O3DE's directional light, in lux at a surface facing it (0: off).
+    /// The component's default is 4 EV100 of illuminance, 40 lux.
+    #[value(default = 0.0, range = 0.0..=120.0, text = "controls.sun_lux", color = LIGHT, label(sun))]
+    pub sun_lux: f32,
+    /// The camera the cascades cover: 0 the camera that renders (as O3DE's
+    /// active camera), 1 the fixed observer of `cascade_observer`.
+    #[value(default = 0.0, toggle)]
+    pub cascade_camera: f32,
+    /// The component's normal shadow bias (m_normalShadowBias): the offset
+    /// along the normal is this times 2 / the map's size, metres.
+    #[value(default = 2.5, range = 0.0..=10.0, text = "controls.normal_shadow_bias", label(sun))]
+    pub normal_shadow_bias: f32,
+    /// The component's shadow bias (m_shadowBias), metres toward the light.
+    #[value(default = 0.0015, range = 0.0..=0.05, unit = m, text = "controls.shadow_bias", label(sun))]
+    pub shadow_bias: f32,
+    /// FullscreenShadowBlur (m_fullscreenBlurEnabled, on by default).
+    #[value(default = 1.0, toggle)]
+    pub shadow_blur: f32,
+    /// O3DE's cascade debug colouring (m_isDebugColoringEnabled): each pixel's
+    /// cascade tints its specular light, red, green, blue, yellow.
+    #[value(default = 0.0, toggle)]
+    pub cascade_colors: f32,
+    /// What the room's readout shows: 0 the forward pass's light at the
+    /// point, 1 the five targets' texels there, 2 the normal's encoding, step
+    /// by step (EncodeNormalSignedOctahedron).
+    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls.readout_mode", label(toggles))]
+    pub readout_mode: f32,
+    /// The inspected point ringed in every view of a screen-sized resource
+    /// (a click sets it).
+    #[value(default = 0.0, toggle)]
+    pub pick_shown: f32,
+    /// SSAO's occluders drawn around the inspected point: the first this many
+    /// of its 52 (a fraction fades the next in).
+    #[value(default = 0.0, range = 0.0..=52.0, unit = index, text = "controls.ssao_samples", label(ssao))]
+    pub ssao_samples: f32,
 }

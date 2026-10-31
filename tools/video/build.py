@@ -7,6 +7,12 @@ frame. The muxed video, captions, chapters, script, source-reading guide, and
 verification report come from the same data.
 
     python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--resolution 1080p] [--prepare-only | --snapshots-only | --verify-only]
+    python3 tools/video/build.py --all [--lang zh-CN] [the same options]
+
+`--all` builds every video the packages in packages/ define (each package's
+video/video.json), one after another, each in every language it has, English
+first (or only in `--lang`); it carries on past a failed build and lists the
+results at the end.
 
 The video is 1920 x 1080 unless `--resolution` names another size (720p,
 1080p, 1440p, 2160p or 4k, or WIDTHxHEIGHT); the stills and the verification
@@ -25,6 +31,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -97,11 +104,41 @@ def resolution_arg(value: str) -> tuple[int, int]:
         raise argparse.ArgumentTypeError(str(e)) from None
 
 
+def videos() -> list[tuple[str, list[str]]]:
+    """Every video the packages define: its investigation, and its languages
+    (English first, then each translation its video.json names)."""
+    out = []
+    for path in sorted((Path(__file__).resolve().parents[2] / 'packages').glob('*/video/video.json')):
+        spec = json.loads(path.read_text())
+        out.append((spec['investigation'], ['en', *[lang for lang in LANGS if lang != 'en' and lang in spec.get('translations', {})]]))
+    return out
+
+
+def build_all(lang: str | None, passed: list[str]) -> None:
+    """Builds each video in turn (`--all`), in a build of its own, and lists the results."""
+    results = []
+    for investigation, langs in videos():
+        for edition in [lang] if lang else langs:
+            if lang and lang not in langs:
+                continue
+            log(f'== {investigation} ({edition})')
+            done = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--investigation', investigation, '--lang', edition, *passed]).returncode
+            results.append((investigation, edition, done))
+    for investigation, edition, done in results:
+        log(f'{"ok" if done == 0 else f"FAILED ({done})"}  {investigation} ({edition})')
+    if not results:
+        raise SystemExit('no package in packages/ defines a video' + (f' in {lang}' if lang else ''))
+    if any(done for _, _, done in results):
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
-    parser.add_argument('--investigation', required=True, help='engine/feature, e.g. o3de/lighting')
+    which = parser.add_mutually_exclusive_group(required=True)
+    which.add_argument('--investigation', help='engine/feature, e.g. o3de/lighting')
+    which.add_argument('--all', action='store_true', help='every video the packages define, each in all its languages (or --lang)')
     parser.add_argument('--investigation-dir', type=Path, help='the directory of its video/video.json, when not its package in packages/')
-    parser.add_argument('--lang', default='en', choices=LANGS)
+    parser.add_argument('--lang', choices=LANGS, help='en (the default) or zh-CN; with --all, only that language')
     parser.add_argument('--resolution', default='1080p', type=resolution_arg, help='frame size: 720p, 1080p (default), 1440p, 2160p, 4k, or WIDTHxHEIGHT')
     parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')
     parser.add_argument('--snapshots-only', action='store_true', help='prepare, then render beat-midpoint stills for review')
@@ -110,6 +147,23 @@ def main() -> None:
     parser.add_argument('--frames', help='render only START:END (testing; the result is not a complete video)')
     parser.add_argument('--tts-device', default='auto', choices=['auto', 'cuda', 'cpu'])
     args = parser.parse_args()
+    if args.all:
+        if args.investigation_dir:
+            parser.error('--investigation-dir names one video; it does not go with --all')
+        # Each build gets the options given here but the choice of video and language.
+        passed, skip = [], False
+        for a in sys.argv[1:]:
+            if skip:
+                skip = False
+            elif a == '--all':
+                pass
+            elif a == '--lang':
+                skip = True
+            elif not a.startswith('--lang='):
+                passed.append(a)
+        build_all(args.lang, passed)
+        return
+    args.lang = args.lang or 'en'
     env = Environment()
     reexec_in_environment(env)
 

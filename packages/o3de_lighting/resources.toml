@@ -22,6 +22,95 @@ built = true
 id = "shader/standard-lighting"
 parts = ["rlstd.shader/scene", "wgsl/view-mode", "wgsl/standard-lighting"]
 
+# The image kinds a story shows of the chain's resources (shaders/views_*.wgsl),
+# one module each (each binds its own output), composed after the shading,
+# whose declarations of the chain they read, and the shared helpers.
+[[resource]]
+id = "wgsl/views-common"
+kind = "file"
+source = "shaders/views_common.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/views-target"
+kind = "file"
+source = "shaders/views_target.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-target"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-target"]
+
+[[resource]]
+id = "wgsl/views-tiles"
+kind = "file"
+source = "shaders/views_tiles.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-tiles"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-tiles"]
+
+[[resource]]
+id = "wgsl/views-list"
+kind = "file"
+source = "shaders/views_list.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-list"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-list"]
+
+[[resource]]
+id = "wgsl/views-shadow-buffer"
+kind = "file"
+source = "shaders/views_shadow_buffer.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-shadow-buffer"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-shadow-buffer"]
+
+[[resource]]
+id = "wgsl/views-cascades"
+kind = "file"
+source = "shaders/views_cascades.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-cascades"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-cascades"]
+
+[[resource]]
+id = "wgsl/views-cube"
+kind = "file"
+source = "shaders/views_cube.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-cube"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-cube"]
+
+[[resource]]
+id = "wgsl/views-lut"
+kind = "file"
+source = "shaders/views_lut.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-lut"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-lut"]
+
+[[resource]]
+id = "wgsl/views-ssao"
+kind = "file"
+source = "shaders/views_ssao.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-ssao"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-ssao"]
+
 # Its on-screen text (text.rs), source index (sources.rs), and pseudo-code
 # listings (pseudocode.rs).
 [[resource]]
@@ -157,6 +246,12 @@ source = "pseudocode/cascades.py"
 license = "MIT (O3DE, THIRD_PARTY.md)"
 
 [[resource]]
+id = "listing/fullscreen-shadow"
+kind = "file"
+source = "pseudocode/fullscreen_shadow.py"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
+[[resource]]
 id = "listing/cascade-select"
 kind = "file"
 source = "pseudocode/cascade_select.py"
@@ -259,6 +354,12 @@ license = "MIT"
 id = "demo/ssao"
 kind = "file"
 source = "demos/ssao.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/terrain"
+kind = "file"
+source = "demos/terrain.toml"
 license = "MIT"
 
 [[resource]]

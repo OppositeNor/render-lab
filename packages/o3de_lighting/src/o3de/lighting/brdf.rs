@@ -69,6 +69,10 @@ pub enum ViewMode {
     /// How much MSAAResolveCustom changes the specular, relative to a plain mean (heat ramp, 0 to 10 percent).
     #[choice(text = "controls.resolve_difference")]
     ResolveDifference,
+    /// The angle between O3DE's terrain vertex normal (per-axis, 8-bit) and
+    /// the exact one, on the terrain (heat ramp, 0 to 15 degrees).
+    #[choice(text = "controls.terrain_normal_error")]
+    TerrainNormalError,
 }
 
 pub fn saturate(x: f32) -> f32 {
@@ -647,6 +651,21 @@ pub fn unorm8(x: f32) -> f32 {
     (x.clamp(0.0, 1.0) * 255.0).round_ties_even() / 255.0
 }
 
+/// Math.azsli EncodeNormalSignedOctahedron: the normal over its L1 length
+/// (onto the octahedron |x| + |y| + |z| = 1), its x and y turned 45 degrees
+/// and moved into 0..1, and z reduced to its sign (saturate(z * FLT_MAX)).
+pub fn encode_normal_signed_octahedron(normal: Vec3) -> Vec3 {
+    let n = normal / (normal.x.abs() + normal.y.abs() + normal.z.abs());
+    let y = n.y * 0.5 + 0.5;
+    Vec3::new(n.x * 0.5 + y, n.x * -0.5 + y, if n.z > 0.0 { 1.0 } else { 0.0 })
+}
+
+/// Math.azsli EncodeUnorm2BitFlags: (flag1 + 2 flag2) / 3, two flags in
+/// one channel of two bits (RGB10A2's alpha).
+pub fn encode_unorm_2bit_flags(flag1: bool, flag2: bool) -> f32 {
+    (flag1 as u32 as f32 + 2.0 * flag2 as u32 as f32) / 3.0
+}
+
 /// DiffuseGlobalFullscreen and ReflectionGlobalFullscreen for one pixel.
 pub fn ibl(s: &Surface, l: &LightingData, eye: Vec3, shading: &Shading, map: &BrdfMap, cubes: &super::ibl::Ibl) -> Ibl {
     // The forward pass's albedo target: albedo times the diffuse response and
@@ -734,12 +753,17 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
         s.specular_f0 = apply_clear_coat_to_specular_f0(s.specular_f0, factor);
     }
     s.transmission = material.transmission;
+    // EvaluateLighting_ForwardPass takes the surface by value (O3DE 26.05):
+    // InitializeLightingData first, on the surface before its decals, which
+    // is also what the targets hold for the full-screen passes; the decals
+    // then change the copy the lights see.
+    let written = s;
+    let mut l = LightingData::new(&written, eye, shading.multiscatter, map);
     // ApplyDecals_ForwardPass: every decal, in the tile lists' order (a decal
     // culled from the tile cannot contain the point).
     for i in super::decals::sorted(&shading.decals) {
         super::decals::apply_decal(&shading.decals[i], &mut s, n);
     }
-    let mut l = LightingData::new(&s, eye, shading.multiscatter, map);
     // ApplySimplePointLight for each light, in index order: other lighting
     // channels and lights at or beyond their radius are skipped.
     for light in shading.lights() {
@@ -769,7 +793,8 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
         l.diffuse_lighting += l.translucent_back_lighting * t.tint;
     }
     let terms = ggx_terms(l.dir_to_camera, sample.dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2);
-    let ibl = ibl(&s, &l, eye, shading, map, super::ibl::Ibl::get());
+    // The full-screen passes read the targets: the surface before its decals.
+    let ibl = ibl(&written, &l, eye, shading, map, super::ibl::Ibl::get());
     let ibl_on = if shading.ibl { 1.0 } else { 0.0 };
     let emissive = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
     let shown = |c: Vec3| untonemap(c.clamp(Vec3::ZERO, Vec3::ONE), exposure);
@@ -790,9 +815,11 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
         ViewMode::ProbeStencil => untonemap(super::reflections::stencil_color(ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK), exposure),
         ViewMode::ProbeWeight => untonemap(heat(ibl.reflection.blend_weight / 2.0), exposure),
         // The reflection passes test the IBL flag themselves; SSAO and the resolve are screen space.
+        // The terrain's normals are the GPU's alone (the kernels have no terrain): every other surface is dark.
+        ViewMode::TerrainNormalError => untonemap(Vec3::new(0.02, 0.03, 0.08), exposure),
         ViewMode::Final | ViewMode::Ssao | ViewMode::ResolveDifference => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
     };
-    Pixel { color, surface: s, lighting: l, light: sample, terms, ibl }
+    Pixel { color, surface: written, lighting: l, light: sample, terms, ibl }
 }
 
 /// MSAAResolveCustom's luminance (CalcLuminance).

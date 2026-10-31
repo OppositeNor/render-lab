@@ -58,6 +58,27 @@ struct O3deShading {
     /// Specular anti-aliasing (the applySpecularAA material property, true by default).
     /// {@ key=specularAA toggle default=true label=toggles}
     specularAA: f32,
+    /// The picked point (the inspected one, inspectX, Y, Z) in w = 1 when
+    /// `pickShown`, else w = 0: every view of a screen-sized resource rings
+    /// the pixel it projects to this frame (shaders/views_*.wgsl).
+    /// {@ derived}
+    pick: vec4<f32>,
+    /// The terrain's normals as TerrainMeshManager makes them (per axis, 8
+    /// bits) instead of the lab's exact interpolated ones.
+    /// {@ key=terrainO3deNormal toggle default=false label=toggles text=controls.terrain_o3de_normal}
+    terrainO3deNormal: f32,
+    /// How far through the opaque frame the shown image goes: 0 the forward
+    /// pass's own light (direct light and emission), 1 with the diffuse IBL
+    /// pass, 2 with the reflection passes (specular IBL and probes), 3 with
+    /// SSAO, the whole frame (DiffuseSpecularMerge of every pass).
+    /// {@ key=forwardStage default=3 range=0,3 label=toggles text=controls.forward_stage}
+    forwardStage: f32,
+    /// The sky box's exposure, in stops (SkyBoxFeatureProcessor's
+    /// m_cubemapExposure; SkyBox.azsl multiplies the HDRi by two to it), set
+    /// apart from the skylight's iblExposure as in O3DE. The lab draws the
+    /// sky box where samples hit nothing (skyBox).
+    /// {@ key=skyboxExposure default=0 range=-4,4 label=light text=controls.skybox_exposure}
+    skyboxExposure: f32,
     /// Object i: metallic, specularF0Factor, and the diffuse and specular
     /// occlusion factors when its occlusion maps are assigned (else -1).
     /// {@ derived}
@@ -128,6 +149,8 @@ struct O3deSurface {
     // GetVertexNormal(), and TransmissionSurfaceData with o_transmission_mode
     // (EnhancedPBR; 0 None, 1 ThickObject, 2 ThinObject).
     vertexNormal: vec3<f32>,
+    // Shaded by the terrain's forward shader: no direct-light multiscatter.
+    terrain: bool,
     transmissionMode: u32,
     transmissionTint: vec3<f32>,
     transmissionThickness: f32,
@@ -371,8 +394,8 @@ fn applyDecal(i: u32, surface: O3deSurface, vertexNormal: vec3<f32>) -> O3deSurf
         let decalAttenuation = getDecalAttenuation(vertexNormal, m[2], decal.angleAttenuation);
         let albedoOpacity = baseMap.a * decal.opacity * decalAttenuation;
         let blendedBaseColor = decal.decalColorFactor * decal.decalColor * baseMap.rgb;
+        // O3DE 26.05 blends the albedo only (no F0 by metallic).
         s.albedo = mix(s.albedo, blendedBaseColor, albedoOpacity);
-        s.specularF0 = mix(s.specularF0, blendedBaseColor, albedoOpacity * s.metallic);
         let normalOpacity = baseMap.a * decal.normalMapOpacity * decalAttenuation;
         // GetWorldSpaceNormal(normalMap, decalRot[2], decalRot[0], decalRot[1]).
         let ts = tangentSpaceNormalUnnormalized(normalMap);
@@ -1190,12 +1213,76 @@ struct O3dePixel {
 struct O3dePixelStart {
     s: O3deSurface,
     l: O3deLightingData,
+    // The surface the targets hold: before its decals (O3DE 26.05 passes the
+    // surface by value), which the full-screen passes read.
+    written: O3deSurface,
 }
 
 // The surface (EvaluateSurface), before decals.
+// The terrain's forward shader (TerrainPBR_ForwardPass.azsl), for the lab's
+// heightfield: its own macro constants, roughness 1, specularF0 factor 0.5
+// (F0 0.04), metalness 0, no specular AA, and, with `terrainO3deNormal`, the
+// vertex normal as TerrainMeshManager computes it on the CPU.
+const TERRAIN_MACRO_ROUGHNESS: f32 = 1.0;
+const TERRAIN_MACRO_SPECULAR_F0: f32 = 0.5;
+
+// TerrainMeshManager's vertex normal at grid vertex (i, j): each axis's
+// central-difference slope s on its own, s / sqrt(s^2 + 1), stored as int8
+// (round(x * 127)), and the up component rebuilt as sqrt(1 - x^2 - z^2) in the
+// shader (TerrainCommon.azsli).
+fn o3deTerrainVertexNormal(i: u32, j: u32) -> vec3<f32> {
+    let last = terrainResolution() - 1u;
+    let i0 = select(i - 1u, 0u, i == 0u);
+    let i1 = min(i + 1u, last);
+    let j0 = select(j - 1u, 0u, j == 0u);
+    let j1 = min(j + 1u, last);
+    let cell = 2.0 * terrainHalfSize() / f32(last);
+    let sx = (terrainHeight(i0, j) - terrainHeight(i1, j)) / (cell.x * f32(i1 - i0));
+    let sz = (terrainHeight(i, j0) - terrainHeight(i, j1)) / (cell.y * f32(j1 - j0));
+    let x = round(sx / sqrt(sx * sx + 1.0) * 127.0) / 127.0;
+    let z = round(sz / sqrt(sz * sz + 1.0) * 127.0) / 127.0;
+    return vec3<f32>(x, saturate(sqrt(max(1.0 - x * x - z * z, 0.0))), z);
+}
+
+// A terrain point's normal, the cell's vertex normals interpolated across its
+// triangle (two per cell, split along the diagonal from its low corner):
+// O3DE's or the exact ones.
+fn terrainPixelNormal(local: vec3<f32>, o3de: bool) -> vec3<f32> {
+    let last = terrainResolution() - 1u;
+    let cell = 2.0 * terrainHalfSize() / f32(last);
+    let g = clamp((local.xz + terrainHalfSize()) / cell, vec2<f32>(0.0), vec2<f32>(f32(last) - 0.001));
+    let c = vec2<u32>(floor(g));
+    let f = g - floor(g);
+    var n00: vec3<f32>; var n10: vec3<f32>; var n01: vec3<f32>; var n11: vec3<f32>;
+    if (o3de) {
+        n00 = o3deTerrainVertexNormal(c.x, c.y); n10 = o3deTerrainVertexNormal(c.x + 1u, c.y);
+        n01 = o3deTerrainVertexNormal(c.x, c.y + 1u); n11 = o3deTerrainVertexNormal(c.x + 1u, c.y + 1u);
+    } else {
+        n00 = terrainVertexNormal(c.x, c.y); n10 = terrainVertexNormal(c.x + 1u, c.y);
+        n01 = terrainVertexNormal(c.x, c.y + 1u); n11 = terrainVertexNormal(c.x + 1u, c.y + 1u);
+    }
+    if (f.x >= f.y) {
+        return normalize(n00 * (1.0 - f.x) + n10 * (f.x - f.y) + n11 * f.y);
+    }
+    return normalize(n00 * (1.0 - f.y) + n11 * f.x + n01 * (f.y - f.x));
+}
+
+fn isTerrain(objectIndex: u32) -> bool {
+    return gObjects[objectIndex].shapeKind == SHAPE_TERRAIN;
+}
+
 fn o3dePixelSurface(p: vec3<f32>, n: vec3<f32>, objectIndex: u32, dndx: vec3<f32>, dndy: vec3<f32>) -> O3deSurface {
     let o = gObjects[objectIndex];
     let material = gShading.materials[min(objectIndex, MAX_MATERIALS - 1u)];
+    if (isTerrain(objectIndex)) {
+        var tn = n;
+        if (gShading.terrainO3deNormal > 0.5) {
+            tn = terrainPixelNormal((o.worldToLocal * vec4<f32>(p, 1.0)).xyz, true);
+        }
+        var ts = o3deSurface(p, tn, o.albedoRoughness.rgb, 0.0, TERRAIN_MACRO_SPECULAR_F0, TERRAIN_MACRO_ROUGHNESS, vec3<f32>(0.0), vec3<f32>(0.0));
+        ts.terrain = true;
+        return ts;
+    }
     var s = o3deSurface(p, n, o.albedoRoughness.rgb, material.x, material.y, o.albedoRoughness.w, dndx, dndy);
     // The occlusion maps, on the sphere's UVs.
     if (material.z >= 0.0 || material.w >= 0.0) {
@@ -1208,7 +1295,7 @@ fn o3dePixelSurface(p: vec3<f32>, n: vec3<f32>, objectIndex: u32, dndx: vec3<f32
 
 // InitializeLightingData, after the decals.
 fn o3dePixelStart(s: O3deSurface, eye: vec3<f32>) -> O3dePixelStart {
-    return O3dePixelStart(s, o3deLightingData(s, eye, gShading.multiscatter > 0.5));
+    return O3dePixelStart(s, o3deLightingData(s, eye, gShading.multiscatter > 0.5 && !s.terrain), s);
 }
 
 fn simplePointLightCount() -> u32 {
@@ -1242,10 +1329,12 @@ fn applySimplePointLight(i: u32, objectIndex: u32, s: O3deSurface, l: ptr<functi
 // the pixel (the kernels and the CPU mirror have no tiles).
 fn o3dePixel(p: vec3<f32>, n: vec3<f32>, eye: vec3<f32>, objectIndex: u32, dndx: vec3<f32>, dndy: vec3<f32>) -> O3dePixel {
     var s = o3dePixelSurface(p, n, objectIndex, dndx, dndy);
+    // InitializeLightingData first, then the decals on the lights' copy.
+    var start = o3dePixelStart(s, eye);
     for (var k = 0u; k < decalCount(); k++) {
         s = applyDecal(sortedDecal(k), s, n);
     }
-    var start = o3dePixelStart(s, eye);
+    start.s = s;
     // A plain local for the lights to add to (naga's SPIR-V writer fails on a
     // pointer to a struct member passed in a loop).
     var lighting = start.l;
@@ -1288,9 +1377,9 @@ fn o3dePixelFinish(start: O3dePixelStart, eye: vec3<f32>, objectIndex: u32, ligh
     out.diffuse = l.diffuseLighting;
     out.specular = l.specularLighting;
     // A forward-IBL material's stencil (0x80) keeps it out of the reflection passes.
-    out.ibl = o3deIbl(s, l, eye, gShading.multiscatter > 0.5);
+    out.ibl = o3deIbl(start.written, l, eye, gShading.multiscatter > 0.5);
     out.clearCoat = s.clearCoat;
-    out.surface = s;
+    out.surface = start.written;
     let emissive = o.emissive.rgb * o.emissive.w;
     let view = gShading.viewMode;
     // The reflection passes test the IBL flag themselves.
@@ -1325,6 +1414,13 @@ fn o3dePixelFinish(start: O3dePixelStart, eye: vec3<f32>, objectIndex: u32, ligh
         color = untonemap(stencilColor(out.ibl.stencil & STENCIL_REFLECTION_MASK));
     } else if (view == VIEW_PROBE_WEIGHT) {
         color = untonemap(heat(out.ibl.blendWeight / 2.0));
+    } else if (view == VIEW_TERRAIN_NORMAL_ERROR) {
+        color = untonemap(vec3<f32>(0.02, 0.03, 0.08));
+        if (isTerrain(objectIndex)) {
+            let local = (o.worldToLocal * vec4<f32>(p, 1.0)).xyz;
+            let a = acos(clamp(dot(terrainPixelNormal(local, true), terrainPixelNormal(local, false)), -1.0, 1.0));
+            color = untonemap(heat(degrees(a) / 15.0));
+        }
     }
     out.color = color;
     return out;
@@ -1779,6 +1875,12 @@ fn o3deForwardFS(input: SceneVaryings) -> O3deForwardOutput {
     let dndy = dpdyFine(n);
     // EvaluateLighting_ForwardPass: the lights from this pixel's tile and depth bin.
     var surface = o3dePixelSurface(input.worldPosition, n, input.objectIndex, dndx, dndy);
+    // The surface the targets are written from: EvaluateLighting_ForwardPass
+    // takes the surface by value (O3DE 26.05), so its decals reach the
+    // lights but not the caller's surface, which GetPbrLightingOutput writes.
+    let written = surface;
+    // InitializeLightingData runs first, on the surface before its decals.
+    var start = o3dePixelStart(surface, eye);
     var tile = lightCullingTileIterator(input.clip);
     // ApplyDecals_ForwardPass: the first group.
     loadAdvance(&tile);
@@ -1787,10 +1889,29 @@ fn o3deForwardFS(input: SceneVaryings) -> O3deForwardOutput {
         loadAdvance(&tile);
         surface = applyDecal(index, surface, n);
     }
-    var start = o3dePixelStart(surface, eye);
-    // ApplySimplePointLights: the second group.
+    start.s = surface;
     var lightsInBin = 0u;
     var lighting = start.l;
+    // ApplyDirectionalLights: the sun, its shadow read from the fullscreen
+    // shadow buffer (opaque materials: UseFullscreenShadows).
+    let pixelIndex = u32(input.clip.y) * u32(gFrame.camera.viewportSize.x) + u32(input.clip.x);
+    if (sunOn()) {
+        let lit = bitcast<f32>(bShadowBuffer[pixelIndex]);
+        o3deApplyLight(start.s, &lighting, sunLux() * lit, -sunDirection(), u32(gShading.diffuseModel));
+        // DirectionalLight::Apply's back lighting (Enhanced and Skin): its
+        // thickness from the cascade, at the point (thick) or shrunk along
+        // the vertex normal (thin); not multiplied by the lit ratio; the
+        // attenuation distance is the camera's.
+        if (start.s.transmissionMode != TRANSMISSION_NONE) {
+            var q = start.s.position;
+            if (start.s.transmissionMode == TRANSMISSION_THIN) {
+                q = q - start.s.transmissionParams.x * start.s.vertexNormal;
+            }
+            let thickness = sunThickness(q, start.s.vertexNormal);
+            lighting.translucentBackLighting += getBackLighting(start.s, lighting, sunLux(), -sunDirection(), thickness, length(eye - start.s.position));
+        }
+    }
+    // ApplySimplePointLights: the second group.
     loadAdvance(&tile);
     while (!isDone(tile)) {
         let index = tile.value;
@@ -1814,15 +1935,25 @@ fn o3deForwardFS(input: SceneVaryings) -> O3deForwardOutput {
     let px = o3dePixelFinish(start, eye, input.objectIndex, lightsInBin);
     let o = gObjects[input.objectIndex];
     // GetPbrLightingOutput: the surface after decals (with clear coat's specularF0).
-    let s = px.surface;
+    // The targets hold the surface before its decals (26.05), with clear
+    // coat's specularF0 as evaluated.
+    let s = written;
     var out: O3deForwardOutput;
     out.diffuse = vec4<f32>(px.diffuse, -1.0);
-    out.specular = vec4<f32>(px.specular + o.emissive.rgb * o.emissive.w, 1.0);
+    var specularOut = px.specular;
+    // AddDebugColoring (m_isDebugColoringEnabled): the pixel's cascade tints its specular light.
+    if (sunOn() && gShadingFrame[FRAME_SUN + 2u].w > 0.5) {
+        let range = cascadeRange(input.worldPosition, n);
+        if (range.x >= 0) {
+            specularOut = specularOut * 0.75 + CASCADE_DEBUG_COLORS[range.x] * 0.25;
+        }
+    }
+    out.specular = vec4<f32>(specularOut + o.emissive.rgb * o.emissive.w, 1.0);
     out.albedo = vec4<f32>(s.albedo * px.lighting.diffuseResponse * px.diffuseAO, px.specularOcclusion);
     out.specularF0 = vec4<f32>(s.specularF0, s.roughnessLinear);
     out.normal = vec4<f32>(encodeNormalSignedOctahedron(s.normal), encodeUnorm2BitFlags(gShading.ibl > 0.5, gShading.multiscatter > 0.5));
     let view = gShading.viewMode;
-    out.debug = vec4<f32>(px.color, select(0.0, 1.0, (view >= VIEW_D && view <= VIEW_ATTENUATION) || view == VIEW_LIGHT_COUNT));
+    out.debug = vec4<f32>(px.color, select(0.0, 1.0, (view >= VIEW_D && view <= VIEW_ATTENUATION) || view == VIEW_LIGHT_COUNT || view == VIEW_TERRAIN_NORMAL_ERROR));
     // UseIBLSpecularPass unless the material needs forward-pass IBL specular (clear coat), and always UseDiffuseGIPass.
     out.stencil = f32(select(STENCIL_USE_IBL_SPECULAR_PASS, 0u, px.clearCoat) | STENCIL_USE_DIFFUSE_GI_PASS) / 255.0;
     out.coverage = presenceCoverage(input.objectIndex, input.clip.xy);
@@ -1997,6 +2128,13 @@ fn resolveLuminance(color: vec3<f32>) -> f32 {
 
 // Sample i of the specular target at pixel, after the composite; zero off the
 // target, as Texture2DMS.Load gives out of bounds.
+// The sky box along a view ray: the environment the skylight's cubemaps were
+// baked from, unfiltered, times two to its own exposure (SkyBox.azsl), not
+// m_iblExposure.
+fn skyBox(dir: vec3<f32>) -> vec3<f32> {
+    return skyRadiance(dir) * pow(2.0, gShading.skyboxExposure);
+}
+
 fn compositedSpecular(pixel: vec2<i32>, i: u32) -> vec3<f32> {
     let size = vec2<i32>(textureDimensions(tSpecular));
     if (any(pixel < vec2<i32>(0)) || any(pixel >= size)) {
@@ -2004,7 +2142,7 @@ fn compositedSpecular(pixel: vec2<i32>, i: u32) -> vec3<f32> {
     }
     let p = vec2<u32>(pixel);
     if (!covered(textureLoad(tDepth, p, i))) {
-        return skyRadiance(viewRay((vec2<f32>(p) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
+        return skyBox(viewRay((vec2<f32>(p) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
     }
     return textureLoad(tSpecular, p, i).rgb + textureLoad(tReflection, p, 0).rgb;
 }
@@ -2343,8 +2481,14 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     let n = f32(samples);
     // ModulateWithSsao: the diffuse target times the upsampled AO.
     let ao = bitcast<f32>(bSsaoFull[pixel.y * fullSize().x + pixel.x]);
-    let diffuseLit = textureLoad(tDiffuseLit, pixel, 0).rgb * ao;
-    let specularLit = textureLoad(tSpecularLit, pixel, 0).rgb;
+    // The stage of the frame shown (forwardStage): each pass adds its part.
+    let stage = gShading.forwardStage;
+    let forwardDiffuse = diffuse / n;
+    let forwardSpecular = specular / n;
+    let withDiffuseIbl = mix(forwardDiffuse, textureLoad(tDiffuseLit, pixel, 0).rgb, saturate(stage));
+    let withReflections = mix(forwardSpecular, textureLoad(tSpecularLit, pixel, 0).rgb, saturate(stage - 1.0));
+    let diffuseLit = withDiffuseIbl * mix(1.0, ao, saturate(stage - 2.0));
+    let specularLit = withReflections;
     var color = diffuseLit + specularLit;
     let view = gShading.viewMode;
     // The custom resolve already holds the sky where nothing was drawn.
@@ -2353,7 +2497,7 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
         color = diffuse / n;
     } else if (view == VIEW_SPECULAR) {
         color = specular / n;
-    } else if ((view >= VIEW_D && view <= VIEW_ATTENUATION) || view == VIEW_LIGHT_COUNT) {
+    } else if ((view >= VIEW_D && view <= VIEW_ATTENUATION) || view == VIEW_LIGHT_COUNT || view == VIEW_TERRAIN_NORMAL_ERROR) {
         color = debug / n;
     } else if (view == VIEW_IBL_DIFFUSE) {
         color = textureLoad(tDiffuseLit, pixel, 0).rgb - diffuse / n;
@@ -2368,13 +2512,12 @@ fn o3deMergeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     } else if (view == VIEW_RESOLVE_DIFFERENCE) {
         color = specularLit;
     }
-    // Where samples hit nothing, the sky box: the environment the skylight's
-    // cubemaps were baked from, unfiltered and without m_iblExposure (the lab
-    // draws it here instead of in a pass of its own). The false-colour views
-    // keep a dark background.
+    // Where samples hit nothing, the sky box (skyBox; the lab draws it here
+    // instead of in a pass of its own). The false-colour views keep a dark
+    // background.
     var background = vec3<f32>(0.004, 0.009, 0.016);
     if (view == VIEW_FINAL) {
-        background = skyRadiance(viewRay((vec2<f32>(pixel) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
+        background = skyBox(viewRay((vec2<f32>(pixel) + 0.5) / vec2<f32>(textureDimensions(tDepth))));
     }
     if (!(skyResolved && view == VIEW_FINAL)) {
         color += background * (1.0 - coverage / n);
@@ -2598,4 +2741,259 @@ fn brdfTexel(x: u32, y: u32, textureSize: u32, guarded: bool) -> vec2<f32> {
         }
     }
     return vec2<f32>(A, B) / f32(BRDF_MAP_SAMPLES);
+}
+
+// ---------------------------------------------------------------------------
+// The sun: O3DE's directional light and its cascaded shadow maps
+// (ShadowParent.pass: CascadedShadowmaps, FullscreenShadow,
+// FullscreenShadowBlur; DirectionalLightShadowCalculator.azsli). The lab
+// rasterises the four cascades into its depth views (`cascades`, reversed:
+// the stored texel is 1 - O3DE's depth), runs FullscreenShadow and the blur
+// as early chain passes after the depth pre-pass, and the forward pass reads
+// the blurred buffer, as O3DE's opaque materials do. gShadingFrame
+// [FRAME_CASCADES..] (demos.rs cascade_records): four world to shadow-map
+// transforms, then each cascade's (near, far, texel, depth range), then the
+// sun's (direction, count), (lux, on), (normal bias, bias, blur, colours).
+
+const FRAME_CASCADES: u32 = 240u;
+const FRAME_CASCADE_SLICES: u32 = 256u;
+const FRAME_SUN: u32 = 260u;
+const CASCADE_COUNT: u32 = 4u;
+const CASCADE_MAP_SIZE: f32 = 1024.0;
+// DirectionalLightShadowCalculator.azsli: GetShadowCascadeRange's margins.
+const CASCADE_PIXEL_MARGIN: f32 = 1.5;
+const CASCADE_DEPTH_MARGIN: f32 = 1e-8;
+// FullscreenShadowBlur's settings (DirectionalLightFeatureProcessor
+// SetFullscreenPassSettings): constFalloff 2/3, depth threshold 0, strength 50.
+const SHADOW_BLUR_CONST_FALLOFF: f32 = 2.0 / 3.0;
+const SHADOW_BLUR_DEPTH_STRENGTH: f32 = 50.0;
+// DirectionalLightShadow.azsli AddDebugColoring: red, green, blue, yellow.
+const CASCADE_DEBUG_COLORS = array<vec3<f32>, 4>(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(0.0, 0.0, 1.0), vec3<f32>(1.0, 1.0, 0.0));
+
+@group(2) @binding(33) var<storage, read_write> bShadowRaw: array<u32>;
+@group(2) @binding(34) var<storage, read_write> bShadowBlurV: array<u32>;
+@group(2) @binding(35) var<storage, read_write> bShadowBuffer: array<u32>;
+@group(2) @binding(36) var tCascades: texture_depth_2d_array;
+
+fn sunOn() -> bool {
+    return gShadingFrame[FRAME_SUN + 1u].w > 0.5;
+}
+
+fn sunDirection() -> vec3<f32> {
+    return gShadingFrame[FRAME_SUN].xyz;
+}
+
+fn sunLux() -> vec3<f32> {
+    return gShadingFrame[FRAME_SUN + 1u].xyz;
+}
+
+fn worldToShadowmap(i: u32) -> mat4x4<f32> {
+    let k = FRAME_CASCADES + 4u * i;
+    return mat4x4<f32>(gShadingFrame[k], gShadingFrame[k + 1u], gShadingFrame[k + 2u], gShadingFrame[k + 3u]);
+}
+
+struct CascadeVertex {
+    @builtin(position) clip: vec4<f32>,
+}
+
+// A cascade's depth view: the shadow map's texture coordinates as clip x and
+// y, and 1 - O3DE's depth as the lab's reversed depth.
+fn cascadeVertex(cascade: u32, input: SceneVertex) -> CascadeVertex {
+    let o = gObjects[input.objectIndex];
+    let world = transformPoint(o.localToWorld, input.position);
+    let t = worldToShadowmap(cascade) * vec4<f32>(world, 1.0);
+    var out: CascadeVertex;
+    out.clip = vec4<f32>(t.x * 2.0 - 1.0, 1.0 - t.y * 2.0, 1.0 - t.z, 1.0);
+    // The emissive panel stands for the lab's own light; it casts nothing.
+    if (o.shapeKind == SHAPE_PANEL) {
+        out.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+    }
+    return out;
+}
+
+@vertex
+fn o3deCascade0VS(input: SceneVertex) -> CascadeVertex { return cascadeVertex(0u, input); }
+@vertex
+fn o3deCascade1VS(input: SceneVertex) -> CascadeVertex { return cascadeVertex(1u, input); }
+@vertex
+fn o3deCascade2VS(input: SceneVertex) -> CascadeVertex { return cascadeVertex(2u, input); }
+@vertex
+fn o3deCascade3VS(input: SceneVertex) -> CascadeVertex { return cascadeVertex(3u, input); }
+
+// ComputeShadowCoords: the point offset along its normal
+// (NormalOffsetShadows.azsli, normalShadowBias * 2 / size), into cascade i's
+// map, its depth moved shadowBias toward the light.
+fn shadowCoord(i: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+    let params = gShadingFrame[FRAME_SUN + 2u];
+    let offset = n * params.x * (2.0 / CASCADE_MAP_SIZE);
+    var t = (worldToShadowmap(i) * vec4<f32>(p + offset, 1.0)).xyz;
+    t.z -= params.y / gShadingFrame[FRAME_CASCADE_SLICES + i].w;
+    return t;
+}
+
+// GetShadowCascadeRange: the first cascade whose map holds the point a
+// margin in from its edges, and the last one needed while the point lies
+// past a cascade's far side; (-1, -1) outside every cascade (lit).
+fn cascadeRange(p: vec3<f32>, n: vec3<f32>) -> vec2<i32> {
+    for (var i = 0u; i < CASCADE_COUNT; i++) {
+        let t = shadowCoord(i, p, n);
+        let texel = t.xy * CASCADE_MAP_SIZE;
+        if (all(texel >= vec2<f32>(CASCADE_PIXEL_MARGIN)) && all(texel <= vec2<f32>(CASCADE_MAP_SIZE - CASCADE_PIXEL_MARGIN))) {
+            var last = i;
+            while (last + 1u < CASCADE_COUNT && shadowCoord(last, p, n).z > 1.0 - CASCADE_DEPTH_MARGIN) {
+                last++;
+            }
+            return vec2<i32>(i32(i), i32(last));
+        }
+    }
+    return vec2<i32>(-1, -1);
+}
+
+// DirectionalShadowCalculator::GetThickness: the depth between the point and
+// the first caster toward the sun, in the last cascade that holds it, scaled
+// by m_far_minus_near, the camera's depth span. That span is not the
+// cascade's own depth range, so the result is not in metres (read from the
+// code). 0 outside every cascade.
+fn sunThickness(p: vec3<f32>, n: vec3<f32>) -> f32 {
+    let range = cascadeRange(p, n);
+    if (range.y < 0) {
+        return 0.0;
+    }
+    let c = u32(range.y);
+    let t = shadowCoord(c, p, n);
+    let depth = cascadeDepth(c, vec2<i32>(floor(t.xy * CASCADE_MAP_SIZE)));
+    return gShadingFrame[FRAME_SUN + 3u].x * max(t.z - depth, 0.0);
+}
+
+// O3DE's depth at a cascade's texel (1 where nothing was drawn).
+fn cascadeDepth(i: u32, texel: vec2<i32>) -> f32 {
+    let size = i32(CASCADE_MAP_SIZE) - 1;
+    return 1.0 - textureLoad(tCascades, clamp(texel, vec2<i32>(0), vec2<i32>(size)), i, 0);
+}
+
+// IsShadowed and GetVisibilityFromLightNoFilter (the default filter, None):
+// a point sample of each cascade in range; shadowed if any holds a nearer caster.
+fn sunVisibility(p: vec3<f32>, n: vec3<f32>) -> f32 {
+    let range = cascadeRange(p, n);
+    if (range.x < 0) {
+        return 1.0;
+    }
+    for (var i = u32(range.x); i <= u32(range.y); i++) {
+        let t = shadowCoord(i, p, n);
+        let depth = cascadeDepth(i, vec2<i32>(floor(t.xy * CASCADE_MAP_SIZE)));
+        if (depth != 1.0 && t.z - depth > 0.0) {
+            return 0.0;
+        }
+    }
+    return 1.0;
+}
+
+// FullscreenShadow.azsl: the world position from the depth, and a normal
+// from its neighbours' positions, each axis the side whose depth differs
+// least (a face normal, not the mesh's).
+fn shadowNormalAt(pixel: vec2<i32>, p: vec3<f32>) -> vec3<f32> {
+    let size = vec2<i32>(fullSize()) - 1;
+    var sides: array<vec3<f32>, 4>;
+    let offsets = array<vec2<i32>, 4>(vec2<i32>(-1, 0), vec2<i32>(1, 0), vec2<i32>(0, -1), vec2<i32>(0, 1));
+    for (var k = 0u; k < 4u; k++) {
+        let q = clamp(pixel + offsets[k], vec2<i32>(0), size);
+        sides[k] = reconstructWorldPosition(vec2<u32>(q), textureLoad(tDepth, q, 0));
+    }
+    let left = p - sides[0];
+    let right = sides[1] - p;
+    let up = p - sides[2];
+    let down = sides[3] - p;
+    let eye = gFrame.camera.position;
+    let dx = select(right, left, abs(dot(left, normalize(p - eye))) < abs(dot(right, normalize(p - eye))));
+    let dy = select(down, up, abs(dot(up, normalize(p - eye))) < abs(dot(down, normalize(p - eye))));
+    var normal = normalize(cross(dy, dx));
+    if (dot(normal, eye - p) < 0.0) {
+        normal = -normal;
+    }
+    return normal;
+}
+
+@compute @workgroup_size(16, 16)
+fn o3deFullscreenShadowCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (any(id.xy >= fullSize())) {
+        return;
+    }
+    let i = id.y * fullSize().x + id.x;
+    let depth = textureLoad(tDepth, id.xy, 0);
+    var visibility = 1.0;
+    if (sunOn() && covered(depth)) {
+        let p = reconstructWorldPosition(id.xy, depth);
+        visibility = sunVisibility(p, shadowNormalAt(vec2<i32>(id.xy), p));
+    }
+    // R8_UNORM.
+    bShadowRaw[i] = bitcast<u32>(unorm8Store(visibility));
+}
+
+fn shadowBlurValueAt(p: vec2<i32>, horizontal: bool) -> f32 {
+    let i = clampedIndex(p, fullSize());
+    return bitcast<f32>(select(bShadowRaw[i], bShadowBlurV[i], horizontal));
+}
+
+// blurChain over the full-size shadow buffer and DepthLinear, with the
+// fullscreen blur's settings.
+fn shadowBlurChain(start: vec2<i32>, direction: vec2<i32>, steps: i32, horizontal: bool) -> f32 {
+    var position = start;
+    var previousDepth = linearDepthAt(position);
+    var previousValue = shadowBlurValueAt(position, horizontal);
+    position += direction;
+    var currentDepth = linearDepthAt(position);
+    var currentValue = shadowBlurValueAt(position, horizontal);
+    var previousDepthSlope = currentDepth - previousDepth;
+    var currentDepthSlope = previousDepthSlope;
+    currentValue = mix(previousValue, currentValue, SHADOW_BLUR_CONST_FALLOFF);
+    for (var k = 0; k < steps; k++) {
+        previousValue = currentValue;
+        previousDepth = currentDepth;
+        previousDepthSlope = currentDepthSlope;
+        position += direction;
+        currentDepth = linearDepthAt(position);
+        currentValue = shadowBlurValueAt(position, horizontal);
+        currentDepthSlope = currentDepth - previousDepth;
+        let falloff = saturate(1.0 - abs(previousDepthSlope - currentDepthSlope) * SHADOW_BLUR_DEPTH_STRENGTH) * SHADOW_BLUR_CONST_FALLOFF;
+        currentValue = mix(currentValue, previousValue, falloff);
+    }
+    return currentValue;
+}
+
+fn shadowBlur(pixel: vec2<i32>, horizontal: bool) -> f32 {
+    let axis = select(vec2<i32>(0, 1), vec2<i32>(1, 0), horizontal);
+    let coordinate = select(pixel.y, pixel.x, horizontal);
+    let k = coordinate % BLUR_OUTPUT_PIXEL_PER_THREAD;
+    let base = pixel - axis * k;
+    let loopCount = BLUR_RADIUS - 2;
+    let forwards = shadowBlurChain(base - axis * BLUR_RADIUS, axis, loopCount + k + 1, horizontal);
+    let backwards = shadowBlurChain(base - axis * BLUR_RADIUS + axis * (BLUR_RADIUS * 2 + BLUR_OUTPUT_PIXEL_PER_THREAD - 1), -axis, loopCount + (BLUR_OUTPUT_PIXEL_PER_THREAD - 1 - k) + 1, horizontal);
+    return forwards * 0.5 + backwards * 0.5;
+}
+
+// FastDepthAwareBlurVer, then Hor: the blurred buffer the forward pass reads.
+@compute @workgroup_size(16, 16)
+fn o3deShadowBlurVerticalCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (any(id.xy >= fullSize())) {
+        return;
+    }
+    let i = id.y * fullSize().x + id.x;
+    var value = bitcast<f32>(bShadowRaw[i]);
+    if (gShadingFrame[FRAME_SUN + 2u].z > 0.5) {
+        value = unorm8Store(shadowBlur(vec2<i32>(id.xy), false));
+    }
+    bShadowBlurV[i] = bitcast<u32>(value);
+}
+
+@compute @workgroup_size(16, 16)
+fn o3deShadowBlurHorizontalCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (any(id.xy >= fullSize())) {
+        return;
+    }
+    let i = id.y * fullSize().x + id.x;
+    var value = bitcast<f32>(bShadowBlurV[i]);
+    if (gShadingFrame[FRAME_SUN + 2u].z > 0.5) {
+        value = unorm8Store(shadowBlur(vec2<i32>(id.xy), true));
+    }
+    bShadowBuffer[i] = bitcast<u32>(value);
 }

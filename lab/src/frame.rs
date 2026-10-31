@@ -133,7 +133,7 @@ pub struct Readout {
 }
 
 /// Vectors of `FrameContent::shading` (an investigation's `SceneShading` reads them).
-pub const SHADING_UNIFORMS: usize = 16;
+pub const SHADING_UNIFORMS: usize = 32;
 /// The most vectors `FrameContent::shading_frame` may hold.
 pub const SHADING_FRAME_CAPACITY: usize = 4096;
 

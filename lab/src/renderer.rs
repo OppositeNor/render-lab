@@ -162,10 +162,14 @@ pub struct Renderer {
     /// The story's image instances (src/views.rs) by name, and each kind's pipeline.
     views: HashMap<String, ViewInstance>,
     view_pipelines: HashMap<(String, String), wgpu::ComputePipeline>,
+    /// The group-2 layouts of the image kinds that read the pass chain.
+    view_chain_layouts: HashMap<(String, String), wgpu::BindGroupLayout>,
     view_layout: wgpu::BindGroupLayout,
     /// Group 1 of a kind's entry point when the investigation has no scene shading.
     view_shading: Option<wgpu::BindGroup>,
     last_layout: Layout,
+    /// The last frame's views beside the main one (`Investigation::panes`), in canvas points.
+    last_panes: Vec<egui::Rect>,
 }
 
 /// A story's image of an image kind (src/views.rs): its texture, written
@@ -283,6 +287,36 @@ impl ChainTargets {
         &self.views.iter().find(|(n, _)| *n == name).expect("a scene output is a chain target").1
     }
 
+    /// A group-2 bind group for `layout` that reads `reads` (targets, `hdr`,
+    /// `depth`, buffers, or the depth views), as a chain pass binds them: an
+    /// image kind that reads the chain (src/views.rs).
+    fn read_group(&self, device: &wgpu::Device, viewport: &ViewportTargets, layout: &wgpu::BindGroupLayout, reads: &[&str]) -> wgpu::BindGroup {
+        let mut entries: Vec<wgpu::BindGroupEntry> = Vec::new();
+        for name in reads {
+            let binding = gpu::chain_binding(self.source, name, false);
+            if entries.iter().any(|e| e.binding == binding) {
+                continue;
+            }
+            let resource = if let Some((_, buffer)) = self.buffers.iter().find(|(n, _)| n == name) {
+                buffer.as_entire_binding()
+            } else if let (Some(d), Some((all, _))) = (self.source.depth_views, &self.depth_views) {
+                if d.name == *name { wgpu::BindingResource::TextureView(all) } else { wgpu::BindingResource::TextureView(self.target(viewport, name)) }
+            } else {
+                wgpu::BindingResource::TextureView(self.target(viewport, name))
+            };
+            entries.push(wgpu::BindGroupEntry { binding, resource });
+        }
+        device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("image kind chain reads"), layout, entries: &entries })
+    }
+
+    fn target<'a>(&'a self, viewport: &'a ViewportTargets, name: &str) -> &'a wgpu::TextureView {
+        match name {
+            "hdr" => &viewport.hdr,
+            "depth" => &viewport.depth,
+            _ => &self.views.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("{}: no target {name}", self.source.fragment)).1,
+        }
+    }
+
     /// The size in pixels a pass writing `name` covers: a target's, or the viewport's for a buffer.
     fn size_of(&self, name: &str) -> [u32; 2] {
         let divisor = self.source.targets.iter().find(|t| t.name == name).map_or(1, |t| t.divisor);
@@ -331,8 +365,9 @@ fn still_key(content: &FrameContent, viewport: [u32; 2], camera: bool) -> u64 {
     h.finish()
 }
 
-/// What the depth views see: the records, the light, the fading objects, and
-/// the shading values (not the camera).
+/// What the depth views see: the records, the light, the fading objects, the
+/// shading values, and the shading frame (not the camera itself, but what the
+/// investigation derives from it there, such as a light's view matrices).
 fn depth_views_key(content: &FrameContent) -> u64 {
     use std::hash::{Hash, Hasher};
     let u = &content.uniforms;
@@ -341,6 +376,7 @@ fn depth_views_key(content: &FrameContent) -> u64 {
     bytemuck::cast_slice::<_, u8>(&[u.light_center_radiance, u.light_axis_u, u.light_axis_v, [u.view_params[0], 0.0, 0.0, 0.0]]).hash(&mut h);
     u.counts.hash(&mut h);
     bytemuck::cast_slice::<_, u8>(&content.shading).hash(&mut h);
+    bytemuck::cast_slice::<_, u8>(&content.shading_frame).hash(&mut h);
     h.finish()
 }
 
@@ -467,6 +503,7 @@ impl Renderer {
             textures,
             views: HashMap::new(),
             view_pipelines: HashMap::new(),
+            view_chain_layouts: HashMap::new(),
             view_layout: device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("image kind"),
                 entries: &[
@@ -476,6 +513,7 @@ impl Renderer {
             }),
             view_shading: None,
             last_layout: Layout::new(width, height),
+            last_panes: Vec::new(),
             statics,
             other_scenes: HashMap::new(),
             gpu,
@@ -564,6 +602,12 @@ impl Renderer {
     /// struct panel is hidden). Picking uses this.
     pub fn frame_layout(&self) -> Layout {
         self.last_layout
+    }
+
+    /// The last frame's views beside the main one, in canvas points (the
+    /// viewer orbits and picks from them too).
+    pub fn frame_panes(&self) -> &[egui::Rect] {
+        &self.last_panes
     }
 
     /// `dock`: the interactive viewer's layout with the slider dock.
@@ -655,9 +699,11 @@ impl Renderer {
         }
     }
 
-    /// Runs each image instance's entry point into its texture.
-    fn dispatch_views(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        if self.views.is_empty() {
+    /// Runs each image instance's entry point into its texture: before the
+    /// scene those that read nothing of the pass chain, after it
+    /// (`after_chain`) those that do (src/views.rs `reads`).
+    fn dispatch_views(&mut self, encoder: &mut wgpu::CommandEncoder, after_chain: bool) {
+        if !self.views.values().any(|v| v.kind.reads.is_empty() != after_chain) {
             return;
         }
         let shading = match self.shading().map(|s| s.group.clone()) {
@@ -678,22 +724,42 @@ impl Renderer {
             }).clone(),
         };
         let device = &self.gpu.device;
+        // The chain an after-chain kind reads: the current shading's, when it has one.
+        let source = investigation::current().scene_shading();
+        let chain = self.chain.as_ref().filter(|c| source.is_some_and(|s| std::ptr::eq(c.source, s)));
         for view in self.views.values() {
             let kind = view.kind;
-            let pipeline = self.view_pipelines.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| {
-                let source = crate::shaders::module(&kind.module).unwrap_or_else(|e| panic!("{e:#}"));
-                let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(&kind.module), source: wgpu::ShaderSource::Wgsl(source.into()) });
-                let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some(&kind.entry),
-                    bind_group_layouts: &[Some(&self.pipelines.frame_layout), Some(&self.pipelines.shading_layout), None, Some(&self.view_layout)],
-                    immediate_size: 0,
+            if kind.reads.is_empty() == after_chain {
+                continue;
+            }
+            let reads: Vec<&str> = kind.reads.iter().map(String::as_str).collect();
+            // A kind that reads the chain shows nothing without one.
+            let (Some(chain), Some(viewport)) = (chain.filter(|_| after_chain), self.viewport.as_ref()) else {
+                if after_chain {
+                    continue;
+                }
+                // A kind that reads nothing: as before.
+                let pipeline = self.view_pipelines.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| {
+                    view_pipeline(device, &self.pipelines.frame_layout, &self.pipelines.shading_layout, None, &self.view_layout, kind)
                 });
-                device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(&kind.entry), layout: Some(&layout), module: &module, entry_point: Some(&kind.entry), compilation_options: Default::default(), cache: None })
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(&kind.key), timestamp_writes: None });
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                pass.set_bind_group(1, &shading, &[]);
+                pass.set_bind_group(3, &view.group, &[]);
+                pass.dispatch_workgroups(kind.size[0].div_ceil(kind.workgroup[0].max(1)), kind.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
+                continue;
+            };
+            let layout = self.view_chain_layouts.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| crate::pipelines::chain_layout(device, chain.source, &kind.entry, &reads, &[], wgpu::ShaderStages::COMPUTE));
+            let pipeline = self.view_pipelines.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| {
+                view_pipeline(device, &self.pipelines.frame_layout, &self.pipelines.shading_layout, Some(layout), &self.view_layout, kind)
             });
+            let group = chain.read_group(device, viewport, layout, &reads);
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(&kind.key), timestamp_writes: None });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &self.frame_bind_group, &[]);
             pass.set_bind_group(1, &shading, &[]);
+            pass.set_bind_group(2, &group, &[]);
             pass.set_bind_group(3, &view.group, &[]);
             pass.dispatch_workgroups(kind.size[0].div_ceil(kind.workgroup[0].max(1)), kind.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
         }
@@ -766,26 +832,55 @@ impl Renderer {
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
         self.switch_scene(investigation::current().scene(request.state));
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let layout = self.layout_for(request.state, request.scene_type, dock);
+        let mut layout = self.layout_for(request.state, request.scene_type, dock);
+        let scene_beat = request.scene_type == SceneType::ThreeD;
+        // A split scene area: the views beside the main one, each in its own
+        // rectangle; the main view takes the last (Investigation::panes).
+        let mut panes = if scene_beat && prepared.is_none() { investigation::current().panes(request.state) } else { Vec::new() };
+        let main = panes.pop();
+        let rects = if main.is_some() { layout.split(panes.len() + 1) } else { Vec::new() };
+        if let Some(rect) = rects.last() {
+            layout.viewport = *rect;
+        }
         self.last_layout = layout;
+        self.last_panes = rects.iter().take(panes.len()).copied().collect();
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
         if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
             self.chain = None;
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
         }
-        let scene_beat = request.scene_type == SceneType::ThreeD;
+        let size = [vp[2] as f32, vp[3] as f32];
+        // Each other view: built, drawn, and composited into its rectangle in
+        // a submission of its own, so the shared uniforms and targets hold its
+        // camera and values while it draws.
+        let mut drawn = Vec::new();
+        for (pane, rect) in panes.iter().zip(&rects) {
+            let mut content = crate::shader_data::build_frame(&pane.state, &self.statics, size, layout.scale, request.time);
+            content.uniforms.view_params[3] = 0.0;
+            self.upload(&content);
+            self.upload_draws(&content);
+            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("pane") });
+            self.encode_scene(&mut encoder, &content);
+            let at = Layout { viewport: *rect, ..layout }.viewport_px();
+            self.composite(&mut encoder, at, drawn.is_empty());
+            self.gpu.queue.submit([encoder.finish()]);
+            drawn.push((*rect, content));
+        }
+        let scene_state = main.as_ref().map_or(request.state, |m| &m.state);
         let mut content = match prepared {
             Some(c) => Some(c),
-            None => scene_beat.then(|| crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)),
+            None => scene_beat.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
         };
         if let Some(content) = content.as_mut() {
             // The frames the view has held still: the same records, uniforms
             // (but the clock), shading values, and viewport as the last frame.
+            // None while the area is split: its views share the targets that
+            // hold what earlier frames built up.
             let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
             self.still = count(self.still, still_key(content, viewport_size, true));
             self.still_scene = count(self.still_scene, still_key(content, viewport_size, false));
-            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+            content.uniforms.view_params[3] = if request.history && drawn.is_empty() { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
         }
         if let Some(content) = &content {
             self.upload(content);
@@ -795,6 +890,7 @@ impl Renderer {
         if content.is_some() {
             self.prepare_views(request.state);
         }
+        let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));
@@ -812,6 +908,8 @@ impl Renderer {
             chapter_number: request.chapter_number,
             fade: request.fade,
             stamp: request.stamp,
+            panes: &pane_views,
+            title: main.as_ref().and_then(|m| m.title.as_deref()),
         };
         let mut chrome = request.chrome;
         let mut report = UiReport::default();
@@ -842,26 +940,22 @@ impl Renderer {
         let mut commands = self.egui_renderer.update_buffers(device, queue, &mut encoder, &paint_jobs, &screen);
 
         if let Some(content) = &content {
-            self.dispatch_views(&mut encoder);
+            self.dispatch_views(&mut encoder, false);
             self.encode_scene(&mut encoder, content);
+            self.dispatch_views(&mut encoder, true);
         }
-        let targets = self.viewport.as_ref().unwrap();
-
+        if scene_beat {
+            self.composite(&mut encoder, vp, drawn.is_empty());
+        }
         {
-            let bg = crate::palette::background();
             let mut pass = encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("composite + ui"),
+                    label: Some("ui"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &self.frame_view,
                         depth_slice: None,
                         resolve_target: None,
-                        ops: wgpu::Operations {
-                            // The frame is UNORM and holds sRGB-encoded bytes, so the
-                            // clear colour is the encoded background colour itself.
-                            load: wgpu::LoadOp::Clear(wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 }),
-                            store: wgpu::StoreOp::Store,
-                        },
+                        ops: wgpu::Operations { load: if scene_beat { wgpu::LoadOp::Load } else { self.background_clear() }, store: wgpu::StoreOp::Store },
                     })],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
@@ -869,14 +963,6 @@ impl Renderer {
                     multiview_mask: None,
                 })
                 .forget_lifetime();
-            if scene_beat {
-                pass.set_viewport(vp[0] as f32, vp[1] as f32, vp[2] as f32, vp[3] as f32, 0.0, 1.0);
-                pass.set_pipeline(&self.pipelines.composite);
-                pass.set_bind_group(0, &self.frame_bind_group, &[]);
-                pass.set_bind_group(1, &targets.composite, &[]);
-                pass.draw(0..3, 0..1);
-                pass.set_viewport(0.0, 0.0, self.width as f32, self.height as f32, 0.0, 1.0);
-            }
             self.egui_renderer.render(&mut pass, &paint_jobs, &screen);
         }
         if let Some(buffer) = readback {
@@ -892,6 +978,38 @@ impl Renderer {
             self.egui_renderer.free_texture(&id);
         }
         FrameResult { report, content }
+    }
+
+    /// The frame cleared to the background colour.
+    fn background_clear(&self) -> wgpu::LoadOp<wgpu::Color> {
+        // The frame is UNORM and holds sRGB-encoded bytes, so the clear
+        // colour is the encoded background colour itself.
+        let bg = crate::palette::background();
+        wgpu::LoadOp::Clear(wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 })
+    }
+
+    /// The viewport targets tone mapped into the frame at `at` (x, y, width,
+    /// height in pixels), the frame cleared first when `clear`.
+    fn composite(&self, encoder: &mut wgpu::CommandEncoder, at: [u32; 4], clear: bool) {
+        let targets = self.viewport.as_ref().unwrap();
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("composite"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.frame_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: if clear { self.background_clear() } else { wgpu::LoadOp::Load }, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_viewport(at[0] as f32, at[1] as f32, at[2] as f32, at[3] as f32, 0.0, 1.0);
+        pass.set_pipeline(&self.pipelines.composite);
+        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        pass.set_bind_group(1, &targets.composite, &[]);
+        pass.draw(0..3, 0..1);
     }
 
     /// The scene and overlay passes into the viewport targets (the composite
@@ -1019,7 +1137,8 @@ impl Renderer {
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &targets.depth,
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Discard }),
+                // Kept when an image kind reads the chain's depth after this pass (src/views.rs).
+                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: if self.views.values().any(|v| !v.kind.reads.is_empty()) { wgpu::StoreOp::Store } else { wgpu::StoreOp::Discard } }),
                 stencil_ops: None,
             }),
             timestamp_writes: None,
@@ -1057,6 +1176,7 @@ impl Renderer {
         let mut layout = Layout::new(self.width, self.height);
         layout.viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas);
         self.last_layout = layout;
+        self.last_panes.clear();
         let vp = layout.viewport_px();
         if self.viewport.as_ref().is_none_or(|v| v.size != [vp[2], vp[3]]) {
             self.chain = None;
@@ -1200,4 +1320,14 @@ pub fn gpu_summary(gpu: &gpu::Gpu) -> serde_json::Value {
         "driverInfo": gpu.info.driver_info,
         "deviceType": format!("{:?}", gpu.info.device_type),
     })
+}
+
+/// An image kind's compute pipeline (src/views.rs): the frame and the scene
+/// shading at groups 0 and 1, the chain reads at group 2 when it reads any,
+/// and its texture and parameters at group 3.
+fn view_pipeline(device: &wgpu::Device, frame: &wgpu::BindGroupLayout, shading: &wgpu::BindGroupLayout, chain: Option<&wgpu::BindGroupLayout>, view: &wgpu::BindGroupLayout, kind: &crate::views::ViewKind) -> wgpu::ComputePipeline {
+    let source = crate::shaders::module(&kind.module).unwrap_or_else(|e| panic!("{e:#}"));
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(&kind.module), source: wgpu::ShaderSource::Wgsl(source.into()) });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some(&kind.entry), bind_group_layouts: &[Some(frame), Some(shading), chain, Some(view)], immediate_size: 0 });
+    device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(&kind.entry), layout: Some(&layout), module: &module, entry_point: Some(&kind.entry), compilation_options: Default::default(), cache: None })
 }

@@ -1,6 +1,7 @@
 """Tests of the storyboard file type (story.py): `python3 -m unittest tools/video/test_story.py`."""
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -43,7 +44,7 @@ class Story(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / name
             path.write_text(text)
-            return story.load(path) if not name.endswith('.zh-CN.story') else story.load_translation(path)
+            return story.load_any(path, translation=name.endswith('.zh-CN.story'))
 
     def test_reads_every_part(self) -> None:
         board = self.load(STORY)
@@ -65,20 +66,19 @@ class Story(unittest.TestCase):
         self.assertEqual(one['narration'][1]['pause'], 0.5)
         self.assertEqual((two['diagram'], two['focus']), ('frame', ['A', 'B']))
 
-    def test_round_trip(self) -> None:
-        board = self.load(STORY)
-        for beat in board['chapters'][0]['beats']:
-            beat.setdefault('cues', {})
-        again = self.load(story.dump(board))
-        for beat in again['chapters'][0]['beats']:
-            beat.setdefault('cues', {})
-        self.assertEqual(again, board)
-
     def test_scene_types(self) -> None:
         board = self.load(STORY)
         one, two = board['chapters'][0]['beats']
         self.assertEqual((one['kind'], two['kind']), ('3d', '2d'))
         self.assertTrue(story.is_3d(one) and story.is_diagram(two) and not story.is_card(two))
+        self.assertEqual(self.load(json.dumps(board), 'board.json'), board)
+        for kind in ('scene', 'mermaid', 'sources'):
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(story.StoryError, 'the scene type is 3d or 2d'):
+                    self.load(STORY.replace('| 3d |', f'| {kind} |'))
+                one['kind'] = kind
+                with self.assertRaisesRegex(story.StoryError, 'the scene type is 3d or 2d'):
+                    self.load(json.dumps(board), 'board.json')
         # A 2d beat shows a diagram or a sources card; the separator is ` | ` only.
         with self.assertRaises(story.StoryError):
             self.load(STORY.replace('diagram: frame\nfocus: A, B\n', ''))

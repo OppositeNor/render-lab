@@ -309,12 +309,11 @@ pub struct TimelineChapter {
 
 /// The type of a beat's scene: the lab's 3D frame, or a 2D page in its
 /// place, the beat's image (a diagram) or, without one, its sources card.
-/// Timelines written before name them `scene`, `mermaid`, and `sources`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum SceneType {
-    #[serde(rename = "3d", alias = "scene")]
+    #[serde(rename = "3d")]
     ThreeD,
-    #[serde(rename = "2d", alias = "mermaid", alias = "sources")]
+    #[serde(rename = "2d")]
     TwoD,
 }
 
@@ -469,6 +468,14 @@ pub struct Key {
     /// Its corner (`top-right` by default).
     #[serde(default)]
     pub image_corner: Option<Corner>,
+    /// A region of it to point out (`imageMark=u0,v0,u1,v1`, fractions of the
+    /// picture from its top left): outlined, the rest dimmed, faded in over
+    /// `blend` and moved there from a region already shown; empty: faded out.
+    #[serde(default)]
+    pub image_mark: Option<Vec<f32>>,
+    /// The mark's label: a text key of the investigation's package (empty: none).
+    #[serde(default)]
+    pub image_mark_text: Option<String>,
     /// An action it starts (src/actions.rs), in place of a running one of the
     /// same name.
     #[serde(default)]
@@ -560,6 +567,14 @@ fn image_alpha(name: &str) -> String {
 }
 
 /// The channel of component `k` of parameter `param` of the story's image instance `name`.
+fn image_mark(name: &str, k: usize) -> String {
+    format!("image.{name}.mark#{k}")
+}
+
+fn image_mark_alpha(name: &str) -> String {
+    format!("image.{name}.markAlpha")
+}
+
 fn image_param(name: &str, param: &str, k: usize) -> String {
     format!("image.{name}.param.{param}#{k}")
 }
@@ -927,7 +942,7 @@ impl Timeline {
                     }
                     None => {
                         let source = made.unwrap_or_else(|| image_source(name).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)));
-                        state.images.push(StoryImage { name: name.to_string(), source, title: None, corner: Corner::TopRight, alpha: 0.0, click: None });
+                        state.images.push(StoryImage { name: name.to_string(), source, title: None, corner: Corner::TopRight, alpha: 0.0, click: None, mark: [0.0; 4], mark_alpha: 0.0, mark_text: None });
                     }
                 }
                 let image = state.images.iter_mut().find(|i| i.name == name).expect("the image just shown");
@@ -940,8 +955,28 @@ impl Timeline {
                 if let Some(click) = &key.image_click {
                     image.click = Some(click.clone());
                 }
+                if let Some(text) = &key.image_mark_text {
+                    image.mark_text = Some(text.clone()).filter(|t| !t.is_empty());
+                }
                 if !shown {
                     segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));
+                    segments.insert(image_mark_alpha(name), Channel::hold(key.frame, 0.0));
+                }
+                match key.image_mark.as_deref() {
+                    Some([]) => targets.push((image_mark_alpha(name), 0.0)),
+                    Some(&[u0, v0, u1, v1]) => {
+                        // A mark not yet shown appears where it points; a shown one moves there.
+                        let marked = segments.get(&image_mark_alpha(name)).is_some_and(|s| s.value(key.frame) > 0.0);
+                        for (k, v) in [u0, v0, u1, v1].into_iter().enumerate() {
+                            if !marked {
+                                segments.insert(image_mark(name, k), Channel::hold(key.frame, v));
+                            }
+                            targets.push((image_mark(name, k), v));
+                        }
+                        targets.push((image_mark_alpha(name), 1.0));
+                    }
+                    Some(other) => panic!("imageMark takes four numbers (u0,v0,u1,v1) or none, not {other:?}, in key at frame {}", key.frame),
+                    None => {}
                 }
                 targets.push((image_alpha(name), 1.0));
                 for (param, value) in &key.image_params {
@@ -998,6 +1033,10 @@ impl Timeline {
         // Each image's fade and an instance's parameters; the faded-out ones are gone.
         for image in &mut state.images {
             image.alpha = segments.get(&image_alpha(&image.name)).map_or(0.0, |s| s.value(frame));
+            image.mark_alpha = segments.get(&image_mark_alpha(&image.name)).map_or(0.0, |s| s.value(frame));
+            for k in 0..4 {
+                image.mark[k] = segments.get(&image_mark(&image.name, k)).map_or(0.0, |s| s.value(frame));
+            }
             if let ImageSource::View { params, .. } = &mut image.source {
                 let prefix = format!("image.{}.param.", image.name);
                 for (channel, segment) in segments.range(prefix.clone()..).take_while(|(c, _)| c.starts_with(&prefix)) {

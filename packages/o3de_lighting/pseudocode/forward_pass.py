@@ -2,20 +2,18 @@
 # source: forward-pixel
 # demo: room
 def pixel_shader(material, pixel, views):
-    s = evaluate_surface(material, pixel)            # @surface
-    lit = LightingData()
-    initialize_lighting_data(s, views, lit)          # @init
-    for light in simple_point_lights(pixel):          # @lights
-        apply_simple_point_light(light, s, lit)       # @lights
-    if transparent:   # opaque: the full-screen passes  # @ibl
-        apply_ibl(s, lit)                             # @ibl
-    finalize_lighting_data(s, lit)                    # @finalize
-    diffuse = lit.diffuse_lighting                    # @targets
-    specular = lit.specular_lighting + lit.emissive   # @targets
-    write_targets(s, lit)  # albedo, F0, roughness    # @targets
-    return diffuse, specular
+    s = evaluate_surface(material, pixel)          # @surface
+    lit = initialize_lighting_data(s, views)       # @init
+    tile = light_list(pixel)  # its tile and bin    # @tile
+    d = apply_decals(tile, copy(s))  # by value     # @decals
+    apply_direct_lights(tile, d, lit)              # @lights
+    if transparent or skin:  # opaque: later       # @ibl
+        apply_ibl(d, lit)                          # @ibl
+    finalize_lighting_data(d, lit)                 # @finalize
+    write_targets(s, lit)  # s: before decals      # @targets
 
-def after_forward(diffuse, specular, targets):
-    diffuse += diffuse_global_fullscreen(targets)     # @ibl
-    specular += reflection_global_fullscreen(targets)  # @ibl
-    return diffuse + specular   # DiffuseSpecularMerge  # @merge
+def after_forward(targets):
+    targets.diffuse += diffuse_ibl(targets)        # @after
+    targets.specular += reflections(targets)       # @after
+    targets.diffuse *= ssao(depth)                 # @after
+    return targets.diffuse + targets.specular      # @merge

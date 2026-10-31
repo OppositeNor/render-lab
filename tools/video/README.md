@@ -8,6 +8,7 @@ guide, review stills, and a verification report.
 bash tools/video/setup.sh [--gpu]                                    # once: the local environment under .cache/
 python3 tools/video/build.py --investigation o3de/lighting           # the English edition
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # Chinese text and subtitles, English narration
+python3 tools/video/build.py --all                                  # every package's video, each in all its languages, in turn
 ```
 
 | Option | Does |
@@ -35,8 +36,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   LaTeX is written as is). `# 11 | Title | 150 s` starts a chapter (its `summary:` and `sources:` lines follow);
   `## beat-id | 3d | Headline` a beat, its scene's type `3d` (the lab's 3D frame) or `2d` (a page in its place: the
   image `diagram:` names, with its `focus:` nodes, or without one the sources card of its `sources:`), with
-  `diagram:`, `focus:`, `sources:`, `hold:` lines. The older type names `scene`, `mermaid`, and `sources` still read
-  as `3d`, `2d`, and `2d`; a paused timeline keeps a 2D scene on screen. Before the first sentence, a line of tags sets the beat's keys, and
+  `diagram:`, `focus:`, `sources:`, `hold:` lines. Only `3d` and `2d` are accepted as scene types in storyboards and
+  timelines; a paused timeline keeps a 2D scene on screen. Before the first sentence, a line of tags sets the beat's keys, and
   `{@define name …}` defines a named cue. Then each paragraph is one sentence, with its tags (below); a tag before
   its first word fires at the sentence's start, and `{@ pause=0.5}` at its end adds silence. A tag's attributes:
   shot parameters (a name a tag reserves, such as `formula`, is written `param.formula`; `render-lab --investigation
@@ -66,7 +67,7 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
 - **`diagrams/*.mmd`**: the Mermaid diagrams (`focus` names the lit nodes).
 - **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
   lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
-  cues. (A storyboard or translation may still be JSON, as `story.py` writes them from; `.story` is read by its suffix.)
+  cues. A storyboard or translation may also be JSON; `.story` is read by its suffix.
 
 ### Text-driven shots: tags in a sentence
 
@@ -81,6 +82,7 @@ storyboard they work alongside `keys`, `sequence`, and `pause`; `markup.py` pars
 | `{@ opacity=1 callout=source-key}` | A point cue: shot parameters, `callout`, `code`, `panel`, `demo`, `highlight=a,b`, `record=object:3`, `ease`, `blend=0.5` (seconds), `term=n` |
 | `{@ image=floodSeeds imageCorner=top-left imageTitle=demos.seeds}`, `{@ image=""}` | An image in an inset, by key: one the investigation publishes (`render-lab images`; its own title and axes), or a PNG resource of the package (`test/globe`) or one an imported package exports (`rlstd.<key>`), at its own size. It fades in and out over the key's `blend`; `imageCorner` is `top-left`, `top-right` (the default), `bottom-left`, or `bottom-right`; `imageTitle` is a text key of the package. The lab checks the key when it loads the timeline |
 | `{@ image=maps imageFrom=probeMap image.probe=7,7,8}`, `{@ image=maps image.probe=10,7,8 blend=2}`, `{@ imageHide=maps}` | A GPU image: an instance, named by the story, of an image kind the package's shaders define (`lab/src/views.rs`; `render-lab images` lists the kinds and their parameters). The lab runs the kind's compute entry point into the instance's own texture every frame and shows it live. A later `image=` of the name sets its parameters (blended over `blend`), title, or corner; several images show at once; `imageHide` fades some out and `image=""` all. The lab checks the kind and each parameter when it loads the timeline |
+| `{@ image=t0 imageMark=0,0,0.5,0.5 imageMarkText=views.near blend=1}`, `{@ image=t0 imageMark=""}` | A region of a shown image pointed out while a sentence explains it: `u0,v0,u1,v1` are fractions of the picture from its top left; the region is outlined in the accent colour and the rest of the picture dimmed, with an optional label (`imageMarkText`, a text key of the package; `""` for none). It fades in over `blend` where it points, moves to a later `imageMark` of the same image, and `imageMark=""` fades it out |
 | `{@ arrow=toWall arrowFrom=-2.2,0.3,-2.2 arrowTo=field.seed arrowColor=#50d7ff arrowWidth=3}`, `{@ label=hot labelAt=x,y,z labelText=demos.key}`, `{@ arrows=probe.rays}` | Arrows and labels the story declares (`packages/rlstd/src/annotations.rs`), drawn over the frame: a point is three numbers (blended over `blend` when a later key moves it) or a point the package publishes (`render-lab images` lists them), so an arrow can follow what it computes; `arrows=` shows an arrow set the package publishes. A later `arrow=`/`label=` of the name changes it; they fade over `blend`; `arrowHide=a,b`, `labelHide=a,b` hide some, `arrow=""` and `label=""` all. The lab checks every point, set, colour, and text key when it loads the timeline |
 | `{@ image=map imageClick=pickCell}` | A click on the image's picture, in the viewer while the timeline is paused, runs the package's click handler (`#[click]`, `lab/src/actions.rs`; `render-lab actions` lists them) with the point clicked. The lab checks the handler when it loads the timeline |
 | `{@ codespan="LightCullingTilePrepare"}`, `{@ codespan="r.Example.MaxIntensity" say="max ray intensity"}` | A code name: the caption (and any on-screen text) draws it in the monospace font on a soft chip, the voice says it as written (or as `say`), and documents and subtitles show its text. A translation carries the same spans. Wrap every function, struct, file, and console variable the narration names |

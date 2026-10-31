@@ -1,7 +1,0 @@
-flowchart LR
-    ENV["环境<br/>cubemap"] --> BOX["Box 滤波的<br/>源 mip"]
-    BOX --> GGX["GGX 滤波<br/>每 texel 256 个样本"]
-    GGX --> SPEC["高光 cubemap<br/>六级 mip，roughness m / 5"]
-    ENV --> COS["余弦滤波<br/>整个半球"]
-    COS --> DIFFUSE["漫反射 cubemap<br/>辐照度 / pi"]
-    LUT["BRDFTextureCS<br/>1024 个样本"] --> BRDF["BRDF 贴图<br/>A 与 B"]

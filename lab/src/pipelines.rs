@@ -320,28 +320,7 @@ impl Pipelines {
     pub fn shading(&self, device: &wgpu::Device, shading: &SceneShading) -> Result<ShadingPipelines> {
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = module(device, shading.module, shaders::module(shading.module)?);
-        let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| {
-            let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
-            for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))) {
-                let binding = chain_binding(shading, name, written);
-                if entries.iter().any(|e| e.binding == binding) {
-                    continue;
-                }
-                let ty = if shading.depth_views.is_some_and(|d| d.name == name) {
-                    wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }
-                } else if shading.buffers.iter().any(|b| b.name == name) {
-                    wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: false }, has_dynamic_offset: false, min_binding_size: None }
-                } else if written {
-                    wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: target_format(shading, name), view_dimension: wgpu::TextureViewDimension::D2 }
-                } else if name == "depth" {
-                    wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }
-                } else {
-                    wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: shading.outputs.contains(&name) }
-                };
-                entries.push(wgpu::BindGroupLayoutEntry { binding, visibility, ty, count: None });
-            }
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some(label), entries: &entries })
-        };
+        let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| chain_layout(device, shading, label, reads, writes, visibility);
         let scene_group = chain_layout("scene reads", shading.scene_reads, &[], wgpu::ShaderStages::FRAGMENT);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading"),
@@ -398,7 +377,7 @@ impl Pipelines {
                         layout: Some(&views_layout),
                         vertex: wgpu::VertexState { module: &module, entry_point: Some(entry), compilation_options: Default::default(), buffers: &[Some(mesh_layouts()[0].clone()), Some(mesh_layouts()[1].clone())] },
                         primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, cull_mode: None, ..Default::default() },
-                        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FORMAT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Greater), stencil: Default::default(), bias: Default::default() }),
+                        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FORMAT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Greater), stencil: Default::default(), bias: wgpu::DepthBiasState { constant: d.bias.0, slope_scale: d.bias.1, clamp: 0.0 } }),
                         multisample: wgpu::MultisampleState::default(),
                         fragment: None,
                         multiview_mask: None,
@@ -474,4 +453,30 @@ impl Pipelines {
             blend: None,
         })
     }
+}
+
+/// The group-2 layout of a pass of `shading`'s chain that reads `reads` and
+/// writes `writes` (`chain_binding` places each): its passes', its scene
+/// pass's, and an image kind's that reads the chain (src/views.rs).
+pub fn chain_layout(device: &wgpu::Device, shading: &SceneShading, label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayout {
+    let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
+    for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))) {
+        let binding = chain_binding(shading, name, written);
+        if entries.iter().any(|e| e.binding == binding) {
+            continue;
+        }
+        let ty = if shading.depth_views.is_some_and(|d| d.name == name) {
+            wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }
+        } else if shading.buffers.iter().any(|b| b.name == name) {
+            wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: false }, has_dynamic_offset: false, min_binding_size: None }
+        } else if written {
+            wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: target_format(shading, name), view_dimension: wgpu::TextureViewDimension::D2 }
+        } else if name == "depth" {
+            wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }
+        } else {
+            wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: shading.outputs.contains(&name) }
+        };
+        entries.push(wgpu::BindGroupLayoutEntry { binding, visibility, ty, count: None });
+    }
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some(label), entries: &entries })
 }

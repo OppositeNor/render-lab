@@ -90,6 +90,21 @@ impl Layout {
         [x0, y0, (x1 - x0).max(1), (y1 - y0).max(1)]
     }
 
+    /// The viewport cut into `n` views side by side, 24 points apart, each
+    /// the same whole number of target pixels wide (so they share one set of
+    /// viewport targets).
+    pub fn split(&self, n: usize) -> Vec<Rect> {
+        let v = self.viewport_px();
+        let n = n.max(1) as u32;
+        let gap = (24.0 * self.scale).round() as u32;
+        let width = (v[2].saturating_sub(gap * (n - 1)) / n).max(1);
+        let point = |px: u32| px as f32 / self.scale;
+        (0..n).map(|k| {
+            let x = v[0] + k * (width + gap);
+            Rect::from_min_max(pos2(point(x), point(v[1])), pos2(point(x + width), point(v[1] + v[3])))
+        }).collect()
+    }
+
     pub fn viewport_size_px(&self) -> [u32; 2] {
         let v = self.viewport_px();
         [v[2], v[3]]
@@ -276,6 +291,19 @@ pub struct UiInput<'a> {
     pub chapter_number: u32,
     pub fade: f32,
     pub stamp: Option<u64>,
+    /// The views beside the main one (`Investigation::panes`), left to right:
+    /// each drawn with its own border, title, and labels.
+    pub panes: &'a [PaneView<'a>],
+    /// The main view's title, when the scene area is split.
+    pub title: Option<&'a str>,
+}
+
+/// A view beside the main one, as the UI draws it.
+#[derive(Clone, Copy)]
+pub struct PaneView<'a> {
+    pub rect: Rect,
+    pub content: &'a FrameContent,
+    pub title: Option<&'a str>,
 }
 
 pub fn rust_fields(name: &str) -> Vec<RustField> {
@@ -341,6 +369,13 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+            // The other views: each its border, its title, and its labels.
+            for pane in input.panes {
+                painter.rect_stroke(pane.rect.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+                let at = UiInput { layout: Layout { viewport: pane.rect, ..*l }, content: Some(pane.content), ..*input };
+                let title = pane.title.map(|t| draw_pane_title(&ink, pane.rect, t, &[])).into_iter().collect::<Vec<_>>();
+                draw_labels(&ink, &at, pane.content, &title, &mut report);
+            }
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.
                 let mut obstacles = Vec::new();
@@ -371,6 +406,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let (frame, picture) = crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset, offset);
                     obstacles.push(frame);
                     report.insets.push(InsetArea { frame, picture, click: inset.click.clone() });
+                }
+                if let Some(title) = input.title {
+                    let insets = obstacles.clone();
+                    obstacles.push(draw_pane_title(&ink, l.viewport, title, &insets));
                 }
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
@@ -638,6 +677,22 @@ fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, lit: f32, in
     let lit = (term > 0 && lit > 0.0).then(|| (rich_text::Lit { term, weight: lit, color: colors.get(term - 1).copied().unwrap_or(palette::accent()) }, palette::text_dim()));
     rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &latex, formula::FORMULA_PX, display, &f, 1.0, palette::text(), lit);
     Some(rect.expand(4.0))
+}
+
+/// A view's title at the middle of its top edge (the corners hold the insets,
+/// the formula card, and the callout); beside an inset it would cover when
+/// the top edge has room, else below it. Returns the area it covers.
+fn draw_pane_title(ink: &Ink, view: Rect, title: &str, insets: &[Rect]) -> Rect {
+    let size = ink.measure(title, 24.0, FontFamily::Proportional) + vec2(28.0, 14.0);
+    let mut rect = Rect::from_min_size(pos2(view.center().x - size.x * 0.5, view.min.y + 16.0), size);
+    while let Some(inset) = insets.iter().find(|i| i.intersects(rect)) {
+        let beside = Rect::from_min_size(pos2(inset.max.x + 12.0, rect.min.y), size);
+        rect = if beside.max.x <= view.max.x - 16.0 && !insets.iter().any(|i| i.intersects(beside)) { beside } else { rect.translate(vec2(0.0, inset.max.y + 8.0 - rect.min.y)) };
+    }
+    ink.painter.rect_filled(rect, CornerRadius::same(8), Color32::from_rgba_premultiplied(7, 18, 31, 235));
+    ink.painter.rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.5, palette::border()), StrokeKind::Inside);
+    ink.text(rect.left_center() + vec2(14.0, 0.0), Align2::LEFT_CENTER, title, 24.0, FontFamily::Proportional, palette::text());
+    rect.expand(4.0)
 }
 
 fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) -> Option<Rect> {

@@ -145,6 +145,7 @@ pub fn shader_data(block: &mut lab::shader_data::Block, state: &ShotState) {
     block.set("invAttenuationRadiusSquared", light.inv_attenuation_radius_squared);
     block.set("rgbIntensityCandelas", light.rgb_intensity_candelas.to_array());
     block.set("inspectedObject", inspected_object(state) as f32);
+    block.set("pick", [state.p("inspectX"), state.p("inspectY"), state.p("inspectZ"), if state.p("pickShown") > 0.5 { 1.0 } else { 0.0 }]);
     let materials: Vec<f32> = base_materials(state).iter().flat_map(|m| [m.metallic, m.specular_f0_factor, m.diffuse_occlusion.unwrap_or(-1.0), m.specular_occlusion.unwrap_or(-1.0)]).collect();
     block.write("materials", &materials);
 }
@@ -300,7 +301,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let eye = Vec3::from(camera.position);
     let exposure = state.p("exposure");
     let walls = (1 << ids::BACK_WALL) | (1 << ids::LEFT_WALL) | (1 << ids::RIGHT_WALL);
-    let hidden: u32 = (1 << ids::PANEL) | if state.p("walls") < 0.5 { walls } else { 0 };
+    // Every scene's light panel (the study room's is ids::PANEL; the terrain's is its second object).
+    let panels = objects.iter().enumerate().filter(|(_, o)| o.shape_kind == lab::scene::SHAPE_PANEL).fold(0u32, |m, (i, _)| m | 1 << i);
+    let hidden: u32 = panels | if state.p("walls") < 0.5 { walls } else { 0 };
     let uniforms = FrameUniforms {
         camera,
         light_center_radiance: [lighting.light.center.x, lighting.light.center.y, lighting.light.center.z, 0.0],
@@ -334,6 +337,8 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     content.shading_frame.extend(ssao_records(state));
     content.shading_frame.resize(FRAME_CUBEMAP_VIEW, [0.0; 4]);
     content.shading_frame.extend(super::reflections::cubemap_view_records(state));
+    content.shading_frame.resize(FRAME_CASCADES, [0.0; 4]);
+    content.shading_frame.extend(cascade_records(state, &uniforms.camera));
 
     let map = BrdfMap::get();
     let (p, n) = inspected_point(state);
@@ -341,9 +346,24 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let seen_from = observer(state, eye);
     let derivatives = normal_derivatives(&content.objects, &camera, p, object);
     let px = brdf::pixel(&shading, &content.objects, p, n, seen_from, object, exposure, map, derivatives);
+    // SSAO's occluders for the inspected point's half-res pixel (ssao::samples_at):
+    // the first `ssaoSamples` of its 52, each coloured by saturate(cos) against
+    // the normal rebuilt from depth (dark green unoccluding, bright occluding)
+    // and sized by its weight 1 / (d^2 + 0.07).
+    let shown_samples = state.p("ssaoSamples").clamp(0.0, 52.0);
+    let ssao_overlay = (shown_samples > 0.0).then(|| ssao_samples(state, &content.objects, &camera)).flatten();
     let draw = &mut content.draw;
     let labels = &mut content.labels;
 
+    if let Some((world_p, world_n, samples)) = &ssao_overlay {
+        draw.segment(*world_p, *world_p + *world_n * 0.25, palette::NORMAL, 1.0, 3.0, FLAG_ARROW);
+        for (k, (o, cosine, weight)) in samples.iter().enumerate() {
+            let fade = (shown_samples - k as f32).clamp(0.0, 1.0);
+            let color = mix_color(palette::rgb(0x3f9e6a), palette::rgb(0xd8ff8a), *cosine);
+            draw.point(*o, 2.5 + 5.0 * (weight / (1.0 / 0.07)).sqrt(), color, fade);
+            draw.segment(*world_p, *o, color, 0.35 * fade, 1.0, 0);
+        }
+    }
     // The light, and its attenuation radius.
     let lp = shading.light.position;
     if shading.light_on {
@@ -465,6 +485,71 @@ pub fn cascade_observer(state: &ShotState) -> super::cascades::Observer {
     let look = (Vec3::new(-1.05, 0.9, -0.55) - position).normalize();
     let forward = glam::Quat::from_rotation_y(state.p("observerYaw").to_radians()) * look;
     super::cascades::Observer { position, forward, fov_y: 60f32.to_radians(), aspect: 16.0 / 9.0, near: 0.1, far: state.p("shadowFar").max(0.2) }
+}
+
+/// With `splitView`, two views from the same camera: on the left the frame in
+/// `splitViewMode`, on the right (the main view) as `viewMode` shows it, each
+/// titled with its view mode.
+pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
+    if state.p("splitView") < 0.5 {
+        return Vec::new();
+    }
+    use lab::values::Choice;
+    let options = brdf::ViewMode::choices().options;
+    let title = |mode: f32| {
+        let option = &options[(mode.round().max(0.0) as usize).min(options.len() - 1)];
+        option.text.map(tr).or(option.label).unwrap_or(option.name).to_string()
+    };
+    let mut left = state.clone();
+    left.set("viewMode", state.p("splitViewMode"));
+    vec![
+        lab::investigation::Pane { state: left, title: Some(title(state.p("splitViewMode"))) },
+        lab::investigation::Pane { state: state.clone(), title: Some(title(state.p("viewMode"))) },
+    ]
+}
+
+/// Where gShadingFrame holds the sun's cascades (shaders/standard_lighting.wgsl FRAME_CASCADES).
+pub const FRAME_CASCADES: usize = 240;
+
+/// The camera the sun's cascades cover: the camera that renders, as O3DE
+/// takes the active camera's (DirectionalLightComponentController::
+/// GetCameraConfiguration), its far plane the light's shadow far; or, with
+/// `cascadeCamera`, the fixed observer.
+pub fn shadow_camera(state: &ShotState, camera: &lab::layout::CameraData) -> super::cascades::Observer {
+    if state.p("cascadeCamera") > 0.5 {
+        return cascade_observer(state);
+    }
+    let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
+    let forward = -Vec3::new(view.x_axis.z, view.y_axis.z, view.z_axis.z).normalize();
+    let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
+    super::cascades::Observer { position: Vec3::from(camera.position), forward, fov_y: camera.vertical_fov, aspect, near: camera.near_plane, far: state.p("shadowFar").min(camera.far_plane).max(0.2) }
+}
+
+/// gShadingFrame[FRAME_CASCADES..]: each cascade's world to shadow-map
+/// transform (cascades::world_to_shadowmap, by column), then each cascade's
+/// (near, far, texel in metres, depth range in metres), then the sun: (its direction of
+/// travel, the cascade count), (white times sunLux, on), and
+/// (normalShadowBias, shadowBias, shadowBlur, cascadeColors), and (the
+/// cascades' camera depth span, unused).
+pub fn cascade_records(state: &ShotState, camera: &lab::layout::CameraData) -> Vec<[f32; 4]> {
+    let observer = shadow_camera(state, camera);
+    let set = super::cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
+    let mut out = Vec::new();
+    for i in 0..super::cascades::CASCADES {
+        out.extend(set.world_to_shadowmap(i).to_cols_array_2d());
+    }
+    for c in &set.cascades {
+        out.push([c.near, c.far, c.texel(), c.max_y - c.min_y]);
+    }
+    let d = sun_direction(state);
+    let lux = state.p("sunLux");
+    out.push([d.x, d.y, d.z, super::cascades::CASCADES as f32]);
+    out.push([lux, lux, lux, if lux > 0.0 { 1.0 } else { 0.0 }]);
+    out.push([state.p("normalShadowBias"), state.p("shadowBias"), state.p("shadowBlur"), state.p("cascadeColors")]);
+    // m_far_minus_near: the camera's depth span the cascades cover, which
+    // GetThickness scales a cascade's depth difference by.
+    out.push([observer.far - observer.near, 0.0, 0.0, 0.0]);
+    out
 }
 
 /// The directional light's direction, from `sunYaw` and `sunPitch` (below the horizon).
@@ -790,6 +875,33 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
     let mut rows: Vec<(String, String, Color32)> = Vec::new();
     let mut row = |name: &str, value: String, color: Color32| rows.push((name.to_string(), value, color));
     let (title, subtitle) = match demo {
+        Demo::Room if state.p("readoutMode") >= 1.5 => {
+            // EncodeNormalSignedOctahedron, step by step.
+            let n = s.normal;
+            let l1 = n.x.abs() + n.y.abs() + n.z.abs();
+            let o = n / l1;
+            let e = brdf::encode_normal_signed_octahedron(n);
+            row("normal", f3(n), palette::NORMAL);
+            row("|x| + |y| + |z|", format!("{l1:.3}"), palette::text());
+            row("n / that (octahedron)", f3(o), palette::NORMAL);
+            row("x' = x/2 + y/2 + 1/2", format!("{:.3}", e.x), palette::accent());
+            row("y' = -x/2 + y/2 + 1/2", format!("{:.3}", e.y), palette::accent());
+            row("z' = sign of z", format!("{:.0}", e.z), palette::accent());
+            row("RGB10A2 stores", format!("{} · {} · {}", (e.x * 1023.0).round(), (e.y * 1023.0).round(), (e.z * 1023.0).round()), palette::text());
+            ("EncodeNormalSignedOctahedron", object)
+        }
+        Demo::Room if state.p("readoutMode") >= 0.5 => {
+            // The five targets' texels at the point (GetPbrLightingOutput,
+            // ForwardPassVertexAndPixel.azsli): what the forward pass leaves.
+            let albedo = s.albedo * l.diffuse_response * s.diffuse_ao;
+            let flags = brdf::encode_unorm_2bit_flags(shading.ibl, shading.multiscatter);
+            row("DiffuseOutput", format!("{} · -1", f3(px.diffuse())), DIFFUSE);
+            row("SpecularOutput", format!("{} · 1", f3(px.specular())), SPECULAR);
+            row("AlbedoOutput", format!("{} · {:.3}", f3(albedo.map(brdf::unorm8)), brdf::unorm8(s.specular_occlusion)), palette::text());
+            row("SpecularF0Output", format!("{} · {:.3}", f3(s.specular_f0.map(brdf::unorm8)), brdf::unorm8(s.roughness_linear)), palette::accent());
+            row("NormalOutput", format!("{} · {flags:.3}", f3(brdf::encode_normal_signed_octahedron(s.normal))), palette::NORMAL);
+            (tr("demos.forward_targets_at_the_point"), object)
+        }
         Demo::Room => {
             row("light position", f3(shading.light.position), LIGHT);
             row(tr("demos.intensity_cd"), f3(shading.light.rgb_intensity_candelas), LIGHT);
@@ -1029,10 +1141,20 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             }
             ("SsaoCompute", object)
         }
+        Demo::Terrain => {
+            // TerrainPBR_ForwardPass.azsl's macro surface.
+            row("roughnessLinear (macro)", f1(1.0), palette::accent());
+            row("specularF0 factor (macro)", format!("0.5 · F0 {:.2}", 0.08 * 0.5), SPECULAR);
+            row("metallic (macro)", f1(0.0), palette::text());
+            row(tr("demos.terrain_direct_multiscatter"), tr("demos.off").to_string(), palette::text());
+            row(tr("demos.terrain_ibl_multiscatter"), if shading.multiscatter { tr("demos.on") } else { tr("demos.off") }.to_string(), palette::text());
+            ("TerrainPBR_ForwardPass", object)
+        }
         Demo::Cascades => {
             use super::cascades;
             let (p, n) = inspected_point(state);
-            let observer = cascade_observer(state);
+            // The cascades the frame renders (the overlay draws the observer's, whose frustum can be seen).
+            let observer = shadow_camera(state, camera);
             let set = cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
             row(tr("demos.near_shadow_far"), format!("{:.2} … {:.1} m", observer.near, observer.far), palette::text());
             row(tr("demos.split_ratio"), format!("{:.2}", state.p("cascadeSplitRatio")), palette::accent());
@@ -1114,4 +1236,38 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
         notes.push((tr("demos.without_ibl_only_the_highlight").to_string(), palette::text_faint()));
     }
     notes
+}
+
+/// The inspected point's SSAO occluders in world space: its position and
+/// depth-rebuilt normal, and each occluder with its saturate(cos) and weight
+/// (ssao::samples_at, on the lab's ray-traced linear depth); None off screen.
+fn ssao_samples(state: &ShotState, objects: &[ObjectData], camera: &lab::layout::CameraData) -> Option<(Vec3, Vec3, Vec<(Vec3, f32, f32)>)> {
+    let (p, _) = inspected_point(state);
+    let projector = lab::camera::Projector::new(camera);
+    let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
+    let size = [camera.viewport_size[0] as u32, camera.viewport_size[1] as u32];
+    let linear_depth = |x: i32, y: i32| -> f32 {
+        let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
+        let hit = lab::scene::trace_scene(objects, o, d, 100.0, ids::PANEL as u32);
+        if hit.is_hit() { -view.transform_point3(o + d * hit.t).z } else { camera.far_plane }
+    };
+    let projection = glam::Mat4::from_cols_array_2d(&camera.view_to_clip);
+    let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
+    let settings = super::ssao::Settings::from_records(&ssao_records(state));
+    let (pixel, _) = projector.project(p)?;
+    let half_size = [size[0].div_ceil(2), size[1].div_ceil(2)];
+    let half = |x: i32, y: i32| linear_depth(2 * x, 2 * y);
+    let k = super::ssao::samples_at(&half, half_size, &settings, tan, pixel.x as i32 / 2, pixel.y as i32 / 2);
+    // GetViewSpacePosition's space: x right, y up, z forward; the lab's view space looks down -z.
+    let to_world = view.inverse();
+    let world = |v: Vec3| to_world.transform_point3(Vec3::new(v.x, v.y, -v.z));
+    let normal = to_world.transform_vector3(Vec3::new(k.normal.x, k.normal.y, -k.normal.z)).normalize();
+    let terms = k.terms();
+    Some((world(k.position), -normal, k.occluders.iter().zip(terms).map(|(o, (c, w))| (world(*o), c, w)).collect()))
+}
+
+/// The colour `t` of the way from `a` to `b`.
+fn mix_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t.clamp(0.0, 1.0)).round() as u8;
+    Color32::from_rgb(m(a.r(), b.r()), m(a.g(), b.g()), m(a.b(), b.b()))
 }

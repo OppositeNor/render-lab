@@ -51,7 +51,7 @@ pub fn still_timeline(width: u32, height: u32) -> Timeline {
     serde_json::from_value(json!({
         "fps": 30, "width": width, "height": height, "totalFrames": 1, "title": "selftest", "engineLabel": "",
         "chapters": [{"number": 1, "title": "Selftest", "startFrame": 0, "endFrame": 1}],
-        "beats": [{"id": "still", "chapter": 1, "kind": "scene", "startFrame": 0, "frames": 1, "headline": "Selftest frame", "captions": []}],
+        "beats": [{"id": "still", "chapter": 1, "kind": "3d", "startFrame": 0, "frames": 1, "headline": "Selftest frame", "captions": []}],
         "keys": []
     }))
     .expect("the still timeline is valid")

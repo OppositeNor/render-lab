@@ -71,6 +71,28 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         report.check("every demonstration's values read the same through the typed struct (view) and back (store)", detail.is_empty(), json!({"differing": detail}));
     }
 
+    // A pick round-trips (actions::pick): a click at a pixel of the scene, as
+    // a click on a chain-target view at the same place sets it, picks that
+    // pixel, and the point it inspects projects back to it.
+    {
+        let mut worst = 0.0f32;
+        let mut picked = 0;
+        let content = demos::build_frame(&shot::for_demo(Demo::Room), &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+        let projector = Projector::new(&content.uniforms.camera);
+        for (u, v) in [(0.30, 0.70), (0.42, 0.62), (0.55, 0.55), (0.70, 0.80), (0.50, 0.40)] {
+            let mut state = shot::for_demo(Demo::Room);
+            if !super::actions::pick(&mut state, &content, Vec2::new(u, v)) {
+                continue;
+            }
+            picked += 1;
+            let p = Vec3::new(state.p("inspectX"), state.p("inspectY"), state.p("inspectZ"));
+            let back = projector.project(p).map(|(px, _)| px).unwrap_or(Vec2::splat(f32::MAX));
+            let at = Vec2::new(u, v) * Vec2::new(1280.0, 720.0);
+            worst = worst.max(back.distance(at));
+        }
+        report.check("a pick round-trips: the picked pixel's surface point projects back to it (5 pixels, within 1 px)", picked == 5 && worst < 1.0 && shot::for_demo(Demo::Room).p("pickShown") == 0.0, json!({"picked": picked, "worstPixels": worst}));
+    }
+
     // A frame uploads the objects and gShading the kernels read.
     renderer.render_frame(request(&shot::for_demo(Demo::Specular), &still), None);
 
@@ -386,15 +408,15 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             ok &= worst < 3e-3 && points.len() > 100;
             detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "pointsInDecals": points.len(), "worstRelativeDifference": worst}));
         }
-        // ApplyDecal on a metallic surface: specularF0 moves by the opacity times metallic.
+        // ApplyDecal on a metallic surface: O3DE 26.05 blends the albedo and leaves specularF0 as it was.
         let decal = super::decals::scene_decals(&shot::for_demo(Demo::Decals))[0];
         let mut metal = brdf::Surface::new(decal.position, Vec3::Y, Vec3::new(0.9, 0.6, 0.3), 0.75, 0.5, 0.4);
         let before = metal;
         super::decals::apply_decal(&decal, &mut metal, Vec3::Y);
         let k = super::decals::sample(&decal, decal.position, Vec3::Y).context("the splat's centre")?;
-        let f0_ok = (metal.specular_f0 - before.specular_f0.lerp(k.blended, k.albedo_opacity * 0.75)).abs().max_element() < 1e-6 && k.albedo_opacity > 0.9;
+        let f0_ok = (metal.specular_f0 - before.specular_f0).abs().max_element() < 1e-6 && (metal.albedo - before.albedo.lerp(k.blended, k.albedo_opacity)).abs().max_element() < 1e-6 && k.albedo_opacity > 0.9;
         report.check(
-            "decals: o3dePixel on the GPU matches brdf::pixel at points inside the decals (three settings), and ApplyDecal moves a metal's specularF0 by opacity × metallic",
+            "decals: o3dePixel on the GPU matches brdf::pixel at points inside the decals (three settings), and ApplyDecal blends a metal's albedo by its opacity and leaves its specularF0 (26.05)",
             ok && f0_ok,
             json!({"settings": detail, "tolerance": 3e-3, "metallicF0": f0_ok}),
         );
@@ -516,6 +538,36 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             true,
             json!({"pointsWithGrey": grey}),
         );
+    }
+
+    // ---- 5d. The sun's shadow maps follow the camera ------------------------
+    // The cascades are fitted to the camera that renders, so moving it moves
+    // them: a frame drawn just after another camera's (its maps last drawn
+    // for that one) must match one whose maps were drawn for its own. A frame
+    // with a shading value changed (specularAA, which the maps' redraw key
+    // has always held) makes sure the maps are drawn for the camera before it.
+    {
+        // The room with the sun on, as the story's sun beats show it.
+        let mut here = shot::for_demo(Demo::Room);
+        for (name, value) in [("labels", 0.0), ("sunLux", 40.0), ("exposure", 0.18), ("sunYaw", 40.0), ("sunPitch", 52.0)] {
+            here.set(name, value);
+        }
+        let mut there = here.clone();
+        there.camera.yaw -= 70.0;
+        let frame_after = |renderer: &mut Renderer, before: &lab::shot::ShotState| {
+            let mut nudged = before.clone();
+            nudged.set("specularAA", 1.0 - before.p("specularAA"));
+            renderer.render_frame(request(&nudged, &still), None);
+            renderer.render_frame(request(before, &still), None);
+            renderer.render_frame(request(&here, &still), None);
+            renderer.read_frame()
+        };
+        let settled = frame_after(&mut renderer, &here);
+        let after_move = frame_after(&mut renderer, &there);
+        let pixels = settled.len() / 4;
+        let differing = (0..pixels).filter(|&i| (0..3).any(|c| settled[4 * i + c].abs_diff(after_move[4 * i + c]) > 8)).count();
+        let share = differing as f32 / pixels as f32;
+        report.check("the sun's shadow maps follow the camera: a frame just after another camera's matches one after its own (pixels off by more than 8 of 255 under 0.5%)", share < 0.005, json!({"pixels": pixels, "differing": differing, "share": share, "yawMoved": -70.0}));
     }
 
     // ---- 6. The scene pass draws with the port ----------------------------
@@ -741,8 +793,11 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
 
     // ---- 7a. Numbers the narration states, measured at the demonstrations' points ----
     {
-        let row = |demo: Demo, prefix: &str| -> Option<f32> {
-            let content = demos::build_frame(&shot::for_demo(demo), &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+        // Each demonstration's scene is loaded by a frame of it first (the last one rendered may be another scene).
+        let mut row = |demo: Demo, prefix: &str| -> Option<f32> {
+            let state = shot::for_demo(demo);
+            renderer.render_frame(request(&state, &still), None);
+            let content = demos::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
             let (_, value, _) = content.readout?.rows.into_iter().find(|(name, _, _)| name.starts_with(prefix))?;
             value.trim_start_matches('(').split([',', ' ']).find(|v| !v.is_empty())?.parse().ok()
         };

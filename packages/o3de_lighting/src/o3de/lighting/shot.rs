@@ -23,10 +23,11 @@ pub enum Demo {
     Reflections,
     Ssao,
     Cascades,
+    Terrain,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 14] = [Demo::Room, Demo::Culling, Demo::Surface, Demo::Decals, Demo::Specular, Demo::ClearCoat, Demo::Diffuse, Demo::Transmission, Demo::Multiscatter, Demo::PointLight, Demo::Cascades, Demo::Ibl, Demo::Reflections, Demo::Ssao];
+    pub const ALL: [Demo; 15] = [Demo::Room, Demo::Culling, Demo::Surface, Demo::Decals, Demo::Specular, Demo::ClearCoat, Demo::Diffuse, Demo::Transmission, Demo::Multiscatter, Demo::PointLight, Demo::Cascades, Demo::Ibl, Demo::Reflections, Demo::Ssao, Demo::Terrain];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -44,6 +45,7 @@ impl Demo {
             Demo::Reflections => "reflections",
             Demo::Ssao => "ssao",
             Demo::Cascades => "cascades",
+            Demo::Terrain => "terrain",
         }
     }
 
@@ -140,6 +142,8 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Ibl => vec![cosine("sphereRoughness", 0.5, -0.5, 12.0)],
         // The observer looks around, so the slices turn and the snapped boxes hold still; the split ratio swings.
         Demo::Cascades => vec![wave("observerYaw", 0.0, 35.0, 16.0), cosine("cascadeSplitRatio", 0.6, 0.3, 11.0)],
+        // The sun walks round the hills, its shadows with it.
+        Demo::Terrain => vec![wave("sunYaw", 120.0, 60.0, 20.0)],
     })
 }
 

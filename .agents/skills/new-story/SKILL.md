@@ -245,6 +245,19 @@ visual often names something nothing can show.
   `{@ image=near imageFrom=probeMap image.probe=7,7,8}`, then `{@ image=near image.probe=10,7,8 blend=2}`. An image a
   viewer may click when paused names the package's click handler: `{@ image=map imageClick=pickCell}`
   (`render-lab actions` lists them).
+- **Say how to read every texture or buffer view the moment it appears**, before the story uses what it shows:
+  what it is (the resource, its format), what its axes or layout are (screen pixels, tiles, texels of a
+  cubemap's faces, a list's slots), what each colour or brightness means and its range (black is zero
+  occlusion, yellow is eight lights, a texel's red is the scale), and where the element the sentence is about
+  sits in it (the ring on P's pixel, the picked tile's row). Explain it in detail, not as a legend: what the
+  resource stores and in what range, how the view maps that to colour, a reading of one marked part and why
+  it looks that way (the floor is light green because it faces up, along y), the pattern to look for (where
+  the values jump, and what that means), and what the next pass does with it. Go slowly: one fact per
+  sentence, each after a short pause (`{@ delay=0.4}`), and light the part each sentence names while it is said: a region of the
+  image (`{@ image=t0 imageMark=u0,v0,u1,v1 imageMarkText=<key>}`, cleared with `imageMark=""` on the
+  sentence after), or a label or arrow at the world point a 3D view shows. A view shown and passed over, or
+  one whose colours the viewer has to guess, is not finished: add the sentences, or cut the view. Say it
+  again, briefly, when the view returns after other views have come between.
 - An arrow or label that points something out is the story's: `{@ arrow=a arrowFrom=x,y,z arrowTo=field.seed}`,
   `{@ label=l labelAt=… labelText=<text key>}` (`arrowHide`, `labelHide`), its points fixed or ones the package publishes,
   and `{@ arrows=<set>}` for a set the package computes (`render-lab images` lists the points and sets).
@@ -289,7 +302,12 @@ said: a sweep, a step, a camera glide, rays drawing in, a value counting. Still 
 
 - **Vectors, lobes, rays, and points** drawn where the narration names them, labelled, in the palette's colours.
 - **Textures and the data in them**: show the texture, which texel a sample reads, and how its channels map to
-  the values in the readout or struct panel.
+  the values in the readout or struct panel; say how to read it (Phase 5).
+- **A view of the screen's data beside the frame**, not a small inset over it: when a structure is laid out
+  over the screen (tiles, a per-pixel buffer, a debug view mode), split the scene area into two views of the
+  same camera (`Investigation::panes`), the structure on the left and the lit frame on the right, so every
+  element lines up with what it stands for. Never show the same view twice (the scene in a debug mode and an
+  inset of it).
 - **Each check, per beat:**
   - *One moment, one idea.* What is on screen at once serves the sentence being said: one lit element, the
     rest dimmed or faded; no second dense panel (a listing and a readout and an inset together) unless the
@@ -327,6 +345,9 @@ these questions:
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
 - **Visibility.** In every still, is what the sentence names in view, or does a wall, an object, an inset, or
   the readout block it, or does it fall outside the frame or past the far plane?
+- **Reading the views.** For every texture or buffer view, does the narration say, when it appears, what it is,
+  its layout, what its colours mean, and where the element in question sits in it? Which view is shown and
+  passed over?
 - **Flow.** Does the chapter's first sentence bridge from the one before, and does each beat follow from the
   last? Where does the viewer lose the thread?
 - **Fit.** Is the chapter near its budget?

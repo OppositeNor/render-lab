@@ -1,26 +1,33 @@
-# The directional light's cascaded shadow maps for an observer camera in the
-# room (cascades.rs): the lab has no directional light, so this is drawn from
-# a CPU computation that follows DirectionalLightFeatureProcessor.
+# The sun, O3DE's directional light, at the component's default 40 lux
+# (4 EV100), over the study room on its wide grounds: four 1024-texel
+# cascades covering the camera's frustum to the shadow far of 100 m, split
+# at ratio 0.9, rendered into the lab's depth views, and read through
+# FullscreenShadow and its blur (shaders/standard_lighting.wgsl).
 
 key = "cascades"
 title-text = "shot.cascaded_shadow_maps"
 tab-text = "shot.cascades"
 hint-text = "investigation.demo_hint"
-scene = "rlstd.scene/study-room"
-listing = "cascades"
+scene = "rlstd.scene/study-room-grounds"
+listing = "fullscreen-shadow"
 
 [camera]
-target = [0.0, 1.0, -0.5]
-yaw = 32.0
-pitch = 34.0
-distance = 11.0
+target = [0.0, 0.8, -0.5]
+yaw = 28.0
+pitch = 26.0
+distance = 7.5
 fov = 50.0
 
 [params]
-cascades = 1.0
-cascadeSpheres = 1.0
-cascadeBoxes = 1.0
-shadowFar = 12.0
+sunLux = 40.0
+# The sky box and the skylight two stops up, so the sky lights what the
+# 40-lux sun does not about as daylight does (sun : sky near 30 : 1).
+iblExposure = 2.0
+skyboxExposure = 2.0
+lightOn = 0.0
+exposure = 0.18
+sunYaw = 35.0
+sunPitch = 48.0
 labels = 0.0
 radius = 0.0
 falloff = 0.0

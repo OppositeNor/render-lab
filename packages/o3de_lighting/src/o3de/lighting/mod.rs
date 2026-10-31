@@ -1,4 +1,4 @@
-//! The lighting model of O3DE's Atom renderer (O3DE 2.8.0, the commit in
+//! The lighting model of O3DE's Atom renderer (O3DE 26.05, engine version 2.6.0, the commit in
 //! source-index.json): how the StandardPBR material lights a pixel: direct
 //! lighting from one simple point light (the metallic workflow, the GGX
 //! specular BRDF and its D, G, and F, the Lambertian diffuse and its
@@ -13,6 +13,7 @@
 //! index in source-index.json (written by source_index.py), the
 //! pseudo-code in pseudocode/, and the readout's formulas in `formulas`.
 
+pub mod actions;
 pub mod brdf;
 pub mod cascades;
 pub mod controls;
@@ -37,9 +38,8 @@ use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
 use crate::o3de::lighting::text::tr;
-use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingBuffer, ShadingPass, ShadingTarget, Wording};
+use lab::investigation::{DepthViews, Engine, Investigation, SceneShading, SelftestOptions, ShadingBuffer, ShadingPass, ShadingTarget, Wording};
 use lab::pseudocode::Listing;
-use lab::scene::{self, ids};
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
 use glam::Vec2;
@@ -83,6 +83,13 @@ const EARLY: &[ShadingPass] = &[
     ShadingPass { entry: "o3deLightCullingTilePrepareCS", reads: &["depth"], writes: &["tileData"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deLightCullingCS", reads: &[], writes: &["lightList", "tileData"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deLightCullingRemapCS", reads: &[], writes: &["lightListRemapped", "lightList", "tileData"], workgroup: [16, 16] },
+    // DepthToLinearDepth (DepthParent.pass), which the shadow blur and SSAO read.
+    ShadingPass { entry: "o3deLinearDepthCS", reads: &["depth"], writes: &["linearDepth"], workgroup: [16, 16] },
+    // Shadows (ShadowParent.pass): FullscreenShadow, then FullscreenShadowBlur
+    // (its vertical pass, then its horizontal one), before the forward pass.
+    ShadingPass { entry: "o3deFullscreenShadowCS", reads: &["depth", "cascades"], writes: &["shadowRaw"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deShadowBlurVerticalCS", reads: &["depth"], writes: &["shadowBlurV", "shadowRaw", "linearDepth"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deShadowBlurHorizontalCS", reads: &["depth"], writes: &["shadowBuffer", "shadowBlurV", "shadowRaw", "linearDepth"], workgroup: [16, 16] },
 ];
 
 /// Per 16 x 16 tile: TileLightData, the light list, and the remapped list (8 bins of 256).
@@ -99,14 +106,30 @@ const BUFFERS: &[ShadingBuffer] = &[
     ShadingBuffer { name: "ssaoBlurV", words_per_tile: 1, tile: 2 },
     ShadingBuffer { name: "ssaoBlur", words_per_tile: 1, tile: 2 },
     ShadingBuffer { name: "ssaoFull", words_per_tile: 1, tile: 1 },
+    // FullscreenShadow's output and the two passes of its blur (R8_UNORM:
+    // floats rounded to 8 bits); the forward pass reads the last.
+    ShadingBuffer { name: "shadowRaw", words_per_tile: 1, tile: 1 },
+    ShadingBuffer { name: "shadowBlurV", words_per_tile: 1, tile: 1 },
+    ShadingBuffer { name: "shadowBuffer", words_per_tile: 1, tile: 1 },
 ];
+
+/// The sun's cascaded shadow maps (CascadedShadowmaps.pass): four 1024 x
+/// 1024 layers, one per cascade, each drawn by its vertex entry point.
+static CASCADE_VIEWS: DepthViews = DepthViews {
+    name: "cascades",
+    size: 1024,
+    vertices: &["o3deCascade0VS", "o3deCascade1VS", "o3deCascade2VS", "o3deCascade3VS"],
+    // The caster's raster state (Shadowmap.shader, ShadowmapPass.shader.template):
+    // depthBias 10, depthBiasSlopeScale 4, on O3DE's forward depth; negated
+    // for the lab's reversed depth.
+    bias: (-10, -4.0),
+};
 
 const PASSES: &[ShadingPass] = &[
     ShadingPass { entry: "o3deDiffuseGlobalCS", reads: &["diffuse", "normal", "albedo", "stencil"], writes: &["diffuseLit"], workgroup: [8, 8] },
     ShadingPass { entry: "o3deReflectionsCS", reads: &["normal", "albedo", "specularF0", "stencil", "depth"], writes: &["reflection", "probeView"], workgroup: [8, 8] },
     ShadingPass { entry: "o3deReflectionCompositeCS", reads: &["specular", "reflection", "depth"], writes: &["specularLit"], workgroup: [8, 8] },
     // AoParent.pass (SsaoParent.pass), after the MSAA resolves; ModulateWithSsao is in the merge.
-    ShadingPass { entry: "o3deLinearDepthCS", reads: &["depth"], writes: &["linearDepth"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deDepthDownsampleCS", reads: &["depth"], writes: &["halfDepth", "linearDepth"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deSsaoCS", reads: &["depth"], writes: &["ssao", "halfDepth"], workgroup: [16, 16] },
     ShadingPass { entry: "o3deSsaoBlurVerticalCS", reads: &["depth"], writes: &["ssaoBlurV", "ssao", "halfDepth"], workgroup: [16, 16] },
@@ -126,8 +149,8 @@ pub static SHADING: SceneShading = SceneShading {
     prepass: Some("o3dePrepassFS"),
     early: EARLY,
     buffers: BUFFERS,
-    scene_reads: &["tileData", "lightListRemapped"],
-    depth_views: None,
+    scene_reads: &["tileData", "lightListRemapped", "shadowBuffer", "cascades"],
+    depth_views: Some(&CASCADE_VIEWS),
 };
 
 impl Investigation for Lighting {
@@ -195,6 +218,10 @@ impl Investigation for Lighting {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
+    fn panes(&self, state: &ShotState) -> Vec<lab::investigation::Pane> {
+        demos::panes(state)
+    }
+
     fn choices(&self) -> &'static [&'static lab::values::Choices] {
         use lab::values::Choice;
         static CHOICES: std::sync::OnceLock<[&'static lab::values::Choices; 2]> = std::sync::OnceLock::new();
@@ -213,19 +240,14 @@ impl Investigation for Lighting {
         controls::parameters(dock, ui);
     }
 
-    /// A click on a surface makes its point the inspected one.
-    fn click(&self, _shown: &ShotState, state: &mut ShotState, content: &FrameContent, _statics: &Statics, projector: &Projector, pixel: Vec2) -> bool {
-        let (origin, dir) = projector.ray(pixel);
-        let hit = scene::trace_scene(&content.objects, origin, dir, 100.0, ids::PANEL as u32);
-        if !hit.is_hit() {
-            return false;
-        }
-        let p = origin + dir * hit.t;
-        let n = if hit.normal.dot(dir) > 0.0 { -hit.normal } else { hit.normal };
-        for (name, value) in [("inspectX", p.x), ("inspectY", p.y), ("inspectZ", p.z), ("inspectNX", n.x), ("inspectNY", n.y), ("inspectNZ", n.z), ("inspectObject", hit.object as f32)] {
-            state.set(name, value);
-        }
-        true
+    /// A click on a surface picks its pixel and inspects its point (actions::pick).
+    fn click(&self, _shown: &ShotState, state: &mut ShotState, content: &FrameContent, _statics: &Statics, _projector: &Projector, pixel: Vec2) -> bool {
+        let viewport = Vec2::from(content.uniforms.camera.viewport_size);
+        actions::pick(state, content, pixel / viewport)
+    }
+
+    fn actions(&self) -> &'static lab::actions::Actions {
+        &Self::ACTIONS
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {

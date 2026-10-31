@@ -1,31 +1,30 @@
 # Globalization backend (plan, not started)
 
 The lab's on-screen text is keyed: each layer keeps its text in `text/en.json` and `text/zh-CN.json`, read with
-`tr("key")` or `tr_with("key", args!(name = value))` through `crate::lab::i18n::Table`, and `build.rs` checks the
+`tr("key")` or `tr_with("key", args!(name = value))` through `lab::i18n::Table`, and each package's build checks the
 tables. This plan turns that into a globalization backend: languages are data, messages handle plurals and number
 formats, and every translated piece of data shares one system.
 
 ## Where it stands
 
-- **Two languages, fixed in code.** `Locale` (`src/lab/i18n.rs`) has two variants, `Table` holds exactly two texts,
-  and `build.rs`'s `LOCALES` lists `en` and `zh-CN`. A third language means editing all three.
+- **Two languages, fixed in code.** `Locale` (`lab/src/i18n.rs`) has two variants, `Table` holds exactly two texts,
+  and `lab/check/src/lib.rs`'s `LOCALES` lists `en` and `zh-CN`. A third language means editing all three.
 - **Plurals by hand.** English plurals are passed in as values (`clusters_s = "s"`), so `build.rs` allows a language
   to use only some of English's placeholders.
 - **Numbers formatted in code.** Values are formatted before they reach the text (`format!("{x:.1}")`), so every
   language gets `0.91`, never `0,91`.
 - **Other translated data, each its own way:**
-  - source-index notes: `inspect` / `inspectZh`, `note` / `noteZh` (`src/lab/sources.rs`)
-  - pseudo-code titles: the `# title: English | 中文` header (`src/lab/pseudocode.rs`)
+  - source-index notes: `inspect` / `inspectZh`, `note` / `noteZh` (`lab/src/sources.rs`)
+  - pseudo-code titles: the `# title: English | 中文` header (`lab/src/pseudocode.rs`)
   - timeline editions: `TimelineInfo::edition` ("English", "中文") and the per-edition titles
   - scene object names: `object.*` keys, prefix-matched by `object_name`
-  - the video's narration translation: an investigation's `video/zh-CN/translation.json`
-    (`modules/o3de_lighting/video/zh-CN/translation.json`), read by `tools/video`
-- **Fonts by hand.** Source Han Sans CN is bundled for Chinese (`src/lab/text.rs`). The check that every character
+  - the video's narration translation: an investigation's `video/storyboard.zh-CN.story`, read by `tools/video`
+- **Fonts by hand.** Source Han Sans CN is bundled for Chinese (`lab/src/text.rs`). The check that every character
   has a glyph runs in only one investigation's selftest.
 
 ## Design
 
-1. **Locale registry as data.** A `locales.json` beside `src/lab/i18n.rs` would list, for each language: its code
+1. **Locale registry as data.** A `locales.json` beside `lab/src/i18n.rs` would list, for each language: its code
    (`zh-CN`), its own name ("中文"), its fallback chain (`zh-CN` → `en`), and the fonts it needs. `Locale` becomes an
    index into the registry. Tables load every listed language, and `build.rs` reads the registry instead of
    `LOCALES`. Adding a language is then data only: an entry in the registry and a file per table.
@@ -47,7 +46,7 @@ formats, and every translated piece of data shares one system.
    - timeline edition names
    - object names
    `source_index.py` and the pseudo-code parser write or read keys instead of `…Zh` fields. The narration's
-   `translation.json` stays as it is: it holds sentence-by-sentence timing for the video, not interface text.
+   `storyboard.zh-CN.story` stays as it is: it holds sentence-by-sentence narration for the video, not interface text.
 5. **Report.** A `render-lab i18n --report REPORT` command (or a `build.rs` output) lists, per language and table:
    - missing keys and keys that fall back
    - keys whose text equals English (often fine: technical terms)
@@ -88,4 +87,4 @@ formats, and every translated piece of data shares one system.
 - Fluent, or our own format with a registry and a small plural syntax? Fluent is the standard and covers plurals,
   selections, and numbers, but adds crates. Our own format keeps the dependency list short.
 - Should a draft language be offered on the homepage, or only through a command-line option?
-- Should `tools/video` read the Fluent tables, or keep its own `translation.json` for everything it shows?
+- Should `tools/video` read the Fluent tables, or keep its own translated storyboard for narration?

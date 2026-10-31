@@ -465,13 +465,6 @@ impl std::ops::DerefMut for ValueMap {
     }
 }
 
-/// Parameters as plain numbers (an investigation that declares no types).
-impl From<BTreeMap<String, f32>> for ValueMap {
-    fn from(params: BTreeMap<String, f32>) -> ValueMap {
-        ValueMap(params.into_iter().map(|(k, v)| (k, Value::F32(v))).collect())
-    }
-}
-
 impl Value {
     /// As JSON, for a typed view (`ShotState::view`): a number, a flag, or an array.
     pub fn to_json(self) -> serde_json::Value {
@@ -888,7 +881,7 @@ mod tests {
             assert_eq!(Value::from_json(v.ty(), &v.to_json()), Some(v));
         }
         assert_eq!(Value::from_json(Type::Vec2, &serde_json::json!([1.0])), None);
-        assert_eq!(serde_json::to_string(&ValueMap::from(BTreeMap::from([("a".to_string(), 0.5f32)]))).unwrap(), r#"{"a":0.5}"#);
+        assert_eq!(serde_json::to_string(&ValueMap(BTreeMap::from([("a".to_string(), Value::F32(0.5))]))).unwrap(), r#"{"a":0.5}"#);
     }
 
     #[test]
@@ -903,7 +896,7 @@ mod tests {
         serde_json::from_value(serde_json::json!({
             "fps": 10, "width": 64, "height": 64, "totalFrames": 100, "title": "test", "engineLabel": "",
             "chapters": [{"number": 1, "title": "Test", "startFrame": 0, "endFrame": 100}],
-            "beats": [{"id": "all", "chapter": 1, "kind": "scene", "startFrame": 0, "frames": 100, "headline": "", "captions": []}],
+            "beats": [{"id": "all", "chapter": 1, "kind": "3d", "startFrame": 0, "frames": 100, "headline": "", "captions": []}],
             "keys": keys
         }))
         .unwrap()
@@ -1047,7 +1040,7 @@ mod tests {
     }
 
     #[test]
-    fn beats_name_their_scene_type_and_the_older_kinds_still_read() {
+    fn beats_accept_only_3d_and_2d_scene_types() {
         use crate::shot::{SceneType, TimelineBeat};
         let beat = |kind: &str, image: Option<&str>| -> TimelineBeat {
             serde_json::from_value(serde_json::json!({"id": "b", "chapter": 1, "kind": kind, "startFrame": 0, "frames": 1, "headline": "", "image": image})).unwrap()
@@ -1055,7 +1048,9 @@ mod tests {
         assert_eq!(beat("3d", None).kind, SceneType::ThreeD);
         assert!(beat("2d", Some("mermaid/b.png")).shows_image());
         assert!(!beat("2d", None).shows_image());
-        assert_eq!((beat("scene", None).kind, beat("mermaid", Some("x.png")).kind, beat("sources", None).kind), (SceneType::ThreeD, SceneType::TwoD, SceneType::TwoD));
+        for kind in ["scene", "mermaid", "sources"] {
+            assert!(serde_json::from_value::<SceneType>(serde_json::json!(kind)).is_err());
+        }
         assert_eq!(serde_json::to_value(SceneType::TwoD).unwrap(), serde_json::json!("2d"));
     }
 }

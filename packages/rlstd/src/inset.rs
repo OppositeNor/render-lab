@@ -59,6 +59,11 @@ pub struct StoryImage {
     /// The click handler a click on its picture runs (`imageClick=`), in
     /// place of the investigation's own.
     pub click: Option<String>,
+    /// The region it points out (`imageMark=`, fractions of the picture), how
+    /// far that has faded in, and its label (a text key).
+    pub mark: [f32; 4],
+    pub mark_alpha: f32,
+    pub mark_text: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -100,6 +105,10 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
     if let Some(title) = &image.title {
         inset.title = vec![crate::i18n::package_text(package, title).to_string()];
     }
+    if image.mark_alpha > 0.0 {
+        let text = image.mark_text.as_deref().map(|t| crate::i18n::package_text(package, t).to_string());
+        inset.mark = Some(Mark { rect: image.mark, alpha: image.mark_alpha, text });
+    }
     Some(inset)
 }
 
@@ -133,6 +142,16 @@ pub struct Marker {
     pub at: [f32; 2],
     pub color: Color32,
     pub label: String,
+}
+
+/// A region of the picture a story points out (`imageMark=`): outlined in
+/// the accent colour, the rest of the picture dimmed, with an optional label.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Mark {
+    /// u0, v0, u1, v1: fractions of the picture from its top left.
+    pub rect: [f32; 4],
+    pub alpha: f32,
+    pub text: Option<String>,
 }
 
 /// A region of the picture, `[min x, min y, max x, max y]` in 0..1 with y
@@ -176,6 +195,8 @@ pub struct PictureInset {
     pub outlines: Vec<Outline>,
     pub marker: Option<Marker>,
     pub link: Option<Link>,
+    /// The region a story points out.
+    pub mark: Option<Mark>,
     /// Lines under the picture.
     pub lines: Vec<(String, Color32)>,
     /// Its click handler (`#[click]`, lab/src/actions.rs): a click on the
@@ -199,6 +220,7 @@ impl PictureInset {
             outlines: Vec::new(),
             marker: None,
             link: None,
+            mark: None,
             lines: Vec::new(),
             click: None,
         }
@@ -315,6 +337,34 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
         }
     }
 
+    if let Some(mark) = &inset.mark {
+        let a = (mark.alpha * inset.alpha).clamp(0.0, 1.0);
+        let r = region([mark.rect[0].min(mark.rect[2]), mark.rect[1].min(mark.rect[3]), mark.rect[0].max(mark.rect[2]), mark.rect[1].max(mark.rect[3])]).intersect(image);
+        // The rest of the picture dimmed, around the region.
+        let dim = Color32::from_rgba_unmultiplied(4, 10, 20, 150).gamma_multiply(a);
+        for side in [
+            Rect::from_min_max(image.min, pos2(image.max.x, r.min.y)),
+            Rect::from_min_max(pos2(image.min.x, r.max.y), image.max),
+            Rect::from_min_max(pos2(image.min.x, r.min.y), pos2(r.min.x, r.max.y)),
+            Rect::from_min_max(pos2(r.max.x, r.min.y), pos2(image.max.x, r.max.y)),
+        ] {
+            if side.is_positive() {
+                painter.rect_filled(side, CornerRadius::ZERO, dim);
+            }
+        }
+        painter.rect_stroke(r.expand(1.5), CornerRadius::same(3), Stroke::new(3.0, palette::accent().gamma_multiply(a)), StrokeKind::Outside);
+        if let Some(text) = &mark.text {
+            // Below the region inside the picture, or above it when there is no room.
+            let size = ink.measure(text, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
+            let below = r.max.y + 6.0 + size.y <= image.max.y;
+            let y = if below { r.max.y + 6.0 } else { (r.min.y - 6.0 - size.y).max(image.min.y) };
+            let x = r.center().x.clamp(image.min.x + size.x * 0.5, (image.max.x - size.x * 0.5).max(image.min.x + size.x * 0.5)) - size.x * 0.5;
+            let chip = Rect::from_min_size(pos2(x, y), size);
+            painter.rect_filled(chip, CornerRadius::same(6), Color32::from_rgba_premultiplied(7, 18, 31, 235).gamma_multiply(a));
+            painter.rect_stroke(chip, CornerRadius::same(6), Stroke::new(1.5, palette::accent().gamma_multiply(a)), StrokeKind::Inside);
+            ink.text(chip.center(), Align2::CENTER_CENTER, text, 24.0, FontFamily::Proportional, palette::text().gamma_multiply(a));
+        }
+    }
     if !inset.x_axis.is_empty() {
         ink.text(pos2(image.center().x, image.max.y + 6.0), Align2::CENTER_TOP, &inset.x_axis, 24.0, FontFamily::Proportional, fade(palette::text_dim()));
     }

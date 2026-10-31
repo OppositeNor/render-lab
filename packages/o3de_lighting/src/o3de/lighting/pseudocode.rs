@@ -25,6 +25,7 @@ const NAMES: &[&str] = &[
     "simple-point-light",
     "cascades",
     "cascade-select",
+    "fullscreen-shadow",
     "ibl-passes",
     "ibl-prefilter",
     "reflection-probes",

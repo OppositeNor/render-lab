@@ -146,12 +146,11 @@ pub fn sample(d: &Decal, position: Vec3, vertex_normal: Vec3) -> Option<DecalSam
 }
 
 /// ApplyDecal: inside the decal's box, the base map multiplied by the decal
-/// colour replaces the albedo by its opacity (and F0, scaled by metallic),
-/// and the normal map bends the normal.
+/// colour replaces the albedo by its opacity (26.05 leaves F0 as it is), and
+/// the normal map bends the normal.
 pub fn apply_decal(d: &Decal, s: &mut Surface, vertex_normal: Vec3) {
     let Some(k) = sample(d, s.position, vertex_normal) else { return };
     s.albedo = s.albedo.lerp(k.blended, k.albedo_opacity);
-    s.specular_f0 = s.specular_f0.lerp(k.blended, k.albedo_opacity * s.metallic);
     s.normal = s.normal.lerp(k.normal, k.normal_opacity).normalize();
 }
 

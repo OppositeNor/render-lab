@@ -111,6 +111,14 @@ pub struct SceneShading {
     pub depth_views: Option<&'static DepthViews>,
 }
 
+/// One of the views the scene area is split into (`Investigation::panes`):
+/// the state it is built from, and the title shown in its top-left corner.
+#[derive(Clone)]
+pub struct Pane {
+    pub state: ShotState,
+    pub title: Option<String>,
+}
+
 /// Depth-only views of the scene's meshes, drawn before anything else of the
 /// frame: a square depth texture array of `size` texels and one layer per
 /// entry of `vertices`, each layer drawn by that vertex entry point (it
@@ -122,6 +130,11 @@ pub struct DepthViews {
     pub name: &'static str,
     pub size: u32,
     pub vertices: &'static [&'static str],
+    /// The rasteriser's depth bias for every layer, as
+    /// `wgpu::DepthBiasState`'s constant and slope scale (0, 0: none). The
+    /// depth is reversed, so a bias that moves the casters away from their
+    /// view's origin is negative.
+    pub bias: (i32, f32),
 }
 
 /// A storage buffer of an investigation's pass chain: `words_per_tile` u32
@@ -280,6 +293,14 @@ pub trait Investigation: Sync {
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;
+    /// The views the scene area is split into, left to right and all the same
+    /// size, each built from its own state (its camera, its values). The last
+    /// is the main one: the struct panel, the insets, and clicks are its.
+    /// Empty (the default): one view of `state`. A pure function of the
+    /// state, as `build_frame` is.
+    fn panes(&self, _state: &ShotState) -> Vec<Pane> {
+        Vec::new()
+    }
     /// The points and arrow sets it publishes for a story's arrows and labels
     /// (packages/rlstd/src/annotations.rs), in `FrameContent::points` and
     /// `arrow_sets`.

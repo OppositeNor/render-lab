@@ -1,0 +1,40 @@
+# The lab's hills under O3DE's sun, shaded the way TerrainPBR_ForwardPass.azsl
+# shades O3DE's terrain: its macro constants (roughness 1, F0 0.04, metalness
+# 0), no direct-light multiscatter, and, with terrainO3deNormal, its CPU-made
+# vertex normals.
+
+key = "terrain"
+title-text = "shot.terrain"
+tab-text = "shot.terrain"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/terrain"
+listing = "forward-pass"
+
+[camera]
+target = [0.0, 1.5, 0.0]
+yaw = 30.0
+pitch = 28.0
+distance = 22.0
+fov = 50.0
+
+[params]
+sunLux = 40.0
+# The sky box and the skylight two stops up, so the sky lights what the
+# 40-lux sun does not about as daylight does (sun : sky near 30 : 1).
+iblExposure = 2.0
+skyboxExposure = 2.0
+lightOn = 0.0
+exposure = 0.18
+sunYaw = 120.0
+sunPitch = 35.0
+labels = 0.0
+radius = 0.0
+falloff = 0.0
+shadowFar = 100.0
+inspectObject = 0.0
+inspectX = 0.0
+inspectY = 1.0
+inspectZ = 0.0
+inspectNX = 0.0
+inspectNY = 1.0
+inspectNZ = 0.0

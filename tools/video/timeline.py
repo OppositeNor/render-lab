@@ -23,7 +23,7 @@ TAIL = 0.70      # silence after a beat's last sentence
 NOTICES = 8.0    # the closing card of the package's legal notices
 MAX_EXTRA_PAUSE = 2.2
 CAPTION_WIDTH = 58
-KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
+KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
 # How long a lit term takes to fade in when its cue names no blend (seconds).
 TERM_FADE = 0.4
 # How a key's blend moves (src/lab/shot.rs `Ease`); smooth when a key names none.

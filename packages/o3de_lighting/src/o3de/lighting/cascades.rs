@@ -11,7 +11,7 @@
 //! Features/Shadow/DirectionalLightShadowCalculator.azsli) is
 //! Copyright (c) Contributors to the Open 3D Engine Project, Apache-2.0 OR MIT.
 
-use glam::{Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 
 /// The component's defaults (DirectionalLightComponentConfig.h): four
 /// cascades of a 1024-texel shadow map, split automatically at ratio 0.9.
@@ -125,6 +125,11 @@ pub struct Cascade {
     /// That box's min and max floored to whole steps.
     pub snapped_min: Vec3,
     pub snapped_max: Vec3,
+    /// The box's extent along the light before snapping: the orthographic
+    /// projection's near and far (cascadeNear and cascadeFar, from
+    /// aabb.min.y and aabb.max.y; the snapped y is not used).
+    pub min_y: f32,
+    pub max_y: f32,
 }
 
 impl Cascade {
@@ -164,12 +169,32 @@ pub fn cascades(observer: Observer, direction: Vec3, ratio: f32) -> Cascades {
         let texel = (max - min) / SHADOWMAP_SIZE;
         let snapped_min = (min / texel).floor() * texel;
         let snapped_max = (max / texel).floor() * texel;
-        Cascade { near, far: far[i], center, radius, snap: texel, snapped_min, snapped_max }
+        Cascade { near, far: far[i], center, radius, snap: texel, snapped_min, snapped_max, min_y: min.y, max_y: max.y }
     });
     Cascades { frame, cascades }
 }
 
 impl Cascades {
+    /// Cascade `i`'s world to shadow-map transform, as
+    /// m_lightViewToShadowmapMatrices[i] * m_worldToLightViewMatrices[i]
+    /// give it: x, y the map's texture coordinates (y down, the
+    /// ClipToShadowmapTextureMatrix flip), z the depth from the light, 0 at
+    /// the box's near side and 1 at its far side (O3DE's shadow maps are not
+    /// reversed: D32_FLOAT, cleared to 1, LessEqual).
+    pub fn world_to_shadowmap(&self, i: usize) -> Mat4 {
+        let c = &self.cascades[i];
+        let f = &self.frame;
+        let (lo, hi) = (c.snapped_min, c.snapped_max);
+        let (w, d, h) = (hi.x - lo.x, c.max_y - c.min_y, hi.z - lo.z);
+        let rows = [
+            Vec4::new(f.x.x / w, f.x.y / w, f.x.z / w, -lo.x / w),
+            Vec4::new(-f.z.x / h, -f.z.y / h, -f.z.z / h, hi.z / h),
+            Vec4::new(f.y.x / d, f.y.y / d, f.y.z / d, -c.min_y / d),
+            Vec4::W,
+        ];
+        Mat4::from_cols(rows[0], rows[1], rows[2], rows[3]).transpose()
+    }
+
     /// GetShadowCascadeRange's first cascade: the first whose texel
     /// coordinates of the point, offset along its normal, lie inside the map
     /// by PIXEL_MARGIN on both axes (by bounds, not by depth); None outside

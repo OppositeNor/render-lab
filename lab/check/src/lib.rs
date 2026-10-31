@@ -244,14 +244,17 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             }
             continue;
         }
-        // A story's image title and label text: `{@ … imageTitle=key …}`, `{@ … labelText=key …}`.
+        // A story's image title, mark label, and label text: `{@ … imageTitle=key …}`,
+        // `{@ … imageMarkText=key …}` (empty: none), `{@ … labelText=key …}`.
         if path.extension().is_some_and(|e| e == "story") {
             println!("cargo:rerun-if-changed={}", path.display());
             for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                for (i, attr) in line.match_indices("imageTitle=").chain(line.match_indices("labelText=")) {
+                for (i, attr) in line.match_indices("imageTitle=").chain(line.match_indices("imageMarkText=")).chain(line.match_indices("labelText=")) {
                     let rest = line[i + attr.len()..].trim_start_matches('"');
                     let key = &rest[..rest.find(|c: char| c == '"' || c == '}' || c.is_whitespace()).unwrap_or(rest.len())];
-                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                    if !key.is_empty() {
+                        keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                    }
                 }
             }
             continue;

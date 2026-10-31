@@ -2,7 +2,7 @@
 narration as text, with its shots as tags (markup.py), and its translation
 in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
 
-    title: The opaque frame of O3DE 2.8
+    title: The opaque frame of O3DE 26.05
     fps: 30
 
     # 11 | Other trace paths | 150 s
@@ -23,8 +23,7 @@ in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
   and `hold`. A value that reads as JSON (a number, a list) is that value.
 - `# number | title | N s` starts a chapter; `## id | type | headline` a beat,
   its scene's type `3d` (the lab's 3D frame) or `2d` (a page: the image a
-  `diagram:` names, else the sources card of its `sources:`). The older type
-  names `scene`, `mermaid`, and `sources` read as `3d`, `2d`, and `2d`.
+  `diagram:` names, else the sources card of its `sources:`).
 - Before a beat's first sentence, a line of tags only sets the beat's keys
   (one key per tag); `{@define name …}` defines a named cue.
 - Each paragraph (lines up to a blank line) is one sentence. A tag before its
@@ -53,7 +52,6 @@ import markup
 
 Json = dict[str, Any]
 
-KEY_ORDER = ('demo', 'camera', 'record', 'panel', 'code', 'highlight', 'callout', 'imageHide', 'image', 'imageFrom', 'imageTitle', 'imageCorner', 'imageClick', 'imageParams', 'arrowHide', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'labelHide', 'label', 'labelAt', 'labelText', 'labelColor', 'params', 'formula', 'term', 'animate', 'stop', 'run', 'blend', 'ease', 'delay')
 CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 
 
@@ -71,77 +69,6 @@ def value_of(text: str) -> Any:
         return json.loads(text)
     except ValueError:
         return text
-
-
-def number_text(x: float) -> str:
-    return str(int(x)) if float(x).is_integer() else repr(float(x))
-
-
-def param_text(x: float | bool | str | list[float]) -> str:
-    """A parameter's value as a tag writes it (markup.param_value reads it back)."""
-    if isinstance(x, bool):
-        return 'true' if x else 'false'
-    if isinstance(x, str):
-        return x
-    if isinstance(x, list):
-        return ','.join(number_text(n) for n in x)
-    return number_text(x)
-
-
-def attr_text(name: str, value: str) -> str:
-    if value[:1] in ('[', '{'):
-        return f'{name}={value}'
-    if value == '' or re.search(r'[\s{}"]', value):
-        return f'{name}={markup.quote(value)}'
-    return f'{name}={value}'
-
-
-def key_attrs(key: Json) -> list[tuple[str, str]]:
-    """A storyboard key as tag attributes."""
-    unknown = set(key) - set(KEY_ORDER)
-    if unknown:
-        raise StoryError(f'cannot write key fields {sorted(unknown)}')
-    out: list[tuple[str, str]] = []
-    for field in KEY_ORDER:
-        if field not in key:
-            continue
-        v = key[field]
-        if field == 'camera':
-            # An empty camera keeps the camera continuous across a demonstration switch.
-            if not v:
-                out.append(('camera', 'continuous'))
-            for part in CAMERA:
-                if part in v:
-                    out.append((f'camera.{part}', ','.join(number_text(x) for x in v[part]) if part == 'target' else number_text(v[part])))
-        elif field == 'record':
-            out.append(('record', v['type'] + (f':{v["index"]}' if 'index' in v else '')))
-        elif field == 'highlight':
-            out.append(('highlight', ','.join(v)))
-        elif field == 'params':
-            out.extend((f'param.{name}' if name in markup.RESERVED else name, param_text(x)) for name, x in v.items())
-        elif field == 'animate':
-            out.append(('animate', json.dumps(v, ensure_ascii=False)))
-        elif field in ('stop', 'imageHide', 'arrowHide', 'labelHide'):
-            out.append((field, ','.join(v)))
-        elif field in ('arrowFrom', 'arrowTo', 'labelAt'):
-            out.append((field, param_text(v)))
-        elif field == 'arrowWidth':
-            out.append((field, number_text(v)))
-        elif field == 'imageParams':
-            out.extend((f'image.{name}', param_text(x)) for name, x in v.items())
-        elif field == 'run':
-            out.append(('run', v['name']))
-            out.extend((f'run.{name}', param_text(x)) for name, x in v.get('args', {}).items())
-        elif field in ('blend', 'delay', 'term'):
-            out.append((field, number_text(v)))
-        else:
-            out.append((field, str(v)))
-    return out
-
-
-def tag(attrs: list[tuple[str, str]], head: str = '') -> str:
-    parts = ([head] if head else []) + [attr_text(n, v) for n, v in attrs]
-    return '{@ ' + ' '.join(parts) + '}' if not head else '{@' + ' '.join(parts) + '}'
 
 
 def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
@@ -172,7 +99,7 @@ def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
             key[name] = markup.number(v.removesuffix('s'), where)
         elif name == 'term':
             key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor'):
+        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageClick', 'imageMarkText', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor'):
             key[name] = v
         elif markup.action_attr(key, name, v, where) or markup.image_attr(key, name, v, where):
             continue
@@ -258,8 +185,10 @@ def properties(lines: list[str], names: tuple[str, ...] | None = None) -> tuple[
 # A heading's fields.
 SEPARATOR = re.compile(r' \| ')
 
-# A beat's scene type, and the older names of the types.
-SCENE_TYPES = {'3d': '3d', '2d': '2d', 'scene': '3d', 'mermaid': '2d', 'sources': '2d'}
+def check_scene_type(kind: str, where: str) -> None:
+    """A beat's scene type is 3d or 2d."""
+    if kind not in ('3d', '2d'):
+        raise StoryError(f'{where}: the scene type is 3d or 2d, not {kind!r}')
 
 
 def heading(text: str, parts: int, path: Path, what: str) -> list[str]:
@@ -302,10 +231,9 @@ def load(path: Path) -> Json:
                          'summary': props.get('summary', ''), 'sources': as_list(props.get('sources', [])), 'beats': []}
         for beat_heading, beat_lines in beats:
             beat_id, kind, headline = heading(beat_heading, 3, path, 'beat')
-            if kind not in SCENE_TYPES:
-                raise StoryError(f'{path}: {beat_id}: the scene type is 3d or 2d, not {kind!r}')
+            check_scene_type(kind, f'{path}: {beat_id}')
             props, rest = properties(beat_lines, ('diagram', 'focus', 'sources', 'hold'))
-            beat: Json = {'id': beat_id, 'kind': SCENE_TYPES[kind], 'headline': headline}
+            beat: Json = {'id': beat_id, 'kind': kind, 'headline': headline}
             if beat['kind'] == '2d' and 'diagram' not in props and 'sources' not in props:
                 raise StoryError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram:) or a sources card (sources:)')
             for name in ('diagram', 'hold'):
@@ -372,76 +300,5 @@ def load_any(path: Path, translation: bool = False) -> Json:
     board = json.loads(path.read_text())
     for chapter in [] if translation else board.get('chapters', []):
         for beat in chapter['beats']:
-            beat['kind'] = SCENE_TYPES[beat['kind']]
+            check_scene_type(beat['kind'], f'{path}: {beat["id"]}')
     return board
-
-
-# ---------------------------------------------------------------------------
-# Writing (converting a JSON storyboard)
-
-def header_line(name: str, value: Any) -> str:
-    return f'{name}: {value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)}'
-
-
-def sentence_text(s: Json, beat: Json) -> str:
-    """A storyboard sentence as text: its keys as tags at the start (with
-    their delays), its `sequence` spread over its words, its pause at the end."""
-    if isinstance(s, str):
-        return s
-    text = s['text']
-    lead = ' '.join(tag(key_attrs(k)) for k in s.get('keys', []))
-    sequence = s.get('sequence', [])
-    if sequence:
-        words = text.split(' ')
-        at = [round(i * len(words) / len(sequence)) for i in range(len(sequence))]
-        for i in reversed(range(len(sequence))):
-            if at[i] == 0:
-                lead = (lead + ' ' + tag(key_attrs(sequence[i]))).strip()
-            else:
-                words.insert(at[i], tag(key_attrs(sequence[i])))
-        text = ' '.join(words)
-    out = (lead + ' ' + text).strip() if lead else text
-    if 'pause' in s:
-        out += f' {{@ pause={number_text(s["pause"])}}}'
-    return out
-
-
-def dump(board: Json) -> str:
-    lines = [header_line(k, v) for k, v in board.items() if k != 'chapters'] + ['']
-    for chapter in board['chapters']:
-        lines += [f'# {chapter["number"]} | {chapter["title"]} | {number_text(chapter["targetSeconds"])} s',
-                  header_line('summary', chapter['summary']), 'sources: ' + ', '.join(chapter['sources']), '']
-        for beat in chapter['beats']:
-            lines.append(f'## {beat["id"]} | {beat["kind"]} | {beat["headline"]}')
-            for name in ('diagram', 'hold'):
-                if name in beat:
-                    lines.append(header_line(name, beat[name]))
-            for name in ('focus', 'sources'):
-                if name in beat:
-                    lines.append(f'{name}: ' + ', '.join(beat[name]))
-            cues = dict(beat.get('cues', {}))
-            for s in beat['narration']:
-                if isinstance(s, dict):
-                    cues.update(s.get('cues', {}))
-            for k in beat.get('keys', []):
-                lines.append(tag(key_attrs(k)))
-            for name, k in cues.items():
-                lines.append('{@define ' + name + (' ' + ' '.join(attr_text(n, v) for n, v in key_attrs(k)) if k else '') + '}')
-            lines.append('')
-            for s in beat['narration']:
-                lines += [sentence_text(s, beat), '']
-    return '\n'.join(lines).rstrip() + '\n'
-
-
-def dump_translation(translation: Json, board: Json) -> str:
-    lines = [header_line(k, v) for k, v in translation.items() if k not in ('chapters', 'beats')] + ['']
-    chapters = {c['number']: c for c in translation['chapters']}
-    for chapter in board['chapters']:
-        c = chapters[chapter['number']]
-        lines += [f'# {chapter["number"]} | {c["title"]}', header_line('summary', c['summary']), '']
-        for beat in chapter['beats']:
-            t = translation['beats'][beat['id']]
-            lines += [f'## {beat["id"]} | {t["headline"]}', '']
-            for s in t['narration']:
-                lines += [s, '']
-    return '\n'.join(lines).rstrip() + '\n'

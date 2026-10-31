@@ -25,6 +25,7 @@ pub fn text(demo: Demo) -> &'static str {
         Demo::Reflections => tr("formula.reflections"),
         Demo::Ssao => tr("formula.ssao"),
         Demo::Cascades => tr("formula.cascades"),
+        Demo::Terrain => tr("formula.terrain"),
     }
 }
 

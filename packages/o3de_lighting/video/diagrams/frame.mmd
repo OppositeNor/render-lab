@@ -1,10 +1,14 @@
 flowchart LR
-    CULL["Depth pre-pass,<br/>light culling"] --> FWD["Forward pass<br/>decals, lights"]
-    FWD --> TARGETS["Targets"]
-    TARGETS --> DIFF["DiffuseGlobal"]
-    TARGETS --> REFL["Reflections<br/>probes, global"]
-    REFL --> COMP["Reflection<br/>Composite"]
-    DIFF --> AO["SSAO"]
-    AO --> MERGE["Merge"]
-    COMP --> MERGE
-    MERGE --> FRAME["The frame"]
+    DEPTH["Depth<br/>pre-pass"] --> CULL["Light<br/>culling"]
+    DEPTH --> SHADOW["Shadows"]
+    CULL --> FWD["Forward<br/>pass"]
+    SHADOW --> FWD
+    LUT["BRDF LUT<br/>once"] --> FWD
+    FWD --> TARGETS["Five<br/>targets"]
+    TARGETS --> DIFF["Diffuse<br/>IBL"]
+    TARGETS --> REFL["Reflections"]
+    CUBES["IBL cubes<br/>offline"] --> REFL
+    DIFF --> SSS["SSS"]
+    SSS --> AO["SSAO"]
+    REFL --> MERGE["Merge"]
+    AO --> MERGE

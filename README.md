@@ -26,10 +26,11 @@ It uses **wgpu 30.0.1** on Vulkan, **winit 0.30.13**, **egui 0.37**, and **WGSL*
 The shared lab (the homepage, the settings, and the code an investigation builds on) and the investigations of engines
 whose license allows publishing code derived from them:
 
-- **Open 3D Engine: Lighting model** ([`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)). How O3DE 2.8's Atom
-  renderer lights a StandardPBR surface, with its shader code ported to WGSL: the metallic workflow, GGX specular and
-  its D, G, and F, the diffuse response, the BRDF texture and multiscatter compensation, the simple point light, and the
-  global skylight's image-based lighting.
+- **Open 3D Engine: Lighting model** ([`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)). How O3DE 26.05's Atom
+  renderer lights a frame, with its shader code ported to WGSL and run as its default pipeline does: the depth
+  pre-pass, tiled light culling, the sun's cascaded shadows and their screen-space buffer, the forward pass and its five
+  targets, the material model and the BRDF of its lighting models, the BRDF texture and multiscatter compensation,
+  image-based light and reflection probes, SSAO, transmission, and terrain.
 - **Godot Engine: SDFGI** ([`packages/godot_sdfgi/src/godot/sdfgi`](packages/godot_sdfgi/src/godot/sdfgi/README.md)). How Godot
   4.7's Forward+ renderer computes signed distance field global illumination, followed on the CPU at the engine's sizes:
   the cascades and their scrolling, voxelization, the jump-flood distance field, occlusion, light injection and bounce,
@@ -92,7 +93,7 @@ An investigation's narrated video is built by [`tools/video`](tools/video/README
 
 ```bash
 bash tools/video/setup.sh --gpu                                     # once: Piper, FFmpeg, Node, and Mermaid under .cache/
-python3 tools/video/build.py --investigation o3de/lighting          # build/video/o3de/lighting/en/o3de-lighting.mp4
+python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
 
@@ -115,7 +116,7 @@ opens a formula card in the viewport.
 | [`lab/src/text.rs`](lab/src/text.rs), [`lab/src/readback.rs`](lab/src/readback.rs), [`lab/src/gpu.rs`](lab/src/gpu.rs) | Fonts and text, reading frames back and saving PNGs, and the GPU device. Text tables, pseudo-code listings, and source indexes are resources of each layer's package, read when first used (`i18n::Table`). |
 | [`lab/src/formula.rs`](lab/src/formula.rs), [`lab/src/rich_text.rs`](lab/src/rich_text.rs), [`packages/rlstd/assets/mitex/`](packages/rlstd/assets/mitex) | Formulas: LaTeX typeset by Typst (through MiTeX's scope) into coverage masks tinted when drawn, and text with formula tags laid out on one baseline. |
 | [`lab/src/scene.rs`](lab/src/scene.rs), [`packages/rlstd/scenes/`](packages/rlstd/scenes/study-room.toml), [`lab/src/terrain.rs`](lab/src/terrain.rs) | The lab's scenes, by `SceneId`: the study room, and hills of terrain under the sky. Each is a data file, the resource `scene/<key>` (its objects, shapes, materials, light, lighting constants, where a camera sees it from, and the terrain's heightfield), read when a scene is first built. Each demonstration shows one (`Investigation::demo_scene`, the study room by default); the renderer prepares a scene the first time a frame needs it and keeps it for switching back, and the viewer shows a tab per scene when an investigation's demonstrations use more than one, with the scene's demonstrations beside them. The terrain is a heightfield on a grid (`SHAPE_TERRAIN`), drawn as triangles and traced cell by cell on the GPU (`intersectTerrain`) and the CPU (`Terrain::intersect`); its heights are given samples or, opt-in, fractal Perlin noise with a fixed seed. |
-| `lab/src/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the actions a story runs in a package's code (`actions.rs`, declared with `#[lab::actions]`), the GPU image kinds a package's shaders define and a story makes instances of (`views.rs`), the struct-panel records (`layout.rs`, `packages/rlstd/shaders/types.wgsl`), and the `Investigation` trait (`investigation.rs`). |
+| `lab/src/*.rs` (the rest) | The scene renderer, the deterministic recorder, the viewer and its dock, the timeline player and its animation (`animation.rs`: eases, paths, orbits, waves, and Play clips), the actions a story runs in a package's code (`actions.rs`, declared with `#[lab::actions]`), the GPU image kinds a package's shaders define and a story makes instances of (`views.rs`; a kind may read the package's pass-chain targets with `reads=`), the struct-panel records (`layout.rs`, `packages/rlstd/shaders/types.wgsl`), and the `Investigation` trait (`investigation.rs`). |
 | [`lab/src/investigations.rs`](lab/src/investigations.rs), [`lab/src/plugin.rs`](lab/src/plugin.rs) | The investigations come from the packages' libraries. A package with code names its `library` (a cdylib) and its `negotiate` symbol; the loader opens the library at run time and calls that function with a C structure (the loader's interface version, its lab's build, and a map), and the function, which `lab::negotiate!` writes, checks them against the lab it was compiled with and registers the package's method handles in the map by name (`investigations`), the way the Vulkan loader negotiates with a layer. A library built against another lab is refused, not called. |
 | [`tools/video/`](tools/video/README.md) | The narrated-video builder: narration, timeline, render, mux, captions, documents, and verification. |
 | [`lab/build.rs`](lab/build.rs), [`lab/check/`](lab/check/src/lib.rs) | Each package's build checks its own shaders (with naga) and text tables (the lab's checks rlstd); the lab's also fingerprints the lab's build for the negotiation. They generate nothing. |

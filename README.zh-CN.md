@@ -24,9 +24,9 @@
 
 共享的实验室（主页、设置，以及研究所依赖的代码），以及那些许可证允许发布其衍生代码的引擎的研究：
 
-- **Open 3D Engine：光照模型**（[`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)）。O3DE 2.8 的 Atom 渲染器如何照亮
-  StandardPBR 表面，其着色器代码已移植到 WGSL：metallic 工作流、GGX 高光及其 D、G、F 项、diffuse response、BRDF 纹理与多次散射补偿、
-  simple point light，以及全局 skylight 的基于图像的光照（IBL）。
+- **Open 3D Engine：光照模型**（[`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)）。O3DE 26.05 的 Atom 渲染器如何照亮
+  一帧，其着色器代码已移植到 WGSL，并按默认管线的方式运行：depth pre-pass、分块光源剔除、太阳的级联阴影及其屏幕空间缓冲、forward pass
+  及其五个 target、材质模型与各光照模型的 BRDF、BRDF 纹理与多重散射补偿、基于图像的光照与反射 probe、SSAO、透射，以及地形。
 
 一个本仓库不提供的可选模块可以向 `packages/` 加入它自己的本地包（各有自己的 Cargo 工作区）。没有它时，实验室只包含公开的研究。
 
@@ -74,7 +74,7 @@ cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
 
 ```bash
 bash tools/video/setup.sh --gpu                                     # 只需一次：在 .cache/ 下安装 Piper、FFmpeg、Node 和 Mermaid
-python3 tools/video/build.py --investigation o3de/lighting          # build/video/o3de/lighting/en/o3de-lighting.mp4
+python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
 
@@ -95,7 +95,7 @@ python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 | [`lab/src/text.rs`](lab/src/text.rs)、[`lab/src/readback.rs`](lab/src/readback.rs)、[`lab/src/gpu.rs`](lab/src/gpu.rs) | 字体与文字、回读画面并保存为 PNG，以及 GPU 设备。文本表、伪代码清单和源码索引都是各层包中的资源，首次使用时读取（`i18n::Table`）。 |
 | [`lab/src/formula.rs`](lab/src/formula.rs)、[`lab/src/rich_text.rs`](lab/src/rich_text.rs)、[`packages/rlstd/assets/mitex/`](packages/rlstd/assets/mitex) | 公式：LaTeX 由 Typst（通过 MiTeX 的 scope）排版为绘制时着色的覆盖遮罩，以及把带公式标签的文字排在同一条基线上。 |
 | [`lab/src/scene.rs`](lab/src/scene.rs)、[`packages/rlstd/scenes/`](packages/rlstd/scenes/study-room.toml)、[`lab/src/terrain.rs`](lab/src/terrain.rs) | 实验室的场景，按 `SceneId` 区分：书房，以及天空下的丘陵地形。每个场景是一个数据文件，即资源 `scene/<key>`（其物体、形状、材质、光源、光照常数、相机从何处观看，以及地形的高度场），在首次构建场景时读取。每个演示显示其中一个（`Investigation::demo_scene`，默认为书房）；渲染器在某帧首次需要时准备场景，并保留它以便切换回来；当一项研究的演示使用多个场景时，查看器为每个场景显示一个标签页，旁边是该场景的演示。地形是网格上的高度场（`SHAPE_TERRAIN`），绘制为三角形，并在 GPU（`intersectTerrain`）和 CPU（`Terrain::intersect`）上逐格追踪；其高度来自给定的采样，或者（可选）固定种子的分形 Perlin 噪声。 |
-| `lab/src/*.rs`（其余文件） | 场景渲染器、确定性录制器、查看器及其停靠面板、时间线播放器及其动画（`animation.rs`：缓动、路径、环绕、波动和 Play 片段）、故事在包代码中运行的动作（`actions.rs`，用 `#[lab::actions]` 声明）、包的着色器定义、由故事创建实例的 GPU 图像种类（`views.rs`）、结构体面板的记录（`layout.rs`、`packages/rlstd/shaders/types.wgsl`），以及 `Investigation` trait（`investigation.rs`）。 |
+| `lab/src/*.rs`（其余文件） | 场景渲染器、确定性录制器、查看器及其停靠面板、时间线播放器及其动画（`animation.rs`：缓动、路径、环绕、波动和 Play 片段）、故事在包代码中运行的动作（`actions.rs`，用 `#[lab::actions]` 声明）、包的着色器定义、由故事创建实例的 GPU 图像种类（`views.rs`；种类可用 `reads=` 读取包的 pass chain target）、结构体面板的记录（`layout.rs`、`packages/rlstd/shaders/types.wgsl`），以及 `Investigation` trait（`investigation.rs`）。 |
 | [`lab/src/investigations.rs`](lab/src/investigations.rs)、[`lab/src/plugin.rs`](lab/src/plugin.rs) | 研究来自各个包的库。带代码的包写明它的 `library`（一个 cdylib）和 `negotiate` 符号；加载器在运行时打开这个库，用一个 C 结构体（加载器的接口版本、它的实验室构建，以及一个映射表）调用该函数。这个函数由 `lab::negotiate!` 生成，它把这些信息与自己编译时所用的实验室比对，再按名称把包的方法句柄（`investigations`）登记到映射表中，就像 Vulkan 加载器与层的协商。针对另一个实验室构建的库会被拒绝，不会被调用。 |
 | [`tools/video/`](tools/video/README.md) | 旁白视频构建器：旁白、时间线、渲染、封装、字幕、文档和验证。 |
 | [`lab/build.rs`](lab/build.rs)、[`lab/check/`](lab/check/src/lib.rs) | 每个包的构建检查它自己的着色器（用 naga）和文本表（实验室的构建检查 rlstd）；实验室的构建还为协商计算实验室构建的指纹。它们不生成任何文件。 |

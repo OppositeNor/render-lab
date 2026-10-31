@@ -31,6 +31,13 @@
 //! passes are, over one invocation per texel of `size`. It writes display
 //! colours (sRGB-encoded), shown as they are, as a CPU picture's pixels are. A kind's key is
 //! unique in its package; `text=` (a key of the package's text) is its title.
+//!
+//! A kind may also read the investigation's pass chain (`reads=diffuse,normal`:
+//! its targets, `depth`, `hdr`, its buffers, or its depth views by name). The
+//! module then binds those at group 2 exactly as a chain pass does
+//! (`gpu::chain_binding`, src/investigation.rs `ShadingPass`), read-only, and
+//! the renderer runs the kind after the chain, so it shows this frame's data.
+//! A kind without `reads` runs before the scene, with group 2 unbound.
 //! Naga reads a declaration's `///` lines only when no `//` comment comes
 //! between them and the declaration before it, so a file's `//` header hides
 //! the tags of its first declaration: write it as part of the `///` block.
@@ -56,6 +63,9 @@ pub struct ViewKind {
     pub entry: String,
     /// The entry point's `@workgroup_size`.
     pub workgroup: [u32; 3],
+    /// The pass-chain targets, buffers, or depth views it reads at group 2
+    /// (`reads=`), in order; empty for none.
+    pub reads: Vec<String>,
     /// Its texture's size in texels.
     pub size: [u32; 2],
     /// Its title: a key of its package's text.
@@ -167,8 +177,8 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
         }
         let Some(key) = arg("view") else { continue };
         let [key] = key.as_slice() else { bail!("{id}: `{name}`: `view=` names one kind{at}") };
-        if let Some(t) = tags.iter().find(|t| !["view", "entry", "size", "text"].contains(&t.name.as_str())) {
-            bail!("{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text){at}", t.name);
+        if let Some(t) = tags.iter().find(|t| !["view", "entry", "size", "text", "reads"].contains(&t.name.as_str())) {
+            bail!("{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text, reads){at}", t.name);
         }
         if binding != Some((VIEW_GROUP, 0)) {
             bail!("{id}: `{name}`, the image kind `{key}`, is bound at @group({VIEW_GROUP}) @binding(0){at}");
@@ -187,7 +197,8 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
             bail!("{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}", size[0], size[1]);
         }
         let text = arg("text").and_then(|t| t.first().cloned());
-        kinds.push(ViewKind { key: key.clone(), package: package.to_string(), module: id.to_string(), entry, workgroup: point.workgroup_size, size, text, doc, params: Vec::new(), params_size: 0 });
+        let reads = arg("reads").unwrap_or_default();
+        kinds.push(ViewKind { key: key.clone(), package: package.to_string(), module: id.to_string(), entry, workgroup: point.workgroup_size, size, text, reads, doc, params: Vec::new(), params_size: 0 });
     }
     for (key, (handle, at)) in params_of {
         let Some(kind) = kinds.iter_mut().find(|k| k.key == key) else { bail!("{id}: parameters of `{key}`, which is not an image kind of the module{at}") };

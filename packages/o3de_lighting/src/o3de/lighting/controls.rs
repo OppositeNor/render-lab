@@ -48,7 +48,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     let mut toggles: Vec<(&'static str, &str)> = vec![("lightOn", tr("controls.light_on"))];
     match demo {
         Demo::Room => toggles.extend([("labels", tr("controls.labels")), ("vectors", tr("controls.vectors")), ("lobe", tr("controls.lobes"))]),
-        Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("lightMarkers", tr("controls.light_markers")), ("labels", tr("controls.labels"))]),
+        Demo::Culling => toggles.extend([("cullTile", tr("controls.the_point_s_tile")), ("lightMarkers", tr("controls.light_markers")), ("splitView", tr("controls.split_view")), ("labels", tr("controls.labels"))]),
         Demo::Surface => toggles.extend([("vectors", tr("controls.n_l_v_h")), ("sphereOcclusion", tr("controls.occlusion_maps")), ("labels", tr("controls.labels"))]),
         Demo::Ssao => toggles.extend([("ssao", "SSAO"), ("ssaoBlur", tr("controls.blur")), ("specularResolve", tr("controls.specular_resolve")), ("walls", tr("controls.walls"))]),
         Demo::Reflections => toggles.extend([("probes", tr("controls.probes")), ("probeParallax", tr("controls.parallax_correction")), ("probeBoxes", tr("controls.probe_boxes")), ("walls", tr("controls.walls")), ("probeCubemap", tr("controls.cubemap_cross")), ("probeBall", tr("controls.mirror_ball"))]),
@@ -59,6 +59,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
         Demo::PointLight => toggles.extend([("falloff", tr("controls.falloff_curve")), ("radius", tr("common.attenuation_radius")), ("vectors", tr("controls.vectors"))]),
         Demo::Ibl => toggles.extend([("vectors", tr("controls.n_v_r")), ("walls", tr("controls.walls"))]),
         Demo::Cascades => toggles.extend([("cascades", tr("shot.cascades")), ("walls", tr("controls.walls"))]),
+        Demo::Terrain => toggles.extend([("terrainO3deNormal", tr("controls.terrain_o3de_normal")), ("shadowBlur", "FullscreenShadowBlur")]),
     }
     toggles.extend([("multiscatter", tr("controls.multiscatter")), ("specularAA", "specular AA"), ("ibl", "IBL")]);
     dock.show(ui, &toggles);
@@ -84,12 +85,13 @@ fn light(dock: &mut Dock, ui: &mut Ui, demo: Demo) {
     let hint = tr("controls.point_light_hint");
     dock.group(ui, tr("common.simple_point_light"), Some(hint), |d, ui| {
         d.rows(ui, "o3de-light", |d, ui| {
-            // The position and the IBL exposure are gShading's (shaders/standard_lighting.wgsl), the rest values.rs's.
+            // The position and the two exposures (skylight, sky box) are gShading's (shaders/standard_lighting.wgsl), the rest values.rs's.
             for key in ["lightPosition", "lightIntensity", "attenuationRadius"] {
                 d.value(ui, key);
             }
             if demo != Demo::PointLight {
                 d.value(ui, "iblExposure");
+                d.value(ui, "skyboxExposure");
             }
         });
     });
