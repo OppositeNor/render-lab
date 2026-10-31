@@ -310,9 +310,8 @@ using its type-equality relation; that comparison concerns types, not the value 
 the original expression after checking it. Static checking works over expression syntax and type information,
 without evaluating a live expression to inspect it.
 
-The computational behavior of successful ascription is identity. It can elaborate schematically to
-`{checkAgainst T val}`, with mathematical signature `(T : Type) -> T -> T` and body `lambda T. lambda x. x`, or erase
-to the checked expression. That signature and static type-parameter checking supply the guarantee; the identity
+The computational behavior of successful ascription is identity. After checking, it can elaborate to
+`{{^ {x} x} val}` or erase to the checked expression. The static checker supplies the guarantee; the identity
 body alone does not implement type checking. Define evaluation order so the value is evaluated once at its chosen
 stage. Never infer its type by running a function on sample values. Whether to expose a library-level identity
 alongside the `:` syntax is optional.
@@ -547,7 +546,9 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
 - Compile to a small instruction set and run with deterministic inputs and resource budgets. Support a minimal
   host registry so test hosts can validate dynamic dependencies without linking the renderer.
 - Implement the STL catalog, explicit primitive substrate, variadic argument packing, module environments, and
-  a standalone code runner. Test independently without importing `rlstd` or the lab.
+  a standalone code runner. Use the catalog's actual `[# name {^ {...} ...}]` definitions as implementation fixtures;
+  load dependencies before users rather than treating topic order as initialization order. Test independently
+  without importing `rlstd` or the lab.
 - Exit: constants, higher-order functions, recursion, structure fields, static rejection, `[Assert ... ...]`, and
   test-host runtime calls work through the same core. Invalid syntax/types/stages produce precise diagnostics;
   infinite recursion stops within its budget. No dependency cycle with `lab/check`.
@@ -659,6 +660,9 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
    thunk elaboration for `{if condition thenExpr elseExpr}` despite ordinary eager application.
    Ratify `{: expression TypeExpression}` as static ascription and the return-first `FuncType` API, including
    its variadic type-constructor interface and zero-argument function representation. `|` is an ordinary alias.
+   Ratify the newly explicit `{K.variadic prefixCount minimumTailCount implementation}` bridge and the
+   arity-preserving `K.fix` primitive. Fixed-arity lambdas alone do not derive either capability; homogeneous tails
+   use Lists, heterogeneous tails use checked internal argument vectors and `K.mapArgs`.
 3. Finalize the proposed `[% expression]` wrapper, inherited evaluation contexts, explicit staging of narration,
    scope/capture rules, higher-order effect inference, and any explicit timing-context operations.
 4. Whether custom presentation uses a language protocol, a conversion function, or both; how composition preserves

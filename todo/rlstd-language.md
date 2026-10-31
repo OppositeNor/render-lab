@@ -50,10 +50,10 @@ the language. Keep resources lazy, loaded when their module/scene is needed. `rl
 cdylib: its `src/` is compiled into the lab as `lab::utility`; this plan does not assume a new library/negotiation
 entry. The independent language crate cannot depend on that code or on the lab's package loader.
 
-## Notation and mathematical foundation
+## Source notation and primitive boundary
 
-Use the general STL's lambda notation, primitive immutable values, explicit static/runtime capabilities, exact
-arity, and variadic packing convention. An `R.*` operation below is supplied by `rlstd`'s native adapter, never by
+Use the general STL's `{^ {...} ...}` lambdas, primitive immutable values, explicit static/runtime capabilities,
+exact arity, and proposed `K.variadic` bridge. An `R.*` operation below is supplied by `rlstd`'s native adapter, never by
 the language kernel. It is explicitly registered with a signature and stage requirements. Qualified names such
 as `rlstd.colored` below assume module resolution is configured; source import syntax is still to be specified.
 
@@ -80,26 +80,72 @@ registered immutable host datatypes with checked constructors; their representat
 to the general language. A generic host-type interface must support their validated handles without exposing
 addresses or borrowing. Generic equality is unavailable unless an adapter registers a lawful value equality.
 
-Mathematical constructor definitions:
+Source type definitions use the general STL rather than special rendering-language syntax:
 
 ```text
-rgba = λr.λg.λb.λa. R.color(r,g,b,a)
-rgb = λr.λg.λb. rgba (float(r)/255.0) (float(g)/255.0) (float(b)/255.0) 1.0
-colored = λs.λc. R.nominalRecord(ColoredString, {string=s,color=c})
-formula = λlatex.λspoken.
-  R.nominalRecord(Formula, {latex=latex,spoken=spoken,display=False,colors=Nil})
-displayFormula = λlatex.λspoken.
-  R.nominalRecord(Formula, {latex=latex,spoken=spoken,display=True,colors=Nil})
-codeSpan = λcode.λspoken. R.nominalRecord(CodeSpan, {code=code,spoken=spoken})
-content = λpackedItems. R.content(flatten (mapArgs packedItems toItems))
+[# ColorData [% {Struct
+    {Field "r" Float} {Field "g" Float} {Field "b" Float} {Field "a" Float}
+}]]
+[# Color [% {Nominal "rlstd.Color" ColorData}]]
+[# ColoredStringData [% {Struct {Field "string" String} {Field "color" Color}}]]
+[# ColoredString [% {Nominal "rlstd.ColoredString" ColoredStringData}]]
+[# FormulaData [% {Struct
+    {Field "latex" String} {Field "spoken" String}
+    {Field "display" Bool} {Field "colors" {List Color}}
+}]]
+[# Formula [% {Nominal "rlstd.Formula" FormulaData}]]
+[# CodeSpanData [% {Struct {Field "code" String} {Field "spoken" String}}]]
+[# CodeSpan [% {Nominal "rlstd.CodeSpan" CodeSpanData}]]
 ```
 
-Record/list notation in these equations is mathematical data notation, not a second source grammar. `rgba` accepts
-four Floats; `rgb` accepts three Int bytes in `[0,255]`. Invalid components error. `colored`, `formula`,
-`displayFormula`, and `codeSpan` each take two arguments as shown. `content` is variadic: its argument vector may
-contain different registered presentation types; packing happens before the lambda receives it.
-`mapArgs` is the general argument-vector adapter, specializing `toItems` for each argument. `R.content` validates
-the flattened item list and wraps it as the immutable Content datatype.
+The ordinary constructors then use `Record`, `Member`, and `wrap`:
+
+```text
+[# rgba {^ {r g b a}
+    {if {and {<= 0.0 r 1.0} {<= 0.0 g 1.0} {<= 0.0 b 1.0} {<= 0.0 a 1.0}}
+        {wrap Color {Record ColorData
+            {Member "r" r} {Member "g" g} {Member "b" b} {Member "a" a}
+        }}
+        {error "color component outside [0,1]"}
+    }
+}]
+[# rgb {^ {r g b}
+    {if {and {<= 0 r 255} {<= 0 g 255} {<= 0 b 255}}
+        {rgba {/ {float r} 255.0} {/ {float g} 255.0} {/ {float b} 255.0} 1.0}
+        {error "color byte outside [0,255]"}
+    }
+}]
+[# colored {^ {text color}
+    {wrap ColoredString {Record ColoredStringData
+        {Member "string" text} {Member "color" color}
+    }}
+}]
+[# formula {^ {latex spoken}
+    {wrap Formula {Record FormulaData
+        {Member "latex" latex} {Member "spoken" spoken}
+        {Member "display" false} {Member "colors" K.nil}
+    }}
+}]
+[# displayFormula {^ {latex spoken}
+    {wrap Formula {Record FormulaData
+        {Member "latex" latex} {Member "spoken" spoken}
+        {Member "display" true} {Member "colors" K.nil}
+    }}
+}]
+[# codeSpan {^ {code spoken}
+    {wrap CodeSpan {Record CodeSpanData {Member "code" code} {Member "spoken" spoken}}}
+}]
+[# toItems {^ {value} {R.toItems value}}]
+[# content {K.variadic 0 0 {^ {items}
+    {R.content {flatten {K.mapArgs items toItems}}}
+}}]
+```
+
+`rgba` accepts four Floats; `rgb` accepts three Int bytes in `[0,255]`. Invalid components error. `colored`,
+`formula`, `displayFormula`, and `codeSpan` each take two arguments as shown. Expected Record field types resolve
+the empty color lists as `List Color`. `content` is variadic and may accept different registered presentation types.
+`K.mapArgs` specializes the constrained `toItems` adapter for each static argument type. `R.content` validates the
+flattened item list and wraps it as the immutable host Content datatype; those two `R.*` operations remain native.
 
 `toItems` is the explicit `rlstd` conversion:
 
@@ -141,15 +187,16 @@ Those are policies of this package, not definitions of the general language's st
 Pure constructors, with exact fixed-prefix/variadic packing signatures:
 
 ```text
-setValue = λkey.λvalue. R.trigger("set", {key=key,value=value})
-animate = λkey.λfrom.λto.λseconds.
-  R.trigger("animate", {key=key,from=from,to=to,seconds=seconds,ease="linear"})
-sequence = λpackedTriggers. R.trigger("sequence", packedTriggers)
-parallel = λpackedTriggers. R.trigger("parallel", packedTriggers)
-clamp01 = λu. ifThunk (K.less u 0.0) (λ_.0.0)
-                      (λ_. ifThunk (K.less 1.0 u) (λ_.1.0) (λ_.u))
-linear = λu. clamp01 u
-smoothstep = λu. let t = clamp01 u in t*t*(3.0-2.0*t)
+[# setValue {^ {key value} {R.setValue key value}}]
+[# animate {^ {key from to seconds} {R.animate key from to seconds}}]
+[# sequence {K.variadic 0 0 {^ {triggers} {R.sequence triggers}}}]
+[# parallel {K.variadic 0 0 {^ {triggers} {R.parallel triggers}}}]
+[# clamp01 {^ {u} {if {< u 0.0} 0.0 {if {> u 1.0} 1.0 u}}}]
+[# linear {^ {u} {clamp01 u}}]
+[# smoothstep {^ {u}
+    [# t {clamp01 u}]
+    {* t t {- 3.0 {* 2.0 t}}}
+}]
 ```
 
 `setValue` takes a static registered key and a value of its declared type. `animate` takes four arguments: a static
@@ -161,12 +208,20 @@ writers to a single key. Descriptor construction does not immediately update a s
 For an animation anchored at `t0`, seek-independent evaluation is:
 
 ```text
-valueAt(t) = base                                      if t < t0
-           = to                                        if seconds = 0 and t >= t0
-           = from + (to-from)*linear((t-t0)/seconds)    otherwise
+[# valueAt {^ {base from to seconds t0 t}
+    {if {< t t0}
+        base
+        {if {= seconds 0.0}
+            to
+            {+ from {* {- to from} {linear {/ {- t t0} seconds}}}}
+        }
+    }
+}]
 ```
 
-The endpoint holds after completion. Narration timing selects anchors; paint/layout does not. `rlstd` checks
+This helper accepts Float inputs and a validated nonnegative duration. `R.setValue`, `R.animate`, `R.sequence`,
+and `R.parallel` implement the checked host datatype constructors and scheduling contracts described here. Their
+wrappers do not execute updates. The endpoint holds after completion. Narration timing selects anchors; paint/layout does not. `rlstd` checks
 unknown keys/types, action arguments, image kinds, and handler schemas through the lab's registries. Function
 signatures/stage constraints come from host metadata. Investigation-specific algorithms stay in their packages.
 
@@ -175,14 +230,14 @@ not hidden mutable state added to core lambdas or content values.
 
 ## Viewer and resource capabilities
 
-For explicit lab context C, two example adapters have mathematical meanings:
+Source wrappers for two Runtime-only adapters are:
 
 ```text
-time  = λC.λunit. C.timelineSeconds
-value = λC.λkey. C.readRegisteredValue(key)
+[# time {^ {} {R.timelineSeconds}}]
+[# value {^ {key} {R.readRegisteredValue key}}]
 ```
 
-`{rlstd.time}` has zero source arguments; `{rlstd.value "key"}` has one. The native adapter receives C from the
+`{rlstd.time}` has zero source arguments; `{rlstd.value "key"}` has one. The native adapter receives explicit C from the
 host interface. These functions require Runtime and declare their result types; key schemas are known statically.
 They do not expose a process wall clock. A script closure can be created statically while retaining a latent
 Runtime requirement; calling it statically fails generic stage checking.
