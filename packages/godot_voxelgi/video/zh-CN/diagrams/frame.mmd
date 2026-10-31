@@ -1,0 +1,10 @@
+flowchart LR
+    BAKE["烘焙（编辑器中，一次）<br/>单元格八叉树"] --> SDF["距离场"]
+    BAKE --> LIGHT["光照阶段（数据变化时）<br/>直接光 · 反弹 · mip"]
+    SDF --> LIGHT
+    LIGHT --> TEX["RGBA8 三维纹理<br/>每层一个 mip"]
+    TEX -. "反弹读取该纹理" .-> LIGHT
+    DYN["动态物体<br/>（每帧）"] --> TEX
+    PRE["深度预处理阶段<br/>法线 · 粗糙度 · 标记"] --> CONE["屏幕空间渲染阶段<br/>逐像素锥体"]
+    TEX --> CONE
+    CONE --> OPAQUE["不透明物体渲染阶段<br/>按 alpha 混合"]

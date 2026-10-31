@@ -1,0 +1,8 @@
+# The room and the VoxelGI box, from above the corner.
+
+[camera]
+target = [0.0, 1.2, 0.0]
+yaw = 30.0
+pitch = 34.0
+distance = 11.0
+fov = 50.0

@@ -1,4 +1,4 @@
-# title: Clear coat: the base layer beneath it | Clear coat：涂层下的底层
+# title: Clear coat: the base layer beneath it | 清漆层：其下方的基底层
 # source: clear-coat-f0
 # demo: clearcoat
 COAT_F0 = 0.04   # IOR 1.5

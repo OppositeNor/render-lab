@@ -1,6 +1,6 @@
 flowchart LR
-    UPD["Cascade<br/>与剔除"] --> VOX["体素与<br/>距离场"]
+    UPD["级联与剔除"] --> VOX["体素与<br/>距离场"]
     VOX --> LIGHT["体素中的光"]
-    LIGHT --> PRE["Probe 光线<br/>（depth pre-pass）"]
-    PRE --> STORE["Probe 贴图"]
-    STORE --> GI["屏幕 pass"]
+    LIGHT --> PRE["探针光线<br/>（深度预处理阶段）"]
+    PRE --> STORE["探针贴图"]
+    STORE --> GI["屏幕空间渲染阶段"]

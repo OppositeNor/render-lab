@@ -1,4 +1,4 @@
-# title: Prefiltering the specular cubemap | 预过滤高光 cubemap
+# title: Prefiltering the specular cubemap | 预过滤镜面反射立方体贴图
 # source: cubemap-ggx
 # demo: ibl
 def filter_ggx_texel(source, mip, direction, samples=256):

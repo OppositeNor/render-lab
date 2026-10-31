@@ -1,4 +1,4 @@
-# title: Transmission: GetBackLighting | 透射：GetBackLighting
+# title: Transmission: GetBackLighting | 透射：GetBackLighting 函数
 # source: back-lighting
 # demo: transmission
 def apply_point_light(light, s, lit):   # a sphere light  # @light

@@ -1,0 +1,13 @@
+# The field demonstration (src/godot/voxelgi/demos.rs).
+
+key = "field"
+title-text = "shot.field_title"
+tab-text = "shot.field"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "distance-field"
+resets-camera = true
+include = ["top-camera"]
+
+[params]
+slice = 1.0

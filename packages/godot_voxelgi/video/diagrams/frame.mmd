@@ -1,0 +1,10 @@
+flowchart LR
+    BAKE["Bake (editor, once)<br/>octree of cells"] --> SDF["Distance<br/>field"]
+    BAKE --> LIGHT["Light passes (on change)<br/>direct · bounce · mips"]
+    SDF --> LIGHT
+    LIGHT --> TEX["RGBA8 3D texture<br/>one mip per level"]
+    TEX -. "the bounce reads it" .-> LIGHT
+    DYN["Dynamic objects<br/>(every frame)"] --> TEX
+    PRE["Depth pre-pass<br/>normal · roughness · tag"] --> CONE["Screen pass<br/>cones per pixel"]
+    TEX --> CONE
+    CONE --> OPAQUE["Opaque pass<br/>mixed by alpha"]

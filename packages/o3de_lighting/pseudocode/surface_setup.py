@@ -1,4 +1,4 @@
-# title: Surface: the metallic workflow | Surface：metallic 工作流
+# title: Surface: the metallic workflow | 表面：金属度工作流
 # source: set-albedo-f0
 # demo: surface
 MAX_DIELECTRIC_SPECULAR_F0 = 0.08

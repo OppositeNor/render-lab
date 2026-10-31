@@ -48,7 +48,7 @@ pass loop :3114-3171). The SDF is read only by the light passes' shadow ray marc
 
 | Claim | Source | Where the lab differs |
 |---|---|---|
-| The Bake button calls `VoxelGIEditorPlugin::_bake`; with no data it asks for a `.res` path first. | editor/scene/3d/voxel_gi_editor_plugin.cpp:42, :169 | The lab bakes at load, from a CPU module that follows the voxelizer (no editor). |
+| The Bake button calls `VoxelGIEditorPlugin::_bake`; with no data it asks for a `.res` path first. `VoxelGI.bake` is also bound for run-time use (the class reference says it can be baked in an exported project). | editor/scene/3d/voxel_gi_editor_plugin.cpp:42, :169; voxel_gi.cpp:570; doc/classes/VoxelGI.xml:9 (fact check) | The lab bakes at load, from a CPU module that follows the voxelizer (no editor). |
 | `VoxelGI::bake` maps `subdiv` {64,128,256,512} to depth {6,7,8,9}; defaults `subdiv = SUBDIV_128`, `size = (20,20,20)`; `size` axes are clamped to ≥ 1. | scene/3d/voxel_gi.cpp:434-435; voxel_gi.h:120-121 | The lab's room is smaller; it will need its own size and subdiv (likely 64 or 128); say so. |
 | Order: camera exposure → `begin_bake(depth, AABB(-size/2,size), exposure)` → `_find_meshes` → `plot_mesh` per mesh → `end_bake` → `get_sdf_3d_image` → `allocate`. | voxel_gi.cpp:437-518 | |
 | The scan root is the VoxelGI's parent; a mesh is collected if visible in tree, `gi_mode == GI_MODE_STATIC` (the default), and its AABB in VoxelGI-local space intersects the bounds. Layers are ignored. `get_meshes()` adds MultiMesh, CSG, GridMap meshes (surface materials only). | voxel_gi.cpp:321-333, visual_instance_3d.h:144 | |
@@ -228,8 +228,9 @@ a second, overlapping VoxelGI could demonstrate them.
 - Volumetric fog samples every mip at the froxel's point and composites them front to back (not a cone), scaled by
   `volumetric_fog_gi_inject` (default 1.0) (fog.cpp:1135; volumetric_fog_process.glsl:705-722).
 - Support: Forward+ only. Compatibility's entry points are stubs (drivers/gles3/rasterizer_scene_gles3.cpp:1255-1270);
-  Mobile pairs nothing and binds nothing (render_forward_mobile.h:583; its binding is commented out); the class doc
-  says so (doc/classes/VoxelGI.xml:8).
+  on Mobile the shared RD code still creates and updates the instances (the light passes run), but no geometry is
+  paired (render_forward_mobile.h:583) and the texture binding is commented out (render_forward_mobile.cpp:606-626), so
+  nothing reads it (fact check); the class doc says Forward+ only (doc/classes/VoxelGI.xml:8).
 - Debug views: `DEBUG_DRAW_VOXEL_GI_ALBEDO / _LIGHTING / _EMISSION` draw one cube per **leaf** cell (level 0 of the
   mip list), decoded from `CellData` or `texelFetch` of the light texture; with dynamic data, `LIGHT_FULL` draws every
   grid cell with alpha > 0, dithered (gi.cpp:3431-3510; vgdebug.glsl). **(checked)** The LIGHT mode's
@@ -264,3 +265,14 @@ a second, overlapping VoxelGI could demonstrate them.
 
 Still open: the bias the shader gets after a save and load (1.4 vs 1.5, §2): to test in the lab's port only if the
 story names the number.
+
+## 8. After the reviews (2026-10-31)
+
+The chapter reviews and an independent fact check are in `reviews/`. Corrections the fact check made to this file's
+picture: the bake can also run at run time; on Mobile the light passes still run but nothing reads them; the mip pass
+is a weighted blend (sum / mix(8, count, propagation)), not an average, at the default propagation; the reflection
+cone's angle from roughness is a half-angle (72 degrees at roughness 0.9); only dynamic range, propagation, two
+bounces, and new data bump the version (gi.cpp:188, :256, :271, :344); "seventy-two dispatches" is 6 x (4 + mips) for
+128 cells on the longest axis. Lab measurements used by the story: 42,289 leaves of 56,376 cells; the worked leaf
+(63, 6, 29) of the teapot; the bounce's worked cell's last cone, 11 steps, alpha 0.64; the brightest leaf's light 3.3
+(so it clips at a dynamic range of 1 or 2).

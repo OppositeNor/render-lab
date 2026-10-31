@@ -1,4 +1,4 @@
-# title: Occlusion around a probe | probe 周围的遮蔽
+# title: Occlusion around a probe | 探针周围的遮蔽
 # source: occlusion-shells
 # demo: occlusion
 def occlusion(window, probe):    # 16^3 cells around it

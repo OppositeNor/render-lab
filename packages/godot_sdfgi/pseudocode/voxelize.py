@@ -1,4 +1,4 @@
-# title: The SDF pass: a fragment becomes a voxel | SDF pass：一个片元变成一个体素
+# title: The SDF pass: a fragment becomes a voxel | SDF 渲染阶段：一个片元变成一个体素
 # source: sdf-fragment
 # demo: voxels
 def render_sdf_fragment(vertex, normal, albedo, emission):

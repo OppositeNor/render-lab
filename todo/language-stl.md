@@ -11,8 +11,8 @@ calls, and local `[# ...]` bindings. The choices here are proposals to ratify be
 contain definitions and expressions; they do not implicitly print or collect a document. The optional text reader,
 `$` interpolation, presentation, and `.story` profile belong to `rlstd`.
 
-Source examples assume the listed `std` names are in scope. Whether a normal module imports a prelude explicitly
-or receives one by default is a module-syntax decision, not a second evaluator.
+Library definition blocks assume their earlier dependencies are in scope inside `std`. Standalone consumer
+examples use `[Import* std]`; `[Import std]` keeps names qualified as `std.map`, `std.Int`, or `std.+`.
 
 `[Assert first second]` is a **compile-time meta form**. The former ordinary `{Assert ...}` operation is removed.
 `[% expression]` evaluates statically; `{% a b}` is numeric modulo. They are different forms.
@@ -563,6 +563,7 @@ make these forms definable by an ordinary source lambda.
 | Form | Compiler meaning |
 |---|---|
 | `[# name e]` | Check initializer, establish a lexical binding in the enclosing definition context; no content/result expression. |
+| `[Import p]`, `[Import* p]`, `[ImportAs p a]` | Resolve a package's public interface and introduce lexical namespaces/bindings as specified in the [package design](language-packages.md); no expression result. |
 | `[% e]` | Check static capabilities, evaluate e during preparation, and embed the typed constant. A text/document host decides its presentation. |
 | `[Assert a b]` | Evaluate both operands statically once, compare supported same-type values, return the first constant or fail. |
 | `{: e T}` | Resolve static expected Type, check e without running a live value, and preserve e's value at its original stage. |
@@ -615,7 +616,9 @@ For this nonrecursive binding, the equivalent application is:
 ```
 
 Multiple nonrecursive definitions elaborate to nested bindings in source order; later initializers see earlier
-names. A module initializer follows the same lexical binding rules. A lambda captures its lexical environment, so a caller's
+names. Definition contexts also admit the three import declarations; these resolve before execution and obey
+source-order lexical visibility without becoming expression results. A module initializer follows the same lexical
+binding rules. A lambda captures its lexical environment, so a caller's
 same-named parameter cannot alter it. Self/mutual recursion requires `fix` or a separately specified recursive
 declaration form; it does not arise from accidental use-before-initialization. `[% ...]` does not introduce a scope.
 
@@ -708,13 +711,26 @@ this draft does not derive binary64-to-decimal conversion from integer operation
 
 ## 8. General modules and host extensions
 
-The distribution supplies a `std` module containing this library. It is independent of Render Lab's `rlstd`
+The distribution supplies a `std` package containing this library. It is independent of Render Lab's `rlstd`
 package. A standalone compiler, evaluator, and semantic-test runner must work with no `rlstd`, renderer, or GPU.
-Export/import spelling and a source-file extension remain to be chosen; dependency resolution and module scopes
-are general language services, not calls to the lab's package loader.
+The [package specification](language-packages.md) defines the import forms:
 
-Each module has a lexical definition environment and explicit exports. A generic module resolver maps module IDs
-to source or compiled artifacts and checks import cycles, versions, and exported names. Hosts may implement that
+| Form | Available names |
+|---|---|
+| `[Import package-name]` | Qualified public exports, such as `package-name.content`. |
+| `[Import* package-name]` | Public exports under their own names, plus the qualified namespace. |
+| `[ImportAs package-name pn]` | Public exports qualified through `pn`, such as `pn.content`. |
+
+These are compiler declarations with lexical, source-order visibility and no expression result. Import only
+public exports; conflicting same-scope names are errors, while repeated imports of the same binding are idempotent.
+Aliases preserve the exporting definition's identity, type, arity, and stage requirements. Importing a package
+does not invoke its exported functions or turn runtime values into compile-time constants. Namespace lookup is
+distinct from record field access. The package specification covers nested scopes, submodules, initialization,
+dependency resolution, and visibility in detail.
+
+Each package has a public root interface; its modules have lexical definition environments and explicit exports.
+A generic resolver maps package/module IDs to source or compiled artifacts and checks import cycles, versions,
+and exported names. Hosts may implement that
 resolver using their own storage. Render Lab's adapter maps package resource keys into it; the core never searches
 `packages/` or reads lab manifests itself. A general CLI may evaluate a selected entry function or final expression
 and report its value; it does not interpret that value as document content.
@@ -735,8 +751,7 @@ translation parity, formula layout, scene parameter lookup, and animation confli
 ## 9. Standalone source example
 
 ```text
-[# ' list]
-[# | FuncType]
+[Import* std]
 [# next
     [% {: {^ {x} {+ x 1}}
           [% {| Int Int}]}]
@@ -770,6 +785,10 @@ Both assertions return values bound by definitions. This example requires only t
 | Two Struct calls with reversed equal field descriptors | Equal structural Type; explicit Nominal tags can distinguish types. |
 | `{Union Int String}` versus `{Union String Int Int}` | Equal normalized Type. |
 | Ordinary `{Assert 1 1}` | No runtime Assert binding; meta syntax is required. |
+| `[Import std]` followed by `{std.+ 1 2}` | `3`; package exports remain qualified. |
+| `[Import* std]` followed by `{+ 1 2}` | `3`; wildcard imports introduce public names directly. |
+| `[ImportAs std s]` followed by `{s.+ 1 2}` | `3`; aliasing preserves function and type identity. |
+| Wildcard imports introducing distinct same-scope `map` bindings | Compile-time name conflict; no import-order winner. |
 
 Implementation can optimize lists, tagged Bool, and native operations instead of allocating their lambda models,
 provided value, error, stage, and order behavior is preserved. The catalog does not require a macro system that

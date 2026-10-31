@@ -1,0 +1,16 @@
+# The mips demonstration (src/godot/voxelgi/demos.rs).
+
+key = "mips"
+title-text = "shot.mips_title"
+tab-text = "shot.mips"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "update-mipmaps"
+resets-camera = true
+include = ["top-camera"]
+
+[params]
+slice = 2.0
+mipLevel = 1.0
+workedParent = 1.0
+sliceHeight = 0.0

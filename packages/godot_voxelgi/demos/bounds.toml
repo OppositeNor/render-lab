@@ -1,0 +1,14 @@
+# The bounds demonstration (src/godot/voxelgi/demos.rs).
+
+key = "bounds"
+title-text = "shot.bounds_title"
+tab-text = "shot.bounds"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "begin-bake"
+resets-camera = true
+include = ["wide-camera"]
+
+[params]
+showBox = 1.0
+boundsStep = 2.0

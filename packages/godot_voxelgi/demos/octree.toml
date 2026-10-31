@@ -1,0 +1,15 @@
+# The octree demonstration (src/godot/voxelgi/demos.rs).
+
+key = "octree"
+title-text = "shot.octree_title"
+tab-text = "shot.octree"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "plot-face"
+resets-camera = true
+include = ["teapot-camera"]
+
+[params]
+workedTriangle = 1.0
+octreeLevel = 7.0
+cutHeight = 0.7

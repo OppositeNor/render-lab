@@ -1,0 +1,46 @@
+# The Godot VoxelGI investigation's package (its code is src/godot/voxelgi,
+# which names it with `Investigation::package`): its text, source index,
+# pseudo-code listings, demonstrations, and narrated video.
+
+name = "godot_voxelgi"
+author = "OppositeNor"
+license = "MIT"
+import = ["rlstd"]
+# Its code (src/, Cargo.toml): the library the lab opens, and its negotiation
+# function, which hands the lab the package's investigations (lab/src/plugin.rs).
+library = "godot_voxelgi"
+negotiate = "godot_voxelgi_negotiate"
+export = []
+
+# The copyright and license line shown after the engine's version (src/packages.rs).
+credit-text = "notice.credit"
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+# The narrated video, in its two editions.
+[[provides]]
+type = "demo"
+key = "video"
+title = "How Godot's VoxelGI Lights a Room"
+edition = "English"
+timeline = "timeline/en"
+audio = "narration/en"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "Godot 的 VoxelGI 如何照亮一个房间"
+edition = "中文"
+timeline = "timeline/zh-cn"
+audio = "narration/en"
+
+# Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
+
+[[notice]]
+notice-text = "notice.copyright"
+license = "LICENSE-Godot.txt"
+
+[[notice]]
+notice-text = "notice.trademark"

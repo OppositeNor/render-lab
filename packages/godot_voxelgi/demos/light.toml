@@ -1,0 +1,17 @@
+# The light demonstration (src/godot/voxelgi/demos.rs).
+
+key = "light"
+title-text = "shot.light_title"
+tab-text = "shot.light"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "compute-light"
+resets-camera = true
+include = ["floor-camera"]
+
+[params]
+extraLight = 1.0
+workedLight = 1.0
+octreeLevel = 7.0
+cellView = 5.0
+cutHeight = 0.2

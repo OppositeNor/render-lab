@@ -1,0 +1,8 @@
+# The worked floor cell, the sphere, and the omni light in profile, from the room's open front.
+
+[camera]
+target = [-0.8, 0.6, -0.5]
+yaw = 5.0
+pitch = 16.0
+distance = 4.4
+fov = 50.0

@@ -1,0 +1,13 @@
+# The pixel demonstration (src/godot/voxelgi/demos.rs).
+
+key = "pixel"
+title-text = "shot.pixel_title"
+tab-text = "shot.pixel"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "voxel-gi-compute"
+resets-camera = true
+include = ["sphere-camera"]
+
+[params]
+workedPixel = 1.0

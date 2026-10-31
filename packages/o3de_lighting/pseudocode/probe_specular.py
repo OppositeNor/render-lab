@@ -1,4 +1,4 @@
-# title: One probe's specular | 单个 probe 的高光
+# title: One probe's specular | 单个探针的镜面反射
 # source: probe-specular
 # demo: reflections
 def probe(p, px):              # ComputeProbeSpecular  # @probe

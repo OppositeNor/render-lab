@@ -1,0 +1,293 @@
+# The Godot VoxelGI investigation's resources (a collection of the
+# godot_voxelgi package, manifest.toml). Paths are relative to this file.
+
+# Its on-screen text (text.rs) and source index (sources.rs).
+[[resource]]
+id = "text/en"
+kind = "file"
+source = "text/en.json"
+license = "MIT"
+
+[[resource]]
+id = "text/zh-cn"
+kind = "file"
+source = "text/zh-CN.json"
+license = "MIT"
+
+[[resource]]
+id = "source-index"
+kind = "file"
+source = "source-index.json"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+# The demonstrations (lab/src/demo.rs): the order, one file per
+# demonstration, and the presets they share. Their values are declared in
+# src/godot/voxelgi/values.rs.
+[[resource]]
+id = "demos"
+kind = "file"
+source = "demos/index.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/room"
+kind = "file"
+source = "demos/room.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/bounds"
+kind = "file"
+source = "demos/bounds.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/octree"
+kind = "file"
+source = "demos/octree.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/cells"
+kind = "file"
+source = "demos/cells.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/field"
+kind = "file"
+source = "demos/field.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/light"
+kind = "file"
+source = "demos/light.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/bounce"
+kind = "file"
+source = "demos/bounce.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/mips"
+kind = "file"
+source = "demos/mips.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/dynamic"
+kind = "file"
+source = "demos/dynamic.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/pixel"
+kind = "file"
+source = "demos/pixel.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/compose"
+kind = "file"
+source = "demos/compose.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/room-camera"
+kind = "file"
+source = "demos/presets/room-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/wide-camera"
+kind = "file"
+source = "demos/presets/wide-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/teapot-camera"
+kind = "file"
+source = "demos/presets/teapot-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/sphere-camera"
+kind = "file"
+source = "demos/presets/sphere-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/floor-camera"
+kind = "file"
+source = "demos/presets/floor-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/top-camera"
+kind = "file"
+source = "demos/presets/top-camera.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo-preset/bounce-camera"
+kind = "file"
+source = "demos/presets/bounce-camera.toml"
+license = "MIT"
+
+# The scene shading: a WGSL port of Godot's VoxelGI screen pass (gi.glsl),
+# composed after the lab's scene module (`SceneShading::module`).
+[[resource]]
+id = "wgsl/voxelgi-shading"
+kind = "file"
+source = "shaders/voxelgi_shading.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+# The light passes, ported for the selftest's kernels.
+[[resource]]
+id = "wgsl/voxelgi-passes"
+kind = "file"
+source = "shaders/voxelgi_passes.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[shader]]
+id = "shader/voxelgi-shading"
+parts = ["rlstd.shader/scene", "wgsl/voxelgi-shading", "wgsl/voxelgi-passes"]
+
+# The pseudo-code listings (pseudocode.rs).
+
+[[resource]]
+id = "listing/frame"
+kind = "file"
+source = "pseudocode/frame.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/begin-bake"
+kind = "file"
+source = "pseudocode/begin_bake.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/plot-face"
+kind = "file"
+source = "pseudocode/plot_face.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/leaf-scan"
+kind = "file"
+source = "pseudocode/leaf_scan.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/fixup"
+kind = "file"
+source = "pseudocode/fixup.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/pack-cell"
+kind = "file"
+source = "pseudocode/pack_cell.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/distance-field"
+kind = "file"
+source = "pseudocode/distance_field.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/sort-cells"
+kind = "file"
+source = "pseudocode/sort_cells.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/compute-light"
+kind = "file"
+source = "pseudocode/compute_light.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/raymarch"
+kind = "file"
+source = "pseudocode/raymarch.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/second-bounce"
+kind = "file"
+source = "pseudocode/second_bounce.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/update-mipmaps"
+kind = "file"
+source = "pseudocode/update_mipmaps.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/dynamic-object"
+kind = "file"
+source = "pseudocode/dynamic_object.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/cone-trace"
+kind = "file"
+source = "pseudocode/cone_trace.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/voxel-gi-compute"
+kind = "file"
+source = "pseudocode/voxel_gi_compute.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "listing/compose"
+kind = "file"
+source = "pseudocode/compose.py"
+license = "MIT (Godot, THIRD_PARTY.md)"
+# The narrated video's timelines and narration, which tools/video builds from
+# video/ into build/ (`built`: missing until they are built).
+# Both editions play the English narration.
+[[resource]]
+id = "timeline/en"
+kind = "file"
+source = "build/timelines/en/timeline.json"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline/zh-cn"
+kind = "file"
+source = "build/timelines/zh-CN/timeline.json"
+license = "MIT"
+built = true
+
+# The diagram frames each timeline names beside it.
+[[resource]]
+id = "timeline-frames/en"
+kind = "directory"
+source = "build/timelines/en/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline-frames/zh-cn"
+kind = "directory"
+source = "build/timelines/zh-CN/mermaid"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/en"
+kind = "file"
+source = "build/video/en/narration.wav"
+license = "MIT"
+built = true

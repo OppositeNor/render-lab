@@ -1,0 +1,10 @@
+# The room demonstration (src/godot/voxelgi/demos.rs).
+
+key = "room"
+title-text = "shot.room_title"
+tab-text = "shot.room"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "frame"
+resets-camera = true
+include = ["room-camera"]

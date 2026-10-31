@@ -1,4 +1,4 @@
-# title: A probe's rays and its history | probe 的光线与历史
+# title: A probe's rays and its history | 探针的光线与历史
 # source: probe-march
 # demo: probes
 def update_probe(probe, history_index):

@@ -1,0 +1,15 @@
+# The dynamic demonstration (src/godot/voxelgi/demos.rs).
+
+key = "dynamic"
+title-text = "shot.dynamic_title"
+tab-text = "shot.dynamic"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "dynamic-object"
+resets-camera = true
+include = ["teapot-camera"]
+
+[params]
+dynamicVoxels = 1.0
+dynamicView = 0.0
+voxelgiMix = 0.0

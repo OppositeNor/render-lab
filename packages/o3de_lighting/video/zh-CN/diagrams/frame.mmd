@@ -1,13 +1,13 @@
 flowchart LR
-    DEPTH["Depth<br/>pre-pass"] --> CULL["光源<br/>剔除"]
+    DEPTH["深度<br/>预处理"] --> CULL["光源<br/>剔除"]
     DEPTH --> SHADOW["阴影"]
-    CULL --> FWD["Forward<br/>pass"]
+    CULL --> FWD["前向<br/>渲染"]
     SHADOW --> FWD
     LUT["BRDF LUT<br/>一次"] --> FWD
-    FWD --> TARGETS["五个<br/>target"]
+    FWD --> TARGETS["五个<br/>渲染目标"]
     TARGETS --> DIFF["漫反射<br/>IBL"]
     TARGETS --> REFL["反射"]
-    CUBES["IBL cube<br/>离线"] --> REFL
+    CUBES["IBL 立方体贴图<br/>离线生成"] --> REFL
     DIFF --> SSS["SSS"]
     SSS --> AO["SSAO"]
     REFL --> MERGE["合并"]

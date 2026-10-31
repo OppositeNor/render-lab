@@ -21,25 +21,25 @@
           "line": 1757,
           "lineHash": "144bd621f5f67edf",
           "note": "the cascade UBO is written here, after _update_sdfgi (finding F10)",
-          "noteZh": "cascade UBO 在 _update_sdfgi 之后才在此写入（发现 F10）"
+          "noteZh": "级联 UBO 在 _update_sdfgi 之后才在此写入（发现 F10）"
         },
         {
           "line": 1759,
           "lineHash": "d36b9a8a19052424",
           "note": "pre_process_gi (the dynamic lights, the SDFGIData UBO) just before it, then the light pass over the solid cells",
-          "noteZh": "之前是 pre_process_gi（动态光、SDFGIData UBO），然后是对 solid cell 的光照 pass"
+          "noteZh": "之前是 pre_process_gi（动态光、SDFGIData UBO），然后是对 solid cell 的光照渲染阶段"
         },
         {
           "line": 2132,
           "lineHash": "0073bae1a38bbffe",
           "note": "update_probes runs from here, next to the depth pre-pass",
-          "noteZh": "update_probes 由此运行，与 depth pre-pass 并行"
+          "noteZh": "update_probes 由此运行，与深度预处理阶段并行"
         },
         {
           "line": 1534,
           "lineHash": "44cc2c65193eddaf",
           "note": "the octahedral maps are stored every frame, then gi.process_gi runs the screen pass",
-          "noteZh": "八面体贴图每帧存储，随后 gi.process_gi 运行屏幕空间 pass"
+          "noteZh": "八面体贴图每帧存储，随后 gi.process_gi 运行屏幕空间渲染阶段"
         }
       ]
     },
@@ -49,7 +49,7 @@
       "symbol": "RenderForwardClustered::sdfgi_update",
       "lineHash": "cec26a12ac37be33",
       "inspect": "The per-viewport SDFGI object is freed when SDFGI is off, created when it is on, and rebuilt (every texture cleared, every cascade DIRTY_ALL) when the cascade count, minimum cell size, history size, occlusion flag or y scale differs; otherwise SDFGI::update runs, which moves the cascades.",
-      "inspectZh": "每个 viewport 的 SDFGI 对象：SDFGI 关闭时释放，开启时创建；cascade 数、最小 cell 大小、history 大小、occlusion 标志或 y scale 不同时重建（清空所有贴图，所有 cascade 为 DIRTY_ALL）；否则运行 SDFGI::update，由它移动 cascade。",
+      "inspectZh": "每个视口的 SDFGI 对象：SDFGI 关闭时释放，开启时创建；级联数、最小单元格大小、历史记录大小、遮蔽标志或 y 轴缩放不同时重建（清空所有贴图，所有级联为 DIRTY_ALL）；否则运行 SDFGI::update，由它移动级联。",
       "details": [
         {
           "line": 4037,
@@ -73,7 +73,7 @@
           "line": 4068,
           "lineHash": "50ac97692fc15c49",
           "note": "the only call that scrolls a cascade",
-          "noteZh": "唯一会滚动 cascade 的调用"
+          "noteZh": "唯一会滚动级联的调用"
         }
       ]
     },
@@ -83,13 +83,13 @@
       "symbol": "Environment (SDFGI properties)",
       "lineHash": "d5ac7d5b1af0c550",
       "inspect": "The environment's SDFGI properties and their defaults: SDFGI off, 4 cascades, a minimum cell size of 0.2 m, the y scale at 75 %, occlusion off, bounce feedback 0.5, read sky light on, energy 1.0, normal and probe bias 1.1.",
-      "inspectZh": "Environment 的 SDFGI 属性及默认值：SDFGI 关闭，4 个 cascade，最小 cell 0.2 m，y scale 为 75 %，occlusion 关闭，bounce feedback 0.5，读取 sky light 开启，energy 1.0，normal bias 与 probe bias 均为 1.1。",
+      "inspectZh": "Environment 的 SDFGI 属性及默认值：SDFGI 关闭，4 个级联，最小单元格 0.2 m，y 轴缩放为 75 %，遮蔽关闭，反弹反馈 0.5，读取 sky light 开启，能量 1.0，法线偏移与探针 bias 均为 1.1。",
       "details": [
         {
           "line": 154,
           "lineHash": "c1113356e6e24a81",
           "note": "four cascades",
-          "noteZh": "4 个 cascade"
+          "noteZh": "4 个级联"
         },
         {
           "line": 155,
@@ -107,7 +107,7 @@
           "line": 158,
           "lineHash": "a4bb8a18a7c6c377",
           "note": "the bounce feedback",
-          "noteZh": "bounce feedback"
+          "noteZh": "反弹反馈"
         }
       ]
     },
@@ -171,25 +171,25 @@
       "symbol": "RenderForwardClustered::_render_scene (depth pre-pass)",
       "lineHash": "fa4466f934bdf118",
       "inspect": "The depth pre-pass runs when the project setting rendering/driver/depth_prepass/enable is on (the default) or an opaque stencil forces it; SDFGI never forces it. The probe update is started only inside this branch, so with the setting off the probes stop updating, read from the code (finding F8).",
-      "inspectZh": "depth pre-pass 在项目设置 rendering/driver/depth_prepass/enable 开启（默认）或不透明 stencil 强制时运行；SDFGI 从不强制它。probe 更新只在这个分支内启动，所以设置关闭时 probe 停止更新，从代码中读出（发现 F8）。",
+      "inspectZh": "深度预处理阶段在项目设置 rendering/driver/depth_prepass/enable 开启（默认）或不透明模板强制时运行；SDFGI 从不强制它。探针更新只在这个分支内启动，所以设置关闭时探针停止更新，从代码中读出（发现 F8）。",
       "details": [
         {
           "line": 2112,
           "lineHash": "fd0c07fb5f4c1515",
           "note": "the only thing that forces the pre-pass in stable",
-          "noteZh": "stable 中唯一会强制 pre-pass 的条件"
+          "noteZh": "stable 中唯一会强制深度预处理阶段的条件"
         },
         {
           "line": 2120,
           "lineHash": "595d32c4e15a5b74",
           "note": "the branch that holds the probe update",
-          "noteZh": "包含 probe 更新的分支"
+          "noteZh": "包含探针更新的分支"
         },
         {
           "line": 2132,
           "lineHash": "0073bae1a38bbffe",
           "note": "update_probes starts here, beside the depth pre-pass",
-          "noteZh": "update_probes 从这里与 depth pre-pass 并行启动"
+          "noteZh": "update_probes 从这里与深度预处理阶段并行启动"
         }
       ]
     },
@@ -205,7 +205,7 @@
           "line": 1350,
           "lineHash": "9c4df30a09536bab",
           "note": "no SDFGI object, no probe update",
-          "noteZh": "没有 SDFGI 对象就没有 probe 更新"
+          "noteZh": "没有 SDFGI 对象就没有探针更新"
         }
       ]
     },
@@ -215,7 +215,7 @@
       "symbol": "GI::SDFGI::update_probes (ray_count)",
       "lineHash": "0ca64fad52e05945",
       "inspect": "The code's ray-count table has seven entries, {4, 8, 16, 32, 64, 96, 128}; the default setting, index 1, gives 8 rays per probe per frame, not the 16 that the editor's label for index 1 names (finding F7, read from the code).",
-      "inspectZh": "代码里的 ray count 表有七项，{4, 8, 16, 32, 64, 96, 128}；默认设置即索引 1，每个 probe 每帧 8 条射线，而不是编辑器中索引 1 的标签所写的 16（发现 F7，从代码中读出）。",
+      "inspectZh": "代码里的 ray count 表有七项，{4, 8, 16, 32, 64, 96, 128}；默认设置即索引 1，每个探针每帧 8 条射线，而不是编辑器中索引 1 的标签所写的 16（发现 F7，从代码中读出）。",
       "details": [
         {
           "line": 1323,
@@ -247,19 +247,19 @@
       "symbol": "GI::SDFGI::create",
       "lineHash": "ea45cda87b60884f",
       "inspect": "Builds one SDFGI object: it reads the environment, sets probe_axis_count to PROBE_DIVISOR + 1 = 17, and allocates the scratch and per-cascade textures, each cleared to 0. Every cascade starts at DIRTY_ALL, so the first frame voxelizes the whole grid.",
-      "inspectZh": "创建一个 SDFGI 对象：读取 environment，把 probe_axis_count 设为 PROBE_DIVISOR + 1 = 17，并分配 scratch 与逐 cascade 的贴图，全部清零。每个 cascade 起始为 DIRTY_ALL，所以第一帧体素化整个网格。",
+      "inspectZh": "创建一个 SDFGI 对象：读取 environment，把 probe_axis_count 设为 PROBE_DIVISOR + 1 = 17，并分配 scratch 与逐级联的贴图，全部清零。每个级联起始为 DIRTY_ALL，所以第一帧体素化整个网格。",
       "details": [
         {
           "line": 427,
           "lineHash": "b7c342dd75ff07ee",
           "note": "17 probes per axis",
-          "noteZh": "每个轴 17 个 probe"
+          "noteZh": "每个轴 17 个探针"
         },
         {
           "line": 568,
           "lineHash": "42698324d43999db",
           "note": "the first position is the camera rounded to a whole probe",
-          "noteZh": "初始位置是取整到整个 probe 的相机位置"
+          "noteZh": "初始位置是取整到整个探针的相机位置"
         },
         {
           "line": 569,
@@ -271,7 +271,7 @@
           "line": 571,
           "lineHash": "a6db02ebd08b0c64",
           "note": "every cascade starts fully dirty",
-          "noteZh": "每个 cascade 起始为完全 dirty"
+          "noteZh": "每个级联起始为完全 dirty"
         }
       ]
     },
@@ -281,19 +281,19 @@
       "symbol": "GI::SDFGI::create (cell size)",
       "lineHash": "b7722e8a70c29349",
       "inspect": "After each cascade is set up, the cell size doubles, so cascade i has cells of min_cell_size * 2^i (0.2, 0.4, 0.8, 1.6 m) and always 128 cells across: boxes 25.6, 51.2, 102.4 and 204.8 m wide.",
-      "inspectZh": "每设置完一个 cascade，cell 大小翻倍，所以 cascade i 的 cell 为 min_cell_size * 2^i（0.2、0.4、0.8、1.6 m），始终是 128 个 cell 宽：盒子宽 25.6、51.2、102.4、204.8 m。",
+      "inspectZh": "每设置完一个级联，单元格大小翻倍，所以级联 i 的单元格为 min_cell_size * 2^i（0.2、0.4、0.8、1.6 m），始终是 128 个单元格宽：盒子宽 25.6、51.2、102.4、204.8 m。",
       "details": [
         {
           "line": 563,
           "lineHash": "74521f51a1efc89f",
           "note": "the cascade takes the current size",
-          "noteZh": "该 cascade 取当前大小"
+          "noteZh": "该级联取当前大小"
         },
         {
           "line": 431,
           "lineHash": "a527567d870e8565",
           "note": "the first cascade starts at the minimum",
-          "noteZh": "第一个 cascade 从最小值开始"
+          "noteZh": "第一个级联从最小值开始"
         }
       ]
     },
@@ -303,7 +303,7 @@
       "symbol": "GI::SDFGI::create (y_scale)",
       "lineHash": "0e8a8ef6c4505dc5",
       "inspect": "The environment's y scale 50 %, 75 %, 100 % becomes y_mult 2.0, 1.5, 1.0. World y is multiplied by it before gridding, so at the default 75 % a voxel is cell_size / 1.5 tall and a cascade is two thirds as tall as it is wide: a vertical squash, not \"75 % of the height\" (finding F3, read from the code).",
-      "inspectZh": "环境的 y scale 50 %、75 %、100 % 对应 y_mult 2.0、1.5、1.0。世界坐标 y 先乘以它再划分网格，所以默认 75 % 时 voxel 高 cell_size / 1.5，cascade 的高度是宽度的三分之二：这是竖直方向的压缩，而不是“75 % 的高度”（发现 F3，从代码中读出）。",
+      "inspectZh": "环境的 y 轴缩放 50 %、75 %、100 % 对应 y_mult 2.0、1.5、1.0。世界坐标 y 先乘以它再划分网格，所以默认 75 % 时体素高 cell_size / 1.5，级联的高度是宽度的三分之二：这是竖直方向的压缩，而不是“75 % 的高度”（发现 F3，从代码中读出）。",
       "details": [
         {
           "line": 424,
@@ -325,19 +325,19 @@
       "symbol": "GI::SDFGI::create (probe_axis_count)",
       "lineHash": "b7c342dd75ff07ee",
       "inspect": "A cascade has 17 probes along each axis: the 16 intervals of PROBE_DIVISOR enclose both ends, so probes sit every 8 cells (128 / 16) and probe 16 lies on the far face; 17 x 17 x 17 = 4913 probes per cascade.",
-      "inspectZh": "每个 cascade 沿每个轴有 17 个 probe：PROBE_DIVISOR 的 16 个间隔把两端都包含在内，所以 probe 每 8 个 cell（128 / 16）一个，probe 16 位于远端的面上；每个 cascade 17 x 17 x 17 = 4913 个 probe。",
+      "inspectZh": "每个级联沿每个轴有 17 个探针：PROBE_DIVISOR 的 16 个间隔把两端都包含在内，所以探针每 8 个单元格（128 / 16）一个，探针 16 位于远端的面上；每个级联 17 x 17 x 17 = 4913 个探针。",
       "details": [
         {
           "line": 566,
           "lineHash": "d1f15c9e76cf7c95",
           "note": "128 / 16 = 8 cells between probes",
-          "noteZh": "probe 之间相隔 128 / 16 = 8 个 cell"
+          "noteZh": "探针之间相隔 128 / 16 = 8 个单元格"
         },
         {
           "line": 493,
           "lineHash": "b28c99c33b81a25c",
           "note": "the probe maps are 17 * 17 columns wide",
-          "noteZh": "probe 贴图宽 17 * 17 列"
+          "noteZh": "探针贴图宽 17 * 17 列"
         }
       ]
     },
@@ -347,7 +347,7 @@
       "symbol": "GI::SDFGI::update",
       "lineHash": "fa8e54f052ab845b",
       "inspect": "The only place a cascade moves. The camera's cell is its position (y times y_mult) divided by the cell size, truncated toward zero; if it is more than drag_margin = 4 cells from the cascade's position, the cascade steps 8 cells (one probe) at a time, and dirty_regions records the signed total on that axis.",
-      "inspectZh": "cascade 唯一移动的地方。相机所在的 cell 是其位置（y 先乘 y_mult）除以 cell 大小后向零截断；若它离 cascade 位置超过 drag_margin = 4 个 cell，cascade 每次移动 8 个 cell（一个 probe），dirty_regions 记录该轴上带符号的总量。",
+      "inspectZh": "级联唯一移动的地方。相机所在的单元格是其位置（y 先乘 y_mult）除以单元格大小后向零截断；若它离级联位置超过 drag_margin = 4 个单元格，级联每次移动 8 个单元格（一个探针），dirty_regions 记录该轴上带符号的总量。",
       "details": [
         {
           "line": 1199,
@@ -381,7 +381,7 @@
       "symbol": "GI::SDFGI::update (DIRTY_ALL)",
       "lineHash": "84e9df2cfcc85e9c",
       "inspect": "A partial scroll becomes DIRTY_ALL when the dirty volume exceeds half of the kept volume: for a move of d cells on one axis, 3d > 128, so from 43 cells, which in 8-cell steps is 48 cells (9.6 m for cascade 0). A move of 128 cells or more on an axis is DIRTY_ALL at once.",
-      "inspectZh": "当 dirty 体积超过保留体积的一半时，部分滚动变为 DIRTY_ALL：单轴移动 d 个 cell 时 3d > 128，即从 43 个 cell 起，按 8 个 cell 一步就是 48 个 cell（cascade 0 为 9.6 m）。任一轴移动 128 个 cell 以上则立即为 DIRTY_ALL。",
+      "inspectZh": "当 dirty 体积超过保留体积的一半时，部分滚动变为 DIRTY_ALL：单轴移动 d 个单元格时 3d > 128，即从 43 个单元格起，按 8 个单元格一步就是 48 个单元格（级联 0 为 9.6 m）。任一轴移动 128 个单元格以上则立即为 DIRTY_ALL。",
       "details": [
         {
           "line": 1226,
@@ -403,7 +403,7 @@
       "symbol": "RenderForwardClustered::sdfgi_get_pending_region_count",
       "lineHash": "b78ab9ae57dbb605",
       "inspect": "A pending region is one entry for each cascade that is DIRTY_ALL, or for each axis of a scrolled cascade with a non-zero dirty amount, so a cascade has at most 3; regions are numbered over the cascades in order.",
-      "inspectZh": "一个 pending region 对应一个 DIRTY_ALL 的 cascade，或一个滚动过的 cascade 中 dirty 量非零的每个轴，所以一个 cascade 最多 3 个；region 按 cascade 顺序编号。",
+      "inspectZh": "一个 pending region 对应一个 DIRTY_ALL 的级联，或一个滚动过的级联中 dirty 量非零的每个轴，所以一个级联最多 3 个；region 按级联顺序编号。",
       "details": [
         {
           "line": 4083,
@@ -425,7 +425,7 @@
       "symbol": "GI::SDFGI::get_pending_region_data",
       "lineHash": "9c099b84a217ba19",
       "inspect": "Turns a region number into the cascade, the cell range to fill and a world-space box. A region on a dirty axis covers 0..dirty cells (from the start) or 128 + dirty..128 (from the end); axes before it are chipped so a corner is not voxelized twice. The box is cell range times cell size, with y divided by y_mult.",
-      "inspectZh": "把 region 编号变成 cascade、要填充的 cell 范围和一个世界空间的盒子。dirty 轴上的 region 覆盖 0..dirty 个 cell（从起点）或 128 + dirty..128（从末端）；之前的轴被削去，避免角落被体素化两次。盒子是 cell 范围乘 cell 大小，y 再除以 y_mult。",
+      "inspectZh": "把 region 编号变成级联、要填充的单元格范围和一个世界空间的盒子。dirty 轴上的 region 覆盖 0..dirty 个单元格（从起点）或 128 + dirty..128（从末端）；之前的轴被削去，避免角落被体素化两次。盒子是单元格范围乘单元格大小，y 再除以 y_mult。",
       "details": [
         {
           "line": 1482,
@@ -503,19 +503,19 @@
       "symbol": "RendererSceneCull::_scene_cull (static lights)",
       "lineHash": "fb18185f267ecb36",
       "inspect": "A visible light whose bake mode is Static and whose box overlaps a region joins the static list for that region's cascade, if the cascade number is at most the light's max_sdfgi_cascade (default 2, so cascade 3 gets no static positional light). Dynamic lights are not culled by region.",
-      "inspectZh": "可见的、烘焙模式为 Static 且盒子与某个 region 重叠的光，在该 region 的 cascade 编号不大于光的 max_sdfgi_cascade（默认 2，所以 cascade 3 没有静态点光源）时，加入该 cascade 的静态光列表。动态光不按 region 剔除。",
+      "inspectZh": "可见的、烘焙模式为 Static 且盒子与某个 region 重叠的光，在该 region 的级联编号不大于光的 max_sdfgi_cascade（默认 2，所以级联 3 没有静态点光源）时，加入该级联的静态光列表。动态光不按 region 剔除。",
       "details": [
         {
           "line": 3275,
           "lineHash": "db06e01ca36353aa",
           "note": "stored under the cascade number",
-          "noteZh": "按 cascade 编号存放"
+          "noteZh": "按级联编号存放"
         },
         {
           "line": 3272,
           "lineHash": "19379d60b3cc69b1",
           "note": "one entry per (light, cascade)",
-          "noteZh": "每个（光，cascade）一项"
+          "noteZh": "每个（光，级联）一项"
         }
       ]
     },
@@ -525,7 +525,7 @@
       "symbol": "RendererSceneCull::_render_scene (static light check)",
       "lineHash": "28c508490b467b76",
       "inspect": "The static lists are stored by cascade number (cull.cpp, the line above in static-light-cull) but read by position in the list of dirty cascades, here and in render_static_lights: they agree only when the dirty cascades are 0..n-1. With only cascade 2 dirty, position 0 is empty and the light is dropped for that frame (finding F2, read from the code).",
-      "inspectZh": "静态光列表按 cascade 编号存放（见 static-light-cull），但在这里以及 render_static_lights 中却按 dirty cascade 列表中的位置读取：只有 dirty cascade 恰为 0..n-1 时两者才一致。只有 cascade 2 dirty 时，位置 0 为空，该帧这盏光被丢弃（发现 F2，从代码中读出）。",
+      "inspectZh": "静态光列表按级联编号存放（见 static-light-cull），但在这里以及 render_static_lights 中却按 dirty 级联列表中的位置读取：只有 dirty 级联恰为 0..n-1 时两者才一致。只有级联 2 dirty 时，位置 0 为空，该帧这盏光被丢弃（发现 F2，从代码中读出）。",
       "details": [
         {
           "line": 3663,
@@ -547,7 +547,7 @@
       "symbol": "RendererSceneCull::_update_instance",
       "lineHash": "e62db74965ada4f1",
       "inspect": "A non-directional light with bake mode Dynamic (the default) is kept in scenario->dynamic_lights, which the per-frame dynamic pass reads; a Static light is in no list and reaches SDFGI only by region culling. A directional light never gets a bake mode here, so it is always dynamic.",
-      "inspectZh": "烘焙模式为 Dynamic（默认）的非方向光保存在 scenario->dynamic_lights 中，由逐帧的动态 pass 读取；Static 光不在任何列表中，只通过 region 剔除到达 SDFGI。方向光在这里从不获得 bake mode，所以总是动态的。",
+      "inspectZh": "烘焙模式为 Dynamic（默认）的非方向光保存在 scenario->dynamic_lights 中，由逐帧的动态渲染阶段读取；Static 光不在任何列表中，只通过 region 剔除到达 SDFGI。方向光在这里从不获得 bake mode，所以总是动态的。",
       "details": [
         {
           "line": 1629,
@@ -575,13 +575,13 @@
       "symbol": "RenderForwardClustered::_render_sdfgi",
       "lineHash": "727fd1dc0713b7da",
       "inspect": "Renders a region three times, once per axis i = 0, 1, 2: an orthographic camera on the +axis face of the region's box looking along -axis, the projection exactly the box, into an empty framebuffer with one pixel per voxel. The pass mode is PASS_MODE_SDF with the double-sided cull variant, so both faces draw; nothing is written to a colour target.",
-      "inspectZh": "把一个 region 渲染三次，每个轴 i = 0、1、2 一次：正交相机位于 region 盒子的 +轴面，沿 -轴看去，投影恰好是该盒子，渲染到空 framebuffer，每个 voxel 一个像素。pass mode 为 PASS_MODE_SDF，使用双面 cull 变体，所以两个面都绘制；不写任何颜色 target。",
+      "inspectZh": "把一个 region 渲染三次，每个轴 i = 0、1、2 一次：正交相机位于 region 盒子的 +轴面，沿 -轴看去，投影恰好是该盒子，渲染到空 framebuffer，每个体素一个像素。渲染阶段 mode 为 PASS_MODE_SDF，使用双面 cull 变体，所以两个面都绘制；不写任何颜色渲染目标。",
       "details": [
         {
           "line": 3117,
           "lineHash": "7a1ca3c66a23f6c4",
           "note": "the voxelizer's pass mode",
-          "noteZh": "体素化的 pass mode"
+          "noteZh": "体素化的渲染阶段 mode"
         },
         {
           "line": 3154,
@@ -593,13 +593,13 @@
           "line": 3141,
           "lineHash": "1ed42ea53a353379",
           "note": "one pixel per voxel across the other two axes",
-          "noteZh": "另外两个轴上每个 voxel 一个像素"
+          "noteZh": "另外两个轴上每个体素一个像素"
         },
         {
           "line": 3170,
           "lineHash": "8bcc0c0ad3d219e0",
           "note": "an empty framebuffer: no colour or depth target",
-          "noteZh": "空 framebuffer：没有颜色或深度 target"
+          "noteZh": "空 framebuffer：没有颜色或深度渲染目标"
         }
       ]
     },
@@ -625,13 +625,13 @@
       "symbol": "main (MODE_RENDER_SDF)",
       "lineHash": "0aadaf4a0280903d",
       "inspect": "The voxelizer's fragment shader writes to the voxel the fragment's 3D position falls in, not to its pixel: local_pos is the position in the region's box scaled to [0, 1], and grid_pos = sdf_offset + ivec3(local_pos * sdf_size), with no clamp. Whichever fragment writes last wins the albedo.",
-      "inspectZh": "体素化的 fragment shader 写入的是 fragment 三维位置所在的 voxel，而不是它的像素：local_pos 是 region 盒子内缩放到 [0, 1] 的位置，grid_pos = sdf_offset + ivec3(local_pos * sdf_size)，没有 clamp。最后写入的 fragment 决定 albedo。",
+      "inspectZh": "体素化的 fragment shader 写入的是 fragment 三维位置所在的体素，而不是它的像素：local_pos 是 region 盒子内缩放到 [0, 1] 的位置，grid_pos = sdf_offset + ivec3(local_pos * sdf_size)，没有 clamp。最后写入的 fragment 决定反照率。",
       "details": [
         {
           "line": 2910,
           "lineHash": "ceeb12d9006c663f",
           "note": "the voxel from the 3D position",
-          "noteZh": "由三维位置得出的 voxel"
+          "noteZh": "由三维位置得出的体素"
         },
         {
           "line": 2917,
@@ -647,7 +647,7 @@
       "symbol": "main (MODE_RENDER_SDF, albedo)",
       "lineHash": "860a8d51a03c98f9",
       "inspect": "The albedo voxel is 16 bits (R16_UINT): bit 0 is the solid flag; blue is bits 1-5, green 6-10, red 11-15, each clamp(uint(c * 31), 0, 31), truncated, not rounded.",
-      "inspectZh": "albedo voxel 为 16 位（R16_UINT）：第 0 位是 solid 标志；蓝色占第 1-5 位，绿色第 6-10 位，红色第 11-15 位，每个通道为 clamp(uint(c * 31), 0, 31)，是截断而不是四舍五入。",
+      "inspectZh": "反照率体素为 16 位（R16_UINT）：第 0 位是 solid 标志；蓝色占第 1-5 位，绿色第 6-10 位，红色第 11-15 位，每个通道为 clamp(uint(c * 31), 0, 31)，是截断而不是四舍五入。",
       "details": [
         {
           "line": 2913,
@@ -675,7 +675,7 @@
       "symbol": "main (MODE_RENDER_SDF, facing)",
       "lineHash": "911eefe7fd4b8380",
       "inspect": "The facing mask has one bit per fragment: of the six directions +X, +Y, +Z, -X, -Y, -Z (bits 0-5) the one with the largest dot against the interpolated vertex normal, rotated to world space, not flipped for back faces, no normal map. Fragments are combined with imageAtomicOr, so a voxel keeps every direction any fragment chose.",
-      "inspectZh": "facing mask 每个 fragment 一位：在 +X、+Y、+Z、-X、-Y、-Z 六个方向（第 0-5 位）中，取与插值顶点法线（转到世界空间，背面不翻转，不用法线贴图）点积最大的那个。fragment 之间用 imageAtomicOr 合并，所以 voxel 保留任一 fragment 选中的所有方向。",
+      "inspectZh": "facing 掩码每个 fragment 一位：在 +X、+Y、+Z、-X、-Y、-Z 六个方向（第 0-5 位）中，取与插值顶点法线（转到世界空间，背面不翻转，不用法线贴图）点积最大的那个。fragment 之间用 imageAtomicOr 合并，所以体素保留任一 fragment 选中的所有方向。",
       "details": [
         {
           "line": 2934,
@@ -703,7 +703,7 @@
       "symbol": "main (MODE_RENDER_SDF, emission)",
       "lineHash": "4c135777e887c01e",
       "inspect": "Emission is stored only above 0.001. Per direction the strength is max(0, dot(normal, dir)); render_emission_aniso keeps each direction's share of the largest channel as 5 bits (bits 0-29, in the facing order) and render_emission keeps the total light as RGBE 8985: red the top 8 of 9 bits at 0-7, green 9 bits at 8-16, blue the top 8 of 9 bits at 17-24, exponent 5 bits at 25-29; bits 30-31 are left for neighbour bits.",
-      "inspectZh": "只有高于 0.001 的 emission 才会存储。每个方向的强度为 max(0, dot(normal, dir))；render_emission_aniso 把各方向占最大通道的比例存为 5 位（第 0-29 位，顺序同 facing），render_emission 把总光量存为 RGBE 8985：红取 9 位中的高 8 位，占第 0-7 位；绿 9 位，第 8-16 位；蓝取 9 位中的高 8 位，第 17-24 位；指数 5 位，第 25-29 位；第 30-31 位留给邻居位。",
+      "inspectZh": "只有高于 0.001 的自发光才会存储。每个方向的强度为 max(0, dot(normal, dir))；render_emission_aniso 把各方向占最大通道的比例存为 5 位（第 0-29 位，顺序同 facing），render_emission 把总光量存为 RGBE 8985：红取 9 位中的高 8 位，占第 0-7 位；绿 9 位，第 8-16 位；蓝取 9 位中的高 8 位，第 17-24 位；指数 5 位，第 25-29 位；第 30-31 位留给邻居位。",
       "details": [
         {
           "line": 2951,
@@ -737,19 +737,19 @@
       "symbol": "GI::SDFGI::create (scratch textures)",
       "lineHash": "166fa943753d864a",
       "inspect": "The voxelizer's scratch textures are 128^3, shared by all cascades: render_albedo R16_UINT, render_emission and render_emission_aniso R32_UINT, render_geom_facing R32_UINT; in stable that one has no atomic usage bit although the shader writes it with imageAtomicOr. Then the occlusion and jump-flood textures.",
-      "inspectZh": "体素化的 scratch 贴图为 128^3，由所有 cascade 共用：render_albedo 为 R16_UINT，render_emission 与 render_emission_aniso 为 R32_UINT，render_geom_facing 为 R32_UINT；在 stable 中它没有 atomic 使用位，尽管 shader 用 imageAtomicOr 写入它。随后是 occlusion 与 jump flood 的贴图。",
+      "inspectZh": "体素化的 scratch 贴图为 128^3，由所有级联共用：render_albedo 为 R16_UINT，render_emission 与 render_emission_aniso 为 R32_UINT，render_geom_facing 为 R32_UINT；在 stable 中它没有 atomic 使用位，尽管 shader 用 imageAtomicOr 写入它。随后是遮蔽与跳跃洪泛的贴图。",
       "details": [
         {
           "line": 443,
           "lineHash": "692121b1e44dbf24",
           "note": "the albedo voxel format",
-          "noteZh": "albedo voxel 的格式"
+          "noteZh": "反照率体素的格式"
         },
         {
           "line": 447,
           "lineHash": "f57be3d4f904748b",
           "note": "emission, R32_UINT",
-          "noteZh": "emission，R32_UINT"
+          "noteZh": "自发光，R32_UINT"
         },
         {
           "line": 457,
@@ -761,7 +761,7 @@
           "line": 459,
           "lineHash": "8e436f10f7f6aef6",
           "note": "the jump-flood seed textures follow, RGBA8_UINT",
-          "noteZh": "接着是 jump flood 的 seed 贴图，RGBA8_UINT"
+          "noteZh": "接着是跳跃洪泛的 seed 贴图，RGBA8_UINT"
         }
       ]
     },
@@ -771,13 +771,13 @@
       "symbol": "GI::SDFGI::render_region",
       "lineHash": "8d53ab845db13fc1",
       "inspect": "Voxelizes one region and, after the last region of a cascade, runs the preprocess: the scratch textures are cleared at a cascade's first region, the scroll (if not DIRTY_ALL), jump flood, occlusion and STORE follow, then the cascade's light textures are cleared. It also marks the cascade's dynamic lights dirty.",
-      "inspectZh": "体素化一个 region，并在 cascade 的最后一个 region 之后运行 preprocess：cascade 的第一个 region 清空 scratch 贴图，随后是滚动（非 DIRTY_ALL 时）、jump flood、occlusion 与 STORE，再清空该 cascade 的光照贴图。它还把该 cascade 的动态光标记为 dirty。",
+      "inspectZh": "体素化一个 region，并在级联的最后一个 region 之后运行 preprocess：级联的第一个 region 清空 scratch 贴图，随后是滚动（非 DIRTY_ALL 时）、跳跃洪泛、遮蔽与 STORE，再清空该级联的光照贴图。它还把该级联的动态光标记为 dirty。",
       "details": [
         {
           "line": 2073,
           "lineHash": "6cfefcf8f7578dea",
           "note": "the first region of a cascade clears the scratch textures",
-          "noteZh": "cascade 的第一个 region 清空 scratch 贴图"
+          "noteZh": "级联的第一个 region 清空 scratch 贴图"
         },
         {
           "line": 2084,
@@ -799,25 +799,25 @@
       "symbol": "MODE_INITIALIZE_JUMP_FLOOD_HALF",
       "lineHash": "d93cd4e7297a2c9d",
       "inspect": "Each half-size cell (64^3) starts with a solid voxel of its 2 x 2 x 2 block as its seed: it collects the solid ones and picks closest[index % count], where index is the cell's own x, y, z parity bits, so neighbours pick different voxels. A block with none gets (0, 0, 0, 0). A seed is the voxel's full-resolution coordinates in xyz with w = 255 for valid.",
-      "inspectZh": "每个半尺寸 cell（64^3）以其 2 x 2 x 2 块中的一个 solid voxel 作为 seed：收集其中的 solid voxel，选 closest[index % count]，其中 index 是该 cell 自己 x、y、z 的奇偶位，所以相邻 cell 会选不同的 voxel。没有 solid 的块得到 (0, 0, 0, 0)。seed 是 voxel 的全分辨率坐标（xyz），w = 255 表示有效。",
+      "inspectZh": "每个半尺寸单元格（64^3）以其 2 x 2 x 2 块中的一个 solid 体素作为 seed：收集其中的 solid 体素，选 closest[index % count]，其中 index 是该单元格自己 x、y、z 的奇偶位，所以相邻单元格会选不同的体素。没有 solid 的块得到 (0, 0, 0, 0)。seed 是体素的全分辨率坐标（xyz），w = 255 表示有效。",
       "details": [
         {
           "line": 269,
           "lineHash": "a7e7e65eb87ab847",
           "note": "the parity picks the voxel",
-          "noteZh": "由奇偶位选择 voxel"
+          "noteZh": "由奇偶位选择体素"
         },
         {
           "line": 259,
           "lineHash": "2fb6e0fdf06acf1c",
           "note": "a seed: the voxel's own position, valid",
-          "noteZh": "seed：voxel 自身的位置，有效"
+          "noteZh": "seed：体素自身的位置，有效"
         },
         {
           "line": 266,
           "lineHash": "33c0ca7ce3a50c83",
           "note": "no solid voxel: unused",
-          "noteZh": "没有 solid voxel：未使用"
+          "noteZh": "没有 solid 体素：未使用"
         }
       ]
     },
@@ -827,13 +827,13 @@
       "symbol": "MODE_JUMPFLOOD",
       "lineHash": "8c4e3647f0960cc1",
       "inspect": "One jump-flood pass: each cell looks at its 26 neighbours at the step distance, skips those whose seed has w = 0, and keeps the seed nearest to its own centre (pos * 2 + 0.5 at half size). MODE_JUMPFLOOD_OPTIMIZED does the same in 8^3 groups, each on a strided sub-lattice with its neighbourhood in shared memory.",
-      "inspectZh": "一次 jump flood pass：每个 cell 查看距离为 step 的 26 个邻居，跳过 seed 的 w = 0 的，保留离自己中心（半尺寸时为 pos * 2 + 0.5）最近的 seed。MODE_JUMPFLOOD_OPTIMIZED 用 8^3 的 group 完成同样的事，每个 group 处理一个带步长的子网格，邻域放在 shared memory 中。",
+      "inspectZh": "一次跳跃洪泛渲染阶段：每个单元格查看距离为 step 的 26 个邻居，跳过 seed 的 w = 0 的，保留离自己中心（半尺寸时为 pos * 2 + 0.5）最近的 seed。MODE_JUMPFLOOD_OPTIMIZED 用 8^3 的 group 完成同样的事，每个 group 处理一个带步长的子网格，邻域放在 shared memory 中。",
       "details": [
         {
           "line": 283,
           "lineHash": "a9106351f7cd940f",
           "note": "the half-size cell's centre, in full-resolution voxels",
-          "noteZh": "半尺寸 cell 的中心，以全分辨率 voxel 计"
+          "noteZh": "半尺寸单元格的中心，以全分辨率体素计"
         },
         {
           "line": 296,
@@ -855,19 +855,19 @@
       "symbol": "MODE_UPSCALE_JUMP_FLOOD",
       "lineHash": "1651a3197a2f8ed7",
       "inspect": "Back to full size: a solid voxel gets (pos, 255); any other takes the half seed at pos >> 1 and tests the 8 voxels of the 2 x 2 x 2 block that seed lies in, keeping a nearer solid one.",
-      "inspectZh": "回到全尺寸：solid voxel 得到 (pos, 255)；其他 voxel 取位于 pos >> 1 的半尺寸 seed，并检查该 seed 所在 2 x 2 x 2 块中的 8 个 voxel，保留更近的 solid voxel。",
+      "inspectZh": "回到全尺寸：solid 体素得到 (pos, 255)；其他体素取位于 pos >> 1 的半尺寸 seed，并检查该 seed 所在 2 x 2 x 2 块中的 8 个体素，保留更近的 solid 体素。",
       "details": [
         {
           "line": 462,
           "lineHash": "78297f4ada0e8706",
           "note": "the 8 voxels of the block the half seed lies in",
-          "noteZh": "半尺寸 seed 所在块中的 8 个 voxel"
+          "noteZh": "半尺寸 seed 所在块中的 8 个体素"
         },
         {
           "line": 468,
           "lineHash": "b08fe5ffc8a9d50a",
           "note": "a nearer voxel of the same block replaces it, if solid",
-          "noteZh": "同一块中更近的 voxel 若为 solid 则取代它"
+          "noteZh": "同一块中更近的体素若为 solid 则取代它"
         }
       ]
     },
@@ -877,25 +877,25 @@
       "symbol": "GI::SDFGI::render_region (jump flood)",
       "lineHash": "1d16826a777f349b",
       "inspect": "half_size is hard-coded true, so the full-size branch is never used. For a 128 cascade: one init at 64^3, six half-size passes with steps 32, 16 (regular) and 8, 4, 2, 1 (optimized; the regular passes end after the one where 64 / (step / 2) reaches 8, at step 16), one upscale to 128^3, and one full-size optimized pass with step 1 to fix half-size artefacts: 9 dispatches.",
-      "inspectZh": "half_size 被硬编码为 true，所以全尺寸分支从不使用。对于 128 的 cascade：一次 64^3 的初始化，六次半尺寸 pass，步长 32、16（普通）与 8、4、2、1（优化版；普通 pass 在 64 / (step / 2) 达到 8 的那一轮，即步长 16 之后结束），一次放大到 128^3，再加一次步长为 1 的全尺寸优化 pass 来修正半尺寸的瑕疵：共 9 次 dispatch。",
+      "inspectZh": "half_size 被硬编码为 true，所以全尺寸分支从不使用。对于 128 的级联：一次 64^3 的初始化，六次半尺寸渲染阶段，步长 32、16（普通）与 8、4、2、1（优化版；普通渲染阶段在 64 / (step / 2) 达到 8 的那一轮，即步长 16 之后结束），一次放大到 128^3，再加一次步长为 1 的全尺寸优化渲染阶段来修正半尺寸的瑕疵：共 9 次 dispatch。",
       "details": [
         {
           "line": 2253,
           "lineHash": "06372fbcde180359",
           "note": "the regular passes stop when the grid per half step reaches 8",
-          "noteZh": "当每半步的网格数达到 8 时普通 pass 结束"
+          "noteZh": "当每半步的网格数达到 8 时普通渲染阶段结束"
         },
         {
           "line": 2258,
           "lineHash": "52ad674f7ca24043",
           "note": "the optimized half-size passes",
-          "noteZh": "优化版半尺寸 pass"
+          "noteZh": "优化版半尺寸渲染阶段"
         },
         {
           "line": 2282,
           "lineHash": "0c065fd58bc1c201",
           "note": "the final full-size pass",
-          "noteZh": "最后的全尺寸 pass"
+          "noteZh": "最后的全尺寸渲染阶段"
         }
       ]
     },
@@ -911,7 +911,7 @@
           "line": 958,
           "lineHash": "52ddeafddfdf6754",
           "note": "a solid voxel stores 0",
-          "noteZh": "solid voxel 存 0"
+          "noteZh": "solid 体素存 0"
         },
         {
           "line": 966,
@@ -923,7 +923,7 @@
           "line": 968,
           "lineHash": "eaa60a79dd9cfeb8",
           "note": "into the cascade's sdf_tex, R8_UNORM",
-          "noteZh": "写入 cascade 的 sdf_tex，R8_UNORM"
+          "noteZh": "写入级联的 sdf_tex，R8_UNORM"
         }
       ]
     },
@@ -933,13 +933,13 @@
       "symbol": "main (MODE_PROCESS, distance)",
       "lineHash": "c2720c22c57205f4",
       "inspect": "The marches undo STORE's \"1 + d\" by subtracting an offset after sampling: the probe march here subtracts 1.0, the shadow march (shadow-march) 1.0, the screen pass's reflection march (specular-trace) 1.1, and the debug view 1.7; the gradient reads subtract nothing. A solid texel therefore reads -1 (or -1.1), and linear filtering between solid and empty puts the zero crossing midway. The field itself is unsigned.",
-      "inspectZh": "各个 march 在采样后减去一个偏移来抵消 STORE 的“1 + d”：这里的 probe march 减 1.0，shadow march（shadow-march）减 1.0，屏幕 pass 的反射 march（specular-trace）减 1.1，debug 视图减 1.7；求梯度的读取不减。因此 solid texel 读出 -1（或 -1.1），solid 与空之间的线性插值使零点落在中间。场本身没有符号。",
+      "inspectZh": "各个 march 在采样后减去一个偏移来抵消 STORE 的“1 + d”：这里的探针 march 减 1.0，shadow march（shadow-march）减 1.0，屏幕渲染阶段的反射 march（specular-trace）减 1.1，debug 视图减 1.7；求梯度的读取不减。因此 solid 纹素读出 -1（或 -1.1），solid 与空之间的线性插值使零点落在中间。场本身没有符号。",
       "details": [
         {
           "line": 228,
           "lineHash": "b958b21e1383cec7",
           "note": "the probe march's hit rule",
-          "noteZh": "probe march 的命中规则"
+          "noteZh": "探针 march 的命中规则"
         }
       ]
     },
@@ -949,13 +949,13 @@
       "symbol": "MODE_STORE (solid cells)",
       "lineHash": "fddfe416e43003fe",
       "inspect": "Each solid voxel is written to the cascade's list as four words: position (x, y, z at 7 bits each, bits 0-20), albedo (RGB555 in bits 0-14, six facing bits 15-20), light (the voxelizer's 30-bit RGBE 8985) and light_aniso (6 x 5 bits). The 26 neighbour bits, one for each neighbour whose nearest seed is this cell, are split over the top bits: position 21-31 holds neighbours 11-21, albedo 21-31 holds 0-10, light 30-31 holds 22-23, light_aniso 30-31 holds 24-25.",
-      "inspectZh": "每个 solid voxel 以四个 word 写入 cascade 的列表：position（x、y、z 各 7 位，第 0-20 位）、albedo（RGB555 占第 0-14 位，六个 facing 位占第 15-20 位）、light（体素化写入的 30 位 RGBE 8985）和 light_aniso（6 x 5 位）。26 个邻居位（每个邻居对应一位，其最近 seed 就是这个 cell）拆分存放在高位：position 的第 21-31 位存邻居 11-21，albedo 的第 21-31 位存 0-10，light 的第 30-31 位存 22-23，light_aniso 的第 30-31 位存 24-25。",
+      "inspectZh": "每个 solid 体素以四个 word 写入级联的列表：position（x、y、z 各 7 位，第 0-20 位）、反照率（RGB555 占第 0-14 位，六个 facing 位占第 15-20 位）、light（体素化写入的 30 位 RGBE 8985）和 light_aniso（6 x 5 位）。26 个邻居位（每个邻居对应一位，其最近 seed 就是这个单元格）拆分存放在高位：position 的第 21-31 位存邻居 11-21，反照率的第 21-31 位存 0-10，light 的第 30-31 位存 22-23，light_aniso 的第 30-31 位存 24-25。",
       "details": [
         {
           "line": 1013,
           "lineHash": "f8b64c365a58519d",
           "note": "bit n is set when the voxel at offset n has this cell as its nearest seed",
-          "noteZh": "偏移 n 处的 voxel 以此 cell 为最近 seed 时，第 n 位置 1"
+          "noteZh": "偏移 n 处的体素以此单元格为最近 seed 时，第 n 位置 1"
         },
         {
           "line": 1025,
@@ -967,7 +967,7 @@
           "line": 1027,
           "lineHash": "c088caa0866ea956",
           "note": "neighbour bits 0-10 in the albedo word",
-          "noteZh": "邻居位 0-10 在 albedo word 中"
+          "noteZh": "邻居位 0-10 在反照率 word 中"
         },
         {
           "line": 1033,
@@ -983,7 +983,7 @@
       "symbol": "GI::SDFGI::Cascade::SolidCell",
       "lineHash": "7f3077f4923a36a6",
       "inspect": "The solid-cell record as the C++ side declares it: four uint32 (position, albedo, static_light, static_light_aniso), 16 bytes. The struct is unused and only sets the size of solid_cell_buffer, which holds 25 % of 128^3 = 524,288 cells per cascade (the shaders call the last two words light and light_aniso).",
-      "inspectZh": "C++ 一侧声明的 solid cell 记录：四个 uint32（position、albedo、static_light、static_light_aniso），16 字节。该 struct 并未使用，仅决定 solid_cell_buffer 的大小：每个 cascade 容纳 128^3 的 25 % = 524,288 个 cell（shader 把后两个 word 称为 light 与 light_aniso）。",
+      "inspectZh": "C++ 一侧声明的 solid 单元格记录：四个 uint32（position、反照率、static_light、static_light_aniso），16 字节。该 struct 并未使用，仅决定 solid_cell_buffer 的大小：每个级联容纳 128^3 的 25 % = 524,288 个单元格（shader 把后两个 word 称为 light 与 light_aniso）。",
       "details": [
         {
           "line": 594,
@@ -1005,13 +1005,13 @@
       "symbol": "GI::SDFGI::render_region (occlusion)",
       "lineHash": "70f9f586060d8d15",
       "inspect": "Eight dispatches, one per parity class i of the probe lattice (offset = the bits of i, flipped on an axis where the cascade's global probe index is odd), each with (9, 9, 9) minus the offset groups. There is no test of use_occlusion anywhere around this block: the occlusion is computed every time a cascade is rebuilt, whether or not it is read (finding F14, read from the code).",
-      "inspectZh": "八次 dispatch，每个 probe 格点奇偶类 i 一次（offset 是 i 的各位，在 cascade 全局 probe 索引为奇数的轴上取反），每次 group 数为 (9, 9, 9) 减去 offset。这段代码周围没有任何对 use_occlusion 的判断：每次 cascade 重建都会计算 occlusion，无论是否被读取（发现 F14，从代码中读出）。",
+      "inspectZh": "八次 dispatch，每个探针格点奇偶类 i 一次（offset 是 i 的各位，在级联全局探针索引为奇数的轴上取反），每次 group 数为 (9, 9, 9) 减去 offset。这段代码周围没有任何对 use_occlusion 的判断：每次级联重建都会计算遮蔽，无论是否被读取（发现 F14，从代码中读出）。",
       "details": [
         {
           "line": 2354,
           "lineHash": "b699c408e81ab2c7",
           "note": "an odd global probe index flips the class on that axis",
-          "noteZh": "全局 probe 索引为奇数时，该轴上的类别取反"
+          "noteZh": "全局探针索引为奇数时，该轴上的类别取反"
         },
         {
           "line": 2366,
@@ -1033,13 +1033,13 @@
       "symbol": "MODE_OCCLUSION",
       "lineHash": "5f3581a047ed38f4",
       "inspect": "Each group owns a 16^3 region around one probe (OCCLUSION_SIZE = 8 per side) and processes it in 22 steps, shells of equal |x| + |y| + |z| growing from the probe and then shrinking, in all eight octants with a barrier after each. A solid voxel (facing != 0) gets 0, the shell next to the probe gets 1, and any other free voxel gets the average of its up to three neighbours one step closer to the probe; a solid neighbour adds 0 but still counts in the average, except on the coordinate planes.",
-      "inspectZh": "每个 group 负责一个 probe 周围的 16^3 区域（每侧 OCCLUSION_SIZE = 8），分 22 步处理：|x| + |y| + |z| 相等的壳层从 probe 向外扩张再收缩，覆盖全部八个卦限，每步后设 barrier。solid voxel（facing != 0）得 0，紧邻 probe 的壳层得 1，其他空 voxel 取其最多三个更靠近 probe 的邻居的平均值；solid 邻居贡献 0，但仍计入平均的分母，坐标平面上除外。",
+      "inspectZh": "每个 group 负责一个探针周围的 16^3 区域（每侧 OCCLUSION_SIZE = 8），分 22 步处理：|x| + |y| + |z| 相等的壳层从探针向外扩张再收缩，覆盖全部八个卦限，每步后设 barrier。solid 体素（facing != 0）得 0，紧邻探针的壳层得 1，其他空体素取其最多三个更靠近探针的邻居的平均值；solid 邻居贡献 0，但仍计入平均的分母，坐标平面上除外。",
       "details": [
         {
           "line": 561,
           "lineHash": "4253562e9e469e99",
           "note": "solid voxels get 0",
-          "noteZh": "solid voxel 得 0"
+          "noteZh": "solid 体素得 0"
         },
         {
           "line": 563,
@@ -1051,13 +1051,13 @@
           "line": 646,
           "lineHash": "430c7670aaedc283",
           "note": "the average of the neighbours one step closer",
-          "noteZh": "更靠近 probe 的邻居的平均值"
+          "noteZh": "更靠近探针的邻居的平均值"
         },
         {
           "line": 660,
           "lineHash": "ab5359df52aba17b",
           "note": "phase 3: a solid voxel takes the occlusion of its free neighbours on the probe side",
-          "noteZh": "第三阶段：solid voxel 取其靠近 probe 一侧空邻居的 occlusion"
+          "noteZh": "第三阶段：solid 体素取其靠近探针一侧空邻居的遮蔽"
         }
       ]
     },
@@ -1067,7 +1067,7 @@
       "symbol": "MODE_STORE (occlusion)",
       "lineHash": "41a60b6f6bc52d12",
       "inspect": "STORE packs the eight classes' values of a voxel into one word, 4 bits each (occ * 15, truncated), class i at shift {12, 8, 4, 0, 28, 24, 20, 16}[i]; the low 16 bits go to texel (x, y, z + cascade * 128) and the high 16 bits to (x + 128, y, z + cascade * 128). Viewed as R4G4B4A4, R is bits 12-15 (class 0 or 4), G bits 8-11, B bits 4-7, A bits 0-3.",
-      "inspectZh": "STORE 把一个 voxel 八个类别的值打包进一个 word，每个 4 位（occ * 15，截断），类别 i 位于移位 {12, 8, 4, 0, 28, 24, 20, 16}[i]；低 16 位写到 texel (x, y, z + cascade * 128)，高 16 位写到 (x + 128, y, z + cascade * 128)。按 R4G4B4A4 查看时，R 为第 12-15 位（类别 0 或 4），G 为第 8-11 位，B 为第 4-7 位，A 为第 0-3 位。",
+      "inspectZh": "STORE 把一个体素八个类别的值打包进一个 word，每个 4 位（occ * 15，截断），类别 i 位于移位 {12, 8, 4, 0, 28, 24, 20, 16}[i]；低 16 位写到纹素 (x, y, z + 级联 * 128)，高 16 位写到 (x + 128, y, z + 级联 * 128)。按 R4G4B4A4 查看时，R 为第 12-15 位（类别 0 或 4），G 为第 8-11 位，B 为第 4-7 位，A 为第 0-3 位。",
       "details": [
         {
           "line": 973,
@@ -1085,7 +1085,7 @@
           "line": 982,
           "lineHash": "78b561d6b4e1c1ae",
           "note": "the high half goes 128 texels along x",
-          "noteZh": "高半部分沿 x 偏移 128 个 texel"
+          "noteZh": "高半部分沿 x 偏移 128 个纹素"
         },
         {
           "line": 983,
@@ -1101,13 +1101,13 @@
       "symbol": "sdfvoxel_gi_process (occlusion)",
       "lineHash": "c6613c793d9dfc8f",
       "inspect": "The screen pass reads occlusion only when use_occlusion is on (default off): the class is the parity of (probe_world_offset + probe) per axis, x bit 1, y bit 2, z bit 4; the point is clamped to within occlusion_clamp = 0.9375 of the probe, scaled by 1/16 and renormalized; z bit 4 moves to the second half of x; the weight is multiplied by max(occlusion, 0.01).",
-      "inspectZh": "屏幕 pass 仅在 use_occlusion 开启（默认关闭）时读取 occlusion：类别由每个轴上 (probe_world_offset + probe) 的奇偶决定，x 为 1、y 为 2、z 为 4；采样点被限制在距 probe 不超过 occlusion_clamp = 0.9375 的范围内，乘以 1/16 后重新归一化；z 位为 4 时移到 x 的后半部分；权重乘以 max(occlusion, 0.01)。",
+      "inspectZh": "屏幕渲染阶段仅在 use_occlusion 开启（默认关闭）时读取遮蔽：类别由每个轴上 (probe_world_offset + 探针) 的奇偶决定，x 为 1、y 为 2、z 为 4；采样点被限制在距探针不超过 occlusion_clamp = 0.9375 的范围内，乘以 1/16 后重新归一化；z 位为 4 时移到 x 的后半部分；权重乘以 max(occlusion, 0.01)。",
       "details": [
         {
           "line": 237,
           "lineHash": "e3ac90c4ddcb8708",
           "note": "clamped near the probe",
-          "noteZh": "限制在 probe 附近"
+          "noteZh": "限制在探针附近"
         },
         {
           "line": 239,
@@ -1119,7 +1119,7 @@
           "line": 246,
           "lineHash": "57537195a7b187f8",
           "note": "the probe weight",
-          "noteZh": "probe 权重"
+          "noteZh": "探针权重"
         }
       ]
     },
@@ -1129,7 +1129,7 @@
       "symbol": "GI::SDFGI::create (occlusion_data)",
       "lineHash": "b42f5318b20b2cdb",
       "inspect": "occlusion_data is R16_UINT, 256 x 128 x (128 x cascades): the width doubles to hold the second 16 bits, the depth stacks the cascades; it is read through an R4G4B4A4_UNORM view.",
-      "inspectZh": "occlusion_data 为 R16_UINT，256 x 128 x (128 x cascade 数)：宽度翻倍以存放第二个 16 位，深度堆叠各 cascade；通过 R4G4B4A4_UNORM 视图读取。",
+      "inspectZh": "occlusion_data 为 R16_UINT，256 x 128 x (128 x 级联数)：宽度翻倍以存放第二个 16 位，深度堆叠各级联；通过 R4G4B4A4_UNORM 视图读取。",
       "details": [
         {
           "line": 476,
@@ -1151,19 +1151,19 @@
       "symbol": "GI::SDFGI::update_light",
       "lineHash": "925be0b661ec6a6b",
       "inspect": "The dynamic light pass: for every cascade, copy the solid-cell counters into the indirect-dispatch buffer, push bounce_feedback and use_occlusion, and dispatch one thread per solid cell. Every cascade dispatches even with no light, because the pass also adds emission and the stored static light and feeds the bounce back.",
-      "inspectZh": "动态光照 pass：对每个 cascade，把 solid cell 计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid cell 一个线程进行 dispatch。即使没有光，每个 cascade 也会 dispatch，因为该 pass 还要加上 emission 和已存储的静态光，并回灌 bounce。",
+      "inspectZh": "动态光照渲染阶段：对每个级联，把 solid 单元格计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid 单元格一个线程进行 dispatch。即使没有光，每个级联也会 dispatch，因为该渲染阶段还要加上自发光和已存储的静态光，并回灌反弹。",
       "details": [
         {
           "line": 1268,
           "lineHash": "7af389c34e47dfaa",
           "note": "the bounce setting reaches the shader here",
-          "noteZh": "bounce 设置在此传给 shader"
+          "noteZh": "反弹设置在此传给 shader"
         },
         {
           "line": 1284,
           "lineHash": "822d708492fdbdad",
           "note": "the lights counted for this cascade by pre_process_gi",
-          "noteZh": "pre_process_gi 为该 cascade 统计的光数量"
+          "noteZh": "pre_process_gi 为该级联统计的光数量"
         },
         {
           "line": 1305,
@@ -1179,13 +1179,13 @@
       "symbol": "GI::SDFGI::update_light (schedule)",
       "lineHash": "021e3d32ca3bdf79",
       "inspect": "Cells are refreshed in turn: with frames_to_update_lights at its default index 2 the table gives N = 4, process_increment = 4 and process_offset = frame number % 4, the same offset for every cascade in a frame, so each solid cell is lit every fourth frame. A cascade that was just rebuilt (all_dynamic_lights_dirty) is lit entirely that frame.",
-      "inspectZh": "cell 轮流刷新：frames_to_update_lights 取默认索引 2 时，表给出 N = 4，process_increment = 4，process_offset = 帧号 % 4，同一帧所有 cascade 使用同一偏移，所以每个 solid cell 每四帧被照亮一次。刚重建的 cascade（all_dynamic_lights_dirty）在当帧被整体照亮。",
+      "inspectZh": "单元格轮流刷新：frames_to_update_lights 取默认索引 2 时，表给出 N = 4，process_increment = 4，process_offset = 帧号 % 4，同一帧所有级联使用同一偏移，所以每个 solid 单元格每四帧被照亮一次。刚重建的级联（all_dynamic_lights_dirty）在当帧被整体照亮。",
       "details": [
         {
           "line": 1287,
           "lineHash": "bcb004b9cc79613e",
           "note": "a rebuilt cascade, or the 1-frame setting, processes every cell",
-          "noteZh": "刚重建的 cascade 或“1 帧”设置会处理所有 cell"
+          "noteZh": "刚重建的级联或“1 帧”设置会处理所有单元格"
         },
         {
           "line": 1297,
@@ -1207,7 +1207,7 @@
       "symbol": "main (voxel_index)",
       "lineHash": "8165355033bffff6",
       "inspect": "Thread t handles solid cell t * N + offset and returns if that is at or above the cell count; the dispatch is not shrunk, so the other threads exit at once. A cell not processed this frame keeps its old texel, so a moving light lags by up to N frames.",
-      "inspectZh": "线程 t 处理第 t * N + offset 个 solid cell，若超过 cell 总数则返回；dispatch 并未缩小，其余线程立即退出。本帧未处理的 cell 保留旧的 texel，所以移动的光最多滞后 N 帧。",
+      "inspectZh": "线程 t 处理第 t * N + offset 个 solid 单元格，若超过单元格总数则返回；dispatch 并未缩小，其余线程立即退出。本帧未处理的单元格保留旧的纹素，所以移动的光最多滞后 N 帧。",
       "details": [
         {
           "line": 188,
@@ -1229,7 +1229,7 @@
       "symbol": "GI::SDFGI::pre_process_gi (lights)",
       "lineHash": "cfc93f5a3f9d6d97",
       "inspect": "Per cascade, pre_process_gi fills up to 128 lights: first every visible directional light that is not sky-only (no bake-mode, max_sdfgi_cascade or box test; direction.y times y_mult, then normalized), then the Dynamic positional lights whose cascade number is at most max_sdfgi_cascade and whose box meets the cascade's box. That box is built in y-squashed space and the light's in real space (finding F9, read from the code). A positional light's direction is not y-stretched, which matters for spot lights (finding F20).",
-      "inspectZh": "pre_process_gi 对每个 cascade 填充最多 128 盏光：先是所有可见且不是 sky-only 的方向光（不看 bake mode、max_sdfgi_cascade 或盒子；direction.y 乘以 y_mult 后归一化），然后是 cascade 编号不大于 max_sdfgi_cascade 且盒子与 cascade 盒子相交的 Dynamic 点光源。该 cascade 盒子是在 y 压缩后的空间中构造的，而光的盒子在真实空间中（发现 F9，从代码中读出）。点光源的方向没有做 y 拉伸，这对 spot light 有影响（发现 F20）。",
+      "inspectZh": "pre_process_gi 对每个级联填充最多 128 盏光：先是所有可见且不是 sky-only 的方向光（不看 bake mode、max_sdfgi_cascade 或盒子；direction.y 乘以 y_mult 后归一化），然后是级联编号不大于 max_sdfgi_cascade 且盒子与级联盒子相交的 Dynamic 点光源。该级联盒子是在 y 压缩后的空间中构造的，而光的盒子在真实空间中（发现 F9，从代码中读出）。点光源的方向没有做 y 拉伸，这对 spot light 有影响（发现 F20）。",
       "details": [
         {
           "line": 1925,
@@ -1241,7 +1241,7 @@
           "line": 1956,
           "lineHash": "b2cdf27eeb4118bb",
           "note": "the cascade's box has no 1 / y_mult",
-          "noteZh": "cascade 的盒子没有 1 / y_mult"
+          "noteZh": "级联的盒子没有 1 / y_mult"
         },
         {
           "line": 1972,
@@ -1297,7 +1297,7 @@
       "symbol": "main (shadow ray)",
       "lineHash": "8bd11fc897428049",
       "inspect": "The shadow ray starts 0.48 cell along each axis in the light's direction, plus 0.4 cell along the ray, then sphere-traces the distance field (step = sample * 255 - 1 cells) from the cell's own cascade outward; a sample below 0.001 cell is a hit, tested before the step. Leaving the last cascade means lit. Shadows are binary: has_shadow is copied but never read, so every light casts one, and the march's occlusion value is never used (finding F18, read from the code).",
-      "inspectZh": "shadow 射线从光的方向沿每个轴偏出 0.48 个 cell，再沿射线方向偏出 0.4 个 cell 作为起点，然后从该 cell 自己的 cascade 向外对距离场做 sphere tracing（步长 = 采样值 * 255 - 1 个 cell）；采样值低于 0.001 个 cell 即命中，在步进之前判断。离开最后一个 cascade 视为被照亮。阴影是二值的：has_shadow 被拷贝但从未被读取，所以每盏光都投射阴影，且 march 的 occlusion 值从未使用（发现 F18，从代码中读出）。",
+      "inspectZh": "shadow 射线从光的方向沿每个轴偏出 0.48 个单元格，再沿射线方向偏出 0.4 个单元格作为起点，然后从该单元格自己的级联向外对距离场做 sphere tracing（步长 = 采样值 * 255 - 1 个单元格）；采样值低于 0.001 个单元格即命中，在步进之前判断。离开最后一个级联视为被照亮。阴影是二值的：has_shadow 被拷贝但从未被读取，所以每盏光都投射阴影，且 march 的遮蔽值从未使用（发现 F18，从代码中读出）。",
       "details": [
         {
           "line": 381,
@@ -1321,7 +1321,7 @@
           "line": 432,
           "lineHash": "b91d4c5c7c7185db",
           "note": "the remaining light distance after leaving a cascade",
-          "noteZh": "离开 cascade 后剩余的光距离"
+          "noteZh": "离开级联后剩余的光距离"
         }
       ]
     },
@@ -1343,7 +1343,7 @@
           "line": 493,
           "lineHash": "87cfae04185df4d1",
           "note": "the dynamic pass's E5B9G9R9 word",
-          "noteZh": "动态 pass 的 E5B9G9R9 word"
+          "noteZh": "动态渲染阶段的 E5B9G9R9 word"
         },
         {
           "line": 511,
@@ -1365,7 +1365,7 @@
       "symbol": "GI::SDFGI::render_static_lights",
       "lineHash": "85d1494ce49031fd",
       "inspect": "The static pass runs only on a frame where a cascade was rebuilt and a static light was culled into it: per dirty cascade it fills up to 1024 lights (skipping any whose cascade number is above its max_sdfgi_cascade or whose box misses the cascade), then dispatches MODE_PROCESS_STATIC over every solid cell with bounce 0, process_offset 0 and process_increment 1, skipped when there are no lights. It reads the lights at the dirty list's position (finding F2).",
-      "inspectZh": "静态 pass 只在某个 cascade 被重建且有静态光被剔除进该 cascade 的帧运行：对每个 dirty cascade，填充最多 1024 盏光（跳过 cascade 编号超过其 max_sdfgi_cascade 或盒子不与该 cascade 相交的光），然后对每个 solid cell 以 bounce 0、process_offset 0、process_increment 1 dispatch MODE_PROCESS_STATIC，没有光则跳过。它按 dirty 列表中的位置读取光（发现 F2）。",
+      "inspectZh": "静态渲染阶段只在某个级联被重建且有静态光被剔除进该级联的帧运行：对每个 dirty 级联，填充最多 1024 盏光（跳过级联编号超过其 max_sdfgi_cascade 或盒子不与该级联相交的光），然后对每个 solid 单元格以反弹 0、process_offset 0、process_increment 1 dispatch MODE_PROCESS_STATIC，没有光则跳过。它按 dirty 列表中的位置读取光（发现 F2）。",
       "details": [
         {
           "line": 2449,
@@ -1383,7 +1383,7 @@
           "line": 2453,
           "lineHash": "5e4f6dd2b6605caf",
           "note": "the lights are read at position i of the dirty list, not by cascade number",
-          "noteZh": "按 dirty 列表中的位置 i 读取光，而不是按 cascade 编号"
+          "noteZh": "按 dirty 列表中的位置 i 读取光，而不是按级联编号"
         },
         {
           "line": 2579,
@@ -1399,7 +1399,7 @@
       "symbol": "main (MODE_PROCESS_STATIC)",
       "lineHash": "51c797a6cbbaa669",
       "inspect": "The static pass writes no texture: it writes back into the solid cell, keeping the two neighbour bits and replacing the rest of the light word with the new RGBE 8985 total, and rebuilding light_aniso. Since the sum started from the cell's current light, the cell ends with its old light plus each light culled this time. RGBE 8985 drops the low bit of red and blue (finding F24).",
-      "inspectZh": "静态 pass 不写贴图：它写回 solid cell，保留两位邻居位，其余光 word 用新的 RGBE 8985 总量替换，并重建 light_aniso。由于求和从 cell 当前的光开始，cell 最终得到旧的光加上这次剔除进来的每盏光。RGBE 8985 丢掉红色与蓝色的最低位（发现 F24）。",
+      "inspectZh": "静态渲染阶段不写贴图：它写回 solid cell，保留两位邻居位，其余光 word 用新的 RGBE 8985 总量替换，并重建 light_aniso。由于求和从 cell 当前的光开始，cell 最终得到旧的光加上这次剔除进来的每盏光。RGBE 8985 丢掉红色与蓝色的最低位（发现 F24）。",
       "details": [
         {
           "line": 295,
@@ -1427,13 +1427,13 @@
       "symbol": "MODE_SCROLL (light)",
       "lineHash": "08c1c3c10b0963ad",
       "inspect": "SCROLL copies each kept cell's stored light word (its emission plus any earlier static light) into the cleared render_emission texture at its new position, and STORE reads render_emission back into the list. The static pass then adds every culled light again onto cells that were kept, so a static light that overlaps old content and the new slab is counted again at each scroll; DIRTY_ALL does not (finding F1, read from the code).",
-      "inspectZh": "SCROLL 把保留 cell 存储的 light word（其 emission 加上之前的静态光）拷贝到已清空的 render_emission 贴图的新位置，STORE 再把 render_emission 读回列表。随后静态 pass 把每盏被剔除的光再次加到被保留的 cell 上，所以与旧内容和新 slab 都相交的静态光在每次滚动时都会被重复计入；DIRTY_ALL 时不会（发现 F1，从代码中读出）。",
+      "inspectZh": "SCROLL 把保留 cell 存储的 light word（其自发光加上之前的静态光）拷贝到已清空的 render_emission 贴图的新位置，STORE 再把 render_emission 读回列表。随后静态渲染阶段把每盏被剔除的光再次加到被保留的 cell 上，所以与旧内容和新 slab 都相交的静态光在每次滚动时都会被重复计入；DIRTY_ALL 时不会（发现 F1，从代码中读出）。",
       "details": [
         {
           "line": 196,
           "lineHash": "56ed702f3db70c0a",
           "note": "written into the emission texture",
-          "noteZh": "写入 emission 贴图"
+          "noteZh": "写入自发光贴图"
         },
         {
           "line": 1030,
@@ -1449,25 +1449,25 @@
       "symbol": "main (MODE_PROCESS_DYNAMIC, bounce)",
       "lineHash": "21d926db9e8d92ce",
       "inspect": "Dynamic pass only, when bounce_feedback is above 0.001: the feedback colour is albedo * bounce below 1 and mix(albedo, 1, bounce - 1) above. For each of the 8 probes around the cell and each face it exposes, the weight is trilinear * max(0, dot(face, direction to the probe)) (times occlusion if on); the face's light is the weighted mean of the probes' irradiance in that face's direction, times the feedback. It reads the maps stored at the end of the previous frame, so each bounce takes a frame.",
-      "inspectZh": "仅动态 pass，且 bounce_feedback 高于 0.001 时：feedback 颜色在 bounce 小于 1 时为 albedo * bounce，高于 1 时为 mix(albedo, 1, bounce - 1)。对 cell 周围的 8 个 probe 和它暴露的每个面，权重为 trilinear * max(0, dot(面, 指向 probe 的方向))（开启 occlusion 时再乘以 occlusion）；该面的光是各 probe 在该面方向上的 irradiance 的加权平均，再乘以 feedback。它读取上一帧末存储的贴图，所以每次 bounce 需要一帧。",
+      "inspectZh": "仅动态渲染阶段，且 bounce_feedback 高于 0.001 时：feedback 颜色在反弹小于 1 时为反照率 * 反弹，高于 1 时为 mix(albedo, 1, bounce - 1)。对单元格周围的 8 个探针和它暴露的每个面，权重为 trilinear * max(0, dot(面, 指向 probe 的方向))（开启遮蔽时再乘以遮蔽）；该面的光是各探针在该面方向上的辐照度的加权平均，再乘以 feedback。它读取上一帧末存储的贴图，所以每次反弹需要一帧。",
       "details": [
         {
           "line": 219,
           "lineHash": "aa28b0707a1d7713",
           "note": "the cell's position in probe units, times 16 / 128",
-          "noteZh": "cell 以 probe 为单位的位置，即乘以 16 / 128"
+          "noteZh": "单元格以探针为单位的位置，即乘以 16 / 128"
         },
         {
           "line": 251,
           "lineHash": "922b797fa1e624c5",
           "note": "the weight of one probe for one face",
-          "noteZh": "一个 probe 对一个面的权重"
+          "noteZh": "一个探针对一个面的权重"
         },
         {
           "line": 275,
           "lineHash": "a0ba91bb58b8591c",
           "note": "the irradiance map read",
-          "noteZh": "读取的 irradiance 贴图"
+          "noteZh": "读取的辐照度贴图"
         },
         {
           "line": 287,
@@ -1483,7 +1483,7 @@
       "symbol": "GI::SDFGI::update_probes",
       "lineHash": "ac9047f5b183d7eb",
       "inspect": "Per cascade, one thread per probe (17 x 17 columns by 17 rows, the z slices side by side) traces its rays serially. history_index = render_pass % history_size, and render_pass is incremented once per call, so it counts probe updates, not frames. ray_bias is the probe_bias setting (1.1 cells) and the ray count comes from the table; the sky is read only when read_sky_light is on.",
-      "inspectZh": "对每个 cascade，每个 probe 一个线程（17 x 17 列、17 行，z 切片并排）串行追踪它的射线。history_index = render_pass % history_size，且 render_pass 每次调用只加一，所以它统计的是 probe 更新次数，而不是帧数。ray_bias 是 probe_bias 设置（1.1 个 cell），射线数来自查表；仅在 read_sky_light 开启时才读取天空。",
+      "inspectZh": "对每个级联，每个探针一个线程（17 x 17 列、17 行，z 切片并排）串行追踪它的射线。history_index = render_pass % history_size，且 render_pass 每次调用只加一，所以它统计的是探针更新次数，而不是帧数。ray_bias 是 probe_bias 设置（1.1 个单元格），射线数来自查表；仅在 read_sky_light 开启时才读取天空。",
       "details": [
         {
           "line": 1320,
@@ -1507,7 +1507,7 @@
           "line": 1407,
           "lineHash": "49a497c9faf56b69",
           "note": "one thread per probe: 289 x 17",
-          "noteZh": "每个 probe 一个线程：289 x 17"
+          "noteZh": "每个探针一个线程：289 x 17"
         }
       ]
     },
@@ -1517,7 +1517,7 @@
       "symbol": "main (MODE_PROCESS, probe cell)",
       "lineHash": "47e0e6930aafc829",
       "inspect": "A thread's probe: probe_cell = (pos.x % 17, pos.y, pos.x / 17), and its position is the cascade's offset plus probe_cell times probe_cell_size, which is 128 / 16 = 8 cells, in y-stretched space; probes lie at cell coordinates 0, 8, ..., 128.",
-      "inspectZh": "线程对应的 probe：probe_cell = (pos.x % 17, pos.y, pos.x / 17)，其位置为 cascade 的 offset 加上 probe_cell 乘以 probe_cell_size，即 128 / 16 = 8 个 cell，位于 y 拉伸后的空间；probe 位于 cell 坐标 0、8、...、128。",
+      "inspectZh": "线程对应的探针：probe_cell = (pos.x % 17, pos.y, pos.x / 17)，其位置为级联的 offset 加上 probe_cell 乘以 probe_cell_size，即 128 / 16 = 8 个单元格，位于 y 拉伸后的空间；探针位于单元格坐标 0、8、...、128。",
       "details": [
         {
           "line": 169,
@@ -1535,7 +1535,7 @@
           "line": 173,
           "lineHash": "9e09dadd32197329",
           "note": "the probe's position in y-stretched space",
-          "noteZh": "probe 在 y 拉伸空间中的位置"
+          "noteZh": "探针在 y 拉伸空间中的位置"
         }
       ]
     },
@@ -1545,7 +1545,7 @@
       "symbol": "vogel_hemisphere",
       "lineHash": "8e77a38102249d18",
       "inspect": "The probe's rays are a Vogel spiral: index idx = history_index + i * history_size of ray_total = history_size * ray_count (240 by default), r = sqrt(idx + 0.5) / sqrt(ray_total), theta = idx * golden angle + a per-probe offset hashed from its world probe index (no time input). Over the 30 frames the indices cover 0..239 once. The sign of z is the parity of idx, so with an even history_size every ray of one frame points into the same z hemisphere: even frames -z, odd frames +z (finding F22, read from the code). The ray's y is then multiplied by y_mult and normalized.",
-      "inspectZh": "probe 的射线是 Vogel 螺旋：序号 idx = history_index + i * history_size，总数 ray_total = history_size * ray_count（默认 240），r = sqrt(idx + 0.5) / sqrt(ray_total)，theta = idx * 黄金角 + 由世界 probe 索引哈希出的逐 probe 偏移（没有时间输入）。30 帧内序号恰好覆盖 0..239 一次。z 的符号是 idx 的奇偶性，所以当 history_size 为偶数时，同一帧的所有射线都指向同一个 z 半球：偶数帧 -z，奇数帧 +z（发现 F22，从代码中读出）。射线的 y 随后乘以 y_mult 并归一化。",
+      "inspectZh": "探针的射线是 Vogel 螺旋：序号 idx = history_index + i * history_size，总数 ray_total = history_size * ray_count（默认 240），r = sqrt(idx + 0.5) / sqrt(ray_total)，theta = idx * 黄金角 + 由世界探针索引哈希出的逐探针偏移（没有时间输入）。30 帧内序号恰好覆盖 0..239 一次。z 的符号是 idx 的奇偶性，所以当 history_size 为偶数时，同一帧的所有射线都指向同一个 z 半球：偶数帧 -z，奇数帧 +z（发现 F22，从代码中读出）。射线的 y 随后乘以 y_mult 并归一化。",
       "details": [
         {
           "line": 94,
@@ -1563,7 +1563,7 @@
           "line": 182,
           "lineHash": "bdd99feb7288f326",
           "note": "the per-probe rotation",
-          "noteZh": "逐 probe 的旋转"
+          "noteZh": "逐探针的旋转"
         },
         {
           "line": 191,
@@ -1579,7 +1579,7 @@
       "symbol": "main (MODE_PROCESS, march)",
       "lineHash": "db5fa908cc82bf84",
       "inspect": "The ray starts ray_bias = 1.1 cells from the probe along its dominant axis (a cube, not a sphere), then marches from the probe's own cascade outward: in a cascade it steps by the stored distance (sample * 255 - 1 cells) until a step is below 0.05 cell (a hit) or the ray leaves the box, where it continues from the exit point in the next cascade. There is no iteration cap; leaving the last cascade is a miss.",
-      "inspectZh": "射线从 probe 出发，沿其主轴方向偏出 ray_bias = 1.1 个 cell（是立方体而不是球），然后从 probe 自己的 cascade 向外 march：在一个 cascade 内按存储的距离（采样值 * 255 - 1 个 cell）步进，直到某一步小于 0.05 个 cell（命中）或射线离开盒子，此时从出口点在下一个 cascade 继续。没有迭代次数上限；离开最后一个 cascade 即为 miss。",
+      "inspectZh": "射线从探针出发，沿其主轴方向偏出 ray_bias = 1.1 个单元格（是立方体而不是球），然后从探针自己的级联向外 march：在一个级联内按存储的距离（采样值 * 255 - 1 个单元格）步进，直到某一步小于 0.05 个单元格（命中）或射线离开盒子，此时从出口点在下一个级联继续。没有迭代次数上限；离开最后一个级联即为 miss。",
       "details": [
         {
           "line": 228,
@@ -1597,13 +1597,13 @@
           "line": 238,
           "lineHash": "e9ae697d1eb071f7",
           "note": "the cascade the ray hit in",
-          "noteZh": "射线命中所在的 cascade"
+          "noteZh": "射线命中所在的级联"
         },
         {
           "line": 246,
           "lineHash": "07eafc9a7ab42202",
           "note": "the exit point becomes the origin in the next cascade",
-          "noteZh": "出口点成为下一个 cascade 中的起点"
+          "noteZh": "出口点成为下一个级联中的起点"
         }
       ]
     },
@@ -1613,7 +1613,7 @@
       "symbol": "main (MODE_PROCESS, hit)",
       "lineHash": "5a1f7f6d5337b12a",
       "inspect": "A hit reads only the cascade it hit in: the normal is the central-difference gradient of the stored distance (epsilon 0.001 in uvw), the light is the voxel light texture, and the six face weights are +X +Y +Z in aniso0.rgb and -X -Y -Z in (aniso0.a, aniso1.rg). The ray's radiance is hit_light times the sum of max(0, n * w) over the positive faces and max(0, -n * w) over the negative ones: no BRDF, cosine or distance falloff, since albedo is already in the stored light.",
-      "inspectZh": "命中只读取射线命中所在的 cascade：法线是存储距离的中心差分梯度（uvw 中 epsilon 为 0.001），光来自 voxel 光照贴图，六个面的权重是 aniso0.rgb 中的 +X +Y +Z 与 (aniso0.a, aniso1.rg) 中的 -X -Y -Z。射线的辐射量是 hit_light 乘以正向各面 max(0, n * w) 与负向各面 max(0, -n * w) 之和：没有 BRDF、余弦或距离衰减，因为 albedo 已包含在存储的光中。",
+      "inspectZh": "命中只读取射线命中所在的级联：法线是存储距离的中心差分梯度（uvw 中 epsilon 为 0.001），光来自体素光照贴图，六个面的权重是 aniso0.rgb 中的 +X +Y +Z 与 (aniso0.a, aniso1.rg) 中的 -X -Y -Z。射线的辐射量是 hit_light 乘以正向各面 max(0, n * w) 与负向各面 max(0, -n * w) 之和：没有 BRDF、余弦或距离衰减，因为反照率已包含在存储的光中。",
       "details": [
         {
           "line": 254,
@@ -1647,7 +1647,7 @@
       "symbol": "main (MODE_PROCESS, miss)",
       "lineHash": "27bdde533de3522c",
       "inspect": "A miss reads the sky: with a sky, the ray rotated by the inverse sky orientation reads the radiance map at mip level 2 (\"because we don't usually throw a lot of rays\") times sky_energy; with a colour background, that colour times sky_energy; otherwise black. In 4.7.2-stable the probe shader is compiled with a texture2D sky binding although, with the default texture_array_reflections on, the sky's radiance is a 2D array, so what a missing ray reads is not defined by the code (finding F25, read from the code; see sky-define and sky-radiance-array).",
-      "inspectZh": "miss 读取天空：有天空时，射线按天空朝向的逆旋转后，在 mip level 2 读取 radiance 贴图（“因为我们通常不会发射很多射线”）并乘以 sky_energy；背景为颜色时取该颜色乘以 sky_energy；否则为黑。在 4.7.2-stable 中，probe shader 以 texture2D 的天空绑定编译，而默认开启 texture_array_reflections 时天空 radiance 是 2D array，所以 miss 的射线读到什么，代码并未定义（发现 F25，从代码中读出；见 sky-define 与 sky-radiance-array）。",
+      "inspectZh": "miss 读取天空：有天空时，射线按天空朝向的逆旋转后，在 mip level 2 读取辐亮度贴图（“因为我们通常不会发射很多射线”）并乘以 sky_energy；背景为颜色时取该颜色乘以 sky_energy；否则为黑。在 4.7.2-stable 中，探针 shader 以 texture2D 的天空绑定编译，而默认开启 texture_array_reflections 时天空辐亮度是 2D array，所以 miss 的射线读到什么，代码并未定义（发现 F25，从代码中读出；见 sky-define 与 sky-辐亮度-array）。",
       "details": [
         {
           "line": 48,
@@ -1675,7 +1675,7 @@
       "symbol": "GI::init (integrate defines)",
       "lineHash": "5150f9a803b426e7",
       "inspect": "The probe shader is built with USE_OCTMAP_ARRAY when the sky uses octahedral arrays, but sdfgi_integrate.glsl tests USE_RADIANCE_OCTMAP_ARRAY (the name the forward, mobile and fog shaders are given), so the array declaration is never compiled in. Read from the code (finding F25); commit d9ea5c26 in this repository's history (after 4.7.2-stable) changes it to USE_RADIANCE_OCTMAP_ARRAY.",
-      "inspectZh": "当天空使用八面体 array 时，probe shader 以 USE_OCTMAP_ARRAY 构建，但 sdfgi_integrate.glsl 判断的是 USE_RADIANCE_OCTMAP_ARRAY（forward、mobile 和 fog shader 被赋予的就是这个名字），所以 array 声明从不被编译。从代码中读出（发现 F25）；本仓库历史中 4.7.2-stable 之后的提交 d9ea5c26 将它改为 USE_RADIANCE_OCTMAP_ARRAY。",
+      "inspectZh": "当天空使用八面体 array 时，探针 shader 以 USE_OCTMAP_ARRAY 构建，但 sdfgi_integrate.glsl 判断的是 USE_RADIANCE_OCTMAP_ARRAY（forward、mobile 和 fog shader 被赋予的就是这个名字），所以 array 声明从不被编译。从代码中读出（发现 F25）；本仓库历史中 4.7.2-stable 之后的提交 d9ea5c26 将它改为 USE_RADIANCE_OCTMAP_ARRAY。",
       "details": [
         {
           "line": 3669,
@@ -1691,7 +1691,7 @@
       "symbol": "SkyRD::update_dirty_skys (radiance)",
       "lineHash": "2be6028a3740e2a7",
       "inspect": "With sky_use_octmap_array (rendering/reflections/sky_reflections/texture_array_reflections, on by default on desktop) the sky's radiance is a TEXTURE_TYPE_2D_ARRAY; update_probes binds that texture at binding 0 of the probe shader's set 1 (gi.cpp), where the compiled shader declares a texture2D.",
-      "inspectZh": "sky_use_octmap_array（rendering/reflections/sky_reflections/texture_array_reflections，桌面端默认开启）时，天空的 radiance 是 TEXTURE_TYPE_2D_ARRAY；update_probes 把该贴图绑定到 probe shader 的 set 1 的 binding 0，而编译出的 shader 在此声明的是 texture2D。",
+      "inspectZh": "sky_use_octmap_array（rendering/reflections/sky_reflections/texture_array_reflections，桌面端默认开启）时，天空的辐亮度是 TEXTURE_TYPE_2D_ARRAY；update_probes 把该贴图绑定到探针 shader 的 set 1 的 binding 0，而编译出的 shader 在此声明的是 texture2D。",
       "details": [
         {
           "line": 1553,
@@ -1775,7 +1775,7 @@
       "symbol": "GI::SDFGI::create (probe history)",
       "lineHash": "eeaa3f109957b551",
       "inspect": "The probe history is R16G16B16A16_SINT, 289 x 272 texels (x + 17 * z columns, y * 16 + coefficient rows) with history_size array layers per cascade, and the running average is R32G32B32A32_SINT of the same size; both are cleared at creation so the average works.",
-      "inspectZh": "probe history 为 R16G16B16A16_SINT，289 x 272 个 texel（列为 x + 17 * z，行为 y * 16 + 系数），每个 cascade 有 history_size 个 array layer；累计平均为同样大小的 R32G32B32A32_SINT；两者在创建时都被清零，使平均值能正确工作。",
+      "inspectZh": "探针历史记录为 R16G16B16A16_SINT，289 x 272 个纹素（列为 x + 17 * z，行为 y * 16 + 系数），每个级联有 history_size 个 array layer；累计平均为同样大小的 R32G32B32A32_SINT；两者在创建时都被清零，使平均值能正确工作。",
       "details": [
         {
           "line": 502,
@@ -1803,7 +1803,7 @@
       "symbol": "main (MODE_PROCESS, ambient)",
       "lineHash": "a0732aef301a2968",
       "inspect": "Only when volumetric fog is on, coefficient 0 of the average is also written to an RGBA16F ambient texture, (average / history_size / 1024) * 0.88622, one texel per probe and a layer per cascade; the fog reads this non-directional value.",
-      "inspectZh": "仅在体积雾开启时，平均值的 0 号系数还会写入一张 RGBA16F 的 ambient 贴图，即 (average / history_size / 1024) * 0.88622，每个 probe 一个 texel，每个 cascade 一个 layer；体积雾读取这个无方向的值。",
+      "inspectZh": "仅在体积雾开启时，平均值的 0 号系数还会写入一张 RGBA16F 的 ambient 贴图，即 (average / history_size / 1024) * 0.88622，每个探针一个纹素，每个级联一个 layer；体积雾读取这个无方向的值。",
       "details": [
         {
           "line": 341,
@@ -1819,7 +1819,7 @@
       "symbol": "main (MODE_STORE, SH gain)",
       "lineHash": "e12cedcabf91fc4e",
       "inspect": "The probe estimator stores (4 / N) * sum(L * Y) and STORE multiplies by 4 and by l_mult = {1, 2/3 x 3, 1/4 x 5, 0 x 7}, with no 1/pi or 4*pi anywhere on the chain; for a uniform sky of radiance L the irradiance texel is (4 / pi) L = 1.273 L, where Godot's own sky ambient is 1.0 L (finding F4, read from the code; whether it is a deliberate gain is not stated).",
-      "inspectZh": "probe 估计器存储 (4 / N) * sum(L * Y)，STORE 再乘以 4 和 l_mult = {1, 2/3 x 3, 1/4 x 5, 0 x 7}，整条链上没有 1/pi 或 4*pi；对辐射量为 L 的均匀天空，irradiance texel 为 (4 / pi) L = 1.273 L，而 Godot 自己的 sky ambient 是 1.0 L（发现 F4，从代码中读出；代码没有说明这是否是有意的增益）。",
+      "inspectZh": "探针估计器存储 (4 / N) * sum(L * Y)，STORE 再乘以 4 和 l_mult = {1, 2/3 x 3, 1/4 x 5, 0 x 7}，整条链上没有 1/pi 或 4*pi；对辐射量为 L 的均匀天空，辐照度纹素为 (4 / pi) L = 1.273 L，而 Godot 自己的 sky ambient 是 1.0 L（发现 F4，从代码中读出；代码没有说明这是否是有意的增益）。",
       "details": [
         {
           "line": 328,
@@ -1837,13 +1837,13 @@
           "line": 424,
           "lineHash": "1caf7f6dca0cfe04",
           "note": "irradiance weights each term by l_mult",
-          "noteZh": "irradiance 用 l_mult 加权每一项"
+          "noteZh": "辐照度用 l_mult 加权每一项"
         },
         {
           "line": 425,
           "lineHash": "11050c252747907a",
           "note": "radiance does not",
-          "noteZh": "radiance 不用"
+          "noteZh": "辐亮度不用"
         }
       ]
     },
@@ -1853,19 +1853,19 @@
       "symbol": "GI::SDFGI::store_probes",
       "lineHash": "4ca0aa7d6482433a",
       "inspect": "Every frame GI is used, whether or not the probes were updated, one thread per octahedral texel (289 * 6 by 17 * 6 = 1734 x 102 per cascade) re-encodes the current averages into the octahedral maps; image_size is multiplied by LIGHTPROBE_OCT_SIZE = 6 for this.",
-      "inspectZh": "只要使用 GI，每一帧（无论 probe 是否更新），每个八面体 texel 一个线程（每个 cascade 289 * 6 乘 17 * 6 = 1734 x 102）都会把当前平均值重新编码进八面体贴图；为此 image_size 乘以 LIGHTPROBE_OCT_SIZE = 6。",
+      "inspectZh": "只要使用 GI，每一帧（无论探针是否更新），每个八面体纹素一个线程（每个级联 289 * 6 乘 17 * 6 = 1734 x 102）都会把当前平均值重新编码进八面体贴图；为此 image_size 乘以 LIGHTPROBE_OCT_SIZE = 6。",
       "details": [
         {
           "line": 1442,
           "lineHash": "3ed3fe95dc228eb9",
           "note": "the map is 6 x 6 per probe",
-          "noteZh": "每个 probe 的贴图为 6 x 6"
+          "noteZh": "每个探针的贴图为 6 x 6"
         },
         {
           "line": 1450,
           "lineHash": "efdcec8ac42e8939",
           "note": "one thread per texel",
-          "noteZh": "每个 texel 一个线程"
+          "noteZh": "每个纹素一个线程"
         }
       ]
     },
@@ -1875,7 +1875,7 @@
       "symbol": "main (MODE_STORE)",
       "lineHash": "b29a36df54657c42",
       "inspect": "Each texel's direction is octahedron_encode(local_pos / 6), with no half-texel added: texel k holds the direction for u = k / 6 although its centre is at k + 0.5 (finding F5, read from the code). Its irradiance and radiance come from the same 16 coefficients, summed with l_mult for irradiance and without it for radiance, each encoded as E5B9G9R9 (r | g << 9 | b << 18 | e << 27, channels clamped to [0, 65408]) into two layers: irradiance at the cascade's layer, radiance at cascade + max_cascades.",
-      "inspectZh": "每个 texel 的方向是 octahedron_encode(local_pos / 6)，没有加半个 texel：texel k 存的是 u = k / 6 的方向，尽管它的中心在 k + 0.5（发现 F5，从代码中读出）。它的 irradiance 与 radiance 来自同样的 16 个系数，irradiance 用 l_mult 求和，radiance 不用，各自编码为 E5B9G9R9（r | g << 9 | b << 18 | e << 27，通道限制在 [0, 65408]）写入两个 layer：irradiance 在 cascade 对应的 layer，radiance 在 cascade + max_cascades。",
+      "inspectZh": "每个纹素的方向是 octahedron_encode(local_pos / 6)，没有加半个纹素：纹素 k 存的是 u = k / 6 的方向，尽管它的中心在 k + 0.5（发现 F5，从代码中读出）。它的辐照度与辐亮度来自同样的 16 个系数，辐照度用 l_mult 求和，辐亮度不用，各自编码为 E5B9G9R9（r | g << 9 | b << 18 | e << 27，通道限制在 [0, 65408]）写入两个 layer：辐照度在级联对应的 layer，辐亮度在级联 + max_cascades。",
       "details": [
         {
           "line": 422,
@@ -1887,7 +1887,7 @@
           "line": 430,
           "lineHash": "08b46c9c3412c991",
           "note": "the irradiance word",
-          "noteZh": "irradiance word"
+          "noteZh": "辐照度 word"
         },
         {
           "line": 124,
@@ -1899,7 +1899,7 @@
           "line": 470,
           "lineHash": "5301ea499fc4e23d",
           "note": "the radiance layer",
-          "noteZh": "radiance layer"
+          "noteZh": "辐亮度 layer"
         }
       ]
     },
@@ -1909,19 +1909,19 @@
       "symbol": "main (MODE_STORE, border)",
       "lineHash": "3c89d55ae8b3a30a",
       "inspect": "Each 6 x 6 map sits in an 8 x 8 block (oct_pos = probe * 8 + 1) with a one-texel border. A texel writes itself, and an edge texel also writes its mirror across the octahedral fold into the border (y = 0 to (5 - x, -1), x = 0 to (-1, 5 - y), and so on); a corner texel writes the three other corners. The border exists for the bilinear taps just outside the interior.",
-      "inspectZh": "每个 6 x 6 的贴图位于一个 8 x 8 的块中（oct_pos = probe * 8 + 1），带一个 texel 的边框。texel 写自己；边缘 texel 还把它在八面体折叠处的镜像写入边框（y = 0 写到 (5 - x, -1)，x = 0 写到 (-1, 5 - y)，依此类推）；角落的 texel 写另外三个角。边框是为了内部之外的双线性采样点。",
+      "inspectZh": "每个 6 x 6 的贴图位于一个 8 x 8 的块中（oct_pos = 探针 * 8 + 1），带一个纹素的边框。纹素写自己；边缘纹素还把它在八面体折叠处的镜像写入边框（y = 0 写到 (5 - x, -1)，x = 0 写到 (-1, 5 - y)，依此类推）；角落的纹素写另外三个角。边框是为了内部之外的双线性采样点。",
       "details": [
         {
           "line": 357,
           "lineHash": "21cb77f0166db5db",
           "note": "an 8 x 8 block per probe, the map starts at +1",
-          "noteZh": "每个 probe 一个 8 x 8 的块，贴图从 +1 开始"
+          "noteZh": "每个探针一个 8 x 8 的块，贴图从 +1 开始"
         },
         {
           "line": 455,
           "lineHash": "79f4ce0c44d2bbc4",
           "note": "an edge texel's mirror (y = 0 shown)",
-          "noteZh": "边缘 texel 的镜像（此处为 y = 0）"
+          "noteZh": "边缘纹素的镜像（此处为 y = 0）"
         },
         {
           "line": 451,
@@ -1937,7 +1937,7 @@
       "symbol": "GI::SDFGI::create (lightprobe_data)",
       "lineHash": "3e770fe206a434ea",
       "inspect": "lightprobe_data is R32_UINT, a 2D array of 2312 x 136 texels (17 * 17 * 8 by 17 * 8: each probe an 8 x 8 block) with 2 layers per cascade, read through an E5B9G9R9_UFLOAT view: layer c is cascade c's irradiance, layer cascades + c its radiance.",
-      "inspectZh": "lightprobe_data 为 R32_UINT，2D array，2312 x 136 个 texel（17 * 17 * 8 乘 17 * 8：每个 probe 一个 8 x 8 的块），每个 cascade 2 个 layer，通过 E5B9G9R9_UFLOAT 视图读取：layer c 是 cascade c 的 irradiance，layer cascades + c 是它的 radiance。",
+      "inspectZh": "lightprobe_data 为 R32_UINT，2D array，2312 x 136 个纹素（17 * 17 * 8 乘 17 * 8：每个探针一个 8 x 8 的块），每个级联 2 个 layer，通过 E5B9G9R9_UFLOAT 视图读取：layer c 是级联 c 的辐照度，layer 级联 + c 是它的辐亮度。",
       "details": [
         {
           "line": 516,
@@ -1959,7 +1959,7 @@
       "symbol": "sdfvoxel_gi_process (octahedral read)",
       "lineHash": "8395b0836ddb4cb8",
       "inspect": "The reader locates a probe's block (x + z * 17 columns, times 8, plus 1), encodes the normal with the same octahedral map, and samples at block + uv * 6 with hardware bilinear filtering: a texel corner. Because the writer put the direction for u = k / 6 in the texel centred at k + 0.5, a lookup returns about a 50/50 blend of two texels, the map shifted by half a texel (1/12 of the map); the border covers the extra reach (finding F5, read from the code).",
-      "inspectZh": "读取端定位 probe 的块（x + z * 17 列，乘以 8，再加 1），用同样的八面体映射编码法线，并在 块 + uv * 6 处用硬件双线性过滤采样：那是 texel 的角点。由于写入端把 u = k / 6 的方向放进中心在 k + 0.5 的 texel，查找得到的大约是两个 texel 各 50 % 的混合，贴图偏移了半个 texel（整张图的 1/12）；边框覆盖了多出来的范围（发现 F5，从代码中读出）。",
+      "inspectZh": "读取端定位探针的块（x + z * 17 列，乘以 8，再加 1），用同样的八面体映射编码法线，并在块 + uv * 6 处用硬件双线性过滤采样：那是纹素的角点。由于写入端把 u = k / 6 的方向放进中心在 k + 0.5 的纹素，查找得到的大约是两个纹素各 50 % 的混合，贴图偏移了半个纹素（整张图的 1/12）；边框覆盖了多出来的范围（发现 F5，从代码中读出）。",
       "details": [
         {
           "line": 205,
@@ -1983,7 +1983,7 @@
           "line": 255,
           "lineHash": "c7d796640d51b368",
           "note": "bilinear, in the cascade's irradiance layer",
-          "noteZh": "双线性，在 cascade 的 irradiance layer 中"
+          "noteZh": "双线性，在级联的辐照度 layer 中"
         }
       ]
     },
@@ -1993,13 +1993,13 @@
       "symbol": "main (MODE_SCROLL)",
       "lineHash": "83b3d73235c8b94e",
       "inspect": "When a cascade scrolls, each destination probe reads the probe at probe_cell - scroll (scroll is the dirty amount / 8, one probe per step); if that is inside 0..16 the whole history (all layers, 16 rows each) and the average are copied to the scratch textures, to be copied back by SCROLL_STORE. The ring position is unchanged, so each layer's ray set stays aligned. With DIRTY_ALL nothing scrolls and the probes re-converge from what they hold.",
-      "inspectZh": "cascade 滚动时，每个目标 probe 读取 probe_cell - scroll 处的 probe（scroll 是 dirty 量 / 8，每步一个 probe）；若它在 0..16 之内，则整个 history（所有 layer，每个 16 行）和平均值被拷贝到 scratch 贴图，再由 SCROLL_STORE 拷回。ring 位置不变，所以每个 layer 的射线集保持对齐。DIRTY_ALL 时不滚动，probe 从现有数据重新收敛。",
+      "inspectZh": "级联滚动时，每个目标探针读取 probe_cell - scroll 处的探针（scroll 是 dirty 量 / 8，每步一个探针）；若它在 0..16 之内，则整个历史记录（所有 layer，每个 16 行）和平均值被拷贝到 scratch 贴图，再由 SCROLL_STORE 拷回。ring 位置不变，所以每个 layer 的射线集保持对齐。DIRTY_ALL 时不滚动，探针从现有数据重新收敛。",
       "details": [
         {
           "line": 484,
           "lineHash": "ea90af50e6842389",
           "note": "the probe existed before the scroll",
-          "noteZh": "该 probe 在滚动前就存在"
+          "noteZh": "该探针在滚动前就存在"
         },
         {
           "line": 497,
@@ -2021,13 +2021,13 @@
       "symbol": "GI::SDFGI::render_region (probe scroll)",
       "lineHash": "dd4fc76bd54e62c8",
       "inspect": "Inside render_region, when the cascade is not DIRTY_ALL, the probe scroll runs: INTEGRATE_MODE_SCROLL, a barrier, INTEGRATE_MODE_SCROLL_STORE, a barrier, and, if bounce_feedback is above 0, one INTEGRATE_MODE_STORE so the light pass can read the moved probes. The scroll amount is the dirty amount / 8, one probe per step.",
-      "inspectZh": "在 render_region 内，cascade 不是 DIRTY_ALL 时运行 probe 滚动：INTEGRATE_MODE_SCROLL、barrier、INTEGRATE_MODE_SCROLL_STORE、barrier，若 bounce_feedback 大于 0，再运行一次 INTEGRATE_MODE_STORE，使光照 pass 能读到移动后的 probe。滚动量是 dirty 量 / 8，每步一个 probe。",
+      "inspectZh": "在 render_region 内，级联不是 DIRTY_ALL 时运行探针滚动：INTEGRATE_MODE_SCROLL、barrier、INTEGRATE_MODE_SCROLL_STORE、barrier，若 bounce_feedback 大于 0，再运行一次 INTEGRATE_MODE_STORE，使光照渲染阶段能读到移动后的探针。滚动量是 dirty 量 / 8，每步一个探针。",
       "details": [
         {
           "line": 2193,
           "lineHash": "d56a6be176334d47",
           "note": "multibounce needs the maps stored",
-          "noteZh": "多次 bounce 需要贴图已存储"
+          "noteZh": "多次反弹需要贴图已存储"
         },
         {
           "line": 2152,
@@ -2043,13 +2043,13 @@
       "symbol": "RenderForwardClustered::_render_scene (update_cascades)",
       "lineHash": "144bd621f5f67edf",
       "inspect": "The cascade UBO is rewritten here, after _update_sdfgi (rfc.cpp, frame-order) has already run render_region and, with it, the probe SCROLL shader that reads cascades.data[].offset: in a frame where a cascade scrolls, that shader sees the previous frame's offsets, so newly exposed probes sample their parent about one step off. It is only a starting guess that re-converges (finding F10, read from the code).",
-      "inspectZh": "cascade UBO 在这里重写，而此时 _update_sdfgi（见 frame-order）已经运行了 render_region，其中的 probe SCROLL shader 读取 cascades.data[].offset：在某个 cascade 滚动的那一帧，该 shader 看到的是上一帧的 offset，所以新露出的 probe 采样父级时偏差约一步。这只是一个会重新收敛的初始猜测（发现 F10，从代码中读出）。",
+      "inspectZh": "级联 UBO 在这里重写，而此时 _update_sdfgi（见 frame-order）已经运行了 render_region，其中的探针 SCROLL shader 读取级联.data[].offset：在某个级联滚动的那一帧，该 shader 看到的是上一帧的 offset，所以新露出的探针采样父级时偏差约一步。这只是一个会重新收敛的初始猜测（发现 F10，从代码中读出）。",
       "details": [
         {
           "line": 1734,
           "lineHash": "645d915534ef6d06",
           "note": "render_region, with the probe scroll, runs inside this call, earlier",
-          "noteZh": "render_region（包括 probe 滚动）在这个调用内、更早运行"
+          "noteZh": "render_region（包括探针滚动）在这个调用内、更早运行"
         }
       ]
     },
@@ -2059,13 +2059,13 @@
       "symbol": "main (MODE_SCROLL, parent)",
       "lineHash": "8f9255bc9543bd94",
       "inspect": "A probe that was not scrolled in (new at the edge) is seeded from the next coarser cascade: its world position is turned into parent probe coordinates and the 8 surrounding parent probes' averages (each divided to a mean) are blended trilinearly, requantized, written into every history layer, and the average set to the value times history_size. A new probe starts as a coarse estimate, not black. In the last cascade it copies what is there.",
-      "inspectZh": "没有被滚动进来的 probe（边缘上的新 probe）用下一个更粗的 cascade 来初始化：其世界位置被转为父级 probe 坐标，周围 8 个父级 probe 的平均值（各自除成均值）做三线性混合，重新量化，写入每个 history layer，并把 average 设为该值乘以 history_size。新 probe 从一个粗略估计开始，而不是黑色。在最后一个 cascade 中则直接复制现有数据。",
+      "inspectZh": "没有被滚动进来的探针（边缘上的新探针）用下一个更粗的级联来初始化：其世界位置被转为父级探针坐标，周围 8 个父级探针的平均值（各自除成均值）做三线性混合，重新量化，写入每个历史记录 layer，并把 average 设为该值乘以 history_size。新探针从一个粗略估计开始，而不是黑色。在最后一个级联中则直接复制现有数据。",
       "details": [
         {
           "line": 537,
           "lineHash": "9678de02f562805d",
           "note": "trilinear over the 8 parent probes",
-          "noteZh": "对 8 个父级 probe 做三线性"
+          "noteZh": "对 8 个父级探针做三线性"
         },
         {
           "line": 548,
@@ -2083,7 +2083,7 @@
           "line": 573,
           "lineHash": "11b14cc8ede7b5df",
           "note": "the last cascade has no parent",
-          "noteZh": "最后一个 cascade 没有父级"
+          "noteZh": "最后一个级联没有父级"
         }
       ]
     },
@@ -2093,7 +2093,7 @@
       "symbol": "process_gi (gi.glsl)",
       "lineHash": "b73af0f7a3e52c8f",
       "inspect": "Per pixel: the view-space position is rebuilt from depth, the normal and roughness are read from the normal-roughness buffer (normal xyz * 2 - 1; roughness folded back if above 0.5 and divided by 127/255), and position, view and normal are rotated by cam_transform to a world orientation with the camera at the origin; the reflection is reflect(-view, normal). sdfgi_process then multiplies y of position, normal and reflection by y_mult and renormalizes. The test normal.length() > 0.5 is always true, as length() of a vec3 is 3 in GLSL, so sky pixels are processed too (read from the code).",
-      "inspectZh": "对每个像素：由深度重建 view 空间位置，从 normal-roughness buffer 读取法线与 roughness（法线 xyz * 2 - 1；roughness 大于 0.5 时折回，再除以 127/255），并用 cam_transform 把位置、view 与法线旋转到世界朝向，相机位于原点；反射方向为 reflect(-view, normal)。随后 sdfgi_process 把位置、法线和反射的 y 乘以 y_mult 并重新归一化。判断 normal.length() > 0.5 恒为真，因为 GLSL 中 vec3 的 length() 为 3，所以天空像素也会被处理（从代码中读出）。",
+      "inspectZh": "对每个像素：由深度重建 view 空间位置，从 normal-粗糙度 buffer 读取法线与粗糙度（法线 xyz * 2 - 1；粗糙度大于 0.5 时折回，再除以 127/255），并用 cam_transform 把位置、view 与法线旋转到世界朝向，相机位于原点；反射方向为 reflect(-view, normal)。随后 sdfgi_process 把位置、法线和反射的 y 乘以 y_mult 并重新归一化。判断 normal.length() > 0.5 恒为真，因为 GLSL 中 vec3 的 length() 为 3，所以天空像素也会被处理（从代码中读出）。",
       "details": [
         {
           "line": 611,
@@ -2105,7 +2105,7 @@
           "line": 627,
           "lineHash": "89ac5913ac03b019",
           "note": "the roughness decode",
-          "noteZh": "roughness 解码"
+          "noteZh": "粗糙度解码"
         },
         {
           "line": 620,
@@ -2127,7 +2127,7 @@
       "symbol": "GI::process_gi",
       "lineHash": "5aba4a1d17cda4a3",
       "inspect": "The screen GI pass: at most two views; it makes the ambient and reflection buffers (R16G16B16A16_SFLOAT, at the render size or, with use_half_resolution, half size per axis) and dispatches the compute shader over them. It is called only when SDFGI or VoxelGI is in use, and SDFGI counts as in use only with SDFGI enabled and a viewport debug mode other than Unshaded.",
-      "inspectZh": "屏幕 GI pass：最多两个 view；创建 ambient 与 reflection 缓冲（R16G16B16A16_SFLOAT，渲染尺寸，或 use_half_resolution 时每轴一半）并对它们 dispatch compute shader。仅在使用 SDFGI 或 VoxelGI 时调用，而 SDFGI 只有在启用且 viewport debug 模式不是 Unshaded 时才算在使用。",
+      "inspectZh": "屏幕 GI 渲染阶段：最多两个 view；创建 ambient 与 reflection 缓冲（R16G16B16A16_SFLOAT，渲染尺寸，或 use_half_resolution 时每轴一半）并对它们 dispatch compute shader。仅在使用 SDFGI 或 VoxelGI 时调用，而 SDFGI 只有在启用且 viewport debug 模式不是 Unshaded 时才算在使用。",
       "details": [
         {
           "line": 3972,
@@ -2155,19 +2155,19 @@
       "symbol": "sdfgi_process (cascade selection)",
       "lineHash": "730db3169f0f23f3",
       "inspect": "The finest cascade that holds the pixel: cascade_pos is the point relative to the cascade's corner in probe units; the first cascade i in which every component is in [0, 16) is chosen. If none contains it, ambient and reflection are vec4(0), alpha 0, and the opaque shader keeps its sky ambient.",
-      "inspectZh": "包含该像素的最细 cascade：cascade_pos 是该点相对 cascade 角点、以 probe 为单位的位置；选取第一个各分量都在 [0, 16) 内的 cascade i。若没有 cascade 包含它，ambient 与 reflection 为 vec4(0)，alpha 为 0，不透明 shader 保留其 sky ambient。",
+      "inspectZh": "包含该像素的最细级联：cascade_pos 是该点相对级联角点、以探针为单位的位置；选取第一个各分量都在 [0, 16) 内的级联 i。若没有级联包含它，ambient 与 reflection 为 vec4(0)，alpha 为 0，不透明 shader 保留其 sky ambient。",
       "details": [
         {
           "line": 318,
           "lineHash": "12760093a3946258",
           "note": "outside [0, 16): try the next cascade",
-          "noteZh": "在 [0, 16) 之外：尝试下一个 cascade"
+          "noteZh": "在 [0, 16) 之外：尝试下一个级联"
         },
         {
           "line": 481,
           "lineHash": "c9e866b78340b9f0",
           "note": "no cascade holds it: alpha 0",
-          "noteZh": "没有 cascade 包含它：alpha 为 0"
+          "noteZh": "没有级联包含它：alpha 为 0"
         }
       ]
     },
@@ -2177,13 +2177,13 @@
       "symbol": "sdfgi_process (blend)",
       "lineHash": "77f80f77dd3c94af",
       "inspect": "Near the edge a pixel blends toward the next cascade: blend_from = 16 / 2 - 2.5 = 5.5 and blend_to = 7.5 probe units, len is the largest component of the camera-relative position in probe units, and blend = smoothstep(5.5, 7.5, len). The finest cascade's result and the next one's, each fully computed (16 probe fetches), are mixed; in the last cascade the alpha becomes 1 - blend, fading to the sky.",
-      "inspectZh": "靠近边缘时像素向下一个 cascade 混合：blend_from = 16 / 2 - 2.5 = 5.5，blend_to = 7.5 个 probe 单位，len 是相机相对位置（以 probe 为单位）的最大分量，blend = smoothstep(5.5, 7.5, len)。最细 cascade 与下一个 cascade 的结果各自完整计算（16 次 probe 读取）后混合；在最后一个 cascade 中 alpha 变为 1 - blend，渐变到天空。",
+      "inspectZh": "靠近边缘时像素与下一级联混合：blend_from = 16 / 2 - 2.5 = 5.5，blend_to = 7.5 个探针单位，len 是相机相对位置（以探针为单位）的最大分量，blend = smoothstep(5.5, 7.5, len)。最细级联与下一个级联的结果各自完整计算（16 次探针读取）后混合；在最后一个级联中 alpha 变为 1 - blend，渐变到天空。",
       "details": [
         {
           "line": 337,
           "lineHash": "417c0d3c8857e4f3",
           "note": "the band is 2 probe units wide",
-          "noteZh": "过渡带宽 2 个 probe 单位"
+          "noteZh": "过渡带宽 2 个探针单位"
         },
         {
           "line": 344,
@@ -2201,7 +2201,7 @@
           "line": 356,
           "lineHash": "4fdf0ee1bcb06f8f",
           "note": "the last cascade fades to the sky",
-          "noteZh": "最后一个 cascade 渐变到天空"
+          "noteZh": "最后一个级联渐变到天空"
         }
       ]
     },
@@ -2211,7 +2211,7 @@
       "symbol": "sdfvoxel_gi_process (weights)",
       "lineHash": "36455838dec93fa8",
       "inspect": "The point is first moved off the surface by normal_bias (1.1 cells, 0.1375 probe units) and the lattice cell chosen; each of the 8 probes then gets trilinear weight times max(0.005, dot(normal, direction to the probe)), so probes behind the surface count about 200 times less, times max(occlusion, 0.01) if enabled. The irradiance of each probe is read in the normal's direction (times exposure_normalization), and the sum is divided by the total weight.",
-      "inspectZh": "先沿法线把采样点从表面推开 normal_bias（1.1 个 cell，即 0.1375 个 probe 单位）再选定格子；然后 8 个 probe 各得到 trilinear 权重乘以 max(0.005, dot(法线, 指向 probe 的方向))，所以位于表面背后的 probe 权重约低 200 倍；启用时再乘以 max(occlusion, 0.01)。每个 probe 的 irradiance 沿法线方向读取（乘以 exposure_normalization），总和除以总权重。",
+      "inspectZh": "先沿法线把采样点从表面推开 normal_bias（1.1 个单元格，即 0.1375 个探针单位）再选定格子；然后 8 个探针各得到 trilinear 权重乘以 max(0.005, dot(法线, 指向 probe 的方向))，所以位于表面背后的探针权重约低 200 倍；启用时再乘以 max(occlusion, 0.01)。每个探针的辐照度沿法线方向读取（乘以 exposure_normalization），总和除以总权重。",
       "details": [
         {
           "line": 195,
@@ -2245,19 +2245,19 @@
       "symbol": "sdfvoxel_gi_process (specular)",
       "lineHash": "e87e3dd42929b976",
       "inspect": "Specular from the probes: the radiance layer (cascade + max_cascades) in the reflection direction when roughness < 0.99, and above roughness 0.2 the irradiance layer in the same direction is mixed in by (roughness - 0.2) * 1.25, reaching 1 at roughness 1.0.",
-      "inspectZh": "来自 probe 的高光：roughness < 0.99 时沿反射方向读取 radiance layer（cascade + max_cascades）；roughness 大于 0.2 时沿同一方向混入 irradiance layer，混合量为 (roughness - 0.2) * 1.25，在 roughness 为 1.0 时达到 1。",
+      "inspectZh": "来自探针的高光：粗糙度 < 0.99 时沿反射方向读取辐亮度 layer（级联 + max_cascades）；粗糙度大于 0.2 时沿同一方向混入辐照度 layer，混合量为 (粗糙度 - 0.2) * 1.25，在粗糙度为 1.0 时达到 1。",
       "details": [
         {
           "line": 264,
           "lineHash": "af4b3c15e510da84",
           "note": "the radiance read",
-          "noteZh": "radiance 读取"
+          "noteZh": "辐亮度读取"
         },
         {
           "line": 267,
           "lineHash": "ddbbb7e0aec76257",
           "note": "the irradiance mix starts at 0.2",
-          "noteZh": "irradiance 混合从 0.2 开始"
+          "noteZh": "辐照度混合从 0.2 开始"
         }
       ]
     },
@@ -2267,7 +2267,7 @@
       "symbol": "sdfgi_process (reflection march)",
       "lineHash": "c4b902a596ec5144",
       "inspect": "For roughness below 0.2 the screen pass also marches the reflection through the cascades' distance and light volumes (radius 60 cells per cascade, start bias (1 + base_blend) * 1.1 plus the normal times 1.4). Each pass takes one step of sample * 255 - 1.1 cells; a sample below softness (0.2 + min(1, 5 r) * 4 cells) adds light * 0.5 * alpha with alpha = 1 - d / softness. The result is mixed with the probe radiance: reflection alpha = alpha * (1 - b) + b with b = min(1, 5 r). There is no iteration counter, and the step can be negative once, as the last.",
-      "inspectZh": "roughness 低于 0.2 时，屏幕 pass 还会让反射在各 cascade 的距离体与光照体中 march（每个 cascade 半径 60 个 cell，起点偏移 (1 + base_blend) * 1.1 加上法线乘 1.4）。每一轮走一步 sample * 255 - 1.1 个 cell；采样值低于 softness（0.2 + min(1, 5 r) * 4 个 cell）时加入 light * 0.5 * alpha，其中 alpha = 1 - d / softness。结果与 probe radiance 混合：reflection alpha = alpha * (1 - b) + b，其中 b = min(1, 5 r)。没有迭代计数，步长最多负一次，且是最后一步。",
+      "inspectZh": "粗糙度低于 0.2 时，屏幕渲染阶段还会让反射在各级联的距离体与光照体中 march（每个级联半径 60 个单元格，起点偏移 (1 + base_blend) * 1.1 加上法线乘 1.4）。每一轮走一步 sample * 255 - 1.1 个单元格；采样值低于 softness（0.2 + min(1, 5 r) * 4 个单元格）时加入 light * 0.5 * alpha，其中 alpha = 1 - d / softness。结果与探针辐亮度混合：reflection alpha = alpha * (1 - b) + b，其中 b = min(1, 5 r)。没有迭代计数，步长最多负一次，且是最后一步。",
       "details": [
         {
           "line": 415,
@@ -2291,7 +2291,7 @@
           "line": 468,
           "lineHash": "7b0698e7c0179d61",
           "note": "the mix with the probes",
-          "noteZh": "与 probe 的混合"
+          "noteZh": "与探针的混合"
         }
       ]
     },
@@ -2301,7 +2301,7 @@
       "symbol": "sdfgi_process (energy)",
       "lineHash": "d928a3c67d992b29",
       "inspect": "The environment's SDFGI energy scales the ambient and the reflection at the end of the screen pass, which only opaque surfaces read; the forward path for transparents never reads it (finding F11, read from the code).",
-      "inspectZh": "环境的 SDFGI energy 在屏幕 pass 末尾缩放 ambient 与 reflection，而这只有不透明表面会读取；透明物体的 forward 路径从不读取它（发现 F11，从代码中读出）。",
+      "inspectZh": "环境的 SDFGI energy 在屏幕渲染阶段末尾缩放 ambient 与 reflection，而这只有不透明表面会读取；透明物体的 forward 路径从不读取它（发现 F11，从代码中读出）。",
       "details": [
         {
           "line": 479,
@@ -2317,7 +2317,7 @@
       "symbol": "main (GI buffers)",
       "lineHash": "06ecf5898eb93efa",
       "inspect": "The opaque shader mixes the screen pass's buffers into its own sky ambient and reflection by their alpha, so where SDFGI has no cascade (alpha 0) the sky stays. Then reflection probes accumulate, the ambient is multiplied by the ambient occlusion (SSAO included), by albedo, and by 1 - metallic, and added to emission and direct light; no pi or 1/pi appears on this chain.",
-      "inspectZh": "不透明 shader 按 alpha 把屏幕 pass 的缓冲混入自己的 sky ambient 与反射，所以 SDFGI 没有 cascade 的地方（alpha 为 0）保留天空。随后累加 reflection probe，ambient 乘以环境光遮蔽（包括 SSAO）、albedo 和 1 - metallic，再与 emission 和直接光相加；这条链上没有 pi 或 1/pi。",
+      "inspectZh": "不透明 shader 按 alpha 把屏幕渲染阶段的缓冲混入自己的 sky ambient 与反射，所以 SDFGI 没有级联的地方（alpha 为 0）保留天空。随后累加 reflection 探针，ambient 乘以环境光遮蔽（包括 SSAO）、反照率和 1 - 金属度，再与自发光和直接光相加；这条链上没有 pi 或 1/pi。",
       "details": [
         {
           "line": 2024,
@@ -2335,7 +2335,7 @@
           "line": 2185,
           "lineHash": "c14de239625d3dd8",
           "note": "albedo",
-          "noteZh": "albedo"
+          "noteZh": "反照率"
         },
         {
           "line": 3056,
@@ -2351,13 +2351,13 @@
       "symbol": "sdfgi_process (scene_forward_gi_inc.glsl)",
       "lineHash": "24c04f2fab7bedf0",
       "inspect": "Transparent surfaces that use SDFGI repeat the lookup in their own fragment shader with the same 8-probe weights, normal bias and blend band, but never trace: use_specular is always true and specular is always the probe maps, even at roughness 0, with different thresholds (radiance below 0.99; irradiance mixed in only above 0.5, by (roughness - 0.5) * 2). The environment's SDFGI energy is never applied here (finding F11, read from the code: the field is not read in this file or in the forward shader).",
-      "inspectZh": "使用 SDFGI 的透明表面在自己的 fragment shader 中重复同样的查找，权重、normal bias 与混合带相同，但从不 trace：use_specular 恒为 true，高光始终来自 probe 贴图，即使 roughness 为 0，阈值也不同（radiance 在 0.99 以下；仅在 0.5 以上才混入 irradiance，量为 (roughness - 0.5) * 2）。环境的 SDFGI energy 在这里从不应用（发现 F11，从代码中读出：该字段在本文件和 forward shader 中都没有被读取）。",
+      "inspectZh": "使用 SDFGI 的透明表面在自己的 fragment shader 中重复同样的查找，权重、法线偏移与混合带相同，但从不 trace：use_specular 恒为 true，高光始终来自探针贴图，即使粗糙度为 0，阈值也不同（辐亮度在 0.99 以下；仅在 0.5 以上才混入辐照度，量为 (粗糙度 - 0.5) * 2）。环境的 SDFGI 能量在这里从不应用（发现 F11，从代码中读出：该字段在本文件和 forward shader 中都没有被读取）。",
       "details": [
         {
           "line": 202,
           "lineHash": "9418ab14b5ef5178",
           "note": "irradiance only above 0.5 (the screen pass uses 0.2)",
-          "noteZh": "irradiance 仅在 0.5 以上（屏幕 pass 用 0.2）"
+          "noteZh": "辐照度仅在 0.5 以上（屏幕渲染阶段用 0.2）"
         },
         {
           "line": 164,
@@ -2379,19 +2379,19 @@
       "symbol": "main (forward SDFGI)",
       "lineHash": "0e1a57a040d9eb4b",
       "inspect": "In the forward path, use_specular is hard-coded true, so no reflection march is ever made, and at the last cascade the shader itself mixes toward the sky ambient (diffuse = mix(diffuse, ambient_light, blend)); outside every cascade nothing is written and the sky ambient stays. It also applies y_mult to position, normal and reflection like the screen pass.",
-      "inspectZh": "在 forward 路径中，use_specular 被硬编码为 true，所以从不进行反射 march；在最后一个 cascade，shader 自己向 sky ambient 混合（diffuse = mix(diffuse, ambient_light, blend)）；所有 cascade 之外什么也不写，保留 sky ambient。它也像屏幕 pass 一样对位置、法线和反射应用 y_mult。",
+      "inspectZh": "在 forward 路径中，use_specular 被硬编码为 true，所以从不进行反射 march；在最后一个级联，shader 自己向 sky ambient 混合（diffuse = mix(diffuse, ambient_light, blend)）；所有级联之外什么也不写，保留 sky ambient。它也像屏幕渲染阶段一样对位置、法线和反射应用 y_mult。",
       "details": [
         {
           "line": 1883,
           "lineHash": "a98ab0531d500106",
           "note": "y_mult, as in the screen pass",
-          "noteZh": "y_mult，与屏幕 pass 相同"
+          "noteZh": "y_mult，与屏幕渲染阶段相同"
         },
         {
           "line": 1924,
           "lineHash": "3ed67c8148773f7f",
           "note": "the last cascade fades to the sky ambient",
-          "noteZh": "最后一个 cascade 渐变到 sky ambient"
+          "noteZh": "最后一个级联渐变到 sky ambient"
         }
       ]
     },
@@ -2401,7 +2401,7 @@
       "symbol": "main (volumetric fog, SDFGI)",
       "lineHash": "e03b4120d4410d0c",
       "inspect": "Volumetric fog reads the non-directional ambient texture, not the maps: per froxel, the finest cascade holding the world position, 8 probes with trilinear weights (times occlusion when use_occlusion is on; no normal term or bias, no cascade blend), fetched with texelFetch, the first cascade used; total_light += ambient * gi_inject. y_mult is declared in the struct (line 132) and never read, while the UBO's cascade positions are y-stretched, so a froxel's height above the camera is looked up as dy where the cascade expects 1.5 dy at the default y scale (finding F6, read from the code).",
-      "inspectZh": "体积雾读取无方向的 ambient 贴图，而不是八面体贴图：对每个 froxel，取包含该世界位置的最细 cascade，8 个 probe 使用 trilinear 权重（开启 use_occlusion 时再乘以遮蔽；没有法线项或偏移，没有 cascade 混合），用 texelFetch 读取，只用第一个 cascade；total_light += ambient * gi_inject。y_mult 在 struct 中声明（第 132 行）却从未被读取，而 UBO 中的 cascade 位置是 y 拉伸的，所以 froxel 高于相机的高度被当作 dy 查找，而 cascade 期望的是默认 y scale 下的 1.5 dy（发现 F6，从代码中读出）。",
+      "inspectZh": "体积雾读取无方向的 ambient 贴图，而不是八面体贴图：对每个 froxel，取包含该世界位置的最细级联，8 个探针使用 trilinear 权重（开启 use_occlusion 时再乘以遮蔽；没有法线项或偏移，没有级联混合），用 texelFetch 读取，只用第一个级联；total_light += ambient * gi_inject。y_mult 在 struct 中声明（第 132 行）却从未被读取，而 UBO 中的级联位置是 y 拉伸的，所以 froxel 高于相机的高度被当作 dy 查找，而级联期望的是默认 y 轴缩放下的 1.5 dy（发现 F6，从代码中读出）。",
       "details": [
         {
           "line": 703,
@@ -2457,7 +2457,7 @@
       "symbol": "GI::SDFGI::Cascade::UBO",
       "lineHash": "1350085219988f58",
       "inspect": "The per-cascade UBO is 48 bytes: float offset[3] (bytes 0-11), float to_cell (12-15), int32 probe_offset[3] (16-27), uint pad (28-31) and float pad2[4] (32-47); 8 of them, 384 bytes, are uploaded.",
-      "inspectZh": "每个 cascade 的 UBO 为 48 字节：float offset[3]（字节 0-11）、float to_cell（12-15）、int32 probe_offset[3]（16-27）、uint pad（28-31）和 float pad2[4]（32-47）；共上传 8 个，384 字节。",
+      "inspectZh": "每个级联的 UBO 为 48 字节：float offset[3]（字节 0-11）、float to_cell（12-15）、int32 probe_offset[3]（16-27）、uint pad（28-31）和 float pad2[4]（32-47）；共上传 8 个，384 字节。",
       "details": [
         {
           "line": 577,
@@ -2473,7 +2473,7 @@
       "symbol": "GI::SDFGI::update_cascades",
       "lineHash": "f312c736c7320c9e",
       "inspect": "Fills the cascade UBO: offset = (cascade position - 64) cells times cell size, in y-squashed space; to_cell = 1 / cell_size; probe_offset = position / 8. The array of 8 is a stack local that is not initialised, so slots at or above the cascade count hold garbage.",
-      "inspectZh": "填充 cascade UBO：offset = (cascade 位置 - 64) 个 cell 乘以 cell 大小，位于 y 压缩后的空间；to_cell = 1 / cell_size；probe_offset = 位置 / 8。这个 8 项数组是未初始化的栈局部变量，所以不小于 cascade 数量的槽位里是垃圾数据。",
+      "inspectZh": "填充级联 UBO：offset = (级联位置 - 64) 个单元格乘以单元格大小，位于 y 压缩后的空间；to_cell = 1 / cell_size；probe_offset = 位置 / 8。这个 8 项数组是未初始化的栈局部变量，所以不小于级联数量的槽位里是垃圾数据。",
       "details": [
         {
           "line": 1525,
@@ -2485,7 +2485,7 @@
           "line": 1526,
           "lineHash": "ba8f718678ce7599",
           "note": "the position in probes",
-          "noteZh": "以 probe 为单位的位置"
+          "noteZh": "以探针为单位的位置"
         },
         {
           "line": 1532,
@@ -2501,19 +2501,19 @@
       "symbol": "GI::SDFGIData",
       "lineHash": "8e9b8bcb0842c1c9",
       "inspect": "The screen pass's UBO, 496 bytes: a 112-byte header (grid_size[3] and max_cascades; use_occlusion, probe_axis_size, probe_to_uvw, normal_bias; lightprobe_tex_pixel_size[3] and energy; lightprobe_uv_offset[3] and y_mult; occlusion_clamp[3], occlusion_renormalize[3], cascade_probe_size[3], each padded to 16 bytes) then 8 ProbeCascadeData of 48 bytes each: position[3] and to_probe, probe_world_offset[3] and to_cell, pad[3] and exposure_normalization.",
-      "inspectZh": "屏幕 pass 的 UBO，496 字节：112 字节的头部（grid_size[3] 与 max_cascades；use_occlusion、probe_axis_size、probe_to_uvw、normal_bias；lightprobe_tex_pixel_size[3] 与 energy；lightprobe_uv_offset[3] 与 y_mult；occlusion_clamp[3]、occlusion_renormalize[3]、cascade_probe_size[3]，各补齐到 16 字节），然后是 8 个各 48 字节的 ProbeCascadeData：position[3] 与 to_probe，probe_world_offset[3] 与 to_cell，pad[3] 与 exposure_normalization。",
+      "inspectZh": "屏幕渲染阶段的 UBO，496 字节：112 字节的头部（grid_size[3] 与 max_cascades；use_occlusion、probe_axis_size、probe_to_uvw、normal_bias；lightprobe_tex_pixel_size[3] 与 energy；lightprobe_uv_offset[3] 与 y_mult；occlusion_clamp[3]、occlusion_renormalize[3]、cascade_probe_size[3]，各补齐到 16 字节），然后是 8 个各 48 字节的 ProbeCascadeData：position[3] 与 to_probe，probe_world_offset[3] 与 to_cell，pad[3] 与 exposure_normalization。",
       "details": [
         {
           "line": 755,
           "lineHash": "504e46886a6626eb",
           "note": "the last word of each cascade's 48 bytes",
-          "noteZh": "每个 cascade 48 字节的最后一个 word"
+          "noteZh": "每个级联 48 字节的最后一个 word"
         },
         {
           "line": 758,
           "lineHash": "90a40ea62a205b3c",
           "note": "8 cascades from byte 112",
-          "noteZh": "从第 112 字节起的 8 个 cascade"
+          "noteZh": "从第 112 字节起的 8 个级联"
         }
       ]
     },
@@ -2523,13 +2523,13 @@
       "symbol": "GI::SDFGI::pre_process_gi (SDFGIData)",
       "lineHash": "1b9b952eb3ceab4f",
       "inspect": "pre_process_gi writes the SDFGIData UBO each frame: grid_size 128, probe_axis_size 17, cascade_probe_size 16, probe_to_uvw 1/16, normal_bias = 1.1 / 128 * 16 = 0.1375 (in probe units), occlusion_clamp (8 - 0.5) / 8 = 0.9375, and per cascade a position relative to the camera, to_probe = 1 / (8 cells), probe_world_offset = position / 8 and exposure_normalization = current / baked. The probe_bias is not in this UBO; it is a push constant.",
-      "inspectZh": "pre_process_gi 每帧写入 SDFGIData UBO：grid_size 128，probe_axis_size 17，cascade_probe_size 16，probe_to_uvw 1/16，normal_bias = 1.1 / 128 * 16 = 0.1375（以 probe 为单位），occlusion_clamp = (8 - 0.5) / 8 = 0.9375，每个 cascade 还有相对相机的 position、to_probe = 1 / (8 个 cell)、probe_world_offset = 位置 / 8，以及 exposure_normalization = 当前 / 烘焙时。probe_bias 不在这个 UBO 中，它是 push constant。",
+      "inspectZh": "pre_process_gi 每帧写入 SDFGIData UBO：grid_size 128，probe_axis_size 17，cascade_probe_size 16，probe_to_uvw 1/16，normal_bias = 1.1 / 128 * 16 = 0.1375（以探针为单位），occlusion_clamp = (8 - 0.5) / 8 = 0.9375，每个级联还有相对相机的 position、to_probe = 1 / (8 个单元格)、probe_world_offset = 位置 / 8，以及 exposure_normalization = 当前 / 烘焙时。probe_bias 不在这个 UBO 中，它是 push constant。",
       "details": [
         {
           "line": 1854,
           "lineHash": "3a304b07f47e2284",
           "note": "the clamp, from the voxel count per probe interval",
-          "noteZh": "由每个 probe 间隔的 voxel 数得出的限制值"
+          "noteZh": "由每个探针间隔的体素数得出的限制值"
         },
         {
           "line": 1886,
@@ -2579,7 +2579,7 @@
       "symbol": "RendererSceneCull::_render_scene (sdfgi_update)",
       "lineHash": "49d2d65e25490bfe",
       "inspect": "The culling step asks the renderer to update SDFGI first, with the camera position, for every render but a reflection probe's; the regions it then reports are turned into cull.sdfgi, and each instance is tested against them (sdfgi-cull).",
-      "inspectZh": "剔除步骤首先用相机位置请求渲染器更新 SDFGI（反射 probe 的渲染除外）；它随后报告的 region 被转成 cull.sdfgi，每个实例都要对它们测试（sdfgi-cull）。",
+      "inspectZh": "剔除步骤首先用相机位置请求渲染器更新 SDFGI（反射探针的渲染除外）；它随后报告的 region 被转成 cull.sdfgi，每个实例都要对它们测试（sdfgi-cull）。",
       "details": [
         {
           "line": 3401,
@@ -2591,7 +2591,7 @@
           "line": 3406,
           "lineHash": "9b755e74ccb6254c",
           "note": "the distinct dirty cascades, in order",
-          "noteZh": "按顺序记录互不相同的 dirty cascade"
+          "noteZh": "按顺序记录互不相同的 dirty 级联"
         }
       ]
     },
@@ -2601,13 +2601,13 @@
       "symbol": "ProcessVoxel (sdfgi_direct_light.glsl)",
       "lineHash": "94fbe50d9e1c5cbe",
       "inspect": "The solid cell as the light pass reads it: four uint (position, albedo, light, light_aniso), 16 bytes, with the 26 neighbour bits spread over the top bits of all four. Its albedo comment says the facing bits are 16-21, but the code that writes and reads them uses bits 15-20 (6 bits at shift 15).",
-      "inspectZh": "light pass 读取的 solid cell：四个 uint（position、albedo、light、light_aniso），16 字节，26 个邻居位分散在四个 word 的高位。它对 albedo 的注释说 facing 位是第 16-21 位，但读写它们的代码用的是第 15-20 位（从移位 15 起的 6 位）。",
+      "inspectZh": "light 渲染阶段读取的 solid 单元格：四个 uint（position、反照率、light、light_aniso），16 字节，26 个邻居位分散在四个 word 的高位。它对反照率的注释说 facing 位是第 16-21 位，但读写它们的代码用的是第 15-20 位（从移位 15 起的 6 位）。",
       "details": [
         {
           "line": 25,
           "lineHash": "e371dd2d23988d3d",
           "note": "the comment on the albedo word",
-          "noteZh": "albedo word 上的注释"
+          "noteZh": "反照率 word 上的注释"
         },
         {
           "line": 205,
@@ -2640,7 +2640,7 @@
     {
       "number": 2,
       "title": "Cascades that follow the camera",
-      "titleZh": "跟随相机的 cascade",
+      "titleZh": "跟随相机移动的级联",
       "reading": [
         "cascade-create",
         "cell-size-double",
@@ -2656,7 +2656,7 @@
     {
       "number": 3,
       "title": "What is voxelized, and which lights",
-      "titleZh": "哪些东西被体素化，哪些光参与",
+      "titleZh": "体素化内容与参与光照的光源",
       "reading": [
         "pending-regions",
         "region-bounds",
@@ -2702,7 +2702,7 @@
     {
       "number": 6,
       "title": "Occlusion",
-      "titleZh": "Occlusion（遮蔽）",
+      "titleZh": "遮蔽",
       "reading": [
         "occlusion-dispatch",
         "occlusion-shells",
@@ -2714,7 +2714,7 @@
     {
       "number": 7,
       "title": "Light in the voxels",
-      "titleZh": "voxel 中的光",
+      "titleZh": "体素中的光照",
       "reading": [
         "update-light",
         "light-schedule",
@@ -2732,7 +2732,7 @@
     {
       "number": 8,
       "title": "Probes trace the field",
-      "titleZh": "probe 对场进行追踪",
+      "titleZh": "探针追踪距离场",
       "reading": [
         "update-probes",
         "vogel-rays",
@@ -2749,7 +2749,7 @@
     {
       "number": 9,
       "title": "From coefficients to maps",
-      "titleZh": "从系数到贴图",
+      "titleZh": "从系数生成贴图",
       "reading": [
         "store-probes",
         "oct-store",
@@ -2766,7 +2766,7 @@
     {
       "number": 10,
       "title": "Shading a pixel",
-      "titleZh": "着色一个像素",
+      "titleZh": "像素着色",
       "reading": [
         "process-gi-dispatch",
         "process-gi",
@@ -2801,7 +2801,7 @@
       "lab": "SdfgiAlbedo",
       "engineShort": "render_albedo",
       "engineName": "The albedo voxel (render_albedo, R16_UINT)",
-      "engineNameZh": "albedo voxel（render_albedo，R16_UINT）",
+      "engineNameZh": "反照率体素（render_albedo，R16_UINT）",
       "relationship": "exact",
       "sources": [
         "albedo-pack",
@@ -2811,13 +2811,13 @@
       "exact": "R16_UINT, one texel per voxel: bit 0 the solid flag; bits 1-5 blue, 6-10 green, 11-15 red, each clamp(uint(c * 31), 0, 31) (truncated).",
       "exactZh": "R16_UINT，每个 voxel 一个 texel：第 0 位为 solid 标志；第 1-5 位蓝、第 6-10 位绿、第 11-15 位红，每个通道为 clamp(uint(c * 31), 0, 31)（截断）。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiEmission",
       "engineShort": "render_emission + render_emission_aniso",
       "engineName": "The emission voxel (render_emission, R32_UINT, RGBE 8985) and its face shares (render_emission_aniso)",
-      "engineNameZh": "emission voxel（render_emission，R32_UINT，RGBE 8985）及其各面比例（render_emission_aniso）",
+      "engineNameZh": "自发光体素（render_emission，R32_UINT，RGBE 8985）及各面的权重（render_emission_aniso）",
       "relationship": "exact",
       "sources": [
         "emission-pack",
@@ -2826,13 +2826,13 @@
       "exact": "render_emission: red the top 8 of 9 bits at bits 0-7, green 9 bits at 8-16, blue the top 8 of 9 bits at 17-24, exponent 5 bits at 25-29, bits 30-31 free. render_emission_aniso: six 5-bit shares, +X at bits 0-4, +Y 5-9, +Z 10-14, -X 15-19, -Y 20-24, -Z 25-29, bits 30-31 free.",
       "exactZh": "render_emission：红取 9 位中的高 8 位，占第 0-7 位；绿 9 位，第 8-16 位；蓝取 9 位中的高 8 位，第 17-24 位；指数 5 位，第 25-29 位；第 30-31 位空闲。render_emission_aniso：六个 5 位的比例，+X 在第 0-4 位，+Y 5-9，+Z 10-14，-X 15-19，-Y 20-24，-Z 25-29，第 30-31 位空闲。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiSolidCell",
       "engineShort": "ProcessVoxel / Cascade::SolidCell",
       "engineName": "A solid cell of a cascade's list (ProcessVoxel in the shaders, Cascade::SolidCell in gi.h)",
-      "engineNameZh": "cascade 列表中的一个 solid cell（shader 中为 ProcessVoxel，gi.h 中为 Cascade::SolidCell）",
+      "engineNameZh": "级联列表中的一个实心单元（着色器中对应 ProcessVoxel，gi.h 中对应 Cascade::SolidCell）",
       "relationship": "exact",
       "sources": [
         "solid-cell-store",
@@ -2842,13 +2842,13 @@
       "exact": "Four uint32, 16 bytes. position: x bits 0-6, y 7-13, z 14-20, neighbour bits 11-21 in bits 21-31. albedo: blue bits 0-4, green 5-9, red 10-14 (RGB555), facing bits 15-20, neighbour bits 0-10 in bits 21-31. light: RGBE 8985 in bits 0-29, neighbour bits 22-23 in bits 30-31. light_aniso: six 5-bit shares in bits 0-29, neighbour bits 24-25 in bits 30-31. Neighbour bit n (0 to 25, in the order of the offsets (-1,-1,-1) to (1,1,1) without the centre) is set when the voxel at that offset has this cell as its nearest seed.",
       "exactZh": "四个 uint32，16 字节。position：x 为第 0-6 位，y 为 7-13，z 为 14-20，邻居位 11-21 存放在第 21-31 位。albedo：蓝第 0-4 位，绿 5-9，红 10-14（RGB555），facing 位第 15-20 位，邻居位 0-10 存放在第 21-31 位。light：RGBE 8985 占第 0-29 位，邻居位 22-23 在第 30-31 位。light_aniso：六个 5 位的比例占第 0-29 位，邻居位 24-25 在第 30-31 位。邻居位 n（0 到 25，按偏移 (-1,-1,-1) 到 (1,1,1) 的顺序，不含中心）在该偏移处的 voxel 以此 cell 为最近 seed 时置位。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiCascade",
       "engineShort": "Cascade::UBO",
       "engineName": "The cascade UBO entry (Cascade::UBO, written by update_cascades)",
-      "engineNameZh": "cascade UBO 的一项（Cascade::UBO，由 update_cascades 写入）",
+      "engineNameZh": "级联 UBO 条目（Cascade::UBO，由 update_cascades 写入）",
       "relationship": "exact",
       "sources": [
         "cascade-ubo",
@@ -2857,13 +2857,13 @@
       "exact": "48 bytes: float offset[3] at 0-11 (the cascade's min corner, (position - 64) cells times cell size, y-squashed), float to_cell at 12-15, int32 probe_offset[3] at 16-27 (position / 8), uint pad at 28-31, float pad2[4] at 32-47. Eight entries, 384 bytes.",
       "exactZh": "48 字节：float offset[3] 位于 0-11（cascade 的最小角点，(position - 64) 个 cell 乘以 cell 大小，y 压缩），float to_cell 位于 12-15，int32 probe_offset[3] 位于 16-27（position / 8），uint pad 位于 28-31，float pad2[4] 位于 32-47。共八项，384 字节。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiData",
       "engineShort": "SDFGIData",
       "engineName": "The screen pass's UBO (SDFGIData, written by pre_process_gi)",
-      "engineNameZh": "屏幕 pass 的 UBO（SDFGIData，由 pre_process_gi 写入）",
+      "engineNameZh": "屏幕渲染阶段的 UBO（SDFGIData，由 pre_process_gi 写入）",
       "relationship": "exact",
       "sources": [
         "sdfgi-data-ubo",
@@ -2872,13 +2872,13 @@
       "exact": "496 bytes. Header: grid_size[3] at 0-11, max_cascades 12; use_occlusion 16, probe_axis_size 20, probe_to_uvw 24, normal_bias 28; lightprobe_tex_pixel_size[3] 32-43, energy 44; lightprobe_uv_offset[3] 48-59, y_mult 60; occlusion_clamp[3] 64-75, pad 76; occlusion_renormalize[3] 80-91, pad 92; cascade_probe_size[3] 96-107, pad 108. Then 8 ProbeCascadeData from byte 112, 48 bytes each: position[3] 0-11, to_probe 12-15, probe_world_offset[3] 16-27, to_cell 28-31, pad[3] 32-43, exposure_normalization 44-47.",
       "exactZh": "496 字节。头部：grid_size[3] 位于 0-11，max_cascades 为 12；use_occlusion 16，probe_axis_size 20，probe_to_uvw 24，normal_bias 28；lightprobe_tex_pixel_size[3] 32-43，energy 44；lightprobe_uv_offset[3] 48-59，y_mult 60；occlusion_clamp[3] 64-75，pad 76；occlusion_renormalize[3] 80-91，pad 92；cascade_probe_size[3] 96-107，pad 108。然后从第 112 字节起是 8 个 ProbeCascadeData，每个 48 字节：position[3] 0-11，to_probe 12-15，probe_world_offset[3] 16-27，to_cell 28-31，pad[3] 32-43，exposure_normalization 44-47。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiHistory",
       "engineShort": "lightprobe_history_tex",
       "engineName": "The probe SH history texel (lightprobe_history_tex) and its running sum (lightprobe_average_tex)",
-      "engineNameZh": "probe SH history texel（lightprobe_history_tex）及其累计和（lightprobe_average_tex）",
+      "engineNameZh": "探针球谐历史纹素（lightprobe_history_tex）及其累计和（lightprobe_average_tex）",
       "relationship": "exact",
       "sources": [
         "history-ring",
@@ -2888,13 +2888,13 @@
       "exact": "R16G16B16A16_SINT, 289 x 272 texels per layer, history_size layers per cascade (30 by default): column x + 17 * z of the probe, row y * 16 + the coefficient index (0-15), layer = the update's slot; rgb = 1024 * 4 / ray_count * the coefficient's light sum, a = 1024 * 4 / ray_count (512 at 8 rays), each clamped to -32768..32767. The running sum is R32G32B32A32_SINT, 289 x 272, the exact sum of the layers.",
       "exactZh": "R16G16B16A16_SINT，每层 289 x 272 个 texel，每个 cascade 有 history_size 层（默认 30）：列为 probe 的 x + 17 * z，行为 y * 16 + 系数序号（0-15），layer 为该次更新的槽；rgb = 1024 * 4 / ray_count * 该系数的光量之和，a = 1024 * 4 / ray_count（8 条射线时为 512），均限制在 -32768..32767。累计和为 R32G32B32A32_SINT，289 x 272，是各 layer 的精确和。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiLightprobe",
       "engineShort": "lightprobe_data",
       "engineName": "The octahedral lightprobe texel (lightprobe_data, R32_UINT read as E5B9G9R9_UFLOAT)",
-      "engineNameZh": "八面体 lightprobe texel（lightprobe_data，R32_UINT，按 E5B9G9R9_UFLOAT 读取）",
+      "engineNameZh": "八面体探针纹素（lightprobe_data，R32_UINT，按 E5B9G9R9_UFLOAT 读取）",
       "relationship": "exact",
       "sources": [
         "oct-store",
@@ -2905,13 +2905,13 @@
       "exact": "One uint per texel read as E5B9G9R9: red mantissa bits 0-8, green 9-17, blue 18-26, shared 5-bit exponent 27-31 (channels clamped to [0, 65408] before encoding). The array is 2312 x 136 with 2 layers per cascade: layer c irradiance, layer cascades + c radiance; probe p owns the 8 x 8 block at ((p.x + 17 * p.z) * 8, p.y * 8), the 6 x 6 map starting at +1 inside a one-texel border.",
       "exactZh": "每个 texel 一个 uint，按 E5B9G9R9 读取：红尾数第 0-8 位，绿 9-17，蓝 18-26，共享 5 位指数第 27-31 位（编码前通道限制在 [0, 65408]）。数组为 2312 x 136，每个 cascade 2 个 layer：layer c 为 irradiance，layer cascades + c 为 radiance；probe p 占据位于 ((p.x + 17 * p.z) * 8, p.y * 8) 的 8 x 8 块，6 x 6 的贴图从 +1 开始，外围有一个 texel 的边框。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     },
     {
       "lab": "SdfgiOcclusion",
       "engineShort": "occlusion_data",
       "engineName": "The occlusion word (occlusion_data, R16_UINT, read as R4G4B4A4)",
-      "engineNameZh": "occlusion word（occlusion_data，R16_UINT，按 R4G4B4A4 读取）",
+      "engineNameZh": "遮蔽数据 word（occlusion_data，R16_UINT，按 R4G4B4A4 读取）",
       "relationship": "exact",
       "sources": [
         "occlusion-store",
@@ -2921,7 +2921,7 @@
       "exact": "Eight 4-bit values (occ * 15, truncated) in a 32-bit word: class 0 at bits 12-15, 1 at 8-11, 2 at 4-7, 3 at 0-3, 4 at 28-31, 5 at 24-27, 6 at 20-23, 7 at 16-19. The low 16 bits are the texel (x, y, z + cascade * 128) of a 256 x 128 x (128 * cascades) R16_UINT texture, the high 16 bits the texel (x + 128, y, z + cascade * 128); as R4G4B4A4, R is bits 12-15, G 8-11, B 4-7, A 0-3.",
       "exactZh": "32 位 word 中的八个 4 位值（occ * 15，截断）：类别 0 在第 12-15 位，1 在 8-11，2 在 4-7，3 在 0-3，4 在 28-31，5 在 24-27，6 在 20-23，7 在 16-19。低 16 位是 256 x 128 x (128 * cascade 数) 的 R16_UINT 贴图中 texel (x, y, z + cascade * 128)，高 16 位是 texel (x + 128, y, z + cascade * 128)；按 R4G4B4A4 读取时，R 为第 12-15 位，G 为 8-11，B 为 4-7，A 为 0-3。",
       "labLayout": "The same bits, packed by the lab's CPU model (godot/sdfgi).",
-      "labLayoutZh": "相同的位，由实验室的 CPU 模型（godot/sdfgi）打包。"
+      "labLayoutZh": "实验室 CPU 模型（godot/sdfgi）按相同位布局打包。"
     }
   ]
 }

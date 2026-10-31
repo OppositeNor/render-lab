@@ -1,4 +1,4 @@
-# title: The global IBL passes | 全局 IBL pass
+# title: The global IBL passes | 全局 IBL 渲染阶段
 # source: reflection-global
 # demo: ibl
 def forward_targets(s, lit):   # 8-bit targets        # @targets

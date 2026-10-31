@@ -1319,6 +1319,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "godot_voxelgi"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "egui",
+ "glam",
+ "render-lab-check",
+ "render-lab-core",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
 name = "gpu-allocator"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

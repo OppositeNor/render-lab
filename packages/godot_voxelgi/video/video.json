@@ -1,0 +1,126 @@
+{
+  "investigation": "godot/voxelgi",
+  "storyboard": "storyboard.story",
+  "translations": {
+    "zh-CN": "storyboard.zh-CN.story"
+  },
+  "diagrams": {
+    "en": "diagrams",
+    "zh-CN": "zh-CN/diagrams"
+  },
+  "sourceIndex": "../source-index.json",
+  "pseudocode": "../pseudocode",
+  "video": {
+    "en": "godot-voxelgi.mp4",
+    "zh-CN": "godot-voxelgi-zh-CN.mp4"
+  },
+  "engineLabel": "Godot 4.7.2-stable · ed1daf0b",
+  "checkoutEnv": "GODOT_SOURCE_DIR",
+  "durationMinutes": [
+    20,
+    26
+  ],
+  "readingPath": [
+    "frame-order",
+    "voxelgi-gate",
+    "bake-entry",
+    "begin-bake",
+    "plot-face-recurse",
+    "tri-box",
+    "leaf-scan",
+    "fixup-leaf",
+    "fixup-parent",
+    "export-data",
+    "sdf-edt",
+    "allocate-data",
+    "instance-texture",
+    "relight-gate",
+    "compute-light",
+    "raymarch",
+    "area-light",
+    "write-texture",
+    "update-mipmaps",
+    "second-bounce",
+    "bounce-march",
+    "dynamic-views",
+    "shrink",
+    "plot-blend",
+    "tag-write",
+    "process-gi",
+    "voxel-gi-compute",
+    "cone-trace-45",
+    "cone-trace",
+    "spec-cone",
+    "gi-buffer-mix"
+  ],
+  "pronunciations": {
+    "VoxelGI": "voxel G I",
+    "VoxelGIs": "voxel G I's",
+    "SDFGI": "S D F G I",
+    "GI": "G I",
+    "GPU": "G P U",
+    "CPU": "C P U",
+    "RGBA8": "R G B A 8",
+    "LTC": "L T C",
+    "albedo": "al-bee-doh",
+    "mip": "mip",
+    "mips": "mips",
+    "octree": "oct-tree",
+    "voxelizer": "voxel-izer",
+    "Forward+": "Forward plus"
+  },
+  "documents": {
+    "en": {
+      "guideTitle": "Source-reading guide: VoxelGI in Godot 4.7",
+      "intro": "**What this is.** A narrated walkthrough of how Godot 4.7's Forward+ renderer computes VoxelGI, its baked voxel global illumination, built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`, Python pseudo-code of the Godot functions involved, and a Mermaid diagram. The lab bakes its own study room with a CPU port of Godot's voxelizer at the engine's default subdivision (128 x 64 x 128 cells of 5 cm), runs the light passes, the second bounce, and the dynamic-object path on the CPU, shades the room with a WGSL port of the screen pass, and checks the WGSL ports of the screen pass, the light pass, and the bounce cone against the CPU model; the scene is the lab's own.",
+      "demos": {
+        "room": "the study room with VoxelGI",
+        "bounds": "the box becomes cells",
+        "octree": "a triangle goes down the octree",
+        "cells": "a cell's records",
+        "field": "the distance field",
+        "light": "the light pass",
+        "bounce": "the second bounce",
+        "mips": "the mips and the texture",
+        "dynamic": "a dynamic object",
+        "pixel": "a pixel's cones",
+        "compose": "the opaque pass"
+      },
+      "simplifications": [
+        "The room's materials are flat colours, so the bake's 128 x 128 material tables are one colour each; meshes have no UVs.",
+        "The VoxelGI box is offset by a quarter cell (0.0125, 1.5125, 0.0125), so that no wall or floor lies exactly on a cell boundary, where the lab's f32 port of the separating-axis test dropped two walls from both cells they touched.",
+        "The ceiling panel stands for an AreaLight3D of its size (range 10 m, attenuation 2), its mesh left out of the bake; the light demonstration adds an OmniLight3D with shadows.",
+        "The depth pre-pass writes depth alone; the scene pass after it writes the normal beside the lab's direct light, the screen pass reads them once per pixel as a compute pass, and the opaque pass's mix is a compute pass too; there is no tag buffer (one VoxelGI), and the 3D texture is a buffer sampled trilinearly by hand.",
+        "The environment's ambient and reflection are the lab's sky (its lighting level, the reflection averaged over nine directions spread by roughness), not Godot's radiance map; the reflection is weighed by the lab's environment BRDF fit.",
+        "The dynamic object's six views are found by casting a ray through each texel's column, not by rasterizing its mesh; the dynamic demonstration draws the plotted texels as points, and the scene's shading keeps the static bake.",
+        "The lab's direct light is its own (the panel's analytic integral with ray-traced shadows), not Godot's forward lights."
+      ]
+    },
+    "zh-CN": {
+      "guideTitle": "源码阅读指南：Godot 4.7 的 VoxelGI",
+      "intro": "**内容简介。** 本片讲解 Godot 4.7 的 Forward+ 渲染器如何计算 VoxelGI，即烘焙式体素全局光照。画面是 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，并配有相关 Godot 函数的 Python 伪代码和 Mermaid 图。实验室使用 Godot 体素化器的 CPU 移植，按引擎默认细分（128 × 64 × 128 个、边长 5 cm 的单元格）烘焙自己的书房；在 CPU 上运行光照、第二次反弹和动态物体路径，再用屏幕渲染阶段的 WGSL 移植为房间着色，并将屏幕渲染、光照和反弹锥体的 WGSL 移植与 CPU 模型对比。场景由实验室自行构建。",
+      "demos": {
+        "room": "使用 VoxelGI 的书房",
+        "bounds": "盒子变成单元格",
+        "octree": "三角形沿八叉树下行",
+        "cells": "单元格的记录",
+        "field": "距离场",
+        "light": "光照渲染阶段",
+        "bounce": "第二次反弹",
+        "mips": "mip 与贴图",
+        "dynamic": "动态物体",
+        "pixel": "一个像素的锥体",
+        "compose": "不透明渲染阶段"
+      },
+      "simplifications": [
+        "房间材质都是纯色，因此烘焙得到的两张 128 × 128 材质表各只有一种颜色；网格没有 UV。",
+        "VoxelGI 盒子偏移了四分之一个单元格（0.0125, 1.5125, 0.0125），避免墙面或地板恰好落在单元格边界上。实验室的分离轴测试 f32 移植曾导致相接的两面墙同时从各自接触的两个单元格中消失。",
+        "天花板面板代表尺寸相同的 AreaLight3D（范围 10 m，衰减 2），其网格不参与烘焙；光照演示还加入一个带阴影的 OmniLight3D。",
+        "深度预处理阶段只写深度；随后场景阶段与实验室直接光一起写入法线。屏幕渲染阶段以计算阶段运行，每像素读取一次；不透明混合也由计算阶段完成。由于这里只有一个 VoxelGI，没有标记缓冲；3D 纹理存于缓冲区中，并由手动三线性采样读取。",
+        "环境光和反射来自实验室天空：环境光使用天空的照明强度，反射按粗糙度在九个方向上取平均；它们不使用 Godot 的辐亮度贴图。反射权重由实验室的环境 BRDF 拟合计算。",
+        "动态物体的六个视图通过从每个纹素柱体中心发射光线得到，而非光栅化网格。动态演示将写入的纹素绘成点；场景着色仍使用静态烘焙结果。",
+        "实验室使用自有的直接光照（灯板的解析积分和光线追踪阴影），而非 Godot 的前向光源。"
+      ]
+    }
+  }
+}

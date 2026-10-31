@@ -1,0 +1,8 @@
+# The room from straight above, for slices.
+
+[camera]
+target = [0.0, 0.6, 0.0]
+yaw = 0.0
+pitch = 89.0
+distance = 9.0
+fov = 50.0

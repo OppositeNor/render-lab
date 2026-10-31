@@ -35,6 +35,10 @@ whose license allows publishing code derived from them:
   4.7's Forward+ renderer computes signed distance field global illumination, followed on the CPU at the engine's sizes:
   the cascades and their scrolling, voxelization, the jump-flood distance field, occlusion, light injection and bounce,
   probe tracing and its history, the octahedral probe maps, and the screen pass, ported to WGSL.
+- **Godot Engine: VoxelGI** ([`packages/godot_voxelgi/src/godot/voxelgi`](packages/godot_voxelgi/src/godot/voxelgi/README.md)). How
+  Godot 4.7's Forward+ renderer computes its baked voxel global illumination, followed on the CPU at the engine's
+  default subdivision: the bake's octree and distance field, the cells' records, the light, mip, and bounce passes, the
+  dynamic-object path, and the per-pixel cone trace, ported to WGSL.
 
 An optional module, not provided in this repo, can add local packages of its own to `packages/` (each with its own Cargo
 workspace). Without it the lab runs with the public investigations alone.

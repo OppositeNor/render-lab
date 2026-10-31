@@ -27,6 +27,9 @@
 - **Open 3D Engine：光照模型**（[`packages/o3de_lighting/src/o3de/lighting`](packages/o3de_lighting/src/o3de/lighting/README.md)）。O3DE 26.05 的 Atom 渲染器如何照亮
   一帧，其着色器代码已移植到 WGSL，并按默认管线的方式运行：depth pre-pass、分块光源剔除、太阳的级联阴影及其屏幕空间缓冲、forward pass
   及其五个 target、材质模型与各光照模型的 BRDF、BRDF 纹理与多重散射补偿、基于图像的光照与反射 probe、SSAO、透射，以及地形。
+- **Godot Engine：VoxelGI**（[`packages/godot_voxelgi/src/godot/voxelgi`](packages/godot_voxelgi/src/godot/voxelgi/README.md)）。Godot 4.7 的 Forward+
+  渲染器如何计算其烘焙体素全局光照，按引擎的默认细分在 CPU 上逐步复现：烘焙的 octree 与距离场、单元格的记录、光照、mip 与反弹 pass、
+  动态物体路径，以及移植到 WGSL 的逐像素锥体追踪。
 
 一个本仓库不提供的可选模块可以向 `packages/` 加入它自己的本地包（各有自己的 Cargo 工作区）。没有它时，实验室只包含公开的研究。
 

@@ -1,0 +1,14 @@
+# The bounce demonstration (src/godot/voxelgi/demos.rs).
+
+key = "bounce"
+title-text = "shot.bounce_title"
+tab-text = "shot.bounce"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "second-bounce"
+resets-camera = true
+include = ["bounce-camera"]
+
+[params]
+workedBounce = 1.0
+coneSteps = 6.0

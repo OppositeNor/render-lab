@@ -74,26 +74,26 @@
     },
     "zh-CN": {
       "guideTitle": "源码阅读指南：Godot 4.7 的 SDFGI",
-      "intro": "**这是什么。** 一段带旁白的讲解，说明 Godot 4.7 的 Forward+ 渲染器如何计算基于有符号距离场的全局光照（SDFGI）。画面来自 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，配有相关 Godot 函数的 Python 伪代码和一张 Mermaid 图。实验室按引擎的尺寸（四个 128 立方单元格的 cascade）在 CPU 上复现 SDFGI，用 Godot 屏幕 pass 的 WGSL 移植为自己的书房着色，并把光照 pass、probe 光线和 probe 存储的 WGSL 移植与 CPU 模型逐项对比；场景是实验室自己的。",
+      "intro": "**内容简介。** 本片讲解 Godot 4.7 的 Forward+ 渲染器如何计算基于有符号距离场的全局光照（SDFGI）。画面是 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，并配有相关 Godot 函数的 Python 伪代码和 Mermaid 图。实验室按引擎尺寸（四个边长为 128 个单元格的级联）在 CPU 上复现 SDFGI；以 Godot 屏幕渲染阶段的 WGSL 移植为书房着色，并将光照阶段、探针光线和探针存储的 WGSL 移植与 CPU 模型逐项对比。场景由实验室自行构建。",
       "demos": {
         "room": "使用 SDFGI 的书房",
-        "cascades": "cascade 与相机的移动",
+        "cascades": "级联与相机的移动",
         "regions": "脏区域及其列表",
         "voxels": "书房的体素",
-        "field": "距离场与 jump flood",
-        "occlusion": "一个 probe 的遮蔽",
+        "field": "距离场与跳跃洪泛",
+        "occlusion": "一个探针的遮蔽",
         "light": "体素中的光",
-        "probes": "一个 probe 的光线与历史",
-        "maps": "一个 probe 的八面体贴图",
-        "pixel": "一个像素的八个 probe"
+        "probes": "一个探针的光线与历史",
+        "maps": "一个探针的八面体贴图",
+        "pixel": "一个像素的八个探针"
       },
       "simplifications": [
-        "体素由 CPU 沿引擎三个正交视图的每个像素穿过书房的形状追踪得到，使用形状的精确法线，而不是光栅化三角形；GPU 按调度顺序决定的写入采用实验室的循环顺序。",
-        "SDFGI 跟随一台停在书房中央的相机；查看器的相机只负责观察。光照与 probe 在默认设置下从创建起运行 60 帧，屏幕 pass 读取该状态的贴图。",
-        "屏幕 pass 在场景 pass 的每个片元上计算，而不是在深度与法线缓冲上运行的 compute pass，并且不包含 roughness 0.2 以下的高光步进。",
-        "书房的天花板面板代表一个同样大小的动态 AreaLight3D（range 10 m，attenuation 2），其 energy 的选取使 Godot 的 forward pass 与实验室的直接光一致；面板的网格不参与体素化。",
-        "纹理以全精度权重采样；probe 的天空是实验室的全分辨率环境，而 Godot 读取 mip 2；hashf3 的 sin 在 CPU 上以 f32 计算，因此 probe 光线的旋转与 GPU 不同。",
-        "滚动之后，遮蔽在整个 cascade 上重新计算，而 Godot 只重算新区域涉及的窗口。"
+        "CPU 沿引擎三个正交视图的每个像素追踪穿过书房形状的光线，据此生成体素；使用形状的精确法线，而非光栅化三角形。GPU 写入顺序则由实验室循环顺序决定，不模拟 GPU 的调度顺序。",
+        "SDFGI 跟随一台固定在书房中央的相机，查看器相机只用于观察。默认设置下，光照和探针从创建起运行 60 帧；屏幕渲染阶段读取此时的贴图。",
+        "屏幕渲染阶段在场景阶段的每个片元上计算，而不是作为计算阶段读取深度和法线缓冲；也不包含粗糙度低于 0.2 时的高光步进。",
+        "书房天花板面板代表一个尺寸相同的动态 AreaLight3D（范围 10 m，衰减 2）。选择其能量，使 Godot 前向阶段的直接光与实验室结果一致；面板网格不参与体素化。",
+        "纹理采样使用全精度权重。探针采样实验室的全分辨率天空环境，而 Godot 读取 mip 2；hashf3 的 sin 在 CPU 上以 f32 计算，因此探针光线旋转与 GPU 不同。",
+        "级联滚动后，实验室会在整个级联上重新计算遮蔽；Godot 只重算新区域涉及的窗口。"
       ]
     }
   },

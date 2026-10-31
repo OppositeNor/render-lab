@@ -1,0 +1,4 @@
+# The VoxelGI investigation's demonstrations, in the order of the viewer's
+# keys (1-9, 0, -); each is demos/<key>.toml (lab/src/demo.rs reads them).
+
+demos = ["room", "bounds", "octree", "cells", "field", "light", "bounce", "mips", "dynamic", "pixel", "compose"]

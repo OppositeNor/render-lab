@@ -44,6 +44,18 @@ language module `rlstd.text`; its full resource key would be `rlstd.script/text`
 text-table keys are separate identifiers. The general compiler uses a resolver interface; the lab's adapter
 enforces package imports/exports and resolves built resources through `lab::resources`.
 
+The [language package system](language-packages.md) imports `rlstd` with `[Import rlstd]`, `[Import* rlstd]`, or
+`[ImportAs rlstd rl]`. Its proposed public root interface re-exports constructors/types such as `colored`, `rgb`,
+and `ColoredString` from the internal modules, making `rlstd.colored` or `rl.colored` available. It may also export
+submodule namespaces such as `rlstd.text`. Lab manifest visibility controls access to module resources; the
+language export table controls access to symbols. Both checks apply, and importing an implementation resource
+does not expose its private bindings. Example consumer code:
+
+```text
+[ImportAs rlstd rl]
+{rl.colored "Hello" {rl.rgb 255 128 0}}
+```
+
 Generated modules stay in their package's ignored `build/` and are declared as built resources if shipped through
 the loader. A generic compilation processor can be added if justified; do not bake a story-only processor into
 the language. Keep resources lazy, loaded when their module/scene is needed. `rlstd` currently has no separate
@@ -55,7 +67,8 @@ entry. The independent language crate cannot depend on that code or on the lab's
 Use the general STL's `{^ {...} ...}` lambdas, primitive immutable values, explicit static/runtime capabilities,
 exact arity, and proposed `K.variadic` bridge. An `R.*` operation below is supplied by `rlstd`'s native adapter, never by
 the language kernel. It is explicitly registered with a signature and stage requirements. Qualified names such
-as `rlstd.colored` below assume module resolution is configured; source import syntax is still to be specified.
+as `rlstd.colored` require `[Import rlstd]`; the alias form above uses `rl.colored`. Implementation blocks below
+refer directly to their own package definitions and their configured `std` dependencies.
 
 `rlstd` may provide ordinary aliases to general `std` functions, but there is only one implementation of their
 semantics. Type-producing constructors remain ordinary `Struct`, `Field`, and `Nominal` operations. Presentation
@@ -167,6 +180,8 @@ General source modules are code. `rlstd` provides an optional reader/profile tha
 as prose and uses `$name` or `${code}` to insert evaluated content. `[# ...]` and `[% ...]` retain core meanings;
 the reader places declarations in a lexical definition context and converts document-position constant/expression
 results to Content. Literal-dollar/bracket escaping is reader syntax and must be specified before migration.
+The three import forms retain their core meanings and produce no document items. Qualified interpolation uses
+`$rl.label` for an exported value or `${rl.colored "Hello" {rl.rgb 255 128 0}}` for a call after the matching import.
 
 Definitions and the collected content are separate. A declaration applies to subsequent uses in the enclosing
 document body, including later paragraphs; a nested function has its own scope. The reader does not encode the
@@ -260,5 +275,5 @@ through explicit host capabilities. The core compiler neither discovers these to
    and one GPU job at a time. Core semantic tests remain GPU/TTS-free.
 
 No package manifests, resource collections, native bindings, or interpreter implementation are created by this
-design document. Module import spelling, profile selection, and the generic host datatype ABI remain Phase 0
+design document. Package-author export declarations, profile selection, and the generic host datatype ABI remain Phase 0
 decisions; their location and independence requirements are fixed by the boundary above.

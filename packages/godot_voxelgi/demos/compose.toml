@@ -1,0 +1,13 @@
+# The compose demonstration (src/godot/voxelgi/demos.rs).
+
+key = "compose"
+title-text = "shot.compose_title"
+tab-text = "shot.compose"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "compose"
+resets-camera = true
+include = ["sphere-camera"]
+
+[params]
+workedPixel = 1.0

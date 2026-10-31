@@ -1,4 +1,4 @@
-# title: Reflection probes | 反射 probe
+# title: Reflection probes | 反射探针
 # source: probe-render-outer
 # demo: reflections
 def reflections(px, probes):  # per sample, largest first  # @stencil

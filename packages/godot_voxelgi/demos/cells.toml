@@ -1,0 +1,14 @@
+# The cells demonstration (src/godot/voxelgi/demos.rs).
+
+key = "cells"
+title-text = "shot.cells_title"
+tab-text = "shot.cells"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "pack-cell"
+resets-camera = true
+include = ["teapot-camera"]
+
+[params]
+octreeLevel = 7.0
+cutHeight = 0.7

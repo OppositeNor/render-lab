@@ -1,4 +1,4 @@
-# title: The sun's shadow, per pixel | 太阳阴影，逐像素
+# title: The sun's shadow, per pixel | 太阳阴影：逐像素计算
 # source: fullscreen-shadow
 # demo: cascades
 def fullscreen_shadow(pixel, depth):

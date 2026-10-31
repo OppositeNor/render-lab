@@ -1,0 +1,1226 @@
+{
+  "schema": 1,
+  "engine": {
+    "name": "Godot Engine",
+    "version": "4.7.2-stable",
+    "commit": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "checkoutFromLabRoot": "../../godot",
+    "license": "MIT",
+    "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present."
+  },
+  "entries": {
+    "frame-order": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1763,
+      "symbol": "RenderForwardClustered::_render_scene (VoxelGI steps)",
+      "lineHash": "e1b2d200ba0aaf7f",
+      "inspect": "In the Forward+ frame, the visible VoxelGIs' per-instance data is written first; the depth pre-pass then writes normal, roughness, and each pixel's VoxelGI tag; _pre_opaque_render runs the screen pass (process_gi) before the opaque pass reads its buffers.",
+      "inspectZh": "在 Forward+ 的一帧中，先写入可见 VoxelGI 的每实例数据；随后深度预处理阶段写入法线、粗糙度以及每个像素的 VoxelGI 标记；_pre_opaque_render 在不透明渲染阶段读取其缓冲之前运行屏幕渲染阶段（process_gi）。",
+      "details": [
+        {
+          "line": 1927,
+          "lineHash": "20c7f19c20ccc512",
+          "note": "with a VoxelGI in view, the pre-pass also writes the tag",
+          "noteZh": "视野中有 VoxelGI 时，深度预处理阶段还会写入标记"
+        },
+        {
+          "line": 2182,
+          "lineHash": "11b7cc8235ebf9a3",
+          "note": "the screen pass runs here, before the opaque pass",
+          "noteZh": "屏幕渲染阶段在此运行，早于不透明渲染阶段"
+        }
+      ]
+    },
+    "voxelgi-gate": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1872,
+      "symbol": "RenderForwardClustered::_render_scene",
+      "lineHash": "7cd1280ca5128c93",
+      "inspect": "VoxelGI's per-pixel work runs when the frame's cull found at least one VoxelGI instance in view; there is no project setting that turns it on or off.",
+      "inspectZh": "当本帧的剔除找到至少一个处于视野中的 VoxelGI 实例时，VoxelGI 的逐像素工作才会运行；没有开启或关闭它的项目设置。",
+      "details": [
+        {
+          "line": 1837,
+          "lineHash": "5f3ea65ea77e8ddf",
+          "note": "off unless an instance is in view",
+          "noteZh": "除非有实例在视野中，否则关闭"
+        }
+      ]
+    },
+    "relight-gate": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 4302,
+      "symbol": "GI::voxel_gi_needs_update",
+      "lineHash": "9df4e95c60cf113b",
+      "inspect": "The light passes run only when the VoxelGI's version changed (new data, or dynamic range, propagation, or two bounces set) or the light cache found a changed light; with dynamic objects present, an update re-writes the texture from the float buffer and plots them; otherwise it does nothing.",
+      "inspectZh": "只有当 VoxelGI 的版本变化（新数据，或设置了动态范围、传播系数、两次反弹）或光照缓存发现某个光变化时，光照渲染阶段才会运行；存在动态物体时，更新会从浮点缓冲重写贴图并绘入它们；否则什么也不做。",
+      "details": [
+        {
+          "line": 251,
+          "lineHash": "6c7eac9746f42ddd",
+          "note": "a setter that bumps the version",
+          "noteZh": "会增加版本号的 setter"
+        }
+      ]
+    },
+    "light-cache": {
+      "path": "servers/rendering/renderer_scene_cull.cpp",
+      "line": 3943,
+      "symbol": "RendererSceneCull::render_probes (VoxelGI light cache)",
+      "lineHash": "b8dcc83b9fff52f4",
+      "inspect": "Each frame the culler compares every paired light (and every visible directional light) with its cached parameters: shadow, type, transform, colour, energy, intensity, indirect energy, range, attenuation, spot angle and attenuation, and the area light's size, normalization, and texture (a directional light's sky mode); a difference marks the lights dirty and relights the probe.",
+      "inspectZh": "剔除器每帧把每个配对的光（以及每个可见的平行光）与缓存的参数比较：阴影、类型、变换、颜色、能量、强度、间接能量、范围、衰减、聚光角度与衰减，以及面光源的尺寸、归一化与贴图（平行光的天空模式）；有差异就把光标记为脏，并重新照亮探针。",
+      "details": []
+    },
+    "mobile-stub": {
+      "path": "servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h",
+      "line": 583,
+      "symbol": "RenderForwardMobile::GeometryInstanceForwardMobile::pair_voxel_gi_instances",
+      "lineHash": "ebe075c4e0f0b3fa",
+      "inspect": "The Mobile renderer pairs no VoxelGI with its geometry (an empty override), so VoxelGI has no effect there.",
+      "inspectZh": "Mobile 渲染器不把任何 VoxelGI 与其几何体配对（空的重写），所以 VoxelGI 在那里没有效果。",
+      "details": []
+    },
+    "gles3-stub": {
+      "path": "drivers/gles3/rasterizer_scene_gles3.cpp",
+      "line": 1255,
+      "symbol": "RasterizerSceneGLES3::voxel_gi_instance_create",
+      "lineHash": "4e0324d609f29762",
+      "inspect": "The Compatibility (GLES3) renderer's VoxelGI entry points are stubs: creating an instance returns an empty RID.",
+      "inspectZh": "Compatibility（GLES3）渲染器的 VoxelGI 入口都是空实现：创建实例返回空 RID。",
+      "details": []
+    },
+    "voxelgi-doc": {
+      "path": "doc/classes/VoxelGI.xml",
+      "line": 8,
+      "symbol": "VoxelGI (class reference)",
+      "lineHash": "ae4a01feeb044a08",
+      "inspect": "The class reference states it: VoxelGI is only supported in the Forward+ rendering method, not Mobile or Compatibility.",
+      "inspectZh": "类参考文档明确写道：VoxelGI 只在 Forward+ 渲染方式中受支持，Mobile 与 Compatibility 不支持。",
+      "details": []
+    },
+    "node-defaults": {
+      "path": "scene/3d/voxel_gi.h",
+      "line": 120,
+      "symbol": "VoxelGI (node properties)",
+      "lineHash": "9f61e6c018846068",
+      "inspect": "The node's defaults: subdivision 128 and a size of 20 x 20 x 20 m around the node.",
+      "inspectZh": "节点的默认值：细分 128，大小为以节点为中心的 20 x 20 x 20 m。",
+      "details": [
+        {
+          "line": 121,
+          "lineHash": "29ffbac780dcc3f7",
+          "note": "the box's size",
+          "noteZh": "盒子的大小"
+        }
+      ]
+    },
+    "data-properties": {
+      "path": "scene/3d/voxel_gi.h",
+      "line": 50,
+      "symbol": "VoxelGIData (properties)",
+      "lineHash": "eb5a17d49ef1ab44",
+      "inspect": "VoxelGIData's defaults: dynamic range 2, energy 1, bias 1.5 cells, normal bias 0, propagation 0.5, interior off, two bounces on.",
+      "inspectZh": "VoxelGIData 的默认值：动态范围 2，能量 1，bias 1.5 个单元格，法线偏移 0，传播系数 0.5，interior 关闭，两次反弹开启。",
+      "details": [
+        {
+          "line": 52,
+          "lineHash": "e6df194982bc7e26",
+          "note": "the cone's start distance, in cells",
+          "noteZh": "锥体的起始距离，单位为单元格"
+        },
+        {
+          "line": 54,
+          "lineHash": "bcadf4b2e538e64c",
+          "note": "the mip pass's divisor blend",
+          "noteZh": "mip 渲染阶段的除数混合"
+        },
+        {
+          "line": 56,
+          "lineHash": "a51e33f197b82a72",
+          "note": "the second bounce",
+          "noteZh": "第二次反弹"
+        }
+      ]
+    },
+    "bias-mismatch": {
+      "path": "servers/rendering/renderer_rd/environment/gi.h",
+      "line": 87,
+      "symbol": "GI::VoxelGI (server defaults)",
+      "lineHash": "33fb541f4c7a7d61",
+      "inspect": "The rendering server's own default bias is 1.4, while VoxelGIData's is 1.5; a resource that never calls set_bias runs with 1.4 (read from the code, not tested).",
+      "inspectZh": "渲染服务器自身的默认 bias 是 1.4，而 VoxelGIData 的是 1.5；从未调用 set_bias 的资源会以 1.4 运行（从代码读出，未测试）。",
+      "details": []
+    },
+    "quality-setting": {
+      "path": "servers/rendering/rendering_server.cpp",
+      "line": 3709,
+      "symbol": "rendering_server.cpp (project settings)",
+      "lineHash": "a74d9afd52e999d4",
+      "inspect": "The project setting rendering/global_illumination/voxel_gi/quality: Low, 4 cones (the default, 0), or High, 6 cones; it reaches the screen pass as a push-constant flag.",
+      "inspectZh": "项目设置 rendering/global_illumination/voxel_gi/quality：Low，4 个锥体（默认，0），或 High，6 个锥体；它以 push constant 标志进入屏幕渲染阶段。",
+      "details": [
+        {
+          "line": 3707,
+          "lineHash": "f09c36cc7a1aa9f7",
+          "note": "the GI buffers at full resolution by default",
+          "noteZh": "GI 缓冲默认为全分辨率"
+        }
+      ]
+    },
+    "bake-entry": {
+      "path": "scene/3d/voxel_gi.cpp",
+      "line": 434,
+      "symbol": "VoxelGI::bake",
+      "lineHash": "875ebdfa6a0c7d4c",
+      "inspect": "The bake runs once, usually from the editor (VoxelGI.bake is also callable at run time): the subdivision becomes an octree depth of 6 to 9, the voxelizer starts on the box AABB(-size / 2, size), every mesh found is plotted, the bake ends, and the distance field is made before the data is allocated.",
+      "inspectZh": "烘焙只运行一次，通常在编辑器中（VoxelGI.bake 在运行时也可调用）：细分变成 6 到 9 的八叉树深度，体素化器从盒子 AABB(-size / 2, size) 开始，找到的每个网格被绘入，烘焙结束，并在分配数据前生成距离场。",
+      "details": [
+        {
+          "line": 444,
+          "lineHash": "9860ba306524dffc",
+          "note": "the box, centred on the node",
+          "noteZh": "以节点为中心的盒子"
+        }
+      ]
+    },
+    "find-meshes": {
+      "path": "scene/3d/voxel_gi.cpp",
+      "line": 327,
+      "symbol": "VoxelGI::is_node_voxel_bakeable",
+      "lineHash": "fa05f700ddb3cb4f",
+      "inspect": "The walk starts at the VoxelGI's parent (or the node given); a node is skipped when it is hidden, and a GeometryInstance3D also when its GI mode is not Static (the default). MeshInstance3D meshes and the meshes of nodes with get_meshes (MultiMesh, CSG, GridMap) are plotted when their bounds touch the box.",
+      "inspectZh": "遍历从 VoxelGI 的父节点（或给定节点）开始；隐藏的节点被跳过，GeometryInstance3D 还要求 GI 模式为 Static（默认）。MeshInstance3D 的网格，以及具有 get_meshes 的节点（MultiMesh、CSG、GridMap）的网格，在包围盒接触盒子时被绘入。",
+      "details": []
+    },
+    "begin-bake": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 666,
+      "symbol": "Voxelizer::begin_bake",
+      "lineHash": "6886edc1c35f37df",
+      "inspect": "The box's longest axis gets 1 << subdiv cells; each shorter axis halves its cell count while half the longest side still fits it; every axis is then given the longest side, so the octree covers a cube with cells of one size.",
+      "inspectZh": "盒子最长的轴得到 1 << subdiv 个单元格；只要最长边的一半仍能放进较短的轴，该轴的单元格数就减半；之后每个轴都取最长边，所以八叉树覆盖一个立方体，单元格大小统一。",
+      "details": [
+        {
+          "line": 689,
+          "lineHash": "afc721b5476e25eb",
+          "note": "the halving",
+          "noteZh": "减半"
+        },
+        {
+          "line": 706,
+          "lineHash": "dc337913cb437dc4",
+          "note": "one cell size for every axis",
+          "noteZh": "所有轴相同的单元格大小"
+        }
+      ]
+    },
+    "plot-mesh": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 487,
+      "symbol": "Voxelizer::plot_mesh",
+      "lineHash": "cdcec701b2263ccd",
+      "inspect": "Every triangle of a triangle surface that touches the original box is sent down the octree from the root cell; triangles are culled, not clipped.",
+      "inspectZh": "三角形表面上每个接触原始盒子的三角形都从根单元格开始沿八叉树下行；三角形只会被剔除，不会被裁剪。",
+      "details": []
+    },
+    "plot-face-recurse": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 239,
+      "symbol": "Voxelizer::_plot_face (going down)",
+      "lineHash": "0f5b5a449018c331",
+      "inspect": "Above the leaves, the triangle is tested against each of the cell's eight octants; a child cell is created only for an octant the triangle overlaps, and the triangle goes down into it.",
+      "inspectZh": "在叶子之上，三角形与单元格的八个子象限逐一测试；只有三角形重叠的子象限才会创建子单元格，三角形随即进入其中。",
+      "details": [
+        {
+          "line": 270,
+          "lineHash": "9b8ad1bc0f96e80b",
+          "note": "the overlap test",
+          "noteZh": "重叠测试"
+        },
+        {
+          "line": 280,
+          "lineHash": "cf246f7530c9442e",
+          "note": "a new cell at the end of the array",
+          "noteZh": "在数组末尾新建单元格"
+        }
+      ]
+    },
+    "tri-box": {
+      "path": "core/math/geometry_3d.h",
+      "line": 733,
+      "symbol": "Geometry3D::triangle_box_overlap",
+      "lineHash": "3d50fd372ec034e6",
+      "inspect": "A separating-axis test: nine axes from the triangle's edges crossed with the box's axes, the box's three axes, and the triangle's plane; the first axis that separates them returns false.",
+      "inspectZh": "分离轴测试：三角形三条边分别与盒子三轴叉乘得到的九个轴、盒子的三个轴，以及三角形所在平面；第一个能分开二者的轴就返回 false。",
+      "details": [
+        {
+          "line": 807,
+          "lineHash": "69eb85bf49bab3b5",
+          "note": "the plane test, last",
+          "noteZh": "最后的平面测试"
+        }
+      ]
+    },
+    "leaf-scan": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 115,
+      "symbol": "Voxelizer::_plot_face (a leaf)",
+      "lineHash": "175c93a72ebb8dee",
+      "inspect": "At a leaf, the triangle's plane picks its dominant axis; the cell is cut into 4 x 4 columns along it, each column the triangle crosses gives a sample of albedo, emission, and the interpolated normal, and the sums are scaled by 1/16, so alpha is the fraction of columns hit.",
+      "inspectZh": "在叶子处，由三角形平面选出主轴；单元格沿主轴切成 4 x 4 个柱，三角形穿过的每个柱提供一个反照率、自发光和插值法线的样本，累加值乘以 1/16，所以 alpha 是被命中柱的比例。",
+      "details": [
+        {
+          "line": 209,
+          "lineHash": "5287b37e56c80e6f",
+          "note": "one sixteenth",
+          "noteZh": "十六分之一"
+        },
+        {
+          "line": 178,
+          "lineHash": "4f3448f89ca8c786",
+          "note": "no column hit: one sample at the closest point, weight 1/16",
+          "noteZh": "没有柱被命中：在最近点取一个样本，权重 1/16"
+        }
+      ]
+    },
+    "material-cache": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 336,
+      "symbol": "Voxelizer::_get_material_cache",
+      "lineHash": "c7c185cffe659e41",
+      "inspect": "A BaseMaterial3D becomes two 128 x 128 tables: albedo (its texture times its colour, converted to linear) and emission (colour times energy times the bake's exposure); other materials bake white with no emission.",
+      "inspectZh": "BaseMaterial3D 会变成两张 128 x 128 的表：反照率（贴图乘颜色，转换到线性）和自发光（颜色乘能量乘烘焙曝光）；其他材质烘焙为白色且无自发光。",
+      "details": []
+    },
+    "sort-cells": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 538,
+      "symbol": "Voxelizer::_sort",
+      "lineHash": "3654c7a18eb1b455",
+      "inspect": "The cells are sorted by level first, then position, so each level is a contiguous run of the array with the root first; children indices are remapped to the new order.",
+      "inspectZh": "单元格先按层级、再按位置排序，所以每个层级是数组中连续的一段，根在最前；子索引被重映射到新顺序。",
+      "details": [
+        {
+          "line": 560,
+          "lineHash": "3b0f3f7fce7e5481",
+          "note": "the root first",
+          "noteZh": "根在最前"
+        }
+      ]
+    },
+    "fixup-leaf": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 618,
+      "symbol": "Voxelizer::_fixup_plot (a leaf)",
+      "lineHash": "80c1d5b0e24c91bd",
+      "inspect": "A leaf's sums are divided by its alpha, an average over every sample it received; a normal shorter than 0.01 (samples that cancel out) becomes zero, and the leaf's alpha becomes 1.",
+      "inspectZh": "叶子的累加值除以其 alpha，即对它收到的所有样本取平均；长度小于 0.01 的法线（相互抵消的样本）变成零，叶子的 alpha 设为 1。",
+      "details": [
+        {
+          "line": 629,
+          "lineHash": "caf5567a0dce0cb5",
+          "note": "every leaf fully covered",
+          "noteZh": "每个叶子都完全覆盖"
+        }
+      ]
+    },
+    "fixup-parent": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 662,
+      "symbol": "Voxelizer::_fixup_plot (a parent)",
+      "lineHash": "0590f7053288aece",
+      "inspect": "A parent's albedo, emission, and normal are set to zero; only its alpha is kept, the sum of its children's alpha over eight. Its light is made on the GPU, by the mip pass.",
+      "inspectZh": "父单元格的反照率、自发光和法线被设为零；只保留 alpha，即子单元格 alpha 之和除以八。它的光由 GPU 上的 mip 渲染阶段生成。",
+      "details": []
+    },
+    "export-octree": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 742,
+      "symbol": "Voxelizer::get_voxel_gi_octree_cells",
+      "lineHash": "bebe1b0434943b1a",
+      "inspect": "The octree record: eight 32-bit child indices per cell, 32 bytes; 0xFFFFFFFF marks an empty octant.",
+      "inspectZh": "八叉树记录：每个单元格八个 32 位子索引，32 字节；0xFFFFFFFF 表示空的子象限。",
+      "details": []
+    },
+    "export-data": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 769,
+      "symbol": "Voxelizer::get_voxel_gi_data_cells",
+      "lineHash": "6a357ff715e63f93",
+      "inspect": "The data record, 16 bytes: the position as x | y << 11 | z << 21 in the cell's own level, albedo and alpha as RGBA8, emission as RGB9E5, and the normal as three signed bytes.",
+      "inspectZh": "数据记录，16 字节：位置为单元格所在层级中的 x | y << 11 | z << 21，反照率与 alpha 为 RGBA8，自发光为 RGB9E5，法线为三个有符号字节。",
+      "details": [
+        {
+          "line": 785,
+          "lineHash": "a6c61e96004607ef",
+          "note": "emission in RGB9E5",
+          "noteZh": "RGB9E5 的自发光"
+        },
+        {
+          "line": 793,
+          "lineHash": "9eb7a0897186e306",
+          "note": "the normal as snorm bytes",
+          "noteZh": "法线为 snorm 字节"
+        }
+      ]
+    },
+    "rgbe9995": {
+      "path": "core/math/color.h",
+      "line": 135,
+      "symbol": "Color::to_rgbe9995",
+      "lineHash": "5c46ecf66325b0d3",
+      "inspect": "RGB9E5: three 9-bit mantissas sharing one 5-bit exponent, the channels clamped to [0, 0x1FF << 7]; the shaders decode it as m x 2^(e - 15 - 9).",
+      "inspectZh": "RGB9E5：三个 9 位尾数共享一个 5 位指数，通道限制在 [0, 0x1FF << 7]；shader 按 m x 2^(e - 15 - 9) 解码。",
+      "details": []
+    },
+    "level-counts": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 809,
+      "symbol": "Voxelizer::get_voxel_gi_level_cell_count",
+      "lineHash": "d9bb2fed3bb6048a",
+      "inspect": "The cells per level, depth + 1 levels; the renderer uses them to find each level's run in the sorted array.",
+      "inspectZh": "每层的单元格数，共 depth + 1 层；渲染器用它们找到每层在已排序数组中的位置。",
+      "details": []
+    },
+    "sdf-edt": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 868,
+      "symbol": "Voxelizer::get_sdf_3d_image",
+      "lineHash": "0321665248fd6566",
+      "inspect": "The distance field: every leaf is a seed at squared distance 0, every other texel 1e20; one-dimensional distance transforms run along z, then y, then x, which gives the exact Euclidean distance to the nearest leaf.",
+      "inspectZh": "距离场：每个叶子是平方距离为 0 的种子，其余纹素为 1e20；依次沿 z、y、x 运行一维距离变换，得到到最近叶子的精确欧氏距离。",
+      "details": [
+        {
+          "line": 898,
+          "lineHash": "9a892bdaf19d25e2",
+          "note": "the first pass, along z",
+          "noteZh": "第一遍，沿 z"
+        },
+        {
+          "line": 926,
+          "lineHash": "e19018319ba95164",
+          "note": "the last pass, along x",
+          "noteZh": "最后一遍，沿 x"
+        }
+      ]
+    },
+    "edt-1d": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 831,
+      "symbol": "edt",
+      "lineHash": "b16f5477f298cf66",
+      "inspect": "The one-dimensional transform (after prideout.net's distance-field article): the lower envelope of parabolas through the squared distances.",
+      "inspectZh": "一维变换（依据 prideout.net 的距离场文章）：经过平方距离的抛物线的下包络。",
+      "details": []
+    },
+    "sdf-encode": {
+      "path": "scene/3d/voxelizer.cpp",
+      "line": 947,
+      "symbol": "Voxelizer::get_sdf_3d_image (encode)",
+      "lineHash": "f3aba1879a4b0ef6",
+      "inspect": "One byte per texel: 0 for a solid leaf, else the distance in cells, truncated, at most 254, plus one.",
+      "inspectZh": "每个纹素一个字节：实心叶子为 0，否则为截断后的单元格距离（最多 254）加一。",
+      "details": []
+    },
+    "allocate-data": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 67,
+      "symbol": "GI::voxel_gi_allocate_data",
+      "lineHash": "acfe420531748f15",
+      "inspect": "The upload: the octree records and the data records become two storage buffers, the distance field a 3D R8_UNORM texture of the octree's size; a GPU version of the field is compiled out (#if 0).",
+      "inspectZh": "上传：八叉树记录与数据记录变成两个 storage buffer，距离场变成与八叉树同尺寸的 3D R8_UNORM 贴图；距离场的 GPU 版本被编译排除（#if 0）。",
+      "details": [
+        {
+          "line": 113,
+          "lineHash": "4b10c03dc8a9ac6e",
+          "note": "the CPU field, uploaded",
+          "noteZh": "上传 CPU 生成的距离场"
+        }
+      ]
+    },
+    "sdf-gpu-disabled": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 117,
+      "symbol": "GI::voxel_gi_allocate_data (#if 0)",
+      "lineHash": "7a2ab5dc15f51cd3",
+      "inspect": "The GPU distance-field pass (voxel_gi_sdf.glsl) is under #if 0: it never runs.",
+      "inspectZh": "GPU 距离场渲染阶段（voxel_gi_sdf.glsl）位于 #if 0 之下：从不运行。",
+      "details": []
+    },
+    "instance-texture": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 2634,
+      "symbol": "GI::VoxelGIInstance::update (resources)",
+      "lineHash": "6449a9f53f1383f8",
+      "inspect": "Each instance owns an RGBA8 3D texture of the octree's size with one mip per level, cleared to zero, and a float buffer of one vec4 per cell.",
+      "inspectZh": "每个实例拥有一张与八叉树同尺寸的 RGBA8 3D 贴图，每层一个 mip，清零，以及每个单元格一个 vec4 的浮点缓冲。",
+      "details": [
+        {
+          "line": 2660,
+          "lineHash": "f2c93c1338a84ded",
+          "note": "mip 0 the leaves, the last mip the root",
+          "noteZh": "mip 0 为叶子，最后一个 mip 为根"
+        }
+      ]
+    },
+    "max-lights": {
+      "path": "servers/rendering/renderer_rd/environment/gi.h",
+      "line": 222,
+      "symbol": "GI::voxel_gi_max_lights",
+      "lineHash": "63f4e5875489ecfc",
+      "inspect": "At most 32 lights reach the light passes; the shader is compiled with MAX_LIGHTS 32.",
+      "inspectZh": "最多 32 个光进入光照渲染阶段；shader 以 MAX_LIGHTS 32 编译。",
+      "details": []
+    },
+    "light-upload": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 2971,
+      "symbol": "GI::VoxelGIInstance::update (lights)",
+      "lineHash": "854694c890344722",
+      "inspect": "The lights are written into the light buffer in the probe's cell space: energy times indirect energy, colour to linear, range in cells; a sky-only directional light is skipped with a decrement that leaves a stale slot and drops the last light.",
+      "inspectZh": "光被写入光照缓冲，位于探针的单元格空间：能量乘以 indirect 能量，颜色转为线性，范围以单元格计；仅天空的平行光通过递减计数被跳过，这会留下一个旧槽位并丢掉最后一个光。",
+      "details": [
+        {
+          "line": 2986,
+          "lineHash": "f3e7a8ec9997b546",
+          "note": "the sky-only skip",
+          "noteZh": "仅天空光的跳过"
+        }
+      ]
+    },
+    "pass-order": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3098,
+      "symbol": "GI::VoxelGIInstance::update (passes)",
+      "lineHash": "15bb054044b694e6",
+      "inspect": "With the lights changed, pass 0 lights the leaves, fills the mips, and writes the texture; with two bounces, pass 1 adds the bounce at the leaves, fills the mips again, and writes the texture again. Without a change, only the write runs.",
+      "inspectZh": "光照改变时，渲染阶段 0 照亮叶子、填充 mip 并写入贴图；开启两次反弹时，渲染阶段 1 在叶子处加入反弹，再次填充 mip 并再次写入贴图。没有变化时只运行写入。",
+      "details": [
+        {
+          "line": 3100,
+          "lineHash": "0b18d0ac2aed470a",
+          "note": "nothing changed: write only",
+          "noteZh": "没有变化：只写入"
+        }
+      ]
+    },
+    "compute-light": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 459,
+      "symbol": "voxel_gi.glsl MODE_COMPUTE_LIGHT",
+      "lineHash": "2377cc1ba62a807d",
+      "inspect": "Per leaf cell, each light's contribution times the cell's albedo, with the cosine to the cell's normal when it has one, summed, plus the cell's emission, goes into the float buffer.",
+      "inspectZh": "对每个叶子单元格，每个光的贡献乘以单元格反照率，若单元格有法线则乘以与法线的余弦，求和后加上单元格自发光，写入浮点缓冲。",
+      "details": [
+        {
+          "line": 443,
+          "lineHash": "f3bfb9992209b114",
+          "note": "the cosine",
+          "noteZh": "余弦"
+        }
+      ]
+    },
+    "light-at-pos": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 284,
+      "symbol": "compute_light_at_pos",
+      "lineHash": "5f42ae055d88a01e",
+      "inspect": "A punctual light: its attenuation and direction; a cell facing away or an attenuation below 0.01 gets nothing; with shadows on, a march through the distance field toward the light scales it.",
+      "inspectZh": "点状光源：计算衰减和方向；背对光的单元格或衰减低于 0.01 时什么也得不到；开启阴影时，朝光源穿过距离场的步进会缩放它。",
+      "details": [
+        {
+          "line": 294,
+          "lineHash": "b51d35a81181aeaf",
+          "note": "the back-face test",
+          "noteZh": "背面测试"
+        }
+      ]
+    },
+    "omni-atten": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 201,
+      "symbol": "get_omni_attenuation",
+      "lineHash": "c7e3adca1a368bff",
+      "inspect": "The windowed inverse-power falloff: (1 - (d / range)^4)^2 x d^-decay, with distances in metres.",
+      "inspectZh": "带窗口的反幂衰减：(1 - (d / range)^4)^2 x d^-decay，距离单位为米。",
+      "details": []
+    },
+    "raymarch": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 180,
+      "symbol": "raymarch",
+      "lineHash": "1056b06875cb26a5",
+      "inspect": "The shadow march: from the light's end toward the cell, it reads the distance field (byte x 255 - 1 cells); a negative value is solid and returns 0; otherwise it steps by that distance, rounded down to whole steps of one cell along the dominant axis, at least one.",
+      "inspectZh": "阴影步进：从光源一端朝单元格前进，读取距离场（字节 x 255 - 1 个单元格）；负值表示实心并返回 0；否则按该距离步进，向下取整为沿主轴一个单元格的整数步，至少一步。",
+      "details": [
+        {
+          "line": 190,
+          "lineHash": "9c90bf42d912524c",
+          "note": "a distance below one cell darkens partly",
+          "noteZh": "小于一个单元格的距离会部分变暗"
+        }
+      ]
+    },
+    "area-light": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 345,
+      "symbol": "compute_area_light",
+      "lineHash": "d040acfd27e7296e",
+      "inspect": "An area light: the closest point of its rectangle sets the range window, and the linearly transformed cosine integral over the rectangle gives the light; there is no shadow march.",
+      "inspectZh": "面光源：矩形上的最近点决定范围窗口，矩形上的线性变换余弦积分给出光照；没有阴影步进。",
+      "details": []
+    },
+    "ltc": {
+      "path": "servers/rendering/renderer_rd/shaders/area_lights_inc.glsl",
+      "line": 396,
+      "symbol": "ltc_evaluate_diff",
+      "lineHash": "98d3e4fce277514b",
+      "inspect": "The diffuse LTC integral, not divided by 2 pi for GI calculations.",
+      "inspectZh": "漫反射 LTC 积分，在 GI 计算中不除以 2 pi。",
+      "details": []
+    },
+    "write-texture": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 550,
+      "symbol": "voxel_gi.glsl MODE_WRITE_TEXTURE",
+      "lineHash": "2370f039690d4d84",
+      "inspect": "Every cell writes its light divided by the dynamic range, and its coverage, into its texel of its level's mip; RGBA8 keeps 8 bits, so light up to the dynamic range survives.",
+      "inspectZh": "每个单元格把光除以动态范围，连同覆盖率，写入它所在层级 mip 的纹素；RGBA8 保留 8 位，所以不超过动态范围的光得以保留。",
+      "details": []
+    },
+    "unused-push": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 97,
+      "symbol": "voxel_gi.glsl Params",
+      "lineHash": "f180df6676425e12",
+      "inspect": "The push constant still carries an anisotropy strength (and an emission scale and stack size) that no shader line reads: this version stores no directional light.",
+      "inspectZh": "push constant 中仍带有各向异性强度（以及自发光 scale 和 stack size），但没有任何 shader 代码读取：这个版本不存储方向性光照。",
+      "details": []
+    },
+    "second-bounce": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 470,
+      "symbol": "voxel_gi.glsl MODE_SECOND_BOUNCE",
+      "lineHash": "7644320eb1de60ee",
+      "inspect": "Each leaf with a normal keeps its direct light and traces six cones in its tangent frame through the texture the first pass wrote.",
+      "inspectZh": "每个有法线的叶子保留其直接光，并在其切线空间中沿六个锥体穿过第一遍写出的贴图。",
+      "details": [
+        {
+          "line": 489,
+          "lineHash": "70d84d88c8f85b83",
+          "note": "a half-angle of about 30 degrees",
+          "noteZh": "约 30 度的半角"
+        }
+      ]
+    },
+    "bounce-cones": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 488,
+      "symbol": "voxel_gi.glsl MODE_SECOND_BOUNCE (cones)",
+      "lineHash": "ef0321182650ceea",
+      "inspect": "The six cones: one along the normal with weight 0.25, five at 60 degrees from it with 0.15 each; the weights sum to 1.",
+      "inspectZh": "六个锥体：一个沿法线，权重 0.25；五个与法线成 60 度，各 0.15；权重之和为 1。",
+      "details": []
+    },
+    "bounce-march": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 499,
+      "symbol": "voxel_gi.glsl MODE_SECOND_BOUNCE (march)",
+      "lineHash": "872952eb8703b20f",
+      "inspect": "A cone starts 1.5 cells out; its diameter is 2 x tan x distance, at least a cell; it samples the mip log2(diameter), composites front to back, and steps half its diameter, until its alpha reaches 0.95.",
+      "inspectZh": "锥体从 1.5 个单元格处开始；直径为 2 x tan x 距离，至少一个单元格；采样 log2(diameter) 级 mip，由前向后合成，每次前进半个直径，直到 alpha 达到 0.95。",
+      "details": []
+    },
+    "bounce-restore": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 515,
+      "symbol": "voxel_gi.glsl MODE_SECOND_BOUNCE (result)",
+      "lineHash": "5f40d2c5c8ae7aef",
+      "inspect": "Each cone's light times its weight, the cell's albedo, and the dynamic range (undoing the texture's division) is added to the cell's light.",
+      "inspectZh": "每个锥体的光乘以权重、单元格反照率和动态范围（抵消贴图中的除法）后加到单元格的光上。",
+      "details": []
+    },
+    "update-mipmaps": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 541,
+      "symbol": "voxel_gi.glsl MODE_UPDATE_MIPMAPS",
+      "lineHash": "279db635c5d8d82c",
+      "inspect": "A parent's light is its children's sum divided by mix(8, count, propagation): at 0 empty octants count as black, at 1 only the occupied ones are averaged.",
+      "inspectZh": "父单元格的光是子单元格之和除以 mix(8, count, propagation)：为 0 时空子象限按黑色计算，为 1 时只对有内容的子象限求平均。",
+      "details": []
+    },
+    "gi-mode-flags": {
+      "path": "scene/3d/visual_instance_3d.cpp",
+      "line": 492,
+      "symbol": "GeometryInstance3D::set_gi_mode (Dynamic)",
+      "lineHash": "e3a81e3a2d751982",
+      "inspect": "GI mode Dynamic sets the dynamic-GI flag: the object is not baked, and a VoxelGI it overlaps lists it among its dynamic geometries.",
+      "inspectZh": "GI 模式 Dynamic 设置动态 GI 标志：物体不参与烘焙，与之重叠的 VoxelGI 把它列为动态几何体。",
+      "details": []
+    },
+    "dynamic-list": {
+      "path": "servers/rendering/renderer_scene_cull.cpp",
+      "line": 4074,
+      "symbol": "RendererSceneCull::render_probes (dynamic objects)",
+      "lineHash": "c4abbe127a1bc81c",
+      "inspect": "Every frame the VoxelGI is visible, each of its visible dynamic geometries is handed to its update, whether it moved or not.",
+      "inspectZh": "VoxelGI 可见的每一帧，它的每个可见动态几何体都会交给它的更新，无论是否移动。",
+      "details": []
+    },
+    "dynamic-oversample": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3179,
+      "symbol": "GI::VoxelGIInstance::update (dynamic objects)",
+      "lineHash": "be8f19783b6d1d20",
+      "inspect": "The first dynamic map is 16 times the octree's largest axis, so an object's box is drawn at 16 texels per cell; the chain then has the 8x, 4x, and 2x maps and one per mip.",
+      "inspectZh": "第一张动态贴图是八叉树最长轴的 16 倍，所以物体的盒子以每单元格 16 个纹素绘制；随后链中有 8x、4x、2x 的贴图以及每个 mip 一张。",
+      "details": []
+    },
+    "dynamic-views": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3230,
+      "symbol": "GI::VoxelGIInstance::update (six views)",
+      "lineHash": "8f2890ab67c4c890",
+      "inspect": "Each dynamic object is drawn six times, orthographic views of its box along +x, +y, +z, -x, -y, -z, with its own material.",
+      "inspectZh": "每个动态物体绘制六次，即沿 +x、+y、+z、-x、-y、-z 对其盒子的正交视图，使用它自己的材质。",
+      "details": []
+    },
+    "material-outputs": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 3003,
+      "symbol": "scene_forward_clustered.glsl MODE_RENDER_MATERIAL",
+      "lineHash": "ca3f6c48b770def4",
+      "inspect": "The material pass writes albedo with its alpha, the normal, ambient occlusion with roughness and metallic, emission, and depth: the views the dynamic pass lights.",
+      "inspectZh": "材质渲染阶段写入带 alpha 的反照率、法线、环境光遮蔽与粗糙度和金属度、自发光以及深度：这些就是动态渲染阶段要照亮的视图。",
+      "details": []
+    },
+    "dynamic-lighting": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 574,
+      "symbol": "voxel_gi.glsl MODE_DYNAMIC_LIGHTING",
+      "lineHash": "cca9f8c322aef68d",
+      "inspect": "Each texel's depth gives its voxel along the view; it is lit with the same light functions as the cells (shadows from the baked field), plus its emission. Nothing bounces off it.",
+      "inspectZh": "每个纹素的深度给出它沿视线方向的体素；它用与单元格相同的光照函数照亮（阴影来自烘焙的距离场），再加上自发光。没有任何光从它反弹。",
+      "details": []
+    },
+    "shrink": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 642,
+      "symbol": "voxel_gi.glsl MODE_DYNAMIC_SHRINK",
+      "lineHash": "cce60ef217fd7f98",
+      "inspect": "Each shrink sums the non-empty texels of a 2 x 2 block and halves the depth (averaged over those texels); before the first mip it divides the sum by 4, on a mip it divides the light by mix(8, count, propagation) and the alpha by 8.",
+      "inspectZh": "每次缩小对 2 x 2 块中非空的纹素求和，并把深度减半（对这些纹素取平均）；在第一个 mip 之前和除以 4，在 mip 上，光除以 mix(8, count, propagation)，alpha 除以 8。",
+      "details": []
+    },
+    "plot-blend": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 696,
+      "symbol": "voxel_gi.glsl MODE_DYNAMIC_SHRINK_PLOT",
+      "lineHash": "07817dc879f327c1",
+      "inspect": "The plot splats each texel into two voxels along the view, weighted by its depth's fraction, blended over the texel already there.",
+      "inspectZh": "plot 把每个纹素按深度的小数部分加权，散布到沿视线方向的两个体素中，并混合在原有纹素之上。",
+      "details": []
+    },
+    "dynamic-clear": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 2965,
+      "symbol": "GI::VoxelGIInstance::update (clear)",
+      "lineHash": "7005b937e8ea9db0",
+      "inspect": "While dynamic data exists, each update clears the whole texture and writes the static light again from the float buffer before the objects are plotted.",
+      "inspectZh": "只要存在动态数据，每次更新都会清空整张贴图，并在绘入物体之前从浮点缓冲重新写入静态光。",
+      "details": []
+    },
+    "dynamic-light-count": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3289,
+      "symbol": "GI::VoxelGIInstance::update (dynamic lights)",
+      "lineHash": "f4c237096b422989",
+      "inspect": "The dynamic pass's light count is the lights' number, not clamped to the buffer's 32 entries.",
+      "inspectZh": "动态渲染阶段的光数量就是光的个数，没有被限制在缓冲的 32 项以内。",
+      "details": []
+    },
+    "pairing-two": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 5060,
+      "symbol": "GeometryInstanceForwardClustered::pair_voxel_gi_instances",
+      "lineHash": "1f5fcf0bf23f122b",
+      "inspect": "A geometry keeps the first two VoxelGIs it overlaps, in the order the culler's set gives them.",
+      "inspectZh": "几何体保留它所重叠的前两个 VoxelGI，顺序由剔除器的集合给出。",
+      "details": []
+    },
+    "instance-ubo": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3838,
+      "symbol": "GI::setup_voxel_gi_instances",
+      "lineHash": "2937c8e5cbf20bd1",
+      "inspect": "Up to 8 visible VoxelGIs per frame: each gets its transform to cells, its bounds, dynamic range x energy, bias, normal bias, blend_ambient = !interior, and exposure.",
+      "inspectZh": "每帧最多 8 个可见 VoxelGI：每个得到其到单元格的变换、边界、动态范围 x 能量、bias、法线偏移、blend_ambient = !interior 以及曝光。",
+      "details": [
+        {
+          "line": 3893,
+          "lineHash": "f16f3aa1fa966cb3",
+          "note": "energy folds into the range",
+          "noteZh": "energy 合并进 range"
+        },
+        {
+          "line": 3896,
+          "lineHash": "a023311594c9a3fc",
+          "note": "interior turns off the environment's share",
+          "noteZh": "interior 关闭环境的份额"
+        }
+      ]
+    },
+    "tag-format": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 272,
+      "symbol": "RenderBufferDataForwardClustered::get_voxelgi_format",
+      "lineHash": "a6c1f751488f00b8",
+      "inspect": "The tag buffer is R8G8_UINT: two 8-bit instance indices per pixel.",
+      "inspectZh": "标记缓冲为 R8G8_UINT：每像素两个 8 位实例索引。",
+      "details": []
+    },
+    "tag-write": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 3034,
+      "symbol": "scene_forward_clustered.glsl MODE_RENDER_VOXEL_GI",
+      "lineHash": "f52b72068a45d960",
+      "inspect": "The pre-pass writes, per pixel, the render indices of the object's two VoxelGIs, or 0xFF for none.",
+      "inspectZh": "深度预处理阶段为每个像素写入物体两个 VoxelGI 的渲染索引，没有时写 0xFF。",
+      "details": []
+    },
+    "process-gi": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3968,
+      "symbol": "GI::process_gi",
+      "lineHash": "5aba4a1d17cda4a3",
+      "inspect": "The screen pass: a compute shader over the screen that writes the ambient and reflection buffers, both RGBA16F, at full resolution unless half resolution is set.",
+      "inspectZh": "屏幕渲染阶段：在整个屏幕上运行的计算 shader，写入环境光与反射两个缓冲，均为 RGBA16F，除非设置了半分辨率，否则为全分辨率。",
+      "details": [
+        {
+          "line": 3996,
+          "lineHash": "5564418a8c582a93",
+          "note": "the ambient buffer",
+          "noteZh": "环境光缓冲"
+        }
+      ]
+    },
+    "normal-length-quirk": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 620,
+      "symbol": "process_gi (gi.glsl)",
+      "lineHash": "7e9e0097e66171ec",
+      "inspect": "In GLSL, .length() on a vector is its component count, 3, so this 'valid normal' test is always true.",
+      "inspectZh": "在 GLSL 中，向量的 .length() 是其分量个数 3，所以这个“有效法线”测试永远为真。",
+      "details": []
+    },
+    "instance-loop": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 656,
+      "symbol": "process_gi (gi.glsl, VoxelGI)",
+      "lineHash": "b7cd02a649485804",
+      "inspect": "For each VoxelGI whose index is in the pixel's tag, voxel_gi_compute adds its light; the sums are then divided by the sum of the edge fades.",
+      "inspectZh": "对标记中包含其索引的每个 VoxelGI，voxel_gi_compute 加入它的光；之后各和除以边缘淡化之和。",
+      "details": [
+        {
+          "line": 661,
+          "lineHash": "db5f7997c83c9194",
+          "note": "divided by the fades",
+          "noteZh": "除以淡化之和"
+        },
+        {
+          "line": 667,
+          "lineHash": "288c063ed1363ff6",
+          "note": "over SDFGI, by its alpha",
+          "noteZh": "按其 alpha 叠加在 SDFGI 之上"
+        }
+      ]
+    },
+    "voxel-gi-compute": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 533,
+      "symbol": "voxel_gi_compute",
+      "lineHash": "2eca41a4e5be77ee",
+      "inspect": "The pixel's position, normal, and reflection move into the box's cells; the normal bias pushes it out; outside the box it adds nothing.",
+      "inspectZh": "像素的位置、法线和反射方向变换到盒子的单元格空间；法线偏移把它推出；在盒子外时不添加任何东西。",
+      "details": []
+    },
+    "edge-blend": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 548,
+      "symbol": "voxel_gi_compute (edge fade)",
+      "lineHash": "df9d7bf55ecc1f06",
+      "inspect": "The edge fade: 1 at the box's centre, 0 at its faces; it weights overlapping VoxelGIs against each other.",
+      "inspectZh": "边缘淡化：盒子中心为 1，面上为 0；用于在重叠的 VoxelGI 之间加权。",
+      "details": []
+    },
+    "cones-low": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 586,
+      "symbol": "voxel_gi_compute (Low)",
+      "lineHash": "eb9a4bd5c51f8dfe",
+      "inspect": "Low quality, the default: four cones 45 degrees from the normal, a quarter each, traced by the 45-degree march.",
+      "inspectZh": "低质量（默认）：四个与法线成 45 度的锥体，各占四分之一，用 45 度步进追踪。",
+      "details": []
+    },
+    "cones-high": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 558,
+      "symbol": "voxel_gi_compute (High)",
+      "lineHash": "12892fde01151837",
+      "inspect": "High quality: the bounce's six cones, tan 0.577, traced by the general march.",
+      "inspectZh": "高质量：与反弹相同的六个锥体，tan 0.577，用通用步进追踪。",
+      "details": []
+    },
+    "cone-trace": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 487,
+      "symbol": "voxel_cone_trace",
+      "lineHash": "d5a16a5715d67856",
+      "inspect": "The general march: from the bias, diameter 2 x tan x distance (at least a cell), mip log2(diameter), front-to-back compositing, half a diameter per step, until alpha 1, the box's diagonal, or the cone leaves the box.",
+      "inspectZh": "通用步进：从 bias 开始，直径 2 x tan x 距离（至少一个单元格），mip 为 log2(diameter)，由前向后合成，每步前进半个直径，直到 alpha 为 1、达到盒子对角线长度或锥体离开盒子。",
+      "details": []
+    },
+    "cone-trace-45": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 508,
+      "symbol": "voxel_cone_trace_45_degrees",
+      "lineHash": "427bef43c8f3d0cb",
+      "inspect": "The 45-degree march: the radius equals the distance, so each step doubles the distance and climbs one mip.",
+      "inspectZh": "45 度步进：半径等于距离，所以每一步距离加倍、mip 上升一级。",
+      "details": []
+    },
+    "spec-cone": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 598,
+      "symbol": "voxel_gi_compute (reflection)",
+      "lineHash": "c876fd7c5bfe84b0",
+      "inspect": "One more cone along the reflection, its half-angle's tangent tan(roughness x 0.5 x pi x 0.99), the roughness already squared.",
+      "inspectZh": "再沿反射方向追踪一个锥体，其半角正切为 tan(roughness x 0.5 x pi x 0.99)，粗糙度已经平方。",
+      "details": [
+        {
+          "line": 644,
+          "lineHash": "0d1044d0d6abdb30",
+          "note": "squared first",
+          "noteZh": "先平方"
+        }
+      ]
+    },
+    "range-restore": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 590,
+      "symbol": "voxel_gi_compute (range)",
+      "lineHash": "4cf9f434c3364047",
+      "inspect": "The cones' light is multiplied back by dynamic range x energy and the exposure; with interior set, the alpha is forced to 1.",
+      "inspectZh": "锥体的光再乘回动态范围 x 能量与曝光；设置 interior 时，alpha 被强制为 1。",
+      "details": []
+    },
+    "gi-buffer-mix": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2023,
+      "symbol": "scene_forward_clustered.glsl (GI buffers)",
+      "lineHash": "06ecf5898eb93efa",
+      "inspect": "The opaque pass mixes the environment's ambient toward the buffer's by the buffer's alpha, and the sky's reflection the same way; then ambient occlusion, albedo, SSIL, SSR, and the environment BRDF follow.",
+      "inspectZh": "不透明渲染阶段按缓冲的 alpha 把环境的环境光混向缓冲中的值，天空反射同样处理；随后是环境光遮蔽、反照率、SSIL、SSR 和环境 BRDF。",
+      "details": [
+        {
+          "line": 2024,
+          "lineHash": "bb021d78f0bb4dc9",
+          "note": "the reflection",
+          "noteZh": "反射"
+        }
+      ]
+    },
+    "forward-gi-transparent": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1152,
+      "symbol": "RenderForwardClustered::_fill_render_list",
+      "lineHash": "74634176a030c087",
+      "inspect": "Only surfaces of the transparent list trace VoxelGI per pixel in the forward shader; opaque ones read the buffers.",
+      "inspectZh": "只有透明列表中的表面在前向 shader 中逐像素追踪 VoxelGI；不透明表面读取缓冲。",
+      "details": [
+        {
+          "line": 1102,
+          "lineHash": "4eb7ad740dd9d143",
+          "note": "reset for every surface",
+          "noteZh": "每个表面都会重置"
+        }
+      ]
+    },
+    "forward-cones": {
+      "path": "servers/rendering/renderer_rd/shaders/scene_forward_gi_inc.glsl",
+      "line": 81,
+      "symbol": "scene_forward_gi_inc.glsl voxel_gi_compute",
+      "lineHash": "3db7019d8bd453a1",
+      "inspect": "The forward version always traces four cones (tan 0.98269), stops at alpha 0.95, and mixes the environment in per cone.",
+      "inspectZh": "前向版本总是追踪四个锥体（tan 0.98269），在 alpha 0.95 时停止，并逐锥体混入环境。",
+      "details": []
+    },
+    "fog-inject": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/volumetric_fog_process.glsl",
+      "line": 714,
+      "symbol": "volumetric_fog_process.glsl",
+      "lineHash": "fedf34bc41d343bf",
+      "inspect": "Volumetric fog reads every mip of the texture at the froxel's point and composites them front to back; it traces no cone.",
+      "inspectZh": "体积雾在 froxel 所在点读取贴图的每一级 mip 并由前向后合成；不追踪锥体。",
+      "details": []
+    },
+    "debug-noop": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi_debug.glsl",
+      "line": 94,
+      "symbol": "voxel_gi_debug.glsl (lighting view)",
+      "lineHash": "0fb8d35fa7878a3b",
+      "inspect": "The debug lighting view's multiplication by the dynamic range has no assignment, so it shows the stored texel, darker by the dynamic range.",
+      "inspectZh": "调试光照视图中乘以动态范围的语句没有赋值，所以它显示的是存储的纹素，暗了动态范围倍。",
+      "details": []
+    }
+  },
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Where VoxelGI runs",
+      "titleZh": "VoxelGI 在哪里运行",
+      "reading": [
+        "frame-order",
+        "voxelgi-gate",
+        "relight-gate",
+        "voxelgi-doc",
+        "mobile-stub",
+        "gles3-stub",
+        "node-defaults",
+        "data-properties",
+        "quality-setting"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Baking the octree",
+      "titleZh": "烘焙八叉树",
+      "reading": [
+        "bake-entry",
+        "find-meshes",
+        "begin-bake",
+        "plot-mesh",
+        "plot-face-recurse",
+        "tri-box",
+        "leaf-scan",
+        "material-cache"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "What the bake stores",
+      "titleZh": "烘焙存储内容",
+      "reading": [
+        "fixup-leaf",
+        "fixup-parent",
+        "sort-cells",
+        "level-counts",
+        "export-octree",
+        "export-data",
+        "rgbe9995",
+        "sdf-edt",
+        "edt-1d",
+        "sdf-encode",
+        "allocate-data",
+        "sdf-gpu-disabled",
+        "instance-texture"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Lighting the cells",
+      "titleZh": "照亮单元格",
+      "reading": [
+        "relight-gate",
+        "light-cache",
+        "max-lights",
+        "light-upload",
+        "compute-light",
+        "light-at-pos",
+        "omni-atten",
+        "raymarch",
+        "area-light",
+        "ltc",
+        "write-texture",
+        "unused-push"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "The second bounce and the mips",
+      "titleZh": "第二次反弹与 mip",
+      "reading": [
+        "update-mipmaps",
+        "pass-order",
+        "second-bounce",
+        "bounce-cones",
+        "bounce-march",
+        "bounce-restore"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Moving objects",
+      "titleZh": "移动的物体",
+      "reading": [
+        "gi-mode-flags",
+        "dynamic-list",
+        "dynamic-oversample",
+        "dynamic-views",
+        "material-outputs",
+        "dynamic-lighting",
+        "shrink",
+        "plot-blend",
+        "dynamic-clear",
+        "dynamic-light-count"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Reading it per pixel",
+      "titleZh": "逐像素读取",
+      "reading": [
+        "pairing-two",
+        "instance-ubo",
+        "tag-format",
+        "tag-write",
+        "process-gi",
+        "normal-length-quirk",
+        "instance-loop",
+        "voxel-gi-compute",
+        "edge-blend",
+        "cones-low",
+        "cone-trace-45",
+        "cones-high",
+        "cone-trace",
+        "spec-cone",
+        "range-restore"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Into the final image",
+      "titleZh": "合成最终图像",
+      "reading": [
+        "gi-buffer-mix",
+        "forward-gi-transparent",
+        "forward-cones",
+        "fog-inject",
+        "debug-noop",
+        "bias-mismatch",
+        "frame-order"
+      ]
+    }
+  ],
+  "demos": {
+    "room": [
+      "frame-order",
+      "data-properties"
+    ],
+    "bounds": [
+      "begin-bake"
+    ],
+    "octree": [
+      "plot-face-recurse",
+      "tri-box",
+      "leaf-scan"
+    ],
+    "cells": [
+      "export-data",
+      "fixup-leaf",
+      "fixup-parent",
+      "sort-cells"
+    ],
+    "field": [
+      "sdf-edt",
+      "sdf-encode"
+    ],
+    "light": [
+      "compute-light",
+      "raymarch",
+      "area-light"
+    ],
+    "bounce": [
+      "second-bounce",
+      "bounce-march"
+    ],
+    "mips": [
+      "update-mipmaps",
+      "write-texture"
+    ],
+    "dynamic": [
+      "dynamic-views",
+      "shrink",
+      "plot-blend"
+    ],
+    "pixel": [
+      "voxel-gi-compute",
+      "cone-trace",
+      "cone-trace-45"
+    ],
+    "compose": [
+      "gi-buffer-mix"
+    ]
+  },
+  "mappings": [
+    {
+      "lab": "VoxelgiCellChildren",
+      "engineShort": "CellChildren",
+      "engineName": "The octree record (CellChildren, voxel_gi.glsl; get_voxel_gi_octree_cells)",
+      "engineNameZh": "八叉树节点记录（CellChildren，voxel_gi.glsl；get_voxel_gi_octree_cells）",
+      "relationship": "exact",
+      "sources": [
+        "export-octree"
+      ],
+      "exact": "uint children[8], 32 bytes per cell, the cell's index in the sorted array times 32; child j at byte 4 j is the octant (j & 1 for x, j & 2 for y, j & 4 for z), 0xFFFFFFFF when empty.",
+      "exactZh": "uint children[8]，每个单元格 32 字节，偏移为单元格在排序数组中的索引乘以 32；第 j 个子索引位于第 4 j 字节，对应子象限（j & 1 为 x，j & 2 为 y，j & 4 为 z），为空时是 0xFFFFFFFF。",
+      "labLayout": "The same bits, packed by the lab's CPU model (godot/voxelgi, storage.rs).",
+      "labLayoutZh": "实验室 CPU 模型（godot/voxelgi，storage.rs）按相同位布局打包。"
+    },
+    {
+      "lab": "VoxelgiCellData",
+      "engineShort": "CellData",
+      "engineName": "The data record (CellData, voxel_gi.glsl; get_voxel_gi_data_cells)",
+      "engineNameZh": "单元数据记录（CellData，voxel_gi.glsl；get_voxel_gi_data_cells）",
+      "relationship": "exact",
+      "sources": [
+        "export-data",
+        "rgbe9995"
+      ],
+      "exact": "Four uint32, 16 bytes: position x bits 0-10, y 11-20, z 21-31 (in the cell's level); albedo R bits 0-7, G 8-15, B 16-23, alpha 24-31, each uint(clamp(v * 255, 0, 255)) (truncated); emission RGB9E5 (R 0-8, G 9-17, B 18-26, exponent 27-31, bias 15); normal three int8 (n * 127) at bits 0-7, 8-15, 16-23, bits 24-31 zero.",
+      "exactZh": "四个 uint32，16 字节：position 的 x 为第 0-10 位，y 为 11-20，z 为 21-31（单元格所在层级）；albedo 的 R 为第 0-7 位，G 8-15，B 16-23，alpha 24-31，每个为 uint(clamp(v * 255, 0, 255))（截断）；emission 为 RGB9E5（R 0-8，G 9-17，B 18-26，指数 27-31，偏置 15）；normal 为三个 int8（n * 127），位于第 0-7、8-15、16-23 位，第 24-31 位为零。",
+      "labLayout": "The same bits, packed by the lab's CPU model (godot/voxelgi, storage.rs).",
+      "labLayoutZh": "实验室 CPU 模型（godot/voxelgi，storage.rs）按相同位布局打包。"
+    },
+    {
+      "lab": "VoxelgiTexel",
+      "engineShort": "VoxelGIInstance::texture",
+      "engineName": "A texel of the light texture (R8G8B8A8_UNORM 3D, one mip per level)",
+      "engineNameZh": "光照纹理中的一个纹素（3D R8G8B8A8_UNORM，每个层级对应一个 mip）",
+      "relationship": "exact",
+      "sources": [
+        "instance-texture",
+        "write-texture"
+      ],
+      "exact": "RGBA8 UNORM; mip m is the octree's size >> m (at least 1), holding level depth - m; rgb = the cell's light / dynamic_range, a = its coverage (1 for a leaf, the children's sum / 8 above); texels without a cell are 0.",
+      "exactZh": "RGBA8 UNORM；第 m 级 mip 为八叉树尺寸 >> m（至少为 1），存放第 depth - m 层；rgb = 单元格的光 / dynamic_range，a = 其覆盖率（叶子为 1，以上各层为子单元格之和 / 8）；没有单元格的 texel 为 0。",
+      "labLayout": "The same texels, kept by the lab's CPU model (storage.rs LightTexture) and packed one word each into the scene shading's data buffer.",
+      "labLayoutZh": "实验室 CPU 模型（storage.rs 的 LightTexture）保存相同纹素，并将每个纹素打包为一个 word，写入场景着色数据缓冲区。"
+    },
+    {
+      "lab": "VoxelgiInstance",
+      "engineShort": "VoxelGIData (UBO)",
+      "engineName": "The screen pass's per-instance UBO entry (GI::VoxelGIData, setup_voxel_gi_instances)",
+      "engineNameZh": "屏幕渲染阶段的每实例 UBO 条目（GI::VoxelGIData，由 setup_voxel_gi_instances 写入）",
+      "relationship": "conceptual",
+      "sources": [
+        "instance-ubo"
+      ],
+      "exact": "112 bytes, std140: float xform[16] (to cells, from the camera-relative position), float bounds[3], float dynamic_range (x energy), float bias, float normal_bias, uint blend_ambient, uint mipmaps, float exposure_normalization, pad. Up to 8 entries.",
+      "exactZh": "112 字节，std140：float xform[16]（从相对相机的位置到单元格），float bounds[3]，float dynamic_range（乘以 energy），float bias，float normal_bias，uint blend_ambient，uint mipmaps，float exposure_normalization，填充。最多 8 项。",
+      "labLayout": "The lab's shading uniforms (toCellOrigin, toCellScale, bounds, dynamicRange, bias, normalBias, mipCount), for its one VoxelGI, from world positions.",
+      "labLayoutZh": "实验室从世界坐标生成其唯一 VoxelGI 的着色 uniform：toCellOrigin、toCellScale、bounds、dynamicRange、bias、normalBias、mipCount。"
+    }
+  ]
+}

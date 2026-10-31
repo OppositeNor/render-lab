@@ -1,0 +1,8 @@
+# The floor beside the red wall, where the bounce's worked cell is.
+
+[camera]
+target = [-2.3, 0.35, 0.8]
+yaw = 40.0
+pitch = 30.0
+distance = 2.6
+fov = 50.0

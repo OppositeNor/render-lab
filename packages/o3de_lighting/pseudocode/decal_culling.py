@@ -1,4 +1,4 @@
-# title: Decals in the tile lists | tile 列表中的 decal
+# title: Decals in the tile lists | 图块列表中的贴花
 # source: decal-cull
 # demo: decals
 def cull_decals(tile, decals, box):   # group 0        # @cull

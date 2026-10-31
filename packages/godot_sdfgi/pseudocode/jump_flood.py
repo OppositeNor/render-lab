@@ -1,4 +1,4 @@
-# title: The jump flood | jump flood
+# title: The jump flood | 跳跃洪泛
 # source: jump-flood-schedule
 # demo: field
 def jump_flood(solid):

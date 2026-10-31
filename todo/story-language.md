@@ -6,7 +6,8 @@ types, and lambda semantics; Render Lab's existing `rlstd` package supplies its 
 narration, timelines, and viewer bindings. The compiler, viewer, recorder, and text checks share one implementation
 of the language while selecting the appropriate host libraries.
 
-See the [general language STL](language-stl.md) and the [Render Lab library design](rlstd-language.md).
+See the [general language STL](language-stl.md), [package/import specification](language-packages.md), and
+[Render Lab library design](rlstd-language.md).
 
 This document plans the work; it does not introduce executable syntax yet. The forms below follow the discussion;
 constructor names, annotations, module syntax, and host functions are provisional until Phase 0 specifies them.
@@ -21,6 +22,10 @@ constructor names, annotations, module syntax, and host functions are provisiona
   and does not abbreviate lookup. Confirm this one-element-form rule in Phase 0; it replaces the earlier equivalence.
 - `[# name expression]` is a special definition form introducing an immutable lexical binding in the enclosing
   document or function body. It contributes no displayed content and is not an ordinary value-returning expression.
+- `[Import package-name]` imports a package's public namespace, accessed as `package-name.content`.
+  `[Import* package-name]` also introduces public exports without the prefix. `[ImportAs package-name pn]`
+  introduces the alias `pn`, accessed as `pn.content`. These are lexical compiler declarations; conflicting
+  same-scope names are errors and imports do not make runtime exports static.
 - `{^ {arg1 arg2 ...} implementation}` constructs a lambda.
 - `{: expression TypeExpression}` is a proposed static type ascription: check the expression against the given
   statically known type and preserve its value. It replaces the unadopted `[: ...]` / `[:: ...]` annotation idea.
@@ -55,6 +60,9 @@ must work without importing any of these libraries or loading package manifests.
 
 Module resolution is a language interface. Render Lab supplies an adapter that maps declared package resources
 and enforces package imports/exports; the language itself does not know about `packages/` or `lab::resources`.
+The language package specification defines namespace, wildcard, and aliased imports, public interfaces, stable
+binding identities, dependency resolution, and initialization. A language package's public symbols and a lab
+manifest's exported resource keys are distinct visibility layers.
 
 ## Current Render Lab implementation and integration points
 
@@ -100,10 +108,11 @@ numeric operator in application position; it does not affect evaluation stages. 
 remainder at runtime, and `[% {% 8 3}]` prepares the same numeric result statically.
 
 Square brackets identify compiler/meta forms: `[# ...]` introduces a definition, `[% ...]` computes an expression
-statically, and `[Assert ... ...]` checks static equality. A meta form can elaborate to a value even though it is
-not an ordinary runtime call.
-`{...}` forms are code expressions and `${...}` embeds them into prose. Reserve the `[#` and `[%` openers;
-ordinary square brackets remain prose. Specify their literal escapes in Phase 0.
+statically, and `[Assert ... ...]` checks static equality. `[Import ...]`, `[Import* ...]`, and `[ImportAs ... ...]`
+introduce package namespaces/bindings. A meta form can elaborate to a value even though it is not an ordinary runtime call.
+`{...}` forms are code expressions and `${...}` embeds them into prose. The `rlstd` reader recognizes `[#`, `[%`,
+`[Assert`, `[Import`, `[Import*`, and `[ImportAs` followed by their specified token boundaries as meta-form openers;
+other square brackets remain prose. Specify their literal escapes in Phase 0.
 Every expression has a type and evaluates to a value.
 A definition is special syntax recognized in a definition context: it establishes a named binding for the enclosing body and has
 no expression-result obligation. Its initializer is an ordinary typed expression. Definitions contribute no text
@@ -116,8 +125,9 @@ available to subsequent uses throughout its enclosing document scope, including 
 it does not apply only to the immediately following expression. Content-producing forms collect presentation
 values in source order. Keep this content collection distinct from the environment used to resolve names.
 
-A lambda has lexical scope and captures outer bindings. Its body may begin with local definitions followed by
-one result expression. The compiler elaborates those definitions into core scoped bindings around the result.
+A lambda has lexical scope and captures outer bindings. Its body may begin with local definitions and import
+declarations followed by one result expression. Imports resolve during compilation even inside a lambda; they
+introduce lexical names rather than runtime operations. The compiler elaborates definitions into core scoped bindings around the result.
 This is a defined body grammar, not implicit sequencing of arbitrary expression results. Simple non-recursive
 bindings can elaborate to nested `let` expressions or lambda applications; recursion and forward references need
 their own specified rules. Local names do not become visible in callers, and a caller's same-named parameter
@@ -503,7 +513,8 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
    or lab dependency: lexer, source spans, AST, name/type/stage checking, evaluator, bytecode, VM, portable values,
    and the pure general STL. Host operations and module resolution use interfaces supplied by callers. Prefer
    existing dependencies and keep the locked offline build; this plan does not require changing `vendor/`.
-2. **One compiler interface.** Supply a standalone compiler/evaluator and resolver interface; lab CLI commands
+2. **One compiler interface.** Supply a standalone compiler/evaluator and package/module resolver interface;
+   implement the specified `Import`, `Import*`, and `ImportAs` forms. Lab CLI commands
    configure it with `rlstd`. Python uses structured request/response files or JSON streams for preparation and
    timing resolution; no per-frame subprocesses or second implementation of language semantics. Build-time
    checking imports the independent core directly and never creates a GPU/window or loads a scene.
@@ -549,6 +560,10 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
   a standalone code runner. Use the catalog's actual `[# name {^ {...} ...}]` definitions as implementation fixtures;
   load dependencies before users rather than treating topic order as initialization order. Test independently
   without importing `rlstd` or the lab.
+- Implement the package specification: public export tables, qualified lookup, wildcard and alias imports,
+  source-order lexical visibility, collision diagnostics, canonical dependency identities, and initialization once
+  per execution context. Preserve imported type/function identity and capabilities. Reject cycles and incompatible
+  versions/artifacts. Import resolution uses supplied dependencies without automatic installation or downloads.
 - Exit: constants, higher-order functions, recursion, structure fields, static rejection, `[Assert ... ...]`, and
   test-host runtime calls work through the same core. Invalid syntax/types/stages produce precise diagnostics;
   infinite recursion stops within its budget. No dependency cycle with `lab/check`.
@@ -629,6 +644,10 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
   operands fail stage checking; there is no ordinary runtime Assert binding. First-class type tests cover static
   constructors, structural identity, explicit nominal tags, alias identity, stable specialization identity, and
   rejection of runtime-dependent annotation types.
+- Package tests use in-memory resolvers and cover `Import`, `Import*`, `ImportAs`, namespace/operator lookup,
+  submodule exports, private/unknown exports, alias identity, wildcard conflicts, repeated imports, lexical scopes,
+  closure capture, imported stages/types, diamond dependencies, initialization once, cycles, and version/artifact
+  errors. They run without Render Lab or network access. An import inside a lambda is still resolved at compile time.
 - `rlstd` reader tests cover `$name` and `${...}` interpolation, identifier boundaries, punctuation/literal escapes,
   nested forms, document-position meta forms, and presentation/effect composition. Unmarked prose braces and
   evaluated strings never execute code. Definitions contribute no text/speech and remain visible across following
@@ -667,14 +686,15 @@ source spans and call stack. Specify a consistent failed-frame/binding policy fo
    scope/capture rules, higher-order effect inference, and any explicit timing-context operations.
 4. Whether custom presentation uses a language protocol, a conversion function, or both; how composition preserves
    order between visible content and scheduled effects.
-5. Exact document/chapter/beat definition contexts, source-order visibility, duplicate definitions, self/mutual
-   recursion and forward-reference rules, package imports, and module versioning. Definitions are special forms;
+5. Exact document/chapter/beat definition contexts, self/mutual recursion and forward-reference rules, and module
+   versioning. Apply the package specification's source-order import visibility and conflict rules. Definitions are special forms;
    the former `Unit`-result and immediately-next-expression rules are superseded.
 6. Syntax and host API for live bindings and click handlers, write-conflict precedence, failure policy, and what
    interactive state a recording must capture. Persistent simulation remains a later extension.
 7. The versioning/migration boundary for existing stories, text-table placeholders, and built timeline artifacts.
-8. Standalone CLI entry/result conventions, module source extension, imports/exports, module resolution, host
-   registration, and artifact/version rules. Lab commands are adapters around the independently usable compiler.
+8. Standalone CLI entry/result conventions, module source extension, package-author export/re-export declarations,
+   package descriptors, version constraints/lockfiles, resolver configuration, host registration, and artifact/version
+   rules. Import spellings are specified in the package design. Lab commands are adapters around the independent compiler.
 9. Ratify the STL draft's first-class static types, `Field`/`Struct`/`Record`/`Member` APIs, structural identity,
    explicit `Nominal` tags, function-type construction, and generic type parameters. Type values are not implicitly
    callable; no separate special field-clause grammar remains.
