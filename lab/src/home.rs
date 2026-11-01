@@ -291,6 +291,7 @@ impl Home {
         let (themes, theme_errors) = theme::list();
         let settings = Settings { path: config_path, saved: saved.clone(), pending: saved.clone(), trial: None, message, flash: None, category: Category::Interface, themes, theme_errors };
         i18n::set(saved.language);
+        crate::pseudocode::set_style(saved.listing_style);
         let message = theme::apply(&saved.theme).err().map(|e| format!("{e:#}"));
         let mut home = Home {
             manifest_dir,
@@ -389,6 +390,7 @@ impl Home {
         // The warning again, in the language just chosen.
         self.pse |= config.language != self.applied.language;
         i18n::set(config.language);
+        crate::pseudocode::set_style(config.listing_style);
         if config.theme != self.applied.theme {
             if let Err(e) = theme::apply(&config.theme) {
                 self.settings.message = Some(format!("{e:#}"));
@@ -848,6 +850,26 @@ impl Home {
                                     ui.painter().rect_stroke(row.expand2(vec2(28.0, 8.0)), CornerRadius::same(12), Stroke::new(3.0, palette::accent().gamma_multiply(alpha)), StrokeKind::Outside);
                                 }
                                 hint(ui, tr("home.language_hint"));
+
+                                heading(ui, tr("home.listing_style"));
+                                let style_name = |style: crate::pseudocode::Style| match style {
+                                    crate::pseudocode::Style::Text => tr("home.listing_style_text"),
+                                    crate::pseudocode::Style::Blocks => tr("home.listing_style_blocks"),
+                                };
+                                let (_, restore) = option_row(ui, widgets, "listing_style", pending.listing_style != defaults.listing_style, style_name(defaults.listing_style), !trying, |ui, widgets| {
+                                    ui.spacing_mut().item_spacing.x = 12.0;
+                                    for style in [crate::pseudocode::Style::Blocks, crate::pseudocode::Style::Text] {
+                                        let r = ui.add(egui::Button::selectable(pending.listing_style == style, RichText::new(style_name(style)).font(FontId::new(30.0, ui::bold()))).min_size(vec2(180.0, 48.0)));
+                                        widgets.push((format!("option:listing_style:{}", style.key()), r.rect));
+                                        if r.clicked() {
+                                            pending.listing_style = style;
+                                        }
+                                    }
+                                });
+                                if restore {
+                                    pending.listing_style = defaults.listing_style;
+                                }
+                                hint(ui, tr("home.listing_style_hint"));
 
                                 heading(ui, tr("home.theme"));
                                 let themes = &settings.themes;
@@ -1398,6 +1420,15 @@ pub fn snapshot_experiments(options: &HomeOptions, demo: Option<&str>, compare: 
     let size = PhysicalSize::new(options.width, options.height);
     let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
     viewer::snapshot_experiments(viewer_options, demo, compare, png)
+}
+
+/// The viewer offscreen on its Code tab, showing `listing` (`viewer::snapshot_code`).
+pub fn snapshot_code(options: &HomeOptions, listing: &str, tag: Option<&str>, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Explore { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_code(viewer_options, listing, tag, png)
 }
 
 /// The viewer offscreen on its Prerequisites tab, the knowledge graph in the

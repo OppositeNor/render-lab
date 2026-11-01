@@ -146,6 +146,7 @@ def main() -> None:
     parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--frames', help='render only START:END (testing; the result is not a complete video)')
     parser.add_argument('--tts-device', default='auto', choices=['auto', 'cuda', 'cpu'])
+    parser.add_argument('--listing-style', default='blocks', choices=['blocks', 'text'], help='how the code panel draws pseudo-code listings: blocks (the default) or text')
     args = parser.parse_args()
     if args.all:
         if args.investigation_dir:
@@ -172,6 +173,7 @@ def main() -> None:
     import timeline as timing
     import verify as checks
     cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
+    cfg.listing_style = args.listing_style
     build = cfg.build()
     for d in (build, build / 'logs'):
         d.mkdir(parents=True, exist_ok=True)

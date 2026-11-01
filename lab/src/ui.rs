@@ -47,6 +47,8 @@ pub struct Layout {
     pub content: Rect,
     pub captions: Rect,
     pub footer: Rect,
+    /// The panel is drawn; when not, the viewport has its room (`for_panel`).
+    pub panel_shown: bool,
 }
 
 impl Layout {
@@ -69,7 +71,7 @@ impl Layout {
         let content = Rect::from_min_max(viewport.min, panel.max);
         let captions = Rect::from_min_max(pos2(margin, canvas.y - 228.0), pos2(canvas.x - margin, canvas.y - 66.0));
         let footer = Rect::from_min_max(pos2(margin, canvas.y - 58.0), pos2(canvas.x - margin, canvas.y - 8.0));
-        Layout { scale, canvas, viewport, panel, content, captions, footer }
+        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true }
     }
 
     /// The interactive viewer's layout: the viewport and the struct panel
@@ -125,10 +127,11 @@ impl Layout {
     }
 
     /// The same layout with the 3D viewport widened over the panel's area
-    /// when the struct panel is hidden.
+    /// when the struct panel is hidden, or has nothing to show.
     pub fn for_panel(mut self, panel_visible: bool) -> Layout {
         if !panel_visible {
             self.viewport = self.content;
+            self.panel_shown = false;
         }
         self
     }
@@ -1358,7 +1361,7 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
 fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut UiReport) {
     let l = &input.layout;
     let state = input.state;
-    if state.panel == PanelMode::Hidden {
+    if state.panel == PanelMode::Hidden || !l.panel_shown {
         return;
     }
     let painter = ink.painter;
@@ -1565,7 +1568,6 @@ fn fitted_line(ink: &Ink, pos: Pos2, text: &str, width: f32, color: Color32) {
 /// A Python pseudo-code listing: the engine function it follows, then the
 /// code with the highlighted tags' lines lit.
 fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highlight: &[String], report: &mut UiReport) {
-    use crate::pseudocode::Token;
     let painter = ink.painter;
     let x = rect.min.x + 22.0;
     let width = rect.width() - 44.0;
@@ -1596,6 +1598,10 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
     let line = 28.0;
     let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
     let any_lit = listing.lines.iter().any(|l| listing.lit(l, highlight));
+    if crate::pseudocode::style() == crate::pseudocode::Style::Blocks {
+        draw_blocks(ink, x - 10.0, y, width + 20.0, rect.max.y - 12.0, listing, highlight, column, report);
+        return;
+    }
     let columns = ((width / column).floor() as usize).max(8);
     for code_line in &listing.lines {
         let rows = wrap_code(&code_line.text, columns);
@@ -1611,40 +1617,290 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
         }
         // Unlit lines dim while some lines are lit.
         let dim = any_lit && !lit;
-        let mut col = 0usize;
-        for (kind, text) in crate::pseudocode::tokens(&code_line.text) {
-            let color = match kind {
-                Token::Keyword => palette::code_keyword(),
-                Token::Name => palette::code_name(),
-                Token::Number => palette::code_number(),
-                Token::Text => palette::code_string(),
-                Token::Comment => palette::text_faint(),
-                Token::Plain => palette::text(),
-            };
-            let color = if dim { color.gamma_multiply(0.55) } else { color };
-            let end = col + text.chars().count();
-            // The token's part on each row it reaches.
-            for (row, &(start, stop, indent)) in rows.iter().enumerate() {
-                let (from, to) = (col.max(start), end.min(stop));
-                if from >= to {
-                    continue;
-                }
-                let part: String = text.chars().skip(from - col).take(to - from).collect();
-                if !part.trim().is_empty() {
-                    let at = pos2(x + (indent + from - start) as f32 * column, y + row as f32 * line);
-                    ink.text(at, Align2::LEFT_TOP, part, 24.0, FontFamily::Monospace, color);
-                }
-            }
-            col = end;
-        }
+        draw_code_text(ink, &code_line.text, &rows, pos2(x, y), column, line, dim);
         y += height;
     }
+}
+
+/// A code line in syntax colours, on its rows (`wrap_code`) from `at`.
+fn draw_code_text(ink: &Ink, text: &str, rows: &[(usize, usize, usize)], at: Pos2, column: f32, line: f32, dim: bool) {
+    use crate::pseudocode::Token;
+    let mut col = 0usize;
+    for (kind, token) in crate::pseudocode::tokens(text) {
+        let color = match kind {
+            Token::Keyword => palette::code_keyword(),
+            Token::Name => palette::code_name(),
+            Token::Number => palette::code_number(),
+            Token::Text => palette::code_string(),
+            Token::Comment => palette::text_faint(),
+            Token::Plain => palette::text(),
+        };
+        let color = if dim { color.gamma_multiply(0.55) } else { color };
+        let end = col + token.chars().count();
+        // The token's part on each row it reaches.
+        for (row, &(start, stop, indent)) in rows.iter().enumerate() {
+            let (from, to) = (col.max(start), end.min(stop));
+            if from >= to {
+                continue;
+            }
+            let part: String = token.chars().skip(from - col).take(to - from).collect();
+            if !part.trim().is_empty() {
+                let pos = pos2(at.x + (indent + from - start) as f32 * column, at.y + row as f32 * line);
+                ink.text(pos, Align2::LEFT_TOP, part, 24.0, FontFamily::Monospace, color);
+            }
+        }
+        col = end;
+    }
+}
+
+/// The block style's spacing, tighter for a listing that would not fit.
+#[derive(Clone, Copy)]
+struct BlockSpacing {
+    /// Above and below a block's text.
+    pad: f32,
+    /// Between stacked blocks.
+    gap: f32,
+    /// A loop's or a branch's foot.
+    foot: f32,
+    /// A blank line.
+    blank: f32,
+    /// Above a hat's text.
+    hat: f32,
+}
+
+/// From the roomiest; a listing takes the first that fits.
+const BLOCK_SPACINGS: [BlockSpacing; 5] = [
+    BlockSpacing { pad: 4.0, gap: 3.0, foot: 12.0, blank: 12.0, hat: 6.0 },
+    BlockSpacing { pad: 2.0, gap: 2.0, foot: 10.0, blank: 8.0, hat: 4.0 },
+    BlockSpacing { pad: 1.0, gap: 1.0, foot: 8.0, blank: 4.0, hat: 2.0 },
+    BlockSpacing { pad: 0.0, gap: 1.0, foot: 6.0, blank: 2.0, hat: 0.0 },
+    // A full panel: blocks touch, told apart by their notches.
+    BlockSpacing { pad: 0.0, gap: 0.0, foot: 4.0, blank: 2.0, hat: 0.0 },
+];
+
+/// Draws (or, with `draw` false, measures) a listing as Scratch-like blocks
+/// (`pseudocode::blocks`): each statement a bar coloured by what it does, its
+/// coloured edge on the left; loops and branches C-shaped around their bodies;
+/// a function's `def` (or its `# dispatch:`) a hat on top.
+struct BlockPainter<'a, 'b> {
+    ink: &'a Ink<'b>,
+    listing: &'a crate::pseudocode::Listing,
+    highlight: &'a [String],
+    any_lit: bool,
+    column: f32,
+    spacing: BlockSpacing,
+    bottom: f32,
+    draw: bool,
+    /// Lines left out below `bottom`.
+    overflow: usize,
+    /// A hat is drawn: the dispatch is the first function's.
+    hatted: bool,
+}
+
+const BLOCK_ROW: f32 = 28.0;
+/// A block's coloured edge, and the space before its text.
+const BLOCK_EDGE: f32 = 4.0;
+const BLOCK_TEXT: f32 = 12.0;
+/// A loop's arm, left of its body.
+const BLOCK_ARM: f32 = 18.0;
+
+impl BlockPainter<'_, '_> {
+    fn color(kind: crate::pseudocode::Kind) -> Color32 {
+        use crate::pseudocode::Kind;
+        match kind {
+            Kind::Control => palette::code_keyword(),
+            Kind::Read => palette::code_name(),
+            Kind::Write => palette::code_number(),
+            Kind::Math => palette::code_string(),
+            Kind::Statement => palette::text_dim(),
+        }
+    }
+
+    fn lit(&self, lines: &std::ops::Range<usize>) -> bool {
+        self.listing.lines[lines.clone()].iter().any(|l| self.listing.lit(l, self.highlight))
+    }
+
+    /// Each line's text, indented from the first's, and its rows within `width`.
+    fn rows(&self, lines: &std::ops::Range<usize>, width: f32) -> Vec<(String, Vec<(usize, usize, usize)>)> {
+        let indent = |t: &str| t.chars().take_while(|c| *c == ' ').count();
+        let base = indent(&self.listing.lines[lines.start].text);
+        let columns = (((width - BLOCK_EDGE - BLOCK_TEXT - 4.0) / self.column).floor() as usize).max(8);
+        self.listing.lines[lines.clone()]
+            .iter()
+            .map(|l| {
+                let text: String = l.text.chars().skip(indent(&l.text).min(base)).collect();
+                let rows = wrap_code(&text, columns);
+                (text, rows)
+            })
+            .collect()
+    }
+
+    /// The fill of a block of `color`: lit, dimmed beside lit lines, or plain.
+    fn fill(&self, color: Color32, lit: bool) -> Color32 {
+        color.gamma_multiply(if lit { 0.5 } else if self.any_lit { 0.2 } else { 0.34 })
+    }
+
+    fn edge(&self, color: Color32, lit: bool) -> Color32 {
+        if self.any_lit && !lit { color.gamma_multiply(0.6) } else { color }
+    }
+
+    /// One bar: `lines` on a block of `color`; its height.
+    fn bar(&mut self, at: Pos2, width: f32, lines: std::ops::Range<usize>, color: Color32, shape: BarShape) -> f32 {
+        let rows = self.rows(&lines, width);
+        let count: usize = rows.iter().map(|(_, r)| r.len()).sum();
+        let hat = matches!(shape, BarShape::Hat(_));
+        let top = self.spacing.pad + if hat { self.spacing.hat } else { 0.0 };
+        let dispatch = match shape {
+            BarShape::Hat(Some(_)) => 1,
+            _ => count,
+        };
+        let height = top + self.spacing.pad + BLOCK_ROW * dispatch as f32;
+        if !self.draw {
+            return height;
+        }
+        if at.y + height > self.bottom {
+            self.overflow += lines.len();
+            return height;
+        }
+        let painter = self.ink.painter;
+        let lit = self.lit(&lines);
+        let rect = Rect::from_min_size(at, vec2(width, height));
+        let radius = match shape {
+            BarShape::Hat(_) => CornerRadius { nw: 14, ne: 14, sw: 3, se: 3 },
+            BarShape::Head => CornerRadius { nw: 4, ne: 4, sw: 0, se: 4 },
+            BarShape::Middle => CornerRadius { nw: 0, ne: 4, sw: 0, se: 4 },
+            BarShape::Plain | BarShape::Cap => CornerRadius::same(4),
+        };
+        painter.rect_filled(rect, radius, self.fill(color, lit));
+        painter.rect_filled(Rect::from_min_size(at, vec2(BLOCK_EDGE, height)), CornerRadius { nw: radius.nw, sw: radius.sw, ne: 0, se: 0 }, self.edge(color, lit));
+        // The notch a stacked block hangs from.
+        if !hat && !matches!(shape, BarShape::Middle) {
+            let (l, t) = (at.x + BLOCK_EDGE + 10.0, at.y);
+            painter.add(egui::Shape::convex_polygon(vec![pos2(l, t), pos2(l + 22.0, t), pos2(l + 18.0, t + 4.0), pos2(l + 4.0, t + 4.0)], palette::panel(), Stroke::NONE));
+        }
+        // Nothing follows a cap: its foot is solid.
+        if matches!(shape, BarShape::Cap) {
+            painter.rect_filled(Rect::from_min_max(pos2(at.x, rect.max.y - 3.0), rect.max), CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 }, self.edge(color, lit));
+        }
+        if lit {
+            painter.rect_stroke(rect, radius, Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
+        }
+        let dim = self.any_lit && !lit;
+        let x = at.x + BLOCK_EDGE + BLOCK_TEXT;
+        let mut y = at.y + top;
+        if let BarShape::Hat(Some(text)) = shape {
+            let text = self.ink.fit_right(text, width - BLOCK_EDGE - BLOCK_TEXT - 8.0, 24.0, bold());
+            let color = if dim { palette::text().gamma_multiply(0.55) } else { palette::text() };
+            self.ink.text(pos2(x, y), Align2::LEFT_TOP, text, 24.0, bold(), color);
+            return height;
+        }
+        for (text, rows) in &rows {
+            draw_code_text(self.ink, text, rows, pos2(x, y), self.column, BLOCK_ROW, dim);
+            y += BLOCK_ROW * rows.len() as f32;
+        }
+        height
+    }
+
+    /// A loop's or a branch's column left of a body, or its foot.
+    fn frame(&mut self, rect: Rect, color: Color32, lit: bool, radius: CornerRadius) {
+        if !self.draw || rect.height() <= 0.0 {
+            return;
+        }
+        let rect = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y.min(self.bottom)));
+        if rect.height() <= 0.0 {
+            return;
+        }
+        let painter = self.ink.painter;
+        painter.rect_filled(rect, radius, self.fill(color, lit));
+        painter.rect_filled(Rect::from_min_size(rect.min, vec2(BLOCK_EDGE, rect.height())), CornerRadius { nw: 0, ne: 0, sw: radius.sw, se: 0 }, self.edge(color, lit));
+    }
+
+    /// `blocks` stacked from `at`; their height.
+    fn stack(&mut self, blocks: &[crate::pseudocode::Block], at: Pos2, width: f32) -> f32 {
+        use crate::pseudocode::Block;
+        let mut y = at.y;
+        for (i, block) in blocks.iter().enumerate() {
+            if i > 0 {
+                y += self.spacing.gap;
+            }
+            let at = pos2(at.x, y);
+            y += match block {
+                Block::Hat { lines } => {
+                    let dispatch = if self.hatted { None } else { self.listing.dispatch().map(str::to_string) };
+                    self.hatted = true;
+                    self.bar(at, width, lines.clone(), palette::accent(), BarShape::Hat(dispatch.as_deref()))
+                }
+                Block::Stmt { lines } => self.bar(at, width, lines.clone(), Self::color(self.listing.lines[lines.start].kind()), BarShape::Plain),
+                Block::Cap { lines } => self.bar(at, width, lines.clone(), Self::color(self.listing.lines[lines.start].kind()), BarShape::Cap),
+                Block::Note { line } => {
+                    if self.draw {
+                        if y + BLOCK_ROW > self.bottom {
+                            self.overflow += 1;
+                        } else {
+                            let text = self.listing.lines[*line].text.trim_start().to_string();
+                            let rows = wrap_code(&text, usize::MAX / 2);
+                            draw_code_text(self.ink, &text, &rows, pos2(at.x + BLOCK_EDGE + BLOCK_TEXT, y), self.column, BLOCK_ROW, self.any_lit);
+                        }
+                    }
+                    BLOCK_ROW
+                }
+                Block::Gap => self.spacing.blank,
+                Block::C { arms } => {
+                    let color = Self::color(self.listing.lines[arms[0].head.start].kind());
+                    let lit = arms.iter().any(|a| self.lit(&a.head));
+                    let mut cy = y;
+                    for (k, arm) in arms.iter().enumerate() {
+                        cy += self.bar(pos2(at.x, cy), width, arm.head.clone(), color, if k == 0 { BarShape::Head } else { BarShape::Middle });
+                        let body = self.spacing.gap + self.stack(&arm.body, pos2(at.x + BLOCK_ARM, cy + self.spacing.gap), width - BLOCK_ARM) + self.spacing.gap;
+                        self.frame(Rect::from_min_size(pos2(at.x, cy), vec2(BLOCK_ARM, body)), color, lit, CornerRadius::ZERO);
+                        cy += body;
+                    }
+                    let foot = Rect::from_min_size(pos2(at.x, cy), vec2(width.min(BLOCK_ARM + 120.0), self.spacing.foot));
+                    self.frame(foot, color, lit, CornerRadius { nw: 0, ne: 4, sw: 4, se: 4 });
+                    cy + self.spacing.foot - y
+                }
+            };
+        }
+        y - at.y
+    }
+}
+
+#[derive(Clone, Copy)]
+enum BarShape<'a> {
+    /// A function's hat, with its dispatch's text if it has one.
+    Hat(Option<&'a str>),
+    /// A loop's or a branch's first head.
+    Head,
+    /// A branch's next head (`elif`, `else`).
+    Middle,
+    Plain,
+    Cap,
+}
+
+/// The listing as blocks from (`x`, `y`), `width` wide, down to `bottom`;
+/// with the roomiest spacing that fits; lines below `bottom` are counted in `report.code_overflow`.
+#[allow(clippy::too_many_arguments)]
+fn draw_blocks(ink: &Ink, x: f32, y: f32, width: f32, bottom: f32, listing: &crate::pseudocode::Listing, highlight: &[String], column: f32, report: &mut UiReport) {
+    let blocks = crate::pseudocode::blocks(listing);
+    let any_lit = listing.lines.iter().any(|l| listing.lit(l, highlight));
+    let mut painter = BlockPainter { ink, listing, highlight, any_lit, column, spacing: BLOCK_SPACINGS[0], bottom, draw: false, overflow: 0, hatted: false };
+    for spacing in BLOCK_SPACINGS {
+        painter.spacing = spacing;
+        painter.hatted = false;
+        if y + painter.stack(&blocks, pos2(x, y), width) <= bottom {
+            break;
+        }
+    }
+    painter.draw = true;
+    painter.hatted = false;
+    painter.stack(&blocks, pos2(x, y), width);
+    report.code_overflow += painter.overflow;
 }
 
 /// A code line's rows within `columns`: each row's character range and the
 /// column it starts at. A long line breaks after its last space or comma that
 /// fits, and continues four columns deeper than its indentation.
-fn wrap_code(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
+pub(crate) fn wrap_code(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
     let chars: Vec<char> = text.chars().collect();
     let deeper = chars.iter().take_while(|c| **c == ' ').count() + 4;
     let mut rows = Vec::new();

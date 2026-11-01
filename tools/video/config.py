@@ -74,6 +74,7 @@ class Config:
     lang: str
     spec: dict[str, Any]
     base: Path                       # the directory of video.json
+    listing_style: str = 'blocks'    # how the code panel draws listings: blocks or text
 
     @staticmethod
     def load(investigation: str, lang: str, directory: Path | None = None) -> Config:

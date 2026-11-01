@@ -174,6 +174,9 @@ pub struct Renderer {
     last_layout: Layout,
     /// The last frame's views beside the main one (`Investigation::panes`), in canvas points.
     last_panes: Vec<egui::Rect>,
+    /// The last frame's panel had nothing to show (no record, readout, or
+    /// listing), so this frame first lays out without it (`render_frame_with`).
+    panel_empty: bool,
     /// The reference's view, while an experiment compares (src/experiment.rs).
     reference_slot: ViewSlot,
     compare: Option<CompareRequest>,
@@ -591,6 +594,7 @@ impl Renderer {
             view_shading: None,
             last_layout: Layout::new(width, height),
             last_panes: Vec::new(),
+            panel_empty: false,
             reference_slot: ViewSlot::default(),
             compare: None,
             compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("compare"), layout: &pipelines_compare_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: compare_params.as_entire_binding() }] }),
@@ -1114,6 +1118,36 @@ impl Renderer {
         // rectangle; the main view takes the last (Investigation::panes).
         let mut panes = if scene_beat && prepared.is_none() { investigation::current().panes(request.state) } else { Vec::new() };
         let main = panes.pop();
+        // A panel with nothing to show gives its room to the viewport: a
+        // listing the investigation does not have, or a struct panel whose
+        // frame has neither a record nor a readout. That is known once the
+        // frame is built, at the viewport's size: it is built at the last
+        // frame's layout, and again at the other if that was wrong.
+        let mut built = None;
+        if layout.panel_shown && scene_beat && prepared.is_none() && main.is_none() && !values && self.compare.is_none() {
+            use crate::shot::PanelMode;
+            match request.state.panel {
+                PanelMode::Code if request.state.code.as_deref().and_then(|c| investigation::current().listing(c)).is_none() => layout = layout.for_panel(false),
+                PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
+                    self.select_data(request.state, !request.history);
+                    let build = |layout: &Layout| {
+                        let vp = layout.viewport_px();
+                        crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)
+                    };
+                    let shown = layout;
+                    let hidden = layout.for_panel(false);
+                    let mut content = build(if self.panel_empty { &hidden } else { &shown });
+                    let empty = content.panel_record.is_none() && content.readout.is_none();
+                    if empty != self.panel_empty {
+                        content = build(if empty { &hidden } else { &shown });
+                    }
+                    self.panel_empty = empty;
+                    layout = if empty { hidden } else { shown };
+                    built = Some(content);
+                }
+                _ => {}
+            }
+        }
         let rects = if main.is_some() { layout.split(panes.len() + 1) } else { Vec::new() };
         if let Some(rect) = rects.last() {
             layout.viewport = *rect;
@@ -1181,7 +1215,7 @@ impl Renderer {
         if scene_beat {
             self.select_data(scene_state, !request.history);
         }
-        let mut content = match prepared {
+        let mut content = match prepared.or(built) {
             Some(c) => Some(c),
             None => scene_beat.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
         };

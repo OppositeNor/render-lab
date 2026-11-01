@@ -213,9 +213,15 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   (`path`, `line`, `symbol`, `lineHash`, `inspect`, `inspectZh`, `details`). `lineHash` is the first 16 hex digits of
   the SHA-256 of the cited line, trimmed. Write the index with a script that reads the checkout (O3DE:
   `source_index.py`), so lines and hashes never drift by hand. Even for a published engine, keep quotes short.
-- **Pseudo-code** (`pseudocode/*.py`): a header `# title: English | 中文`, `# source: <index key>`, `# demo: <demo>`;
-  a line ending in `# @tag` lights when a shot highlights `tag` with the code panel. It must compile as Python and fit
-  the code panel at 24 px. Mirror the engine function's real steps and names; one listing per step.
+- **Pseudo-code** (`pseudocode/*.py`): a header `# title: English | 中文`, `# source: <index key>`, `# demo: <demo>`,
+  and optionally `# dispatch: English | 中文`, how its first function runs ("for each probe, in parallel", "on the CPU,
+  each frame"; check it in the engine's dispatch code); a line ending in `# @tag` lights when a shot highlights `tag`
+  with the code panel. A line may also end in a mark of what it does, `@@read` or `@@write` (memory: a texture, a
+  buffer) or `@@math`, in the same trailer (`# @tag @@read`) or its own (`# @@read`). The code panel draws a listing as
+  Scratch-like blocks (the default) or as text (the Config page's listing style, `--listing-style`): loops and branches wrap their
+  bodies, each line coloured by its mark (control flow by its keyword), the dispatch on the first function's hat. It
+  must compile as Python and fit the code panel at 24 px in both styles (`home --snapshot … --page
+  viewer-code:<listing>`). Mirror the engine function's real steps and names; one listing per step.
 - **Formulas** (optional): a formula tag in the text tables, `{@ formula="LaTeX" display=yes colors="#rrggbb,…"}`,
   with `\lit{n}{…}` marking term n and `colors` giving each term its readout row's colour (the same LaTeX in every
   language; `build.rs` checks it). Name the tag's text in `Readout::formula` and the lit term in `Readout::formula_lit`;

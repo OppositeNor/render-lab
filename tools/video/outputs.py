@@ -119,7 +119,7 @@ def cargo_build(cfg: Config) -> Path:
 
 def lab(binary: Path, cfg: Config, *args: Any) -> list[Any]:
     """A render-lab command line for this investigation."""
-    return [binary, '--investigation', cfg.investigation, *args]
+    return [binary, '--investigation', cfg.investigation, '--listing-style', cfg.listing_style, *args]
 
 
 def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int]) -> None:
@@ -213,11 +213,11 @@ def listing_path(cfg: Config, name: str) -> Path:
 
 
 def read_listing(cfg: Config, name: str) -> tuple[str, str, str | None, str]:
-    """(title, Chinese title, source key, code without tags) of a listing."""
+    """(title, Chinese title, source key, code without tags or marks) of a listing."""
     header: dict[str, str] = {}
     code: list[str] = []
     for line in listing_path(cfg, name).read_text().splitlines():
-        m = re.match(r'# (title|source|demo): (.*)$', line)
+        m = re.match(r'# (title|source|demo|dispatch): (.*)$', line)
         if m and not code:
             header[m.group(1)] = m.group(2).strip()
             continue

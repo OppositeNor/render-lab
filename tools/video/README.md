@@ -19,6 +19,7 @@ python3 tools/video/build.py --all                                  # every pack
 | `--skip-render` | Reuses the rendered `video.mp4` |
 | `--verify-only` | Only the checks of an existing build |
 | `--tts-device auto/cuda/cpu` | Where new narration is synthesised (`auto`: the GPU when the CUDA packages are installed) |
+| `--listing-style blocks/text` | How the code panel draws pseudo-code listings (`blocks`, the default, whatever the user's settings say) |
 | `--investigation-dir DIR` | The directory of its `video/video.json`, when it is not its package in `packages/` |
 
 A full build of the 16-minute O3DE video takes about 15 minutes on an RTX 4050, almost all of it rendering. Run one GPU

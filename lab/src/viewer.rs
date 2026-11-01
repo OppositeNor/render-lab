@@ -1608,6 +1608,36 @@ pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &st
     Ok(())
 }
 
+/// The viewer offscreen on its Code tab (`home --snapshot … --page
+/// viewer-code:<listing>[@<tag>]`), showing `listing` (its name) on its
+/// demonstration, with the lines of `tag` lit (default: its first tag), in
+/// the listing style in use (`--listing-style`).
+pub fn snapshot_code(options: ViewerOptions, listing: &str, tag: Option<&str>, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let current = investigation::current();
+    let found = current.listing(listing).ok_or_else(|| {
+        let names: Vec<&str> = current.listings().iter().map(|l| l.name).collect();
+        anyhow::anyhow!("no listing `{listing}`; known: {}", names.join(", "))
+    })?;
+    let (mut app, gpu, size) = offscreen_app(options, found.demo.as_deref())?;
+    app.state = app.default_state(app.state.demo);
+    app.tab = DockTab::Code;
+    app.show_tab();
+    app.state.code = Some(found.name.to_string());
+    let tag = tag.map(str::to_string).or_else(|| found.lines.iter().flat_map(|l| l.tags.iter()).next().cloned());
+    app.state.highlight = tag.iter().cloned().collect();
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..16 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    eprintln!("viewer code: {} ({}x{}), listing {listing} as {}, lit: {}", png.display(), size[0], size[1], crate::pseudocode::style().key(), tag.unwrap_or_else(|| "nothing".into()));
+    Ok(())
+}
+
 /// The viewer offscreen on its Prerequisites tab (`home --snapshot … --page
 /// viewer-prerequisites[:<demo>]`), the knowledge graph in the panel fitted to
 /// the demonstration's chapters; with `focus` (`viewer-knowledge[:<demo>]`), the

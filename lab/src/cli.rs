@@ -28,6 +28,11 @@ struct Cli {
     /// RENDER_LAB_ROOT, or the repository's directory).
     #[arg(long, global = true)]
     root: Option<PathBuf>,
+    /// How the code panel draws pseudo-code listings this run, whatever the
+    /// settings say: blocks or text (default: the settings' in the homepage
+    /// and its viewer; blocks in recordings and self-tests).
+    #[arg(long, global = true, value_parser = parse_listing_style)]
+    listing_style: Option<crate::pseudocode::Style>,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -56,6 +61,7 @@ enum Command {
         /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
         /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
+        /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
         /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
         /// viewer-knowledge[:<demo>] (that panel zoomed onto a topic of the audience's level, selected), or
         /// viewer-knowledge-graph[:<demo>] (the knowledge graph full screen over the viewer), or select-knowledge
@@ -217,6 +223,10 @@ enum Command {
 
 /// `--resolution`: a 16:9 preset by its height, or WIDTHxHEIGHT (even, for
 /// FFmpeg's yuv420p).
+fn parse_listing_style(value: &str) -> Result<crate::pseudocode::Style, String> {
+    crate::pseudocode::Style::from_key(value).ok_or_else(|| format!("`{value}`: text or blocks"))
+}
+
 fn parse_resolution(value: &str) -> Result<[u32; 2], String> {
     let size = match value.to_ascii_lowercase().as_str() {
         "720p" => [1280, 720],
@@ -246,6 +256,9 @@ pub fn main(app: App) -> Result<()> {
     let cli = Cli::parse();
     if let Some(root) = &cli.root {
         crate::resources::set_root(root.clone());
+    }
+    if let Some(style) = cli.listing_style {
+        crate::pseudocode::force_style(style);
     }
     investigations::set_title(app.title);
     let manifest_dir = crate::resources::root().to_path_buf();
@@ -278,6 +291,10 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Diagram), &png),
                 (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Sources), &png),
                 (Some(png), _) if page == "viewer-layout" => home::snapshot_layout(&options, &png),
+                (Some(png), _) if page.starts_with("viewer-code:") => {
+                    let (listing, tag) = page["viewer-code:".len()..].split_once('@').map_or((&page["viewer-code:".len()..], None), |(l, t)| (l, Some(t)));
+                    home::snapshot_code(&options, listing, tag, &png)
+                }
                 (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),

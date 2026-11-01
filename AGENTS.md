@@ -83,6 +83,7 @@ cargo run --release -- --investigation o3de/lighting choices                  # 
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{@ run=… run.<arg>=…}`, `stop=…`) and their arguments
 cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom=`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
+cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
 cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the knowledge graph in the panel (viewer-knowledge: zoomed onto a level topic; viewer-knowledge-graph: full screen; select-knowledge: over the homepage)
 cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels, --mermaid)
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it

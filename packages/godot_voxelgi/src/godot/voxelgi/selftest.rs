@@ -343,7 +343,14 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
                 let mut req = request(&state, &timeline);
                 req.chrome = lab::ui::Chrome::Recording { timeline: &timeline, frame };
                 req.chapter_number = beat.chapter;
-                let r = renderer.render_frame(req, None).report;
+                let mut r = renderer.render_frame(req, None).report;
+                // A listing fits in the block style too.
+                if state.panel == lab::shot::PanelMode::Code {
+                    let mut req = request(&state, &timeline);
+                    req.chrome = lab::ui::Chrome::Recording { timeline: &timeline, frame };
+                    req.chapter_number = beat.chapter;
+                    r.code_overflow += lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || renderer.render_frame(req, None).report.code_overflow);
+                }
                 beats += 1;
                 if r.min_text_pt < lab::ui::MIN_TEXT_PT || r.label_overlaps > 0 || r.labels_outside > 0 || r.code_overflow > 0 || r.readout_overflow > 0 || r.formula_scale.is_some_and(|s| s < 1.0) {
                     problems.push(json!({"beat": beat.id, "frame": frame, "minTextPt": r.min_text_pt, "labelOverlaps": r.label_overlaps, "labelsOutside": r.labels_outside, "codeOverflow": r.code_overflow, "readoutOverflow": r.readout_overflow}));

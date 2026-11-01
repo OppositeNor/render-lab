@@ -1,6 +1,7 @@
 # title: Regions, geometry, and static lights | 区域、几何体与静态光源
 # source: static-light-cull
 # demo: regions
+# dispatch: on the CPU, for each instance | 在 CPU 上，逐个实例
 def cull_for_sdfgi(scenario, regions):
     for inst in scenario.instances:   # no frustum test        # @all
         for j, region in enumerate(regions):
@@ -9,9 +10,9 @@ def cull_for_sdfgi(scenario, regions):
             if inst.is_light:
                 if inst.bake_mode == STATIC and \
                    region.cascade <= inst.max_sdfgi_cascade:      # @static
-                    lights[region.cascade].append(inst)          # @stored
+                    lights[region.cascade].append(inst)          # @stored @@write
             elif inst.flags & USES_BAKED_LIGHT:  # gi_mode Static  # @geometry
-                geometry[j].append(inst)                         # @geometry
+                geometry[j].append(inst)                         # @geometry @@write
 
 def render_static_lights(cascade_index, lights):
     for i, cascade in enumerate(cascade_index):

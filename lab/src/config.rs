@@ -5,10 +5,11 @@
 //! defaults.
 //!
 //! The settings come in categories (`Category`): the interface's (the
-//! language and the theme) and the audio's apply when they are saved; the
+//! language, the theme, and the listings' style) and the audio's apply when they are saved; the
 //! render settings (full screen) are tried first, behind a popup.
 
 use crate::i18n::Locale;
+use crate::pseudocode::Style;
 use crate::theme;
 use crate::volume::Volume;
 use anyhow::{Context, Result};
@@ -17,7 +18,7 @@ use std::path::{Path, PathBuf};
 /// What the Config page groups the settings by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Category {
-    /// The language and the theme.
+    /// The language, the theme, and the listings' style.
     Interface,
     /// How the lab renders: full screen. A change is tried before it is kept.
     Render,
@@ -64,6 +65,8 @@ pub struct Config {
     pub language: Locale,
     /// Interface: the theme (src/theme.rs), by its file's stem.
     pub theme: String,
+    /// Interface: how the code panel draws pseudo-code listings (src/pseudocode.rs).
+    pub listing_style: Style,
     /// Render: open the homepage and the viewer in borderless fullscreen.
     pub fullscreen: bool,
     /// Audio: the homepage's music.
@@ -76,7 +79,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config { language: Locale::En, theme: theme::DEFAULT.into(), fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
+        Config { language: Locale::En, theme: theme::DEFAULT.into(), listing_style: Style::Blocks, fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
     }
 }
 
@@ -84,7 +87,7 @@ impl Config {
     /// Whether `self` and `other` differ in `category`'s settings.
     pub fn differs_in(&self, other: &Config, category: Category) -> bool {
         match category {
-            Category::Interface => self.language != other.language || self.theme != other.theme,
+            Category::Interface => self.language != other.language || self.theme != other.theme || self.listing_style != other.listing_style,
             Category::Render => self.fullscreen != other.fullscreen,
             Category::Audio => self.music != other.music || self.narration != other.narration,
         }
@@ -122,6 +125,10 @@ impl Config {
         if let Some(item) = document.get("theme") {
             config.theme = item.as_str().with_context(|| format!("{}: `theme` must be a string", path.display()))?.to_string();
         }
+        if let Some(item) = document.get("listing_style") {
+            let key = item.as_str().with_context(|| format!("{}: `listing_style` must be a string", path.display()))?;
+            config.listing_style = Style::from_key(key).with_context(|| format!("{}: unknown `listing_style` \"{key}\" (text or blocks)", path.display()))?;
+        }
         for (name, volume) in [("music", &mut config.music), ("narration", &mut config.narration)] {
             let key = format!("{name}_volume");
             if let Some(item) = document.get(&key) {
@@ -145,10 +152,11 @@ impl Config {
 
     pub fn to_toml(&self) -> String {
         let mut text = format!(
-            "# Render Lab settings, written by the homepage's Config page.\n\n# Interface: the homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n\n# Interface: the theme, a file's stem in a themes/ folder beside the binary or beside this file.\ntheme = \"{}\"\n\n# Render: open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n",
+            "# Render Lab settings, written by the homepage's Config page.\n\n# Interface: the homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n\n# Interface: the theme, a file's stem in a themes/ folder beside the binary or beside this file.\ntheme = \"{}\"\n\n# Interface: how the code panel draws pseudo-code listings: blocks, or text.\nlisting_style = \"{}\"\n\n# Render: open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n",
             Locale::ALL.map(Locale::code).join(", "),
             self.language.code(),
             self.theme.replace('\\', "\\\\").replace('"', "\\\""),
+            self.listing_style.key(),
             self.fullscreen
         );
         for (name, what, volume) in [("music", "Audio: the homepage's music", self.music), ("narration", "Audio: the narration", self.narration)] {
@@ -187,7 +195,7 @@ mod tests {
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
+        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.
@@ -196,6 +204,8 @@ mod tests {
         std::fs::write(&path, "music_volume = 101\n").unwrap();
         assert!(Config::load(&path).is_err());
         std::fs::write(&path, "language = \"fr\"\n").unwrap();
+        assert!(Config::load(&path).is_err());
+        std::fs::write(&path, "listing_style = \"scratch\"\n").unwrap();
         assert!(Config::load(&path).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }

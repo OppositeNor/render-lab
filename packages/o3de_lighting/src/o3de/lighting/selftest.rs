@@ -784,10 +784,16 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         state.panel = lab::shot::PanelMode::Code;
         let listing = shot::demos().spec(demo.id()).listing.unwrap_or_default();
         state.code = Some(listing.to_string());
-        let code = renderer.render_frame(request(&state, &still), None);
-        let listing_ok = code.report.panel_code.as_deref() == Some(listing) && code.report.code_overflow == 0;
+        // In each listing style.
+        let mut listing_ok = true;
+        let mut overflow = serde_json::Map::new();
+        for style in lab::pseudocode::Style::ALL {
+            let code = lab::pseudocode::with_style(style, || renderer.render_frame(request(&state, &still), None).report);
+            listing_ok &= code.panel_code.as_deref() == Some(listing) && code.code_overflow == 0;
+            overflow.insert(style.key().into(), json!(code.code_overflow));
+        }
         demos_ok &= ok && listing_ok;
-        demo_detail.push(json!({"demo": demo.key(), "minTextPt": result.report.min_text_pt, "readoutRows": values, "formula": formula, "formulaScale": result.report.formula_scale, "rowsBelowItCut": result.report.readout_overflow, "listing": listing, "listingFits": listing_ok, "snapshot": png}));
+        demo_detail.push(json!({"demo": demo.key(), "minTextPt": result.report.min_text_pt, "readoutRows": values, "formula": formula, "formulaScale": result.report.formula_scale, "rowsBelowItCut": result.report.readout_overflow, "listing": listing, "listingFits": listing_ok, "linesCut": overflow, "snapshot": png}));
     }
     report.check("every demonstration renders its formula at full size, its readout, and its listing with text of at least 24 px", demos_ok, json!(demo_detail));
 
@@ -855,7 +861,14 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let mut req = request(&state, &timeline);
             req.chrome = Chrome::Recording { timeline: &timeline, frame };
             req.chapter_number = beat.chapter;
-            let r = renderer.render_frame(req, None).report;
+            let mut r = renderer.render_frame(req, None).report;
+            // A listing fits in the block style too.
+            if state.panel == lab::shot::PanelMode::Code {
+                let mut req = request(&state, &timeline);
+                req.chrome = Chrome::Recording { timeline: &timeline, frame };
+                req.chapter_number = beat.chapter;
+                r.code_overflow += lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || renderer.render_frame(req, None).report.code_overflow);
+            }
             beats += 1;
             if r.min_text_pt < MIN_TEXT_PT || r.label_overlaps > 0 || r.labels_outside > 0 || r.code_overflow > 0 || r.readout_overflow > 0 || r.formula_scale.is_some_and(|s| s < 1.0) {
                 problems.push(json!({"beat": beat.id, "frame": frame, "minTextPt": r.min_text_pt, "labelOverlaps": r.label_overlaps, "labelsOutside": r.labels_outside, "codeOverflow": r.code_overflow, "readoutOverflow": r.readout_overflow, "formulaScale": r.formula_scale}));
