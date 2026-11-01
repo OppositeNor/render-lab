@@ -73,6 +73,9 @@ Write `story/outline.md`:
 - **Worth a detailed demonstration**: the points where a still or a cut would lose the idea (a lookup worked
   step by step, a vector field, a lobe, a texture and the data it holds).
 - **The tools it needs**: overlays, insets, readouts, step parameters.
+- **The audience** (the `skill-graph` skill): the chapters' direct requirements and the audience in the package's
+  `skills.toml`; a beat for every skill the story teaches, before its first use, and a one-sentence reminder for
+  each skill of the starting level.
 
 ### The shape of a story
 
@@ -343,6 +346,8 @@ these questions:
 - **Code and animation.** At each listing highlight, does the scene change to show that line's work? Which
   highlight leaves the scene as it was?
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
+- **Audience.** Against the chapter's line of `render-lab --investigation <id> skills` (the `skill-graph` skill):
+  is every skill it teaches explained, every level skill recalled, nothing the audience knows explained at length?
 - **Visibility.** In every still, is what the sentence names in view, or does a wall, an object, an inset, or
   the readout block it, or does it fall outside the frame or past the far plane?
 - **Reading the views.** For every texture or buffer view, does the narration say, when it appears, what it is,

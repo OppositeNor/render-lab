@@ -9,7 +9,7 @@ use crate::shot::{SceneType, Timeline};
 use crate::ui::{Chrome, UiReport};
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -35,36 +35,6 @@ pub struct RecordOptions {
     pub snapshot_dir: Option<PathBuf>,
     pub report: Option<PathBuf>,
     pub frame_stamp: bool,
-}
-
-/// Mermaid frames referenced by the timeline, loaded on demand as egui textures.
-pub struct ImageCache {
-    base: PathBuf,
-    images: HashMap<String, (egui::TextureHandle, egui::Vec2)>,
-}
-
-impl ImageCache {
-    pub fn new(base: &Path) -> Self {
-        ImageCache { base: base.to_path_buf(), images: HashMap::new() }
-    }
-
-    pub fn get(&mut self, ctx: &egui::Context, path: &str) -> Result<(egui::TextureId, egui::Vec2)> {
-        if !self.images.contains_key(path) {
-            let full = self.base.join(path);
-            let file = std::io::BufReader::new(std::fs::File::open(&full).with_context(|| format!("open {}", full.display()))?);
-            let image = decode_png(file).with_context(|| format!("decode {}", full.display()))?;
-            let size = egui::vec2(image.size[0] as f32, image.size[1] as f32);
-            let handle = ctx.load_texture(path, image, egui::TextureOptions::LINEAR);
-            self.images.insert(path.to_string(), (handle, size));
-        }
-        let (h, s) = &self.images[path];
-        Ok((h.id(), *s))
-    }
-
-    /// Keep only the images for the given paths (frees GPU memory).
-    pub fn retain(&mut self, keep: &[&str]) {
-        self.images.retain(|k, _| keep.contains(&k.as_str()));
-    }
 }
 
 /// An RGB or RGBA PNG as an egui image.
@@ -155,7 +125,6 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let started = std::time::Instant::now();
     let timeline = Timeline::load(&options.timeline)?;
     crate::i18n::set(timeline.locale);
-    let base = options.timeline.parent().unwrap_or(Path::new(".")).to_path_buf();
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let gpu_info = renderer::gpu_summary(&gpu);
     eprintln!("GPU: {}", gpu.info.name);
@@ -186,7 +155,6 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let device = renderer.device().clone();
     let buffers: Vec<wgpu::Buffer> = (0..RING).map(|_| renderer::readback_buffer(&device, width, height)).collect();
     let mut pending: VecDeque<(u64, usize, mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>)> = VecDeque::new();
-    let mut images = ImageCache::new(&base);
     let mut summary = RecordSummary { first_frame: first, width, height, fps: timeline.fps, ring_buffers: RING, min_text_pt: f32::INFINITY, gpu: gpu_info, output: options.output.as_ref().map(|p| p.display().to_string()), ..Default::default() };
     if let Some(dir) = &options.snapshot_dir {
         std::fs::create_dir_all(dir)?;
@@ -232,17 +200,10 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         }
         let state = timeline.state_at(f);
         let (_, beat) = timeline.beat_at(f);
-        let image = match (&beat.kind, &beat.image) {
-            (SceneType::TwoD, Some(path)) => {
-                images.retain(&[path.as_str()]);
-                Some(images.get(&renderer.egui_ctx, path)?)
-            }
-            _ => None,
-        };
         let request = FrameRequest {
             state: &state,
             scene_type: beat.kind,
-            image,
+            diagram: beat.beat_diagram(),
             beat_sources: &beat.sources,
             notices: beat.notices,
             chapter_number: beat.chapter,

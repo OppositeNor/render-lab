@@ -43,7 +43,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     }
     if demo == Demo::Cascades {
         dock.values(ui, tr("controls.cascades_group"), Some(tr("controls.cascades_hint")), "cascades");
-        dock.values(ui, tr("controls.cascades_view"), None, "cascades_view");
+        dock.values(ui, tr("controls.cascades_view"), Some(tr("hints.cascades_view")), "cascades_view");
     }
     let mut toggles: Vec<(&'static str, &str)> = vec![("lightOn", tr("controls.light_on"))];
     match demo {
@@ -121,7 +121,7 @@ fn probes(dock: &mut Dock, ui: &mut Ui) {
 /// The teapot's transmission (EnhancedPBR) and the sphere light behind it.
 fn transmission(dock: &mut Dock, ui: &mut Ui) {
     dock.values(ui, tr("controls.transmission_teapot"), Some(tr("controls.transmission_hint")), "transmission");
-    dock.values(ui, tr("common.point_light_sphere"), None, "sphere_light");
+    dock.values(ui, tr("common.point_light_sphere"), Some(tr("hints.sphere_light")), "sphere_light");
 }
 
 /// The two floor decals (decals.rs): the decal component's properties.

@@ -277,6 +277,8 @@ pub struct Home {
     /// The photosensitivity warning is up: at start, and again when a saved
     /// setting changes the language, over the page until Continue.
     pub pse: bool,
+    /// The chosen feature's skill graph is up, full screen (src/skills.rs).
+    pub skills: bool,
 }
 
 impl Home {
@@ -306,6 +308,7 @@ impl Home {
             clicked: false,
             popups: Popups::default(),
             pse: true,
+            skills: false,
         };
         if message.is_some() {
             home.settings.message = message;
@@ -351,6 +354,11 @@ impl Home {
     /// Esc: tried settings are put back; the Config page discards its edits
     /// and, like the selection page, returns to the title. False on the title.
     pub fn back(&mut self) -> bool {
+        // The full-screen skill graph closes first.
+        if self.skills {
+            self.skills = false;
+            return true;
+        }
         match self.page {
             Page::Title => false,
             Page::Config if self.settings.trial.is_some() => {
@@ -510,6 +518,9 @@ impl Home {
                 None
             }
         };
+        if self.skills && self.page == Page::Select && crate::ui::draw_skills_overlay(ctx, canvas, &crate::ui::SkillsChrome::default()) {
+            self.skills = false;
+        }
         if self.pse {
             self.draw_pse(ctx, canvas);
         }
@@ -676,6 +687,24 @@ impl Home {
                     choice = Some(Choice::Experiment { investigation: chosen });
                 }
             });
+            // What the story assumes (src/skills.rs): the level it starts from, the known
+            // skills it uses directly, and the graph full screen.
+            if let Some(graph) = crate::skills::current() {
+                let p = graph.audience();
+                let names = |list: &[usize]| list.iter().map(|&i| graph.nodes[i].title.as_str()).collect::<Vec<_>>().join(tr("skills.separator"));
+                ui.add_space(14.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(tr("home.prerequisites")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
+                    let open = ui.button(RichText::new(tr("home.skill_graph")).size(24.0)).on_hover_text(tr("home.skill_graph_hint"));
+                    home.widgets.push(("skills".into(), open.rect));
+                    if open.clicked() {
+                        home.skills = true;
+                    }
+                });
+                ui.add(egui::Label::new(RichText::new(tr_with("home.prerequisites_level", args!(skills = names(&p.level)))).color(palette::text())).wrap());
+                let known = p.known.iter().filter(|k| **k).count();
+                ui.add(egui::Label::new(RichText::new(tr_with("home.prerequisites_known", args!(count = known, skills = names(&p.carried())))).color(palette::text_dim())).wrap());
+            }
             ui.add_space(18.0);
             let width = ui.available_width();
             ui.horizontal_top(|ui| {
@@ -1307,6 +1336,21 @@ pub fn snapshot(options: &HomeOptions, page: Page, trial: bool, png: &Path) -> R
     Ok(())
 }
 
+/// The selection page offscreen with the chosen feature's skill graph full
+/// screen over it (`home --snapshot … --page select-skills`).
+pub fn snapshot_skills(options: &HomeOptions, png: &Path) -> Result<()> {
+    let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    home.page = Page::Select;
+    home.pse = false;
+    home.skills = true;
+    let mut offscreen = Offscreen::new(options, true)?;
+    offscreen.frame(&mut home, Vec::new());
+    let rgba = offscreen.capture(&mut home);
+    crate::readback::write_png(png, offscreen.size[0], offscreen.size[1], &rgba)?;
+    eprintln!("homepage skill graph: {} ({}x{}, smallest text {:.1} pt)", png.display(), offscreen.size[0], offscreen.size[1], home.min_text);
+    Ok(())
+}
+
 /// Render the homepage's first frame offscreen to a PNG: the loading page,
 /// while the title's scene loads.
 pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {
@@ -1354,6 +1398,16 @@ pub fn snapshot_experiments(options: &HomeOptions, demo: Option<&str>, compare: 
     let size = PhysicalSize::new(options.width, options.height);
     let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
     viewer::snapshot_experiments(viewer_options, demo, compare, png)
+}
+
+/// The viewer offscreen on its Prerequisites tab, the skill graph in the
+/// panel, on `demo` or the first demonstration (`viewer::snapshot_prerequisites`).
+pub fn snapshot_prerequisites(options: &HomeOptions, demo: Option<&str>, focus: bool, overlay: bool, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Explore { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_prerequisites(viewer_options, demo, focus, overlay, png)
 }
 
 /// `snapshot_viewer`, or with `paused`, its timeline paused on a 2D scene.

@@ -1058,12 +1058,13 @@ mod tests {
     #[test]
     fn beats_accept_only_3d_and_2d_scene_types() {
         use crate::shot::{SceneType, TimelineBeat};
-        let beat = |kind: &str, image: Option<&str>| -> TimelineBeat {
-            serde_json::from_value(serde_json::json!({"id": "b", "chapter": 1, "kind": kind, "startFrame": 0, "frames": 1, "headline": "", "image": image})).unwrap()
+        let beat = |kind: &str, diagram: Option<&str>| -> TimelineBeat {
+            serde_json::from_value(serde_json::json!({"id": "b", "chapter": 1, "kind": kind, "startFrame": 0, "frames": 1, "headline": "", "diagram": diagram})).unwrap()
         };
         assert_eq!(beat("3d", None).kind, SceneType::ThreeD);
-        assert!(beat("2d", Some("mermaid/b.png")).shows_image());
-        assert!(!beat("2d", None).shows_image());
+        assert!(beat("2d", Some("flowchart LR\nA --> B")).shows_diagram());
+        assert!(!beat("3d", Some("flowchart LR\nA --> B")).shows_diagram());
+        assert!(!beat("2d", None).shows_diagram());
         for kind in ["scene", "mermaid", "sources"] {
             assert!(serde_json::from_value::<SceneType>(serde_json::json!(kind)).is_err());
         }

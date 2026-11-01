@@ -67,7 +67,7 @@ pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) 
     FrameRequest {
         state,
         scene_type: SceneType::ThreeD,
-        image: None,
+        diagram: None,
         beat_sources: &[],
         notices: false,
         chapter_number: 1,

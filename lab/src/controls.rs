@@ -48,6 +48,8 @@ pub struct Dock<'a> {
     /// marks a changed value and offers to reset it.
     defaults: Option<ShotState>,
     experiment: ExperimentView,
+    /// The Prerequisites tab's chapters (src/skills.rs).
+    skills: crate::ui::SkillsChrome,
 }
 
 pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
@@ -89,6 +91,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
                     ui.horizontal_top(|ui| match tab {
                         DockTab::Code => dock.code(ui),
                         DockTab::Experiments => dock.experiment_values(ui),
+                        DockTab::Prerequisites => dock.prerequisites(ui),
                         _ => investigation::current().dock(&mut dock, ui),
                     });
                 });
@@ -150,16 +153,20 @@ impl<'a> Dock<'a> {
             widgets: Vec::new(),
             defaults: None,
             experiment: viewer.experiment.clone(),
+            skills: viewer.skills.clone(),
         }
     }
 }
 
 impl Dock<'_> {
     fn buttons(&mut self, ui: &mut Ui, tab: DockTab) {
-        ui.horizontal(|ui| {
+        // The tabs wrap within the column.
+        ui.horizontal_wrapped(|ui| {
+            ui.set_max_width(BUTTONS);
             let captions = self.timeline.then(|| (DockTab::Captions, tr("controls.captions")));
+            let prerequisites = crate::skills::current().map(|_| (DockTab::Prerequisites, tr("controls.prerequisites")));
             let tabs = [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Experiments, tr("controls.experiments")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))];
-            for (value, label) in tabs.into_iter().chain(captions) {
+            for (value, label) in tabs.into_iter().chain(prerequisites).chain(captions) {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
                 }
@@ -191,6 +198,85 @@ impl Dock<'_> {
             .inner;
         if r.changed || r.committed {
             self.actions.push(ViewerAction::SetNarration(narration, r.committed));
+        }
+    }
+
+    /// The Prerequisites tab (src/skills.rs): for the context's chapters,
+    /// the level the investigation's audience starts from, what it should
+    /// know (by area, the nearest the level first; a mark on what the
+    /// chapters use directly), and what they teach beyond the level. A click
+    /// on a skill selects it in the skills panel.
+    fn prerequisites(&mut self, ui: &mut Ui) {
+        let Some(graph) = crate::skills::current() else {
+            ui.label(RichText::new(tr("skills.none")).color(palette::text_dim()));
+            return;
+        };
+        let chapters = crate::ui::skill_chapters(graph, &self.skills);
+        let p = graph.audience();
+        let context = graph.context(&chapters);
+        let carried = p.carried();
+        let ranks = graph.ranks();
+        let heading = if chapters.is_empty() { tr("skills.for_all").to_string() } else { tr_with("skills.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+        // A skill: its title (a click selects it in the graph) and its summary under it.
+        let skill = |d: &mut Self, ui: &mut Ui, i: usize, color: Color32| {
+            let node = &graph.nodes[i];
+            let mark = if carried.contains(&i) { " ↗" } else { "" };
+            let r = ui.selectable_label(false, RichText::new(format!("{}{mark}", node.title)).color(color));
+            let r = if mark.is_empty() { r } else { r.on_hover_text(tr("prerequisites.carried_hint")) };
+            if r.clicked() {
+                crate::ui::focus_skill(ui.ctx(), i);
+                if d.state.panel != PanelMode::Skills {
+                    d.actions.push(ViewerAction::SetPanel(PanelMode::Skills));
+                }
+            }
+            ui.add(egui::Label::new(RichText::new(&node.summary).size(20.0).color(palette::text_dim())).wrap());
+            ui.add_space(6.0);
+        };
+        // Each group a column of this width, its summaries wrapped in it.
+        const COLUMN: f32 = 360.0;
+        let level: Vec<usize> = p.level.iter().copied().filter(|&i| context[i]).collect();
+        self.group(ui, tr("prerequisites.level"), Some(&format!("{heading}\n\n{}", tr("prerequisites.level_hint"))), |d, ui| {
+            ui.set_width(COLUMN);
+            let full = ui.button(tr("skills.full_screen")).on_hover_text(tr("prerequisites.full_screen_hint"));
+            if full.clicked() {
+                d.actions.push(ViewerAction::SetSkillsOverlay(true));
+            }
+            ui.add_space(6.0);
+            for &i in &level {
+                skill(d, ui, i, palette::accent());
+            }
+        });
+        // What the audience should know, by area, the nearest the level first.
+        for area in crate::skills::AREAS {
+            let mut known: Vec<usize> = (0..graph.nodes.len()).filter(|&i| p.is_known(i) && context[i] && graph.nodes[i].area == *area).collect();
+            if known.is_empty() {
+                continue;
+            }
+            known.sort_by_key(|&i| std::cmp::Reverse(ranks[i]));
+            let title = match *area {
+                "gpu" => tr("skills.area.gpu"),
+                "rt" => tr("skills.area.rt"),
+                "geo" => tr("skills.area.geo"),
+                "cg" => tr("skills.area.cg"),
+                "light" => tr("skills.area.light"),
+                _ => tr("skills.area.gi"),
+            };
+            let title = tr_with("prerequisites.known", args!(area = title));
+            self.group(ui, &title, Some(tr("prerequisites.known_hint")), |d, ui| {
+                ui.set_width(COLUMN);
+                for &i in &known {
+                    skill(d, ui, i, palette::code_string());
+                }
+            });
+        }
+        let teach: Vec<usize> = p.teach.iter().copied().filter(|&i| context[i]).collect();
+        if !teach.is_empty() {
+            self.group(ui, tr("prerequisites.teach"), Some(tr("prerequisites.teach_hint")), |d, ui| {
+                ui.set_width(COLUMN);
+                for &i in &teach {
+                    skill(d, ui, i, palette::code_number());
+                }
+            });
         }
     }
 
@@ -248,7 +334,7 @@ impl Dock<'_> {
             RecordRef::None => (0, 0),
         };
         let (name, count, make) = kinds[kind];
-        self.group(ui, tr("controls.record"), None, |d, ui| {
+        self.group(ui, tr("controls.record"), Some(tr("controls.record_hint")), |d, ui| {
             egui::ComboBox::from_id_salt("struct").selected_text(name).width(250.0).show_ui(ui, |ui| {
                 for (other, _, make) in kinds {
                     if ui.selectable_label(other == name, other).clicked() && other != name {
@@ -260,7 +346,7 @@ impl Dock<'_> {
                 d.rows(ui, "record", |d, ui| d.index(ui, "index", Some(index), count, make));
             }
         });
-        self.group(ui, tr("controls.struct_panel"), None, |d, ui| {
+        self.group(ui, tr("controls.struct_panel"), Some(tr("controls.struct_panel_hint")), |d, ui| {
             for (mode, label) in [(PanelMode::Declaration, tr("controls.declaration")), (PanelMode::Values, tr("controls.values")), (PanelMode::Memory, tr("controls.memory"))] {
                 if ui.selectable_label(d.state.panel == mode, label).clicked() {
                     d.actions.push(ViewerAction::SetPanel(mode));
@@ -269,7 +355,7 @@ impl Dock<'_> {
         });
         let fields: Vec<String> = statics.layouts.get(name).map(|s| s.fields.iter().map(|f| f.name.clone()).collect()).unwrap_or_default();
         let none = tr("controls.none");
-        self.group(ui, tr("controls.highlight"), None, |d, ui| {
+        self.group(ui, tr("controls.highlight"), Some(tr("controls.highlight_hint")), |d, ui| {
             let current = d.state.highlight.first().cloned();
             egui::ComboBox::from_id_salt("highlight").selected_text(current.clone().unwrap_or_else(|| none.to_string())).width(250.0).show_ui(ui, |ui| {
                 if ui.selectable_label(current.is_none(), none).clicked() {
@@ -321,6 +407,14 @@ impl Dock<'_> {
     /// The options of the choice `key` (src/values.rs), without its name: a
     /// combo box for more than three, else one selectable label each.
     pub fn choice(&mut self, ui: &mut Ui, key: &str) {
+        ui.horizontal(|ui| {
+            self.choice_options(ui, key);
+            self.help_mark(ui, key);
+        });
+    }
+
+    /// `choice` without its "?" (a value row has one after its name).
+    fn choice_options(&mut self, ui: &mut Ui, key: &str) {
         let entry = values::entry(key).unwrap_or_else(|| panic!("no value `{key}`"));
         let choices = entry.choices.unwrap_or_else(|| panic!("`{key}` is not a choice"));
         let count = choices.options.len();
@@ -356,7 +450,7 @@ impl Dock<'_> {
                 label
             }).inner;
             self.describe(label, entry);
-            ui.horizontal(|ui| self.choice(ui, entry.key));
+            ui.horizontal(|ui| self.choice_options(ui, entry.key));
             self.reset_cell(ui, entry.key);
             ui.end_row();
             return;
@@ -399,7 +493,7 @@ impl Dock<'_> {
 
     /// Checkboxes for overlay parameters (0 hidden, 1 shown), four per column.
     pub fn show(&mut self, ui: &mut Ui, toggles: &[(&'static str, &str)]) {
-        self.group(ui, tr("controls.show"), None, |d, ui| {
+        self.group(ui, tr("controls.show"), Some(tr("controls.show_hint")), |d, ui| {
             ui.horizontal_top(|ui| {
                 for (i, column) in toggles.chunks(4).enumerate() {
                     if i > 0 {
@@ -432,10 +526,14 @@ impl Dock<'_> {
 
     pub fn group(&mut self, ui: &mut Ui, title: &str, hint: Option<&str>, add: impl FnOnce(&mut Self, &mut Ui)) {
         ui.vertical(|ui| {
-            let heading = ui.label(RichText::new(title).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
-            if let Some(hint) = hint {
-                heading.on_hover_text(hint);
-            }
+            // A group that explains itself has a "?" after its title, as each value has.
+            ui.horizontal(|ui| {
+                let heading = ui.label(RichText::new(title).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
+                if let Some(hint) = hint.filter(|h| !h.is_empty()) {
+                    heading.on_hover_text(hint);
+                    hint_mark(ui, hint);
+                }
+            });
             add(self, ui);
         });
         ui.add_space(22.0);
@@ -504,6 +602,12 @@ impl Dock<'_> {
     }
 }
 
+/// A "?" that shows `text` when hovered.
+fn hint_mark(ui: &mut Ui, text: &str) {
+    let mark = RichText::new(" ? ").monospace().color(palette::text_dim()).background_color(palette::background());
+    ui.add(egui::Label::new(mark).sense(egui::Sense::hover())).on_hover_text(text);
+}
+
 /// A number for a readout: three significant decimals, "∞" for an infinite one.
 fn readout(x: f64) -> String {
     if x.is_infinite() {
@@ -557,8 +661,7 @@ impl Dock<'_> {
         if let Some(engine) = entry.engine {
             hint.push_str(&format!("\n{}", tr_with("experiments.engine_property", args!(name = engine))));
         }
-        let mark = RichText::new(" ? ").monospace().color(palette::text_dim()).background_color(palette::background());
-        ui.add(egui::Label::new(mark).sense(egui::Sense::hover())).on_hover_text(hint);
+        hint_mark(ui, &hint);
     }
 
     /// In the Experiments tab, a value's name explains it on hover too: its key, what it does, and the engine property it mirrors.
@@ -676,7 +779,7 @@ impl Dock<'_> {
                 ui.label(RichText::new(format!("p95 {:.2}", view.frame_ms.1)).color(palette::text_faint()));
                 ui.end_row();
                 for (pass, mean, p95) in &view.timings {
-                    ui.label(RichText::new(pass).color(palette::text_dim()));
+                    ui.label(RichText::new(ui::pass_label(pass)).color(palette::text_dim()));
                     ui.label(RichText::new(format!("{mean:.3} ms")).color(palette::text()));
                     ui.label(RichText::new(format!("p95 {p95:.3}")).color(palette::text_faint()));
                     ui.end_row();

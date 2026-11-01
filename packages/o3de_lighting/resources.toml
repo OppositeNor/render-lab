@@ -131,6 +131,14 @@ kind = "file"
 source = "source-index.json"
 license = "MIT (O3DE, THIRD_PARTY.md)"
 
+# Its chapters, what each needs from the skill graph, and its audience
+# (lab/src/skills.rs; the viewer's Prerequisites tab).
+[[resource]]
+id = "skills"
+kind = "file"
+source = "skills.toml"
+license = "MIT"
+
 [[resource]]
 id = "listing/forward-pass"
 kind = "file"
@@ -400,21 +408,6 @@ built = true
 id = "timeline/zh-cn"
 kind = "file"
 source = "build/timelines/zh-CN/timeline.json"
-license = "MIT"
-built = true
-
-# The diagram frames each timeline names beside it.
-[[resource]]
-id = "timeline-frames/en"
-kind = "directory"
-source = "build/timelines/en/mermaid"
-license = "MIT"
-built = true
-
-[[resource]]
-id = "timeline-frames/zh-cn"
-kind = "directory"
-source = "build/timelines/zh-CN/mermaid"
 license = "MIT"
 built = true
 

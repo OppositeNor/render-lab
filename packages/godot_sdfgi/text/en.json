@@ -251,5 +251,12 @@
   "help.giReadSkyLight": "sdfgi_read_sky_light: rays that leave the cascades bring back the sky; when off they bring back nothing.",
   "help.sdfgiMix": "How much of SDFGI's ambient and reflection the room shows (0: direct light only).",
   "help.sdfgiEnergy": "The environment's sdfgi_energy (SDFGIData.energy), scaling SDFGI's light.",
-  "help.normalBias": "The environment's sdfgi_normal_bias, in cells."
+  "help.normalBias": "The environment's sdfgi_normal_bias, in cells.",
+  "hints.gi": "The scene's SDFGI: how much of its light the room shows, and the environment's and project's SDFGI settings.",
+  "hints.cascades": "The cascades: the nested grids SDFGI keeps around the camera, how they follow it as it walks, and which are drawn.",
+  "hints.light": "The light SDFGI injects into its cells: the light's position, the passes run, and the worked cell.",
+  "hints.voxels": "The voxelization: how the scene becomes solid cells in each cascade, pass by pass, and a cut through it.",
+  "hints.field": "The signed distance field built from the voxels: its slice, the flood's steps, and the occlusion around it.",
+  "hints.probes": "The probes: where they sit, the rays they trace each frame, and the history their maps are averaged over.",
+  "hints.pixel": "A pixel of the screen pass: which probes it reads, how they blend, and what it adds to the image."
 }

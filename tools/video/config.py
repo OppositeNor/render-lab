@@ -47,14 +47,12 @@ def env_path(name: str, default: Path) -> Path:
 
 @dataclass(frozen=True)
 class Environment:
-    """The Conda prefix (python, ffmpeg, node), the voice, the Node packages,
-    the CUDA packages for GPU narration, and Puppeteer's browser cache. Each can
-    point at an existing install through its environment variable."""
+    """The Conda prefix (python, ffmpeg), the voice, and the CUDA packages for
+    GPU narration. Each can point at an existing install through its
+    environment variable."""
     prefix: Path = field(default_factory=lambda: env_path('RENDER_LAB_VIDEO_ENV', LAB / '.cache' / 'video-env'))
     voices: Path = field(default_factory=lambda: env_path('RENDER_LAB_VOICES', LAB / '.cache' / 'video-voices'))
-    node_modules: Path = field(default_factory=lambda: env_path('RENDER_LAB_NODE_MODULES', TOOLS / 'node_modules'))
     tts_gpu: Path = field(default_factory=lambda: env_path('RENDER_LAB_TTS_GPU', LAB / '.cache' / 'video-tts-gpu'))
-    puppeteer_cache: Path = field(default_factory=lambda: env_path('RENDER_LAB_PUPPETEER_CACHE', LAB / '.cache' / 'puppeteer'))
 
     @property
     def python(self) -> Path:
@@ -67,10 +65,6 @@ class Environment:
     @property
     def ffprobe(self) -> Path:
         return self.prefix / 'bin' / 'ffprobe'
-
-    @property
-    def node(self) -> Path:
-        return self.prefix / 'bin' / 'node'
 
 
 @dataclass
@@ -117,7 +111,7 @@ class Config:
 
     @property
     def diagrams(self) -> Path:
-        """The edition's Mermaid sources (one directory, or one per language)."""
+        """The edition's diagram sources (one directory, or one per language)."""
         value = self.spec['diagrams']
         return self.path(value if isinstance(value, str) else value[self.lang])
 

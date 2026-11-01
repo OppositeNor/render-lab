@@ -20,6 +20,14 @@ kind = "file"
 source = "source-index.json"
 license = "MIT (Godot, THIRD_PARTY.md)"
 
+# Its chapters, what each needs from the skill graph, and its audience
+# (lab/src/skills.rs; the viewer's Prerequisites tab).
+[[resource]]
+id = "skills"
+kind = "file"
+source = "skills.toml"
+license = "MIT"
+
 # The demonstrations (lab/src/demo.rs): the order, one file per
 # demonstration, and the presets they share. Their values are declared in
 # src/godot/sdfgi/values.rs.
@@ -232,21 +240,6 @@ built = true
 id = "timeline/zh-cn"
 kind = "file"
 source = "build/timelines/zh-CN/timeline.json"
-license = "MIT"
-built = true
-
-# The diagram frames each timeline names beside it.
-[[resource]]
-id = "timeline-frames/en"
-kind = "directory"
-source = "build/timelines/en/mermaid"
-license = "MIT"
-built = true
-
-[[resource]]
-id = "timeline-frames/zh-cn"
-kind = "directory"
-source = "build/timelines/zh-CN/mermaid"
 license = "MIT"
 built = true
 

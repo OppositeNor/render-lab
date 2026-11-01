@@ -1,6 +1,6 @@
 //! Frame composition with egui: header, the struct panel, 3D labels,
-//! insets, captions or the viewer's source panel, source cards, Mermaid
-//! frames, and the footer. Every text call goes through `Ink`, which records
+//! insets, captions or the viewer's source panel, source cards, diagrams
+//! (src/diagram.rs), and the footer. Every text call goes through `Ink`, which records
 //! the smallest size used so the recorder can prove nothing is below 24 px
 //! at 1080p.
 
@@ -261,6 +261,8 @@ pub enum ViewerAction {
     SaveLayout,
     /// The whole layout back to its defaults (and written).
     ResetLayout,
+    /// Open or close the skill graph full screen (src/skills.rs).
+    SetSkillsOverlay(bool),
 }
 
 /// What the viewer's dock shows.
@@ -275,6 +277,20 @@ pub enum DockTab {
     Captions,
     /// Every value of the investigation, and the experiment's tools (src/experiment.rs).
     Experiments,
+    /// What the audience should know before the chapter, from the skill
+    /// graph (src/skills.rs); the panel shows the graph.
+    Prerequisites,
+}
+
+/// The skill graph's context in the viewer (src/skills.rs): the chapters the
+/// Prerequisites tab and the skills panel are about (none, or none the graph
+/// declares: the whole investigation), and a skill to focus once (a snapshot's).
+#[derive(Clone, Debug, Default)]
+pub struct SkillsChrome {
+    pub chapters: Vec<u32>,
+    pub focus: Option<String>,
+    /// The skill graph full screen, over the viewer.
+    pub overlay: bool,
 }
 
 /// What the Experiments tab shows of the viewer's experiment (src/experiment.rs).
@@ -330,12 +346,6 @@ impl DiagramView {
     }
 }
 
-/// The rectangle a picture of `size` fits in `area`, centred.
-pub fn fit_rect(area: Rect, size: Vec2) -> Rect {
-    let s = (area.width() / size.x).min(area.height() / size.y);
-    Rect::from_center_size(area.center(), size * s)
-}
-
 pub struct ViewerChrome {
     pub playing: bool,
     pub timeline: Option<(u64, u64)>,
@@ -368,6 +378,8 @@ pub struct ViewerChrome {
     pub diagram: Option<DiagramView>,
     /// The Experiments tab's view of the experiment.
     pub experiment: ExperimentView,
+    /// The Prerequisites tab's and the skills panel's chapters.
+    pub skills: SkillsChrome,
 }
 
 pub enum Chrome<'a> {
@@ -383,7 +395,8 @@ pub struct UiInput<'a> {
     /// The GPU textures an inset's picture can show (packages/rlstd/src/inset.rs).
     pub textures: &'a crate::utility::inset::Textures,
     pub scene_type: SceneType,
-    pub image: Option<(egui::TextureId, Vec2)>,
+    /// The diagram a 2D scene shows (src/diagram.rs).
+    pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices, not the sources card.
     pub notices: bool,
@@ -495,7 +508,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     let scene_beat = input.scene_type == SceneType::ThreeD;
     // The Experiments tab puts its values in the panel's place.
     // The performance panel, when asked for, takes the panel's place over the values.
-    let value_panel = scene_beat && input.state.panel != PanelMode::Performance && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
+    let value_panel = scene_beat && !matches!(input.state.panel, PanelMode::Performance | PanelMode::Skills) && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -554,34 +567,38 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
                 }
                 draw_labels(&ink, input, content, &obstacles, &mut report);
-                if !value_panel {
+                if input.state.panel == PanelMode::Skills {
+                    let skills = match &chrome {
+                        Chrome::Viewer(v) => v.skills.clone(),
+                        Chrome::Recording { .. } => SkillsChrome::default(),
+                    };
+                    if draw_skills_panel(ctx, &ink, l.panel, &skills) {
+                        if let Chrome::Viewer(v) = &mut chrome {
+                            v.actions.push(ViewerAction::SetSkillsOverlay(true));
+                        }
+                    }
+                } else if !value_panel {
                     draw_panel(&ink, input, content, &mut report);
                 }
             } else if let Some(key) = &input.state.callout {
                 draw_callout(&ink, l, key, &[]);
             }
         }
-        // A 2D scene: the beat's image, its sources card, or the notices.
-        SceneType::TwoD if input.image.is_none() && input.notices => draw_notices_card(&ink, input),
-        SceneType::TwoD if input.image.is_none() => draw_source_card(&ink, input),
+        // A 2D scene: the beat's diagram, its sources card, or the notices.
+        SceneType::TwoD if input.diagram.is_none() && input.notices => draw_notices_card(&ink, input),
+        SceneType::TwoD if input.diagram.is_none() => draw_source_card(&ink, input),
         SceneType::TwoD => {
-            if let Some((texture, size)) = input.image {
+            if let Some(diagram) = input.diagram {
                 let area = l.content;
-                let fit = fit_rect(area, size);
                 let view = match &chrome {
                     Chrome::Viewer(v) => v.diagram,
                     Chrome::Recording { .. } => None,
                 };
                 match view {
-                    None => {
-                        painter.image(texture, fit, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-                    }
+                    None => crate::diagram::draw(&ink, area, None, diagram),
                     Some(v) => {
                         // The diagram panel of a paused timeline: zoomed and panned, clipped to the panel.
-                        let clipped = painter.with_clip_rect(area);
-                        clipped.rect_filled(area, CornerRadius::ZERO, Color32::from_rgb(7, 18, 31));
-                        clipped.image(texture, v.rect(fit), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-                        painter.rect_stroke(area, CornerRadius::same(6), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+                        crate::diagram::draw(&ink, area, Some(v.rect(area)), diagram);
                         let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{:.1}", v.zoom)));
                         let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
                         let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
@@ -619,8 +636,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             } else {
                 draw_footer(&ink, l, None);
             }
+            // The skill graph full screen, over everything but the popups.
+            if viewer.skills.overlay && draw_skills_overlay(ctx, l.canvas, &viewer.skills.clone()) {
+                viewer.actions.push(ViewerAction::SetSkillsOverlay(false));
+            }
             viewer.popups.draw(ctx, l.canvas);
-            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
+            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input() || viewer.skills.overlay;
         }
     }
     let _ = scene_beat;
@@ -736,7 +757,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
 /// writes the layout, and a double-click puts that size back to its default.
 fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let l = &input.layout;
-    let code = input.state.panel == crate::shot::PanelMode::Code;
+    let code = matches!(input.state.panel, PanelMode::Code | PanelMode::Skills);
     let mut handles: Vec<(LayoutPart, Rect, egui::CursorIcon)> = Vec::new();
     // The panel's edge, when the panel shows beside the viewport.
     if l.viewport.max.x + 1.0 < l.panel.min.x {
@@ -1034,7 +1055,7 @@ fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, highlight: &[
             painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, row)), CornerRadius::same(5), palette::highlight_row());
         }
         let text_color = if lit || !any_lit { palette::text() } else { palette::text_faint() };
-        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(name, name_width, 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, text_color);
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(pass_label(name), name_width, 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, text_color);
         let track = Rect::from_min_size(pos2(bar_x, y + 9.0), vec2(bar_width, 11.0));
         painter.rect_filled(track, CornerRadius::same(3), palette::background());
         let share = (*mean_ms / total).clamp(0.0, 1.0) as f32;
@@ -1051,6 +1072,20 @@ fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, highlight: &[
     }
 }
 
+/// A pass's name on screen: the lab's own passes (src/renderer.rs) in the
+/// interface's language; an investigation's chain passes by their entry point.
+/// A story's `highlight` names them by `name`, as measured.
+pub fn pass_label(name: &str) -> &str {
+    match name {
+        "depth views" => tr("perf.pass_depth_views"),
+        "depth pre-pass" => tr("perf.pass_prepass"),
+        "scene pass" => tr("perf.pass_scene"),
+        "overlay" => tr("perf.pass_overlay"),
+        "composite" => tr("perf.pass_composite"),
+        other => other,
+    }
+}
+
 fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
     let n = colors.len().max(1) as f32;
     for (i, c) in colors.iter().enumerate() {
@@ -1058,6 +1093,266 @@ fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
         let x1 = rect.min.x + rect.width() * (i + 1) as f32 / n;
         painter.rect_filled(Rect::from_min_max(pos2(x0, rect.min.y), pos2(x1, rect.max.y)), CornerRadius::ZERO, *c);
     }
+}
+
+/// The skills panel's view, kept in egui's memory between frames: the scale
+/// (points per graph unit; 0 until fitted), the graph point at the panel's
+/// centre, the selected skill, and the chapters it was last fitted to.
+#[derive(Clone, Debug, Default)]
+struct SkillsView {
+    scale: f32,
+    center: Vec2,
+    selected: Option<usize>,
+    fitted: Option<Vec<u32>>,
+    /// The chrome's focus last applied (`SkillsChrome::focus`).
+    focused: Option<String>,
+    /// A skill to centre on the next frame (`focus_skill`).
+    centre_on: Option<usize>,
+}
+
+/// Where the skill graph is drawn: the side panel, or full screen over everything.
+#[derive(Clone, Copy, PartialEq)]
+enum SkillsPlace {
+    Panel,
+    Overlay,
+}
+
+impl SkillsPlace {
+    fn view_id(self) -> egui::Id {
+        egui::Id::unique(if self == SkillsPlace::Panel { "skills-panel-view" } else { "skills-overlay-view" })
+    }
+
+    /// The order of its input areas: the overlay's above everything else.
+    fn order(self) -> egui::Order {
+        if self == SkillsPlace::Panel { egui::Order::Background } else { egui::Order::Tooltip }
+    }
+}
+
+/// Select skill `node` in the skills panel and the full-screen graph, and
+/// centre it there (a click in the Prerequisites tab).
+pub fn focus_skill(ctx: &egui::Context, node: usize) {
+    ctx.data_mut(|d| {
+        for place in [SkillsPlace::Panel, SkillsPlace::Overlay] {
+            let view = d.get_temp_mut_or_default::<SkillsView>(place.view_id());
+            view.selected = Some(node);
+            view.centre_on = Some(node);
+        }
+    });
+}
+
+/// The skill graph full screen, over the viewer or the homepage, for
+/// `chrome`'s chapters (none: the whole story). Returns true when it is
+/// closed (its button; Esc is the caller's).
+pub fn draw_skills_overlay(ctx: &egui::Context, canvas: Vec2, chrome: &SkillsChrome) -> bool {
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("skills-overlay")));
+    let ink = Ink::new(&painter);
+    let screen = Rect::from_min_size(Pos2::ZERO, canvas);
+    painter.rect_filled(screen, CornerRadius::ZERO, palette::theme().dim);
+    // What is under the overlay takes no pointer input.
+    egui::Area::new(egui::Id::unique("skills-overlay-block")).fixed_pos(Pos2::ZERO).order(egui::Order::Foreground).fade_in(false).show(ctx, |ui| {
+        ui.allocate_rect(screen, egui::Sense::click_and_drag());
+    });
+    draw_skill_graph(ctx, &ink, screen.shrink(40.0), chrome, SkillsPlace::Overlay)
+}
+
+/// A skill's role for the audience, as the panel colours it.
+fn skill_color(p: &crate::skills::Partition, i: usize) -> Color32 {
+    if p.is_known(i) {
+        palette::code_string()
+    } else if p.level.contains(&i) {
+        palette::accent()
+    } else if p.teach.contains(&i) {
+        palette::code_number()
+    } else {
+        palette::text_faint()
+    }
+}
+
+/// The chapters the viewer's context names that the graph declares (none: every chapter).
+pub fn skill_chapters(graph: &crate::skills::Graph, chrome: &SkillsChrome) -> Vec<u32> {
+    chrome.chapters.iter().copied().filter(|c| graph.chapters.iter().any(|g| g.number == *c)).collect()
+}
+
+/// The skill graph in the panel (`PanelMode::Skills`). Returns true when
+/// its full-screen button is pressed.
+fn draw_skills_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsChrome) -> bool {
+    draw_skill_graph(ctx, ink, rect, chrome, SkillsPlace::Panel)
+}
+
+/// The skill graph in `rect`: every skill, coloured by what the
+/// investigation's audience knows (src/skills.rs), the context's chapters at
+/// full strength; dragged to pan, scrolled to zoom, a click selects a skill
+/// (its card below), a double click fits the context again. Its button at
+/// the top right (full screen in the panel, close in the overlay) returns
+/// true when pressed. Node titles follow the zoom, so they are drawn with
+/// the painter, not `Ink` (whose smallest-size record is the recorder's check).
+fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsChrome, place: SkillsPlace) -> bool {
+    let painter = ink.painter;
+    painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    let x = rect.min.x + 22.0;
+    let mut y = rect.min.y + 16.0;
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("skills.title"), 30.0, bold(), palette::text());
+    let label = if place == SkillsPlace::Panel { tr("skills.full_screen") } else { tr("skills.close") };
+    let button_size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
+    let mut pressed = false;
+    let button_order = if place == SkillsPlace::Panel { egui::Order::Middle } else { egui::Order::Tooltip };
+    egui::Area::new(egui::Id::unique(if place == SkillsPlace::Panel { "skills-panel-button" } else { "skills-overlay-button" })).fixed_pos(pos2(rect.max.x - 16.0 - button_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
+        pressed = ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(button_size)).clicked();
+    });
+    y += 42.0;
+    // The legend: one swatch per role.
+    let mut lx = x;
+    for (label, color) in [(tr("skills.known"), palette::code_string()), (tr("skills.level"), palette::accent()), (tr("skills.teach"), palette::code_number()), (tr("skills.outside"), palette::text_faint())] {
+        painter.rect_filled(Rect::from_min_size(pos2(lx, y + 6.0), vec2(16.0, 16.0)), CornerRadius::same(3), color);
+        let r = ink.text(pos2(lx + 24.0, y), Align2::LEFT_TOP, label, 24.0, FontFamily::Proportional, palette::text_dim());
+        lx = r.max.x + 22.0;
+    }
+    y += 34.0;
+    let measure = |t: &str| ink.measure(t, 20.0, FontFamily::Proportional).x / 20.0 * 0.5;
+    let Some((graph, layout)) = crate::skills::current_layout(&measure) else {
+        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("skills.none"), 24.0, FontFamily::Proportional, palette::text_dim());
+        return pressed;
+    };
+    let chapters = skill_chapters(graph, chrome);
+    let p = graph.audience();
+    let context = graph.context(&chapters);
+    let card_height = 150.0;
+    let area = Rect::from_min_max(pos2(rect.min.x + 8.0, y), pos2(rect.max.x - 8.0, rect.max.y - card_height - 8.0));
+    let hint = ink.fit_right(tr("skills.hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
+    ink.text(pos2(x, area.max.y - 4.0), Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_faint());
+    let graph_area = Rect::from_min_max(area.min, pos2(area.max.x, area.max.y - 34.0));
+    let id = place.view_id();
+    let mut view = ctx.data(|d| d.get_temp::<SkillsView>(id)).unwrap_or_default();
+    // The bounding box of a set of nodes, in graph units.
+    let bounds = |nodes: &mut dyn Iterator<Item = usize>| -> Option<Rect> {
+        nodes.map(|i| Rect::from_center_size(pos2(layout.positions[i].0, layout.positions[i].1), vec2(layout.widths[i], 1.0))).reduce(|a, b| a.union(b))
+    };
+    let fit = |b: Rect, view: &mut SkillsView| {
+        let b = b.expand(1.0);
+        // Fitted, but no smaller than titles stay readable at (the rest is a drag away).
+        view.scale = (graph_area.width() / b.width()).min(graph_area.height() / b.height()).clamp(34.0, 60.0);
+        view.center = b.center().to_vec2();
+    };
+    let whole = bounds(&mut (0..graph.nodes.len())).unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)));
+    let min_scale = ((graph_area.width() / (whole.width() + 2.0)).min(graph_area.height() / (whole.height() + 2.0)) * 0.8).min(3.0);
+    if let Some(key) = &chrome.focus {
+        if view.focused.as_ref() != Some(key) {
+            if let Some(node) = graph.find(key) {
+                view.selected = Some(node);
+                view.center = vec2(layout.positions[node].0, layout.positions[node].1);
+                view.scale = 36.0;
+            }
+            view.focused = Some(key.clone());
+            view.fitted = Some(chapters.clone());
+        }
+    }
+    if view.scale == 0.0 || view.fitted.as_ref() != Some(&chapters) {
+        let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
+        fit(b, &mut view);
+        view.fitted = Some(chapters.clone());
+    }
+    // A skill focused from the dock: centred, at a readable scale.
+    if let Some(node) = view.centre_on.take().filter(|&n| n < graph.nodes.len()) {
+        view.center = vec2(layout.positions[node].0, layout.positions[node].1);
+        view.scale = view.scale.max(36.0);
+    }
+    // Input: an interactive area over the graph (egui then has the pointer, not the camera).
+    let to_screen = |view: &SkillsView, g: (f32, f32)| graph_area.center() + (vec2(g.0, g.1) - view.center) * view.scale;
+    let mut hovered = None;
+    let input_id = egui::Id::unique(if place == SkillsPlace::Panel { "skills-panel-input" } else { "skills-overlay-input" });
+    egui::Area::new(input_id).fixed_pos(graph_area.min).order(place.order()).fade_in(false).show(ctx, |ui| {
+        let response = ui.allocate_rect(Rect::from_min_size(graph_area.min, graph_area.size()), egui::Sense::click_and_drag());
+        if response.dragged() {
+            view.center -= response.drag_delta() / view.scale;
+        }
+        let node_at = |view: &SkillsView, at: Pos2| (0..graph.nodes.len()).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
+        if let Some(at) = response.hover_pos() {
+            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+            if scroll != 0.0 {
+                // Zoom about the point under the pointer, which stays where it is.
+                let under = view.center + (at - graph_area.center()) / view.scale;
+                view.scale = (view.scale * (scroll / 120.0).exp()).clamp(min_scale, 80.0);
+                view.center = under - (at - graph_area.center()) / view.scale;
+            }
+            hovered = node_at(&view, at);
+        }
+        if response.double_clicked() {
+            let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
+            fit(b, &mut view);
+        } else if response.clicked() {
+            view.selected = response.interact_pointer_pos().and_then(|at| node_at(&view, at));
+        }
+        if let Some(i) = hovered {
+            response.on_hover_ui_at_pointer(|ui| {
+                ui.set_max_width(420.0);
+                ui.label(egui::RichText::new(&graph.nodes[i].title).strong().color(skill_color(&p, i)));
+                ui.label(&graph.nodes[i].summary);
+            });
+        }
+    });
+    view.center = view.center.clamp(whole.min.to_vec2(), whole.max.to_vec2());
+    ctx.data_mut(|d| d.insert_temp(id, view.clone()));
+    // The selected skill's requirements and what requires it, lit.
+    let requires = graph.requires();
+    let lit: Vec<bool> = match view.selected {
+        Some(s) => {
+            let below = crate::skills::context(&requires, &[s]);
+            (0..graph.nodes.len()).map(|i| below[i] || crate::skills::context(&requires, &[i])[s]).collect()
+        }
+        None => vec![false; graph.nodes.len()],
+    };
+    let clipped = painter.with_clip_rect(graph_area);
+    let fade = |c: Color32, strong: bool| if strong { c } else { c.gamma_multiply(0.3) };
+    for (r, i, bends) in &layout.bends {
+        let (r, i) = (*r, *i);
+        let from = to_screen(&view, layout.positions[r]) + vec2(layout.widths[r] / 2.0 * view.scale, 0.0);
+        let to = to_screen(&view, layout.positions[i]) - vec2(layout.widths[i] / 2.0 * view.scale, 0.0);
+        let mut points = vec![from];
+        points.extend(bends.iter().map(|&b| to_screen(&view, b)));
+        points.push(to);
+        let on_path = view.selected.is_some() && lit[r] && lit[i];
+        let color = if on_path { palette::SELECTED } else { fade(palette::border(), context[r] && context[i]) };
+        let width = if on_path { 2.5 } else { 1.2 };
+        clipped.add(egui::Shape::line(points, Stroke::new(width, color)));
+        let tip = (view.scale * 0.25).clamp(3.0, 9.0);
+        clipped.add(egui::Shape::convex_polygon(vec![to, to - vec2(tip * 1.6, tip * 0.8), to - vec2(tip * 1.6, -tip * 0.8)], color, Stroke::NONE));
+    }
+    let font = view.scale * 0.5;
+    for i in 0..graph.nodes.len() {
+        let strong = context[i] && (view.selected.is_none() || lit[i]);
+        let color = fade(skill_color(&p, i), strong);
+        let box_rect = Rect::from_center_size(to_screen(&view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale);
+        if !box_rect.intersects(graph_area) {
+            continue;
+        }
+        clipped.rect_filled(box_rect, CornerRadius::same((view.scale * 0.2) as u8), palette::panel_raised());
+        let outline = if view.selected == Some(i) || hovered == Some(i) { Stroke::new(3.0, palette::SELECTED) } else { Stroke::new(if graph.nodes[i].base { 3.0 } else { 1.5 }, color) };
+        clipped.rect_stroke(box_rect, CornerRadius::same((view.scale * 0.2) as u8), outline, StrokeKind::Inside);
+        if font >= 8.0 {
+            clipped.text(box_rect.center(), Align2::CENTER_CENTER, &graph.nodes[i].title, egui::FontId::proportional(font), fade(palette::text(), strong));
+        }
+    }
+    // The selected skill's card under the graph.
+    let card = Rect::from_min_max(pos2(rect.min.x + 8.0, rect.max.y - card_height), pos2(rect.max.x - 8.0, rect.max.y - 8.0));
+    painter.line_segment([pos2(card.min.x + 14.0, card.min.y), pos2(card.max.x - 14.0, card.min.y)], Stroke::new(1.0, palette::border()));
+    let cx = card.min.x + 14.0;
+    let width = card.width() - 28.0;
+    let Some(s) = view.selected else {
+        let text = if chapters.is_empty() { tr("skills.for_all").to_string() } else { tr_with("skills.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+        ink.wrapped(pos2(cx, card.min.y + 10.0), width, &text, 24.0, FontFamily::Proportional, palette::text_dim());
+        return pressed;
+    };
+    let node = &graph.nodes[s];
+    let role = if p.is_known(s) { tr("skills.known") } else if p.level.contains(&s) { tr("skills.level") } else if p.teach.contains(&s) { tr("skills.teach") } else { tr("skills.outside") };
+    let title = ink.fit_right(&format!("{} · {role}", node.title), width, 24.0, bold());
+    ink.text(pos2(cx, card.min.y + 8.0), Align2::LEFT_TOP, title, 24.0, bold(), skill_color(&p, s));
+    let bottom = ink.wrapped(pos2(cx, card.min.y + 40.0), width, &node.summary, 24.0, FontFamily::Proportional, palette::text());
+    let used = graph.chapters_using(s);
+    let used = if used.is_empty() { tr("skills.no_chapter").to_string() } else { tr_with("skills.used_by", args!(chapters = used.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+    let used = ink.fit_right(&used, width, 24.0, FontFamily::Proportional);
+    ink.text(pos2(cx, (bottom + 4.0).min(card.max.y - 30.0)), Align2::LEFT_TOP, used, 24.0, FontFamily::Proportional, palette::text_dim());
+    pressed
 }
 
 fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut UiReport) {

@@ -289,5 +289,13 @@
   "help.voxelgiMix": "房间显示多少 VoxelGI 的光照（0：仅环境光）。",
   "help.quality": "rendering/global_illumination/voxel_gi/quality：0 低（4 个锥体），1 高（6 个锥体）。",
   "help.interior": "VoxelGIData.interior：1 表示忽略环境（alpha 强制为 1）。",
-  "help.viewMode": "场景显示的内容：0 光照结果，1 环境光缓冲，2 反射缓冲，3 环境光的 alpha。"
+  "help.viewMode": "场景显示的内容：0 光照结果，1 环境光缓冲，2 反射缓冲，3 环境光的 alpha。",
+  "hints.gi": "场景的 VoxelGI：房间显示多少它的光照，以及 VoxelGI 节点与项目的设置。",
+  "hints.bake": "烘焙：节点的包围盒、它构建的八叉树，以及一个三角形如何向下进入叶子单元格。",
+  "hints.cells": "烘焙后的单元格：每个单元格存储什么、层级之间的修补，以及读数显示的单元格。",
+  "hints.field": "烘焙的距离场：它的切片、距离变换的各个阶段，以及它的 mip。",
+  "hints.light": "光照阶段：光源位置、它运行到哪一步，以及一个单元格朝光源的步进。",
+  "hints.bounce": "第二次反弹：单元格传递多少光（propagation），以及它是否运行。",
+  "hints.cones": "一个像素的锥体追踪：它的锥体、在各级 mip 中的步进，以及镜面锥体。",
+  "hints.dynamic": "动态路径：每帧绘制进纹理的移动物体，以及该绘制过程的视图。"
 }

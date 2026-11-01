@@ -305,7 +305,9 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
             if story.is_diagram(beat):
-                entry['image'] = f'mermaid/{beat["id"]}.png'
+                # The lab draws the diagram (lab/src/diagram.rs) from its source, its focus nodes lit.
+                entry['diagram'] = (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text()
+                entry['focus'] = beat.get('focus', [])
             beats_out.append(entry)
             cues.extend({'start': c['start'] / fps, 'end': c['end'] / fps, 'text': markup.readable(c['text']), 'beat': beat['id']} for c in captions)
             frame = beat_end

@@ -103,7 +103,7 @@ cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
 An investigation's narrated video is built by [`tools/video`](tools/video/README.md) from its storyboard:
 
 ```bash
-bash tools/video/setup.sh --gpu                                     # once: Piper, FFmpeg, Node, and Mermaid under .cache/
+bash tools/video/setup.sh --gpu                                     # once: Piper and FFmpeg under .cache/
 python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
@@ -142,6 +142,27 @@ python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.htm
 
 The format is in `lab/src/experiment.rs`, and the method (references, controls, repeats) is in the `experiments`
 skill.
+
+### Prerequisites
+
+The algorithms assume a lot, so the lab keeps a **skill graph**: the knowledge every chapter needs, worked back to
+three bases (GPU parallel programming; radiometry and the rendering equation; real-time rendering fundamentals).
+Each investigation names the audience it is aimed at, which splits the graph into what the viewer should know, the
+level the story starts from, and what the story teaches.
+
+- The viewer's **Prerequisites** tab lists, for the current chapter (or the demonstration's chapters), what to know
+  first, by area, the starting level, and what the story teaches.
+- Beside it, the **skill graph** panel draws the whole graph, coloured by what the audience knows; drag, scroll, and
+  click a skill to read about it. **Full screen** shows it over the whole window (Esc closes it).
+- On the homepage, each feature's **Before you start** names the level its story starts from and the known skills it
+  uses directly, with a button for the skill graph.
+
+The graph is in `packages/rlstd/skills.toml`, each investigation's chapters and audience in its `skills.toml`, and
+the method in the `skill-graph` skill:
+
+```bash
+cargo run --release -- --investigation godot/sdfgi skills            # checked, and the audience's split per chapter
+```
 
 On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout
 (`Readout::formula`). The lab typesets them itself at run time (`lab/src/formula.rs`: MiTeX translates the LaTeX into

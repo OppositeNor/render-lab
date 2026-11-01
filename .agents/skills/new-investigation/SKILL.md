@@ -282,7 +282,8 @@ Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose 
   `{@define name …}` names a cue, and tags in a sentence fire on the word they stand before (`demo`, `camera.*`,
   shot parameters, `panel`, `code`, `highlight`, `callout`, `record`, `blend`, `ease`, `delay`, ranges
   `{@name> p=a..b}`…`{<name}`, `animate=[…]` motions, and formulas `{@ formula="…" say="…"}`).
-- **`diagrams/*.mmd`**: Mermaid diagrams for `mermaid` beats (`focus` lights nodes); `zh-CN/diagrams/` for Chinese.
+- **`diagrams/*.mmd`**: diagrams for `diagram:` beats, in the Mermaid flowchart subset the lab draws itself
+  (`lab/src/diagram.rs`; `focus` lights nodes); `zh-CN/diagrams/` for Chinese.
 - **`storyboard.zh-CN.story`**: the same headings in Chinese and one paragraph per English sentence (formulas, no
   cues), plus `title:`, `subtitle:`, `locale:`, and `glossary:` lines.
 

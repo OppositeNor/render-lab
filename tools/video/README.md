@@ -66,7 +66,9 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   then runs until its sentence (or beat) ends (`"range"` in a range: until the range closes). A `demo` key resets every channel to the demonstration's state, so it
   cuts a running motion. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times
   the narration.
-- **`diagrams/*.mmd`**: the Mermaid diagrams (`focus` names the lit nodes).
+- **`diagrams/*.mmd`**: the diagrams, in a subset of Mermaid's flowchart syntax that the lab draws itself
+  (`lab/src/diagram.rs`: `flowchart LR`, boxes, `-->`/`-.->` edges with labels, `style … stroke-dasharray`); `focus`
+  names the lit nodes.
 - **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
   lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
   cues. A storyboard or translation may also be JSON; `.story` is read by its suffix.
@@ -115,11 +117,10 @@ so the same tag works in its text tables, `{@ formula="…" display=yes colors="
 
 ## Environment
 
-`setup.sh` creates a Conda prefix (Python 3.11, Node 22, FFmpeg) in `.cache/video-env`, installs Piper 1.3.0, ONNX (for the voice's
-phoneme durations), Mermaid, and Puppeteer, and downloads the `en_US-lessac-medium` voice into `.cache/video-voices`; `--gpu` adds the CUDA build of
+`setup.sh` creates a Conda prefix (Python 3.11, FFmpeg) in `.cache/video-env`, installs Piper 1.3.0 and ONNX (for the voice's
+phoneme durations), and downloads the `en_US-lessac-medium` voice into `.cache/video-voices`; `--gpu` adds the CUDA build of
 ONNX Runtime and cuDNN in `.cache/video-tts-gpu` (the CUDA 13 runtime comes from the system). To reuse an existing
-install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, `RENDER_LAB_NODE_MODULES`, `RENDER_LAB_TTS_GPU`, and
-`RENDER_LAB_PUPPETEER_CACHE` at it. `build.py` re-runs itself under the environment's Python.
+install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, and `RENDER_LAB_TTS_GPU` at it. `build.py` re-runs itself under the environment's Python.
 
 ## Verification
 

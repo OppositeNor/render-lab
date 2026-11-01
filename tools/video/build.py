@@ -215,8 +215,6 @@ def main() -> None:
     outputs.write_notice(cfg)
     if args.prepare_only:
         return
-    log('Rendering the diagrams.')
-    outputs.render_mermaid(cfg, env, board)
     binary = outputs.cargo_build(cfg)
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl, args.resolution)

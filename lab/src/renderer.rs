@@ -466,7 +466,8 @@ pub struct FrameRequest<'a> {
     /// each frame of a recording renders on its own.
     pub history: bool,
     pub scene_type: SceneType,
-    pub image: Option<(egui::TextureId, egui::Vec2)>,
+    /// The diagram a 2D scene shows (src/diagram.rs).
+    pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices (`TimelineBeat::notices`).
     pub notices: bool,
@@ -703,7 +704,8 @@ impl Renderer {
         if dock {
             layout = layout.with_dock();
         }
-        let code = scene_type == SceneType::ThreeD && state.panel == crate::shot::PanelMode::Code;
+        // The pseudo-code and the skill graph take the wider panel.
+        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Skills);
         layout = layout.with_user(&self.user_layout, dock, code);
         layout.for_panel(panel)
     }
@@ -1238,7 +1240,7 @@ impl Renderer {
             statics: &self.statics,
             textures: &self.textures,
             scene_type: request.scene_type,
-            image: request.image,
+            diagram: request.diagram,
             beat_sources: request.beat_sources,
             notices: request.notices,
             chapter_number: request.chapter_number,

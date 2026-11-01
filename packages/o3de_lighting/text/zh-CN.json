@@ -525,5 +525,7 @@
   "help.forwardStage": "图像渲染到不透明帧的哪一步：0 仅 forward 光照，1 加漫反射 IBL，2 再加反射（镜面 IBL、探针），3 再加 SSAO，即整帧。",
   "help.skyboxExposure": "天空盒的曝光，单位档（SkyBoxFeatureProcessor 的 m_cubemapExposure），与天光的 iblExposure 分开，与 O3DE 一致。",
   "demos.light_position": "光源位置",
-  "demos.f_with_roughness": "F（含粗糙度）"
+  "demos.f_with_roughness": "F（含粗糙度）",
+  "hints.sphere_light": "球形光源：它的位置、强度、衰减半径和灯泡半径。",
+  "hints.cascades_view": "级联的显示方式：它们的包围球与包围盒、显示多少个，以及它们适配的相机。"
 }

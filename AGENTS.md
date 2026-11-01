@@ -83,6 +83,8 @@ cargo run --release -- --investigation o3de/lighting choices                  # 
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{@ run=… run.<arg>=…}`, `stop=…`) and their arguments
 cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom=`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
+cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the skill graph in the panel (viewer-skills: zoomed onto a level skill; viewer-skill-graph: full screen; select-skills: over the homepage)
+cargo run --release -- --investigation godot/sdfgi skills                     # the skill graph and the audience: checked, and its split (--known, --levels, --mermaid)
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)
@@ -106,7 +108,8 @@ links stay links) into an empty directory, link `vendor/` into it, and build the
 Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout); `.claude/skills` holds
 one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it), `new-story`
 (researching, outlining, writing, and reviewing an investigation's story, in phases with subagents), `packages`
-(packages: manifests, collections, references, code and its negotiation, local packages, packing), and `experiments`
-(the Experiments tab, research experiment files and their reports, exposing an engine's settings) are published.
+(packages: manifests, collections, references, code and its negotiation, local packages, packing), `experiments`
+(the Experiments tab, research experiment files and their reports, exposing an engine's settings), and `skill-graph`
+(the skill graph, chapters' requirements, and choosing an investigation's audience) are published.
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.

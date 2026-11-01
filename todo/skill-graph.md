@@ -1,4 +1,4 @@
-# Skill graph, target audience, and the Prerequisites tab (plan, not started)
+# Skill graph, target audience, and the Prerequisites tab (implemented 2026-11-01)
 
 The investigations explain high-level rendering algorithms, and each one assumes a lot of prior knowledge. This plan
 adds four things:
@@ -146,17 +146,17 @@ None of this is investigation-specific. The lab reads the `skills` resource of t
 - **Partition.** Given the chapters and `known`, compute A, S (real nodes and carries), and B. Also compute the
   ancestor filter for a chapter or a demonstration.
 - **Layout for the panel.** Do a layered layout once at load time:
-  - rank by the longest path from the bases (bases at the bottom);
+  - rank by the longest path from the bases (as built: ranks are columns, bases on the left, which suits the
+    tall side panel and the text-heavy nodes);
   - add dummy vertices on long edges (the same carries);
   - order each layer with a few barycentric sweeps;
   - make it deterministic, with node sizes from the measured title text.
-- **CLI**, next to `values`, `choices`, and `images`:
-  - `cargo run --release -- skills` checks the merged graph and prints its counts and lint.
-  - `cargo run --release -- skills --mermaid <path>` writes the diagram, which regenerates the one in the tree file.
-  - `cargo run --release -- --investigation <id> skills levels [--known a,b,…] [--limit n]` gives the partition for a
-    profile. It prints the level, the carries, and what to teach. It also lists the neighbouring candidates: adding or
-    removing one node of S or A, ranked by carries.
-  - `cargo run --release -- --investigation <id> skills check` validates the stored audience.
+- **CLI**, next to `values`, `choices`, and `images` (as built: one command with flags):
+  - `cargo run --release -- --investigation <id> skills` checks the merged graph and the stored audience (it fails on
+    a problem) and prints the split: the level, the carries, what to teach, and each chapter's line.
+  - `--known a,b,…` tries another audience; `--levels` lists the neighbouring candidates (one level node added or
+    one maximal known node removed), ranked by carries.
+  - `--mermaid <path>` writes the diagram, which regenerates the one in the tree file.
 - **Unit tests** in `cargo test --workspace`:
   - the reduction of a hand-made graph with a skip edge;
   - the antichain and separation properties checked on the subdivision for random downsets;
@@ -219,10 +219,10 @@ The skill is published, with a link `.claude/skills/skill-graph` like the others
 3. **The target-audience procedure.**
    1. Write the profile in one sentence.
    2. Choose K, the nodes such a viewer knows.
-   3. Run `skills levels --known K` and read the level, the carries, and what to teach.
+   3. Run `skills --known K --levels` and read the level, the carries, and what to teach.
    4. Try the neighbouring candidates. Prefer the one with the fewest carries that does not move the profile.
    5. Record `[audience]`.
-   6. Run `skills check`.
+   6. Run `skills`.
 4. **What the level means for the story.**
    - A nodes are not explained.
    - Each S node gets a one-sentence reminder the first time it is used.
@@ -252,7 +252,7 @@ Validate each phase as AGENTS.md describes before starting the next. Run one bui
    each level and its "to teach" list against what each story actually teaches; gaps go into the stories' own todo
    files, not here.
 4. **The Prerequisites tab.** Add the tab, its text keys, and the snapshot page `--page viewer-prerequisites[:demo]`
-   (modelled on `viewer-experiments`, `home.rs:1326`). Also `viewer-timeline-prerequisites`, paused in a chapter.
+   (modelled on `viewer-experiments`, `home.rs:1326`). (Not built: `viewer-timeline-prerequisites`.)
 5. **The panel.** Add the layout, drawing, and input, and the snapshot page `--page viewer-skills[:demo]`, fitted and
    then zoomed onto a node. Look at both themes.
 6. **Documentation.** The AGENTS.md validation list (the `skills` commands and the two pages), the README (the tab and
@@ -264,4 +264,6 @@ Validate each phase as AGENTS.md describes before starting the next. Run one bui
   - The separator is taken in the graded subdivision: carries mark known skills used directly above the level.
   - The tab lists only the nodes before the separator, and shows the level in its header.
   - All three public investigations share one audience: a PBR forward renderer, shadow maps, and compute passes.
-- **Don't implement until asked.** This file is the plan.
+- **2026-11-01: implemented** (`lab/src/skills.rs`, the Prerequisites tab in `lab/src/controls.rs`, the panel in
+  `lab/src/ui.rs`, the `skills` command, the `skill-graph` skill). The panel's interaction is egui's (an interactive
+  area over the graph keeps its view in egui's memory), so the viewer's pointer code is unchanged.

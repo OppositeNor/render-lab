@@ -251,5 +251,12 @@
   "help.giReadSkyLight": "sdfgi_read_sky_light：离开级联的光线会带回天空光；关闭时则什么也带不回。",
   "help.sdfgiMix": "房间显示多少 SDFGI 的环境光和反射（0：仅直接光）。",
   "help.sdfgiEnergy": "环境的 sdfgi_energy（SDFGIData.energy），缩放 SDFGI 的光照。",
-  "help.normalBias": "环境的 sdfgi_normal_bias（单元格）。"
+  "help.normalBias": "环境的 sdfgi_normal_bias（单元格）。",
+  "hints.gi": "场景的 SDFGI：房间显示多少它的光照，以及环境与项目中的 SDFGI 设置。",
+  "hints.cascades": "级联：SDFGI 围绕相机保存的嵌套网格、相机移动时它们如何跟随，以及绘制哪些级联。",
+  "hints.light": "SDFGI 注入单元格的光照：光源位置、已运行的渲染阶段，以及示例单元格。",
+  "hints.voxels": "体素化：场景如何逐个阶段变成每个级联中的实心单元格，以及对它的剖切。",
+  "hints.field": "由体素构建的有向距离场：它的切片、泛洪的步骤，以及周围的遮蔽。",
+  "hints.probes": "探针：它们的位置、每帧追踪的光线，以及其贴图平均所用的历史帧。",
+  "hints.pixel": "屏幕阶段的一个像素：它读取哪些探针、如何混合，以及它为画面增加了什么。"
 }

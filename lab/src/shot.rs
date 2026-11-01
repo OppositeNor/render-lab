@@ -79,6 +79,8 @@ pub enum PanelMode {
     /// The frame's cost: GPU time per pass, measured as it renders (src/timing.rs);
     /// `highlight` names the passes to call out.
     Performance,
+    /// The skill graph and the investigation's audience (src/skills.rs; the Prerequisites tab).
+    Skills,
     Hidden,
 }
 
@@ -321,9 +323,14 @@ pub enum SceneType {
 }
 
 impl TimelineBeat {
-    /// A 2D scene that shows an image (a diagram), not its sources card.
-    pub fn shows_image(&self) -> bool {
-        self.kind == SceneType::TwoD && self.image.is_some()
+    /// A 2D scene that shows a diagram, not its sources card.
+    pub fn shows_diagram(&self) -> bool {
+        self.kind == SceneType::TwoD && self.diagram.is_some()
+    }
+
+    /// What the frame shows of its diagram, if it shows one.
+    pub fn beat_diagram(&self) -> Option<crate::diagram::BeatDiagram<'_>> {
+        self.diagram.as_deref().filter(|_| self.shows_diagram()).map(|source| crate::diagram::BeatDiagram { source, focus: &self.focus })
     }
 }
 
@@ -336,8 +343,12 @@ pub struct TimelineBeat {
     pub start_frame: u64,
     pub frames: u64,
     pub headline: String,
+    /// The diagram a 2D scene shows: its source (src/diagram.rs), and the
+    /// nodes lit while it plays.
     #[serde(default)]
-    pub image: Option<String>,
+    pub diagram: Option<String>,
+    #[serde(default)]
+    pub focus: Vec<String>,
     #[serde(default)]
     pub sources: Vec<String>,
     #[serde(default)]
@@ -852,6 +863,11 @@ impl Timeline {
                 bail!("beat {} starts at {} but the previous beat ended at {frame}", beat.id, beat.start_frame);
             }
             frame += beat.frames;
+            if let Some(source) = &beat.diagram {
+                if let Err(e) = crate::diagram::Diagram::parse(source).and_then(|d| d.check_focus(&beat.focus)) {
+                    bail!("beat {}: its diagram: {e}", beat.id);
+                }
+            }
         }
         if frame != self.total_frames {
             bail!("beats cover {frame} frames, timeline declares {}", self.total_frames);

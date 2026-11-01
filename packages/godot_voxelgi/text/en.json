@@ -289,5 +289,13 @@
   "help.voxelgiMix": "How much of VoxelGI's light the room shows (0: the environment's alone).",
   "help.quality": "rendering/global_illumination/voxel_gi/quality: 0 Low (4 cones), 1 High (6 cones).",
   "help.interior": "VoxelGIData.interior: 1 ignores the environment (alpha forced to 1).",
-  "help.viewMode": "What the scene shows: 0 lit result, 1 ambient buffer, 2 reflection buffer, 3 the ambient's alpha."
+  "help.viewMode": "What the scene shows: 0 lit result, 1 ambient buffer, 2 reflection buffer, 3 the ambient's alpha.",
+  "hints.gi": "The scene's VoxelGI: how much of its light the room shows, and the VoxelGI node's and project's settings.",
+  "hints.bake": "The bake: the node's box, the octree it builds, and how one triangle goes down to the leaf cells.",
+  "hints.cells": "The baked cells: what each stores, the fixup between levels, and the cell the readout shows.",
+  "hints.field": "The distance field of the bake: its slice, the passes of the distance transform, and its mips.",
+  "hints.light": "The light pass: the light's position, how far it has run, and the march toward the light for one cell.",
+  "hints.bounce": "The second bounce: how much light the cells pass on (propagation) and whether it runs.",
+  "hints.cones": "The cone trace of one pixel: its cones, their steps through the mips, and the specular cone.",
+  "hints.dynamic": "The dynamic path: a moving object plotted into the texture each frame, and the views of that plot."
 }

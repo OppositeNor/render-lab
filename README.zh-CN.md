@@ -80,7 +80,7 @@ cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
 研究的旁白视频由 [`tools/video`](tools/video/README.md) 根据其分镜脚本构建：
 
 ```bash
-bash tools/video/setup.sh --gpu                                     # 只需一次：在 .cache/ 下安装 Piper、FFmpeg、Node 和 Mermaid
+bash tools/video/setup.sh --gpu                                     # 只需一次：在 .cache/ 下安装 Piper 和 FFmpeg
 python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
@@ -113,6 +113,21 @@ python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.htm
 ```
 
 文件格式见 `lab/src/experiment.rs`，实验方法（参考、对照、重复）见 `experiments` 技能。
+
+### 前置知识
+
+这些算法需要大量前置知识，因此实验室维护一张**知识图**：每一章需要的知识，一直追溯到三个基础（GPU 并行编程；辐射度量学与渲染方程；
+实时渲染基础）。每项研究写明它面向的观众，由此把知识图分成观众应当已知的部分、故事的起点，以及故事要讲解的部分。
+
+- 查看器的**前置知识**标签页列出当前章节（或当前演示所属章节）需要预先了解的知识（按领域分组）、故事的起点，以及故事讲解的内容。
+- 旁边的**知识图**面板画出整张图，按观众已知的程度着色；可拖动、滚轮缩放，点击一个知识点查看说明。**全屏**按钮让它覆盖整个窗口（按 Esc 关闭）。
+- 主页上每个功能的**开始之前**列出故事的起点和它直接用到的已知知识点，并有打开知识图的按钮。
+
+知识图在 `packages/rlstd/skills.toml`，每项研究的章节与观众在它自己的 `skills.toml`，方法见 `skill-graph` 技能：
+
+```bash
+cargo run --release -- --investigation godot/sdfgi skills            # 检查知识图，并按章节列出观众的划分
+```
 
 屏幕上的文字可以以标签的形式包含公式：在文本表、字幕或读数面板（`Readout::formula`）中写 `{@ formula="\\frac{1}{1+n}"}`。
 实验室在运行时自行排版这些公式（`lab/src/formula.rs`：MiTeX 把 LaTeX 转换为 Typst 数学公式，再由 Typst 排版），因此不需要 Node，

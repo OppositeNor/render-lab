@@ -110,23 +110,6 @@ def write_chapters(cfg: Config, board: Json, timeline: Json) -> None:
 # ---------------------------------------------------------------------------
 # Rendering
 
-def render_mermaid(cfg: Config, env: Environment, board: Json) -> list[Json]:
-    build = cfg.build()
-    jobs = [{'id': beat['id'], 'diagram': str(cfg.diagrams / f'{beat["diagram"]}.mmd'), 'focus': beat.get('focus', []),
-             'output': str(cfg.timeline_dir() / 'mermaid' / f'{beat["id"]}.png')}
-            for chapter in board['chapters'] for beat in chapter['beats'] if story.is_diagram(beat)]
-    if not jobs:
-        return []
-    spec: Json = {'width': 1840, 'height': 728, 'jobs': jobs, 'metrics': str(build / 'mermaid-metrics.json'), 'nodeModules': str(env.node_modules)}
-    if cfg.zh():
-        # Chinese glyphs fall back to Source Han Sans, the font the lab bundles.
-        spec['fontFamily'] = "'DejaVu Sans', 'Source Han Sans CN', 'Noto Sans CJK SC'"
-    (build / 'mermaid-jobs.json').write_text(json.dumps(spec, indent=1))
-    process_env = dict(os.environ, PUPPETEER_CACHE_DIR=str(env.puppeteer_cache))
-    run([env.node, TOOLS / 'mermaid.mjs', build / 'mermaid-jobs.json'], build / 'logs' / 'mermaid.log', env=process_env)
-    return json.loads((build / 'mermaid-metrics.json').read_text())
-
-
 def cargo_build(cfg: Config) -> Path:
     log('Building render-lab (cargo build --release --locked --offline).')
     process_env = dict(os.environ, CARGO_HOME=str(LAB / '.cache' / 'cargo'), CARGO_TARGET_DIR=str(LAB / 'target'))

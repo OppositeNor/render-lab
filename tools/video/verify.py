@@ -153,8 +153,6 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     check('every rendered frame: text >= 24 px, labels inside the viewport, no overlaps',
           render.get('min_text_pt', 0) >= 24 and render.get('max_label_overlaps', 1) == 0 and render.get('max_labels_outside', 1) == 0,
           {k: render.get(k) for k in ('frames', 'min_text_pt', 'max_label_overlaps', 'max_labels_outside', 'frames_with_label_issues', 'seconds', 'gpu')})
-    mermaid = json.loads((build / 'mermaid-metrics.json').read_text()) if (build / 'mermaid-metrics.json').exists() else []
-    check('diagram labels >= 24 px', bool(mermaid) and all(m['fontPixels'] >= 24 for m in mermaid), {'diagrams': mermaid})
     sources = check_sources(cfg, index)
     check('every cited line still matches its recorded hash in the checkout', all(r['ok'] for r in sources), {'locations': len(sources), 'problems': [r for r in sources if not r['ok']]})
     links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
@@ -173,7 +171,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     layouts = json.loads(run([LAB / 'target' / 'release' / 'render-lab', '--investigation', cfg.investigation, 'layout', '--json']))
     check('Rust struct layouts equal the WGSL layouts (naga)', all(c['ok'] for c in layouts['checks']), {'records': [{'record': c['record'], 'ok': c['ok']} for c in layouts['checks']]})
     passed = all(c['passed'] for c in checks)
-    toolchain = {'rustc': run(['rustc', '--version']).split()[1], 'ffmpeg': run([env.ffmpeg, '-version']).split()[2], 'node': run([env.node, '--version']).strip().lstrip('v'), 'python': sys.version.split()[0]}
+    toolchain = {'rustc': run(['rustc', '--version']).split()[1], 'ffmpeg': run([env.ffmpeg, '-version']).split()[2], 'python': sys.version.split()[0]}
     result: Json = {'status': 'passed' if passed else 'failed', 'investigation': cfg.investigation, 'video': cfg.video_name(), 'language': cfg.lang,
                     'bytes': video.stat().st_size, 'sha256': sha256(video), 'durationSeconds': duration, 'engine': index['engine'], 'toolchain': toolchain, 'checks': checks}
     (build / 'verification-report.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')

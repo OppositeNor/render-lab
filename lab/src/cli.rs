@@ -55,7 +55,11 @@ enum Command {
         /// viewer-experiments[:<demo>] (the Experiment button's viewer: the Experiments tab), or
         /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
-        /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out).
+        /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
+        /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the skill graph in the panel), or
+        /// viewer-skills[:<demo>] (that panel zoomed onto a skill of the audience's level, selected), or
+        /// viewer-skill-graph[:<demo>] (the skill graph full screen over the viewer), or select-skills
+        /// (the selection page with the chosen feature's skill graph full screen).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -122,6 +126,23 @@ enum Command {
         work_dir: Option<PathBuf>,
         #[arg(long)]
         ffmpeg: Option<PathBuf>,
+    },
+    /// Check the current investigation's skill graph (lab/src/skills.rs:
+    /// rlstd's skills and its package's, its chapters, its audience) and
+    /// print its audience split: the level, the known skills used directly
+    /// above it, and what the story teaches.
+    Skills {
+        /// The audience's known skills instead of the stored ones (keys or
+        /// full names, comma-separated): try an audience before writing it.
+        #[arg(long, value_delimiter = ',')]
+        known: Vec<String>,
+        /// Also list the nearby audiences (one level skill added, or one
+        /// known skill removed), fewest carries first.
+        #[arg(long)]
+        levels: bool,
+        /// Write the graph as a Mermaid flowchart to this file.
+        #[arg(long)]
+        mermaid: Option<PathBuf>,
     },
     /// List the current investigation's values (lab/src/values.rs): the
     /// keys its dock, timelines, and stories set, with each one's type,
@@ -260,6 +281,10 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),
+                (Some(png), _) if page == "viewer-prerequisites" || page.starts_with("viewer-prerequisites:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-prerequisites:"), false, false, &png),
+                (Some(png), _) if page == "viewer-skills" || page.starts_with("viewer-skills:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-skills:"), true, false, &png),
+                (Some(png), _) if page == "viewer-skill-graph" || page.starts_with("viewer-skill-graph:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-skill-graph:"), false, true, &png),
+                (Some(png), _) if page == "select-skills" => home::snapshot_skills(&options, &png),
                 (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
                 (Some(png), _) => {
                     let trial = page == "trial";
@@ -318,6 +343,7 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
+        Command::Skills { known, levels, mermaid } => skills(chosen, &known, levels, mermaid.as_deref()),
         Command::Values { json, label, scope } => {
             use crate::values::Value;
             let entries: Vec<&crate::values::Entry> = crate::values::list()
@@ -500,4 +526,59 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// The `skills` command: check the investigation's skill graph, print its
+/// audience split (stored, or `known`), and optionally its nearby audiences
+/// and a Mermaid file. Fails on a graph or audience problem.
+fn skills(chosen: &'static dyn investigation::Investigation, known: &[String], levels: bool, mermaid: Option<&std::path::Path>) -> Result<()> {
+    let package = chosen.package().context("this investigation has no package")?;
+    let graph = match crate::skills::load(package) {
+        None => bail!("{package} has no skill graph (no `skills` resource of its own)"),
+        Some(graph) => graph.map_err(|e| anyhow::anyhow!(e))?,
+    };
+    let names = |list: &[usize]| list.iter().map(|&i| graph.nodes[i].key.as_str()).collect::<Vec<_>>().join(", ");
+    let edges: usize = graph.nodes.iter().map(|n| n.requires.len()).sum();
+    println!("{package}: {} skills, {edges} requirements, {} chapters; acyclic, transitively reduced, every skill reaches a base", graph.nodes.len(), graph.chapters.len());
+    if let Some(path) = mermaid {
+        std::fs::write(path, crate::skills::mermaid(&graph)).with_context(|| format!("write {}", path.display()))?;
+        println!("wrote {}", path.display());
+    }
+    let known: Vec<usize> = if known.is_empty() {
+        graph.known.clone()
+    } else {
+        known.iter().map(|k| graph.find(k).with_context(|| format!("no skill `{k}`"))).collect::<Result<_>>()?
+    };
+    if let Some(profile) = &graph.profile {
+        println!("audience: {profile}");
+    }
+    let p = graph.partition_for(&known);
+    let relevant = p.relevant.iter().filter(|r| **r).count();
+    let known_count = p.known.iter().filter(|k| **k).count();
+    println!("relevant {relevant}, known {known_count}, level {}, to teach {}, carries {}", p.level.len(), p.teach.len(), p.carries.len());
+    println!("level: {}", names(&p.level));
+    println!("to teach: {}", names(&p.teach));
+    println!("carried (known, used directly above the level): {}", names(&p.carried()));
+    for c in &graph.chapters {
+        let context = graph.context(&[c.number]);
+        let own = |list: &[usize]| list.iter().copied().filter(|&i| context[i]).collect::<Vec<_>>();
+        println!("chapter {}: level {}; teaches {}", c.number, names(&own(&p.level)), names(&own(&p.teach)));
+    }
+    if levels {
+        println!("nearby audiences (carries):");
+        for n in crate::skills::neighbours(&graph.requires(), &graph.bases(), &graph.chapter_needs(), &known) {
+            let q = graph.partition_for(&n.known);
+            println!("  {}{} ({}): level {}, to teach {}", if n.added { "+" } else { "-" }, graph.nodes[n.node].key, n.carries, q.level.len(), q.teach.len());
+        }
+    }
+    let demos: Vec<&str> = chosen.demos().iter().map(|d| d.key()).collect();
+    let mut problems = graph.check(&demos);
+    // Trying an audience, the stored one's problems do not apply.
+    if known != graph.known {
+        problems.retain(|p| p.contains("no demonstration"));
+    }
+    if !problems.is_empty() {
+        bail!("{}", problems.join("\n"));
+    }
+    Ok(())
 }

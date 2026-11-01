@@ -33,7 +33,7 @@ use crate::frame::FrameContent;
 use crate::gpu::{self, Gpu};
 use crate::investigation;
 use crate::loading::{self, Loading};
-use crate::record::{beat_fade, ImageCache};
+use crate::record::beat_fade;
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
 use crate::ui::{Chrome, DiagramView, DockTab, ViewerAction, ViewerChrome};
@@ -160,7 +160,6 @@ pub struct App {
     audio: Option<crate::audio::AudioPlayer>,
     /// The narration's volume; the viewer hands it back when it closes.
     pub narration: Volume,
-    images: Option<ImageCache>,
     /// Paused on a diagram beat: its panel's zoom and pan, the beat it is for
     /// (its first frame), the fitted picture's rectangle (egui points), and
     /// the last click (a second one soon after resets the view).
@@ -204,13 +203,16 @@ pub struct App {
     pub layout: crate::config::ViewerLayout,
     /// The window's cursor as last set (egui's request, src/renderer.rs `cursor`).
     cursor_icon: egui::CursorIcon,
+    /// A skill the skills panel selects and centres once (a snapshot's).
+    skills_focus: Option<String>,
+    /// The skill graph is shown full screen (Esc closes it).
+    skills_overlay: bool,
 }
 
 impl App {
     fn new(options: ViewerOptions) -> Result<App> {
         let timeline = options.timeline.as_ref().map(|p| Timeline::load(p)).transpose()?;
         crate::i18n::set(options.locale.or(timeline.as_ref().map(|t| t.locale)).unwrap_or_default());
-        let images = options.timeline.as_ref().map(|p| ImageCache::new(p.parent().unwrap_or(std::path::Path::new("."))));
         let autotest = match options.autotest.clone() {
             Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(|| anyhow::anyhow!("{} has no viewer autotest", investigation::current().title()))?),
             None => None,
@@ -250,7 +252,6 @@ impl App {
             skip: None,
             audio,
             narration,
-            images,
             diagram: DiagramView::default(),
             diagram_beat: None,
             diagram_fit: None,
@@ -278,6 +279,8 @@ impl App {
             frame_times: std::collections::VecDeque::new(),
             layout,
             cursor_icon: egui::CursorIcon::Default,
+            skills_focus: None,
+            skills_overlay: false,
         })
     }
 
@@ -299,9 +302,9 @@ impl App {
         }
     }
 
-    /// Paused on a 2D scene that shows an image: the viewport is the image's panel, zoomed and panned.
+    /// Paused on a 2D scene that shows a diagram: the viewport is the diagram's panel, zoomed and panned.
     pub fn paused_diagram(&self) -> bool {
-        self.paused_page() && self.timeline.as_ref().is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_image())
+        self.paused_page() && self.timeline.as_ref().is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_diagram())
     }
 
     /// A pointer position in window pixels, in egui points.
@@ -391,6 +394,12 @@ impl App {
             self.tab = DockTab::Parameters;
         }
         let defaults = self.default_state(self.state.demo);
+        // The Prerequisites tab shows the skill graph in the panel.
+        if self.tab == DockTab::Prerequisites {
+            self.state.panel = PanelMode::Skills;
+        } else if self.state.panel == PanelMode::Skills {
+            self.state.panel = defaults.panel;
+        }
         if self.tab == DockTab::Code {
             if self.state.panel != PanelMode::Code {
                 self.state.panel = PanelMode::Code;
@@ -401,6 +410,15 @@ impl App {
             self.state.panel = defaults.panel;
             self.state.highlight = defaults.highlight;
             self.state.code = None;
+        }
+    }
+
+    /// The chapters the Prerequisites tab is about: on a timeline, the
+    /// current one; else those whose demonstrations include this one.
+    fn skill_chapters(&self) -> Vec<u32> {
+        match (&self.timeline, self.timeline_mode) {
+            (Some(t), true) => vec![t.chapter_at(self.timeline_frame).number],
+            _ => crate::skills::current().map(|g| g.chapters_of_demo(self.state.demo.key())).unwrap_or_default(),
         }
     }
 
@@ -671,6 +689,7 @@ impl App {
                 }
             }
             ViewerAction::SaveLayout => self.save_layout(),
+            ViewerAction::SetSkillsOverlay(on) => self.skills_overlay = on,
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
                 self.save_layout();
@@ -699,7 +718,7 @@ impl App {
             if self.layout.dock_height.is_some() {
                 self.layout.dock_height = Some(dock);
             }
-            let code = self.state.panel == PanelMode::Code;
+            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Skills);
             let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
             if width.is_some() && l.viewport.max.x < l.panel.min.x {
                 *width = Some(panel);
@@ -765,6 +784,13 @@ impl App {
             KeyCode::Minus,
             KeyCode::Equal,
         ];
+        // The full-screen skill graph takes the keys; Esc closes it.
+        if self.skills_overlay {
+            if code == KeyCode::Escape {
+                self.skills_overlay = false;
+            }
+            return;
+        }
         // The keys choose among the shown scene's demonstrations.
         let investigation = investigation::current();
         let demos = investigation.scene_demos(investigation.demo_scene(self.state.demo));
@@ -1080,6 +1106,7 @@ impl App {
             narration: self.narration,
             diagram: None,
             experiment: crate::ui::ExperimentView::default(),
+            skills: crate::ui::SkillsChrome { chapters: self.skill_chapters(), focus: self.skills_focus.clone(), overlay: self.skills_overlay },
         };
         // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
         let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
@@ -1111,25 +1138,22 @@ impl App {
         chrome.popups.hidden = self.screenshot;
         // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
         let paused_diagram = self.paused_diagram();
-        let (kind, image, sources, chapter, fade, notices) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
+        let (kind, diagram, sources, chapter, fade, notices) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
-                let image = match (&beat.kind, &beat.image, self.images.as_mut(), self.renderer.as_ref()) {
-                    (SceneType::TwoD, Some(p), Some(cache), Some(r)) => Some(cache.get(&r.egui_ctx, p)?),
-                    _ => None,
-                };
+                let diagram = beat.beat_diagram().map(|d| (d.source.to_string(), d.focus.to_vec()));
                 if paused_diagram && self.diagram_beat != Some(beat.start_frame) {
                     self.diagram = DiagramView::default();
                     self.diagram_beat = Some(beat.start_frame);
                 }
                 let fade = if self.paused_page() { 0.0 } else { beat_fade(t, self.timeline_frame) };
-                (beat.kind, image, beat.sources.clone(), beat.chapter, fade, beat.notices)
+                (beat.kind, diagram, beat.sources.clone(), beat.chapter, fade, beat.notices)
             }
             _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false),
         };
         if paused_diagram {
             chrome.diagram = Some(self.diagram);
-            self.diagram_fit = image.map(|(_, size)| crate::ui::fit_rect(self.renderer().layout().content, size));
+            self.diagram_fit = diagram.as_ref().map(|_| self.renderer().layout().content);
         } else {
             self.diagram_fit = None;
         }
@@ -1137,7 +1161,7 @@ impl App {
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
+            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(source, focus)| crate::diagram::BeatDiagram { source, focus }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
@@ -1487,7 +1511,7 @@ pub fn snapshot(options: ViewerOptions, demo: Option<&str>, png: &std::path::Pat
 /// A 2D scene a snapshot pauses the timeline on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PausedPage {
-    /// The first 2D scene with an image, its panel zoomed in (`--page viewer-diagram`).
+    /// The first 2D scene with a diagram, its panel zoomed in (`--page viewer-diagram`).
     Diagram,
     /// The first sources card (`--page viewer-sources`).
     Sources,
@@ -1584,6 +1608,38 @@ pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &st
     Ok(())
 }
 
+/// The viewer offscreen on its Prerequisites tab (`home --snapshot … --page
+/// viewer-prerequisites[:<demo>]`), the skill graph in the panel fitted to
+/// the demonstration's chapters; with `focus` (`viewer-skills[:<demo>]`), the
+/// panel zoomed onto the first skill of the audience's level, selected; with
+/// `overlay` (`viewer-skill-graph[:<demo>]`), the graph full screen.
+pub fn snapshot_prerequisites(options: ViewerOptions, demo: Option<&str>, focus: bool, overlay: bool, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let (mut app, gpu, size) = offscreen_app(options, demo)?;
+    app.state = app.default_state(app.state.demo);
+    let graph = crate::skills::current().ok_or_else(|| anyhow::anyhow!("{} has no skill graph (its package's skills.toml)", investigation::current().title()))?;
+    app.tab = DockTab::Prerequisites;
+    app.show_tab();
+    app.skills_overlay = overlay;
+    if focus {
+        let chapters = app.skill_chapters();
+        let context = graph.context(&chapters);
+        let p = graph.audience();
+        app.skills_focus = p.level.iter().find(|&&i| context[i]).or(p.level.first()).map(|&i| graph.nodes[i].id.clone());
+    }
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..16 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    let chapters = app.skill_chapters();
+    eprintln!("viewer prerequisites: {} ({}x{}); demonstration {}, chapters {:?}{}", png.display(), size[0], size[1], app.state.demo.key(), chapters, app.skills_focus.as_ref().map(|f| format!(", focused on {f}")).unwrap_or_default());
+    Ok(())
+}
+
 /// The viewer offscreen with its edges dragged by the pointer (`home
 /// --snapshot X.png --page viewer-layout`): the panel's edge 200 points left,
 /// the dock's edge 120 points up, as a user drags them. The layout is written
@@ -1647,7 +1703,7 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
         // The clock holds the frame: it starts counting an hour from now.
         app.timeline_anchor = (Instant::now() + std::time::Duration::from_secs(3600), app.timeline_frame);
     } else if let Some(page) = paused {
-        let wanted = |b: &crate::shot::TimelineBeat| b.kind == SceneType::TwoD && b.shows_image() == (page == PausedPage::Diagram);
+        let wanted = |b: &crate::shot::TimelineBeat| b.kind == SceneType::TwoD && b.shows_diagram() == (page == PausedPage::Diagram);
         let beat = app.timeline.as_ref().and_then(|t| t.beats.iter().find(|b| wanted(b))).ok_or_else(|| anyhow::anyhow!("the timeline has no {page:?} 2D scene"))?;
         app.timeline_frame = beat.start_frame + beat.frames / 2;
         app.timeline_mode = true;

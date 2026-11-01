@@ -23,6 +23,7 @@ packages/<name>/
   manifest.toml        what the package is: its metadata, imports, exports, library, and what it provides
   resources.toml ...   its collections: [[resource]] and [[shader]] tables (any file names; the manifest lists them)
   text/, shaders/, demos/, params.toml, pseudocode/, source-index.json, assets/ ...   its content
+  skills.toml          its chapters' skill requirements and audience (resource id `skills`; the skill-graph skill)
   video/               a narrated video's inputs (video.json, storyboards, diagrams), for tools/video
   Cargo.toml, build.rs, src/   its code, if it has investigations (section 5)
   build/               what its tools write: build/timelines/<lang>/, build/video/<lang>/ (git-ignored)
@@ -127,7 +128,7 @@ parts = ["rlstd.shader/scene", "wgsl/my-shading"]
 - **Tool outputs.** `built = true` marks a file (or directory) a tool writes into the source package
   (`source = "build/timelines/en/timeline.json"`). It may be missing until the tool runs; the next launch builds it
   into the built package, and `render-lab resources` shows `not built` until then. Demos name such resources:
-  tools/video writes them. Declare a timeline's diagram frames too (`kind = "directory"`, `build/timelines/en/mermaid`).
+  tools/video writes them.
 - **Experiments.** An experiment file (`lab/src/experiment.rs`) declared as `experiment/<name>`
   (`kind = "file"`, `source = "experiments/<name>.toml"`) is offered by the viewer's Experiments tab and run by
   `render-lab experiment <package>.experiment/<name>` (the `experiments` skill).

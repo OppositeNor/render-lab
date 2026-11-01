@@ -525,5 +525,7 @@
   "help.forwardStage": "How far through the opaque frame the image goes: 0 forward light only, 1 plus diffuse IBL, 2 plus reflections (specular IBL, probes), 3 plus SSAO, the whole frame.",
   "help.skyboxExposure": "Exposure of the sky box, in stops (SkyBoxFeatureProcessor's m_cubemapExposure), separate from the skylight's iblExposure as in O3DE.",
   "demos.light_position": "light position",
-  "demos.f_with_roughness": "F with roughness"
+  "demos.f_with_roughness": "F with roughness",
+  "hints.sphere_light": "The sphere light: its position, intensity, attenuation radius, and the bulb's radius.",
+  "hints.cascades_view": "How the cascades are shown: their spheres and boxes, how many, and the camera they are fitted to."
 }

@@ -21,9 +21,8 @@ Thumbs.db
 
 # Generated files, never tracked, so they cannot conflict: the lab's under build/ (screenshots, formula
 # renders; the built packages are beside the binary, in target/), and each package's under its build/ (its
-# video builds and the timelines the homepage plays, tools/video). And the video tools' Node packages.
+# video builds and the timelines the homepage plays, tools/video).
 /build/
 /packages/*/build/
 # The guides agents keep in a package while they work on its story (new-story); deleted when it is done.
 /packages/**/AGENTS.md
-/tools/video/node_modules/
