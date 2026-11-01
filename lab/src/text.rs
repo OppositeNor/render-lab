@@ -70,6 +70,17 @@ pub fn restyle(ctx: &egui::Context) {
     });
 }
 
+/// Makes a slider's rail as tall as its value box, so the rail, the value,
+/// and what sits beside them share one centre line: egui centres each on the
+/// row as tall as the controls before it, and a taller value box after the
+/// rail would push the row down from under it. The box's padding is trimmed
+/// first, since the slider's handle grows with the rail.
+pub fn slider_row(ui: &mut egui::Ui) {
+    ui.spacing_mut().button_padding.y = 3.0;
+    let height = ui.text_style_height(&egui::TextStyle::Button) + 2.0 * ui.spacing().button_padding.y;
+    ui.spacing_mut().interact_size.y = height;
+}
+
 pub fn bold() -> FontFamily {
     FontFamily::Name("Bold".into())
 }

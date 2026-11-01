@@ -576,7 +576,10 @@ impl Dock<'_> {
             Unit::Plain => slider.fixed_decimals(2),
             Unit::Index => slider.integer(),
         };
-        let r = ui.add(slider);
+        let r = ui.scope(|ui| {
+            crate::text::slider_row(ui);
+            ui.add(slider)
+        }).inner;
         self.reset_cell(ui, key);
         ui.end_row();
         self.widgets.push((key.to_string(), r.rect));
