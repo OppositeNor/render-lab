@@ -172,8 +172,22 @@ class Config:
         return [(symbols(texts[n['notice-text']]), self.package / n['license'] if 'license' in n else None) for n in manifest.get('notice', [])]
 
     def checkout(self, index: dict[str, Any]) -> Path:
-        override = os.environ.get(self.spec.get('checkoutEnv', ''), '')
-        return Path(override).resolve() if override else (LAB / index['engine']['checkoutFromLabRoot']).resolve()
+        """The engine's source: its video.json's `checkoutEnv` variable, else
+        where the user says (asked once per run)."""
+        env = self.spec.get('checkoutEnv', '')
+        if env not in CHECKOUTS:
+            given = os.environ.get(env, '') if env else ''
+            if not given:
+                try:
+                    given = input(f'Where is the {index["engine"]["name"]} source (the checkout\'s root)? ').strip()
+                except EOFError:
+                    raise SystemExit(f'set {env or "the checkout variable"} to the {index["engine"]["name"]} source') from None
+            CHECKOUTS[env] = Path(given).expanduser().resolve()
+        return CHECKOUTS[env]
+
+
+# The engines' sources, once given (Config.checkout).
+CHECKOUTS: dict[str, Path] = {}
 
 
 # The lab's symbol tags (lab/src/rich_text.rs SYMBOLS), for text a file shows as plain text.

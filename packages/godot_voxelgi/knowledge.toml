@@ -4,7 +4,7 @@
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
-known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-normal-maps", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#cg-gi"]
+known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-sync", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#cg-gi"]
 
 [[chapter]]
 number = 1

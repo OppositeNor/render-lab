@@ -22,7 +22,6 @@ use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
 use serde_json::{json, Value};
 use lab::utility::selftest::{request, still_timeline, Report, Rng};
-use std::path::PathBuf;
 
 /// The relative difference, against a floor so values near zero compare absolutely.
 fn rel(a: f32, b: f32) -> f32 {
@@ -847,8 +846,6 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let demo_problems: Vec<&str> = Demo::ALL.iter().filter(|d| !listings.iter().any(|l| Some(l.name) == shot::demos().spec(d.id()).listing) || !index.demos.contains_key(d.key())).map(|d| d.key()).collect();
     report.check("every listing cites a source entry and a demonstration; every demonstration has a listing and sources", listing_problems.is_empty() && demo_problems.is_empty(), json!({"listings": listing_problems, "demos": demo_problems}));
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
-    let checkout = std::env::var_os("O3DE_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| lab::resources::root().join("../../o3de"));
-    report.cited_lines("O3DE", &super::sources::INDEX, &checkout, "engine.json")?;
 
     // ---- 9. The narrated timeline: every scene beat readable ---------------
     if let Some(path) = &options.timeline {

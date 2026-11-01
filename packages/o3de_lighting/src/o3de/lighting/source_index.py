@@ -8,7 +8,7 @@ anywhere after changing an entry or moving to another O3DE commit:
 
     python3 packages/o3de_lighting/src/o3de/lighting/source_index.py
 
-The checkout is ../../o3de from the lab's root, or O3DE_SOURCE_DIR.
+The O3DE source is O3DE_SOURCE_DIR, or where the user says when asked.
 """
 import hashlib
 import json
@@ -17,7 +17,23 @@ import subprocess
 from pathlib import Path
 
 LAB = Path(__file__).resolve().parents[5]
-CHECKOUT = Path(os.environ.get("O3DE_SOURCE_DIR", LAB / "../../o3de")).resolve()
+
+
+def ask_checkout() -> Path:
+    """The O3DE source: O3DE_SOURCE_DIR, else where the user says."""
+    given = os.environ.get("O3DE_SOURCE_DIR", "")
+    if not given:
+        try:
+            given = input("Where is the O3DE source (the checkout's root)? ").strip()
+        except EOFError:
+            raise SystemExit("set O3DE_SOURCE_DIR to the O3DE source (the checkout's root)") from None
+    path = Path(given).expanduser().resolve()
+    if not (path / "engine.json").is_file():
+        raise SystemExit(f"{path}: not the O3DE source (no engine.json)")
+    return path
+
+
+CHECKOUT = ask_checkout()
 
 A = "Gems/Atom/Feature/Common/Assets/"
 LIB = A + "ShaderLib/Atom/Features/"
@@ -1401,9 +1417,8 @@ def main() -> None:
             "name": "Open 3D Engine",
             "version": "26.05 (2.6.0)",
             "commit": commit,
-            "checkoutFromLabRoot": "../../o3de",
             "license": "Apache-2.0 OR MIT",
-            "note": "Paths are relative to the O3DE checkout (o3de/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present.",
+            "note": "Paths are relative to the O3DE checkout (o3de/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed.",
         },
         "entries": entries,
         "chapters": [{"number": n, "title": title, "titleZh": zh, "reading": keys} for n, title, zh, keys in CHAPTERS],

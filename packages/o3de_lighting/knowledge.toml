@@ -4,22 +4,22 @@
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
-known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-normal-maps", "rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#rt-shadow-maps"]
+known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-sync", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-normal-maps", "rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#rt-shadow-maps"]
 
 [[chapter]]
 number = 1
 demos = ["room"]
-requires = ["rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#rt-msaa", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gpu-frame", "rlstd.knowledge#gpu-hdr-formats", "rlstd.knowledge#rt-octahedral"]
+requires = ["rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#rt-early-z", "rlstd.knowledge#rt-msaa", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gpu-frame", "rlstd.knowledge#gpu-hdr-formats", "rlstd.knowledge#rt-octahedral"]
 
 [[chapter]]
 number = 2
 demos = ["culling", "pointlight"]
-requires = ["rlstd.knowledge#rt-forward-plus", "rlstd.knowledge#cg-ltc", "rlstd.knowledge#rt-color"]
+requires = ["rlstd.knowledge#rt-forward-plus", "rlstd.knowledge#cg-ltc", "rlstd.knowledge#rt-tonemapping"]
 
 [[chapter]]
 number = 3
 demos = ["surface", "decals"]
-requires = ["rlstd.knowledge#cg-specular-aa", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-decals"]
+requires = ["rlstd.knowledge#cg-specular-aa", "rlstd.knowledge#rt-tonemapping", "rlstd.knowledge#rt-decals"]
 
 [[chapter]]
 number = 4
@@ -29,12 +29,12 @@ requires = ["rlstd.knowledge#cg-multiscatter", "rlstd.knowledge#cg-anisotropic",
 [[chapter]]
 number = 5
 demos = ["cascades"]
-requires = ["rlstd.knowledge#rt-csm", "rlstd.knowledge#rt-shadow-filtering", "rlstd.knowledge#rt-omni-shadows", "rlstd.knowledge#rt-screen-shadows"]
+requires = ["rlstd.knowledge#rt-csm", "rlstd.knowledge#rt-shadow-filtering", "rlstd.knowledge#rt-filterable-shadows", "rlstd.knowledge#rt-omni-shadows", "rlstd.knowledge#rt-screen-shadows"]
 
 [[chapter]]
 number = 6
 demos = ["ibl", "reflections"]
-requires = ["rlstd.knowledge#rt-reflection-probes", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gi-probes", "rlstd.knowledge#cg-ao"]
+requires = ["rlstd.knowledge#rt-reflection-probes", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gi-probes", "rlstd.knowledge#cg-directional-occlusion"]
 
 [[chapter]]
 number = 7

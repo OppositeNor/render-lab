@@ -4,9 +4,8 @@
     "name": "Open 3D Engine",
     "version": "26.05 (2.6.0)",
     "commit": "3db6943249d8bd7960b9ed7e9aee310b7668586e",
-    "checkoutFromLabRoot": "../../o3de",
     "license": "Apache-2.0 OR MIT",
-    "note": "Paths are relative to the O3DE checkout (o3de/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present."
+    "note": "Paths are relative to the O3DE checkout (o3de/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed."
   },
   "entries": {
     "engine-version": {

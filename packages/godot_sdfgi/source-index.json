@@ -4,9 +4,8 @@
     "name": "Godot Engine",
     "version": "4.7.2-stable",
     "commit": "ed1daf0bf001b61586d9930840f2f1394092c079",
-    "checkoutFromLabRoot": "../../godot",
     "license": "MIT",
-    "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present."
+    "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed."
   },
   "entries": {
     "frame-order": {

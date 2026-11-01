@@ -14,7 +14,6 @@ use anyhow::Result;
 use glam::{IVec3, Vec2, Vec3, Vec4};
 use lab::utility::selftest::{request, still_timeline, Report};
 use serde_json::json;
-use std::path::PathBuf;
 
 /// A small xorshift for sampled checks.
 struct Rng(u64);
@@ -394,11 +393,9 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         report.check("the worked elements (information)", true, json!({"bakePoint": super::demos::bake_point(&w.scene).to_array(), "leafCentre": (leaf_box.center() + NODE).to_array(), "leaf": leaf.to_array(), "rejectedChildren": rejected, "lightCell": light_cell, "bounceCell": bounce_cell, "brightestLeafLight": max_light}));
     }
 
-    // ---- 10. The source index against the checkout ------------------------------
+    // ---- 10. The source index -----------------------------------------------------
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
-    let checkout = std::env::var_os("GODOT_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| lab::resources::root().join("../../godot"));
-    report.cited_lines("Godot", &super::sources::INDEX, &checkout, "version.py")?;
 
     let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;

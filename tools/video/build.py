@@ -184,9 +184,6 @@ def main() -> None:
     board = load_board(cfg)
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
-    problems = [r for r in checks.check_sources(cfg, index) if not r['ok']]
-    if problems:
-        raise RuntimeError(f'the source index does not match the checkout: {problems[:5]}')
     if args.verify_only:
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}

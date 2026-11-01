@@ -11,7 +11,7 @@ pub mod demo;
 pub mod inset;
 /// A selftest's report, its single frames, and its test inputs.
 pub mod selftest;
-/// A package's source index, and its cited lines checked against the checkout.
+/// A package's source index.
 pub mod sources;
 /// A package's on-screen text (`text_table!`).
 pub mod text;

@@ -1,8 +1,8 @@
 //! Investigations of the Godot Engine. Its source is licensed under the MIT
 //! License, so these investigations, and the code ported from it, are
-//! published with the lab (THIRD_PARTY.md). The checkout they read is
-//! `../../godot` from the lab's root (or `GODOT_SOURCE_DIR`); each feature's
-//! source index records its version and commit.
+//! published with the lab (THIRD_PARTY.md). The source they read is wherever
+//! the user keeps it (`GODOT_SOURCE_DIR`, or asked); each feature's source
+//! index records its version and commit.
 
 pub mod voxelgi;
 

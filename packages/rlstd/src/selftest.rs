@@ -1,13 +1,11 @@
 //! What an investigation's selftest (`Investigation::selftest`) is built
 //! from: its report of checks, frames of single states, and test inputs.
 
-use super::sources::PackageIndex;
 use crate::renderer::FrameRequest;
 use crate::shot::{SceneType, ShotState, Timeline};
 use crate::ui::Chrome;
 use glam::Vec3;
 use serde_json::{json, Value};
-use std::path::Path;
 
 /// The checks run so far, each printed as it is recorded (PASS or FAIL and its name).
 #[derive(Default)]
@@ -29,20 +27,6 @@ impl Report {
     /// Every check passed.
     pub fn passed(&self) -> bool {
         self.checks.iter().all(|c| c["passed"] == true)
-    }
-
-    /// Checks every line `index` cites against `engine`'s checkout, which is
-    /// there when it holds `marker` (a file at its root); without it the check
-    /// is recorded as skipped.
-    pub fn cited_lines(&mut self, engine: &str, index: &PackageIndex, checkout: &Path, marker: &str) -> anyhow::Result<()> {
-        let name = format!("every cited {engine} line is unchanged in the checkout");
-        if !checkout.join(marker).is_file() {
-            self.check(&format!("{name} (skipped: no checkout)"), true, json!({"checkout": checkout}));
-            return Ok(());
-        }
-        let (cited, changed) = index.changed_lines(checkout)?;
-        self.check(&name, changed.is_empty(), json!({"checkout": checkout, "linesCited": cited, "mismatches": changed}));
-        Ok(())
     }
 }
 

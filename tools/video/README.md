@@ -127,7 +127,6 @@ install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, and `RENDER_LAB_TTS_
 
 The build checks the file (30 fps H.264 at the build's `--resolution`, 1080p by default; BT.709, AAC), its duration against the timeline and the expected range, the
 frame count, each chapter within 10% of its budget, a full decode, audio levels, caption line lengths, the render
-report (text at least 24 px, labels inside the viewport and apart), diagram labels, every cited line against the engine
-checkout and its commit, every relative link in the documents, `render-lab selftest --timeline` (every scene beat
+report (text at least 24 px, labels inside the viewport and apart), diagram labels, the engine checkout's commit, every relative link in the documents, `render-lab selftest --timeline` (every scene beat
 readable), and the Rust and WGSL layouts. A zh-CN build also checks that it shares the English narration and frames and
 leaves the English edition unchanged.

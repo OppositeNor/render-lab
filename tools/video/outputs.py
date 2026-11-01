@@ -29,8 +29,8 @@ WORDS: dict[str, dict[str, str]] = {
         'seeAbove': '*(Python pseudo-code “{title}”: see above.)*', 'engine': 'Engine source: {engine} {version}, commit `{commit}`. Prepared {date}.',
         'readingOrder': 'Recommended reading order', 'table': '| File | Symbol | Line | What to inspect |', 'simplify': 'What the demonstrations simplify', "mappings": "What the lab's data stands for", "mappingTable": "| Lab | Engine structure | Relationship | The engine's layout | The lab's |",
         'guideIntro': 'This guide follows the chapters of the video ({video}, script: {script}). For each topic it names the file, the symbol, the line to start reading at, and what to look for there.',
-        'checkout': '- Checkout: `{checkout}` relative to `render-lab/`; source paths are relative to its root. Links are relative and end in `#L<line>`.',
-        'index': '- Every entry comes from one machine-readable index, {index}, which also drives the video\'s source cards and the viewer\'s source panel. The build checks each line against the checkout.',
+        'checkout': '- Source paths are relative to the root of the engine\'s source, and `:<line>` names the line.',
+        'index': '- Every entry comes from one machine-readable index, {index}, which also drives the video\'s source cards and the viewer\'s source panel.',
         'video': 'video', 'script': 'Narrated script', 'guide': 'Source-reading guide', 'verification': 'Verification',
     },
     'zh-CN': {
@@ -39,8 +39,8 @@ WORDS: dict[str, dict[str, str]] = {
         'seeAbove': '*（Python 伪代码“{title}”见上文。）*', 'engine': '引擎源码：{engine} {version}，commit `{commit}`。准备于 {date}。',
         'readingOrder': '推荐阅读顺序', 'table': '| 文件 | 符号 | 行 | 要看什么 |', 'simplify': '演示做了哪些简化', 'mappings': '实验室的数据对应什么', 'mappingTable': '| 实验室 | 引擎结构 | 关系 | 引擎的布局 | 实验室的布局 |',
         'guideIntro': '本指南按照视频（{video}，脚本：{script}）的章节组织。每个主题都给出文件、符号、开始阅读的行，以及在那里要看什么。',
-        'checkout': '- 源码目录：相对于 `render-lab/` 为 `{checkout}`；源码路径相对于该目录的根。链接都是相对路径，并以 `#L<行号>` 结尾。',
-        'index': '- 每个条目都来自同一个机器可读的索引 {index}，它同时驱动视频中的源码卡片和查看器的源码面板。构建过程会对照源码检查每一行。',
+        'checkout': '- 源码路径相对于引擎源码的根目录，`:<行号>` 指出所在的行。',
+        'index': '- 每个条目都来自同一个机器可读的索引 {index}，它同时驱动视频中的源码卡片和查看器的源码面板。',
         'video': '视频', 'script': '旁白脚本', 'guide': '源码阅读指南', 'verification': '验证报告',
     },
 }
@@ -229,9 +229,10 @@ def read_listing(cfg: Config, name: str) -> tuple[str, str, str | None, str]:
 
 
 def source_link(cfg: Config, doc_dir: Path, index: Json, key: str, text: str | None = None) -> str:
+    """An entry's symbol (or `text`) and where it is in the engine's source,
+    as text: the source is wherever the reader keeps it, so no link."""
     entry = index['entries'][key]
-    target = LAB / index['engine']['checkoutFromLabRoot'] / entry['path']
-    return f'[{text or "`" + entry["symbol"] + "`"}]({relpath(target, doc_dir)}#L{entry["line"]})'
+    return f'{text or "`" + entry["symbol"] + "`"} (`{entry["path"]}:{entry["line"]}`)'
 
 
 def repo_link(doc_dir: Path, path: Path, text: str) -> str:
@@ -312,7 +313,7 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     lines = [f'# {cfg.text("guideTitle")}', '',
              w['guideIntro'].format(video=repo_link(doc_dir, cfg.video(), cfg.video_name()), script=repo_link(doc_dir, build / 'script.md', 'script.md')), '',
              f'- {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.',
-             w['checkout'].format(checkout=engine['checkoutFromLabRoot']),
+             w['checkout'],
              w['index'].format(index=repo_link(doc_dir, cfg.source_index, relpath(cfg.source_index, LAB))), '',
              f'## {w["readingOrder"]}', '']
     for i, key in enumerate(cfg.spec['readingPath'], 1):
@@ -328,7 +329,7 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             notes = [(d['line'], d.get('noteZh', d['note']) if cfg.zh() else d['note']) for d in entry.get('details', [])]
             if notes:
                 inspect += ' (' + '; '.join(w['line'].format(line=line) + ': ' + note for line, note in notes) + ')'
-            file_link = source_link(cfg, doc_dir, index, key, f'`{entry["path"].rsplit("/", 1)[-1]}`')
+            file_link = f'`{entry["path"]}`'
             lines.append(f'| {file_link} | `{entry["symbol"]}` | {entry["line"]} | {inspect} |')
         lines.append('')
     if index.get('mappings'):

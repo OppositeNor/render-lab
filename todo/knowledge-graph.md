@@ -19,9 +19,15 @@ These are the only nodes without requirements. Every other node reaches at least
 
 | Key | Base | Covers |
 |---|---|---|
-| `gpu` | Fundamental understanding of the GPU | Parallel programming on the GPU: invocations, subgroups, workgroups, the device, queues, and commands |
-| `cg` | Fundamental understanding of computer graphics | The radiometry used in graphics (radiant flux, irradiance, radiance, solid angle) and the rendering equation |
-| `rt` | Fundamental understanding of real-time rendering | Rasterization, attribute interpolation, vertex projection, and texture filtering |
+| `gpu` | Fundamental understanding of the GPU | The GPU's execution model: invocations in lockstep subgroups, workgroups, latency hiding, divergence |
+| `cg` | Fundamental understanding of computer graphics | Radiometry: solid angle, radiant flux, irradiance, radiance |
+| `rt` | Fundamental understanding of real-time rendering | The graphics pipeline: rasterization and attribute interpolation |
+
+The bases were narrowed on 2026-11-01, after a review against *Real-Time Rendering* (4th edition), *Physically Based
+Rendering* (3rd edition), *Computer Graphics: Principles and Practice*, the Vulkan and CUDA guides, and the papers the
+topics cite. Queues and command submission (`gpu-queues`), the rendering equation (`cg-rendering-equation`),
+projection (in `rt-spaces`), and texture filtering (`rt-sampling`) became topics of their own, because the books treat
+them after the bases and a viewer can know a base without them.
 
 ## The mathematics
 

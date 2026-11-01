@@ -8,7 +8,7 @@ from anywhere after changing an entry or moving to another Godot commit:
 
     python3 packages/godot_sdfgi/src/godot/sdfgi/source_index.py
 
-The checkout is ../../godot from the lab's root, or GODOT_SOURCE_DIR.
+The Godot source is GODOT_SOURCE_DIR, or where the user says when asked.
 """
 import hashlib
 import json
@@ -17,7 +17,23 @@ import subprocess
 from pathlib import Path
 
 LAB = Path(__file__).resolve().parents[5]
-CHECKOUT = Path(os.environ.get("GODOT_SOURCE_DIR", LAB / "../../godot")).resolve()
+
+
+def ask_checkout() -> Path:
+    """The Godot source: GODOT_SOURCE_DIR, else where the user says."""
+    given = os.environ.get("GODOT_SOURCE_DIR", "")
+    if not given:
+        try:
+            given = input("Where is the Godot source (the checkout's root)? ").strip()
+        except EOFError:
+            raise SystemExit("set GODOT_SOURCE_DIR to the Godot source (the checkout's root)") from None
+    path = Path(given).expanduser().resolve()
+    if not (path / "version.py").is_file():
+        raise SystemExit(f"{path}: not the Godot source (no version.py)")
+    return path
+
+
+CHECKOUT = ask_checkout()
 
 RD = "servers/rendering/renderer_rd/"
 GI = RD + "environment/gi.cpp"
@@ -764,9 +780,8 @@ def main() -> None:
             "name": "Godot Engine",
             "version": "4.7.2-stable",
             "commit": commit,
-            "checkoutFromLabRoot": "../../godot",
             "license": "MIT",
-            "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed; selftest checks it against the checkout when it is present.",
+            "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed.",
         },
         "entries": entries,
         "chapters": [{"number": n, "title": title, "titleZh": zh, "reading": keys} for n, title, zh, keys in CHAPTERS],

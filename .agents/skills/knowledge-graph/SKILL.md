@@ -1,6 +1,6 @@
 ---
 name: knowledge-graph
-description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The knowledge graph is a DAG of the computer-graphics knowledge the chapters need, worked back to three bases (GPU parallel programming; radiometry and the rendering equation; real-time rendering fundamentals); it lives in rlstd's knowledge.toml, and each investigation's knowledge.toml lists its chapters' direct requirements and its audience. The target audience is an antichain vertex separator of that graph: what the viewer should know (the Prerequisites tab), the level the story starts from, and what it must teach. Use when adding or editing topics or chapter requirements, when choosing or checking an investigation's audience, when outlining or reviewing a story's depth against what its viewer knows, or when asked about the Prerequisites tab or the knowledge panel.
+description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The knowledge graph is a DAG of the computer-graphics knowledge the chapters need, worked back to three bases (GPU parallel execution; radiometry; the graphics pipeline); it lives in rlstd's knowledge.toml, and each investigation's knowledge.toml lists its chapters' direct requirements and its audience. The target audience is an antichain vertex separator of that graph: what the viewer should know (the Prerequisites tab), the level the story starts from, and what it must teach. Use when adding or editing topics or chapter requirements, when choosing or checking an investigation's audience, when outlining or reviewing a story's depth against what its viewer knows, or when asked about the Prerequisites tab or the knowledge panel.
 ---
 
 # The knowledge graph and the target audience
@@ -14,14 +14,18 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
 - **Nodes** are `[[topic]]` tables in `packages/rlstd/knowledge.toml`: `key`, `title-text` and `summary-text` (keys of
   rlstd's `text/en.json` and `text/zh-CN.json`, `topic.<key>.title` and `topic.<key>.summary`), `area` (`gpu`,
   `rt`, `geo`, `cg`, `light`, `gi`: the panel's and the tab's grouping), `requires`, and optional `reading`
-  (published references: papers, books, talks, cited by their publication).
-- **The three bases** are the only nodes without requirements (`base = true`): `gpu` (invocations, subgroups,
-  workgroups, device, queues, commands), `cg` (radiometry and the rendering equation), `rt` (rasterization,
-  interpolation, vertex projection, filtering). Every other node reaches at least one. Do not add a base.
+  (published references: papers, books, talks, cited by their publication; a book by chapter and section, as
+  `Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.5`, naming the edition).
+- **The three bases** are the only nodes without requirements (`base = true`): `gpu` (the execution model:
+  invocations, subgroups, workgroups, latency hiding, divergence), `cg` (radiometry: solid angle, flux, irradiance,
+  radiance), `rt` (the graphics pipeline: rasterization and interpolation). Queues, the rendering equation, projection,
+  and texture filtering are topics of their own. Every other node reaches at least one. Do not add a base.
 - **An edge is a direct requirement**: understanding the node needs that topic directly. The loader rejects a
   cycle and a **redundant edge** (one another path already implies): the graph is transitively reduced, because
   "directly requires" must mean an edge for the separator to mean anything.
-- **One concept per node, engine-neutral.** Engine specifics (O3DE's tile size, Godot's cascade count) belong to the
+- **One concept per node, engine-neutral, named as the textbooks name it.** Titles and Chinese terms follow
+  *Real-Time Rendering* (4th edition; the Chinese translation for Chinese terms), *Physically Based Rendering*, and
+  the seminal papers; a topic's chapters in those books are its reading. Engine specifics (O3DE's tile size, Godot's cascade count) belong to the
   chapters, not to nodes. Split a node when stories need half of it at one level and half at another (the loader's
   partition shows this: a node whose requirements are partly known and partly not).
 - **A package's own nodes.** An investigation may declare `[[topic]]` tables in its own `knowledge.toml` and name

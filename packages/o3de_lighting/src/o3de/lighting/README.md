@@ -76,4 +76,4 @@ python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # after chang
 
 `selftest` compares every BRDF term, the cubemap lookups, whole pixels, the BRDF texture, and the rendered frame with
 the CPU mirror; checks energy and white-furnace invariants; checks that a pick round-trips; renders every
-demonstration; and, when the checkout is present, checks every cited line's hash against it.
+demonstration.

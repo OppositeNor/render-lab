@@ -20,15 +20,16 @@ alongside these steps.
 - **It does not**: it belongs in the optional `commercial` module, which is not provided in this repo and stays local;
   nothing published may name the engine or reflect the module's contents. Read the module's own `AGENTS.md` files first.
 - A public investigation never depends on, cites, or names a commercial one.
-- Keep the engine checkout read-only, next to the lab (O3DE: `../../o3de`, or `O3DE_SOURCE_DIR`), and record its version and
+- Ask the user where the engine's source is (or read its variable, e.g. `O3DE_SOURCE_DIR`); never write its location into
+  a file, since the user may move it. Keep it read-only, and record its version and
   commit in the source index.
 
 ## 1. Precision: the standard every investigation meets
 
 An investigation is only as good as its claims. Each of these is required, not a polish step:
 
-- **Cited and checked.** Every claim about the engine names a file, a symbol, and a line through the source index, and
-  the build checks each cited line's hash against the checkout at the recorded commit. Never narrate from memory, from
+- **Cited and checked.** Every claim about the engine names a file, a symbol, and a line through the source index, read
+  from the checkout at the recorded commit. Never narrate from memory, from
   documentation, or from a function's name: read the line and the function around it.
 - **What runs, not what exists.** Follow the call chain from the entry point the pipeline really executes (the pass,
   then its shader, then the functions it calls) before saying "the engine does X". Check every compile-time switch on
@@ -103,7 +104,7 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
                        selftest.rs  the verification suite (lab::utility::selftest: Report, still_timeline,
-                                    request, Rng, Report::cited_lines for the checkout)
+                                    request, Rng)
                        text.rs      lab::text_table!("<package>.text") → tr, tr_with, tr_key
                        sources.rs   pub static INDEX: PackageIndex = PackageIndex::new("<package>.source-index")
                        pseudocode.rs (NAMES; each the resource "<package>.listing/<name>")
@@ -209,10 +210,11 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 
 ## 5. Sources, pseudo-code, and formulas
 
-- **`source-index.json`**: `engine` (name, version, commit, `checkoutFromLabRoot`, license) and `entries`
+- **`source-index.json`**: `engine` (name, version, commit, license) and `entries`
   (`path`, `line`, `symbol`, `lineHash`, `inspect`, `inspectZh`, `details`). `lineHash` is the first 16 hex digits of
   the SHA-256 of the cited line, trimmed. Write the index with a script that reads the checkout (O3DE:
-  `source_index.py`), so lines and hashes never drift by hand. Even for a published engine, keep quotes short.
+  `source_index.py`; it reads the engine's variable, e.g. `O3DE_SOURCE_DIR`, or asks where the source is), so lines
+  and hashes never drift by hand. Even for a published engine, keep quotes short.
 - **Pseudo-code** (`pseudocode/*.py`): a header `# title: English | 中文`, `# source: <index key>`, `# demo: <demo>`,
   and optionally `# dispatch: English | 中文`, how its first function runs ("for each probe, in parallel", "on the CPU,
   each frame"; check it in the engine's dispatch code); a line ending in `# @tag` lights when a shot highlights `tag`

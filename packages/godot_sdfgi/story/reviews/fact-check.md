@@ -1,6 +1,6 @@
 # Fact-check of the SDFGI storyboard against the Godot 4.7.2-stable checkout
 
-Checkout: `/home/oppositenormal/Documents/programming/other/godot` (commit ed1daf0b, version.py 4.7.2 stable).
+Source: Godot commit ed1daf0b (version.py 4.7.2 stable).
 Method: every row was checked in the checkout by following the call chain, defines and defaults; the research notes were not used as evidence.
 Classes: exact, imprecise (true in substance, wording misleads or omits a condition), wrong, unverifiable.
 Paths are relative to `servers/rendering/renderer_rd/` unless noted. "gi.cpp" is `environment/gi.cpp`; shaders are in `shaders/environment/` (sdfgi_*.glsl, gi.glsl) or `shaders/forward_clustered/`.

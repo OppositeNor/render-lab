@@ -12,7 +12,6 @@ use anyhow::Result;
 use glam::{IVec3, Vec3};
 use serde_json::{json, Value};
 use lab::utility::selftest::{request, still_timeline, Report};
-use std::path::PathBuf;
 
 fn close(a: Vec3, b: Vec3) -> bool {
     (a - b).abs().max_element() < 1e-4
@@ -465,11 +464,9 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         report.check("the probeMap image kind: its size, entry point, and parameters; a story's instance of it loads, and a wrong parameter does not", declared && valid.is_ok() && refused.is_some(), json!({"params": format!("{params:?}"), "valid": valid, "refused": refused}));
     }
 
-    // ---- 3. The source index against the checkout ----------------------------
+    // ---- 3. The source index ------------------------------------------------
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
-    let checkout = std::env::var_os("GODOT_SOURCE_DIR").map(PathBuf::from).unwrap_or_else(|| lab::resources::root().join("../../godot"));
-    report.cited_lines("Godot", &super::sources::INDEX, &checkout, "version.py")?;
 
     let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;

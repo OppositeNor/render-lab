@@ -22,8 +22,8 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   `.git/info/exclude`; lab code only they use stays in those packages. Local-only ignore patterns go in
   `.git/info/exclude`, not `.gitignore`.
 - **Open-source engines are published.** The Open 3D Engine (Apache-2.0 or MIT) is investigated in `packages/o3de_lighting/`, which
-  is public; code ported from it keeps O3DE's copyright and is credited in `THIRD_PARTY.md` (MIT). Its checkout is
-  `../../o3de` (or `O3DE_SOURCE_DIR`); read it, never modify it. Public investigations do not depend on, cite, or name
+  is public; code ported from it keeps O3DE's copyright and is credited in `THIRD_PARTY.md` (MIT). Its source is
+  wherever the user keeps it: ask the user (or read `O3DE_SOURCE_DIR`); read it, never modify it. Public investigations do not depend on, cite, or name
   the commercial ones.
 - **Layering.** The lab (`lab/`, a Rust dylib the binary and every package's library link) must not depend on an
   investigation; everything feature-specific reaches it through the `Investigation` trait (including an investigation's
@@ -72,7 +72,7 @@ cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # t
 cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a 2d scene with an image: its panel, zoomed
 cargo run --release -- home --snapshot /path/to/sources.png --page viewer-sources   # a timeline paused on a 2d scene's sources card
 cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
-python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the checkout
+O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the source (asks where it is without the variable)
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)

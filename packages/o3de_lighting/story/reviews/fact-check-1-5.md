@@ -1,6 +1,6 @@
 # Fact check, chapters 1-5 (O3DE 26.05, commit 3db6943)
 
-Checkout: /home/oppositenormal/Documents/programming/other/o3de, HEAD 3db6943249d8bd7960b9ed7e9aee310b7668586e (matches the story's `commit:`), `git describe` = `2605.0`, engine.json `version` 2.6.0 (its `display_version` is "00.00", so "26.05" comes only from the git tag). Paths below: `A/` = `Gems/Atom/Feature/Common/Assets/`, `GF/` = `Gems/Atom/Feature/Common/Code/Source/`, `ALI/` = `Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/CoreLights/`.
+Source: O3DE at HEAD 3db6943249d8bd7960b9ed7e9aee310b7668586e (matches the story's `commit:`), `git describe` = `2605.0`, engine.json `version` 2.6.0 (its `display_version` is "00.00", so "26.05" comes only from the git tag). Paths below: `A/` = `Gems/Atom/Feature/Common/Assets/`, `GF/` = `Gems/Atom/Feature/Common/Code/Source/`, `ALI/` = `Gems/AtomLyIntegration/CommonFeatures/Code/Include/AtomLyIntegration/CommonFeatures/CoreLights/`.
 
 Sentences were read from the storyboard including lines that begin with `{@ demo=` / `{@ animate=` tags (five narrated lines sit on such lines: 199, 366, 484, 554, 578).
 

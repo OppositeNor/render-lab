@@ -1,6 +1,6 @@
 # Fact check: Godot VoxelGI storyboard and source index
 
-Checkout: Godot 4.7.2-stable, commit ed1daf0bf001b61586d9930840f2f1394092c079 (confirmed with `git rev-parse` and `version.py`).
+Source: Godot 4.7.2-stable, commit ed1daf0bf001b61586d9930840f2f1394092c079 (confirmed with `git rev-parse` and `version.py`).
 All `source-index.json` entries (78) were opened at their cited line: every cited line exists and holds the named symbol or statement.
 Paths below are relative to the checkout. `rrf` = `servers/rendering/renderer_rd`.
 

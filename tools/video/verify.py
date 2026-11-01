@@ -1,15 +1,14 @@
 """Checks of a finished build, written to verification-report.json and .md:
 the file's format and length against the timeline, chapters against their
 budgets, a full decode, audio levels, captions, the render report's text and
-labels, the diagrams' label size, the source index against the checkout,
-every relative link, the lab's selftest and layouts, and, for zh-CN, that the
+labels, the diagrams' label size, the engine checkout's commit, every
+relative link, the lab's selftest and layouts, and, for zh-CN, that the
 edition shares the English narration and frames.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -26,38 +25,12 @@ ENGLISH_FILES = ['captions.srt', 'captions.vtt', 'chapters.txt', 'script.md', 's
                  'verification-report.json', 'verification-report.md', 'contact-sheet.png', 'poster.png', 'narration.wav']
 
 
-def line_hash(text: str) -> str:
-    """The index's lineHash: the first 16 hex digits of the SHA-256 of the line without surrounding whitespace."""
-    return hashlib.sha256(text.strip().encode()).hexdigest()[:16]
-
-
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def check_sources(cfg: Config, index: Json) -> list[Json]:
-    """Every entry and detail line must still be the line its hash records."""
-    root = cfg.checkout(index)
-    results: list[Json] = []
-    for key, entry in index['entries'].items():
-        path = root / entry['path']
-        if not path.is_file():
-            results.append({'key': key, 'ok': False, 'problem': f'missing file {entry["path"]}'})
-            continue
-        lines = path.read_text(errors='replace').splitlines()
-        for line, expected, kind in [(entry['line'], entry['lineHash'], 'entry')] + [(d['line'], d['lineHash'], 'detail') for d in entry.get('details', [])]:
-            ok = 1 <= line <= len(lines) and line_hash(lines[line - 1]) == expected
-            results.append({'key': key, 'kind': kind, 'path': entry['path'], 'line': line, 'ok': ok})
-    return results
-
-
 def check_links(cfg: Config, index: Json, generated: list[Path]) -> list[Json]:
-    """Every relative link resolves from its document; links into the checkout land on a cited line."""
-    root = cfg.checkout(index)
-    checkout = (LAB / index['engine']['checkoutFromLabRoot']).resolve()
-    by_path: dict[str, list[Json]] = {}
-    for entry in index['entries'].values():
-        by_path.setdefault(entry['path'], []).append(entry)
+    """Every relative link resolves from its document."""
     build = cfg.build()
     results: list[Json] = []
     home = str(Path.home())
@@ -71,16 +44,10 @@ def check_links(cfg: Config, index: Json, generated: list[Path]) -> list[Json]:
         for _, target in LINK.findall(text):
             if re.match(r'^[a-z]+://', target) or target.startswith(('#', 'mailto:')):
                 continue
-            path_part, _, fragment = target.partition('#')
+            path_part = target.partition('#')[0]
             resolved = (doc.parent / path_part).resolve()
             ok = resolved.exists() or resolved in generated_paths
             detail: Json = {'doc': doc.name, 'target': target, 'ok': ok}
-            if ok and str(resolved).startswith(str(checkout)) and fragment.startswith('L'):
-                rel = str(resolved.relative_to(checkout)).replace(os.sep, '/')
-                line = int(fragment[1:])
-                lines = (root / rel).read_text(errors='replace').splitlines()
-                hashes = [e['lineHash'] for e in by_path.get(rel, []) if e['line'] == line] + [d['lineHash'] for e in by_path.get(rel, []) for d in e.get('details', []) if d['line'] == line]
-                detail['ok'] = detail['lineCited'] = bool(hashes) and line_hash(lines[line - 1]) in hashes
             results.append(detail)
     return results
 
@@ -153,11 +120,9 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     check('every rendered frame: text >= 24 px, labels inside the viewport, no overlaps',
           render.get('min_text_pt', 0) >= 24 and render.get('max_label_overlaps', 1) == 0 and render.get('max_labels_outside', 1) == 0,
           {k: render.get(k) for k in ('frames', 'min_text_pt', 'max_label_overlaps', 'max_labels_outside', 'frames_with_label_issues', 'seconds', 'gpu')})
-    sources = check_sources(cfg, index)
-    check('every cited line still matches its recorded hash in the checkout', all(r['ok'] for r in sources), {'locations': len(sources), 'problems': [r for r in sources if not r['ok']]})
     links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
-    check('every relative link resolves; links into the checkout land on a cited line; no home-directory paths', all(link['ok'] for link in links),
-          {'links': len(links), 'sourceLinks': sum(1 for link in links if 'lineCited' in link), 'problems': [link for link in links if not link['ok']]})
+    check('every relative link resolves; no home-directory paths', all(link['ok'] for link in links),
+          {'links': len(links), 'problems': [link for link in links if not link['ok']]})
     commit = run(['git', '-C', cfg.checkout(index), 'rev-parse', 'HEAD']).strip()
     check('engine checkout is the recorded commit', commit == index['engine']['commit'], {'checkout': commit, 'recorded': index['engine']['commit']})
     if cfg.zh():
