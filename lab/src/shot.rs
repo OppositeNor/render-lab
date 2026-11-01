@@ -79,8 +79,8 @@ pub enum PanelMode {
     /// The frame's cost: GPU time per pass, measured as it renders (src/timing.rs);
     /// `highlight` names the passes to call out.
     Performance,
-    /// The skill graph and the investigation's audience (src/skills.rs; the Prerequisites tab).
-    Skills,
+    /// The knowledge graph and the investigation's audience (src/knowledge.rs; the Prerequisites tab).
+    Knowledge,
     Hidden,
 }
 

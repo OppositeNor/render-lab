@@ -1,11 +1,11 @@
-//! The skill graph: what understanding an investigation's chapters needs,
+//! The knowledge graph: what understanding an investigation's chapters needs,
 //! worked back to three bases, and the audience an investigation is aimed
-//! at (todo/skill-graph.md; the `skill-graph` agent skill).
+//! at (todo/knowledge-graph.md; the `knowledge-graph` agent skill).
 //!
-//! A package's `skills` resource (a `kind = "file"` TOML file, conventionally
-//! `skills.toml`) has:
+//! A package's `knowledge` resource (a `kind = "file"` TOML file, conventionally
+//! `knowledge.toml`) has:
 //!
-//! - `[[skill]]` tables, the nodes: `key`, `title-text` and `summary-text`
+//! - `[[topic]]` tables, the nodes: `key`, `title-text` and `summary-text`
 //!   (keys of the package's text tables), `area` (the panel's grouping), the
 //!   `requires` list, optional `reading` (published references), and
 //!   `base = true` for the three bases (rlstd's alone);
@@ -15,7 +15,7 @@
 //!   nodes the audience knows.
 //!
 //! A requirement is a node of the same file (`geo-sdf`), or of a package it
-//! imports whose `skills` it exports (`rlstd.skills#geo-sdf`). The graph must
+//! imports whose `knowledge` it exports (`rlstd.knowledge#geo-sdf`). The graph must
 //! be acyclic, its only sources the bases, and transitively reduced (an edge
 //! another path already implies is an error), so that "directly requires"
 //! means an edge.
@@ -24,10 +24,10 @@
 //! the graph restricted to their ancestors, the known set A is `known` with
 //! everything it requires (and the bases). The level S is the nodes outside A
 //! whose requirements are all in A: an antichain. An edge from A to a node
-//! beyond the level is a carry: a known skill used directly above the level.
+//! beyond the level is a carry: a known topic used directly above the level.
 //! In the graph with every level-skipping edge subdivided, the level and the
 //! carries together are an antichain vertex separator between A and the rest
-//! (the proof is in todo/skill-graph.md). The rest is what the story teaches.
+//! (the proof is in todo/knowledge-graph.md). The rest is what the story teaches.
 
 use crate::packages::{self, Package};
 use std::collections::BTreeMap;
@@ -39,7 +39,7 @@ pub const AREAS: &[&str] = &["gpu", "rt", "geo", "cg", "light", "gi"];
 /// One node of the merged graph.
 #[derive(Clone, Debug)]
 pub struct Node {
-    /// Its full name, `<package>.skills#<key>`.
+    /// Its full name, `<package>.knowledge#<key>`.
     pub id: String,
     pub package: String,
     pub key: String,
@@ -284,11 +284,11 @@ fn string(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> String
 }
 
 fn parse(text: &str, at: &str) -> Result<RawFile, String> {
-    let fail = |m: String| format!("skills: {at}: {m}");
+    let fail = |m: String| format!("knowledge: {at}: {m}");
     let document = toml_edit::Document::parse(text.to_string()).map_err(|e| fail(format!("parse: {e}")))?;
     let table = document.as_table();
-    if let Some((key, _)) = table.iter().find(|(k, _)| !["skill", "chapter", "audience"].contains(k)) {
-        return Err(fail(format!("unknown key `{key}` (a skills file has skill, chapter, audience)")));
+    if let Some((key, _)) = table.iter().find(|(k, _)| !["topic", "chapter", "audience"].contains(k)) {
+        return Err(fail(format!("unknown key `{key}` (a knowledge file has topic, chapter, audience)")));
     }
     let tables = |name: &str| -> Result<Vec<&toml_edit::Table>, String> {
         match table.get(name) {
@@ -297,13 +297,13 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
         }
     };
     let mut nodes = Vec::new();
-    for t in tables("skill")? {
+    for t in tables("topic")? {
         const FIELDS: &[&str] = &["key", "title-text", "summary-text", "area", "base", "requires", "reading"];
         if let Some((key, _)) = t.iter().find(|(k, _)| !FIELDS.contains(k)) {
-            return Err(fail(format!("a skill has no field `{key}` (it has {})", FIELDS.join(", "))));
+            return Err(fail(format!("a topic has no field `{key}` (it has {})", FIELDS.join(", "))));
         }
-        let key = string(t, "key", &fail)?.ok_or_else(|| fail("a skill needs `key`".into()))?;
-        let f = |m: String| fail(format!("skill `{key}`: {m}"));
+        let key = string(t, "key", &fail)?.ok_or_else(|| fail("a topic needs `key`".into()))?;
+        let f = |m: String| fail(format!("topic `{key}`: {m}"));
         if key.is_empty() || !key.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-') {
             return Err(f("a key is lower-case letters, digits, and `-`".into()));
         }
@@ -343,14 +343,14 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
     Ok(RawFile { nodes, chapters, profile, known })
 }
 
-/// The full node name a reference in `package`'s skills names.
+/// The full node name a reference in `package`'s topics names.
 fn resolve(package: &Package, imported: &[Package], reference: &str) -> Result<String, String> {
     match reference.split_once('#') {
-        None => Ok(format!("{}.skills#{reference}", package.name)),
+        None => Ok(format!("{}.knowledge#{reference}", package.name)),
         Some((resource, key)) => {
             let full = packages::resolve(package, imported, resource)?;
-            if !full.ends_with(".skills") {
-                return Err(format!("`{reference}` names `{full}`, not a package's `skills`"));
+            if !full.ends_with(".knowledge") {
+                return Err(format!("`{reference}` names `{full}`, not a package's `knowledge`"));
             }
             Ok(format!("{full}#{key}"))
         }
@@ -364,12 +364,12 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
     let mut index: BTreeMap<String, usize> = BTreeMap::new();
     for (p, file) in &files {
         for node in &file.nodes {
-            let id = format!("{}.skills#{}", p.name, node.key);
+            let id = format!("{}.knowledge#{}", p.name, node.key);
             if index.contains_key(&id) {
-                return Err(format!("skills: {}: the skill `{}` is declared twice", p.name, node.key));
+                return Err(format!("knowledge: {}: the topic `{}` is declared twice", p.name, node.key));
             }
             if node.base && p.name != "rlstd" {
-                return Err(format!("skills: {}: `{}` is a base; only rlstd declares the bases", p.name, node.key));
+                return Err(format!("knowledge: {}: `{}` is a base; only rlstd declares the bases", p.name, node.key));
             }
             index.insert(id.clone(), graph.nodes.len());
             graph.nodes.push(Node { id, package: p.name.clone(), key: node.key.clone(), title: text(&p.name, &node.title), summary: text(&p.name, &node.summary), area: node.area.clone(), base: node.base, requires: Vec::new(), reading: node.reading.clone() });
@@ -377,16 +377,16 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
     }
     let lookup = |p: &Package, reference: &str| -> Result<usize, String> {
         let at = all.iter().position(|o| o.name == p.name).unwrap_or(all.len());
-        let id = resolve(p, &all[..at], reference).map_err(|e| format!("skills: {}: {e}", p.name))?;
-        index.get(&id).copied().ok_or_else(|| format!("skills: {}: no skill `{id}`", p.name))
+        let id = resolve(p, &all[..at], reference).map_err(|e| format!("knowledge: {}: {e}", p.name))?;
+        index.get(&id).copied().ok_or_else(|| format!("knowledge: {}: no topic `{id}`", p.name))
     };
     let mut start = 0;
     for (p, file) in &files {
         for (i, node) in file.nodes.iter().enumerate() {
             let requires = node.requires.iter().map(|r| lookup(p, r)).collect::<Result<Vec<_>, _>>()?;
             if node.base != requires.is_empty() {
-                let why = if node.base { "a base requires nothing" } else { "a skill that is not a base requires something" };
-                return Err(format!("skills: {}: `{}`: {why}", p.name, node.key));
+                let why = if node.base { "a base requires nothing" } else { "a topic that is not a base requires something" };
+                return Err(format!("knowledge: {}: `{}`: {why}", p.name, node.key));
             }
             graph.nodes[start + i].requires = requires;
         }
@@ -395,10 +395,10 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
         if p.name == package {
             for (number, demos, requires) in &file.chapters {
                 if graph.chapters.iter().any(|c| c.number == *number) {
-                    return Err(format!("skills: {package}: chapter {number} is declared twice"));
+                    return Err(format!("knowledge: {package}: chapter {number} is declared twice"));
                 }
                 if requires.is_empty() {
-                    return Err(format!("skills: {package}: chapter {number} requires nothing (leave a recap chapter out)"));
+                    return Err(format!("knowledge: {package}: chapter {number} requires nothing (leave a recap chapter out)"));
                 }
                 let requires = requires.iter().map(|r| lookup(p, r)).collect::<Result<Vec<_>, _>>()?;
                 graph.chapters.push(Chapter { number: *number, demos: demos.clone(), requires });
@@ -410,20 +410,20 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
     graph.chapters.sort_by_key(|c| c.number);
     let requires = graph.requires();
     if let Some(c) = cycle(&requires) {
-        return Err(format!("skills: {package}: the requirements form a cycle: {}", c.iter().map(|&i| graph.nodes[i].id.as_str()).collect::<Vec<_>>().join(" → ")));
+        return Err(format!("knowledge: {package}: the requirements form a cycle: {}", c.iter().map(|&i| graph.nodes[i].id.as_str()).collect::<Vec<_>>().join(" → ")));
     }
     if let Some((n, r)) = redundant(&requires).first() {
-        return Err(format!("skills: {package}: `{}` requires `{}`, which another of its requirements already does (remove it)", graph.nodes[*n].id, graph.nodes[*r].id));
+        return Err(format!("knowledge: {package}: `{}` requires `{}`, which another of its requirements already does (remove it)", graph.nodes[*n].id, graph.nodes[*r].id));
     }
     let bases = graph.bases();
     if graph.nodes.iter().any(|n| n.package == "rlstd") && bases.len() != 3 {
-        return Err(format!("skills: rlstd declares {} bases (it declares three)", bases.len()));
+        return Err(format!("knowledge: rlstd declares {} bases (it declares three)", bases.len()));
     }
     for chapter in &graph.chapters {
         let mut with = requires.clone();
         with.push(chapter.requires.clone());
         if let Some((_, r)) = redundant(&with).into_iter().find(|(n, _)| *n == with.len() - 1) {
-            return Err(format!("skills: {package}: chapter {} requires `{}`, which another of its requirements already does (remove it)", chapter.number, graph.nodes[r].id));
+            return Err(format!("knowledge: {package}: chapter {} requires `{}`, which another of its requirements already does (remove it)", chapter.number, graph.nodes[r].id));
         }
     }
     Ok(graph)
@@ -500,7 +500,7 @@ impl Graph {
             return problems;
         }
         if self.known.is_empty() {
-            problems.push(format!("{}: no `[audience] known` (the skill-graph skill chooses it)", self.package));
+            problems.push(format!("{}: no `[audience] known` (the knowledge-graph agent skill chooses it)", self.package));
             return problems;
         }
         let p = self.audience();
@@ -552,12 +552,12 @@ fn topological(requires: &[Vec<usize>]) -> Vec<usize> {
 }
 
 /// Reads the merged graph of `package` from the built packages: its own
-/// `skills` and those of the packages it imports (directly or not). `None`
-/// when the package has no `skills` of its own (no chapters to be about).
+/// `knowledge` and those of the packages it imports (directly or not). `None`
+/// when the package has no `knowledge` of its own (no chapters to be about).
 pub fn load(package: &str) -> Option<Result<Graph, String>> {
     let all = crate::resources::packages();
     let at = all.iter().position(|p| p.name == package)?;
-    crate::resources::find(&format!("{package}.skills"))?;
+    crate::resources::find(&format!("{package}.knowledge"))?;
     let mut wanted = vec![package.to_string()];
     let mut k = 0;
     while k < wanted.len() {
@@ -572,7 +572,7 @@ pub fn load(package: &str) -> Option<Result<Graph, String>> {
     }
     let mut files = Vec::new();
     for p in all[..=at].iter().filter(|p| wanted.contains(&p.name)) {
-        let Some(resource) = crate::resources::find(&format!("{}.skills", p.name)) else { continue };
+        let Some(resource) = crate::resources::find(&format!("{}.knowledge", p.name)) else { continue };
         match parse(resource.text(), resource.source()) {
             Ok(file) => files.push((p, file)),
             Err(e) => return Some(Err(e)),
@@ -736,7 +736,7 @@ mod tests {
         for package in ["o3de_lighting", "godot_sdfgi", "godot_voxelgi"] {
             let mut files = Vec::new();
             for p in all.iter().filter(|p| p.name == package || p.name == "rlstd") {
-                let path = p.dir.join("skills.toml");
+                let path = p.dir.join("knowledge.toml");
                 files.push((p, parse(&std::fs::read_to_string(&path).unwrap(), &path.display().to_string()).unwrap()));
             }
             let graph = merge(package, files, &all, &|_, key| key.to_string()).unwrap_or_else(|e| panic!("{e}"));

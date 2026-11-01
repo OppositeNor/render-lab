@@ -261,8 +261,8 @@ pub enum ViewerAction {
     SaveLayout,
     /// The whole layout back to its defaults (and written).
     ResetLayout,
-    /// Open or close the skill graph full screen (src/skills.rs).
-    SetSkillsOverlay(bool),
+    /// Open or close the knowledge graph full screen (src/knowledge.rs).
+    SetKnowledgeOverlay(bool),
 }
 
 /// What the viewer's dock shows.
@@ -277,19 +277,19 @@ pub enum DockTab {
     Captions,
     /// Every value of the investigation, and the experiment's tools (src/experiment.rs).
     Experiments,
-    /// What the audience should know before the chapter, from the skill
-    /// graph (src/skills.rs); the panel shows the graph.
+    /// What the audience should know before the chapter, from the knowledge
+    /// graph (src/knowledge.rs); the panel shows the graph.
     Prerequisites,
 }
 
-/// The skill graph's context in the viewer (src/skills.rs): the chapters the
-/// Prerequisites tab and the skills panel are about (none, or none the graph
-/// declares: the whole investigation), and a skill to focus once (a snapshot's).
+/// The knowledge graph's context in the viewer (src/knowledge.rs): the chapters the
+/// Prerequisites tab and the knowledge panel are about (none, or none the graph
+/// declares: the whole investigation), and a topic to focus once (a snapshot's).
 #[derive(Clone, Debug, Default)]
-pub struct SkillsChrome {
+pub struct KnowledgeChrome {
     pub chapters: Vec<u32>,
     pub focus: Option<String>,
-    /// The skill graph full screen, over the viewer.
+    /// The knowledge graph full screen, over the viewer.
     pub overlay: bool,
 }
 
@@ -378,8 +378,8 @@ pub struct ViewerChrome {
     pub diagram: Option<DiagramView>,
     /// The Experiments tab's view of the experiment.
     pub experiment: ExperimentView,
-    /// The Prerequisites tab's and the skills panel's chapters.
-    pub skills: SkillsChrome,
+    /// The Prerequisites tab's and the knowledge panel's chapters.
+    pub knowledge: KnowledgeChrome,
 }
 
 pub enum Chrome<'a> {
@@ -508,7 +508,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     let scene_beat = input.scene_type == SceneType::ThreeD;
     // The Experiments tab puts its values in the panel's place.
     // The performance panel, when asked for, takes the panel's place over the values.
-    let value_panel = scene_beat && !matches!(input.state.panel, PanelMode::Performance | PanelMode::Skills) && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
+    let value_panel = scene_beat && !matches!(input.state.panel, PanelMode::Performance | PanelMode::Knowledge) && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -567,14 +567,14 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
                 }
                 draw_labels(&ink, input, content, &obstacles, &mut report);
-                if input.state.panel == PanelMode::Skills {
-                    let skills = match &chrome {
-                        Chrome::Viewer(v) => v.skills.clone(),
-                        Chrome::Recording { .. } => SkillsChrome::default(),
+                if input.state.panel == PanelMode::Knowledge {
+                    let topics = match &chrome {
+                        Chrome::Viewer(v) => v.knowledge.clone(),
+                        Chrome::Recording { .. } => KnowledgeChrome::default(),
                     };
-                    if draw_skills_panel(ctx, &ink, l.panel, &skills) {
+                    if draw_knowledge_panel(ctx, &ink, l.panel, &topics) {
                         if let Chrome::Viewer(v) = &mut chrome {
-                            v.actions.push(ViewerAction::SetSkillsOverlay(true));
+                            v.actions.push(ViewerAction::SetKnowledgeOverlay(true));
                         }
                     }
                 } else if !value_panel {
@@ -636,12 +636,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             } else {
                 draw_footer(&ink, l, None);
             }
-            // The skill graph full screen, over everything but the popups.
-            if viewer.skills.overlay && draw_skills_overlay(ctx, l.canvas, &viewer.skills.clone()) {
-                viewer.actions.push(ViewerAction::SetSkillsOverlay(false));
+            // The knowledge graph full screen, over everything but the popups.
+            if viewer.knowledge.overlay && draw_knowledge_overlay(ctx, l.canvas, &viewer.knowledge.clone()) {
+                viewer.actions.push(ViewerAction::SetKnowledgeOverlay(false));
             }
             viewer.popups.draw(ctx, l.canvas);
-            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input() || viewer.skills.overlay;
+            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input() || viewer.knowledge.overlay;
         }
     }
     let _ = scene_beat;
@@ -757,7 +757,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
 /// writes the layout, and a double-click puts that size back to its default.
 fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let l = &input.layout;
-    let code = matches!(input.state.panel, PanelMode::Code | PanelMode::Skills);
+    let code = matches!(input.state.panel, PanelMode::Code | PanelMode::Knowledge);
     let mut handles: Vec<(LayoutPart, Rect, egui::CursorIcon)> = Vec::new();
     // The panel's edge, when the panel shows beside the viewport.
     if l.viewport.max.x + 1.0 < l.panel.min.x {
@@ -1095,68 +1095,68 @@ fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
     }
 }
 
-/// The skills panel's view, kept in egui's memory between frames: the scale
+/// The knowledge panel's view, kept in egui's memory between frames: the scale
 /// (points per graph unit; 0 until fitted), the graph point at the panel's
-/// centre, the selected skill, and the chapters it was last fitted to.
+/// centre, the selected topic, and the chapters it was last fitted to.
 #[derive(Clone, Debug, Default)]
-struct SkillsView {
+struct KnowledgeView {
     scale: f32,
     center: Vec2,
     selected: Option<usize>,
     fitted: Option<Vec<u32>>,
-    /// The chrome's focus last applied (`SkillsChrome::focus`).
+    /// The chrome's focus last applied (`KnowledgeChrome::focus`).
     focused: Option<String>,
-    /// A skill to centre on the next frame (`focus_skill`).
+    /// A topic to centre on the next frame (`focus_topic`).
     centre_on: Option<usize>,
 }
 
-/// Where the skill graph is drawn: the side panel, or full screen over everything.
+/// Where the knowledge graph is drawn: the side panel, or full screen over everything.
 #[derive(Clone, Copy, PartialEq)]
-enum SkillsPlace {
+enum KnowledgePlace {
     Panel,
     Overlay,
 }
 
-impl SkillsPlace {
+impl KnowledgePlace {
     fn view_id(self) -> egui::Id {
-        egui::Id::unique(if self == SkillsPlace::Panel { "skills-panel-view" } else { "skills-overlay-view" })
+        egui::Id::unique(if self == KnowledgePlace::Panel { "knowledge-panel-view" } else { "knowledge-overlay-view" })
     }
 
     /// The order of its input areas: the overlay's above everything else.
     fn order(self) -> egui::Order {
-        if self == SkillsPlace::Panel { egui::Order::Background } else { egui::Order::Tooltip }
+        if self == KnowledgePlace::Panel { egui::Order::Background } else { egui::Order::Tooltip }
     }
 }
 
-/// Select skill `node` in the skills panel and the full-screen graph, and
+/// Select topic `node` in the knowledge panel and the full-screen graph, and
 /// centre it there (a click in the Prerequisites tab).
-pub fn focus_skill(ctx: &egui::Context, node: usize) {
+pub fn focus_topic(ctx: &egui::Context, node: usize) {
     ctx.data_mut(|d| {
-        for place in [SkillsPlace::Panel, SkillsPlace::Overlay] {
-            let view = d.get_temp_mut_or_default::<SkillsView>(place.view_id());
+        for place in [KnowledgePlace::Panel, KnowledgePlace::Overlay] {
+            let view = d.get_temp_mut_or_default::<KnowledgeView>(place.view_id());
             view.selected = Some(node);
             view.centre_on = Some(node);
         }
     });
 }
 
-/// The skill graph full screen, over the viewer or the homepage, for
+/// The knowledge graph full screen, over the viewer or the homepage, for
 /// `chrome`'s chapters (none: the whole story). Returns true when it is
 /// closed (its button; Esc is the caller's).
-pub fn draw_skills_overlay(ctx: &egui::Context, canvas: Vec2, chrome: &SkillsChrome) -> bool {
-    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("skills-overlay")));
+pub fn draw_knowledge_overlay(ctx: &egui::Context, canvas: Vec2, chrome: &KnowledgeChrome) -> bool {
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("knowledge-overlay")));
     let ink = Ink::new(&painter);
     let screen = Rect::from_min_size(Pos2::ZERO, canvas);
     painter.rect_filled(screen, CornerRadius::ZERO, palette::theme().dim);
     // What is under the overlay takes no pointer input.
-    egui::Area::new(egui::Id::unique("skills-overlay-block")).fixed_pos(Pos2::ZERO).order(egui::Order::Foreground).fade_in(false).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("knowledge-overlay-block")).fixed_pos(Pos2::ZERO).order(egui::Order::Foreground).fade_in(false).show(ctx, |ui| {
         ui.allocate_rect(screen, egui::Sense::click_and_drag());
     });
-    draw_skill_graph(ctx, &ink, screen.shrink(40.0), chrome, SkillsPlace::Overlay)
+    draw_knowledge_graph(ctx, &ink, screen.shrink(40.0), chrome, KnowledgePlace::Overlay)
 }
 
-/// A skill's role for the audience, as the panel colours it.
-fn skill_color(p: &crate::skills::Partition, i: usize) -> Color32 {
+/// A topic's role for the audience, as the panel colours it.
+fn topic_color(p: &crate::knowledge::Partition, i: usize) -> Color32 {
     if p.is_known(i) {
         palette::code_string()
     } else if p.level.contains(&i) {
@@ -1169,66 +1169,66 @@ fn skill_color(p: &crate::skills::Partition, i: usize) -> Color32 {
 }
 
 /// The chapters the viewer's context names that the graph declares (none: every chapter).
-pub fn skill_chapters(graph: &crate::skills::Graph, chrome: &SkillsChrome) -> Vec<u32> {
+pub fn knowledge_chapters(graph: &crate::knowledge::Graph, chrome: &KnowledgeChrome) -> Vec<u32> {
     chrome.chapters.iter().copied().filter(|c| graph.chapters.iter().any(|g| g.number == *c)).collect()
 }
 
-/// The skill graph in the panel (`PanelMode::Skills`). Returns true when
+/// The knowledge graph in the panel (`PanelMode::Knowledge`). Returns true when
 /// its full-screen button is pressed.
-fn draw_skills_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsChrome) -> bool {
-    draw_skill_graph(ctx, ink, rect, chrome, SkillsPlace::Panel)
+fn draw_knowledge_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeChrome) -> bool {
+    draw_knowledge_graph(ctx, ink, rect, chrome, KnowledgePlace::Panel)
 }
 
-/// The skill graph in `rect`: every skill, coloured by what the
-/// investigation's audience knows (src/skills.rs), the context's chapters at
-/// full strength; dragged to pan, scrolled to zoom, a click selects a skill
+/// The knowledge graph in `rect`: every topic, coloured by what the
+/// investigation's audience knows (src/knowledge.rs), the context's chapters at
+/// full strength; dragged to pan, scrolled to zoom, a click selects a topic
 /// (its card below), a double click fits the context again. Its button at
 /// the top right (full screen in the panel, close in the overlay) returns
 /// true when pressed. Node titles follow the zoom, so they are drawn with
 /// the painter, not `Ink` (whose smallest-size record is the recorder's check).
-fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsChrome, place: SkillsPlace) -> bool {
+fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeChrome, place: KnowledgePlace) -> bool {
     let painter = ink.painter;
     painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
     painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let x = rect.min.x + 22.0;
     let mut y = rect.min.y + 16.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("skills.title"), 30.0, bold(), palette::text());
-    let label = if place == SkillsPlace::Panel { tr("skills.full_screen") } else { tr("skills.close") };
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.title"), 30.0, bold(), palette::text());
+    let label = if place == KnowledgePlace::Panel { tr("knowledge.full_screen") } else { tr("knowledge.close") };
     let button_size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
     let mut pressed = false;
-    let button_order = if place == SkillsPlace::Panel { egui::Order::Middle } else { egui::Order::Tooltip };
-    egui::Area::new(egui::Id::unique(if place == SkillsPlace::Panel { "skills-panel-button" } else { "skills-overlay-button" })).fixed_pos(pos2(rect.max.x - 16.0 - button_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
+    let button_order = if place == KnowledgePlace::Panel { egui::Order::Middle } else { egui::Order::Tooltip };
+    egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-button" } else { "knowledge-overlay-button" })).fixed_pos(pos2(rect.max.x - 16.0 - button_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
         pressed = ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(button_size)).clicked();
     });
     y += 42.0;
     // The legend: one swatch per role.
     let mut lx = x;
-    for (label, color) in [(tr("skills.known"), palette::code_string()), (tr("skills.level"), palette::accent()), (tr("skills.teach"), palette::code_number()), (tr("skills.outside"), palette::text_faint())] {
+    for (label, color) in [(tr("knowledge.known"), palette::code_string()), (tr("knowledge.level"), palette::accent()), (tr("knowledge.teach"), palette::code_number()), (tr("knowledge.outside"), palette::text_faint())] {
         painter.rect_filled(Rect::from_min_size(pos2(lx, y + 6.0), vec2(16.0, 16.0)), CornerRadius::same(3), color);
         let r = ink.text(pos2(lx + 24.0, y), Align2::LEFT_TOP, label, 24.0, FontFamily::Proportional, palette::text_dim());
         lx = r.max.x + 22.0;
     }
     y += 34.0;
     let measure = |t: &str| ink.measure(t, 20.0, FontFamily::Proportional).x / 20.0 * 0.5;
-    let Some((graph, layout)) = crate::skills::current_layout(&measure) else {
-        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("skills.none"), 24.0, FontFamily::Proportional, palette::text_dim());
+    let Some((graph, layout)) = crate::knowledge::current_layout(&measure) else {
+        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.none"), 24.0, FontFamily::Proportional, palette::text_dim());
         return pressed;
     };
-    let chapters = skill_chapters(graph, chrome);
+    let chapters = knowledge_chapters(graph, chrome);
     let p = graph.audience();
     let context = graph.context(&chapters);
     let card_height = 150.0;
     let area = Rect::from_min_max(pos2(rect.min.x + 8.0, y), pos2(rect.max.x - 8.0, rect.max.y - card_height - 8.0));
-    let hint = ink.fit_right(tr("skills.hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
+    let hint = ink.fit_right(tr("knowledge.hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, area.max.y - 4.0), Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_faint());
     let graph_area = Rect::from_min_max(area.min, pos2(area.max.x, area.max.y - 34.0));
     let id = place.view_id();
-    let mut view = ctx.data(|d| d.get_temp::<SkillsView>(id)).unwrap_or_default();
+    let mut view = ctx.data(|d| d.get_temp::<KnowledgeView>(id)).unwrap_or_default();
     // The bounding box of a set of nodes, in graph units.
     let bounds = |nodes: &mut dyn Iterator<Item = usize>| -> Option<Rect> {
         nodes.map(|i| Rect::from_center_size(pos2(layout.positions[i].0, layout.positions[i].1), vec2(layout.widths[i], 1.0))).reduce(|a, b| a.union(b))
     };
-    let fit = |b: Rect, view: &mut SkillsView| {
+    let fit = |b: Rect, view: &mut KnowledgeView| {
         let b = b.expand(1.0);
         // Fitted, but no smaller than titles stay readable at (the rest is a drag away).
         view.scale = (graph_area.width() / b.width()).min(graph_area.height() / b.height()).clamp(34.0, 60.0);
@@ -1252,21 +1252,21 @@ fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsC
         fit(b, &mut view);
         view.fitted = Some(chapters.clone());
     }
-    // A skill focused from the dock: centred, at a readable scale.
+    // A topic focused from the dock: centred, at a readable scale.
     if let Some(node) = view.centre_on.take().filter(|&n| n < graph.nodes.len()) {
         view.center = vec2(layout.positions[node].0, layout.positions[node].1);
         view.scale = view.scale.max(36.0);
     }
     // Input: an interactive area over the graph (egui then has the pointer, not the camera).
-    let to_screen = |view: &SkillsView, g: (f32, f32)| graph_area.center() + (vec2(g.0, g.1) - view.center) * view.scale;
+    let to_screen = |view: &KnowledgeView, g: (f32, f32)| graph_area.center() + (vec2(g.0, g.1) - view.center) * view.scale;
     let mut hovered = None;
-    let input_id = egui::Id::unique(if place == SkillsPlace::Panel { "skills-panel-input" } else { "skills-overlay-input" });
+    let input_id = egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-input" } else { "knowledge-overlay-input" });
     egui::Area::new(input_id).fixed_pos(graph_area.min).order(place.order()).fade_in(false).show(ctx, |ui| {
         let response = ui.allocate_rect(Rect::from_min_size(graph_area.min, graph_area.size()), egui::Sense::click_and_drag());
         if response.dragged() {
             view.center -= response.drag_delta() / view.scale;
         }
-        let node_at = |view: &SkillsView, at: Pos2| (0..graph.nodes.len()).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
+        let node_at = |view: &KnowledgeView, at: Pos2| (0..graph.nodes.len()).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
         if let Some(at) = response.hover_pos() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
@@ -1286,19 +1286,19 @@ fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsC
         if let Some(i) = hovered {
             response.on_hover_ui_at_pointer(|ui| {
                 ui.set_max_width(420.0);
-                ui.label(egui::RichText::new(&graph.nodes[i].title).strong().color(skill_color(&p, i)));
+                ui.label(egui::RichText::new(&graph.nodes[i].title).strong().color(topic_color(&p, i)));
                 ui.label(&graph.nodes[i].summary);
             });
         }
     });
     view.center = view.center.clamp(whole.min.to_vec2(), whole.max.to_vec2());
     ctx.data_mut(|d| d.insert_temp(id, view.clone()));
-    // The selected skill's requirements and what requires it, lit.
+    // The selected topic's requirements and what requires it, lit.
     let requires = graph.requires();
     let lit: Vec<bool> = match view.selected {
         Some(s) => {
-            let below = crate::skills::context(&requires, &[s]);
-            (0..graph.nodes.len()).map(|i| below[i] || crate::skills::context(&requires, &[i])[s]).collect()
+            let below = crate::knowledge::context(&requires, &[s]);
+            (0..graph.nodes.len()).map(|i| below[i] || crate::knowledge::context(&requires, &[i])[s]).collect()
         }
         None => vec![false; graph.nodes.len()],
     };
@@ -1321,7 +1321,7 @@ fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsC
     let font = view.scale * 0.5;
     for i in 0..graph.nodes.len() {
         let strong = context[i] && (view.selected.is_none() || lit[i]);
-        let color = fade(skill_color(&p, i), strong);
+        let color = fade(topic_color(&p, i), strong);
         let box_rect = Rect::from_center_size(to_screen(&view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale);
         if !box_rect.intersects(graph_area) {
             continue;
@@ -1333,23 +1333,23 @@ fn draw_skill_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &SkillsC
             clipped.text(box_rect.center(), Align2::CENTER_CENTER, &graph.nodes[i].title, egui::FontId::proportional(font), fade(palette::text(), strong));
         }
     }
-    // The selected skill's card under the graph.
+    // The selected topic's card under the graph.
     let card = Rect::from_min_max(pos2(rect.min.x + 8.0, rect.max.y - card_height), pos2(rect.max.x - 8.0, rect.max.y - 8.0));
     painter.line_segment([pos2(card.min.x + 14.0, card.min.y), pos2(card.max.x - 14.0, card.min.y)], Stroke::new(1.0, palette::border()));
     let cx = card.min.x + 14.0;
     let width = card.width() - 28.0;
     let Some(s) = view.selected else {
-        let text = if chapters.is_empty() { tr("skills.for_all").to_string() } else { tr_with("skills.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+        let text = if chapters.is_empty() { tr("knowledge.for_all").to_string() } else { tr_with("knowledge.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
         ink.wrapped(pos2(cx, card.min.y + 10.0), width, &text, 24.0, FontFamily::Proportional, palette::text_dim());
         return pressed;
     };
     let node = &graph.nodes[s];
-    let role = if p.is_known(s) { tr("skills.known") } else if p.level.contains(&s) { tr("skills.level") } else if p.teach.contains(&s) { tr("skills.teach") } else { tr("skills.outside") };
+    let role = if p.is_known(s) { tr("knowledge.known") } else if p.level.contains(&s) { tr("knowledge.level") } else if p.teach.contains(&s) { tr("knowledge.teach") } else { tr("knowledge.outside") };
     let title = ink.fit_right(&format!("{} · {role}", node.title), width, 24.0, bold());
-    ink.text(pos2(cx, card.min.y + 8.0), Align2::LEFT_TOP, title, 24.0, bold(), skill_color(&p, s));
+    ink.text(pos2(cx, card.min.y + 8.0), Align2::LEFT_TOP, title, 24.0, bold(), topic_color(&p, s));
     let bottom = ink.wrapped(pos2(cx, card.min.y + 40.0), width, &node.summary, 24.0, FontFamily::Proportional, palette::text());
     let used = graph.chapters_using(s);
-    let used = if used.is_empty() { tr("skills.no_chapter").to_string() } else { tr_with("skills.used_by", args!(chapters = used.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+    let used = if used.is_empty() { tr("knowledge.no_chapter").to_string() } else { tr_with("knowledge.used_by", args!(chapters = used.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
     let used = ink.fit_right(&used, width, 24.0, FontFamily::Proportional);
     ink.text(pos2(cx, (bottom + 4.0).min(card.max.y - 30.0)), Align2::LEFT_TOP, used, 24.0, FontFamily::Proportional, palette::text_dim());
     pressed

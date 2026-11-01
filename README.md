@@ -145,23 +145,23 @@ skill.
 
 ### Prerequisites
 
-The algorithms assume a lot, so the lab keeps a **skill graph**: the knowledge every chapter needs, worked back to
+The algorithms assume a lot, so the lab keeps a **knowledge graph**: the knowledge every chapter needs, worked back to
 three bases (GPU parallel programming; radiometry and the rendering equation; real-time rendering fundamentals).
 Each investigation names the audience it is aimed at, which splits the graph into what the viewer should know, the
 level the story starts from, and what the story teaches.
 
 - The viewer's **Prerequisites** tab lists, for the current chapter (or the demonstration's chapters), what to know
   first, by area, the starting level, and what the story teaches.
-- Beside it, the **skill graph** panel draws the whole graph, coloured by what the audience knows; drag, scroll, and
-  click a skill to read about it. **Full screen** shows it over the whole window (Esc closes it).
-- On the homepage, each feature's **Before you start** names the level its story starts from and the known skills it
-  uses directly, with a button for the skill graph.
+- Beside it, the **knowledge graph** panel draws the whole graph, coloured by what the audience knows; drag, scroll,
+  and click a topic to read about it. **Full screen** shows it over the whole window (Esc closes it).
+- On the homepage, each feature's **Before you start** names the level its story starts from and the known topics it
+  uses directly, with a button for the knowledge graph.
 
-The graph is in `packages/rlstd/skills.toml`, each investigation's chapters and audience in its `skills.toml`, and
-the method in the `skill-graph` skill:
+The graph is in `packages/rlstd/knowledge.toml`, each investigation's chapters and audience in its `knowledge.toml`,
+and the method in the `knowledge-graph` skill:
 
 ```bash
-cargo run --release -- --investigation godot/sdfgi skills            # checked, and the audience's split per chapter
+cargo run --release -- --investigation godot/sdfgi knowledge         # checked, and the audience's split per chapter
 ```
 
 On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout

@@ -1,0 +1,52 @@
+# The chapters of this investigation's story and what each uses directly, from the
+# knowledge graph (rlstd's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
+# the `knowledge-graph` agent skill chose it). Recap chapters list nothing.
+
+[audience]
+profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
+known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-normal-maps", "rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#rt-shadow-maps"]
+
+[[chapter]]
+number = 1
+demos = ["room"]
+requires = ["rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#rt-msaa", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gpu-frame", "rlstd.knowledge#gpu-hdr-formats", "rlstd.knowledge#rt-octahedral"]
+
+[[chapter]]
+number = 2
+demos = ["culling", "pointlight"]
+requires = ["rlstd.knowledge#rt-forward-plus", "rlstd.knowledge#cg-ltc", "rlstd.knowledge#rt-color"]
+
+[[chapter]]
+number = 3
+demos = ["surface", "decals"]
+requires = ["rlstd.knowledge#cg-specular-aa", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-decals"]
+
+[[chapter]]
+number = 4
+demos = ["specular", "multiscatter", "diffuse", "clearcoat"]
+requires = ["rlstd.knowledge#cg-multiscatter", "rlstd.knowledge#cg-anisotropic", "rlstd.knowledge#cg-layered", "rlstd.knowledge#cg-burley"]
+
+[[chapter]]
+number = 5
+demos = ["cascades"]
+requires = ["rlstd.knowledge#rt-csm", "rlstd.knowledge#rt-shadow-filtering", "rlstd.knowledge#rt-omni-shadows", "rlstd.knowledge#rt-screen-shadows"]
+
+[[chapter]]
+number = 6
+demos = ["ibl", "reflections"]
+requires = ["rlstd.knowledge#rt-reflection-probes", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gi-probes", "rlstd.knowledge#cg-ao"]
+
+[[chapter]]
+number = 7
+demos = ["ssao"]
+requires = ["rlstd.knowledge#rt-ssao"]
+
+[[chapter]]
+number = 8
+demos = ["transmission"]
+requires = ["rlstd.knowledge#rt-screen-sss", "rlstd.knowledge#rt-shadow-thickness", "rlstd.knowledge#cg-burley", "rlstd.knowledge#cg-layered"]
+
+[[chapter]]
+number = 9
+demos = ["terrain"]
+requires = ["rlstd.knowledge#rt-heightfields", "rlstd.knowledge#cg-hair", "rlstd.knowledge#cg-multiscatter"]

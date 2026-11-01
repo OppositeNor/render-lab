@@ -1,6 +1,6 @@
 ---
 name: new-story
-description: Plan, research, write, and review a Render Lab investigation's narrated story (its storyboard and the demonstrations it needs), in phases with subagents - an overview agent, one research agent per subtopic with a round of follow-up questions, a merged research report, a chapter outline pairing every claim with what shows it, a demonstration phase that mirrors how the engine stores each structure and gives the viewer interactions to explore it, the shared tools the demonstrations need, the storyboard written chapter by chapter with its camera and parameter cues, and a per-chapter review from rendered stills. Use when asked to create or plan a new story or video for an investigation, to research a game-engine feature for one, to outline its chapters, or to review a story's depth and animations.
+description: Plan, research, write, and review a Render Lab investigation's narrated story (its storyboard and the demonstrations it needs), in phases with subagents - an overview agent, one research agent per subtopic, one on where the feature is used, and one on how it is optimised, with a round of follow-up questions, a merged research report, the knowledge level the story requires (as low as its chapters and time can teach above), a chapter outline pairing every claim with what shows it and teaching every topic above that level like a teacher, with animation and interaction, a demonstration phase that mirrors how the engine stores each structure and gives the viewer interactions to explore it, the shared tools the demonstrations need, the storyboard written chapter by chapter with its camera and parameter cues, and a per-chapter review from rendered stills. Use when asked to create or plan a new story or video for an investigation, to research a game-engine feature for one, to outline its chapters, or to review a story's depth and animations.
 ---
 
 # A new story for an investigation
@@ -49,14 +49,29 @@ guide, and tell the user about any pending request in it that was not done, so n
      (`new-investigation` §1);
    - what to return: every claim with its file, symbol, and line; numbers as the code has them (formats, sizes,
      counts, limits, clamps); what depends on configuration, and its default; and what is still unclear.
-3. **Questions.** Read every report. Write down what is unclear, contradicts another report, rests on a function's
+3. **Two more agents**, in parallel with the subtopic agents, each with the same checkout brief:
+   - **Where it is used.** What consumes the feature's output and what the feature reads (the passes, shaders, and
+     systems on either side of it), where it is switched on (project settings, quality levels, platforms, editor
+     and runtime paths, their defaults), what other engine features depend on it or replace it, and the engine's
+     own samples, templates, and documentation that use it. Every claim with its file, symbol, and line.
+   - **How it is optimised.** Everything the engine does to make it affordable: what it amortises over frames,
+     caches, or reuses (history, temporal accumulation, incremental updates); what it skips or culls; where it
+     lowers resolution, precision, or sample counts; its budgets and their console variables and defaults; its
+     scheduling (async compute, pass merging, early-outs); its data layouts chosen for bandwidth; and any timings
+     or profiling markers in the code or the engine's documentation. What each optimisation costs in quality, with
+     file, symbol, and line.
+
+   Their reports become sections of their own in `story/research.md`, and usually chapters: where it runs and what
+   uses it (the first chapter), and how it is kept fast (near the end).
+4. **Questions.** Read every report. Write down what is unclear, contradicts another report, rests on a function's
    name rather than its body, or depends on a switch nobody checked. Send each agent its own questions, for one or
    two rounds at most.
-4. **Merge** the reports into `story/research.md`: one section per subtopic, each claim with its file:line, and a
+5. **Merge** the reports into `story/research.md`: one section per subtopic, each claim with its file:line, and a
    column (or note) for **where the lab differs**: what the lab already computes another way (a fit where the
    engine samples a table, a CPU stand-in for a GPU pass, a smaller resolution). Catching a difference here is
    cheap; finding it in a finished storyboard means rewriting sentences.
-5. **Check in with the user**: the subtopics, the scope, and what is left out. Don't outline until they agree.
+6. **Check in with the user**: the subtopics, where it is used, how it is optimised, the scope, and what is left
+   out. Don't outline until they agree.
 
 ## Phase 2: Outline
 
@@ -73,9 +88,50 @@ Write `story/outline.md`:
 - **Worth a detailed demonstration**: the points where a still or a cut would lose the idea (a lookup worked
   step by step, a vector field, a lobe, a texture and the data it holds).
 - **The tools it needs**: overlays, insets, readouts, step parameters.
-- **The audience** (the `skill-graph` skill): the chapters' direct requirements and the audience in the package's
-  `skills.toml`; a beat for every skill the story teaches, before its first use, and a one-sentence reminder for
-  each skill of the starting level.
+- **The knowledge level** (below, and the `knowledge-graph` skill): the level the story requires, and for every topic
+  it teaches, the chapter and beats that teach it and their seconds.
+
+### The knowledge level
+
+Decide what the story requires before writing a beat: the lowest knowledge level at which the story can still
+teach everything above it, in the chapters and time it has. A lower level reaches more viewers; each topic below
+it is one the story must teach well, and that takes time.
+
+1. **List what each chapter uses**, as topics of the knowledge graph, in the package's `knowledge.toml` (the
+   `knowledge-graph` skill); add missing topics to rlstd's graph.
+2. **Start low.** Take an audience that knows only the bases and the topics every graphics programmer meets first
+   (rasterization's pipeline, textures, a BRDF, a light): `render-lab --investigation <id> knowledge --known …`
+   prints the level and what the story would have to teach, per chapter.
+3. **Cost it.** Give each topic to teach a time: a taught topic is a sequence of beats (below), about 60 to 120
+   seconds with its demonstration, more for a deep one. Add them to each chapter's budget for the feature's own
+   explanation.
+4. **Raise the level only where it does not fit.** When a chapter, or the whole story, runs over the length agreed
+   with the user, move the topics most general and furthest from the feature (the ones most viewers have met
+   elsewhere) into the known set, one at a time, and cost again; among equal choices, take the audience with fewer
+   carries (`--levels` lists them). Never raise it to spare a topic the feature itself is about.
+5. **Record it**: `[audience]` in `knowledge.toml` (its `profile` says who that viewer is), and in the outline the
+   level, the topics taught with their chapters, beats, and seconds, and the topics recalled in a sentence (the
+   level's). Check it with `render-lab --investigation <id> knowledge`.
+
+### Teaching a topic
+
+Every topic the story teaches is taught like a teacher at a board, not mentioned: the viewer should be able to
+explain it afterwards without the engine. Give it its own beats, before its first use, in this order where it
+fits:
+
+1. **The question** it answers, as a problem the viewer can see ("how far may this ray step without passing
+   through anything?").
+2. **An intuition** first: a plain-words picture or an everyday analogy, then the same idea in the scene.
+3. **One worked example**, animated step by step on a single element (one ray, one texel, one probe), each step a
+   value the viewer can see change: inputs shown, the calculation advancing, the result marked.
+4. **Exploration**: the demonstration's values and clicks that let the viewer try it (move the point, change the
+   roughness, pick another texel), named in the narration, with a sweep that shows the relation it teaches.
+5. **The general rule**: the formula or the algorithm, its terms lit as they are said, after the example.
+6. **Its limits**: where it fails or what it costs, shown, not just said.
+7. **The link back**: how the feature uses it, in one sentence, before the story moves on.
+
+Each taught topic gets a demonstration of its own in Phase 3, with its interactions; a topic taught only in
+narration, or only with a still, is not taught.
 
 ### The shape of a story
 
@@ -85,6 +141,11 @@ Write `story/outline.md`:
   one sentence ("how can the engine light a room with bounced light without tracing many rays for every
   pixel?"), show the architecture map (below), and say what the viewer will be able to explain by the end. Keep
   new terms out of the opening; each arrives in its own chapter.
+- **Say what the story teaches, and what the viewer gains.** Still in the opening, a beat names the main topics the
+  story teaches (the three to six that matter most, from the knowledge level, in plain words), what the viewer
+  should already know (the starting level; the viewer's Prerequisites tab lists it), and what they will gain: what
+  they will be able to explain, reason about, or do afterwards (read the engine's code for it, tune its settings,
+  judge its trade-offs, apply the techniques elsewhere). Show it on screen as a short list beside the narration.
 - **Then where it runs.** The first chapter places it in the engine's frame (a Mermaid beat of the passes, the
   feature's lit) and says what decides whether it runs at all: project settings, quality levels, platform paths,
   and their defaults.
@@ -200,10 +261,13 @@ show, and give the viewer a way to explore it. Write it to `story/demonstrations
    each resource. Interactions use the lab's extension points (`Investigation::click`, `#[click]` handlers on
    an inset, the dock's values), and the values they set are values a story can set too, so a story can show
    the same pick.
-5. **Build and check them** before the base: the views, the clicks, their values, and a selftest check that a
+5. **A demonstration for every taught topic** (Phase 2, "Teaching a topic"): its worked example as step values, the
+   interactions that let the viewer try it, and the sweep that shows its relation. Prefer the story's subject
+   object, and the same scene the feature runs in, so the topic and the feature meet on screen.
+6. **Build and check them** before the base: the views, the clicks, their values, and a selftest check that a
    pick round-trips (a click on what an element stands for picks it). Render stills of each view, and look at
    them.
-6. **Check in with the user**: the views, the subjects, and the interactions.
+7. **Check in with the user**: the views, the subjects, and the interactions.
 
 ## Phase 4: The base
 
@@ -346,8 +410,11 @@ these questions:
 - **Code and animation.** At each listing highlight, does the scene change to show that line's work? Which
   highlight leaves the scene as it was?
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
-- **Audience.** Against the chapter's line of `render-lab --investigation <id> skills` (the `skill-graph` skill):
-  is every skill it teaches explained, every level skill recalled, nothing the audience knows explained at length?
+- **Audience.** Against the chapter's line of `render-lab --investigation <id> knowledge` (the `knowledge-graph` skill):
+  is every topic it teaches explained, every level topic recalled, nothing the audience knows explained at length?
+- **Teaching.** For each topic it teaches: are the steps of "Teaching a topic" there (the question, an intuition, a
+  worked example animated, exploration the viewer can try, the rule, its limits, the link back)? Could a viewer
+  who did not know it explain it now? Which step is missing or rushed?
 - **Visibility.** In every still, is what the sentence names in view, or does a wall, an object, an inset, or
   the readout block it, or does it fall outside the frame or past the far plane?
 - **Reading the views.** For every texture or buffer view, does the narration say, when it appears, what it is,

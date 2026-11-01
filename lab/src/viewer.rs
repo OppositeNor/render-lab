@@ -203,10 +203,10 @@ pub struct App {
     pub layout: crate::config::ViewerLayout,
     /// The window's cursor as last set (egui's request, src/renderer.rs `cursor`).
     cursor_icon: egui::CursorIcon,
-    /// A skill the skills panel selects and centres once (a snapshot's).
-    skills_focus: Option<String>,
-    /// The skill graph is shown full screen (Esc closes it).
-    skills_overlay: bool,
+    /// A topic the knowledge panel selects and centres once (a snapshot's).
+    knowledge_focus: Option<String>,
+    /// The knowledge graph is shown full screen (Esc closes it).
+    knowledge_overlay: bool,
 }
 
 impl App {
@@ -279,8 +279,8 @@ impl App {
             frame_times: std::collections::VecDeque::new(),
             layout,
             cursor_icon: egui::CursorIcon::Default,
-            skills_focus: None,
-            skills_overlay: false,
+            knowledge_focus: None,
+            knowledge_overlay: false,
         })
     }
 
@@ -394,10 +394,10 @@ impl App {
             self.tab = DockTab::Parameters;
         }
         let defaults = self.default_state(self.state.demo);
-        // The Prerequisites tab shows the skill graph in the panel.
+        // The Prerequisites tab shows the knowledge graph in the panel.
         if self.tab == DockTab::Prerequisites {
-            self.state.panel = PanelMode::Skills;
-        } else if self.state.panel == PanelMode::Skills {
+            self.state.panel = PanelMode::Knowledge;
+        } else if self.state.panel == PanelMode::Knowledge {
             self.state.panel = defaults.panel;
         }
         if self.tab == DockTab::Code {
@@ -415,10 +415,10 @@ impl App {
 
     /// The chapters the Prerequisites tab is about: on a timeline, the
     /// current one; else those whose demonstrations include this one.
-    fn skill_chapters(&self) -> Vec<u32> {
+    fn knowledge_chapters(&self) -> Vec<u32> {
         match (&self.timeline, self.timeline_mode) {
             (Some(t), true) => vec![t.chapter_at(self.timeline_frame).number],
-            _ => crate::skills::current().map(|g| g.chapters_of_demo(self.state.demo.key())).unwrap_or_default(),
+            _ => crate::knowledge::current().map(|g| g.chapters_of_demo(self.state.demo.key())).unwrap_or_default(),
         }
     }
 
@@ -689,7 +689,7 @@ impl App {
                 }
             }
             ViewerAction::SaveLayout => self.save_layout(),
-            ViewerAction::SetSkillsOverlay(on) => self.skills_overlay = on,
+            ViewerAction::SetKnowledgeOverlay(on) => self.knowledge_overlay = on,
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
                 self.save_layout();
@@ -718,7 +718,7 @@ impl App {
             if self.layout.dock_height.is_some() {
                 self.layout.dock_height = Some(dock);
             }
-            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Skills);
+            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Knowledge);
             let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
             if width.is_some() && l.viewport.max.x < l.panel.min.x {
                 *width = Some(panel);
@@ -784,10 +784,10 @@ impl App {
             KeyCode::Minus,
             KeyCode::Equal,
         ];
-        // The full-screen skill graph takes the keys; Esc closes it.
-        if self.skills_overlay {
+        // The full-screen knowledge graph takes the keys; Esc closes it.
+        if self.knowledge_overlay {
             if code == KeyCode::Escape {
-                self.skills_overlay = false;
+                self.knowledge_overlay = false;
             }
             return;
         }
@@ -1106,7 +1106,7 @@ impl App {
             narration: self.narration,
             diagram: None,
             experiment: crate::ui::ExperimentView::default(),
-            skills: crate::ui::SkillsChrome { chapters: self.skill_chapters(), focus: self.skills_focus.clone(), overlay: self.skills_overlay },
+            knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
         };
         // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
         let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
@@ -1609,23 +1609,23 @@ pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &st
 }
 
 /// The viewer offscreen on its Prerequisites tab (`home --snapshot … --page
-/// viewer-prerequisites[:<demo>]`), the skill graph in the panel fitted to
-/// the demonstration's chapters; with `focus` (`viewer-skills[:<demo>]`), the
-/// panel zoomed onto the first skill of the audience's level, selected; with
-/// `overlay` (`viewer-skill-graph[:<demo>]`), the graph full screen.
+/// viewer-prerequisites[:<demo>]`), the knowledge graph in the panel fitted to
+/// the demonstration's chapters; with `focus` (`viewer-knowledge[:<demo>]`), the
+/// panel zoomed onto the first topic of the audience's level, selected; with
+/// `overlay` (`viewer-knowledge-graph[:<demo>]`), the graph full screen.
 pub fn snapshot_prerequisites(options: ViewerOptions, demo: Option<&str>, focus: bool, overlay: bool, png: &std::path::Path) -> Result<()> {
     use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
     let (mut app, gpu, size) = offscreen_app(options, demo)?;
     app.state = app.default_state(app.state.demo);
-    let graph = crate::skills::current().ok_or_else(|| anyhow::anyhow!("{} has no skill graph (its package's skills.toml)", investigation::current().title()))?;
+    let graph = crate::knowledge::current().ok_or_else(|| anyhow::anyhow!("{} has no knowledge graph (its package's knowledge.toml)", investigation::current().title()))?;
     app.tab = DockTab::Prerequisites;
     app.show_tab();
-    app.skills_overlay = overlay;
+    app.knowledge_overlay = overlay;
     if focus {
-        let chapters = app.skill_chapters();
+        let chapters = app.knowledge_chapters();
         let context = graph.context(&chapters);
         let p = graph.audience();
-        app.skills_focus = p.level.iter().find(|&&i| context[i]).or(p.level.first()).map(|&i| graph.nodes[i].id.clone());
+        app.knowledge_focus = p.level.iter().find(|&&i| context[i]).or(p.level.first()).map(|&i| graph.nodes[i].id.clone());
     }
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     for _ in 0..16 {
@@ -1635,8 +1635,8 @@ pub fn snapshot_prerequisites(options: ViewerOptions, demo: Option<&str>, focus:
     let padded = padded_row_bytes(size[0]) as u64;
     let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
     write_png(png, size[0], size[1], &rgba)?;
-    let chapters = app.skill_chapters();
-    eprintln!("viewer prerequisites: {} ({}x{}); demonstration {}, chapters {:?}{}", png.display(), size[0], size[1], app.state.demo.key(), chapters, app.skills_focus.as_ref().map(|f| format!(", focused on {f}")).unwrap_or_default());
+    let chapters = app.knowledge_chapters();
+    eprintln!("viewer prerequisites: {} ({}x{}); demonstration {}, chapters {:?}{}", png.display(), size[0], size[1], app.state.demo.key(), chapters, app.knowledge_focus.as_ref().map(|f| format!(", focused on {f}")).unwrap_or_default());
     Ok(())
 }
 

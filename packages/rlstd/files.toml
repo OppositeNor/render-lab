@@ -69,10 +69,10 @@ kind = "file"
 source = "text/zh-CN.json"
 license = "MIT"
 
-# The skill graph: the three bases and the engine-neutral skills the
-# investigations' chapters need (lab/src/skills.rs).
+# The knowledge graph: the three bases and the engine-neutral topics the
+# investigations' chapters need (lab/src/knowledge.rs).
 [[resource]]
-id = "skills"
+id = "knowledge"
 kind = "file"
-source = "skills.toml"
+source = "knowledge.toml"
 license = "MIT"

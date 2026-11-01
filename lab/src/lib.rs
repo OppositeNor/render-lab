@@ -61,8 +61,8 @@ pub mod scene;
 pub mod shader_data;
 pub mod shaders;
 pub mod shot;
-/// The skill graph and an investigation's audience (the Prerequisites tab, the skills panel).
-pub mod skills;
+/// The knowledge graph and an investigation's audience (the Prerequisites tab, the knowledge panel).
+pub mod knowledge;
 pub mod sources;
 pub mod terrain;
 pub mod text;

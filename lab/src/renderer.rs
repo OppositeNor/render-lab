@@ -704,8 +704,8 @@ impl Renderer {
         if dock {
             layout = layout.with_dock();
         }
-        // The pseudo-code and the skill graph take the wider panel.
-        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Skills);
+        // The pseudo-code and the knowledge graph take the wider panel.
+        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Knowledge);
         layout = layout.with_user(&self.user_layout, dock, code);
         layout.for_panel(panel)
     }

@@ -9,8 +9,8 @@ author = "OppositeNor"
 license = "MIT"
 import = []
 # The scenes demonstrations show, the shader modules investigations build on, and the
-# skill graph investigations name the nodes of (`rlstd.skills#<key>`, lab/src/skills.rs).
-export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "skills"]
+# knowledge graph investigations name the nodes of (`rlstd.knowledge#<key>`, lab/src/knowledge.rs).
+export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "knowledge"]
 
 # The sky, the teapot, the scenes, and the homepage's sounds and icon.
 [[provides]]

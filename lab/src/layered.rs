@@ -1,7 +1,7 @@
 //! A layered (Sugiyama-style) layout of a directed acyclic graph, left to
 //! right: ranks (columns) by the longest path from the sources, dummy points
 //! on edges that skip ranks, a few barycentric sweeps to order each rank.
-//! The skills panel (src/skills.rs) and the story's diagrams (src/diagram.rs)
+//! The knowledge panel (src/knowledge.rs) and the story's diagrams (src/diagram.rs)
 //! use it.
 
 use std::collections::BTreeMap;

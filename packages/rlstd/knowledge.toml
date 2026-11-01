@@ -1,0 +1,700 @@
+# The knowledge graph's nodes (lab/src/knowledge.rs; the plan is todo/knowledge-graph.md).
+# An edge is a `requires` entry: understanding the node needs it directly. The three
+# bases are the only nodes without requirements; the graph is acyclic and
+# transitively reduced (an edge another path implies is an error). Investigations
+# name these nodes as `rlstd.knowledge#<key>` (the `knowledge-graph` agent skill).
+
+[[topic]]
+key = "gpu"
+title-text = "topic.gpu.title"
+summary-text = "topic.gpu.summary"
+area = "gpu"
+base = true
+
+[[topic]]
+key = "cg"
+title-text = "topic.cg.title"
+summary-text = "topic.cg.summary"
+area = "cg"
+base = true
+reading = ["Kajiya 1986, The rendering equation", "Pharr, Jakob and Humphreys, Physically Based Rendering, chapter 4"]
+
+[[topic]]
+key = "rt"
+title-text = "topic.rt.title"
+summary-text = "topic.rt.summary"
+area = "rt"
+base = true
+
+[[topic]]
+key = "gpu-resources"
+title-text = "topic.gpu-resources.title"
+summary-text = "topic.gpu-resources.summary"
+area = "gpu"
+requires = ["gpu"]
+
+[[topic]]
+key = "gpu-formats"
+title-text = "topic.gpu-formats.title"
+summary-text = "topic.gpu-formats.summary"
+area = "gpu"
+requires = ["gpu-resources"]
+
+[[topic]]
+key = "gpu-hdr-formats"
+title-text = "topic.gpu-hdr-formats.title"
+summary-text = "topic.gpu-hdr-formats.summary"
+area = "gpu"
+requires = ["gpu-formats", "cg"]
+
+[[topic]]
+key = "gpu-compute"
+title-text = "topic.gpu-compute.title"
+summary-text = "topic.gpu-compute.summary"
+area = "gpu"
+requires = ["gpu-resources"]
+
+[[topic]]
+key = "gpu-atomics"
+title-text = "topic.gpu-atomics.title"
+summary-text = "topic.gpu-atomics.summary"
+area = "gpu"
+requires = ["gpu-compute"]
+
+[[topic]]
+key = "gpu-passes"
+title-text = "topic.gpu-passes.title"
+summary-text = "topic.gpu-passes.summary"
+area = "gpu"
+requires = ["gpu-resources", "rt"]
+
+[[topic]]
+key = "gpu-frame"
+title-text = "topic.gpu-frame.title"
+summary-text = "topic.gpu-frame.summary"
+area = "gpu"
+requires = ["gpu-passes", "gpu-compute"]
+
+[[topic]]
+key = "gpu-amortize"
+title-text = "topic.gpu-amortize.title"
+summary-text = "topic.gpu-amortize.summary"
+area = "gpu"
+requires = ["gpu-frame"]
+
+[[topic]]
+key = "rt-spaces"
+title-text = "topic.rt-spaces.title"
+summary-text = "topic.rt-spaces.summary"
+area = "rt"
+requires = ["rt"]
+
+[[topic]]
+key = "rt-depth"
+title-text = "topic.rt-depth.title"
+summary-text = "topic.rt-depth.summary"
+area = "rt"
+requires = ["gpu-passes"]
+
+[[topic]]
+key = "rt-stencil"
+title-text = "topic.rt-stencil.title"
+summary-text = "topic.rt-stencil.summary"
+area = "rt"
+requires = ["rt-depth"]
+
+[[topic]]
+key = "rt-msaa"
+title-text = "topic.rt-msaa.title"
+summary-text = "topic.rt-msaa.summary"
+area = "rt"
+requires = ["rt-depth"]
+
+[[topic]]
+key = "rt-sampling"
+title-text = "topic.rt-sampling.title"
+summary-text = "topic.rt-sampling.summary"
+area = "rt"
+requires = ["gpu-resources", "rt"]
+
+[[topic]]
+key = "rt-cubemaps"
+title-text = "topic.rt-cubemaps.title"
+summary-text = "topic.rt-cubemaps.summary"
+area = "rt"
+requires = ["rt-sampling"]
+
+[[topic]]
+key = "rt-octahedral"
+title-text = "topic.rt-octahedral.title"
+summary-text = "topic.rt-octahedral.summary"
+area = "rt"
+requires = ["rt-sampling"]
+
+[[topic]]
+key = "rt-blend"
+title-text = "topic.rt-blend.title"
+summary-text = "topic.rt-blend.summary"
+area = "rt"
+requires = ["rt"]
+
+[[topic]]
+key = "rt-color"
+title-text = "topic.rt-color.title"
+summary-text = "topic.rt-color.summary"
+area = "rt"
+requires = ["cg", "rt"]
+
+[[topic]]
+key = "rt-normal-maps"
+title-text = "topic.rt-normal-maps.title"
+summary-text = "topic.rt-normal-maps.summary"
+area = "rt"
+requires = ["rt-sampling", "rt-spaces"]
+
+[[topic]]
+key = "rt-reconstruct"
+title-text = "topic.rt-reconstruct.title"
+summary-text = "topic.rt-reconstruct.summary"
+area = "rt"
+requires = ["rt-depth", "rt-spaces"]
+
+[[topic]]
+key = "rt-gbuffer"
+title-text = "topic.rt-gbuffer.title"
+summary-text = "topic.rt-gbuffer.summary"
+area = "rt"
+requires = ["rt-depth"]
+
+[[topic]]
+key = "rt-forward-plus"
+title-text = "topic.rt-forward-plus.title"
+summary-text = "topic.rt-forward-plus.summary"
+area = "rt"
+requires = ["rt-gbuffer", "gpu-compute", "geo-bounds"]
+reading = ["Harada et al. 2012, Forward+: bringing deferred lighting to the next level"]
+
+[[topic]]
+key = "rt-fullscreen"
+title-text = "topic.rt-fullscreen.title"
+summary-text = "topic.rt-fullscreen.summary"
+area = "rt"
+requires = ["rt-reconstruct", "gpu-compute"]
+
+[[topic]]
+key = "rt-bilateral"
+title-text = "topic.rt-bilateral.title"
+summary-text = "topic.rt-bilateral.summary"
+area = "rt"
+requires = ["rt-fullscreen", "rt-sampling"]
+
+[[topic]]
+key = "rt-decals"
+title-text = "topic.rt-decals.title"
+summary-text = "topic.rt-decals.summary"
+area = "rt"
+requires = ["rt-gbuffer", "geo-bounds"]
+
+[[topic]]
+key = "rt-heightfields"
+title-text = "topic.rt-heightfields.title"
+summary-text = "topic.rt-heightfields.summary"
+area = "rt"
+requires = ["rt-normal-maps", "rt-blend"]
+
+[[topic]]
+key = "geo-bounds"
+title-text = "topic.geo-bounds.title"
+summary-text = "topic.geo-bounds.summary"
+area = "geo"
+requires = ["rt-spaces"]
+
+[[topic]]
+key = "geo-tri-box"
+title-text = "topic.geo-tri-box.title"
+summary-text = "topic.geo-tri-box.summary"
+area = "geo"
+requires = ["geo-bounds"]
+
+[[topic]]
+key = "geo-grids"
+title-text = "topic.geo-grids.title"
+summary-text = "topic.geo-grids.summary"
+area = "geo"
+requires = ["rt-spaces", "gpu-resources"]
+
+[[topic]]
+key = "geo-octree"
+title-text = "topic.geo-octree.title"
+summary-text = "topic.geo-octree.summary"
+area = "geo"
+requires = ["geo-grids", "geo-bounds"]
+
+[[topic]]
+key = "geo-clipmaps"
+title-text = "topic.geo-clipmaps.title"
+summary-text = "topic.geo-clipmaps.summary"
+area = "geo"
+requires = ["geo-grids", "rt-sampling"]
+reading = ["Tanner et al. 1998, The clipmap: a virtual mipmap"]
+
+[[topic]]
+key = "geo-voxelize"
+title-text = "topic.geo-voxelize.title"
+summary-text = "topic.geo-voxelize.summary"
+area = "geo"
+requires = ["geo-grids", "gpu-passes", "gpu-atomics"]
+
+[[topic]]
+key = "geo-sdf"
+title-text = "topic.geo-sdf.title"
+summary-text = "topic.geo-sdf.summary"
+area = "geo"
+requires = ["geo-grids"]
+
+[[topic]]
+key = "geo-distance-transform"
+title-text = "topic.geo-distance-transform.title"
+summary-text = "topic.geo-distance-transform.summary"
+area = "geo"
+requires = ["geo-sdf", "gpu-compute"]
+reading = ["Rong and Tan 2006, Jump flooding in GPU with applications to Voronoi diagram and distance transform", "Felzenszwalb and Huttenlocher 2012, Distance transforms of sampled functions"]
+
+[[topic]]
+key = "geo-sphere-tracing"
+title-text = "topic.geo-sphere-tracing.title"
+summary-text = "topic.geo-sphere-tracing.summary"
+area = "geo"
+requires = ["geo-sdf", "cg-visibility"]
+reading = ["Hart 1996, Sphere tracing: a geometric method for the antialiased ray tracing of implicit surfaces"]
+
+[[topic]]
+key = "cg-visibility"
+title-text = "topic.cg-visibility.title"
+summary-text = "topic.cg-visibility.summary"
+area = "cg"
+requires = ["cg"]
+
+[[topic]]
+key = "cg-lights"
+title-text = "topic.cg-lights.title"
+summary-text = "topic.cg-lights.summary"
+area = "cg"
+requires = ["cg"]
+
+[[topic]]
+key = "cg-area-lights"
+title-text = "topic.cg-area-lights.title"
+summary-text = "topic.cg-area-lights.summary"
+area = "cg"
+requires = ["cg-lights"]
+
+[[topic]]
+key = "cg-ltc"
+title-text = "topic.cg-ltc.title"
+summary-text = "topic.cg-ltc.summary"
+area = "cg"
+requires = ["cg-area-lights", "cg-ggx"]
+reading = ["Heitz et al. 2016, Real-time polygonal-light shading with linearly transformed cosines"]
+
+[[topic]]
+key = "cg-brdf"
+title-text = "topic.cg-brdf.title"
+summary-text = "topic.cg-brdf.summary"
+area = "cg"
+requires = ["cg"]
+
+[[topic]]
+key = "cg-fresnel"
+title-text = "topic.cg-fresnel.title"
+summary-text = "topic.cg-fresnel.summary"
+area = "cg"
+requires = ["cg-brdf"]
+
+[[topic]]
+key = "cg-microfacet"
+title-text = "topic.cg-microfacet.title"
+summary-text = "topic.cg-microfacet.summary"
+area = "cg"
+requires = ["cg-fresnel"]
+
+[[topic]]
+key = "cg-ggx"
+title-text = "topic.cg-ggx.title"
+summary-text = "topic.cg-ggx.summary"
+area = "cg"
+requires = ["cg-microfacet"]
+reading = ["Walter et al. 2007, Microfacet models for refraction through rough surfaces", "Heitz 2014, Understanding the masking-shadowing function in microfacet-based BRDFs"]
+
+[[topic]]
+key = "cg-anisotropic"
+title-text = "topic.cg-anisotropic.title"
+summary-text = "topic.cg-anisotropic.summary"
+area = "cg"
+requires = ["cg-ggx", "rt-normal-maps"]
+
+[[topic]]
+key = "cg-layered"
+title-text = "topic.cg-layered.title"
+summary-text = "topic.cg-layered.summary"
+area = "cg"
+requires = ["cg-ggx"]
+
+[[topic]]
+key = "cg-burley"
+title-text = "topic.cg-burley.title"
+summary-text = "topic.cg-burley.summary"
+area = "cg"
+requires = ["cg-microfacet"]
+reading = ["Burley 2012, Physically-based shading at Disney"]
+
+[[topic]]
+key = "cg-pbr-materials"
+title-text = "topic.cg-pbr-materials.title"
+summary-text = "topic.cg-pbr-materials.summary"
+area = "cg"
+requires = ["cg-ggx", "rt-normal-maps"]
+
+[[topic]]
+key = "cg-specular-aa"
+title-text = "topic.cg-specular-aa.title"
+summary-text = "topic.cg-specular-aa.summary"
+area = "cg"
+requires = ["cg-pbr-materials"]
+
+[[topic]]
+key = "cg-mc"
+title-text = "topic.cg-mc.title"
+summary-text = "topic.cg-mc.summary"
+area = "cg"
+requires = ["cg"]
+
+[[topic]]
+key = "cg-sampling-patterns"
+title-text = "topic.cg-sampling-patterns.title"
+summary-text = "topic.cg-sampling-patterns.summary"
+area = "cg"
+requires = ["cg-mc"]
+
+[[topic]]
+key = "cg-brdf-lut"
+title-text = "topic.cg-brdf-lut.title"
+summary-text = "topic.cg-brdf-lut.summary"
+area = "cg"
+requires = ["cg-ggx", "cg-mc", "rt-sampling"]
+
+[[topic]]
+key = "cg-multiscatter"
+title-text = "topic.cg-multiscatter.title"
+summary-text = "topic.cg-multiscatter.summary"
+area = "cg"
+requires = ["cg-brdf-lut"]
+reading = ["Kulla and Conty 2017, Revisiting physically based shading at Imageworks"]
+
+[[topic]]
+key = "cg-sphere-functions"
+title-text = "topic.cg-sphere-functions.title"
+summary-text = "topic.cg-sphere-functions.summary"
+area = "cg"
+requires = ["cg-mc"]
+
+[[topic]]
+key = "cg-irradiance"
+title-text = "topic.cg-irradiance.title"
+summary-text = "topic.cg-irradiance.summary"
+area = "cg"
+requires = ["cg-sphere-functions", "cg-brdf"]
+reading = ["Ramamoorthi and Hanrahan 2001, An efficient representation for irradiance environment maps"]
+
+[[topic]]
+key = "cg-environment"
+title-text = "topic.cg-environment.title"
+summary-text = "topic.cg-environment.summary"
+area = "cg"
+requires = ["cg", "rt-cubemaps"]
+
+[[topic]]
+key = "cg-prefiltered-env"
+title-text = "topic.cg-prefiltered-env.title"
+summary-text = "topic.cg-prefiltered-env.summary"
+area = "cg"
+requires = ["cg-environment", "cg-irradiance", "cg-ggx"]
+
+[[topic]]
+key = "cg-gi"
+title-text = "topic.cg-gi.title"
+summary-text = "topic.cg-gi.summary"
+area = "cg"
+requires = ["cg-brdf", "cg-visibility"]
+
+[[topic]]
+key = "cg-ao"
+title-text = "topic.cg-ao.title"
+summary-text = "topic.cg-ao.summary"
+area = "cg"
+requires = ["cg-visibility", "cg-irradiance"]
+
+[[topic]]
+key = "cg-sss"
+title-text = "topic.cg-sss.title"
+summary-text = "topic.cg-sss.summary"
+area = "cg"
+requires = ["cg-brdf"]
+
+[[topic]]
+key = "cg-hair"
+title-text = "topic.cg-hair.title"
+summary-text = "topic.cg-hair.summary"
+area = "cg"
+requires = ["cg-fresnel"]
+reading = ["Marschner et al. 2003, Light scattering from human hair fibers"]
+
+[[topic]]
+key = "rt-shadow-maps"
+title-text = "topic.rt-shadow-maps.title"
+summary-text = "topic.rt-shadow-maps.summary"
+area = "light"
+requires = ["rt-depth", "rt-spaces", "cg-visibility"]
+reading = ["Williams 1978, Casting curved shadows on curved surfaces"]
+
+[[topic]]
+key = "rt-csm"
+title-text = "topic.rt-csm.title"
+summary-text = "topic.rt-csm.summary"
+area = "light"
+requires = ["rt-shadow-maps"]
+reading = ["Dimitrov 2007, Cascaded shadow maps"]
+
+[[topic]]
+key = "rt-shadow-filtering"
+title-text = "topic.rt-shadow-filtering.title"
+summary-text = "topic.rt-shadow-filtering.summary"
+area = "light"
+requires = ["rt-shadow-maps", "rt-sampling"]
+
+[[topic]]
+key = "rt-omni-shadows"
+title-text = "topic.rt-omni-shadows.title"
+summary-text = "topic.rt-omni-shadows.summary"
+area = "light"
+requires = ["rt-shadow-maps", "rt-cubemaps"]
+
+[[topic]]
+key = "rt-screen-shadows"
+title-text = "topic.rt-screen-shadows.title"
+summary-text = "topic.rt-screen-shadows.summary"
+area = "light"
+requires = ["rt-shadow-maps", "rt-bilateral"]
+
+[[topic]]
+key = "rt-split-sum"
+title-text = "topic.rt-split-sum.title"
+summary-text = "topic.rt-split-sum.summary"
+area = "light"
+requires = ["cg-prefiltered-env", "cg-brdf-lut"]
+reading = ["Karis 2013, Real shading in Unreal Engine 4 (SIGGRAPH course notes)"]
+
+[[topic]]
+key = "rt-reflection-probes"
+title-text = "topic.rt-reflection-probes.title"
+summary-text = "topic.rt-reflection-probes.summary"
+area = "light"
+requires = ["rt-split-sum", "geo-bounds", "rt-blend"]
+
+[[topic]]
+key = "rt-ssr"
+title-text = "topic.rt-ssr.title"
+summary-text = "topic.rt-ssr.summary"
+area = "light"
+requires = ["rt-fullscreen", "cg-fresnel"]
+
+[[topic]]
+key = "rt-ssao"
+title-text = "topic.rt-ssao.title"
+summary-text = "topic.rt-ssao.summary"
+area = "light"
+requires = ["cg-ao", "rt-bilateral", "cg-sampling-patterns"]
+reading = ["Mittring 2007, Finding next gen: CryEngine 2"]
+
+[[topic]]
+key = "rt-ssil"
+title-text = "topic.rt-ssil.title"
+summary-text = "topic.rt-ssil.summary"
+area = "light"
+requires = ["rt-fullscreen", "cg-gi"]
+
+[[topic]]
+key = "rt-screen-sss"
+title-text = "topic.rt-screen-sss.title"
+summary-text = "topic.rt-screen-sss.summary"
+area = "light"
+requires = ["cg-sss", "rt-bilateral"]
+reading = ["Jimenez et al. 2015, Separable subsurface scattering"]
+
+[[topic]]
+key = "rt-shadow-thickness"
+title-text = "topic.rt-shadow-thickness.title"
+summary-text = "topic.rt-shadow-thickness.summary"
+area = "light"
+requires = ["cg-sss", "rt-shadow-maps"]
+
+[[topic]]
+key = "gi-probes"
+title-text = "topic.gi-probes.title"
+summary-text = "topic.gi-probes.summary"
+area = "gi"
+requires = ["cg-irradiance", "geo-grids"]
+
+[[topic]]
+key = "gi-probe-maps"
+title-text = "topic.gi-probe-maps.title"
+summary-text = "topic.gi-probe-maps.summary"
+area = "gi"
+requires = ["gi-probes", "rt-octahedral"]
+
+[[topic]]
+key = "gi-probe-visibility"
+title-text = "topic.gi-probe-visibility.title"
+summary-text = "topic.gi-probe-visibility.summary"
+area = "gi"
+requires = ["gi-probes", "cg-visibility"]
+
+[[topic]]
+key = "gi-probe-tracing"
+title-text = "topic.gi-probe-tracing.title"
+summary-text = "topic.gi-probe-tracing.summary"
+area = "gi"
+requires = ["gi-probes", "cg-sampling-patterns", "gpu-amortize"]
+
+[[topic]]
+key = "gi-voxel-light"
+title-text = "topic.gi-voxel-light.title"
+summary-text = "topic.gi-voxel-light.summary"
+area = "gi"
+requires = ["geo-voxelize", "cg-lights", "gpu-hdr-formats"]
+
+[[topic]]
+key = "gi-voxel-mips"
+title-text = "topic.gi-voxel-mips.title"
+summary-text = "topic.gi-voxel-mips.summary"
+area = "gi"
+requires = ["gi-voxel-light", "geo-octree", "rt-sampling"]
+
+[[topic]]
+key = "gi-cone-tracing"
+title-text = "topic.gi-cone-tracing.title"
+summary-text = "topic.gi-cone-tracing.summary"
+area = "gi"
+requires = ["gi-voxel-mips", "rt-blend", "cg-gi"]
+reading = ["Crassin et al. 2011, Interactive indirect illumination using voxel cone tracing"]
+
+[[topic]]
+key = "gi-sdf-tracing"
+title-text = "topic.gi-sdf-tracing.title"
+summary-text = "topic.gi-sdf-tracing.summary"
+area = "gi"
+requires = ["geo-sphere-tracing", "geo-clipmaps"]
+
+[[topic]]
+key = "gi-multibounce"
+title-text = "topic.gi-multibounce.title"
+summary-text = "topic.gi-multibounce.summary"
+area = "gi"
+requires = ["cg-gi", "gpu-amortize"]
+
+[[topic]]
+key = "geo-mesh-sdf"
+title-text = "topic.geo-mesh-sdf.title"
+summary-text = "topic.geo-mesh-sdf.summary"
+area = "geo"
+requires = ["geo-sdf", "geo-bounds"]
+reading = ["Wright 2015, Dynamic occlusion with signed distance fields (SIGGRAPH Advances in Real-Time Rendering)"]
+
+[[topic]]
+key = "geo-global-sdf"
+title-text = "topic.geo-global-sdf.title"
+summary-text = "topic.geo-global-sdf.summary"
+area = "geo"
+requires = ["geo-mesh-sdf", "geo-clipmaps"]
+
+[[topic]]
+key = "rt-virtual-texturing"
+title-text = "topic.rt-virtual-texturing.title"
+summary-text = "topic.rt-virtual-texturing.summary"
+area = "rt"
+requires = ["rt-sampling"]
+reading = ["Barrett 2008, Sparse virtual textures (GDC)"]
+
+[[topic]]
+key = "rt-reprojection"
+title-text = "topic.rt-reprojection.title"
+summary-text = "topic.rt-reprojection.summary"
+area = "rt"
+requires = ["gpu-amortize", "rt-reconstruct"]
+reading = ["Nehab et al. 2007, Accelerating real-time shading with reverse reprojection caching"]
+
+[[topic]]
+key = "rt-upscaling"
+title-text = "topic.rt-upscaling.title"
+summary-text = "topic.rt-upscaling.summary"
+area = "rt"
+requires = ["rt-reprojection", "rt-sampling"]
+reading = ["Karis 2014, High-quality temporal supersampling (SIGGRAPH Advances in Real-Time Rendering)"]
+
+[[topic]]
+key = "rt-hw-ray-tracing"
+title-text = "topic.rt-hw-ray-tracing.title"
+summary-text = "topic.rt-hw-ray-tracing.summary"
+area = "rt"
+requires = ["geo-bounds", "cg-visibility", "gpu-compute"]
+
+[[topic]]
+key = "rt-virtual-shadow-maps"
+title-text = "topic.rt-virtual-shadow-maps.title"
+summary-text = "topic.rt-virtual-shadow-maps.summary"
+area = "light"
+requires = ["rt-shadow-maps", "rt-virtual-texturing"]
+
+[[topic]]
+key = "rt-shadow-ray-marching"
+title-text = "topic.rt-shadow-ray-marching.title"
+summary-text = "topic.rt-shadow-ray-marching.summary"
+area = "light"
+requires = ["rt-shadow-maps", "cg-area-lights", "cg-mc"]
+
+[[topic]]
+key = "gi-surface-cache"
+title-text = "topic.gi-surface-cache.title"
+summary-text = "topic.gi-surface-cache.summary"
+area = "gi"
+requires = ["rt-gbuffer", "rt-virtual-texturing", "rt-spaces"]
+
+[[topic]]
+key = "gi-radiosity"
+title-text = "topic.gi-radiosity.title"
+summary-text = "topic.gi-radiosity.summary"
+area = "gi"
+requires = ["gi-surface-cache", "gi-multibounce", "cg-irradiance"]
+reading = ["Goral et al. 1984, Modeling the interaction of light between diffuse surfaces"]
+
+[[topic]]
+key = "gi-screen-probes"
+title-text = "topic.gi-screen-probes.title"
+summary-text = "topic.gi-screen-probes.summary"
+area = "gi"
+requires = ["rt-reprojection", "rt-bilateral", "rt-octahedral", "cg-irradiance"]
+
+[[topic]]
+key = "gi-radiance-cache"
+title-text = "topic.gi-radiance-cache.title"
+summary-text = "topic.gi-radiance-cache.summary"
+area = "gi"
+requires = ["gi-probe-maps", "geo-clipmaps"]
+reading = ["Křivánek et al. 2005, Radiance caching for efficient global illumination computation"]
+
+[[topic]]
+key = "gi-glossy-tracing"
+title-text = "topic.gi-glossy-tracing.title"
+summary-text = "topic.gi-glossy-tracing.summary"
+area = "gi"
+requires = ["rt-ssr", "rt-reprojection", "cg-ggx", "cg-mc"]

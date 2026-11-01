@@ -131,12 +131,12 @@ kind = "file"
 source = "source-index.json"
 license = "MIT (O3DE, THIRD_PARTY.md)"
 
-# Its chapters, what each needs from the skill graph, and its audience
-# (lab/src/skills.rs; the viewer's Prerequisites tab).
+# Its chapters, what each needs from the knowledge graph, and its audience
+# (lab/src/knowledge.rs; the viewer's Prerequisites tab).
 [[resource]]
-id = "skills"
+id = "knowledge"
 kind = "file"
-source = "skills.toml"
+source = "knowledge.toml"
 license = "MIT"
 
 [[resource]]

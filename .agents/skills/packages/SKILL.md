@@ -23,7 +23,7 @@ packages/<name>/
   manifest.toml        what the package is: its metadata, imports, exports, library, and what it provides
   resources.toml ...   its collections: [[resource]] and [[shader]] tables (any file names; the manifest lists them)
   text/, shaders/, demos/, params.toml, pseudocode/, source-index.json, assets/ ...   its content
-  skills.toml          its chapters' skill requirements and audience (resource id `skills`; the skill-graph skill)
+  knowledge.toml       its chapters' requirements in the knowledge graph and its audience (resource id `knowledge`; the knowledge-graph skill)
   video/               a narrated video's inputs (video.json, storyboards, diagrams), for tools/video
   Cargo.toml, build.rs, src/   its code, if it has investigations (section 5)
   build/               what its tools write: build/timelines/<lang>/, build/video/<lang>/ (git-ignored)
