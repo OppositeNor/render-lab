@@ -239,6 +239,24 @@ pub fn shading_data() -> Vec<[f32; 4]> {
     words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect()
 }
 
+/// `shading_data` with the lit texture for `s` (the Experiments tab's
+/// settings of the scene's node, `Investigation::scene_data`).
+pub fn shading_data_for(s: &LightSettings) -> Vec<[f32; 4]> {
+    let w = world();
+    let lit = lit_for(s);
+    let mut words = lit.texture.words();
+    words.extend(w.probe.sdf.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])));
+    while words.len() % 4 != 0 {
+        words.push(0);
+    }
+    words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect()
+}
+
+/// The scene node's light settings in a shot (giDynamicRange, giPropagation, giTwoBounces).
+pub fn scene_settings(state: &lab::shot::ShotState) -> LightSettings {
+    LightSettings { dynamic_range: state.p("giDynamicRange"), propagation: state.p("giPropagation"), two_bounces: state.p("giTwoBounces") > 0.5 }
+}
+
 /// Words of the texture's mips in the data buffer: where the field starts.
 pub fn texture_words(probe: &Probe) -> u32 {
     (0..probe.mip_count()).map(|m| {

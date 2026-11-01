@@ -45,7 +45,9 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
   lab checks against the value's declaration when it loads the timeline), `demo`,
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
-  `demo` switch), `record=object:3` (or `camera`), `highlight=a,b`, `panel`, `code`, `callout`, `run=action` with
+  `demo` switch), `record=object:3` (or `camera`), `highlight=a,b`, `panel` (`declaration`, `values`, `memory`, `code`,
+  `performance`: the GPU time per pass, measured as the frame renders, with `highlight` naming the passes to call out,
+  `hidden`), `code`, `callout`, `run=action` with
   `run.<arg>=value` and `stop=a,b` (the package's actions, `render-lab actions`), `image=name` with `imageTitle`,
   `imageCorner`, `imageFrom=kind` and `image.<param>=value`, and `imageHide=a,b` (images, `render-lab images`), `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON

@@ -34,6 +34,8 @@ pub struct World {
     pub lights_dirty: Vec<bool>,
     pub integrate: Integrate,
     pub bounce_feedback: f32,
+    /// `frames_to_update_light`: the dynamic light pass relights one cell in this many a frame.
+    pub frames_to_update_light: usize,
     /// A probe of cascade 0 whose mean coefficients are recorded after every frame.
     pub traced_probe: Option<usize>,
     pub trace: Vec<[Vec3; super::probes::SH_SIZE]>,
@@ -64,6 +66,7 @@ impl World {
             lights_dirty: vec![true; n],
             integrate,
             bounce_feedback: 0.5,
+            frames_to_update_light: FRAMES_TO_UPDATE_LIGHT,
             traced_probe: None,
             trace: Vec::new(),
         }
@@ -93,7 +96,8 @@ impl World {
                     let maps = &maps;
                     let cells = &self.data[i].stored.cells;
                     let lights = &lights_per_cascade[i];
-                    let (offset, increment) = if self.lights_dirty[i] { (0, 1) } else { (self.frame as usize % FRAMES_TO_UPDATE_LIGHT, FRAMES_TO_UPDATE_LIGHT) };
+                    let every = self.frames_to_update_light;
+                    let (offset, increment) = if self.lights_dirty[i] { (0, 1) } else { (self.frame as usize % every, every) };
                     let bounce = self.bounce_feedback;
                     s.spawn(move || light::dynamic_pass(field, i, cells, lights, bounce, Some(maps), offset, increment, textures));
                 }
@@ -187,24 +191,77 @@ pub fn converged() -> &'static World {
     WORLD.get_or_init(|| converged_with(0.5))
 }
 
+/// The scene SDFGI's settings the Experiments tab changes, all baked into
+/// the converged probe maps (the environment's `sdfgi_bounce_feedback`,
+/// `sdfgi_probe_bias`, `sdfgi_read_sky_light`, and the project's
+/// `probe_ray_count`, `frames_to_converge`, `frames_to_update_lights`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SceneSettings {
+    pub bounce_feedback: f32,
+    pub probe_bias: f32,
+    pub ray_count: u32,
+    pub history_size: u32,
+    pub frames_to_update_light: usize,
+    pub read_sky: bool,
+}
+
+impl Default for SceneSettings {
+    fn default() -> SceneSettings {
+        let integrate = Integrate::default();
+        SceneSettings { bounce_feedback: 0.5, probe_bias: integrate.ray_bias, ray_count: integrate.ray_count, history_size: integrate.history_size, frames_to_update_light: FRAMES_TO_UPDATE_LIGHT, read_sky: true }
+    }
+}
+
+/// `probe_ray_count`'s table (gi.cpp, `update_probes`).
+pub const RAY_COUNTS: [u32; 7] = [4, 8, 16, 32, 64, 96, 128];
+/// `frames_to_converge`'s table (render_forward_clustered.cpp).
+pub const HISTORY_SIZES: [u32; 6] = [5, 10, 15, 20, 25, 30];
+/// `frames_to_update_light`'s table (gi.cpp, `update_light`).
+pub const LIGHT_UPDATE_FRAMES: [usize; 5] = [1, 2, 4, 8, 16];
+
+impl SceneSettings {
+    /// The settings a shot's values give (the gi* values, the tables' indices).
+    pub fn of(state: &lab::shot::ShotState) -> SceneSettings {
+        let index = |key: &str, len: usize| (state.p(key).round().max(0.0) as usize).min(len - 1);
+        SceneSettings {
+            bounce_feedback: state.p("giBounceFeedback"),
+            probe_bias: state.p("giProbeBias"),
+            ray_count: RAY_COUNTS[index("giRayCount", RAY_COUNTS.len())],
+            history_size: HISTORY_SIZES[index("giFramesToConverge", HISTORY_SIZES.len())],
+            frames_to_update_light: LIGHT_UPDATE_FRAMES[index("giFramesToUpdateLights", LIGHT_UPDATE_FRAMES.len())],
+            read_sky: state.p("giReadSkyLight") > 0.5,
+        }
+    }
+}
+
 /// The room's world after `CONVERGED_FRAMES` with a given bounce feedback.
 pub fn converged_with(bounce_feedback: f32) -> World {
-    {
-        let scene = lab::scene::Scene::study_room();
-        let objects = voxelized_objects(&scene.records());
-        let settings = Settings::default();
-        let mut world = World::new(&objects, settings, super::demos::ORIGIN);
-        world.bounce_feedback = bounce_feedback;
-        world.traced_probe = Some(super::probes::probe_index(super::demos::FOLLOWED_PROBE));
-        let panel = panel_light(&scene, settings.y_mult());
-        let lights: Vec<Vec<Light>> = (0..world.cascades.cascades.len()).map(|_| vec![panel]).collect();
-        let lighting = scene.lighting;
-        let sky = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
-        for _ in 0..CONVERGED_FRAMES {
-            world.step(&lights, &sky);
-        }
-        world
+    converged_for(&SceneSettings { bounce_feedback, ..SceneSettings::default() })
+}
+
+/// The room's world after `CONVERGED_FRAMES` with the given settings.
+pub fn converged_for(s: &SceneSettings) -> World {
+    let scene = lab::scene::Scene::study_room();
+    let objects = voxelized_objects(&scene.records());
+    let settings = Settings::default();
+    let mut world = World::new(&objects, settings, super::demos::ORIGIN);
+    world.bounce_feedback = s.bounce_feedback;
+    world.frames_to_update_light = s.frames_to_update_light;
+    if s.ray_count != world.integrate.ray_count || s.history_size != world.integrate.history_size || s.probe_bias != world.integrate.ray_bias {
+        world.integrate = Integrate { history_size: s.history_size, ray_count: s.ray_count, ray_bias: s.probe_bias, ..world.integrate };
+        world.history = (0..world.cascades.cascades.len()).map(|_| probes::History::new(s.history_size)).collect();
     }
+    world.traced_probe = Some(super::probes::probe_index(super::demos::FOLLOWED_PROBE));
+    let panel = panel_light(&scene, settings.y_mult());
+    let lights: Vec<Vec<Light>> = (0..world.cascades.cascades.len()).map(|_| vec![panel]).collect();
+    let lighting = scene.lighting;
+    let sky = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
+    // Without sdfgi_read_sky_light, a ray that leaves the cascades brings back nothing (sky_flags 0).
+    let color = (!s.read_sky).then_some(Vec3::ZERO);
+    for _ in 0..CONVERGED_FRAMES {
+        world.step_sky(&lights, &sky, color);
+    }
+    world
 }
 
 /// Where cascade 0's distance field starts in the shading data, in vec4s
@@ -215,7 +272,15 @@ pub const SDF_OFFSET: usize = 4 * 2 * (super::probes::MAP_WIDTH * super::probes:
 /// cascade's irradiance then radiance layer, as E5B9G9R9 words, four per vec4;
 /// then cascade 0's distance field, four bytes per word (sdfgi_passes.wgsl).
 pub fn shading_data() -> Vec<[f32; 4]> {
-    let world = converged();
+    data_of(converged())
+}
+
+/// `shading_data` for the scene's settings (the Experiments tab, `Investigation::scene_data`).
+pub fn shading_data_for(s: &SceneSettings) -> Vec<[f32; 4]> {
+    data_of(&converged_for(s))
+}
+
+fn data_of(world: &World) -> Vec<[f32; 4]> {
     let mut words: Vec<u32> = Vec::new();
     for maps in &world.maps {
         words.extend_from_slice(&maps.irradiance);

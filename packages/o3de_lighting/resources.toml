@@ -424,3 +424,10 @@ kind = "file"
 source = "build/video/en/narration.wav"
 license = "MIT"
 built = true
+
+# An experiment the Experiments tab offers and the command line runs (lab/src/experiment.rs).
+[[resource]]
+id = "experiment/ssao"
+kind = "file"
+source = "experiments/ssao.toml"
+license = "MIT"

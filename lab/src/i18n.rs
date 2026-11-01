@@ -84,13 +84,23 @@ impl Table {
 
     /// The text of `key` in the current locale.
     pub fn get(&'static self, key: &str) -> &'static str {
-        let texts = self.texts.get_or_init(|| {
+        let texts = self.get_or_load();
+        texts[current() as usize].get(key).unwrap_or_else(|| panic!("no text for {key:?}"))
+    }
+
+    /// The text of `key` in the current locale, or None when the table has no such key.
+    pub fn try_get(&'static self, key: &str) -> Option<&'static str> {
+        let _ = self.get_or_load();
+        self.texts.get().and_then(|t| t[current() as usize].get(key)).map(String::as_str)
+    }
+
+    fn get_or_load(&'static self) -> &'static [HashMap<String, String>; 2] {
+        self.texts.get_or_init(|| {
             ["en", "zh-cn"].map(|locale| {
                 let id = format!("{}/{locale}", self.prefix);
                 serde_json::from_str(resources::get(&id).text()).unwrap_or_else(|e| panic!("{id}: a text table is a JSON object of strings: {e}"))
             })
-        });
-        texts[current() as usize].get(key).unwrap_or_else(|| panic!("no text for {key:?}"))
+        })
     }
 
     /// The text of `key` with its values filled in (`args!`).
@@ -153,23 +163,29 @@ pub fn tr_key(key: &'static str) -> &'static str {
 /// value's declaration names (src/values.rs). The package's build checks its
 /// keys.
 pub fn package_text(package: &str, key: &str) -> &'static str {
+    package_table(package).get(key)
+}
+
+/// `package_text`, or None when the package's table has no such key.
+pub fn try_package_text(package: &str, key: &str) -> Option<&'static str> {
+    package_table(package).try_get(key)
+}
+
+fn package_table(package: &str) -> &'static Table {
     if package == "rlstd" {
-        return TEXT.get(key);
+        return &TEXT;
     }
     static TABLES: std::sync::Mutex<Vec<&'static Table>> = std::sync::Mutex::new(Vec::new());
     let prefix = format!("{package}.text");
-    let table = {
-        let mut tables = TABLES.lock().unwrap();
-        match tables.iter().find(|t| t.prefix == prefix) {
-            Some(t) => *t,
-            None => {
-                let t: &'static Table = Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
-                tables.push(t);
-                t
-            }
+    let mut tables = TABLES.lock().unwrap();
+    match tables.iter().find(|t| t.prefix == prefix) {
+        Some(t) => *t,
+        None => {
+            let t: &'static Table = Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
+            tables.push(t);
+            t
         }
-    };
-    table.get(key)
+    }
 }
 
 /// The lab's text of `key`, with its values (`args!`).

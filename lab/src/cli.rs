@@ -51,7 +51,11 @@ enum Command {
         /// viewer's loading page, while the current investigation's first scene loads), viewer (the
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
         /// the investigation's first timeline, with its bar), viewer-diagram (that timeline paused on its first 2D
-        /// scene with an image, the image's panel zoomed in), or viewer-sources (paused on its first sources card).
+        /// scene with an image, the image's panel zoomed in), viewer-sources (paused on its first sources card),
+        /// viewer-experiments[:<demo>] (the Experiment button's viewer: the Experiments tab), or
+        /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
+        /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
+        /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -131,6 +135,20 @@ enum Command {
         /// Only the values whose keys start with this scope (`camera`).
         #[arg(long)]
         scope: Option<String>,
+    },
+    /// Run an experiment headless (src/research.rs): its reference, then each
+    /// run (the base, its sweeps, its variants), timed per pass and measured
+    /// against the reference; writes the results, images, and a manifest of
+    /// what ran into `--out`. The file format is in src/experiment.rs.
+    Experiment {
+        /// An experiment file, or a package's resource by full key (`godot_voxelgi.experiment/bias`).
+        file: String,
+        /// The directory to write the results into.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// List the runs and stop.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// List the current investigation's choices (`#[derive(Choice)]` enums),
     /// their options, and the WGSL constants the lab writes for its shaders
@@ -238,6 +256,10 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", None, &png),
                 (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Diagram), &png),
                 (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Sources), &png),
+                (Some(png), _) if page == "viewer-layout" => home::snapshot_layout(&options, &png),
+                (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
+                (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
+                (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),
                 (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
                 (Some(png), _) => {
                     let trial = page == "trial";
@@ -249,7 +271,7 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration })
+            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None })
         }
         Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             let frames = frames
@@ -309,7 +331,7 @@ pub fn main(app: App) -> Result<()> {
                     .iter()
                     .map(|e| {
                         serde_json::json!({"key": e.key, "type": e.ty.name(), "default": e.default.map(|v| v.components()), "range": e.range.map(|r| [r.0, r.1]), "componentRanges": e.component_ranges.iter().map(|r| [r.0, r.1]).collect::<Vec<_>>(),
-                            "step": e.step, "unit": format!("{:?}", e.unit), "wrap": e.wrap, "labels": e.labels, "text": e.text.map(|_| e.label_text()), "doc": e.doc, "components": e.components, "choices": e.choices.map(|c| c.options.iter().map(|o| o.name).collect::<Vec<_>>())})
+                            "step": e.step, "unit": format!("{:?}", e.unit), "wrap": e.wrap, "labels": e.labels, "text": e.text.map(|_| e.label_text()), "doc": e.doc, "engine": e.engine, "help": e.help.map(|_| e.help_text()), "components": e.components, "choices": e.choices.map(|c| c.options.iter().map(|o| o.name).collect::<Vec<_>>())})
                     })
                     .collect();
                 println!("{}", serde_json::to_string_pretty(&list)?);
@@ -321,13 +343,22 @@ pub fn main(app: App) -> Result<()> {
                     let range = if ranges.is_empty() { String::new() } else if e.component_ranges.is_empty() { format!(" in {}", ranges[0]) } else { format!(" in {}", ranges.join(", ")) };
                     let labels = if e.labels.is_empty() { String::new() } else { format!(" [{}]", e.labels.join(", ")) };
                     let choice = e.choices.map(|c| format!(" choice of {} ({})", c.name, c.names())).unwrap_or_default();
-                    println!("{}{channels}: {}{default}{range} {:?}{labels}{choice}", e.key, e.ty.name(), e.unit);
+                    let engine = e.engine.map(|p| format!(" engine {p}")).unwrap_or_default();
+                    println!("{}{channels}: {}{default}{range} {:?}{labels}{choice}{engine}", e.key, e.ty.name(), e.unit);
                     if !e.doc.is_empty() {
                         println!("    {}", e.doc);
                     }
                 }
             }
             Ok(())
+        }
+        Command::Experiment { file, out, dry_run } => {
+            let out = match (out, dry_run) {
+                (Some(out), _) => out,
+                (None, true) => PathBuf::new(),
+                (None, false) => bail!("give --out, the directory for the results (or --dry-run)"),
+            };
+            crate::research::run(&crate::research::ResearchOptions { experiment: file, out, dry_run, root: manifest_dir.clone() })
         }
         Command::Choices => {
             for choices in investigation::current().choices() {

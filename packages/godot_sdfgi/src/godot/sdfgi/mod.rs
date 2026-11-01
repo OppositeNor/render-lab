@@ -158,6 +158,18 @@ impl Investigation for Sdfgi {
         demos::shader_data(block, state)
     }
 
+    /// The probe maps converged again for the scene's settings when they are not the defaults.
+    fn scene_data(&self, state: &ShotState) -> Option<lab::investigation::SceneData> {
+        let settings = sim::SceneSettings::of(state);
+        if settings == sim::SceneSettings::default() {
+            return None;
+        }
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (settings.bounce_feedback.to_bits(), settings.probe_bias.to_bits(), settings.ray_count, settings.history_size, settings.frames_to_update_light, settings.read_sky).hash(&mut hasher);
+        Some(lab::investigation::SceneData { key: hasher.finish(), build: Box::new(move || sim::shading_data_for(&settings)) })
+    }
+
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {
         controls::parameters(dock, ui);
     }

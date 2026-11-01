@@ -53,6 +53,10 @@
   也从 `~/.config/render-lab/themes/` 读取，其中的文件取代程序旁边的同名文件。主题给出自己的名称并设置界面的每一种颜色；
   [`themes/one-dark-pro.toml`](themes/one-dark-pro.toml) 说明了每个键。实验室自己的配色是内置主题 **Render Lab**，它是默认主题，录制始终使用它，
   因此录制的画面从不依赖设置。
+- **每个滑块、复选框和选项**的名称后都有一个 **?**：把指针移到上面，会用界面语言说明这个数值的作用。
+- **查看器的布局**可以用鼠标拖动来调整：拖动视口与面板之间的边缘（结构面板和代码标签页的列表各自记住宽度），以及停靠栏上方的边缘。
+  每次拖动结束时，尺寸会写入设置文件，下次打开查看器时会恢复。双击某条边缘可恢复该尺寸，停靠栏的 **重置布局** 恢复全部尺寸，
+  设置页的 **恢复默认** 也会恢复。录制始终使用默认布局。
 - **F11** 把窗口（主页或查看器）的截图保存到 `build/screenshots/`。
 
 ## 命令
@@ -62,7 +66,7 @@
 ```bash
 cargo run --release                                   # 主页
 cargo run --release -- --list                         # 已安装的研究（--investigation 可用的取值）
-cargo run --release -- home --snapshot home.png       # 离屏渲染标题画面（--page select、config、starting、viewer 或 viewer-timeline 渲染其他页面）
+cargo run --release -- home --snapshot home.png       # 离屏渲染标题画面（--page select、config、starting、viewer、viewer-timeline、viewer-experiments 或 viewer-compare 渲染其他页面）
 cargo run --release -- home --autotest home.json      # 离屏点击测试主页（使用自己的设置文件）
 ```
 
@@ -80,6 +84,35 @@ bash tools/video/setup.sh --gpu                                     # 只需一�
 python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
+
+### 实验
+
+选择页上的每个功能还有 **实验这个算法**。它打开查看器的 **实验** 标签页，探索演示中也有这个标签页。标签页包括：
+
+- 这项研究的**所有数值**，无论打开的是哪个演示：
+  - 引擎自身的设置，每项都标明它对应的属性（`render-lab values` 中标为 `engine …`）；
+  - 场景的数值；
+  - 演示的呈现。
+- **与默认值的差异**：被标出，可逐项重置。在实验模式下，这些改动会带到下一个演示。
+- 与保存的参考做 **A/B 对比**：划分、并排、差异或仅参考，每个视图保留各自的历史。
+- 差异的**测量**：PSNR、SSIM、ꟻLIP、MSE 和相对 MSE。
+- **每个渲染阶段的 GPU 耗时**，以及右侧的**性能面板**（每帧 GPU 耗时、其历史与各阶段条形图），旁白故事也可以显示它（`panel=performance`，`highlight=<阶段>`）。
+- 可保存和载入的**实验文件**。
+
+同一个文件也可以离屏作为研究实验运行：
+
+- **运行：** 参考、参数扫描与消融。
+- **计时：** 先预热，再重复计时，每帧按渲染阶段测量 GPU 耗时。
+- **输出：** 一个目录，包含 CSV 与 JSON 结果、PNG 与 PFM 图像、ꟻLIP 误差图，以及记录运行内容的清单（实验、提交、GPU 与驱动）。
+
+[`tools/experiments`](tools/experiments/README.md) 把该目录整理成表格、图表和图像网格：
+
+```bash
+cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
+python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.html
+```
+
+文件格式见 `lab/src/experiment.rs`，实验方法（参考、对照、重复）见 `experiments` 技能。
 
 屏幕上的文字可以以标签的形式包含公式：在文本表、字幕或读数面板（`Readout::formula`）中写 `{@ formula="\\frac{1}{1+n}"}`。
 实验室在运行时自行排版这些公式（`lab/src/formula.rs`：MiTeX 把 LaTeX 转换为 Typst 数学公式，再由 Typst 排版），因此不需要 Node，

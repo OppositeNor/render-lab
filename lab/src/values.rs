@@ -259,6 +259,14 @@ pub struct Entry {
     pub package: &'static str,
     /// What it is (its declaration's doc comment).
     pub doc: &'static str,
+    /// The engine property it mirrors (`Environment.sdfgi_energy`), for a
+    /// value that is one of the engine's own settings: the Experiments tab
+    /// groups these as the algorithm's settings, apart from the scene and
+    /// the demonstrations' presentation.
+    pub engine: Option<&'static str>,
+    /// What it does, for the dock's "?" beside it: a key of its package's
+    /// text (`package`), else its `doc`.
+    pub help: Option<&'static str>,
     /// A vector's components' keys, in order (`camera.x`, …); empty for a scalar.
     pub components: &'static [&'static str],
 }
@@ -276,6 +284,14 @@ impl Entry {
     /// The keys a timeline stores it under: its components', or its own.
     pub fn channels(&self) -> Vec<&'static str> {
         if self.components.is_empty() { vec![self.key] } else { self.components.to_vec() }
+    }
+
+    /// What it does, on screen: its help text, else its doc (empty for neither).
+    pub fn help_text(&self) -> &'static str {
+        match self.help {
+            Some(key) => crate::i18n::package_text(self.package, key),
+            None => self.doc,
+        }
     }
 
     /// Its name on screen: its text, else its name, else its key without the scope (`yaw`).

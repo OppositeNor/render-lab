@@ -213,8 +213,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 }
 
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
-/// with the `text = "…"` of their `#[value(…)]` attributes (the lab's
-/// values, lab/src/values.rs), the `text=` of the `{@ …}` tags in its
+/// with the `text = "…"` and `help = "…"` of their `#[value(…)]` attributes (the lab's
+/// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
 /// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle=` and `labelText=`
 /// of the tags in its `.story` files, and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
@@ -264,11 +264,11 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             println!("cargo:rerun-if-changed={}", path.display());
             for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
                 let Some(comment) = line.trim_start().strip_prefix("///").filter(|c| c.contains("{@")) else { continue };
-                for (i, _) in comment.match_indices("text=") {
+                for (i, _) in comment.match_indices("text=").chain(comment.match_indices("help=")) {
                     if comment[..i].chars().next_back().is_some_and(|c| !c.is_whitespace()) {
                         continue;
                     }
-                    let rest = comment[i + 5..].trim_start_matches('"');
+                    let rest = comment[i..].split_once('=').map_or("", |(_, r)| r).trim_start_matches('"');
                     let key = &rest[..rest.find(|c: char| c == '"' || c == '}' || c.is_whitespace()).unwrap_or(rest.len())];
                     keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
                 }
@@ -286,7 +286,7 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             }
             // A derived value's or a choice option's name on screen: `#[value(… text = "key" …)]`, `#[choice(text = "key")]`.
             if line.trim_start().starts_with("#[value(") || line.trim_start().starts_with("#[choice(") {
-                for (i, _) in line.match_indices("text = \"") {
+                for (i, _) in line.match_indices("text = \"").chain(line.match_indices("help = \"")) {
                     let rest = &line[i + 8..];
                     let at = format!("{}:{}", path.display(), n + 1);
                     let key = &rest[..rest.find('"').unwrap_or_else(|| panic!("{at}: unterminated text key"))];

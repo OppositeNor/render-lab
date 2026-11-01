@@ -1,0 +1,32 @@
+# SDFGI: how the probe ray count and the history length trade quality for
+# the probes' cost. The reference is 128 rays a probe with the full 30-frame
+# history; each run converges the probe maps again (sim.rs, a few seconds
+# each). The lab traces the probes on the CPU (sim.rs), so gpu_ms is the
+# screen pass alone: it should not change with the ray count, which makes it
+# a control for the GPU's timing noise. The warm-up lets the GPU's clocks
+# come back up after each CPU build. Run it with:
+#   render-lab --investigation godot/sdfgi experiment godot_sdfgi.experiment/probe-rays --out <dir>
+name = "probe-rays"
+description = "SDFGI's probe_ray_count swept against 128 rays; a short history and no sky ablated."
+investigation = "godot/sdfgi"
+demo = "room"
+resolution = [1280, 720]
+frames = 4
+warmup = 30
+repeats = 30
+metrics = ["gpu_ms", "mse", "psnr", "ssim", "flip", "relmse", "luminance"]
+
+[reference.values]
+giRayCount = 6.0
+
+[[sweep]]
+# Indices into {4, 8, 16, 32, 64, 96, 128}.
+values = { giRayCount = [0.0, 1.0, 2.0, 3.0, 4.0] }
+
+[[variant]]
+name = "history-5"
+values = { giFramesToConverge = 0.0 }
+
+[[variant]]
+name = "no-sky"
+values = { giReadSkyLight = false }

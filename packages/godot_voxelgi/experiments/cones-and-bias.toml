@@ -1,0 +1,28 @@
+# VoxelGI: how the trace's bias and the cone count trade quality for time.
+# The reference is the High quality setting (6 cones); the runs sweep the
+# node's bias at the default Low quality (4 cones), then ablate the second
+# bounce and the cone count. Run it with:
+#   render-lab --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out <dir>
+name = "cones-and-bias"
+description = "VoxelGI's bias swept at 4 cones, against 6 cones; the second bounce ablated."
+investigation = "godot/voxelgi"
+demo = "room"
+resolution = [1280, 720]
+frames = 4
+warmup = 30
+repeats = 30
+metrics = ["gpu_ms", "cpu_ms", "mse", "psnr", "ssim", "flip", "relmse", "luminance"]
+
+[reference.values]
+quality = 1.0
+
+[[sweep]]
+values = { giBias = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0] }
+
+[[variant]]
+name = "one-bounce"
+values = { giTwoBounces = false }
+
+[[variant]]
+name = "high-quality"
+values = { quality = 1.0 }

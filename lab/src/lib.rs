@@ -26,6 +26,7 @@ pub mod controls;
 pub mod cook;
 pub mod demo;
 pub mod environment;
+pub mod experiment;
 pub mod formats;
 pub mod formula;
 pub mod frame;
@@ -38,6 +39,7 @@ pub mod investigations;
 pub mod layout;
 pub mod loading;
 pub mod mesh;
+pub mod metrics;
 pub mod packages;
 pub mod palette;
 pub mod popup;
@@ -48,6 +50,7 @@ pub mod pseudocode;
 pub mod readback;
 pub mod record;
 pub mod renderer;
+pub mod research;
 pub mod resources;
 /// The environment's encoding, which the resource pipeline builds with.
 pub mod rgb9e5;
@@ -60,6 +63,7 @@ pub mod sources;
 pub mod terrain;
 pub mod text;
 pub mod theme;
+pub mod timing;
 pub mod ui;
 /// The standard package's code (packages/rlstd/src): the picture inset, a
 /// selftest's pieces, a package's source index and text table.

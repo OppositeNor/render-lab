@@ -1,0 +1,26 @@
+# O3DE: SSAO's sampling radius and blur, measured against SSAO off, with the
+# GPU time of each pass. Run it with:
+#   render-lab --investigation o3de/lighting experiment o3de_lighting.experiment/ssao --out <dir>
+name = "ssao"
+description = "O3DE's SSAO sampling radius swept, with and without its blur, against no SSAO."
+investigation = "o3de/lighting"
+demo = "ssao"
+resolution = [1280, 720]
+frames = 2
+warmup = 30
+repeats = 30
+metrics = ["gpu_ms", "mse", "psnr", "ssim", "flip", "luminance"]
+
+# The final image (the demonstration shows the AO buffer itself).
+[base.values]
+viewMode = "final"
+
+[reference.values]
+ssao = false
+
+[[sweep]]
+values = { ssaoRadius = [0.02, 0.05, 0.1, 0.2] }
+
+[[variant]]
+name = "no-blur"
+values = { ssaoBlur = false }

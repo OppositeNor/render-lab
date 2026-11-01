@@ -128,6 +128,9 @@ parts = ["rlstd.shader/scene", "wgsl/my-shading"]
   (`source = "build/timelines/en/timeline.json"`). It may be missing until the tool runs; the next launch builds it
   into the built package, and `render-lab resources` shows `not built` until then. Demos name such resources:
   tools/video writes them. Declare a timeline's diagram frames too (`kind = "directory"`, `build/timelines/en/mermaid`).
+- **Experiments.** An experiment file (`lab/src/experiment.rs`) declared as `experiment/<name>`
+  (`kind = "file"`, `source = "experiments/<name>.toml"`) is offered by the viewer's Experiments tab and run by
+  `render-lab experiment <package>.experiment/<name>` (the `experiments` skill).
 - **Text.** A package's on-screen text is `text/en.json` and `text/zh-CN.json`, declared as `text/en` and `text/zh-cn`,
   read by the code with `tr("key")`, which `lab::text_table!("<package>.text")` defines in its text module. Data files name text keys in
   fields ending in `-text` (`title-text = "scene.garden"`).

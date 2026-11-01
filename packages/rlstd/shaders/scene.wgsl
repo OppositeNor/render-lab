@@ -97,6 +97,30 @@ fn compositeFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {
     return vec4<f32>(overlay.rgb + scene * (1.0 - overlay.a), 1.0);
 }
 
+// Experiments (lab/src/experiment.rs): the scene alone, without the
+// overlay, for the images an experiment measures (lab/src/metrics.rs).
+@fragment
+fn compositeSceneFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {
+    let hdr = textureSampleLevel(gSceneColor, gLinearSampler, input.uv, 0.0).rgb;
+    return vec4<f32>(linearToSrgb(tonemap(hdr)), 1.0);
+}
+
+// The experiment's difference view: gSceneColor holds the live scene (B),
+// gOverlayColor the reference's (A), both HDR; x is the gain. The displayed
+// luminances' difference, B − A, times the gain: orange where B is
+// brighter, blue where it is darker, black where they agree.
+@group(2) @binding(0) var<uniform> gCompare: vec4<f32>;
+
+@fragment
+fn compositeDiffFS(input: FullscreenVaryings) -> @location(0) vec4<f32> {
+    let weights = vec3<f32>(0.2126, 0.7152, 0.0722);
+    let b = dot(tonemap(textureSampleLevel(gSceneColor, gLinearSampler, input.uv, 0.0).rgb), weights);
+    let a = dot(tonemap(textureSampleLevel(gOverlayColor, gLinearSampler, input.uv, 0.0).rgb), weights);
+    let d = clamp((b - a) * gCompare.x, -1.0, 1.0);
+    let color = select(vec3<f32>(0.25, 0.55, 1.0) * -d, vec3<f32>(1.0, 0.55, 0.15) * d, d > 0.0);
+    return vec4<f32>(linearToSrgb(color), 1.0);
+}
+
 // The backdrop: the sky along each pixel's view ray, drawn before the
 // objects without depth, so they cover it.
 @fragment

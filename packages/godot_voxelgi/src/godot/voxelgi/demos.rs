@@ -1145,15 +1145,16 @@ pub fn sky_reflection(lighting: &lab::scene::Lighting, r: Vec3, roughness: f32) 
 }
 
 /// The scene shading's derived values (gShading's `{@ derived}` members).
-pub fn shader_data(block: &mut lab::shader_data::Block, _state: &ShotState) {
+pub fn shader_data(block: &mut lab::shader_data::Block, state: &ShotState) {
     let w = world::world();
     let inst = world::instance(&w.probe, &LightSettings::default(), false);
     block.set("toCellOrigin", inst.to_cell_origin.to_array());
     block.set("toCellScale", inst.to_cell_scale);
     block.set("bounds", inst.bounds.to_array());
-    block.set("dynamicRange", inst.dynamic_range);
-    block.set("bias", inst.bias);
-    block.set("normalBias", inst.normal_bias);
+    // The scene node's settings (at their defaults, the instance's).
+    block.set("dynamicRange", state.p("giDynamicRange") * state.p("giEnergy"));
+    block.set("bias", state.p("giBias"));
+    block.set("normalBias", state.p("giNormalBias"));
     block.set("mipCount", w.probe.mip_count() as f32);
     block.set("sdfOffset", world::texture_words(&w.probe) as f32);
 }

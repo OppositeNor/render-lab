@@ -37,6 +37,7 @@ use crate::record::{beat_fade, ImageCache};
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
 use crate::ui::{Chrome, DiagramView, DockTab, ViewerAction, ViewerChrome};
+use crate::values::Reflect;
 use crate::volume::Volume;
 use anyhow::Result;
 use glam::Vec2;
@@ -76,6 +77,13 @@ pub struct ViewerOptions {
     pub fullscreen: bool,
     /// The narration's volume (the Config page's setting); the dock changes it.
     pub narration: Volume,
+    /// Opened by the homepage's Experiment button: the Experiments tab, the
+    /// changed values kept from one demonstration to the next (src/experiment.rs).
+    pub experiments: bool,
+    /// The layout's dragged sizes (the settings'), and the settings file a
+    /// drag writes them to (None: kept for this run only).
+    pub layout: crate::config::ViewerLayout,
+    pub settings: Option<PathBuf>,
 }
 
 use crate::home::fullscreen_mode;
@@ -188,6 +196,14 @@ pub struct App {
     error: Option<anyhow::Error>,
     /// The camera's move into the first shot, and when it started (src/animation.rs).
     intro: Option<(IntroMove, Instant)>,
+    /// The experiment: its reference, comparison, and measurement (src/experiment.rs).
+    pub experiment: crate::experiment::Session,
+    /// Recent frame times in milliseconds (the Experiments tab's readout).
+    frame_times: std::collections::VecDeque<f64>,
+    /// The layout's dragged sizes; the viewer hands them back when it closes.
+    pub layout: crate::config::ViewerLayout,
+    /// The window's cursor as last set (egui's request, src/renderer.rs `cursor`).
+    cursor_icon: egui::CursorIcon,
 }
 
 impl App {
@@ -214,6 +230,8 @@ impl App {
         };
         let camera = state.camera;
         let scene = investigation::current().demo_scene(state.demo);
+        let tab = if options.experiments { DockTab::Experiments } else { DockTab::default() };
+        let layout = options.layout;
         Ok(App {
             options,
             surface: None,
@@ -242,7 +260,7 @@ impl App {
             ui_has_pointer: false,
             egui_events: Vec::new(),
             modifiers: egui::Modifiers::default(),
-            tab: DockTab::default(),
+            tab,
             dock_widgets: Vec::new(),
             last_content: None,
             last_insets: Vec::new(),
@@ -256,6 +274,10 @@ impl App {
             error: None,
             // The autotest checks the camera, so it opens straight on the shot.
             intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
+            experiment: crate::experiment::Session { presets: crate::experiment::presets(), ..Default::default() },
+            frame_times: std::collections::VecDeque::new(),
+            layout,
+            cursor_icon: egui::CursorIcon::Default,
         })
     }
 
@@ -335,7 +357,26 @@ impl App {
         let demo = demo.into();
         self.intro = None;
         self.stop_audio();
+        // Experimenting, the values changed so far carry over to the next demonstration.
+        // So does the reference's: its changes from the old demonstration's defaults, over the new one's.
+        let (carried, reference) = if self.options.experiments {
+            let defaults = self.default_state(self.state.demo);
+            (crate::experiment::changes(&self.state, &defaults), self.experiment.reference.as_ref().map(|r| crate::experiment::changes(r, &defaults)))
+        } else {
+            (Default::default(), None)
+        };
         self.state = self.default_state(demo);
+        if let Err(e) = crate::experiment::apply(&mut self.state, &carried) {
+            self.experiment.message = Some(format!("{e:#}"));
+        }
+        if let Some(changes) = reference {
+            let mut r = self.default_state(demo);
+            match crate::experiment::apply(&mut r, &changes) {
+                Ok(()) => self.experiment.reference = Some(r),
+                Err(e) => self.experiment.message = Some(format!("{e:#}")),
+            }
+            self.experiment.measurement = None;
+        }
         self.demo_time = 0.0;
         self.drift_from = 0.0;
         self.playing = false;
@@ -551,6 +592,9 @@ impl App {
             }
             ViewerAction::SelectTab(tab) => {
                 self.tab = tab;
+                if tab == DockTab::Experiments {
+                    self.experiment.presets = crate::experiment::presets();
+                }
                 self.show_tab();
             }
             ViewerAction::SetCode(name) if interactive => {
@@ -561,6 +605,75 @@ impl App {
                 self.stop_audio();
                 self.exit = ViewerExit::Back;
                 self.leaving = true;
+            }
+            ViewerAction::ResetParam(key) if interactive => {
+                let defaults = self.default_state(self.state.demo);
+                if let Some(value) = defaults.try_get(key) {
+                    if crate::camera::OrbitCamera::schema().iter().any(|e| e.key == key || e.components.contains(&key)) {
+                        self.end_intro();
+                        self.state.camera.set(key, value);
+                    } else {
+                        self.state.set(key, value.f32());
+                        for (k, v) in investigation::current().linked_params(key, value.f32()) {
+                            self.state.set(k, v);
+                        }
+                    }
+                }
+            }
+            ViewerAction::SetReference => {
+                self.experiment.reference = Some(self.state.clone());
+                if self.experiment.compare == crate::experiment::Compare::Off {
+                    self.experiment.compare = crate::experiment::Compare::Wipe;
+                }
+                self.experiment.measurement = None;
+                self.experiment.message = Some(crate::i18n::tr("experiments.reference_set").to_string());
+            }
+            ViewerAction::ClearReference => {
+                self.experiment.reference = None;
+                self.experiment.compare = crate::experiment::Compare::Off;
+                self.experiment.measurement = None;
+            }
+            ViewerAction::SwapReference if interactive => {
+                if let Some(reference) = self.experiment.reference.take() {
+                    let camera = self.state.camera;
+                    let live = std::mem::replace(&mut self.state, ShotState { camera, ..reference });
+                    self.experiment.reference = Some(live);
+                    self.experiment.measurement = None;
+                }
+            }
+            ViewerAction::SetCompare(mode) => self.experiment.compare = mode,
+            ViewerAction::SetSplit(split) => self.experiment.split = split.clamp(0.0, 1.0),
+            ViewerAction::SetGain(gain) => self.experiment.gain = gain.clamp(1.0, 64.0),
+            ViewerAction::Measure => self.measure(),
+            ViewerAction::SavePreset(name) => {
+                let defaults = self.default_state(self.state.demo);
+                let experiment = crate::experiment::Experiment::capture(&name, &self.state, &defaults, self.experiment.reference.as_ref());
+                self.experiment.message = Some(match crate::experiment::save_user(&experiment) {
+                    Ok(path) => crate::i18n::tr_with("experiments.saved", crate::i18n::args!(path = path.display().to_string())),
+                    Err(e) => format!("{e:#}"),
+                });
+                self.experiment.presets = crate::experiment::presets();
+            }
+            ViewerAction::LoadPreset(i) if interactive => {
+                if let Some(preset) = self.experiment.presets.get(i).cloned() {
+                    self.experiment.message = Some(match self.load_experiment(&preset) {
+                        Ok(()) => crate::i18n::tr_with("experiments.loaded", crate::i18n::args!(name = preset.name.clone())),
+                        Err(e) => format!("{e:#}"),
+                    });
+                }
+            }
+            ViewerAction::ResizeLayout(part, size) => {
+                let size = size.map(|s| s.round().max(1.0) as u32);
+                match part {
+                    crate::ui::LayoutPart::Panel => self.layout.panel_width = size,
+                    crate::ui::LayoutPart::CodePanel => self.layout.code_panel_width = size,
+                    crate::ui::LayoutPart::Dock => self.layout.dock_height = size,
+                }
+            }
+            ViewerAction::SaveLayout => self.save_layout(),
+            ViewerAction::ResetLayout => {
+                self.layout = Default::default();
+                self.save_layout();
             }
             ViewerAction::SetNarration(volume, finished) => {
                 self.narration = volume;
@@ -574,6 +687,67 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Write the layout's sizes to the settings file, the other settings as it has them.
+    fn save_layout(&mut self) {
+        // What the user sees: the sizes as the layout kept them (clamped to the window).
+        if let Some(r) = self.renderer.as_ref() {
+            let l = r.frame_layout();
+            let dock = (l.captions.max.y - l.captions.min.y).round() as u32;
+            let panel = (l.panel.max.x - l.panel.min.x).round() as u32;
+            if self.layout.dock_height.is_some() {
+                self.layout.dock_height = Some(dock);
+            }
+            let code = self.state.panel == PanelMode::Code;
+            let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
+            if width.is_some() && l.viewport.max.x < l.panel.min.x {
+                *width = Some(panel);
+            }
+        }
+        let Some(path) = self.options.settings.clone() else { return };
+        if let Err(e) = crate::config::Config::save_layout(&path, self.layout) {
+            self.popups.push(Popup::new(crate::i18n::tr("ui.layout_not_saved"), format!("{e:#}")).closing_after(8.0));
+        }
+    }
+
+    /// Measure the live view against the reference's, as the last frame drew them (src/metrics.rs).
+    fn measure(&mut self) {
+        let Some(renderer) = self.renderer.as_mut() else { return };
+        let views = renderer.read_view(crate::renderer::ViewKind::Reference).zip(renderer.read_view(crate::renderer::ViewKind::Live));
+        match views {
+            Some(((ref_display, ref_linear), (display, linear))) if ref_display.width == display.width && ref_display.height == display.height => {
+                self.experiment.measurement = Some(crate::metrics::measure(&ref_display, &display, Some((&ref_linear, &linear))));
+                self.experiment.message = None;
+            }
+            _ => self.experiment.message = Some(crate::i18n::tr("experiments.measure_needs_reference").to_string()),
+        }
+    }
+
+    /// Open an experiment file: its demonstration, camera, and base values,
+    /// and its reference (with a comparison) when it has one.
+    fn load_experiment(&mut self, preset: &crate::experiment::Preset) -> Result<()> {
+        let experiment = preset.load()?;
+        experiment.check()?;
+        self.stop();
+        self.intro = None;
+        let demo = experiment.start_demo()?;
+        let mut state = self.default_state(demo);
+        experiment.apply(&mut state, &experiment.base)?;
+        self.experiment.reference = match experiment.reference_values() {
+            Some(values) => {
+                let mut reference = state.clone();
+                experiment.apply(&mut reference, &values)?;
+                Some(reference)
+            }
+            None => None,
+        };
+        if self.experiment.reference.is_some() && self.experiment.compare == crate::experiment::Compare::Off {
+            self.experiment.compare = crate::experiment::Compare::Wipe;
+        }
+        self.experiment.measurement = None;
+        self.state = state;
+        Ok(())
     }
 
     pub fn key(&mut self, code: KeyCode, event_loop: Option<&ActiveEventLoop>) {
@@ -905,7 +1079,34 @@ impl App {
             popups: std::mem::take(&mut self.popups),
             narration: self.narration,
             diagram: None,
+            experiment: crate::ui::ExperimentView::default(),
         };
+        // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
+        let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
+        self.frame_times.push_back(dt as f64 * 1000.0);
+        if self.frame_times.len() > 120 {
+            self.frame_times.pop_front();
+        }
+        if let Some(renderer) = self.renderer.as_mut() {
+            let compare = self.experiment.reference_state(&state).filter(|_| !self.timeline_mode).map(|reference| crate::renderer::CompareRequest { reference, mode: self.experiment.compare, split: self.experiment.split, gain: self.experiment.gain });
+            renderer.set_compare(compare);
+            // The performance panel measures as it shows, here or on a timeline.
+            renderer.set_timing(experimenting || state.panel == PanelMode::Performance);
+            let times: Vec<f64> = self.frame_times.iter().copied().collect();
+            let (mean, _, p95) = crate::metrics::summary(&times);
+            chrome.experiment = crate::ui::ExperimentView {
+                reference: self.experiment.reference.is_some(),
+                compare: self.experiment.compare,
+                split: self.experiment.split,
+                gain: self.experiment.gain,
+                measurement: self.experiment.measurement,
+                message: self.experiment.message.clone(),
+                presets: self.experiment.presets.clone(),
+                timings: renderer.timing.as_ref().map(|t| t.summary()).unwrap_or_default(),
+                frame_ms: (mean, p95),
+                rebuilding: renderer.rebuilding(),
+            };
+        }
         // The frame a screenshot is taken of shows no popup.
         chrome.popups.hidden = self.screenshot;
         // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
@@ -934,12 +1135,20 @@ impl App {
         }
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
+        renderer.user_layout = self.layout;
         let result = renderer.render_frame(
             FrameRequest { state: &state, scene_type: kind, image, beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
         self.bar_hover = chrome.hover.take();
+        let cursor = self.renderer().cursor;
+        if cursor != self.cursor_icon {
+            self.cursor_icon = cursor;
+            if let Some(surface) = &self.surface {
+                surface.window.set_cursor(window_cursor(cursor));
+            }
+        }
         self.dock_widgets = std::mem::take(&mut chrome.widgets);
         self.popups = std::mem::take(&mut chrome.popups);
         for action in self.popups.take_actions() {
@@ -994,6 +1203,20 @@ impl App {
         renderer.gpu.queue.present(frame);
         self.frames += 1;
         Ok(())
+    }
+}
+
+/// The window's cursor for one egui asks for.
+fn window_cursor(icon: egui::CursorIcon) -> winit::window::CursorIcon {
+    use winit::window::CursorIcon as W;
+    match icon {
+        egui::CursorIcon::ResizeHorizontal | egui::CursorIcon::ResizeColumn => W::EwResize,
+        egui::CursorIcon::ResizeVertical | egui::CursorIcon::ResizeRow => W::NsResize,
+        egui::CursorIcon::PointingHand => W::Pointer,
+        egui::CursorIcon::Text => W::Text,
+        egui::CursorIcon::Grab => W::Grab,
+        egui::CursorIcon::Grabbing => W::Grabbing,
+        _ => W::Default,
     }
 }
 
@@ -1234,8 +1457,8 @@ pub fn run(options: ViewerOptions) -> Result<()> {
 
 /// Run the viewer on an event loop that may be reused afterwards (the
 /// homepage's); its window closes when it returns.
-/// Returns how the viewer was left, and the narration's volume it was left with.
-pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<(ViewerExit, Volume)> {
+/// Returns how the viewer was left, and the narration's volume and the layout it was left with.
+pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<(ViewerExit, Volume, crate::config::ViewerLayout)> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::new(options)?;
     event_loop.run_app_on_demand(&mut app)?;
@@ -1248,7 +1471,7 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
             anyhow::bail!("viewer autotest failed; see {}", test.report().display());
         }
     }
-    Ok((app.exit, app.narration))
+    Ok((app.exit, app.narration, app.layout))
 }
 
 
@@ -1270,12 +1493,10 @@ pub enum PausedPage {
     Sources,
 }
 
-/// `snapshot`, or with `paused`, the timeline paused on its first 2D scene of
-/// that page (`home --snapshot … --page viewer-diagram` or `viewer-sources`).
-pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<PausedPage>, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+/// The viewer without a window, on `demo` (its key) or the first
+/// demonstration, its scene loaded: for a snapshot.
+fn offscreen_app(options: ViewerOptions, demo: Option<&str>) -> Result<(App, Gpu, [u32; 2])> {
     let size = [options.width.max(64), options.height.max(64)];
-    let playing = options.timeline.is_some() && paused.is_none();
     let mut app = App::new(ViewerOptions { audio: None, ..options })?;
     app.intro = None;
     if let Some(key) = demo {
@@ -1286,6 +1507,141 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
     let mut renderer = Loading::start(investigation::current(), gpu.clone(), scene, size).wait()?;
     renderer.ui_scale = app.options.ui_scale;
     app.renderer = Some(renderer);
+    Ok((app, gpu, size))
+}
+
+/// The viewer offscreen in experiments mode (`home --snapshot … --page
+/// viewer-experiments` or `viewer-compare`): the Experiments tab; with
+/// `compare`, the demonstration's state set as the reference, then one engine
+/// setting (else any ranged value) moved to its other end, compared with a
+/// wipe and measured.
+pub fn snapshot_experiments(options: ViewerOptions, demo: Option<&str>, compare: bool, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let (mut app, gpu, size) = offscreen_app(ViewerOptions { experiments: true, ..options }, demo)?;
+    app.state = app.default_state(app.state.demo);
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    let mut changed = None;
+    if compare {
+        app.apply(ViewerAction::SetReference);
+        let entries = crate::values::list();
+        let camera = crate::camera::OrbitCamera::schema();
+        let ranged = |e: &&crate::values::Entry| e.range.is_some() && e.components.is_empty() && e.choices.is_none() && !camera.iter().any(|c| std::ptr::eq(c, *e));
+        let entry = entries.iter().find(|e| e.engine.is_some() && ranged(e)).or_else(|| entries.iter().find(|e| ranged(e) && !e.labels.is_empty()));
+        if let Some(e) = entry {
+            let (lo, hi) = e.range.expect("ranged");
+            let now = app.state.p(e.key);
+            let to = if (now - lo).abs() > (now - hi).abs() { lo } else { hi };
+            app.apply(ViewerAction::SetParam(e.key, to));
+            changed = Some(format!("{} {now} → {to}", e.key));
+        }
+        app.apply(ViewerAction::SetCompare(crate::experiment::Compare::Wipe));
+        // A setting baked into the scene data: its build waited for, so the snapshot shows it.
+        let state = app.state.clone();
+        app.renderer.as_mut().expect("renderer").prepare_scene_data(&state);
+    }
+    for i in 0..18 {
+        if compare && i == 15 {
+            app.apply(ViewerAction::Measure);
+        }
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    let measured = app.experiment.measurement.map(|m| format!("; PSNR {:.2} dB, SSIM {:.4}, FLIP {:.4}", m.psnr, m.ssim, m.flip)).unwrap_or_default();
+    eprintln!("viewer experiments: {} ({}x{}){}{measured}", png.display(), size[0], size[1], changed.map(|c| format!("; reference compared with {c}")).unwrap_or_default());
+    Ok(())
+}
+
+/// The viewer offscreen with the performance panel (`home --snapshot X.png
+/// --page viewer-performance[:<demo>]`): measured over 60 frames, then the
+/// most expensive pass called out, as a story's `highlight` would.
+pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let (mut app, gpu, size) = offscreen_app(options, demo)?;
+    app.state = app.default_state(app.state.demo);
+    app.state.panel = PanelMode::Performance;
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..60 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let passes = app.renderer().timing.as_ref().map(|t| t.summary()).unwrap_or_default();
+    let top = passes.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map(|p| p.0.clone());
+    if let Some(name) = &top {
+        app.state.highlight = vec![name.clone()];
+    }
+    for _ in 0..4 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    let list: Vec<String> = passes.iter().map(|(n, mean, _)| format!("{n} {mean:.2} ms")).collect();
+    eprintln!("viewer performance: {} ({}x{}); {}; called out: {}", png.display(), size[0], size[1], if list.is_empty() { "no GPU timestamps".into() } else { list.join(", ") }, top.unwrap_or_else(|| "none".into()));
+    Ok(())
+}
+
+/// The viewer offscreen with its edges dragged by the pointer (`home
+/// --snapshot X.png --page viewer-layout`): the panel's edge 200 points left,
+/// the dock's edge 120 points up, as a user drags them. The layout is written
+/// to X.toml (a settings file), not to the user's settings.
+pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let settings = png.with_extension("toml");
+    let _ = std::fs::remove_file(&settings);
+    let (mut app, gpu, size) = offscreen_app(ViewerOptions { settings: Some(settings.clone()), layout: Default::default(), ..options }, None)?;
+    app.state = app.default_state(app.state.demo);
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..3 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let before = app.renderer().frame_layout();
+    let press = |app: &mut App, at: egui::Pos2, pressed: bool| app.egui_events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() });
+    // A drag from `from` to `to` in steps, a frame each, as egui sees a pointer.
+    let drag = |app: &mut App, from: egui::Pos2, to: egui::Pos2| -> Result<()> {
+        app.egui_events.push(egui::Event::PointerMoved(from));
+        app.render(Some(&buffer))?;
+        press(app, from, true);
+        app.render(Some(&buffer))?;
+        for k in 1..=6 {
+            app.egui_events.push(egui::Event::PointerMoved(from + (to - from) * (k as f32 / 6.0)));
+            app.render(Some(&buffer))?;
+        }
+        press(app, to, false);
+        app.render(Some(&buffer))?;
+        Ok(())
+    };
+    let panel_edge = egui::pos2((before.viewport.max.x + before.panel.min.x) / 2.0, before.content.center().y);
+    if before.viewport.max.x + 1.0 < before.panel.min.x {
+        drag(&mut app, panel_edge, panel_edge - egui::vec2(200.0, 0.0))?;
+    }
+    let dock_edge = egui::pos2(before.captions.center().x, (before.content.max.y + before.captions.min.y) / 2.0);
+    drag(&mut app, dock_edge, dock_edge - egui::vec2(0.0, 120.0))?;
+    for _ in 0..16 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let after = app.renderer().frame_layout();
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    let width = |l: &crate::ui::Layout| l.panel.max.x - l.panel.min.x;
+    let dock = |l: &crate::ui::Layout| l.captions.max.y - l.captions.min.y;
+    let saved = crate::config::Config::load(&settings).map(|c| format!("{:?}", c.layout)).unwrap_or_else(|e| format!("{e:#}"));
+    eprintln!("viewer layout: {} ({}x{}); panel {:.0} → {:.0} points, dock {:.0} → {:.0} points; saved to {}: {saved}", png.display(), size[0], size[1], width(&before), width(&after), dock(&before), dock(&after), settings.display());
+    Ok(())
+}
+
+/// `snapshot`, or with `paused`, the timeline paused on its first 2D scene of
+/// that page (`home --snapshot … --page viewer-diagram` or `viewer-sources`).
+pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<PausedPage>, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let playing = options.timeline.is_some() && paused.is_none();
+    let (mut app, gpu, size) = offscreen_app(options, demo)?;
     if playing {
         app.playing = true;
         // The clock holds the frame: it starts counting an hour from now.

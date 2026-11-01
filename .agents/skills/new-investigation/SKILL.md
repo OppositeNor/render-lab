@@ -153,7 +153,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   `scene` is one `rlstd` exports, `rlstd.scene/study-room`):
   - The values: every number a shot or the video can animate, as the fields of a `#[derive(lab::Values,
     serde::Serialize, serde::Deserialize)]` struct (`#[values(package = "…", rename_all = "camelCase")]`; each field's
-    `#[value(default = …, range = a..=b, unit = m, text = "…" or name = "…", color = …, label(group), toggle)]` and its
+    `#[value(default = …, range = a..=b, unit = m, text = "…" or name = "…", color = …, label(group), toggle, help = "help.<key>")]` and its
     `///` doc), given to `Demos::with_values::<T>(package)`. A field the video fades through fractions stays `f32`
     (`toggle` only marks it as on/off for the dock). A shot stores the values by key (`state.p("key")`,
     `state["key"]`, `state.view::<T>()` for the struct). `params.toml` (`name`, `default`, `doc`) still works for
@@ -176,6 +176,17 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   - `demos/<key>.toml`: one demonstration (its title and tab text keys, hint, scene, listing, presets, camera, and the
     parameters it changes); `demos/index.toml` orders them; `demos/presets/` holds cameras and parameters several share.
     A storyboard `demo` key resets to the demonstration's state.
+- **Every value has a help text**: `help = "help.<key>"` (`help=help.<key>` in a WGSL tag), a key of the package's text in
+  both languages, saying in a sentence or two what moving it does. The dock shows a "?" after each value's name that
+  shows it on hover; a value without one falls back to its English doc comment. Give every value a translatable name
+  too (`text`, not `name`, unless the name is an identifier that stays English).
+- **The engine's settings, for experiments** (the `experiments` skill):
+  - Every value that is one of the engine's user-facing settings gets `engine = "<property>"` (`engine=` in a WGSL
+    tag). Give it the engine's default and range, cited in its doc. The Experiments tab groups these values, and
+    research runs sweep them.
+  - Prefer making a hard-coded setting a value (same default, so frames stay identical) to leaving it a constant.
+  - Settings baked into the scene shading's data are rebuilt through `Investigation::scene_data`.
+  - Ship one experiment in `experiments/` that compares a cheap setting with the engine's most expensive one.
 - A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `id()` (`DemoId::new(key)`), and `of(DemoId)`, for
   what stays code: `build_frame`, the dock, picking, and Play.
 - `build_frame` fills a `FrameContent` (`lab/src/frame.rs`): objects, uniforms, overlay draw lists (segments, points,

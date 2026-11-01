@@ -48,7 +48,8 @@ impl Gpu {
         let info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("render-lab"),
-            required_features: wgpu::Features::empty(),
+            // GPU time per pass for experiments (src/timing.rs), where the adapter has it.
+            required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
             // The verification kernels bind ten storage buffers in one stage.
             required_limits: adapter.limits(),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),

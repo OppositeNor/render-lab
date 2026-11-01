@@ -24,7 +24,9 @@
 //!   `true`/`false` for a toggle) is required; `range=low,high` (or a pair
 //!   per component), `step=`, `unit=m|deg|factor|plain|index`, `wrap`,
 //!   `label=a,b`, `text=` (a key of the package's text), `toggle` (on or
-//!   off, packed as 1 or 0), and, for a vector, `components=x,y,z` (its
+//!   off, packed as 1 or 0), `engine=` (the engine property it mirrors, for
+//!   the Experiments tab), `help=` (a key of the package's text: what it
+//!   does, shown by the dock's "?"), and, for a vector, `components=x,y,z` (its
 //!   components' keys; `name.x`, … by default) are optional. An `index` is a
 //!   whole number, clamped to its range when packed. `choice=Name` makes it
 //!   a choice of the options of the investigation's `#[derive(Choice)]` enum
@@ -279,6 +281,20 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
         None if ty.components() > 1 => ["x", "y", "z", "w"][..ty.components()].iter().map(|c| leak(format!("{key}.{c}"))).collect(),
         None => Vec::new(),
     };
+    let engine = match one("engine")? {
+        Some(t) => {
+            arg(t, 1)?;
+            Some(leak(t.args[0].clone()))
+        }
+        None => None,
+    };
+    let help = match one("help")? {
+        Some(t) => {
+            arg(t, 1)?;
+            Some(leak(t.args[0].clone()))
+        }
+        None => None,
+    };
     Ok(Entry {
         key,
         ty,
@@ -296,12 +312,14 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
         choices,
         package: leak(package.to_string()),
         doc: leak(doc),
+        engine,
+        help,
         components: Box::leak(components.into_boxed_slice()),
     })
 }
 
 /// The tags a member may carry.
-const MEMBER_TAGS: &[&str] = &["key", "derived", "default", "range", "step", "unit", "wrap", "label", "text", "toggle", "components", "choice"];
+const MEMBER_TAGS: &[&str] = &["key", "derived", "default", "range", "step", "unit", "wrap", "label", "text", "toggle", "components", "choice", "engine", "help"];
 
 fn build(r: &'static Reflected) -> Result<Option<Schema>> {
     let module = &r.module;
@@ -560,6 +578,8 @@ mod tests {
             choices: None,
             package: "",
             doc: "",
+            engine: None,
+            help: None,
             components: &["lightX", "lightY", "lightZ"],
         }));
         let schema: &'static Schema = Box::leak(Box::new(Schema {

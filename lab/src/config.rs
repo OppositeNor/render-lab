@@ -37,6 +37,26 @@ impl Category {
     }
 }
 
+/// The viewer's layout as the user dragged it (src/ui.rs `Layout`): sizes in
+/// canvas points, None for the default. The viewer writes it when a drag ends;
+/// recordings never use it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ViewerLayout {
+    /// The struct panel's width, right of the viewport.
+    pub panel_width: Option<u32>,
+    /// The pseudo-code panel's width (the Code tab).
+    pub code_panel_width: Option<u32>,
+    /// The dock's height, below the viewport.
+    pub dock_height: Option<u32>,
+}
+
+impl ViewerLayout {
+    /// The keys it is written under, with their values.
+    fn entries(&self) -> [(&'static str, Option<u32>); 3] {
+        [("viewer_panel_width", self.panel_width), ("viewer_code_panel_width", self.code_panel_width), ("viewer_dock_height", self.dock_height)]
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// Interface: the homepage's language, and the edition of a narrated
@@ -50,11 +70,13 @@ pub struct Config {
     pub music: Volume,
     /// Audio: the narration of a timeline in the viewer, which its dock also sets.
     pub narration: Volume,
+    /// The viewer's layout, which dragging its edges sets (Restore Defaults puts it back too).
+    pub layout: ViewerLayout,
 }
 
 impl Default for Config {
     fn default() -> Config {
-        Config { language: Locale::En, theme: theme::DEFAULT.into(), fullscreen: false, music: Volume::new(50), narration: Volume::new(100) }
+        Config { language: Locale::En, theme: theme::DEFAULT.into(), fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
     }
 }
 
@@ -111,6 +133,13 @@ impl Config {
                 volume.muted = item.as_bool().with_context(|| format!("{}: `{key}` must be true or false", path.display()))?;
             }
         }
+        let mut layout = ViewerLayout::default();
+        for (key, slot) in [("viewer_panel_width", &mut layout.panel_width), ("viewer_code_panel_width", &mut layout.code_panel_width), ("viewer_dock_height", &mut layout.dock_height)] {
+            if let Some(item) = document.get(key) {
+                *slot = Some(item.as_integer().filter(|n| (1..=100_000).contains(n)).with_context(|| format!("{}: `{key}` must be a whole number of points", path.display()))? as u32);
+            }
+        }
+        config.layout = layout;
         Ok(config)
     }
 
@@ -125,7 +154,16 @@ impl Config {
         for (name, what, volume) in [("music", "Audio: the homepage's music", self.music), ("narration", "Audio: the narration", self.narration)] {
             text.push_str(&format!("\n# {what}: its volume (0 to 100) and whether it is muted.\n{name}_volume = {}\n{name}_muted = {}\n", volume.percent, volume.muted));
         }
+        let sizes: Vec<String> = self.layout.entries().iter().filter_map(|(key, value)| value.map(|v| format!("{key} = {v}"))).collect();
+        if !sizes.is_empty() {
+            text.push_str(&format!("\n# The viewer's layout as its edges were dragged, in points of the 1920 x 1080 canvas (absent: the default).\n{}\n", sizes.join("\n")));
+        }
         text
+    }
+
+    /// Write `layout` into the settings in `path`, keeping the others as the file has them.
+    pub fn save_layout(path: &Path, layout: ViewerLayout) -> Result<()> {
+        Config { layout, ..Config::load(path)? }.save(path)
     }
 
     /// Write the file, through a temporary file renamed over it, so a failed
@@ -149,7 +187,7 @@ mod tests {
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), music: Volume { percent: 30, muted: true }, narration: Volume::new(75) };
+        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.

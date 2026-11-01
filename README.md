@@ -73,6 +73,13 @@ again, in the new language, whenever a saved setting changes the language.
   sets every colour of the interface; [`themes/one-dark-pro.toml`](themes/one-dark-pro.toml) describes each key. The
   lab's own colours are the built-in theme **Render Lab**, the default, which recordings always use, so a recorded frame never depends
   on the settings.
+- **Every slider, checkbox, and choice** has a **?** after its name: hovering it says what the value does, in the
+  interface's language.
+- **The viewer's layout** can be resized by dragging the edge between the viewport and the panel (the struct panel and
+  the Code tab's listing each keep their own width) and the edge above the dock. The sizes are written to the settings
+  file as each drag ends, so the viewer opens with them next time. Double-clicking an edge puts that size back, the
+  dock's **Reset layout** puts them all back, and Config's **Restore Defaults** does too. Recordings always use the
+  default layout.
 - **F11** saves a screenshot of the window (the homepage or the viewer) to `build/screenshots/`.
 
 ## Commands
@@ -82,7 +89,7 @@ From this directory:
 ```bash
 cargo run --release                                   # the homepage
 cargo run --release -- --list                         # the installed investigations (the values --investigation takes)
-cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, or viewer-timeline for the others)
+cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, viewer-timeline, viewer-experiments, or viewer-compare for the others)
 cargo run --release -- home --autotest home.json      # click through the homepage offscreen (it uses its own settings file)
 ```
 
@@ -100,6 +107,41 @@ bash tools/video/setup.sh --gpu                                     # once: Pipe
 python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
 ```
+
+### Experiments
+
+Each feature on the selection page also has **Experiment with the algorithm**. It opens the viewer on its
+**Experiments** tab, which Explore has too. The tab has:
+
+- **Every value** of the investigation, whichever demonstration is open:
+  - the engine's own settings, each naming the property it mirrors (`render-lab values` marks them `engine …`);
+  - the scene's values;
+  - the demonstrations' presentation.
+- **Changes from the defaults**, marked and resettable. In experiments mode they carry over to the next
+  demonstration.
+- **A/B comparison** against a saved reference: a wipe, side by side, a difference, or the reference alone, each view
+  keeping its own history.
+- **Measurements** of the difference: PSNR, SSIM, ꟻLIP, MSE, and relMSE.
+- **GPU time per pass**, and a **performance panel** on the right (the frame's GPU time, its history, and a bar per
+  pass) that a narrated story can show too (`panel=performance`, `highlight=<pass>`).
+- **Experiment files** to save and load.
+
+The same file runs headless as a research experiment:
+
+- **Runs:** a reference, sweeps, and ablations.
+- **Timing:** warm-up frames, then repeated timed frames, each timed per pass on the GPU.
+- **Output:** a directory of CSV and JSON results, PNG and PFM images, ꟻLIP maps, and a manifest of what ran (the
+  experiment, the commit, the GPU and driver).
+
+[`tools/experiments`](tools/experiments/README.md) turns the directory into tables, plots, and an image grid:
+
+```bash
+cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
+python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.html
+```
+
+The format is in `lab/src/experiment.rs`, and the method (references, controls, repeats) is in the `experiments`
+skill.
 
 On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout
 (`Readout::formula`). The lab typesets them itself at run time (`lab/src/formula.rs`: MiTeX translates the LaTeX into

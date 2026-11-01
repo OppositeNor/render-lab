@@ -52,6 +52,7 @@ impl GrowBuffer {
 
 struct ViewportTargets {
     size: [u32; 2],
+    hdr_texture: wgpu::Texture,
     hdr_msaa: wgpu::TextureView,
     hdr: wgpu::TextureView,
     overlay_msaa: wgpu::TextureView,
@@ -79,7 +80,9 @@ impl ViewportTargets {
         let sampled = attach | wgpu::TextureUsages::TEXTURE_BINDING;
         let view = |t: wgpu::Texture| t.create_view(&Default::default());
         // An investigation's pass chain may write the HDR target from a compute pass.
-        let hdr = view(target(device, "scene hdr", size, HDR_FORMAT, 1, sampled | wgpu::TextureUsages::STORAGE_BINDING));
+        // An experiment reads it back (`Renderer::read_view`).
+        let hdr_texture = target(device, "scene hdr", size, HDR_FORMAT, 1, sampled | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC);
+        let hdr = view(hdr_texture.clone());
         let overlay = view(target(device, "overlay", size, OVERLAY_FORMAT, 1, sampled));
         let composite = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("composite"),
@@ -88,6 +91,7 @@ impl ViewportTargets {
         });
         ViewportTargets {
             size,
+            hdr_texture,
             hdr_msaa: view(target(device, "scene hdr msaa", size, HDR_FORMAT, MSAA, attach)),
             overlay_msaa: view(target(device, "overlay msaa", size, OVERLAY_FORMAT, MSAA, attach)),
             // A pass chain reads the depth.
@@ -170,6 +174,23 @@ pub struct Renderer {
     last_layout: Layout,
     /// The last frame's views beside the main one (`Investigation::panes`), in canvas points.
     last_panes: Vec<egui::Rect>,
+    /// The reference's view, while an experiment compares (src/experiment.rs).
+    reference_slot: ViewSlot,
+    compare: Option<CompareRequest>,
+    /// The difference view's gain (group 2 of `composite_diff`).
+    compare_params: wgpu::Buffer,
+    compare_group: wgpu::BindGroup,
+    /// The last frame drew the reference (its view can be read back).
+    reference_drawn: bool,
+    /// The sizes the viewer's user dragged (src/config.rs); the default for a recording.
+    pub user_layout: crate::config::ViewerLayout,
+    /// The pointer's cursor the last frame's interface asked for (egui's).
+    pub cursor: egui::CursorIcon,
+    /// When each recent frame started rendering, for the performance panel's frame times.
+    frame_starts: std::collections::VecDeque<std::time::Instant>,
+    /// GPU timestamps around the frame's passes (src/timing.rs), while an
+    /// experiment asks for them (`set_timing`) and the device has them.
+    pub timing: Option<crate::timing::Timing>,
 }
 
 /// A story's image of an image kind (src/views.rs): its texture, written
@@ -186,10 +207,48 @@ struct ViewInstance {
 struct Shading {
     source: &'static SceneShading,
     pipelines: gpu::ShadingPipelines,
+    /// Group 1 with the data of the state being drawn (`select_data`).
     group: wgpu::BindGroup,
-    _data: wgpu::Buffer,
+    /// The data built so far, most recently used first: `SceneShading::data`
+    /// (key None), and `Investigation::scene_data`'s by key, each with its group.
+    data: Vec<(Option<u64>, wgpu::Buffer, wgpu::BindGroup)>,
+    /// A `scene_data` build on a worker thread: its key, its result, and when it started.
+    pending: Option<(u64, std::sync::mpsc::Receiver<Vec<[f32; 4]>>, std::time::Instant)>,
     /// `FrameContent::shading_frame`.
     frame_data: wgpu::Buffer,
+}
+
+/// How many `scene_data` builds a shading keeps.
+const SCENE_DATA_KEPT: usize = 4;
+
+/// What a frame's reference view (src/experiment.rs) draws from and into:
+/// its own viewport targets, pass chain, and still counts, so its history
+/// builds up as the live view's does. Swapped with the renderer's while it draws.
+#[derive(Default)]
+struct ViewSlot {
+    viewport: Option<ViewportTargets>,
+    chain: Option<ChainTargets>,
+    still: (Option<u64>, u32),
+    still_scene: (Option<u64>, u32),
+}
+
+/// The experiment's comparison the next frames draw (`Renderer::set_compare`).
+#[derive(Clone, Debug)]
+pub struct CompareRequest {
+    /// The reference's state (the live camera's).
+    pub reference: ShotState,
+    pub mode: crate::experiment::Compare,
+    pub split: f32,
+    pub gain: f32,
+}
+
+/// Which view an experiment reads back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewKind {
+    /// The live view (B).
+    Live,
+    /// The reference (A).
+    Reference,
 }
 
 /// The targets of an investigation's pass chain at one viewport size, with
@@ -324,11 +383,26 @@ impl ChainTargets {
     }
 
     /// Encode a run of compute passes with their bind groups.
-    fn dispatch(&self, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::BindGroup, shading: &Shading, range: std::ops::Range<usize>) {
+    /// Timed (src/timing.rs), each pass runs in a compute pass of its own that writes its timestamps.
+    fn dispatch(&self, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::BindGroup, shading: &Shading, range: std::ops::Range<usize>, timing: Option<&mut crate::timing::Timing>) {
         if range.is_empty() {
             return;
         }
         let steps: Vec<&crate::investigation::ShadingPass> = self.source.early.iter().chain(self.source.passes).collect();
+        if let Some(timing) = timing {
+            for i in range {
+                let step = steps[i];
+                let size = self.size_of(step.writes[0]);
+                let span = timing.compute_writes(step.entry);
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(step.entry), timestamp_writes: span.as_ref().map(|t| t.compute()) });
+                pass.set_bind_group(0, frame, &[]);
+                pass.set_bind_group(1, &shading.group, &[]);
+                pass.set_pipeline(&shading.pipelines.passes[i].0);
+                pass.set_bind_group(2, &self.groups[i], &[]);
+                pass.dispatch_workgroups(size[0].div_ceil(step.workgroup[0]), size[1].div_ceil(step.workgroup[1]), 1);
+            }
+            return;
+        }
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("shading chain"), timestamp_writes: None });
         pass.set_bind_group(0, frame, &[]);
         pass.set_bind_group(1, &shading.group, &[]);
@@ -471,6 +545,8 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let compare_params = device.create_buffer(&wgpu::BufferDescriptor { label: Some("compare"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let pipelines_compare_layout = pipelines.compare_layout.clone();
         let mut renderer = Renderer {
             still: (None, 0),
             still_scene: (None, 0),
@@ -514,6 +590,15 @@ impl Renderer {
             view_shading: None,
             last_layout: Layout::new(width, height),
             last_panes: Vec::new(),
+            reference_slot: ViewSlot::default(),
+            compare: None,
+            compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("compare"), layout: &pipelines_compare_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: compare_params.as_entire_binding() }] }),
+            compare_params,
+            reference_drawn: false,
+            user_layout: Default::default(),
+            cursor: egui::CursorIcon::Default,
+            frame_starts: std::collections::VecDeque::new(),
+            timing: None,
             statics,
             other_scenes: HashMap::new(),
             gpu,
@@ -611,15 +696,15 @@ impl Renderer {
     }
 
     /// `dock`: the interactive viewer's layout with the slider dock.
-    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool) -> Layout {
-        let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden;
+    /// With `values`, the panel shows (the Experiments tab's values) whatever the state's panel mode.
+    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool, values: bool) -> Layout {
+        let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden || values;
         let mut layout = self.layout();
         if dock {
             layout = layout.with_dock();
         }
-        if scene_type == SceneType::ThreeD && state.panel == crate::shot::PanelMode::Code {
-            layout = layout.with_code_panel();
-        }
+        let code = scene_type == SceneType::ThreeD && state.panel == crate::shot::PanelMode::Code;
+        layout = layout.with_user(&self.user_layout, dock, code);
         layout.for_panel(panel)
     }
 
@@ -633,6 +718,7 @@ impl Renderer {
         self.frame = Self::frame_texture(&self.gpu.device, width, height);
         self.frame_view = self.frame.create_view(&Default::default());
         self.viewport = None;
+        self.reference_slot = ViewSlot::default();
     }
 
     /// Upload the frame's records and uniforms.
@@ -791,9 +877,188 @@ impl Renderer {
                     wgpu::BindGroupEntry { binding: 2, resource: frame_data.as_entire_binding() },
                 ],
             });
-            self.shadings.push(Shading { source, pipelines, group, _data: data, frame_data });
+            self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data });
         }
         self.shadings.iter().find(|s| std::ptr::eq(s.source, source))
+    }
+
+    /// Group 1 of the current shading with the data `state` needs
+    /// (`Investigation::scene_data`): a kept one, or, while a new one builds
+    /// on a worker thread, the last one drawn. With `wait`, the build is
+    /// waited for (a research run). A finished build restarts the history.
+    fn select_data(&mut self, state: &ShotState, wait: bool) {
+        if self.shading().is_none() {
+            return;
+        }
+        let wanted = investigation::current().scene_data(state);
+        let source = investigation::current().scene_shading().expect("a scene shading");
+        let device = self.gpu.device.clone();
+        let layout = self.pipelines.shading_layout.clone();
+        let uniforms = self.shading_uniforms.clone();
+        let shading = self.shadings.iter_mut().find(|s| std::ptr::eq(s.source, source)).expect("built");
+        let key = wanted.as_ref().map(|w| w.key);
+        if let Some(w) = wanted {
+            let kept = shading.data.iter().any(|d| d.0 == Some(w.key));
+            let building = shading.pending.as_ref().is_some_and(|p| p.0 == w.key);
+            if !kept && !building {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let build = w.build;
+                std::thread::Builder::new().name("scene data".into()).spawn(move || {
+                    let _ = tx.send(build());
+                }).expect("a thread for the scene data");
+                shading.pending = Some((w.key, rx, std::time::Instant::now()));
+            }
+        }
+        let mut finished = false;
+        if let Some((pending_key, rx, _)) = &shading.pending {
+            let result = if wait && key == Some(*pending_key) { rx.recv().ok() } else { rx.try_recv().ok() };
+            if let Some(mut data) = result {
+                if data.is_empty() {
+                    data.push([0.0; 4]);
+                }
+                let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("scene shading data"), contents: bytemuck::cast_slice(&data), usage: wgpu::BufferUsages::STORAGE });
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("scene shading"),
+                    layout: &layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 1, resource: buffer.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 2, resource: shading.frame_data.as_entire_binding() },
+                    ],
+                });
+                shading.data.insert(1.min(shading.data.len()), (Some(*pending_key), buffer, group));
+                // Keep the built-once data and the latest builds.
+                while shading.data.len() > SCENE_DATA_KEPT + 1 {
+                    let last = shading.data.iter().rposition(|d| d.0.is_some()).expect("a build to let go");
+                    shading.data.remove(last);
+                }
+                shading.pending = None;
+                finished = true;
+            }
+        }
+        if let Some(i) = shading.data.iter().position(|d| d.0 == key) {
+            shading.group = shading.data[i].2.clone();
+        }
+        if finished {
+            self.still = (None, 0);
+            self.still_scene = (None, 0);
+            self.reference_slot.still = (None, 0);
+            self.reference_slot.still_scene = (None, 0);
+        }
+    }
+
+    /// Seconds the current shading's scene data has been building, while it does.
+    pub fn rebuilding(&self) -> Option<f32> {
+        let source = investigation::current().scene_shading()?;
+        let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, source))?;
+        shading.pending.as_ref().map(|p| p.2.elapsed().as_secs_f32())
+    }
+
+    /// Build (and wait for) the scene data `state` needs (a research run).
+    pub fn prepare_scene_data(&mut self, state: &ShotState) {
+        self.switch_scene(investigation::current().scene(state));
+        self.select_data(state, true);
+    }
+
+    /// What the performance panel shows (`PanelMode::Performance`): the GPU,
+    /// each pass's times, and the recent frames' GPU and frame times.
+    fn performance_view(&self) -> ui::PerformanceView {
+        let starts: Vec<&std::time::Instant> = self.frame_starts.iter().collect();
+        let frames = starts.windows(2).map(|w| (*w[1] - *w[0]).as_secs_f64() * 1000.0).collect();
+        let (passes, totals) = match &self.timing {
+            Some(t) => {
+                let last = t.last();
+                let passes = t.summary().into_iter().map(|(name, mean, p95)| {
+                    let now = last.iter().find(|(n, _)| *n == name).map_or(f64::NAN, |p| p.1);
+                    (name, mean, p95, now)
+                }).collect();
+                (passes, t.totals())
+            }
+            None => (Vec::new(), Vec::new()),
+        };
+        ui::PerformanceView { gpu: self.gpu.info.name.clone(), timestamps: self.timing.is_some(), passes, totals, frames }
+    }
+
+    /// Time the live frame's passes (src/timing.rs), or stop; false when the device cannot.
+    pub fn set_timing(&mut self, on: bool) -> bool {
+        match (on, self.timing.is_some()) {
+            (true, false) => self.timing = crate::timing::Timing::new(&self.gpu),
+            (false, true) => self.timing = None,
+            _ => {}
+        }
+        self.timing.is_some()
+    }
+
+    /// Compare the next frames' live view with a reference (src/experiment.rs), or stop.
+    pub fn set_compare(&mut self, compare: Option<CompareRequest>) {
+        if compare.is_none() {
+            self.reference_slot = ViewSlot::default();
+        }
+        self.compare = compare;
+    }
+
+    /// The reference's slot and the renderer's trade places.
+    fn swap_slot(&mut self) {
+        std::mem::swap(&mut self.viewport, &mut self.reference_slot.viewport);
+        std::mem::swap(&mut self.chain, &mut self.reference_slot.chain);
+        std::mem::swap(&mut self.still, &mut self.reference_slot.still);
+        std::mem::swap(&mut self.still_scene, &mut self.reference_slot.still_scene);
+    }
+
+    /// The last frame's image of a view, without the overlay: displayed
+    /// (tone mapped, sRGB-encoded) and linear (its HDR target). None when it
+    /// was not drawn (the reference without a comparison).
+    pub fn read_view(&mut self, which: ViewKind) -> Option<(crate::metrics::Image, crate::metrics::Image)> {
+        if which == ViewKind::Reference && !self.reference_drawn {
+            return None;
+        }
+        let targets = match which {
+            ViewKind::Live => self.viewport.as_ref()?,
+            ViewKind::Reference => self.reference_slot.viewport.as_ref()?,
+        };
+        let device = &self.gpu.device;
+        let [w, h] = targets.size;
+        // Displayed: the scene composite into a frame-sized target of its own.
+        let display = target(device, "experiment display", [w, h], FRAME_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
+        let display_view = display.create_view(&Default::default());
+        let rgba_row = padded_row_bytes(w);
+        let rgba_buffer = readback_buffer(device, w, h);
+        let half_row = (w * 8).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let half_buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("experiment hdr"), size: half_row as u64 * h as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("experiment readback") });
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("experiment display"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &display_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.pipelines.composite_scene);
+            pass.set_bind_group(0, &self.frame_bind_group, &[]);
+            pass.set_bind_group(1, &targets.composite, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        let extent = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture: &display, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyBufferInfo { buffer: &rgba_buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(rgba_row), rows_per_image: Some(h) } },
+            extent,
+        );
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture: &targets.hdr_texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyBufferInfo { buffer: &half_buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(half_row), rows_per_image: Some(h) } },
+            extent,
+        );
+        self.gpu.queue.submit([encoder.finish()]);
+        let rgba = unpad_rows(&read_buffer(device, &self.gpu.queue, &rgba_buffer, 0, rgba_row as u64 * h as u64), w, h);
+        let halves_padded = read_buffer(device, &self.gpu.queue, &half_buffer, 0, half_row as u64 * h as u64);
+        let mut words = Vec::with_capacity((w * h * 4) as usize);
+        for row in halves_padded.chunks_exact(half_row as usize) {
+            words.extend(row[..(w * 8) as usize].chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])));
+        }
+        Some((crate::metrics::Image::from_rgba8(w as usize, h as usize, &rgba), crate::metrics::Image::from_rgba16f(w as usize, h as usize, &words)))
     }
 
     fn upload_draws(&mut self, content: &FrameContent) {
@@ -831,8 +1096,17 @@ impl Renderer {
     /// selftest to draw known markers).
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
         self.switch_scene(investigation::current().scene(request.state));
+        // The performance panel measures the frames it is shown with.
+        if request.state.panel == crate::shot::PanelMode::Performance && request.scene_type == SceneType::ThreeD {
+            self.set_timing(true);
+        }
+        self.frame_starts.push_back(std::time::Instant::now());
+        if self.frame_starts.len() > 121 {
+            self.frame_starts.pop_front();
+        }
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let mut layout = self.layout_for(request.state, request.scene_type, dock);
+        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if v.tab == ui::DockTab::Experiments);
+        let mut layout = self.layout_for(request.state, request.scene_type, dock, values);
         let scene_beat = request.scene_type == SceneType::ThreeD;
         // A split scene area: the views beside the main one, each in its own
         // rectangle; the main view takes the last (Investigation::panes).
@@ -841,6 +1115,15 @@ impl Renderer {
         let rects = if main.is_some() { layout.split(panes.len() + 1) } else { Vec::new() };
         if let Some(rect) = rects.last() {
             layout.viewport = *rect;
+        }
+        // An experiment's reference (src/experiment.rs): in a view of its own,
+        // beside the live one, or behind it (a wipe, a difference, alone).
+        let compare = self.compare.clone().filter(|_| scene_beat && prepared.is_none() && main.is_none());
+        let mut reference_rect = layout.viewport;
+        if compare.as_ref().is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide) {
+            let halves = layout.split(2);
+            reference_rect = halves[0];
+            layout.viewport = halves[1];
         }
         self.last_layout = layout;
         self.last_panes = rects.iter().take(panes.len()).copied().collect();
@@ -851,6 +1134,29 @@ impl Renderer {
             self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
         }
         let size = [vp[2] as f32, vp[3] as f32];
+        self.reference_drawn = false;
+        if let Some(c) = &compare {
+            // The reference first, in its own submission and its own targets,
+            // so its history builds up as the live view's does.
+            self.swap_slot();
+            if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
+                self.chain = None;
+                self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
+            }
+            self.select_data(&c.reference, !request.history);
+            let mut content = crate::shader_data::build_frame(&c.reference, &self.statics, size, layout.scale, request.time);
+            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+            self.still = count(self.still, still_key(&content, viewport_size, true));
+            self.still_scene = count(self.still_scene, still_key(&content, viewport_size, false));
+            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+            self.upload(&content);
+            self.upload_draws(&content);
+            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("reference") });
+            self.encode_scene(&mut encoder, &content, false);
+            self.gpu.queue.submit([encoder.finish()]);
+            self.swap_slot();
+            self.reference_drawn = true;
+        }
         // Each other view: built, drawn, and composited into its rectangle in
         // a submission of its own, so the shared uniforms and targets hold its
         // camera and values while it draws.
@@ -858,16 +1164,21 @@ impl Renderer {
         for (pane, rect) in panes.iter().zip(&rects) {
             let mut content = crate::shader_data::build_frame(&pane.state, &self.statics, size, layout.scale, request.time);
             content.uniforms.view_params[3] = 0.0;
+            self.select_data(&pane.state, !request.history);
             self.upload(&content);
             self.upload_draws(&content);
             let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("pane") });
-            self.encode_scene(&mut encoder, &content);
+            self.encode_scene(&mut encoder, &content, false);
             let at = Layout { viewport: *rect, ..layout }.viewport_px();
             self.composite(&mut encoder, at, drawn.is_empty());
             self.gpu.queue.submit([encoder.finish()]);
             drawn.push((*rect, content));
         }
         let scene_state = main.as_ref().map_or(request.state, |m| &m.state);
+        // A recording (no history) waits for the data, so every frame is the same each time.
+        if scene_beat {
+            self.select_data(scene_state, !request.history);
+        }
         let mut content = match prepared {
             Some(c) => Some(c),
             None => scene_beat.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
@@ -890,6 +1201,31 @@ impl Renderer {
         if content.is_some() {
             self.prepare_views(request.state);
         }
+        let shows_performance = request.state.panel == crate::shot::PanelMode::Performance;
+        // A recording (no live frames before it, or a single snapshot) times a
+        // few renders of the same shot first, so its panel shows measurements.
+        const PERFORMANCE_WARMUP: usize = 12;
+        if let (true, false, Some(content)) = (shows_performance, request.history, content.as_ref()) {
+            let measured = self.timing.as_ref().map_or(usize::MAX, |t| t.totals().len());
+            for _ in measured..PERFORMANCE_WARMUP {
+                self.frame_starts.push_back(std::time::Instant::now());
+                let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("performance warm-up") });
+                self.encode_scene(&mut encoder, content, true);
+                if let Some(t) = self.timing.as_mut() {
+                    t.resolve(&mut encoder);
+                }
+                self.gpu.queue.submit([encoder.finish()]);
+                if let Some(t) = self.timing.as_mut() {
+                    t.submitted(&self.gpu.device);
+                    t.finish(&self.gpu.device);
+                }
+            }
+            self.frame_starts.push_back(std::time::Instant::now());
+            while self.frame_starts.len() > 121 {
+                self.frame_starts.pop_front();
+            }
+        }
+        let performance = shows_performance.then(|| self.performance_view());
         let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
         // egui pass content.
         let mut raw = request.raw_input;
@@ -910,6 +1246,8 @@ impl Renderer {
             stamp: request.stamp,
             panes: &pane_views,
             title: main.as_ref().and_then(|m| m.title.as_deref()),
+            compare: compare.as_ref().filter(|_| self.reference_drawn).map(|c| ui::CompareOverlay { mode: c.mode, reference: reference_rect, split: c.split, gain: c.gain }),
+            performance: performance.as_ref(),
         };
         let mut chrome = request.chrome;
         let mut report = UiReport::default();
@@ -926,6 +1264,7 @@ impl Renderer {
             };
             report = ui::draw(ctx, &ui_input, chrome);
         });
+        self.cursor = output.platform_output.cursor_icon;
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: [self.width, self.height], pixels_per_point: output.pixels_per_point };
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
@@ -941,11 +1280,27 @@ impl Renderer {
 
         if let Some(content) = &content {
             self.dispatch_views(&mut encoder, false);
-            self.encode_scene(&mut encoder, content);
+            self.encode_scene(&mut encoder, content, true);
             self.dispatch_views(&mut encoder, true);
         }
         if scene_beat {
-            self.composite(&mut encoder, vp, drawn.is_empty());
+            let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
+            self.composite_timed(&mut encoder, vp, drawn.is_empty(), timed.as_ref().map(|t| t.writes()));
+        }
+        if let (Some(c), true, Some(reference)) = (&compare, self.reference_drawn, self.reference_slot.viewport.as_ref()) {
+            use crate::experiment::Compare;
+            match c.mode {
+                Compare::Off => {}
+                Compare::Wipe => {
+                    let width = (vp[2] as f32 * c.split.clamp(0.0, 1.0)).round() as u32;
+                    if width > 0 {
+                        self.composite_from(&mut encoder, reference, vp, false, Some([vp[0], vp[1], width, vp[3]]));
+                    }
+                }
+                Compare::SideBySide => self.composite_from(&mut encoder, reference, Layout { viewport: reference_rect, ..layout }.viewport_px(), false, None),
+                Compare::Reference => self.composite_from(&mut encoder, reference, vp, false, None),
+                Compare::Difference => self.composite_difference(&mut encoder, vp, c.gain),
+            }
         }
         {
             let mut pass = encoder
@@ -972,8 +1327,14 @@ impl Renderer {
                 wgpu::Extent3d { width: self.width, height: self.height, depth_or_array_layers: 1 },
             );
         }
+        if let Some(t) = self.timing.as_mut() {
+            t.resolve(&mut encoder);
+        }
         commands.push(encoder.finish());
         self.gpu.queue.submit(commands);
+        if let Some(t) = self.timing.as_mut() {
+            t.submitted(&self.gpu.device);
+        }
         for id in output.textures_delta.free.drain() {
             self.egui_renderer.free_texture(&id);
         }
@@ -991,7 +1352,20 @@ impl Renderer {
     /// The viewport targets tone mapped into the frame at `at` (x, y, width,
     /// height in pixels), the frame cleared first when `clear`.
     fn composite(&self, encoder: &mut wgpu::CommandEncoder, at: [u32; 4], clear: bool) {
-        let targets = self.viewport.as_ref().unwrap();
+        self.composite_timed(encoder, at, clear, None);
+    }
+
+    /// `composite`, its pass timed (src/timing.rs).
+    fn composite_timed(&self, encoder: &mut wgpu::CommandEncoder, at: [u32; 4], clear: bool, timestamps: Option<wgpu::RenderPassTimestampWrites>) {
+        self.composite_pass(encoder, self.viewport.as_ref().unwrap(), at, clear, None, timestamps);
+    }
+
+    /// `composite` of `targets`, drawn only inside `scissor` (pixels) when given.
+    fn composite_from(&self, encoder: &mut wgpu::CommandEncoder, targets: &ViewportTargets, at: [u32; 4], clear: bool, scissor: Option<[u32; 4]>) {
+        self.composite_pass(encoder, targets, at, clear, scissor, None);
+    }
+
+    fn composite_pass(&self, encoder: &mut wgpu::CommandEncoder, targets: &ViewportTargets, at: [u32; 4], clear: bool, scissor: Option<[u32; 4]>, timestamps: Option<wgpu::RenderPassTimestampWrites>) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("composite"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1001,21 +1375,51 @@ impl Renderer {
                 ops: wgpu::Operations { load: if clear { self.background_clear() } else { wgpu::LoadOp::Load }, store: wgpu::StoreOp::Store },
             })],
             depth_stencil_attachment: None,
-            timestamp_writes: None,
+            timestamp_writes: timestamps,
             occlusion_query_set: None,
             multiview_mask: None,
         });
         pass.set_viewport(at[0] as f32, at[1] as f32, at[2] as f32, at[3] as f32, 0.0, 1.0);
+        if let Some(r) = scissor {
+            pass.set_scissor_rect(r[0], r[1], r[2].max(1), r[3].max(1));
+        }
         pass.set_pipeline(&self.pipelines.composite);
         pass.set_bind_group(0, &self.frame_bind_group, &[]);
         pass.set_bind_group(1, &targets.composite, &[]);
         pass.draw(0..3, 0..1);
     }
 
+    /// The experiment's difference view of the live and reference HDR targets into `at`.
+    fn composite_difference(&self, encoder: &mut wgpu::CommandEncoder, at: [u32; 4], gain: f32) {
+        let (Some(live), Some(reference)) = (self.viewport.as_ref(), self.reference_slot.viewport.as_ref()) else { return };
+        self.gpu.queue.write_buffer(&self.compare_params, 0, bytemuck::cast_slice(&[gain, 0.0, 0.0, 0.0]));
+        let pair = self.gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("compare pair"),
+            layout: &self.pipelines.texture_pair_layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&live.hdr) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&reference.hdr) }],
+        });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("composite difference"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &self.frame_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_viewport(at[0] as f32, at[1] as f32, at[2] as f32, at[3] as f32, 0.0, 1.0);
+        pass.set_pipeline(&self.pipelines.composite_diff);
+        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        pass.set_bind_group(1, &pair, &[]);
+        pass.set_bind_group(2, &self.compare_group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+
     /// The scene and overlay passes into the viewport targets (the composite
     /// reads them).
-    fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent) {
+    /// With `timed`, its passes write GPU timestamps (src/timing.rs).
+    fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent, timed: bool) {
         self.shading();
+        let mut timing = if timed { self.timing.take() } else { None };
         let shading = investigation::current().scene_shading().and_then(|source| self.shadings.iter().find(|s| std::ptr::eq(s.source, source)));
         let targets = self.viewport.as_ref().unwrap();
         // An investigation's pass chain: its targets follow the viewport.
@@ -1043,12 +1447,15 @@ impl Renderer {
             // they see (the objects, the light, the shading values) changed.
             let key = depth_views_key(content);
             if let Some((_, layers)) = c.depth_views.as_ref().filter(|_| c.depth_views_drawn.replace(Some(key)) != Some(key)) {
-                for (pipeline, layer) in s.pipelines.depth_views.iter().zip(layers) {
+                let span = timing.as_mut().and_then(|t| t.render_writes("depth views"));
+                let last = layers.len().saturating_sub(1);
+                for (i, (pipeline, layer)) in s.pipelines.depth_views.iter().zip(layers).enumerate() {
+                    let writes = span.as_ref().filter(|_| i == 0 || i == last).map(|t| t.span(i == 0, i == last));
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("depth view"),
                         color_attachments: &[],
                         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
-                        timestamp_writes: None,
+                        timestamp_writes: writes,
                         occlusion_query_set: None,
                         multiview_mask: None,
                     });
@@ -1064,6 +1471,7 @@ impl Renderer {
                 }
             }
             if let Some(prepass) = &s.pipelines.prepass {
+                let span = timing.as_mut().and_then(|t| t.render_writes("depth pre-pass"));
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("depth pre-pass"),
                     color_attachments: &[],
@@ -1072,7 +1480,7 @@ impl Renderer {
                         depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
                         stencil_ops: None,
                     }),
-                    timestamp_writes: None,
+                    timestamp_writes: span.as_ref().map(|t| t.writes()),
                     occlusion_query_set: None,
                     multiview_mask: None,
                 });
@@ -1087,8 +1495,9 @@ impl Renderer {
                     pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                 }
             }
-            c.dispatch(encoder, &self.frame_bind_group, s, 0..s.source.early.len());
+            c.dispatch(encoder, &self.frame_bind_group, s, 0..s.source.early.len(), timing.as_mut());
         }
+        let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
             color_attachments: &color_attachments,
@@ -1097,7 +1506,7 @@ impl Renderer {
                 depth_ops: Some(wgpu::Operations { load: if prepassed { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(0.0) }, store: wgpu::StoreOp::Store }),
                 stencil_ops: None,
             }),
-            timestamp_writes: None,
+            timestamp_writes: span.as_ref().map(|t| t.writes()),
             occlusion_query_set: None,
             multiview_mask: None,
         });
@@ -1124,8 +1533,9 @@ impl Renderer {
         // The rest of the chain, in order; the last pass writes the HDR target.
         if let (Some(s), Some(c)) = (chained, chain) {
             let early = s.source.early.len();
-            c.dispatch(encoder, &self.frame_bind_group, s, early..early + s.source.passes.len());
+            c.dispatch(encoder, &self.frame_bind_group, s, early..early + s.source.passes.len(), timing.as_mut());
         }
+        let span = timing.as_mut().and_then(|t| t.render_writes("overlay"));
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("overlay"),
@@ -1141,7 +1551,7 @@ impl Renderer {
                 depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: if self.views.values().any(|v| !v.kind.reads.is_empty()) { wgpu::StoreOp::Store } else { wgpu::StoreOp::Discard } }),
                 stencil_ops: None,
             }),
-            timestamp_writes: None,
+            timestamp_writes: span.as_ref().map(|t| t.writes()),
             occlusion_query_set: None,
             multiview_mask: None,
         });
@@ -1168,6 +1578,49 @@ impl Renderer {
         draw(&mut pass, &self.pipelines.boxes, &self.boxes, 108);
         draw(&mut pass, &self.pipelines.segment, &self.segments, 9);
         draw(&mut pass, &self.pipelines.point, &self.points, 6);
+        self.timing = timing.or(self.timing.take());
+    }
+
+    /// A research run's frame (src/research.rs): `state` filling the frame
+    /// target with no chrome, building on the frames before it as the viewer's
+    /// still frames do (`FrameRequest::history`), its scene data built first,
+    /// its passes timed while timing is on (`set_timing`).
+    pub fn render_experiment(&mut self, state: &ShotState) {
+        let mut layout = Layout::new(self.width, self.height);
+        layout.viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas);
+        self.last_layout = layout;
+        let vp = layout.viewport_px();
+        let size = [vp[2], vp[3]];
+        if self.viewport.as_ref().is_none_or(|v| v.size != size) {
+            self.chain = None;
+            self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, size));
+        }
+        self.switch_scene(investigation::current().scene(state));
+        self.select_data(state, true);
+        let mut content = crate::shader_data::build_frame(state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, 0.0);
+        let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+        self.still = count(self.still, still_key(&content, size, true));
+        self.still_scene = count(self.still_scene, still_key(&content, size, false));
+        content.uniforms.view_params[3] = (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32;
+        self.upload(&content);
+        self.upload_draws(&content);
+        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("experiment") });
+        self.encode_scene(&mut encoder, &content, true);
+        let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
+        self.composite_timed(&mut encoder, vp, true, timed.as_ref().map(|t| t.writes()));
+        if let Some(t) = self.timing.as_mut() {
+            t.resolve(&mut encoder);
+        }
+        self.gpu.queue.submit([encoder.finish()]);
+        if let Some(t) = self.timing.as_mut() {
+            t.submitted(&self.gpu.device);
+        }
+    }
+
+    /// The next frame starts a new history (a research run's next variant).
+    pub fn reset_history(&mut self) {
+        self.still = (None, 0);
+        self.still_scene = (None, 0);
     }
 
     /// The scene of `state` filling the whole frame target, without any chrome
@@ -1192,7 +1645,7 @@ impl Renderer {
         }
         let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("backdrop") });
         if let Some(content) = &content {
-            self.encode_scene(&mut encoder, content);
+            self.encode_scene(&mut encoder, content, false);
         }
         {
             let bg = crate::palette::background();

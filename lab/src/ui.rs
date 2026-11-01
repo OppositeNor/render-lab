@@ -18,6 +18,24 @@ use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2,
 pub use crate::text::{bold, install_fonts, restyle, Ink, CODE_PANEL_WIDTH, MIN_TEXT_PT, REFERENCE};
 use crate::text::mono_bold;
 
+pub use crate::config::ViewerLayout;
+
+/// The least a dragged panel, dock, and viewport keep, in points.
+pub const MIN_PANEL: f32 = 320.0;
+pub const MIN_DOCK: f32 = 150.0;
+pub const MIN_VIEWPORT: Vec2 = vec2(480.0, 300.0);
+
+/// The edges of the viewer's layout a drag moves (`ViewerAction::ResizeLayout`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayoutPart {
+    /// The struct panel's width.
+    Panel,
+    /// The pseudo-code panel's width.
+    CodePanel,
+    /// The dock's height.
+    Dock,
+}
+
 /// Screen layout in logical points: a 1920 x 1080 canvas scaled uniformly to
 /// the target, widened (or heightened) to fill other aspect ratios.
 #[derive(Clone, Copy, Debug)]
@@ -66,10 +84,44 @@ impl Layout {
     }
 
     /// A wider panel for pseudo-code listings; the viewport gives up the width.
-    pub fn with_code_panel(mut self) -> Layout {
-        self.panel.min.x = self.panel.max.x - CODE_PANEL_WIDTH;
+    pub fn with_code_panel(self) -> Layout {
+        self.with_panel_width(CODE_PANEL_WIDTH)
+    }
+
+    /// The panel `width` points wide (kept between `MIN_PANEL` and what leaves
+    /// the viewport `MIN_VIEWPORT` wide); the viewport takes the rest.
+    pub fn with_panel_width(mut self, width: f32) -> Layout {
+        let most = (self.panel.max.x - self.content.min.x - 24.0 - MIN_VIEWPORT.x).max(MIN_PANEL);
+        self.panel.min.x = self.panel.max.x - width.clamp(MIN_PANEL, most);
         self.viewport.max.x = self.panel.min.x - 24.0;
         self
+    }
+
+    /// The dock `height` points tall (kept between `MIN_DOCK` and what leaves
+    /// the viewport `MIN_VIEWPORT` tall); the viewport and the panel end above it.
+    pub fn with_dock_height(mut self, height: f32) -> Layout {
+        let most = (self.captions.max.y - 12.0 - self.content.min.y - MIN_VIEWPORT.y).max(MIN_DOCK);
+        let bottom = self.captions.max.y - height.clamp(MIN_DOCK, most) - 12.0;
+        self.viewport.max.y = bottom;
+        self.panel.max.y = bottom;
+        self.content.max.y = bottom;
+        self.captions.min.y = bottom + 12.0;
+        self
+    }
+
+    /// The viewer's layout with the sizes the user dragged (`ViewerLayout`):
+    /// the dock's height (with `dock`), and the panel's or (`code`) the
+    /// pseudo-code panel's width.
+    pub fn with_user(self, user: &ViewerLayout, dock: bool, code: bool) -> Layout {
+        let mut layout = self;
+        if let (true, Some(h)) = (dock, user.dock_height) {
+            layout = layout.with_dock_height(h as f32);
+        }
+        match (code, if code { user.code_panel_width } else { user.panel_width }) {
+            (_, Some(w)) => layout.with_panel_width(w as f32),
+            (true, None) => layout.with_code_panel(),
+            (false, None) => layout,
+        }
     }
 
     /// The same layout with the 3D viewport widened over the panel's area
@@ -185,6 +237,30 @@ pub enum ViewerAction {
     Home,
     /// The narration's volume; `true` when the change is finished (src/volume.rs).
     SetNarration(crate::volume::Volume, bool),
+    /// One value (a channel) back to the demonstration's default (the Experiments tab).
+    ResetParam(&'static str),
+    /// The live state becomes the reference the experiment compares against (src/experiment.rs).
+    SetReference,
+    ClearReference,
+    /// The reference and the live state trade places.
+    SwapReference,
+    SetCompare(crate::experiment::Compare),
+    /// The wipe's line, as a share of the scene area's width.
+    SetSplit(f32),
+    /// The difference view's gain.
+    SetGain(f32),
+    /// Measure the live image against the reference's (src/metrics.rs).
+    Measure,
+    /// Save the experiment under this name among the user's.
+    SavePreset(String),
+    /// Load one of the experiments the tab lists (`ExperimentView::presets`).
+    LoadPreset(usize),
+    /// A layout edge dragged to this size in points, or (None) back to its default.
+    ResizeLayout(LayoutPart, Option<f32>),
+    /// A drag of a layout edge ended: the layout is written to the settings.
+    SaveLayout,
+    /// The whole layout back to its defaults (and written).
+    ResetLayout,
 }
 
 /// What the viewer's dock shows.
@@ -197,6 +273,27 @@ pub enum DockTab {
     Sources,
     /// A paused timeline's caption, to read again (only with a timeline).
     Captions,
+    /// Every value of the investigation, and the experiment's tools (src/experiment.rs).
+    Experiments,
+}
+
+/// What the Experiments tab shows of the viewer's experiment (src/experiment.rs).
+#[derive(Clone, Debug, Default)]
+pub struct ExperimentView {
+    /// A reference is set.
+    pub reference: bool,
+    pub compare: crate::experiment::Compare,
+    pub split: f32,
+    pub gain: f32,
+    pub measurement: Option<crate::metrics::Measurement>,
+    pub message: Option<String>,
+    pub presets: Vec<crate::experiment::Preset>,
+    /// GPU time per pass (src/timing.rs): name, mean and 95th percentile in milliseconds.
+    pub timings: Vec<(String, f64, f64)>,
+    /// The viewer's frame time: mean and 95th percentile in milliseconds.
+    pub frame_ms: (f64, f64),
+    /// Seconds the scene data has been rebuilding (`Investigation::scene_data`).
+    pub rebuilding: Option<f32>,
 }
 
 /// One beat of the timeline, as the bar's hover preview names it.
@@ -269,6 +366,8 @@ pub struct ViewerChrome {
     pub narration: crate::volume::Volume,
     /// Paused on a diagram beat: the diagram panel's zoom and pan.
     pub diagram: Option<DiagramView>,
+    /// The Experiments tab's view of the experiment.
+    pub experiment: ExperimentView,
 }
 
 pub enum Chrome<'a> {
@@ -296,6 +395,34 @@ pub struct UiInput<'a> {
     pub panes: &'a [PaneView<'a>],
     /// The main view's title, when the scene area is split.
     pub title: Option<&'a str>,
+    /// An experiment's comparison drawn with the live view (src/experiment.rs).
+    pub compare: Option<CompareOverlay>,
+    /// What the performance panel shows (`PanelMode::Performance`).
+    pub performance: Option<&'a PerformanceView>,
+}
+
+/// The frame's cost as the performance panel shows it (src/timing.rs): the
+/// GPU, each pass's mean, 95th percentile, and last time in milliseconds,
+/// and the recent frames' GPU times and frame times, oldest first.
+#[derive(Clone, Debug, Default)]
+pub struct PerformanceView {
+    pub gpu: String,
+    /// The device has timestamp queries.
+    pub timestamps: bool,
+    pub passes: Vec<(String, f64, f64, f64)>,
+    pub totals: Vec<f64>,
+    pub frames: Vec<f64>,
+}
+
+/// How an experiment's comparison shows (src/experiment.rs): its mode, the
+/// reference's view (beside the live one, or the same), the wipe's line, the
+/// difference's gain.
+#[derive(Clone, Copy, Debug)]
+pub struct CompareOverlay {
+    pub mode: crate::experiment::Compare,
+    pub reference: Rect,
+    pub split: f32,
+    pub gain: f32,
 }
 
 /// A view beside the main one, as the UI draws it.
@@ -366,6 +493,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
 
     draw_header(&ink, input, &mut chrome, ctx);
     let scene_beat = input.scene_type == SceneType::ThreeD;
+    // The Experiments tab puts its values in the panel's place.
+    // The performance panel, when asked for, takes the panel's place over the values.
+    let value_panel = scene_beat && input.state.panel != PanelMode::Performance && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -411,6 +541,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let insets = obstacles.clone();
                     obstacles.push(draw_pane_title(&ink, l.viewport, title, &insets));
                 }
+                if let Some(compare) = input.compare {
+                    let insets = obstacles.clone();
+                    obstacles.extend(draw_compare(&ink, l.viewport, compare, &insets));
+                }
                 if let Some(key) = &input.state.callout {
                     let insets = obstacles.clone();
                     obstacles.extend(draw_callout(&ink, l, key, &insets));
@@ -420,7 +554,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
                 }
                 draw_labels(&ink, input, content, &obstacles, &mut report);
-                draw_panel(&ink, input, content, &mut report);
+                if !value_panel {
+                    draw_panel(&ink, input, content, &mut report);
+                }
             } else if let Some(key) = &input.state.callout {
                 draw_callout(&ink, l, key, &[]);
             }
@@ -471,6 +607,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_caption_text(&ink, l, viewer.caption.as_deref());
             } else {
                 crate::controls::draw_dock(ctx, &ink, input, viewer);
+                if value_panel {
+                    crate::controls::draw_experiment_panel(ctx, &ink, input, viewer);
+                }
             }
             if let Some((seconds, opacity)) = viewer.skip {
                 draw_skip_notice(&ink, l, seconds, opacity);
@@ -578,6 +717,9 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
                     }
                 });
             });
+            if input.scene_type == SceneType::ThreeD && !(viewer.timeline_mode && viewer.playing) {
+                draw_layout_handles(ctx, &ink, input, viewer);
+            }
             viewer.ui_has_pointer = ctx.egui_wants_pointer_input() || response.response.hovered();
             // The status fills what the controls leave of the row.
             let room = l.canvas.x - 40.0 - response.response.rect.max.x - 24.0;
@@ -586,6 +728,55 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
                 ink.text(pos2(l.canvas.x - 40.0, 62.0), Align2::RIGHT_TOP, status, 24.0, FontFamily::Proportional, palette::text_dim());
             }
         }
+    }
+}
+
+/// The viewer's draggable edges: between the viewport and the panel (its
+/// width), and above the dock (its height). A drag sets the size, its end
+/// writes the layout, and a double-click puts that size back to its default.
+fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
+    let l = &input.layout;
+    let code = input.state.panel == crate::shot::PanelMode::Code;
+    let mut handles: Vec<(LayoutPart, Rect, egui::CursorIcon)> = Vec::new();
+    // The panel's edge, when the panel shows beside the viewport.
+    if l.viewport.max.x + 1.0 < l.panel.min.x {
+        let part = if code { LayoutPart::CodePanel } else { LayoutPart::Panel };
+        handles.push((part, Rect::from_min_max(pos2(l.viewport.max.x, l.content.min.y), pos2(l.panel.min.x, l.content.max.y)), egui::CursorIcon::ResizeHorizontal));
+    }
+    handles.push((LayoutPart::Dock, Rect::from_min_max(pos2(l.captions.min.x, l.content.max.y - 2.0), pos2(l.captions.max.x, l.captions.min.y + 2.0)), egui::CursorIcon::ResizeVertical));
+    for (part, rect, cursor) in handles {
+        let id = egui::Id::unique(match part {
+            LayoutPart::Panel => "layout-panel-edge",
+            LayoutPart::CodePanel => "layout-code-edge",
+            LayoutPart::Dock => "layout-dock-edge",
+        });
+        egui::Area::new(id).fixed_pos(rect.min).order(egui::Order::Background).show(ctx, |ui| {
+            let (_, response) = ui.allocate_exact_size(rect.size(), egui::Sense::click_and_drag());
+            let response = response.on_hover_text(tr("ui.resize_hint"));
+            if response.hovered() || response.dragged() {
+                ctx.set_cursor_icon(cursor);
+                let stroke = Stroke::new(3.0, if response.dragged() { palette::accent() } else { palette::border() });
+                match part {
+                    LayoutPart::Dock => ink.painter.hline(rect.x_range().shrink(24.0), rect.center().y, stroke),
+                    _ => ink.painter.vline(rect.center().x, rect.y_range().shrink(24.0), stroke),
+                };
+            }
+            if response.double_clicked() {
+                viewer.actions.push(ViewerAction::ResizeLayout(part, None));
+                viewer.actions.push(ViewerAction::SaveLayout);
+            } else if response.dragged() {
+                if let Some(p) = response.interact_pointer_pos() {
+                    let size = match part {
+                        LayoutPart::Dock => l.captions.max.y - p.y - 6.0,
+                        _ => l.panel.max.x - p.x - 12.0,
+                    };
+                    viewer.actions.push(ViewerAction::ResizeLayout(part, Some(size)));
+                }
+            }
+            if response.drag_stopped() {
+                viewer.actions.push(ViewerAction::SaveLayout);
+            }
+        });
     }
 }
 
@@ -682,6 +873,38 @@ fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, lit: f32, in
 /// A view's title at the middle of its top edge (the corners hold the insets,
 /// the formula card, and the callout); beside an inset it would cover when
 /// the top edge has room, else below it. Returns the area it covers.
+/// An experiment's comparison over the views: the wipe's line, the
+/// reference's border beside the live view, and which view is which.
+fn draw_compare(ink: &Ink, view: Rect, compare: CompareOverlay, insets: &[Rect]) -> Vec<Rect> {
+    use crate::experiment::Compare;
+    let (a, b) = (tr("experiments.label_reference"), tr("experiments.label_live"));
+    match compare.mode {
+        Compare::Off => Vec::new(),
+        Compare::Wipe => {
+            let x = view.min.x + view.width() * compare.split.clamp(0.0, 1.0);
+            ink.painter.vline(x, view.y_range(), Stroke::new(2.0, palette::accent()));
+            let left = Rect::from_min_max(view.min, pos2(x, view.max.y));
+            let right = Rect::from_min_max(pos2(x, view.min.y), view.max);
+            let mut out = Vec::new();
+            if left.width() > 120.0 {
+                out.push(draw_pane_title(ink, left, a, insets));
+            }
+            if right.width() > 120.0 {
+                let mut avoid = insets.to_vec();
+                avoid.extend(out.iter().copied());
+                out.push(draw_pane_title(ink, right, b, &avoid));
+            }
+            out
+        }
+        Compare::SideBySide => {
+            ink.painter.rect_stroke(compare.reference.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+            vec![draw_pane_title(ink, compare.reference, a, &[]), draw_pane_title(ink, view, b, insets)]
+        }
+        Compare::Difference => vec![draw_pane_title(ink, view, &tr_with("experiments.label_difference", args!(gain = format!("{:.0}", compare.gain))), insets)],
+        Compare::Reference => vec![draw_pane_title(ink, view, a, insets)],
+    }
+}
+
 fn draw_pane_title(ink: &Ink, view: Rect, title: &str, insets: &[Rect]) -> Rect {
     let size = ink.measure(title, 24.0, FontFamily::Proportional) + vec2(28.0, 14.0);
     let mut rect = Rect::from_min_size(pos2(view.center().x - size.x * 0.5, view.min.y + 16.0), size);
@@ -717,6 +940,117 @@ fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) -> Option<Rec
     Some(rect.expand(4.0))
 }
 
+/// The performance panel: the GPU, the frame's GPU time and frame time,
+/// their recent history against the frame-rate budgets, and a row per pass
+/// (its share of the GPU time as a bar, its mean time), the most expensive
+/// first. Passes named in `highlight` are called out (always shown), the
+/// others dimmed.
+fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, highlight: &[String]) {
+    let painter = ink.painter;
+    let x = rect.min.x + 22.0;
+    let right = rect.max.x - 22.0;
+    let width = right - x;
+    let mut y = rect.min.y + 16.0;
+    let mean = |xs: &[f64]| if xs.is_empty() { f64::NAN } else { xs.iter().sum::<f64>() / xs.len() as f64 };
+    let ms = |v: f64| if v.is_finite() { format!("{v:.2} ms") } else { "–".into() };
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.title"), 30.0, bold(), palette::text());
+    y += 42.0;
+    let gpu = ink.fit_right(&view.gpu, width, 24.0, FontFamily::Proportional);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, gpu, 24.0, FontFamily::Proportional, palette::accent());
+    y += 36.0;
+    // The headline numbers: the GPU's time for the frame, and the time between frames.
+    let recent = |xs: &[f64]| mean(&xs[xs.len().saturating_sub(30)..]);
+    let (gpu_ms, frame_ms) = (recent(&view.totals), recent(&view.frames));
+    let half = width / 2.0;
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.gpu"), 24.0, FontFamily::Proportional, palette::text_dim());
+    ink.text(pos2(x + half, y), Align2::LEFT_TOP, tr("perf.frame"), 24.0, FontFamily::Proportional, palette::text_dim());
+    y += 30.0;
+    ink.text(pos2(x, y), Align2::LEFT_TOP, ms(gpu_ms), 28.0, mono_bold(), palette::text());
+    let fps = if frame_ms > 0.0 { format!("{} · {:.0} fps", ms(frame_ms).replace(" ms", ""), 1000.0 / frame_ms) } else { ms(frame_ms) };
+    ink.text(pos2(x + half, y), Align2::LEFT_TOP, ink.fit_right(&fps, half, 28.0, mono_bold()), 28.0, mono_bold(), palette::text());
+    y += 42.0;
+    // The history: GPU time (accent) and frame time (faint), against the
+    // budgets that fit its scale; smaller when the panel is short.
+    let graph_height = ((rect.max.y - y) * 0.3).clamp(60.0, 160.0);
+    let graph = Rect::from_min_size(pos2(x, y), vec2(width, graph_height));
+    painter.rect_filled(graph, CornerRadius::same(6), palette::background());
+    // The scale: the 95th percentile, so one slow frame (a scene loading) does not flatten the rest.
+    let mut all: Vec<f64> = view.totals.iter().chain(&view.frames).copied().filter(|v| v.is_finite()).collect();
+    all.sort_by(|a, b| a.total_cmp(b));
+    let p95 = all.get(((all.len() as f64 - 1.0) * 0.95).round().max(0.0) as usize).copied().unwrap_or(0.0);
+    let top = p95.max(1000.0 / 120.0) * 1.25;
+    let to_y = |v: f64| graph.max.y - (v / top).clamp(0.0, 1.0) as f32 * graph.height();
+    let mut last_label: Option<f32> = None;
+    for (budget, label) in [(1000.0 / 120.0, "120 fps"), (1000.0 / 60.0, "60 fps"), (1000.0 / 30.0, "30 fps")] {
+        let gy = to_y(budget);
+        if budget > top || gy < graph.min.y + 24.0 || last_label.is_some_and(|y| y - gy < 26.0) {
+            continue;
+        }
+        last_label = Some(gy);
+        painter.hline(graph.x_range(), gy, Stroke::new(1.0, palette::border()));
+        ink.text(pos2(graph.max.x - 6.0, gy - 2.0), Align2::RIGHT_BOTTOM, label, 24.0, FontFamily::Proportional, palette::text_faint());
+    }
+    for (series, color, thickness) in [(&view.frames, palette::text_faint(), 1.5), (&view.totals, palette::accent(), 2.5)] {
+        if series.len() < 2 {
+            continue;
+        }
+        let n = series.len() - 1;
+        let points: Vec<Pos2> = series.iter().enumerate().map(|(i, v)| pos2(graph.min.x + graph.width() * i as f32 / n as f32, to_y(*v))).collect();
+        painter.add(egui::Shape::line(points, Stroke::new(thickness, color)));
+    }
+    y = graph.max.y + 8.0;
+    let caption = tr_with("perf.history", args!(frames = view.totals.len().max(view.frames.len())));
+    ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&caption, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_faint());
+    y += 34.0;
+    painter.line_segment([pos2(x, y), pos2(right, y)], Stroke::new(1.0, palette::border()));
+    y += 10.0;
+    if !view.timestamps {
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("perf.no_timestamps"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        return;
+    }
+    if view.passes.is_empty() {
+        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.measuring"), 24.0, FontFamily::Proportional, palette::text_dim());
+        return;
+    }
+    // One row per pass, the most expensive first, as many as fit: its name,
+    // a bar of its share of the frame's GPU time, and its mean. The passes
+    // called out come first among equals: they always show.
+    let total: f64 = view.passes.iter().map(|p| p.1).sum::<f64>().max(1e-6);
+    let any_lit = view.passes.iter().any(|p| highlight.contains(&p.0));
+    let mut order: Vec<&(String, f64, f64, f64)> = view.passes.iter().collect();
+    order.sort_by(|a, b| highlight.contains(&b.0).cmp(&highlight.contains(&a.0)).then(b.1.total_cmp(&a.1)));
+    let row = 32.0;
+    let room = ((rect.max.y - 12.0 - y) / row).floor().max(1.0) as usize;
+    let shown = if order.len() > room { room.saturating_sub(1).max(1) } else { order.len() };
+    // Called-out passes first, then by cost: the rows drawn are re-sorted by cost.
+    let mut rows: Vec<&(String, f64, f64, f64)> = order[..shown].to_vec();
+    rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let name_width = width * 0.45;
+    let bar_x = x + name_width + 10.0;
+    let bar_width = width * 0.28;
+    for (name, mean_ms, _, _) in rows {
+        let lit = highlight.contains(name);
+        if lit {
+            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, row)), CornerRadius::same(5), palette::highlight_row());
+        }
+        let text_color = if lit || !any_lit { palette::text() } else { palette::text_faint() };
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(name, name_width, 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, text_color);
+        let track = Rect::from_min_size(pos2(bar_x, y + 9.0), vec2(bar_width, 11.0));
+        painter.rect_filled(track, CornerRadius::same(3), palette::background());
+        let share = (*mean_ms / total).clamp(0.0, 1.0) as f32;
+        let bar_color = if lit || !any_lit { palette::accent() } else { palette::border() };
+        painter.rect_filled(Rect::from_min_size(track.min, vec2((track.width() * share).max(2.0), track.height())), CornerRadius::same(3), bar_color);
+        let value = ms(*mean_ms);
+        ink.text(pos2(right, y), Align2::RIGHT_TOP, value, 24.0, FontFamily::Monospace, text_color);
+        y += row;
+    }
+    if shown < order.len() {
+        let rest: f64 = order[shown..].iter().map(|p| p.1).sum();
+        let more = tr_with("perf.more", args!(count = order.len() - shown, time = format!("{rest:.2}")));
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&more, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_faint());
+    }
+}
+
 fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
     let n = colors.len().max(1) as f32;
     for (i, c) in colors.iter().enumerate() {
@@ -739,6 +1073,12 @@ fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut U
     if state.panel == PanelMode::Code {
         if let Some(listing) = state.code.as_deref().and_then(|c| investigation::current().listing(c)) {
             draw_code(ink, rect, listing, &state.highlight, report);
+        }
+        return;
+    }
+    if state.panel == PanelMode::Performance {
+        if let Some(view) = input.performance {
+            draw_performance(ink, rect, view, &state.highlight);
         }
         return;
     }
@@ -1337,4 +1677,32 @@ fn draw_footer(ink: &Ink, l: &Layout, timeline: Option<(&&Timeline, u64)>) {
         painter.circle_filled(pos2(x, bar.center().y), 7.0, palette::accent());
     }
     ink.text(pos2(l.footer.min.x, l.footer.min.y + 16.0), Align2::LEFT_TOP, investigation::current().footer(), 24.0, FontFamily::Proportional, palette::text_faint());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dragged_sizes_apply_within_limits() {
+        let base = Layout::new(1920, 1080).with_dock();
+        // No dragged sizes: the default layout.
+        let same = base.with_user(&ViewerLayout::default(), true, false);
+        assert_eq!((same.panel, same.viewport, same.captions), (base.panel, base.viewport, base.captions));
+        // A wider panel and a taller dock; the viewport gives up the room.
+        let user = ViewerLayout { panel_width: Some(800), code_panel_width: None, dock_height: Some(330) };
+        let l = base.with_user(&user, true, false);
+        assert_eq!(l.panel.width(), 800.0);
+        assert_eq!(l.viewport.max.x, l.panel.min.x - 24.0);
+        assert_eq!(l.captions.height(), 330.0);
+        assert_eq!((l.viewport.max.y, l.panel.max.y), (l.captions.min.y - 12.0, l.captions.min.y - 12.0));
+        // Too small or too large: kept to the limits.
+        let extreme = base.with_user(&ViewerLayout { panel_width: Some(1), code_panel_width: None, dock_height: Some(100_000) }, true, false);
+        assert_eq!(extreme.panel.width(), MIN_PANEL);
+        assert!(extreme.viewport.height() >= MIN_VIEWPORT.y - 0.01);
+        // The code panel has its own width, its default the wider one.
+        assert_eq!(base.with_user(&user, true, true).panel.width(), CODE_PANEL_WIDTH);
+        // Without the dock (a playing timeline), its height is not applied.
+        assert_eq!(base.with_user(&user, false, false).captions, base.captions);
+    }
 }

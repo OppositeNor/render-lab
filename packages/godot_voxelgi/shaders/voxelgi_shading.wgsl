@@ -25,16 +25,16 @@
 // from the shot, lab/src/shader_data.rs) and what demos.rs derives.
 struct VoxelgiShading {
     /// How much of VoxelGI's light the room shows (0: the environment's alone).
-    /// {@ key=voxelgiMix default=1 range=0,1 label=gi text=controls.voxelgi_mix}
+    /// {@ key=voxelgiMix default=1 range=0,1 label=gi text=controls.voxelgi_mix help=help.voxelgiMix}
     voxelgiMix: f32,
     /// rendering/global_illumination/voxel_gi/quality: 0 Low (4 cones), 1 High (6 cones).
-    /// {@ key=quality default=0 range=0,1 label=gi text=controls.quality}
+    /// {@ key=quality default=0 range=0,1 label=gi text=controls.quality engine=ProjectSettings.rendering/global_illumination/voxel_gi/quality help=help.quality}
     quality: f32,
     /// VoxelGIData.interior: 1 ignores the environment (the alpha forced to 1).
-    /// {@ key=interior default=0 range=0,1 label=gi text=controls.interior}
+    /// {@ key=interior default=0 range=0,1 label=gi text=controls.interior engine=VoxelGIData.interior help=help.interior}
     interior: f32,
     /// What the scene shows: 0 the lit result, 1 the ambient buffer, 2 the reflection buffer, 3 the ambient's alpha.
-    /// {@ key=viewMode default=0 range=0,3 label=gi text=controls.view_mode}
+    /// {@ key=viewMode default=0 range=0,3 label=gi text=controls.view_mode help=help.viewMode}
     viewMode: f32,
     /// World position of cell (0, 0, 0) (to_cell_xform's origin).
     /// {@ derived}
@@ -45,7 +45,7 @@ struct VoxelgiShading {
     /// The octree's size in cells (VoxelGIData.bounds).
     /// {@ derived}
     bounds: vec3<f32>,
-    /// dynamic_range * energy.
+    /// dynamic_range * energy (giDynamicRange, giEnergy).
     /// {@ derived}
     dynamicRange: f32,
     /// VoxelGIData.bias and normal_bias, cells.

@@ -111,6 +111,16 @@ pub struct SceneShading {
     pub depth_views: Option<&'static DepthViews>,
 }
 
+/// The scene shading's data for a state whose values change it (settings
+/// baked into the data, `Investigation::scene_data`): a key of those values
+/// and the function that builds the data. The renderer keeps the last few by
+/// key and builds a new one on a worker thread, drawing the last one ready
+/// until it is done.
+pub struct SceneData {
+    pub key: u64,
+    pub build: Box<dyn FnOnce() -> Vec<[f32; 4]> + Send>,
+}
+
 /// One of the views the scene area is split into (`Investigation::panes`):
 /// the state it is built from, and the title shown in its top-left corner.
 #[derive(Clone)]
@@ -290,6 +300,13 @@ pub trait Investigation: Sync {
         Vec::new()
     }
 
+    /// The scene shading's data for `state` when its values differ from the
+    /// ones `SceneShading::data` was built with (an engine setting baked into
+    /// the data, such as a bake's resolution); None (the default) for those,
+    /// which draw `SceneShading::data`. See `SceneData`.
+    fn scene_data(&self, _state: &ShotState) -> Option<SceneData> {
+        None
+    }
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;

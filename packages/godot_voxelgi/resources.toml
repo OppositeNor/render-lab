@@ -291,3 +291,10 @@ kind = "file"
 source = "build/video/en/narration.wav"
 license = "MIT"
 built = true
+
+# An experiment the Experiments tab offers and the command line runs (lab/src/experiment.rs).
+[[resource]]
+id = "experiment/cones-and-bias"
+kind = "file"
+source = "experiments/cones-and-bias.toml"
+license = "MIT"

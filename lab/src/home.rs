@@ -141,6 +141,8 @@ pub enum Choice {
     Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64 },
     /// The free demonstrations.
     Explore { investigation: &'static dyn Investigation },
+    /// The demonstrations with the Experiments tools: every value, A/B, metrics, presets.
+    Experiment { investigation: &'static dyn Investigation },
     Quit,
 }
 
@@ -150,6 +152,7 @@ impl Choice {
         match self {
             Choice::Watch { investigation, timeline, start_frame } => format!("watch {} {} @ {start_frame}", investigation.path(), timeline.id),
             Choice::Explore { investigation } => format!("explore {}", investigation.path()),
+            Choice::Experiment { investigation } => format!("experiment {}", investigation.path()),
             Choice::Quit => "quit".into(),
         }
     }
@@ -451,6 +454,13 @@ impl Home {
 
     /// The narration's volume as the viewer's dock left it: in use, and
     /// written to the settings file (the Config page has no edits then).
+    /// The layout the viewer was left with (it wrote the file as each drag ended).
+    fn keep_layout(&mut self, layout: crate::config::ViewerLayout) {
+        self.applied.layout = layout;
+        self.settings.saved.layout = layout;
+        self.settings.pending.layout = layout;
+    }
+
     fn keep_narration(&mut self, narration: Volume) {
         if narration == self.applied.narration {
             return;
@@ -649,7 +659,7 @@ impl Home {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 16.0;
                 let first = rows.get(edition).filter(|r| r.summary.is_ok());
-                let button = vec2((ui.available_width() - 16.0) / 2.0, 64.0);
+                let button = vec2((ui.available_width() - 32.0) / 3.0, 64.0);
                 let watch = glass_button(ui, button, tr("home.watch_the_narrated_video"), 28.0, first.is_some());
                 home.widgets.push(("watch".into(), watch.rect));
                 if let (true, Some(row)) = (watch.clicked(), first) {
@@ -659,6 +669,11 @@ impl Home {
                 home.widgets.push(("explore".into(), explore.rect));
                 if explore.clicked() {
                     choice = Some(Choice::Explore { investigation: chosen });
+                }
+                let experiment = glass_button(ui, button, tr("home.experiment_with_the_algorithm"), 28.0, true);
+                home.widgets.push(("experiment".into(), experiment.rect));
+                if experiment.clicked() {
+                    choice = Some(Choice::Experiment { investigation: chosen });
                 }
             });
             ui.add_space(18.0);
@@ -1312,6 +1327,35 @@ pub fn snapshot_viewer(options: &HomeOptions, timeline: bool, demo: Option<&str>
     snapshot_viewer_page(options, timeline, demo, None, png)
 }
 
+/// The viewer offscreen as Explore opens it, with the performance panel (`viewer::snapshot_performance`).
+pub fn snapshot_performance(options: &HomeOptions, demo: Option<&str>, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Explore { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_performance(viewer_options, demo, png)
+}
+
+/// The viewer offscreen as the homepage opens it, its edges dragged (`viewer::snapshot_layout`).
+pub fn snapshot_layout(options: &HomeOptions, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Explore { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_layout(viewer_options, png)
+}
+
+/// The viewer offscreen as the homepage's Experiment button opens it, on
+/// `demo` or the first demonstration: the Experiments tab, and with
+/// `compare`, a reference set and compared (src/experiment.rs).
+pub fn snapshot_experiments(options: &HomeOptions, demo: Option<&str>, compare: bool, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Experiment { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_experiments(viewer_options, demo, compare, png)
+}
+
 /// `snapshot_viewer`, or with `paused`, its timeline paused on a 2D scene.
 pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<&str>, paused: Option<viewer::PausedPage>, png: &Path) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
@@ -1466,6 +1510,9 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         let explore = offscreen.click(&mut home, "explore").flatten();
         let ok = matches!(explore, Some(Choice::Explore { investigation }) if investigation.path() == i.path());
         check(&format!("{}: Explore opens the demonstrations", i.path()), ok, describe(explore));
+        let experiment = offscreen.click(&mut home, "experiment").flatten();
+        let ok = matches!(experiment, Some(Choice::Experiment { investigation }) if investigation.path() == i.path());
+        check(&format!("{}: Experiment opens the experiments", i.path()), ok, describe(experiment));
         let Some(timeline) = i.timelines().first() else { continue };
         let watch = offscreen.click(&mut home, "watch").flatten();
         let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0 }) if investigation.path() == i.path() && t.id == timeline.id);
@@ -1755,8 +1802,9 @@ fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: Phys
     let (investigation, timeline, audio, start_frame, locale) = match choice {
         Choice::Quit => return None,
         Choice::Watch { investigation, timeline, start_frame } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
-        Choice::Explore { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
+        Choice::Explore { investigation } | Choice::Experiment { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
     };
+    let experiments = matches!(choice, Choice::Experiment { .. });
     investigation::set(investigation);
     Some(ViewerOptions {
         timeline,
@@ -1770,6 +1818,9 @@ fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: Phys
         start_frame,
         fullscreen: home.applied.fullscreen,
         narration: home.applied.narration,
+        experiments,
+        layout: home.applied.layout,
+        settings: home.settings.path.clone(),
     })
 }
 
@@ -1779,8 +1830,9 @@ fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options
     let exit = viewer::run_on(event_loop, viewer_options);
     // A timeline in another language switched the text; the homepage keeps its own.
     i18n::set(home.applied.language);
-    let exit = exit.map(|(exit, narration)| {
+    let exit = exit.map(|(exit, narration, layout)| {
         home.keep_narration(narration);
+        home.keep_layout(layout);
         exit
     });
     match exit {

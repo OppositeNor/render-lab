@@ -530,7 +530,8 @@ pub fn shadow_camera(state: &ShotState, camera: &lab::layout::CameraData) -> sup
 /// (near, far, texel in metres, depth range in metres), then the sun: (its direction of
 /// travel, the cascade count), (white times sunLux, on), and
 /// (normalShadowBias, shadowBias, shadowBlur, cascadeColors), and (the
-/// cascades' camera depth span, unused).
+/// cascades' camera depth span, the fullscreen blur's const falloff and
+/// depth falloff strength, unused).
 pub fn cascade_records(state: &ShotState, camera: &lab::layout::CameraData) -> Vec<[f32; 4]> {
     let observer = shadow_camera(state, camera);
     let set = super::cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
@@ -548,7 +549,7 @@ pub fn cascade_records(state: &ShotState, camera: &lab::layout::CameraData) -> V
     out.push([state.p("normalShadowBias"), state.p("shadowBias"), state.p("shadowBlur"), state.p("cascadeColors")]);
     // m_far_minus_near: the camera's depth span the cascades cover, which
     // GetThickness scales a cascade's depth difference by.
-    out.push([observer.far - observer.near, 0.0, 0.0, 0.0]);
+    out.push([observer.far - observer.near, state.p("shadowBlurStrength"), state.p("shadowBlurSharpness"), 0.0]);
     out
 }
 
@@ -903,7 +904,7 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             (tr("demos.forward_targets_at_the_point"), object)
         }
         Demo::Room => {
-            row("light position", f3(shading.light.position), LIGHT);
+            row(tr("demos.light_position"), f3(shading.light.position), LIGHT);
             row(tr("demos.intensity_cd"), f3(shading.light.rgb_intensity_candelas), LIGHT);
             row(tr("common.attenuation_radius"), format!("{:.2} m", shading.light.attenuation_radius()), LIGHT);
             row("", String::new(), palette::text());
@@ -1044,7 +1045,7 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             let disney = brdf::normalized_disney_diffuse(s.albedo, s.normal, l.dir_to_camera, px.light.dir_to_light, s.roughness_linear);
             row("NdotV", f1(l.n_dot_v), palette::VIEW);
             row("NdotL", f1(g.n_dot_l), LIGHT);
-            row("F with roughness", f3(l.specular_response), SPECULAR);
+            row(tr("demos.f_with_roughness"), f3(l.specular_response), SPECULAR);
             row("1 − F (response)", f3(l.diffuse_response), DIFFUSE);
             row("albedo", f3(s.albedo), palette::text());
             row("DiffuseLambertian", f3(lambert), DIFFUSE);

@@ -18,7 +18,7 @@
 // object i is gObjects[i].albedoRoughness.w.
 struct O3deShading {
     /// The simple point light's m_position, in metres.
-    /// {@ key=lightPosition components=lightX,lightY,lightZ default=0.55,1.85,0.95}
+    /// {@ key=lightPosition components=lightX,lightY,lightZ default=0.55,1.85,0.95 text=values.lightPosition help=help.lightPosition}
     /// {@ range=-2.8,2.8,0.1,2.9,-2.8,2.8 unit=m label=light}
     lightPosition: vec3<f32>,
     /// Its m_invAttenuationRadiusSquared, from attenuationRadius.
@@ -28,35 +28,35 @@ struct O3deShading {
     /// {@ derived}
     rgbIntensityCandelas: vec3<f32>,
     /// The point light on or off.
-    /// {@ key=lightOn toggle default=true label=toggles text=controls.light_on}
+    /// {@ key=lightOn toggle default=true label=toggles text=controls.light_on help=help.lightOn}
     lightOn: f32,
     /// What the scene pass shows (VIEW_*; brdf::ViewMode).
-    /// {@ key=viewMode choice=ViewMode default=final}
+    /// {@ key=viewMode choice=ViewMode default=final text=values.viewMode help=help.viewMode}
     viewMode: u32,
     /// o_specularF0_enableMultiScatterCompensation.
-    /// {@ key=multiscatter toggle default=true label=toggles text=controls.multiscatter}
+    /// {@ key=multiscatter toggle default=true label=toggles text=controls.multiscatter engine=StandardPBR:specularF0.enableMultiScatterCompensation help=help.multiscatter}
     multiscatter: f32,
     /// 0 DiffuseLambertian (StandardPBR), 1 NormalizedDisneyDiffuse (Skin;
     /// EnhancedPBR with subsurface scattering).
-    /// {@ key=diffuseModel choice=DiffuseModel default=lambertian}
+    /// {@ key=diffuseModel choice=DiffuseModel default=lambertian text=values.diffuseModel help=help.diffuseModel}
     diffuseModel: f32,
     /// The object whose point the readout inspects (inspectObject, or the
     /// demonstration's subject).
     /// {@ derived}
     inspectedObject: f32,
     /// The full-screen IBL passes (global skylight) on or off.
-    /// {@ key=ibl toggle default=true label=toggles}
+    /// {@ key=ibl toggle default=true label=toggles text=values.ibl help=help.ibl}
     ibl: f32,
     /// The skylight's exposure, in stops (m_iblExposure).
-    /// {@ key=iblExposure default=0 range=-4,4 label=light text=controls.ibl_exposure}
+    /// {@ key=iblExposure default=0 range=-4,4 label=light text=controls.ibl_exposure help=help.iblExposure}
     iblExposure: f32,
     /// MSAAResolveSpecularPass's custom resolve (MSAAResolveCustom: the
     /// neighbour clamp and the log-domain mean) instead of the lab's plain
     /// average of the specular samples.
-    /// {@ key=specularResolve toggle default=false label=toggles text=controls.specular_resolve}
+    /// {@ key=specularResolve toggle default=false label=toggles text=controls.specular_resolve help=help.specularResolve}
     specularResolve: f32,
     /// Specular anti-aliasing (the applySpecularAA material property, true by default).
-    /// {@ key=specularAA toggle default=true label=toggles}
+    /// {@ key=specularAA toggle default=true label=toggles text=values.specularAA help=help.specularAA}
     specularAA: f32,
     /// The picked point (the inspected one, inspectX, Y, Z) in w = 1 when
     /// `pickShown`, else w = 0: every view of a screen-sized resource rings
@@ -65,19 +65,19 @@ struct O3deShading {
     pick: vec4<f32>,
     /// The terrain's normals as TerrainMeshManager makes them (per axis, 8
     /// bits) instead of the lab's exact interpolated ones.
-    /// {@ key=terrainO3deNormal toggle default=false label=toggles text=controls.terrain_o3de_normal}
+    /// {@ key=terrainO3deNormal toggle default=false label=toggles text=controls.terrain_o3de_normal help=help.terrainO3deNormal}
     terrainO3deNormal: f32,
     /// How far through the opaque frame the shown image goes: 0 the forward
     /// pass's own light (direct light and emission), 1 with the diffuse IBL
     /// pass, 2 with the reflection passes (specular IBL and probes), 3 with
     /// SSAO, the whole frame (DiffuseSpecularMerge of every pass).
-    /// {@ key=forwardStage default=3 range=0,3 label=toggles text=controls.forward_stage}
+    /// {@ key=forwardStage default=3 range=0,3 label=toggles text=controls.forward_stage help=help.forwardStage}
     forwardStage: f32,
     /// The sky box's exposure, in stops (SkyBoxFeatureProcessor's
     /// m_cubemapExposure; SkyBox.azsl multiplies the HDRi by two to it), set
     /// apart from the skylight's iblExposure as in O3DE. The lab draws the
     /// sky box where samples hit nothing (skyBox).
-    /// {@ key=skyboxExposure default=0 range=-4,4 label=light text=controls.skybox_exposure}
+    /// {@ key=skyboxExposure default=0 range=-4,4 label=light text=controls.skybox_exposure engine=HDRiSkyboxComponentConfig::m_exposure help=help.skyboxExposure}
     skyboxExposure: f32,
     /// Object i: metallic, specularF0Factor, and the diffuse and specular
     /// occlusion factors when its occlusion maps are assigned (else -1).
@@ -2764,9 +2764,15 @@ const CASCADE_MAP_SIZE: f32 = 1024.0;
 const CASCADE_PIXEL_MARGIN: f32 = 1.5;
 const CASCADE_DEPTH_MARGIN: f32 = 1e-8;
 // FullscreenShadowBlur's settings (DirectionalLightFeatureProcessor
-// SetFullscreenPassSettings): constFalloff 2/3, depth threshold 0, strength 50.
-const SHADOW_BLUR_CONST_FALLOFF: f32 = 2.0 / 3.0;
-const SHADOW_BLUR_DEPTH_STRENGTH: f32 = 50.0;
+// SetFullscreenPassSettings): the component's m_fullscreenBlurConstFalloff
+// (2/3) and m_fullscreenBlurDepthFalloffStrength (50), from the sun's record
+// (shadowBlurStrength, shadowBlurSharpness); depth threshold 0.
+fn shadowBlurConstFalloff() -> f32 {
+    return gShadingFrame[FRAME_SUN + 3u].y;
+}
+fn shadowBlurDepthStrength() -> f32 {
+    return gShadingFrame[FRAME_SUN + 3u].z;
+}
 // DirectionalLightShadow.azsli AddDebugColoring: red, green, blue, yellow.
 const CASCADE_DEBUG_COLORS = array<vec3<f32>, 4>(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(0.0, 0.0, 1.0), vec3<f32>(1.0, 1.0, 0.0));
 
@@ -2945,7 +2951,7 @@ fn shadowBlurChain(start: vec2<i32>, direction: vec2<i32>, steps: i32, horizonta
     var currentValue = shadowBlurValueAt(position, horizontal);
     var previousDepthSlope = currentDepth - previousDepth;
     var currentDepthSlope = previousDepthSlope;
-    currentValue = mix(previousValue, currentValue, SHADOW_BLUR_CONST_FALLOFF);
+    currentValue = mix(previousValue, currentValue, shadowBlurConstFalloff());
     for (var k = 0; k < steps; k++) {
         previousValue = currentValue;
         previousDepth = currentDepth;
@@ -2954,7 +2960,7 @@ fn shadowBlurChain(start: vec2<i32>, direction: vec2<i32>, steps: i32, horizonta
         currentDepth = linearDepthAt(position);
         currentValue = shadowBlurValueAt(position, horizontal);
         currentDepthSlope = currentDepth - previousDepth;
-        let falloff = saturate(1.0 - abs(previousDepthSlope - currentDepthSlope) * SHADOW_BLUR_DEPTH_STRENGTH) * SHADOW_BLUR_CONST_FALLOFF;
+        let falloff = saturate(1.0 - abs(previousDepthSlope - currentDepthSlope) * shadowBlurDepthStrength()) * shadowBlurConstFalloff();
         currentValue = mix(currentValue, previousValue, falloff);
     }
     return currentValue;

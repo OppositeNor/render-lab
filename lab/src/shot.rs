@@ -76,6 +76,9 @@ pub enum PanelMode {
     Memory,
     /// A Python pseudo-code listing (`ShotState::code`) in a wider panel.
     Code,
+    /// The frame's cost: GPU time per pass, measured as it renders (src/timing.rs);
+    /// `highlight` names the passes to call out.
+    Performance,
     Hidden,
 }
 

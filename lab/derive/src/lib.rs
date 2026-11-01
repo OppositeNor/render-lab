@@ -22,7 +22,9 @@
 //! range), `label(a, b, …)`, `text` (a key of the package's text, its name
 //! on screen), `name` (its name on screen in every language), `color` (a
 //! constant `egui::Color32`, its name's colour in the dock), `toggle` (a
-//! number used as on or off), and, for a vector, `components(x, y, z)`, its
+//! number used as on or off), `engine` (the engine property it mirrors,
+//! `"Environment.sdfgi_energy"`), `help` (a key of the package's text: what
+//! it does, shown by the dock's "?"), and, for a vector, `components(x, y, z)`, its
 //! components' keys in the scope (`key.x`, … by default). Its `///` comment
 //! is its `doc`. A field without `#[value]` is a value too, with no
 //! metadata. The field types are `f32`, `i32`, `u32`, `bool`, and
@@ -231,6 +233,8 @@ struct FieldAttrs {
     name: Option<String>,
     color: Option<Expr>,
     toggle: bool,
+    engine: Option<String>,
+    help: Option<String>,
     components: Vec<String>,
 }
 
@@ -247,6 +251,8 @@ fn field_attrs(field: &syn::Field) -> Result<FieldAttrs> {
                 "name" => out.name = Some(meta.value()?.parse::<LitStr>()?.value()),
                 "color" => out.color = Some(meta.value()?.parse()?),
                 "toggle" => out.toggle = true,
+                "engine" => out.engine = Some(meta.value()?.parse::<LitStr>()?.value()),
+                "help" => out.help = Some(meta.value()?.parse::<LitStr>()?.value()),
                 "unit" => {
                     let unit: syn::Ident = meta.value()?.parse()?;
                     if !["m", "deg", "factor", "plain", "index"].contains(&unit.to_string().as_str()) {
@@ -270,7 +276,7 @@ fn field_attrs(field: &syn::Field) -> Result<FieldAttrs> {
                     out.components.push(c.path.get_ident().ok_or_else(|| c.error("a component is a name"))?.to_string());
                     Ok(())
                 })?,
-                _ => return Err(meta.error("unknown `#[value]` attribute (key, default, range, step, unit, wrap, label, text, name, color, toggle, components)")),
+                _ => return Err(meta.error("unknown `#[value]` attribute (key, default, range, step, unit, wrap, label, text, name, color, toggle, engine, help, components)")),
             }
             Ok(())
         })?;
@@ -403,9 +409,17 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
             None => quote!(None),
         };
         let toggle = attrs.toggle;
+        let engine = match &attrs.engine {
+            Some(e) => quote!(Some(#e)),
+            None => quote!(None),
+        };
+        let help = match &attrs.help {
+            Some(h) => quote!(Some(#h)),
+            None => quote!(None),
+        };
         entries.push(quote! {
             ::lab::values::Entry { key: #key, ty: #ty, default: #default, range: #range, component_ranges: &[], step: #step, unit: #unit, wrap: #wrap,
-                labels: &[#(#labels),*], text: #text, name: #name, color: #color, toggle: #toggle, choices: None, package: #package, doc: #doc, components: &[#(#components),*] }
+                labels: &[#(#labels),*], text: #text, name: #name, color: #color, toggle: #toggle, choices: None, package: #package, doc: #doc, engine: #engine, help: #help, components: &[#(#components),*] }
         });
         match kind {
             Kind::Vec(n) => {

@@ -37,6 +37,11 @@ pub struct Pipelines {
     pub boxes_xray: wgpu::RenderPipeline,
     pub point: wgpu::RenderPipeline,
     pub composite: wgpu::RenderPipeline,
+    /// The scene without the overlay (the images an experiment measures).
+    pub composite_scene: wgpu::RenderPipeline,
+    /// The experiment's difference view (`compositeDiffFS`): group 2 holds its gain.
+    pub composite_diff: wgpu::RenderPipeline,
+    pub compare_layout: wgpu::BindGroupLayout,
     pub verify: BTreeMap<&'static str, wgpu::ComputePipeline>,
     scene_module: wgpu::ShaderModule,
 }
@@ -225,6 +230,20 @@ impl Pipelines {
             bind_group_layouts: &[Some(&frame_layout), Some(&texture_pair_layout)],
             immediate_size: 0,
         });
+        let compare_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("compare"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(16) },
+                count: None,
+            }],
+        });
+        let with_compare = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame + textures + compare"),
+            bind_group_layouts: &[Some(&frame_layout), Some(&texture_pair_layout), Some(&compare_layout)],
+            immediate_size: 0,
+        });
         let with_verify = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + verify"),
             bind_group_layouts: &[Some(&frame_layout), Some(&verify_layout)],
@@ -287,6 +306,29 @@ impl Pipelines {
                 depth: None,
                 blend: None,
             }),
+            composite_scene: render_pipeline(device, &with_pair, PipelineSpec {
+                label: "composite scene",
+                module: &scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeSceneFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: None,
+            }),
+            composite_diff: render_pipeline(device, &with_compare, PipelineSpec {
+                label: "composite difference",
+                module: &scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeDiffFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: None,
+            }),
+            compare_layout,
             verify: VERIFY_ENTRIES
                 .iter()
                 .map(|&entry| {

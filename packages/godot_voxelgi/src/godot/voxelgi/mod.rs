@@ -180,6 +180,16 @@ impl Investigation for VoxelGi {
         demos::shader_data(block, state)
     }
 
+    /// The light texture relit for the scene node's settings when they are not the defaults.
+    fn scene_data(&self, state: &ShotState) -> Option<lab::investigation::SceneData> {
+        let settings = world::scene_settings(state);
+        if settings == world::LightSettings::default() {
+            return None;
+        }
+        let key = ((settings.dynamic_range * 100.0).round() as u64) << 32 | ((settings.propagation * 100.0).round() as u64) << 1 | settings.two_bounces as u64;
+        Some(lab::investigation::SceneData { key, build: Box::new(move || world::shading_data_for(&settings)) })
+    }
+
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {
         controls::parameters(dock, ui);
     }
