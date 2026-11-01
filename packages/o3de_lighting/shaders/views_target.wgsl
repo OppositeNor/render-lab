@@ -7,7 +7,7 @@
 /// as stored; float colours are tone mapped. A story lays instances side by
 /// side as O3DE keeps them apart, each titled (`imageTitle`), and every one
 /// rings the picked pixel (gShading.pick).
-/// {@ view=chainTarget entry=o3deChainTargetView size=384,216 text=views.chain_target reads=diffuse,specular,albedo,specularF0,normal,stencil,depth}
+/// {@ view=chainTarget entry=o3deChainTargetView size=384,216 aspect=viewport text=views.chain_target reads=diffuse,specular,albedo,specularF0,normal,stencil,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct ChainTargetParams {

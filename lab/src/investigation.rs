@@ -109,6 +109,88 @@ pub struct SceneShading {
     pub scene_reads: &'static [&'static str],
     /// Depth-only views of the scene's meshes (shadow maps), drawn first.
     pub depth_views: Option<&'static DepthViews>,
+    /// 3D textures the chain's passes sample (group 3), written by `update`.
+    pub volumes: &'static [ShadingVolume],
+    /// Compute passes that run only when what they compute changes
+    /// (`UpdatePlan::key`), before the frame's chain: they fill `volumes`.
+    pub update: Option<&'static ShadingUpdate>,
+    /// Targets whose resolution a state chooses at run time.
+    pub resolution: Option<&'static ShadingResolution>,
+}
+
+/// A 3D texture of a pass chain, with its mips: sampled by the chain's
+/// passes, the verification kernels, and the update passes that read it, at
+/// group 3 (binding 0 a filtering sampler, linear between texels and mips,
+/// clamped to the edge; binding `1 + v` volume `v`, `texture_3d<f32>`);
+/// written by the update passes that name it, one mip per dispatch
+/// (`UpdateDispatch::mip`). It starts at zero.
+pub struct ShadingVolume {
+    pub name: &'static str,
+    pub format: wgpu::TextureFormat,
+    pub size: [u32; 3],
+    pub mips: u32,
+}
+
+/// The update passes of a pass chain: compute passes that run before a
+/// frame's chain only when their `UpdatePlan`'s key changes (or every frame
+/// while it says `always`), the way an engine relights a cache only when its
+/// lights or settings change. The renderer keeps the volumes of the last few
+/// keys, so views with different settings each draw their own.
+///
+/// An update pass binds groups 0 and 1 as the chain's passes do, group 2 its
+/// own (binding 0 the dispatch's `UpdateDispatch::params`, a uniform of 16
+/// words; binding `1 + k` buffer `k` of `buffers`, `array<u32>` read-write;
+/// binding `1 + B + v` volume `v` as a write-only storage texture of the
+/// dispatch's mip, for the passes that write it), and group 3 (the volumes,
+/// sampled) when it reads a volume.
+pub struct ShadingUpdate {
+    pub passes: &'static [UpdatePass],
+    pub buffers: &'static [UpdateBuffer],
+    /// What to run for a state: its key, and the dispatches in order.
+    pub plan: fn(&ShotState) -> UpdatePlan,
+}
+
+pub struct UpdatePass {
+    pub entry: &'static str,
+    /// The volumes it samples (group 3).
+    pub reads: &'static [&'static str],
+    /// The volumes it writes, at the dispatch's mip.
+    pub writes: &'static [&'static str],
+    /// Its workgroup's size along x; a dispatch's `groups` count these.
+    pub workgroup: u32,
+}
+
+/// A storage buffer of the update passes, `words` u32 long.
+pub struct UpdateBuffer {
+    pub name: &'static str,
+    pub words: fn() -> u64,
+}
+
+pub struct UpdatePlan {
+    /// What the dispatches compute from: the update runs when it changes.
+    pub key: u64,
+    /// Run every frame (a measurement of the passes' cost).
+    pub always: bool,
+    pub dispatches: Vec<UpdateDispatch>,
+}
+
+/// One dispatch of an update pass: `groups` workgroups along x, writing its
+/// volumes' mip `mip`, with its 16 words of parameters (group 2, binding 0).
+/// Timed, consecutive dispatches of one pass are one timed span.
+#[derive(Clone, Debug)]
+pub struct UpdateDispatch {
+    pub pass: &'static str,
+    pub groups: u32,
+    pub mip: u32,
+    pub params: [u32; 16],
+}
+
+/// Chain targets drawn at a resolution a state chooses: `divisor` divides
+/// the viewport's size for each target named (their `ShadingTarget::divisor`
+/// is replaced), and the chain's targets are rebuilt when it changes.
+pub struct ShadingResolution {
+    pub targets: &'static [&'static str],
+    pub divisor: fn(&ShotState) -> u32,
 }
 
 /// The scene shading's data for a state whose values change it (settings

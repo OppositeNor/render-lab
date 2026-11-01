@@ -225,11 +225,84 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
 
     // ---- 9. The WGSL ports against the CPU -----------------------------------------
     {
+        // The numbers chapter 8 says (cost.rs, update.rs).
+        {
+            let state = shot::for_demo(Demo::Cost);
+            let c = super::cost::costs(&state);
+            let mut one = state.clone();
+            one.set("giTwoBounces", 0.0);
+            let one_bounce = super::update::plan(&one).dispatches.len();
+            let ok = c.leaves == 42_289 && c.texels == 1_048_576 && c.dispatches == 32 && one_bounce == 16 && c.low_steps == 7 && c.spec_steps[0] == 2 && c.spec_steps[2] == 381 && c.passes == 2;
+            report.check(
+                "chapter 8's numbers: 42,289 leaves against 1,048,576 texels of mip 0; 32 dispatches an update with two bounces (16 with one); a Low cone at most 7 steps; the reflection cone 2 steps at roughness 1, 381 at 0",
+                ok,
+                json!({"leaves": c.leaves, "texels": c.texels, "dispatches": c.dispatches, "oneBounce": one_bounce, "workgroups": c.workgroups, "lowSteps": c.low_steps, "highSteps": c.high_steps, "specSteps": c.spec_steps}),
+            );
+        }
         let gpu = lab::gpu::Gpu::new(lab::gpu::instance(None), None)?;
         let statics = lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?;
         let mut renderer = lab::renderer::Renderer::new(gpu, statics, 640, 360)?;
         let still = still_timeline(640, 360);
         renderer.render_frame(request(&shot::for_demo(Demo::Room), &still), None);
+        // The light passes on the GPU (update.rs) against light.rs: every texel of every mip.
+        let mut gpu_texture = lit.texture.clone();
+        {
+            let mut worst = 0u8;
+            let mut differing = 0usize;
+            let mut texels = 0usize;
+            let mut sizes = true;
+            for mip in 0..probe.mip_count() {
+                let Some((bytes, size)) = renderer.read_volume("voxelgiLight", mip as u32) else {
+                    sizes = false;
+                    break;
+                };
+                let cpu = &lit.texture.mips[mip];
+                let s = probe.mip_size(mip);
+                sizes &= size == [s.x as u32, s.y as u32, s.z as u32] && bytes.len() == cpu.len() * 4;
+                gpu_texture.mips[mip] = bytes.chunks_exact(4).map(|t| [t[0], t[1], t[2], t[3]]).collect();
+                for (g, c) in bytes.chunks_exact(4).zip(cpu) {
+                    let d = g.iter().zip(c).map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0);
+                    worst = worst.max(d);
+                    differing += (d > 0) as usize;
+                    texels += 1;
+                }
+            }
+            report.check(
+                "light passes on the GPU (MODE_COMPUTE_LIGHT, SECOND_BOUNCE, UPDATE_MIPMAPS, WRITE_TEXTURE) write the texture light.rs computes, every mip",
+                // Float sums in another order round a texel one step the other way, now and then.
+                sizes && worst <= 1 && differing * 50 <= texels,
+                json!({"texels": texels, "differing": differing, "worstStep": worst}),
+            );
+        }
+        // The 3D texture's sampler (trilinear, between mips, clamped) against storage.rs's sample_lod.
+        {
+            let mut cases = Vec::new();
+            for k in 0..64 {
+                cases.push([rng.next(), rng.next(), rng.next(), (k % 16) as f32 * 0.5]);
+            }
+            // And where a bounce cone samples: along +x from a leaf at the room's -x wall.
+            let mut steps = Vec::new();
+            light::bounce_cone(&lit.texture, &params, Vec3::new(3.5, 44.5, 92.5), Vec3::X, Some(&mut steps));
+            let cell_size = Vec3::ONE / probe.octree_size.as_vec3();
+            for st in &steps {
+                let uvw = (Vec3::new(3.5, 44.5, 92.5) + st.dist * Vec3::X) * cell_size;
+                cases.push([uvw.x, uvw.y, uvw.z, st.lod]);
+            }
+            let words = renderer.run_shading_verify("voxelgiSampleTests", cases.len() as u32, &cases, 4 * cases.len());
+            let mut worst = 0.0f32;
+            let mut worst_at = json!(null);
+            for (k, c) in cases.iter().enumerate() {
+                let cpu = gpu_texture.sample_lod(Vec3::new(c[0], c[1], c[2]), c[3]);
+                for i in 0..4 {
+                    let g = f32::from_bits(words[k * 4 + i]);
+                    if (g - cpu[i]).abs() > worst {
+                        worst = (g - cpu[i]).abs();
+                        worst_at = json!({"case": c, "component": i, "gpu": g, "cpu": cpu[i]});
+                    }
+                }
+            }
+            report.check("the light texture's sampler matches storage.rs's sample_lod (trilinear, between mips, clamped to the edge)", worst < 3.0 / 255.0, json!({"cases": cases.len(), "worstAbsolute": worst, "worstAt": worst_at}));
+        }
         // The screen pass at points on the room's surfaces, both qualities, inside and outside.
         let mut cases: Vec<(Vec3, Vec3, Vec3, f32, bool, bool)> = Vec::new();
         for k in 0..48 {
@@ -246,15 +319,21 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         let tests: Vec<[f32; 4]> = cases.iter().flat_map(|&(p, n, r, rough, high, blend)| [p.extend(rough).to_array(), n.extend(high as u32 as f32).to_array(), r.extend(blend as u32 as f32).to_array()]).collect();
         let words = renderer.run_shading_verify("voxelgiProcessTests", cases.len() as u32, &tests, 8 * cases.len());
         let mut worst = 0.0f32;
+        let mut worst_at = json!(null);
         for (k, &(p, n, r, rough, high, blend)) in cases.iter().enumerate() {
             let inst = world::instance(probe, &LightSettings::default(), !blend);
-            let (a, s) = cone::process(&inst, &lit.texture, p, n, r, rough, high, None);
+            let (a, s) = cone::process(&inst, &gpu_texture, p, n, r, rough, high, None);
             let cpu = [a.x, a.y, a.z, a.w, s.x, s.y, s.z, s.w];
             for (i, c) in cpu.iter().enumerate() {
-                worst = worst.max(rel(f32::from_bits(words[k * 8 + i]), *c));
+                let g = f32::from_bits(words[k * 8 + i]);
+                if rel(g, *c) > worst {
+                    worst = rel(g, *c);
+                    worst_at = json!({"case": k, "component": i, "gpu": g, "cpu": c, "high": high, "rough": rough});
+                }
             }
         }
-        report.check("screen pass: the WGSL port of voxel_gi_compute matches cone.rs (ambient and reflection, rgba; Low and High; interior on and off)", worst < 2e-3, json!({"cases": cases.len(), "worstRelative": worst}));
+        // The texture unit filters with fewer bits than f32 (its weights are fixed point): about 1 %.
+        report.check("screen pass: the WGSL port of voxel_gi_compute matches cone.rs on the GPU's texture (ambient and reflection, rgba; Low and High; interior on and off; the texture unit's filtering within 2 %)", worst < 2e-2, json!({"cases": cases.len(), "worstRelative": worst, "worstAt": worst_at}));
 
         // The light pass: every light type at sampled leaves.
         let lights = [
@@ -303,13 +382,18 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         let tests: Vec<[f32; 4]> = cases.iter().flat_map(|(p, d)| [p.extend(0.0).to_array(), d.extend(0.0).to_array()]).collect();
         let words = renderer.run_shading_verify("voxelgiBounceTests", cases.len() as u32, &tests, 4 * cases.len());
         let mut worst = 0.0f32;
+        let mut worst_at = json!(null);
         for (k, (p, d)) in cases.iter().enumerate() {
-            let c = light::bounce_cone(&lit.texture, &params, *p, *d, None);
+            let c = light::bounce_cone(&gpu_texture, &params, *p, *d, None);
             for i in 0..4 {
-                worst = worst.max(rel(f32::from_bits(words[k * 4 + i]), c[i]));
+                let g = f32::from_bits(words[k * 4 + i]);
+                if rel(g, c[i]) > worst {
+                    worst = rel(g, c[i]);
+                    worst_at = json!({"case": k, "component": i, "gpu": g, "cpu": c[i], "p": p.to_array(), "d": d.to_array()});
+                }
             }
         }
-        report.check("second bounce: the WGSL port of its cone matches light.rs", worst < 2e-3, json!({"cases": cases.len(), "worstRelative": worst}));
+        report.check("second bounce: the WGSL port of its cone matches light.rs on the GPU's texture (the texture unit's filtering within 2 %)", worst < 2e-2, json!({"cases": cases.len(), "worstRelative": worst, "worstAt": worst_at}));
 
         // A click on a floor cell's projected centre picks that cell's column.
         {

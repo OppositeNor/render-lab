@@ -98,6 +98,12 @@ source = "demos/pixel.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/cost"
+kind = "file"
+source = "demos/cost.toml"
+license = "MIT"
+
+[[resource]]
 id = "demo/compose"
 kind = "file"
 source = "demos/compose.toml"

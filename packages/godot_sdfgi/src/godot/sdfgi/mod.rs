@@ -66,6 +66,9 @@ pub static SHADING: SceneShading = SceneShading {
     buffers: &[],
     scene_reads: &[],
     depth_views: None,
+    volumes: &[],
+    update: None,
+    resolution: None,
 };
 
 /// The images its story can show (`{@ image=key}`), which `demos::field_demo` publishes.

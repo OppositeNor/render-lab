@@ -151,6 +151,9 @@ pub static SHADING: SceneShading = SceneShading {
     buffers: BUFFERS,
     scene_reads: &["tileData", "lightListRemapped", "shadowBuffer", "cascades"],
     depth_views: Some(&CASCADE_VIEWS),
+    volumes: &[],
+    update: None,
+    resolution: None,
 };
 
 impl Investigation for Lighting {

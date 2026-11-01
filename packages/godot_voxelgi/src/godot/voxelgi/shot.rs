@@ -18,11 +18,12 @@ pub enum Demo {
     Mips,
     Dynamic,
     Pixel,
+    Cost,
     Compose,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 11] = [Demo::Room, Demo::Bounds, Demo::Octree, Demo::Cells, Demo::Field, Demo::Light, Demo::Bounce, Demo::Mips, Demo::Dynamic, Demo::Pixel, Demo::Compose];
+    pub const ALL: [Demo; 12] = [Demo::Room, Demo::Bounds, Demo::Octree, Demo::Cells, Demo::Field, Demo::Light, Demo::Bounce, Demo::Mips, Demo::Dynamic, Demo::Pixel, Demo::Cost, Demo::Compose];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -36,6 +37,7 @@ impl Demo {
             Demo::Mips => "mips",
             Demo::Dynamic => "dynamic",
             Demo::Pixel => "pixel",
+            Demo::Cost => "cost",
             Demo::Compose => "compose",
         }
     }
@@ -76,6 +78,7 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Mips => vec![wave("propagation", 0.5, 0.5, 12.0)],
         Demo::Dynamic => vec![wave("dynamicX", 0.5, 1.0, 14.0)],
         Demo::Pixel => vec![wave("pixelAzimuth", 0.0, 60.0, 16.0)],
+        Demo::Cost => vec![wave("quality", 0.5, 0.5, 8.0)],
     })
 }
 

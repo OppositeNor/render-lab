@@ -64,7 +64,8 @@ enum Command {
         /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
         /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
         /// viewer-knowledge[:<demo>] (that panel zoomed onto a topic of the audience's level, selected), or
-        /// viewer-knowledge-graph[:<demo>] (the knowledge graph full screen over the viewer), or select-knowledge
+        /// viewer-knowledge-graph[:<demo>] (the knowledge graph full screen over the viewer; viewer-knowledge-compact: only
+        /// the topics its context needs), or select-knowledge
         /// (the selection page with the chosen feature's knowledge graph full screen).
         #[arg(long, default_value = "title")]
         page: String,
@@ -301,6 +302,10 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-prerequisites" || page.starts_with("viewer-prerequisites:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-prerequisites:"), false, false, &png),
                 (Some(png), _) if page == "viewer-knowledge" || page.starts_with("viewer-knowledge:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge:"), true, false, &png),
                 (Some(png), _) if page == "viewer-knowledge-graph" || page.starts_with("viewer-knowledge-graph:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge-graph:"), false, true, &png),
+                (Some(png), _) if page == "viewer-knowledge-compact" || page.starts_with("viewer-knowledge-compact:") => {
+                    crate::ui::set_knowledge_compact(true);
+                    home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge-compact:"), false, true, &png)
+                }
                 (Some(png), _) if page == "select-knowledge" => home::snapshot_knowledge(&options, &png),
                 (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
                 (Some(png), _) => {
@@ -450,7 +455,7 @@ pub fn main(app: App) -> Result<()> {
             let package = investigation::current().package().unwrap_or("rlstd");
             for kind in crate::views::kinds(package)? {
                 let params: Vec<String> = kind.params.iter().map(|p| format!("{} = {}", p.key, p.default.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))).collect();
-                println!("kind {} ({}x{}, {} · {}): {}", kind.key, kind.size[0], kind.size[1], kind.module, kind.entry, params.join(", "));
+                println!("kind {} ({}x{}{}, {} · {}): {}", kind.key, kind.size[0], kind.size[1], if kind.viewport_aspect { ", the viewport's shape" } else { "" }, kind.module, kind.entry, params.join(", "));
                 if !kind.doc.is_empty() {
                     println!("    {}", kind.doc);
                 }

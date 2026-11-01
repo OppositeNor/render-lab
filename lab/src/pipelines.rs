@@ -59,6 +59,53 @@ pub struct ShadingPipelines {
     /// The early passes, then the passes after the scene pass, in order.
     pub passes: Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
     pub verify: BTreeMap<&'static str, wgpu::ComputePipeline>,
+    /// Group 3, the volumes sampled (`SceneShading::volumes`), when it has any.
+    pub volumes: Option<wgpu::BindGroupLayout>,
+    /// The update passes (`SceneShading::update`), in its order, each with its group-2 layout.
+    pub updates: Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
+}
+
+/// Bytes between two dispatches' parameters in an update's uniform buffer
+/// (`UpdateDispatch::params`, 16 words, at an offset the device accepts).
+pub const UPDATE_PARAMS_STRIDE: u64 = 256;
+
+/// Group 3 of a shading with volumes: a filtering sampler at 0, then each volume.
+pub fn volume_layout(device: &wgpu::Device, shading: &SceneShading) -> wgpu::BindGroupLayout {
+    let mut entries = vec![wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None }];
+    for (v, _) in shading.volumes.iter().enumerate() {
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 1 + v as u32,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D3, multisampled: false },
+            count: None,
+        });
+    }
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("volumes"), entries: &entries })
+}
+
+/// Group 2 of an update pass: its parameters, the update's buffers, and the volumes it writes.
+pub fn update_layout(device: &wgpu::Device, shading: &SceneShading, pass: &crate::investigation::UpdatePass) -> wgpu::BindGroupLayout {
+    let update = shading.update.expect("an update");
+    let mut entries = vec![wgpu::BindGroupLayoutEntry {
+        binding: 0,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: wgpu::BufferSize::new(64) },
+        count: None,
+    }];
+    for (k, _) in update.buffers.iter().enumerate() {
+        entries.push(wgpu::BindGroupLayoutEntry { binding: 1 + k as u32, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: false }, has_dynamic_offset: false, min_binding_size: None }, count: None });
+    }
+    for (v, volume) in shading.volumes.iter().enumerate() {
+        if pass.writes.contains(&volume.name) {
+            entries.push(wgpu::BindGroupLayoutEntry {
+                binding: 1 + update.buffers.len() as u32 + v as u32,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: volume.format, view_dimension: wgpu::TextureViewDimension::D3 },
+                count: None,
+            });
+        }
+    }
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some(pass.entry), entries: &entries })
 }
 
 /// Where a pass binds a chain target or buffer in group 2 (`ShadingPass`).
@@ -428,6 +475,7 @@ impl Pipelines {
                 })
                 .collect()
         });
+        let volumes = (!shading.volumes.is_empty()).then(|| volume_layout(device, shading));
         let passes = shading
             .early
             .iter()
@@ -436,7 +484,7 @@ impl Pipelines {
                 let group = chain_layout(pass.entry, pass.reads, pass.writes, wgpu::ShaderStages::COMPUTE);
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some(pass.entry),
-                    bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group)],
+                    bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group), volumes.as_ref()],
                     immediate_size: 0,
                 });
                 let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -452,7 +500,7 @@ impl Pipelines {
             .collect();
         let verify_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading + verify"),
-            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&self.verify_layout)],
+            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&self.verify_layout), volumes.as_ref()],
             immediate_size: 0,
         });
         let verify = shading
@@ -470,10 +518,34 @@ impl Pipelines {
                 (entry, pipeline)
             })
             .collect();
+        let updates = shading.update.map_or_else(Vec::new, |update| {
+            update
+                .passes
+                .iter()
+                .map(|pass| {
+                    let group = update_layout(device, shading, pass);
+                    let reads = if pass.reads.is_empty() { None } else { volumes.as_ref() };
+                    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some(pass.entry),
+                        bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group), reads],
+                        immediate_size: 0,
+                    });
+                    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: Some(pass.entry),
+                        layout: Some(&layout),
+                        module: &module,
+                        entry_point: Some(pass.entry),
+                        compilation_options: Default::default(),
+                        cache: None,
+                    });
+                    (pipeline, group)
+                })
+                .collect()
+        });
         if let Some(error) = pollster::block_on(scope.pop()) {
             return Err(anyhow!("{} pipeline creation failed: {error}", shading.fragment));
         }
-        Ok(ShadingPipelines { scene, prepass, depth_views, scene_group, passes, verify })
+        Ok(ShadingPipelines { scene, prepass, depth_views, scene_group, passes, verify, volumes, updates })
     }
 
     /// The viewer's swapchain blit. sRGB swapchains decode before writing.

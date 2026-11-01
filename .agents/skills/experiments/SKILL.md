@@ -149,7 +149,10 @@ The Experiments tab lists it, and `render-lab experiment <package>.experiment/<n
     that returns the data.
   - The renderer keeps the last few builds by key. It builds on a worker thread in the viewer (the Performance group
     shows "Rebuilding…"), waits in recordings and research runs, and restarts the history when the data swaps.
-  - See `godot_voxelgi`'s relit texture and `godot_sdfgi`'s reconverged probe maps.
+  - See `godot_sdfgi`'s reconverged probe maps.
+- **A setting whose GPU work is redone when it changes** (a relit cache, a light texture) is better as an update
+  (`SceneShading::update`, below) than as rebuilt data: its plan's key hashes the setting, and the update passes run
+  only when the key changes, as the engine relights. See `godot_voxelgi`'s light passes (update.rs).
 - A setting that changes an array's size or a texture's dimensions is a larger change (the layout and the passes); note
   it as not yet tunable rather than half-supporting it.
 - Then check:

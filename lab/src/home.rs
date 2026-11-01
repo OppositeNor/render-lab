@@ -247,6 +247,20 @@ fn glass_button(ui: &mut egui::Ui, size: Vec2, label: &str, font: f32, enabled: 
     response
 }
 
+/// The exit icon in `rect`: a door frame, open on the right, and an arrow
+/// leaving through it, in red whatever the theme.
+fn exit_icon(painter: &egui::Painter, rect: Rect) {
+    const RED: Color32 = Color32::from_rgb(0xe5, 0x48, 0x4d);
+    let stroke = Stroke::new(rect.width() * 0.1, RED);
+    let (l, r, t, b) = (rect.min.x, rect.max.x, rect.min.y, rect.max.y);
+    let door = r - rect.width() * 0.4;
+    painter.line(vec![pos2(door, t + rect.height() * 0.25), pos2(door, t), pos2(l, t), pos2(l, b), pos2(door, b), pos2(door, b - rect.height() * 0.25)], stroke);
+    let y = rect.center().y;
+    let head = rect.width() * 0.22;
+    painter.line_segment([pos2(l + rect.width() * 0.3, y), pos2(r, y)], stroke);
+    painter.line(vec![pos2(r - head, y - head), pos2(r, y), pos2(r - head, y + head)], stroke);
+}
+
 /// The homepage's state: the page, the selection, and what the chosen
 /// feature's timelines hold.
 pub struct Home {
@@ -523,9 +537,7 @@ impl Home {
         if self.knowledge && self.page == Page::Select && crate::ui::draw_knowledge_overlay(ctx, canvas, &crate::ui::KnowledgeChrome::default()) {
             self.knowledge = false;
         }
-        if self.pse {
-            self.draw_pse(ctx, canvas);
-        }
+        let choice = if self.pse { self.draw_pse(ctx, canvas).or(choice) } else { choice };
         self.popups.draw(ctx, canvas);
         self.min_text = self.min_text.min(ink.min_size.get());
         if choice.is_some() {
@@ -693,7 +705,15 @@ impl Home {
             // topics it uses directly, and the graph full screen.
             if let Some(graph) = crate::knowledge::current() {
                 let p = graph.audience();
-                let names = |list: &[usize]| list.iter().map(|&i| graph.nodes[i].title.as_str()).collect::<Vec<_>>().join(tr("knowledge.separator"));
+                // The first few of a list; the knowledge graph has the rest.
+                const SHOWN: usize = 8;
+                let names = |list: &[usize]| {
+                    let mut text = list.iter().take(SHOWN).map(|&i| graph.nodes[i].title.as_str()).collect::<Vec<_>>().join(tr("knowledge.separator"));
+                    if list.len() > SHOWN {
+                        text += &tr_with("home.prerequisites_more", args!(count = list.len() - SHOWN));
+                    }
+                    text
+                };
                 ui.add_space(14.0);
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(tr("home.prerequisites")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
@@ -1012,31 +1032,52 @@ impl Home {
         });
     }
 
-    /// The photosensitivity warning: over the whole page, which it keeps from
-    /// being clicked, until its Continue.
-    fn draw_pse(&mut self, ctx: &egui::Context, canvas: Vec2) {
+    /// The photosensitivity warning: full screen and opaque, so nothing moves
+    /// behind it (the title's scene is moving too), and the page cannot be
+    /// clicked, until its Continue.
+    fn draw_pse(&mut self, ctx: &egui::Context, canvas: Vec2) -> Option<Choice> {
+        let mut choice = None;
         egui::Area::new(egui::Id::unique("home-pse")).order(egui::Order::Foreground).fixed_pos(Pos2::ZERO).fade_in(false).constrain(false).show(ctx, |ui| {
             let full = Rect::from_min_size(Pos2::ZERO, canvas);
             ui.allocate_rect(full, egui::Sense::click_and_drag());
             let painter = ui.painter();
-            painter.rect_filled(full, CornerRadius::ZERO, palette::theme().dim);
-            // The card as tall as its text, opaque over the dimmed page.
-            let width = 1080.0f32.min(canvas.x - 80.0);
-            let text = painter.layout(tr("home.pse_message").to_string(), FontId::new(30.0, FontFamily::Proportional), palette::text(), width - 112.0);
-            let card = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(width, (110.0 + text.size().y + 140.0).min(canvas.y - 80.0)));
-            painter.rect_filled(card, CornerRadius::same(22), palette::theme().popup.to_opaque());
-            painter.rect_stroke(card, CornerRadius::same(22), Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
-            painter.text(pos2(card.center().x, card.min.y + 40.0), Align2::CENTER_TOP, tr("home.pse_title"), FontId::new(40.0, ui::bold()), palette::text());
-            painter.galley(pos2(card.min.x + 56.0, card.min.y + 110.0), text, palette::text());
-            let button = Rect::from_center_size(pos2(card.center().x, card.max.y - 70.0), vec2(360.0, 72.0));
-            ui.scope_builder(egui::UiBuilder::new().max_rect(button).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
-                let r = glass_button(ui, button.size(), tr("home.pse_continue"), 32.0, true);
+            painter.rect_filled(full, CornerRadius::ZERO, palette::background());
+            // The title, the message, then Exit and Continue, centred as one column.
+            let width = 1080.0f32.min(canvas.x - 160.0);
+            let text = painter.layout(tr("home.pse_message").to_string(), FontId::new(30.0, FontFamily::Proportional), palette::text(), width);
+            let height = 70.0 + text.size().y + 60.0 + 72.0;
+            let top = ((canvas.y - height) / 2.0).max(40.0);
+            let x = (canvas.x - width) / 2.0;
+            painter.text(pos2(canvas.x / 2.0, top), Align2::CENTER_TOP, tr("home.pse_title"), FontId::new(40.0, ui::bold()), palette::accent());
+            let below = top + 70.0 + text.size().y;
+            painter.galley(pos2(x, top + 70.0), text, palette::text());
+            let size = vec2(320.0, 72.0);
+            let exit = Rect::from_min_size(pos2(canvas.x / 2.0 - 20.0 - size.x, below + 60.0), size);
+            let next = Rect::from_min_size(pos2(canvas.x / 2.0 + 20.0, below + 60.0), size);
+            ui.scope_builder(egui::UiBuilder::new().max_rect(exit).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+                // Exit: a red door with an arrow leaving it, read in any language.
+                let r = glass_button(ui, size, "", 32.0, true);
+                let label = tr("home.quit");
+                let font = FontId::new(32.0, ui::bold());
+                let icon = 34.0;
+                let label_width = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette::text()).size().x;
+                let left = r.rect.center().x - (icon + 16.0 + label_width) / 2.0;
+                exit_icon(ui.painter(), Rect::from_min_size(pos2(left, r.rect.center().y - icon / 2.0), vec2(icon, icon)));
+                ui.painter().text(pos2(left + icon + 16.0, r.rect.center().y), Align2::LEFT_CENTER, label, font, palette::text());
+                self.widgets.push(("pse:exit".into(), r.rect));
+                if r.clicked() {
+                    choice = Some(Choice::Quit);
+                }
+            });
+            ui.scope_builder(egui::UiBuilder::new().max_rect(next).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+                let r = glass_button(ui, size, tr("home.pse_continue"), 32.0, true);
                 self.widgets.push(("pse:continue".into(), r.rect));
                 if r.clicked() {
                     self.pse = false;
                 }
             });
         });
+        choice
     }
 
     /// A column: its heading, then `add` in an area clipped to the column.
@@ -1049,7 +1090,9 @@ impl Home {
             ui.set_clip_rect(inner);
             ui.label(RichText::new(heading).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
             ui.add_space(8.0);
-            add(self, ui);
+            // What does not fit scrolls, so none of it is out of reach.
+            let height = inner.max.y - ui.cursor().top();
+            egui::ScrollArea::vertical().id_salt(id).max_height(height).min_scrolled_height(height).auto_shrink([false, true]).show(ui, |ui| add(self, ui));
         });
     }
 }
@@ -1478,6 +1521,8 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     let has = |home: &Home, name: &str| home.widgets.iter().any(|w| w.0 == name);
     // The photosensitivity warning first, over the title, until Continue.
     check("the photosensitivity warning is up at start, in the configured language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") == "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    let exit = offscreen.click(&mut home, "pse:exit").flatten();
+    check("the warning's Exit quits", matches!(exit, Some(Choice::Quit)), describe(exit));
     offscreen.click(&mut home, "pse:continue");
     check("Continue closes the warning", !home.pse && !has(&home, "pse:continue"), String::new());
     offscreen.click(&mut home, "config");

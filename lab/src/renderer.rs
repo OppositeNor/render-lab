@@ -201,6 +201,8 @@ pub struct Renderer {
 struct ViewInstance {
     kind: &'static crate::views::ViewKind,
     _texture: wgpu::Texture,
+    /// Its texture's size in texels (`ViewKind::texels`).
+    size: [u32; 2],
     params: wgpu::Buffer,
     group: wgpu::BindGroup,
     id: egui::TextureId,
@@ -219,6 +221,92 @@ struct Shading {
     pending: Option<(u64, std::sync::mpsc::Receiver<Vec<[f32; 4]>>, std::time::Instant)>,
     /// `FrameContent::shading_frame`.
     frame_data: wgpu::Buffer,
+    /// The volumes (`SceneShading::volumes`), one set per update key kept.
+    volume_sets: Vec<VolumeSet>,
+    /// The set the state being drawn reads (`select_data`).
+    volume_set: usize,
+    /// Update dispatches `select_data` planned and the next `encode_scene`
+    /// encodes: into which set, and what.
+    update_runs: Vec<(usize, Vec<crate::investigation::UpdateDispatch>)>,
+    update_buffers: Vec<wgpu::Buffer>,
+    /// The dispatches' parameters, `UPDATE_PARAMS_STRIDE` apart.
+    update_params: Option<wgpu::Buffer>,
+    sampler: wgpu::Sampler,
+    /// The divisor of the targets `SceneShading::resolution` names, for the state being drawn.
+    scale: u32,
+    /// A count that orders the volume sets by when they were last used.
+    clock: u64,
+}
+
+/// The volumes of one update key: their textures, group 3 that samples them,
+/// and each update pass's group 2 for each mip it may write.
+struct VolumeSet {
+    key: Option<u64>,
+    used: u64,
+    textures: Vec<wgpu::Texture>,
+    group: wgpu::BindGroup,
+    updates: Vec<Vec<wgpu::BindGroup>>,
+}
+
+/// How many update keys' volumes a shading keeps.
+const VOLUME_SETS_KEPT: usize = 4;
+
+/// The most dispatches one update plan may have.
+const UPDATE_DISPATCHES_MAX: u64 = 256;
+
+impl VolumeSet {
+    fn new(device: &wgpu::Device, source: &SceneShading, pipelines: &gpu::ShadingPipelines, buffers: &[wgpu::Buffer], params: Option<&wgpu::Buffer>, sampler: &wgpu::Sampler) -> VolumeSet {
+        let textures: Vec<wgpu::Texture> = source
+            .volumes
+            .iter()
+            .map(|v| {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some(v.name),
+                    size: wgpu::Extent3d { width: v.size[0], height: v.size[1], depth_or_array_layers: v.size[2] },
+                    mip_level_count: v.mips,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D3,
+                    format: v.format,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                })
+            })
+            .collect();
+        let views: Vec<wgpu::TextureView> = textures.iter().map(|t| t.create_view(&Default::default())).collect();
+        let mut entries = vec![wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Sampler(sampler) }];
+        entries.extend(views.iter().enumerate().map(|(v, view)| wgpu::BindGroupEntry { binding: 1 + v as u32, resource: wgpu::BindingResource::TextureView(view) }));
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("volumes"), layout: pipelines.volumes.as_ref().expect("a volume layout"), entries: &entries });
+        let updates = source.update.map_or_else(Vec::new, |update| {
+            update
+                .passes
+                .iter()
+                .zip(&pipelines.updates)
+                .map(|(pass, (_, layout))| {
+                    let mips = source.volumes.iter().filter(|v| pass.writes.contains(&v.name)).map(|v| v.mips).max().unwrap_or(1);
+                    (0..mips)
+                        .map(|mip| {
+                            let mip_views: Vec<(u32, wgpu::TextureView)> = source
+                                .volumes
+                                .iter()
+                                .zip(&textures)
+                                .enumerate()
+                                .filter(|(_, (v, _))| pass.writes.contains(&v.name))
+                                .map(|(k, (v, t))| (1 + update.buffers.len() as u32 + k as u32, t.create_view(&wgpu::TextureViewDescriptor { base_mip_level: mip.min(v.mips - 1), mip_level_count: Some(1), ..Default::default() })))
+                                .collect();
+                            let mut entries = vec![wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: params.expect("update parameters"), offset: 0, size: wgpu::BufferSize::new(64) }),
+                            }];
+                            entries.extend(buffers.iter().enumerate().map(|(k, b)| wgpu::BindGroupEntry { binding: 1 + k as u32, resource: b.as_entire_binding() }));
+                            entries.extend(mip_views.iter().map(|(binding, view)| wgpu::BindGroupEntry { binding: *binding, resource: wgpu::BindingResource::TextureView(view) }));
+                            device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some(pass.entry), layout, entries: &entries })
+                        })
+                        .collect()
+                })
+                .collect()
+        });
+        VolumeSet { key: None, used: 0, textures, group, updates }
+    }
 }
 
 /// How many `scene_data` builds a shading keeps.
@@ -259,6 +347,10 @@ pub enum ViewKind {
 struct ChainTargets {
     source: &'static SceneShading,
     size: [u32; 2],
+    /// `Shading::scale` when it was made.
+    scale: u32,
+    /// Each target's divisor of the viewport's size.
+    divisors: Vec<(&'static str, u32)>,
     /// The targets by name: the scene pass's outputs multisampled, the rest single-sample.
     views: Vec<(&'static str, wgpu::TextureView)>,
     buffers: Vec<(&'static str, wgpu::Buffer)>,
@@ -278,10 +370,12 @@ impl ChainTargets {
         let source = shading.source;
         let size = viewport.size;
         let written: Vec<&str> = source.passes.iter().flat_map(|p| p.writes.iter().copied()).collect();
+        let divisors: Vec<(&'static str, u32)> = source.targets.iter().map(|t| (t.name, if source.resolution.is_some_and(|r| r.targets.contains(&t.name)) { shading.scale } else { t.divisor })).collect();
         let views: Vec<(&'static str, wgpu::TextureView)> = source
             .targets
             .iter()
-            .map(|t| {
+            .zip(&divisors)
+            .map(|(t, &(_, divisor))| {
                 let output = source.outputs.contains(&t.name);
                 let mut usage = wgpu::TextureUsages::TEXTURE_BINDING;
                 if output {
@@ -290,7 +384,7 @@ impl ChainTargets {
                 if written.contains(&t.name) {
                     usage |= wgpu::TextureUsages::STORAGE_BINDING;
                 }
-                let s = [size[0].div_ceil(t.divisor), size[1].div_ceil(t.divisor)];
+                let s = if divisor == 1 { size } else { [(size[0] / divisor).max(1), (size[1] / divisor).max(1)] };
                 (t.name, target(device, t.name, s, t.format, if output { MSAA } else { 1 }, usage).create_view(&Default::default()))
             })
             .collect();
@@ -342,7 +436,7 @@ impl ChainTargets {
         };
         let groups = source.early.iter().chain(source.passes).zip(&shading.pipelines.passes).map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes)).collect();
         let scene_group = group("scene reads", &shading.pipelines.scene_group, source.scene_reads, &[]);
-        ChainTargets { source, size, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
+        ChainTargets { source, size, scale: shading.scale, divisors, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
     }
 
     fn view(&self, name: &str) -> &wgpu::TextureView {
@@ -381,8 +475,10 @@ impl ChainTargets {
 
     /// The size in pixels a pass writing `name` covers: a target's, or the viewport's for a buffer.
     fn size_of(&self, name: &str) -> [u32; 2] {
-        let divisor = self.source.targets.iter().find(|t| t.name == name).map_or(1, |t| t.divisor);
-        [self.size[0].div_ceil(divisor), self.size[1].div_ceil(divisor)]
+        match self.divisors.iter().find(|(n, _)| *n == name).map_or(1, |d| d.1) {
+            1 => self.size,
+            divisor => [(self.size[0] / divisor).max(1), (self.size[1] / divisor).max(1)],
+        }
     }
 
     /// Encode a run of compute passes with their bind groups.
@@ -402,6 +498,9 @@ impl ChainTargets {
                 pass.set_bind_group(1, &shading.group, &[]);
                 pass.set_pipeline(&shading.pipelines.passes[i].0);
                 pass.set_bind_group(2, &self.groups[i], &[]);
+                if let Some(v) = shading.volume_sets.get(shading.volume_set) {
+                    pass.set_bind_group(3, &v.group, &[]);
+                }
                 pass.dispatch_workgroups(size[0].div_ceil(step.workgroup[0]), size[1].div_ceil(step.workgroup[1]), 1);
             }
             return;
@@ -409,6 +508,9 @@ impl ChainTargets {
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("shading chain"), timestamp_writes: None });
         pass.set_bind_group(0, frame, &[]);
         pass.set_bind_group(1, &shading.group, &[]);
+        if let Some(v) = shading.volume_sets.get(shading.volume_set) {
+            pass.set_bind_group(3, &v.group, &[]);
+        }
         for i in range {
             let step = steps[i];
             let size = self.size_of(step.writes[0]);
@@ -760,12 +862,23 @@ impl Renderer {
             self.textures.remove(&view_texture(&name));
         }
         let device = &self.gpu.device;
+        let viewport = self.viewport.as_ref().map_or([0, 0], |v| v.size);
         for (name, kind, params) in shown {
+            let kind = crate::views::kind(package, kind).unwrap_or_else(|e| panic!("{e}"));
+            let size = kind.texels(viewport);
+            // One that takes the viewport's shape is made again when that changes.
+            if let Some(view) = self.views.remove(name) {
+                if view.size == size {
+                    self.views.insert(name.to_string(), view);
+                } else {
+                    self.egui_renderer.free_texture(&view.id);
+                    self.textures.remove(&view_texture(name));
+                }
+            }
             if !self.views.contains_key(name) {
-                let kind = crate::views::kind(package, kind).unwrap_or_else(|e| panic!("{e}"));
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: Some(name),
-                    size: wgpu::Extent3d { width: kind.size[0], height: kind.size[1], depth_or_array_layers: 1 },
+                    size: wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
@@ -783,8 +896,8 @@ impl Renderer {
                     entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&storage) }, wgpu::BindGroupEntry { binding: 1, resource: params.as_entire_binding() }],
                 });
                 let id = self.egui_renderer.register_native_texture(device, &shown, wgpu::FilterMode::Linear);
-                self.textures.insert(view_texture(name), id);
-                self.views.insert(name.to_string(), ViewInstance { kind, _texture: texture, params, group, id });
+                self.textures.insert(view_texture(name), (id, size));
+                self.views.insert(name.to_string(), ViewInstance { kind, _texture: texture, size, params, group, id });
             }
             let view = &self.views[name];
             self.gpu.queue.write_buffer(&view.params, 0, &view.kind.pack(params));
@@ -839,7 +952,7 @@ impl Renderer {
                 pass.set_bind_group(0, &self.frame_bind_group, &[]);
                 pass.set_bind_group(1, &shading, &[]);
                 pass.set_bind_group(3, &view.group, &[]);
-                pass.dispatch_workgroups(kind.size[0].div_ceil(kind.workgroup[0].max(1)), kind.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
+                pass.dispatch_workgroups(view.size[0].div_ceil(kind.workgroup[0].max(1)), view.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
                 continue;
             };
             let layout = self.view_chain_layouts.entry((kind.module.clone(), kind.entry.clone())).or_insert_with(|| crate::pipelines::chain_layout(device, chain.source, &kind.entry, &reads, &[], wgpu::ShaderStages::COMPUTE));
@@ -853,7 +966,7 @@ impl Renderer {
             pass.set_bind_group(1, &shading, &[]);
             pass.set_bind_group(2, &group, &[]);
             pass.set_bind_group(3, &view.group, &[]);
-            pass.dispatch_workgroups(kind.size[0].div_ceil(kind.workgroup[0].max(1)), kind.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
+            pass.dispatch_workgroups(view.size[0].div_ceil(kind.workgroup[0].max(1)), view.size[1].div_ceil(kind.workgroup[1].max(1)), 1);
         }
     }
 
@@ -883,7 +996,24 @@ impl Renderer {
                     wgpu::BindGroupEntry { binding: 2, resource: frame_data.as_entire_binding() },
                 ],
             });
-            self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data });
+            let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("volumes"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::MipmapFilterMode::Linear,
+                ..Default::default()
+            });
+            let update_buffers: Vec<wgpu::Buffer> = source.update.map_or_else(Vec::new, |u| {
+                u.buffers.iter().map(|b| device.create_buffer(&wgpu::BufferDescriptor { label: Some(b.name), size: ((b.words)().max(1) * 4), usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false })).collect()
+            });
+            let update_params = source.update.map(|_| {
+                device.create_buffer(&wgpu::BufferDescriptor { label: Some("update parameters"), size: UPDATE_DISPATCHES_MAX * crate::pipelines::UPDATE_PARAMS_STRIDE, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false })
+            });
+            let volume_sets = if source.volumes.is_empty() { Vec::new() } else { vec![VolumeSet::new(device, source, &pipelines, &update_buffers, update_params.as_ref(), &sampler)] };
+            self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data, volume_sets, volume_set: 0, update_runs: Vec::new(), update_buffers, update_params, sampler, scale: 1, clock: 0 });
         }
         self.shadings.iter().find(|s| std::ptr::eq(s.source, source))
     }
@@ -945,6 +1075,38 @@ impl Renderer {
         if let Some(i) = shading.data.iter().position(|d| d.0 == key) {
             shading.group = shading.data[i].2.clone();
         }
+        if let Some(r) = source.resolution {
+            shading.scale = (r.divisor)(state).max(1);
+        }
+        if let Some(update) = source.update {
+            let plan = (update.plan)(state);
+            shading.clock += 1;
+            let clock = shading.clock;
+            let set = match shading.volume_sets.iter().position(|v| v.key == Some(plan.key)) {
+                Some(i) => i,
+                None => {
+                    if shading.volume_sets.len() < VOLUME_SETS_KEPT {
+                        let set = VolumeSet::new(&device, source, &shading.pipelines, &shading.update_buffers, shading.update_params.as_ref(), &shading.sampler);
+                        shading.volume_sets.push(set);
+                        shading.volume_sets.len() - 1
+                    } else {
+                        // The set used longest ago, unless a run still waits to fill it.
+                        let waiting: Vec<usize> = shading.update_runs.iter().map(|r| r.0).collect();
+                        (0..shading.volume_sets.len()).filter(|i| !waiting.contains(i)).min_by_key(|&i| shading.volume_sets[i].used).unwrap_or(0)
+                    }
+                }
+            };
+            let fresh = shading.volume_sets[set].key != Some(plan.key);
+            if fresh || plan.always {
+                assert!(plan.dispatches.len() as u64 <= UPDATE_DISPATCHES_MAX, "{}: {} update dispatches, at most {UPDATE_DISPATCHES_MAX}", source.fragment, plan.dispatches.len());
+                shading.update_runs.retain(|r| r.0 != set);
+                shading.update_runs.push((set, plan.dispatches));
+                shading.volume_sets[set].key = Some(plan.key);
+                finished |= fresh;
+            }
+            shading.volume_sets[set].used = clock;
+            shading.volume_set = set;
+        }
         if finished {
             self.still = (None, 0);
             self.still_scene = (None, 0);
@@ -964,6 +1126,35 @@ impl Renderer {
     pub fn prepare_scene_data(&mut self, state: &ShotState) {
         self.switch_scene(investigation::current().scene(state));
         self.select_data(state, true);
+        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("update") });
+        self.encode_updates(&mut encoder, None);
+        self.gpu.queue.submit([encoder.finish()]);
+    }
+
+    /// Mip `mip` of the current shading's volume `name`, as the state last
+    /// drawn (or prepared) left it: its texels, rows unpadded, and its size.
+    pub fn read_volume(&self, name: &str, mip: u32) -> Option<(Vec<u8>, [u32; 3])> {
+        let source = investigation::current().scene_shading()?;
+        let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, source))?;
+        let v = source.volumes.iter().position(|v| v.name == name)?;
+        let volume = &source.volumes[v];
+        let texture = &shading.volume_sets.get(shading.volume_set)?.textures[v];
+        let size = [(volume.size[0] >> mip).max(1), (volume.size[1] >> mip).max(1), (volume.size[2] >> mip).max(1)];
+        let texel = volume.format.block_copy_size(None)?;
+        let row = size[0] * texel;
+        let padded = row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let device = &self.gpu.device;
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("volume readback"), size: padded as u64 * size[1] as u64 * size[2] as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
+        let mut encoder = device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture, mip_level: mip, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded), rows_per_image: Some(size[1]) } },
+            wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: size[2] },
+        );
+        self.gpu.queue.submit([encoder.finish()]);
+        let bytes = read_buffer(device, &self.gpu.queue, &buffer, 0, buffer.size());
+        let texels = bytes.chunks(padded as usize).flat_map(|r| r[..row as usize].iter().copied()).collect();
+        Some((texels, size))
     }
 
     /// What the performance panel shows (`PanelMode::Performance`): the GPU,
@@ -974,9 +1165,11 @@ impl Renderer {
         let (passes, totals) = match &self.timing {
             Some(t) => {
                 let last = t.last();
-                let passes = t.summary().into_iter().map(|(name, mean, p95)| {
-                    let now = last.iter().find(|(n, _)| *n == name).map_or(f64::NAN, |p| p.1);
-                    (name, mean, p95, now)
+                // The passes the last measured frame ran: a pass that runs only
+                // on a change (an update, the depth views) shows while it runs.
+                let passes = t.summary_last(30).into_iter().filter_map(|(name, mean, p95)| {
+                    let now = last.iter().find(|(n, _)| *n == name)?.1;
+                    Some((name, mean, p95, now))
                 }).collect();
                 (passes, t.totals())
             }
@@ -1453,15 +1646,63 @@ impl Renderer {
     /// The scene and overlay passes into the viewport targets (the composite
     /// reads them).
     /// With `timed`, its passes write GPU timestamps (src/timing.rs).
+    /// The update dispatches `select_data` planned (`SceneShading::update`):
+    /// their parameters written, each run of one pass in a compute pass of
+    /// its own (timed while `timing` is given, under the pass's entry).
+    fn encode_updates(&mut self, encoder: &mut wgpu::CommandEncoder, mut timing: Option<&mut crate::timing::Timing>) {
+        let Some(source) = investigation::current().scene_shading() else { return };
+        let Some(update) = source.update else { return };
+        let Some(shading) = self.shadings.iter_mut().find(|s| std::ptr::eq(s.source, source)) else { return };
+        let runs = std::mem::take(&mut shading.update_runs);
+        let shading = &*shading;
+        let stride = crate::pipelines::UPDATE_PARAMS_STRIDE;
+        for (set, dispatches) in runs {
+            let params = shading.update_params.as_ref().expect("update parameters");
+            let mut bytes = vec![0u8; dispatches.len() * stride as usize];
+            for (i, d) in dispatches.iter().enumerate() {
+                bytes[i * stride as usize..i * stride as usize + 64].copy_from_slice(bytemuck::cast_slice(&d.params));
+            }
+            // One run per submission: a second run writes the parameters after the first is submitted.
+            self.gpu.queue.write_buffer(params, 0, &bytes);
+            let volumes = &shading.volume_sets[set];
+            let mut i = 0;
+            while i < dispatches.len() {
+                let p = update.passes.iter().position(|pass| pass.entry == dispatches[i].pass).unwrap_or_else(|| panic!("{}: no update pass {}", source.fragment, dispatches[i].pass));
+                let mut end = i + 1;
+                while end < dispatches.len() && dispatches[end].pass == dispatches[i].pass {
+                    end += 1;
+                }
+                let span = timing.as_mut().and_then(|t| t.compute_writes(update.passes[p].entry));
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(update.passes[p].entry), timestamp_writes: span.as_ref().map(|t| t.compute()) });
+                pass.set_pipeline(&shading.pipelines.updates[p].0);
+                pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                pass.set_bind_group(1, &shading.group, &[]);
+                if !update.passes[p].reads.is_empty() {
+                    pass.set_bind_group(3, &volumes.group, &[]);
+                }
+                for (k, d) in dispatches[i..end].iter().enumerate() {
+                    let groups = &volumes.updates[p];
+                    pass.set_bind_group(2, &groups[(d.mip as usize).min(groups.len() - 1)], &[((i + k) as u64 * stride) as u32]);
+                    if d.groups > 0 {
+                        pass.dispatch_workgroups(d.groups, 1, 1);
+                    }
+                }
+                drop(pass);
+                i = end;
+            }
+        }
+    }
+
     fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent, timed: bool) {
         self.shading();
         let mut timing = if timed { self.timing.take() } else { None };
+        self.encode_updates(encoder, timing.as_mut());
         let shading = investigation::current().scene_shading().and_then(|source| self.shadings.iter().find(|s| std::ptr::eq(s.source, source)));
         let targets = self.viewport.as_ref().unwrap();
         // An investigation's pass chain: its targets follow the viewport.
         let chained = shading.filter(|s| !s.source.outputs.is_empty());
         if let Some(s) = chained {
-            if self.chain.as_ref().is_none_or(|c| c.size != targets.size || !std::ptr::eq(c.source, s.source)) {
+            if self.chain.as_ref().is_none_or(|c| c.size != targets.size || c.scale != s.scale || !std::ptr::eq(c.source, s.source)) {
                 self.chain = Some(ChainTargets::new(&self.gpu.device, s, targets));
             }
         }
@@ -1755,6 +1996,9 @@ impl Renderer {
             pass.set_bind_group(0, &self.frame_bind_group, &[]);
             pass.set_bind_group(1, &shading.group, &[]);
             pass.set_bind_group(2, &bind, &[]);
+            if let Some(v) = shading.volume_sets.get(shading.volume_set) {
+                pass.set_bind_group(3, &v.group, &[]);
+            }
             pass.dispatch_workgroups(count, 1, 1);
         }
         self.gpu.queue.submit([encoder.finish()]);

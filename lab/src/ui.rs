@@ -1103,6 +1103,8 @@ fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
 /// centre, the selected topic, and the chapters it was last fitted to.
 #[derive(Clone, Debug, Default)]
 struct KnowledgeView {
+    /// The view showed only the context's topics when last drawn.
+    compact: bool,
     scale: f32,
     center: Vec2,
     selected: Option<usize>,
@@ -1189,6 +1191,15 @@ fn draw_knowledge_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
 /// the top right (full screen in the panel, close in the overlay) returns
 /// true when pressed. Node titles follow the zoom, so they are drawn with
 /// the painter, not `Ink` (whose smallest-size record is the recorder's check).
+/// The knowledge graph shows only what its context needs (the panel, the
+/// full-screen view, and the homepage's share it; `set_knowledge_compact`).
+static KNOWLEDGE_COMPACT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Show only the topics the graph's context needs (a snapshot sets it).
+pub fn set_knowledge_compact(on: bool) {
+    KNOWLEDGE_COMPACT.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeChrome, place: KnowledgePlace) -> bool {
     let painter = ink.painter;
     painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
@@ -1203,6 +1214,17 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-button" } else { "knowledge-overlay-button" })).fixed_pos(pos2(rect.max.x - 16.0 - button_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
         pressed = ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(button_size)).clicked();
     });
+    // Beside it: hide the topics this context does not need, or show them all again.
+    let compact = KNOWLEDGE_COMPACT.load(std::sync::atomic::Ordering::Relaxed);
+    let toggle = if compact { tr("knowledge.show_all") } else { tr("knowledge.hide_unused") };
+    let toggle_size = vec2(ink.measure(toggle, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
+    let mut toggled = false;
+    egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-compact" } else { "knowledge-overlay-compact" })).fixed_pos(pos2(rect.max.x - 28.0 - button_size.x - toggle_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
+        toggled = ui.add(egui::Button::new(egui::RichText::new(toggle).size(24.0)).min_size(toggle_size).selected(compact)).clicked();
+    });
+    if toggled {
+        set_knowledge_compact(!compact);
+    }
     y += 42.0;
     // The legend: one swatch per role.
     let mut lx = x;
@@ -1213,14 +1235,21 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     }
     y += 34.0;
     let measure = |t: &str| ink.measure(t, 20.0, FontFamily::Proportional).x / 20.0 * 0.5;
-    let Some((graph, layout)) = crate::knowledge::current_layout(&measure) else {
+    let Some(graph) = crate::knowledge::current() else {
         ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.none"), 24.0, FontFamily::Proportional, palette::text_dim());
         return pressed;
     };
     let chapters = knowledge_chapters(graph, chrome);
     let p = graph.audience();
     let context = graph.context(&chapters);
-    let card_height = 150.0;
+    // Compact: only the context's topics, laid out again on their own.
+    let compact = KNOWLEDGE_COMPACT.load(std::sync::atomic::Ordering::Relaxed);
+    let Some((_, clustered)) = crate::knowledge::current_layout(&measure, compact.then_some(context.as_slice())) else { return pressed };
+    let layout = &clustered.layout;
+    let shown = |i: usize| !compact || context[i];
+    // The card under the graph describes the selected topic; with none, the graph has its room.
+    let selected = ctx.data(|d| d.get_temp::<KnowledgeView>(place.view_id())).and_then(|v| v.selected);
+    let card_height = if selected.is_some() { 150.0 } else { 0.0 };
     let area = Rect::from_min_max(pos2(rect.min.x + 8.0, y), pos2(rect.max.x - 8.0, rect.max.y - card_height - 8.0));
     let hint = ink.fit_right(tr("knowledge.hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, area.max.y - 4.0), Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_faint());
@@ -1235,9 +1264,21 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         let b = b.expand(1.0);
         // Fitted, but no smaller than titles stay readable at (the rest is a drag away).
         view.scale = (graph_area.width() / b.width()).min(graph_area.height() / b.height()).clamp(34.0, 60.0);
-        view.center = b.center().to_vec2();
+        // Where it does not fit, from its top-left (the bases and the first topics), read on by dragging.
+        let half = graph_area.size() / view.scale / 2.0;
+        let x = if b.width() > 2.0 * half.x { b.min.x + half.x } else { b.center().x };
+        let y = if b.height() > 2.0 * half.y { b.min.y + half.y } else { b.center().y };
+        view.center = vec2(x, y);
     };
-    let whole = bounds(&mut (0..graph.nodes.len())).unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)));
+    let whole = bounds(&mut (0..graph.nodes.len()).filter(|&i| shown(i))).unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)));
+    // A change of view (all topics or the context's) fits again.
+    if view.compact != compact {
+        view.compact = compact;
+        view.fitted = None;
+        if view.selected.is_some_and(|s| !shown(s)) {
+            view.selected = None;
+        }
+    }
     let min_scale = ((graph_area.width() / (whole.width() + 2.0)).min(graph_area.height() / (whole.height() + 2.0)) * 0.8).min(3.0);
     if let Some(key) = &chrome.focus {
         if view.focused.as_ref() != Some(key) {
@@ -1269,7 +1310,7 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         if response.dragged() {
             view.center -= response.drag_delta() / view.scale;
         }
-        let node_at = |view: &KnowledgeView, at: Pos2| (0..graph.nodes.len()).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
+        let node_at = |view: &KnowledgeView, at: Pos2| (0..graph.nodes.len()).filter(|&i| shown(i)).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
         if let Some(at) = response.hover_pos() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
@@ -1294,8 +1335,17 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
             });
         }
     });
-    view.center = view.center.clamp(whole.min.to_vec2(), whole.max.to_vec2());
+    // The view stays on the graph: along an axis where the graph is larger
+    // than the view, no empty space past its edge; where it is smaller, centred.
+    let half = graph_area.size() / view.scale / 2.0;
+    let keep = |c: f32, lo: f32, hi: f32, h: f32| if hi - lo > 2.0 * h { c.clamp(lo + h, hi - h) } else { (lo + hi) / 2.0 };
+    let margin = 1.0;
+    view.center = vec2(keep(view.center.x, whole.min.x - margin, whole.max.x + margin, half.x), keep(view.center.y, whole.min.y - margin, whole.max.y + margin, half.y));
     ctx.data_mut(|d| d.insert_temp(id, view.clone()));
+    if view.selected.is_some() != selected.is_some() {
+        // The card comes or goes: lay the graph out again at once.
+        ctx.request_repaint();
+    }
     // The selected topic's requirements and what requires it, lit.
     let requires = graph.requires();
     let lit: Vec<bool> = match view.selected {
@@ -1307,22 +1357,45 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     };
     let clipped = painter.with_clip_rect(graph_area);
     let fade = |c: Color32, strong: bool| if strong { c } else { c.gamma_multiply(0.3) };
+    // The groups: a box around each, its title in its top band; full
+    // strength while any of its topics is.
+    for &(g, (x0, y0, x1, y1)) in &clustered.boxes {
+        let b = Rect::from_min_max(to_screen(&view, (x0, y0)), to_screen(&view, (x1, y1)));
+        if !b.intersects(graph_area) {
+            continue;
+        }
+        let strong = (0..graph.nodes.len()).any(|i| graph.nodes[i].group == Some(g) && context[i]);
+        let radius = CornerRadius::same((view.scale * 0.3).min(255.0) as u8);
+        clipped.rect_filled(b, radius, fade(palette::background(), strong).gamma_multiply(0.6));
+        clipped.rect_stroke(b, radius, Stroke::new(1.5, fade(palette::border(), strong)), StrokeKind::Inside);
+        let font = view.scale * 0.42;
+        if font >= 8.0 {
+            clipped.text(b.min + vec2(view.scale * 0.3, view.scale * 0.12), Align2::LEFT_TOP, &graph.groups[g].title, egui::FontId::proportional(font), fade(palette::text_dim(), strong));
+        }
+    }
     for (r, i, bends) in &layout.bends {
         let (r, i) = (*r, *i);
         let from = to_screen(&view, layout.positions[r]) + vec2(layout.widths[r] / 2.0 * view.scale, 0.0);
         let to = to_screen(&view, layout.positions[i]) - vec2(layout.widths[i] / 2.0 * view.scale, 0.0);
-        let mut points = vec![from];
-        points.extend(bends.iter().map(|&b| to_screen(&view, b)));
-        points.push(to);
         let on_path = view.selected.is_some() && lit[r] && lit[i];
         let color = if on_path { palette::SELECTED } else { fade(palette::border(), context[r] && context[i]) };
         let width = if on_path { 2.5 } else { 1.2 };
-        clipped.add(egui::Shape::line(points, Stroke::new(width, color)));
+        if bends.is_empty() {
+            // A curve leaving and entering horizontally.
+            let pull = ((to.x - from.x) * 0.5).max(view.scale);
+            let curve = egui::epaint::CubicBezierShape::from_points_stroke([from, from + vec2(pull, 0.0), to - vec2(pull, 0.0), to], false, Color32::TRANSPARENT, Stroke::new(width, color));
+            clipped.add(curve);
+        } else {
+            let mut points = vec![from];
+            points.extend(bends.iter().map(|&b| to_screen(&view, b)));
+            points.push(to);
+            clipped.add(egui::Shape::line(points, Stroke::new(width, color)));
+        }
         let tip = (view.scale * 0.25).clamp(3.0, 9.0);
         clipped.add(egui::Shape::convex_polygon(vec![to, to - vec2(tip * 1.6, tip * 0.8), to - vec2(tip * 1.6, -tip * 0.8)], color, Stroke::NONE));
     }
     let font = view.scale * 0.5;
-    for i in 0..graph.nodes.len() {
+    for i in (0..graph.nodes.len()).filter(|&i| shown(i)) {
         let strong = context[i] && (view.selected.is_none() || lit[i]);
         let color = fade(topic_color(&p, i), strong);
         let box_rect = Rect::from_center_size(to_screen(&view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale);
@@ -1338,14 +1411,11 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     }
     // The selected topic's card under the graph.
     let card = Rect::from_min_max(pos2(rect.min.x + 8.0, rect.max.y - card_height), pos2(rect.max.x - 8.0, rect.max.y - 8.0));
-    painter.line_segment([pos2(card.min.x + 14.0, card.min.y), pos2(card.max.x - 14.0, card.min.y)], Stroke::new(1.0, palette::border()));
     let cx = card.min.x + 14.0;
     let width = card.width() - 28.0;
-    let Some(s) = view.selected else {
-        let text = if chapters.is_empty() { tr("knowledge.for_all").to_string() } else { tr_with("knowledge.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
-        ink.wrapped(pos2(cx, card.min.y + 10.0), width, &text, 24.0, FontFamily::Proportional, palette::text_dim());
-        return pressed;
-    };
+    // A topic selected this frame gets its card from the next one, when the graph has made room.
+    let Some(s) = view.selected.filter(|_| card_height > 0.0) else { return pressed };
+    painter.line_segment([pos2(card.min.x + 14.0, card.min.y), pos2(card.max.x - 14.0, card.min.y)], Stroke::new(1.0, palette::border()));
     let node = &graph.nodes[s];
     let role = if p.is_known(s) { tr("knowledge.known") } else if p.level.contains(&s) { tr("knowledge.level") } else if p.teach.contains(&s) { tr("knowledge.teach") } else { tr("knowledge.outside") };
     let title = ink.fit_right(&format!("{} · {role}", node.title), width, 24.0, bold());

@@ -1,6 +1,6 @@
 # Godot VoxelGI: story outline
 
-From `research.md`. Eight chapters, about thirteen minutes. Each chapter is one structure or one pass, in the order
+From `research.md`. Nine chapters, about sixteen minutes. Each chapter is one structure or one pass, in the order
 the data is made and used. Index keys (in backticks) are the source-index entries the storyboard's callouts and
 `sources:` lines name; `source_index.py` writes them from the checkout.
 
@@ -135,18 +135,41 @@ Bridge: "Static or moving, everything ends in one 3D texture; now the frame read
 | c7-quirk | The "valid normal" test is always true (`.length()` is 3) | `normal-length-quirk` | callout |
 | c7-recap/sources | | | |
 
-## 8 | Into the final image | 100 s
+## 8 | Keeping it fast | 345 s
 
-Bridge: "The cone trace leaves two buffers per pixel; the opaque pass turns them into colour."
+Added 2026-11-01 (the user: discover how VoxelGI is optimised, apply it, a chapter of its own; research.md §9). The
+lab now runs the light passes on the GPU as Godot does, into a real RGBA8 3D texture, and has Godot's half-resolution
+setting; the demonstration `cost` counts the work (cost.rs), the performance panel times each pass.
+
+Bridge: "Before the opaque pass turns those buffers into colour, a look at the bill: what all this costs, and how
+Godot keeps it small."
 
 | Beat | Claim | Source | On screen |
 |---|---|---|---|
-| c8-mix | ambient = mix(environment, buffer, alpha); same for reflections | `gi-buffer-mix` | `viewMode` final / ambient / alpha; `interior` toggle |
-| c8-after | then ambient occlusion, x albedo, SSIL, SSR, the environment BRDF | `ao-after`, `albedo-mult`, `env-brdf` | readout rows lit |
-| c8-others | Transparent surfaces trace per pixel in the forward pass (4 cones, always); fog samples every mip at its point | `forward-gi-transparent`, `fog-inject` | callouts |
-| c8-follow | One pixel followed back through every stage, in order | (all) | the worked pixel's chain: cones → samples → mips → cells → lights; camera glides through |
-| c8-recap | Three takeaways: data (sparse octree baked once into a dense mip-mapped 3D texture), light (passes on change, cones per pixel), trade (static geometry, 5 cm cells, light leaks, memory) | | full room, mechanisms switched off and on in frame order |
-| c8-sources | | | |
+| c8-map | The work comes at three rates: the bake once, the light passes on change, the screen pass every frame | `relight-gate` | the map, BAKE, LIGHT, CONE lit in turn |
+| c8-panel | How to read the panel: one row per GPU pass of the last frame, a bar of its share, its mean time | (lab) | `panel=performance`, rows lit |
+| c8-cache | The light passes are absent: nothing changed. Relit every frame (the lab's measurement), four kinds of pass appear; Godot's gate: the light cache and the version, else no work | `update-gate`, `light-cache`, `relight-gate` | `giRelightEachFrame` 0 → 1 → 0, rows highlighted |
+| c8-sparse | An update dispatches only over occupied cells, sorted so each level is one run; 64 cells a workgroup; one dispatch per level, leaves first, a barrier between; 32 dispatches with two bounces | `sort-cells`, `level-dispatch`, `local-size`, `pass-order` | `cellArray` image, `octreeLevel` 7 → 0, readout rows (dispatches, workgroups, leaves vs texels) |
+| c8-march | The shadow march steps as far as the field allows, never less than a cell walk | `raymarch` | `light` demo, `marchSteps` sweep |
+| c8-cones | Per pixel, a cone reads one prefiltered sample per step: Low 4 x at most 7; High 6 x more, slower in the panel; the reflection cone 2 to 381 steps with roughness; the doc's "better reflections" at High: the reflection cone is the same | `cones-low`, `cones-high`, `quality-doc`, `spec-cone` | `quality` 0 → 1 with `voxelgiGiCS` lit; `pixel` demo `sphereRoughness` sweep |
+| c8-half | Half resolution: half-size buffers, one pixel of each 2 x 2 traced, a plain bilinear fetch; a quarter of the pixels; the edges pay | `half-res-setting`, `half-res-buffers`, `half-res-shift`, `gi-buffer-fetch`, `half-res-doc` | `costSplit`, `giHalfResolution` 0 → 1, `viewMode` 1, the camera on the sphere's silhouette |
+| c8-recap/sources | Three rates, three levers (relight only on change, fewer samples, fewer pixels) | | |
+
+Topics: `gpu-amortize` (taught in 4 and 5, recalled), `gi-cone-tracing` (taught in 5 and 7, recalled),
+`geo-sphere-tracing` (recalled). The panel itself is introduced here.
+
+## 9 | Into the final image | 100 s
+
+Bridge: "With the bill counted, back to the two buffers the screen pass left: the opaque pass turns them into colour."
+
+| Beat | Claim | Source | On screen |
+|---|---|---|---|
+| c9-mix | ambient = mix(environment, buffer, alpha); same for reflections | `gi-buffer-mix` | `viewMode` final / ambient / alpha; `interior` toggle |
+| c9-after | then ambient occlusion, x albedo, SSIL, SSR, the environment BRDF | `ao-after`, `albedo-mult`, `env-brdf` | readout rows lit |
+| c9-others | Transparent surfaces trace per pixel in the forward pass (4 cones, always); fog samples every mip at its point | `forward-gi-transparent`, `fog-inject` | callouts |
+| c9-follow | One pixel followed back through every stage, in order | (all) | the worked pixel's chain: cones → samples → mips → cells → lights; camera glides through |
+| c9-recap | Three takeaways: data (sparse octree baked once into a dense mip-mapped 3D texture), light (passes on change, cones per pixel), trade (static geometry, 5 cm cells, light leaks, memory) | | full room, mechanisms switched off and on in frame order |
+| c9-sources | | | |
 
 ## What changes, and what it changes
 

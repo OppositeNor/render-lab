@@ -1,9 +1,11 @@
 // Godot's VoxelGI light passes (voxel_gi.glsl: MODE_COMPUTE_LIGHT's
 // compute_light_at_pos, raymarch, and compute_area_light, with
-// area_lights_inc.glsl's ltc_evaluate_diff; MODE_SECOND_BOUNCE's cone),
-// ported to WGSL for the selftest, which runs them against their CPU mirror
-// (light.rs) through the kernels at the end. Composed after
-// voxelgi_shading.wgsl. Positions are in cells.
+// area_lights_inc.glsl's ltc_evaluate_diff; MODE_SECOND_BOUNCE's cone;
+// MODE_UPDATE_MIPMAPS; MODE_WRITE_TEXTURE), ported to WGSL: the update
+// passes the renderer runs when the light settings change (update.rs), and
+// the selftest's kernels, which run the per-cell functions against their CPU
+// mirror (light.rs). Composed after voxelgi_shading.wgsl. Positions are in
+// cells.
 //
 // Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 // contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur;
@@ -371,4 +373,155 @@ fn voxelgiLightTests(@builtin(workgroup_id) id: vec3<u32>) {
 fn voxelgiBounceTests(@builtin(workgroup_id) id: vec3<u32>) {
     let c = voxelgiBounceCone(gVoxelgiTests[id.x * 2u].xyz, gVoxelgiTests[id.x * 2u + 1u].xyz);
     voxelgiStore(id.x * 4u, c);
+}
+
+// ---------------------------------------------------------------------------
+// The update passes (update.rs; SceneShading::update): one dispatch per pass
+// and level, 64 cells to a workgroup, as gi.cpp:3105-3171 dispatches them.
+
+// Each dispatch's parameters (voxel_gi.glsl's push constant, with where the
+// records start in gShadingData, in vec4s).
+struct VoxelgiUpdate {
+    // The level's first cell and its count.
+    first: u32,
+    count: u32,
+    mip: u32,
+    cells: u32,
+    children: u32,
+    lights: u32,
+    lightCount: u32,
+    pad0: u32,
+    propagation: f32,
+    dynamicRange: f32,
+    // Metres per cell.
+    cellSize: f32,
+    pad1: f32,
+    pad2: vec4<f32>,
+}
+@group(2) @binding(0) var<uniform> gVoxelgiUpdate: VoxelgiUpdate;
+// write_buffer: each cell's float light (rgb), from the light pass up the levels.
+@group(2) @binding(1) var<storage, read_write> gVoxelgiOutputs: array<vec4<f32>>;
+// The light texture's mip this dispatch writes (MODE_WRITE_TEXTURE).
+@group(2) @binding(2) var oVoxelgiLight: texture_storage_3d<rgba8unorm, write>;
+
+// CellData: position (11, 10, 11 bits), albedo RGBA8, emission RGBE9995, normal SNORM8.
+struct VoxelgiCell {
+    position: vec3<f32>,
+    texel: vec3<i32>,
+    albedo: vec4<f32>,
+    emission: vec3<f32>,
+    normal: vec3<f32>,
+}
+
+fn voxelgiCell(cell: u32) -> VoxelgiCell {
+    let d = bitcast<vec4<u32>>(gShadingData[gVoxelgiUpdate.cells + cell]);
+    let posu = vec3<u32>(d.x & 0x7FFu, (d.x >> 11u) & 0x3FFu, d.x >> 21u);
+    var c: VoxelgiCell;
+    c.texel = vec3<i32>(posu);
+    c.position = vec3<f32>(posu) + vec3<f32>(0.5);
+    c.albedo = unpack4x8unorm(d.y);
+    let m = exp2(f32(d.z >> 27u) - 15.0 - 9.0);
+    c.emission = vec3<f32>(f32(d.z & 0x1FFu), f32((d.z >> 9u) & 0x1FFu), f32((d.z >> 18u) & 0x1FFu)) * m;
+    c.normal = unpack4x8snorm(d.w).xyz;
+    return c;
+}
+
+fn voxelgiLoadLight(i: u32) -> VoxelgiLight {
+    let b = gVoxelgiUpdate.lights + i * 6u;
+    let t0 = gShadingData[b];
+    let t1 = gShadingData[b + 1u];
+    let t2 = gShadingData[b + 2u];
+    let t3 = gShadingData[b + 3u];
+    return VoxelgiLight(u32(t0.x), t0.y, t0.z, t0.w, t1.xyz, t1.w, t2.xyz, t2.w, t3.xyz, t3.w > 0.5, gShadingData[b + 4u].xyz, gShadingData[b + 5u].xyz);
+}
+
+// MODE_COMPUTE_LIGHT: every light's contribution at a leaf, times its albedo,
+// plus its emission, into write_buffer.
+@compute @workgroup_size(64)
+fn voxelgiLightCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= gVoxelgiUpdate.count) {
+        return;
+    }
+    let cell = gVoxelgiUpdate.first + id.x;
+    let c = voxelgiCell(cell);
+    var accum = vec3<f32>(0.0);
+    for (var i = 0u; i < gVoxelgiUpdate.lightCount; i++) {
+        accum += voxelgiCellLight(voxelgiLoadLight(i), c.position, c.normal, gVoxelgiUpdate.cellSize) * c.albedo.rgb;
+    }
+    gVoxelgiOutputs[cell] = vec4<f32>(accum + c.emission, 0.0);
+}
+
+// MODE_SECOND_BOUNCE: six cones through the texture pass 0 wrote, in the
+// leaf's tangent frame, added to its direct light.
+@compute @workgroup_size(64)
+fn voxelgiBounceCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= gVoxelgiUpdate.count) {
+        return;
+    }
+    let cell = gVoxelgiUpdate.first + id.x;
+    let c = voxelgiCell(cell);
+    var accum = gVoxelgiOutputs[cell].rgb;
+    if (length(c.normal) > 0.2) {
+        var v0 = vec3<f32>(0.0, 1.0, 0.0);
+        if (abs(c.normal.z) < 0.999) {
+            v0 = vec3<f32>(0.0, 0.0, 1.0);
+        }
+        let tangent = normalize(cross(v0, c.normal));
+        let bitangent = normalize(cross(tangent, c.normal));
+        var dirs = array<vec3<f32>, 6>(vec3<f32>(0.0, 0.0, 1.0), vec3<f32>(0.866025, 0.0, 0.5), vec3<f32>(0.267617, 0.823639, 0.5), vec3<f32>(-0.700629, 0.509037, 0.5), vec3<f32>(-0.700629, -0.509037, 0.5), vec3<f32>(0.267617, -0.823639, 0.5));
+        var weights = array<f32, 6>(0.25, 0.15, 0.15, 0.15, 0.15, 0.15);
+        for (var i = 0; i < 6; i++) {
+            let d = dirs[i];
+            let direction = tangent * d.x + bitangent * d.y + c.normal * d.z;
+            let color = voxelgiBounceCone(c.position, direction) * weights[i] * vec4<f32>(c.albedo.rgb, 1.0) * gVoxelgiUpdate.dynamicRange;
+            accum += color.rgb;
+        }
+    }
+    gVoxelgiOutputs[cell] = vec4<f32>(accum, 0.0);
+}
+
+// MODE_UPDATE_MIPMAPS: a parent's light, its children's summed and divided
+// by mix(8, their count, propagation).
+@compute @workgroup_size(64)
+fn voxelgiMipmapsCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= gVoxelgiUpdate.count) {
+        return;
+    }
+    let cell = gVoxelgiUpdate.first + id.x;
+    let b = gVoxelgiUpdate.children + cell * 2u;
+    let lo = bitcast<vec4<u32>>(gShadingData[b]);
+    let hi = bitcast<vec4<u32>>(gShadingData[b + 1u]);
+    let children = array<u32, 8>(lo.x, lo.y, lo.z, lo.w, hi.x, hi.y, hi.z, hi.w);
+    var accum = vec3<f32>(0.0);
+    var count = 0u;
+    for (var i = 0; i < 8; i++) {
+        let child = children[i];
+        if (child == 0xFFFFFFFFu) {
+            continue;
+        }
+        accum += gVoxelgiOutputs[child].rgb;
+        count += 1u;
+    }
+    let divisor = mix(8.0, f32(count), gVoxelgiUpdate.propagation);
+    gVoxelgiOutputs[cell] = vec4<f32>(accum / divisor, 0.0);
+}
+
+// MODE_WRITE_TEXTURE: a cell's light over the dynamic range, and its
+// coverage, into its texel of its level's mip; texels without a cell stay 0.
+@compute @workgroup_size(64)
+fn voxelgiWriteCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= gVoxelgiUpdate.count) {
+        return;
+    }
+    let cell = gVoxelgiUpdate.first + id.x;
+    let c = voxelgiCell(cell);
+    textureStore(oVoxelgiLight, c.texel, vec4<f32>(gVoxelgiOutputs[cell].rgb / gVoxelgiUpdate.dynamicRange, c.albedo.a));
+}
+
+// Input, one vector per test: (uvw, lod). Output, 4 words: the light
+// texture's sample there (the sampler storage.rs's sample_lod mirrors).
+@compute @workgroup_size(1)
+fn voxelgiSampleTests(@builtin(workgroup_id) id: vec3<u32>) {
+    let t = gVoxelgiTests[id.x];
+    voxelgiStore(id.x * 4u, voxelgiSampleLod(t.xyz, t.w));
 }

@@ -38,6 +38,11 @@
 //! (`gpu::chain_binding`, src/investigation.rs `ShadingPass`), read-only, and
 //! the renderer runs the kind after the chain, so it shows this frame's data.
 //! A kind without `reads` runs before the scene, with group 2 unbound.
+//!
+//! A kind that pictures the screen takes the viewport's shape
+//! (`aspect=viewport`): `size` is then its landscape size, whose longer side
+//! its texture keeps, the other side following the viewport's aspect; the
+//! texture is made again when that changes (`ViewKind::texels`).
 //! Naga reads a declaration's `///` lines only when no `//` comment comes
 //! between them and the declaration before it, so a file's `//` header hides
 //! the tags of its first declaration: write it as part of the `///` block.
@@ -66,8 +71,11 @@ pub struct ViewKind {
     /// The pass-chain targets, buffers, or depth views it reads at group 2
     /// (`reads=`), in order; empty for none.
     pub reads: Vec<String>,
-    /// Its texture's size in texels.
+    /// Its texture's size in texels (with `viewport_aspect`, at a landscape
+    /// viewport of the same shape; `texels`).
     pub size: [u32; 2],
+    /// Its texture takes the viewport's shape (`aspect=viewport`).
+    pub viewport_aspect: bool,
     /// Its title: a key of its package's text.
     pub text: Option<String>,
     pub doc: String,
@@ -89,6 +97,18 @@ pub struct ViewParam {
 }
 
 impl ViewKind {
+    /// Its texture's size in texels at a viewport of `viewport` pixels: its
+    /// `size`, or with `viewport_aspect` that size's longer side along the
+    /// viewport's longer one and the other side in the viewport's aspect.
+    pub fn texels(&self, viewport: [u32; 2]) -> [u32; 2] {
+        if !self.viewport_aspect || viewport[0] == 0 || viewport[1] == 0 {
+            return self.size;
+        }
+        let long = self.size[0].max(self.size[1]) as f32;
+        let aspect = viewport[0] as f32 / viewport[1] as f32;
+        let side = |s: f32| (s.round() as u32).clamp(1, 2048);
+        if aspect >= 1.0 { [side(long), side(long / aspect)] } else { [side(long * aspect), side(long)] }
+    }
     pub fn param(&self, key: &str) -> Option<&ViewParam> {
         self.params.iter().find(|p| p.key == key)
     }
@@ -177,8 +197,8 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
         }
         let Some(key) = arg("view") else { continue };
         let [key] = key.as_slice() else { bail!("{id}: `{name}`: `view=` names one kind{at}") };
-        if let Some(t) = tags.iter().find(|t| !["view", "entry", "size", "text", "reads"].contains(&t.name.as_str())) {
-            bail!("{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text, reads){at}", t.name);
+        if let Some(t) = tags.iter().find(|t| !["view", "entry", "size", "text", "reads", "aspect"].contains(&t.name.as_str())) {
+            bail!("{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text, reads, aspect){at}", t.name);
         }
         if binding != Some((VIEW_GROUP, 0)) {
             bail!("{id}: `{name}`, the image kind `{key}`, is bound at @group({VIEW_GROUP}) @binding(0){at}");
@@ -196,9 +216,14 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
         if size[0] == 0 || size[1] == 0 || size[0] > 2048 || size[1] > 2048 {
             bail!("{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}", size[0], size[1]);
         }
+        let viewport_aspect = match arg("aspect").as_deref() {
+            None => false,
+            Some([a]) if a == "viewport" => true,
+            Some(_) => bail!("{id}: the image kind `{key}`: `aspect=` takes `viewport` (its texture takes the viewport's shape){at}"),
+        };
         let text = arg("text").and_then(|t| t.first().cloned());
         let reads = arg("reads").unwrap_or_default();
-        kinds.push(ViewKind { key: key.clone(), package: package.to_string(), module: id.to_string(), entry, workgroup: point.workgroup_size, size, text, reads, doc, params: Vec::new(), params_size: 0 });
+        kinds.push(ViewKind { key: key.clone(), package: package.to_string(), module: id.to_string(), entry, workgroup: point.workgroup_size, size, viewport_aspect, text, reads, doc, params: Vec::new(), params_size: 0 });
     }
     for (key, (handle, at)) in params_of {
         let Some(kind) = kinds.iter_mut().find(|k| k.key == key) else { bail!("{id}: parameters of `{key}`, which is not an image kind of the module{at}") };

@@ -4,7 +4,7 @@
 /// and the picked pixel's tile outlined. `mode` 0 counts the tile's fullest
 /// bin, as O3DE's (disabled) LightCullingHeatmap does, from TileLightData.w;
 /// 1 the bin each pixel's own depth falls in, the list the forward pass walks.
-/// {@ view=tileGrid entry=o3deTileGridView size=384,216 text=views.tile_grid reads=tileData,lightListRemapped,depth}
+/// {@ view=tileGrid entry=o3deTileGridView size=384,216 aspect=viewport text=views.tile_grid reads=tileData,lightListRemapped,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct TileGridParams {

@@ -225,44 +225,65 @@ pub fn direct_with_omni(at: Vec3) -> Arc<Vec<Vec3>> {
     all
 }
 
-/// The scene shading's data buffer (gShadingData): every mip of the lit
-/// texture, one RGBA8 word per texel, x fastest, mip 0 first; then the
-/// distance field, four bytes a word (for the light kernels); four words a vec4.
-pub fn shading_data() -> Vec<[f32; 4]> {
-    let w = world();
-    let mut words = w.lit.texture.words();
-    debug_assert_eq!(words.len() as u32, texture_words(&w.probe));
-    words.extend(w.probe.sdf.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])));
-    while words.len() % 4 != 0 {
-        words.push(0);
-    }
-    words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect()
+/// Where the light passes' records start in the scene shading's data
+/// buffer (`shading_data`), in vec4s: the cells' `CellData`, one each; their
+/// `CellChildren`, two each; the lights, six each.
+#[derive(Clone, Copy, Debug)]
+pub struct DataLayout {
+    pub cells: u32,
+    pub children: u32,
+    pub lights: u32,
+    pub light_count: u32,
 }
 
-/// `shading_data` with the lit texture for `s` (the Experiments tab's
-/// settings of the scene's node, `Investigation::scene_data`).
-pub fn shading_data_for(s: &LightSettings) -> Vec<[f32; 4]> {
+pub fn data_layout() -> DataLayout {
     let w = world();
-    let lit = lit_for(s);
-    let mut words = lit.texture.words();
-    words.extend(w.probe.sdf.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])));
+    let sdf = (w.probe.sdf.len() as u32).div_ceil(16);
+    let cells = w.probe.data.len() as u32;
+    DataLayout { cells: sdf, children: sdf + cells, lights: sdf + 3 * cells, light_count: w.lights.len().min(light::MAX_LIGHTS) as u32 }
+}
+
+/// The scene shading's data buffer (gShadingData), what the light passes
+/// read (update.rs): the distance field, four bytes a word; then, from
+/// `data_layout`, each cell's `CellData`, its `CellChildren`, and the lights
+/// as voxelgiLightTests reads them. The light texture is a 3D texture the
+/// passes write (`SceneShading::volumes`).
+pub fn shading_data() -> Vec<[f32; 4]> {
+    let w = world();
+    let mut words: Vec<u32> = w.probe.sdf.chunks(4).map(|b| {
+        let mut q = [0u8; 4];
+        q[..b.len()].copy_from_slice(b);
+        u32::from_le_bytes(q)
+    }).collect();
     while words.len() % 4 != 0 {
         words.push(0);
     }
-    words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect()
+    let layout = data_layout();
+    debug_assert_eq!(words.len() as u32 / 4, layout.cells);
+    for d in &w.probe.data {
+        words.extend([d.position, d.albedo, d.emission, d.normal]);
+    }
+    for c in &w.probe.octree {
+        words.extend(c);
+    }
+    let mut out: Vec<[f32; 4]> = words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect();
+    debug_assert_eq!(out.len() as u32, layout.lights);
+    for l in w.lights.iter().take(light::MAX_LIGHTS) {
+        out.extend([
+            [l.kind as f32, l.energy, l.radius, l.attenuation],
+            l.color.extend(l.cos_spot_angle).to_array(),
+            l.position.extend(l.inv_spot_attenuation).to_array(),
+            l.direction.extend(l.has_shadow as u32 as f32).to_array(),
+            l.area_width.extend(0.0).to_array(),
+            l.area_height.extend(0.0).to_array(),
+        ]);
+    }
+    out
 }
 
 /// The scene node's light settings in a shot (giDynamicRange, giPropagation, giTwoBounces).
 pub fn scene_settings(state: &lab::shot::ShotState) -> LightSettings {
     LightSettings { dynamic_range: state.p("giDynamicRange"), propagation: state.p("giPropagation"), two_bounces: state.p("giTwoBounces") > 0.5 }
-}
-
-/// Words of the texture's mips in the data buffer: where the field starts.
-pub fn texture_words(probe: &Probe) -> u32 {
-    (0..probe.mip_count()).map(|m| {
-        let s = probe.mip_size(m);
-        (s.x * s.y * s.z) as u32
-    }).sum()
 }
 
 /// The lit texture for `s`: the world's own at the defaults, else `lit_with`.

@@ -52,6 +52,7 @@ G3D = "core/math/geometry_3d.h"
 COLOR = "core/math/color.h"
 VI3D = "scene/3d/visual_instance_3d.cpp"
 DOC = "doc/classes/VoxelGI.xml"
+PS = "doc/classes/ProjectSettings.xml"
 SH = RD + "shaders/environment/"
 VG = SH + "voxel_gi.glsl"
 VGD = SH + "voxel_gi_debug.glsl"
@@ -394,6 +395,47 @@ ENTRIES: list[Entry] = [
      "The debug lighting view's multiplication by the dynamic range has no assignment, so it shows the stored texel, darker by the dynamic range.",
      "调试光照视图中乘以动态范围的语句没有赋值，所以它显示的是存储的纹素，暗了动态范围倍。",
      []),
+    # Chapter 8: how it is kept fast (research.md section 9).
+    ("update-gate", GI, "if (has_dynamic_object_data || p_update_light_instances || p_dynamic_objects.size()) {", "GI::VoxelGIInstance::update (the gate)",
+     "The light passes, the mips, and the texture writes run only when the lights changed, or dynamic objects are or were plotted; a static scene with unchanged lights does no light-pass work on the GPU at all.",
+     "只有当光源变化，或存在（或曾存在）动态物体时，光照、mip 与贴图写入才会运行；光源不变的静态场景在 GPU 上完全不做光照通道的工作。",
+     []),
+    ("level-dispatch", GI, "passes = gi->voxel_gi_is_using_two_bounces(probe) ? 2 : 1; >>> push_constant.cell_offset = mipmaps[i].cell_offset;", "GI::VoxelGIInstance::update (one dispatch per level)",
+     "Each level is one dispatch over its run of the sorted cells: its first cell and count go in the push constant, (count + 63) / 64 workgroups; the leaves first, then each coarser level after a barrier.",
+     "每个层级是对已排序单元中该层那一段的一次派发：起始单元与数量放入 push constant，工作组数为 (count + 63) / 64；先是叶子，然后每个更粗的层级在屏障之后执行。",
+     [("passes = gi->voxel_gi_is_using_two_bounces(probe) ? 2 : 1; >>> RD::get_singleton()->compute_list_add_barrier(compute_list);", "a barrier between levels", "层级之间的屏障")]),
+    ("local-size", VG, "layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;", "voxel_gi.glsl",
+     "The light passes' workgroup: 64 cells in a row; a thread past the level's count returns.",
+     "光照通道的工作组：一行 64 个单元；超出该层数量的线程直接返回。",
+     []),
+    ("half-res-setting", GI, "half_resolution = GLOBAL_GET(\"rendering/global_illumination/gi/use_half_resolution\");", "GI::init",
+     "The project setting rendering/global_illumination/gi/use_half_resolution, off by default and read at start-up, for VoxelGI's and SDFGI's screen pass.",
+     "项目设置 rendering/global_illumination/gi/use_half_resolution，默认关闭，在启动时读取，作用于 VoxelGI 与 SDFGI 的屏幕通道。",
+     []),
+    ("half-res-buffers", GI, "size.x >>= 1;", "GI::process_gi (buffers)",
+     "At half resolution the ambient and reflection buffers (RGBA16F) are half the width and half the height.",
+     "半分辨率时，环境光与反射缓冲（RGBA16F）的宽和高各减半。",
+     []),
+    ("half-res-dispatch", GI, "compute_list_dispatch_threads(compute_list, internal_size.x >> 1, internal_size.y >> 1, 1);", "GI::process_gi (dispatch)",
+     "The screen pass then runs on a quarter of the threads.",
+     "此时屏幕通道只运行四分之一的线程。",
+     []),
+    ("half-res-shift", GIG, "pos <<= 1;", "gi.glsl main (half resolution)",
+     "Each thread reads the top-left pixel of its 2 x 2 block (its position doubled), traces it, and stores the result at its own, halved, texel: one pixel of four is traced.",
+     "每个线程读取其 2 x 2 像素块左上角的像素（位置乘以 2），对它追踪，并把结果写到自己（减半后）的纹素：四个像素中只追踪一个。",
+     [("pos >>= 1;", "back to the buffer's texel", "回到缓冲的纹素")]),
+    ("gi-buffer-fetch", SCENE, "vec4 buffer_ambient = textureLod(sampler2D(ambient_buffer, SAMPLER_LINEAR_CLAMP), coord, 0.0);", "scene_forward_clustered.glsl (GI buffers)",
+     "The opaque pass reads the buffers at the pixel's centre with a plain bilinear sampler: at half resolution this is the whole upsample, with no depth weights; only with MSAA does it first move to the neighbour whose normal is closest.",
+     "不透明通道以普通双线性采样器在像素中心读取缓冲：半分辨率时这就是全部的上采样，没有深度权重；只有开启 MSAA 时，才会先移到法线最接近的邻居。",
+     [("if (implementation_data.gi_upscale_for_msaa) {", "the normal-aware pick, with MSAA only", "仅在 MSAA 时的法线感知选择")]),
+    ("half-res-doc", PS, "<member name=\"rendering/global_illumination/gi/use_half_resolution\"", "ProjectSettings.xml",
+     "The documentation: it improves performance significantly, at the cost of artifacts that may be visible on polygon edges, less noticeable as the resolution grows.",
+     "文档说明：它能显著提升性能，代价是多边形边缘可能出现瑕疵，分辨率越高越不明显。",
+     []),
+    ("quality-doc", PS, "<member name=\"rendering/global_illumination/voxel_gi/quality\"", "ProjectSettings.xml",
+     "The documentation says High gives more precise lighting and better reflections; in gi.glsl only the diffuse cones change, and the reflection cone is the same at both qualities.",
+     "文档称 High 带来更精确的光照和更好的反射；而在 gi.glsl 中只有漫反射锥体改变，反射锥体在两种质量下相同。",
+     []),
 ]
 
 CHAPTERS = [
@@ -411,7 +453,9 @@ CHAPTERS = [
      ["gi-mode-flags", "dynamic-list", "dynamic-oversample", "dynamic-views", "material-outputs", "dynamic-lighting", "shrink", "plot-blend", "dynamic-clear", "dynamic-light-count"]),
     (7, "Reading it per pixel", "逐像素读取",
      ["pairing-two", "instance-ubo", "tag-format", "tag-write", "process-gi", "normal-length-quirk", "instance-loop", "voxel-gi-compute", "edge-blend", "cones-low", "cone-trace-45", "cones-high", "cone-trace", "spec-cone", "range-restore"]),
-    (8, "Into the final image", "合成最终图像",
+    (8, "Keeping it fast", "保持高效",
+     ["relight-gate", "update-gate", "light-cache", "sort-cells", "level-dispatch", "local-size", "pass-order", "raymarch", "light-at-pos", "cones-low", "cones-high", "quality-doc", "spec-cone", "half-res-setting", "half-res-buffers", "half-res-shift", "half-res-dispatch", "gi-buffer-fetch", "half-res-doc"]),
+    (9, "Into the final image", "合成最终图像",
      ["gi-buffer-mix", "forward-gi-transparent", "forward-cones", "fog-inject", "debug-noop", "bias-mismatch", "frame-order"]),
 ]
 
@@ -426,6 +470,7 @@ DEMOS: dict[str, list[str]] = {
     "mips": ["update-mipmaps", "write-texture"],
     "dynamic": ["dynamic-views", "shrink", "plot-blend"],
     "pixel": ["voxel-gi-compute", "cone-trace", "cone-trace-45"],
+    "cost": ["update-gate", "level-dispatch", "cones-low", "half-res-dispatch", "gi-buffer-fetch"],
     "compose": ["gi-buffer-mix"],
 }
 
@@ -447,7 +492,7 @@ MAPPINGS = [
      "relationship": "exact", "sources": ["instance-texture", "write-texture"],
      "exact": "RGBA8 UNORM; mip m is the octree's size >> m (at least 1), holding level depth - m; rgb = the cell's light / dynamic_range, a = its coverage (1 for a leaf, the children's sum / 8 above); texels without a cell are 0.",
      "exactZh": "RGBA8 UNORM；第 m 级 mip 为八叉树尺寸 >> m（至少为 1），存放第 depth - m 层；rgb = 单元格的光 / dynamic_range，a = 其覆盖率（叶子为 1，以上各层为子单元格之和 / 8）；没有单元格的 texel 为 0。",
-     "labLayout": "The same texels, kept by the lab's CPU model (storage.rs LightTexture) and packed one word each into the scene shading's data buffer.", "labLayoutZh": "实验室 CPU 模型（storage.rs 的 LightTexture）保存相同纹素，并将每个纹素打包为一个 word，写入场景着色数据缓冲区。"},
+     "labLayout": "The same texels, in an RGBA8 3D texture the lab's light passes write on the GPU (update.rs); storage.rs's LightTexture is their CPU mirror.", "labLayoutZh": "相同的纹素，存于实验室在 GPU 上由光照通道写入的 RGBA8 3D 贴图（update.rs）；storage.rs 的 LightTexture 是它的 CPU 镜像。"},
     {"lab": "VoxelgiInstance", "engineShort": "VoxelGIData (UBO)", "engineName": "The screen pass's per-instance UBO entry (GI::VoxelGIData, setup_voxel_gi_instances)", "engineNameZh": "屏幕渲染阶段的每实例 UBO 条目（GI::VoxelGIData，由 setup_voxel_gi_instances 写入）",
      "relationship": "conceptual", "sources": ["instance-ubo"],
      "exact": "112 bytes, std140: float xform[16] (to cells, from the camera-relative position), float bounds[3], float dynamic_range (x energy), float bias, float normal_bias, uint blend_ambient, uint mipmaps, float exposure_normalization, pad. Up to 8 entries.",

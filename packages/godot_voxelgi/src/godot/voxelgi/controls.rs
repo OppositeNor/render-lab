@@ -34,6 +34,10 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
             dock.values(ui, tr("controls.dynamic"), Some(tr("hints.dynamic")), "dynamic");
             toggles.push(("dynamicVoxels", tr("controls.dynamic_voxels")));
         }
+        Demo::Cost => {
+            dock.values(ui, tr("controls.gi"), Some(tr("hints.cost")), "gi");
+            toggles.push(("costSplit", tr("controls.cost_split")));
+        }
         Demo::Pixel => {
             dock.values(ui, tr("controls.cones"), Some(tr("hints.cones")), "cones");
             dock.values(ui, tr("controls.gi"), Some(tr("hints.gi")), "gi");

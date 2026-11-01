@@ -276,3 +276,35 @@ bounces, and new data bump the version (gi.cpp:188, :256, :271, :344); "seventy-
 128 cells on the longest axis. Lab measurements used by the story: 42,289 leaves of 56,376 cells; the worked leaf
 (63, 6, 29) of the teapot; the bounce's worked cell's last cone, 11 steps, alpha 0.64; the brightest leaf's light 3.3
 (so it clips at a dynamic range of 1 or 2).
+
+## 9. How it is kept affordable (2026-11-01)
+
+A research agent read the checkout for every cost-saving measure; the main agent re-read the half-resolution path,
+the quality switch, and the update gate (**checked**). The full report, with every file:line, ranked by saving:
+
+| # | What | Where (checkout) | Setting (default) | Saves | Costs |
+|---|---|---|---|---|---|
+| 1 | Bake once; light passes only on change: the culler compares every light with its cache on the CPU each frame; the passes run only when it or the version changed, or dynamic objects exist or were plotted last frame (**checked**) | cull:3920-4004; gi.cpp:3067, :4298-4303 | none | a static scene does no light-pass GPU work at all | moving the node alone does not relight |
+| 2 | Cones through mips instead of rays: one trilinear fetch per step, the step half the cone's width | gi.glsl:487-531 | none | Low: 4 cones x at most 7 steps in the lab's box (cost.rs) | box-filtered light leaks through thin walls |
+| 3 | Sparse, level-sorted cells: one dispatch per level over that level's run, 64 cells a workgroup, a barrier between levels | voxelizer.h:73-89; gi.cpp:3102-3171; vg.glsl:10 | `subdiv` 128 | 42,289 leaves lit against 1,048,576 texels of mip 0 | idle lanes in the coarse levels; serial levels |
+| 4 | Half-resolution GI: half-size buffers, one pixel of each 2 x 2 block traced, the opaque pass's plain bilinear fetch (no depth weights; the normal-aware pick only with MSAA) (**checked**) | gi.cpp:3810, :3987-3996, :4266-4270; gi.glsl:705-724; sfc.glsl:1986-2023 | `gi/use_half_resolution` (false) | a quarter of the screen pass's pixels | "artifacts that may be visible on polygon edges" (ProjectSettings.xml:3063) |
+| 5 | Quality Low: 4 cones at 45 degrees (the distance doubles each step) instead of 6 at 30; a push-constant flag (**checked**) | gi.glsl:558-586; gi.cpp:3584, :4043 | `voxel_gi/quality` (Low) | fewer samples per pixel | a blurrier diffuse lobe; **the reflection cone is the same in both**, though the doc says High gives "better reflections" (ProjectSettings.xml:3080) |
+| 6 | The distance-field shadow march: steps as far as the field allows, never less than a cell walk | vg.glsl:180-203 | none | far fewer samples in open space | hard shadows, one-cell resolution |
+| 7 | Early-outs: light range, spot cone, attenuation < 0.01, back-facing before the march; the bounds test (which also ends sky pixels, whose tag is 0) | vg.glsl:223-336; gi.glsl:541 | none | the march only where it matters | the dim tail is cut |
+| 8 | Bandwidth: RGBA8 light / dynamic range, R8 field, 24-bit best-fit normal, R8G8 tag | gi.cpp:2631, :104-117; sfc.glsl:1183-1203 | `dynamic_range` 2 | 4 B a texel | banding in the dark |
+| 9 | Dynamic objects: skipped when there are none; otherwise only their box's rectangle, then a shrink chain | gi.cpp:3177-3395 | `gi_mode` Static | no per-frame clear or re-blit without them | no bounce or shadows from them |
+
+Not optimisations: no async compute, no temporal reuse of the screen pass, no denoise; the edge fade saves nothing;
+the unused push constants (§3). Corrections to the sections above: the sky's tag is 0, not 0xFF (rfc:1950-1954), so
+the sky ends at the bounds test; the per-pixel cones stop at alpha 1.0, the bounce at 0.95.
+
+Specular cone steps depend on the roughness: in the lab's box (192 cells across, bias 1.5), at most 2 at roughness 1, 15 at
+0.5, 381 at 0 (cost.rs, asserted by the selftest).
+
+**Where the lab differs, now:** the light passes run on the GPU as Godot's (update.rs, voxelgi_passes.wgsl: one
+dispatch per level, 64 cells a workgroup, only when the scene node's light settings change; the lab's lights never
+move, so its cache is the settings' key), into a real RGBA8 3D texture sampled with a trilinear, mip-linear sampler
+(`SceneShading::volumes`). light.rs remains the CPU mirror the demonstrations draw; the selftest compares the two
+(about 1 % of texels differ by one 8-bit step; the texture unit's filtering is within 2 %). Half resolution follows
+gi.glsl and the opaque pass's bilinear fetch, without MSAA's normal-aware pick. The lab can relight every frame
+(`giRelightEachFrame`, a measurement, not a Godot setting) so the performance panel times the passes.

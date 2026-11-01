@@ -7,8 +7,11 @@
 //!
 //! - `[[topic]]` tables, the nodes: `key`, `title-text` and `summary-text`
 //!   (keys of the package's text tables), `area` (the panel's grouping), the
-//!   `requires` list, optional `reading` (published references), and
-//!   `base = true` for the three bases (rlstd's alone);
+//!   `requires` list, optional `reading` (published references), optional
+//!   `group` (a group of its area it belongs to), and `base = true` for the
+//!   three bases (rlstd's alone);
+//! - `[[group]]` tables, subsections of an area that gather related topics
+//!   (the panel boxes them): `key`, `title-text`, `area`;
 //! - `[[chapter]]` tables, an investigation's chapters: `number`, `demos` (the
 //!   demonstrations that show it), and `requires`, the nodes it uses directly;
 //! - an `[audience]` table: `profile` (a note, not shown) and `known`, the
@@ -50,6 +53,18 @@ pub struct Node {
     /// The nodes it requires directly (indices).
     pub requires: Vec<usize>,
     pub reading: Vec<String>,
+    /// The group it belongs to (`Graph::groups`).
+    pub group: Option<usize>,
+}
+
+/// A subsection of an area: related topics the panel draws in a box.
+#[derive(Clone, Debug)]
+pub struct Group {
+    /// Its full name, `<package>.knowledge#<key>`.
+    pub id: String,
+    pub key: String,
+    pub title: String,
+    pub area: String,
 }
 
 /// One chapter of an investigation.
@@ -66,6 +81,7 @@ pub struct Chapter {
 pub struct Graph {
     pub package: String,
     pub nodes: Vec<Node>,
+    pub groups: Vec<Group>,
     pub chapters: Vec<Chapter>,
     pub profile: Option<String>,
     /// The audience's known nodes, as written (without their closure).
@@ -73,8 +89,9 @@ pub struct Graph {
 }
 
 /// The panel's layout (graph units: a node is one unit high; x grows from
-/// the bases' column on the left, y downward).
-pub use crate::layered::Layout;
+/// the bases' column on the left, y downward), with a box per group
+/// (`Clustered::boxes`, by group index).
+pub use crate::layered::{Clustered, Layout};
 
 /// The audience split of a graph's chapter subgraph.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -257,10 +274,13 @@ struct RawNode {
     base: bool,
     requires: Vec<String>,
     reading: Vec<String>,
+    group: Option<String>,
 }
 
 struct RawFile {
     nodes: Vec<RawNode>,
+    /// key, title text key, area.
+    groups: Vec<(String, String, String)>,
     chapters: Vec<(u32, Vec<String>, Vec<String>)>,
     profile: Option<String>,
     known: Vec<String>,
@@ -287,8 +307,8 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
     let fail = |m: String| format!("knowledge: {at}: {m}");
     let document = toml_edit::Document::parse(text.to_string()).map_err(|e| fail(format!("parse: {e}")))?;
     let table = document.as_table();
-    if let Some((key, _)) = table.iter().find(|(k, _)| !["topic", "chapter", "audience"].contains(k)) {
-        return Err(fail(format!("unknown key `{key}` (a knowledge file has topic, chapter, audience)")));
+    if let Some((key, _)) = table.iter().find(|(k, _)| !["topic", "group", "chapter", "audience"].contains(k)) {
+        return Err(fail(format!("unknown key `{key}` (a knowledge file has topic, group, chapter, audience)")));
     }
     let tables = |name: &str| -> Result<Vec<&toml_edit::Table>, String> {
         match table.get(name) {
@@ -298,7 +318,7 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
     };
     let mut nodes = Vec::new();
     for t in tables("topic")? {
-        const FIELDS: &[&str] = &["key", "title-text", "summary-text", "area", "base", "requires", "reading"];
+        const FIELDS: &[&str] = &["key", "title-text", "summary-text", "area", "base", "requires", "reading", "group"];
         if let Some((key, _)) = t.iter().find(|(k, _)| !FIELDS.contains(k)) {
             return Err(fail(format!("a topic has no field `{key}` (it has {})", FIELDS.join(", "))));
         }
@@ -318,8 +338,22 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
             base: t.get("base").map(|b| b.as_bool().ok_or_else(|| f("`base` is true or false".into()))).transpose()?.unwrap_or(false),
             requires: strings(t, "requires", &f)?,
             reading: strings(t, "reading", &f)?,
+            group: string(t, "group", &f)?,
             key,
         });
+    }
+    let mut groups = Vec::new();
+    for t in tables("group")? {
+        if let Some((key, _)) = t.iter().find(|(k, _)| !["key", "title-text", "area"].contains(k)) {
+            return Err(fail(format!("a group has no field `{key}` (it has key, title-text, area)")));
+        }
+        let key = string(t, "key", &fail)?.ok_or_else(|| fail("a group needs `key`".into()))?;
+        let f = |m: String| fail(format!("group `{key}`: {m}"));
+        let area = string(t, "area", &f)?.ok_or_else(|| f("needs `area`".into()))?;
+        if !AREAS.contains(&area.as_str()) {
+            return Err(f(format!("area `{area}` is not one of {}", AREAS.join(", "))));
+        }
+        groups.push((key.clone(), string(t, "title-text", &f)?.ok_or_else(|| f("needs `title-text`".into()))?, area));
     }
     let mut chapters = Vec::new();
     for t in tables("chapter")? {
@@ -340,7 +374,7 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
             (string(t, "profile", &fail)?, strings(t, "known", &fail)?)
         }
     };
-    Ok(RawFile { nodes, chapters, profile, known })
+    Ok(RawFile { nodes, groups, chapters, profile, known })
 }
 
 /// The full node name a reference in `package`'s topics names.
@@ -372,8 +406,33 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
                 return Err(format!("knowledge: {}: `{}` is a base; only rlstd declares the bases", p.name, node.key));
             }
             index.insert(id.clone(), graph.nodes.len());
-            graph.nodes.push(Node { id, package: p.name.clone(), key: node.key.clone(), title: text(&p.name, &node.title), summary: text(&p.name, &node.summary), area: node.area.clone(), base: node.base, requires: Vec::new(), reading: node.reading.clone() });
+            graph.nodes.push(Node { id, package: p.name.clone(), key: node.key.clone(), title: text(&p.name, &node.title), summary: text(&p.name, &node.summary), area: node.area.clone(), base: node.base, requires: Vec::new(), reading: node.reading.clone(), group: None });
         }
+    }
+    let mut group_index: BTreeMap<String, usize> = BTreeMap::new();
+    for (p, file) in &files {
+        for (key, title, area) in &file.groups {
+            let id = format!("{}.knowledge#{}", p.name, key);
+            if group_index.contains_key(&id) || index.contains_key(&id) {
+                return Err(format!("knowledge: {}: `{key}` is declared twice (a group's key is not a topic's)", p.name));
+            }
+            group_index.insert(id.clone(), graph.groups.len());
+            graph.groups.push(Group { id, key: key.clone(), title: text(&p.name, title), area: area.clone() });
+        }
+    }
+    let mut start = 0;
+    for (p, file) in &files {
+        let at = all.iter().position(|o| o.name == p.name).unwrap_or(all.len());
+        for (i, node) in file.nodes.iter().enumerate() {
+            let Some(reference) = &node.group else { continue };
+            let id = resolve(p, &all[..at], reference).map_err(|e| format!("knowledge: {}: {e}", p.name))?;
+            let g = *group_index.get(&id).ok_or_else(|| format!("knowledge: {}: `{}`: no group `{id}`", p.name, node.key))?;
+            if graph.groups[g].area != node.area {
+                return Err(format!("knowledge: {}: `{}` is in area {}, its group `{}` in {}", p.name, node.key, node.area, graph.groups[g].key, graph.groups[g].area));
+            }
+            graph.nodes[start + i].group = Some(g);
+        }
+        start += file.nodes.len();
     }
     let lookup = |p: &Package, reference: &str| -> Result<usize, String> {
         let at = all.iter().position(|o| o.name == p.name).unwrap_or(all.len());
@@ -515,19 +574,65 @@ impl Graph {
         problems
     }
 
-    /// The layered layout for the panel: ranks (columns, left to right) by
-    /// the longest path from the bases, dummy points on edges that skip
-    /// ranks, a few barycentric sweeps to order each rank. `width` measures a
-    /// title in node-height units.
-    pub fn layout(&self, width: &dyn Fn(&str) -> f32) -> Layout {
-        let n = self.nodes.len();
+    /// The panel's layout: ranks (columns, left to right) by the longest
+    /// path from the bases, each group in a band of its own across the
+    /// columns it spans (`layered::clustered`), an area's loose topics
+    /// together, the areas in order, top to bottom. `width` measures a title
+    /// in node-height units. With `visible`, only those nodes are laid out
+    /// (the rest keep a position far away and no edges): a compact view of a
+    /// set closed under requirements, such as what some chapters need.
+    pub fn layout(&self, width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> Clustered {
+        let all = self.nodes.len();
+        let shown: Vec<usize> = (0..all).filter(|&i| visible.is_none_or(|v| v.get(i).copied().unwrap_or(false))).collect();
+        let mut local = vec![usize::MAX; all];
+        for (k, &i) in shown.iter().enumerate() {
+            local[i] = k;
+        }
+        let n = shown.len();
         let requires = self.requires();
-        let edges: Vec<(usize, usize)> = (0..n).flat_map(|i| requires[i].iter().map(move |&r| (r, i))).collect();
-        // The first order groups the areas.
-        let mut by_area: Vec<usize> = (0..n).collect();
-        by_area.sort_by_key(|&i| (AREAS.iter().position(|a| *a == self.nodes[i].area).unwrap_or(AREAS.len()), self.nodes[i].key.clone()));
-        let sizes: Vec<(f32, f32)> = self.nodes.iter().map(|node| (width(&node.title) + 0.8, 1.0)).collect();
-        crate::layered::layout(&sizes, &edges, &by_area, crate::layered::Spacing { column: 2.4, row: 0.5, dummy: 0.35 })
+        let edges: Vec<(usize, usize)> = shown.iter().flat_map(|&i| requires[i].iter().filter(|&&r| local[r] != usize::MAX).map(|&r| (local[r], local[i])).collect::<Vec<_>>()).collect();
+        let sizes: Vec<(f32, f32)> = shown.iter().map(|&i| (width(&self.nodes[i].title) + 0.8, 1.0)).collect();
+        let node = |k: usize| &self.nodes[shown[k]];
+        let mut clusters: Vec<crate::layered::Cluster> = Vec::new();
+        let mut boxed: Vec<usize> = Vec::new();
+        let mut areas: Vec<String> = AREAS.iter().map(|a| a.to_string()).collect();
+        for k in 0..n {
+            if !areas.contains(&node(k).area) {
+                areas.push(node(k).area.clone());
+            }
+        }
+        for area in areas {
+            let loose: Vec<usize> = (0..n).filter(|&k| node(k).area == area && node(k).group.is_none()).collect();
+            if !loose.is_empty() {
+                clusters.push(crate::layered::Cluster { members: loose, boxed: false });
+                boxed.push(usize::MAX);
+            }
+            for (g, group) in self.groups.iter().enumerate().filter(|(_, g)| g.area == area) {
+                let members: Vec<usize> = (0..n).filter(|&k| node(k).group == Some(g)).collect();
+                if !members.is_empty() {
+                    clusters.push(crate::layered::Cluster { members, boxed: true });
+                    boxed.push(g);
+                }
+                let _ = group;
+            }
+        }
+        let mut l = crate::layered::clustered(&sizes, &edges, &clusters, crate::layered::Spacing { column: 2.4, row: 0.5, dummy: 0.35 }, 0.35, 0.75, 0.9);
+        // Boxes by group index; the layout back over every node, edges by node index.
+        for b in &mut l.boxes {
+            b.0 = boxed[b.0];
+        }
+        let mut positions = vec![(-1.0e6, -1.0e6); all];
+        for (k, &i) in shown.iter().enumerate() {
+            positions[i] = l.layout.positions[k];
+        }
+        l.layout.positions = positions;
+        l.layout.widths = self.nodes.iter().map(|node| width(&node.title) + 0.8).collect();
+        l.layout.heights = vec![1.0; all];
+        for b in &mut l.layout.bends {
+            b.0 = shown[b.0];
+            b.1 = shown[b.1];
+        }
+        l
     }
 }
 
@@ -602,16 +707,20 @@ pub fn current() -> Option<&'static Graph> {
 }
 
 /// The current graph and its panel layout, computed once per graph.
-pub fn current_layout(width: &dyn Fn(&str) -> f32) -> Option<(&'static Graph, &'static Layout)> {
-    static CACHE: OnceLock<Mutex<Vec<(usize, &'static Layout)>>> = OnceLock::new();
+/// With `visible`, the compact layout of those nodes alone (kept for the
+/// last few sets).
+pub fn current_layout(width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> Option<(&'static Graph, &'static Clustered)> {
+    type Key = (usize, Option<Vec<bool>>);
+    static CACHE: OnceLock<Mutex<Vec<(Key, &'static Clustered)>>> = OnceLock::new();
     let graph = current()?;
-    let id = graph as *const Graph as usize;
+    let key: Key = (graph as *const Graph as usize, visible.map(|v| v.to_vec()));
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
-    if let Some((_, l)) = cache.iter().find(|(g, _)| *g == id) {
+    if let Some((_, l)) = cache.iter().find(|(k, _)| *k == key) {
         return Some((graph, l));
     }
-    let l: &'static Layout = Box::leak(Box::new(graph.layout(width)));
-    cache.push((id, l));
+    // A layout is small; the compact ones are few (one per set of chapters).
+    let l: &'static Clustered = Box::leak(Box::new(graph.layout(width, visible)));
+    cache.push((key, l));
     Some((graph, l))
 }
 
@@ -631,8 +740,19 @@ pub fn mermaid(graph: &Graph) -> String {
             continue;
         }
         out.push_str(&format!("  subgraph {area}_area[\"{name}\"]\n"));
-        for i in members {
+        for &i in members.iter().filter(|&&i| graph.nodes[i].group.is_none()) {
             out.push_str(&format!("    {}[\"{}\"]\n", id(i), label(i)));
+        }
+        for (g, group) in graph.groups.iter().enumerate() {
+            let inside: Vec<usize> = members.iter().copied().filter(|&i| graph.nodes[i].group == Some(g)).collect();
+            if inside.is_empty() {
+                continue;
+            }
+            out.push_str(&format!("    subgraph {}_group[\"{}\"]\n", group.key.replace('-', "_"), group.title.replace('"', "'")));
+            for i in inside {
+                out.push_str(&format!("      {}[\"{}\"]\n", id(i), label(i)));
+            }
+            out.push_str("    end\n");
         }
         out.push_str("  end\n");
     }
@@ -713,18 +833,38 @@ mod tests {
     fn layout_places_every_node() {
         let mut graph = Graph::default();
         for (i, reqs) in sample().into_iter().enumerate() {
-            graph.nodes.push(Node { id: format!("t#{i}"), package: "t".into(), key: i.to_string(), title: format!("node {i}"), summary: String::new(), area: "gpu".into(), base: reqs.is_empty(), requires: reqs, reading: Vec::new() });
+            graph.nodes.push(Node { id: format!("t#{i}"), package: "t".into(), key: i.to_string(), title: format!("node {i}"), summary: String::new(), area: "gpu".into(), base: reqs.is_empty(), requires: reqs, reading: Vec::new(), group: None });
         }
-        let l = graph.layout(&|t| t.len() as f32 * 0.3);
+        // Two groups: 2, 3 (ranks 1-2) and 5, 7 (ranks 3-4); 4 and 6 loose.
+        for (key, members) in [("a", [2, 3]), ("b", [5, 7])] {
+            graph.groups.push(Group { id: format!("t#{key}"), key: key.into(), title: key.into(), area: "gpu".into() });
+            for m in members {
+                graph.nodes[m].group = Some(graph.groups.len() - 1);
+            }
+        }
+        let c = graph.layout(&|t| t.len() as f32 * 0.3, None);
+        let l = &c.layout;
         assert_eq!(l.positions.len(), 8);
         for (i, node) in graph.nodes.iter().enumerate() {
             for &r in &node.requires {
                 assert!(l.positions[r].0 < l.positions[i].0, "{r} is not left of {i}");
             }
         }
-        // 6 (rank 1) → 7 (rank 4) bends through ranks 2 and 3.
-        let bend = l.bends.iter().find(|b| b.0 == 6 && b.1 == 7).unwrap();
-        assert_eq!(bend.2.len(), 2);
+        // Each group's box holds its members and no other node.
+        assert_eq!(c.boxes.len(), 2);
+        for &(g, (x0, y0, x1, y1)) in &c.boxes {
+            for (i, node) in graph.nodes.iter().enumerate() {
+                let (x, y) = l.positions[i];
+                let inside = x > x0 && x < x1 && y > y0 && y < y1;
+                assert_eq!(inside, node.group == Some(g), "node {i} and box {g}");
+            }
+        }
+        // The compact view of 0, 2, 3 (closed under requirements): their edges only, group a's box alone.
+        let visible: Vec<bool> = (0..8).map(|i| [0, 2, 3].contains(&i)).collect();
+        let c = graph.layout(&|t| t.len() as f32 * 0.3, Some(&visible));
+        assert_eq!(c.layout.bends.iter().map(|b| (b.0, b.1)).collect::<Vec<_>>(), [(0, 2), (2, 3)]);
+        assert_eq!(c.boxes.iter().map(|b| b.0).collect::<Vec<_>>(), [0]);
+        assert!(c.layout.positions[2].0 < c.layout.positions[3].0);
     }
 
     /// The public packages' graphs merge, and their audiences check, from the

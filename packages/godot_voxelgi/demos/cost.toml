@@ -1,0 +1,11 @@
+# The cost demonstration (src/godot/voxelgi/demos.rs, cost.rs): the room with
+# what its VoxelGI costs, an update's work and a frame's.
+
+key = "cost"
+title-text = "shot.cost_title"
+tab-text = "shot.cost"
+hint-text = "investigation.demo_hint"
+scene = "rlstd.scene/study-room"
+listing = "frame"
+resets-camera = true
+include = ["room-camera"]

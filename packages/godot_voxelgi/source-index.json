@@ -972,6 +972,117 @@
       "inspect": "The debug lighting view's multiplication by the dynamic range has no assignment, so it shows the stored texel, darker by the dynamic range.",
       "inspectZh": "调试光照视图中乘以动态范围的语句没有赋值，所以它显示的是存储的纹素，暗了动态范围倍。",
       "details": []
+    },
+    "update-gate": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3067,
+      "symbol": "GI::VoxelGIInstance::update (the gate)",
+      "lineHash": "fb9bdbc18c1f6557",
+      "inspect": "The light passes, the mips, and the texture writes run only when the lights changed, or dynamic objects are or were plotted; a static scene with unchanged lights does no light-pass work on the GPU at all.",
+      "inspectZh": "只有当光源变化，或存在（或曾存在）动态物体时，光照、mip 与贴图写入才会运行；光源不变的静态场景在 GPU 上完全不做光照通道的工作。",
+      "details": []
+    },
+    "level-dispatch": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3136,
+      "symbol": "GI::VoxelGIInstance::update (one dispatch per level)",
+      "lineHash": "81274b14da673b33",
+      "inspect": "Each level is one dispatch over its run of the sorted cells: its first cell and count go in the push constant, (count + 63) / 64 workgroups; the leaves first, then each coarser level after a barrier.",
+      "inspectZh": "每个层级是对已排序单元中该层那一段的一次派发：起始单元与数量放入 push constant，工作组数为 (count + 63) / 64；先是叶子，然后每个更粗的层级在屏障之后执行。",
+      "details": [
+        {
+          "line": 3125,
+          "lineHash": "62b99ac784a529b7",
+          "note": "a barrier between levels",
+          "noteZh": "层级之间的屏障"
+        }
+      ]
+    },
+    "local-size": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/voxel_gi.glsl",
+      "line": 10,
+      "symbol": "voxel_gi.glsl",
+      "lineHash": "02552ef639a3c330",
+      "inspect": "The light passes' workgroup: 64 cells in a row; a thread past the level's count returns.",
+      "inspectZh": "光照通道的工作组：一行 64 个单元；超出该层数量的线程直接返回。",
+      "details": []
+    },
+    "half-res-setting": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3810,
+      "symbol": "GI::init",
+      "lineHash": "4c0347de153b47f7",
+      "inspect": "The project setting rendering/global_illumination/gi/use_half_resolution, off by default and read at start-up, for VoxelGI's and SDFGI's screen pass.",
+      "inspectZh": "项目设置 rendering/global_illumination/gi/use_half_resolution，默认关闭，在启动时读取，作用于 VoxelGI 与 SDFGI 的屏幕通道。",
+      "details": []
+    },
+    "half-res-buffers": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3992,
+      "symbol": "GI::process_gi (buffers)",
+      "lineHash": "c65f5b6825f591f2",
+      "inspect": "At half resolution the ambient and reflection buffers (RGBA16F) are half the width and half the height.",
+      "inspectZh": "半分辨率时，环境光与反射缓冲（RGBA16F）的宽和高各减半。",
+      "details": []
+    },
+    "half-res-dispatch": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 4267,
+      "symbol": "GI::process_gi (dispatch)",
+      "lineHash": "2ffe741f33968e2b",
+      "inspect": "The screen pass then runs on a quarter of the threads.",
+      "inspectZh": "此时屏幕通道只运行四分之一的线程。",
+      "details": []
+    },
+    "half-res-shift": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 708,
+      "symbol": "gi.glsl main (half resolution)",
+      "lineHash": "4de3bb8678cf92c6",
+      "inspect": "Each thread reads the top-left pixel of its 2 x 2 block (its position doubled), traces it, and stores the result at its own, halved, texel: one pixel of four is traced.",
+      "inspectZh": "每个线程读取其 2 x 2 像素块左上角的像素（位置乘以 2），对它追踪，并把结果写到自己（减半后）的纹素：四个像素中只追踪一个。",
+      "details": [
+        {
+          "line": 723,
+          "lineHash": "8c634034272b00ae",
+          "note": "back to the buffer's texel",
+          "noteZh": "回到缓冲的纹素"
+        }
+      ]
+    },
+    "gi-buffer-fetch": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2019,
+      "symbol": "scene_forward_clustered.glsl (GI buffers)",
+      "lineHash": "a475d2d06eddab69",
+      "inspect": "The opaque pass reads the buffers at the pixel's centre with a plain bilinear sampler: at half resolution this is the whole upsample, with no depth weights; only with MSAA does it first move to the neighbour whose normal is closest.",
+      "inspectZh": "不透明通道以普通双线性采样器在像素中心读取缓冲：半分辨率时这就是全部的上采样，没有深度权重；只有开启 MSAA 时，才会先移到法线最接近的邻居。",
+      "details": [
+        {
+          "line": 1986,
+          "lineHash": "3d0cb29b67ce26f1",
+          "note": "the normal-aware pick, with MSAA only",
+          "noteZh": "仅在 MSAA 时的法线感知选择"
+        }
+      ]
+    },
+    "half-res-doc": {
+      "path": "doc/classes/ProjectSettings.xml",
+      "line": 3062,
+      "symbol": "ProjectSettings.xml",
+      "lineHash": "088fb7f2ecfb4e40",
+      "inspect": "The documentation: it improves performance significantly, at the cost of artifacts that may be visible on polygon edges, less noticeable as the resolution grows.",
+      "inspectZh": "文档说明：它能显著提升性能，代价是多边形边缘可能出现瑕疵，分辨率越高越不明显。",
+      "details": []
+    },
+    "quality-doc": {
+      "path": "doc/classes/ProjectSettings.xml",
+      "line": 3079,
+      "symbol": "ProjectSettings.xml",
+      "lineHash": "c9fbf2bb541447de",
+      "inspect": "The documentation says High gives more precise lighting and better reflections; in gi.glsl only the diffuse cones change, and the reflection cone is the same at both qualities.",
+      "inspectZh": "文档称 High 带来更精确的光照和更好的反射；而在 gi.glsl 中只有漫反射锥体改变，反射锥体在两种质量下相同。",
+      "details": []
     }
   },
   "chapters": [
@@ -1099,6 +1210,32 @@
     },
     {
       "number": 8,
+      "title": "Keeping it fast",
+      "titleZh": "保持高效",
+      "reading": [
+        "relight-gate",
+        "update-gate",
+        "light-cache",
+        "sort-cells",
+        "level-dispatch",
+        "local-size",
+        "pass-order",
+        "raymarch",
+        "light-at-pos",
+        "cones-low",
+        "cones-high",
+        "quality-doc",
+        "spec-cone",
+        "half-res-setting",
+        "half-res-buffers",
+        "half-res-shift",
+        "half-res-dispatch",
+        "gi-buffer-fetch",
+        "half-res-doc"
+      ]
+    },
+    {
+      "number": 9,
       "title": "Into the final image",
       "titleZh": "合成最终图像",
       "reading": [
@@ -1158,6 +1295,13 @@
       "cone-trace",
       "cone-trace-45"
     ],
+    "cost": [
+      "update-gate",
+      "level-dispatch",
+      "cones-low",
+      "half-res-dispatch",
+      "gi-buffer-fetch"
+    ],
     "compose": [
       "gi-buffer-mix"
     ]
@@ -1204,8 +1348,8 @@
       ],
       "exact": "RGBA8 UNORM; mip m is the octree's size >> m (at least 1), holding level depth - m; rgb = the cell's light / dynamic_range, a = its coverage (1 for a leaf, the children's sum / 8 above); texels without a cell are 0.",
       "exactZh": "RGBA8 UNORM；第 m 级 mip 为八叉树尺寸 >> m（至少为 1），存放第 depth - m 层；rgb = 单元格的光 / dynamic_range，a = 其覆盖率（叶子为 1，以上各层为子单元格之和 / 8）；没有单元格的 texel 为 0。",
-      "labLayout": "The same texels, kept by the lab's CPU model (storage.rs LightTexture) and packed one word each into the scene shading's data buffer.",
-      "labLayoutZh": "实验室 CPU 模型（storage.rs 的 LightTexture）保存相同纹素，并将每个纹素打包为一个 word，写入场景着色数据缓冲区。"
+      "labLayout": "The same texels, in an RGBA8 3D texture the lab's light passes write on the GPU (update.rs); storage.rs's LightTexture is their CPU mirror.",
+      "labLayoutZh": "相同的纹素，存于实验室在 GPU 上由光照通道写入的 RGBA8 3D 贴图（update.rs）；storage.rs 的 LightTexture 是它的 CPU 镜像。"
     },
     {
       "lab": "VoxelgiInstance",

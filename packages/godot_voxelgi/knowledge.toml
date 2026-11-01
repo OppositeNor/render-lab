@@ -43,5 +43,10 @@ requires = ["rlstd.knowledge#gi-cone-tracing", "rlstd.knowledge#cg-ggx", "rlstd.
 
 [[chapter]]
 number = 8
+demos = ["cost"]
+requires = ["rlstd.knowledge#gpu-amortize", "rlstd.knowledge#gi-cone-tracing", "rlstd.knowledge#geo-sphere-tracing"]
+
+[[chapter]]
+number = 9
 demos = ["compose"]
 requires = ["rlstd.knowledge#rt-ssao", "rlstd.knowledge#rt-ssil", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-split-sum", "rlstd.knowledge#rt-blend"]

@@ -17,6 +17,7 @@ pub mod actions;
 pub mod bake;
 pub mod cone;
 pub mod controls;
+pub mod cost;
 pub mod demos;
 pub mod dynamic;
 pub mod light;
@@ -27,6 +28,7 @@ pub mod shot;
 pub mod sources;
 pub mod storage;
 pub mod text;
+pub mod update;
 pub mod values;
 pub mod world;
 
@@ -53,10 +55,11 @@ static WORDING: Wording = Wording {
     checkout_dir: "godot/",
 };
 
-/// The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order: a
-/// depth pre-pass, the scene pass (the lab's direct light and the normal), the
-/// WGSL port of Godot's VoxelGI screen pass once per pixel (reading the lit
-/// texture of the CPU world, world.rs), then the opaque pass's mix.
+/// The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order:
+/// the light passes when the settings change (update.rs, writing the RGBA8 3D
+/// texture), a depth pre-pass, the scene pass (the lab's direct light and the
+/// normal), the WGSL port of Godot's VoxelGI screen pass once per pixel (or
+/// per 2 × 2 block at half resolution), then the opaque pass's mix.
 const TARGETS: &[ShadingTarget] = &[
     ShadingTarget { name: "direct", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
     ShadingTarget { name: "normal", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
@@ -73,7 +76,7 @@ pub static SHADING: SceneShading = SceneShading {
     module: "godot_voxelgi.shader/voxelgi-shading",
     fragment: "voxelgiForwardFS",
     data: world::shading_data,
-    verify: &["voxelgiProcessTests", "voxelgiLightTests", "voxelgiBounceTests"],
+    verify: &["voxelgiProcessTests", "voxelgiLightTests", "voxelgiBounceTests", "voxelgiSampleTests"],
     targets: TARGETS,
     outputs: &["direct", "normal"],
     passes: PASSES,
@@ -82,7 +85,18 @@ pub static SHADING: SceneShading = SceneShading {
     buffers: &[],
     scene_reads: &[],
     depth_views: None,
+    volumes: update::VOLUMES,
+    update: Some(&update::UPDATE),
+    resolution: Some(&RESOLUTION),
 };
+
+/// rendering/global_illumination/gi/use_half_resolution: the GI buffers at
+/// half the viewport's size (gi.cpp:3987-3996, `size >>= 1`).
+static RESOLUTION: lab::investigation::ShadingResolution = lab::investigation::ShadingResolution { targets: &["giAmbient", "giReflection"], divisor: gi_divisor };
+
+fn gi_divisor(state: &ShotState) -> u32 {
+    if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
+}
 
 /// The images its story can show (`{@ image=key}`).
 pub static IMAGES: &[ImageSpec] = &[
@@ -172,22 +186,16 @@ impl Investigation for VoxelGi {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
+    fn panes(&self, state: &ShotState) -> Vec<lab::investigation::Pane> {
+        demos::panes(state)
+    }
+
     fn scene_shading(&self) -> Option<&'static SceneShading> {
         Some(&SHADING)
     }
 
     fn shader_data(&self, block: &mut lab::shader_data::Block, state: &ShotState) {
         demos::shader_data(block, state)
-    }
-
-    /// The light texture relit for the scene node's settings when they are not the defaults.
-    fn scene_data(&self, state: &ShotState) -> Option<lab::investigation::SceneData> {
-        let settings = world::scene_settings(state);
-        if settings == world::LightSettings::default() {
-            return None;
-        }
-        let key = ((settings.dynamic_range * 100.0).round() as u64) << 32 | ((settings.propagation * 100.0).round() as u64) << 1 | settings.two_bounces as u64;
-        Some(lab::investigation::SceneData { key, build: Box::new(move || world::shading_data_for(&settings)) })
     }
 
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {

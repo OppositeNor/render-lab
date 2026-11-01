@@ -186,10 +186,16 @@ impl Timing {
 
     /// Each pass's mean and 95th percentile over the recent frames, in milliseconds.
     pub fn summary(&self) -> Vec<(String, f64, f64)> {
+        self.summary_last(HISTORY)
+    }
+
+    /// `summary` over the last `frames` measured frames of each pass (the
+    /// performance panel's rows, which follow a change within a second).
+    pub fn summary_last(&self, frames: usize) -> Vec<(String, f64, f64)> {
         self.history
             .iter()
             .map(|(label, h)| {
-                let xs: Vec<f64> = h.iter().copied().collect();
+                let xs: Vec<f64> = h.iter().skip(h.len().saturating_sub(frames)).copied().collect();
                 let (mean, _, p95) = crate::metrics::summary(&xs);
                 (label.clone(), mean, p95)
             })

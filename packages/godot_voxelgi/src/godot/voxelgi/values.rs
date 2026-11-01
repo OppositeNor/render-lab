@@ -169,4 +169,13 @@ pub struct VoxelgiValues {
     /// VoxelGIData.use_two_bounces of the scene's node (a change relights the texture).
     #[value(default = 1.0, toggle, text = "controls.gi_two_bounces", label(gi), engine = "VoxelGIData.use_two_bounces", help = "help.giTwoBounces")]
     pub gi_two_bounces: f32,
+    /// rendering/global_illumination/gi/use_half_resolution: the GI pass traces one pixel of each 2 × 2 block into half-size buffers, which the opaque pass reads bilinearly.
+    #[value(default = 0.0, toggle, text = "controls.gi_half_resolution", label(gi), engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution", help = "help.giHalfResolution")]
+    pub gi_half_resolution: f32,
+    /// The lab's measurement, not a setting of Godot's: run the light passes every frame (Godot runs them only when the lights or the data change), so the performance panel times them.
+    #[value(default = 0.0, toggle, text = "controls.gi_relight_each_frame", label(gi), help = "help.giRelightEachFrame")]
+    pub gi_relight_each_frame: f32,
+    /// The cost demonstration's split: the frame at full resolution on the left, as the values set it on the right.
+    #[value(default = 0.0, toggle, text = "controls.cost_split", help = "help.costSplit")]
+    pub cost_split: f32,
 }

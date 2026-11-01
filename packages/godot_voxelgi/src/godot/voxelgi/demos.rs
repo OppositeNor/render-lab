@@ -319,6 +319,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         Demo::Mips => mips_demo(state, w, &mut content),
         Demo::Dynamic => dynamic_demo(state, &mut content),
         Demo::Pixel => pixel_demo(state, w, &mut content),
+        Demo::Cost => cost_demo(state, viewport, &mut content),
         Demo::Compose => compose_demo(state, w, &mut content),
     }
     if demo != Demo::Dynamic {
@@ -416,10 +417,55 @@ fn room_demo(state: &ShotState, content: &mut FrameContent) {
         row("propagation", "0.5", palette::INCIDENT),
         row("use_two_bounces", "true", palette::INCIDENT),
         row("interior", "false", palette::VIEW),
-        row("voxel_gi/quality", tr("demos.quality_low"), palette::VIEW),
-        row("gi/use_half_resolution", "false", palette::VIEW),
+        row("voxel_gi/quality", if state.p("quality") > 0.5 { tr("demos.quality_high") } else { tr("demos.quality_low") }, palette::VIEW),
+        row("gi/use_half_resolution", if state.p("giHalfResolution") > 0.5 { "true" } else { "false" }, palette::VIEW),
     ];
     content.readout = Some(readout(tr("demos.settings"), tr("demos.settings_subtitle"), lit_rows(state, rows)));
+}
+
+// ---------------------------------------------------------------------------
+// Chapter 8: what it costs, and what Godot does about it.
+
+/// The room with what its VoxelGI costs, counted (cost.rs): an update's
+/// dispatches over the cells, and a frame's pixels and cone steps.
+fn cost_demo(state: &ShotState, viewport: [f32; 2], content: &mut FrameContent) {
+    let c = super::cost::costs(state);
+    let half = state.p("giHalfResolution") > 0.5;
+    let (w, h) = if half { ((viewport[0] as u32 / 2).max(1), (viewport[1] as u32 / 2).max(1)) } else { (viewport[0] as u32, viewport[1] as u32) };
+    let high = state.p("quality") > 0.5;
+    let (cones, steps) = if high { (6, c.high_steps) } else { (4, c.low_steps) };
+    let every = state.p("giRelightEachFrame") > 0.5;
+    let rows = vec![
+        row(tr("demos.cost_light_passes"), if every { tr("demos.cost_every_frame") } else { tr("demos.cost_on_change") }, palette::INCIDENT),
+        row(tr("demos.cost_dispatches"), tr_with("demos.cost_dispatches_value", lab::args!(count = c.dispatches, passes = c.passes)), palette::INCIDENT),
+        row(tr("demos.cost_workgroups"), format!("{}", c.workgroups), palette::INCIDENT),
+        row(tr("demos.cost_leaves"), format!("{}", c.leaves), palette::AABB),
+        row(tr("demos.cost_cells"), format!("{} / {}", c.cells, c.texels), palette::AABB),
+        row(tr("demos.cost_pixels"), format!("{w} x {h}"), palette::VIEW),
+        row(tr("demos.cost_cones"), format!("{cones} x {steps} = {}", cones * steps), palette::VIEW),
+        row(tr("demos.cost_spec"), format!("{} / {} / {}", c.spec_steps[0], c.spec_steps[1], c.spec_steps[2]), palette::VIEW),
+    ];
+    content.readout = Some(readout(tr("demos.cost"), tr("demos.cost_subtitle"), lit_rows(state, rows)));
+    // The sorted cells, each level one run (the first leaf marked), for the story.
+    if state.shows_image("cellArray") {
+        let probe = &world::world().probe;
+        content.images.push(("cellArray".into(), cell_array_inset(probe, probe.level_offset(probe.leaf_level()))));
+    }
+}
+
+/// With `costSplit`, the cost demonstration's two views from one camera: the
+/// frame at full resolution on the left, as the values set it on the right.
+pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
+    if Demo::of(state.demo) != Demo::Cost || state.p("costSplit") < 0.5 {
+        return Vec::new();
+    }
+    let mut left = state.clone();
+    left.set("giHalfResolution", 0.0);
+    let right = if state.p("giHalfResolution") > 0.5 { tr("demos.cost_half") } else { tr("demos.cost_full") };
+    vec![
+        lab::investigation::Pane { state: left, title: Some(tr("demos.cost_full").to_string()) },
+        lab::investigation::Pane { state: state.clone(), title: Some(right.to_string()) },
+    ]
 }
 
 // ---------------------------------------------------------------------------
@@ -1156,5 +1202,6 @@ pub fn shader_data(block: &mut lab::shader_data::Block, state: &ShotState) {
     block.set("bias", state.p("giBias"));
     block.set("normalBias", state.p("giNormalBias"));
     block.set("mipCount", w.probe.mip_count() as f32);
-    block.set("sdfOffset", world::texture_words(&w.probe) as f32);
+    block.set("sdfOffset", 0.0);
+    block.set("halfResolution", state.p("giHalfResolution"));
 }

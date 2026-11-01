@@ -4,6 +4,164 @@
 # transitively reduced (an edge another path implies is an error). Investigations
 # name these nodes as `rlstd.knowledge#<key>` (the `knowledge-graph` agent skill).
 
+# The groups: subsections of an area that gather related topics; the panel draws
+# each as a box around its topics (a topic names its group with `group`).
+
+[[group]]
+key = "gpu-memory"
+title-text = "group.gpu-memory.title"
+area = "gpu"
+
+[[group]]
+key = "gpu-parallel"
+title-text = "group.gpu-parallel.title"
+area = "gpu"
+
+[[group]]
+key = "gpu-frames"
+title-text = "group.gpu-frames.title"
+area = "gpu"
+
+[[group]]
+key = "rt-raster"
+title-text = "group.rt-raster.title"
+area = "rt"
+
+[[group]]
+key = "rt-textures"
+title-text = "group.rt-textures.title"
+area = "rt"
+
+[[group]]
+key = "rt-antialiasing"
+title-text = "group.rt-antialiasing.title"
+area = "rt"
+
+[[group]]
+key = "rt-colour"
+title-text = "group.rt-colour.title"
+area = "rt"
+
+[[group]]
+key = "rt-shading"
+title-text = "group.rt-shading.title"
+area = "rt"
+
+[[group]]
+key = "rt-screen-space"
+title-text = "group.rt-screen-space.title"
+area = "rt"
+
+[[group]]
+key = "rt-temporal"
+title-text = "group.rt-temporal.title"
+area = "rt"
+
+[[group]]
+key = "geo-volumes"
+title-text = "group.geo-volumes.title"
+area = "geo"
+
+[[group]]
+key = "geo-voxels"
+title-text = "group.geo-voxels.title"
+area = "geo"
+
+[[group]]
+key = "geo-fields"
+title-text = "group.geo-fields.title"
+area = "geo"
+
+[[group]]
+key = "cg-sources"
+title-text = "group.cg-sources.title"
+area = "cg"
+
+[[group]]
+key = "cg-transport"
+title-text = "group.cg-transport.title"
+area = "cg"
+
+[[group]]
+key = "cg-reflectance"
+title-text = "group.cg-reflectance.title"
+area = "cg"
+
+[[group]]
+key = "cg-monte-carlo"
+title-text = "group.cg-monte-carlo.title"
+area = "cg"
+
+[[group]]
+key = "cg-brdf-integrals"
+title-text = "group.cg-brdf-integrals.title"
+area = "cg"
+
+[[group]]
+key = "cg-spherical"
+title-text = "group.cg-spherical.title"
+area = "cg"
+
+[[group]]
+key = "cg-environment-group"
+title-text = "group.cg-environment-group.title"
+area = "cg"
+
+[[group]]
+key = "cg-occlusion"
+title-text = "group.cg-occlusion.title"
+area = "cg"
+
+[[group]]
+key = "cg-scattering"
+title-text = "group.cg-scattering.title"
+area = "cg"
+
+[[group]]
+key = "light-shadow-maps"
+title-text = "group.light-shadow-maps.title"
+area = "light"
+
+[[group]]
+key = "light-soft-shadows"
+title-text = "group.light-soft-shadows.title"
+area = "light"
+
+[[group]]
+key = "light-ibl"
+title-text = "group.light-ibl.title"
+area = "light"
+
+[[group]]
+key = "light-screen"
+title-text = "group.light-screen.title"
+area = "light"
+
+[[group]]
+key = "light-translucency"
+title-text = "group.light-translucency.title"
+area = "light"
+
+[[group]]
+key = "gi-probe-grids"
+title-text = "group.gi-probe-grids.title"
+area = "gi"
+
+[[group]]
+key = "gi-voxels"
+title-text = "group.gi-voxels.title"
+area = "gi"
+
+[[group]]
+key = "gi-surface"
+title-text = "group.gi-surface.title"
+area = "gi"
+
+[[group]]
+key = "gi-screen"
+title-text = "group.gi-screen.title"
+area = "gi"
+
 [[topic]]
 key = "gpu"
 title-text = "topic.gpu.title"
@@ -33,6 +191,7 @@ key = "gpu-queues"
 title-text = "topic.gpu-queues.title"
 summary-text = "topic.gpu-queues.summary"
 area = "gpu"
+group = "gpu-parallel"
 requires = ["gpu"]
 reading = ["Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 3 (Queues and Commands)", "Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 12 (Getting Data Back)"]
 
@@ -41,6 +200,7 @@ key = "gpu-resources"
 title-text = "topic.gpu-resources.title"
 summary-text = "topic.gpu-resources.summary"
 area = "gpu"
+group = "gpu-memory"
 requires = ["gpu"]
 reading = ["Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 2 (Memory and Resources)", "Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, chapter 6 (Textures and Framebuffers)"]
 
@@ -49,6 +209,7 @@ key = "gpu-formats"
 title-text = "topic.gpu-formats.title"
 summary-text = "topic.gpu-formats.summary"
 area = "gpu"
+group = "gpu-memory"
 requires = ["gpu-resources"]
 reading = ["Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, chapter 6 (Textures and Framebuffers)"]
 
@@ -57,6 +218,7 @@ key = "gpu-hdr-formats"
 title-text = "topic.gpu-hdr-formats.title"
 summary-text = "topic.gpu-hdr-formats.summary"
 area = "gpu"
+group = "gpu-memory"
 requires = ["gpu-formats", "cg"]
 reading = ["Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, appendix F (Floating-Point Formats for Textures, Framebuffers, and Renderbuffers)"]
 
@@ -65,6 +227,7 @@ key = "gpu-compute"
 title-text = "topic.gpu-compute.title"
 summary-text = "topic.gpu-compute.summary"
 area = "gpu"
+group = "gpu-parallel"
 requires = ["gpu-resources"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 3 (The Graphics Processing Unit), §3.10", "Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, chapter 12 (Compute Shaders)", "Cook 2012, CUDA Programming, chapter 6 (Memory Handling with CUDA)"]
 
@@ -73,6 +236,7 @@ key = "gpu-atomics"
 title-text = "topic.gpu-atomics.title"
 summary-text = "topic.gpu-atomics.summary"
 area = "gpu"
+group = "gpu-parallel"
 requires = ["gpu-compute"]
 reading = ["Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, chapter 11 (Memory)"]
 
@@ -81,6 +245,7 @@ key = "gpu-scan"
 title-text = "topic.gpu-scan.title"
 summary-text = "topic.gpu-scan.summary"
 area = "gpu"
+group = "gpu-parallel"
 requires = ["gpu-compute"]
 reading = ["Cook 2012, CUDA Programming, chapter 6 (Memory Handling with CUDA)", "Harada and Howes 2011, Introduction to GPU radix sort"]
 
@@ -89,6 +254,7 @@ key = "gpu-sync"
 title-text = "topic.gpu-sync.title"
 summary-text = "topic.gpu-sync.summary"
 area = "gpu"
+group = "gpu-parallel"
 requires = ["gpu-compute", "gpu-queues"]
 reading = ["Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 4 (Moving Data)", "Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 11 (Synchronization)"]
 
@@ -97,6 +263,7 @@ key = "gpu-passes"
 title-text = "topic.gpu-passes.title"
 summary-text = "topic.gpu-passes.summary"
 area = "gpu"
+group = "gpu-frames"
 requires = ["gpu-resources", "rt"]
 reading = ["Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 13 (Multipass Rendering)", "Kessenich, Sellers and Shreiner 2016, OpenGL Programming Guide, 9th edition, chapter 6 (Textures and Framebuffers)"]
 
@@ -105,6 +272,7 @@ key = "gpu-frame"
 title-text = "topic.gpu-frame.title"
 summary-text = "topic.gpu-frame.summary"
 area = "gpu"
+group = "gpu-frames"
 requires = ["gpu-passes", "gpu-sync"]
 reading = ["O'Donnell 2017, FrameGraph: extensible rendering architecture in Frostbite (GDC)", "Sellers and Kessenich 2016, Vulkan Programming Guide, chapter 13 (Multipass Rendering)"]
 
@@ -113,6 +281,7 @@ key = "gpu-amortize"
 title-text = "topic.gpu-amortize.title"
 summary-text = "topic.gpu-amortize.summary"
 area = "gpu"
+group = "gpu-frames"
 requires = ["gpu-frame"]
 reading = ["Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -129,6 +298,7 @@ key = "rt-depth"
 title-text = "topic.rt-depth.title"
 summary-text = "topic.rt-depth.summary"
 area = "rt"
+group = "rt-raster"
 requires = ["gpu-passes"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 2 (The Graphics Rendering Pipeline), §2.5.2", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 4 (Transforms), §4.7.2"]
 
@@ -137,6 +307,7 @@ key = "rt-early-z"
 title-text = "topic.rt-early-z.title"
 summary-text = "topic.rt-early-z.summary"
 area = "rt"
+group = "rt-raster"
 requires = ["rt-depth"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 3 (The Graphics Processing Unit), §3.8", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 23 (Graphics Hardware)"]
 
@@ -145,6 +316,7 @@ key = "rt-stencil"
 title-text = "topic.rt-stencil.title"
 summary-text = "topic.rt-stencil.summary"
 area = "rt"
+group = "rt-raster"
 requires = ["rt-depth"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 2 (The Graphics Rendering Pipeline), §2.5.2", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 3 (The Graphics Processing Unit), §3.9"]
 
@@ -153,6 +325,7 @@ key = "rt-aliasing"
 title-text = "topic.rt-aliasing.title"
 summary-text = "topic.rt-aliasing.summary"
 area = "rt"
+group = "rt-antialiasing"
 requires = ["rt"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.4.1", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 18 (Images and Signal Processing)"]
 
@@ -161,6 +334,7 @@ key = "rt-msaa"
 title-text = "topic.rt-msaa.title"
 summary-text = "topic.rt-msaa.summary"
 area = "rt"
+group = "rt-antialiasing"
 requires = ["rt-depth", "rt-aliasing"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.4.2"]
 
@@ -169,6 +343,7 @@ key = "rt-sampling"
 title-text = "topic.rt-sampling.title"
 summary-text = "topic.rt-sampling.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["gpu-resources", "rt-aliasing"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 6 (Texturing), §6.2", "Williams 1983, Pyramidal parametrics"]
 
@@ -177,6 +352,7 @@ key = "rt-cubemaps"
 title-text = "topic.rt-cubemaps.title"
 summary-text = "topic.rt-cubemaps.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["rt-sampling"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 6 (Texturing), §6.2.4"]
 
@@ -185,6 +361,7 @@ key = "rt-octahedral"
 title-text = "topic.rt-octahedral.title"
 summary-text = "topic.rt-octahedral.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["rt-sampling"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.4", "Cigolle et al. 2014, A survey of efficient representations for independent unit vectors"]
 
@@ -193,6 +370,7 @@ key = "rt-blend"
 title-text = "topic.rt-blend.title"
 summary-text = "topic.rt-blend.summary"
 area = "rt"
+group = "rt-raster"
 requires = ["rt"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.5"]
 
@@ -201,6 +379,7 @@ key = "rt-color"
 title-text = "topic.rt-color.title"
 summary-text = "topic.rt-color.summary"
 area = "rt"
+group = "rt-colour"
 requires = ["rt", "cg"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.6", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 8 (Light and Color), §8.1.4"]
 
@@ -209,6 +388,7 @@ key = "rt-tonemapping"
 title-text = "topic.rt-tonemapping.title"
 summary-text = "topic.rt-tonemapping.summary"
 area = "rt"
+group = "rt-colour"
 requires = ["rt-color", "cg-photometry"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 8 (Light and Color), §8.2"]
 
@@ -217,6 +397,7 @@ key = "rt-normal-maps"
 title-text = "topic.rt-normal-maps.title"
 summary-text = "topic.rt-normal-maps.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["rt-sampling", "rt-spaces"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 6 (Texturing), §6.7"]
 
@@ -225,6 +406,7 @@ key = "rt-reconstruct"
 title-text = "topic.rt-reconstruct.title"
 summary-text = "topic.rt-reconstruct.summary"
 area = "rt"
+group = "rt-screen-space"
 requires = ["rt-depth", "rt-spaces"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 4 (Transforms), §4.7.2"]
 
@@ -233,6 +415,7 @@ key = "rt-motion-vectors"
 title-text = "topic.rt-motion-vectors.title"
 summary-text = "topic.rt-motion-vectors.summary"
 area = "rt"
+group = "rt-temporal"
 requires = ["rt-spaces", "gpu-passes"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 12 (Image-Space Effects), §12.5", "Marrs, Shirley and Wald (eds.) 2021, Ray Tracing Gems II, chapter 25 (Temporally Reliable Motion Vectors for Better Use of Temporal Information)"]
 
@@ -241,6 +424,7 @@ key = "rt-gbuffer"
 title-text = "topic.rt-gbuffer.title"
 summary-text = "topic.rt-gbuffer.summary"
 area = "rt"
+group = "rt-shading"
 requires = ["rt-depth"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 20 (Efficient Shading), §20.1"]
 
@@ -249,6 +433,7 @@ key = "rt-forward-plus"
 title-text = "topic.rt-forward-plus.title"
 summary-text = "topic.rt-forward-plus.summary"
 area = "rt"
+group = "rt-shading"
 requires = ["rt-gbuffer", "gpu-compute", "geo-bounds"]
 reading = ["Harada et al. 2012, Forward+: bringing deferred lighting to the next level", "Olsson, Billeter and Assarsson 2012, Clustered deferred and forward shading", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 20 (Efficient Shading), §20.3–20.4"]
 
@@ -257,6 +442,7 @@ key = "rt-fullscreen"
 title-text = "topic.rt-fullscreen.title"
 summary-text = "topic.rt-fullscreen.summary"
 area = "rt"
+group = "rt-screen-space"
 requires = ["gpu-passes", "gpu-compute"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 12 (Image-Space Effects), §12.1"]
 
@@ -265,6 +451,7 @@ key = "rt-bilateral"
 title-text = "topic.rt-bilateral.title"
 summary-text = "topic.rt-bilateral.summary"
 area = "rt"
+group = "rt-screen-space"
 requires = ["rt-fullscreen", "rt-sampling", "rt-reconstruct"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 12 (Image-Space Effects), §12.1.1"]
 
@@ -273,6 +460,7 @@ key = "rt-depth-raymarch"
 title-text = "topic.rt-depth-raymarch.title"
 summary-text = "topic.rt-depth-raymarch.summary"
 area = "rt"
+group = "rt-screen-space"
 requires = ["rt-fullscreen", "rt-reconstruct"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.6.5", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.10"]
 
@@ -281,6 +469,7 @@ key = "rt-reprojection"
 title-text = "topic.rt-reprojection.title"
 summary-text = "topic.rt-reprojection.summary"
 area = "rt"
+group = "rt-temporal"
 requires = ["gpu-amortize", "rt-reconstruct", "rt-motion-vectors", "rt-sampling"]
 reading = ["Nehab et al. 2007, Accelerating real-time shading with reverse reprojection caching", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 12 (Image-Space Effects), §12.2"]
 
@@ -289,6 +478,7 @@ key = "rt-taa"
 title-text = "topic.rt-taa.title"
 summary-text = "topic.rt-taa.summary"
 area = "rt"
+group = "rt-temporal"
 requires = ["rt-reprojection"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.4.2", "Karis 2014, High-quality temporal supersampling (SIGGRAPH Advances in Real-Time Rendering)", "Haines and Akenine-Möller (eds.) 2019, Ray Tracing Gems, chapter 22 (Improving Temporal Antialiasing with Adaptive Ray Tracing)"]
 
@@ -297,6 +487,7 @@ key = "rt-upscaling"
 title-text = "topic.rt-upscaling.title"
 summary-text = "topic.rt-upscaling.summary"
 area = "rt"
+group = "rt-temporal"
 requires = ["rt-taa"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.4.2"]
 
@@ -305,6 +496,7 @@ key = "rt-decals"
 title-text = "topic.rt-decals.title"
 summary-text = "topic.rt-decals.summary"
 area = "rt"
+group = "rt-shading"
 requires = ["rt-gbuffer", "rt-reconstruct", "geo-bounds"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 20 (Efficient Shading), §20.2"]
 
@@ -313,6 +505,7 @@ key = "rt-heightfields"
 title-text = "topic.rt-heightfields.title"
 summary-text = "topic.rt-heightfields.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["rt-normal-maps", "rt-blend"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 19 (Acceleration Algorithms), §19.10.4"]
 
@@ -321,6 +514,7 @@ key = "rt-virtual-texturing"
 title-text = "topic.rt-virtual-texturing.title"
 summary-text = "topic.rt-virtual-texturing.summary"
 area = "rt"
+group = "rt-textures"
 requires = ["rt-sampling"]
 reading = ["Barrett 2008, Sparse virtual textures (GDC)", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 19 (Acceleration Algorithms), §19.10.1"]
 
@@ -337,6 +531,7 @@ key = "geo-bounds"
 title-text = "topic.geo-bounds.title"
 summary-text = "topic.geo-bounds.summary"
 area = "geo"
+group = "geo-volumes"
 requires = ["rt-spaces"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 22 (Intersection Test Methods), §22.2–22.7", "Szauer 2017, Game Physics Cookbook, chapter 10 (3D Line Intersections)"]
 
@@ -345,6 +540,7 @@ key = "geo-tri-box"
 title-text = "topic.geo-tri-box.title"
 summary-text = "topic.geo-tri-box.summary"
 area = "geo"
+group = "geo-volumes"
 requires = ["geo-bounds"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 22 (Intersection Test Methods), §22.12", "Szauer 2017, Game Physics Cookbook, chapter 11 (Triangles and Meshes)"]
 
@@ -353,6 +549,7 @@ key = "geo-bvh"
 title-text = "topic.geo-bvh.title"
 summary-text = "topic.geo-bvh.summary"
 area = "geo"
+group = "geo-volumes"
 requires = ["geo-bounds"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 4 (Primitives and Intersection Acceleration), §4.3", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 19 (Acceleration Algorithms), §19.1.1", "Karras 2012, Maximizing parallelism in the construction of BVHs, octrees, and k-d trees"]
 
@@ -361,6 +558,7 @@ key = "geo-grids"
 title-text = "topic.geo-grids.title"
 summary-text = "topic.geo-grids.summary"
 area = "geo"
+group = "geo-voxels"
 requires = ["rt-spaces", "gpu-resources"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 13 (Beyond Polygons), §13.10", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 37 (Spatial Data Structures), §37.7"]
 
@@ -369,6 +567,7 @@ key = "geo-octree"
 title-text = "topic.geo-octree.title"
 summary-text = "topic.geo-octree.summary"
 area = "geo"
+group = "geo-voxels"
 requires = ["geo-grids", "geo-bounds"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 19 (Acceleration Algorithms), §19.1.3", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 13 (Beyond Polygons), §13.10.1", "Laine and Karras 2010, Efficient sparse voxel octrees"]
 
@@ -377,6 +576,7 @@ key = "geo-clipmaps"
 title-text = "topic.geo-clipmaps.title"
 summary-text = "topic.geo-clipmaps.summary"
 area = "geo"
+group = "geo-voxels"
 requires = ["geo-grids", "rt-sampling"]
 reading = ["Tanner et al. 1998, The clipmap: a virtual mipmap", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 19 (Acceleration Algorithms), §19.10.1"]
 
@@ -385,6 +585,7 @@ key = "geo-voxelize"
 title-text = "topic.geo-voxelize.title"
 summary-text = "topic.geo-voxelize.summary"
 area = "geo"
+group = "geo-voxels"
 requires = ["geo-grids", "gpu-passes", "gpu-atomics"]
 reading = ["Crassin and Green 2012, Octree-based sparse voxelization using the GPU hardware rasterizer (OpenGL Insights, chapter 22)", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 13 (Beyond Polygons), §13.10.3"]
 
@@ -393,6 +594,7 @@ key = "geo-sdf"
 title-text = "topic.geo-sdf.title"
 summary-text = "topic.geo-sdf.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-grids"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 17 (Curves and Curved Surfaces), §17.3", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 24 (Implicit Representations of Shape)"]
 
@@ -401,6 +603,7 @@ key = "geo-sdf-bricks"
 title-text = "topic.geo-sdf-bricks.title"
 summary-text = "topic.geo-sdf-bricks.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-sdf", "gpu-formats"]
 reading = ["Kramer 2023, Real-time sparse distance fields for games (GDC)", "Hansson Söderlund, Evans and Akenine-Möller 2022, Ray tracing of signed distance function grids"]
 
@@ -409,6 +612,7 @@ key = "geo-distance-transform"
 title-text = "topic.geo-distance-transform.title"
 summary-text = "topic.geo-distance-transform.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-sdf", "gpu-compute"]
 reading = ["Rong and Tan 2006, Jump flooding in GPU with applications to Voronoi diagram and distance transform", "Felzenszwalb and Huttenlocher 2012, Distance transforms of sampled functions"]
 
@@ -417,6 +621,7 @@ key = "geo-sphere-tracing"
 title-text = "topic.geo-sphere-tracing.title"
 summary-text = "topic.geo-sphere-tracing.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-sdf", "cg-visibility"]
 reading = ["Hart 1996, Sphere tracing: a geometric method for the antialiased ray tracing of implicit surfaces", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 24 (Implicit Representations of Shape), §24.9", "Hansson Söderlund, Evans and Akenine-Möller 2022, Ray tracing of signed distance function grids"]
 
@@ -425,6 +630,7 @@ key = "geo-mesh-sdf"
 title-text = "topic.geo-mesh-sdf.title"
 summary-text = "topic.geo-mesh-sdf.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-sdf", "geo-bounds"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.3.5", "Kramer 2023, Real-time sparse distance fields for games (GDC)"]
 
@@ -433,6 +639,7 @@ key = "geo-global-sdf"
 title-text = "topic.geo-global-sdf.title"
 summary-text = "topic.geo-global-sdf.summary"
 area = "geo"
+group = "geo-fields"
 requires = ["geo-mesh-sdf", "geo-clipmaps"]
 reading = ["Kramer 2023, Real-time sparse distance fields for games (GDC)"]
 
@@ -441,6 +648,7 @@ key = "cg-visibility"
 title-text = "topic.cg-visibility.title"
 summary-text = "topic.cg-visibility.summary"
 area = "cg"
+group = "cg-transport"
 requires = ["cg"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 12 (Light Sources), §12.2.1", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.3.2"]
 
@@ -449,6 +657,7 @@ key = "cg-photometry"
 title-text = "topic.cg-photometry.title"
 summary-text = "topic.cg-photometry.summary"
 area = "cg"
+group = "cg-sources"
 requires = ["cg"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 8 (Light and Color), §8.1.2", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 5 (Color and Radiometry), §5.4.3"]
 
@@ -457,6 +666,7 @@ key = "cg-lights"
 title-text = "topic.cg-lights.title"
 summary-text = "topic.cg-lights.summary"
 area = "cg"
+group = "cg-sources"
 requires = ["cg"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 5 (Shading Basics), §5.2", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 12 (Light Sources), §12.1"]
 
@@ -465,6 +675,7 @@ key = "cg-area-lights"
 title-text = "topic.cg-area-lights.title"
 summary-text = "topic.cg-area-lights.summary"
 area = "cg"
+group = "cg-sources"
 requires = ["cg-lights"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.1", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 12 (Light Sources), §12.5"]
 
@@ -473,6 +684,7 @@ key = "cg-brdf"
 title-text = "topic.cg-brdf.title"
 summary-text = "topic.cg-brdf.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.3–9.4", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 8 (Reflection Models), §8.3", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 26 (Light), §26.10"]
 
@@ -481,6 +693,7 @@ key = "cg-rendering-equation"
 title-text = "topic.cg-rendering-equation.title"
 summary-text = "topic.cg-rendering-equation.summary"
 area = "cg"
+group = "cg-transport"
 requires = ["cg-brdf", "cg-visibility"]
 reading = ["Kajiya 1986, The rendering equation", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.1", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 29 (Light Transport)"]
 
@@ -489,6 +702,7 @@ key = "cg-ltc"
 title-text = "topic.cg-ltc.title"
 summary-text = "topic.cg-ltc.summary"
 area = "cg"
+group = "cg-sources"
 requires = ["cg-area-lights", "cg-ggx"]
 reading = ["Heitz et al. 2016, Real-time polygonal-light shading with linearly transformed cosines"]
 
@@ -497,6 +711,7 @@ key = "cg-fresnel"
 title-text = "topic.cg-fresnel.title"
 summary-text = "topic.cg-fresnel.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-brdf"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.5", "Hoffman 2019, Fresnel equations considered harmful", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 8 (Reflection Models), §8.2.1"]
 
@@ -505,6 +720,7 @@ key = "cg-microfacet"
 title-text = "topic.cg-microfacet.title"
 summary-text = "topic.cg-microfacet.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-fresnel"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.6–9.7", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 8 (Reflection Models), §8.4", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 27 (Materials and Scattering), §27.8"]
 
@@ -513,6 +729,7 @@ key = "cg-ggx"
 title-text = "topic.cg-ggx.title"
 summary-text = "topic.cg-ggx.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-microfacet"]
 reading = ["Walter et al. 2007, Microfacet models for refraction through rough surfaces", "Heitz 2014, Understanding the masking-shadowing function in microfacet-based BRDFs", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.8.1"]
 
@@ -521,6 +738,7 @@ key = "cg-anisotropic"
 title-text = "topic.cg-anisotropic.title"
 summary-text = "topic.cg-anisotropic.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-ggx", "rt-normal-maps"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.8.1", "Burley 2012, Physically-based shading at Disney"]
 
@@ -529,6 +747,7 @@ key = "cg-layered"
 title-text = "topic.cg-layered.title"
 summary-text = "topic.cg-layered.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-ggx"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.12"]
 
@@ -537,6 +756,7 @@ key = "cg-burley"
 title-text = "topic.cg-burley.title"
 summary-text = "topic.cg-burley.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-microfacet"]
 reading = ["Burley 2012, Physically-based shading at Disney", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.9.4"]
 
@@ -545,6 +765,7 @@ key = "cg-pbr-materials"
 title-text = "topic.cg-pbr-materials.title"
 summary-text = "topic.cg-pbr-materials.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-ggx"]
 reading = ["Burley 2012, Physically-based shading at Disney", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.5"]
 
@@ -553,6 +774,7 @@ key = "cg-specular-aa"
 title-text = "topic.cg-specular-aa.title"
 summary-text = "topic.cg-specular-aa.summary"
 area = "cg"
+group = "cg-reflectance"
 requires = ["cg-pbr-materials", "rt-normal-maps"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.13.1"]
 
@@ -561,6 +783,7 @@ key = "cg-mc"
 title-text = "topic.cg-mc.title"
 summary-text = "topic.cg-mc.summary"
 area = "cg"
+group = "cg-monte-carlo"
 requires = ["cg"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 13 (Monte Carlo Integration)", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 30 (Probability and Monte Carlo Integration)", "Haines and Akenine-Möller (eds.) 2019, Ray Tracing Gems, chapter 15 (On the Importance of Sampling)"]
 
@@ -569,6 +792,7 @@ key = "cg-importance-sampling"
 title-text = "topic.cg-importance-sampling.title"
 summary-text = "topic.cg-importance-sampling.summary"
 area = "cg"
+group = "cg-monte-carlo"
 requires = ["cg-mc"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 13 (Monte Carlo Integration)", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 14 (Light Transport I: Surface Reflection), §14.1", "Haines and Akenine-Möller (eds.) 2019, Ray Tracing Gems, chapter 16 (Sampling Transformations Zoo)"]
 
@@ -577,6 +801,7 @@ key = "cg-sampling-patterns"
 title-text = "topic.cg-sampling-patterns.title"
 summary-text = "topic.cg-sampling-patterns.summary"
 area = "cg"
+group = "cg-monte-carlo"
 requires = ["cg-mc"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 7 (Sampling and Reconstruction), §7.3–7.4"]
 
@@ -585,6 +810,7 @@ key = "cg-brdf-lut"
 title-text = "topic.cg-brdf-lut.title"
 summary-text = "topic.cg-brdf-lut.summary"
 area = "cg"
+group = "cg-brdf-integrals"
 requires = ["cg-ggx", "cg-importance-sampling", "rt-sampling"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.5.2"]
 
@@ -593,6 +819,7 @@ key = "cg-multiscatter"
 title-text = "topic.cg-multiscatter.title"
 summary-text = "topic.cg-multiscatter.summary"
 area = "cg"
+group = "cg-brdf-integrals"
 requires = ["cg-brdf-lut"]
 reading = ["Kulla and Conty 2017, Revisiting physically based shading at Imageworks", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.8.2"]
 
@@ -601,6 +828,7 @@ key = "cg-sphere-functions"
 title-text = "topic.cg-sphere-functions.title"
 summary-text = "topic.cg-sphere-functions.summary"
 area = "cg"
+group = "cg-spherical"
 requires = ["cg"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.3", "Ramamoorthi 2009, Precomputation-based rendering"]
 
@@ -609,6 +837,7 @@ key = "cg-sh"
 title-text = "topic.cg-sh.title"
 summary-text = "topic.cg-sh.summary"
 area = "cg"
+group = "cg-spherical"
 requires = ["cg-sphere-functions"]
 reading = ["Sloan 2008, Stupid spherical harmonics (SH) tricks", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.3.2"]
 
@@ -617,6 +846,7 @@ key = "cg-irradiance"
 title-text = "topic.cg-irradiance.title"
 summary-text = "topic.cg-irradiance.summary"
 area = "cg"
+group = "cg-spherical"
 requires = ["cg-brdf"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.6"]
 
@@ -625,6 +855,7 @@ key = "cg-sh-irradiance"
 title-text = "topic.cg-sh-irradiance.title"
 summary-text = "topic.cg-sh-irradiance.summary"
 area = "cg"
+group = "cg-spherical"
 requires = ["cg-irradiance", "cg-sh"]
 reading = ["Ramamoorthi and Hanrahan 2001, An efficient representation for irradiance environment maps", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.6.1"]
 
@@ -633,6 +864,7 @@ key = "cg-environment"
 title-text = "topic.cg-environment.title"
 summary-text = "topic.cg-environment.summary"
 area = "cg"
+group = "cg-environment-group"
 requires = ["cg", "rt-cubemaps"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.2", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.4", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 12 (Light Sources), §12.6"]
 
@@ -641,6 +873,7 @@ key = "cg-prefiltered-env"
 title-text = "topic.cg-prefiltered-env.title"
 summary-text = "topic.cg-prefiltered-env.summary"
 area = "cg"
+group = "cg-environment-group"
 requires = ["cg-environment", "cg-irradiance", "cg-ggx"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.5.1"]
 
@@ -649,6 +882,7 @@ key = "cg-gi"
 title-text = "topic.cg-gi.title"
 summary-text = "topic.cg-gi.summary"
 area = "cg"
+group = "cg-transport"
 requires = ["cg-rendering-equation"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.2", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 29 (Light Transport), §29.8"]
 
@@ -657,6 +891,7 @@ key = "cg-path-tracing"
 title-text = "topic.cg-path-tracing.title"
 summary-text = "topic.cg-path-tracing.summary"
 area = "cg"
+group = "cg-transport"
 requires = ["cg-gi", "cg-importance-sampling"]
 reading = ["Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 14 (Light Transport I: Surface Reflection)", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.2.2", "Marrs, Shirley and Wald (eds.) 2021, Ray Tracing Gems II, chapter 14 (The Reference Path Tracer)"]
 
@@ -665,6 +900,7 @@ key = "cg-ao"
 title-text = "topic.cg-ao.title"
 summary-text = "topic.cg-ao.summary"
 area = "cg"
+group = "cg-occlusion"
 requires = ["cg-visibility", "cg-irradiance"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.3", "Jimenez et al. 2016, Practical real-time strategies for accurate indirect occlusion"]
 
@@ -673,6 +909,7 @@ key = "cg-directional-occlusion"
 title-text = "topic.cg-directional-occlusion.title"
 summary-text = "topic.cg-directional-occlusion.summary"
 area = "cg"
+group = "cg-occlusion"
 requires = ["cg-ao", "cg-microfacet"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.4", "Jimenez et al. 2016, Practical real-time strategies for accurate indirect occlusion"]
 
@@ -681,6 +918,7 @@ key = "cg-sss"
 title-text = "topic.cg-sss.title"
 summary-text = "topic.cg-sss.summary"
 area = "cg"
+group = "cg-scattering"
 requires = ["cg-brdf"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 14 (Volumetric and Translucency Rendering), §14.6", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 9 (Physically Based Shading), §9.9", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 15 (Light Transport II: Volume Rendering)"]
 
@@ -689,6 +927,7 @@ key = "cg-hair"
 title-text = "topic.cg-hair.title"
 summary-text = "topic.cg-hair.summary"
 area = "cg"
+group = "cg-scattering"
 requires = ["cg-fresnel"]
 reading = ["Marschner et al. 2003, Light scattering from human hair fibers", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 14 (Volumetric and Translucency Rendering), §14.7.2"]
 
@@ -697,6 +936,7 @@ key = "rt-shadow-maps"
 title-text = "topic.rt-shadow-maps.title"
 summary-text = "topic.rt-shadow-maps.summary"
 area = "light"
+group = "light-shadow-maps"
 requires = ["rt-depth", "rt-spaces", "cg-visibility"]
 reading = ["Williams 1978, Casting curved shadows on curved surfaces", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.4"]
 
@@ -705,6 +945,7 @@ key = "rt-csm"
 title-text = "topic.rt-csm.title"
 summary-text = "topic.rt-csm.summary"
 area = "light"
+group = "light-shadow-maps"
 requires = ["rt-shadow-maps"]
 reading = ["Dimitrov 2007, Cascaded shadow maps", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.4.1"]
 
@@ -713,6 +954,7 @@ key = "rt-shadow-filtering"
 title-text = "topic.rt-shadow-filtering.title"
 summary-text = "topic.rt-shadow-filtering.summary"
 area = "light"
+group = "light-soft-shadows"
 requires = ["rt-shadow-maps", "rt-sampling"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.5"]
 
@@ -721,6 +963,7 @@ key = "rt-pcss"
 title-text = "topic.rt-pcss.title"
 summary-text = "topic.rt-pcss.summary"
 area = "light"
+group = "light-soft-shadows"
 requires = ["rt-shadow-filtering", "cg-area-lights"]
 reading = ["Fernando 2005, Percentage-closer soft shadows", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.6"]
 
@@ -729,6 +972,7 @@ key = "rt-filterable-shadows"
 title-text = "topic.rt-filterable-shadows.title"
 summary-text = "topic.rt-filterable-shadows.summary"
 area = "light"
+group = "light-soft-shadows"
 requires = ["rt-shadow-maps", "rt-sampling"]
 reading = ["Donnelly and Lauritzen 2006, Variance shadow maps", "Peters and Klein 2015, Moment shadow mapping", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.7"]
 
@@ -737,6 +981,7 @@ key = "rt-omni-shadows"
 title-text = "topic.rt-omni-shadows.title"
 summary-text = "topic.rt-omni-shadows.summary"
 area = "light"
+group = "light-shadow-maps"
 requires = ["rt-shadow-maps", "rt-cubemaps"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.4"]
 
@@ -745,6 +990,7 @@ key = "rt-screen-shadows"
 title-text = "topic.rt-screen-shadows.title"
 summary-text = "topic.rt-screen-shadows.summary"
 area = "light"
+group = "light-shadow-maps"
 requires = ["rt-shadow-maps", "rt-bilateral"]
 
 [[topic]]
@@ -752,6 +998,7 @@ key = "rt-split-sum"
 title-text = "topic.rt-split-sum.title"
 summary-text = "topic.rt-split-sum.summary"
 area = "light"
+group = "light-ibl"
 requires = ["cg-prefiltered-env", "cg-brdf-lut"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 10 (Local Illumination), §10.5.2", "Lazarov 2013, Getting more physical in Call of Duty: Black Ops II (SIGGRAPH course: Physically based shading in theory and practice)"]
 
@@ -760,6 +1007,7 @@ key = "rt-reflection-probes"
 title-text = "topic.rt-reflection-probes.title"
 summary-text = "topic.rt-reflection-probes.summary"
 area = "light"
+group = "light-ibl"
 requires = ["rt-split-sum", "geo-bounds", "rt-blend"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.6.1"]
 
@@ -768,6 +1016,7 @@ key = "rt-ssr"
 title-text = "topic.rt-ssr.title"
 summary-text = "topic.rt-ssr.summary"
 area = "light"
+group = "light-screen"
 requires = ["rt-depth-raymarch", "cg-fresnel"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.6.5"]
 
@@ -776,6 +1025,7 @@ key = "rt-ssao"
 title-text = "topic.rt-ssao.title"
 summary-text = "topic.rt-ssao.summary"
 area = "light"
+group = "light-screen"
 requires = ["cg-ao", "rt-bilateral", "cg-sampling-patterns"]
 reading = ["Mittring 2007, Finding next gen: CryEngine 2", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.3.6"]
 
@@ -784,6 +1034,7 @@ key = "rt-ssil"
 title-text = "topic.rt-ssil.title"
 summary-text = "topic.rt-ssil.summary"
 area = "light"
+group = "light-screen"
 requires = ["rt-bilateral", "cg-gi"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.8"]
 
@@ -792,6 +1043,7 @@ key = "rt-screen-sss"
 title-text = "topic.rt-screen-sss.title"
 summary-text = "topic.rt-screen-sss.summary"
 area = "light"
+group = "light-translucency"
 requires = ["cg-sss", "rt-bilateral"]
 reading = ["Jimenez et al. 2015, Separable subsurface scattering", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 14 (Volumetric and Translucency Rendering), §14.6.5"]
 
@@ -800,6 +1052,7 @@ key = "rt-shadow-thickness"
 title-text = "topic.rt-shadow-thickness.title"
 summary-text = "topic.rt-shadow-thickness.summary"
 area = "light"
+group = "light-translucency"
 requires = ["cg-sss", "rt-shadow-maps"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 14 (Volumetric and Translucency Rendering), §14.6.6"]
 
@@ -808,6 +1061,7 @@ key = "rt-virtual-shadow-maps"
 title-text = "topic.rt-virtual-shadow-maps.title"
 summary-text = "topic.rt-virtual-shadow-maps.summary"
 area = "light"
+group = "light-shadow-maps"
 requires = ["rt-shadow-maps", "rt-virtual-texturing"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.4.1"]
 
@@ -816,6 +1070,7 @@ key = "rt-shadow-ray-marching"
 title-text = "topic.rt-shadow-ray-marching.title"
 summary-text = "topic.rt-shadow-ray-marching.summary"
 area = "light"
+group = "light-soft-shadows"
 requires = ["rt-shadow-maps", "cg-area-lights", "cg-mc"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.10"]
 
@@ -824,6 +1079,7 @@ key = "gi-probes"
 title-text = "topic.gi-probes.title"
 summary-text = "topic.gi-probes.summary"
 area = "gi"
+group = "gi-probe-grids"
 requires = ["cg-irradiance", "geo-grids"]
 reading = ["Greger et al. 1998, The irradiance volume", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.4", "Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -832,6 +1088,7 @@ key = "gi-probe-maps"
 title-text = "topic.gi-probe-maps.title"
 summary-text = "topic.gi-probe-maps.summary"
 area = "gi"
+group = "gi-probe-grids"
 requires = ["gi-probes", "rt-octahedral", "cg-sh"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.4", "Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -840,6 +1097,7 @@ key = "gi-probe-visibility"
 title-text = "topic.gi-probe-visibility.title"
 summary-text = "topic.gi-probe-visibility.summary"
 area = "gi"
+group = "gi-probe-grids"
 requires = ["gi-probes", "cg-visibility"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.4", "Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -848,6 +1106,7 @@ key = "gi-probe-depth"
 title-text = "topic.gi-probe-depth.title"
 summary-text = "topic.gi-probe-depth.summary"
 area = "gi"
+group = "gi-probe-grids"
 requires = ["gi-probe-visibility", "gi-probe-maps"]
 reading = ["McGuire et al. 2017, Real-time global illumination using precomputed light field probes", "Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -856,6 +1115,7 @@ key = "gi-probe-tracing"
 title-text = "topic.gi-probe-tracing.title"
 summary-text = "topic.gi-probe-tracing.summary"
 area = "gi"
+group = "gi-probe-grids"
 requires = ["gi-probe-maps", "cg-sampling-patterns", "gpu-amortize"]
 reading = ["Majercik et al. 2019, Dynamic diffuse global illumination with ray-traced irradiance fields"]
 
@@ -864,6 +1124,7 @@ key = "gi-voxel-light"
 title-text = "topic.gi-voxel-light.title"
 summary-text = "topic.gi-voxel-light.summary"
 area = "gi"
+group = "gi-voxels"
 requires = ["geo-voxelize", "cg-lights", "gpu-hdr-formats"]
 reading = ["Crassin et al. 2011, Interactive indirect illumination using voxel cone tracing", "Dachsbacher and Stamminger 2005, Reflective shadow maps"]
 
@@ -872,6 +1133,7 @@ key = "gi-voxel-mips"
 title-text = "topic.gi-voxel-mips.title"
 summary-text = "topic.gi-voxel-mips.summary"
 area = "gi"
+group = "gi-voxels"
 requires = ["gi-voxel-light", "geo-octree", "rt-sampling"]
 reading = ["Crassin et al. 2011, Interactive indirect illumination using voxel cone tracing", "Laine and Karras 2010, Efficient sparse voxel octrees"]
 
@@ -880,6 +1142,7 @@ key = "gi-cone-tracing"
 title-text = "topic.gi-cone-tracing.title"
 summary-text = "topic.gi-cone-tracing.summary"
 area = "gi"
+group = "gi-voxels"
 requires = ["gi-voxel-mips", "rt-blend", "cg-gi"]
 reading = ["Crassin et al. 2011, Interactive indirect illumination using voxel cone tracing", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.7"]
 
@@ -904,6 +1167,7 @@ key = "gi-surface-cache"
 title-text = "topic.gi-surface-cache.title"
 summary-text = "topic.gi-surface-cache.summary"
 area = "gi"
+group = "gi-surface"
 requires = ["rt-gbuffer", "rt-virtual-texturing", "rt-spaces"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.5", "Tabellion and Lamorlette 2004, An approximate global illumination system for computer generated films"]
 
@@ -912,6 +1176,7 @@ key = "gi-radiosity"
 title-text = "topic.gi-radiosity.title"
 summary-text = "topic.gi-radiosity.summary"
 area = "gi"
+group = "gi-surface"
 requires = ["gi-surface-cache", "gi-multibounce", "cg-sh-irradiance"]
 reading = ["Goral et al. 1984, Modeling the interaction of light between diffuse surfaces", "Hughes et al. 2013, Computer Graphics: Principles and Practice, 3rd edition, chapter 31 (Computing Solutions to the Rendering Equation: Theoretical Approaches), §31.10", "Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.2.1"]
 
@@ -920,6 +1185,7 @@ key = "gi-screen-probes"
 title-text = "topic.gi-screen-probes.title"
 summary-text = "topic.gi-screen-probes.summary"
 area = "gi"
+group = "gi-screen"
 requires = ["rt-reprojection", "rt-bilateral", "rt-octahedral", "cg-irradiance"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.5.8"]
 
@@ -928,6 +1194,7 @@ key = "gi-radiance-cache"
 title-text = "topic.gi-radiance-cache.title"
 summary-text = "topic.gi-radiance-cache.summary"
 area = "gi"
+group = "gi-screen"
 requires = ["gi-probe-maps", "geo-clipmaps"]
 reading = ["Křivánek et al. 2005, Radiance caching for efficient global illumination computation", "McGuire et al. 2017, Real-time global illumination using precomputed light field probes"]
 
@@ -936,5 +1203,6 @@ key = "gi-glossy-tracing"
 title-text = "topic.gi-glossy-tracing.title"
 summary-text = "topic.gi-glossy-tracing.summary"
 area = "gi"
+group = "gi-screen"
 requires = ["rt-ssr", "rt-reprojection", "cg-ggx", "cg-importance-sampling"]
 reading = ["Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 11 (Global Illumination), §11.6", "Haines and Akenine-Möller (eds.) 2019, Ray Tracing Gems, chapter 25 (Hybrid Rendering for Real-Time Ray Tracing)"]

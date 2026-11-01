@@ -607,17 +607,140 @@ sources: pairing-two, tag-write, process-gi, voxel-gi-compute, edge-blend, cones
 
 These are the screen pass's lines, from the tag to the scaled cones.
 
-# 8 | Into the final image | 160 s
+# 8 | Keeping it fast | 345 s
+summary: The bill, and how Godot keeps it small: light passes only on change, over occupied cells only, a level at a time; a few cone samples per pixel; half resolution.
+sources: relight-gate, update-gate, light-cache, sort-cells, level-dispatch, local-size, pass-order, raymarch, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc
+
+## c8-map | 2d | Three rates
+diagram: frame
+focus: BAKE, LIGHT, CONE
+
+Before the opaque pass turns those buffers into colour, a look at the bill: what all of this costs, and how Godot keeps it small.
+
+The work comes at three rates: the bake once, in the editor; the light passes only when something changes; and the screen pass, every frame.
+
+## c8-panel | 3d | Reading the panel
+{@ demo=cost callout="" image="" panel=performance highlight="" giRelightEachFrame=0 quality=0 giHalfResolution=0 costSplit=0 viewMode=0 cameraDrift=1}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[12, 16, 6.8], [24, 20, 6.2]], "seconds": "beat"}}]}
+
+{@ highlight="scene pass"}The panel on the right times the graphics card's work: the line is each frame's total, so a spike is a frame that did more.
+
+{@ highlight=voxelgiGiCS}Below it, each row is one pass of the last frames: its name, a bar for its share, and its average time in milliseconds.
+
+{@ highlight="scene pass,voxelgiGiCS"}The scene pass is the room's own shading, most of the frame; the screen pass is the row named for its compute shader, the one this chapter shrinks.
+
+{@ highlight=""}These times are this machine's; watch for the rows that appear only when work is done.
+
+## c8-cache | 3d | Light passes only on change
+{@ demo=cost callout="" image="" panel=performance highlight="" giRelightEachFrame=0 cameraDrift=1}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[20, 16, 6.6], [30, 20, 5.8]], "seconds": "beat"}}]}
+
+{@ callout=update-gate}Right now no light pass is listed: nothing changed, so Godot does no light-pass work at all.
+
+{@ callout=light-cache}Each frame the scene's culler compares every visible light near the box with the copy it saved, on the processor, {@ callout=relight-gate}and the passes run only when a light, the data, or one of three settings changed.
+
+{@ highlight="voxelgiLightCS,voxelgiBounceCS,voxelgiMipmapsCS,voxelgiWriteCS" giRelightEachFrame=1}Here the lab relights the room every frame, which Godot does only when something changed, to measure them: the direct light, the bounce, the mips, and the writes appear.
+
+{@ highlight=voxelgiBounceCS}On this machine the bounce takes the longest: six cones from every leaf that has a normal.
+
+{@ highlight="" giRelightEachFrame=0}Back as Godot runs it, they are gone again, and a static room's light costs nothing per frame.
+
+## c8-sparse | 3d | Only the occupied cells
+{@ demo=cost callout="" image="" panel=values focusRow=-1 octreeLevel=-1 cutHeight=3.2 giRelightEachFrame=0 cameraDrift=0.5}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[18, 24, 6.6], [28, 30, 6.0]], "seconds": "beat"}}]}
+
+{@ focusRow=1}The readout on the right counts what an update and a frame cost, from the lab's code: its rows are the numbers this chapter says.
+
+{@ callout=sort-cells}{@sl> octreeLevel=-1..7}{@sp> focusRow=1..3}When they do run, the passes visit only the cells the bake made: these leaves, not the empty grid around them{<sp}{<sl}.
+
+{@sc> cutHeight=3.2..1.2}{@sp2> focusRow=3..4}Forty-two thousand leaves, against over a million texels in the texture's finest mip{<sp2}{<sc}.
+
+## c8-levels | 3d | A level at a time
+{@ demo=cost callout="" image="" panel=values focusRow=-1 octreeLevel=7 cutHeight=1.6 giRelightEachFrame=0 cameraDrift=0.5}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[22, 28, 6.4], [30, 32, 6.0]], "seconds": "beat"}}]}
+
+{@ image=cellArray imageCorner=bottom-left callout=sort-cells}{@lc> cutHeight=1.6..2.4}The cells are stored sorted by level, the root first and the leaves last, so each level is one run of the array: one colour in this bar{<lc}.
+
+{@ callout=local-size}{@w1> focusRow=1..2}Each run is one dispatch, sixty-four cells to a workgroup{<w1}.
+
+{@ callout=level-dispatch}{@lv> octreeLevel=7..1}The light pass lights the leaves; then the mips climb one level per dispatch, with a barrier between, because a parent sums its children's light{<lv}.
+
+{@ callout=pass-order}{@w2> focusRow=2..1}{@lv2> octreeLevel=1..7}Then eight writes copy every level into the texture: with two bounces, thirty-two dispatches in this room{<lv2}{<w2}.
+
+{@ imageHide=cellArray focusRow=-1}{@lv3> octreeLevel=7..-1}The lab's light passes follow the same order on the graphics card{<lv3}.
+
+## c8-march | 3d | Shadows step by the field
+{@ demo=light callout="" image="" panel=hidden workedLight=1 lightStep=4 marchSteps=0 octreeLevel=-1 cameraDrift=0.3}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[0, 16, 4.4], [8, 20, 4.0]], "seconds": "beat"}}]}
+
+{@ callout=raymarch}{@mm> marchSteps=0..3}Inside the light pass, a shadow ray reads the distance field: how far the nearest surface is, so that far is safe to jump{<mm}.
+
+{@mm2> marchSteps=3..12}So its steps are long in open air and short only near a surface{<mm2}, {@mm3> marchSteps=12..40}and never shorter than one cell along its main axis, so it is never slower than a walk from cell to cell{<mm3}.
+
+{@ callout=light-at-pos}Before any march, a light out of range, too dim, or behind the cell is skipped.
+
+## c8-cones | 3d | A few samples per pixel
+{@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=0 coneSteps=0 specCone=0 quality=0 cameraDrift=0.3}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch"], "through": [[34, 18], [44, 20]], "seconds": "beat"}}]}
+
+{@ callout=cones-low}{@c1> conesShown=0..4}Everything so far runs only on change; the screen pass runs every frame, so its price is per pixel: four cones{<c1}, {@c2> coneSteps=0..7}each at most seven steps in this box, twenty-eight samples at most{<c2}.
+
+{@c3> coneSteps=3..7}Each sample reads a prefiltered mip as wide as the cone there: the average of the cells it covers, a cheap stand-in for many rays, at the price of blurring thin walls{<c3}.
+
+{@ panel=performance highlight=voxelgiGiCS callout=cones-high}{@hq> quality=0..1}{@hc> conesShown=4..6}{@hs> coneSteps=7..11}At High, six narrower cones widen more slowly, so their steps are shorter and more numerous, and the screen pass's row grows{<hs}{<hc}{<hq}.
+
+{@ callout=quality-doc specCone=1}{@hq2> quality=1..0}{@hc2> conesShown=6..4}The documentation says High also gives better reflections, but only the diffuse cones change: the reflection cone stays the same{<hc2}{<hq2}.
+
+## c8-spec | 3d | The reflection cone
+{@ demo=pixel callout=spec-cone image="" panel=values workedPixel=1 conesShown=0 specCone=1 sphereRoughness=1 cameraDrift=0.3}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch"], "through": [[38, 16], [30, 20]], "seconds": "beat"}}]}
+
+{@sr> sphereRoughness=1..0.5}That reflection cone is the one to watch: its width follows the roughness{<sr}, {@sr2> sphereRoughness=0.5..0}from at most two steps when fully rough to at most three hundred eighty-one on a mirror{<sr2}.
+
+{@sr3> sphereRoughness=0..0.1}A mirror's cone is nearly a ray, so it steps half a cell at a time, not to skip a wall: smooth surfaces are the most expensive pixels{<sr3}.
+
+## c8-half | 3d | Half resolution
+{@ demo=cost callout="" image="" panel=performance highlight=voxelgiGiCS giHalfResolution=0 costSplit=1 viewMode=0 quality=0 cameraDrift=0.3 camera.target=-1.6,0.7,-0.4 camera.yaw=40 camera.pitch=16 camera.distance=3.4}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[40, 16, 3.4], [44, 17, 3.0], [40, 15, 1.7], [36, 16, 1.6], [40, 16, 3.2]], "seconds": "beat"}}]}
+
+{@ callout=half-res-setting}One project setting trades quality for speed directly, and it is off by default: half resolution; on the left the frame at full resolution, on the right as the setting makes it.
+
+{@ callout=half-res-buffers}{@hr> giHalfResolution=0..1}The ambient and reflection buffers become half as wide and half as tall, {@ callout=half-res-shift}and each of their texels traces only the top-left pixel of its two by two block{<hr}.
+
+{@ callout=half-res-dispatch}A quarter of the pixels are traced, and the screen pass's row shrinks with them.
+
+{@ callout=gi-buffer-fetch}{@hv> viewMode=0..1}Here are the ambient buffers; without multisampling, the opaque pass reads the half one with a plain bilinear blend and no depth weights{<hv}.
+
+{@ callout=half-res-doc}So along the sphere's edge, texels traced on the wall and on the sphere are blended, and the edge turns ragged, two pixels at a time: the artifacts on polygon edges the documentation warns of.
+
+{@ viewMode=0}Each is one half-size texel wide, so at a higher resolution they shrink.
+
+## c8-recap | 3d | Next: into the image
+{@ demo=cost callout="" image="" panel=hidden giHalfResolution=0 costSplit=0 viewMode=0 cameraDrift=1}
+{@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 16, 6.8], [26, 20, 6.2]], "seconds": "beat"}}]}
+
+{@rm> voxelgiMix=1..0.5}So VoxelGI pays for little each frame: light passes only on change, over occupied cells only{<rm}, {@rm2> voxelgiMix=0.5..1}a few cone samples per pixel, and half the pixels when asked{<rm2}.
+
+{@rl> giHalfResolution=0..1}Each has its price: a moving light must relight, coarse cones blur thin walls, and half resolution frays the edges{<rl}.
+
+{@rl2> giHalfResolution=1..0}What is left is to turn the buffers into colour{<rl2}.
+
+## c8-sources | 2d | Where to read
+sources: update-gate, light-cache, relight-gate, sort-cells, level-dispatch, local-size, pass-order, raymarch, light-at-pos, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc
+
+These are the lines that keep it fast, from the gate to the half-size buffers.
+
+# 9 | Into the final image | 160 s
 summary: The opaque pass mixes the environment toward VoxelGI's light by its alpha; one pixel followed back; three takeaways.
 sources: gi-buffer-mix, forward-gi-transparent, forward-cones, fog-inject, debug-noop, bias-mismatch
 
-## c8-map | 2d | The opaque pass
+## c9-map | 2d | The opaque pass
 diagram: frame
 focus: CONE, OPAQUE
 
-The screen pass leaves two buffers per pixel, an ambient and a reflection; the opaque pass turns them into colour.
+Now the opaque pass turns the two buffers the screen pass left, an ambient and a reflection, into colour.
 
-## c8-mix | 3d | Mixed with the environment by alpha
+## c9-mix | 3d | Mixed with the environment by alpha
 {@ demo=compose callout="" image="" panel=values viewMode=0 interior=0 focusRow=1 cameraDrift=0.5}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch"], "through": [[36, 14], [46, 18]], "seconds": "beat"}}]}
 
@@ -629,7 +752,7 @@ The screen pass leaves two buffers per pixel, an ambient and a reflection; the o
 
 {@in2> interior=1..0}{@x3> focusRow=3..7}{@pa3> pixelAzimuth=-30..0}Then ambient occlusion, the albedo, screen-space effects, and the environment's reflectance follow, as for any ambient light{<pa3}{<x3}{<in2}.
 
-## c8-others | 3d | Transparent surfaces and fog read it too
+## c9-others | 3d | Transparent surfaces and fog read it too
 {@ demo=room callout="" image="" panel=hidden voxelgiMix=1 cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[14, 16, 6.6], [28, 20, 6.0]], "seconds": "beat"}}]}
 
@@ -639,7 +762,7 @@ The screen pass leaves two buffers per pixel, an ambient and a reflection; the o
 
 {@ callout=debug-noop}{@ov3> voxelgiMix=1..0.5}And the editor's lighting view forgets to apply the dynamic range, so at the default range it shows the light at half{<ov3}.
 
-## c8-follow | 3d | One pixel, followed back
+## c9-follow | 3d | One pixel, followed back
 {@ demo=pixel callout="" image="" panel=hidden workedPixel=1 conesShown=4 specCone=0 coneSteps=16 cameraDrift=0.3}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[36, 16, 3.2], [24, 22, 3.6], [32, 18, 3.0]], "seconds": "beat"}}]}
 
@@ -651,7 +774,7 @@ The screen pass leaves two buffers per pixel, an ambient and a reflection; the o
 
 {@ demo=octree workedTriangle=1 workedLeaf=1 leafColumns=0 octreeLevel=-1 camera.target=-0.01,0.24,-1.71 camera.distance=0.4 panel=hidden}{@fl> leafColumns=0..16}{@flv> descentLevel=5..7}And each leaf is the average of the samples the bake took from the room's triangles{<flv}{<fl}.
 
-## c8-recap | 3d | Three takeaways
+## c9-recap | 3d | Three takeaways
 {@ demo=room callout="" image="" panel=hidden voxelgiMix=0 cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[16, 16, 6.8], [26, 20, 6.2], [20, 18, 6.4]], "seconds": "beat"}}]}
 
@@ -661,7 +784,7 @@ The screen pass leaves two buffers per pixel, an ambient and a reflection; the o
 
 {@m3> voxelgiMix=0.4..1}{@m3v> viewMode=1..0}Third, the trade: a bake of the static scene, moving objects only drawn in each frame, five-centimetre cells, cones that see the room only as coarse averages, and no shadows from area lights, for a few cone samples per pixel{<m3v}{<m3}.
 
-## c8-sources | 2d | Where to read
+## c9-sources | 2d | Where to read
 sources: gi-buffer-mix, forward-gi-transparent, forward-cones, fog-inject, debug-noop, bias-mismatch
 
 These are the composite's lines and the other readers.

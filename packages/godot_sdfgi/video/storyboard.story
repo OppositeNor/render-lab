@@ -457,7 +457,7 @@ Every probe now has its maps; the last pass turns them into each pixel's light.
 {@ callout=cascade-blend panel=code code=screen-pass highlight=blend} {@out> blendPoint=1..14}Near the box's edge, between five and a half and seven and a half probe spacings from the camera, it blends toward the next cascade{<out}, {@ panel=values}as the readout's test point shows.
 
 ## c10-probes | 3d | Eight probes, weighted by distance and by facing
-{@ demo=pixel pixelProbes=1 cameraDrift=0.3 camera.distance=4.0 camera.yaw=70}
+{@ demo=pixel pixelProbes=1 cameraDrift=0.3 camera.target=-2.6,0.9,0.5 camera.distance=4.0 camera.yaw=70 camera.pitch=10}
 
 {@ callout=probe-weights panel=code code=screen-pass highlight=bias} The point is first nudged off the wall along its normal, by one point one cells.
 

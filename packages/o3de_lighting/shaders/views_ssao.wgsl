@@ -5,7 +5,7 @@
 /// horizontal depth-aware blurs (half size), 3 the depth-aware upsample (full
 /// size), which ModulateWithSsao multiplies the diffuse light by. The picked
 /// pixel is ringed.
-/// {@ view=ssaoStage entry=o3deSsaoStageView size=384,216 text=views.ssao_stage reads=halfDepth,ssao,ssaoBlur,ssaoFull,depth}
+/// {@ view=ssaoStage entry=o3deSsaoStageView size=384,216 aspect=viewport text=views.ssao_stage reads=halfDepth,ssao,ssaoBlur,ssaoFull,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct SsaoStageParams {

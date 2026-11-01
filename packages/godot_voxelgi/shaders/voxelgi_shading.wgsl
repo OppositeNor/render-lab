@@ -16,10 +16,11 @@
 // pass reads its ambient and reflection buffers. The lab's pre-pass writes
 // depth alone; the scene pass after it writes the normal (and its own direct
 // light), the GI pass reads them, and a compute pass does the opaque pass's
-// mix, for the one VoxelGI around the room. The RGBA8
-// 3D texture is a buffer here, and its trilinear, mip-blended sampling
-// (textureLod with the LINEAR_WITH_MIPMAPS sampler, clamped to the edge) is
-// done by hand. The environment's ambient and reflection are the lab's sky.
+// mix, for the one VoxelGI around the room. The RGBA8 3D texture is a 3D
+// texture, as Godot's: the light passes (voxelgi_passes.wgsl) write it, and
+// it is sampled with a trilinear, mip-blended sampler clamped to the edge
+// (Godot's LINEAR_WITH_MIPMAPS). The environment's ambient and reflection
+// are the lab's sky.
 
 // gShading: the investigation's values (the `///` tags; the lab packs them
 // from the shot, lab/src/shader_data.rs) and what demos.rs derives.
@@ -59,14 +60,23 @@ struct VoxelgiShading {
     /// The distance field's first word in gShadingData.
     /// {@ derived}
     sdfOffset: f32,
+    /// rendering/global_illumination/gi/use_half_resolution (giHalfResolution): 1 traces one pixel of each 2 x 2 block.
+    /// {@ derived}
+    halfResolution: f32,
 }
 /// {@ shader_data}
 @group(1) @binding(0) var<uniform> gShading: VoxelgiShading;
-// gShadingData (world::shading_data): every mip of the light texture, one
-// RGBA8 word per texel, x fastest, mip 0 first; then the distance field, four
-// bytes a word; four words a vec4 (bitcast).
+// gShadingData (world::shading_data): the distance field, four bytes a
+// word, then the light passes' cells, children, and lights; four words a vec4
+// (bitcast).
 @group(1) @binding(1) var<storage, read> gShadingData: array<vec4<f32>>;
 @group(1) @binding(2) var<storage, read> gShadingFrame: array<vec4<f32>>;
+
+// The light texture (SceneShading::volumes, update.rs): RGBA8, one mip per
+// octree level, written by the light passes; and the sampler gi.glsl reads it
+// with (SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP).
+@group(3) @binding(0) var gVolumeSampler: sampler;
+@group(3) @binding(1) var gVoxelgiLight: texture_3d<f32>;
 
 // gi.glsl's M_PI.
 const VOXELGI_M_PI: f32 = 3.141592;
@@ -75,53 +85,9 @@ fn voxelgiWord(i: u32) -> u32 {
     return bitcast<u32>(gShadingData[i / 4u][i % 4u]);
 }
 
-fn voxelgiMipSize(mip: i32) -> vec3<i32> {
-    return max(vec3<i32>(gShading.bounds) >> vec3<u32>(u32(mip)), vec3<i32>(1));
-}
-
-fn voxelgiMipOffset(mip: i32) -> u32 {
-    var o = 0u;
-    for (var m = 0; m < mip; m++) {
-        let s = voxelgiMipSize(m);
-        o += u32(s.x * s.y * s.z);
-    }
-    return o;
-}
-
-// texelFetch of the RGBA8 texture, clamped to the edge.
-fn voxelgiTexel(mip: i32, offset: u32, p: vec3<i32>) -> vec4<f32> {
-    let s = voxelgiMipSize(mip);
-    let c = clamp(p, vec3<i32>(0), s - vec3<i32>(1));
-    return unpack4x8unorm(voxelgiWord(offset + u32(c.x + c.y * s.x + c.z * s.x * s.y)));
-}
-
-// Trilinear inside one mip.
-fn voxelgiSampleMip(mip: i32, uvw: vec3<f32>) -> vec4<f32> {
-    let offset = voxelgiMipOffset(mip);
-    let t = uvw * vec3<f32>(voxelgiMipSize(mip)) - vec3<f32>(0.5);
-    let b = floor(t);
-    let f = t - b;
-    let bi = vec3<i32>(b);
-    var sum = vec4<f32>(0.0);
-    for (var i = 0; i < 8; i++) {
-        let o = vec3<i32>(i & 1, (i >> 1u) & 1, (i >> 2u) & 1);
-        let w = select(vec3<f32>(1.0) - f, f, o == vec3<i32>(1));
-        sum += voxelgiTexel(mip, offset, bi + o) * (w.x * w.y * w.z);
-    }
-    return sum;
-}
-
-// textureLod: the level clamped to the mips, the two nearest blended.
-fn voxelgiSampleLod(uvw: vec3<f32>, lodIn: f32) -> vec4<f32> {
-    let lod = clamp(lodIn, 0.0, gShading.mipCount - 1.0);
-    let m0 = i32(floor(lod));
-    let m1 = min(m0 + 1, i32(gShading.mipCount) - 1);
-    let f = lod - f32(m0);
-    let a = voxelgiSampleMip(m0, uvw);
-    if (f == 0.0 || m0 == m1) {
-        return a;
-    }
-    return a * (1.0 - f) + voxelgiSampleMip(m1, uvw) * f;
+// textureLod(sampler3D(voxel_gi_textures[index], linear_sampler_with_mipmaps), uvw, lod).
+fn voxelgiSampleLod(uvw: vec3<f32>, lod: f32) -> vec4<f32> {
+    return textureSampleLevel(gVoxelgiLight, gVolumeSampler, uvw, clamp(lod, 0.0, gShading.mipCount - 1.0));
 }
 
 // voxel_cone_trace.
@@ -308,11 +274,21 @@ fn voxelgiWorldPosition(pixel: vec2<u32>, size: vec2<u32>, depth: f32) -> vec3<f
 
 // The GI pass (gi.cpp's process_gi, gi.glsl): once per pixel, on its first
 // sample (Godot resolves its MSAA buffers to one sample first, resolve_gi),
-// voxel_gi_compute into the ambient and reflection buffers.
+// voxel_gi_compute into the ambient and reflection buffers. At half
+// resolution (gi.glsl:705-724) the buffers are half the size and each texel
+// traces the top-left pixel of its 2 x 2 block (`pos <<= 1`); a block past
+// the screen's edge writes nothing.
 @compute @workgroup_size(8, 8)
 fn voxelgiGiCS(@builtin(global_invocation_id) id: vec3<u32>) {
-    let pixel = id.xy;
-    let size = textureDimensions(oGiAmbient);
+    let texel = id.xy;
+    if (any(texel >= textureDimensions(oGiAmbient))) {
+        return;
+    }
+    var pixel = texel;
+    if (gShading.halfResolution > 0.5) {
+        pixel = texel << vec2<u32>(1u);
+    }
+    let size = textureDimensions(tDepth);
     if (any(pixel >= size)) {
         return;
     }
@@ -326,8 +302,28 @@ fn voxelgiGiCS(@builtin(global_invocation_id) id: vec3<u32>) {
         let r = reflect(-normalize(gFrame.camera.position - p), n);
         gi = voxelgiProcess(p, n, r, roughness, gShading.quality > 0.5, gShading.interior < 0.5);
     }
-    textureStore(oGiAmbient, pixel, gi.ambient);
-    textureStore(oGiReflection, pixel, gi.reflection);
+    textureStore(oGiAmbient, texel, gi.ambient);
+    textureStore(oGiReflection, texel, gi.reflection);
+}
+
+// textureLod(sampler2D(buffer, SAMPLER_LINEAR_CLAMP), screen_uv, 0.0) of a
+// GI buffer (scene_forward_clustered.glsl:2016-2023): bilinear, clamped to the
+// edge, at the pixel's centre. At full size it is the pixel's own texel.
+fn voxelgiGiBuffer(t: texture_2d<f32>, pixel: vec2<u32>, size: vec2<u32>) -> vec4<f32> {
+    let dims = textureDimensions(t);
+    if (all(dims == size)) {
+        return textureLoad(t, pixel, 0);
+    }
+    let uv = (vec2<f32>(pixel) + vec2<f32>(0.5)) / vec2<f32>(size);
+    let f = uv * vec2<f32>(dims) - vec2<f32>(0.5);
+    let b = floor(f);
+    let w = f - b;
+    let hi = vec2<i32>(dims) - vec2<i32>(1);
+    let p0 = clamp(vec2<i32>(b), vec2<i32>(0), hi);
+    let p1 = clamp(vec2<i32>(b) + vec2<i32>(1), vec2<i32>(0), hi);
+    let top = mix(textureLoad(t, vec2<i32>(p0.x, p0.y), 0), textureLoad(t, vec2<i32>(p1.x, p0.y), 0), w.x);
+    let bottom = mix(textureLoad(t, vec2<i32>(p0.x, p1.y), 0), textureLoad(t, vec2<i32>(p1.x, p1.y), 0), w.x);
+    return mix(top, bottom, w.y);
 }
 
 // The opaque pass's use of the GI buffers (scene_forward_clustered.glsl),
@@ -342,7 +338,7 @@ fn voxelgiComposeCS(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(pixel >= size)) {
         return;
     }
-    let gi = VoxelgiResult(textureLoad(tGiAmbient, pixel, 0), textureLoad(tGiReflection, pixel, 0));
+    let gi = VoxelgiResult(voxelgiGiBuffer(tGiAmbient, pixel, size), voxelgiGiBuffer(tGiReflection, pixel, size));
     let mode = i32(round(gShading.viewMode));
     let samples = textureNumSamples(tDirect);
     var sum = vec3<f32>(0.0);

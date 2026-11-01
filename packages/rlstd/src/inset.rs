@@ -85,7 +85,8 @@ pub fn view_texture(name: &str) -> String {
 
 /// The inset of an image the story shows: the investigation's picture of it
 /// with the story's corner and title (`package`'s text), the PNG at its own
-/// size, or the instance's texture at its kind's size. None for an image the
+/// size, or the instance's texture at its kind's size (in the texture's own
+/// shape: `aspect=viewport` follows the viewport). None for an image the
 /// frame does not publish.
 pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &str) -> Option<PictureInset> {
     let mut inset = match &image.source {
@@ -113,8 +114,8 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
 }
 
 /// The GPU textures a picture can show, by key, as the renderer registered
-/// them with egui.
-pub type Textures = HashMap<String, egui::TextureId>;
+/// them with egui, with their size in texels.
+pub type Textures = HashMap<String, (egui::TextureId, [u32; 2])>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -249,6 +250,9 @@ fn measures(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, ins
     let (id, own) = texture(ctx, textures, &inset.picture).unzip();
     let mut size = match (inset.size, own.flatten()) {
         ([0.0, 0.0], Some(own)) => own * (360.0 / own.max_elem()).min(1.0),
+        // A renderer's texture in its own shape (an image kind's may take the
+        // viewport's), its longer side the size's.
+        (size, Some(own)) if matches!(inset.picture, Picture::Texture(_)) => own * (size[0].max(size[1]) / own.max_elem()),
         ([0.0, 0.0], None) => vec2(220.0, 220.0),
         (size, _) => vec2(size[0], size[1]),
     };
@@ -398,7 +402,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
 /// first use and rewritten when they change.
 fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Option<(egui::TextureId, Option<egui::Vec2>)> {
     let (key, size, rgba) = match picture {
-        Picture::Texture(key) => return textures.get(key).map(|&id| (id, None)),
+        Picture::Texture(key) => return textures.get(key).map(|&(id, size)| (id, Some(vec2(size[0] as f32, size[1] as f32)))),
         Picture::Resource(key) => return resource_texture(ctx, key).map(|t| (t.id(), Some(t.size_vec2()))),
         Picture::Pixels { key, size, rgba } => (key, *size, rgba),
     };

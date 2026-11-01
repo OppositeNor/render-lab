@@ -186,7 +186,18 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
     tag). Give it the engine's default and range, cited in its doc. The Experiments tab groups these values, and
     research runs sweep them.
   - Prefer making a hard-coded setting a value (same default, so frames stay identical) to leaving it a constant.
-  - Settings baked into the scene shading's data are rebuilt through `Investigation::scene_data`.
+  - Settings baked into the scene shading's data are rebuilt through `Investigation::scene_data`; work the GPU redoes
+    when a setting changes runs as update passes (`SceneShading::update`).
+- **GPU work at the engine's rates** (`SceneShading`, lab/src/investigation.rs), when the port needs more than a pass
+  chain per frame:
+  - `volumes`: 3D textures with mips, sampled by the chain's passes and verify kernels at group 3 (a trilinear,
+    mip-linear sampler at binding 0), written by update passes one mip per dispatch.
+  - `update`: compute passes that run only when their plan's key changes (`UpdatePlan`: the key, `always` for a
+    measurement, the dispatches in order, each with its workgroup count, mip, and 16 words of parameters), before
+    the frame's chain; the renderer keeps the volumes of the last few keys, and the performance panel times each pass
+    while it runs. `Renderer::read_volume` reads a mip back for the selftest.
+  - `resolution`: chain targets whose divisor a state chooses (an engine's half-resolution setting).
+  - See `godot_voxelgi` (update.rs, the light passes into its RGBA8 texture; half-resolution GI).
   - Ship one experiment in `experiments/` that compares a cheap setting with the engine's most expensive one.
 - A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `id()` (`DemoId::new(key)`), and `of(DemoId)`, for
   what stays code: `build_frame`, the dock, picking, and Play.
@@ -271,7 +282,8 @@ A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`
 `/// {@ view=probeMap entry=<compute entry> size=w,h text=<title key>}`, and its parameters' uniform at
 `@group(3) @binding(1)` tagged `/// {@ view_params=probeMap}`, its members tagged `{@ key=probe default=7,7,8
 range=0,16}`. The entry point runs with the frame (group 0) and the scene shading (group 1) bound, one invocation per
-texel, and writes display colours. No Rust: the story makes instances and drives their parameters
+texel, and writes display colours. A kind that pictures the screen adds `aspect=viewport`: its texture then takes
+the viewport's shape (the longer side of `size` kept), so a tall viewport gives a tall picture. No Rust: the story makes instances and drives their parameters
 (`{@ image=near imageFrom=probeMap image.probe=7,7,8}`). Keep `//` comments away from just above a tagged
 declaration: naga then drops its `///` lines.
 

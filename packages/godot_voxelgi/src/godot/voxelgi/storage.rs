@@ -280,12 +280,6 @@ impl LightTexture {
         }
         a * (1.0 - f) + self.sample_mip(m1, uvw) * f
     }
-
-    /// Every texel of every mip as one RGBA8 word each, x fastest, mip 0
-    /// first: what the scene shading's data buffer carries.
-    pub fn words(&self) -> Vec<u32> {
-        self.mips.iter().flat_map(|m| m.iter().map(|t| u32::from_le_bytes(*t))).collect()
-    }
 }
 
 /// A float to an 8-bit UNORM, as the GPU stores it: clamped, then rounded.

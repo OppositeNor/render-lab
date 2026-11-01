@@ -16,6 +16,12 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
   `rt`, `geo`, `cg`, `light`, `gi`: the panel's and the tab's grouping), `requires`, and optional `reading`
   (published references: papers, books, talks, cited by their publication; a book by chapter and section, as
   `Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.5`, naming the edition).
+- **Groups** are `[[group]]` tables (`key`, `title-text` as `group.<key>.title`, `area`): subsections of an area
+  that gather related topics ("Shadow maps", "Distance fields", "Monte Carlo"). A topic joins one with
+  `group = "<key>"` (a group of its own area; another package's as `rlstd.knowledge#<key>`). The panel draws each
+  group as a box around its topics, each in a band of its own across the columns it spans; the Mermaid export nests
+  them in their area's subgraph. Groups say nothing about requirements: give a new topic the group a reader would
+  look in, or none when no group fits.
 - **The three bases** are the only nodes without requirements (`base = true`): `gpu` (the execution model:
   invocations, subgroups, workgroups, latency hiding, divergence), `cg` (radiometry: solid angle, flux, irradiance,
   radiance), `rt` (the graphics pipeline: rasterization and interpolation). Queues, the rendering equation, projection,
@@ -104,9 +110,10 @@ The procedure:
 - **The Prerequisites tab** (the dock): the starting level, what the viewer should know by area (nearest the level
   first, ↗ on carried topics), and what the story teaches, each topic with its summary, for the current chapter (on a
   timeline) or the demonstration's chapters (`demos`), else the whole story. A click selects the topic in the panel.
-- **The knowledge panel** (`PanelMode::Knowledge`, opened with the tab): the whole graph, bases on the left, coloured by
-  role (known, level, taught, not needed), the context's topics at full strength; drag to pan, scroll to zoom,
-  double-click to fit, click a topic for its card. Its Full screen button (and the tab's) shows the graph over the
+- **The knowledge panel** (`PanelMode::Knowledge`, opened with the tab): the whole graph, bases on the left, its
+  groups boxed and titled, coloured by role (known, level, taught, not needed), the context's topics at full strength; drag to pan, scroll to zoom,
+  double-click to fit, click a topic for its card. Its Hide unused button lays out only the topics its context
+  needs (the chapter, the demonstration's chapters, or the whole story), and Show all brings back the rest. Its Full screen button (and the tab's) shows the graph over the
   whole window; Esc or Close closes it.
 - **The homepage**: the selection page's "Before you start" names the starting level and the known topics the story
   uses directly, and its Knowledge graph button shows the graph full screen.
@@ -122,6 +129,7 @@ cargo run --release -- --investigation godot/sdfgi knowledge --mermaid /tmp/know
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/p.png --page viewer-prerequisites:field   # the tab and panel
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/s.png --page viewer-knowledge:field          # the panel zoomed onto a level topic
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/g.png --page viewer-knowledge-graph:field     # the graph full screen
+cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/c.png --page viewer-knowledge-compact:field   # only what its chapters need
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/h.png --page select-knowledge                # over the homepage
 cargo test --release --locked --offline --workspace                              # knowledge::tests: the separator, the public graphs
 ```

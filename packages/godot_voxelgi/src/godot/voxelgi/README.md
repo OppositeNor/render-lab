@@ -4,14 +4,19 @@ How Godot's Forward+ renderer computes **VoxelGI**, its baked voxel global illum
 (4.7.2-stable, the commit in [`source-index.json`](../../../source-index.json)) and followed in the lab at the engine's
 default subdivision: one VoxelGI around the study room, 6.4 x 3.2 x 6.4 m at subdivision 128, so an octree of
 128 x 64 x 128 cells of 5 cm in 8 levels. The room is baked by [`bake.rs`](bake.rs) and [`sdf.rs`](sdf.rs) (the
-voxelizer and its distance transform), packed by [`storage.rs`](storage.rs), lit by [`light.rs`](light.rs) (the light
+voxelizer and its distance transform), packed by [`storage.rs`](storage.rs), lit by [`light.rs`](light.rs) and its GPU port (the light
 pass with its shadow march and the area light's LTC integral, the mip pass, the write pass, and the second bounce), and
 its dynamic-object path is followed by [`dynamic.rs`](dynamic.rs), each following the engine's shader or C++ function
 line by line; [`world.rs`](world.rs) builds it once. The room is shaded by
 [`shaders/voxelgi_shading.wgsl`](../../../shaders/voxelgi_shading.wgsl) in Forward+'s order: a depth pre-pass, the scene
 pass, a compute pass running the WGSL port of the screen pass (`voxel_gi_compute` and its two cone traces) once per
-pixel on the lit texture of that CPU world, then the opaque pass's mix; [`cone.rs`](cone.rs) is its CPU mirror. [`shaders/voxelgi_passes.wgsl`](../../../shaders/voxelgi_passes.wgsl) ports the light pass and the bounce's
-cone for the selftest, which compares them with the CPU model.
+pixel (or per 2 x 2 block at Godot's half resolution), then the opaque pass's mix; [`cone.rs`](cone.rs) is its CPU
+mirror. The light passes run on the GPU as Godot runs them ([`update.rs`](update.rs),
+[`shaders/voxelgi_passes.wgsl`](../../../shaders/voxelgi_passes.wgsl)): the direct light, the bounce, one mip dispatch
+per level, and the writes into an RGBA8 3D texture, over the occupied cells only, and only when the scene node's light
+settings change. [`light.rs`](light.rs) is their CPU mirror, which the demonstrations draw; the selftest compares the
+texture the GPU writes, its sampler, and the ports of the light pass, the bounce's cone, and the screen pass with it.
+[`cost.rs`](cost.rs) counts what an update and a frame cost (the cost demonstration).
 
 ## What the demonstrations show
 
@@ -27,7 +32,8 @@ cone for the selftest, which compares them with the CPU model.
 | 8 | The mips and the texture | voxel_gi.glsl `MODE_UPDATE_MIPMAPS`, `MODE_WRITE_TEXTURE` |
 | 9 | A dynamic object | `GI::VoxelGIInstance::update`'s dynamic path, voxel_gi.glsl `MODE_DYNAMIC_*` |
 | 10 | A pixel's cones | gi.glsl `voxel_gi_compute`, `voxel_cone_trace`, `voxel_cone_trace_45_degrees` |
-| 11 | The opaque pass | scene_forward_clustered.glsl's use of the GI buffers |
+| 11 | What it costs | `GI::VoxelGIInstance::update`'s gate and per-level dispatches; `process_gi` at half resolution; the quality switch |
+| 12 | The opaque pass | scene_forward_clustered.glsl's use of the GI buffers |
 
 Each demonstration has a **readout** in the struct panel's place: the record it shows, word by word with its decoded
 values, or the values of its step, computed by the CPU model. Its **step parameters** (in the dock) walk the octree's
@@ -73,7 +79,8 @@ Read from the code (and, where marked, measured on the lab's port):
 - The depth pre-pass writes depth alone; the scene pass after it writes the normal (Godot's normal-roughness buffer;
   the roughness is the object's) beside the lab's direct light, the GI pass reads them on each pixel's first MSAA
   sample, and the opaque pass's mix with the environment is a compute pass over the samples. There is no tag buffer
-  (one VoxelGI); the RGBA8 3D texture is a buffer sampled trilinearly by hand.
+  (one VoxelGI). With MSAA, Godot's opaque pass first moves the GI fetch to the neighbour whose normal is closest
+  (`gi_upscale_for_msaa`); the lab's compose reads the buffers bilinearly at the pixel's centre without it.
 - The environment's ambient and reflection are the lab's sky (its lighting level; the reflection averaged over nine
   directions spread by roughness), not Godot's radiance map; the reflection is weighed by the lab's environment BRDF fit.
 - The dynamic object's six views are found by casting a ray through each texel's column (nearest hit), not by
@@ -89,7 +96,9 @@ Read from the code (and, where marked, measured on the lab's port):
 | `bake.rs` | The voxelizer: bounds, the triangle-box test, the octree descent, leaf sampling, sort, fixup |
 | `sdf.rs` | The distance field |
 | `storage.rs` | The records, RGB9E5, the light texture and its sampling |
-| `light.rs` | The light, mip, write, and bounce passes |
+| `light.rs` | The light, mip, write, and bounce passes (the CPU mirror) |
+| `update.rs` | The light passes on the GPU: the volume, the passes, and each update's dispatches |
+| `cost.rs` | What an update and a frame cost, counted |
 | `dynamic.rs` | The dynamic-object path |
 | `cone.rs` | The screen pass (the WGSL port's CPU mirror) |
 | `world.rs` | The lab's VoxelGI, its lights, its variants, the shading data |
