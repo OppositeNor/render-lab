@@ -28,10 +28,10 @@ pub const WORKGROUP: u32 = 64;
 pub static VOLUMES: &[ShadingVolume] = &[ShadingVolume { name: "voxelgiLight", format: wgpu::TextureFormat::Rgba8Unorm, size: LIGHT_SIZE, mips: LIGHT_MIPS }];
 
 pub static PASSES: &[UpdatePass] = &[
-    UpdatePass { entry: "voxelgiLightCS", reads: &[], writes: &[], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiBounceCS", reads: &["voxelgiLight"], writes: &[], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiMipmapsCS", reads: &[], writes: &[], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiWriteCS", reads: &[], writes: &["voxelgiLight"], workgroup: WORKGROUP },
+    UpdatePass { entry: "voxelgiLightCS", reads: &[], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
+    UpdatePass { entry: "voxelgiBounceCS", reads: &["voxelgiLight", "voxelgiOutputs"], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
+    UpdatePass { entry: "voxelgiMipmapsCS", reads: &["voxelgiOutputs"], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
+    UpdatePass { entry: "voxelgiWriteCS", reads: &["voxelgiOutputs"], writes: &["voxelgiLight"], workgroup: WORKGROUP },
 ];
 
 /// `write_buffer` (`VoxelGIInstance::write_buffer`): one float light per cell, four words each.

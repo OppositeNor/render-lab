@@ -407,6 +407,11 @@ impl Pipelines {
     /// chain's compute passes with their group-2 layouts, and its
     /// verification kernels by entry point.
     pub fn shading(&self, device: &wgpu::Device, shading: &SceneShading) -> Result<ShadingPipelines> {
+        // The declarations are the graph's edges: they must be what the shaders do.
+        let problems = crate::graph::lint(shading)?;
+        if !problems.is_empty() {
+            return Err(anyhow!("{}: the passes' reads and writes are not what their WGSL does (src/graph.rs lint):\n  {}", shading.module, problems.join("\n  ")));
+        }
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = module(device, shading.module, shaders::module(shading.module)?);
         let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| chain_layout(device, shading, label, reads, writes, visibility);
@@ -524,7 +529,7 @@ impl Pipelines {
                 .iter()
                 .map(|pass| {
                     let group = update_layout(device, shading, pass);
-                    let reads = if pass.reads.is_empty() { None } else { volumes.as_ref() };
+                    let reads = if pass.reads.iter().any(|r| crate::graph::is_volume(shading, r)) { volumes.as_ref() } else { None };
                     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                         label: Some(pass.entry),
                         bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group), reads],
@@ -574,7 +579,8 @@ impl Pipelines {
 /// pass's, and an image kind's that reads the chain (src/views.rs).
 pub fn chain_layout(device: &wgpu::Device, shading: &SceneShading, label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayout {
     let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
-    for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))) {
+    // The volumes a pass samples are group 3's (`volume_layout`).
+    for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_volume(shading, n)) {
         let binding = chain_binding(shading, name, written);
         if entries.iter().any(|e| e.binding == binding) {
             continue;

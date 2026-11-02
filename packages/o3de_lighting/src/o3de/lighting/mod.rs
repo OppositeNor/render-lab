@@ -81,15 +81,15 @@ const TARGETS: &[ShadingTarget] = &[
 /// before the forward pass: one workgroup per 16 x 16 tile.
 const EARLY: &[ShadingPass] = &[
     ShadingPass { entry: "o3deLightCullingTilePrepareCS", reads: &["depth"], writes: &["tileData"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deLightCullingCS", reads: &[], writes: &["lightList", "tileData"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deLightCullingRemapCS", reads: &[], writes: &["lightListRemapped", "lightList", "tileData"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deLightCullingCS", reads: &["tileData", "lightList"], writes: &["lightList", "tileData"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deLightCullingRemapCS", reads: &["tileData", "lightList"], writes: &["lightListRemapped", "tileData"], workgroup: [16, 16] },
     // DepthToLinearDepth (DepthParent.pass), which the shadow blur and SSAO read.
     ShadingPass { entry: "o3deLinearDepthCS", reads: &["depth"], writes: &["linearDepth"], workgroup: [16, 16] },
     // Shadows (ShadowParent.pass): FullscreenShadow, then FullscreenShadowBlur
     // (its vertical pass, then its horizontal one), before the forward pass.
     ShadingPass { entry: "o3deFullscreenShadowCS", reads: &["depth", "cascades"], writes: &["shadowRaw"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deShadowBlurVerticalCS", reads: &["depth"], writes: &["shadowBlurV", "shadowRaw", "linearDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deShadowBlurHorizontalCS", reads: &["depth"], writes: &["shadowBuffer", "shadowBlurV", "shadowRaw", "linearDepth"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deShadowBlurVerticalCS", reads: &["depth", "linearDepth", "shadowRaw", "shadowBlurV"], writes: &["shadowBlurV"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deShadowBlurHorizontalCS", reads: &["depth", "linearDepth", "shadowRaw", "shadowBlurV"], writes: &["shadowBuffer"], workgroup: [16, 16] },
 ];
 
 /// Per 16 x 16 tile: TileLightData, the light list, and the remapped list (8 bins of 256).
@@ -130,12 +130,12 @@ const PASSES: &[ShadingPass] = &[
     ShadingPass { entry: "o3deReflectionsCS", reads: &["normal", "albedo", "specularF0", "stencil", "depth"], writes: &["reflection", "probeView"], workgroup: [8, 8] },
     ShadingPass { entry: "o3deReflectionCompositeCS", reads: &["specular", "reflection", "depth"], writes: &["specularLit"], workgroup: [8, 8] },
     // AoParent.pass (SsaoParent.pass), after the MSAA resolves; ModulateWithSsao is in the merge.
-    ShadingPass { entry: "o3deDepthDownsampleCS", reads: &["depth"], writes: &["halfDepth", "linearDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoCS", reads: &["depth"], writes: &["ssao", "halfDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoBlurVerticalCS", reads: &["depth"], writes: &["ssaoBlurV", "ssao", "halfDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoBlurHorizontalCS", reads: &["depth"], writes: &["ssaoBlur", "ssaoBlurV", "ssao", "halfDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoUpsampleCS", reads: &["depth"], writes: &["ssaoFull", "ssaoBlur", "halfDepth", "linearDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deMergeCS", reads: &["diffuse", "specular", "debug", "diffuseLit", "specularLit", "reflection", "probeView", "depth"], writes: &["hdr", "ssaoFull"], workgroup: [8, 8] },
+    ShadingPass { entry: "o3deDepthDownsampleCS", reads: &["depth", "linearDepth"], writes: &["halfDepth"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deSsaoCS", reads: &["depth", "halfDepth"], writes: &["ssao"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deSsaoBlurVerticalCS", reads: &["depth", "halfDepth", "ssao", "ssaoBlurV"], writes: &["ssaoBlurV"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deSsaoBlurHorizontalCS", reads: &["depth", "halfDepth", "ssao", "ssaoBlurV"], writes: &["ssaoBlur"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deSsaoUpsampleCS", reads: &["depth", "linearDepth", "halfDepth", "ssaoBlur"], writes: &["ssaoFull"], workgroup: [16, 16] },
+    ShadingPass { entry: "o3deMergeCS", reads: &["diffuse", "specular", "debug", "diffuseLit", "specularLit", "reflection", "probeView", "depth", "ssaoFull"], writes: &["hdr"], workgroup: [8, 8] },
 ];
 
 pub static SHADING: SceneShading = SceneShading {
@@ -154,6 +154,16 @@ pub static SHADING: SceneShading = SceneShading {
     volumes: &[],
     update: None,
     resolution: None,
+    history: &[],
+    // The tile data's fourth word is the tile's light count (after culling); the
+    // light lists pack a light's index and its depth bins; depths are view distances.
+    shows: &[
+        ("tileData", "count?word=3&range=0,8"),
+        ("lightList", "hash"),
+        ("lightListRemapped", "hash"),
+        ("linearDepth", "float?range=0,12"),
+        ("halfDepth", "float?range=0,12"),
+    ],
 };
 
 impl Investigation for Lighting {
@@ -233,6 +243,30 @@ impl Investigation for Lighting {
         use lab::values::Choice;
         static CHOICES: std::sync::OnceLock<[&'static lab::values::Choices; 2]> = std::sync::OnceLock::new();
         CHOICES.get_or_init(|| [brdf::ViewMode::choices(), brdf::DiffuseModel::choices()])
+    }
+
+    fn pass_about(&self, node: &str) -> Option<&'static str> {
+        Some(match node {
+            "o3dePrepassFS" => tr("pass.o3dePrepassFS"),
+            "o3deLightCullingTilePrepareCS" => tr("pass.o3deLightCullingTilePrepareCS"),
+            "o3deLightCullingCS" => tr("pass.o3deLightCullingCS"),
+            "o3deLightCullingRemapCS" => tr("pass.o3deLightCullingRemapCS"),
+            "o3deLinearDepthCS" => tr("pass.o3deLinearDepthCS"),
+            "o3deFullscreenShadowCS" => tr("pass.o3deFullscreenShadowCS"),
+            "o3deShadowBlurVerticalCS" => tr("pass.o3deShadowBlurVerticalCS"),
+            "o3deShadowBlurHorizontalCS" => tr("pass.o3deShadowBlurHorizontalCS"),
+            "o3deForwardFS" => tr("pass.o3deForwardFS"),
+            "o3deDiffuseGlobalCS" => tr("pass.o3deDiffuseGlobalCS"),
+            "o3deReflectionsCS" => tr("pass.o3deReflectionsCS"),
+            "o3deReflectionCompositeCS" => tr("pass.o3deReflectionCompositeCS"),
+            "o3deDepthDownsampleCS" => tr("pass.o3deDepthDownsampleCS"),
+            "o3deSsaoCS" => tr("pass.o3deSsaoCS"),
+            "o3deSsaoBlurVerticalCS" => tr("pass.o3deSsaoBlurVerticalCS"),
+            "o3deSsaoBlurHorizontalCS" => tr("pass.o3deSsaoBlurHorizontalCS"),
+            "o3deSsaoUpsampleCS" => tr("pass.o3deSsaoUpsampleCS"),
+            "o3deMergeCS" => tr("pass.o3deMergeCS"),
+            _ => return None,
+        })
     }
 
     fn scene_shading(&self) -> Option<&'static SceneShading> {

@@ -38,6 +38,12 @@ source = "shaders/verify.wgsl"
 license = "MIT"
 
 [[resource]]
+id = "wgsl/inspect"
+kind = "file"
+source = "shaders/inspect.wgsl"
+license = "MIT"
+
+[[resource]]
 id = "wgsl/frost"
 kind = "file"
 source = "shaders/frost.wgsl"
@@ -65,3 +71,8 @@ parts = ["shader/prelude", "wgsl/verify"]
 [[shader]]
 id = "shader/frost"
 parts = ["wgsl/frost"]
+
+# The frame graph's inspector (lab/src/graph.rs), without the prelude.
+[[shader]]
+id = "shader/inspect"
+parts = ["wgsl/inspect"]

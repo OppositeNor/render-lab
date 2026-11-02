@@ -34,7 +34,11 @@ Its tools:
   and a row per pass by cost. A story shows the same panel with `panel=performance` and calls out passes with
   `highlight=<pass>` (the pass names are the chain's entry points, `scene pass`, `depth pre-pass`, `overlay`,
   `composite`; `--page viewer-performance` lists them). A recording measures as it renders, after a few timed warm-up
-  renders of its first shot, so the numbers are this machine's, not fixed.
+  renders of its first shot, so the numbers are this machine's, not fixed. **Open the frame graph** switches to the
+  dock's Frame graph tab (the `render-graph` skill): the frame's passes in the panel, each one's result and what it
+  does.
+- **An intermediate**: an experiment file's `[inspect]` table (`of = "<node>.<resource>"`, `show`, `values`) measures
+  that resource right after its node, as the inspector draws it, instead of the frame (the `render-graph` skill).
 - **Experiments**: **Save** writes an experiment file of the current values (and the reference) to
   `~/.config/render-lab/experiments/<engine>/<feature>/`. The list loads it again, or one a package ships.
 

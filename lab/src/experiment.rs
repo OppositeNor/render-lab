@@ -34,7 +34,17 @@
 //! [[variant]]                       # named ablations
 //! name = "no-bounce"
 //! values = { bounceFeedback = 0.0 }
+//!
+//! [inspect]                         # optional: measure a resource of the frame's graph
+//! of = "sdfgiForwardFS.hdr"         # <node>.<resource> (render-lab graph), right after the node
+//! show = "color"                    # how the inspector draws it (src/graph.rs Show)
+//! values = { exposure = 0.0 }       # the inspector's parameters (INSPECT_PARAMS)
 //! ```
+//!
+//! With `inspect`, the images measured (and written) are the inspector's
+//! drawing of that resource (display colours, 8 bits a channel), not the
+//! frame: a run measures what one pass produces against the reference's same
+//! resource; relMSE is then over those display values.
 //!
 //! Values are set by key as a story sets them (`values::resolve`): a number,
 //! `true`/`false`, an option's name, an array for a vector. The runs are the
@@ -51,7 +61,7 @@ use std::path::{Path, PathBuf};
 pub const METRICS: &[&str] = &["gpu_ms", "cpu_ms", "mse", "rmse", "psnr", "ssim", "flip", "relmse", "luminance"];
 
 /// The fields an experiment file may have.
-const FIELDS: &[&str] = &["name", "description", "investigation", "demo", "resolution", "frames", "warmup", "repeats", "convergence", "metrics", "camera", "base", "reference", "sweep", "variant"];
+const FIELDS: &[&str] = &["name", "description", "investigation", "demo", "resolution", "frames", "warmup", "repeats", "convergence", "metrics", "camera", "base", "reference", "sweep", "variant", "inspect"];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Experiment {
@@ -73,6 +83,18 @@ pub struct Experiment {
     pub reference: Option<Reference>,
     pub sweeps: Vec<Sweep>,
     pub variants: Vec<Variant>,
+    /// The resource of the frame's graph measured instead of the frame.
+    pub inspect: Option<Inspect>,
+}
+
+/// What an experiment measures in place of the frame: a resource of the
+/// frame's graph right after a node (src/graph.rs), as the inspector draws it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Inspect {
+    /// `<node>.<resource>`.
+    pub of: String,
+    pub show: Option<String>,
+    pub values: std::collections::BTreeMap<String, Vec<f32>>,
 }
 
 /// The ground truth: values over the base, and how many frames it renders.
@@ -122,6 +144,7 @@ impl Default for Experiment {
             reference: None,
             sweeps: Vec::new(),
             variants: Vec::new(),
+            inspect: None,
         }
     }
 }
@@ -306,6 +329,34 @@ impl Experiment {
             }
             variants.push(Variant { name, values: values_of(t.get("values"), "variant.values")? });
         }
+        let inspect = match top.get("inspect") {
+            None => None,
+            Some(Json::Object(t)) => {
+                if let Some(unknown) = t.keys().find(|k| !["of", "show", "values"].contains(&k.as_str())) {
+                    bail!("unknown field `inspect.{unknown}` (inspect has of, show, and values)");
+                }
+                let of = text(t.get("of"), "inspect.of")?.context("inspect needs `of`, a <node>.<resource> (render-lab graph)")?;
+                if of.rsplit_once('.').is_none() {
+                    bail!("inspect.of `{of}`: expected <node>.<resource>");
+                }
+                let show = text(t.get("show"), "inspect.show")?;
+                if let Some(show) = &show {
+                    crate::graph::Show::from_key(show).map_err(|e| anyhow!(e))?;
+                }
+                let mut parsed = std::collections::BTreeMap::new();
+                for (k, v) in values_of(t.get("values"), "inspect.values")? {
+                    let numbers: Vec<f32> = match &v {
+                        Json::Number(n) => vec![n.as_f64().unwrap_or(0.0) as f32],
+                        Json::Array(a) => a.iter().map(|x| x.as_f64().map(|f| f as f32).ok_or_else(|| anyhow!("inspect.values.{k}: numbers"))).collect::<Result<_>>()?,
+                        other => bail!("inspect.values.{k}: a number or numbers, not {other}"),
+                    };
+                    crate::graph::check_inspect_param(&k, &numbers).map_err(|e| anyhow!(e))?;
+                    parsed.insert(k, numbers);
+                }
+                Some(Inspect { of, show, values: parsed })
+            }
+            Some(other) => bail!("`inspect` is a table (of, show, values), not {other}"),
+        };
         Ok(Experiment {
             name: text(top.get("name"), "name")?.unwrap_or(defaults.name),
             description: text(top.get("description"), "description")?.unwrap_or_default(),
@@ -326,6 +377,7 @@ impl Experiment {
             reference,
             sweeps,
             variants,
+            inspect,
         })
     }
 
@@ -384,6 +436,16 @@ impl Experiment {
         for v in &self.variants {
             out.push_str(&format!("\n[[variant]]\nname = {}\nvalues = {}\n", quote(&v.name), toml_of(&Json::Object(v.values.clone()))));
         }
+        if let Some(i) = &self.inspect {
+            out.push_str(&format!("\n[inspect]\nof = {}\n", quote(&i.of)));
+            if let Some(show) = &i.show {
+                out.push_str(&format!("show = {}\n", quote(show)));
+            }
+            if !i.values.is_empty() {
+                let values: Map<String, Json> = i.values.iter().map(|(k, v)| (k.clone(), if v.len() == 1 { Json::from(v[0] as f64) } else { Json::Array(v.iter().map(|x| Json::from(*x as f64)).collect()) })).collect();
+                out.push_str(&format!("values = {}\n", toml_of(&Json::Object(values))));
+            }
+        }
         out
     }
 
@@ -439,6 +501,9 @@ impl Experiment {
             if *path != current {
                 bail!("the experiment is for {path}, not {current} (give --investigation {path})");
             }
+        }
+        if let Some(i) = &self.inspect {
+            crate::graph::FrameGraph::current(&[]).inspected(&i.of).map_err(|e| anyhow!("inspect.of: {e}"))?;
         }
         if let Some(demo) = &self.demo {
             demo_named(demo)?;
@@ -753,6 +818,13 @@ values = { energy = 0.0 }
     fn errors() {
         assert!(Experiment::parse("nme = 1").unwrap_err().to_string().contains("unknown field `nme`"));
         assert!(Experiment::parse("metrics = [\"psnrr\"]").unwrap_err().to_string().contains("unknown metric"));
+        // A resource of the frame's graph in place of the frame, read back as written.
+        let e = Experiment::parse("[inspect]\nof = \"blurCS.blur\"\nshow = \"ramp\"\nvalues = { range = [0.0, 4.0], channel = 2 }\n").unwrap();
+        let i = e.inspect.as_ref().unwrap();
+        assert_eq!((i.of.as_str(), i.show.as_deref(), i.values["range"].clone()), ("blurCS.blur", Some("ramp"), vec![0.0, 4.0]));
+        assert_eq!(Experiment::parse(&e.to_toml()).unwrap(), e);
+        assert!(Experiment::parse("[inspect]\nof = \"a.b\"\nshow = \"rainbow\"\n").is_err());
+        assert!(Experiment::parse("[inspect]\nof = \"a.b\"\nvalues = { gain = 1 }\n").is_err());
         assert!(Experiment::parse("[[sweep]]\nvalues = { a = [] }").is_err());
         assert!(Experiment::parse("[[sweep]]\nzip = true\nvalues = { a = [1], b = [1, 2] }").is_err());
         assert!(Experiment::parse("[[variant]]\nname = \"base\"").is_err());

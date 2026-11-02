@@ -61,6 +61,11 @@ enum Command {
         /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
         /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
+        /// viewer-graph[:<demo>] (the frame graph in the panel, the inspector on what its most expensive pass writes), or
+        /// viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…] (the frame graph, the inspector on that resource after that node), or
+        /// viewer-dag[:<demo>][@<node>,…] (the frame graph as a DAG in the panel, each pass's result on its card, those nodes called out), or
+        /// viewer-dag-full[:<demo>][@<node>,…] (that DAG full screen), or
+        /// viewer-resources[-full][:<demo>][@<node>,…] (every resource as a card, its state at the end of the frame), or
         /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
         /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
         /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
@@ -151,6 +156,21 @@ enum Command {
         /// Write the graph as a Mermaid flowchart to this file.
         #[arg(long)]
         mermaid: Option<PathBuf>,
+    },
+    /// Print the current investigation's frame as a render graph
+    /// (lab/src/graph.rs): its nodes in execution order with what each reads
+    /// and writes, its resources with their lifetimes, and the culled nodes;
+    /// checks the declarations against the WGSL (fails on a problem).
+    Graph {
+        /// Write the graph as a Mermaid flowchart to this file.
+        #[arg(long)]
+        mermaid: Option<PathBuf>,
+        /// Write the graph in Graphviz's language to this file.
+        #[arg(long)]
+        dot: Option<PathBuf>,
+        /// Print it as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// List the current investigation's values (lab/src/values.rs): the
     /// keys its dock, timelines, and stories set, with each one's type,
@@ -299,6 +319,23 @@ pub fn main(app: App) -> Result<()> {
                 }
                 (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png),
                 (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
+                (Some(png), _) if page == "viewer-graph" || page.starts_with("viewer-graph:") => home::snapshot_graph(&options, page.strip_prefix("viewer-graph:"), None, Default::default(), &png),
+                (Some(png), _) if page.starts_with("viewer-inspect:") => home::snapshot_graph(&options, None, page.strip_prefix("viewer-inspect:"), Default::default(), &png),
+                (Some(png), _) if page.starts_with("viewer-dag") || page.starts_with("viewer-resources") => {
+                    // viewer-dag[-full][:<demo>][@<node>,…], viewer-resources[-full]…
+                    let resources = page.starts_with("viewer-resources");
+                    let page = page.strip_prefix(if resources { "viewer-resources" } else { "viewer-dag" }).unwrap_or_default();
+                    let (rest, full_screen) = match page.strip_prefix("-full") {
+                        Some(rest) => (rest, true),
+                        None => (page, false),
+                    };
+                    let (rest, highlight) = match rest.split_once('@') {
+                        Some((rest, nodes)) => (rest, nodes.split(',').map(str::to_string).collect()),
+                        None => (rest, Vec::new()),
+                    };
+                    let demo = rest.strip_prefix(':').filter(|d| !d.is_empty());
+                    home::snapshot_graph(&options, demo, None, crate::viewer::GraphSnapshot { dag: true, resources, full_screen, highlight }, &png)
+                }
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),
                 (Some(png), _) if page == "viewer-prerequisites" || page.starts_with("viewer-prerequisites:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-prerequisites:"), false, false, &png),
@@ -368,6 +405,7 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
         Command::Knowledge { known, levels, mermaid } => knowledge(chosen, &known, levels, mermaid.as_deref()),
+        Command::Graph { mermaid, dot, json } => graph(chosen, mermaid.as_deref(), dot.as_deref(), json),
         Command::Values { json, label, scope } => {
             use crate::values::Value;
             let entries: Vec<&crate::values::Entry> = crate::values::list()
@@ -550,6 +588,51 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// The `graph` command: print the frame's graph; fail if its declarations
+/// do not compile or do not match the WGSL.
+fn graph(chosen: &'static dyn investigation::Investigation, mermaid: Option<&std::path::Path>, dot: Option<&std::path::Path>, json: bool) -> Result<()> {
+    let shading = chosen.scene_shading();
+    let graph = crate::graph::FrameGraph::new(shading, &[]);
+    let mut problems = graph.errors.clone();
+    if let Some(s) = shading {
+        problems.extend(crate::graph::lint(s)?);
+    }
+    // The engine passes the source index maps the nodes to.
+    let index = crate::sources::index();
+    for p in &index.passes {
+        if graph.node(&p.lab).is_none() {
+            problems.push(format!("source index: pass `{}` maps `{}`, which is no node of the graph", p.engine, p.lab));
+        }
+        for k in p.sources.iter().filter(|k| !index.entries.contains_key(*k)) {
+            problems.push(format!("source index: pass `{}` cites `{k}`, which is no entry", p.engine));
+        }
+    }
+    if json {
+        let mut value = graph.json();
+        value["errors"] = serde_json::json!(problems);
+        value["engine"] = serde_json::json!(index.passes.iter().map(|p| serde_json::json!({"node": p.lab, "pass": p.engine, "sources": p.sources})).collect::<Vec<_>>());
+        println!("{}", serde_json::to_string_pretty(&value)?);
+    } else {
+        print!("{}", graph.text());
+        if !index.passes.is_empty() {
+            println!("engine passes ({}):", chosen.engine().name);
+            for p in &index.passes {
+                println!("  {:32} {} [{}]", p.lab, p.engine, p.sources.join(", "));
+            }
+        }
+    }
+    for (path, text) in [(mermaid, graph.mermaid()), (dot, graph.dot())] {
+        if let Some(path) = path {
+            std::fs::write(path, text).with_context(|| format!("write {}", path.display()))?;
+            eprintln!("wrote {}", path.display());
+        }
+    }
+    if !problems.is_empty() {
+        bail!("{} problem(s):\n  {}", problems.len(), problems.join("\n  "));
+    }
+    Ok(())
 }
 
 /// The `knowledge` command: check the investigation's knowledge graph, print its

@@ -1445,6 +1445,15 @@ pub fn snapshot_performance(options: &HomeOptions, demo: Option<&str>, png: &Pat
     viewer::snapshot_performance(viewer_options, demo, png)
 }
 
+/// The viewer offscreen with the frame graph in the panel (`viewer::snapshot_graph`).
+pub fn snapshot_graph(options: &HomeOptions, demo: Option<&str>, inspect: Option<&str>, how: viewer::GraphSnapshot, png: &Path) -> Result<()> {
+    let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let choice = Choice::Explore { investigation: investigation::current() };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options = viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_graph(viewer_options, demo, inspect, how, png)
+}
+
 /// The viewer offscreen with the free camera on (`viewer::snapshot_free`).
 pub fn snapshot_free(options: &HomeOptions, demo: Option<&str>, png: &Path) -> Result<()> {
     let home = Home::new(options.manifest_dir.clone(), options.config_path.clone());

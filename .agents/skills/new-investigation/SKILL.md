@@ -197,6 +197,13 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
     the frame's chain; the renderer keeps the volumes of the last few keys, and the performance panel times each pass
     while it runs. `Renderer::read_volume` reads a mip back for the selftest.
   - `resolution`: chain targets whose divisor a state chooses (an engine's half-resolution setting).
+  - `history`: chain targets and buffers a frame reads from the frames before it (a temporal filter's).
+  - Every pass's `reads` and `writes` say what its entry point reads and writes (buffers in both lists when both,
+    volumes it samples in `reads`): they are the frame's render graph, which the lab checks against the WGSL when
+    it loads the shading. Name the engine pass each mirrors in the source index's `passes`. Check with
+    `render-lab graph`; the `render-graph` skill has the rules, the inspector, and the graph panel.
+  - `shows`: how the graph's views draw each buffer whose words are not counts (`count?word=3`, `hash`, `float`).
+  - `Investigation::pass_about`: what each pass does, a `pass.<entry>` key of the package's text in both languages.
   - See `godot_voxelgi` (update.rs, the light passes into its RGBA8 texture; half-resolution GI).
   - Ship one experiment in `experiments/` that compares a cheap setting with the engine's most expensive one.
 - A `Demo` enum with `ALL`, `key()` (the storyboard's `demo` name), `id()` (`DemoId::new(key)`), and `of(DemoId)`, for

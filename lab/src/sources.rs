@@ -73,6 +73,18 @@ pub struct SourceIndex {
     pub chapters: Vec<ChapterReading>,
     pub demos: BTreeMap<String, Vec<String>>,
     pub mappings: Vec<Mapping>,
+    /// The frame graph's nodes (src/graph.rs) and the engine passes they mirror.
+    #[serde(default)]
+    pub passes: Vec<PassMapping>,
+}
+
+/// A node of the frame's graph (its entry point, or the lab's name) and the
+/// engine pass it mirrors, with the entries that cite it.
+#[derive(Debug, Deserialize)]
+pub struct PassMapping {
+    pub lab: String,
+    pub engine: String,
+    pub sources: Vec<String>,
 }
 
 impl SourceEntry {
@@ -111,6 +123,12 @@ impl SourceIndex {
 
     pub fn mapping(&self, record: &str) -> Option<&Mapping> {
         self.mappings.iter().find(|m| m.lab == record || m.lab.split(" / ").any(|part| part == record))
+    }
+
+    /// The engine pass a node of the frame's graph mirrors (a repeated entry's `#2` too).
+    pub fn pass(&self, node: &str) -> Option<&PassMapping> {
+        let entry = node.split_once('#').map_or(node, |(e, _)| e);
+        self.passes.iter().find(|p| p.lab == entry)
     }
 }
 

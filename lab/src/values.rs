@@ -997,6 +997,36 @@ mod tests {
     }
 
     #[test]
+    fn a_story_shows_a_resource_of_the_frame_graph() {
+        use crate::utility::inset::ImageSource;
+        with_test(|| {
+            // The test investigation has no shading: its graph is the lab's scene pass, overlay, and composite.
+            let t = timeline(serde_json::json!([
+                {"frame": 0, "panel": "graph", "image": "hdr", "imageGraph": "scene.hdr", "imageShow": "color", "imageParams": {"exposure": 1}},
+                {"frame": 20, "blend": 10, "image": "hdr", "imageParams": {"exposure": -1}}
+            ]));
+            t.validate().unwrap();
+            let state = t.state_at(40);
+            assert_eq!(state.panel, crate::shot::PanelMode::Graph);
+            let ImageSource::Graph { key, show, params } = &state.images[0].source else { panic!("a graph image: {:?}", state.images[0].source) };
+            assert_eq!((key.as_str(), show.as_deref(), params["exposure"].clone()), ("scene.hdr", Some("color"), vec![-1.0]));
+            let error = |key: serde_json::Value| timeline(serde_json::json!([key])).validate().unwrap_err().to_string();
+            assert!(error(serde_json::json!({"frame": 0, "image": "x", "imageGraph": "nowhere.hdr"})).contains("no node `nowhere`"));
+            assert!(error(serde_json::json!({"frame": 0, "image": "x", "imageGraph": "overlay.hdr"})).contains("neither reads nor writes"));
+            assert!(error(serde_json::json!({"frame": 0, "image": "x", "imageGraph": "scene.hdr", "imageShow": "rainbow"})).contains("imageShow `rainbow`"));
+            assert!(error(serde_json::json!({"frame": 0, "image": "x", "imageGraph": "scene.hdr", "imageParams": {"gain": 1}})).contains("a graph image takes"));
+            assert!(error(serde_json::json!({"frame": 0, "image": "chart", "imageShow": "color"})).contains("imageShow draws a graph image"));
+            // The same graph as a DAG, a pass called out.
+            let t = timeline(serde_json::json!([{"frame": 0, "panel": "dag", "highlight": ["scene"]}]));
+            t.validate().unwrap();
+            assert_eq!(t.state_at(0).panel, crate::shot::PanelMode::Dag);
+            let t = timeline(serde_json::json!([{"frame": 0, "panel": "resources"}]));
+            t.validate().unwrap();
+            assert_eq!(t.state_at(0).panel, crate::shot::PanelMode::Resources);
+        });
+    }
+
+    #[test]
     fn image_parameters_need_an_instance() {
         with_test(|| {
             let error = timeline(serde_json::json!([{"frame": 0, "image": "chart", "imageParams": {"probe": 1}}])).validate().unwrap_err().to_string();

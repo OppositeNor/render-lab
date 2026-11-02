@@ -1365,5 +1365,66 @@
       "labLayout": "The lab's shading uniforms (toCellOrigin, toCellScale, bounds, dynamicRange, bias, normalBias, mipCount), for its one VoxelGI, from world positions.",
       "labLayoutZh": "实验室从世界坐标生成其唯一 VoxelGI 的着色 uniform：toCellOrigin、toCellScale、bounds、dynamicRange、bias、normalBias、mipCount。"
     }
+  ],
+  "passes": [
+    {
+      "lab": "voxelgiLightCS",
+      "engine": "voxel_gi.glsl MODE_COMPUTE_LIGHT",
+      "sources": [
+        "compute-light"
+      ]
+    },
+    {
+      "lab": "voxelgiBounceCS",
+      "engine": "voxel_gi.glsl MODE_SECOND_BOUNCE",
+      "sources": [
+        "second-bounce"
+      ]
+    },
+    {
+      "lab": "voxelgiMipmapsCS",
+      "engine": "voxel_gi.glsl MODE_UPDATE_MIPMAPS",
+      "sources": [
+        "update-mipmaps"
+      ]
+    },
+    {
+      "lab": "voxelgiWriteCS",
+      "engine": "voxel_gi.glsl MODE_WRITE_TEXTURE",
+      "sources": [
+        "write-texture"
+      ]
+    },
+    {
+      "lab": "voxelgiPrepassFS",
+      "engine": "Render Depth Pre-Pass",
+      "sources": [
+        "frame-order"
+      ]
+    },
+    {
+      "lab": "voxelgiForwardFS",
+      "engine": "Render Opaque Pass",
+      "sources": [
+        "frame-order",
+        "material-outputs"
+      ]
+    },
+    {
+      "lab": "voxelgiGiCS",
+      "engine": "process_gi (gi.glsl)",
+      "sources": [
+        "instance-loop",
+        "voxel-gi-compute"
+      ]
+    },
+    {
+      "lab": "voxelgiComposeCS",
+      "engine": "scene_forward_clustered.glsl (GI buffers)",
+      "sources": [
+        "gi-buffer-fetch",
+        "gi-buffer-mix"
+      ]
+    }
   ]
 }

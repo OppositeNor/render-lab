@@ -132,11 +132,31 @@ fn image_metrics(reference: &(Image, Image), test: &(Image, Image), wanted: &[St
     (out, map)
 }
 
+/// The image a run measures: the frame (its display and HDR images), or
+/// the inspector's drawing of `Experiment::inspect` (both images that one).
+fn read_image(renderer: &mut Renderer, e: &Experiment) -> Result<(Image, Image)> {
+    if e.inspect.is_none() {
+        return renderer.read_view(ViewKind::Live).context("the live view");
+    }
+    let (rgba, size) = renderer.read_inspection(crate::viewer::INSPECTOR).context("the inspected resource")?;
+    let image = Image::from_rgba8(size[0] as usize, size[1] as usize, &rgba);
+    Ok((image.clone(), image))
+}
+
 /// Render `values` over the experiment's demonstration as one run, measuring
 /// it against `reference` when given.
 fn measure_run(renderer: &mut Renderer, gpu: &Gpu, e: &Experiment, values: &Map<String, Json>, frames: u32, reference: Option<&(Image, Image)>) -> Result<Measured> {
     let mut state = renderer.default_state(e.start_demo()?);
     e.apply(&mut state, values)?;
+    // A resource of the frame's graph measured in place of the frame (`Experiment::inspect`).
+    if let Some(i) = &e.inspect {
+        crate::viewer::inspect(&mut state, Some(i.of.clone()));
+        state.highlight.clear();
+        if let Some(crate::utility::inset::ImageSource::Graph { show, params, .. }) = state.images.iter_mut().find(|x| x.name == crate::viewer::INSPECTOR).map(|x| &mut x.source) {
+            *show = i.show.clone();
+            *params = i.values.clone();
+        }
+    }
     renderer.reset_history();
     if let Some(t) = renderer.timing.as_mut() {
         t.clear();
@@ -147,7 +167,7 @@ fn measure_run(renderer: &mut Renderer, gpu: &Gpu, e: &Experiment, values: &Map<
     for _ in 0..frames {
         renderer.render_experiment(&state);
         if let (true, Some(r)) = (e.convergence, reference) {
-            let view = renderer.read_view(ViewKind::Live).context("the live view")?;
+            let view = read_image(renderer, e)?;
             convergence.push(image_metrics(r, &view, &e.metrics, false).0);
         }
     }
@@ -182,7 +202,7 @@ fn measure_run(renderer: &mut Renderer, gpu: &Gpu, e: &Experiment, values: &Map<
     let mut image = None;
     let mut flip_map = None;
     if wants_images {
-        let view = renderer.read_view(ViewKind::Live).context("the live view")?;
+        let view = read_image(renderer, e)?;
         let last = samples.last_mut().expect("a measured frame");
         if e.metrics.iter().any(|x| x == "luminance") {
             last.metrics.insert("luminance".into(), number(metrics::mean_luminance(&view.1)));

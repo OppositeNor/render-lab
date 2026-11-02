@@ -76,6 +76,10 @@ pub enum ImageSource {
     /// (src/views.rs), with the parameters the story set (the others at
     /// their defaults).
     View { kind: String, params: std::collections::BTreeMap<String, Vec<f32>> },
+    /// A resource of the frame's graph as it stood right after a node
+    /// (`<node>.<resource>`, src/graph.rs), drawn by the inspector `show`
+    /// (its format's default when none) with the parameters the story set.
+    Graph { key: String, show: Option<String>, params: std::collections::BTreeMap<String, Vec<f32>> },
 }
 
 /// The key of the texture of the story's image instance `name` (`Textures`).
@@ -96,6 +100,13 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
             let kind = crate::views::kind(package, kind).ok()?;
             let title = kind.text.as_deref().map_or(String::new(), |t| crate::i18n::package_text(&kind.package, t).to_string());
             PictureInset::new(title, Picture::Texture(view_texture(&image.name)), [kind.size[0] as f32, kind.size[1] as f32])
+        }
+        // Titled by what it shows: the resource, after which node.
+        ImageSource::Graph { key, .. } => {
+            let (node, resource) = key.rsplit_once('.').unwrap_or((key.as_str(), ""));
+            let mut inset = PictureInset::new(resource.to_string(), Picture::Texture(view_texture(&image.name)), [400.0, 400.0]);
+            inset.title.push(crate::i18n::tr_with("graph.after", crate::args!(node = node)));
+            inset
         }
     };
     inset.alpha *= image.alpha;

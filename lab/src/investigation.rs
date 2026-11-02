@@ -86,7 +86,8 @@ pub struct Wording {
 /// shows. A pass binds group 2 as described on `ShadingPass`.
 ///
 /// With a `prepass` fragment entry, the chain starts with a depth pre-pass
-/// (that entry may only write `@builtin(sample_mask)`), then runs `early`
+/// (that entry may only write `@builtin(sample_mask)`, and reads nothing of
+/// group 2), then runs `early`
 /// compute passes, then the scene pass tests against that depth (LessEqual,
 /// no depth writes). The scene pass's fragment shader may read `scene_reads`
 /// from group 2, bound as for a pass.
@@ -116,6 +117,17 @@ pub struct SceneShading {
     pub update: Option<&'static ShadingUpdate>,
     /// Targets whose resolution a state chooses at run time.
     pub resolution: Option<&'static ShadingResolution>,
+    /// Targets and buffers whose contents a frame reads from the frames
+    /// before it (a temporal filter's history): kept from frame to frame,
+    /// made again (zero) when the viewport's size changes. A pass may read
+    /// one before this frame's writer; the frame graph keeps its writers.
+    pub history: &'static [&'static str],
+    /// How the frame graph's views show a resource unless told otherwise
+    /// (src/graph.rs): `(resource, "<show>[?<param>=<value>&…]")`, as the
+    /// inspector's page takes it (`count?word=3&range=0,8`). The DAG's cards
+    /// and a graph image without `imageShow` use it; a resource not listed
+    /// is shown as its format suggests (`graph::default_show`).
+    pub shows: &'static [(&'static str, &'static str)],
 }
 
 /// A 3D texture of a pass chain, with its mips: sampled by the chain's
@@ -152,9 +164,11 @@ pub struct ShadingUpdate {
 
 pub struct UpdatePass {
     pub entry: &'static str,
-    /// The volumes it samples (group 3).
+    /// The volumes it samples (group 3) and the update's buffers it reads
+    /// (every buffer is bound whichever it uses; the lists are the frame
+    /// graph's edges, checked against the WGSL: src/graph.rs).
     pub reads: &'static [&'static str],
-    /// The volumes it writes, at the dispatch's mip.
+    /// The volumes it writes, at the dispatch's mip, and the buffers it writes.
     pub writes: &'static [&'static str],
     /// Its workgroup's size along x; a dispatch's `groups` count these.
     pub workgroup: u32,
@@ -257,6 +271,12 @@ pub struct ShadingTarget {
 /// (`var<storage, read_write> array<u32>`, whether read or written). The
 /// dispatch covers the first written target, or the viewport when that is a
 /// buffer, in workgroups of `workgroup`.
+///
+/// `reads` lists what the entry point reads, `writes` what it writes: a
+/// buffer it reads and writes is in both (it is bound `read_write` either
+/// way), and a volume it samples (group 3) is in `reads`. These are the
+/// frame graph's edges (src/graph.rs); the lab checks them against the WGSL
+/// when it loads the shading and fails on a difference.
 pub struct ShadingPass {
     pub entry: &'static str,
     pub reads: &'static [&'static str],
@@ -423,6 +443,12 @@ pub trait Investigation: Sync {
     /// image (src/actions.rs): `&Self::ACTIONS` of a `#[lab::actions]` block.
     fn actions(&self) -> &'static crate::actions::Actions {
         &crate::actions::NONE
+    }
+    /// What a node of the frame graph does (its entry point; src/graph.rs), in
+    /// the interface's language, for the graph's panels and its tab: a key
+    /// of the package's text table, one per pass (`pass.<entry>`).
+    fn pass_about(&self, _node: &str) -> Option<&'static str> {
+        None
     }
     /// The scene pass's shading, when the investigation brings its own.
     fn scene_shading(&self) -> Option<&'static SceneShading> {

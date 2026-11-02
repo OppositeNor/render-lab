@@ -81,6 +81,17 @@ pub enum PanelMode {
     Performance,
     /// The knowledge graph and the investigation's audience (src/knowledge.rs; the Prerequisites tab).
     Knowledge,
+    /// The frame's render graph (src/graph.rs): its passes in order, the
+    /// resources each reads and writes, and their GPU times; a click on a
+    /// pass's resource inspects it. `highlight` names passes to call out.
+    Graph,
+    /// The same graph as a DAG in the wider panel: each pass a card holding
+    /// its result as it stood right after it (the inspector, src/graph.rs
+    /// `FrameGraph::result_of`), and arrows for what flows between them.
+    Dag,
+    /// Every resource of the frame as a card holding its state at the end
+    /// of the frame, with its writers and readers (the wider panel).
+    Resources,
     Hidden,
 }
 
@@ -441,6 +452,14 @@ pub struct Key {
     /// The image kind of the package that `image` is an instance of.
     #[serde(default)]
     pub image_from: Option<String>,
+    /// The frame graph's resource that `image` shows, as it stood right
+    /// after a node: `<node>.<resource>` (src/graph.rs, the inspector).
+    #[serde(default)]
+    pub image_graph: Option<String>,
+    /// How a graph image draws its resource (`graph::Show`: color, unorm,
+    /// normal, depth, ramp, signed, count, float, hash); its format's default.
+    #[serde(default)]
+    pub image_show: Option<String>,
     /// The instance's parameters it sets (`image.<param>=…`), blended over `blend`.
     #[serde(default)]
     pub image_params: BTreeMap<String, serde_json::Value>,
@@ -783,10 +802,29 @@ fn finish_notes(state: &mut ShotState, segments: &BTreeMap<String, Channel>, fra
     state.notes.retain(|n| n.alpha > 0.0);
 }
 
-fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>) -> Result<(), String> {
+fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>, graphs: &mut std::collections::BTreeSet<String>) -> Result<(), String> {
     let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) else {
-        return if key.image_from.is_some() || !key.image_params.is_empty() || key.image_click.is_some() { Err("imageFrom, imageClick, and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
+        return if key.image_from.is_some() || key.image_graph.is_some() || key.image_show.is_some() || !key.image_params.is_empty() || key.image_click.is_some() { Err("imageFrom, imageGraph, imageShow, imageClick, and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
     };
+    if key.image_from.is_some() && key.image_graph.is_some() {
+        return Err(format!("image `{name}`: imageFrom (an image kind) or imageGraph (a resource of the frame), not both"));
+    }
+    if let Some(graph) = &key.image_graph {
+        crate::graph::FrameGraph::current(&[]).inspected(graph)?;
+        instances.remove(name);
+        graphs.insert(name.to_string());
+    } else if key.image_from.is_some() {
+        graphs.remove(name);
+    }
+    if graphs.contains(name) {
+        if let Some(show) = &key.image_show {
+            crate::graph::Show::from_key(show)?;
+        }
+        return key.image_params.iter().try_for_each(|(param, value)| crate::graph::check_inspect_param(param, &components(value)?));
+    }
+    if key.image_show.is_some() {
+        return Err(format!("imageShow draws a graph image; `{name}` is not one (make it with imageGraph=<node>.<resource>)"));
+    }
     if let Some(click) = &key.image_click {
         investigation::current().actions().check_click(click)?;
     }
@@ -839,6 +877,7 @@ impl Timeline {
 
     pub fn validate(&self) -> Result<()> {
         let mut instances = BTreeMap::new();
+        let mut graphs = std::collections::BTreeSet::new();
         let mut notes = BTreeMap::new();
         for key in &self.keys {
             if let Err(e) = key.targets() {
@@ -860,7 +899,7 @@ impl Timeline {
             if let Err(e) = check_notes(key, &mut notes) {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
-            if let Err(e) = check_image(key, &mut instances) {
+            if let Err(e) = check_image(key, &mut instances, &mut graphs) {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
             if let Some(call) = &key.run {
@@ -965,7 +1004,11 @@ impl Timeline {
             }
             targets.extend(key.image_hide.iter().map(|name| (image_alpha(name), 0.0)));
             if let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) {
-                let made = key.image_from.as_ref().map(|kind| ImageSource::View { kind: kind.clone(), params: BTreeMap::new() });
+                let made = key
+                    .image_from
+                    .as_ref()
+                    .map(|kind| ImageSource::View { kind: kind.clone(), params: BTreeMap::new() })
+                    .or_else(|| key.image_graph.as_ref().map(|graph| ImageSource::Graph { key: graph.clone(), show: key.image_show.clone(), params: BTreeMap::new() }));
                 let shown = segments.get(&image_alpha(name)).is_some_and(|s| s.value(key.frame) > 0.0);
                 match state.images.iter().position(|i| i.name == name) {
                     // A new kind for an instance starts its parameters over.
@@ -984,6 +1027,10 @@ impl Timeline {
                 let image = state.images.iter_mut().find(|i| i.name == name).expect("the image just shown");
                 if let Some(title) = &key.image_title {
                     image.title = Some(title.clone());
+                }
+                // A later key may draw the same resource another way.
+                if let (Some(show), ImageSource::Graph { show: shown, .. }) = (&key.image_show, &mut image.source) {
+                    *shown = Some(show.clone());
                 }
                 if let Some(corner) = key.image_corner {
                     image.corner = corner;
@@ -1086,7 +1133,7 @@ impl Timeline {
             for k in 0..4 {
                 image.mark[k] = segments.get(&image_mark(&image.name, k)).map_or(0.0, |s| s.value(frame));
             }
-            if let ImageSource::View { params, .. } = &mut image.source {
+            if let ImageSource::View { params, .. } | ImageSource::Graph { params, .. } = &mut image.source {
                 let prefix = format!("image.{}.param.", image.name);
                 for (channel, segment) in segments.range(prefix.clone()..).take_while(|(c, _)| c.starts_with(&prefix)) {
                     let (param, k) = channel[prefix.len()..].rsplit_once('#').expect("a parameter's channel");

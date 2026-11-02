@@ -5495,5 +5495,152 @@
       "labLayout": "decals::Decal: the same fields, with one texture index into the lab's two procedural textures for the array and index; gShadingFrame holds five vectors per decal (decals::frame_records).",
       "labLayoutZh": "decals::Decal：字段相同，其中一个纹理索引指向实验室的两张程序生成纹理，以替代数组与纹理索引；gShadingFrame 中每张贴花占五个向量（decals::frame_records）。"
     }
+  ],
+  "passes": [
+    {
+      "lab": "depthViews",
+      "engine": "CascadedShadowmaps",
+      "sources": [
+        "cascade-image",
+        "shadow-caster-state"
+      ]
+    },
+    {
+      "lab": "o3dePrepassFS",
+      "engine": "DepthPrePass (DepthMSAA)",
+      "sources": [
+        "depth-prepass"
+      ]
+    },
+    {
+      "lab": "o3deLightCullingTilePrepareCS",
+      "engine": "LightCullingTilePrepare",
+      "sources": [
+        "tile-prepare",
+        "tile-data-format"
+      ]
+    },
+    {
+      "lab": "o3deLightCullingCS",
+      "engine": "LightCulling",
+      "sources": [
+        "light-culling-main"
+      ]
+    },
+    {
+      "lab": "o3deLightCullingRemapCS",
+      "engine": "LightCullingRemap",
+      "sources": [
+        "light-culling-remap"
+      ]
+    },
+    {
+      "lab": "o3deLinearDepthCS",
+      "engine": "DepthToLinearDepth",
+      "sources": [
+        "depth-linear",
+        "depth-resolve"
+      ]
+    },
+    {
+      "lab": "o3deFullscreenShadowCS",
+      "engine": "FullscreenShadow",
+      "sources": [
+        "fullscreen-shadow-normal",
+        "fullscreen-shadow-format"
+      ]
+    },
+    {
+      "lab": "o3deShadowBlurVerticalCS",
+      "engine": "FastDepthAwareBlurVer (FullscreenShadowBlur)",
+      "sources": [
+        "blur-order",
+        "blur-step"
+      ]
+    },
+    {
+      "lab": "o3deShadowBlurHorizontalCS",
+      "engine": "FastDepthAwareBlurHor (FullscreenShadowBlur)",
+      "sources": [
+        "shadow-blur-radius",
+        "blur-step"
+      ]
+    },
+    {
+      "lab": "o3deForwardFS",
+      "engine": "Forward (MainPipeline)",
+      "sources": [
+        "forward-pixel",
+        "forward-targets"
+      ]
+    },
+    {
+      "lab": "o3deDiffuseGlobalCS",
+      "engine": "DiffuseGlobalFullscreen",
+      "sources": [
+        "diffuse-global"
+      ]
+    },
+    {
+      "lab": "o3deReflectionsCS",
+      "engine": "Reflections (ReflectionGlobalFullscreen)",
+      "sources": [
+        "reflections-order",
+        "reflection-global"
+      ]
+    },
+    {
+      "lab": "o3deReflectionCompositeCS",
+      "engine": "ReflectionComposite",
+      "sources": [
+        "reflection-composite-box",
+        "reflection-composite"
+      ]
+    },
+    {
+      "lab": "o3deDepthDownsampleCS",
+      "engine": "DepthDownsample (Ssao)",
+      "sources": [
+        "depth-downsample"
+      ]
+    },
+    {
+      "lab": "o3deSsaoCS",
+      "engine": "SsaoCompute",
+      "sources": [
+        "ssao-compute"
+      ]
+    },
+    {
+      "lab": "o3deSsaoBlurVerticalCS",
+      "engine": "FastDepthAwareBlurVer (Ssao)",
+      "sources": [
+        "blur-order",
+        "blur-step"
+      ]
+    },
+    {
+      "lab": "o3deSsaoBlurHorizontalCS",
+      "engine": "FastDepthAwareBlurHor (Ssao)",
+      "sources": [
+        "blur-order",
+        "blur-step"
+      ]
+    },
+    {
+      "lab": "o3deSsaoUpsampleCS",
+      "engine": "DepthUpsample (Ssao)",
+      "sources": [
+        "depth-upsample"
+      ]
+    },
+    {
+      "lab": "o3deMergeCS",
+      "engine": "DiffuseSpecularMerge",
+      "sources": [
+        "diffuse-specular-merge",
+        "ssao-modulate"
+      ]
+    }
   ]
 }

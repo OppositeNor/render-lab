@@ -18,6 +18,8 @@ pub const SCENE: &str = "rlstd.shader/scene";
 pub const OVERLAY: &str = "rlstd.shader/overlay";
 pub const VERIFY: &str = "rlstd.shader/verify";
 pub const FROST: &str = "rlstd.shader/frost";
+/// The frame graph's inspector (src/graph.rs).
+pub const INSPECT: &str = "rlstd.shader/inspect";
 /// The records the struct panel displays.
 const TYPES: &str = "rlstd.wgsl/types";
 
@@ -111,6 +113,16 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
     }
     cache.push(reflected);
     Ok(reflected)
+}
+
+/// The module `id`, composed and validated, with what naga's validator
+/// learned of it: which globals each entry point reads and writes
+/// (`ModuleInfo::get_entry_point`, src/graph.rs).
+pub fn analyse(id: &str) -> Result<(naga::Module, naga::valid::ModuleInfo)> {
+    let source = compose(id)?;
+    let module = validate(id, &source)?;
+    let info = Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module).map_err(|e| anyhow!("WGSL validation error in {}: {e}", describe(id)))?;
+    Ok((module, info))
 }
 
 /// The module `id`, composed and validated: what the lab hands wgpu.

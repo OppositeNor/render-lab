@@ -124,6 +124,11 @@ Each feature on the selection page also has **Experiment with the algorithm**. I
 - **Measurements** of the difference: PSNR, SSIM, ꟻLIP, MSE, and relMSE.
 - **GPU time per pass**, and a **performance panel** on the right (the frame's GPU time, its history, and a bar per
   pass) that a narrated story can show too (`panel=performance`, `highlight=<pass>`).
+- **The frame graph** (the dock's Frame graph tab; `panel=dag`, `panel=graph`): every pass in the order it runs, the resources each reads and writes, their
+  lifetimes, and the engine pass each mirrors. A click on a pass's resource shows it as it stood right after that
+  pass (`imageGraph=<pass>.<resource>` in a story, `[inspect]` in an experiment). As a **DAG** (`panel=dag`, or full
+  screen), each pass is a card holding its result right after it, with arrows for the resources between them; drag
+  the view or a card to rearrange it. **Resources** shows every resource as a card, as the frame leaves it.
 - **Experiment files** to save and load.
 
 The same file runs headless as a research experiment:

@@ -34,6 +34,7 @@ pub mod frame;
 pub mod free_view;
 pub mod frost;
 pub mod gpu;
+pub mod graph;
 pub mod home;
 pub mod i18n;
 pub mod investigation;

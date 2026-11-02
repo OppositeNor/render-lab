@@ -68,7 +68,7 @@ const TARGETS: &[ShadingTarget] = &[
 ];
 
 const PASSES: &[ShadingPass] = &[
-    ShadingPass { entry: "voxelgiGiCS", reads: &["direct", "normal", "depth"], writes: &["giAmbient", "giReflection"], workgroup: [8, 8] },
+    ShadingPass { entry: "voxelgiGiCS", reads: &["direct", "normal", "depth", "voxelgiLight"], writes: &["giAmbient", "giReflection"], workgroup: [8, 8] },
     ShadingPass { entry: "voxelgiComposeCS", reads: &["direct", "normal", "giAmbient", "giReflection", "depth"], writes: &["hdr"], workgroup: [8, 8] },
 ];
 
@@ -88,6 +88,10 @@ pub static SHADING: SceneShading = SceneShading {
     volumes: update::VOLUMES,
     update: Some(&update::UPDATE),
     resolution: Some(&RESOLUTION),
+    history: &[],
+    // The cells' light is four floats a cell, listed in cell order; the light
+    // texture is dim (it is divided by its dynamic range): a slice near the floor, brighter.
+    shows: &[("voxelgiOutputs", "float?range=0,2"), ("voxelgiLight", "color?slice=0.05&exposure=2")],
 };
 
 /// rendering/global_illumination/gi/use_half_resolution: the GI buffers at
@@ -188,6 +192,20 @@ impl Investigation for VoxelGi {
 
     fn panes(&self, state: &ShotState) -> Vec<lab::investigation::Pane> {
         demos::panes(state)
+    }
+
+    fn pass_about(&self, node: &str) -> Option<&'static str> {
+        Some(match node {
+            "voxelgiLightCS" => tr("pass.voxelgiLightCS"),
+            "voxelgiBounceCS" => tr("pass.voxelgiBounceCS"),
+            "voxelgiMipmapsCS" => tr("pass.voxelgiMipmapsCS"),
+            "voxelgiWriteCS" => tr("pass.voxelgiWriteCS"),
+            "voxelgiPrepassFS" => tr("pass.voxelgiPrepassFS"),
+            "voxelgiForwardFS" => tr("pass.voxelgiForwardFS"),
+            "voxelgiGiCS" => tr("pass.voxelgiGiCS"),
+            "voxelgiComposeCS" => tr("pass.voxelgiComposeCS"),
+            _ => return None,
+        })
     }
 
     fn scene_shading(&self) -> Option<&'static SceneShading> {

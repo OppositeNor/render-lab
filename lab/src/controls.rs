@@ -63,7 +63,9 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
     let demo = input.state.demo;
     let mut dock = Dock::new(input, viewer);
     let tab = viewer.tab;
-    egui::Area::new(egui::Id::unique("viewer-dock")).fixed_pos(inner.min).fade_in(false).show(ctx, |ui| {
+    // Not constrained to the screen: a column taller than the dock would move the whole
+    // dock up (its top clipped); the clip rect cuts its overflow at the bottom instead.
+    egui::Area::new(egui::Id::unique("viewer-dock")).fixed_pos(inner.min).constrain(false).fade_in(false).show(ctx, |ui| {
         ui.set_width(inner.width());
         ui.set_clip_rect(inner);
         // Labels keep their width; anything too wide shows as overflow, not as wrapped text.
@@ -92,6 +94,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
                         DockTab::Code => dock.code(ui),
                         DockTab::Experiments => dock.experiment_values(ui),
                         DockTab::Prerequisites => dock.prerequisites(ui),
+                        DockTab::Graph => dock.frame_graph(ui),
                         _ => investigation::current().dock(&mut dock, ui),
                     });
                 });
@@ -166,7 +169,8 @@ impl Dock<'_> {
             let captions = self.timeline.then(|| (DockTab::Captions, tr("controls.captions")));
             let prerequisites = crate::knowledge::current().map(|_| (DockTab::Prerequisites, tr("controls.prerequisites")));
             let tabs = [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Experiments, tr("controls.experiments")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))];
-            for (value, label) in tabs.into_iter().chain(prerequisites).chain(captions) {
+            let graph = [(DockTab::Graph, tr("controls.frame_graph"))];
+            for (value, label) in tabs.into_iter().chain(prerequisites).chain(graph).chain(captions) {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
                 }
@@ -204,6 +208,61 @@ impl Dock<'_> {
         if r.changed || r.committed {
             self.actions.push(ViewerAction::SetNarration(narration, r.committed));
         }
+    }
+
+    /// The Frame graph tab (src/graph.rs; the panel shows the graph): the pass
+    /// under the pointer in the panel, else the selected one (the inspected
+    /// result's): its engine pass, what it does, its GPU time, and what it
+    /// reads and writes (a click inspects that resource right after it); then
+    /// every pass in order, a click selecting it.
+    fn frame_graph(&mut self, ui: &mut Ui) {
+        let Some(view) = self.input.graph else { return };
+        let hovered: Option<String> = ui.ctx().data(|d| d.get_temp(egui::Id::unique("frame-graph-hovered"))).flatten();
+        let inspected = self.state.images.iter().find_map(|i| match &i.source {
+            crate::utility::inset::ImageSource::Graph { key, .. } if i.name == crate::viewer::INSPECTOR => key.rsplit_once('.').map(|(n, _)| n.to_string()),
+            _ => None,
+        });
+        let focus = hovered.or(inspected).and_then(|name| view.nodes.iter().find(|n| n.name == name));
+        const COLUMN: f32 = 640.0;
+        self.group(ui, &focus.map_or(tr("graph.pass").to_string(), |n| n.name.clone()), None, |d, ui| {
+            ui.set_width(COLUMN);
+            let Some(node) = focus else {
+                ui.add(egui::Label::new(RichText::new(tr("graph.pick_hint")).color(palette::text_dim())).wrap());
+                return;
+            };
+            if let Some((pass, at)) = &node.engine {
+                ui.label(RichText::new(format!("≈ {}: {pass} · {at}", investigation::current().wording().engine_short)).color(palette::accent()));
+            }
+            if let Some(about) = node.about {
+                ui.add(egui::Label::new(RichText::new(about).color(palette::text())).wrap());
+            }
+            if let Some(ms) = node.ms {
+                ui.label(RichText::new(tr_with("graph.gpu_time", args!(time = format!("{ms:.3}")))).color(palette::text_dim()));
+            }
+            // What it reads and writes: a click shows that resource right after it.
+            for (label, names) in [(tr("graph.reads"), &node.reads), (tr("graph.writes"), &node.writes)] {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(label).color(palette::text_dim()));
+                    for name in names.iter().filter(|n| n.as_str() != "frame") {
+                        if ui.selectable_label(false, RichText::new(name).monospace()).clicked() {
+                            d.actions.push(ViewerAction::Inspect(Some(format!("{}.{name}", node.name))));
+                        }
+                    }
+                });
+            }
+        });
+        self.group(ui, tr("graph.passes"), Some(tr("graph.passes_hint")), |d, ui| {
+            ui.set_width(COLUMN * 0.6);
+            for node in &view.nodes {
+                let selected = focus.is_some_and(|f| f.name == node.name);
+                let label = RichText::new(&node.name).monospace().color(if node.live { palette::text() } else { palette::text_faint() });
+                if ui.selectable_label(selected, label).clicked() {
+                    if let Some(result) = &node.result {
+                        d.actions.push(ViewerAction::Inspect(Some(format!("{}.{result}", node.name))));
+                    }
+                }
+            }
+        });
     }
 
     /// The Prerequisites tab (src/knowledge.rs): for the context's chapters,
@@ -780,6 +839,10 @@ impl Dock<'_> {
             if ui.selectable_label(shown, label).on_hover_text(tr("experiments.show_panel_hint")).clicked() {
                 let back = d.defaults.as_ref().map_or(PanelMode::Values, |s| s.panel);
                 d.actions.push(ViewerAction::SetPanel(if shown { back } else { PanelMode::Performance }));
+            }
+            // The frame graph (src/graph.rs) has a tab of its own.
+            if ui.selectable_label(false, tr("experiments.show_graph")).on_hover_text(tr("experiments.show_graph_hint")).clicked() {
+                d.actions.push(ViewerAction::SelectTab(DockTab::Graph));
             }
             egui::Grid::new("experiment-timings").num_columns(3).spacing(vec2(10.0, 2.0)).show(ui, |ui| {
                 ui.label(RichText::new(tr("experiments.frame")).color(palette::text_dim()));

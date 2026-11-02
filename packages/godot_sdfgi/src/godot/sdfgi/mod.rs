@@ -69,6 +69,8 @@ pub static SHADING: SceneShading = SceneShading {
     volumes: &[],
     update: None,
     resolution: None,
+    history: &[],
+    shows: &[],
 };
 
 /// The images its story can show (`{@ image=key}`), which `demos::field_demo` publishes.
@@ -151,6 +153,13 @@ impl Investigation for Sdfgi {
 
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
+    }
+
+    fn pass_about(&self, node: &str) -> Option<&'static str> {
+        Some(match node {
+            "sdfgiForwardFS" => tr("pass.sdfgiForwardFS"),
+            _ => return None,
+        })
     }
 
     fn scene_shading(&self) -> Option<&'static SceneShading> {

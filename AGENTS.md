@@ -87,6 +87,11 @@ cargo run --release -- home --snapshot /path/to/free.png --page viewer-free     
 cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
 cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the knowledge graph in the panel (viewer-knowledge: zoomed onto a level topic; viewer-knowledge-graph: full screen; viewer-knowledge-compact: full screen, only the topics its context needs; select-knowledge: over the homepage)
 cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels, --mermaid)
+cargo run --release -- --investigation o3de/lighting graph                    # the frame's render graph: passes in order, reads and writes (checked against the WGSL), lifetimes, engine passes (--json, --mermaid, --dot)
+cargo run --release -- home --snapshot /path/to/graph.png --page viewer-graph   # the frame graph in the panel, the inspector on what the costliest pass writes
+cargo run --release -- home --snapshot /path/to/inspect.png --page "viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…]"   # a resource right after a node, in the inspector
+cargo run --release -- home --snapshot /path/to/dag.png --page "viewer-dag[:<demo>][@<node>,…]"   # the frame graph as a DAG, each pass's result on its card (viewer-dag-full: full screen)
+cargo run --release -- home --snapshot /path/to/res.png --page "viewer-resources[:<demo>][@<node>,…]"   # every resource of the frame as a card, as the frame leaves it (viewer-resources-full)
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)
@@ -111,7 +116,9 @@ Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent
 one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it), `new-story`
 (researching, outlining, writing, and reviewing an investigation's story, in phases with subagents), `packages`
 (packages: manifests, collections, references, code and its negotiation, local packages, packing), `experiments`
-(the Experiments tab, research experiment files and their reports, exposing an engine's settings), and `knowledge-graph`
-(the knowledge graph, chapters' requirements, and choosing an investigation's audience) are published.
+(the Experiments tab, research experiment files and their reports, exposing an engine's settings), `knowledge-graph`
+(the knowledge graph, chapters' requirements, and choosing an investigation's audience), and `render-graph` (a frame's
+passes and resources as a render graph: declaring and checking reads and writes, the inspector, the graph panel and its DAG) are
+published.
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.

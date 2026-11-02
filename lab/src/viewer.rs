@@ -211,6 +211,8 @@ pub struct App {
     knowledge_focus: Option<String>,
     /// The knowledge graph is shown full screen (Esc closes it).
     knowledge_overlay: bool,
+    /// The frame graph's DAG is shown full screen (Esc closes it).
+    dag_overlay: bool,
 }
 
 impl App {
@@ -286,6 +288,7 @@ impl App {
             cursor_icon: egui::CursorIcon::Default,
             knowledge_focus: None,
             knowledge_overlay: false,
+            dag_overlay: false,
         })
     }
 
@@ -419,6 +422,16 @@ impl App {
             self.state.panel = PanelMode::Knowledge;
         } else if self.state.panel == PanelMode::Knowledge {
             self.state.panel = defaults.panel;
+        }
+        // The Frame graph tab shows the frame graph (its DAG, unless a view of it shows).
+        let graph = matches!(self.state.panel, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources);
+        if self.tab == DockTab::Graph {
+            if !graph {
+                self.state.panel = PanelMode::Dag;
+            }
+        } else if graph {
+            self.state.panel = defaults.panel;
+            self.dag_overlay = false;
         }
         if self.tab == DockTab::Code {
             if self.state.panel != PanelMode::Code {
@@ -629,6 +642,7 @@ impl App {
             }
             ViewerAction::SetHighlight(fields) if interactive => self.state.highlight = fields,
             ViewerAction::SetPanel(mode) if interactive => self.state.panel = mode,
+            ViewerAction::Inspect(key) if interactive => inspect(&mut self.state, key),
             ViewerAction::ResetParameters if interactive => {
                 // The camera stays unless the dock shows it (the overview's camera sliders).
                 self.stop();
@@ -722,6 +736,7 @@ impl App {
             }
             ViewerAction::SaveLayout => self.save_layout(),
             ViewerAction::SetKnowledgeOverlay(on) => self.knowledge_overlay = on,
+            ViewerAction::SetDagOverlay(on) => self.dag_overlay = on,
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
                 self.save_layout();
@@ -750,7 +765,7 @@ impl App {
             if self.layout.dock_height.is_some() {
                 self.layout.dock_height = Some(dock);
             }
-            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Knowledge);
+            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources);
             let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
             if width.is_some() && l.viewport.max.x < l.panel.min.x {
                 *width = Some(panel);
@@ -816,7 +831,13 @@ impl App {
             KeyCode::Minus,
             KeyCode::Equal,
         ];
-        // The full-screen knowledge graph takes the keys; Esc closes it.
+        // The full-screen DAG and knowledge graph take the keys; Esc closes them.
+        if self.dag_overlay {
+            if code == KeyCode::Escape {
+                self.dag_overlay = false;
+            }
+            return;
+        }
         if self.knowledge_overlay {
             if code == KeyCode::Escape {
                 self.knowledge_overlay = false;
@@ -1158,6 +1179,7 @@ impl App {
             diagram: None,
             experiment: crate::ui::ExperimentView::default(),
             knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
+            dag_overlay: self.dag_overlay && matches!(self.state.panel, PanelMode::Dag | PanelMode::Resources),
         };
         // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
         let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
@@ -1169,7 +1191,7 @@ impl App {
             let compare = self.experiment.reference_state(&state).filter(|_| !self.timeline_mode).map(|reference| crate::renderer::CompareRequest { reference, mode: self.experiment.compare, split: self.experiment.split, gain: self.experiment.gain });
             renderer.set_compare(compare);
             // The performance panel measures as it shows, here or on a timeline.
-            renderer.set_timing(experimenting || state.panel == PanelMode::Performance);
+            renderer.set_timing(experimenting || matches!(state.panel, PanelMode::Performance | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources));
             let times: Vec<f64> = self.frame_times.iter().copied().collect();
             let (mean, _, p95) = crate::metrics::summary(&times);
             chrome.experiment = crate::ui::ExperimentView {
@@ -1830,3 +1852,96 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
     eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], match (playing, paused) { (true, _) => "the timeline playing", (_, Some(PausedPage::Diagram)) => "paused on a diagram", (_, Some(PausedPage::Sources)) => "paused on a sources card", _ => "the first demonstration" });
     Ok(())
 }
+
+/// The graph panel's inspector (`ViewerAction::Inspect`): the resource
+/// `<node>.<resource>` in the top-right inset (the image `graph`), its node
+/// called out; none hides it.
+pub fn inspect(state: &mut ShotState, key: Option<String>) {
+    use crate::utility::inset::{Corner, ImageSource, StoryImage};
+    state.images.retain(|i| i.name != INSPECTOR);
+    state.highlight.clear();
+    let Some(key) = key else { return };
+    if let Some((node, _)) = key.rsplit_once('.') {
+        state.highlight = vec![node.to_string()];
+    }
+    state.images.push(StoryImage { name: INSPECTOR.to_string(), source: ImageSource::Graph { key, show: None, params: Default::default() }, title: None, corner: Corner::TopRight, alpha: 1.0, click: None, mark: [0.0; 4], mark_alpha: 0.0, mark_text: None });
+}
+
+/// The name of the graph panel's inspector image.
+pub const INSPECTOR: &str = "graph";
+
+/// How a graph snapshot shows the frame graph: the grid in the panel, the
+/// DAG in the panel, or the DAG full screen; the DAG's called-out nodes.
+#[derive(Clone, Debug, Default)]
+pub struct GraphSnapshot {
+    pub dag: bool,
+    /// The resources' cards instead of the DAG.
+    pub resources: bool,
+    pub full_screen: bool,
+    pub highlight: Vec<String>,
+}
+
+/// The viewer offscreen with the frame graph in the panel (`home --snapshot …
+/// --page viewer-graph[:<demo>]`, or `viewer-inspect:<node>.<resource>[/<show>]`;
+/// `viewer-dag[:<demo>][@<node>,…]` and `viewer-dag-full[:<demo>][@<node>,…]`: the DAG):
+/// the inspector showing `inspect`, or the first resource the most expensive
+/// pass writes.
+pub fn snapshot_graph(options: ViewerOptions, demo: Option<&str>, inspect_key: Option<&str>, how: GraphSnapshot, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let (mut app, gpu, size) = offscreen_app(options, demo)?;
+    app.state = app.default_state(app.state.demo);
+    app.state.panel = if how.resources { PanelMode::Resources } else if how.dag { PanelMode::Dag } else { PanelMode::Graph };
+    app.dag_overlay = how.full_screen;
+    app.tab = DockTab::Graph;
+    let graph = crate::graph::FrameGraph::current(&[]);
+    if let Some(unknown) = how.highlight.iter().find(|h| graph.node(h).is_none()) {
+        anyhow::bail!("no node `{unknown}` (nodes: {})", graph.nodes.iter().map(|n| n.name).collect::<Vec<_>>().join(", "));
+    }
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..30 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    // `?name=v,v&…`: the inspector's parameters (`graph::INSPECT_PARAMS`).
+    let (inspect_key, query) = match inspect_key.and_then(|k| k.split_once('?')) {
+        Some((k, q)) => (Some(k), q),
+        None => (inspect_key, ""),
+    };
+    let params = crate::graph::parse_params(query).map_err(|e| anyhow::anyhow!(e))?;
+    let (key, show) = match inspect_key {
+        Some(k) => match k.split_once('/') {
+            Some((key, show)) => (key.to_string(), Some(show.to_string())),
+            None => (k.to_string(), None),
+        },
+        None => {
+            // The most expensive live pass that writes something of its own.
+            let passes = app.renderer().timing.as_ref().map(|t| t.summary()).unwrap_or_default();
+            let cost = |n: &crate::graph::Node| passes.iter().find(|p| p.0 == n.timing).map_or(0.0, |p| p.1);
+            let node = graph.order.iter().map(|&i| &graph.nodes[i]).filter(|n| !n.writes.is_empty() && n.writes[0] != "frame").max_by(|a, b| cost(a).total_cmp(&cost(b))).ok_or_else(|| anyhow::anyhow!("no node writes anything"))?;
+            (format!("{}.{}", node.name, node.writes[0]), None)
+        }
+    };
+    graph.inspected(&key).map_err(|e| anyhow::anyhow!(e))?;
+    if let Some(show) = &show {
+        crate::graph::Show::from_key(show).map_err(|e| anyhow::anyhow!(e))?;
+    }
+    inspect(&mut app.state, Some(key.clone()));
+    // The page's call-outs over the inspector's.
+    if !how.highlight.is_empty() {
+        app.state.highlight = how.highlight.clone();
+    }
+    if let Some(crate::utility::inset::ImageSource::Graph { show: s, params: p, .. }) = app.state.images.iter_mut().find(|i| i.name == INSPECTOR).map(|i| &mut i.source) {
+        *s = show;
+        *p = params;
+    }
+    for _ in 0..4 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    eprintln!("viewer graph: {} ({}x{}); {} nodes, {} resources; inspecting {key}", png.display(), size[0], size[1], graph.nodes.len(), graph.resources.len());
+    Ok(())
+}
+

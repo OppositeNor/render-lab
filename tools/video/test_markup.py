@@ -41,6 +41,9 @@ class Parse(unittest.TestCase):
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0], 'gain': 2.0}})
         self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'image': 'floor', 'imageParams': {'gain': 4.0}, 'blend': 1.0})
         self.assertEqual(markup.cue_key(s.tags[2], {}, 'x'), {'imageHide': ['floor', 'ceiling']})
+        # A resource of the frame's graph after a node, drawn as counts.
+        s = markup.parse('{@ panel=graph image=lights imageGraph=o3deLightCullingCS.tileData imageShow=count image.range=0,16} A.')
+        self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'panel': 'graph', 'image': 'lights', 'imageGraph': 'o3deLightCullingCS.tileData', 'imageShow': 'count', 'imageParams': {'range': [0.0, 16.0]}})
         s = markup.parse('{@ arrow=a arrowFrom=0,1,2 arrowTo=probe.top arrowColor=#50d7ff arrowWidth=4} A {@ label=l labelAt=probe.top labelText=demos.hit} b {@ arrows=rays arrowHide=a labelHide=l} c.')
         self.assertEqual(markup.cue_key(s.tags[0], {}, 'x'), {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowColor': '#50d7ff', 'arrowWidth': 4.0})
         self.assertEqual(markup.cue_key(s.tags[1], {}, 'x'), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos.hit'})

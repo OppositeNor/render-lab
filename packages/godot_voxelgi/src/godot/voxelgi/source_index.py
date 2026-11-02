@@ -477,6 +477,19 @@ DEMOS: dict[str, list[str]] = {
 LAB_LAYOUT = "The same bits, packed by the lab's CPU model (godot/voxelgi, storage.rs)."
 LAB_LAYOUT_ZH = "实验室 CPU 模型（godot/voxelgi，storage.rs）按相同位布局打包。"
 
+# The frame graph's nodes (lab/src/graph.rs) and the engine passes they mirror:
+# the graph panel names each node's pass and its sources.
+PASSES = [
+    {"lab": "voxelgiLightCS", "engine": "voxel_gi.glsl MODE_COMPUTE_LIGHT", "sources": ["compute-light"]},
+    {"lab": "voxelgiBounceCS", "engine": "voxel_gi.glsl MODE_SECOND_BOUNCE", "sources": ["second-bounce"]},
+    {"lab": "voxelgiMipmapsCS", "engine": "voxel_gi.glsl MODE_UPDATE_MIPMAPS", "sources": ["update-mipmaps"]},
+    {"lab": "voxelgiWriteCS", "engine": "voxel_gi.glsl MODE_WRITE_TEXTURE", "sources": ["write-texture"]},
+    {"lab": "voxelgiPrepassFS", "engine": "Render Depth Pre-Pass", "sources": ["frame-order"]},
+    {"lab": "voxelgiForwardFS", "engine": "Render Opaque Pass", "sources": ["frame-order", "material-outputs"]},
+    {"lab": "voxelgiGiCS", "engine": "process_gi (gi.glsl)", "sources": ["instance-loop", "voxel-gi-compute"]},
+    {"lab": "voxelgiComposeCS", "engine": "scene_forward_clustered.glsl (GI buffers)", "sources": ["gi-buffer-fetch", "gi-buffer-mix"]},
+]
+
 MAPPINGS = [
     {"lab": "VoxelgiCellChildren", "engineShort": "CellChildren", "engineName": "The octree record (CellChildren, voxel_gi.glsl; get_voxel_gi_octree_cells)", "engineNameZh": "八叉树节点记录（CellChildren，voxel_gi.glsl；get_voxel_gi_octree_cells）",
      "relationship": "exact", "sources": ["export-octree"],
@@ -549,6 +562,9 @@ def main() -> None:
     for m in MAPPINGS:
         for k in m["sources"]:
             assert k in entries, k
+    for p in PASSES:
+        for k in p["sources"]:
+            assert k in entries, k
     index = {
         "schema": 1,
         "engine": {
@@ -562,6 +578,7 @@ def main() -> None:
         "chapters": [{"number": n, "title": title, "titleZh": zh, "reading": keys} for n, title, zh, keys in CHAPTERS],
         "demos": DEMOS,
         "mappings": MAPPINGS,
+        "passes": PASSES,
     }
     out = LAB / "packages/godot_voxelgi/source-index.json"
     out.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

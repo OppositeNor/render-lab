@@ -6,6 +6,7 @@
 use crate::frame::{self, FrameContent, Statics};
 use crate::investigation::{self, SceneShading};
 use crate::gpu::{self, Gpu, Pipelines, DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
+use crate::graph::Step;
 use crate::layout::{FrameUniforms, ObjectData};
 use crate::scene::SceneId;
 use crate::shot::{SceneType, ShotState};
@@ -171,6 +172,13 @@ pub struct Renderer {
     view_layout: wgpu::BindGroupLayout,
     /// Group 1 of a kind's entry point when the investigation has no scene shading.
     view_shading: Option<wgpu::BindGroup>,
+    /// The frame's graph (src/graph.rs) and what it was compiled for: the
+    /// shading (by address) and the resources image kinds read.
+    graph: Option<((usize, Vec<String>), std::sync::Arc<crate::graph::FrameGraph>)>,
+    /// The graph images shown (`ImageSource::Graph`) by name, and the
+    /// inspector's pipeline and group layout for each kind of resource.
+    inspections: HashMap<String, Inspection>,
+    inspect_pipelines: HashMap<&'static str, (wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
     last_layout: Layout,
     /// The last frame's views beside the main one (`Investigation::panes`), in canvas points.
     last_panes: Vec<egui::Rect>,
@@ -199,6 +207,40 @@ pub struct Renderer {
     /// GPU timestamps around the frame's passes (src/timing.rs), while an
     /// experiment asks for them (`set_timing`) and the device has them.
     pub timing: Option<crate::timing::Timing>,
+}
+
+/// A story's (or the graph panel's) image of a resource of the frame's
+/// graph (src/graph.rs, `ImageSource::Graph`): its texture, written right
+/// after the node it names by the inspector (packages/rlstd/shaders/inspect.wgsl).
+struct Inspection {
+    /// `<node>.<resource>`, and the node by its index in the graph.
+    key: String,
+    node: usize,
+    resource: &'static str,
+    entry: &'static str,
+    binding: u32,
+    _texture: wgpu::Texture,
+    storage: wgpu::TextureView,
+    size: [u32; 2],
+    params: wgpu::Buffer,
+    id: egui::TextureId,
+}
+
+/// The most texels along an inspector texture's longer side.
+const INSPECT_SIDE: u32 = 640;
+
+/// The DAG panel's images (`PanelMode::Dag`): one per node, named this
+/// prefix and the node, smaller than the inspector's and not keeping their
+/// writers alive (the view shows culled nodes as culled).
+const DAG_IMAGE: &str = "@dag/";
+const DAG_SIDE: u32 = 256;
+/// The resources panel's images (`PanelMode::Resources`): one per resource,
+/// its state at the end of the frame (`FrameGraph::last_user`).
+const RESOURCE_IMAGE: &str = "@resource/";
+
+/// An image of a graph panel's cards, not one a story or the inspector shows.
+fn card_image(name: &str) -> bool {
+    name.starts_with(DAG_IMAGE) || name.starts_with(RESOURCE_IMAGE)
 }
 
 /// A story's image of an image kind (src/views.rs): its texture, written
@@ -431,7 +473,7 @@ impl ChainTargets {
         };
         let group = |label: &str, layout: &wgpu::BindGroupLayout, reads: &[&str], writes: &[&str]| {
             let mut entries: Vec<wgpu::BindGroupEntry> = Vec::new();
-            for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))) {
+            for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_volume(source, n)) {
                 let binding = gpu::chain_binding(source, name, written);
                 if !entries.iter().any(|e| e.binding == binding) {
                     entries.push(wgpu::BindGroupEntry { binding, resource: resource(name) });
@@ -486,16 +528,17 @@ impl ChainTargets {
         }
     }
 
-    /// Encode a run of compute passes with their bind groups.
-    /// Timed (src/timing.rs), each pass runs in a compute pass of its own that writes its timestamps.
-    fn dispatch(&self, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::BindGroup, shading: &Shading, range: std::ops::Range<usize>, timing: Option<&mut crate::timing::Timing>) {
-        if range.is_empty() {
+    /// Encode compute passes `steps` (indices into `early` then `passes`),
+    /// in order, with their bind groups. Timed (src/timing.rs), each pass
+    /// runs in a compute pass of its own that writes its timestamps.
+    fn dispatch(&self, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::BindGroup, shading: &Shading, steps: &[usize], timing: Option<&mut crate::timing::Timing>) {
+        if steps.is_empty() {
             return;
         }
-        let steps: Vec<&crate::investigation::ShadingPass> = self.source.early.iter().chain(self.source.passes).collect();
+        let all: Vec<&crate::investigation::ShadingPass> = self.source.early.iter().chain(self.source.passes).collect();
         if let Some(timing) = timing {
-            for i in range {
-                let step = steps[i];
+            for &i in steps {
+                let step = all[i];
                 let size = self.size_of(step.writes[0]);
                 let span = timing.compute_writes(step.entry);
                 let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some(step.entry), timestamp_writes: span.as_ref().map(|t| t.compute()) });
@@ -516,8 +559,8 @@ impl ChainTargets {
         if let Some(v) = shading.volume_sets.get(shading.volume_set) {
             pass.set_bind_group(3, &v.group, &[]);
         }
-        for i in range {
-            let step = steps[i];
+        for &i in steps {
+            let step = all[i];
             let size = self.size_of(step.writes[0]);
             pass.set_pipeline(&shading.pipelines.passes[i].0);
             pass.set_bind_group(2, &self.groups[i], &[]);
@@ -699,6 +742,9 @@ impl Renderer {
                 ],
             }),
             view_shading: None,
+            graph: None,
+            inspections: HashMap::new(),
+            inspect_pipelines: HashMap::new(),
             last_layout: Layout::new(width, height),
             last_panes: Vec::new(),
             panel_empty: false,
@@ -818,7 +864,7 @@ impl Renderer {
             layout = layout.with_dock();
         }
         // The pseudo-code and the knowledge graph take the wider panel.
-        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Knowledge);
+        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Knowledge | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
         layout = layout.with_user(&self.user_layout, dock, code);
         layout.for_panel(panel)
     }
@@ -1167,6 +1213,77 @@ impl Renderer {
         Some((texels, size))
     }
 
+    /// What the graph panel shows (`PanelMode::Graph`): the frame's graph,
+    /// each node's last GPU time, and the inspected resource.
+    fn graph_view(&mut self) -> ui::GraphView {
+        let graph = self.frame_graph();
+        let layers = graph.layers();
+        let last: Vec<(String, f64)> = self.timing.as_ref().map(|t| t.last().to_vec()).unwrap_or_default();
+        let nodes = graph
+            .order
+            .iter()
+            .map(|&i| {
+                let n = &graph.nodes[i];
+                // Two nodes of one entry share its row in the timing: each shows half.
+                let sharing = graph.nodes.iter().filter(|m| m.timing == n.timing).count().max(1) as f64;
+                let ms = last.iter().find(|(name, _)| name == n.timing).map(|(_, ms)| ms / sharing);
+                let index = crate::sources::index();
+                let engine = index.pass(n.name).map(|p| {
+                    let at = p.sources.first().and_then(|k| index.entries.get(k)).map_or(String::new(), |e| format!("{}:{}", e.path.rsplit('/').next().unwrap_or(&e.path), e.line));
+                    (p.engine.clone(), at)
+                });
+                let result = graph.result_of(i).map(str::to_string);
+                let thumbnail = self.inspections.get(&format!("{DAG_IMAGE}{}", n.name)).map(|x| (x.id, x.size));
+                ui::GraphNodeView { name: n.name.to_string(), engine, ms, live: graph.live[i], cached: n.cached, layer: layers[i], result, thumbnail, about: crate::graph::about(n.name), reads: n.reads.iter().map(|r| r.to_string()).collect(), writes: n.writes.iter().map(|w| w.to_string()).collect() }
+            })
+            .collect();
+        // The DAG's arrows, between rows: what flows from one node to the next
+        // (its resources), or an order without data (a later write).
+        let row_of = |i: usize| graph.order.iter().position(|&o| o == i).expect("every node is in the order");
+        let mut edges: Vec<ui::GraphEdgeView> = Vec::new();
+        for &(a, b, kind) in &graph.edges {
+            let (from, to) = (row_of(a), row_of(b));
+            let at = match edges.iter().position(|e| e.from == from && e.to == to) {
+                Some(k) => k,
+                None => {
+                    edges.push(ui::GraphEdgeView { from, to, data: Vec::new() });
+                    edges.len() - 1
+                }
+            };
+            if let crate::graph::Edge::Data(r) = kind {
+                edges[at].data.push(r);
+            }
+        }
+        let users = |r: &crate::graph::Resource, writes: bool| -> Vec<String> {
+            graph.order.iter().map(|&i| &graph.nodes[i]).filter(|n| if writes { n.writes.contains(&r.name) } else { n.reads.contains(&r.name) }).map(|n| n.name.to_string()).collect()
+        };
+        let resources = graph
+            .resources
+            .iter()
+            .map(|r| ui::GraphResourceView {
+                name: r.name.to_string(),
+                lifetime: r.lifetime,
+                shape: r.shape.describe(),
+                writers: users(r, true),
+                readers: users(r, false),
+                key: graph.last_user(r.name).filter(|_| r.name != "frame").map(|n| format!("{}.{}", graph.nodes[n].name, r.name)),
+                thumbnail: self.inspections.get(&format!("{RESOURCE_IMAGE}{}", r.name)).map(|x| (x.id, x.size)),
+            })
+            .collect();
+        let mut uses = Vec::new();
+        for (row, &i) in graph.order.iter().enumerate() {
+            let n = &graph.nodes[i];
+            for (c, r) in graph.resources.iter().enumerate() {
+                let (reads, writes) = (n.reads.contains(&r.name), n.writes.contains(&r.name));
+                if reads || writes {
+                    uses.push((row, c, reads, writes));
+                }
+            }
+        }
+        let inspected = self.inspections.get(crate::viewer::INSPECTOR).map(|x| x.key.clone());
+        ui::GraphView { nodes, resources, uses, edges, inspected, timestamps: self.timing.is_some() }
+    }
+
     /// What the performance panel shows (`PanelMode::Performance`): the GPU,
     /// each pass's times, and the recent frames' GPU and frame times.
     fn performance_view(&self) -> ui::PerformanceView {
@@ -1314,7 +1431,7 @@ impl Renderer {
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
         self.switch_scene(investigation::current().scene(request.state));
         // The performance panel measures the frames it is shown with.
-        if request.state.panel == crate::shot::PanelMode::Performance && request.scene_type == SceneType::ThreeD {
+        if matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources) && request.scene_type == SceneType::ThreeD {
             self.set_timing(true);
         }
         self.frame_starts.push_back(std::time::Instant::now());
@@ -1483,8 +1600,9 @@ impl Renderer {
 
         if content.is_some() {
             self.prepare_views(request.state);
+            self.prepare_inspections(request.state);
         }
-        let shows_performance = request.state.panel == crate::shot::PanelMode::Performance;
+        let shows_performance = matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
         // A recording (no live frames before it, or a single snapshot) times a
         // few renders of the same shot first, so its panel shows measurements.
         const PERFORMANCE_WARMUP: usize = 12;
@@ -1509,6 +1627,7 @@ impl Renderer {
             }
         }
         let performance = shows_performance.then(|| self.performance_view());
+        let graph_view = matches!(request.state.panel, crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources).then(|| self.graph_view());
         let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
         // egui pass content.
         let mut raw = request.raw_input;
@@ -1532,6 +1651,7 @@ impl Renderer {
             title: main.as_ref().and_then(|m| m.title.as_deref()),
             compare: compare.as_ref().filter(|_| self.reference_drawn).map(|c| ui::CompareOverlay { mode: c.mode, reference: reference_rect, split: c.split, gain: c.gain }),
             performance: performance.as_ref(),
+            graph: graph_view.as_ref(),
         };
         let mut chrome = request.chrome;
         let mut report = UiReport::default();
@@ -1738,7 +1858,7 @@ impl Renderer {
                 pass.set_pipeline(&shading.pipelines.updates[p].0);
                 pass.set_bind_group(0, &self.frame_bind_group, &[]);
                 pass.set_bind_group(1, &shading.group, &[]);
-                if !update.passes[p].reads.is_empty() {
+                if update.passes[p].reads.iter().any(|r| crate::graph::is_volume(source, r)) {
                     pass.set_bind_group(3, &volumes.group, &[]);
                 }
                 for (k, d) in dispatches[i..end].iter().enumerate() {
@@ -1754,9 +1874,286 @@ impl Renderer {
         }
     }
 
+    /// Makes (or keeps) the texture of each graph image the state shows,
+    /// and writes its parameters (src/graph.rs `Show`, `INSPECT_PARAMS`).
+    fn prepare_inspections(&mut self, state: &ShotState) {
+        use crate::graph::{inspect_entry, FrameGraph, Shape, Show};
+        use crate::utility::inset::{view_texture, ImageSource};
+        let shown: Vec<(String, String, Option<String>, std::collections::BTreeMap<String, Vec<f32>>)> = state
+            .images
+            .iter()
+            .filter_map(|i| match &i.source {
+                ImageSource::Graph { key, show, params } => Some((i.name.clone(), key.clone(), show.clone(), params.clone())),
+                _ => None,
+            })
+            .collect();
+        let mut shown = shown;
+        if state.panel == crate::shot::PanelMode::Dag {
+            let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
+            for (i, n) in graph.nodes.iter().enumerate() {
+                if let Some(r) = graph.result_of(i) {
+                    shown.push((format!("{DAG_IMAGE}{}", n.name), format!("{}.{r}", n.name), None, Default::default()));
+                }
+            }
+        }
+        if state.panel == crate::shot::PanelMode::Resources {
+            let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
+            for r in graph.resources.iter().filter(|r| r.name != "frame") {
+                if let Some(node) = graph.last_user(r.name) {
+                    shown.push((format!("{RESOURCE_IMAGE}{}", r.name), format!("{}.{}", graph.nodes[node].name, r.name), None, Default::default()));
+                }
+            }
+        }
+        let gone: Vec<String> = self.inspections.iter().filter(|(name, x)| !shown.iter().any(|(n, k, _, _)| n == *name && *k == x.key)).map(|(n, _)| n.clone()).collect();
+        for name in gone {
+            let x = self.inspections.remove(&name).expect("an inspection");
+            self.egui_renderer.free_texture(&x.id);
+            self.textures.remove(&view_texture(&name));
+        }
+        if shown.is_empty() {
+            return;
+        }
+        let device = &self.gpu.device;
+        if self.inspect_pipelines.is_empty() {
+            let source = crate::shaders::module(crate::shaders::INSPECT).unwrap_or_else(|e| panic!("{e:#}"));
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("inspect"), source: wgpu::ShaderSource::Wgsl(source.into()) });
+            let sources: [(&str, wgpu::BindingType); 6] = [
+                ("inspectTextureCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }),
+                ("inspectTextureMsCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }),
+                ("inspectDepthMsCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }),
+                ("inspectDepthArrayCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }),
+                ("inspectBufferCS", wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }),
+                ("inspectVolumeCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D3, multisampled: false }),
+            ];
+            for (entry, ty) in sources {
+                let (_, binding) = [Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 1 }, Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 4 }, Shape::Texture { format: wgpu::TextureFormat::Depth32Float, divisor: 1, samples: 4 }, Shape::DepthArray { size: 1, layers: 1 }, Shape::UpdateBuffer, Shape::Volume { format: wgpu::TextureFormat::Rgba8Unorm, size: [1; 3], mips: 1 }]
+                    .iter()
+                    .map(inspect_entry)
+                    .find(|(e, _)| *e == entry)
+                    .expect("an entry per kind");
+                let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some(entry),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: wgpu::TextureFormat::Rgba8Unorm, view_dimension: wgpu::TextureViewDimension::D2 }, count: None },
+                        wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::COMPUTE, ty, count: None },
+                    ],
+                });
+                let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some(entry), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+                let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(entry), layout: Some(&pipeline_layout), module: &module, entry_point: Some(entry), compilation_options: Default::default(), cache: None });
+                self.inspect_pipelines.insert(entry, (pipeline, layout));
+            }
+        }
+        let source = investigation::current().scene_shading();
+        let graph = FrameGraph::new(source, &[]);
+        let viewport = self.viewport.as_ref().map_or([self.width, self.height], |v| v.size);
+        let scale = source.and_then(|s| self.shadings.iter().find(|x| std::ptr::eq(x.source, s))).map_or(1, |s| s.scale.max(1));
+        for (name, key, show, params) in shown {
+            let Ok((node, r)) = graph.inspected(&key) else { continue };
+            let resource = graph.resources[r].clone();
+            // The investigation's view of it (its parameters under the image's), unless the image names another visualizer.
+            let (declared, mut defaults) = graph.view_of(r);
+            let show = show.as_deref().map_or(declared, |s| Show::from_key(s).unwrap_or_else(|e| panic!("{e}")));
+            if show != declared {
+                defaults.clear();
+            }
+            defaults.extend(params);
+            let params = defaults;
+            let param = |k: &str, i: usize| params.get(k).and_then(|v| v.get(i)).copied();
+            let default = |k: &str| crate::graph::INSPECT_PARAMS.iter().find(|p| p.0 == k).map_or(0.0, |p| p.2);
+            let level = param("level", 0).unwrap_or(0.0).max(0.0) as u32;
+            let axis = param("axis", 0).unwrap_or(default("axis")).round().clamp(0.0, 2.0) as u32;
+            let update_words = |name: &str| {
+                source.and_then(|s| s.update).and_then(|u| u.buffers.iter().find(|b| b.name == name)).map_or(1, |b| (b.words)().max(1))
+            };
+            // The source's size in texels (a buffer: the viewport's pixels, or its elements row by row).
+            let src: [u32; 2] = match &resource.shape {
+                Shape::Texture { divisor, .. } => {
+                    let d = if *divisor == 0 { scale } else { *divisor };
+                    [(viewport[0] / d).max(1), (viewport[1] / d).max(1)]
+                }
+                Shape::Buffer { .. } => viewport,
+                Shape::UpdateBuffer => [256, (update_words(resource.name) as u32).div_ceil(256).max(1)],
+                Shape::DepthArray { size, .. } => [*size, *size],
+                Shape::Volume { size, mips, .. } => {
+                    let m = level.min(mips.saturating_sub(1));
+                    let s = size.map(|v| (v >> m).max(1));
+                    match axis {
+                        0 => [s[2], s[1]],
+                        2 => [s[0], s[1]],
+                        _ => [s[0], s[2]],
+                    }
+                }
+            };
+            let long = src[0].max(src[1]).max(1);
+            let side = if card_image(&name) { DAG_SIDE } else { INSPECT_SIDE.min(long.max(256)) };
+            let size = [(src[0] * side / long).max(1), (src[1] * side / long).max(1)];
+            if self.inspections.get(&name).is_some_and(|x| x.size != size) {
+                let x = self.inspections.remove(&name).expect("an inspection");
+                self.egui_renderer.free_texture(&x.id);
+                self.textures.remove(&view_texture(&name));
+            }
+            if !self.inspections.contains_key(&name) {
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some(&name),
+                    size: wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                });
+                let storage = texture.create_view(&Default::default());
+                let id = self.egui_renderer.register_native_texture(device, &texture.create_view(&Default::default()), wgpu::FilterMode::Linear);
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some(&name), size: 80, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                let (entry, binding) = inspect_entry(&resource.shape);
+                self.textures.insert(view_texture(&name), (id, size));
+                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id });
+            }
+            let range = [param("range", 0).unwrap_or(show.range()[0]), param("range", 1).unwrap_or(show.range()[1])];
+            let (tile, words, tiles_x, samples) = match &resource.shape {
+                Shape::Buffer { words_per_tile, tile } => (*tile, *words_per_tile, viewport[0].div_ceil((*tile).max(1)), 1),
+                Shape::UpdateBuffer => (0, 1, 0, 1),
+                Shape::Texture { samples, .. } => (1, 0, 0, *samples),
+                _ => (1, 0, 0, 1),
+            };
+            let u = |v: f32| v.max(0.0).round() as u32;
+            let words_out: [u32; 20] = [
+                show.mode(),
+                u(param("channel", 0).unwrap_or(0.0)),
+                u(param("encoding", 0).unwrap_or(0.0)),
+                u(param("average", 0).unwrap_or(0.0)),
+                range[0].to_bits(),
+                range[1].to_bits(),
+                param("exposure", 0).unwrap_or(0.0).to_bits(),
+                param("slice", 0).unwrap_or(default("slice")).to_bits(),
+                size[0],
+                size[1],
+                src[0],
+                src[1],
+                tile,
+                words,
+                u(param("word", 0).unwrap_or(0.0)),
+                tiles_x,
+                level,
+                axis,
+                samples,
+                0,
+            ];
+            let x = &self.inspections[&name];
+            self.gpu.queue.write_buffer(&x.params, 0, bytemuck::cast_slice(&words_out));
+        }
+    }
+
+    /// Draws each graph image that names node `node` from its resource as it
+    /// stands now (right after the node): packages/rlstd/shaders/inspect.wgsl.
+    fn capture(&self, encoder: &mut wgpu::CommandEncoder, node: usize, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets) {
+        for x in self.inspections.values().filter(|x| x.node == node) {
+            let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else { continue };
+            let volume_view;
+            let resource: wgpu::BindingResource = match x.resource {
+                "hdr" => wgpu::BindingResource::TextureView(&targets.hdr),
+                "depth" => wgpu::BindingResource::TextureView(&targets.depth),
+                "overlay" => wgpu::BindingResource::TextureView(&targets.overlay),
+                name => {
+                    let chained = chain.and_then(|c| {
+                        if let Some((_, b)) = c.buffers.iter().find(|(n, _)| *n == name) {
+                            return Some(b.as_entire_binding());
+                        }
+                        if let (Some(d), Some((all, _))) = (c.source.depth_views, &c.depth_views) {
+                            if d.name == name {
+                                return Some(wgpu::BindingResource::TextureView(all));
+                            }
+                        }
+                        c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| wgpu::BindingResource::TextureView(v))
+                    });
+                    match chained {
+                        Some(r) => r,
+                        None => {
+                            let Some(s) = shading else { continue };
+                            if let Some(k) = s.source.update.and_then(|u| u.buffers.iter().position(|b| b.name == name)) {
+                                s.update_buffers[k].as_entire_binding()
+                            } else if let (Some(v), Some(set)) = (s.source.volumes.iter().position(|v| v.name == name), s.volume_sets.get(s.volume_set)) {
+                                volume_view = set.textures[v].create_view(&Default::default());
+                                wgpu::BindingResource::TextureView(&volume_view)
+                            } else {
+                                continue;
+                            }
+                        }
+                    }
+                }
+            };
+            let group = self.gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("inspect"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: x.params.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&x.storage) },
+                    wgpu::BindGroupEntry { binding: x.binding, resource },
+                ],
+            });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("inspect"), timestamp_writes: None });
+            pass.set_pipeline(pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.dispatch_workgroups(x.size[0].div_ceil(8), x.size[1].div_ceil(8), 1);
+        }
+    }
+
+    /// The graph images shown: their names and `<node>.<resource>` keys.
+    pub fn inspected(&self) -> Vec<(String, String)> {
+        self.inspections.iter().filter(|(n, _)| !card_image(n)).map(|(n, x)| (n.clone(), x.key.clone())).collect()
+    }
+
+    /// A graph image's texture read back (RGBA8, its size).
+    pub fn read_inspection(&self, name: &str) -> Option<(Vec<u8>, [u32; 2])> {
+        let x = self.inspections.get(name)?;
+        let device = &self.gpu.device;
+        let buffer = crate::readback::readback_buffer(device, x.size[0], x.size[1]);
+        let mut encoder = device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture: &x._texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(crate::readback::padded_row_bytes(x.size[0])), rows_per_image: Some(x.size[1]) } },
+            wgpu::Extent3d { width: x.size[0], height: x.size[1], depth_or_array_layers: 1 },
+        );
+        self.gpu.queue.submit([encoder.finish()]);
+        let size = buffer.size();
+        let data = crate::readback::read_buffer(device, &self.gpu.queue, &buffer, 0, size);
+        Some((crate::readback::unpad_rows(&data, x.size[0], x.size[1]), x.size))
+    }
+
+    /// The current frame's graph (src/graph.rs), kept alive for what the
+    /// image kinds read: compiled again when the shading or those change.
+    fn frame_graph(&mut self) -> std::sync::Arc<crate::graph::FrameGraph> {
+        let source = investigation::current().scene_shading();
+        let mut sinks: Vec<String> = self.views.values().flat_map(|v| v.kind.reads.iter().cloned()).collect();
+        sinks.extend(self.inspections.iter().filter(|(n, _)| !card_image(n)).map(|(_, x)| x.resource.to_string()));
+        sinks.sort();
+        sinks.dedup();
+        let key = (source.map_or(0, |s| s as *const SceneShading as usize), sinks);
+        if let Some((k, graph)) = &self.graph {
+            if *k == key {
+                return graph.clone();
+            }
+        }
+        let names: Vec<&str> = key.1.iter().map(String::as_str).collect();
+        let graph = std::sync::Arc::new(crate::graph::FrameGraph::new(source, &names));
+        if !graph.errors.is_empty() {
+            panic!("the frame's graph does not compile (render-lab graph):\n  {}", graph.errors.join("\n  "));
+        }
+        self.graph = Some((key, graph.clone()));
+        graph
+    }
+
+    /// Encode a frame's scene in its graph's order (src/graph.rs): the
+    /// update passes (their plan's dispatches), then each live node: the
+    /// depth views, the pre-pass, the chain's compute passes, the scene pass,
+    /// and the overlay. The composite is the caller's.
     fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent, timed: bool) {
         self.shading();
+        let graph = self.frame_graph();
         let mut timing = if timed { self.timing.take() } else { None };
+        // The update passes run first, in their plan's order (they read nothing this frame writes).
         self.encode_updates(encoder, timing.as_mut());
         let shading = investigation::current().scene_shading().and_then(|source| self.shadings.iter().find(|s| std::ptr::eq(s.source, source)));
         let targets = self.viewport.as_ref().unwrap();
@@ -1778,144 +2175,177 @@ impl Renderer {
                 .collect(),
             None => vec![Some(wgpu::RenderPassColorAttachment { view: &targets.hdr_msaa, depth_slice: None, resolve_target: Some(&targets.hdr), ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Discard } })],
         };
-        // The chain's depth pre-pass and early passes, before the scene pass.
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
-        if let (Some(s), Some(c)) = (chained, chain) {
-            // The depth views (shadow maps), one layer at a time, when what
-            // they see (the objects, the light, the shading values) changed.
-            let key = depth_views_key(content);
-            if let Some((_, layers)) = c.depth_views.as_ref().filter(|_| c.depth_views_drawn.replace(Some(key)) != Some(key)) {
-                let span = timing.as_mut().and_then(|t| t.render_writes("depth views"));
-                let last = layers.len().saturating_sub(1);
-                for (i, (pipeline, layer)) in s.pipelines.depth_views.iter().zip(layers).enumerate() {
-                    let writes = span.as_ref().filter(|_| i == 0 || i == last).map(|t| t.span(i == 0, i == last));
+        // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
+        let mut pending: Vec<usize> = Vec::new();
+        for &n in &graph.order {
+            let node = &graph.nodes[n];
+            if !graph.live[n] {
+                continue;
+            }
+            // The inspector draws what a node wrote right after it, in the main view only.
+            let inspected = timed && self.inspections.values().any(|x| x.node == n);
+            if let Step::Compute(i) = node.step {
+                pending.push(i);
+                if inspected {
+                    if let (Some(s), Some(c)) = (chained, chain) {
+                        c.dispatch(encoder, &self.frame_bind_group, s, &std::mem::take(&mut pending), timing.as_mut());
+                    }
+                    self.capture(encoder, n, chain, shading, targets);
+                }
+                continue;
+            }
+            if let (Some(s), Some(c)) = (chained, chain) {
+                c.dispatch(encoder, &self.frame_bind_group, s, &std::mem::take(&mut pending), timing.as_mut());
+            }
+            match node.step {
+                Step::Update(_) | Step::Compute(_) | Step::Composite => {}
+                Step::DepthViews => {
+                    let (Some(s), Some(c)) = (chained, chain) else { continue };
+                    // The depth views (shadow maps), one layer at a time, when what
+                    // they see (the objects, the light, the shading values) changed.
+                    let key = depth_views_key(content);
+                    if let Some((_, layers)) = c.depth_views.as_ref().filter(|_| c.depth_views_drawn.replace(Some(key)) != Some(key)) {
+                        let span = timing.as_mut().and_then(|t| t.render_writes("depth views"));
+                        let last = layers.len().saturating_sub(1);
+                        for (i, (pipeline, layer)) in s.pipelines.depth_views.iter().zip(layers).enumerate() {
+                            let writes = span.as_ref().filter(|_| i == 0 || i == last).map(|t| t.span(i == 0, i == last));
+                            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                label: Some("depth view"),
+                                color_attachments: &[],
+                                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                                timestamp_writes: writes,
+                                occlusion_query_set: None,
+                                multiview_mask: None,
+                            });
+                            pass.set_pipeline(pipeline);
+                            pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                            pass.set_bind_group(1, &s.group, &[]);
+                            pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
+                            pass.set_vertex_buffer(1, self.object_ids.slice(..));
+                            pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
+                            for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
+                                pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
+                            }
+                        }
+                    }
+                }
+                Step::Prepass => {
+                    let (Some(s), Some(c)) = (chained, chain) else { continue };
+                    if let Some(prepass) = &s.pipelines.prepass {
+                        let span = timing.as_mut().and_then(|t| t.render_writes("depth pre-pass"));
+                        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                            label: Some("depth pre-pass"),
+                            color_attachments: &[],
+                            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                                view: &targets.depth,
+                                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
+                                stencil_ops: None,
+                            }),
+                            timestamp_writes: span.as_ref().map(|t| t.writes()),
+                            occlusion_query_set: None,
+                            multiview_mask: None,
+                        });
+                        pass.set_pipeline(prepass);
+                        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                        pass.set_bind_group(1, &s.group, &[]);
+                        pass.set_bind_group(2, &c.scene_group, &[]);
+                        pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
+                        pass.set_vertex_buffer(1, self.object_ids.slice(..));
+                        pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
+                        for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
+                            pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
+                        }
+                    }
+                }
+                Step::Scene => {
+                    let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("depth view"),
-                        color_attachments: &[],
-                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
-                        timestamp_writes: writes,
+                        label: Some("scene"),
+                        color_attachments: &color_attachments,
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &targets.depth,
+                            depth_ops: Some(wgpu::Operations { load: if prepassed { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(0.0) }, store: wgpu::StoreOp::Store }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: span.as_ref().map(|t| t.writes()),
                         occlusion_query_set: None,
                         multiview_mask: None,
                     });
-                    pass.set_pipeline(pipeline);
                     pass.set_bind_group(0, &self.frame_bind_group, &[]);
-                    pass.set_bind_group(1, &s.group, &[]);
+                    // Without a chain, the sky is the background; a chain's passes draw their own.
+                    if chain.is_none() {
+                        pass.set_pipeline(&self.pipelines.sky);
+                        pass.draw(0..3, 0..1);
+                    }
+                    pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
+                    if let Some(s) = shading {
+                        pass.set_bind_group(1, &s.group, &[]);
+                        if let Some(c) = chain {
+                            pass.set_bind_group(2, &c.scene_group, &[]);
+                        }
+                    }
                     pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
                     pass.set_vertex_buffer(1, self.object_ids.slice(..));
                     pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
                     for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
                         pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                     }
+                    drop(pass);
                 }
-            }
-            if let Some(prepass) = &s.pipelines.prepass {
-                let span = timing.as_mut().and_then(|t| t.render_writes("depth pre-pass"));
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("depth pre-pass"),
-                    color_attachments: &[],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: &targets.depth,
-                        depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
-                        stencil_ops: None,
-                    }),
-                    timestamp_writes: span.as_ref().map(|t| t.writes()),
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-                pass.set_pipeline(prepass);
-                pass.set_bind_group(0, &self.frame_bind_group, &[]);
-                pass.set_bind_group(1, &s.group, &[]);
-                pass.set_bind_group(2, &c.scene_group, &[]);
-                pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-                pass.set_vertex_buffer(1, self.object_ids.slice(..));
-                pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-                for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
-                    pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
-                }
-            }
-            c.dispatch(encoder, &self.frame_bind_group, s, 0..s.source.early.len(), timing.as_mut());
-        }
-        let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("scene"),
-            color_attachments: &color_attachments,
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &targets.depth,
-                depth_ops: Some(wgpu::Operations { load: if prepassed { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(0.0) }, store: wgpu::StoreOp::Store }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: span.as_ref().map(|t| t.writes()),
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_bind_group(0, &self.frame_bind_group, &[]);
-        // Without a chain, the sky is the background; a chain's passes draw their own.
-        if chain.is_none() {
-            pass.set_pipeline(&self.pipelines.sky);
-            pass.draw(0..3, 0..1);
-        }
-        pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
-        if let Some(s) = shading {
-            pass.set_bind_group(1, &s.group, &[]);
-            if let Some(c) = chain {
-                pass.set_bind_group(2, &c.scene_group, &[]);
-            }
-        }
-        pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-        pass.set_vertex_buffer(1, self.object_ids.slice(..));
-        pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-        for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
-            pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
-        }
-        drop(pass);
-        // The rest of the chain, in order; the last pass writes the HDR target.
-        if let (Some(s), Some(c)) = (chained, chain) {
-            let early = s.source.early.len();
-            c.dispatch(encoder, &self.frame_bind_group, s, early..early + s.source.passes.len(), timing.as_mut());
-        }
-        let span = timing.as_mut().and_then(|t| t.render_writes("overlay"));
+                Step::Overlay => {
+                    let span = timing.as_mut().and_then(|t| t.render_writes("overlay"));
 
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("overlay"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &targets.overlay_msaa,
-                depth_slice: None,
-                resolve_target: Some(&targets.overlay),
-                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Discard },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &targets.depth,
-                // Kept when an image kind reads the chain's depth after this pass (src/views.rs).
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: if self.views.values().any(|v| !v.kind.reads.is_empty()) { wgpu::StoreOp::Store } else { wgpu::StoreOp::Discard } }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: span.as_ref().map(|t| t.writes()),
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_bind_group(0, &self.frame_bind_group, &[]);
-        let draw = |pass: &mut wgpu::RenderPass, pipeline: &wgpu::RenderPipeline, buffer: &GrowBuffer, vertices: u32| {
-            if buffer.count > 0 {
-                pass.set_pipeline(pipeline);
-                pass.set_vertex_buffer(0, buffer.buffer.slice(..));
-                pass.draw(0..vertices, 0..buffer.count);
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("overlay"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &targets.overlay_msaa,
+                            depth_slice: None,
+                            resolve_target: Some(&targets.overlay),
+                            ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Discard },
+                        })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &targets.depth,
+                            // Kept when an image kind reads the chain's depth after this pass (src/views.rs).
+                            depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: if self.views.values().any(|v| !v.kind.reads.is_empty()) { wgpu::StoreOp::Store } else { wgpu::StoreOp::Discard } }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: span.as_ref().map(|t| t.writes()),
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    pass.set_bind_group(0, &self.frame_bind_group, &[]);
+                    let draw = |pass: &mut wgpu::RenderPass, pipeline: &wgpu::RenderPipeline, buffer: &GrowBuffer, vertices: u32| {
+                        if buffer.count > 0 {
+                            pass.set_pipeline(pipeline);
+                            pass.set_vertex_buffer(0, buffer.buffer.slice(..));
+                            pass.draw(0..vertices, 0..buffer.count);
+                        }
+                    };
+                    if self.ghost_ids.count > 0 {
+                        pass.set_pipeline(&self.pipelines.ghost);
+                        pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
+                        pass.set_vertex_buffer(1, self.object_ids.slice(..));
+                        pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
+                        for &object in &content.draw.ghosts {
+                            let range = self.statics.meshes.ranges[object as usize].clone();
+                            pass.draw_indexed(range, 0, object..object + 1);
+                        }
+                    }
+                    draw(&mut pass, &self.pipelines.boxes_xray, &self.boxes_xray, 108);
+                    draw(&mut pass, &self.pipelines.segment_xray, &self.segments_xray, 9);
+                    draw(&mut pass, &self.pipelines.boxes, &self.boxes, 108);
+                    draw(&mut pass, &self.pipelines.segment, &self.segments, 9);
+                    draw(&mut pass, &self.pipelines.point, &self.points, 6);
+                }
             }
-        };
-        if self.ghost_ids.count > 0 {
-            pass.set_pipeline(&self.pipelines.ghost);
-            pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-            pass.set_vertex_buffer(1, self.object_ids.slice(..));
-            pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-            for &object in &content.draw.ghosts {
-                let range = self.statics.meshes.ranges[object as usize].clone();
-                pass.draw_indexed(range, 0, object..object + 1);
+            if inspected {
+                self.capture(encoder, n, chain, shading, targets);
             }
         }
-        draw(&mut pass, &self.pipelines.boxes_xray, &self.boxes_xray, 108);
-        draw(&mut pass, &self.pipelines.segment_xray, &self.segments_xray, 9);
-        draw(&mut pass, &self.pipelines.boxes, &self.boxes, 108);
-        draw(&mut pass, &self.pipelines.segment, &self.segments, 9);
-        draw(&mut pass, &self.pipelines.point, &self.points, 6);
+        if let (Some(s), Some(c)) = (chained, chain) {
+            c.dispatch(encoder, &self.frame_bind_group, s, &pending, timing.as_mut());
+        }
         self.timing = timing.or(self.timing.take());
     }
 
@@ -1942,6 +2372,8 @@ impl Renderer {
         content.uniforms.view_params[3] = (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32;
         self.upload(&content);
         self.upload_draws(&content);
+        // An experiment that measures a resource of the frame's graph (`Experiment::inspect`).
+        self.prepare_inspections(state);
         let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("experiment") });
         self.encode_scene(&mut encoder, &content, true);
         let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));

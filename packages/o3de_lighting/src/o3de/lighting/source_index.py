@@ -1315,6 +1315,30 @@ DEMOS = {
 }
 
 # What the lab's readouts and data stand for in O3DE, with both layouts.
+# The frame graph's nodes (lab/src/graph.rs) and the engine passes they mirror:
+# the graph panel names each node's pass and its sources.
+PASSES = [
+    {"lab": "depthViews", "engine": "CascadedShadowmaps", "sources": ["cascade-image", "shadow-caster-state"]},
+    {"lab": "o3dePrepassFS", "engine": "DepthPrePass (DepthMSAA)", "sources": ["depth-prepass"]},
+    {"lab": "o3deLightCullingTilePrepareCS", "engine": "LightCullingTilePrepare", "sources": ["tile-prepare", "tile-data-format"]},
+    {"lab": "o3deLightCullingCS", "engine": "LightCulling", "sources": ["light-culling-main"]},
+    {"lab": "o3deLightCullingRemapCS", "engine": "LightCullingRemap", "sources": ["light-culling-remap"]},
+    {"lab": "o3deLinearDepthCS", "engine": "DepthToLinearDepth", "sources": ["depth-linear", "depth-resolve"]},
+    {"lab": "o3deFullscreenShadowCS", "engine": "FullscreenShadow", "sources": ["fullscreen-shadow-normal", "fullscreen-shadow-format"]},
+    {"lab": "o3deShadowBlurVerticalCS", "engine": "FastDepthAwareBlurVer (FullscreenShadowBlur)", "sources": ["blur-order", "blur-step"]},
+    {"lab": "o3deShadowBlurHorizontalCS", "engine": "FastDepthAwareBlurHor (FullscreenShadowBlur)", "sources": ["shadow-blur-radius", "blur-step"]},
+    {"lab": "o3deForwardFS", "engine": "Forward (MainPipeline)", "sources": ["forward-pixel", "forward-targets"]},
+    {"lab": "o3deDiffuseGlobalCS", "engine": "DiffuseGlobalFullscreen", "sources": ["diffuse-global"]},
+    {"lab": "o3deReflectionsCS", "engine": "Reflections (ReflectionGlobalFullscreen)", "sources": ["reflections-order", "reflection-global"]},
+    {"lab": "o3deReflectionCompositeCS", "engine": "ReflectionComposite", "sources": ["reflection-composite-box", "reflection-composite"]},
+    {"lab": "o3deDepthDownsampleCS", "engine": "DepthDownsample (Ssao)", "sources": ["depth-downsample"]},
+    {"lab": "o3deSsaoCS", "engine": "SsaoCompute", "sources": ["ssao-compute"]},
+    {"lab": "o3deSsaoBlurVerticalCS", "engine": "FastDepthAwareBlurVer (Ssao)", "sources": ["blur-order", "blur-step"]},
+    {"lab": "o3deSsaoBlurHorizontalCS", "engine": "FastDepthAwareBlurHor (Ssao)", "sources": ["blur-order", "blur-step"]},
+    {"lab": "o3deSsaoUpsampleCS", "engine": "DepthUpsample (Ssao)", "sources": ["depth-upsample"]},
+    {"lab": "o3deMergeCS", "engine": "DiffuseSpecularMerge", "sources": ["diffuse-specular-merge", "ssao-modulate"]},
+]
+
 MAPPINGS = [
     {"lab": "Surface", "engineShort": "SurfaceData_StandardPBR", "engineName": "SurfaceData_StandardPBR (StandardPBR's Surface)", "engineNameZh": "SurfaceData_StandardPBR（StandardPBR 的 Surface）",
      "relationship": "exact for the fields shown", "sources": ["surface-data", "set-albedo-f0", "roughness-values"],
@@ -1411,6 +1435,9 @@ def main() -> None:
     for m in MAPPINGS:
         for k in m["sources"]:
             assert k in entries, k
+    for p in PASSES:
+        for k in p["sources"]:
+            assert k in entries, k
     index = {
         "schema": 1,
         "engine": {
@@ -1424,6 +1451,7 @@ def main() -> None:
         "chapters": [{"number": n, "title": title, "titleZh": zh, "reading": keys} for n, title, zh, keys in CHAPTERS],
         "demos": DEMOS,
         "mappings": MAPPINGS,
+        "passes": PASSES,
     }
     out = LAB / "packages/o3de_lighting/source-index.json"
     out.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

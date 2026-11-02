@@ -322,5 +322,13 @@
   "shot.cost_title": "Keeping it fast",
   "controls.cost_split": "full resolution beside it",
   "help.costSplit": "Split the view: the frame at full resolution on the left, as the values set it on the right, from one camera.",
-  "hints.cost": "What decides VoxelGI's cost: the quality (cones per pixel), half resolution, the bounces and settings that relight it; the panel times each pass."
+  "hints.cost": "What decides VoxelGI's cost: the quality (cones per pixel), half resolution, the bounces and settings that relight it; the panel times each pass.",
+  "pass.voxelgiLightCS": "For each lit voxel cell, adds up every light's direct contribution (shadow march, area lights) times the cell's albedo, plus its emission, into a buffer of cell light.",
+  "pass.voxelgiBounceCS": "Adds a second light bounce: each cell traces six cones through the light texture already written, tinted by its albedo, and adds the result to its direct light.",
+  "pass.voxelgiMipmapsCS": "Builds the coarser octree levels: each parent cell's light is the sum of its child cells' light divided by the propagation-blended child count.",
+  "pass.voxelgiWriteCS": "Writes each cell's light, scaled by the dynamic range, and its coverage into its texel of the RGBA8 3D light texture, one mip per octree level.",
+  "pass.voxelgiPrepassFS": "Draws the scene's depth only, with dithered coverage for fading objects, so the scene pass after it shades each pixel's visible surface once.",
+  "pass.voxelgiForwardFS": "Draws the scene against the pre-pass depth, writing the direct light (plus emission) and object index into one target and the camera-facing normal into another.",
+  "pass.voxelgiGiCS": "For each pixel (or each 2 x 2 block at half resolution), traces cones through the voxel light texture from its world position and normal, writing ambient and reflection buffers.",
+  "pass.voxelgiComposeCS": "Combines the direct light, the sky's ambient and reflection mixed toward the VoxelGI buffers, and albedo into the HDR image, averaging MSAA samples and drawing the sky."
 }

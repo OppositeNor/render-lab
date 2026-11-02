@@ -192,7 +192,7 @@ summary: MainRenderPipeline 的不透明帧：深度预处理阶段、分图块�
 
 每种材质类型都指定一个光照模型，这个名字决定了材质管线为它构建哪些着色器。
 
-一共有四种：Base、Standard、Enhanced 和 Skin；这个房间里的每个表面都是 Standard，即 {@ codespan="StandardPBR"} 的模型，而 {@ codespan="StandardPBR"} 是引擎默认材质的材质类型。
+一共有四种：Base、Standard、Enhanced 和 Skin；这个房间里的每个表面都是 Standard，即 {@ codespan="StandardPBR"} 的模型，它是引擎默认材质的材质类型。
 
 Enhanced 和 Skin 增加了次表面散射和透射，所以它们在第二个前向渲染阶段中绘制，多写入一个渲染目标。
 
