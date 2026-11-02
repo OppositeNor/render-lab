@@ -700,6 +700,14 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                         let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
                         painter.rect_filled(Rect::from_min_size(at - vec2(8.0, galley.size().y + 4.0), galley.size() + vec2(16.0, 8.0)), CornerRadius::same(6), Color32::from_rgba_unmultiplied(7, 18, 31, 220));
                         ink.text(at, Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_dim());
+                        // Beside the hint: put the moved boxes back (and the view).
+                        let label = tr("graph.reset");
+                        let size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
+                        egui::Area::new(egui::Id::unique("paused-diagram-reset")).fixed_pos(pos2(area.min.x + 14.0 + galley.size().x + 24.0, area.max.y - 12.0 - size.y)).fade_in(false).show(ctx, |ui| {
+                            if ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(size)).clicked() {
+                                crate::graph_view::ask_reset(ctx, crate::diagram::paused_id());
+                            }
+                        });
                     }
                 }
             }
@@ -1330,6 +1338,8 @@ pub enum GraphPick {
     Panel(PanelMode),
     /// Open or close the DAG (or the resources) full screen.
     Overlay(bool),
+    /// Put the view's nodes back where the layout placed them.
+    Reset,
 }
 
 /// Which view of the frame graph a panel draws.
@@ -1360,6 +1370,10 @@ fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, pl
         ];
         if !full {
             buttons.push((tr("graph.grid"), place == GraphPlace::Grid, GraphPick::Panel(PanelMode::Graph)));
+        }
+        // The views whose nodes move: a button to put them back.
+        if place != GraphPlace::Grid {
+            buttons.push((tr("graph.reset"), false, GraphPick::Reset));
         }
         for (label, active, action) in buttons {
             let size = ink.measure(label, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
@@ -1408,7 +1422,10 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
     let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Dag, full, interactive);
-    if view.nodes.is_empty() || switched.is_some() {
+    let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
+    if switched == Some(GraphPick::Reset) {
+        crate::graph_view::ask_reset(ctx, id);
+    } else if view.nodes.is_empty() || switched.is_some() {
         return switched;
     }
     // The footer: the hovered (or inspected) card's lines, or the hint.
@@ -1465,7 +1482,6 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     };
     // The view: kept in the viewer; set up again for a new graph; a story's highlight centres its nodes.
     let lit: Vec<usize> = view.nodes.iter().enumerate().filter(|(_, n)| highlight.contains(&n.name)).map(|(i, _)| i).collect();
-    let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
     let key = {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -1610,7 +1626,10 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
     let right = rect.max.x - 22.0;
     let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Resources, full, interactive);
     let shown: Vec<usize> = (0..view.resources.len()).filter(|&r| view.resources[r].name != "frame").collect();
-    if shown.is_empty() || switched.is_some() {
+    let id = egui::Id::unique(if full { "frame-graph-resources-overlay" } else { "frame-graph-resources-panel" });
+    if switched == Some(GraphPick::Reset) {
+        crate::graph_view::ask_reset(ctx, id);
+    } else if shown.is_empty() || switched.is_some() {
         return switched;
     }
     let footer = 3.0 * 30.0 + 12.0;
@@ -1638,7 +1657,6 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
     let graph = graph_view::Graph { nodes, edges: Vec::new(), clusters: Vec::new() };
     // Lit: what the called-out nodes read and write.
     let lit: Vec<usize> = (0..shown.len()).filter(|&k| view.uses.iter().any(|u| u.1 == shown[k] && highlight.contains(&view.nodes[u.0].name))).collect();
-    let id = egui::Id::unique(if full { "frame-graph-resources-overlay" } else { "frame-graph-resources-panel" });
     let key = {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -1746,6 +1764,8 @@ fn graph_action(pick: GraphPick, view: &GraphView) -> ViewerAction {
         }
         GraphPick::Panel(mode) => ViewerAction::SetPanel(mode),
         GraphPick::Overlay(on) => ViewerAction::SetDagOverlay(on),
+        // A view's own: its panel asks it (`graph_view::ask_reset`) and never returns it.
+        GraphPick::Reset => unreachable!("a panel resets its own view"),
     }
 }
 
@@ -1908,6 +1928,14 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     if toggled {
         set_knowledge_compact(!compact);
     }
+    // Beside those: put the moved topics back.
+    let reset_label = tr("graph.reset");
+    let reset_size = vec2(ink.measure(reset_label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
+    egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-reset" } else { "knowledge-overlay-reset" })).fixed_pos(pos2(rect.max.x - 40.0 - button_size.x - toggle_size.x - reset_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
+        if ui.add(egui::Button::new(egui::RichText::new(reset_label).size(24.0)).min_size(reset_size)).clicked() {
+            crate::graph_view::ask_reset(ctx, place.view_id());
+        }
+    });
     y += 42.0;
     // The legend: one swatch per role.
     let mut lx = x;
@@ -1992,7 +2020,7 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         let response = ui.allocate_rect(Rect::from_min_size(graph_area.min, graph_area.size()), egui::Sense::click_and_drag());
         let picks = crate::graph_view::interact(ctx, graph_area, laid, &mut view.view, &crate::graph_view::Controls { zoom: Some((min_scale, 40.0)), move_nodes: true }, &|_| true);
         hovered = picks.hovered.map(|k| kv.shown[k]);
-        if picks.reset {
+        if picks.reset || crate::graph_view::take_reset(ctx, id) {
             view.view.moved.clear();
             let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
             fit(b, &mut view.view);

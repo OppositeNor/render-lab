@@ -737,12 +737,23 @@ impl ViewState {
     }
 }
 
+/// Asks the view kept under `id` to put its nodes back and set itself up
+/// afresh on its next frame (a "Reset nodes" button; as a double click does).
+pub fn ask_reset(ctx: &egui::Context, id: egui::Id) {
+    ctx.data_mut(|d| d.insert_temp(id.with("reset"), true));
+}
+
+/// Whether the view kept under `id` was asked to reset (once).
+pub fn take_reset(ctx: &egui::Context, id: egui::Id) -> bool {
+    ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reset"))).unwrap_or(false)
+}
+
 /// A view of `laid` in `area` for this frame: in the viewer (`interactive`)
 /// kept in egui's memory under `id`, else made afresh. When `key` changes (a
 /// new graph, new call-outs) `setup` sets it up again (told whether it is
 /// still the same layout: the nodes moved by hand stay then); then the
 /// pointer is read (`interact`), and a double click on the background sets
-/// it up afresh, its nodes back in place.
+/// it up afresh, its nodes back in place (as `ask_reset` does).
 pub fn view(ctx: &egui::Context, id: egui::Id, area: Rect, laid: &Laid, interactive: bool, key: u64, controls: &Controls, setup: &dyn Fn(&mut ViewState, bool)) -> (ViewState, Picks) {
     let mut state: ViewState = if interactive { ctx.data(|d| d.get_temp(id)).unwrap_or_default() } else { ViewState::default() };
     let this = laid as *const Laid as usize;
@@ -755,7 +766,8 @@ pub fn view(ctx: &egui::Context, id: egui::Id, area: Rect, laid: &Laid, interact
         state.key = Some(key);
         state.laid = this;
     }
-    let picks = if interactive { interact(ctx, area, laid, &mut state, controls, &|_| true) } else { Picks::default() };
+    let mut picks = if interactive { interact(ctx, area, laid, &mut state, controls, &|_| true) } else { Picks::default() };
+    picks.reset |= interactive && take_reset(ctx, id);
     if picks.reset {
         state.moved.clear();
         setup(&mut state, false);
@@ -920,6 +932,39 @@ mod tests {
         // At least `IMAGE` wide (with its padding), its picture as high as half its width, at most `IMAGE`.
         assert!(laid.rects[1].width() >= IMAGE);
         assert!(laid.pictures[1] > 0.0 && laid.pictures[1] <= IMAGE && laid.pictures[0] == 0.0);
+    }
+
+    #[test]
+    fn a_drag_moves_a_node_and_a_reset_puts_it_back() {
+        let g = spec(&[("A", &[]), ("B", &[])], &[("A", "B")]).graph().unwrap();
+        let laid = lay_out(&g, &|s| s.len() as f32 * 0.6, &[], 0.5625, &Options::default());
+        let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+        let ctx = egui::Context::default();
+        let id = egui::Id::unique("test-graph-view");
+        let setup = |v: &mut ViewState, _: bool| {
+            v.scale = 24.0;
+            v.centre = laid.bounds.center().to_vec2();
+        };
+        let controls = Controls { zoom: None, move_nodes: true };
+        let frame = |events: Vec<egui::Event>| -> ViewState {
+            let mut out = None;
+            let _ = ctx.run_ui(egui::RawInput { events, screen_rect: Some(area), ..Default::default() }, |ui| {
+                out = Some(view(ui.ctx(), id, area, &laid, true, 1, &controls, &setup).0);
+            });
+            out.expect("a frame")
+        };
+        let a = Transform::centred(area, laid.bounds.center(), 24.0).rect(laid.rects[0]).center();
+        let button = |pos: Pos2, pressed: bool| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(vec![egui::Event::PointerMoved(a)]);
+        frame(vec![button(a, true)]);
+        frame(vec![egui::Event::PointerMoved(a + vec2(30.0, 0.0))]);
+        let moved = frame(vec![egui::Event::PointerMoved(a + vec2(60.0, 0.0))]);
+        assert!(moved.moved.iter().any(|m| m.0 == 0 && m.1.x > 1.0), "{:?}", moved.moved);
+        frame(vec![button(a + vec2(60.0, 0.0), false)]);
+        ask_reset(&ctx, id);
+        let back = frame(Vec::new());
+        assert!(back.moved.is_empty());
+        assert_eq!(back.centre, laid.bounds.center().to_vec2());
     }
 
     #[test]

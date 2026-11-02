@@ -232,6 +232,7 @@
   "graph.read_by": "read by",
   "graph.resources_hint": "Every resource as the frame leaves it. Drag to move; double-click to reset; click a card to inspect it.",
   "graph.grid": "Grid",
+  "graph.reset": "Reset nodes",
   "graph.dag": "DAG",
   "graph.full_screen": "Full screen",
   "graph.close": "Close",

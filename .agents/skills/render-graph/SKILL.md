@@ -132,7 +132,7 @@ the one its dispatch covers; the composite's, the `hdr` it reads), drawn by the 
 runs from a writer to each reader of what it wrote, coloured by the resource's lifetime; a faint one is an order
 without data (a later write of what the first used). Hover a card to name its arrows' resources and its engine pass;
 click it to inspect its result in the inset. In the viewer, a drag on the background (or the wheel) pans the view, a
-drag on a card moves it (its arrows follow), and a double-click on the background puts both back; a story always
+drag on a card moves it (its arrows follow), and a double-click on the background (or the header's **Reset nodes**) puts both back; a story always
 shows the layout as computed. `highlight=<node>` calls nodes out and moves the view to them, so a story walks the
 frame by moving `highlight`. A culled node's card says so (its result is
 never drawn).

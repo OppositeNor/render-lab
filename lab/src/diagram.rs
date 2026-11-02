@@ -112,6 +112,11 @@ pub struct Paused<'a> {
 /// How far a paused diagram zooms in.
 pub const MAX_ZOOM: f32 = 8.0;
 
+/// The id a paused diagram's view is kept under (its "Reset nodes" button asks it).
+pub fn paused_id() -> egui::Id {
+    egui::Id::unique("paused-diagram")
+}
+
 /// Draws `beat`'s diagram in its panel `area`, fitted (its labels at most
 /// `MAX_FONT` high), or paused in the viewer (`paused`: zoomed, panned, its
 /// boxes moved). A lit box with one of `pictures` holds it under its rows
@@ -144,7 +149,7 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
     // Paused: the viewer's view of it, from the fitted one.
     let (t, moved) = match paused {
         Some(p) => {
-            let id = egui::Id::unique("paused-diagram");
+            let id = paused_id();
             let fitted = (area.center() - base.origin) / base.scale;
             let setup = |v: &mut graph_view::ViewState, _: bool| {
                 v.scale = base.scale;

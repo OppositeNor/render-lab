@@ -232,6 +232,7 @@
   "graph.read_by": "读取者",
   "graph.resources_hint": "每个资源在一帧结束时的样子。拖动以移动；双击复原；点击卡片查看。",
   "graph.grid": "网格",
+  "graph.reset": "重置节点",
   "graph.dag": "DAG",
   "graph.full_screen": "全屏",
   "graph.close": "关闭",
