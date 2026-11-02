@@ -18,10 +18,13 @@ Nodes, in declaration order:
 | Node | Name | From |
 |---|---|---|
 | update passes | their entry points | `SceneShading::update` (run when their plan's key changes; their dispatches in the plan's order, before the rest) |
+| program passes (`Start`) | their names | `SceneShading::program`, below |
 | depth views | `depthViews` | `SceneShading::depth_views` (drawn when what they see changes) |
-| pre-pass | its fragment entry | `SceneShading::prepass` (writes `depth`; reads nothing of group 2) |
+| pre-pass | its fragment entry | `SceneShading::prepass` (writes `depth` and `prepass_outputs`; reads nothing of group 2) |
+| program passes (`AfterPrepass`) | their names | `SceneShading::program` |
 | early compute passes | their entry points | `SceneShading::early` |
-| scene pass | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`), MSAA |
+| program passes (`BeforeScene`) | their names | `SceneShading::program` |
+| scene pass | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`, with none), MSAA |
 | compute passes | their entry points (a repeated entry: `name#2`) | `SceneShading::passes` |
 | overlay, composite | `overlay`, `composite` | the lab's |
 
@@ -31,14 +34,28 @@ Resources:
 |---|---|---|
 | imported | the lab's: `hdr` (what the frame shows), `depth` (4x MSAA, reversed Z), `overlay`, `frame` | an error |
 | transient | the chain's `targets` and `buffers` | an error, unless the reading node also writes it |
-| persistent | `volumes`, the update's buffers, the depth views | the last time it was computed |
+| persistent | `volumes`, the update's buffers, the depth views, a program's images and buffers | the last time it was computed |
 | history | targets or buffers named in `SceneShading::history` | the frames before (kept, zero when the viewport's size changes) |
 
 The order: for each resource, its accesses keep their declared order (a writer before the readers after it, those
 before the next writer); nodes with no path between them keep their declared order. A compute node whose writes
 nothing live reads is **culled**: live are the composite, cached nodes, writers of history, writers of what an image
 kind reads (`reads=`), and the inspected resource's writer. General raster nodes declared as data are not built: the
-scene pass, pre-pass, and depth views are the raster nodes an investigation has.
+scene pass, pre-pass, depth views, and a program's raster passes are the raster nodes an investigation has.
+
+A chain without `outputs` but with `prepass_outputs` (a depth and normal pre-pass, Godot's normal-roughness buffer)
+is the pre-pass and its `early` passes before an ordinary scene pass, which writes `hdr` and may read what they
+wrote (`scene_reads`); it has no `passes` after the scene.
+
+**Programs** (`SceneShading::program`, `lab/src/program.rs`, todo/pass-programs.md) are an engine's own GPU work that
+the chain cannot express: images (2D, 2D arrays, 3D; integer formats; `count` elements, bound one at a time or as a
+binding array) and buffers (indirect ones too), compute and raster passes, and a plan (CPU, with its own state) that
+returns each frame's commands in order: uploads, clears, copies, dispatches (direct or indirect, each with 16 words
+of parameters at group 2), and draws of the scene's meshes into a framebuffer of its own size. A pass's `uses` are
+its group-3 bindings (`Which` picks an element: the command's `instance`, a fixed one, a table's, or all); each pass
+is a node whose reads and writes come from its uses, always live (it writes what outlives the frame). The scene
+pass and the chain's compute passes read `scene_uses` at group 3 (in a shading without volumes). The plan runs in
+the main view only. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) is one.
 
 ## 2. Declaring reads and writes
 
@@ -51,6 +68,9 @@ does:
   update's buffers it reads in `reads`, the volumes and buffers it writes in `writes`.
 - The dispatch covers the first of `writes` (a buffer: the viewport): keep it first when editing.
 - Read last frame's data from a target or buffer only through `SceneShading::history`.
+
+A program pass's `uses` are checked the same way: every group-3 binding its entry points use is declared, a write
+only where the access writes, texture atomics only where it is `Atomic`, and every use used.
 
 The lab checks this when it loads the shading (`graph::lint`, from naga's per-entry-point global uses) and refuses
 it on a difference: `o3deMergeCS: reads buffer ssaoFull but does not list it in its reads`, or `lists X in its
@@ -80,7 +100,8 @@ re-render a mismatch alone with both binaries before calling it a regression.
 
 `<node>.<resource>` is the resource as it stood right after that node, whatever later nodes write over it. The
 renderer draws it right after the node, in the main view only, with `packages/rlstd/shaders/inspect.wgsl` (one entry
-per kind of resource: texture, multisampled texture, multisampled depth, depth array, buffer, volume), by a visualizer
+per kind of resource: texture, multisampled texture, multisampled depth, depth array, buffer, volume, and a
+program's integer volumes and 2D arrays), by a visualizer
 (`graph::Show`) its format chooses or `imageShow` names:
 
 | Show | For | Parameters (`image.<key>=`) |
@@ -96,11 +117,16 @@ per kind of resource: texture, multisampled texture, multisampled depth, depth a
 
 Every show also takes `average` (1: a multisampled resource's samples averaged, else sample 0); a volume takes
 `axis` (0 x, 1 y, 2 z), `slice` (0..1), and `level` (its mip); a depth array takes `level` (its layer). A per-tile
-buffer is drawn over the screen (each pixel its tile's `word`); an update buffer's elements row by row.
+buffer is drawn over the screen (each pixel its tile's `word`); an update buffer's elements row by row. A program's
+images use their kind's entry (integer 3D images, 2D arrays of floats or integers too: `level` is the layer); an
+integer image shows its word (`hash` by default, `signed` for sint), with `bits` (first bit, width) for a bit field
+and `encoding=3` to decode it as RGB9E5 under `color`; `index` picks an element of an image with `count`; a
+program's buffer shows its words row by row.
 
 ```sh
 cargo run --release -- home --snapshot inspect.png --page "viewer-inspect:o3deLightCullingCS.tileData/count?range=0,8&word=3"
 cargo run --release -- --investigation godot/voxelgi home --snapshot vol.png --page "viewer-inspect:voxelgiWriteCS.voxelgiLight/color?slice=0.05&exposure=2"
+cargo run --release -- --investigation godot/sdfgi home --snapshot light.png --page "viewer-inspect:sdfgiDynamicLight.lightData/color?encoding=3&slice=0.4&index=1"
 ```
 
 ## 5. The graph panel
@@ -131,11 +157,20 @@ node: its name, its GPU time, and its result as it stood right after it (`FrameG
 the one its dispatch covers; the composite's, the `hdr` it reads), drawn by the inspector at 256 texels. An arrow
 runs from a writer to each reader of what it wrote, coloured by the resource's lifetime; a faint one is an order
 without data (a later write of what the first used). Hover a card to name its arrows' resources and its engine pass;
-click it to inspect its result in the inset. In the viewer, a drag on the background (or the wheel) pans the view, a
+click it to inspect its result in the inset. In the viewer, a drag on the background pans the view, the wheel zooms it (about the pointer, out to the whole graph), a
 drag on a card moves it (its arrows follow), and a double-click on the background (or the header's **Reset nodes**) puts both back; a story always
 shows the layout as computed. `highlight=<node>` calls nodes out and moves the view to them, so a story walks the
 frame by moving `highlight`. A culled node's card says so (its result is
 never drawn).
+
+**The shader source.** Full screen, a selected pass's **Show shader source** splits the screen: the graph on the
+left, on the right the WGSL its pipelines are compiled from (`lab/src/shader_source.rs`: the module as the lab composes
+it now, cut to the pass's entry points and every function, struct, constant, and binding they use, entry points
+first, each piece under its file and line), drawn by the lab's code view (`lab/src/code_view.rs`, as the Code tab's
+pseudo-code is). It is read-only. The viewer reloads shaders live: about twice a second it reads again every WGSL file
+of the checkout that changed and makes every pipeline again (`Renderer::reload_shaders`); a reload that does not
+compile keeps the last good pipelines and says why, over the viewport and in the source pane. A change to a tagged
+value or a struct the lab lays out in Rust still needs a relaunch.
 
 How a card, or a graph image without `imageShow`, shows a resource is the investigation's choice in
 `SceneShading::shows`, `(resource, "<show>[?<param>=<value>&…]")`, else its format's (`graph::default_show`). Pick

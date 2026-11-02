@@ -86,7 +86,7 @@ pub struct Wording {
 /// shows. A pass binds group 2 as described on `ShadingPass`.
 ///
 /// With a `prepass` fragment entry, the chain starts with a depth pre-pass
-/// (that entry may only write `@builtin(sample_mask)`, and reads nothing of
+/// (that entry writes `prepass_outputs`, if any, and `@builtin(sample_mask)`, and reads nothing of
 /// group 2), then runs `early`
 /// compute passes, then the scene pass tests against that depth (LessEqual,
 /// no depth writes). The scene pass's fragment shader may read `scene_reads`
@@ -104,6 +104,11 @@ pub struct SceneShading {
     pub outputs: &'static [&'static str],
     pub passes: &'static [ShadingPass],
     pub prepass: Option<&'static str>,
+    /// The targets the pre-pass's fragment entry writes besides the depth
+    /// (multisampled, as the scene pass's outputs; a depth and normal pre-pass).
+    /// With them and no `outputs`, the chain is the pre-pass and its `early`
+    /// passes before an ordinary scene pass, which writes the lab's HDR target.
+    pub prepass_outputs: &'static [&'static str],
     pub early: &'static [ShadingPass],
     /// The chain's storage buffers, besides its targets.
     pub buffers: &'static [ShadingBuffer],
@@ -128,6 +133,22 @@ pub struct SceneShading {
     /// and a graph image without `imageShow` use it; a resource not listed
     /// is shown as its format suggests (`graph::default_show`).
     pub shows: &'static [(&'static str, &'static str)],
+    /// The investigation's own GPU resources and passes, and the commands
+    /// that run them each frame (`ShadingProgram`).
+    pub program: Option<&'static ShadingProgram>,
+}
+
+impl SceneShading {
+    /// Whether its frame is a pass chain: the scene pass writes `outputs`, or
+    /// a pre-pass writes targets for the passes before the scene pass.
+    pub fn chained(&self) -> bool {
+        !self.outputs.is_empty() || !self.prepass_outputs.is_empty()
+    }
+
+    /// Whether `target` is drawn into (multisampled) by the scene pass or the pre-pass.
+    pub fn attachment(&self, target: &str) -> bool {
+        self.outputs.contains(&target) || self.prepass_outputs.contains(&target)
+    }
 }
 
 /// A 3D texture of a pass chain, with its mips: sampled by the chain's
@@ -205,6 +226,194 @@ pub struct UpdateDispatch {
 pub struct ShadingResolution {
     pub targets: &'static [&'static str],
     pub divisor: fn(&ShotState) -> u32,
+}
+
+/// An investigation's own GPU work, for what the pass chain cannot express
+/// (todo/pass-programs.md): its images (2D, 2D arrays, 3D; any format,
+/// integer ones too; several images bound as one binding array) and buffers
+/// (indirect arguments too), its compute and raster passes, and a plan that
+/// returns, each frame, the commands to record in order: uploads, clears,
+/// copies, dispatches (direct or indirect, each with its own parameters), and
+/// draws of the scene's meshes into a framebuffer of a size of its own.
+///
+/// A pass binds group 0 (the frame) and group 1 (the shading) as the chain
+/// does, the command's parameters at group 2 (binding 0,
+/// `var<uniform> p: array<vec4<u32>, 4>`, 16 words), and its `uses` at group 3. The scene
+/// pass's fragment entry (and the pre-pass) read `scene_uses` at group 3.
+/// Its resources live as long as the renderer and start at zero; the plan
+/// runs in the main view only (the other views read what it left).
+pub struct ShadingProgram {
+    pub images: &'static [ProgramImage],
+    pub buffers: &'static [ProgramBuffer],
+    pub passes: &'static [ProgramPass],
+    /// What the scene pass's fragment entry (and the pre-pass) read at group 3.
+    pub scene_uses: &'static [ProgramUse],
+    /// The plan's state, made once per renderer.
+    pub init: fn() -> Box<dyn std::any::Any + Send>,
+    /// This frame's commands, in order: from its state, the shot, and
+    /// whether the frame builds on the ones before it (a live view) or
+    /// stands alone (a recording's frame, a snapshot).
+    pub plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand>,
+}
+
+/// What a plan is told about the frame.
+pub struct ProgramFrame<'a> {
+    pub state: &'a ShotState,
+    /// The frame follows the ones before it (`FrameRequest::history`).
+    pub history: bool,
+    /// The device's optional features that are on (`Gpu::features`).
+    pub features: wgpu::Features,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ImageKind {
+    D2,
+    D2Array,
+    D3,
+}
+
+/// A texture of a program: `count` textures of one kind, size, and format
+/// (bound as a binding array when more than one), each `size` texels (a 2D
+/// array's layers in `size[2]`).
+pub struct ProgramImage {
+    pub name: &'static str,
+    pub kind: ImageKind,
+    pub size: [u32; 3],
+    pub format: wgpu::TextureFormat,
+    pub count: u32,
+}
+
+/// `count` buffers of a program, each `bytes` long; `indirect`, also a dispatch's arguments.
+pub struct ProgramBuffer {
+    pub name: &'static str,
+    pub bytes: u64,
+    pub indirect: bool,
+    pub count: u32,
+}
+
+/// One element of a program's image or buffer (`ProgramImage::count`):
+/// `index` u32::MAX is every element (a clear).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Element {
+    pub name: &'static str,
+    pub index: u32,
+}
+
+impl Element {
+    pub const fn of(name: &'static str, index: u32) -> Element {
+        Element { name, index }
+    }
+    pub const fn all(name: &'static str) -> Element {
+        Element { name, index: u32::MAX }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProgramStage {
+    /// Before anything else of the frame (the depth views included).
+    Start,
+    /// Right after the depth pre-pass (at the start without one).
+    AfterPrepass,
+    /// Right before the scene pass.
+    BeforeScene,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PassKind {
+    /// A compute entry point and its workgroup's size (`@workgroup_size`).
+    Compute { entry: &'static str, workgroup: [u32; 3] },
+    /// The scene's meshes drawn by `vertex` (the lab's mesh layout, instance =
+    /// object index) and `fragment` into a target the pass does not write,
+    /// with no depth and no culling: for fragments that write storage images.
+    Raster { vertex: &'static str, fragment: &'static str },
+}
+
+pub struct ProgramPass {
+    /// Its node in the frame graph and its row in the GPU timing.
+    pub name: &'static str,
+    pub kind: PassKind,
+    pub uses: &'static [ProgramUse],
+    pub stage: ProgramStage,
+    /// Its bind groups: a command names one (`instance`), whose uses of
+    /// `Which::Instance` bind that element of their resource (an engine's
+    /// per-cascade uniform sets).
+    pub instances: u32,
+}
+
+/// A binding of group 3: the resource (an image, a buffer, or the lab's
+/// samplers `"linearSampler"`, `"nearestSampler"`, clamped to the edge) and
+/// how the pass uses it.
+#[derive(Clone, Copy, Debug)]
+pub struct ProgramUse {
+    pub binding: u32,
+    pub resource: &'static str,
+    pub access: Access,
+    pub which: Which,
+}
+
+/// Which elements of a resource a use binds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Which {
+    /// Element 0 (a resource of one element).
+    First,
+    /// Every element, as a binding array (images, `Sampled` or `Load`).
+    All,
+    /// The element of the command's instance.
+    Instance,
+    /// The element the table gives the command's instance (ping-pong: `[1, 0]`).
+    Pick(&'static [u32]),
+    /// Element `k`.
+    Fixed(u32),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Access {
+    /// A texture sampled with a filter (float formats).
+    Sampled,
+    /// A texture read with `textureLoad` (any format).
+    Load,
+    /// A storage texture or buffer, read only.
+    Read,
+    Write,
+    ReadWrite,
+    /// A storage texture or buffer read and written with atomics.
+    Atomic,
+    Uniform,
+    Sampler,
+}
+
+impl Access {
+    pub fn reads(self) -> bool {
+        !matches!(self, Access::Write | Access::Sampler)
+    }
+    pub fn writes(self) -> bool {
+        matches!(self, Access::Write | Access::ReadWrite | Access::Atomic)
+    }
+}
+
+/// One command of a frame's plan.
+#[derive(Clone, Debug)]
+pub enum ProgramCommand {
+    /// Writes `words` into a buffer at `offset` bytes, in order with the other commands.
+    Upload { buffer: Element, offset: u64, words: Vec<u32> },
+    /// Zeroes an image or a buffer (an element, or all of them).
+    Clear(Element),
+    Copy { from: Element, to: Element, bytes: u64 },
+    Dispatch { pass: &'static str, instance: u32, groups: [u32; 3], params: [u32; 16] },
+    /// A dispatch whose group counts are three u32 at `offset` of an indirect buffer.
+    DispatchIndirect { pass: &'static str, instance: u32, buffer: Element, offset: u64, params: [u32; 16] },
+    /// A raster pass over a framebuffer of `size` pixels (viewport = scissor).
+    Draw { pass: &'static str, instance: u32, size: [u32; 2], params: [u32; 16] },
+}
+
+impl ProgramCommand {
+    /// The pass it runs, if it is a dispatch or a draw.
+    pub fn pass(&self) -> Option<&'static str> {
+        match self {
+            ProgramCommand::Dispatch { pass, .. } | ProgramCommand::DispatchIndirect { pass, .. } | ProgramCommand::Draw { pass, .. } => Some(pass),
+            _ => None,
+        }
+    }
 }
 
 /// The scene shading's data for a state whose values change it (settings

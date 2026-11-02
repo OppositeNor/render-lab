@@ -13,6 +13,7 @@
 pub mod actions;
 pub mod controls;
 pub mod demos;
+pub mod gpu;
 pub mod light;
 pub mod model;
 pub mod occlusion;
@@ -32,7 +33,7 @@ use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
-use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, Wording};
+use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingPass, ShadingTarget, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
@@ -50,28 +51,66 @@ static WORDING: Wording = Wording {
     checkout_dir: "godot/",
 };
 
-/// The scene pass shades with shaders/sdfgi_shading.wgsl: the lab's direct
-/// light plus the WGSL port of Godot's screen pass reading the probe maps of
-/// the converged CPU world (sim.rs).
+/// The frame is Godot's (shaders/sdfgi_shading.wgsl, gpu.rs): the program's
+/// GPU passes (Godot's own, ported) write the probe maps; the depth pre-pass
+/// writes the normal-roughness buffer; the screen gather (gi.glsl's
+/// sdfgi_process) writes the AMBIENT and REFLECTION buffers; and the scene
+/// pass adds them to the lab's direct light. The converged CPU world's data (sim.rs) is what the selftest's
+/// kernels read.
 pub static SHADING: SceneShading = SceneShading {
     module: "godot_sdfgi.shader/sdfgi-shading",
     fragment: "sdfgiForwardFS",
     data: sim::shading_data,
     verify: &["sdfgiProcessTests", "sdfgiLightTests", "sdfgiProbeTests", "sdfgiStoreTests"],
-    targets: &[],
+    // Godot's normal-roughness buffer (R8G8B8A8_UNORM) and the screen gather's AMBIENT and
+    // REFLECTION buffers (R16G16B16A16_SFLOAT), gi.cpp:3986-3999, rfc.cpp:263-269.
+    targets: &[
+        ShadingTarget { name: "normalRoughness", format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1 },
+        ShadingTarget { name: "ambient", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
+        ShadingTarget { name: "reflection", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
+    ],
     outputs: &[],
     passes: &[],
-    prepass: None,
-    early: &[],
+    prepass: Some("sdfgiPrepassFS"),
+    prepass_outputs: &["normalRoughness"],
+    early: &[ShadingPass { entry: "sdfgiGatherCS", reads: &["normalRoughness", "depth", "lightprobeData", "screenData"], writes: &["ambient", "reflection"], workgroup: [8, 8] }],
     buffers: &[],
-    scene_reads: &[],
+    scene_reads: &["ambient", "reflection"],
     depth_views: None,
     volumes: &[],
     update: None,
-    resolution: None,
+    resolution: Some(&RESOLUTION),
     history: &[],
-    shows: &[],
+    // How the inspector shows the program's resources (slices through the floor of cascade 0).
+    shows: &[
+        ("renderAlbedo", "hash?slice=0.4&bits=1,15"),
+        ("renderGeomFacing", "hash?slice=0.4"),
+        ("renderEmission", "color?encoding=3&slice=0.4"),
+        ("renderEmissionAniso", "hash?slice=0.4"),
+        ("renderOcclusion", "ramp?slice=0.4"),
+        ("renderSdf", "hash?slice=0.4"),
+        ("renderSdfHalf", "hash?slice=0.4"),
+        ("occlusionData", "count?slice=0.1&bits=12,4&range=0,15"),
+        ("sdf", "ramp?slice=0.4&range=0,0.1"),
+        ("lightData", "color?encoding=3&slice=0.4&exposure=3"),
+        ("lightAniso0", "unorm?slice=0.4"),
+        ("lightAniso1", "unorm?slice=0.4"),
+        ("lightprobeHistory", "signed?range=-600,600"),
+        ("lightprobeAverage", "signed?range=-18000,18000"),
+        ("lightprobeHistoryScroll", "signed?range=-600,600"),
+        ("lightprobeAverageScroll", "signed?range=-18000,18000"),
+        ("lightprobeData", "color?encoding=3&exposure=1"),
+    ],
+    program: Some(&gpu::PROGRAM),
 };
+
+/// rendering/global_illumination/gi/use_half_resolution: the gather's buffers at
+/// half the viewport's size (gi.cpp:3987-3996, `size >>= 1`).
+static RESOLUTION: lab::investigation::ShadingResolution = lab::investigation::ShadingResolution { targets: &["ambient", "reflection"], divisor: gi_divisor };
+
+fn gi_divisor(state: &lab::shot::ShotState) -> u32 {
+    if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
+}
 
 /// The images its story can show (`{@ image=key}`), which `demos::field_demo` publishes.
 pub static IMAGES: &[ImageSpec] = &[
@@ -158,6 +197,25 @@ impl Investigation for Sdfgi {
     fn pass_about(&self, node: &str) -> Option<&'static str> {
         Some(match node {
             "sdfgiForwardFS" => tr("pass.sdfgiForwardFS"),
+            "sdfgiPrepassFS" => tr("pass.sdfgiPrepassFS"),
+            "sdfgiGatherCS" => tr("pass.sdfgiGatherCS"),
+            "sdfgiVoxelize" => tr("pass.sdfgiVoxelize"),
+            "sdfgiScroll" => tr("pass.sdfgiScroll"),
+            "sdfgiScrollOcclusion" => tr("pass.sdfgiScrollOcclusion"),
+            "sdfgiProbeScroll" => tr("pass.sdfgiProbeScroll"),
+            "sdfgiProbeScrollStore" => tr("pass.sdfgiProbeScrollStore"),
+            "sdfgiProbeStoreScroll" => tr("pass.sdfgiProbeStoreScroll"),
+            "sdfgiJumpFloodInit" => tr("pass.sdfgiJumpFloodInit"),
+            "sdfgiJumpFlood" => tr("pass.sdfgiJumpFlood"),
+            "sdfgiJumpFloodShared" => tr("pass.sdfgiJumpFloodShared"),
+            "sdfgiUpscale" => tr("pass.sdfgiUpscale"),
+            "sdfgiJumpFloodFull" => tr("pass.sdfgiJumpFloodFull"),
+            "sdfgiOcclusion" => tr("pass.sdfgiOcclusion"),
+            "sdfgiStore" => tr("pass.sdfgiStore"),
+            "sdfgiStaticLight" => tr("pass.sdfgiStaticLight"),
+            "sdfgiDynamicLight" => tr("pass.sdfgiDynamicLight"),
+            "sdfgiProbeProcess" => tr("pass.sdfgiProbeProcess"),
+            "sdfgiProbeStore" => tr("pass.sdfgiProbeStore"),
             _ => return None,
         })
     }

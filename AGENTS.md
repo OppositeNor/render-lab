@@ -92,6 +92,7 @@ cargo run --release -- home --snapshot /path/to/graph.png --page viewer-graph   
 cargo run --release -- home --snapshot /path/to/inspect.png --page "viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…]"   # a resource right after a node, in the inspector
 cargo run --release -- home --snapshot /path/to/dag.png --page "viewer-dag[:<demo>][@<node>,…]"   # the frame graph as a DAG, each pass's result on its card (viewer-dag-full: full screen)
 cargo run --release -- home --snapshot /path/to/res.png --page "viewer-resources[:<demo>][@<node>,…]"   # every resource of the frame as a card, as the frame leaves it (viewer-resources-full)
+cargo run --release -- home --snapshot /path/to/src.png --page viewer-source:<node>   # the full-screen DAG, that pass selected, the WGSL it is compiled from beside it
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)

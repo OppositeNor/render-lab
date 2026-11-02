@@ -129,6 +129,8 @@ Each feature on the selection page also has **Experiment with the algorithm**. I
   pass (`imageGraph=<pass>.<resource>` in a story, `[inspect]` in an experiment). As a **DAG** (`panel=dag`, or full
   screen), each pass is a card holding its result right after it, with arrows for the resources between them; drag
   the view or a card to rearrange it. **Resources** shows every resource as a card, as the frame leaves it.
+  Full screen, a pass's **Show shader source** shows the WGSL it is compiled from beside the graph, and the viewer
+  reloads shaders live: an edit to a WGSL file recompiles the pipelines while it runs.
 - **Experiment files** to save and load.
 
 The same file runs headless as a research experiment:

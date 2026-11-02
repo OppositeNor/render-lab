@@ -66,6 +66,10 @@ pub enum Shape {
     DepthArray { size: u32, layers: u32 },
     /// A 3D texture with mips (`ShadingVolume`).
     Volume { format: wgpu::TextureFormat, size: [u32; 3], mips: u32 },
+    /// A program's image (`ProgramImage`): `count` textures of its kind and size.
+    Image { kind: crate::investigation::ImageKind, format: wgpu::TextureFormat, size: [u32; 3], count: u32 },
+    /// A program's buffer (`ProgramBuffer`), `bytes` long.
+    Bytes { bytes: u64 },
 }
 
 impl Shape {
@@ -85,6 +89,16 @@ impl Shape {
             Shape::UpdateBuffer => "u32 buffer".to_string(),
             Shape::DepthArray { size, layers } => format!("Depth32Float, {size}x{size}, {layers} layers"),
             Shape::Volume { format, size, mips } => format!("{format:?}, {}x{}x{}, {mips} mips", size[0], size[1], size[2]),
+            Shape::Image { kind, format, size, count } => {
+                let extent = match kind {
+                    crate::investigation::ImageKind::D2 => format!("{}x{}", size[0], size[1]),
+                    crate::investigation::ImageKind::D2Array => format!("{}x{}, {} layers", size[0], size[1], size[2]),
+                    crate::investigation::ImageKind::D3 => format!("{}x{}x{}", size[0], size[1], size[2]),
+                };
+                let count = if *count > 1 { format!(", {count} of them") } else { String::new() };
+                format!("{format:?}, {extent}{count}")
+            }
+            Shape::Bytes { bytes } => format!("{bytes} bytes"),
         }
     }
 }
@@ -109,6 +123,8 @@ pub enum Step {
     Scene,
     /// Compute pass `i` of `early` then `passes`, in one index.
     Compute(usize),
+    /// Pass `i` of the program (`ShadingProgram::passes`): its commands this frame.
+    Program(usize),
     /// The lab's overlay (lines, boxes, points), depth-tested against the scene.
     Overlay,
     /// The lab's composite: `hdr` tone-mapped, under the overlay, into the frame.
@@ -169,11 +185,11 @@ impl FrameGraph {
             Resource { name: "hdr", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::HDR_FORMAT, divisor: 1, samples: 1 } },
             Resource { name: "depth", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::DEPTH_FORMAT, divisor: 1, samples: crate::gpu::MSAA } },
         ];
-        let chained = shading.filter(|s| !s.outputs.is_empty());
+        let chained = shading.filter(|s| s.chained());
         if let Some(s) = shading {
             for t in s.targets {
                 let divisor = if s.resolution.is_some_and(|r| r.targets.contains(&t.name)) { 0 } else { t.divisor };
-                let samples = if s.outputs.contains(&t.name) { crate::gpu::MSAA } else { 1 };
+                let samples = if s.attachment(t.name) { crate::gpu::MSAA } else { 1 };
                 resources.push(Resource { name: t.name, lifetime: if s.history.contains(&t.name) { Lifetime::History } else { Lifetime::Transient }, shape: Shape::Texture { format: t.format, divisor, samples } });
             }
             let life = |name: &str| if s.history.contains(&name) { Lifetime::History } else { Lifetime::Transient };
@@ -194,7 +210,31 @@ impl FrameGraph {
                     nodes.push(Node { name: p.entry, step: Step::Update(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: true });
                 }
             }
+            if let Some(program) = s.program {
+                for i in program.images {
+                    resources.push(Resource { name: i.name, lifetime: Lifetime::Persistent, shape: Shape::Image { kind: i.kind, format: i.format, size: i.size, count: i.count } });
+                }
+                for b in program.buffers {
+                    resources.push(Resource { name: b.name, lifetime: Lifetime::Persistent, shape: Shape::Bytes { bytes: b.bytes } });
+                }
+            }
         }
+        // A program's passes of one stage, in its order.
+        let program_nodes = |stage: crate::investigation::ProgramStage| -> Vec<Node> {
+            let Some(program) = shading.and_then(|s| s.program) else { return Vec::new() };
+            program
+                .passes
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p.stage == stage)
+                .map(|(i, p)| Node { name: p.name, step: Step::Program(i), reads: program_reads(p.uses), writes: program_writes(p.uses), timing: p.name, cached: false })
+                .collect()
+        };
+        use crate::investigation::ProgramStage;
+        nodes.extend(program_nodes(ProgramStage::Start));
+        // The program's scene group: what the scene pass reads of it, but what the chain's passes declare they read.
+        let chain_reads: Vec<&str> = shading.map_or(Vec::new(), |s| s.early.iter().chain(s.passes).flat_map(|p| p.reads.iter().copied()).collect());
+        let scene_uses: Vec<&'static str> = shading.and_then(|s| s.program).map_or(Vec::new(), |p| program_reads(p.scene_uses)).into_iter().filter(|r| !chain_reads.contains(r)).collect();
         resources.push(Resource { name: "overlay", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::OVERLAY_FORMAT, divisor: 1, samples: 1 } });
         resources.push(Resource { name: "frame", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::FRAME_FORMAT, divisor: 1, samples: 1 } });
         match chained {
@@ -203,8 +243,11 @@ impl FrameGraph {
                     nodes.push(Node { name: "depthViews", step: Step::DepthViews, reads: Vec::new(), writes: vec![d.name], timing: "depth views", cached: true });
                 }
                 if let Some(entry) = s.prepass {
-                    nodes.push(Node { name: entry, step: Step::Prepass, reads: Vec::new(), writes: vec!["depth"], timing: "depth pre-pass", cached: false });
+                    let mut writes = vec!["depth"];
+                    writes.extend(s.prepass_outputs.iter().copied());
+                    nodes.push(Node { name: entry, step: Step::Prepass, reads: Vec::new(), writes, timing: "depth pre-pass", cached: false });
                 }
+                nodes.extend(program_nodes(ProgramStage::AfterPrepass));
                 let mut named: Vec<&'static str> = Vec::new();
                 let mut unique = |entry: &'static str| -> &'static str {
                     let k = named.iter().filter(|n| **n == entry).count();
@@ -214,8 +257,11 @@ impl FrameGraph {
                 for (i, p) in s.early.iter().enumerate() {
                     nodes.push(Node { name: unique(p.entry), step: Step::Compute(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: false });
                 }
+                nodes.extend(program_nodes(ProgramStage::BeforeScene));
                 let mut reads = s.scene_reads.to_vec();
-                let mut writes = s.outputs.to_vec();
+                reads.extend(scene_uses.iter().copied());
+                // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
+                let mut writes = if s.outputs.is_empty() { vec!["hdr"] } else { s.outputs.to_vec() };
                 if s.prepass.is_some() {
                     reads.push("depth");
                 } else {
@@ -227,16 +273,21 @@ impl FrameGraph {
                 }
             }
             None => {
+                nodes.extend(program_nodes(ProgramStage::AfterPrepass));
+                nodes.extend(program_nodes(ProgramStage::BeforeScene));
                 let name = shading.map_or("scene", |s| s.fragment);
-                nodes.push(Node { name, step: Step::Scene, reads: Vec::new(), writes: vec!["hdr", "depth"], timing: "scene pass", cached: false });
+                nodes.push(Node { name, step: Step::Scene, reads: scene_uses.clone(), writes: vec!["hdr", "depth"], timing: "scene pass", cached: false });
             }
         }
         nodes.push(Node { name: "overlay", step: Step::Overlay, reads: vec!["depth"], writes: vec!["overlay"], timing: "overlay", cached: false });
         nodes.push(Node { name: "composite", step: Step::Composite, reads: vec!["hdr", "overlay"], writes: vec!["frame"], timing: "composite", cached: false });
         let shows = shading.map_or(Vec::new(), |s| s.shows.to_vec());
         let mut graph = FrameGraph { nodes, resources, edges: Vec::new(), order: Vec::new(), live: Vec::new(), errors: Vec::new(), shows };
-        if let Some(s) = shading.filter(|s| s.outputs.is_empty() && !(s.early.is_empty() && s.passes.is_empty())) {
-            graph.errors.push(format!("{}: compute passes without scene outputs never run (SceneShading::outputs is empty)", s.fragment));
+        if let Some(s) = shading.filter(|s| !s.chained() && !(s.early.is_empty() && s.passes.is_empty())) {
+            graph.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
+        }
+        if let Some(s) = shading.filter(|s| s.outputs.is_empty() && !s.passes.is_empty()) {
+            graph.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.fragment));
         }
         if let Some(s) = shading {
             for h in s.history {
@@ -352,7 +403,8 @@ impl FrameGraph {
         // frame), the writers of the sinks, and every writer what is live reads.
         let mut live = vec![false; count];
         let history = |n: &Node| n.writes.iter().any(|w| self.resources.iter().any(|r| r.name == *w && r.lifetime == Lifetime::History));
-        let mut stack: Vec<usize> = (0..count).filter(|&i| self.nodes[i].cached || self.nodes[i].step == Step::Composite || history(&self.nodes[i])).collect();
+        // A program's passes run when its plan says, writing what outlives the frame.
+        let mut stack: Vec<usize> = (0..count).filter(|&i| self.nodes[i].cached || matches!(self.nodes[i].step, Step::Composite | Step::Program(_)) || history(&self.nodes[i])).collect();
         for sink in sinks {
             if let Some(i) = self.order.iter().rev().copied().find(|&i| self.nodes[i].writes.contains(sink)) {
                 stack.push(i);
@@ -434,7 +486,7 @@ impl FrameGraph {
     /// frame) what it reads.
     pub fn result_of(&self, i: usize) -> Option<&'static str> {
         let n = &self.nodes[i];
-        let image = |name: &&'static str| self.resource(name).is_some_and(|r| !matches!(self.resources[r].shape, Shape::Buffer { .. } | Shape::UpdateBuffer));
+        let image = |name: &&'static str| self.resource(name).is_some_and(|r| !matches!(self.resources[r].shape, Shape::Buffer { .. } | Shape::UpdateBuffer | Shape::Bytes { .. }));
         n.writes.iter().copied().filter(|r| *r != "frame").find(|r| image(r)).or_else(|| n.writes.iter().chain(&n.reads).copied().find(|r| *r != "frame"))
     }
 
@@ -725,6 +777,22 @@ impl FrameGraph {
     }
 }
 
+/// The shader module node `node` is compiled from (src/shaders.rs) and the
+/// entry points its pipelines use, with `shading` the frame's (none: the
+/// lab's own scene pass): what the frame graph's source view shows.
+pub fn source_of(shading: Option<&SceneShading>, node: &Node) -> (&'static str, Vec<&'static str>) {
+    let entry = node.name.split_once('#').map_or(node.name, |(e, _)| e);
+    match (node.step, shading) {
+        (Step::Overlay, _) => (crate::shaders::OVERLAY, vec!["ghostVS", "ghostFS", "segmentVS", "boxVS", "lineFS", "pointVS", "pointFS"]),
+        (Step::Composite, _) => (crate::shaders::SCENE, vec!["fullscreenVS", "compositeFS"]),
+        (Step::Scene, None) => (crate::shaders::SCENE, vec!["sceneVS", "sceneFS"]),
+        (Step::Scene | Step::Prepass, Some(s)) => (s.module, vec!["sceneVS", entry]),
+        (Step::DepthViews, Some(s)) => (s.module, s.depth_views.map_or_else(Vec::new, |d| d.vertices.to_vec())),
+        (_, Some(s)) => (s.module, vec![entry]),
+        (_, None) => (crate::shaders::SCENE, vec![entry]),
+    }
+}
+
 /// What node `name` does, in the interface's language: the lab's own nodes'
 /// text, else the investigation's (`Investigation::pass_about`); a repeated
 /// entry (`name#2`) as its first.
@@ -826,13 +894,17 @@ impl Show {
 pub const INSPECT_PARAMS: &[(&str, usize, f32, (f32, f32))] = &[
     ("exposure", 1, 0.0, (-16.0, 16.0)),
     ("channel", 1, 0.0, (0.0, 4.0)),
-    ("encoding", 1, 0.0, (0.0, 2.0)),
+    ("encoding", 1, 0.0, (0.0, 3.0)),
     ("average", 1, 0.0, (0.0, 1.0)),
     ("range", 2, 0.0, (-1e9, 1e9)),
     ("slice", 1, 0.5, (0.0, 1.0)),
     ("level", 1, 0.0, (0.0, 64.0)),
     ("axis", 1, 1.0, (0.0, 2.0)),
     ("word", 1, 0.0, (0.0, 1e6)),
+    // An integer image's bit field shown: its first bit and its width (0: the whole value).
+    ("bits", 2, 0.0, (0.0, 32.0)),
+    // Which image of a binding array (`ProgramImage::count`).
+    ("index", 1, 0.0, (0.0, 64.0)),
 ];
 
 /// Checks a graph image's parameter.
@@ -858,7 +930,51 @@ pub fn inspect_entry(shape: &Shape) -> (&'static str, u32) {
         Shape::Buffer { .. } | Shape::UpdateBuffer => ("inspectBufferCS", 6),
         Shape::DepthArray { .. } => ("inspectDepthArrayCS", 5),
         Shape::Volume { .. } => ("inspectVolumeCS", 7),
+        Shape::Bytes { .. } => ("inspectBufferCS", 6),
+        Shape::Image { kind, format, .. } => {
+            use crate::investigation::ImageKind;
+            let int = image_class(*format);
+            match (kind, int) {
+                (ImageKind::D2, 0) => ("inspectTextureCS", 2),
+                (ImageKind::D3, 0) => ("inspectVolumeCS", 7),
+                (ImageKind::D3, 1) => ("inspectVolumeUintCS", 8),
+                (ImageKind::D3, _) => ("inspectVolumeSintCS", 9),
+                (ImageKind::D2Array, 0) => ("inspectArrayCS", 10),
+                (ImageKind::D2Array, 1) | (ImageKind::D2, 1) => ("inspectArrayUintCS", 11),
+                (ImageKind::D2Array, _) | (ImageKind::D2, _) => ("inspectArraySintCS", 12),
+            }
+        }
     }
+}
+
+/// A format's class for the inspector: 0 float (unorm, snorm, float), 1 unsigned integer, 2 signed integer.
+pub fn image_class(format: wgpu::TextureFormat) -> u32 {
+    match format.sample_type(None, None) {
+        Some(wgpu::TextureSampleType::Uint) => 1,
+        Some(wgpu::TextureSampleType::Sint) => 2,
+        _ => 0,
+    }
+}
+
+/// The resources a program pass's uses read and write (samplers are neither).
+pub fn program_reads(uses: &[crate::investigation::ProgramUse]) -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for u in uses.iter().filter(|u| u.access.reads()) {
+        if !out.contains(&u.resource) {
+            out.push(u.resource);
+        }
+    }
+    out
+}
+
+pub fn program_writes(uses: &[crate::investigation::ProgramUse]) -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for u in uses.iter().filter(|u| u.access.writes()) {
+        if !out.contains(&u.resource) {
+            out.push(u.resource);
+        }
+    }
+    out
 }
 
 /// How a resource shows unless `imageShow` says.
@@ -875,6 +991,12 @@ pub fn default_show(shape: &Shape) -> Show {
         Shape::Buffer { .. } | Shape::UpdateBuffer => Show::Count,
         Shape::DepthArray { .. } => Show::Depth,
         Shape::Volume { .. } => Show::Color,
+        Shape::Bytes { .. } => Show::Count,
+        Shape::Image { format, .. } => match image_class(*format) {
+            0 => default_show(&Shape::Texture { format: *format, divisor: 1, samples: 1 }),
+            1 => Show::Hash,
+            _ => Show::Signed,
+        },
     }
 }
 
@@ -882,6 +1004,12 @@ pub fn default_show(shape: &Shape) -> Show {
 /// volumes it samples in its reads; they are bound at group 3, not group 2).
 pub fn is_volume(shading: &SceneShading, name: &str) -> bool {
     shading.volumes.iter().any(|v| v.name == name)
+}
+
+/// Whether a chain pass binds `name` at group 3: a volume, or a resource of
+/// the program's scene group (a shading without volumes).
+pub fn is_group3(shading: &SceneShading, name: &str) -> bool {
+    is_volume(shading, name) || (shading.volumes.is_empty() && shading.program.is_some_and(|p| p.scene_uses.iter().any(|u| u.resource == name)))
 }
 
 /// Checks `shading`'s declarations against its WGSL: every resource an
@@ -922,7 +1050,13 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     if let Some(d) = shading.depth_views {
         chain.push((chain_binding(shading, d.name, false), d.name, false));
     }
-    let volume = |binding: u32| shading.volumes.get(binding.wrapping_sub(1) as usize).map(|v| v.name);
+    // Group 3 of a chain pass: the volumes, or (a shading without volumes) the program's scene group.
+    let volume = |binding: u32| {
+        if shading.volumes.is_empty() {
+            return shading.program.and_then(|p| p.scene_uses.iter().find(|u| u.binding == binding)).map(|u| u.resource);
+        }
+        shading.volumes.get(binding.wrapping_sub(1) as usize).map(|v| v.name)
+    };
     // A chain pass, the scene pass (`writes` None: it may only read), or the pre-pass (`subset`: only what it uses is checked).
     let mut check_chain = |entry: &str, reads: &[&str], writes: Option<&[&str]>, subset: bool| {
         let Some(used) = uses(entry) else {
@@ -987,7 +1121,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     for pass in shading.early.iter().chain(shading.passes) {
         check_chain(pass.entry, pass.reads, Some(pass.writes), false);
     }
-    if !shading.outputs.is_empty() {
+    if shading.chained() {
         check_chain(shading.fragment, shading.scene_reads, None, false);
         // The pre-pass runs before the passes that fill the scene's reads: it reads none of them.
         if let Some(entry) = shading.prepass {
@@ -1061,7 +1195,80 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
             }
         }
     }
+    if let Some(program) = shading.program {
+        let chain_entries: Vec<&str> = if shading.volumes.is_empty() { shading.early.iter().chain(shading.passes).map(|p| p.entry).collect() } else { Vec::new() };
+        lint_program(program, &uses, &mut problems, shading.module, shading.fragment, &chain_entries);
+    }
     Ok(problems)
+}
+
+/// A program's passes against their WGSL: every group-3 binding an entry
+/// point uses is one of its `uses`, used as declared (a write where it
+/// writes, atomics where `Atomic`), and every use is used.
+fn lint_program(program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&str) -> Option<Vec<(u32, u32, GlobalUse)>>, problems: &mut Vec<String>, module: &str, fragment: &str, chain_entries: &[&str]) {
+    use crate::investigation::{Access, PassKind};
+    let known = |name: &str| program.images.iter().any(|i| i.name == name) || program.buffers.iter().any(|b| b.name == name) || matches!(name, "linearSampler" | "nearestSampler");
+    let mut check = |label: &str, entries: &[&str], declared: &[crate::investigation::ProgramUse], read_only: bool| {
+        let mut used: Vec<(u32, GlobalUse)> = Vec::new();
+        for entry in entries {
+            let Some(u) = uses(entry) else {
+                problems.push(format!("{label}: no entry point `{entry}` in {module}"));
+                return;
+            };
+            for (group, binding, flags) in u {
+                if group != 3 {
+                    continue;
+                }
+                match used.iter_mut().find(|x| x.0 == binding) {
+                    Some(x) => x.1 |= flags,
+                    None => used.push((binding, flags)),
+                }
+            }
+        }
+        for d in declared {
+            if !known(d.resource) {
+                problems.push(format!("{label}: uses `{}`, which is none of the program's images, buffers, or samplers", d.resource));
+            }
+            if read_only && d.access.writes() {
+                problems.push(format!("{label}: the scene pass may only read `{}`", d.resource));
+            }
+        }
+        for (binding, flags) in &used {
+            let Some(d) = declared.iter().find(|d| d.binding == *binding) else {
+                problems.push(format!("{label}: binds group 3 binding {binding}, which none of its uses declares"));
+                continue;
+            };
+            if flags.contains(GlobalUse::WRITE) && !d.access.writes() {
+                problems.push(format!("{label}: writes `{}` (binding {binding}), declared {:?}", d.resource, d.access));
+            }
+            // naga marks texture atomics; a buffer's atomics are reads and writes.
+            let image = program.images.iter().any(|i| i.name == d.resource);
+            if image && flags.contains(GlobalUse::ATOMIC) != (d.access == Access::Atomic) && !matches!(d.access, Access::Sampler | Access::Uniform) {
+                problems.push(format!("{label}: `{}` (binding {binding}) is {}used with atomics, declared {:?}", d.resource, if flags.contains(GlobalUse::ATOMIC) { "" } else { "not " }, d.access));
+            }
+            if d.access.writes() && !flags.intersects(GlobalUse::WRITE | GlobalUse::ATOMIC) {
+                problems.push(format!("{label}: declares `{}` {:?} but only reads it", d.resource, d.access));
+            }
+        }
+        for d in declared {
+            if !used.iter().any(|(b, _)| *b == d.binding) {
+                problems.push(format!("{label}: declares `{}` at binding {} but does not use it", d.resource, d.binding));
+            }
+        }
+    };
+    for pass in program.passes {
+        match pass.kind {
+            PassKind::Compute { entry, .. } => check(pass.name, &[entry], pass.uses, false),
+            PassKind::Raster { vertex, fragment } => check(pass.name, &[vertex, fragment], pass.uses, false),
+        }
+    }
+    // The scene group: read by the scene pass and the chain's compute passes (`chain`).
+    if !program.scene_uses.is_empty() {
+        let mut entries = vec![fragment];
+        entries.extend(chain_entries.iter().copied());
+        check(fragment, &entries, program.scene_uses, true);
+    }
+
 }
 
 #[cfg(test)]
@@ -1085,6 +1292,7 @@ mod tests {
             outputs: &["color"],
             passes,
             prepass: Some("prepassFS"),
+            prepass_outputs: &[],
             early,
             buffers: BUFFERS,
             scene_reads: &["tiles"],
@@ -1094,7 +1302,47 @@ mod tests {
             resolution: None,
             history: &[],
             shows: &[],
+            program: None,
         }))
+    }
+
+    #[test]
+    fn a_program_places_its_passes_at_their_stages() {
+        use crate::investigation::{Access, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramStage, ProgramUse, ShadingProgram, Which};
+        static IMAGES: &[ProgramImage] = &[ProgramImage { name: "grid", kind: ImageKind::D3, size: [8, 8, 8], format: wgpu::TextureFormat::R32Uint, count: 2 }];
+        static BUFFERS: &[ProgramBuffer] = &[ProgramBuffer { name: "list", bytes: 64, indirect: true, count: 1 }];
+        static PASSES: &[ProgramPass] = &[
+            ProgramPass {
+                name: "buildCS",
+                kind: PassKind::Compute { entry: "buildCS", workgroup: [4, 4, 4] },
+                uses: &[ProgramUse { binding: 1, resource: "grid", access: Access::Write, which: Which::Instance }, ProgramUse { binding: 2, resource: "list", access: Access::Atomic, which: Which::First }],
+                stage: ProgramStage::Start,
+                instances: 2,
+            },
+            ProgramPass {
+                name: "gatherCS",
+                kind: PassKind::Compute { entry: "gatherCS", workgroup: [8, 8, 1] },
+                uses: &[ProgramUse { binding: 1, resource: "grid", access: Access::Load, which: Which::All }],
+                stage: ProgramStage::BeforeScene,
+                instances: 1,
+            },
+        ];
+        static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new() };
+        let s = shading(&[], &[]);
+        // No chain (the scene pass writes the frame), as a program's investigation may have.
+        let g = FrameGraph::new(Some(Box::leak(Box::new(SceneShading { program: Some(&PROGRAM), outputs: &[], scene_reads: &[], ..*s }))), &[]);
+        assert!(g.errors.is_empty(), "{:?}", g.errors);
+        let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
+        assert_eq!(names, ["buildCS", "gatherCS", "sceneFS", "overlay", "composite"]);
+        // A program's passes write what outlives the frame: they run though nothing reads their writes this frame.
+        assert!(g.live.iter().all(|l| *l));
+        let build = &g.nodes[g.node("buildCS").unwrap()];
+        assert_eq!((build.reads.clone(), build.writes.clone()), (vec!["list"], vec!["grid", "list"]));
+        let grid = &g.resources[g.resource("grid").unwrap()];
+        assert_eq!(grid.lifetime, Lifetime::Persistent);
+        assert_eq!(grid.shape.describe(), "R32Uint, 8x8x8, 2 of them");
+        assert_eq!(inspect_entry(&grid.shape).0, "inspectVolumeUintCS");
+        assert_eq!(default_show(&grid.shape), Show::Hash);
     }
 
     #[test]
@@ -1119,6 +1367,10 @@ mod tests {
         assert_eq!(g.result_of(g.node("composite").unwrap()), Some("hdr"));
         assert_eq!(g.result_of(g.node("blurCS").unwrap()), Some("blur"));
         assert_eq!(g.last_user("blur"), g.node("blurCS"));
+        // What each node is compiled from.
+        assert_eq!(source_of(Some(s), &g.nodes[g.node("blurCS").unwrap()]), (s.module, vec!["blurCS"]));
+        assert_eq!(source_of(Some(s), &g.nodes[g.node("sceneFS").unwrap()]), (s.module, vec!["sceneVS", "sceneFS"]));
+        assert_eq!(source_of(Some(s), &g.nodes[g.node("composite").unwrap()]).0, crate::shaders::SCENE);
         // The frame graph as a 2D scene: its sections' boxes and the edges between them.
         let section = |id: &str, passes: &[&str]| Section { id: id.into(), title: id.into(), passes: passes.iter().map(|p| p.to_string()).collect(), ..Default::default() };
         let scene = GraphScene { sections: vec![section("DEPTH", &["prepassFS", "tilesCS"]), section("SCENE", &["sceneFS"]), section("POST", &["blurCS", "mergeCS"])], omit: Vec::new() };

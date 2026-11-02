@@ -204,6 +204,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         let mut renderer = lab::renderer::Renderer::new(gpu, lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?, 640, 360)?;
         let still = still_timeline(640, 360);
         renderer.render_frame(request(&shot::for_demo(Demo::Room), &still), None);
+        gpu_passes(&mut report, &renderer);
         let converged = sim::converged();
         let inputs = sim::screen_inputs(converged);
         // Points on the room's surfaces (floor, walls, sphere top), near and far from cascade 0's edge.
@@ -471,4 +472,89 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;
     Ok(passed)
+}
+
+/// The GPU passes (gpu.rs, Godot's own passes ported) against their CPU
+/// mirrors at the same camera: cascade 0's solid cells and distance field
+/// after the voxelizer, the jump flood, and STORE; and its probes'
+/// irradiance after both have converged for the same frames.
+fn gpu_passes(report: &mut Report, renderer: &lab::renderer::Renderer) {
+    let state = shot::for_demo(Demo::Room);
+    let camera = state.camera.eye();
+    let objects = sim::voxelized_objects(&lab::scene::Scene::study_room().records());
+    let Some((counts, _)) = renderer.read_program("dispatchStorage", 0) else {
+        report.check("GPU passes: the program's resources can be read back", false, json!({}));
+        return;
+    };
+    let words: Vec<u32> = counts.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+    let mut world = sim::World::new(&objects, Settings::default(), camera);
+    let cpu_cells = world.data[0].stored.cells.len() as f64;
+    let gpu_cells = words[3] as f64;
+    report.check(
+        "GPU STORE: cascade 0's solid cells as the CPU voxelizer counts them (within 5 %), and the indirect dispatch sized ceil(total / 64)",
+        (gpu_cells - cpu_cells).abs() <= 0.05 * cpu_cells && words[0] == words[3].div_ceil(64) && words[1] == 1 && words[2] == 1,
+        json!({"gpu": words, "cpu_cells": cpu_cells}),
+    );
+    let (sdf, size) = renderer.read_program("sdf", 0).expect("the distance field");
+    let cpu = &world.data[0].stored.sdf;
+    let same = sdf.iter().zip(cpu.iter()).filter(|(a, b)| a == b).count() as f64 / cpu.len() as f64;
+    let near = sdf.iter().zip(cpu.iter()).filter(|(a, b)| (**a as i32 - **b as i32).abs() <= 1).count() as f64 / cpu.len() as f64;
+    report.check("GPU voxelizer and jump flood: cascade 0's distance bytes as the CPU's voxelizer gives them (98 % within one step: the GPU rasterizes the meshes)", size == [128, 128, 128] && near >= 0.98, json!({"identical": same, "within_one": near}));
+    // The jump flood and STORE alone: the CPU's on the GPU's own voxels. The working images
+    // still hold the last cascade built (3), so its field and list must be the GPU's exactly.
+    let read = |name: &str| renderer.read_program(name, 0).expect("a working image").0;
+    let u32s = |b: Vec<u8>| -> Vec<u32> { b.chunks(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect() };
+    let albedo: Vec<u16> = read("renderAlbedo").chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+    let voxels = voxels::RenderVoxels { albedo, facing: u32s(read("renderGeomFacing")), emission: u32s(read("renderEmission")), emission_aniso: u32s(read("renderEmissionAniso")) };
+    let stored = voxels::store(&voxels, &voxels::jump_flood(&voxels).seeds);
+    let (gpu_sdf, _) = renderer.read_program("sdf", 3).expect("cascade 3's field");
+    let differing = gpu_sdf.iter().zip(&stored.sdf).filter(|(a, b)| a != b).count();
+    let mut by_size = std::collections::BTreeMap::new();
+    let mut examples = Vec::new();
+    for (k, (a, b)) in gpu_sdf.iter().zip(&stored.sdf).enumerate() {
+        if a != b {
+            *by_size.entry((*a as i32 - *b as i32).to_string()).or_insert(0u32) += 1;
+            if examples.len() < 6 {
+                examples.push(json!({"cell": [k % 128, (k / 128) % 128, k / 16384], "gpu": a, "cpu": b}));
+            }
+        }
+    }
+    let (counts3, _) = renderer.read_program("dispatchStorage", 3).expect("cascade 3's counters");
+    let total3 = u32s(counts3)[3] as usize;
+    let (list, _) = renderer.read_program("solidCells", 3).expect("cascade 3's list");
+    let mut gpu_list: Vec<[u32; 4]> = u32s(list).chunks(4).take(total3).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+    let mut cpu_list: Vec<[u32; 4]> = stored.cells.iter().map(|c| [c.position, c.albedo, c.light, c.light_aniso]).collect();
+    // The list's order is the order the groups won the atomic: compare it sorted.
+    gpu_list.sort_unstable();
+    cpu_list.sort_unstable();
+    report.check(
+        "GPU jump flood and STORE on the GPU's own voxels: cascade 3's solid-cell records exactly the CPU mirror's (the list in any order), its distance bytes too but for the GPU's float-to-UNORM rounding of d / 255 (one level, below)",
+        by_size.keys().all(|k| k == "-1" || k == "1") && gpu_list == cpu_list,
+        json!({"differing_bytes": differing, "by_difference": by_size, "examples": examples, "gpu_cells": gpu_list.len(), "cpu_cells": cpu_list.len(), "differing_records": gpu_list.iter().zip(&cpu_list).filter(|(a, b)| a != b).count()}),
+    );
+    // The probes: both converge for the same frames, with the room's light and sky.
+    let scene = lab::scene::Scene::study_room();
+    let panel = sim::panel_light(&scene, world.cascades.settings.y_mult());
+    let lights: Vec<Vec<light::Light>> = (0..world.cascades.cascades.len()).map(|_| vec![panel]).collect();
+    let lighting = scene.lighting;
+    let sky = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
+    for _ in 0..super::gpu::CONVERGED_FRAMES {
+        world.step_sky(&lights, &sky, None);
+    }
+    let (maps, _) = renderer.read_program("lightprobeData", 0).expect("the probe maps");
+    let layer = (probes::MAP_WIDTH * probes::MAP_HEIGHT) as usize;
+    let gpu_words: Vec<u32> = maps[..layer * 4].chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+    let (mut sum_gpu, mut sum_cpu, mut diff) = (0.0f64, 0.0f64, 0.0f64);
+    for (g, c) in gpu_words.iter().zip(&world.maps[0].irradiance) {
+        let (g, c) = (light::decode_e5b9g9r9(*g), light::decode_e5b9g9r9(*c));
+        sum_gpu += g.length() as f64;
+        sum_cpu += c.length() as f64;
+        diff += (g - c).length() as f64;
+    }
+    let relative = diff / sum_cpu.max(1e-9);
+    report.check(
+        "GPU probes: cascade 0's irradiance map as the CPU's after converging for the same frames (mean difference under 10 % of the mean)",
+        sum_cpu > 0.0 && relative < 0.10,
+        json!({"gpu_total": sum_gpu, "cpu_total": sum_cpu, "relative_difference": relative}),
+    );
 }

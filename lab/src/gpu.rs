@@ -5,6 +5,14 @@ use anyhow::{Context, Result};
 
 pub use crate::pipelines::*;
 
+/// The optional features the lab turns on where the adapter has them.
+pub const OPTIONAL_FEATURES: wgpu::Features = wgpu::Features::TIMESTAMP_QUERY
+    .union(wgpu::Features::TEXTURE_ATOMIC)
+    .union(wgpu::Features::CLEAR_TEXTURE)
+    .union(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
+    .union(wgpu::Features::TEXTURE_BINDING_ARRAY)
+    .union(wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING);
+
 pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 pub const OVERLAY_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 /// The RGBA frame shared by the viewer and the recorder. UNORM: shaders
@@ -48,8 +56,11 @@ impl Gpu {
         let info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("render-lab"),
-            // GPU time per pass for experiments (src/timing.rs), where the adapter has it.
-            required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
+            // GPU time per pass for experiments (src/timing.rs), and what an
+            // investigation's program may use (`ShadingProgram`): texture
+            // atomics, texture clears, the adapter's own storage formats and access, and arrays
+            // of textures indexed per invocation, where the adapter has them.
+            required_features: adapter.features() & OPTIONAL_FEATURES,
             // The verification kernels bind ten storage buffers in one stage.
             required_limits: adapter.limits(),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),

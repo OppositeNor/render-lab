@@ -434,6 +434,202 @@ Assumptions: defaults (4 cascades, 0.2 m, y_mult 1.5, normal bias 1.1, occlusion
 
 ---
 
+# Part II: how the GPU runs it
+
+Sections 11 to 18 add the GPU execution layer: the resources and their formats, each pass's dispatches, workgroups,
+bindings, push constants, atomics and barriers, how RenderingDevice orders the frame, and what keeps it affordable.
+Researched 2026-11-02 at 4.7.2-stable (`ed1daf0b`) by seven reports (frame and resources, voxelization, pre-process,
+direct light, probes, screen gather, optimisation), read from the source, nothing run. Abbreviations as in section 0,
+plus `rd.cpp` = `servers/rendering/rendering_device.cpp`, `rdg.cpp` = `servers/rendering/rendering_device_graph.cpp`,
+`sfc.cpp` = `RD/forward_clustered/scene_shader_forward_clustered.cpp`, `inc.glsl` =
+`RD/shaders/forward_clustered/scene_forward_clustered_inc.glsl`. Defaults throughout: 4 cascades of 128^3, 17^3
+probes, history 30, 8 rays, `frames_to_update_lights` 4, bounce 0.5, occlusion off, y scale 75 %. The column "Lab"
+says where a wgpu port in the lab must differ (wgpu 30.0.1, `vendor/wgpu`; the lab's device requests the adapter's
+limits and only `TIMESTAMP_QUERY`, `lab/src/gpu.rs:52-54`).
+
+## 11. How RenderingDevice turns SDFGI's calls into GPU work
+
+| Claim | Source | Lab |
+|---|---|---|
+| 11.01 One command graph per engine frame: every `compute_list_end`, `draw_list_end`, `texture_clear`, `buffer_update`, `buffer_copy` appends a graph command; the graph is sorted and recorded at frame end. | rd.cpp:8073, 7868-7882, 8123 | The lab records wgpu passes in its frame graph's order (`lab/src/graph.rs`); no reordering. |
+| 11.02 One queue: everything runs on the main graphics+compute queue; no async compute. "(Parallel)" in a timestamp name means two commands with no barrier between them in one command buffer. | rd.cpp:8395-8396; rdg.cpp | Same (one wgpu queue). |
+| 11.03 Edges come from resource usage, not call order: per tracked texture/buffer, a write depends on the earlier writers and readers, a read on the last writer (RAW, WAR, WAW). Usage kinds come from the uniform-set bindings (writable image = `STORAGE_IMAGE_READ_WRITE`, sampled = `TEXTURE_SAMPLE`). | rdg.cpp:366-735; rd.cpp:4478, 4571-4577 | wgpu tracks usage per pass and per dispatch. |
+| 11.04 Inside one compute list there is no barrier between dispatches; `compute_list_add_barrier` is `compute_list_end` + `compute_list_begin` with the pipeline, sets and push constant re-bound, so every "barrier" makes a new graph node. SDFGI uses it where a dispatch reads the previous one's output (each jump-flood step, after occlusion, between the probe SCROLL and SCROLL_STORE). | rd.cpp:7068-7093; gi.cpp:2127, 2142, 2182 | wgpu synchronises between dispatches of a compute pass itself: dispatches Godot runs barrier-free (the four cascades of a pass, the eight occlusion octants) are serialised. |
+| 11.05 Commands get a level (longest path from a root) and, inside a level, are sorted by priority (buffer ops 1, texture ops 2, draw lists 3, compute lists 4) then record order; barriers are merged once per level. | rdg.cpp:2594-2690, 1329-1448; rendering_device_graph.h:316-330 | - |
+| 11.06 Tracking is per whole texture: shared views (`light_tex`, `lightprobe_texture`, `occlusion_texture`) share their owner's tracker; the cascade-stacked `occlusion_data` and `lightprobe_data` are one node each, so writes to different cascades' slices are still ordered. | rd.cpp:7422-7438 | - |
+| 11.07 `RENDER_TIMESTAMP` records a GPU timestamp only while profiling; a timestamp is a graph command every earlier command precedes, so **profiling serialises the frame** at each timestamp and removes the "(Parallel)" overlaps. Labels (`draw_command_begin_label`) cost nothing and do not constrain order. | storage/utilities.h:167-171; rdg.cpp:371-382; rd.cpp:7814-7822 | The lab's GPU timer measures per pass (`lab/src/timing.rs`). |
+| 11.08 `compute_list_dispatch_threads(x,y,z)` divides by the shader's local size, rounding up; `compute_list_dispatch` takes groups; `dispatch_indirect` reads 3 uints from a buffer created with `STORAGE_BUFFER_USAGE_DISPATCH_INDIRECT`. | rd.cpp:6924-6962 | `dispatch_workgroups(_indirect)`. |
+
+## 12. The resources
+
+All created in `SDFGI::create` (gi.cpp:414-1129), one set per viewport; nothing has mips or MSAA; every texture
+cleared at creation (`create_clear_texture`, gi.cpp:404-412). Usage of the 3D textures: sampling | storage | copy
+(`tf_sdf`, gi.cpp:433-441). Totals computed from formats and extents by the frame report.
+
+**Shared by all cascades** (one working set reused by each cascade in turn, so cascades are rebuilt one after another):
+
+| Resource | Type, size, format | Bytes | Role | Lab |
+|---|---|---|---|---|
+| `render_albedo` | 3D 128^3 `R16_UINT` | 4 MiB | voxelizer output: bit 0 solid, RGB555 above (gi.cpp:444) | R16Uint storage needs `TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES` (or R32Uint). |
+| `render_emission`, `render_emission_aniso` | 3D 128^3 `R32_UINT` each | 8 + 8 MiB | RGBE8985 emission, 6 x 5-bit face weights (gi.cpp:447-448) | - |
+| `render_geom_facing` | 3D 128^3 `R32_UINT` | 8 MiB | 6 facing bits, `imageAtomicOr` (gi.cpp:457; no `STORAGE_ATOMIC_BIT` in 4.7.2, research 0.0) | needs `Features::TEXTURE_ATOMIC` (native, Vulkan), else a storage buffer with `atomicOr`. |
+| `render_occlusion[0..7]` | 8 x 3D 128^3 `R8_UNORM` | 16 MiB | one per probe-parity octant (gi.cpp:450-454) | R8Unorm read-write storage: adapter-specific. |
+| `render_sdf[0,1]` | 2 x 3D 128^3 `R8G8B8A8_UINT` | 16 MiB | jump-flood ping-pong: xyz = nearest solid voxel, w = valid (gi.cpp:460-461) | - |
+| `render_sdf_half[0,1]` | 2 x 3D 64^3 `R8G8B8A8_UINT` | 2 MiB | half-size ping-pong (gi.cpp:463-468) | - |
+| `occlusion_data` | 3D 256 x 128 x (128 x N) `R16_UINT`, sampled through an `R4G4B4A4_UNORM_PACK16` view `occlusion_texture` | 32 MiB | cascade c at z in [128c, 128c+128); x < 128 low 16 bits, x >= 128 high 16 bits of the 8 x 4-bit word (gi.cpp:473-476, 540-544) | wgpu views may only change sRGB-ness: no R16Uint -> R4G4B4A4 view; decode the nibbles in the reader. |
+| `lightprobe_history_scroll`, `lightprobe_average_scroll` | 2D array 289 x 272 x 30 `R16G16B16A16_SINT`; 2D 289 x 272 `R32G32B32A32_SINT` | 18.0 + 1.2 MiB | scratch for scrolling probe history (gi.cpp:508-509) | - |
+| `lightprobe_data` | 2D array 2312 x 136 x 2N `R32_UINT`, sampled through an `E5B9G9R9_UFLOAT_PACK32` view `lightprobe_texture` | 9.6 MiB | layers [0,N) irradiance, [N,2N) radiance; 8 x 8 texels per probe (6 x 6 + 1-texel border) (gi.cpp:514-525) | No R32Uint -> Rgb9e5 view in wgpu: decode RGBE in the reader (and filter by hand), or copy into a filterable format. |
+| `ambient_texture` | 2D array 289 x 17 x N `R16G16B16A16_SFLOAT` | 0.15 MiB | one texel per probe; written only with volumetric fog (gi.cpp:529-535, 1327) | out of scope (no fog). |
+| `cascades_ubo` | 8 x 48 B | 384 B | {offset, to_cell, probe_world_offset}, rewritten every frame (gi.h:572-578; gi.cpp:1514-1533) | - |
+
+Shared total 122.94 MiB.
+
+**Per cascade** (`SDFGI::Cascade`, gi.h:580-624; gi.cpp:546-592), 49.30 MiB each, so **320.14 MiB per viewport at
+defaults** (1 cascade 140.9, 8 cascades 559.1; history 5 frames: 245.2). Cell size, y scale, ray count, light
+frames and `use_occlusion` change no allocation.
+
+| Resource | Type, size, format | Bytes | Role |
+|---|---|---|---|
+| `sdf_tex` | 3D 128^3 `R8_UNORM` | 2 MiB | the distance field: (1 + distance in cells)/255, 0 on solid |
+| `light_data` (view `light_tex`, E5B9G9R9) | 3D 128^3 `R32_UINT` | 8 MiB | voxel light, written as raw RGBE words, sampled filtered |
+| `light_aniso_0_tex`, `light_aniso_1_tex` | 3D 128^3 `R8G8B8A8_UNORM`, `R8G8_UNORM` | 8 + 4 MiB | six face weights |
+| `lightprobe_history_tex` | 2D array 289 x 272 x 30 `R16G16B16A16_SINT` | 17.99 MiB | SH history ring: column = probe (px + 17 pz), rows py*16 + i = its 16 coefficients, layer = frame slot |
+| `lightprobe_average_tex` | 2D 289 x 272 `R32G32B32A32_SINT` | 1.20 MiB | exact running sum of the ring |
+| `solid_cell_buffer` | storage, 524,288 x 16 B (`solid_cell_ratio` 0.25 of 128^3, gi.cpp:429; gi.h:712) | 8 MiB | the compact list of solid cells (`ProcessVoxel`, 4 uints) |
+| `solid_cell_dispatch_buffer_storage` | storage, 16 B {x, y, z, total_count} | 16 B | written with atomics by STORE; not zero-initialised, zeroed by `buffer_update` before each STORE (gi.cpp:2214-2215) |
+| `solid_cell_dispatch_buffer_call` | storage + `DISPATCH_INDIRECT`, 16 B | 16 B | a copy of the above (`buffer_copy` before every use), read as indirect arguments (gi.cpp:589) |
+| `lights_buffer` | storage, 1024 x 112 B (std140 `Light`, gi.h:351-367) | 112 KiB | up to 128 dynamic or 1024 static lights, shared by both passes |
+
+**Outside the SDFGI object**: `GI::sdfgi_ubo`, one 496-byte UBO for the whole renderer, rewritten by each viewport's
+`pre_process_gi` (gi.cpp:3768, 1905); the screen buffers `RB_TEX_AMBIENT` and `RB_TEX_REFLECTION`, 2D
+`R16G16B16A16_SFLOAT` at the internal size (half per axis with `use_half_resolution`), 31.6 MiB for both at 1080p
+(gi.cpp:3986-3999). 45 textures, 6 shared views, 17 buffers and 32 compute uniform sets in all; the sets are built
+once in `create` and never rebuilt (gi.cpp:595-1124).
+
+## 13. Voxelization: three orthographic raster passes into an empty framebuffer
+
+| Claim | Source | Lab |
+|---|---|---|
+| 13.01 Per dirty region, `_render_sdfgi` builds one render list (`PASS_MODE_SDF`: surfaces with `FLAG_PASS_DEPTH` or `FLAG_PASS_OPAQUE`), sorts it, fills its instance data once, and draws it three times, once per axis. | rfc.cpp:3099-3177, 3117-3120, 1189-1193 | The lab draws its own scene's meshes. |
+| 13.02 For axis i (right = i+1, up = i+2 mod 3): the camera sits at the centre of the region's +axis face, looking along -axis; `set_orthogonal(-h, h, -v, v, 0, 2*half[i])` with h, v the half extents of the face, so the frustum is exactly the region box. Reversed Z: clip depth 1 at the near face, 0 at the far face. | rfc.cpp:3131-3154; projection.cpp:344-354, 787-806 | The lab uses reversed Z too. |
+| 13.03 The framebuffer is `framebuffer_create_empty(size[right] x size[up])`: no attachments, 1 sample, cached by size; viewport = scissor = its size. A full region gives 128 x 128 for all three; an 8-cell slab along x gives 128 x 128, 128 x 8, 8 x 128. One pixel per voxel column. | rfc.cpp:3168-3172; rd.cpp:3560-3605, 5564-5577 | **wgpu refuses a render pass without attachments** (`MissingAttachments`, wgpu-core/src/command/render.rs:1628): bind a small dummy colour target with an empty write mask. |
+| 13.04 The pipeline is each material's own `PIPELINE_VERSION_DEPTH_PASS_WITH_SDF` variant (`MODE_RENDER_DEPTH` + `MODE_RENDER_SDF`, advanced shader group); cull forced off (`CULL_VARIANT_DOUBLE_SIDED`); no conservative rasterization; no depth attachment, so (by Vulkan's rule) no depth test: every covered pixel of every triangle runs. The ubershader variant stands in while the specialised pipeline compiles. | sfc.cpp:656, 511-519, 427-432, 355-364; rfc.cpp:397-399, 479-487, 496-557 | No depth attachment also in the lab (the dummy target is colour). |
+| 13.05 Vertex stage: the ordinary scene vertex shader, material `vertex()` code included; outputs view-space position and normal. Fragment stage: the material's `fragment()` code runs (albedo, emission from the material; alpha scissor/hash/prepass `discard`s honoured), then the SDF block. | scene.glsl:769-862, 1349-1351, 1386-1429, 2906-2998 | The lab's scene has fixed per-object albedo and emission (no material code). |
+| 13.06 The voxel: `local_pos = sdf_to_bounds * vertex` (interpolated view-space position mapped to [0,1]^3 of the region), `grid_pos = sdf_offset + ivec3(local_pos * sdf_size)`, truncated, no clamp. `sdf_offset`, `sdf_size`, `sdf_to_bounds` are in the implementation UBO (set 1 binding 1), not push constants; there is no cascade index. | scene.glsl:2909-2910; rfc.cpp:3126-3129, 3157-3161; inc.glsl:320-345 | - |
+| 13.07 Writes: albedo `imageStore` (r16ui, set 1 binding 24), facing `imageAtomicOr` (r32ui, binding 27; the face of the largest dot of the world normal with the six axes), emission and aniso `imageStore` (r32ui, bindings 25-26) only if `length(emission) > 0.001`. | scene.glsl:2912-2995; inc.glsl:418-421; rfc.cpp:3943-3970 | Texture atomics: see section 12. |
+| 13.08 Overlapping fragments race: albedo and emission are plain stores with no ordering ("one of the writers", not guaranteed last); facing accumulates by OR. The three axis passes write the same images, so the graph orders them X, Y, Z (WAW). | scene.glsl:2917, 2943, 2994-2995; rd.cpp:4570-4578; rdg.cpp:565-566 | - |
+| 13.09 The four images are cleared whole only at the first region of a cascade (`cascade_prev != cascade`); regions of one cascade accumulate. | gi.cpp:2073-2078 | - |
+| 13.10 Coverage is pixel-centre sampling of three projections: a triangle smaller than a pixel in all three views can be missed; a surface edge-on in one view is caught by the others. | (derived from 13.02-13.04) | - |
+
+## 14. The pre-process: one compute list of 18 dispatches per rebuilt cascade
+
+Runs after the last region of a dirty cascade, over the whole 128^3 grid (gi.cpp:2084-2418, label "SDFGI Pre-Process
+Cascade"); only the scroll passes and a per-group skip in OCCLUSION are slab-sized. One 48-byte push constant
+(`PreprocessPushConstant`: scroll, grid_size, probe_offset, step_size, half_size, occlusion_index, cascade; gi.h:282-293)
+is mutated and re-sent along the sequence. Local sizes: 8x8x8 for JUMPFLOOD_OPTIMIZED, 64x1x1 for OCCLUSION and SCROLL,
+4x4x4 for the rest (pre.glsl:7-19).
+
+| # | Dispatch | Local | Groups | Reads -> writes | Source |
+|---|---|---|---|---|---|
+| A1 | SCROLL (scroll only) | 64 | indirect `ceil(old total/64)` | old solid-cell list -> `render_albedo/facing/emission/aniso` at `pos + scroll` | gi.cpp:2117-2126; pre.glsl:174-201 |
+| A2 | SCROLL_OCCLUSION (scroll only) | 4^3 | threads `(128-|dx|) x (128-|dy|) x (128-|dz|)` | `occlusion_data` -> `render_occlusion[8]` (4 bits back to 8) | gi.cpp:2132-2139; pre.glsl:203-225 |
+| A3-A5 | probe SCROLL, SCROLL_STORE, STORE (section 16) | | | | gi.cpp:2142-2207 |
+| - | `buffer_update` zeroes the counters | | | | gi.cpp:2214-2215 |
+| 1 | INITIALIZE_JUMP_FLOOD_HALF | 4^3 | 16^3 = 4096 (64^3 threads) | albedo -> half[0]: each half cell picks one solid voxel of its 2^3 block, `closest[parity % count]` | gi.cpp:2229; pre.glsl:245-273 |
+| 2-3 | JUMPFLOOD, step 32, 16 (half cells) | 4^3 | 4096 each | half ping-pong; 26 neighbours at +-step, keep the nearest seed | gi.cpp:2243-2257; pre.glsl:275-349 |
+| 4-7 | JUMPFLOOD_OPTIMIZED, step 8, 4, 2, 1 | 8^3 | 512 each | half ping-pong; shared memory | gi.cpp:2263-2270; pre.glsl:351-444 |
+| 8 | UPSCALE_JUMP_FLOOD | 4^3 | 32^3 = 32,768 | albedo + half[0] -> sdf[0] | gi.cpp:2274-2279; pre.glsl:446-482 |
+| 9 | JUMPFLOOD_OPTIMIZED, step 1, full size | 8^3 | 16^3 = 4096 | sdf[0] -> sdf[1] ("fix up half size artifacts") | gi.cpp:2282-2290 |
+| 10-17 | OCCLUSION, 8 octants, no barrier between them | 64 | `(9,9,9) - offset` = 729 down to 512 each | facing -> `render_occlusion[i]` | gi.cpp:2342-2373; pre.glsl:484-946 |
+| 18 | STORE | 4^3 | 32^3 = 32,768 | sdf[1], albedo, occlusion, emission, facing -> `sdf_tex`, `occlusion_data`, solid-cell list, counters | gi.cpp:2375-2383; pre.glsl:948-1063 |
+| - | `texture_clear` of the cascade's `light_tex` and both aniso textures | | | the light passes refill them | gi.cpp:2386-2388 |
+
+`compute_list_add_barrier` after 1, after each of 2-9, and after the occlusion octants: **11 compute lists, 10
+barriers, 18 dispatches** (20 with a scroll, plus the probe-scroll lists).
+
+| Claim | Source | Lab |
+|---|---|---|
+| 14.01 The half-size jump flood is a hard-coded `bool half_size = true; //much faster, very little difference`; the full-size branch and its pipelines are dead. The half passes touch 64^3 = 262,144 cells instead of 2,097,152. | gi.cpp:2219, 2292-2343 | The CPU mirror (`voxels.rs`) already follows the half schedule. |
+| 14.02 The step schedule: `s = 64; while (s > 1) { s /= 2; regular(s); if (64/(s/2) >= 8) break; }` then the optimized steps down to 1: steps 32, 16 regular, 8, 4, 2, 1 optimized. The regular pass is "efficient for large steps, inefficient for small steps". | gi.cpp:2243-2270; pre.glsl:277 | - |
+| 14.03 The optimized pass works on a **lattice of spacing `step`**: `group_offset = WorkGroupID % step`, `group_pos = group_offset + (WorkGroupID / step) * 8 * step`, a thread's cell `group_pos + LocalInvocationID * step`. All 26 neighbours a cell reads are the neighbouring lattice points, so the group loads a 10^3 patch (`shared uvec4 group_positions[1000]`, 16,000 B) once: 125 threads load 8 values each, `barrier()`, then every thread scans 27 cells from shared memory. A group is full only when the lattice has >= 8 points per axis, which is the switch rule of 14.02. | pre.glsl:38-52, 354-378 | wgpu's default `max_compute_workgroup_storage_size` is 16,384 B and `max_compute_invocations_per_workgroup` 256; the lab requests the adapter's limits (512 needed). |
+| 14.04 Ping-pong parity: `passes = nearest_shift(128) - 1 = 7`; six half passes from half[0] end in half[0], which UPSCALE reads; it writes sdf[0]; the final pass writes sdf[1], which STORE reads. The formula holds only because six is even. | gi.cpp:480-488, 597, 930-957; math_funcs_binary.h:162 | - |
+| 14.05 OCCLUSION: one workgroup per probe; probes of one parity class are 16 voxels apart, so the 16^3 cubes of one dispatch tile the grid without overlap, and the 8 classes need 8 output images and 8 dispatches. The facing masks of the cube go to shared memory (`occlusion_facing[1024]`, 4 KiB, 4 per uint); the 22 shell steps (`OCC_STEPS = 8*3-2`) each end with `groupMemoryBarrier(); barrier()`, and each step reads the previous shell back from the R8 image (global memory), at most 48 x 8 voxels per step. When scrolling, a group whose cube lies outside the new slab skips its work but still runs the barriers. | gi.cpp:2344-2370; pre.glsl:487-505, 507-657, 659-925 | - |
+| 14.06 Occlusion is built whatever `use_occlusion` says: `render_region` has no guard; the flag reaches only the readers (Finding 14). | gi.cpp:1270, 1848, 2575 (the only uses) | - |
+| 14.07 STORE builds the list with **two levels of atomics**: per 4^3 group, solid threads take a slot with a shared `atomicAdd(store_position_count, 1)` and fill a 64-entry shared staging array; then one thread does `store_from_index = atomicAdd(total_count, n)` ("to reduce pressure") and `atomicMax(dispatch_data.x, (store_from_index + n - 1)/64 + 1)`; then the threads copy the staged records out, contiguous. The thread at global (0,0,0) sets y = z = 1. So x ends as `ceil(total/64)`: STORE writes the indirect arguments of the passes that consume the list. Record order depends on which group wins the atomic: not deterministic. No overflow check against 524,288. | pre.glsl:1036-1062 | wgpu has `atomicAdd`, `atomicMax` on storage buffers and workgroup variables. |
+| 14.08 The counters are copied (`buffer_copy`, 16 B) into a separate buffer created with the indirect usage before every indirect dispatch (direct light static and dynamic, and the next SCROLL). | gi.cpp:1253, 2117, 2557, 588-589 | wgpu forbids a buffer bound as storage and used as indirect in the same dispatch; the copy carries over. |
+| 14.09 The working textures are one set for every cascade, which is why kept cells must be scrolled back in from the persistent copies (the solid-cell list and the packed occlusion) before the slab's new voxels and the jump flood. | gi.cpp:441-472, 2116-2139 | - |
+
+## 15. Direct light: indirect over the solid cells
+
+| Claim | Source | Lab |
+|---|---|---|
+| 15.01 One shader, two variants (`MODE_PROCESS_STATIC`, `MODE_PROCESS_DYNAMIC`), local 64x1x1, one thread per list entry. No shared memory, no atomics, no barriers. | gi.cpp:3653-3661; dl.glsl:7, 180 | - |
+| 15.02 Dynamic: every frame, label "SDFGI Update Dynamic Light", one compute list, pipeline bound once, **one indirect dispatch per cascade**, even with no dynamic lights (emission, static light and bounce must still be written). Static: only on a frame where a rebuilt cascade has a static light culled into it, one list, one dispatch per such cascade. | gi.cpp:1249-1309, 2422-2609; rfc.cpp:1276-1277, 1757-1759 | - |
+| 15.03 Push constant (48 B): grid_size, max_cascades, cascade, light_count, process_offset, process_increment, probe_axis_size, bounce_feedback, y_mult, use_occlusion; re-set before each cascade's dispatch. | gi.h:366-382; dl.glsl:94-108; gi.cpp:1263-1298 | - |
+| 15.04 Staggering: thread t handles entry `t * N + frame % N` (N = `{1,2,4,8,16}[frames_to_update_lights]`, default 4): an interleaved quarter of the list each frame, so each frame's cells are spread over the scene. The dispatch is not shrunk: three quarters of the groups return at the first test. A cascade just rebuilt gets one full pass (`all_dynamic_lights_dirty`). | dl.glsl:180-190; gi.cpp:1287-1300, 2110, 3517 | - |
+| 15.05 Lights: a 112-byte std140 `Light` per light, culled on the CPU per cascade (directional lights first, all of them; then dynamic positional lights whose AABB meets the cascade and whose `max_sdfgi_cascade` >= the cascade), up to 128; static up to 1024. The GPU never culls: every thread loops over all `light_count` lights. | gi.cpp:1903-2057, 2443-2465; dl.glsl:64-84 | - |
+| 15.06 Per thread: decode the cell; bounce (dynamic only, bounce > 0.001): up to 8 probes x 6 faces bilinear fetches of last frame's `lightprobe_texture`; add the stored light; the light loop with a binary SDF shadow march per light (hops to coarser cascades in a loop, no recursion, no iteration cap); pack. | dl.glsl:195-495 | - |
+| 15.07 Dynamic writes: `imageStore` of `light_data` (R32_UINT, raw E5B9G9R9 bits), aniso0 (RGBA8), aniso1 (RG8) at the cell, then for each of its 26 neighbour bits the same three stores at the empty neighbour (a neighbour has one nearest seed, so no races). Static writes: no textures; it adds into the cell's own record in the list (read-modify-write, one thread per entry), from where every later dynamic pass reads it. | dl.glsl:497-574 | R8G8B8A8Unorm storage writes are core; RG8Unorm storage is adapter-specific. |
+| 15.08 Texels not visited this frame keep their value: nothing is cleared between frames (only after a rebuild, 14). | dl.glsl:497-557; gi.cpp:2386-2388 | - |
+
+## 16. Probes: process, store, scroll
+
+| Claim | Source | Lab |
+|---|---|---|
+| 16.01 One shader, four modes (PROCESS, STORE, SCROLL, SCROLL_STORE), all local 8x8x1, one 112-byte push constant. | gi.cpp:3666-3683; int.glsl:9, 58-84; gi.h:409-433 | - |
+| 16.02 PROCESS (label "SDFGI Update Probes") runs every frame for every cascade, in one compute list with no barriers, recorded inside the depth pre-pass block, after an empty draw list that clears depth ("start compute processes here, so they run at the same time as depth pre-pass"; timestamp "GI + Render Depth Pre-Pass (Parallel)"). | gi.cpp:1311-1411; rfc.cpp:2120-2133; renderer_scene_render_rd.cpp:1348-1356 | The lab's frame has no such overlap (11.04). |
+| 16.03 PROCESS dispatch per cascade: `dispatch_threads(289, 17, 1)` = 37 x 3 = 111 groups; one thread per probe, probe (x % 17, y, x / 17); 4,913 live threads of 7,104. The ray count only lengthens each thread's serial loop; the dispatch never changes. 157,216 rays per frame at defaults. | gi.cpp:1407; int.glsl:157-190 | - |
+| 16.04 `shared SH sh_accum[64]` (12,288 B) is per-thread scratch (indexed by the thread, no barrier, no atomics): 48 floats that do not fit in registers. | int.glsl:146-162, 176-178, 295-320 | - |
+| 16.05 History as GPU storage: per coefficient `ivec4(value * 1024)` clamped to int16 (Q.10), read-modify-write of the slot `render_pass % 30` and of the exact integer sum (`average = average - old + new`); each thread owns its column, so no atomics. | int.glsl:323-340 | Integer storage textures are core in wgpu. |
+| 16.06 STORE (label "SDFGI Store Probes", timestamp "Average SDFGI Probes") per cascade: `dispatch_threads(1734, 102, 1)` = 217 x 13 = 2,821 groups, one thread per interior octahedral texel (36 per probe; the 6 x 6 tile does not align with the 8 x 8 group); each thread reads its probe's 16 averages, evaluates the SH at its direction for irradiance (band-weighted) and radiance, `rgbe_encode`s both and `imageStore`s them (R32_UINT) at its texel and its 1 or 3 mirror border texels; every border texel has one writer. "Separating these steps has a small performance hit, but it allows for multiple bounces"; octahedral "is much faster to read from the screen than spherical harmonics". | gi.cpp:1414-1456, 1432; int.glsl:352-471 | Reading E5B9G9R9 back: section 12. |
+| 16.07 Why the border: a reader's bilinear tap at coordinate c in [1, 7] of an 8-texel block reads texels 0..7, the interior plus one border texel on each side, which hold the octahedral fold's continuation; so hardware filtering never reaches the next probe. | int.glsl:436-463; gi.glsl:204-206 | Manual bilinear in the lab reads the same texels. |
+| 16.08 Scroll (in the pre-process's first list): SCROLL copies each kept probe's 30 x 16 history texels and 16 averages into the shared scratch textures, or seeds a new probe from 8 parent probes (all 30 layers); barrier; SCROLL_STORE copies them back; barrier; STORE if bounce > 0, so this frame's light pass reads scrolled maps. The double buffering exists because SCROLL reads neighbours' old data while writing. | gi.cpp:2142-2207; int.glsl:475-620 | - |
+
+## 17. The screen pass and the forward read
+
+| Claim | Source | Lab |
+|---|---|---|
+| 17.01 `GI::process_gi` (label "GI Render"): one compute list, one dispatch per view, local 8x8x1, `dispatch_threads(W, H, 1)` at the internal size (240 x 135 groups at 1080p), or `(W>>1, H>>1)` with `use_half_resolution` (default false). Every pixel is written, so the buffers need no clear. | gi.cpp:3968-4274, 4267-4269; gi.glsl:11, 677-727 | The lab's port is `sdfgiForwardFS` (a fragment pass that shades directly); a compute gather into two buffers is new. |
+| 17.02 40 pipelines: 8 specialisations (half-res, full projection matrix for multiview, VRS) x 5 modes; SDFGI alone uses `MODE_SDFGI`. | gi.cpp:3716-3766, 4064-4087 | - |
+| 17.03 Inputs from the depth pre-pass: depth (`D32_SFLOAT_S8_UINT`; `R32_SFLOAT` after an MSAA resolve) and `normal_roughness` (`R8G8B8A8_UNORM`, best-fit-normal encoded view-space normal, roughness in alpha); SDFGI switches the pre-pass to `PASS_MODE_DEPTH_NORMAL_ROUGHNESS`. The MSAA resolve picks one sample (the odd one out), not an average. | rfc.cpp:1930-1937, 263-269; render_scene_buffers_rd.cpp:810-843; resolve.glsl:63-232 | The lab's pre-pass writes depth; a normal-roughness target would be new. |
+| 17.04 Per pixel, in `MODE_SDFGI`: 8 probes x (1 irradiance tap, + 1 radiance tap below roughness 0.99, + 1 more irradiance tap above 0.2), + 8 occlusion taps with occlusion on; a reflection march through the SDF and light textures only below roughness 0.2. Bindings 3-4 (the aniso textures) are bound and never read. | gi.glsl:204-270, 310-470; gi.cpp:4120-4140 | - |
+| 17.05 Outputs: AMBIENT and REFLECTION, `rgba16f` images, alpha = trust (1 inside the cascades, fading in the last, 0 outside), rgb not premultiplied. | gi.glsl:326-368, 476-483 | - |
+| 17.06 The opaque pass reads both with `SAMPLER_LINEAR_CLAMP` at its own pixel centre and `mix`es them over its sky ambient and sky reflection by alpha. At full resolution that is the pixel's own texel; at half resolution a plain bilinear upsample (9/3/3/1 weights), not depth-aware ("artifacts ... on polygon edges"); with MSAA a 5-tap normal test picks the coordinate. | scene.glsl:1982-2025; ProjectSettings.xml:3063 | - |
+| 17.07 Ordering: `store_probes` and `process_gi` are recorded among the shadow passes ("Render shadows while GI is rendering", timestamp "Render GI + Render Directional/SpotLight Shadows (Parallel)"): independent work in one graph level. | rfc.cpp:1517-1611, 1583-1587 | - |
+
+## 18. The frame on the GPU, and what keeps it affordable
+
+**A steady frame** (no cascade dirty): `update_cascades` and `pre_process_gi` uploads; the dynamic light list (4
+indirect dispatches); the depth pre-pass with PROCESS beside it (4 dispatches); STORE (4) beside the shadows; the
+screen gather (1 per view); the opaque pass reads. About 11-15 graph commands, 13 dispatches, no pre-process or
+voxelization (frame report 4.1). **A frame with a dirty cascade** puts, before all of that, per region: 4 clears (first
+region of a cascade), 3 draw lists; per cascade: the scroll lists, the 11 pre-process lists, 3 light clears; then
+the static-light list if needed; and the cascade's next dynamic dispatch covers every cell. The regions are one
+chain through the shared working textures. **The first frame** rebuilds all four cascades (about 145 graph commands)
+and starts the probes from zero history.
+
+Ordering the graph derives (frame report 4.1): light -> PROCESS (it samples the light) -> STORE (it reads the
+averages) -> gather and opaque; the light pass reads `lightprobe_texture` before this frame's STORE writes it, so the
+voxel light of frame N bounces the probes of frame N-1, enforced by graph order alone.
+
+| Optimisation | Cost in quality | Source |
+|---|---|---|
+| 8 rays per probe per frame, a 30-frame boxcar history, a different set of Vogel directions each frame (240 per window) | 30 frames to settle; noise between | gi.cpp:1320-1323; int.glsl:176-190, 323-340 |
+| Dynamic light every 4th cell per frame, interleaved; static lights baked once into the list and carried by scrolls | up to 4 frames of lag; static lights do not move | dl.glsl:180-190; gi.cpp:2422-2608 |
+| Scroll instead of rebuild: only the slab is voxelized, kept cells and probes are copied, new probes seeded from the parent | but the SDF, occlusion and STORE of a dirty cascade are rebuilt whole: a scroll step costs O(cascade volume) | gi.cpp:1226-1243, 2117-2211, 2217-2388 |
+| Solid-cell list + indirect dispatch: light work scales with surface, not volume | capacity fixed at 25 % of the grid, unchecked | pre.glsl:1036-1062; gi.h:712 |
+| Half-size jump flood (hard-coded), shared-memory steps for small strides | approximate nearest seeds, repaired by one full pass | gi.cpp:2219-2290 |
+| Narrow formats: R8 distance, RGBE light, 4-bit occlusion, RGB555 albedo, Q.10 SH | quantisation | section 12 |
+| Octahedral maps stored once per texel per frame, read with one filtered tap per probe | 6 x 6 directions per probe | int.glsl:352-354 |
+| Half-resolution gather (off by default) | edge artifacts, no bilateral upsample | gi.cpp:3810, 3993-3995 |
+| No barriers between independent dispatches; compute placed beside the depth pre-pass and the shadows | none (if the hardware overlaps them) | rfc.cpp:2120-2133, 1518 |
+
+Editor debug draws: SDFGI Cascades (the voxel light seen along camera rays), SDFGI Probes (cascade 0's probes as
+spheres, a click shows a probe's occlusion), and the GI buffer (RenderingServer.xml:5573-5582; gi.cpp:1535-1777).
+There is no view of the dirty regions, the solid-cell count, or the history.
+
+---
+
 ## Findings (behaviours that look like engine bugs or surprises)
 
 All by reading, not run on a GPU. "Agreed by N reports" counts how many of the five research reports independently describe the behaviour.
@@ -466,6 +662,13 @@ All by reading, not run on a GPU. "Agreed by N reports" counts how many of the f
 27. **At y scales other than 100 %, light distances are measured in the squashed space.** `pre_process_gi` multiplies a positional light's y by `y_mult` (gi.cpp:1987-1988) and the cell's position is in the same space, so `light_distance = length(rel_vec)` (sdfgi_direct_light.glsl:331) is the squashed distance; the next line, `rel_vec.y /= params.y_mult` (:332), would undo the squash but runs after the distance is taken and is never read again. Omni and spot attenuation therefore see a light straight above a surface 1.5 times farther away at the default 75 %, and an area light's rectangle (its edges left unscaled, gi.cpp:2024-2031) subtends a smaller solid angle from below. Measured on the lab's CPU model of the light pass: the floor cell under the room's panel holds 2.08 times the forward pass's outgoing radiance at 100 % (Finding 26) but 0.92 times at 75 %. Status: read from the code, measured on the model (selftest), not run in Godot.
 25. **Stable only: the probe shader's sky binding has the wrong texture type.** `GI::init` defines `USE_OCTMAP_ARRAY` (gi.cpp:3670) where `sdfgi_integrate.glsl` tests `USE_RADIANCE_OCTMAP_ARRAY` (int.glsl:45, 277), so the probe shader is always compiled with `texture2D sky_irradiance`. With `texture_array_reflections` on (desktop default, rendering_server.cpp:3697), the sky's `radiance` is a `TEXTURE_TYPE_2D_ARRAY` (sky.cpp:1553-1574), and `update_probes` binds it to that `texture2D` slot (gi.cpp:1359-1363, `append_id(p_sky->radiance)` at 1362). Vulkan forbids the pairing; what a ray that misses reads is driver-defined (most likely layer 0 at mip 2, which the array path would read anyway). Fixed in 4.8 by `d9ea5c26`. Status: by reading (main agent), not run.
 
+28. **Profiling changes the frame it measures.** A `RENDER_TIMESTAMP` is a graph command that every earlier command precedes, so with the profiler on, the "(Parallel)" pairs (probes beside the depth pre-pass, the gather beside the shadows) run one after the other (rdg.cpp:371-382). Status: by reading, not run.
+29. **Half-resolution GI has no depth-aware upsample.** Each half-size texel is the full-resolution pixel (2x, 2y) alone (gi.glsl:707-709), and the opaque pass reads it with plain bilinear filtering (scene.glsl:2012-2020), so GI bleeds across geometry edges. Status: by reading, not run.
+30. **In multiview the second eye uses the first eye's offset** for the reflection direction: `eye_offset[gl_GlobalInvocationID.z]` with a z extent of 1 (gi.glsl:628; gi.cpp:4267-4269). Status: by reading, not run.
+31. **The gather binds the aniso light textures and never reads them** (gi.glsl:27-28; gi.cpp:4120-4140). Status: by reading.
+32. **Opaque instances with `gi_mode` Disabled still receive SDFGI**: the GI-buffer flag is set for every non-lightmapped opaque instance (rfc.cpp:1032-1035). Status: by reading, not run.
+33. **The voxelizer's albedo and emission are races, and the solid-cell list's order is not deterministic.** Overlapping fragments `imageStore` with no ordering (scene.glsl:2917, 2994-2995); STORE's groups reserve their ranges in atomic order (pre.glsl:1043). The SDF and facing are deterministic. Status: by reading, not run.
+
 ---
 
 ## Where the lab differs (planned; proposals, not facts)
@@ -483,12 +686,30 @@ The lab has no Godot port yet. These are differences the lab will probably need;
 9. **The screen pass** ported as the lab's own scene shading (`SceneShading`, section 9 as the model), with the engine's 8-probe weights, normal bias, cascade blend and `energy`, and a choice whether to reproduce the 4/pi gain and the half-texel shift or to show them as findings.
 10. **Findings in the lab.** Whether the lab reproduces engine quirks (static double count, 4/pi, half-texel) or shows them as annotations is a design choice; they are observations by reading, not run.
 
+
+## Where a GPU port in the lab differs (2026-11-02)
+
+The lab mirrors every stage on the CPU (`model.rs`, `voxels.rs`, `occlusion.rs`, `light.rs`, `probes.rs`, `sim.rs`); its
+frame has one GPU pass, `sdfgiForwardFS`. A port of the GPU passes (section 11 on) meets these differences in wgpu 30:
+
+1. **No attachment-less render pass** (13.03): the voxelizer needs a dummy colour target of the region's face size with an empty write mask.
+2. **Texture atomics** (`imageAtomicOr` on the facing image, 13.07) need `Features::TEXTURE_ATOMIC` (native; Vulkan has it); the lab requests only timestamps today (`lab/src/gpu.rs:52`). Requesting it where the adapter has it is a generic lab change; without it, a storage buffer with `atomicOr`.
+3. **Storage formats** R16Uint, R8Unorm, Rg8Unorm read-write need `TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES`; otherwise wider formats (R32Uint, Rgba8Unorm) with the same values.
+4. **No reinterpreting views**: wgpu allows a view to differ only in sRGB-ness, so R32Uint cannot be sampled as Rgb9e5 (light, probe maps) nor R16Uint as R4G4B4A4 (occlusion). The readers decode the words and filter by hand (the same 4 or 8 texels the hardware would), or a pass copies them into a filterable format; either is a stated difference.
+5. **Texture arrays indexed per thread** (`texture3D sdf_cascades[8]` with a divergent index, 15.06, 16.03) need binding arrays with non-uniform indexing in wgpu; alternatives are one stacked 3D texture per kind or a switch over four bindings.
+6. **Barriers**: wgpu synchronises every dispatch against the previous one in a pass, so Godot's barrier-free groups (four cascades, eight occlusion octants) run one after another; and the lab's frame graph does not overlap compute with the depth pre-pass or shadows (11.04, 16.02, 17.07).
+7. **Materials**: the voxelizer runs the lab's per-object albedo and emission, not material code (13.05).
+8. **Indirect dispatch and the counter copy** port directly (`dispatch_workgroups_indirect`; 14.07-14.08). Workgroups of 512 threads and 16,000 B of shared memory are within the adapter limits the lab requests (14.03).
+9. **The screen pass** is today a fragment shader that shades directly; Godot's is a compute gather into AMBIENT and REFLECTION read by the opaque pass, with a normal-roughness pre-pass target (17.01-17.06).
+
 ---
 
 ## Lab differences found while porting
 
 - `hashf3` (int.glsl:93) takes `sin` of arguments near 10^7; the GPU's result differs from the CPU's by up to almost a whole period (selftest: 0.996), so a probe's spiral rotation is not reproducible between GPUs, nor between the lab's CPU model and its WGSL port. The lab's CPU model uses Rust's f32 `sin`.
 - Textures are sampled with full-precision weights on the CPU; hardware filtering keeps 8 bits of fraction.
+- The GPU port (gpu.rs) against the CPU mirror, on the GPU's own voxels: the solid-cell records are identical (the list's order aside, which follows the atomics), and 2.6 % of cascade 3's distance bytes are one level lower on the GPU: the store's `d / 255` goes through the hardware's float-to-UNORM conversion, which Vulkan does not require to round to nearest (the CPU mirror rounds to nearest). Godot on the same GPU stores the GPU's bytes (selftest).
+- The GPU voxelizer rasterizes the lab's meshes; the CPU voxelizer (voxels.rs) gives 3.5 % more solid cells in cascade 0 (3,208 against 3,097 in the room shot), and 98.6 % of the distance bytes within one level. After 60 converged frames the probes' irradiance maps differ by 7.7 % of their mean (selftest).
 
 ## Still unclear
 
@@ -528,3 +749,12 @@ Per research report (labels: cascades, voxelization, light, probes, consume).
 - The cost model of the `found`-flag sweep in the reflection march.
 - Transparent surfaces with the GI-buffer flag but `uses_forward_gi == 0` read the opaque pixel behind them; inferred from flags, not run.
 - Whether SSIL uses SDFGI in any way (none seen).
+
+**GPU layer (sections 11-18).**
+- Whether the graph really puts PROCESS in the depth pre-pass's level, and the gather in the shadows' level, and whether any GPU overlaps them (derived from resource declarations; no `PRINT_RENDER_GRAPH` run, no capture).
+- Whether shader reflection keeps declared-but-unused bindings (the integrate set made against PROCESS and bound to all four modes; the static light variant; the gather's VoxelGI bindings). If not, the dependency chain between integrate lists is shorter than 18 states.
+- OCCLUSION reads back `restrict` (not `coherent`) image writes of its own group ordered only by `groupMemoryBarrier(); barrier()` (pre.glsl:535-657); legal on the engine's drivers, not checked against each.
+- The depth state of a pipeline drawn into an attachment-less framebuffer on D3D12 and Metal (13.04 rests on Vulkan's rule).
+- Divergent indexing of `texture3D[8]` without `nonuniformEXT` (dl.glsl march; int.glsl march).
+- A gather uniform set built while SDFGI was off (VoxelGI only) may keep white defaults when SDFGI is turned on later (gi.cpp:4090-4194, 3917-3924); not traced to every reset path.
+- No GPU timings: every cost in 18 is a count of dispatches, groups, taps, or bytes.

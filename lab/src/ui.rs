@@ -270,6 +270,8 @@ pub enum ViewerAction {
     SetKnowledgeOverlay(bool),
     /// Open or close the frame graph's DAG full screen.
     SetDagOverlay(bool),
+    /// Show (or hide) the selected pass's WGSL beside the full-screen DAG.
+    ShowSource(bool),
     /// Show a resource of the frame's graph as it stood after a node
     /// (`<node>.<resource>`, the inspector), or none.
     Inspect(Option<String>),
@@ -379,6 +381,10 @@ pub struct ViewerChrome {
     pub knowledge: KnowledgeChrome,
     /// The frame graph's DAG is shown full screen (`ViewerAction::SetDagOverlay`).
     pub dag_overlay: bool,
+    /// The full-screen DAG shares the screen with the selected pass's WGSL (`ViewerAction::ShowSource`).
+    pub graph_source: bool,
+    /// The last live reload of the shaders: what it says, and whether it failed (src/resources.rs `reload_changed`).
+    pub shader_reload: Option<(String, bool)>,
 }
 
 pub enum Chrome<'a> {
@@ -657,7 +663,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let interactive = matches!(&chrome, Chrome::Viewer(_));
                     let pick = match input.state.panel {
                         PanelMode::Graph => draw_graph_panel(ctx, &ink, l.panel, &view, &input.state.highlight, interactive),
-                        PanelMode::Dag => draw_dag_panel(ctx, &ink, l.panel, &view, &input.state.highlight, false, interactive),
+                        PanelMode::Dag => draw_dag_panel(ctx, &ink, l.panel, &view, &input.state.highlight, false, interactive, None),
                         _ => draw_resource_panel(ctx, &ink, l.panel, &view, &input.state.highlight, false, interactive),
                     };
                     if let Chrome::Viewer(v) = &mut chrome {
@@ -735,6 +741,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             if let Some((seconds, opacity)) = viewer.skip {
                 draw_skip_notice(&ink, l, seconds, opacity);
             }
+            if let Some((text, failed)) = &viewer.shader_reload {
+                draw_reload_notice(&ink, l, text, *failed);
+            }
             if viewer.timeline_mode {
                 draw_timeline_bar(ctx, &ink, l, viewer);
             } else {
@@ -751,8 +760,16 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let overlay_ink = Ink::new(ui.painter());
                     ui.painter().rect_filled(canvas, CornerRadius::ZERO, palette::background().gamma_multiply(0.92));
                     let area = canvas.shrink(24.0);
+                    let source = viewer.graph_source && input.state.panel == PanelMode::Dag;
                     let pick = if input.state.panel == PanelMode::Dag {
-                        draw_dag_panel(ctx, &overlay_ink, area, &view, &input.state.highlight, true, true)
+                        // With the source: the graph on the left, the selected pass's WGSL on the right.
+                        let graph_area = if source { Rect::from_min_max(area.min, pos2(area.min.x + area.width() * 0.5 - 8.0, area.max.y)) } else { area };
+                        let pick = draw_dag_panel(ctx, &overlay_ink, graph_area, &view, &input.state.highlight, true, true, Some(source));
+                        if source {
+                            let pane = Rect::from_min_max(pos2(graph_area.max.x + 16.0, area.min.y), area.max);
+                            draw_source_pane(ctx, &overlay_ink, pane, &view, viewer.shader_reload.as_ref().filter(|r| r.1).map(|r| r.0.as_str()));
+                        }
+                        pick
                     } else {
                         draw_resource_panel(ctx, &overlay_ink, area, &view, &input.state.highlight, true, true)
                     };
@@ -1211,7 +1228,7 @@ fn draw_graph_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
     let width = right - x;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Grid, false, interactive);
+    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Grid, false, interactive, None);
     if view.nodes.is_empty() || switched.is_some() {
         return switched;
     }
@@ -1340,6 +1357,8 @@ pub enum GraphPick {
     Overlay(bool),
     /// Put the view's nodes back where the layout placed them.
     Reset,
+    /// Show (or hide) the selected pass's WGSL beside the full-screen DAG.
+    Source(bool),
 }
 
 /// Which view of the frame graph a panel draws.
@@ -1354,7 +1373,7 @@ enum GraphPlace {
 /// the buttons that switch between the grid, the DAG, and the resources, and
 /// the full-screen view (`full`: drawn there). Returns where the content
 /// starts, and a button's pick.
-fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, place: GraphPlace, full: bool, interactive: bool) -> (f32, Option<GraphPick>) {
+fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, place: GraphPlace, full: bool, interactive: bool, source: Option<bool>) -> (f32, Option<GraphPick>) {
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
     let mut y = rect.min.y + 16.0;
@@ -1370,6 +1389,10 @@ fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, pl
         ];
         if !full {
             buttons.push((tr("graph.grid"), place == GraphPlace::Grid, GraphPick::Panel(PanelMode::Graph)));
+        }
+        // The full-screen DAG, a pass selected: its WGSL beside the graph, or not.
+        if let (Some(open), true) = (source, view.inspected.is_some() || source == Some(true)) {
+            buttons.push((if open { tr("graph.hide_source") } else { tr("graph.show_source") }, false, GraphPick::Source(!open)));
         }
         // The views whose nodes move: a button to put them back.
         if place != GraphPlace::Grid {
@@ -1414,14 +1437,14 @@ fn frame_aspect(view: &GraphView) -> f32 {
 /// and a double click puts both back; a story's `highlight` centres the
 /// nodes it names. Hovering a card names its arrows' resources; a click on
 /// one inspects its result.
-fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], full: bool, interactive: bool) -> Option<GraphPick> {
+fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], full: bool, interactive: bool, source: Option<bool>) -> Option<GraphPick> {
     use crate::graph_view::{self, Flow};
     let painter = ink.painter;
     painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
     painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Dag, full, interactive);
+    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Dag, full, interactive, source);
     let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
     if switched == Some(GraphPick::Reset) {
         crate::graph_view::ask_reset(ctx, id);
@@ -1492,7 +1515,8 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
         v.scale = scale;
         v.centre = graph_view::centre_on(laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(laid, area, scale) });
     };
-    let (mut state, picks) = graph_view::view(ctx, id, area, laid, interactive, key, &graph_view::Controls { zoom: None, move_nodes: true }, &setup);
+    // The wheel zooms (out to the whole graph, in to four times the readable scale); a drag on the background pans.
+    let (mut state, picks) = graph_view::view(ctx, id, area, laid, interactive, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(laid, area, scale)), move_nodes: true }, &setup);
     graph_view::keep(&mut state, laid, area);
     if interactive {
         ctx.data_mut(|d| d.insert_temp(id, state.clone()));
@@ -1598,6 +1622,57 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     picks.clicked.and_then(|i| Some(GraphPick::Inspect(format!("{}.{}", view.nodes[i].name, view.nodes[i].result.as_ref()?))))
 }
 
+/// The selected pass's WGSL beside the full-screen DAG (src/shader_source.rs):
+/// the module its pipelines are compiled from, as it is now (a live reload
+/// shows here at once), cut to the pass's entry points and what they use,
+/// each piece under the file and line it comes from; `failed`, why the last
+/// live reload did not compile. Read-only; it scrolls both ways.
+fn draw_source_pane(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, failed: Option<&str>) {
+    let painter = ink.painter;
+    painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
+    painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    let x = rect.min.x + 22.0;
+    let width = rect.width() - 44.0;
+    let mut y = rect.min.y + 16.0;
+    let node = view.inspected.as_deref().and_then(|k| k.rsplit_once('.')).map(|(n, _)| n.to_string());
+    let Some(node) = node else {
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("graph.source_pick"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        return;
+    };
+    let shading = investigation::current().scene_shading();
+    let graph = crate::graph::FrameGraph::current(&[]);
+    let Some(n) = graph.node(&node) else { return };
+    let (module, entries) = crate::graph::source_of(shading, &graph.nodes[n]);
+    ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&format!("WGSL · {node}"), width, 30.0, bold()), 30.0, bold(), palette::text());
+    y += 42.0;
+    let from = tr_with("graph.source_module", args!(module = module, entries = entries.join(", ")));
+    ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&from, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+    y += 36.0;
+    if let Some(error) = failed {
+        let galley = painter.layout(error.to_string(), egui::FontId::monospace(24.0), palette::MISMATCH, width);
+        let shown = galley.size().y.min(6.0 * 30.0);
+        painter.with_clip_rect(Rect::from_min_size(pos2(x, y), vec2(width, shown))).galley(pos2(x, y), galley, palette::MISMATCH);
+        y += shown + 10.0;
+    }
+    // The code view (src/code_view.rs): each piece under its file and line, the entry points
+    // strong, lines as they are (the view scrolls both ways; another pass starts at its top).
+    use crate::code_view;
+    let body = Rect::from_min_max(pos2(rect.min.x + 22.0, y), rect.max - vec2(16.0, 12.0));
+    let sections: Vec<code_view::Section> = match crate::shader_source::cached(module, &entries) {
+        Err(e) => vec![code_view::Section { header: None, lines: e.lines().map(|l| code_view::Line { text: l.to_string(), lit: false }).collect(), strong: true }],
+        Ok(items) => items
+            .iter()
+            .map(|item| code_view::Section {
+                header: Some(format!("{}:{}", item.file, item.line)),
+                lines: item.text.lines().map(|l| code_view::Line { text: l.to_string(), lit: false }).collect(),
+                strong: entries.contains(&item.name.as_str()),
+            })
+            .collect(),
+    };
+    let scroll = code_view::Scroll { ctx, id: egui::Id::unique("frame-graph-source-scroll"), key: &node };
+    code_view::draw(ink, body, code_view::Language::Wgsl, &sections, false, Some(scroll));
+}
+
 /// `text` wrapped to `width` from `at`, at most `lines` lines of 30 points
 /// (the last ends in "…" when it is cut).
 fn footer_text(ink: &Ink, at: Pos2, width: f32, text: &str, lines: usize) {
@@ -1624,7 +1699,7 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
     painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Resources, full, interactive);
+    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Resources, full, interactive, None);
     let shown: Vec<usize> = (0..view.resources.len()).filter(|&r| view.resources[r].name != "frame").collect();
     let id = egui::Id::unique(if full { "frame-graph-resources-overlay" } else { "frame-graph-resources-panel" });
     if switched == Some(GraphPick::Reset) {
@@ -1667,7 +1742,7 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
         v.scale = scale;
         v.centre = graph_view::centre_on(&laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(&laid, area, scale) });
     };
-    let (mut state, picks) = graph_view::view(ctx, id, area, &laid, interactive, key, &graph_view::Controls { zoom: None, move_nodes: true }, &setup);
+    let (mut state, picks) = graph_view::view(ctx, id, area, &laid, interactive, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(&laid, area, scale)), move_nodes: true }, &setup);
     graph_view::keep(&mut state, &laid, area);
     if interactive {
         ctx.data_mut(|d| d.insert_temp(id, state.clone()));
@@ -1766,6 +1841,7 @@ fn graph_action(pick: GraphPick, view: &GraphView) -> ViewerAction {
         GraphPick::Overlay(on) => ViewerAction::SetDagOverlay(on),
         // A view's own: its panel asks it (`graph_view::ask_reset`) and never returns it.
         GraphPick::Reset => unreachable!("a panel resets its own view"),
+        GraphPick::Source(on) => ViewerAction::ShowSource(on),
     }
 }
 
@@ -2335,62 +2411,16 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
     }
     painter.line_segment([pos2(x, y), pos2(rect.max.x - 22.0, y)], Stroke::new(1.0, palette::border()));
     y += 12.0;
-    let line = 28.0;
     let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
-    let any_lit = listing.lines.iter().any(|l| listing.lit(l, highlight));
     if crate::pseudocode::style() == crate::pseudocode::Style::Blocks {
         draw_blocks(ink, x - 10.0, y, width + 20.0, rect.max.y - 12.0, listing, highlight, column, report);
         return;
     }
-    let columns = ((width / column).floor() as usize).max(8);
-    for code_line in &listing.lines {
-        let rows = wrap_code(&code_line.text, columns);
-        let height = line * rows.len() as f32;
-        if y + height > rect.max.y - 12.0 {
-            report.code_overflow += 1;
-            continue;
-        }
-        let lit = listing.lit(code_line, highlight);
-        if lit {
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y - 2.0), vec2(width + 20.0, height)), CornerRadius::same(4), palette::highlight_row());
-            painter.rect_filled(Rect::from_min_size(pos2(x - 10.0, y + 1.0), vec2(4.0, height - 6.0)), CornerRadius::same(2), palette::accent());
-        }
-        // Unlit lines dim while some lines are lit.
-        let dim = any_lit && !lit;
-        draw_code_text(ink, &code_line.text, &rows, pos2(x, y), column, line, dim);
-        y += height;
-    }
-}
-
-/// A code line in syntax colours, on its rows (`wrap_code`) from `at`.
-fn draw_code_text(ink: &Ink, text: &str, rows: &[(usize, usize, usize)], at: Pos2, column: f32, line: f32, dim: bool) {
-    use crate::pseudocode::Token;
-    let mut col = 0usize;
-    for (kind, token) in crate::pseudocode::tokens(text) {
-        let color = match kind {
-            Token::Keyword => palette::code_keyword(),
-            Token::Name => palette::code_name(),
-            Token::Number => palette::code_number(),
-            Token::Text => palette::code_string(),
-            Token::Comment => palette::text_faint(),
-            Token::Plain => palette::text(),
-        };
-        let color = if dim { color.gamma_multiply(0.55) } else { color };
-        let end = col + token.chars().count();
-        // The token's part on each row it reaches.
-        for (row, &(start, stop, indent)) in rows.iter().enumerate() {
-            let (from, to) = (col.max(start), end.min(stop));
-            if from >= to {
-                continue;
-            }
-            let part: String = token.chars().skip(from - col).take(to - from).collect();
-            if !part.trim().is_empty() {
-                let pos = pos2(at.x + (indent + from - start) as f32 * column, at.y + row as f32 * line);
-                ink.text(pos, Align2::LEFT_TOP, part, 24.0, FontFamily::Monospace, color);
-            }
-        }
-        col = end;
-    }
+    // The text style: the code view (src/code_view.rs), its lines wrapped, the highlighted ones lit.
+    use crate::code_view;
+    let lines = listing.lines.iter().map(|l| code_view::Line { text: l.text.clone(), lit: listing.lit(l, highlight) }).collect();
+    let sections = [code_view::Section { header: None, lines, strong: true }];
+    report.code_overflow += code_view::draw(ink, Rect::from_min_max(pos2(x, y), pos2(x + width, rect.max.y - 12.0)), code_view::Language::Python, &sections, true, None);
 }
 
 /// The block style's spacing, tighter for a listing that would not fit.
@@ -2469,7 +2499,7 @@ impl BlockPainter<'_, '_> {
             .iter()
             .map(|l| {
                 let text: String = l.text.chars().skip(indent(&l.text).min(base)).collect();
-                let rows = wrap_code(&text, columns);
+                let rows = crate::code_view::wrap(&text, columns);
                 (text, rows)
             })
             .collect()
@@ -2535,7 +2565,7 @@ impl BlockPainter<'_, '_> {
             return height;
         }
         for (text, rows) in &rows {
-            draw_code_text(self.ink, text, rows, pos2(x, y), self.column, BLOCK_ROW, dim);
+            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, text, rows, pos2(x, y), self.column, BLOCK_ROW, dim);
             y += BLOCK_ROW * rows.len() as f32;
         }
         height
@@ -2578,8 +2608,8 @@ impl BlockPainter<'_, '_> {
                             self.overflow += 1;
                         } else {
                             let text = self.listing.lines[*line].text.trim_start().to_string();
-                            let rows = wrap_code(&text, usize::MAX / 2);
-                            draw_code_text(self.ink, &text, &rows, pos2(at.x + BLOCK_EDGE + BLOCK_TEXT, y), self.column, BLOCK_ROW, self.any_lit);
+                            let rows = crate::code_view::wrap(&text, usize::MAX / 2);
+                            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, &text, &rows, pos2(at.x + BLOCK_EDGE + BLOCK_TEXT, y), self.column, BLOCK_ROW, self.any_lit);
                         }
                     }
                     BLOCK_ROW
@@ -2635,28 +2665,6 @@ fn draw_blocks(ink: &Ink, x: f32, y: f32, width: f32, bottom: f32, listing: &cra
     painter.hatted = false;
     painter.stack(&blocks, pos2(x, y), width);
     report.code_overflow += painter.overflow;
-}
-
-/// A code line's rows within `columns`: each row's character range and the
-/// column it starts at. A long line breaks after its last space or comma that
-/// fits, and continues four columns deeper than its indentation.
-pub(crate) fn wrap_code(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
-    let chars: Vec<char> = text.chars().collect();
-    let deeper = chars.iter().take_while(|c| **c == ' ').count() + 4;
-    let mut rows = Vec::new();
-    let (mut start, mut indent) = (0, 0);
-    while chars.len() - start > columns - indent {
-        let limit = start + (columns - indent).max(1);
-        let stop = (start + 1..=limit).rev().find(|&b| matches!(chars[b - 1], ' ' | ',')).unwrap_or(limit);
-        rows.push((start, stop, indent));
-        start = stop;
-        while start < chars.len() && chars[start] == ' ' {
-            start += 1;
-        }
-        indent = deeper.min(columns / 2);
-    }
-    rows.push((start, chars.len(), indent));
-    rows
 }
 
 fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, layout: &crate::layout::ShaderStruct, rust: &[RustField], x: f32, width: f32, mut y: f32, bottom: f32) {
@@ -2829,6 +2837,18 @@ fn draw_caption_text(ink: &Ink, l: &Layout, caption: Option<&str>) {
 
 /// How far the timeline just skipped, in a card on the viewport's left
 /// (back) or right (forward) side, fading out.
+/// The last live reload of the shaders, over the top of the viewport: the
+/// files read again, or (until a reload succeeds) why it failed.
+fn draw_reload_notice(ink: &Ink, l: &Layout, text: &str, failed: bool) {
+    let width = (l.viewport.width() - 48.0).max(200.0);
+    let galley = ink.painter.layout(text.to_string(), egui::FontId::monospace(24.0), if failed { palette::MISMATCH } else { palette::text() }, width - 28.0);
+    let card = Rect::from_min_size(pos2(l.viewport.min.x + 24.0, l.viewport.min.y + 16.0), vec2(galley.size().x + 28.0, galley.size().y.min(8.0 * 30.0) + 20.0));
+    ink.painter.rect_filled(card, CornerRadius::same(10), palette::panel().gamma_multiply(0.92));
+    ink.painter.rect_stroke(card, CornerRadius::same(10), Stroke::new(1.5, if failed { palette::MISMATCH } else { palette::accent() }), StrokeKind::Inside);
+    ink.painter.with_clip_rect(card.shrink(4.0)).galley(card.min + vec2(14.0, 10.0), galley, palette::text());
+    ink.min_size.set(ink.min_size.get().min(24.0));
+}
+
 fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
     let text = if seconds < 0 {
         format!("◀◀  {}", tr_with("ui.skip_back", args!(seconds = -seconds)))

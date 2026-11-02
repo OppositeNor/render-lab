@@ -161,6 +161,9 @@ pub struct App {
     pub timeline_mode: bool,
     /// The last skip: the seconds skipped by presses in a row, and when the last one was.
     skip: Option<(i64, Instant)>,
+    /// The last live reload of the shaders: what it says, whether it failed,
+    /// and when (a success shows for a few seconds, a failure until fixed).
+    shader_reload: Option<(String, bool, Instant)>,
     audio: Option<crate::audio::AudioPlayer>,
     /// The narration's volume; the viewer hands it back when it closes.
     pub narration: Volume,
@@ -209,6 +212,8 @@ pub struct App {
     knowledge_overlay: bool,
     /// The frame graph's DAG is shown full screen (Esc closes it).
     dag_overlay: bool,
+    /// The full-screen DAG shares the screen with the selected pass's WGSL.
+    graph_source: bool,
 }
 
 impl App {
@@ -253,6 +258,7 @@ impl App {
             timeline_anchor: (Instant::now(), start_frame),
             timeline_mode: start_in_timeline,
             skip: None,
+            shader_reload: None,
             audio,
             narration,
             diagram_preset: None,
@@ -282,6 +288,7 @@ impl App {
             knowledge_focus: None,
             knowledge_overlay: false,
             dag_overlay: false,
+            graph_source: false,
         })
     }
 
@@ -724,6 +731,7 @@ impl App {
             ViewerAction::SaveLayout => self.save_layout(),
             ViewerAction::SetKnowledgeOverlay(on) => self.knowledge_overlay = on,
             ViewerAction::SetDagOverlay(on) => self.dag_overlay = on,
+            ViewerAction::ShowSource(on) => self.graph_source = on,
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
                 self.save_layout();
@@ -1078,6 +1086,19 @@ impl App {
         let now = Instant::now();
         let dt = (now - self.last_tick).as_secs_f32().min(0.1);
         self.last_tick = now;
+        // Live reload: about twice a second, the checkout's WGSL files changed since are read
+        // again and every pipeline made from them (a broken edit keeps the last good ones).
+        if self.frames % 30 == 0 && self.renderer.is_some() {
+            let changed = crate::resources::reload_changed();
+            if !changed.is_empty() {
+                use crate::i18n::{args, tr_with};
+                let files: Vec<String> = changed.iter().map(|id| crate::resources::get(id).source().rsplit('/').next().unwrap_or_default().to_string()).collect();
+                self.shader_reload = Some(match self.renderer.as_mut().expect("renderer").reload_shaders() {
+                    Ok(()) => (tr_with("graph.reloaded", args!(files = files.join(", "))), false, now),
+                    Err(e) => (tr_with("graph.reload_failed", args!(error = e)), true, now),
+                });
+            }
+        }
         if self.playing {
             if self.timeline_mode {
                 if let Some(t) = &self.timeline {
@@ -1140,6 +1161,8 @@ impl App {
             experiment: crate::ui::ExperimentView::default(),
             knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
             dag_overlay: self.dag_overlay && matches!(self.state.panel, PanelMode::Dag | PanelMode::Resources),
+            graph_source: self.graph_source,
+            shader_reload: self.shader_reload.as_ref().filter(|(_, failed, at)| *failed || at.elapsed().as_secs_f32() < 4.0).map(|(t, f, _)| (t.clone(), *f)),
         };
         // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
         let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
@@ -1835,6 +1858,8 @@ pub struct GraphSnapshot {
     pub dag: bool,
     /// The resources' cards instead of the DAG.
     pub resources: bool,
+    /// The selected pass's WGSL beside the full-screen DAG (`viewer-source:<node>`).
+    pub source: bool,
     pub full_screen: bool,
     pub highlight: Vec<String>,
 }
@@ -1850,6 +1875,7 @@ pub fn snapshot_graph(options: ViewerOptions, demo: Option<&str>, inspect_key: O
     app.state = app.default_state(app.state.demo);
     app.state.panel = if how.resources { PanelMode::Resources } else if how.dag { PanelMode::Dag } else { PanelMode::Graph };
     app.dag_overlay = how.full_screen;
+    app.graph_source = how.source;
     app.tab = DockTab::Graph;
     let graph = crate::graph::FrameGraph::current(&[]);
     if let Some(unknown) = how.highlight.iter().find(|h| graph.node(h).is_none()) {

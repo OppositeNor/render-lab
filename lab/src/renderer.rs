@@ -224,6 +224,8 @@ struct Inspection {
     size: [u32; 2],
     params: wgpu::Buffer,
     id: egui::TextureId,
+    /// Which image of a program's binding array (`image.index`).
+    index: u32,
 }
 
 /// The most texels along an inspector texture's longer side.
@@ -287,6 +289,12 @@ struct Shading {
     scale: u32,
     /// A count that orders the volume sets by when they were last used.
     clock: u64,
+    /// The program's resources, plan, and commands (`SceneShading::program`).
+    program: Option<std::cell::RefCell<crate::program::ProgramRuntime>>,
+    /// An empty group 2 for a scene pass that reads the program at group 3 but no chain.
+    empty_scene_group: Option<wgpu::BindGroup>,
+    /// The program's resources by name (handles, for the inspector).
+    program_handles: Vec<(&'static str, crate::program::ProgramHandle)>,
 }
 
 /// The volumes of one update key: their textures, group 3 that samples them,
@@ -420,14 +428,14 @@ impl ChainTargets {
     fn new(device: &wgpu::Device, shading: &Shading, viewport: &ViewportTargets) -> ChainTargets {
         let source = shading.source;
         let size = viewport.size;
-        let written: Vec<&str> = source.passes.iter().flat_map(|p| p.writes.iter().copied()).collect();
+        let written: Vec<&str> = source.early.iter().chain(source.passes).flat_map(|p| p.writes.iter().copied()).collect();
         let divisors: Vec<(&'static str, u32)> = source.targets.iter().map(|t| (t.name, if source.resolution.is_some_and(|r| r.targets.contains(&t.name)) { shading.scale } else { t.divisor })).collect();
         let views: Vec<(&'static str, wgpu::TextureView)> = source
             .targets
             .iter()
             .zip(&divisors)
             .map(|(t, &(_, divisor))| {
-                let output = source.outputs.contains(&t.name);
+                let output = source.attachment(t.name);
                 let mut usage = wgpu::TextureUsages::TEXTURE_BINDING;
                 if output {
                     usage |= wgpu::TextureUsages::RENDER_ATTACHMENT;
@@ -477,7 +485,7 @@ impl ChainTargets {
         };
         let group = |label: &str, layout: &wgpu::BindGroupLayout, reads: &[&str], writes: &[&str]| {
             let mut entries: Vec<wgpu::BindGroupEntry> = Vec::new();
-            for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_volume(source, n)) {
+            for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_group3(source, n)) {
                 let binding = gpu::chain_binding(source, name, written);
                 if !entries.iter().any(|e| e.binding == binding) {
                     entries.push(wgpu::BindGroupEntry { binding, resource: resource(name) });
@@ -552,6 +560,8 @@ impl ChainTargets {
                 pass.set_bind_group(2, &self.groups[i], &[]);
                 if let Some(v) = shading.volume_sets.get(shading.volume_set) {
                     pass.set_bind_group(3, &v.group, &[]);
+                } else if let Some(g) = shading.program.as_ref().and_then(|p| p.borrow().scene_group.clone()) {
+                    pass.set_bind_group(3, &g, &[]);
                 }
                 pass.dispatch_workgroups(size[0].div_ceil(step.workgroup[0]), size[1].div_ceil(step.workgroup[1]), 1);
             }
@@ -562,6 +572,8 @@ impl ChainTargets {
         pass.set_bind_group(1, &shading.group, &[]);
         if let Some(v) = shading.volume_sets.get(shading.volume_set) {
             pass.set_bind_group(3, &v.group, &[]);
+        } else if let Some(g) = shading.program.as_ref().and_then(|p| p.borrow().scene_group.clone()) {
+            pass.set_bind_group(3, &g, &[]);
         }
         for &i in steps {
             let step = all[i];
@@ -1071,7 +1083,10 @@ impl Renderer {
                 device.create_buffer(&wgpu::BufferDescriptor { label: Some("update parameters"), size: UPDATE_DISPATCHES_MAX * crate::pipelines::UPDATE_PARAMS_STRIDE, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false })
             });
             let volume_sets = if source.volumes.is_empty() { Vec::new() } else { vec![VolumeSet::new(device, source, &pipelines, &update_buffers, update_params.as_ref(), &sampler)] };
-            self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data, volume_sets, volume_set: 0, update_runs: Vec::new(), update_buffers, update_params, sampler, scale: 1, clock: 0 });
+            let program = source.program.zip(pipelines.program.as_ref()).map(|(p, pp)| std::cell::RefCell::new(crate::program::ProgramRuntime::new(device, p, pp)));
+            let program_handles = program.as_ref().map_or(Vec::new(), |p| p.borrow().handles());
+            let empty_scene_group = (source.program.is_some_and(|p| !p.scene_uses.is_empty()) && source.scene_reads.is_empty()).then(|| device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("no scene reads"), layout: &pipelines.scene_group, entries: &[] }));
+            self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data, volume_sets, volume_set: 0, update_runs: Vec::new(), update_buffers, update_params, sampler, scale: 1, clock: 0, program, empty_scene_group, program_handles });
         }
         self.shadings.iter().find(|s| std::ptr::eq(s.source, source))
     }
@@ -1176,6 +1191,25 @@ impl Renderer {
     }
 
     /// Seconds the current shading's scene data has been building, while it does.
+    /// Live reload (src/resources.rs `reload_changed`): every pipeline made
+    /// again from the shaders as they are now. On an error nothing changes
+    /// (the last good pipelines keep running) and the error is returned.
+    /// The bind groups stay: wgpu shares a layout among layouts of the same
+    /// entries, so the new pipelines take the groups made for the old.
+    pub fn reload_shaders(&mut self) -> Result<(), String> {
+        let device = &self.gpu.device;
+        let pipelines = gpu::Pipelines::new(device).map_err(|e| format!("{e:#}"))?;
+        let shadings = self.shadings.iter().map(|s| pipelines.shading(device, s.source).map_err(|e| format!("{e:#}"))).collect::<Result<Vec<_>, _>>()?;
+        self.pipelines = pipelines;
+        for (s, p) in self.shadings.iter_mut().zip(shadings) {
+            s.pipelines = p;
+        }
+        // Made again when next used.
+        self.view_pipelines.clear();
+        self.inspect_pipelines.clear();
+        Ok(())
+    }
+
     pub fn rebuilding(&self) -> Option<f32> {
         let source = investigation::current().scene_shading()?;
         let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, source))?;
@@ -1189,6 +1223,48 @@ impl Renderer {
         let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("update") });
         self.encode_updates(&mut encoder, None);
         self.gpu.queue.submit([encoder.finish()]);
+    }
+
+    /// Element `index` of the current shading's program resource `name`, as
+    /// the last frame left it (a selftest): an image's texels (rows unpadded,
+    /// slice after slice or layer after layer) and its size, or a buffer's
+    /// bytes and `[bytes, 1, 1]`.
+    pub fn read_program(&self, name: &str, index: u32) -> Option<(Vec<u8>, [u32; 3])> {
+        let source = investigation::current().scene_shading()?;
+        let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, source))?;
+        let (_, handle) = shading.program_handles.iter().find(|(n, _)| *n == name)?;
+        let device = &self.gpu.device;
+        match handle {
+            crate::program::ProgramHandle::Buffer(buffers) => {
+                let b = buffers.get(index as usize)?;
+                let readback = device.create_buffer(&wgpu::BufferDescriptor { label: Some("program readback"), size: b.size(), usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
+                let mut encoder = device.create_command_encoder(&Default::default());
+                encoder.copy_buffer_to_buffer(b, 0, &readback, 0, b.size());
+                self.gpu.queue.submit([encoder.finish()]);
+                Some((read_buffer(device, &self.gpu.queue, &readback, 0, b.size()), [b.size() as u32, 1, 1]))
+            }
+            crate::program::ProgramHandle::Image { textures, .. } => {
+                let texture = textures.get(index as usize)?;
+                let size = [texture.width(), texture.height(), texture.depth_or_array_layers()];
+                let texel = texture.format().block_copy_size(None)?;
+                let row = size[0] * texel;
+                let padded = row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("program readback"), size: padded as u64 * size[1] as u64 * size[2] as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
+                let mut encoder = device.create_command_encoder(&Default::default());
+                encoder.copy_texture_to_buffer(
+                    wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+                    wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded), rows_per_image: Some(size[1]) } },
+                    wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: size[2] },
+                );
+                self.gpu.queue.submit([encoder.finish()]);
+                let bytes = read_buffer(device, &self.gpu.queue, &buffer, 0, buffer.size());
+                let mut out = Vec::with_capacity((row * size[1] * size[2]) as usize);
+                for r in 0..(size[1] * size[2]) as usize {
+                    out.extend_from_slice(&bytes[r * padded as usize..r * padded as usize + row as usize]);
+                }
+                Some((out, size))
+            }
+        }
     }
 
     /// Mip `mip` of the current shading's volume `name`, as the state last
@@ -1548,6 +1624,7 @@ impl Renderer {
         // A recording (no history) waits for the data, so every frame is the same each time.
         if renders {
             self.select_data(scene_state, !request.history);
+            self.plan_program(scene_state, request.history);
         }
         let mut content = match prepared.or(built) {
             Some(c) => Some(c),
@@ -1838,6 +1915,17 @@ impl Renderer {
     /// The update dispatches `select_data` planned (`SceneShading::update`):
     /// their parameters written, each run of one pass in a compute pass of
     /// its own (timed while `timing` is given, under the pass's entry).
+    /// Runs the current shading's program's plan for the main view's frame
+    /// (`ShadingProgram::plan`): the next timed `encode_scene` records its commands.
+    fn plan_program(&mut self, state: &ShotState, history: bool) {
+        self.shading();
+        let Some(source) = investigation::current().scene_shading() else { return };
+        let Some(shading) = self.shadings.iter().find(|s| std::ptr::eq(s.source, source)) else { return };
+        let Some(program) = &shading.program else { return };
+        let frame = crate::investigation::ProgramFrame { state, history, features: self.gpu.device.features() };
+        program.borrow_mut().plan(&self.gpu.device, &self.gpu.queue, &frame);
+    }
+
     fn encode_updates(&mut self, encoder: &mut wgpu::CommandEncoder, mut timing: Option<&mut crate::timing::Timing>) {
         let Some(source) = investigation::current().scene_shading() else { return };
         let Some(update) = source.update else { return };
@@ -1939,6 +2027,15 @@ impl Renderer {
         if self.inspect_pipelines.is_empty() {
             let source = crate::shaders::module(crate::shaders::INSPECT).unwrap_or_else(|e| panic!("{e:#}"));
             let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("inspect"), source: wgpu::ShaderSource::Wgsl(source.into()) });
+            let tex = |sample_type, view_dimension| wgpu::BindingType::Texture { sample_type, view_dimension, multisampled: false };
+            let (float, uint, sint) = (wgpu::TextureSampleType::Float { filterable: false }, wgpu::TextureSampleType::Uint, wgpu::TextureSampleType::Sint);
+            let programs: [(&str, u32, wgpu::BindingType); 5] = [
+                ("inspectVolumeUintCS", 8, tex(uint, wgpu::TextureViewDimension::D3)),
+                ("inspectVolumeSintCS", 9, tex(sint, wgpu::TextureViewDimension::D3)),
+                ("inspectArrayCS", 10, tex(float, wgpu::TextureViewDimension::D2Array)),
+                ("inspectArrayUintCS", 11, tex(uint, wgpu::TextureViewDimension::D2Array)),
+                ("inspectArraySintCS", 12, tex(sint, wgpu::TextureViewDimension::D2Array)),
+            ];
             let sources: [(&str, wgpu::BindingType); 6] = [
                 ("inspectTextureCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }),
                 ("inspectTextureMsCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }),
@@ -1947,12 +2044,15 @@ impl Renderer {
                 ("inspectBufferCS", wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }),
                 ("inspectVolumeCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D3, multisampled: false }),
             ];
-            for (entry, ty) in sources {
+            let sources = sources.into_iter().map(|(entry, ty)| {
                 let (_, binding) = [Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 1 }, Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 4 }, Shape::Texture { format: wgpu::TextureFormat::Depth32Float, divisor: 1, samples: 4 }, Shape::DepthArray { size: 1, layers: 1 }, Shape::UpdateBuffer, Shape::Volume { format: wgpu::TextureFormat::Rgba8Unorm, size: [1; 3], mips: 1 }]
                     .iter()
                     .map(inspect_entry)
                     .find(|(e, _)| *e == entry)
                     .expect("an entry per kind");
+                (entry, binding, ty)
+            });
+            for (entry, binding, ty) in sources.chain(programs) {
                 let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some(entry),
                     entries: &[
@@ -2006,6 +2106,13 @@ impl Renderer {
                         _ => [s[0], s[2]],
                     }
                 }
+                Shape::Bytes { bytes } => [256, (bytes.div_ceil(4) as u32).div_ceil(256).max(1)],
+                Shape::Image { kind: crate::investigation::ImageKind::D3, size: s, .. } => match axis {
+                    0 => [s[2], s[1]],
+                    2 => [s[0], s[1]],
+                    _ => [s[0], s[2]],
+                },
+                Shape::Image { size, .. } => [size[0], size[1]],
             };
             let long = src[0].max(src[1]).max(1);
             let side = if card_image(&name) { DAG_SIDE } else { INSPECT_SIDE.min(long.max(256)) };
@@ -2031,12 +2138,15 @@ impl Renderer {
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some(&name), size: 80, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
                 let (entry, binding) = inspect_entry(&resource.shape);
                 self.textures.insert(view_texture(&name), (id, size));
-                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id });
+                let index = param("index", 0).unwrap_or(0.0) as u32;
+                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id, index });
             }
             let range = [param("range", 0).unwrap_or(show.range()[0]), param("range", 1).unwrap_or(show.range()[1])];
             let (tile, words, tiles_x, samples) = match &resource.shape {
                 Shape::Buffer { words_per_tile, tile } => (*tile, *words_per_tile, viewport[0].div_ceil((*tile).max(1)), 1),
-                Shape::UpdateBuffer => (0, 1, 0, 1),
+                Shape::UpdateBuffer | Shape::Bytes { .. } => (0, 1, 0, 1),
+                // An integer image: its value is the word (a hash of it, a count).
+                Shape::Image { format, .. } if crate::graph::image_class(*format) != 0 => (1, 1, 0, 1),
                 Shape::Texture { samples, .. } => (1, 0, 0, *samples),
                 _ => (1, 0, 0, 1),
             };
@@ -2061,7 +2171,7 @@ impl Renderer {
                 level,
                 axis,
                 samples,
-                0,
+                u(param("bits", 0).unwrap_or(0.0)) | (u(param("bits", 1).unwrap_or(0.0)) << 8),
             ];
             let x = &self.inspections[&name];
             self.gpu.queue.write_buffer(&x.params, 0, bytemuck::cast_slice(&words_out));
@@ -2094,7 +2204,19 @@ impl Renderer {
                         Some(r) => r,
                         None => {
                             let Some(s) = shading else { continue };
-                            if let Some(k) = s.source.update.and_then(|u| u.buffers.iter().position(|b| b.name == name)) {
+                            if let Some((_, h)) = s.program_handles.iter().find(|(n, _)| *n == name) {
+                                match h {
+                                    crate::program::ProgramHandle::Buffer(b) => {
+                                        let Some(b) = b.get(x.index as usize).or(b.first()) else { continue };
+                                        b.as_entire_binding()
+                                    }
+                                    image => {
+                                        let Some(view) = image.view(x.index) else { continue };
+                                        volume_view = view;
+                                        wgpu::BindingResource::TextureView(&volume_view)
+                                    }
+                                }
+                            } else if let Some(k) = s.source.update.and_then(|u| u.buffers.iter().position(|b| b.name == name)) {
                                 s.update_buffers[k].as_entire_binding()
                             } else if let (Some(v), Some(set)) = (s.source.volumes.iter().position(|v| v.name == name), s.volume_sets.get(s.volume_set)) {
                                 volume_view = set.textures[v].create_view(&Default::default());
@@ -2171,6 +2293,23 @@ impl Renderer {
     /// update passes (their plan's dispatches), then each live node: the
     /// depth views, the pre-pass, the chain's compute passes, the scene pass,
     /// and the overlay. The composite is the caller's.
+    /// Records the program's commands of `stage` (the main view's frame only),
+    /// the inspector drawing what each pass wrote right after it.
+    #[allow(clippy::too_many_arguments)]
+    fn record_program(&self, encoder: &mut wgpu::CommandEncoder, stage: crate::investigation::ProgramStage, graph: &crate::graph::FrameGraph, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets, timing: Option<&mut crate::timing::Timing>) {
+        let Some(s) = shading else { return };
+        let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) else { return };
+        let meshes = crate::program::Meshes { vertices: &self.mesh_vertices, objects: &self.object_ids, indices: &self.mesh_indices, ranges: &self.statics.meshes.ranges };
+        let mut after = |encoder: &mut wgpu::CommandEncoder, pass: &'static str| {
+            if let Some(n) = graph.nodes.iter().position(|n| n.name == pass && matches!(n.step, Step::Program(_))) {
+                if self.inspections.values().any(|x| x.node == n) {
+                    self.capture(encoder, n, chain, shading, targets);
+                }
+            }
+        };
+        program.borrow_mut().record(&self.gpu.device, encoder, pipelines, stage, &self.frame_bind_group, &s.group, &meshes, timing, &mut after);
+    }
+
     fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent, timed: bool) {
         self.shading();
         let graph = self.frame_graph();
@@ -2180,14 +2319,14 @@ impl Renderer {
         let shading = investigation::current().scene_shading().and_then(|source| self.shadings.iter().find(|s| std::ptr::eq(s.source, source)));
         let targets = self.viewport.as_ref().unwrap();
         // An investigation's pass chain: its targets follow the viewport.
-        let chained = shading.filter(|s| !s.source.outputs.is_empty());
+        let chained = shading.filter(|s| s.source.chained());
         if let Some(s) = chained {
             if self.chain.as_ref().is_none_or(|c| c.size != targets.size || c.scale != s.scale || !std::ptr::eq(c.source, s.source)) {
                 self.chain = Some(ChainTargets::new(&self.gpu.device, s, targets));
             }
         }
         let chain = chained.and(self.chain.as_ref());
-        let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = match chain {
+        let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = match chain.filter(|c| !c.source.outputs.is_empty()) {
             // The chain's targets start at zero: its passes decide what the background is.
             Some(c) => c
                 .source
@@ -2198,6 +2337,11 @@ impl Renderer {
             None => vec![Some(wgpu::RenderPassColorAttachment { view: &targets.hdr_msaa, depth_slice: None, resolve_target: Some(&targets.hdr), ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Discard } })],
         };
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
+        // The program's commands run in the main view only; the others read what it left.
+        use crate::investigation::ProgramStage;
+        let program_shading = shading.filter(|_| timed);
+        self.record_program(encoder, ProgramStage::Start, &graph, chain, program_shading, targets, timing.as_mut());
+        let mut after_prepass = false;
         // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
         let mut pending: Vec<usize> = Vec::new();
         for &n in &graph.order {
@@ -2221,7 +2365,7 @@ impl Renderer {
                 c.dispatch(encoder, &self.frame_bind_group, s, &std::mem::take(&mut pending), timing.as_mut());
             }
             match node.step {
-                Step::Update(_) | Step::Compute(_) | Step::Composite => {}
+                Step::Update(_) | Step::Compute(_) | Step::Composite | Step::Program(_) => {}
                 Step::DepthViews => {
                     let (Some(s), Some(c)) = (chained, chain) else { continue };
                     // The depth views (shadow maps), one layer at a time, when what
@@ -2256,9 +2400,16 @@ impl Renderer {
                     let (Some(s), Some(c)) = (chained, chain) else { continue };
                     if let Some(prepass) = &s.pipelines.prepass {
                         let span = timing.as_mut().and_then(|t| t.render_writes("depth pre-pass"));
+                        // What the pre-pass writes besides the depth (`prepass_outputs`).
+                        let outputs: Vec<Option<wgpu::RenderPassColorAttachment>> = s
+                            .source
+                            .prepass_outputs
+                            .iter()
+                            .map(|name| Some(wgpu::RenderPassColorAttachment { view: c.view(name), depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store } }))
+                            .collect();
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                             label: Some("depth pre-pass"),
-                            color_attachments: &[],
+                            color_attachments: &outputs,
                             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                                 view: &targets.depth,
                                 depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
@@ -2272,6 +2423,9 @@ impl Renderer {
                         pass.set_bind_group(0, &self.frame_bind_group, &[]);
                         pass.set_bind_group(1, &s.group, &[]);
                         pass.set_bind_group(2, &c.scene_group, &[]);
+                        if let Some(group) = s.program.as_ref().and_then(|p| p.borrow().scene_group.clone()) {
+                            pass.set_bind_group(3, &group, &[]);
+                        }
                         pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
                         pass.set_vertex_buffer(1, self.object_ids.slice(..));
                         pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -2279,8 +2433,14 @@ impl Renderer {
                             pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                         }
                     }
+                    self.record_program(encoder, ProgramStage::AfterPrepass, &graph, chain, program_shading, targets, timing.as_mut());
+                    after_prepass = true;
                 }
                 Step::Scene => {
+                    if !std::mem::replace(&mut after_prepass, true) {
+                        self.record_program(encoder, ProgramStage::AfterPrepass, &graph, chain, program_shading, targets, timing.as_mut());
+                    }
+                    self.record_program(encoder, ProgramStage::BeforeScene, &graph, chain, program_shading, targets, timing.as_mut());
                     let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("scene"),
@@ -2295,8 +2455,8 @@ impl Renderer {
                         multiview_mask: None,
                     });
                     pass.set_bind_group(0, &self.frame_bind_group, &[]);
-                    // Without a chain, the sky is the background; a chain's passes draw their own.
-                    if chain.is_none() {
+                    // Without a chain (or one that ends before the scene pass), the sky is the background; a chain's passes draw their own.
+                    if chain.is_none_or(|c| c.source.outputs.is_empty()) {
                         pass.set_pipeline(&self.pipelines.sky);
                         pass.draw(0..3, 0..1);
                     }
@@ -2305,6 +2465,11 @@ impl Renderer {
                         pass.set_bind_group(1, &s.group, &[]);
                         if let Some(c) = chain {
                             pass.set_bind_group(2, &c.scene_group, &[]);
+                        } else if let Some(empty) = &s.empty_scene_group {
+                            pass.set_bind_group(2, empty, &[]);
+                        }
+                        if let Some(group) = s.program.as_ref().and_then(|p| p.borrow().scene_group.clone()) {
+                            pass.set_bind_group(3, &group, &[]);
                         }
                     }
                     pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
@@ -2387,6 +2552,7 @@ impl Renderer {
         }
         self.switch_scene(investigation::current().scene(state));
         self.select_data(state, true);
+        self.plan_program(state, true);
         let mut content = crate::shader_data::build_frame(state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, 0.0);
         let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
         self.still = count(self.still, still_key(&content, size, true));

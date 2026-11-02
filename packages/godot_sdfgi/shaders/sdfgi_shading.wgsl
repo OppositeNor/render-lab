@@ -8,13 +8,20 @@
 // THIRD_PARTY.md). src/godot/sdfgi/screen.rs mirrors it on the CPU, and
 // `selftest` compares the two.
 //
-// Where the lab differs: Godot runs this as a compute pass over the depth and
-// normal-roughness buffers (GI::process_gi); the lab evaluates the same
-// function per fragment of the scene pass, with the fragment's position and
-// normal. The specular march below roughness 0.2 is not run here (the room's
-// materials are rougher); the probes' radiance is used at every roughness.
-// SDFGI follows a camera that stays at the room's centre (sim.rs), so
-// "camera-relative" positions are relative to that point, not to the view.
+// As in Godot, sdfgi_process runs in a compute pass over the depth pre-pass's
+// depth and normal-roughness buffers (sdfgiGatherCS, GI::process_gi), whose
+// AMBIENT and REFLECTION buffers the scene pass reads. The specular march
+// below roughness 0.2 is not run (the room's materials are rougher); the
+// probes' radiance is used at every roughness.
+// The scene pass reads the probe maps the GPU passes wrote (the lab program,
+// gpu.rs; sdfgi_gpu_probes.wgsl's MODE_STORE), whose cascades follow the
+// main view's camera: group 3 binding 1 `lightprobeData` (E5B9G9R9 words,
+// decoded and filtered here where the engine samples its RGB9E5 view) and
+// binding 2 `screenData` (the cascades relative to SDFGI's camera, then that
+// camera). The verification kernel at the end reads the converged CPU world
+// instead (gShadingData, gShadingFrame, whose camera stays at the room's
+// centre, sim.rs), through the functions below that the scene pass's copies
+// (`...Map`) mirror.
 
 // gShading: the investigation's values (the `///` tags; the lab packs them
 // from the shot, lab/src/shader_data.rs) and what demos.rs derives.
@@ -202,9 +209,241 @@ fn sdfgiProcess(vertexIn: vec3<f32>, normalIn: vec3<f32>, reflectionIn: vec3<f32
     return out;
 }
 
-// The scene pass: the lab's direct light from the panel, plus SDFGI's
-// ambient times albedo (scene_forward_clustered.glsl: ambient_light *= albedo)
-// and its reflection times the environment BRDF.
+// The program's probe maps and cascades, as the scene pass reads them
+// (gpu.rs PROGRAM.scene_uses): copies of sdfgiTexel, sdfgiBilinear,
+// sdfgiCascadePosition, sdfgiToProbe, sdfgiVoxelGi, and sdfgiProcess above,
+// which the verification kernel keeps (it binds no group 3). The map's
+// layers: cascade c's irradiance at c, its radiance at c + max_cascades.
+@group(3) @binding(1) var gSdfgiMap: texture_2d_array<u32>;
+@group(3) @binding(2) var<storage, read> gSdfgiScreen: array<vec4<f32>>;
+
+// sdfgiTexel, from the program's map.
+fn sdfgiMapTexel(layer: u32, x: i32, y: i32) -> vec3<f32> {
+    let cx = clamp(x, 0, SDFGI_MAP_WIDTH - 1);
+    let cy = clamp(y, 0, SDFGI_MAP_HEIGHT - 1);
+    return sdfgiDecodeE5b9g9r9(textureLoad(gSdfgiMap, vec2<i32>(cx, cy), i32(layer), 0).r);
+}
+
+// sdfgiBilinear, from the program's map.
+fn sdfgiMapBilinear(layer: u32, pos: vec2<f32>) -> vec3<f32> {
+    let t = pos - vec2<f32>(0.5);
+    let b = floor(t);
+    let f = t - b;
+    let x0 = i32(b.x);
+    let y0 = i32(b.y);
+    let a = mix(sdfgiMapTexel(layer, x0, y0), sdfgiMapTexel(layer, x0 + 1, y0), f.x);
+    let c = mix(sdfgiMapTexel(layer, x0, y0 + 1), sdfgiMapTexel(layer, x0 + 1, y0 + 1), f.x);
+    return mix(a, c, f.y);
+}
+
+fn sdfgiScreenPosition(c: u32) -> vec3<f32> {
+    return gSdfgiScreen[c * 2u].xyz;
+}
+
+fn sdfgiScreenToProbe(c: u32) -> f32 {
+    return gSdfgiScreen[c * 2u].w;
+}
+
+// The camera the program's cascades follow (screenData's last vector).
+fn sdfgiScreenCamera() -> vec3<f32> {
+    return gSdfgiScreen[16].xyz;
+}
+
+// sdfgiVoxelGi, reading the program's map (its layers as the engine lays them out).
+fn sdfgiVoxelGiMap(cascade: u32, cascadePosIn: vec3<f32>, camNormal: vec3<f32>, specularNormal: vec3<f32>, roughness: f32) -> SdfgiGi {
+    let cascadePos = cascadePosIn + camNormal * (gShading.normalBias / 128.0 * 16.0);
+    let probeBase = vec3<i32>(floor(cascadePos));
+    let diffuseOct = sdfgiOctahedronEncode(camNormal) * f32(SDFGI_OCT_SIZE);
+    let specularOct = sdfgiOctahedronEncode(specularNormal) * f32(SDFGI_OCT_SIZE);
+    let irradianceLayer = cascade;
+    let radianceLayer = cascade + u32(gShading.cascadeCount);
+    var diffuseAccum = vec4<f32>(0.0);
+    var specularAccum = vec3<f32>(0.0);
+    for (var j = 0u; j < 8u; j++) {
+        let offset = vec3<i32>(vec3<u32>(j, j >> 1u, j >> 2u) & vec3<u32>(1u));
+        let probe = probeBase + offset;
+        let probeToPos = cascadePos - vec3<f32>(probe);
+        let probeDir = normalize(-probeToPos);
+        let trilinear = vec3<f32>(1.0) - abs(probeToPos);
+        let weight = trilinear.x * trilinear.y * trilinear.z * max(0.005, dot(camNormal, probeDir));
+        let texBase = vec2<f32>(f32((probe.x + probe.z * SDFGI_PROBE_AXIS_SIZE) * (SDFGI_OCT_SIZE + 2) + 1), f32(probe.y * (SDFGI_OCT_SIZE + 2) + 1));
+        diffuseAccum += vec4<f32>(sdfgiMapBilinear(irradianceLayer, texBase + diffuseOct) * weight, weight);
+        var specular = vec3<f32>(0.0);
+        if (roughness < 0.99) {
+            specular = sdfgiMapBilinear(radianceLayer, texBase + specularOct);
+        }
+        if (roughness > 0.2) {
+            specular = mix(specular, sdfgiMapBilinear(irradianceLayer, texBase + specularOct), (roughness - 0.2) * 1.25);
+        }
+        specularAccum += specular * weight;
+    }
+    var out: SdfgiGi;
+    out.diffuse = diffuseAccum.rgb;
+    out.specular = specularAccum;
+    if (diffuseAccum.a > 0.0) {
+        out.diffuse /= diffuseAccum.a;
+        out.specular /= diffuseAccum.a;
+    }
+    return out;
+}
+
+// sdfgiProcess, with the program's cascades and map.
+fn sdfgiProcessMap(vertexIn: vec3<f32>, normalIn: vec3<f32>, reflectionIn: vec3<f32>, roughness: f32) -> SdfgiResult {
+    let yMult = gShading.yMult;
+    let vertex = vec3<f32>(vertexIn.x, vertexIn.y * yMult, vertexIn.z);
+    let camNormal = normalize(vec3<f32>(normalIn.x, normalIn.y * yMult, normalIn.z));
+    let reflection = normalize(vec3<f32>(reflectionIn.x, reflectionIn.y * yMult, reflectionIn.z));
+    var out: SdfgiResult;
+    out.ambient = vec4<f32>(0.0);
+    out.reflection = vec4<f32>(0.0);
+    let count = u32(gShading.cascadeCount);
+    var cascade = 0xFFFFFFFFu;
+    var cascadePos = vec3<f32>(0.0);
+    for (var i = 0u; i < count; i++) {
+        cascadePos = (vertex - sdfgiScreenPosition(i)) * sdfgiScreenToProbe(i);
+        if (any(cascadePos < vec3<f32>(0.0)) || any(cascadePos >= vec3<f32>(SDFGI_CASCADE_PROBE_SIZE))) {
+            continue;
+        }
+        cascade = i;
+        break;
+    }
+    if (cascade == 0xFFFFFFFFu) {
+        return out;
+    }
+    out.ambient = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    out.reflection = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    var gi = sdfgiVoxelGiMap(cascade, cascadePos, camNormal, reflection, roughness);
+    let blendFrom = f32(SDFGI_PROBE_AXIS_SIZE - 1) / 2.0 - 2.5;
+    let blendTo = blendFrom + 2.0;
+    let inner = vertex * sdfgiScreenToProbe(cascade);
+    let len = max(abs(inner.x), max(abs(inner.y), abs(inner.z)));
+    var blend = 0.0;
+    if (len >= blendFrom) {
+        blend = smoothstep(blendFrom, blendTo, len);
+    }
+    if (blend > 0.0) {
+        if (cascade == count - 1u) {
+            out.ambient.a = 1.0 - blend;
+            out.reflection.a = 1.0 - blend;
+        } else {
+            let pos2 = (vertex - sdfgiScreenPosition(cascade + 1u)) * sdfgiScreenToProbe(cascade + 1u);
+            let gi2 = sdfgiVoxelGiMap(cascade + 1u, pos2, camNormal, reflection, roughness);
+            gi.diffuse = mix(gi.diffuse, gi2.diffuse, blend);
+            gi.specular = mix(gi.specular, gi2.specular, blend);
+        }
+    }
+    out.ambient = vec4<f32>(gi.diffuse * gShading.energy, out.ambient.a);
+    out.reflection = vec4<f32>(gi.specular * gShading.energy, out.reflection.a);
+    return out;
+}
+
+// The chain's targets (lab/src/pipelines.rs `chain_binding`, targets
+// normalRoughness, ambient, reflection): the pre-pass's normal-roughness
+// buffer (multisampled), the gather's AMBIENT and REFLECTION buffers, the
+// depth.
+@group(2) @binding(0) var tNormalRoughness: texture_multisampled_2d<f32>;
+@group(2) @binding(2) var tAmbient: texture_2d<f32>;
+@group(2) @binding(3) var oAmbient: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(4) var tReflection: texture_2d<f32>;
+@group(2) @binding(5) var oReflection: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(6) var tDepth: texture_depth_multisampled_2d;
+
+fn sdfgiCoverage(objectIndex: u32, pixel: vec2<f32>) -> u32 {
+    let presence = objectPresence(objectIndex);
+    if (presence < 1.0) {
+        return (1u << u32(clamp(floor(presence * 4.0 + interleavedGradientNoise(pixel)), 0.0, 4.0))) - 1u;
+    }
+    return 0xffffffffu;
+}
+
+struct SdfgiPrepassOutput {
+    @location(0) normalRoughness: vec4<f32>,
+    @builtin(sample_mask) coverage: u32,
+}
+
+// The depth pre-pass with Godot's normal-roughness buffer (PASS_MODE_DEPTH_NORMAL_ROUGHNESS,
+// render_forward_clustered.cpp:1930-1937; scene_forward_clustered.glsl:3019-3026): rgb
+// the normal * 0.5 + 0.5, alpha the roughness * 127/255 (a static object's). Where the lab
+// differs: the normal is the world-space one turned toward the eye, stored as it is (Godot
+// stores the view-space normal through its best-fit-normal encoding and turns it to world
+// space in gi.glsl).
+@fragment
+fn sdfgiPrepassFS(input: SceneVaryings) -> SdfgiPrepassOutput {
+    var n = normalize(input.worldNormal);
+    if (dot(n, gFrame.camera.position - input.worldPosition) < 0.0) {
+        n = -n;
+    }
+    let roughness = gObjects[input.objectIndex].albedoRoughness.w;
+    return SdfgiPrepassOutput(vec4<f32>(n * 0.5 + vec3<f32>(0.5), roughness * (127.0 / 255.0)), sdfgiCoverage(input.objectIndex, input.clip.xy));
+}
+
+// The world position under pixel `pixel` at reversed depth `depth`.
+fn sdfgiWorldPosition(pixel: vec2<u32>, size: vec2<u32>, depth: f32) -> vec3<f32> {
+    let c = gFrame.camera;
+    let uv = (vec2<f32>(pixel) + vec2<f32>(0.5)) / vec2<f32>(size);
+    let z = -c.viewToClip[3].z / (depth + c.viewToClip[2].z);
+    let p = vec3<f32>((uv.x * 2.0 - 1.0) / c.viewToClip[0][0], (1.0 - uv.y * 2.0) / c.viewToClip[1][1], -1.0) * -z;
+    let r = c.worldToView;
+    return c.position + vec3<f32>(dot(r[0].xyz, p), dot(r[1].xyz, p), dot(r[2].xyz, p));
+}
+
+// The screen gather (GI::process_gi, gi.cpp:3968-4274; gi.glsl main 677-727 and
+// process_gi 615-675 in MODE_SDFGI): one thread per pixel, 8 x 8 a workgroup; at half
+// resolution (gi.glsl:707-709) each texel is full-resolution pixel (2x, 2y). It
+// reconstructs the pixel's position from the depth, reads its normal and roughness,
+// runs sdfgi_process, and writes the AMBIENT and REFLECTION buffers (rgba16f, every
+// texel, so they need no clear). Where the lab differs: it reads each buffer's first
+// sample (Godot resolves its MSAA buffers to one sample first, resolve_gi, choosing
+// the odd one out); the reflection march below roughness 0.2 is not run (the room's
+// materials are rougher); the probes' radiance is used at every roughness.
+@compute @workgroup_size(8, 8)
+fn sdfgiGatherCS(@builtin(global_invocation_id) id: vec3<u32>) {
+    let texel = id.xy;
+    let dims = textureDimensions(oAmbient);
+    if (any(texel >= dims)) {
+        return;
+    }
+    let size = textureDimensions(tDepth);
+    let pixel = texel * (size / dims);
+    var gi: SdfgiResult;
+    gi.ambient = vec4<f32>(0.0);
+    gi.reflection = vec4<f32>(0.0);
+    let depth = textureLoad(tDepth, min(pixel, size - vec2<u32>(1u)), 0);
+    if (depth > 0.0) {
+        let p = sdfgiWorldPosition(pixel, size, depth);
+        let nr = textureLoad(tNormalRoughness, min(pixel, size - vec2<u32>(1u)), 0);
+        let n = normalize(nr.xyz * 2.0 - vec3<f32>(1.0));
+        let roughness = nr.w * (255.0 / 127.0);
+        let r = reflect(-normalize(gFrame.camera.position - p), n);
+        gi = sdfgiProcessMap(p - sdfgiScreenCamera(), n, r, roughness);
+    }
+    textureStore(oAmbient, texel, gi.ambient);
+    textureStore(oReflection, texel, gi.reflection);
+}
+
+// textureLod(sampler2D(buffer, SAMPLER_LINEAR_CLAMP), screen_uv, 0.0) of a GI buffer
+// (scene_forward_clustered.glsl:2012-2020): bilinear, clamped to the edge, at the
+// pixel's centre; at full size the pixel's own texel.
+fn sdfgiGiBuffer(t: texture_2d<f32>, pixel: vec2<u32>, size: vec2<u32>) -> vec4<f32> {
+    let dims = textureDimensions(t);
+    if (all(dims == size)) {
+        return textureLoad(t, pixel, 0);
+    }
+    let uv = (vec2<f32>(pixel) + vec2<f32>(0.5)) / vec2<f32>(size);
+    let f = uv * vec2<f32>(dims) - vec2<f32>(0.5);
+    let b = floor(f);
+    let w = f - b;
+    let hi = vec2<i32>(dims) - vec2<i32>(1);
+    let p0 = clamp(vec2<i32>(b), vec2<i32>(0), hi);
+    let p1 = clamp(vec2<i32>(b) + vec2<i32>(1), vec2<i32>(0), hi);
+    let top = mix(textureLoad(t, vec2<i32>(p0.x, p0.y), 0), textureLoad(t, vec2<i32>(p1.x, p0.y), 0), w.x);
+    let bottom = mix(textureLoad(t, vec2<i32>(p0.x, p1.y), 0), textureLoad(t, vec2<i32>(p1.x, p1.y), 0), w.x);
+    return mix(top, bottom, w.y);
+}
+
+// The scene pass (the opaque pass, scene_forward_clustered.glsl:1982-2025): the lab's
+// direct light from the panel, plus the gather's ambient times albedo (ambient_light *=
+// albedo) and its reflection times the environment BRDF, each by its alpha.
 @fragment
 fn sdfgiForwardFS(input: SceneVaryings) -> SceneOutput {
     var n = normalize(input.worldNormal);
@@ -217,18 +456,16 @@ fn sdfgiForwardFS(input: SceneVaryings) -> SceneOutput {
     let albedo = o.albedoRoughness.rgb;
     let roughness = o.albedoRoughness.w;
     var color = albedo * directIrradiance(input.worldPosition, n, input.objectIndex) / PI + o.emissive.rgb * o.emissive.w;
-    let gi = sdfgiProcess(input.worldPosition - gShading.sdfgiCamera, n, reflect(-v, n), roughness);
-    let ambient = gi.ambient.rgb * gi.ambient.a;
+    let size = vec2<u32>(gFrame.camera.viewportSize);
+    let pixel = min(vec2<u32>(input.clip.xy), size - vec2<u32>(1u));
+    let bufferAmbient = sdfgiGiBuffer(tAmbient, pixel, size);
+    let bufferReflection = sdfgiGiBuffer(tReflection, pixel, size);
+    let ambient = bufferAmbient.rgb * bufferAmbient.a;
     let nv = max(dot(n, v), 1e-4);
     let env = envBrdfApprox(0.04, roughness, nv);
-    let reflection = gi.reflection.rgb * gi.reflection.a * env;
+    let reflection = bufferReflection.rgb * bufferReflection.a * env;
     color += gShading.sdfgiMix * (albedo * ambient + reflection);
-    var coverage = 0xffffffffu;
-    let presence = objectPresence(input.objectIndex);
-    if (presence < 1.0) {
-        coverage = (1u << u32(clamp(floor(presence * 4.0 + interleavedGradientNoise(input.clip.xy)), 0.0, 4.0))) - 1u;
-    }
-    return SceneOutput(vec4<f32>(color, 1.0), coverage);
+    return SceneOutput(vec4<f32>(color, 1.0), sdfgiCoverage(input.objectIndex, input.clip.xy));
 }
 
 // The environment BRDF fit the lab's floor uses (Karis, "Physically Based

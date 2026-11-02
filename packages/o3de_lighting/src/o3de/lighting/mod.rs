@@ -147,6 +147,7 @@ pub static SHADING: SceneShading = SceneShading {
     outputs: &["diffuse", "specular", "albedo", "specularF0", "normal", "debug", "stencil"],
     passes: PASSES,
     prepass: Some("o3dePrepassFS"),
+    prepass_outputs: &[],
     early: EARLY,
     buffers: BUFFERS,
     scene_reads: &["tileData", "lightListRemapped", "shadowBuffer", "cascades"],
@@ -166,6 +167,7 @@ pub static SHADING: SceneShading = SceneShading {
         ("linearDepth", "float?range=0,12"),
         ("halfDepth", "float?range=0,12"),
     ],
+    program: None,
 };
 
 impl Investigation for Lighting {

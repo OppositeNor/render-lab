@@ -9,7 +9,8 @@ struct InspectParams {
     mode: u32,
     /// The channel shown: 0 all, 1 r, 2 g, 3 b, 4 a.
     channel: u32,
-    /// A normal's encoding: 0 signed xyz, 1 unsigned xyz, 2 octahedral xy.
+    /// A normal's encoding: 0 signed xyz, 1 unsigned xyz, 2 octahedral xy;
+    /// 3, an integer image's word as RGB9E5 (shown as colour).
     encoding: u32,
     /// Multisampled: 0 sample 0, 1 the samples' average.
     average: u32,
@@ -33,7 +34,8 @@ struct InspectParams {
     /// A volume's slicing axis: 0 x, 1 y, 2 z.
     axis: u32,
     samples: u32,
-    _pad: u32,
+    /// An integer image's bit field: its first bit (bits 0-7) and width (8-15; 0, the whole value).
+    bits: u32,
 }
 
 @group(0) @binding(0) var<uniform> gInspect: InspectParams;
@@ -44,6 +46,11 @@ struct InspectParams {
 @group(0) @binding(5) var gInspectDepthArray: texture_depth_2d_array;
 @group(0) @binding(6) var<storage, read> gInspectBuffer: array<u32>;
 @group(0) @binding(7) var gInspectVolume: texture_3d<f32>;
+@group(0) @binding(8) var gInspectVolumeUint: texture_3d<u32>;
+@group(0) @binding(9) var gInspectVolumeSint: texture_3d<i32>;
+@group(0) @binding(10) var gInspectArray: texture_2d_array<f32>;
+@group(0) @binding(11) var gInspectArrayUint: texture_2d_array<u32>;
+@group(0) @binding(12) var gInspectArraySint: texture_2d_array<i32>;
 
 fn inspectSrgb(c: vec3<f32>) -> vec3<f32> {
     let x = clamp(c, vec3(0.0), vec3(1.0));
@@ -226,4 +233,87 @@ fn inspectVolumeCS(@builtin(global_invocation_id) gid: vec3<u32>) {
     let at = min(vec3<u32>(p * vec3<f32>(size)), size - 1u);
     let v = textureLoad(gInspectVolume, at, gInspect.level);
     textureStore(gInspectOut, gid.xy, inspectShow(v, 0u));
+}
+
+/// A volume's texel under output texel `gid` (the slice along `axis`).
+fn inspectVolumeAt(gid: vec2<u32>, size: vec3<u32>) -> vec3<u32> {
+    let uv = (vec2<f32>(gid) + 0.5) / vec2<f32>(gInspect.out_size);
+    let depth = clamp(gInspect.slice, 0.0, 1.0);
+    var p: vec3<f32>;
+    switch gInspect.axis {
+        case 0u: { p = vec3(depth, 1.0 - uv.y, uv.x); }
+        case 2u: { p = vec3(uv.x, 1.0 - uv.y, depth); }
+        default: { p = vec3(uv.x, depth, uv.y); }
+    }
+    return min(vec3<u32>(p * vec3<f32>(size)), size - 1u);
+}
+
+/// The shared-exponent RGB of a word (E5B9G9R9).
+fn inspectRgb9e5(w: u32) -> vec3<f32> {
+    let scale = exp2(f32(w >> 27u) - 24.0);
+    return vec3(f32(w & 511u), f32((w >> 9u) & 511u), f32((w >> 18u) & 511u)) * scale;
+}
+
+/// An integer texel shown: its channel, its bit field, and its word decoded as asked.
+fn inspectInteger(raw4: vec4<u32>, signed: bool) -> vec4<f32> {
+    var raw = raw4.r;
+    switch gInspect.channel {
+        case 2u: { raw = raw4.g; }
+        case 3u: { raw = raw4.b; }
+        case 4u: { raw = raw4.a; }
+        default: {}
+    }
+    let shift = gInspect.bits & 255u;
+    let width = (gInspect.bits >> 8u) & 255u;
+    if width > 0u {
+        raw = (raw >> shift) & select((1u << width) - 1u, 0xffffffffu, width >= 32u);
+    }
+    if gInspect.encoding == 3u {
+        return inspectShow(vec4(inspectRgb9e5(raw), 1.0), raw);
+    }
+    let value = select(f32(raw), f32(bitcast<i32>(raw)), signed);
+    return inspectShow(vec4(value), raw);
+}
+
+@compute @workgroup_size(8, 8)
+fn inspectVolumeUintCS(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if !inspectInside(gid.xy) {
+        return;
+    }
+    let at = inspectVolumeAt(gid.xy, textureDimensions(gInspectVolumeUint));
+    textureStore(gInspectOut, gid.xy, inspectInteger(textureLoad(gInspectVolumeUint, at, 0), false));
+}
+
+@compute @workgroup_size(8, 8)
+fn inspectVolumeSintCS(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if !inspectInside(gid.xy) {
+        return;
+    }
+    let at = inspectVolumeAt(gid.xy, textureDimensions(gInspectVolumeSint));
+    textureStore(gInspectOut, gid.xy, inspectInteger(bitcast<vec4<u32>>(textureLoad(gInspectVolumeSint, at, 0)), true));
+}
+
+@compute @workgroup_size(8, 8)
+fn inspectArrayCS(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if !inspectInside(gid.xy) {
+        return;
+    }
+    let v = textureLoad(gInspectArray, inspectSource(gid.xy), gInspect.level, 0);
+    textureStore(gInspectOut, gid.xy, inspectShow(v, 0u));
+}
+
+@compute @workgroup_size(8, 8)
+fn inspectArrayUintCS(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if !inspectInside(gid.xy) {
+        return;
+    }
+    textureStore(gInspectOut, gid.xy, inspectInteger(textureLoad(gInspectArrayUint, inspectSource(gid.xy), gInspect.level, 0), false));
+}
+
+@compute @workgroup_size(8, 8)
+fn inspectArraySintCS(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if !inspectInside(gid.xy) {
+        return;
+    }
+    textureStore(gInspectOut, gid.xy, inspectInteger(bitcast<vec4<u32>>(textureLoad(gInspectArraySint, inspectSource(gid.xy), gInspect.level, 0)), true));
 }

@@ -262,14 +262,73 @@ impl Resource {
         Loaded { resource: self, bytes: self.read().unwrap_or_else(|e| panic!("{e:#}")) }
     }
 
-    /// The processed bytes, read on first use and kept for the whole run.
+    /// The processed bytes, read on first use and kept for the whole run
+    /// (or what a live reload read since: `reload_changed`).
     pub fn bytes(&'static self) -> &'static [u8] {
+        if let Some(bytes) = RELOADED.lock().unwrap().iter().find(|(id, _)| *id == self.decl.id).map(|(_, b)| *b) {
+            return bytes;
+        }
         self.bytes.get_or_init(|| self.read().unwrap_or_else(|e| panic!("{e:#}")))
     }
 
     pub fn text(&'static self) -> &'static str {
         std::str::from_utf8(self.bytes()).unwrap_or_else(|_| panic!("resource {} is not UTF-8", self.id()))
     }
+}
+
+/// The resources a live reload read again: each one's newest bytes (kept for
+/// the run: a reload is an edit, and edits are few).
+static RELOADED: std::sync::Mutex<Vec<(String, &'static [u8])>> = std::sync::Mutex::new(Vec::new());
+/// How many live reloads have changed a resource (what caches of composed
+/// shaders key on).
+static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The resources' generation: 0 until a live reload changes one.
+pub fn generation() -> u64 {
+    GENERATION.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Live reload of the checkout's shaders (the viewer's): reads again every
+/// WGSL source (a `.wgsl` file a package declares, not a tool's output) whose
+/// file changed since it was last looked at, and returns their ids (none on
+/// the first call, which notes when each was last changed, and without a
+/// source checkout). What they are read as is the source itself: a WGSL
+/// resource is the file as it is.
+pub fn reload_changed() -> Vec<String> {
+    static SEEN: std::sync::Mutex<Option<Vec<(String, std::path::PathBuf, std::time::SystemTime)>>> = std::sync::Mutex::new(None);
+    let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    let mut seen = SEEN.lock().unwrap();
+    let watched = seen.get_or_insert_with(|| {
+        if sources_dir().is_none() {
+            return Vec::new();
+        }
+        all()
+            .iter()
+            .filter(|r| r.decl.source.ends_with(".wgsl") && !r.decl.built)
+            .filter_map(|r| {
+                let path = root().join(&r.decl.source);
+                Some((r.decl.id.clone(), path.clone(), modified(&path)?))
+            })
+            .collect()
+    });
+    let mut changed = Vec::new();
+    for (id, path, when) in watched.iter_mut() {
+        let Some(now) = modified(path).filter(|now| now != when) else { continue };
+        *when = now;
+        // A file caught half written reads again on the next look.
+        let Ok(bytes) = std::fs::read(&*path) else { continue };
+        if std::str::from_utf8(&bytes).is_err() {
+            continue;
+        }
+        let mut reloaded = RELOADED.lock().unwrap();
+        reloaded.retain(|(r, _)| r != id);
+        reloaded.push((id.clone(), Box::leak(bytes.into_boxed_slice())));
+        changed.push(id.clone());
+    }
+    if !changed.is_empty() {
+        GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+    changed
 }
 
 /// A resource's processed bytes, read by `Resource::load`.

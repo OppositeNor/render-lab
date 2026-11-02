@@ -63,6 +63,8 @@ pub struct ShadingPipelines {
     pub volumes: Option<wgpu::BindGroupLayout>,
     /// The update passes (`SceneShading::update`), in its order, each with its group-2 layout.
     pub updates: Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
+    /// The program's passes and the scene pass's group 3 (`SceneShading::program`).
+    pub program: Option<crate::program::ProgramPipelines>,
 }
 
 /// Bytes between two dispatches' parameters in an update's uniform buffer
@@ -416,9 +418,11 @@ impl Pipelines {
         let module = module(device, shading.module, shaders::module(shading.module)?);
         let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| chain_layout(device, shading, label, reads, writes, visibility);
         let scene_group = chain_layout("scene reads", shading.scene_reads, &[], wgpu::ShaderStages::FRAGMENT);
+        // What the scene pass reads of the program: group 3.
+        let program_scene = shading.program.and_then(|p| crate::program::scene_layout(device, p));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading"),
-            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&scene_group)],
+            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&scene_group), program_scene.as_ref()],
             immediate_size: 0,
         });
         let [mesh, objects] = mesh_layouts();
@@ -443,6 +447,7 @@ impl Pipelines {
             multiview_mask: None,
             cache: None,
         });
+        let prepass_targets: Vec<Option<wgpu::ColorTargetState>> = shading.prepass_outputs.iter().map(|o| Some(wgpu::ColorTargetState { format: target_format(shading, o), blend: None, write_mask: wgpu::ColorWrites::ALL })).collect();
         let prepass = shading.prepass.map(|entry| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
@@ -451,7 +456,7 @@ impl Pipelines {
                 primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, cull_mode: None, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FORMAT, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Greater), stencil: Default::default(), bias: Default::default() }),
                 multisample: wgpu::MultisampleState { count: MSAA, mask: !0, alpha_to_coverage_enabled: false },
-                fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some(entry), compilation_options: Default::default(), targets: &[] }),
+                fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some(entry), compilation_options: Default::default(), targets: &prepass_targets }),
                 multiview_mask: None,
                 cache: None,
             })
@@ -489,7 +494,7 @@ impl Pipelines {
                 let group = chain_layout(pass.entry, pass.reads, pass.writes, wgpu::ShaderStages::COMPUTE);
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some(pass.entry),
-                    bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group), volumes.as_ref()],
+                    bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&group), volumes.as_ref().or(program_scene.as_ref())],
                     immediate_size: 0,
                 });
                 let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -547,10 +552,11 @@ impl Pipelines {
                 })
                 .collect()
         });
+        let program = shading.program.map(|p| crate::program::pipelines(device, &module, p, &self.frame_layout, &self.shading_layout, program_scene));
         if let Some(error) = pollster::block_on(scope.pop()) {
             return Err(anyhow!("{} pipeline creation failed: {error}", shading.fragment));
         }
-        Ok(ShadingPipelines { scene, prepass, depth_views, scene_group, passes, verify, volumes, updates })
+        Ok(ShadingPipelines { scene, prepass, depth_views, scene_group, passes, verify, volumes, updates, program })
     }
 
     /// The viewer's swapchain blit. sRGB swapchains decode before writing.
@@ -579,8 +585,8 @@ impl Pipelines {
 /// pass's, and an image kind's that reads the chain (src/views.rs).
 pub fn chain_layout(device: &wgpu::Device, shading: &SceneShading, label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayout {
     let mut entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::new();
-    // The volumes a pass samples are group 3's (`volume_layout`).
-    for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_volume(shading, n)) {
+    // The volumes a pass samples (`volume_layout`), or the program's scene group, are group 3's.
+    for (name, written) in reads.iter().map(|n| (*n, false)).chain(writes.iter().map(|n| (*n, true))).filter(|(n, _)| !crate::graph::is_group3(shading, n)) {
         let binding = chain_binding(shading, name, written);
         if entries.iter().any(|e| e.binding == binding) {
             continue;
@@ -594,7 +600,7 @@ pub fn chain_layout(device: &wgpu::Device, shading: &SceneShading, label: &str, 
         } else if name == "depth" {
             wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }
         } else {
-            wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: shading.outputs.contains(&name) }
+            wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: shading.attachment(name) }
         };
         entries.push(wgpu::BindGroupLayoutEntry { binding, visibility, ty, count: None });
     }

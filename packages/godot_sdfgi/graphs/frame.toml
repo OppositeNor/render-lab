@@ -1,45 +1,44 @@
 # The frame graph's sections (the resource `graph/frame`; tools/video/frame_graph.py has the
 # format): the story's frame graph scene (`graph: frame`), and the viewer's DAG panel:
 # each section a box the beats' `focus:` names, the lab's passes (or resources)
-# inside; dashed, what the lab's frame does not run (the lab computes the cascades,
-# voxels, light, and probes on the CPU, as the engine's passes do: model.rs).
+# inside; dashed, what the lab's frame does not run on the GPU (the cascades
+# follow the camera on the CPU, as `SDFGI::update` does). The passes are
+# Godot's, ported (gpu.rs): the region work runs only on a frame whose
+# camera moved a cascade.
 
 [[section]]
 id = "UPD"
 title-text = "frame.cascades"
 note-text = "frame.cpu"
 outside = true
-to = ["VOX"]
+to = ["SCROLL"]
+
+[[section]]
+id = "SCROLL"
+title-text = "frame.scroll"
+passes = ["sdfgiScroll", "sdfgiScrollOcclusion", "sdfgiProbeScroll", "sdfgiProbeScrollStore", "sdfgiProbeStoreScroll"]
 
 [[section]]
 id = "VOX"
 title-text = "frame.voxels"
-note-text = "frame.cpu"
-outside = true
-to = ["LIGHT"]
+passes = ["sdfgiVoxelize", "sdfgiJumpFloodInit", "sdfgiJumpFlood", "sdfgiJumpFloodShared", "sdfgiUpscale", "sdfgiJumpFloodFull", "sdfgiOcclusion", "sdfgiStore"]
 
 [[section]]
 id = "LIGHT"
 title-text = "frame.light"
-note-text = "frame.cpu"
-outside = true
-to = ["PRE"]
+passes = ["sdfgiStaticLight", "sdfgiDynamicLight"]
 
 [[section]]
 id = "PRE"
 title-text = "frame.probes"
-note-text = "frame.cpu"
-outside = true
-to = ["STORE"]
+passes = ["sdfgiProbeProcess"]
 
 [[section]]
 id = "STORE"
 title-text = "frame.store"
-note-text = "frame.cpu"
-outside = true
-to = ["GI"]
+passes = ["sdfgiProbeStore"]
 
 [[section]]
 id = "GI"
 title-text = "frame.screen"
-passes = ["sdfgiForwardFS"]
+passes = ["sdfgiPrepassFS", "sdfgiGatherCS", "sdfgiForwardFS"]

@@ -10,6 +10,13 @@
 use crate::resources;
 use anyhow::{anyhow, bail, Result};
 use naga::valid::{Capabilities, ValidationFlags, Validator};
+
+/// What the lab's shaders may use beyond the defaults: what the device turns
+/// on where the adapter has it (src/gpu.rs `OPTIONAL_FEATURES`); wgpu checks
+/// each pipeline against the device's own features.
+fn capabilities() -> Capabilities {
+    Capabilities::default() | Capabilities::TEXTURE_ATOMIC | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING
+}
 use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
 use serde_json::{json, Value};
 
@@ -47,14 +54,40 @@ pub fn files(id: &str) -> Result<Vec<&'static str>> {
 
 /// The module's WGSL: its files joined, unvalidated.
 pub fn compose(id: &str) -> Result<String> {
-    Ok(files(id)?.iter().map(|f| resources::get(f).text()).collect())
+    Ok(hoist_enables(&files(id)?.iter().map(|f| resources::get(f).text()).collect::<String>()))
+}
+
+/// WGSL's `enable` directives must come before every other item: a part's
+/// `enable …;` lines move to the start of the module's first line, their own
+/// lines left empty, so the composed lines stay the files' lines.
+pub fn hoist_enables(source: &str) -> String {
+    let mut enables: Vec<&str> = Vec::new();
+    let mut lines: Vec<&str> = Vec::new();
+    for line in source.split_inclusive('\n') {
+        let t = line.trim();
+        if t.starts_with("enable ") && t.ends_with(';') {
+            if !enables.contains(&t) {
+                enables.push(t);
+            }
+            lines.push("\n");
+        } else {
+            lines.push(line);
+        }
+    }
+    if enables.is_empty() {
+        return source.to_string();
+    }
+    let mut out = enables.join(" ");
+    out.push(' ');
+    out.extend(lines);
+    out
 }
 
 /// Checks a module's WGSL with naga; the error names the file and line.
 pub fn validate(id: &str, source: &str) -> Result<naga::Module> {
     let module = naga::front::wgsl::parse_str(source)
         .map_err(|e| anyhow!("WGSL parse error in {}{}:\n{}", describe(id), locate(id, e.location(source).map(|l| l.line_number)), e.emit_to_string(source)))?;
-    Validator::new(ValidationFlags::all(), Capabilities::default())
+    Validator::new(ValidationFlags::all(), capabilities())
         .validate(&module)
         .map_err(|e| anyhow!("WGSL validation error in {}{}:\n{}", describe(id), locate(id, e.location(source).map(|l| l.line_number)), e.emit_to_string(source)))?;
     Ok(module)
@@ -95,8 +128,10 @@ impl Reflected {
 /// The module `id`, composed, validated, and read with its doc comments;
 /// once per run (the packages do not change while the lab runs).
 pub fn reflect(id: &str) -> Result<&'static Reflected> {
-    static CACHE: std::sync::Mutex<Vec<&'static Reflected>> = std::sync::Mutex::new(Vec::new());
-    if let Some(r) = CACHE.lock().unwrap().iter().find(|r| r.id == id) {
+    // Once per run, and again after a live reload (src/resources.rs `generation`).
+    static CACHE: std::sync::Mutex<Vec<(u64, &'static Reflected)>> = std::sync::Mutex::new(Vec::new());
+    let generation = resources::generation();
+    if let Some((_, r)) = CACHE.lock().unwrap().iter().find(|(g, r)| *g == generation && r.id == id) {
         return Ok(r);
     }
     let source = module(id)?;
@@ -108,10 +143,10 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
     let reflected: &'static Reflected = Box::leak(Box::new(Reflected { id: Box::leak(id.to_string().into_boxed_str()), source, module }));
     let mut cache = CACHE.lock().unwrap();
     // Another thread may have read it meanwhile; keep one.
-    if let Some(r) = cache.iter().find(|r| r.id == id) {
+    if let Some((_, r)) = cache.iter().find(|(g, r)| *g == generation && r.id == id) {
         return Ok(r);
     }
-    cache.push(reflected);
+    cache.push((generation, reflected));
     Ok(reflected)
 }
 
@@ -121,7 +156,7 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
 pub fn analyse(id: &str) -> Result<(naga::Module, naga::valid::ModuleInfo)> {
     let source = compose(id)?;
     let module = validate(id, &source)?;
-    let info = Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module).map_err(|e| anyhow!("WGSL validation error in {}: {e}", describe(id)))?;
+    let info = Validator::new(ValidationFlags::all(), capabilities()).validate(&module).map_err(|e| anyhow!("WGSL validation error in {}: {e}", describe(id)))?;
     Ok((module, info))
 }
 

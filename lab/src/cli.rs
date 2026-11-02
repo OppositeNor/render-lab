@@ -66,6 +66,7 @@ enum Command {
         /// viewer-dag[:<demo>][@<node>,…] (the frame graph as a DAG in the panel, each pass's result on its card, those nodes called out), or
         /// viewer-dag-full[:<demo>][@<node>,…] (that DAG full screen), or
         /// viewer-resources[-full][:<demo>][@<node>,…] (every resource as a card, its state at the end of the frame), or
+        /// viewer-source:<node> (the full-screen DAG, that node selected, the WGSL it is compiled from beside it), or
         /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
         /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
         /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
@@ -315,6 +316,14 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
                 (Some(png), _) if page == "viewer-graph" || page.starts_with("viewer-graph:") => home::snapshot_graph(&options, page.strip_prefix("viewer-graph:"), None, Default::default(), &png),
                 (Some(png), _) if page.starts_with("viewer-inspect:") => home::snapshot_graph(&options, None, page.strip_prefix("viewer-inspect:"), Default::default(), &png),
+                // viewer-source:<node>: the full-screen DAG, that node selected, its WGSL beside it.
+                (Some(png), _) if page.starts_with("viewer-source:") => {
+                    let node = page.strip_prefix("viewer-source:").unwrap_or_default();
+                    let graph = crate::graph::FrameGraph::current(&[]);
+                    let i = graph.node(node).ok_or_else(|| anyhow::anyhow!("no node `{node}`"))?;
+                    let key = format!("{node}.{}", graph.result_of(i).ok_or_else(|| anyhow::anyhow!("`{node}` has no result to select"))?);
+                    home::snapshot_graph(&options, None, Some(&key), crate::viewer::GraphSnapshot { dag: true, full_screen: true, source: true, ..Default::default() }, &png)
+                }
                 (Some(png), _) if page.starts_with("viewer-dag") || page.starts_with("viewer-resources") => {
                     // viewer-dag[-full][:<demo>][@<node>,…], viewer-resources[-full]…
                     let resources = page.starts_with("viewer-resources");
@@ -328,7 +337,7 @@ pub fn main(app: App) -> Result<()> {
                         None => (rest, Vec::new()),
                     };
                     let demo = rest.strip_prefix(':').filter(|d| !d.is_empty());
-                    home::snapshot_graph(&options, demo, None, crate::viewer::GraphSnapshot { dag: true, resources, full_screen, highlight }, &png)
+                    home::snapshot_graph(&options, demo, None, crate::viewer::GraphSnapshot { dag: true, resources, full_screen, highlight, source: false }, &png)
                 }
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),

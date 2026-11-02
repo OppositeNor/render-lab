@@ -142,6 +142,31 @@ kind = "file"
 source = "shaders/sdfgi_passes.wgsl"
 license = "MIT (Godot, THIRD_PARTY.md)"
 
+# Godot's SDFGI passes as the GPU runs them (gpu.rs, a lab program).
+[[resource]]
+id = "wgsl/sdfgi-gpu-common"
+kind = "file"
+source = "shaders/sdfgi_gpu_common.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "wgsl/sdfgi-gpu-preprocess"
+kind = "file"
+source = "shaders/sdfgi_gpu_preprocess.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "wgsl/sdfgi-gpu-light"
+kind = "file"
+source = "shaders/sdfgi_gpu_light.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
+[[resource]]
+id = "wgsl/sdfgi-gpu-probes"
+kind = "file"
+source = "shaders/sdfgi_gpu_probes.wgsl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
 # The image kinds a story makes (lab/src/views.rs).
 [[resource]]
 id = "wgsl/sdfgi-views"
@@ -151,7 +176,7 @@ license = "MIT"
 
 [[shader]]
 id = "shader/sdfgi-shading"
-parts = ["rlstd.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes", "wgsl/sdfgi-views"]
+parts = ["rlstd.shader/scene", "wgsl/sdfgi-shading", "wgsl/sdfgi-passes", "wgsl/sdfgi-gpu-common", "wgsl/sdfgi-gpu-preprocess", "wgsl/sdfgi-gpu-light", "wgsl/sdfgi-gpu-probes", "wgsl/sdfgi-views"]
 
 # The pseudo-code listings (pseudocode.rs).
 [[resource]]

@@ -81,6 +81,7 @@ pub static SHADING: SceneShading = SceneShading {
     outputs: &["direct", "normal"],
     passes: PASSES,
     prepass: Some("voxelgiPrepassFS"),
+    prepass_outputs: &[],
     early: &[],
     buffers: &[],
     scene_reads: &[],
@@ -92,6 +93,7 @@ pub static SHADING: SceneShading = SceneShading {
     // The cells' light is four floats a cell, listed in cell order; the light
     // texture is dim (it is divided by its dynamic range): a slice near the floor, brighter.
     shows: &[("voxelgiOutputs", "float?range=0,2"), ("voxelgiLight", "color?slice=0.05&exposure=2")],
+    program: None,
 };
 
 /// rendering/global_illumination/gi/use_half_resolution: the GI buffers at

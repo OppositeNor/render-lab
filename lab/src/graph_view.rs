@@ -805,6 +805,14 @@ fn keep_in(c: f32, a: f32, z: f32, h: f32) -> f32 {
     if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) }
 }
 
+/// The scales a panel's view zooms between: out until the whole graph fits
+/// `area` (or the readable `scale`, if that is smaller), in to four times `scale`.
+pub fn zoom_range(laid: &Laid, area: Rect, scale: f32) -> (f32, f32) {
+    let size = laid.bounds.size();
+    let fit = (area.width() / size.x.max(1e-3)).min(area.height() / size.y.max(1e-3));
+    (fit.min(scale), scale * 4.0)
+}
+
 /// What a view lets the pointer do: zoom with the wheel between two scales
 /// (else the wheel pans along the flow), and move nodes by dragging them.
 #[derive(Clone, Copy, Debug, Default)]
@@ -965,6 +973,47 @@ mod tests {
         let back = frame(Vec::new());
         assert!(back.moved.is_empty());
         assert_eq!(back.centre, laid.bounds.center().to_vec2());
+    }
+
+    #[test]
+    fn the_wheel_zooms_a_panel_and_a_drag_pans_it() {
+        let g = spec(&[("A", &[]), ("B", &[])], &[("A", "B")]).graph().unwrap();
+        let laid = lay_out(&g, &|s| s.len() as f32 * 0.6, &[], 0.5625, &Options::default());
+        let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+        let ctx = egui::Context::default();
+        let id = egui::Id::unique("test-graph-zoom");
+        let setup = |v: &mut ViewState, _: bool| {
+            v.scale = 24.0;
+            v.centre = laid.bounds.center().to_vec2();
+        };
+        let range = zoom_range(&laid, area, 24.0);
+        assert!(range.0 <= 24.0 && range.1 == 96.0);
+        let controls = Controls { zoom: Some(range), move_nodes: true };
+        let frame = |events: Vec<egui::Event>| -> ViewState {
+            let mut out = None;
+            let _ = ctx.run_ui(egui::RawInput { events, screen_rect: Some(area), ..Default::default() }, |ui| {
+                out = Some(view(ui.ctx(), id, area, &laid, true, 1, &controls, &setup).0);
+            });
+            out.expect("a frame")
+        };
+        let at = area.center();
+        frame(vec![egui::Event::PointerMoved(at)]);
+        let wheel = egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(0.0, 120.0), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers: Default::default() };
+        let mut zoomed = frame(vec![wheel]);
+        for _ in 0..30 {
+            zoomed = frame(Vec::new());
+        }
+        // The wheel zooms about the pointer and does not pan.
+        assert!(zoomed.scale > 24.0 && zoomed.scale <= 96.0, "{}", zoomed.scale);
+        assert!((zoomed.centre - laid.bounds.center().to_vec2()).length() < 1e-3, "{:?}", zoomed.centre);
+        // A drag on the background pans.
+        let empty = area.min + vec2(5.0, 5.0);
+        let button = |pos: Pos2, pressed: bool| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(vec![egui::Event::PointerMoved(empty)]);
+        frame(vec![button(empty, true)]);
+        let panned = frame(vec![egui::Event::PointerMoved(empty + vec2(40.0, 0.0))]);
+        assert!(panned.centre.x < zoomed.centre.x - 0.1, "{:?} {:?}", panned.centre, zoomed.centre);
+        assert_eq!(panned.scale, zoomed.scale);
     }
 
     #[test]

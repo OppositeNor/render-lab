@@ -146,8 +146,29 @@ fn check_shaders(packages: &[Package], package: &str) {
                 fs::read_to_string(f).unwrap_or_else(|e| panic!("read {}: {e}", f.display()))
             })
             .collect();
+        // As the lab composes it (lab/src/shaders.rs `hoist_enables`): `enable` directives first.
+        let source = {
+            let mut enables: Vec<String> = Vec::new();
+            let body: String = source
+                .split_inclusive('\n')
+                .map(|line| {
+                    let t = line.trim();
+                    if t.starts_with("enable ") && t.ends_with(';') {
+                        if !enables.iter().any(|e| e == t) {
+                            enables.push(t.to_string());
+                        }
+                        "\n".to_string()
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect();
+            if enables.is_empty() { body } else { format!("{} {body}", enables.join(" ")) }
+        };
         let package = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("WGSL parse error in shader `{id}`:\n{}", e.emit_to_string(&source)));
-        Validator::new(ValidationFlags::all(), Capabilities::default())
+        // The capabilities the lab validates with (lab/src/shaders.rs `capabilities`).
+        let capabilities = Capabilities::default() | Capabilities::TEXTURE_ATOMIC | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING;
+        Validator::new(ValidationFlags::all(), capabilities)
             .validate(&package)
             .unwrap_or_else(|e| panic!("WGSL validation error in shader `{id}`:\n{}", e.emit_to_string(&source)));
     }

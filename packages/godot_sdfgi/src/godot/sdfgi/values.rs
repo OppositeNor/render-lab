@@ -165,4 +165,7 @@ pub struct SdfgiValues {
     /// Environment.sdfgi_read_sky_light: rays that leave the cascades bring back the sky (else nothing).
     #[value(default = 1.0, toggle, text = "controls.gi_read_sky_light", label(gi), engine = "Environment.sdfgi_read_sky_light", help = "help.giReadSkyLight")]
     pub gi_read_sky_light: f32,
+    /// rendering/global_illumination/gi/use_half_resolution: the screen gather writes half-size buffers, one pixel of each 2 × 2 block, which the opaque pass reads bilinearly.
+    #[value(default = 0.0, toggle, text = "controls.gi_half_resolution", label(gi), engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution", help = "help.giHalfResolution")]
+    pub gi_half_resolution: f32,
 }
