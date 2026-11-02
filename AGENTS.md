@@ -86,8 +86,8 @@ cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performan
 cargo run --release -- home --snapshot /path/to/free.png --page viewer-free         # the free camera on (C): the main camera and its view cone seen from beside it, its own view in a corner
 cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
 cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the knowledge graph in the panel (viewer-knowledge: zoomed onto a level topic; viewer-knowledge-graph: full screen; viewer-knowledge-compact: full screen, only the topics its context needs; select-knowledge: over the homepage)
-cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels, --mermaid)
-cargo run --release -- --investigation o3de/lighting graph                    # the frame's render graph: passes in order, reads and writes (checked against the WGSL), lifetimes, engine passes (--json, --mermaid, --dot)
+cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels)
+cargo run --release -- --investigation o3de/lighting graph                    # the frame's render graph: passes in order, reads and writes (checked against the WGSL), lifetimes, engine passes (--json, --dot)
 cargo run --release -- home --snapshot /path/to/graph.png --page viewer-graph   # the frame graph in the panel, the inspector on what the costliest pass writes
 cargo run --release -- home --snapshot /path/to/inspect.png --page "viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…]"   # a resource right after a node, in the inspector
 cargo run --release -- home --snapshot /path/to/dag.png --page "viewer-dag[:<demo>][@<node>,…]"   # the frame graph as a DAG, each pass's result on its card (viewer-dag-full: full screen)

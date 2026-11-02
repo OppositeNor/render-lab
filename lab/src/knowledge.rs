@@ -88,10 +88,6 @@ pub struct Graph {
     pub known: Vec<usize>,
 }
 
-/// The panel's layout (graph units: a node is one unit high; x grows from
-/// the bases' column on the left, y downward), with a box per group
-/// (`Clustered::boxes`, by group index).
-pub use crate::layered::{Clustered, Layout};
 
 /// The audience split of a graph's chapter subgraph.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -574,66 +570,65 @@ impl Graph {
         problems
     }
 
-    /// The panel's layout: ranks (columns, left to right) by the longest
-    /// path from the bases, each group in a band of its own across the
-    /// columns it spans (`layered::clustered`), an area's loose topics
-    /// together, the areas in order, top to bottom. `width` measures a title
-    /// in node-height units. With `visible`, only those nodes are laid out
-    /// (the rest keep a position far away and no edges): a compact view of a
-    /// set closed under requirements, such as what some chapters need.
-    pub fn layout(&self, width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> Clustered {
+    /// The panel's graph (src/graph_view.rs) and its layout: ranks (columns,
+    /// left to right) by the longest path from the bases, each group in a
+    /// band of its own across the columns it spans (a boxed cluster), an
+    /// area's loose topics together, the areas in order, top to bottom.
+    /// `width` measures a title in font units. With `visible`, only those
+    /// nodes (a compact view of a set closed under requirements, such as what
+    /// some chapters need).
+    pub fn view(&self, width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> View {
         let all = self.nodes.len();
         let shown: Vec<usize> = (0..all).filter(|&i| visible.is_none_or(|v| v.get(i).copied().unwrap_or(false))).collect();
-        let mut local = vec![usize::MAX; all];
+        let mut local = vec![None; all];
         for (k, &i) in shown.iter().enumerate() {
-            local[i] = k;
+            local[i] = Some(k);
         }
-        let n = shown.len();
         let requires = self.requires();
-        let edges: Vec<(usize, usize)> = shown.iter().flat_map(|&i| requires[i].iter().filter(|&&r| local[r] != usize::MAX).map(|&r| (local[r], local[i])).collect::<Vec<_>>()).collect();
-        let sizes: Vec<(f32, f32)> = shown.iter().map(|&i| (width(&self.nodes[i].title) + 0.8, 1.0)).collect();
+        let edges: Vec<crate::graph_view::Edge> = shown
+            .iter()
+            .flat_map(|&i| requires[i].iter().filter_map(|&r| Some(crate::graph_view::Edge { from: local[r]?, to: local[i]?, dotted: false, label: None })).collect::<Vec<_>>())
+            .collect();
+        let nodes: Vec<crate::graph_view::Node> = shown.iter().map(|&i| crate::graph_view::Node { id: self.nodes[i].id.clone(), title: vec![self.nodes[i].title.clone()], ..Default::default() }).collect();
         let node = |k: usize| &self.nodes[shown[k]];
-        let mut clusters: Vec<crate::layered::Cluster> = Vec::new();
-        let mut boxed: Vec<usize> = Vec::new();
+        let mut clusters: Vec<crate::graph_view::Cluster> = Vec::new();
+        let mut groups: Vec<Option<usize>> = Vec::new();
         let mut areas: Vec<String> = AREAS.iter().map(|a| a.to_string()).collect();
-        for k in 0..n {
+        for k in 0..shown.len() {
             if !areas.contains(&node(k).area) {
                 areas.push(node(k).area.clone());
             }
         }
         for area in areas {
-            let loose: Vec<usize> = (0..n).filter(|&k| node(k).area == area && node(k).group.is_none()).collect();
+            let loose: Vec<usize> = (0..shown.len()).filter(|&k| node(k).area == area && node(k).group.is_none()).collect();
             if !loose.is_empty() {
-                clusters.push(crate::layered::Cluster { members: loose, boxed: false });
-                boxed.push(usize::MAX);
+                clusters.push(crate::graph_view::Cluster { title: None, members: loose, boxed: false });
+                groups.push(None);
             }
             for (g, group) in self.groups.iter().enumerate().filter(|(_, g)| g.area == area) {
-                let members: Vec<usize> = (0..n).filter(|&k| node(k).group == Some(g)).collect();
+                let members: Vec<usize> = (0..shown.len()).filter(|&k| node(k).group == Some(g)).collect();
                 if !members.is_empty() {
-                    clusters.push(crate::layered::Cluster { members, boxed: true });
-                    boxed.push(g);
+                    clusters.push(crate::graph_view::Cluster { title: Some(group.title.clone()), members, boxed: true });
+                    groups.push(Some(g));
                 }
-                let _ = group;
             }
         }
-        let mut l = crate::layered::clustered(&sizes, &edges, &clusters, crate::layered::Spacing { column: 2.4, row: 0.5, dummy: 0.35 }, 0.35, 0.75, 0.9);
-        // Boxes by group index; the layout back over every node, edges by node index.
-        for b in &mut l.boxes {
-            b.0 = boxed[b.0];
-        }
-        let mut positions = vec![(-1.0e6, -1.0e6); all];
-        for (k, &i) in shown.iter().enumerate() {
-            positions[i] = l.layout.positions[k];
-        }
-        l.layout.positions = positions;
-        l.layout.widths = self.nodes.iter().map(|node| width(&node.title) + 0.8).collect();
-        l.layout.heights = vec![1.0; all];
-        for b in &mut l.layout.bends {
-            b.0 = shown[b.0];
-            b.1 = shown[b.1];
-        }
-        l
+        let graph = crate::graph_view::Graph { nodes, edges, clusters };
+        let options = crate::graph_view::Options { flow: crate::graph_view::Flow::Right, spacing: Some(crate::layered::Spacing { column: 4.8, row: 1.0, dummy: 0.7 }), pad: 0.7, title: 1.5, gap: 1.8 };
+        let laid = crate::graph_view::lay_out(&graph, width, &[], 0.5625, &options);
+        View { graph, laid, shown, local, groups }
     }
+}
+
+/// The knowledge panel's graph (`Graph::view`): its nodes are the shown
+/// topics (`shown[k]` is node k's topic; `local` the other way), its clusters
+/// the areas' loose topics and the groups (`groups`, by cluster).
+pub struct View {
+    pub graph: crate::graph_view::Graph,
+    pub laid: crate::graph_view::Laid,
+    pub shown: Vec<usize>,
+    pub local: Vec<Option<usize>>,
+    pub groups: Vec<Option<usize>>,
 }
 
 /// The nodes in an order where every node comes after its requirements.
@@ -706,12 +701,12 @@ pub fn current() -> Option<&'static Graph> {
     })
 }
 
-/// The current graph and its panel layout, computed once per graph.
-/// With `visible`, the compact layout of those nodes alone (kept for the
+/// The current graph and its panel's view, computed once per graph.
+/// With `visible`, the compact view of those nodes alone (kept for the
 /// last few sets).
-pub fn current_layout(width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> Option<(&'static Graph, &'static Clustered)> {
+pub fn current_view(width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> Option<(&'static Graph, &'static View)> {
     type Key = (usize, Option<Vec<bool>>);
-    static CACHE: OnceLock<Mutex<Vec<(Key, &'static Clustered)>>> = OnceLock::new();
+    static CACHE: OnceLock<Mutex<Vec<(Key, &'static View)>>> = OnceLock::new();
     let graph = current()?;
     let key: Key = (graph as *const Graph as usize, visible.map(|v| v.to_vec()));
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
@@ -719,51 +714,9 @@ pub fn current_layout(width: &dyn Fn(&str) -> f32, visible: Option<&[bool]>) -> 
         return Some((graph, l));
     }
     // A layout is small; the compact ones are few (one per set of chapters).
-    let l: &'static Clustered = Box::leak(Box::new(graph.layout(width, visible)));
+    let l: &'static View = Box::leak(Box::new(graph.view(width, visible)));
     cache.push((key, l));
     Some((graph, l))
-}
-
-/// A Mermaid flowchart of a graph's nodes (bases at the bottom), by area.
-pub fn mermaid(graph: &Graph) -> String {
-    let id = |i: usize| graph.nodes[i].key.replace('-', "_");
-    let label = |i: usize| graph.nodes[i].title.replace('"', "'");
-    let names = [("gpu", "GPU"), ("rt", "Real-time rendering"), ("geo", "Geometry and spatial structures"), ("cg", "Light and materials"), ("light", "Real-time lighting techniques"), ("gi", "Global illumination")];
-    let mut out = String::from("flowchart BT\n  subgraph base_area[\"Bases\"]\n");
-    for i in graph.bases() {
-        out.push_str(&format!("    {}[\"{}\"]\n", id(i), label(i)));
-    }
-    out.push_str("  end\n");
-    for (area, name) in names {
-        let members: Vec<usize> = (0..graph.nodes.len()).filter(|&i| graph.nodes[i].area == area && !graph.nodes[i].base).collect();
-        if members.is_empty() {
-            continue;
-        }
-        out.push_str(&format!("  subgraph {area}_area[\"{name}\"]\n"));
-        for &i in members.iter().filter(|&&i| graph.nodes[i].group.is_none()) {
-            out.push_str(&format!("    {}[\"{}\"]\n", id(i), label(i)));
-        }
-        for (g, group) in graph.groups.iter().enumerate() {
-            let inside: Vec<usize> = members.iter().copied().filter(|&i| graph.nodes[i].group == Some(g)).collect();
-            if inside.is_empty() {
-                continue;
-            }
-            out.push_str(&format!("    subgraph {}_group[\"{}\"]\n", group.key.replace('-', "_"), group.title.replace('"', "'")));
-            for i in inside {
-                out.push_str(&format!("      {}[\"{}\"]\n", id(i), label(i)));
-            }
-            out.push_str("    end\n");
-        }
-        out.push_str("  end\n");
-    }
-    for (i, node) in graph.nodes.iter().enumerate() {
-        for &r in &node.requires {
-            out.push_str(&format!("  {} --> {}\n", id(r), id(i)));
-        }
-    }
-    out.push_str("  classDef base stroke-width:3px\n");
-    out.push_str(&format!("  class {} base\n", graph.bases().iter().map(|&i| id(i)).collect::<Vec<_>>().join(",")));
-    out
 }
 
 #[cfg(test)]
@@ -842,29 +795,30 @@ mod tests {
                 graph.nodes[m].group = Some(graph.groups.len() - 1);
             }
         }
-        let c = graph.layout(&|t| t.len() as f32 * 0.3, None);
-        let l = &c.layout;
-        assert_eq!(l.positions.len(), 8);
+        let v = graph.view(&|t| t.len() as f32 * 0.6, None);
+        let x = |i: usize| v.laid.rects[v.local[i].unwrap()].center().x;
+        assert_eq!(v.laid.rects.len(), 8);
         for (i, node) in graph.nodes.iter().enumerate() {
             for &r in &node.requires {
-                assert!(l.positions[r].0 < l.positions[i].0, "{r} is not left of {i}");
+                assert!(x(r) < x(i), "{r} is not left of {i}");
             }
         }
         // Each group's box holds its members and no other node.
-        assert_eq!(c.boxes.len(), 2);
-        for &(g, (x0, y0, x1, y1)) in &c.boxes {
+        assert_eq!(v.laid.boxes.len(), 2);
+        for &(c, b) in &v.laid.boxes {
+            let g = v.groups[c].expect("a boxed cluster is a group");
             for (i, node) in graph.nodes.iter().enumerate() {
-                let (x, y) = l.positions[i];
-                let inside = x > x0 && x < x1 && y > y0 && y < y1;
-                assert_eq!(inside, node.group == Some(g), "node {i} and box {g}");
+                let inside = b.contains(v.laid.rects[v.local[i].unwrap()].center());
+                assert_eq!(inside, node.group == Some(g), "node {i} and group {g}");
             }
         }
         // The compact view of 0, 2, 3 (closed under requirements): their edges only, group a's box alone.
         let visible: Vec<bool> = (0..8).map(|i| [0, 2, 3].contains(&i)).collect();
-        let c = graph.layout(&|t| t.len() as f32 * 0.3, Some(&visible));
-        assert_eq!(c.layout.bends.iter().map(|b| (b.0, b.1)).collect::<Vec<_>>(), [(0, 2), (2, 3)]);
-        assert_eq!(c.boxes.iter().map(|b| b.0).collect::<Vec<_>>(), [0]);
-        assert!(c.layout.positions[2].0 < c.layout.positions[3].0);
+        let v = graph.view(&|t| t.len() as f32 * 0.6, Some(&visible));
+        assert_eq!(v.shown, [0, 2, 3]);
+        assert_eq!(v.graph.edges.iter().map(|e| (v.shown[e.from], v.shown[e.to])).collect::<Vec<_>>(), [(0, 2), (2, 3)]);
+        assert_eq!(v.laid.boxes.iter().map(|b| v.groups[b.0]).collect::<Vec<_>>(), [Some(0)]);
+        assert!(v.laid.rects[1].center().x < v.laid.rects[2].center().x);
     }
 
     /// The public packages' graphs merge, and their audiences check, from the

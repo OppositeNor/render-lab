@@ -40,25 +40,25 @@ That raises the question this video answers: how does O3DE light a room from man
 {@ callout=msaa-default} It renders with two samples of multisampling per pixel; the lab renders four, so its edges are a little smoother.
 
 ## c1-map | 2d | First, depth
-diagram: frame
+graph: frame
 focus: DEPTH
 
 {@ callout=depth-prepass} First a depth pre-pass draws only the depth of every opaque mesh.
 
 ## c1-map-cull | 2d | Then the lights are sorted into tiles
-diagram: frame
+graph: frame
 focus: DEPTH, CULL
 
 {@ callout=light-culling-pass} Light culling reads that depth and sorts the lights into lists, one per sixteen by sixteen pixel tile, so a pixel later reads only the lights near it.
 
 ## c1-map-shadow | 2d | The sun's shadow, per pixel
-diagram: frame
+graph: frame
 focus: DEPTH, SHADOW
 
 {@ callout=fullscreen-shadow} The shadow passes draw the sun's shadow maps and turn them into a shadow value per pixel.
 
 ## c1-map-forward | 2d | The forward pass writes five targets
-diagram: frame
+graph: frame
 focus: CULL, SHADOW, FWD, TARGETS, LUT
 
 {@ callout=forward-pixel} Then the forward pass shades each pixel's surface with the lights of its tile, and writes five targets.
@@ -66,7 +66,7 @@ focus: CULL, SHADOW, FWD, TARGETS, LUT
 {@ callout=brdf-execute-once} It reads a BRDF look-up texture, built once at start-up.
 
 ## c1-map-after | 2d | Full-screen passes finish the light
-diagram: frame
+graph: frame
 focus: TARGETS, DIFF, REFL, SSS, AO, MERGE, CUBES
 
 {@ callout=opaque-pass-order} Full-screen passes read those targets: diffuse image-based light, reflections, subsurface scattering, and ambient occlusion; a merge adds diffuse and specular, and transparent meshes are drawn on top.
@@ -1229,7 +1229,7 @@ summary: The worked point P followed back through the frame in the engine's orde
 sources: forward-targets, shadow-filter-default, forward-pixel, light-culling-pass, fullscreen-shadow, evaluate-lighting, diffuse-global, reflection-global, ssao-modulate, diffuse-specular-merge
 
 ## c10-map | 2d | The frame, once more
-diagram: frame
+graph: frame
 focus: DEPTH, CULL, SHADOW, FWD, TARGETS, DIFF, REFL, SSS, AO, MERGE, LUT, CUBES
 
 Here is the frame again, and one pixel to follow through it: P, low on the teapot.

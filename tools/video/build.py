@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -63,6 +62,8 @@ def load_board(cfg: Config) -> Json:
 
 
 def validate(cfg: Config, board: Json, index: Json) -> None:
+    import diagrams
+    import frame_graph
     import markup
     import story
     from outputs import beat_listings, listing_path, read_listing
@@ -76,10 +77,15 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
             assert beat['id'] not in ids, f'duplicate beat {beat["id"]}'
             ids.add(beat['id'])
             assert beat['kind'] in ('3d', '2d'), beat['id']
-            if story.is_diagram(beat):
-                graph = (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text()
+            if 'graph' in beat:
+                known = frame_graph.names(frame_graph.load(cfg, beat['graph']))
                 for node in beat.get('focus', []):
-                    if not re.search(r'\b' + re.escape(node) + r'\s*[\[({]', graph):
+                    if node not in known:
+                        raise RuntimeError(f'{beat["id"]}: unknown focus {node} in the frame graph {beat["graph"]}')
+            elif story.is_diagram(beat):
+                known = diagrams.names(diagrams.load(cfg, beat['diagram']))
+                for node in beat.get('focus', []):
+                    if node not in known:
                         raise RuntimeError(f'{beat["id"]}: unknown focus node {node} in {beat["diagram"]}')
             for key in beat.get('sources', []):
                 assert key in keys, f'{beat["id"]}: unknown source key {key}'

@@ -1091,14 +1091,16 @@ mod tests {
     #[test]
     fn beats_accept_only_3d_and_2d_scene_types() {
         use crate::shot::{SceneType, TimelineBeat};
-        let beat = |kind: &str, diagram: Option<&str>| -> TimelineBeat {
+        let beat = |kind: &str, diagram: Option<serde_json::Value>| -> TimelineBeat {
             serde_json::from_value(serde_json::json!({"id": "b", "chapter": 1, "kind": kind, "startFrame": 0, "frames": 1, "headline": "", "diagram": diagram})).unwrap()
         };
+        let two = || serde_json::json!({"nodes": [{"id": "A", "title": ["A"]}, {"id": "B", "title": ["B"]}], "edges": [{"from": "A", "to": "B"}]});
         assert_eq!(beat("3d", None).kind, SceneType::ThreeD);
-        assert!(beat("2d", Some("flowchart LR\nA --> B")).shows_diagram());
-        assert!(!beat("3d", Some("flowchart LR\nA --> B")).shows_diagram());
+        assert!(beat("2d", Some(two())).shows_diagram());
+        assert_eq!(beat("2d", Some(two())).beat_diagram().unwrap().graph.edges.len(), 1);
+        assert!(!beat("3d", Some(two())).shows_diagram());
         assert!(!beat("2d", None).shows_diagram());
-        for kind in ["scene", "mermaid", "sources"] {
+        for kind in ["scene", "flowchart", "sources"] {
             assert!(serde_json::from_value::<SceneType>(serde_json::json!(kind)).is_err());
         }
         assert_eq!(serde_json::to_value(SceneType::TwoD).unwrap(), serde_json::json!("2d"));

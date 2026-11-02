@@ -1,17 +1,21 @@
-//! A story's diagrams: a small subset of Mermaid's flowchart syntax, laid out
-//! (src/layered.rs) and drawn by the lab in a 2D scene's panel, with the beat's
-//! `focus` nodes lit.
+//! A story's 2D diagrams (src/graph_view.rs): a beat's `diagram` (the
+//! package's `video/diagrams/<name>.toml`, which the timeline carries as a
+//! `graph_view::Spec`) or the frame graph's scene (`graph`, src/graph.rs
+//! `FrameGraph::scene_graph`), fitted in the beat's panel with its `focus`
+//! lit: a named box, or the row of a named member. The frame graph's lit
+//! boxes hold pictures of what they make (src/renderer.rs captures them).
 //!
-//! The subset: a first line `flowchart LR` (or `graph LR`); nodes `ID`,
-//! `ID["label"]` (also `[…]`, `(…)`, `{…}`, all drawn as boxes; `<br/>` breaks
-//! a line); chains of edges `-->`, `==>`, dotted `-.->`, each with an optional
-//! label (`-->|text|`, `-- text -->`, `-. text .->`); `style ID
-//! stroke-dasharray: …` (a dashed box); `%%` comments. An edge that closes a
-//! cycle is drawn as an arc back under (or over) the columns.
+//! A diagram moves rather than fades: a beat after one of the same diagram
+//! glides from that beat's view (its boxes' places and sizes, its framing,
+//! its lit boxes) to its own, its new pictures fading in as they grow; the
+//! first beat of a diagram builds it up, layer by layer, each edge drawn
+//! along its path once its source has appeared (`Transition`). Both depend
+//! on the frame's time in its beat alone, so a frame is the same every time.
 
+use crate::graph_view::{self, Graph, Look, NodeLook, Options, Transform};
 use crate::palette;
 use crate::text::Ink;
-use egui::{pos2, vec2, Align2, CornerRadius, FontFamily, Pos2, Rect, Shape, Stroke, StrokeKind};
+use egui::{CornerRadius, FontFamily, Rect, Stroke, StrokeKind};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
@@ -20,444 +24,182 @@ use std::sync::{Mutex, OnceLock};
 const MAX_FONT: f32 = 33.75;
 /// The margin around a diagram inside its panel (px at 1080p).
 const MARGIN: f32 = 35.0;
-/// A label line's height, a box's padding across and down (font units).
-const LINE: f32 = 1.32;
-const PAD_X: f32 = 1.2;
-const PAD_Y: f32 = 0.8;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Node {
-    pub id: String,
-    pub lines: Vec<String>,
-    pub dashed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Edge {
-    pub from: usize,
-    pub to: usize,
-    pub dotted: bool,
-    pub label: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Diagram {
-    pub nodes: Vec<Node>,
-    pub edges: Vec<Edge>,
-}
-
-/// What a 2D beat shows of its diagram: the source and its lit nodes.
+/// What a 2D beat shows of its diagram: the graph, its lit names, and the
+/// frame graph's scene it was made from (its lit boxes hold pictures).
 #[derive(Clone, Copy, Debug)]
 pub struct BeatDiagram<'a> {
-    pub source: &'a str,
+    pub graph: &'a Graph,
     pub focus: &'a [String],
+    pub scene: Option<&'a crate::graph::GraphScene>,
+    pub transition: Transition<'a>,
 }
 
-fn label_lines(text: &str) -> Vec<String> {
-    let text = text.trim();
-    let text = text.strip_prefix('"').and_then(|t| t.strip_suffix('"')).unwrap_or(text);
-    text.replace("<br/>", "\n").replace("<br />", "\n").replace("<br>", "\n").lines().map(|l| l.trim().to_string()).collect()
+/// How a diagram comes on: from the focus of the beat before (of the same
+/// diagram), or built up (`built` false); `seconds` into its beat.
+#[derive(Clone, Copy, Debug)]
+pub struct Transition<'a> {
+    pub from: Option<&'a [String]>,
+    pub seconds: f32,
+    pub built: bool,
 }
 
-struct Cursor<'a> {
-    rest: &'a str,
-}
-
-impl<'a> Cursor<'a> {
-    fn skip_space(&mut self) {
-        self.rest = self.rest.trim_start();
-    }
-
-    fn eat(&mut self, token: &str) -> bool {
-        if let Some(r) = self.rest.strip_prefix(token) {
-            self.rest = r;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// The text up to `end` (consumed with it).
-    fn until(&mut self, end: &str) -> Option<&'a str> {
-        let at = self.rest.find(end)?;
-        let text = &self.rest[..at];
-        self.rest = &self.rest[at + end.len()..];
-        Some(text)
-    }
-
-    fn id(&mut self) -> Option<&'a str> {
-        let len = self.rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(self.rest.len());
-        (len > 0).then(|| {
-            let id = &self.rest[..len];
-            self.rest = &self.rest[len..];
-            id
-        })
-    }
-
-    /// A node: its id and its label, if one is given here.
-    fn node(&mut self) -> Result<(&'a str, Option<Vec<String>>), String> {
-        self.skip_space();
-        let id = self.id().ok_or_else(|| format!("expected a node id at `{}`", self.rest))?;
-        for (open, close) in [("[", "]"), ("(", ")"), ("{", "}")] {
-            if self.eat(open) {
-                let text = if self.rest.starts_with('"') {
-                    self.eat("\"");
-                    let t = self.until("\"").ok_or("an unclosed quote")?;
-                    if !self.eat(close) {
-                        return Err(format!("expected `{close}` after the label of {id}"));
-                    }
-                    t
-                } else {
-                    self.until(close).ok_or_else(|| format!("an unclosed `{open}` after {id}"))?
-                };
-                return Ok((id, Some(label_lines(text))));
-            }
-        }
-        Ok((id, None))
-    }
-
-    /// An edge: dotted, and its label.
-    fn edge(&mut self) -> Result<(bool, Option<String>), String> {
-        self.skip_space();
-        let (dotted, mut label) = if self.eat("-->") || self.eat("==>") {
-            (false, None)
-        } else if self.eat("-.->") {
-            (true, None)
-        } else if self.eat("-.") {
-            (true, Some(self.until(".->").ok_or("a `-.` edge without its `.->`")?))
-        } else if self.eat("--") {
-            (false, Some(self.until("-->").ok_or("a `--` edge without its `-->`")?))
-        } else {
-            return Err(format!("expected an edge at `{}`", self.rest));
-        };
-        if label.is_none() && self.eat("|") {
-            label = Some(self.until("|").ok_or("an unclosed `|` label")?);
-        }
-        Ok((dotted, label.map(|l| label_lines(l).join(" ")).filter(|l| !l.is_empty())))
+impl Default for Transition<'_> {
+    /// Settled: shown as it is.
+    fn default() -> Self {
+        Transition { from: None, seconds: 0.0, built: true }
     }
 }
 
-impl Diagram {
-    pub fn parse(source: &str) -> Result<Diagram, String> {
-        let mut d = Diagram::default();
-        let mut index: HashMap<String, usize> = HashMap::new();
-        let mut header = false;
-        let mut node = |d: &mut Diagram, id: &str, lines: Option<Vec<String>>| -> usize {
-            let i = *index.entry(id.to_string()).or_insert_with(|| {
-                d.nodes.push(Node { id: id.to_string(), lines: vec![id.to_string()], dashed: false });
-                d.nodes.len() - 1
-            });
-            if let Some(lines) = lines {
-                d.nodes[i].lines = lines;
-            }
-            i
-        };
-        for (n, raw) in source.lines().enumerate() {
-            let line = raw.trim();
-            let at = |e: String| format!("line {}: {e}", n + 1);
-            if line.is_empty() || line.starts_with("%%") {
-                continue;
-            }
-            if !header {
-                let words: Vec<&str> = line.split_whitespace().collect();
-                if !matches!(words.as_slice(), ["flowchart" | "graph", "LR"]) {
-                    return Err(at(format!("a diagram starts with `flowchart LR`, not `{line}`")));
-                }
-                header = true;
-                continue;
-            }
-            if let Some(rest) = line.strip_prefix("style ") {
-                let (id, style) = rest.trim().split_once(char::is_whitespace).ok_or_else(|| at("a style without properties".into()))?;
-                if !style.contains("stroke-dasharray") {
-                    return Err(at(format!("unsupported style `{style}` (only stroke-dasharray)")));
-                }
-                let i = node(&mut d, id, None);
-                d.nodes[i].dashed = true;
-                continue;
-            }
-            let mut c = Cursor { rest: line };
-            let (id, lines) = c.node().map_err(at)?;
-            let mut from = node(&mut d, id, lines);
-            loop {
-                c.skip_space();
-                if c.rest.is_empty() || c.eat(";") {
-                    break;
-                }
-                let (dotted, label) = c.edge().map_err(at)?;
-                let (id, lines) = c.node().map_err(at)?;
-                let to = node(&mut d, id, lines);
-                d.edges.push(Edge { from, to, dotted, label });
-                from = to;
-            }
-        }
-        if d.nodes.is_empty() {
-            return Err("a diagram without nodes".into());
-        }
-        Ok(d)
-    }
+/// How long a move takes, a box takes to appear, and the delay from the
+/// first layer's appearing to the last's (seconds).
+const MOVE: f32 = 0.9;
+const APPEAR: f32 = 0.35;
+const BUILD: f32 = 1.0;
 
-    /// Problems with a beat's `focus`: names no node has.
-    pub fn check_focus(&self, focus: &[String]) -> Result<(), String> {
-        match focus.iter().find(|f| !self.nodes.iter().any(|n| &n.id == *f)) {
-            Some(f) => Err(format!("unknown focus node {f}")),
-            None => Ok(()),
-        }
-    }
+fn ease(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
 
-    /// Per edge, whether it closes a cycle with the edges written before it
-    /// (the edge back, as written): such an edge is laid out reversed and
-    /// drawn as an arc back.
-    pub fn back_edges(&self) -> Vec<bool> {
-        let mut after: Vec<Vec<usize>> = vec![Vec::new(); self.nodes.len()];
-        let reaches = |after: &[Vec<usize>], from: usize, to: usize| {
-            let mut seen = vec![false; after.len()];
-            let mut stack = vec![from];
-            while let Some(i) = stack.pop() {
-                if i == to {
-                    return true;
-                }
-                if !std::mem::replace(&mut seen[i], true) {
-                    stack.extend(&after[i]);
-                }
-            }
-            false
-        };
-        self.edges
-            .iter()
-            .map(|e| {
-                let back = reaches(&after, e.to, e.from);
-                if !back {
-                    after[e.from].push(e.to);
-                }
-                back
-            })
-            .collect()
+/// A lit box's picture: the section, its texture, and the texture's size.
+pub type Picture = (String, egui::TextureId, [u32; 2]);
+
+impl BeatDiagram<'_> {
+    /// The frame graph scene's lit sections (named, or one of their
+    /// members) and what each one's picture shows: its `picture`
+    /// (`<node>.<resource>`), else its last member (a pass or a resource).
+    pub fn lit_groups(&self) -> Vec<(String, String)> {
+        lit_sections(self.scene, self.focus)
     }
 }
 
-/// A diagram laid out in font units (a label's font is 1 high).
-pub struct Laid {
-    pub diagram: Diagram,
-    layout: crate::layered::Layout,
-    back: Vec<bool>,
-    /// Each back edge's arc: below the columns (or above), and its depth.
-    arcs: Vec<(bool, f32)>,
-    /// Everything drawn: min and max corners.
-    bounds: (Pos2, Pos2),
+fn lit_sections(scene: Option<&crate::graph::GraphScene>, focus: &[String]) -> Vec<(String, String)> {
+    let Some(scene) = scene else { return Vec::new() };
+    scene
+        .sections
+        .iter()
+        .filter(|s| !s.outside && !(s.passes.is_empty() && s.resources.is_empty()))
+        .filter(|s| focus.contains(&s.id) || s.passes.iter().chain(&s.resources).any(|m| focus.contains(m)))
+        .filter_map(|s| Some((s.id.clone(), s.picture.clone().or_else(|| s.resources.last().or(s.passes.last()).cloned())?)))
+        .collect()
 }
 
-/// A diagram's layout, computed once per source. `width` measures a line of
-/// text in font units.
-pub fn laid_out(source: &str, width: &dyn Fn(&str) -> f32) -> Result<&'static Laid, String> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Result<&'static Laid, String>>>> = OnceLock::new();
+/// A diagram's layout, once per graph and set of pictured nodes.
+fn laid_out(graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspect: f32) -> &'static graph_view::Laid {
+    use std::hash::{Hash, Hasher};
+    static CACHE: OnceLock<Mutex<HashMap<u64, &'static graph_view::Laid>>> = OnceLock::new();
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    format!("{graph:?}").hash(&mut h);
+    pictured.hash(&mut h);
+    aspect.to_bits().hash(&mut h);
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
-    cache
-        .entry(source.to_string())
-        .or_insert_with(|| {
-            let diagram = Diagram::parse(source)?;
-            Ok(Box::leak(Box::new(lay_out(diagram, width))))
-        })
-        .clone()
-}
-
-fn lay_out(diagram: Diagram, width: &dyn Fn(&str) -> f32) -> Laid {
-    let back = diagram.back_edges();
-    let sizes: Vec<(f32, f32)> = diagram.nodes.iter().map(|n| (n.lines.iter().map(|l| width(l)).fold(0.0, f32::max) + PAD_X, n.lines.len() as f32 * LINE + PAD_Y)).collect();
-    let edges: Vec<(usize, usize)> = diagram.edges.iter().zip(&back).map(|(e, &b)| if b { (e.to, e.from) } else { (e.from, e.to) }).collect();
-    // A forward edge's label sits between its columns.
-    let label_room = diagram.edges.iter().zip(&back).filter(|(_, b)| !**b).filter_map(|(e, _)| e.label.as_deref()).map(|l| width(l) + 1.0).fold(0.0, f32::max);
-    let order: Vec<usize> = (0..diagram.nodes.len()).collect();
-    let layout = crate::layered::layout(&sizes, &edges, &order, crate::layered::Spacing { column: label_room.max(1.7), row: 0.7, dummy: 0.5 });
-    let node_rect = |i: usize| Rect::from_center_size(pos2(layout.positions[i].0, layout.positions[i].1), vec2(layout.widths[i], layout.heights[i]));
-    let mut min = Pos2::ZERO;
-    let mut max = pos2(layout.size.0, layout.size.1);
-    let mut arcs = vec![(true, 0.0); diagram.edges.len()];
-    for (e, edge) in diagram.edges.iter().enumerate().filter(|(e, _)| back[*e]) {
-        let (a, b) = (node_rect(edge.from), node_rect(edge.to));
-        // Toward the nearer side of the columns.
-        let below = (a.center().y + b.center().y) / 2.0 >= layout.size.1 / 2.0;
-        let depth = 1.6;
-        let label = edge.label.as_deref().map(|l| width(l)).unwrap_or(0.0);
-        let x = (a.center().x + b.center().x) / 2.0;
-        if below {
-            let y = a.max.y.max(b.max.y) + depth * 0.75;
-            max.y = max.y.max(y + if label > 0.0 { LINE } else { 0.2 });
-        } else {
-            let y = a.min.y.min(b.min.y) - depth * 0.75;
-            min.y = min.y.min(y - if label > 0.0 { LINE } else { 0.2 });
-        }
-        min.x = min.x.min(x - label / 2.0 - 0.4);
-        max.x = max.x.max(x + label / 2.0 + 0.4);
-        arcs[e] = (below, depth);
-    }
-    Laid { diagram, layout, back, arcs, bounds: (min, max) }
-}
-
-/// The points of a cubic Bézier curve.
-fn cubic(p: [Pos2; 4], out: &mut Vec<Pos2>) {
-    for k in 1..=16 {
-        let t = k as f32 / 16.0;
-        let u = 1.0 - t;
-        out.push((p[0].to_vec2() * (u * u * u) + p[1].to_vec2() * (3.0 * u * u * t) + p[2].to_vec2() * (3.0 * u * t * t) + p[3].to_vec2() * (t * t * t)).to_pos2());
-    }
-}
-
-/// A line, solid or dashed, ending in an arrowhead along its last segment.
-fn arrow(painter: &egui::Painter, points: Vec<Pos2>, dotted: bool, stroke: Stroke, tip: f32) {
-    let n = points.len();
-    let (end, before) = (points[n - 1], points[n.saturating_sub(4)]);
-    let dir = (end - before).normalized();
-    let normal = vec2(-dir.y, dir.x);
-    let base = end - dir * tip * 1.6;
-    let mut line = points;
-    *line.last_mut().unwrap() = base;
-    if dotted {
-        painter.extend(Shape::dashed_line(&line, stroke, tip * 0.9, tip * 0.7));
-    } else {
-        painter.add(Shape::line(line, stroke));
-    }
-    painter.add(Shape::convex_polygon(vec![end, base + normal * tip * 0.8, base - normal * tip * 0.8], stroke.color, Stroke::NONE));
+    cache.entry(h.finish()).or_insert_with(|| Box::leak(Box::new(graph_view::lay_out(graph, width, pictured, aspect, &Options::default()))))
 }
 
 /// Draws `beat`'s diagram in its panel `area`: fitted (its labels at most
 /// `MAX_FONT` high), or, with `picture`, scaled into that rectangle (the
-/// panel's area zoomed and panned). Labels go through `ink`, whose smallest
-/// size the recorder checks against the lab's minimum.
-pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram) {
+/// panel's area zoomed and panned). A lit box with one of `pictures` holds it
+/// under its rows (`plan`). Coming from the beat before, the diagram moves
+/// from that beat's plan to its own; a first beat builds it up. Labels go
+/// through `ink`, whose smallest size the recorder checks against the lab's
+/// minimum.
+pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram, pictures: &[Picture]) {
     let painter = ink.painter;
     painter.rect_filled(area, CornerRadius::same(12), palette::panel());
+    let graph = beat.graph;
     let width = |s: &str| ink.measure(s, 100.0, FontFamily::Proportional).x / 100.0;
-    let laid = match laid_out(beat.source, &width) {
-        Ok(l) => l,
-        Err(e) => {
-            ink.text(area.center(), Align2::CENTER_CENTER, format!("diagram: {e}"), 24.0, FontFamily::Proportional, palette::MISMATCH);
-            return;
+    let aspect = pictures.first().map_or(9.0 / 16.0, |p| p.2[1] as f32 / p.2[0].max(1) as f32).clamp(0.3, 1.5);
+    let now: Vec<usize> = pictures.iter().filter_map(|p| graph.nodes.iter().position(|n| n.id == p.0)).collect();
+    let current = plan(area, graph, &width, &now, aspect);
+    let tr = beat.transition;
+    // On the way from the beat before: its plan (its lit boxes' pictures had their room).
+    let moving = tr.from.filter(|_| tr.seconds < MOVE);
+    let e = ease(tr.seconds / MOVE);
+    let before: Vec<usize> = moving.map(|f| lit_sections(beat.scene, f).iter().filter_map(|(id, _)| graph.nodes.iter().position(|n| &n.id == id)).collect()).unwrap_or_default();
+    let (laid, base) = match moving {
+        Some(_) => {
+            let from = plan(area, graph, &width, &before, aspect);
+            let t = Transform { scale: from.1.scale + (current.1.scale - from.1.scale) * e, origin: from.1.origin + (current.1.origin - from.1.origin) * e };
+            (graph_view::blend(from.0, current.0, e), t)
         }
+        None => (current.0.clone(), current.1),
     };
-    let (lo, hi) = laid.bounds;
-    let size = hi - lo;
-    let fit = ((area.width() - 2.0 * MARGIN) / size.x).min((area.height() - 2.0 * MARGIN) / size.y).min(MAX_FONT);
-    let picture = picture.unwrap_or(area);
-    let zoom = picture.width() / area.width();
-    let scale = fit * zoom;
-    let origin = picture.center() - (lo.to_vec2() + size / 2.0) * scale;
-    let at = |p: (f32, f32)| origin + vec2(p.0, p.1) * scale;
-    let clipped = painter.with_clip_rect(area);
-    let d = &laid.diagram;
-    let l = &laid.layout;
-    let rect = |i: usize| Rect::from_center_size(at(l.positions[i]), vec2(l.widths[i], l.heights[i]) * scale);
-    // A column's width, from the nodes centred on it (a column of only edges: none).
-    let column_width = |x: f32| (0..d.nodes.len()).filter(|&i| (l.positions[i].0 - x).abs() < 1e-3).map(|i| l.widths[i]).fold(0.0, f32::max);
-    let edge_color = palette::text_dim();
-    let stroke = Stroke::new(1.8 * zoom.min(2.0), edge_color);
-    let tip = (scale * 0.3).clamp(5.0, 14.0);
-    let draw_ink = Ink::new(&clipped);
-    let edge_label = |text: &str, centre: Pos2| {
-        let font = scale;
-        let w = draw_ink.measure(text, font, FontFamily::Proportional);
-        clipped.rect_filled(Rect::from_center_size(centre, w + vec2(font * 0.5, font * 0.2)), CornerRadius::same(4), palette::panel());
-        draw_ink.text(centre, Align2::CENTER_CENTER, text, font, FontFamily::Proportional, palette::text_dim());
+    let shown = &current.2;
+    // Zoomed and panned: the panel's picture rectangle stands for the area.
+    let t = match picture {
+        Some(p) => {
+            let zoom = p.width() / area.width();
+            Transform { scale: base.scale * zoom, origin: p.min + (base.origin - area.min) * zoom }
+        }
+        None => base,
     };
-    for (e, edge) in d.edges.iter().enumerate() {
-        let (a, b) = (rect(edge.from), rect(edge.to));
-        let mut points = Vec::new();
-        let label_at;
-        if laid.back[e] {
-            let (below, depth) = laid.arcs[e];
-            let (p0, p3, push) = if below { (a.center_bottom(), b.center_bottom(), depth) } else { (a.center_top(), b.center_top(), -depth) };
-            let y = if below { p0.y.max(p3.y) } else { p0.y.min(p3.y) } + push * scale;
-            points.push(p0);
-            cubic([p0, pos2(p0.x, y), pos2(p3.x, y), p3], &mut points);
-            label_at = pos2((p0.x + p3.x) / 2.0, if below { p0.y.max(p3.y) } else { p0.y.min(p3.y) } + push * 0.75 * scale + if below { 0.55 } else { -0.55 } * scale);
-        } else {
-            // Through a column it skips, the edge runs straight across the column.
-            let mut stops = vec![a.right_center()];
-            for &p in l.bends.iter().find(|x| x.0 == edge.from && x.1 == edge.to).map(|x| x.2.as_slice()).unwrap_or_default() {
-                let half = column_width(p.0) / 2.0;
-                stops.push(at((p.0 - half, p.1)));
-                stops.push(at((p.0 + half, p.1)));
+    let zoom = (t.scale / base.scale).min(2.0);
+    let look = |focus: &[String], i: usize| -> NodeLook {
+        let node = &graph.nodes[i];
+        let named = focus.contains(&node.id);
+        let rows: Vec<bool> = node.rows.iter().map(|r| focus.contains(&r.id)).collect();
+        let mut look = NodeLook::plain(node, named, 1.5 * zoom);
+        if !named && rows.contains(&true) {
+            look.outline = Stroke::new(2.5 * zoom, palette::accent());
+        }
+        look.rows = rows.iter().map(|&lit| (if lit { palette::text() } else { palette::text_dim() }, lit)).collect();
+        look
+    };
+    // Building up: a box appears when its layer's turn comes (by its place along the flow).
+    let b = laid.bounds;
+    let turn = |i: usize| if b.width() > 1e-3 { (laid.rects[i].min.x - b.min.x) / b.width() * BUILD } else { 0.0 };
+    let appear = |i: usize| if tr.built { 1.0 } else { ease((tr.seconds - turn(i)) / APPEAR) };
+    let nodes = (0..graph.nodes.len())
+        .map(|i| {
+            let mut l = match moving {
+                Some(f) => look(f, i).blend(&look(beat.focus, i), e),
+                None => look(beat.focus, i),
+            };
+            l.picture = pictures.iter().find(|p| p.0 == graph.nodes[i].id).filter(|_| shown.contains(&i)).map(|p| (p.1, p.2));
+            // A picture new to this beat fades in as its room grows.
+            if moving.is_some() && !before.contains(&i) {
+                l.tint = egui::Color32::WHITE.gamma_multiply(e);
             }
-            stops.push(b.left_center());
-            points.push(stops[0]);
-            for (k, w) in stops.windows(2).enumerate() {
-                if k % 2 == 1 {
-                    points.push(w[1]);
-                    continue;
-                }
-                let dx = (w[1].x - w[0].x) / 2.0;
-                cubic([w[0], w[0] + vec2(dx, 0.0), w[1] - vec2(dx, 0.0), w[1]], &mut points);
-            }
-            label_at = points[points.len() / 2];
-        }
-        arrow(&clipped, points, edge.dotted, stroke, tip);
-        if let Some(text) = &edge.label {
-            edge_label(text, label_at);
-        }
-    }
-    let line = scale * LINE;
-    for (i, node) in d.nodes.iter().enumerate() {
-        let r = rect(i);
-        let lit = beat.focus.iter().any(|f| *f == node.id);
-        let radius = CornerRadius::same((scale * 0.3).min(255.0) as u8);
-        let (fill, outline) = if lit {
-            (palette::accent().gamma_multiply(0.35), Stroke::new(4.0 * zoom.min(2.0), palette::accent()))
-        } else {
-            (palette::panel_raised(), Stroke::new(1.5 * zoom.min(2.0), palette::text_faint()))
-        };
-        clipped.rect_filled(r, radius, palette::panel_raised());
-        clipped.rect_filled(r, radius, fill);
-        if node.dashed && !lit {
-            let corners = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
-            clipped.extend(Shape::dashed_line(&corners, outline, scale * 0.25, scale * 0.2));
-        } else {
-            clipped.rect_stroke(r, radius, outline, StrokeKind::Inside);
-        }
-        let top = r.center().y - line * node.lines.len() as f32 / 2.0;
-        for (k, text_line) in node.lines.iter().enumerate() {
-            draw_ink.text(pos2(r.center().x, top + line * (k as f32 + 0.5)), Align2::CENTER_CENTER, text_line, scale, FontFamily::Proportional, palette::text());
-        }
-    }
-    ink.min_size.set(ink.min_size.get().min(draw_ink.min_size.get()));
+            l.alpha = appear(i);
+            l
+        })
+        .collect();
+    let edges = graph
+        .edges
+        .iter()
+        .map(|edge| {
+            let drawn = if tr.built { 1.0 } else { ((tr.seconds - turn(edge.from) - APPEAR * 0.6) / (APPEAR * 1.5)).clamp(0.0, 1.0) };
+            graph_view::EdgeLook { color: palette::text_dim(), width: 1.8 * zoom, hidden: false, drawn }
+        })
+        .collect();
+    graph_view::draw(ink, area, &t, graph, &laid, &Look { nodes, edges, clusters: Vec::new(), moved: &[], edge_labels: true, tracked: true });
     painter.rect_stroke(area, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_the_subset() {
-        let d = Diagram::parse(
-            "flowchart LR\n  A[\"One<br/>two\"] --> B[Three]\n  %% a comment\n  B -. \"back\" .-> A\n  B -->|\"on\"| C\n  C -- across --> D\n  B -.-> D\n  E[\"Alone\"]\n  style E stroke-dasharray: 5 5\n",
-        )
-        .unwrap();
-        assert_eq!(d.nodes.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["A", "B", "C", "D", "E"]);
-        assert_eq!(d.nodes[0].lines, ["One", "two"]);
-        assert_eq!(d.nodes[2].lines, ["C"]);
-        assert!(d.nodes[4].dashed);
-        let labels: Vec<_> = d.edges.iter().map(|e| (e.from, e.to, e.dotted, e.label.as_deref())).collect();
-        assert_eq!(labels, [(0, 1, false, None), (1, 0, true, Some("back")), (1, 2, false, Some("on")), (2, 3, false, Some("across")), (1, 3, true, None)]);
-        assert_eq!(d.back_edges(), [false, true, false, false, false]);
-        assert!(d.check_focus(&["A".into(), "E".into()]).is_ok());
-        assert!(d.check_focus(&["Z".into()]).is_err());
+/// A diagram's layout and framing in `area` with `pictured` boxes holding
+/// pictures: fitted if the labels stay at the lab's minimum; else at the
+/// minimum, the view on the pictured boxes (the rest clipped), if they fit in
+/// it; else without pictures. Also which boxes show their pictures.
+fn plan(area: Rect, graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspect: f32) -> (&'static graph_view::Laid, Transform, Vec<usize>) {
+    let min = crate::text::MIN_TEXT_PT;
+    let fit_of = |laid: &graph_view::Laid| ((area.width() - 2.0 * MARGIN) / laid.bounds.width()).min((area.height() - 2.0 * MARGIN) / laid.bounds.height()).min(MAX_FONT);
+    let plain = laid_out(graph, width, &[], aspect);
+    if !pictured.is_empty() {
+        let with = laid_out(graph, width, pictured, aspect);
+        if fit_of(with) >= min {
+            return (with, Transform::fit(area, with.bounds, MARGIN, MAX_FONT), pictured.to_vec());
+        }
+        let lit = pictured.iter().map(|&i| with.rects[i]).reduce(|a, b| a.union(b)).expect("a pictured node");
+        let room = (area.size() - egui::Vec2::splat(2.0 * MARGIN)) / min;
+        if lit.width() <= room.x && lit.height() <= room.y {
+            // Centred on them, but not past the diagram's edges where it can help it.
+            let b = with.bounds;
+            let half = room / 2.0;
+            let keep = |c: f32, a: f32, z: f32, h: f32| if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) };
+            let centre = egui::pos2(keep(lit.center().x, b.min.x, b.max.x, half.x), keep(lit.center().y, b.min.y, b.max.y, half.y));
+            return (with, Transform::centred(area, centre, min), pictured.to_vec());
+        }
     }
-
-    #[test]
-    fn rejects_what_it_does_not_draw() {
-        assert!(Diagram::parse("flowchart TD\nA --> B").is_err());
-        assert!(Diagram::parse("flowchart LR\nA --> ").is_err());
-        assert!(Diagram::parse("flowchart LR\nA[\"open --> B").is_err());
-        assert!(Diagram::parse("flowchart LR\nstyle A fill:#fff").is_err());
-    }
-
-    #[test]
-    fn lays_out_a_cycle_left_to_right() {
-        let laid = lay_out(Diagram::parse("flowchart LR\nA --> B\nB --> C\nC -->|again| B").unwrap(), &|s| s.len() as f32 * 0.6);
-        let x = |i: usize| laid.layout.positions[i].0;
-        assert!(x(0) < x(1) && x(1) < x(2));
-        assert_eq!(laid.back, [false, false, true]);
-        // The edge written last closes the cycle, wherever a walk would meet it.
-        let d = Diagram::parse("flowchart LR\nS --> T\nC --> L\nL --> T\nT -->|r| L").unwrap();
-        assert_eq!(d.back_edges(), [false, false, false, true]);
-    }
+    (plain, Transform::fit(area, plain.bounds, MARGIN, MAX_FONT), Vec::new())
 }

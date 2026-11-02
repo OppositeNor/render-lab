@@ -65,7 +65,7 @@ The bindings do not change: target `i` is `2i` read, `2i + 1` written; `depth` `
 ```sh
 cargo run --release -- --investigation <id> graph                   # nodes in order, reads and writes, resources and their lifetimes, culled nodes, engine passes
 cargo run --release -- --investigation <id> graph --json            # the same, and the problems, as JSON
-cargo run --release -- --investigation <id> graph --mermaid g.mmd   # a Mermaid flowchart; --dot g.dot for Graphviz
+cargo run --release -- --investigation <id> graph --dot g.dot       # the graph in Graphviz's language
 ```
 
 It fails on a compile error (an unknown name, a read before any write, a cycle, a name listed twice), on a lint
@@ -168,6 +168,25 @@ when you add the node; the `graph` command checks that each names a node and cit
 {@ image=lights image.word=1 blend=1}
 {@ panel=dag highlight=o3dePrepassFS}            the DAG, the pre-pass's card called out
 {@ highlight=o3deLightCullingCS}                 the next step: the view scrolls to it
+```
+
+A 2D beat's `graph: frame` presents the frame graph as a scene of its own, drawn by the lab from the live graph
+as the package's `graphs/frame.toml` (the resource `graph/frame`) groups it (sections of passes or resources, each
+a box; dashed, what the frame does not run; `tools/video/frame_graph.py` has the format); the DAG panel boxes its
+cards by the same sections. Consecutive beats of the scene move from one focus to the next (no fade), and its first
+beat builds it up, layer by layer (`lab/src/diagram.rs` `Transition`). Its `focus:` lights a section, or a pass or resource
+of one (its row). The lab renders the beat's 3D frame unseen behind the scene, and a lit box holds a picture of
+what it makes (its last pass's result, its last resource as the frame leaves it, or the section's `picture =
+"<pass>.<resource>"`, drawn as `SceneShading::shows` says); when the pictures would take the labels below 24 px the
+view stays at 24 px on the lit boxes, and when even those do not fit, no box shows its picture. Pick a section's
+`picture` when its last pass writes bookkeeping (an index list) rather than what the section is for. Every pass of
+the frame must be in a section (the lab's overlay and composite need not be), so
+adding a pass means adding it to a section: the timeline does not load otherwise.
+
+```text
+## c1-map-cull | 2d | Then the lights are sorted into tiles
+graph: frame
+focus: DEPTH, CULL
 ```
 
 `imageGraph` makes a graph image (beside `imageFrom`, an image kind's instance, and published or PNG images); a later

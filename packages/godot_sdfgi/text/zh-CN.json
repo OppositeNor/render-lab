@@ -259,5 +259,12 @@
   "hints.field": "由体素构建的有向距离场：它的切片、泛洪的步骤，以及周围的遮蔽。",
   "hints.probes": "探针：它们的位置、每帧追踪的光线，以及其贴图平均所用的历史帧。",
   "hints.pixel": "屏幕阶段的一个像素：它读取哪些探针、如何混合，以及它为画面增加了什么。",
-  "pass.sdfgiForwardFS": "绘制场景，为每个像素着色：直接光加上从 SDFGI 探针查得的环境光与反射（环境光乘以反照率，反射乘以环境 BRDF）。"
+  "pass.sdfgiForwardFS": "绘制场景，为每个像素着色：直接光加上从 SDFGI 探针查得的环境光与反射（环境光乘以反照率，反射乘以环境 BRDF）。",
+  "frame.cascades": "级联\n与剔除",
+  "frame.voxels": "体素与\n距离场",
+  "frame.light": "体素\n中的光",
+  "frame.probes": "探针\n光线",
+  "frame.store": "探针\n贴图",
+  "frame.screen": "屏幕空间渲染阶段",
+  "frame.cpu": "在 CPU 上"
 }

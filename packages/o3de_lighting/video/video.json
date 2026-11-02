@@ -4,10 +4,7 @@
   "translations": {
     "zh-CN": "storyboard.zh-CN.story"
   },
-  "diagrams": {
-    "en": "diagrams",
-    "zh-CN": "zh-CN/diagrams"
-  },
+  "diagrams": "diagrams",
   "sourceIndex": "../source-index.json",
   "pseudocode": "../pseudocode",
   "video": {

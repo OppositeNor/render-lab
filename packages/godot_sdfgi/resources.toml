@@ -256,3 +256,11 @@ id = "experiment/probe-rays"
 kind = "file"
 source = "experiments/probe-rays.toml"
 license = "MIT"
+
+# The frame graph's sections (graphs/frame.toml): the story's frame graph scene and
+# the viewer's DAG panel group the frame's passes by them (lab/src/graph.rs `GraphScene`).
+[[resource]]
+id = "graph/frame"
+kind = "file"
+source = "graphs/frame.toml"
+license = "MIT"

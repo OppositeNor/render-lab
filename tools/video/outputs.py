@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from config import LAB, TOOLS, Config, Environment, log, run
+import diagrams
+import frame_graph
 import story
 from timeline import sentences_of
 
@@ -24,7 +26,7 @@ Json = dict[str, Any]
 # Words the documents use, per edition.
 WORDS: dict[str, dict[str, str]] = {
     'en': {
-        'chapters': 'Chapters', 'starts': 'Starts at {when} · {seconds:.0f} s (budget {budget} s).', 'diagram': 'diagram', 'demo': '3D demonstration',
+        'chapters': 'Chapters', 'starts': 'Starts at {when} · {seconds:.0f} s (budget {budget} s).', 'diagram': 'diagram', 'graph': 'the frame graph', 'demo': '3D demonstration',
         'card': 'source card', 'sources': 'Sources for this chapter: ', 'sep': ', ', 'line': 'line {line}', 'files': 'Files', 'listing': 'Python pseudo-code',
         'seeAbove': '*(Python pseudo-code “{title}”: see above.)*', 'engine': 'Engine source: {engine} {version}, commit `{commit}`. Prepared {date}.',
         'readingOrder': 'Recommended reading order', 'table': '| File | Symbol | Line | What to inspect |', 'simplify': 'What the demonstrations simplify', "mappings": "What the lab's data stands for", "mappingTable": "| Lab | Engine structure | Relationship | The engine's layout | The lab's |",
@@ -34,7 +36,7 @@ WORDS: dict[str, dict[str, str]] = {
         'video': 'video', 'script': 'Narrated script', 'guide': 'Source-reading guide', 'verification': 'Verification',
     },
     'zh-CN': {
-        'chapters': '章节', 'starts': '开始于 {when} · {seconds:.0f} 秒（预算 {budget} 秒）。', 'diagram': '图表', 'demo': '3D 演示',
+        'chapters': '章节', 'starts': '开始于 {when} · {seconds:.0f} 秒（预算 {budget} 秒）。', 'diagram': '图表', 'graph': '帧图', 'demo': '3D 演示',
         'card': '源码卡片', 'sources': '本章源码：', 'sep': '、', 'line': '第 {line} 行', 'files': '文件', 'listing': 'Python 伪代码',
         'seeAbove': '*（Python 伪代码“{title}”见上文。）*', 'engine': '引擎源码：{engine} {version}，commit `{commit}`。准备于 {date}。',
         'readingOrder': '推荐阅读顺序', 'table': '| 文件 | 符号 | 行 | 要看什么 |', 'simplify': '演示做了哪些简化', 'mappings': '实验室的数据对应什么', 'mappingTable': '| 实验室 | 引擎结构 | 关系 | 引擎的布局 | 实验室的布局 |',
@@ -275,8 +277,10 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
         for beat in chapter['beats']:
             when = clock(beat_frames[beat['id']]['startFrame'] / fps)
             lines += [f'### {beat["headline"]}', '']
-            if story.is_diagram(beat):
-                lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.mmd`*', '', '```mermaid', (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text().strip(), '```', '']
+            if 'graph' in beat:
+                lines += [f'*{when} · {w["graph"]} `{beat["graph"]}.toml`*', ''] + frame_graph.markdown(frame_graph.load(cfg, beat['graph']))
+            elif story.is_diagram(beat):
+                lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.toml`*', ''] + diagrams.markdown(diagrams.load(cfg, beat['diagram']))
             elif story.is_3d(beat):
                 demo = next((k['demo'] for k in beat.get('keys', []) if 'demo' in k), None)
                 lines += [f'*{when} · {w["demo"]}{": " + demos.get(demo, demo) if demo else ""}*', '']
@@ -293,9 +297,11 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
                 lines.append('')
         lines += [w['sources'] + w['sep'].join(source_link(cfg, doc_dir, index, k) for k in chapter['sources']) + '.', '']
     build = cfg.build()
+    # Every diagram may be the frame graph (drawn from the lab's graph), so the directory may not exist.
+    diagram_dir = f' · {repo_link(doc_dir, cfg.diagrams, "diagrams/")}' if cfg.diagrams.is_dir() and any(cfg.diagrams.glob('*.toml')) else ''
     lines += [f'## {w["files"]}', '',
               f'- {repo_link(doc_dir, cfg.video(), cfg.video_name())} · {repo_link(doc_dir, build / "captions.srt", "captions.srt")} · {repo_link(doc_dir, build / "captions.vtt", "captions.vtt")} · {repo_link(doc_dir, build / "chapters.txt", "chapters.txt")}',
-              f'- {repo_link(doc_dir, cfg.storyboard, cfg.storyboard.name)} · {repo_link(doc_dir, cfg.source_index, "source-index.json")} · {repo_link(doc_dir, cfg.diagrams, "diagrams/")} · {repo_link(doc_dir, cfg.pseudocode, "pseudocode/")}', '']
+              f'- {repo_link(doc_dir, cfg.storyboard, cfg.storyboard.name)} · {repo_link(doc_dir, cfg.source_index, "source-index.json")}{diagram_dir} · {repo_link(doc_dir, cfg.pseudocode, "pseudocode/")}', '']
     (build / 'script.md').write_text('\n'.join(lines) + '\n')
     plain: list[str] = []
     for chapter in board['chapters']:

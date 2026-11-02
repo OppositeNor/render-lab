@@ -155,10 +155,12 @@ pub static SHADING: SceneShading = SceneShading {
     update: None,
     resolution: None,
     history: &[],
-    // The tile data's fourth word is the tile's light count (after culling); the
-    // light lists pack a light's index and its depth bins; depths are view distances.
+    // The tile data's fourth word is the tile's light count after culling, which
+    // counts an end-of-group mark for each of the 7 light groups (a tile without
+    // lights: 7); the light lists pack a light's index and its depth bins; depths
+    // are view distances.
     shows: &[
-        ("tileData", "count?word=3&range=0,8"),
+        ("tileData", "count?word=3&range=7,11"),
         ("lightList", "hash"),
         ("lightListRemapped", "hash"),
         ("linearDepth", "float?range=0,12"),

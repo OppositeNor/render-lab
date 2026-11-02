@@ -348,12 +348,33 @@ pub enum SceneType {
 impl TimelineBeat {
     /// A 2D scene that shows a diagram, not its sources card.
     pub fn shows_diagram(&self) -> bool {
-        self.kind == SceneType::TwoD && self.diagram.is_some()
+        self.kind == SceneType::TwoD && (self.diagram.is_some() || self.graph.is_some())
     }
 
-    /// What the frame shows of its diagram, if it shows one.
+    /// The diagram's graph (made once): the beat's own, or the frame graph as its scene groups it.
+    pub fn diagram_graph(&self) -> Option<Result<&crate::graph_view::Graph, &str>> {
+        if self.diagram.is_none() && self.graph.is_none() {
+            return None;
+        }
+        let made = self.diagram_graph.get_or_init(|| match (&self.graph, &self.diagram) {
+            (Some(scene), _) => crate::graph::FrameGraph::current(&[]).scene_graph(scene),
+            (None, Some(spec)) => spec.graph(),
+            (None, None) => unreachable!("a beat with a diagram"),
+        });
+        Some(made.as_ref().map_err(|e| e.as_str()))
+    }
+
+    /// What the frame shows of its diagram, if it shows one (a diagram
+    /// that cannot be made shows none; the timeline's check names it first),
+    /// settled (no transition).
     pub fn beat_diagram(&self) -> Option<crate::diagram::BeatDiagram<'_>> {
-        self.diagram.as_deref().filter(|_| self.shows_diagram()).map(|source| crate::diagram::BeatDiagram { source, focus: &self.focus })
+        let graph = self.diagram_graph()?.ok()?;
+        self.shows_diagram().then_some(crate::diagram::BeatDiagram { graph, focus: &self.focus, scene: self.graph.as_ref(), transition: crate::diagram::Transition::default() })
+    }
+
+    /// Both 2D beats show one diagram (or one frame graph scene) in one chapter.
+    pub fn same_diagram(&self, other: &TimelineBeat) -> bool {
+        self.kind == SceneType::TwoD && other.kind == SceneType::TwoD && self.chapter == other.chapter && self.shows_diagram() && other.shows_diagram() && self.diagram == other.diagram && self.graph == other.graph
     }
 }
 
@@ -369,7 +390,13 @@ pub struct TimelineBeat {
     /// The diagram a 2D scene shows: its source (src/diagram.rs), and the
     /// nodes lit while it plays.
     #[serde(default)]
-    pub diagram: Option<String>,
+    pub diagram: Option<crate::graph_view::Spec>,
+    /// A 2D scene that presents the frame graph, its sections (src/graph.rs):
+    /// drawn as a diagram the lab makes from the live graph (once).
+    #[serde(default)]
+    pub graph: Option<crate::graph::GraphScene>,
+    #[serde(skip)]
+    diagram_graph: std::sync::OnceLock<Result<crate::graph_view::Graph, String>>,
     #[serde(default)]
     pub focus: Vec<String>,
     #[serde(default)]
@@ -919,9 +946,10 @@ impl Timeline {
                 bail!("beat {} starts at {} but the previous beat ended at {frame}", beat.id, beat.start_frame);
             }
             frame += beat.frames;
-            if let Some(source) = &beat.diagram {
-                if let Err(e) = crate::diagram::Diagram::parse(source).and_then(|d| d.check_focus(&beat.focus)) {
-                    bail!("beat {}: its diagram: {e}", beat.id);
+            if let Some(graph) = beat.diagram_graph() {
+                let what = if beat.graph.is_some() { "its frame graph" } else { "its diagram" };
+                if let Err(e) = graph.map_err(str::to_string).and_then(|g| g.check_focus(&beat.focus)) {
+                    bail!("beat {}: {what}: {e}", beat.id);
                 }
             }
         }
@@ -934,6 +962,20 @@ impl Timeline {
     pub fn beat_at(&self, frame: u64) -> (usize, &TimelineBeat) {
         let i = self.beats.partition_point(|b| b.start_frame + b.frames <= frame).min(self.beats.len() - 1);
         (i, &self.beats[i])
+    }
+
+    /// The diagram frame `frame` shows, on its way from the last beat's: a
+    /// beat after one of the same diagram moves from that beat's focus; the
+    /// first beat of a diagram builds it up (src/diagram.rs `Transition`).
+    pub fn diagram_at(&self, frame: u64) -> Option<crate::diagram::BeatDiagram<'_>> {
+        let (i, beat) = self.beat_at(frame);
+        let mut d = beat.beat_diagram()?;
+        let seconds = frame.saturating_sub(beat.start_frame) as f32 / self.fps.max(1) as f32;
+        d.transition = match i.checked_sub(1).map(|k| &self.beats[k]).filter(|b| b.same_diagram(beat)) {
+            Some(before) => crate::diagram::Transition { from: Some(before.focus.as_slice()), seconds, built: true },
+            None => crate::diagram::Transition { from: None, seconds, built: false },
+        };
+        Some(d)
     }
 
     pub fn chapter_at(&self, frame: u64) -> &TimelineChapter {

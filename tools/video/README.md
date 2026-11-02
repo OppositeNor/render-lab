@@ -36,8 +36,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
 - **`storyboard.story`**: the chapters, beats, and narration as text, with the shots as tags (`story.py` reads it;
   LaTeX is written as is). `# 11 | Title | 150 s` starts a chapter (its `summary:` and `sources:` lines follow);
   `## beat-id | 3d | Headline` a beat, its scene's type `3d` (the lab's 3D frame) or `2d` (a page in its place: the
-  image `diagram:` names, with its `focus:` nodes, or without one the sources card of its `sources:`), with
-  `diagram:`, `focus:`, `sources:`, `hold:` lines. Only `3d` and `2d` are accepted as scene types in storyboards and
+  image `diagram:` names, the frame graph `graph:` names, with its `focus:` nodes, or without either the sources card
+  of its `sources:`), with `diagram:`, `graph:`, `focus:`, `sources:`, `hold:` lines. Only `3d` and `2d` are accepted as scene types in storyboards and
   timelines; a paused timeline keeps a 2D scene on screen. Before the first sentence, a line of tags sets the beat's keys, and
   `{@define name …}` defines a named cue. Then each paragraph is one sentence, with its tags (below); a tag before
   its first word fires at the sentence's start, and `{@ pause=0.5}` at its end adds silence. A tag's attributes:
@@ -71,9 +71,20 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   then runs until its sentence (or beat) ends (`"range"` in a range: until the range closes). A `demo` key resets every channel to the demonstration's state, so it
   cuts a running motion. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times
   the narration.
-- **`diagrams/*.mmd`**: the diagrams, in a subset of Mermaid's flowchart syntax that the lab draws itself
-  (`lab/src/diagram.rs`: `flowchart LR`, boxes, `-->`/`-.->` edges with labels, `style … stroke-dasharray`); `focus`
-  names the lit nodes.
+- **`diagrams/*.toml`**: the diagrams (`tools/video/diagrams.py` has the format): boxes, with rows if any, dashed or
+  not, and edges, labelled or dotted; their text is keys of the package's text, so one file serves every edition. The
+  lab draws them with its shared graph view (`lab/src/graph_view.rs`); `focus` names the lit boxes or rows. Two beats
+  in a row of one diagram (in a chapter) run on without a fade: the diagram moves from the first's focus to the
+  second's, its boxes gliding and its new pictures growing in; a diagram's first beat builds it up, layer by layer,
+  each edge drawn along its path.
+- **`graphs/frame.toml`** (in the package; a beat's `graph: frame`): the frame graph as a 2D scene, which the lab draws from its live render
+  graph (`tools/video/frame_graph.py` has the format): sections of the frame's passes (or resources), each a box a
+  beat's `focus:` names (or one of its passes or resources, whose row lights), edges where one section's passes write
+  what another's read; dashed, a section the lab's frame does not run (built offline, once, or on the CPU). Titles are
+  keys of the package's text (a newline breaks one). The lab renders the beat's 3D frame unseen, and a lit box holds
+  a picture of what it makes (its last pass's result, or the section's `picture = "<pass>.<resource>"`), the view
+  kept at the lab's minimum text size on the lit boxes when the pictures do not fit. The lab checks it when it loads
+  the timeline: every pass in a section, and the passes, resources, and pictures it names.
 - **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
   lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
   cues. A storyboard or translation may also be JSON; `.story` is read by its suffix.

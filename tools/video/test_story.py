@@ -72,7 +72,7 @@ class Story(unittest.TestCase):
         self.assertEqual((one['kind'], two['kind']), ('3d', '2d'))
         self.assertTrue(story.is_3d(one) and story.is_diagram(two) and not story.is_card(two))
         self.assertEqual(self.load(json.dumps(board), 'board.json'), board)
-        for kind in ('scene', 'mermaid', 'sources'):
+        for kind in ('scene', 'flowchart', 'sources'):
             with self.subTest(kind=kind):
                 with self.assertRaisesRegex(story.StoryError, 'the scene type is 3d or 2d'):
                     self.load(STORY.replace('| 3d |', f'| {kind} |'))

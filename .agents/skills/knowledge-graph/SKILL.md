@@ -19,8 +19,8 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
 - **Groups** are `[[group]]` tables (`key`, `title-text` as `group.<key>.title`, `area`): subsections of an area
   that gather related topics ("Shadow maps", "Distance fields", "Monte Carlo"). A topic joins one with
   `group = "<key>"` (a group of its own area; another package's as `rlstd.knowledge#<key>`). The panel draws each
-  group as a box around its topics, each in a band of its own across the columns it spans; the Mermaid export nests
-  them in their area's subgraph. Groups say nothing about requirements: give a new topic the group a reader would
+  group as a box around its topics, each in a band of its own across the columns it spans (the lab's shared graph
+  view, `lab/src/graph_view.rs`). Groups say nothing about requirements: give a new topic the group a reader would
   look in, or none when no group fits.
 - **The three bases** are the only nodes without requirements (`base = true`): `gpu` (the execution model:
   invocations, subgroups, workgroups, latency hiding, divergence), `cg` (radiometry: solid angle, flux, irradiance,
@@ -62,7 +62,7 @@ missing). A requirement already implied by another of the chapter's is rejected;
 chapters out (they require nothing new).
 
 Delegate the listing to a subagent (Sonnet) per investigation with the outline, the storyboard, and the node table
-(`render-lab --investigation <id> knowledge --mermaid <file>` or `todo/knowledge-graph-tree.md`); check its result with the
+(the `knowledge.toml` files, or `todo/knowledge-graph-tree.md`); check its result with the
 `knowledge` command.
 
 ## The target audience
@@ -125,7 +125,6 @@ From the lab's root (`CARGO_HOME=$PWD/.cache/cargo`):
 ```sh
 cargo run --release -- --investigation godot/sdfgi knowledge                    # check the graph and the audience; print the split
 cargo run --release -- --investigation godot/sdfgi knowledge --known rt-depth,cg-gi --levels   # try an audience; nearby ones
-cargo run --release -- --investigation godot/sdfgi knowledge --mermaid /tmp/knowledge.mmd         # the graph as Mermaid
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/p.png --page viewer-prerequisites:field   # the tab and panel
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/s.png --page viewer-knowledge:field          # the panel zoomed onto a level topic
 cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/g.png --page viewer-knowledge-graph:field     # the graph full screen

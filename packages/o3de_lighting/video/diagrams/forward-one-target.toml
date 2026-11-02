@@ -1,0 +1,51 @@
+# A story's diagram (`diagram: forward-one-target`; tools/video/diagrams.py has the format):
+# boxes and the edges between them, their text keys of the package's text.
+
+[[node]]
+id = "DEPTH"
+title-text = "diagram.fwd1.depth"
+
+[[node]]
+id = "SHADOW"
+title-text = "diagram.fwd1.shadow"
+
+[[node]]
+id = "FWD1"
+title-text = "diagram.fwd1.forward"
+
+[[node]]
+id = "SKY"
+title-text = "diagram.fwd1.sky"
+
+[[node]]
+id = "TRANS"
+title-text = "diagram.fwd1.transparent"
+
+[[node]]
+id = "POST"
+title-text = "diagram.fwd1.post"
+
+[[node]]
+id = "VIS"
+title-text = "diagram.fwd1.visibility"
+dashed = true
+
+[[edge]]
+from = "DEPTH"
+to = "FWD1"
+
+[[edge]]
+from = "SHADOW"
+to = "FWD1"
+
+[[edge]]
+from = "FWD1"
+to = "SKY"
+
+[[edge]]
+from = "SKY"
+to = "TRANS"
+
+[[edge]]
+from = "TRANS"
+to = "POST"

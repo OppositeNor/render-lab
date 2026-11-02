@@ -330,5 +330,16 @@
   "pass.voxelgiPrepassFS": "只绘制场景深度，并对渐隐物体使用抖动覆盖，使其后的场景阶段对每个像素的可见表面只着色一次。",
   "pass.voxelgiForwardFS": "基于深度预处理阶段的深度绘制场景，把直接光照（加自发光）和物体编号写入一个目标，把朝向相机的法线写入另一个目标。",
   "pass.voxelgiGiCS": "对每个像素（半分辨率时为每个 2 x 2 块），从其世界坐标和法线出发在体素光照纹理中追踪圆锥，写入环境光与反射缓冲。",
-  "pass.voxelgiComposeCS": "把直接光、混向 VoxelGI 缓冲的天空环境光与反射、以及反照率合成为 HDR 图像，对 MSAA 采样取平均，并绘制天空。"
+  "pass.voxelgiComposeCS": "把直接光、混向 VoxelGI 缓冲的天空环境光与反射、以及反照率合成为 HDR 图像，对 MSAA 采样取平均，并绘制天空。",
+  "frame.bake": "烘焙",
+  "frame.bake_note": "编辑器中，一次",
+  "frame.sdf": "距离场",
+  "frame.sdf_note": "随单元格烘焙",
+  "frame.light": "光照阶段\n（数据变化时）",
+  "frame.tex": "RGBA8\n三维纹理",
+  "frame.dyn": "动态物体",
+  "frame.dyn_note": "每帧",
+  "frame.pre": "深度预处理阶段",
+  "frame.cone": "屏幕空间渲染\n阶段：锥体",
+  "frame.opaque": "不透明物体渲染阶段"
 }

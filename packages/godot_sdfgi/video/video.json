@@ -4,10 +4,7 @@
   "translations": {
     "zh-CN": "storyboard.zh-CN.story"
   },
-  "diagrams": {
-    "en": "diagrams",
-    "zh-CN": "zh-CN/diagrams"
-  },
+  "diagrams": "diagrams",
   "sourceIndex": "../source-index.json",
   "pseudocode": "../pseudocode",
   "video": {
@@ -50,7 +47,7 @@
   "documents": {
     "en": {
       "guideTitle": "Source-reading guide: SDFGI in Godot 4.7",
-      "intro": "**What this is.** A narrated walkthrough of how Godot 4.7's Forward+ renderer computes signed distance field global illumination (SDFGI), built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`, Python pseudo-code of the Godot functions involved, and a Mermaid diagram. The lab follows SDFGI on the CPU at the engine's sizes (four cascades of 128 cubed cells), shades its own study room with a WGSL port of Godot's screen pass, and checks the WGSL ports of the light pass, the probe rays, and the probe store against the CPU model; the scene is the lab's own.",
+      "intro": "**What this is.** A narrated walkthrough of how Godot 4.7's Forward+ renderer computes signed distance field global illumination (SDFGI), built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`, Python pseudo-code of the Godot functions involved, and a diagram of its frame. The lab follows SDFGI on the CPU at the engine's sizes (four cascades of 128 cubed cells), shades its own study room with a WGSL port of Godot's screen pass, and checks the WGSL ports of the light pass, the probe rays, and the probe store against the CPU model; the scene is the lab's own.",
       "demos": {
         "room": "the study room with SDFGI",
         "cascades": "the cascades and the camera's walk",
@@ -74,7 +71,7 @@
     },
     "zh-CN": {
       "guideTitle": "源码阅读指南：Godot 4.7 的 SDFGI",
-      "intro": "**内容简介。** 本片讲解 Godot 4.7 的 Forward+ 渲染器如何计算基于有符号距离场的全局光照（SDFGI）。画面是 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，并配有相关 Godot 函数的 Python 伪代码和 Mermaid 图。实验室按引擎尺寸（四个边长为 128 个单元格的级联）在 CPU 上复现 SDFGI；以 Godot 屏幕渲染阶段的 WGSL 移植为书房着色，并将光照阶段、探针光线和探针存储的 WGSL 移植与 CPU 模型逐项对比。场景由实验室自行构建。",
+      "intro": "**内容简介。** 本片讲解 Godot 4.7 的 Forward+ 渲染器如何计算基于有符号距离场的全局光照（SDFGI）。画面是 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示，并配有相关 Godot 函数的 Python 伪代码和帧图。实验室按引擎尺寸（四个边长为 128 个单元格的级联）在 CPU 上复现 SDFGI；以 Godot 屏幕渲染阶段的 WGSL 移植为书房着色，并将光照阶段、探针光线和探针存储的 WGSL 移植与 CPU 模型逐项对比。场景由实验室自行构建。",
       "demos": {
         "room": "使用 SDFGI 的书房",
         "cascades": "级联与相机的移动",

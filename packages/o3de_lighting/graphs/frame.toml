@@ -1,0 +1,74 @@
+# The frame graph's sections (the resource `graph/frame`; tools/video/frame_graph.py has the
+# format): the story's frame graph scene (`graph: frame`), and the viewer's DAG panel:
+# each section a box the beats' `focus:` names, the lab's passes (or resources)
+# inside; dashed, what the lab's frame does not run.
+
+[[section]]
+id = "DEPTH"
+title-text = "frame.depth"
+passes = ["o3dePrepassFS", "o3deLinearDepthCS"]
+
+[[section]]
+id = "CULL"
+title-text = "frame.cull"
+passes = ["o3deLightCullingTilePrepareCS", "o3deLightCullingCS", "o3deLightCullingRemapCS"]
+# The lights each tile keeps (its last pass writes their indices, re-sorted).
+picture = "o3deLightCullingCS.tileData"
+
+[[section]]
+id = "SHADOW"
+title-text = "frame.shadow"
+passes = ["depthViews", "o3deFullscreenShadowCS", "o3deShadowBlurVerticalCS", "o3deShadowBlurHorizontalCS"]
+
+[[section]]
+id = "LUT"
+title-text = "frame.lut"
+note-text = "frame.lut_note"
+outside = true
+to = ["FWD"]
+
+[[section]]
+id = "FWD"
+title-text = "frame.forward"
+passes = ["o3deForwardFS"]
+
+[[section]]
+id = "TARGETS"
+title-text = "frame.targets"
+resources = ["diffuse", "specular", "albedo", "specularF0", "normal"]
+
+[[section]]
+id = "CUBES"
+title-text = "frame.cubes"
+note-text = "frame.cubes_note"
+outside = true
+to = ["DIFF", "REFL"]
+
+[[section]]
+id = "DIFF"
+title-text = "frame.diffuse"
+passes = ["o3deDiffuseGlobalCS"]
+
+[[section]]
+id = "REFL"
+title-text = "frame.reflections"
+passes = ["o3deReflectionsCS", "o3deReflectionCompositeCS"]
+
+# O3DE runs subsurface scattering on the diffuse light here; the lab does not.
+[[section]]
+id = "SSS"
+title-text = "frame.sss"
+note-text = "frame.sss_note"
+outside = true
+from = ["DIFF"]
+to = ["MERGE"]
+
+[[section]]
+id = "AO"
+title-text = "frame.ao"
+passes = ["o3deDepthDownsampleCS", "o3deSsaoCS", "o3deSsaoBlurVerticalCS", "o3deSsaoBlurHorizontalCS", "o3deSsaoUpsampleCS"]
+
+[[section]]
+id = "MERGE"
+title-text = "frame.merge"
+passes = ["o3deMergeCS"]

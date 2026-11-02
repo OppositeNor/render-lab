@@ -1,0 +1,45 @@
+# The frame graph's sections (the resource `graph/frame`; tools/video/frame_graph.py has the
+# format): the story's frame graph scene (`graph: frame`), and the viewer's DAG panel:
+# each section a box the beats' `focus:` names, the lab's passes (or resources)
+# inside; dashed, what the lab's frame does not run (the lab computes the cascades,
+# voxels, light, and probes on the CPU, as the engine's passes do: model.rs).
+
+[[section]]
+id = "UPD"
+title-text = "frame.cascades"
+note-text = "frame.cpu"
+outside = true
+to = ["VOX"]
+
+[[section]]
+id = "VOX"
+title-text = "frame.voxels"
+note-text = "frame.cpu"
+outside = true
+to = ["LIGHT"]
+
+[[section]]
+id = "LIGHT"
+title-text = "frame.light"
+note-text = "frame.cpu"
+outside = true
+to = ["PRE"]
+
+[[section]]
+id = "PRE"
+title-text = "frame.probes"
+note-text = "frame.cpu"
+outside = true
+to = ["STORE"]
+
+[[section]]
+id = "STORE"
+title-text = "frame.store"
+note-text = "frame.cpu"
+outside = true
+to = ["GI"]
+
+[[section]]
+id = "GI"
+title-text = "frame.screen"
+passes = ["sdfgiForwardFS"]

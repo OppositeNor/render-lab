@@ -1214,7 +1214,9 @@ impl App {
         let (kind, diagram, sources, chapter, fade, notices) = match (&self.timeline, self.timeline_playing() || self.paused_page()) {
             (Some(t), true) => {
                 let (_, beat) = t.beat_at(self.timeline_frame);
-                let diagram = beat.beat_diagram().map(|d| (d.source.to_string(), d.focus.to_vec()));
+                // Playing, a diagram moves from the beat before (or builds up); paused, it is settled.
+                let shown = if self.timeline_playing() { t.diagram_at(self.timeline_frame) } else { beat.beat_diagram() };
+                let diagram = shown.map(|d| (d.graph.clone(), d.focus.to_vec(), d.scene.cloned(), (d.transition.from.map(<[String]>::to_vec), d.transition.seconds, d.transition.built)));
                 if paused_diagram && self.diagram_beat != Some(beat.start_frame) {
                     self.diagram = DiagramView::default();
                     self.diagram_beat = Some(beat.start_frame);
@@ -1234,7 +1236,7 @@ impl App {
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(source, focus)| crate::diagram::BeatDiagram { source, focus }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
+            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(graph, focus, scene, (from, seconds, built))| crate::diagram::BeatDiagram { graph, focus, scene: scene.as_ref(), transition: crate::diagram::Transition { from: from.as_deref(), seconds: *seconds, built: *built } }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;

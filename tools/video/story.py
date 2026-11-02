@@ -207,13 +207,13 @@ def is_3d(beat: Json) -> bool:
 
 
 def is_diagram(beat: Json) -> bool:
-    """A 2D beat that shows an image: its diagram."""
-    return beat['kind'] == '2d' and 'diagram' in beat
+    """A 2D beat that shows an image: its diagram, or the frame graph (`graph:`)."""
+    return beat['kind'] == '2d' and ('diagram' in beat or 'graph' in beat)
 
 
 def is_card(beat: Json) -> bool:
     """A 2D beat that shows its sources card."""
-    return beat['kind'] == '2d' and 'diagram' not in beat
+    return beat['kind'] == '2d' and not is_diagram(beat)
 
 
 def as_list(value: Any) -> list[str]:
@@ -235,11 +235,13 @@ def load(path: Path) -> Json:
         for beat_heading, beat_lines in beats:
             beat_id, kind, headline = heading(beat_heading, 3, path, 'beat')
             check_scene_type(kind, f'{path}: {beat_id}')
-            props, rest = properties(beat_lines, ('diagram', 'focus', 'sources', 'hold'))
+            props, rest = properties(beat_lines, ('diagram', 'graph', 'focus', 'sources', 'hold'))
             beat: Json = {'id': beat_id, 'kind': kind, 'headline': headline}
-            if beat['kind'] == '2d' and 'diagram' not in props and 'sources' not in props:
-                raise StoryError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram:) or a sources card (sources:)')
-            for name in ('diagram', 'hold'):
+            if beat['kind'] == '2d' and 'diagram' not in props and 'graph' not in props and 'sources' not in props:
+                raise StoryError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram:), the frame graph (graph:), or a sources card (sources:)')
+            if 'diagram' in props and 'graph' in props:
+                raise StoryError(f'{path}: {beat_id}: a beat shows a diagram or the frame graph, not both')
+            for name in ('diagram', 'graph', 'hold'):
                 if name in props:
                     beat[name] = props[name]
             for name in ('focus', 'sources'):

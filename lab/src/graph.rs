@@ -419,56 +419,6 @@ impl FrameGraph {
         Ok((n, r))
     }
 
-    /// Where the DAG view draws each node (indexed as `nodes`): its layer, the
-    /// longest path of edges to it, and its place in that layer, ordered so
-    /// that each node sits near the average place of its neighbours (a few
-    /// sweeps down and up, which keeps the edges from crossing much).
-    pub fn layers(&self) -> Vec<(usize, usize)> {
-        let count = self.nodes.len();
-        let mut layer = vec![0usize; count];
-        for &i in &self.order {
-            for e in self.edges.iter().filter(|e| e.1 == i) {
-                layer[i] = layer[i].max(layer[e.0] + 1);
-            }
-        }
-        let depth = layer.iter().copied().max().map_or(0, |m| m + 1);
-        // Each layer's nodes, first in execution order.
-        let mut rows: Vec<Vec<usize>> = vec![Vec::new(); depth];
-        for &i in &self.order {
-            rows[layer[i]].push(i);
-        }
-        let mut place = vec![0f32; count];
-        let set = |rows: &Vec<Vec<usize>>, place: &mut Vec<f32>| {
-            for row in rows {
-                for (k, &i) in row.iter().enumerate() {
-                    place[i] = k as f32 - (row.len() as f32 - 1.0) / 2.0;
-                }
-            }
-        };
-        set(&rows, &mut place);
-        for sweep in 0..4 {
-            let down = sweep % 2 == 0;
-            let layers: Vec<usize> = if down { (1..depth).collect() } else { (0..depth.saturating_sub(1)).rev().collect() };
-            for l in layers {
-                let key = |i: usize| {
-                    let near: Vec<f32> = self.edges.iter().filter_map(|e| if down && e.1 == i { Some(place[e.0]) } else if !down && e.0 == i { Some(place[e.1]) } else { None }).collect();
-                    if near.is_empty() { place[i] } else { near.iter().sum::<f32>() / near.len() as f32 }
-                };
-                let mut keyed: Vec<(f32, usize)> = rows[l].iter().map(|&i| (key(i), i)).collect();
-                keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
-                rows[l] = keyed.into_iter().map(|(_, i)| i).collect();
-                set(&rows, &mut place);
-            }
-        }
-        let mut out = vec![(0, 0); count];
-        for (l, row) in rows.iter().enumerate() {
-            for (k, &i) in row.iter().enumerate() {
-                out[i] = (l, k);
-            }
-        }
-        out
-    }
-
     /// The node right after which resource `name` holds what the frame made
     /// of it: its last live writer that runs every frame (later readers may
     /// discard it, as the overlay does the depth), else (a resource only a
@@ -517,34 +467,6 @@ impl FrameGraph {
         out
     }
 
-    /// The graph as a Mermaid flowchart: nodes and resources, left to right.
-    pub fn mermaid(&self) -> String {
-        let mut out = String::from("flowchart LR\n");
-        for &i in &self.order {
-            let n = &self.nodes[i];
-            let _ = writeln!(out, "  n{i}[\"{}\"]", n.name);
-            if !self.live[i] {
-                let _ = writeln!(out, "  style n{i} stroke-dasharray: 4 4");
-            }
-        }
-        for (r, resource) in self.resources.iter().enumerate() {
-            let _ = writeln!(out, "  r{r}([\"{}<br/><small>{}</small>\"])", resource.name, resource.lifetime.name());
-        }
-        for (i, n) in self.nodes.iter().enumerate() {
-            for name in &n.reads {
-                if let Some(r) = self.resource(name) {
-                    let _ = writeln!(out, "  r{r} --> n{i}");
-                }
-            }
-            for name in &n.writes {
-                if let Some(r) = self.resource(name) {
-                    let _ = writeln!(out, "  n{i} --> r{r}");
-                }
-            }
-        }
-        out
-    }
-
     /// The graph in Graphviz's language.
     pub fn dot(&self) -> String {
         let mut out = String::from("digraph frame {\n  rankdir=LR;\n");
@@ -572,15 +494,234 @@ impl FrameGraph {
     }
 
     pub fn json(&self) -> serde_json::Value {
-        let layers = self.layers();
         serde_json::json!({
             "nodes": self.order.iter().map(|&i| {
                 let n = &self.nodes[i];
-                serde_json::json!({"name": n.name, "reads": n.reads, "writes": n.writes, "timing": n.timing, "cached": n.cached, "live": self.live[i], "layer": layers[i].0, "place": layers[i].1})
+                serde_json::json!({"name": n.name, "reads": n.reads, "writes": n.writes, "timing": n.timing, "cached": n.cached, "live": self.live[i]})
             }).collect::<Vec<_>>(),
             "resources": self.resources.iter().enumerate().map(|(r, res)| serde_json::json!({"name": res.name, "lifetime": res.lifetime.name(), "shape": res.shape.describe(), "uses": self.lifetime(r)})).collect::<Vec<_>>(),
+            // What flows from node to node: the writer, the reader, the resource.
+            "edges": self.edges.iter().filter_map(|&(a, b, e)| match e {
+                Edge::Data(r) => Some(serde_json::json!({"from": self.nodes[a].name, "to": self.nodes[b].name, "resource": self.resources[r].name})),
+                Edge::Order(_) => None,
+            }).collect::<Vec<_>>(),
             "errors": self.errors,
         })
+    }
+}
+
+/// A 2D scene that presents the frame graph (a timeline beat's `graph`,
+/// from its package's `graphs/<name>.toml`, the resource `graph/<name>`; tools/video/frame_graph.py): its
+/// sections, each a box of passes (or resources) a story's `focus` names.
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct GraphScene {
+    pub sections: Vec<Section>,
+    /// Passes in no section (the lab's overlay and composite need not be listed).
+    #[serde(default)]
+    pub omit: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Section {
+    pub id: String,
+    /// Its title in the edition's language, and a note under it (a box without members).
+    pub title: String,
+    #[serde(default)]
+    pub note: Option<String>,
+    /// Its passes (entry points) or resources, in the order they run.
+    #[serde(default)]
+    pub passes: Vec<String>,
+    #[serde(default)]
+    pub resources: Vec<String>,
+    /// Not a pass of the lab's frame (built offline or once, or not ported):
+    /// dashed, joined by the edges it declares.
+    #[serde(default)]
+    pub outside: bool,
+    /// What its box shows while lit (`<node>.<resource>`); by default its last
+    /// pass's result, or its last resource as the frame leaves it.
+    #[serde(default)]
+    pub picture: Option<String>,
+    #[serde(default)]
+    pub to: Vec<String>,
+    #[serde(default)]
+    pub from: Vec<String>,
+}
+
+impl GraphScene {
+    /// The sections of a package's `graphs/<name>.toml` (tools/video/frame_graph.py
+    /// has the format), `say` giving a text key's text.
+    pub fn parse(text: &str, at: &str, say: &dyn Fn(&str) -> Option<String>) -> Result<GraphScene, String> {
+        let fail = |m: String| format!("{at}: {m}");
+        let document = toml_edit::Document::parse(text.to_string()).map_err(|e| fail(format!("parse: {e}")))?;
+        let table = document.as_table();
+        let strings = |t: &toml_edit::Table, field: &str| -> Result<Vec<String>, String> {
+            match t.get(field) {
+                None => Ok(Vec::new()),
+                Some(item) => item.as_array().ok_or_else(|| fail(format!("`{field}` is a list of strings")))?.iter().map(|v| v.as_str().map(str::to_string).ok_or_else(|| fail(format!("`{field}` is a list of strings")))).collect(),
+            }
+        };
+        let string = |t: &toml_edit::Table, field: &str| t.get(field).and_then(|v| v.as_str()).map(str::to_string);
+        let text = |key: String| say(&key).ok_or_else(|| fail(format!("no text `{key}`")));
+        let mut sections = Vec::new();
+        for t in table.get("section").and_then(|i| i.as_array_of_tables()).map(|a| a.iter().collect::<Vec<_>>()).unwrap_or_default() {
+            let id = string(t, "id").ok_or_else(|| fail("a section needs `id`".into()))?;
+            sections.push(Section {
+                title: text(string(t, "title-text").ok_or_else(|| fail(format!("{id}: needs `title-text`")))?)?,
+                note: string(t, "note-text").map(text).transpose()?,
+                passes: strings(t, "passes")?,
+                resources: strings(t, "resources")?,
+                outside: t.get("outside").and_then(|v| v.as_bool()).unwrap_or(false),
+                picture: string(t, "picture"),
+                to: strings(t, "to")?,
+                from: strings(t, "from")?,
+                id,
+            });
+        }
+        Ok(GraphScene { sections, omit: strings(table, "omit")? })
+    }
+
+    /// The current investigation's sections `graph/<name>`, in the
+    /// interface's language (once per language); none without the resource.
+    pub fn current(name: &str) -> Option<&'static GraphScene> {
+        use std::sync::{Mutex, OnceLock};
+        type Cache = Mutex<Vec<((String, bool), Option<&'static GraphScene>)>>;
+        static CACHE: OnceLock<Cache> = OnceLock::new();
+        let package = crate::investigation::current().package()?;
+        let key = (format!("{package}.graph/{name}"), crate::i18n::zh());
+        let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
+        if let Some((_, scene)) = cache.iter().find(|(k, _)| *k == key) {
+            return *scene;
+        }
+        let scene = crate::resources::find(&key.0).and_then(|r| match GraphScene::parse(r.text(), r.source(), &|k| crate::i18n::try_package_text(package, k).map(str::to_string)) {
+            Ok(s) => Some(&*Box::leak(Box::new(s))),
+            Err(e) => {
+                eprintln!("{e}");
+                None
+            }
+        });
+        cache.push((key, scene));
+        scene
+    }
+}
+
+impl FrameGraph {
+    /// The frame graph as `scene` groups it, as a graph to draw
+    /// (src/graph_view.rs: one box per section, a row per pass by its name
+    /// without the investigation's prefix and the stage's suffix, each row's
+    /// id its pass or resource; dashed, a section outside the frame): an edge from a section to another
+    /// wherever a pass of the first writes what a pass of the second reads
+    /// (through the section that holds the resource, if one does), but those
+    /// a longer path implies.
+    pub fn scene_graph(&self, scene: &GraphScene) -> Result<crate::graph_view::Graph, String> {
+        let entry = |n: &str| n.split_once('#').map_or(n, |(e, _)| e).to_string();
+        let ids: Vec<&str> = scene.sections.iter().map(|s| s.id.as_str()).collect();
+        let mut errors = Vec::new();
+        let mut section_of = std::collections::HashMap::new();
+        let mut holder = std::collections::HashMap::new();
+        for s in &scene.sections {
+            for p in &s.passes {
+                if !self.nodes.iter().any(|n| entry(n.name) == *p) {
+                    errors.push(format!("{}: no pass `{p}` in the frame", s.id));
+                }
+                section_of.insert(p.clone(), s.id.clone());
+            }
+            for r in &s.resources {
+                if self.resource(r).is_none() {
+                    errors.push(format!("{}: no resource `{r}`", s.id));
+                }
+                holder.insert(r.clone(), s.id.clone());
+            }
+            for other in s.to.iter().chain(&s.from) {
+                if !ids.contains(&other.as_str()) {
+                    errors.push(format!("{}: no section `{other}`", s.id));
+                }
+            }
+            if let Some(Err(e)) = s.picture.as_deref().map(|p| self.inspected(p)) {
+                errors.push(format!("{}: its picture {e}", s.id));
+            }
+        }
+        let missing: Vec<&str> = self.nodes.iter().map(|n| n.name).filter(|n| !section_of.contains_key(&entry(n)) && !["overlay", "composite", "scene"].contains(n) && !scene.omit.contains(&entry(n))).collect();
+        if !missing.is_empty() {
+            errors.push(format!("passes in no section: {} (or list them in `omit`)", missing.join(", ")));
+        }
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+        let mut edges: Vec<(String, String)> = Vec::new();
+        let mut add = |a: Option<&String>, b: Option<&String>| {
+            if let (Some(a), Some(b)) = (a, b) {
+                if a != b && !edges.iter().any(|e| e.0 == *a && e.1 == *b) {
+                    edges.push((a.clone(), b.clone()));
+                }
+            }
+        };
+        for &(a, b, e) in &self.edges {
+            let Edge::Data(r) = e else { continue };
+            let (from, to) = (section_of.get(&entry(self.nodes[a].name)), section_of.get(&entry(self.nodes[b].name)));
+            match holder.get(self.resources[r].name) {
+                Some(h) => {
+                    add(from, Some(h));
+                    add(Some(h), to);
+                }
+                None => add(from, to),
+            }
+        }
+        for s in &scene.sections {
+            for t in &s.to {
+                add(Some(&s.id), Some(t));
+            }
+            for f in &s.from {
+                add(Some(f), Some(&s.id));
+            }
+        }
+        // Only the edges no longer path implies, dropped one at a time (so of
+        // two that imply each other around a cycle, one stays).
+        let reaches = |edges: &[(String, String)], a: &str, b: &str, skip: usize| {
+            let mut seen = BTreeSet::new();
+            let mut stack = vec![a.to_string()];
+            while let Some(x) = stack.pop() {
+                if x == b {
+                    return true;
+                }
+                if seen.insert(x.clone()) {
+                    stack.extend(edges.iter().enumerate().filter(|(k, e)| *k != skip && e.0 == x).map(|(_, e)| e.1.clone()));
+                }
+            }
+            false
+        };
+        let mut kept = edges.clone();
+        let mut k = 0;
+        while k < kept.len() {
+            if reaches(&kept, &kept[k].0, &kept[k].1, k) {
+                kept.remove(k);
+            } else {
+                k += 1;
+            }
+        }
+        kept.sort_by_key(|e| (ids.iter().position(|i| *i == e.0), ids.iter().position(|i| *i == e.1)));
+        let prefix = crate::ui::graph_prefix(self.nodes.iter().map(|n| n.name));
+        let label = |p: &str| {
+            let name = p.strip_prefix(prefix).filter(|r| !r.is_empty()).unwrap_or(p);
+            let name = ["CS", "FS", "VS"].iter().find_map(|s| name.strip_suffix(s)).filter(|r| !r.is_empty()).unwrap_or(name);
+            name.to_string()
+        };
+        // A title or note may break its line (a newline in its text).
+        let lines = |t: &str| t.split('\n').map(str::to_string).collect::<Vec<_>>();
+        let nodes = scene
+            .sections
+            .iter()
+            .map(|s| {
+                let mut title = lines(&s.title);
+                if s.passes.is_empty() && s.resources.is_empty() {
+                    title.extend(s.note.iter().flat_map(|n| lines(n)));
+                }
+                let rows = s.passes.iter().map(|p| crate::graph_view::Row { id: p.clone(), label: label(p) }).chain(s.resources.iter().map(|r| crate::graph_view::Row { id: r.clone(), label: r.clone() })).collect();
+                crate::graph_view::Node { id: s.id.clone(), title, rows, dashed: s.outside, card: None }
+            })
+            .collect();
+        let index = |id: &str| ids.iter().position(|i| *i == id).expect("a section");
+        let edges = kept.iter().map(|(a, b)| crate::graph_view::Edge { from: index(a), to: index(b), dotted: false, label: None }).collect();
+        Ok(crate::graph_view::Graph { nodes, edges, clusters: Vec::new() })
     }
 }
 
@@ -975,14 +1116,23 @@ mod tests {
         assert!(g.edges.contains(&(g.node("tilesCS").unwrap(), scene, Edge::Data(g.resource("tiles").unwrap()))));
         assert!(g.inspected("blurCS.blur").is_ok());
         assert!(g.inspected("blurCS.hdr").is_err());
-        // The DAG view: every edge goes down a layer, and no two nodes share a place.
-        let layers = g.layers();
-        assert!(g.edges.iter().all(|e| layers[e.0].0 < layers[e.1].0));
-        assert_eq!(layers.iter().collect::<BTreeSet<_>>().len(), layers.len());
-        assert_eq!(layers[g.node("prepassFS").unwrap()], (0, 0));
         assert_eq!(g.result_of(g.node("composite").unwrap()), Some("hdr"));
         assert_eq!(g.result_of(g.node("blurCS").unwrap()), Some("blur"));
         assert_eq!(g.last_user("blur"), g.node("blurCS"));
+        // The frame graph as a 2D scene: its sections' boxes and the edges between them.
+        let section = |id: &str, passes: &[&str]| Section { id: id.into(), title: id.into(), passes: passes.iter().map(|p| p.to_string()).collect(), ..Default::default() };
+        let scene = GraphScene { sections: vec![section("DEPTH", &["prepassFS", "tilesCS"]), section("SCENE", &["sceneFS"]), section("POST", &["blurCS", "mergeCS"])], omit: Vec::new() };
+        let d = g.scene_graph(&scene).unwrap();
+        assert_eq!(d.nodes.iter().map(|n| n.rows.len()).collect::<Vec<_>>(), [2, 1, 2]);
+        assert_eq!(d.nodes[0].rows[1].label, "tiles");
+        // DEPTH reaches POST through SCENE (the blur reads the scene's colour): no edge of its own.
+        assert_eq!(d.edges.iter().map(|e| (e.from, e.to)).collect::<Vec<_>>(), [(0, 1), (1, 2)]);
+        assert_eq!(d.named("tilesCS"), Some(0));
+        let parsed = GraphScene::parse("[[section]]\nid = \"DEPTH\"\ntitle-text = \"t\"\npasses = [\"prepassFS\"]\npicture = \"prepassFS.depth\"\n", "test", &|k| (k == "t").then(|| "Depth".to_string())).unwrap();
+        assert_eq!((parsed.sections[0].title.as_str(), parsed.sections[0].picture.as_deref()), ("Depth", Some("prepassFS.depth")));
+        assert!(GraphScene::parse("[[section]]\nid = \"A\"\ntitle-text = \"missing\"\n", "test", &|_| None).is_err());
+        let short = GraphScene { sections: vec![section("DEPTH", &["prepassFS"])], omit: Vec::new() };
+        assert!(g.scene_graph(&short).unwrap_err().contains("passes in no section: tilesCS"));
         assert_eq!(g.last_user("hdr"), g.node("mergeCS"));
         // A resource's view: the investigation's, else its format's.
         let shown = FrameGraph::new(Some(Box::leak(Box::new(SceneShading { shows: &[("tiles", "count?word=3&range=0,8")], ..*s }))), &[]);

@@ -11,6 +11,8 @@ import re
 import textwrap
 from typing import Any
 
+import diagrams
+import frame_graph
 import markup
 import story
 import zh
@@ -304,9 +306,13 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'id': beat['id'], 'chapter': chapter['number'], 'kind': beat['kind'], 'startFrame': beat_start,
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
-            if story.is_diagram(beat):
-                # The lab draws the diagram (lab/src/diagram.rs) from its source, its focus nodes lit.
-                entry['diagram'] = (cfg.diagrams / f'{beat["diagram"]}.mmd').read_text()
+            if 'graph' in beat:
+                # The lab draws the frame graph as the scene's sections group it (lab/src/graph.rs).
+                entry['graph'] = frame_graph.load(cfg, beat['graph'])
+                entry['focus'] = beat.get('focus', [])
+            elif story.is_diagram(beat):
+                # The lab draws the diagram (lab/src/diagram.rs), its focus nodes lit.
+                entry['diagram'] = diagrams.load(cfg, beat['diagram'])
                 entry['focus'] = beat.get('focus', [])
             beats_out.append(entry)
             cues.extend({'start': c['start'] / fps, 'end': c['end'] / fps, 'text': markup.readable(c['text']), 'beat': beat['id']} for c in captions)

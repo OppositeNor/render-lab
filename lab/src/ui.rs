@@ -412,6 +412,8 @@ pub struct UiInput<'a> {
     pub scene_type: SceneType,
     /// The diagram a 2D scene shows (src/diagram.rs).
     pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
+    /// The frame graph scene's lit boxes' pictures (src/renderer.rs captures them).
+    pub diagram_pictures: &'a [crate::diagram::Picture],
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices, not the sources card.
     pub notices: bool,
@@ -459,8 +461,6 @@ pub struct GraphNodeView {
     pub ms: Option<f64>,
     pub live: bool,
     pub cached: bool,
-    /// Its layer in the DAG and its place in that layer (`FrameGraph::layers`).
-    pub layer: (usize, usize),
     /// The resource its card shows (`FrameGraph::result_of`), and that image
     /// as it stood right after the node (`PanelMode::Dag` only).
     pub result: Option<String>,
@@ -701,10 +701,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     Chrome::Recording { .. } => None,
                 };
                 match view {
-                    None => crate::diagram::draw(&ink, area, None, diagram),
+                    None => crate::diagram::draw(&ink, area, None, diagram, input.diagram_pictures),
                     Some(v) => {
                         // The diagram panel of a paused timeline: zoomed and panned, clipped to the panel.
-                        crate::diagram::draw(&ink, area, Some(v.rect(area)), diagram);
+                        crate::diagram::draw(&ink, area, Some(v.rect(area)), diagram, input.diagram_pictures);
                         let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{:.1}", v.zoom)));
                         let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
                         let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
@@ -1485,18 +1485,21 @@ fn frame_aspect(view: &GraphView) -> f32 {
     view.nodes.iter().filter(|n| n.result.as_deref() == Some("hdr")).find_map(|n| n.thumbnail).map_or(9.0 / 16.0, |(_, s)| s[1] as f32 / s[0].max(1) as f32).clamp(0.3, 1.5)
 }
 
-/// The DAG panel (`PanelMode::Dag`), or the DAG full screen: the frame's
-/// nodes as cards, a layer per step of the longest path to them
-/// (`FrameGraph::layers`), top to bottom in the panel and left to right
-/// full screen; each card the node's name, its GPU time, and its result as
-/// it stood right after it (the inspector's image). An arrow runs from a
-/// node to each that reads what it wrote, coloured by the resource's
-/// lifetime (a faint one: a node that must run later because it
-/// overwrites what the first used). In the viewer the view pans with a drag
-/// (or the wheel) and a card moves with one (`card_view`); a story's
-/// `highlight` centres the nodes it names. Hovering a card names its
-/// arrows' resources; a click on one inspects its result.
+/// The DAG panel (`PanelMode::Dag`), or the DAG full screen
+/// (src/graph_view.rs): the frame's nodes as cards, laid out by the
+/// longest path to them, top to bottom in the panel and left to right full
+/// screen, boxed by the package's sections (`graph/frame`, the story's frame
+/// graph scene's; src/graph.rs `GraphScene::current`); each card the
+/// node's name, its GPU time, and its result as it stood right after it
+/// (the inspector's image). An arrow runs from a node to each that reads
+/// what it wrote, coloured by the resource's lifetime (a faint one: a node
+/// that must run later because it overwrites what the first used). In the
+/// viewer the view pans with a drag (or the wheel), a card moves with one,
+/// and a double click puts both back; a story's `highlight` centres the
+/// nodes it names. Hovering a card names its arrows' resources; a click on
+/// one inspects its result.
 fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], full: bool, interactive: bool) -> Option<GraphPick> {
+    use crate::graph_view::{self, Flow};
     let painter = ink.painter;
     painter.rect_filled(rect, CornerRadius::same(12), palette::panel());
     painter.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
@@ -1509,145 +1512,165 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     // The footer: the hovered (or inspected) card's lines, or the hint.
     let footer = 4.0 * 30.0 + 12.0;
     let area = Rect::from_min_max(pos2(x, y), pos2(right, rect.max.y - 16.0 - footer));
-    let horizontal = full;
-    let depth = view.nodes.iter().map(|n| n.layer.0 + 1).max().unwrap_or(1);
-    let mut counts = vec![0usize; depth];
-    for n in &view.nodes {
-        counts[n.layer.0] += 1;
-    }
-    let widest = counts.iter().copied().max().unwrap_or(1).max(1);
-    // Cards: a label line over the result, in the frame's shape (other results fit inside it).
+    let flow = if full { Flow::Right } else { Flow::Down };
+    let scale = MIN_TEXT_PT;
+    // The graph: a card per node, its sections boxed around their passes (in the order they first run).
     let aspect = frame_aspect(view);
-    let label = 32.0;
-    let (gap_main, gap_cross) = if horizontal { (56.0, 16.0) } else { (40.0, 16.0) };
-    // The cross axis fits the widest layer; the main axis pans when the layers do not fit.
-    let (cross, main) = if horizontal { (area.height(), area.width()) } else { (area.width(), area.height()) };
-    let card_w = if horizontal {
-        let by_cross = ((cross - (widest - 1) as f32 * gap_cross) / widest as f32 - label) / aspect;
-        by_cross.min((main - (depth - 1) as f32 * gap_main) / depth as f32).clamp(180.0, 340.0)
-    } else {
-        ((cross - (widest - 1) as f32 * gap_cross) / widest as f32).clamp(150.0, 340.0)
-    };
-    let card = vec2(card_w, label + card_w * aspect);
-    let step_main = if horizontal { card.x + gap_main } else { card.y + gap_main };
-    let step_cross = if horizontal { card.y + gap_cross } else { card.x + gap_cross };
-    let length = depth as f32 * step_main - gap_main;
-    // Centred along the main axis when it fits, else from its start.
-    let start = if length <= main { (main - length) / 2.0 } else { 0.0 };
-    let along = |d: f32| if horizontal { vec2(d, 0.0) } else { vec2(0.0, d) };
-    let base = |n: &GraphNodeView| -> Rect {
-        let (l, k) = n.layer;
-        let offset = (k as f32 - (counts[l] as f32 - 1.0) / 2.0) * step_cross;
-        if horizontal {
-            Rect::from_min_size(pos2(area.min.x + start + l as f32 * step_main, area.center().y + offset - card.y / 2.0), card)
-        } else {
-            Rect::from_min_size(pos2(area.center().x + offset - card.x / 2.0, area.min.y + start + l as f32 * step_main), card)
+    let card = (8.5, 1.33 + 8.5 * aspect + 0.34);
+    let prefix = graph_prefix(view.nodes.iter().map(|n| n.name.as_str()));
+    let entry = |name: &str| name.split_once('#').map_or(name, |(e, _)| e).to_string();
+    let nodes: Vec<graph_view::Node> = view
+        .nodes
+        .iter()
+        .map(|n| {
+            let mut name = n.name.strip_prefix(prefix).filter(|rest| !rest.is_empty()).unwrap_or(&n.name).to_string();
+            if n.cached {
+                name.push_str(" ↻");
+            }
+            graph_view::Node { id: n.name.clone(), title: vec![name], card: Some(card), ..Default::default() }
+        })
+        .collect();
+    let scene = crate::graph::GraphScene::current("frame");
+    let mut clusters: Vec<graph_view::Cluster> = Vec::new();
+    let mut placed = vec![false; nodes.len()];
+    for i in 0..nodes.len() {
+        if placed[i] {
+            continue;
         }
+        let section = scene.and_then(|s| s.sections.iter().find(|sec| sec.passes.contains(&entry(&view.nodes[i].name))));
+        let members: Vec<usize> = match section {
+            Some(sec) => (0..nodes.len()).filter(|&k| !placed[k] && sec.passes.contains(&entry(&view.nodes[k].name))).collect(),
+            None => vec![i],
+        };
+        for &k in &members {
+            placed[k] = true;
+        }
+        clusters.push(graph_view::Cluster { title: section.map(|s| s.title.replace('\n', " ")), members, boxed: section.is_some() });
+    }
+    let edges: Vec<graph_view::Edge> = view.edges.iter().map(|e| graph_view::Edge { from: e.from, to: e.to, dotted: e.data.is_empty(), label: None }).collect();
+    let graph = graph_view::Graph { nodes, edges, clusters };
+    // Between layers, room for a box's padding on both sides and (top to bottom) its title.
+    let column = if flow == Flow::Down { 3.2 } else { 2.2 };
+    let options = graph_view::Options { flow, spacing: Some(crate::layered::Spacing { column, row: 0.7, dummy: 0.5 }), pad: 0.5, title: 1.5, gap: 1.0 };
+    let laid = {
+        use std::hash::{Hash, Hasher};
+        static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<u64, &'static graph_view::Laid>>> = std::sync::OnceLock::new();
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        format!("{graph:?}{flow:?}").hash(&mut h);
+        let width = |t: &str| ink.measure(t, 100.0, FontFamily::Proportional).x / 100.0;
+        let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
+        *cache.entry(h.finish()).or_insert_with(|| Box::leak(Box::new(graph_view::lay_out(&graph, &width, &[], aspect, &options))))
     };
-    // The called-out nodes' layers centred along the main axis.
+    // The view: kept in the viewer; set up again for a new graph; a story's highlight centres its nodes.
     let lit: Vec<usize> = view.nodes.iter().enumerate().filter(|(_, n)| highlight.contains(&n.name)).map(|(i, _)| i).collect();
-    let centre = match (lit.iter().map(|&i| view.nodes[i].layer.0).min(), lit.iter().map(|&i| view.nodes[i].layer.0).max()) {
-        (Some(a), Some(b)) if length > main => {
-            let middle = (a + b) as f32 / 2.0 * step_main + (step_main - gap_main) / 2.0;
-            Some(along(-(middle - main / 2.0).clamp(0.0, length - main)))
-        }
-        _ => None,
-    };
+    let half = area.size() / scale / 2.0;
+    let keep = |c: f32, a: f32, z: f32, h: f32| if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) };
+    let b = laid.bounds;
+    let start = vec2(keep(b.min.x, b.min.x, b.max.x, half.x), keep(b.min.y, b.min.y, b.max.y, half.y));
+    let on_lit = lit.iter().map(|&i| laid.rects[i]).reduce(|a, r| a.union(r)).map(|r| vec2(keep(r.center().x, b.min.x, b.max.x, half.x), keep(r.center().y, b.min.y, b.max.y, half.y)));
     let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
-    let at = |v: &CardView, n: &GraphNodeView| base(n).translate(v.pan + v.offset(&n.name));
-    let cv = card_view(ctx, id, area, interactive, highlight, centre, along(1.0), |p, v| view.nodes.iter().find(|n| at(v, n).contains(p)).map(|n| n.name.clone()));
-    let rects: Vec<Rect> = view.nodes.iter().map(|n| at(&cv, n)).collect();
-    let pointer = ctx.input(|i| i.pointer.hover_pos());
-    let clipped = painter.with_clip_rect(area.expand(4.0));
-    let cink = Ink::new(&clipped);
-    let hovered = pointer.filter(|p| area.contains(*p)).and_then(|p| rects.iter().rposition(|r| r.contains(p)));
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (laid as *const graph_view::Laid as usize, highlight).hash(&mut h);
+        h.finish()
+    };
+    let mut state: graph_view::ViewState = if interactive { ctx.data(|d| d.get_temp(id)).unwrap_or_default() } else { Default::default() };
+    if state.key != Some(key) {
+        // A new graph, or new call-outs: the view moves to them (or to the start).
+        let same_graph = state.scale > 0.0 && state.key.is_some() && ctx.data(|d| d.get_temp::<usize>(id.with("laid"))) == Some(laid as *const _ as usize);
+        if !same_graph {
+            state.moved.clear();
+        }
+        state.scale = scale;
+        state.centre = on_lit.unwrap_or(if same_graph { state.centre } else { start });
+        state.key = Some(key);
+    }
+    let shown = |_: usize| true;
+    let picks = if interactive { graph_view::interact(ctx, area, laid, &mut state, &graph_view::Controls { zoom: None, move_nodes: true }, &shown) } else { Default::default() };
+    if picks.reset {
+        state.moved.clear();
+        state.centre = start;
+    }
+    // Along the flow the view stays on the graph; across it, as dragged.
+    state.centre = vec2(keep(state.centre.x, b.min.x - half.x, b.max.x + half.x, half.x), keep(state.centre.y, b.min.y - half.y, b.max.y + half.y, half.y));
+    if interactive {
+        ctx.data_mut(|d| {
+            d.insert_temp(id, state.clone());
+            d.insert_temp(id.with("laid"), laid as *const _ as usize);
+        });
+    }
+    let hovered = picks.hovered;
     let inspected = view.inspected.as_deref().and_then(|k| k.rsplit_once('.')).and_then(|(n, r)| view.nodes.iter().position(|x| x.name == n && x.result.as_deref() == Some(r)));
     let focus = hovered.or(inspected);
-    let prefix = graph_prefix(view.nodes.iter().map(|n| n.name.as_str()));
-    // Arrows first, under the cards.
-    let mut labels: Vec<(Pos2, String, Color32)> = Vec::new();
-    for e in &view.edges {
-        let (a, b) = (rects[e.from], rects[e.to]);
-        let (from, to, pull) = if horizontal {
-            (a.right_center(), b.left_center(), vec2(gap_main * 0.8, 0.0))
-        } else {
-            (a.center_bottom(), b.center_top(), vec2(0.0, gap_main * 0.8))
-        };
-        let touches = focus.is_some_and(|f| f == e.from || f == e.to);
-        let color = e.data.first().map_or(palette::text_faint(), |&r| graph_lifetime_color(view.resources[r].lifetime));
-        let alpha = if focus.is_none() || touches { 1.0 } else { 0.25 };
-        let width = if e.data.is_empty() { 1.0 } else if touches { 3.0 } else { 2.0 };
-        let color = if e.data.is_empty() { color.gamma_multiply(0.6 * alpha) } else { color.gamma_multiply(alpha) };
-        clipped.add(egui::epaint::CubicBezierShape::from_points_stroke([from, from + pull, to - pull, to], false, Color32::TRANSPARENT, Stroke::new(width, color)));
-        let dir = if horizontal { vec2(1.0, 0.0) } else { vec2(0.0, 1.0) };
-        let side = vec2(-dir.y, dir.x);
-        clipped.add(egui::Shape::convex_polygon(vec![to, to - dir * 11.0 + side * 6.0, to - dir * 11.0 - side * 6.0], color, Stroke::NONE));
-        if touches && !e.data.is_empty() {
-            let names: Vec<&str> = e.data.iter().map(|&r| view.resources[r].name.as_str()).collect();
-            // Beside the arrow, where it leaves the hovered card or enters it.
-            let at = if focus == Some(e.from) { from + pull * 0.45 } else { to - pull * 0.45 };
-            labels.push((at, names.join(", "), color));
-        }
-    }
-    // The cards (the one dragged last on top).
     let any_lit = !lit.is_empty();
-    let mut drawn: Vec<usize> = (0..view.nodes.len()).collect();
-    if let Some(CardDrag::Card(name)) = &cv.drag {
-        if let Some(k) = view.nodes.iter().position(|n| &n.name == name) {
-            drawn.retain(|&i| i != k);
-            drawn.push(k);
-        }
-    }
-    for i in drawn {
-        let (node, r) = (&view.nodes[i], &rects[i]);
-        if !r.intersects(area) {
-            continue;
-        }
-        let is_lit = lit.contains(&i);
-        clipped.rect_filled(*r, CornerRadius::same(8), palette::background());
-        let (stroke, color) = if is_lit {
-            (Stroke::new(3.0, palette::accent()), palette::text())
-        } else if Some(i) == inspected || Some(i) == hovered {
-            (Stroke::new(2.0, palette::text()), palette::text())
-        } else if any_lit || !node.live {
-            (Stroke::new(1.0, palette::border()), palette::text_faint())
-        } else {
-            (Stroke::new(1.0, palette::border()), palette::text_dim())
-        };
-        let mut name = node.name.strip_prefix(prefix).filter(|rest| !rest.is_empty()).unwrap_or(&node.name).to_string();
-        if node.cached {
-            name.push_str(" ↻");
-        }
-        let inner = r.shrink2(vec2(8.0, 0.0));
-        cink.text(pos2(inner.min.x, r.min.y + label / 2.0), Align2::LEFT_CENTER, cink.fit_right(&name, inner.width(), 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, color);
-        let picture = Rect::from_min_max(pos2(r.min.x + 4.0, r.min.y + label), r.max - vec2(4.0, 4.0));
-        let note = if node.live { "–" } else { tr("graph.culled") };
-        card_picture(&clipped, &cink, picture, node.thumbnail.filter(|_| node.live), any_lit && !is_lit, note);
-        // Its GPU time, in the picture's corner.
-        if let Some(ms) = node.ms.filter(|_| view.timestamps) {
-            let text = format!("{ms:.2} ms");
-            let size = cink.measure(&text, 24.0, FontFamily::Monospace) + vec2(10.0, 2.0);
-            let tag = Rect::from_min_size(picture.max - size, size);
-            if tag.width() < picture.width() * 0.9 {
-                clipped.rect_filled(tag, CornerRadius::same(4), palette::panel().gamma_multiply(0.85));
-                cink.text(tag.center(), Align2::CENTER_CENTER, text, 24.0, FontFamily::Monospace, palette::text_dim());
+    let looks: Vec<graph_view::NodeLook> = view
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let is_lit = lit.contains(&i);
+            let (outline, text) = if is_lit {
+                (Stroke::new(3.0, palette::accent()), palette::text())
+            } else if Some(i) == inspected || Some(i) == hovered {
+                (Stroke::new(2.0, palette::text()), palette::text())
+            } else if any_lit || !n.live {
+                (Stroke::new(1.0, palette::border()), palette::text_faint())
+            } else {
+                (Stroke::new(1.0, palette::border()), palette::text_dim())
+            };
+            graph_view::NodeLook {
+                fill: palette::background(),
+                outline,
+                text,
+                rows: Vec::new(),
+                picture: n.thumbnail.filter(|_| n.live),
+                tint: if any_lit && !is_lit { Color32::from_gray(140) } else { Color32::WHITE },
+                badge: n.ms.filter(|_| view.timestamps).map(|ms| format!("{ms:.2} ms")),
+                note: Some(if n.live { "–".to_string() } else { tr("graph.culled").to_string() }),
+                hidden: false,
+                alpha: 1.0,
             }
+        })
+        .collect();
+    let edge_looks: Vec<graph_view::EdgeLook> = view
+        .edges
+        .iter()
+        .map(|e| {
+            let touches = focus.is_some_and(|f| f == e.from || f == e.to);
+            let color = e.data.first().map_or(palette::text_faint(), |&r| graph_lifetime_color(view.resources[r].lifetime));
+            let alpha = if focus.is_none() || touches { 1.0 } else { 0.25 };
+            let width = if e.data.is_empty() { 1.0 } else if touches { 3.0 } else { 2.0 };
+            graph_view::EdgeLook { color: if e.data.is_empty() { color.gamma_multiply(0.6 * alpha) } else { color.gamma_multiply(alpha) }, width, hidden: false, drawn: 1.0 }
+        })
+        .collect();
+    let clusters: Vec<bool> = graph.clusters.iter().map(|c| !any_lit || c.members.iter().any(|m| lit.contains(m))).collect();
+    let t = state.transform(area);
+    // The card being dragged on top: drawn last.
+    graph_view::draw(ink, area.expand(4.0), &t, &graph, laid, &graph_view::Look { nodes: looks, edges: edge_looks, clusters, moved: &state.moved, edge_labels: false, tracked: true });
+    // The hovered card's arrows named by their resources, where they leave or enter it.
+    let clipped = painter.with_clip_rect(area);
+    let cink = Ink::new(&clipped);
+    let mut placed_labels: Vec<Rect> = Vec::new();
+    if let Some(f) = focus {
+        for e in view.edges.iter().filter(|e| (e.from == f || e.to == f) && !e.data.is_empty()) {
+            let (a, z) = graph_view::ends(graph_view::placed(laid, &state.moved, e.from), graph_view::placed(laid, &state.moved, e.to), laid.flow);
+            let along = if laid.flow == Flow::Down { vec2(0.0, 0.9) } else { vec2(1.6, 0.0) };
+            let at = t.at(if e.from == f { a + along } else { z - along });
+            let names: Vec<&str> = e.data.iter().map(|&r| view.resources[r].name.as_str()).collect();
+            let text = names.join(", ");
+            let color = graph_lifetime_color(view.resources[e.data[0]].lifetime);
+            let size = cink.measure(&text, 24.0, FontFamily::Monospace);
+            let half_w = (size.x + 12.0) / 2.0;
+            let at = pos2(at.x.clamp(area.min.x + half_w, (area.max.x - half_w).max(area.min.x + half_w)), at.y);
+            let bg = Rect::from_center_size(at, size + vec2(12.0, 4.0));
+            if placed_labels.iter().any(|p| p.intersects(bg)) {
+                continue;
+            }
+            placed_labels.push(bg);
+            clipped.rect_filled(bg, CornerRadius::same(4), palette::panel());
+            cink.text(at, Align2::CENTER_CENTER, text, 24.0, FontFamily::Monospace, color);
         }
-        clipped.rect_stroke(*r, CornerRadius::same(8), stroke, StrokeKind::Outside);
-    }
-    let mut placed: Vec<Rect> = Vec::new();
-    for (at, text, color) in labels {
-        let galley = clipped.layout_no_wrap(text.clone(), egui::FontId::monospace(24.0), color);
-        // Kept inside the view, and off the labels already drawn.
-        let half = (galley.size().x + 12.0) / 2.0;
-        let at = pos2(at.x.clamp(area.min.x + half, (area.max.x - half).max(area.min.x + half)), at.y);
-        let bg = Rect::from_center_size(at, galley.size() + vec2(12.0, 4.0));
-        if placed.iter().any(|p| p.intersects(bg)) {
-            continue;
-        }
-        placed.push(bg);
-        clipped.rect_filled(bg, CornerRadius::same(4), palette::panel());
-        cink.text(at, Align2::CENTER_CENTER, text, 24.0, FontFamily::Monospace, color);
     }
     ink.min_size.set(ink.min_size.get().min(cink.min_size.get()));
     // The footer.
@@ -1667,7 +1690,6 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
             ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(&text, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::accent());
         }
         fy += 30.0;
-        // What it does, in the footer's last two lines.
         if let Some(about) = node.about {
             footer_text(ink, pos2(x, fy), width, about, 2);
         }
@@ -1676,8 +1698,7 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     }
     // The dock's Frame graph tab describes the card under the pointer.
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("frame-graph-hovered"), hovered.map(|i| view.nodes[i].name.clone())));
-    let clicked = interactive && ctx.input(|i| i.pointer.primary_clicked());
-    hovered.filter(|_| clicked).and_then(|i| Some(GraphPick::Inspect(format!("{}.{}", view.nodes[i].name, view.nodes[i].result.as_ref()?))))
+    picks.clicked.and_then(|i| Some(GraphPick::Inspect(format!("{}.{}", view.nodes[i].name, view.nodes[i].result.as_ref()?))))
 }
 
 /// `text` wrapped to `width` from `at`, at most `lines` lines of 30 points
@@ -1800,7 +1821,7 @@ fn graph_lifetime_color(lifetime: crate::graph::Lifetime) -> Color32 {
 
 /// The lower-case prefix every camel-case name with one shares (`o3de` of
 /// `o3deMergeCS`, `o3dePrepassFS`); the lab's own names (`overlay`) have none.
-fn graph_prefix<'a>(names: impl Iterator<Item = &'a str>) -> &'a str {
+pub(crate) fn graph_prefix<'a>(names: impl Iterator<Item = &'a str>) -> &'a str {
     let mut prefix: Option<&str> = None;
     for name in names.filter(|n| !crate::graph::LAB_NODES.contains(n)) {
         let head = name.find(|c: char| c.is_ascii_uppercase()).map_or(name, |i| &name[..i]);
@@ -1861,15 +1882,15 @@ fn swatch(painter: &Painter, rect: Rect, colors: &[Color32]) {
     }
 }
 
-/// The knowledge panel's view, kept in egui's memory between frames: the scale
-/// (points per graph unit; 0 until fitted), the graph point at the panel's
-/// centre, the selected topic, and the chapters it was last fitted to.
+/// The knowledge panel's view, kept in egui's memory between frames: the
+/// graph's view (src/graph_view.rs: its scale, 0 until fitted, its centre,
+/// the topics moved by hand), the selected topic, and the chapters it was
+/// last fitted to.
 #[derive(Clone, Debug, Default)]
 struct KnowledgeView {
     /// The view showed only the context's topics when last drawn.
     compact: bool,
-    scale: f32,
-    center: Vec2,
+    view: crate::graph_view::ViewState,
     selected: Option<usize>,
     fitted: Option<Vec<u32>>,
     /// The chrome's focus last applied (`KnowledgeChrome::focus`).
@@ -1997,7 +2018,7 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         lx = r.max.x + 22.0;
     }
     y += 34.0;
-    let measure = |t: &str| ink.measure(t, 20.0, FontFamily::Proportional).x / 20.0 * 0.5;
+    let measure = |t: &str| ink.measure(t, 100.0, FontFamily::Proportional).x / 100.0;
     let Some(graph) = crate::knowledge::current() else {
         ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.none"), 24.0, FontFamily::Proportional, palette::text_dim());
         return pressed;
@@ -2007,9 +2028,9 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     let context = graph.context(&chapters);
     // Compact: only the context's topics, laid out again on their own.
     let compact = KNOWLEDGE_COMPACT.load(std::sync::atomic::Ordering::Relaxed);
-    let Some((_, clustered)) = crate::knowledge::current_layout(&measure, compact.then_some(context.as_slice())) else { return pressed };
-    let layout = &clustered.layout;
-    let shown = |i: usize| !compact || context[i];
+    let Some((_, kv)) = crate::knowledge::current_view(&measure, compact.then_some(context.as_slice())) else { return pressed };
+    let laid = &kv.laid;
+    let local = |i: usize| kv.local[i];
     // The card under the graph describes the selected topic; with none, the graph has its room.
     let selected = ctx.data(|d| d.get_temp::<KnowledgeView>(place.view_id())).and_then(|v| v.selected);
     let card_height = if selected.is_some() { 150.0 } else { 0.0 };
@@ -2019,76 +2040,65 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     let graph_area = Rect::from_min_max(area.min, pos2(area.max.x, area.max.y - 34.0));
     let id = place.view_id();
     let mut view = ctx.data(|d| d.get_temp::<KnowledgeView>(id)).unwrap_or_default();
-    // The bounding box of a set of nodes, in graph units.
-    let bounds = |nodes: &mut dyn Iterator<Item = usize>| -> Option<Rect> {
-        nodes.map(|i| Rect::from_center_size(pos2(layout.positions[i].0, layout.positions[i].1), vec2(layout.widths[i], 1.0))).reduce(|a, b| a.union(b))
-    };
-    let fit = |b: Rect, view: &mut KnowledgeView| {
-        let b = b.expand(1.0);
-        // Fitted, but no smaller than titles stay readable at (the rest is a drag away).
-        view.scale = (graph_area.width() / b.width()).min(graph_area.height() / b.height()).clamp(34.0, 60.0);
-        // Where it does not fit, from its top-left (the bases and the first topics), read on by dragging.
-        let half = graph_area.size() / view.scale / 2.0;
+    // The bounding box of some topics (those shown, where they were laid out), in graph units.
+    let bounds = |nodes: &mut dyn Iterator<Item = usize>| -> Option<Rect> { nodes.filter_map(local).map(|k| laid.rects[k]).reduce(|a, b| a.union(b)) };
+    // Fitted, but no smaller than titles stay readable at (the rest is a drag away);
+    // where it does not fit, from its top-left (the bases and the first topics).
+    let fit = |b: Rect, v: &mut crate::graph_view::ViewState| {
+        let b = b.expand(2.0);
+        v.scale = (graph_area.width() / b.width()).min(graph_area.height() / b.height()).clamp(17.0, 30.0);
+        let half = graph_area.size() / v.scale / 2.0;
         let x = if b.width() > 2.0 * half.x { b.min.x + half.x } else { b.center().x };
         let y = if b.height() > 2.0 * half.y { b.min.y + half.y } else { b.center().y };
-        view.center = vec2(x, y);
+        v.centre = vec2(x, y);
     };
-    let whole = bounds(&mut (0..graph.nodes.len()).filter(|&i| shown(i))).unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1.0, 1.0)));
+    let whole = laid.bounds;
     // A change of view (all topics or the context's) fits again.
     if view.compact != compact {
         view.compact = compact;
         view.fitted = None;
-        if view.selected.is_some_and(|s| !shown(s)) {
+        view.view.moved.clear();
+        if view.selected.is_some_and(|s| local(s).is_none()) {
             view.selected = None;
         }
     }
-    let min_scale = ((graph_area.width() / (whole.width() + 2.0)).min(graph_area.height() / (whole.height() + 2.0)) * 0.8).min(3.0);
+    let min_scale = ((graph_area.width() / (whole.width() + 4.0)).min(graph_area.height() / (whole.height() + 4.0)) * 0.8).min(1.5);
     if let Some(key) = &chrome.focus {
         if view.focused.as_ref() != Some(key) {
             if let Some(node) = graph.find(key) {
                 view.selected = Some(node);
-                view.center = vec2(layout.positions[node].0, layout.positions[node].1);
-                view.scale = 36.0;
+                if let Some(k) = local(node) {
+                    view.view.centre = laid.rects[k].center().to_vec2();
+                    view.view.scale = 18.0;
+                }
             }
             view.focused = Some(key.clone());
             view.fitted = Some(chapters.clone());
         }
     }
-    if view.scale == 0.0 || view.fitted.as_ref() != Some(&chapters) {
+    if view.view.scale == 0.0 || view.fitted.as_ref() != Some(&chapters) {
         let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
-        fit(b, &mut view);
+        fit(b, &mut view.view);
         view.fitted = Some(chapters.clone());
     }
     // A topic focused from the dock: centred, at a readable scale.
-    if let Some(node) = view.centre_on.take().filter(|&n| n < graph.nodes.len()) {
-        view.center = vec2(layout.positions[node].0, layout.positions[node].1);
-        view.scale = view.scale.max(36.0);
+    if let Some(k) = view.centre_on.take().filter(|&n| n < graph.nodes.len()).and_then(local) {
+        view.view.centre = crate::graph_view::placed(laid, &view.view.moved, k).center().to_vec2();
+        view.view.scale = view.view.scale.max(18.0);
     }
     // Input: an interactive area over the graph (egui then has the pointer, not the camera).
-    let to_screen = |view: &KnowledgeView, g: (f32, f32)| graph_area.center() + (vec2(g.0, g.1) - view.center) * view.scale;
     let mut hovered = None;
     let input_id = egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-input" } else { "knowledge-overlay-input" });
     egui::Area::new(input_id).fixed_pos(graph_area.min).order(place.order()).fade_in(false).show(ctx, |ui| {
         let response = ui.allocate_rect(Rect::from_min_size(graph_area.min, graph_area.size()), egui::Sense::click_and_drag());
-        if response.dragged() {
-            view.center -= response.drag_delta() / view.scale;
-        }
-        let node_at = |view: &KnowledgeView, at: Pos2| (0..graph.nodes.len()).filter(|&i| shown(i)).find(|&i| Rect::from_center_size(to_screen(view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale).contains(at));
-        if let Some(at) = response.hover_pos() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                // Zoom about the point under the pointer, which stays where it is.
-                let under = view.center + (at - graph_area.center()) / view.scale;
-                view.scale = (view.scale * (scroll / 120.0).exp()).clamp(min_scale, 80.0);
-                view.center = under - (at - graph_area.center()) / view.scale;
-            }
-            hovered = node_at(&view, at);
-        }
-        if response.double_clicked() {
+        let picks = crate::graph_view::interact(ctx, graph_area, laid, &mut view.view, &crate::graph_view::Controls { zoom: Some((min_scale, 40.0)), move_nodes: true }, &|_| true);
+        hovered = picks.hovered.map(|k| kv.shown[k]);
+        if picks.reset {
+            view.view.moved.clear();
             let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
-            fit(b, &mut view);
-        } else if response.clicked() {
-            view.selected = response.interact_pointer_pos().and_then(|at| node_at(&view, at));
+            fit(b, &mut view.view);
+        } else if picks.clicked.is_some() || picks.clicked_empty {
+            view.selected = picks.clicked.map(|k| kv.shown[k]);
         }
         if let Some(i) = hovered {
             response.on_hover_ui_at_pointer(|ui| {
@@ -2100,10 +2110,10 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
     });
     // The view stays on the graph: along an axis where the graph is larger
     // than the view, no empty space past its edge; where it is smaller, centred.
-    let half = graph_area.size() / view.scale / 2.0;
+    let half = graph_area.size() / view.view.scale / 2.0;
     let keep = |c: f32, lo: f32, hi: f32, h: f32| if hi - lo > 2.0 * h { c.clamp(lo + h, hi - h) } else { (lo + hi) / 2.0 };
-    let margin = 1.0;
-    view.center = vec2(keep(view.center.x, whole.min.x - margin, whole.max.x + margin, half.x), keep(view.center.y, whole.min.y - margin, whole.max.y + margin, half.y));
+    let margin = 2.0;
+    view.view.centre = vec2(keep(view.view.centre.x, whole.min.x - margin, whole.max.x + margin, half.x), keep(view.view.centre.y, whole.min.y - margin, whole.max.y + margin, half.y));
     ctx.data_mut(|d| d.insert_temp(id, view.clone()));
     if view.selected.is_some() != selected.is_some() {
         // The card comes or goes: lay the graph out again at once.
@@ -2118,60 +2128,30 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         }
         None => vec![false; graph.nodes.len()],
     };
-    let clipped = painter.with_clip_rect(graph_area);
     let fade = |c: Color32, strong: bool| if strong { c } else { c.gamma_multiply(0.3) };
-    // The groups: a box around each, its title in its top band; full
-    // strength while any of its topics is.
-    for &(g, (x0, y0, x1, y1)) in &clustered.boxes {
-        let b = Rect::from_min_max(to_screen(&view, (x0, y0)), to_screen(&view, (x1, y1)));
-        if !b.intersects(graph_area) {
-            continue;
-        }
-        let strong = (0..graph.nodes.len()).any(|i| graph.nodes[i].group == Some(g) && context[i]);
-        let radius = CornerRadius::same((view.scale * 0.3).min(255.0) as u8);
-        clipped.rect_filled(b, radius, fade(palette::background(), strong).gamma_multiply(0.6));
-        clipped.rect_stroke(b, radius, Stroke::new(1.5, fade(palette::border(), strong)), StrokeKind::Inside);
-        let font = view.scale * 0.42;
-        if font >= 8.0 {
-            clipped.text(b.min + vec2(view.scale * 0.3, view.scale * 0.12), Align2::LEFT_TOP, &graph.groups[g].title, egui::FontId::proportional(font), fade(palette::text_dim(), strong));
-        }
-    }
-    for (r, i, bends) in &layout.bends {
-        let (r, i) = (*r, *i);
-        let from = to_screen(&view, layout.positions[r]) + vec2(layout.widths[r] / 2.0 * view.scale, 0.0);
-        let to = to_screen(&view, layout.positions[i]) - vec2(layout.widths[i] / 2.0 * view.scale, 0.0);
-        let on_path = view.selected.is_some() && lit[r] && lit[i];
-        let color = if on_path { palette::SELECTED } else { fade(palette::border(), context[r] && context[i]) };
-        let width = if on_path { 2.5 } else { 1.2 };
-        if bends.is_empty() {
-            // A curve leaving and entering horizontally.
-            let pull = ((to.x - from.x) * 0.5).max(view.scale);
-            let curve = egui::epaint::CubicBezierShape::from_points_stroke([from, from + vec2(pull, 0.0), to - vec2(pull, 0.0), to], false, Color32::TRANSPARENT, Stroke::new(width, color));
-            clipped.add(curve);
-        } else {
-            let mut points = vec![from];
-            points.extend(bends.iter().map(|&b| to_screen(&view, b)));
-            points.push(to);
-            clipped.add(egui::Shape::line(points, Stroke::new(width, color)));
-        }
-        let tip = (view.scale * 0.25).clamp(3.0, 9.0);
-        clipped.add(egui::Shape::convex_polygon(vec![to, to - vec2(tip * 1.6, tip * 0.8), to - vec2(tip * 1.6, -tip * 0.8)], color, Stroke::NONE));
-    }
-    let font = view.scale * 0.5;
-    for i in (0..graph.nodes.len()).filter(|&i| shown(i)) {
-        let strong = context[i] && (view.selected.is_none() || lit[i]);
-        let color = fade(topic_color(&p, i), strong);
-        let box_rect = Rect::from_center_size(to_screen(&view, layout.positions[i]), vec2(layout.widths[i], 1.0) * view.scale);
-        if !box_rect.intersects(graph_area) {
-            continue;
-        }
-        clipped.rect_filled(box_rect, CornerRadius::same((view.scale * 0.2) as u8), palette::panel_raised());
-        let outline = if view.selected == Some(i) || hovered == Some(i) { Stroke::new(3.0, palette::SELECTED) } else { Stroke::new(if graph.nodes[i].base { 3.0 } else { 1.5 }, color) };
-        clipped.rect_stroke(box_rect, CornerRadius::same((view.scale * 0.2) as u8), outline, StrokeKind::Inside);
-        if font >= 8.0 {
-            clipped.text(box_rect.center(), Align2::CENTER_CENTER, &graph.nodes[i].title, egui::FontId::proportional(font), fade(palette::text(), strong));
-        }
-    }
+    let nodes = kv
+        .shown
+        .iter()
+        .map(|&i| {
+            let strong = context[i] && (view.selected.is_none() || lit[i]);
+            let color = fade(topic_color(&p, i), strong);
+            let outline = if view.selected == Some(i) || hovered == Some(i) { Stroke::new(3.0, palette::SELECTED) } else { Stroke::new(if graph.nodes[i].base { 3.0 } else { 1.5 }, color) };
+            crate::graph_view::NodeLook { fill: palette::panel_raised(), outline, text: fade(palette::text(), strong), rows: Vec::new(), picture: None, tint: Color32::WHITE, badge: None, note: None, hidden: false, alpha: 1.0 }
+        })
+        .collect();
+    let edges = kv
+        .graph
+        .edges
+        .iter()
+        .map(|e| {
+            let (r, i) = (kv.shown[e.from], kv.shown[e.to]);
+            let on_path = view.selected.is_some() && lit[r] && lit[i];
+            crate::graph_view::EdgeLook { color: if on_path { palette::SELECTED } else { fade(palette::border(), context[r] && context[i]) }, width: if on_path { 2.5 } else { 1.2 }, hidden: false, drawn: 1.0 }
+        })
+        .collect();
+    let clusters = kv.graph.clusters.iter().map(|c| c.members.iter().any(|&k| context[kv.shown[k]])).collect();
+    let t = view.view.transform(graph_area);
+    crate::graph_view::draw(ink, graph_area, &t, &kv.graph, laid, &crate::graph_view::Look { nodes, edges, clusters, moved: &view.view.moved, edge_labels: false, tracked: false });
     // The selected topic's card under the graph.
     let card = Rect::from_min_max(pos2(rect.min.x + 8.0, rect.max.y - card_height), pos2(rect.max.x - 8.0, rect.max.y - 8.0));
     let cx = card.min.x + 14.0;

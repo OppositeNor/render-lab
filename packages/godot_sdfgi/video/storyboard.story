@@ -24,7 +24,7 @@ This is the lab's study room, lit by the ceiling panel alone: only direct light,
 {@ callout=settings} It is a setting of the scene's environment, and it is off by default.
 
 ## c1-frame | 2d | Every frame runs it in stages
-diagram: frame
+graph: frame
 focus: UPD, VOX, LIGHT, PRE, STORE, GI
 
 {@ callout=sdfgi-update} Each frame, SDFGI first moves its grids, called cascades, to follow the camera, and works out which parts of them are new.
@@ -498,31 +498,31 @@ summary: The frame, in order.
 sources: frame-order
 
 ## c11-cascades | 2d | The cascades follow the camera
-diagram: frame
+graph: frame
 focus: UPD
 
 {@ callout=sdfgi-update} The cascades follow the camera, and each jump leaves a slab to rebuild.
 
 ## c11-voxels | 2d | The slab becomes a distance field
-diagram: frame
+graph: frame
 focus: VOX
 
 {@ callout=render-region} The slab is voxelized, flooded into a distance field, and its occlusion is found.
 
 ## c11-light | 2d | The cells are lit
-diagram: frame
+graph: frame
 focus: LIGHT
 
 {@ callout=update-light} The solid cells are lit, a quarter each frame, with last frame's probes as the bounce.
 
 ## c11-probes | 2d | The probes trace and average
-diagram: frame
+graph: frame
 focus: PRE, STORE
 
 {@ callout=update-probes} The probes trace eight rays a frame, average thirty frames, and store two small maps each.
 
 ## c11-screen | 2d | Every pixel reads eight probes
-diagram: frame
+graph: frame
 focus: GI
 
 {@ callout=process-gi} Every pixel finds its cascade, weights the eight probes around it, and takes their light in place of the sky's.

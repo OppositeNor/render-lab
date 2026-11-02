@@ -330,5 +330,16 @@
   "pass.voxelgiPrepassFS": "Draws the scene's depth only, with dithered coverage for fading objects, so the scene pass after it shades each pixel's visible surface once.",
   "pass.voxelgiForwardFS": "Draws the scene against the pre-pass depth, writing the direct light (plus emission) and object index into one target and the camera-facing normal into another.",
   "pass.voxelgiGiCS": "For each pixel (or each 2 x 2 block at half resolution), traces cones through the voxel light texture from its world position and normal, writing ambient and reflection buffers.",
-  "pass.voxelgiComposeCS": "Combines the direct light, the sky's ambient and reflection mixed toward the VoxelGI buffers, and albedo into the HDR image, averaging MSAA samples and drawing the sky."
+  "pass.voxelgiComposeCS": "Combines the direct light, the sky's ambient and reflection mixed toward the VoxelGI buffers, and albedo into the HDR image, averaging MSAA samples and drawing the sky.",
+  "frame.bake": "Bake",
+  "frame.bake_note": "editor, once",
+  "frame.sdf": "Distance\nfield",
+  "frame.sdf_note": "baked",
+  "frame.light": "Light passes\n(on change)",
+  "frame.tex": "RGBA8\n3D texture",
+  "frame.dyn": "Dynamic\nobjects",
+  "frame.dyn_note": "every frame",
+  "frame.pre": "Depth pre-pass",
+  "frame.cone": "Screen pass:\ncones",
+  "frame.opaque": "Opaque pass"
 }

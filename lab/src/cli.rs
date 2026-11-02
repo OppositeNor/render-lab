@@ -153,18 +153,12 @@ enum Command {
         /// known topic removed), fewest carries first.
         #[arg(long)]
         levels: bool,
-        /// Write the graph as a Mermaid flowchart to this file.
-        #[arg(long)]
-        mermaid: Option<PathBuf>,
     },
     /// Print the current investigation's frame as a render graph
     /// (lab/src/graph.rs): its nodes in execution order with what each reads
     /// and writes, its resources with their lifetimes, and the culled nodes;
     /// checks the declarations against the WGSL (fails on a problem).
     Graph {
-        /// Write the graph as a Mermaid flowchart to this file.
-        #[arg(long)]
-        mermaid: Option<PathBuf>,
         /// Write the graph in Graphviz's language to this file.
         #[arg(long)]
         dot: Option<PathBuf>,
@@ -404,8 +398,8 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
-        Command::Knowledge { known, levels, mermaid } => knowledge(chosen, &known, levels, mermaid.as_deref()),
-        Command::Graph { mermaid, dot, json } => graph(chosen, mermaid.as_deref(), dot.as_deref(), json),
+        Command::Knowledge { known, levels } => knowledge(chosen, &known, levels),
+        Command::Graph { dot, json } => graph(chosen, dot.as_deref(), json),
         Command::Values { json, label, scope } => {
             use crate::values::Value;
             let entries: Vec<&crate::values::Entry> = crate::values::list()
@@ -592,7 +586,7 @@ pub fn main(app: App) -> Result<()> {
 
 /// The `graph` command: print the frame's graph; fail if its declarations
 /// do not compile or do not match the WGSL.
-fn graph(chosen: &'static dyn investigation::Investigation, mermaid: Option<&std::path::Path>, dot: Option<&std::path::Path>, json: bool) -> Result<()> {
+fn graph(chosen: &'static dyn investigation::Investigation, dot: Option<&std::path::Path>, json: bool) -> Result<()> {
     let shading = chosen.scene_shading();
     let graph = crate::graph::FrameGraph::new(shading, &[]);
     let mut problems = graph.errors.clone();
@@ -623,11 +617,9 @@ fn graph(chosen: &'static dyn investigation::Investigation, mermaid: Option<&std
             }
         }
     }
-    for (path, text) in [(mermaid, graph.mermaid()), (dot, graph.dot())] {
-        if let Some(path) = path {
-            std::fs::write(path, text).with_context(|| format!("write {}", path.display()))?;
-            eprintln!("wrote {}", path.display());
-        }
+    if let Some(path) = dot {
+        std::fs::write(path, graph.dot()).with_context(|| format!("write {}", path.display()))?;
+        eprintln!("wrote {}", path.display());
     }
     if !problems.is_empty() {
         bail!("{} problem(s):\n  {}", problems.len(), problems.join("\n  "));
@@ -636,9 +628,9 @@ fn graph(chosen: &'static dyn investigation::Investigation, mermaid: Option<&std
 }
 
 /// The `knowledge` command: check the investigation's knowledge graph, print its
-/// audience split (stored, or `known`), and optionally its nearby audiences
-/// and a Mermaid file. Fails on a graph or audience problem.
-fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String], levels: bool, mermaid: Option<&std::path::Path>) -> Result<()> {
+/// audience split (stored, or `known`), and optionally its nearby audiences.
+/// Fails on a graph or audience problem.
+fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String], levels: bool) -> Result<()> {
     let package = chosen.package().context("this investigation has no package")?;
     let graph = match crate::knowledge::load(package) {
         None => bail!("{package} has no knowledge graph (no `knowledge` resource of its own)"),
@@ -647,10 +639,6 @@ fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String]
     let names = |list: &[usize]| list.iter().map(|&i| graph.nodes[i].key.as_str()).collect::<Vec<_>>().join(", ");
     let edges: usize = graph.nodes.iter().map(|n| n.requires.len()).sum();
     println!("{package}: {} topics, {edges} requirements, {} chapters; acyclic, transitively reduced, every topic reaches a base", graph.nodes.len(), graph.chapters.len());
-    if let Some(path) = mermaid {
-        std::fs::write(path, crate::knowledge::mermaid(&graph)).with_context(|| format!("write {}", path.display()))?;
-        println!("wrote {}", path.display());
-    }
     let known: Vec<usize> = if known.is_empty() {
         graph.known.clone()
     } else {

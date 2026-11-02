@@ -259,5 +259,12 @@
   "hints.field": "The signed distance field built from the voxels: its slice, the flood's steps, and the occlusion around it.",
   "hints.probes": "The probes: where they sit, the rays they trace each frame, and the history their maps are averaged over.",
   "hints.pixel": "A pixel of the screen pass: which probes it reads, how they blend, and what it adds to the image.",
-  "pass.sdfgiForwardFS": "Draws the scene, shading each pixel with direct light plus ambient and reflection looked up from the SDFGI probes (ambient times albedo, reflection times the environment BRDF)."
+  "pass.sdfgiForwardFS": "Draws the scene, shading each pixel with direct light plus ambient and reflection looked up from the SDFGI probes (ambient times albedo, reflection times the environment BRDF).",
+  "frame.cascades": "Cascades\nand culling",
+  "frame.voxels": "Voxels and\ndistance field",
+  "frame.light": "Light in\nthe voxels",
+  "frame.probes": "Probe\nrays",
+  "frame.store": "Probe\nmaps",
+  "frame.screen": "Screen pass",
+  "frame.cpu": "on the CPU"
 }

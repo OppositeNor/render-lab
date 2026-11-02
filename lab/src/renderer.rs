@@ -238,9 +238,13 @@ const DAG_SIDE: u32 = 256;
 /// its state at the end of the frame (`FrameGraph::last_user`).
 const RESOURCE_IMAGE: &str = "@resource/";
 
+/// The frame graph scene's pictures (a 2D beat's `graph`): one per lit box,
+/// its last member's result (src/diagram.rs `BeatDiagram::lit_groups`).
+const BOX_IMAGE: &str = "@box/";
+
 /// An image of a graph panel's cards, not one a story or the inspector shows.
 fn card_image(name: &str) -> bool {
-    name.starts_with(DAG_IMAGE) || name.starts_with(RESOURCE_IMAGE)
+    name.starts_with(DAG_IMAGE) || name.starts_with(RESOURCE_IMAGE) || name.starts_with(BOX_IMAGE)
 }
 
 /// A story's image of an image kind (src/views.rs): its texture, written
@@ -1217,7 +1221,6 @@ impl Renderer {
     /// each node's last GPU time, and the inspected resource.
     fn graph_view(&mut self) -> ui::GraphView {
         let graph = self.frame_graph();
-        let layers = graph.layers();
         let last: Vec<(String, f64)> = self.timing.as_ref().map(|t| t.last().to_vec()).unwrap_or_default();
         let nodes = graph
             .order
@@ -1234,7 +1237,7 @@ impl Renderer {
                 });
                 let result = graph.result_of(i).map(str::to_string);
                 let thumbnail = self.inspections.get(&format!("{DAG_IMAGE}{}", n.name)).map(|x| (x.id, x.size));
-                ui::GraphNodeView { name: n.name.to_string(), engine, ms, live: graph.live[i], cached: n.cached, layer: layers[i], result, thumbnail, about: crate::graph::about(n.name), reads: n.reads.iter().map(|r| r.to_string()).collect(), writes: n.writes.iter().map(|w| w.to_string()).collect() }
+                ui::GraphNodeView { name: n.name.to_string(), engine, ms, live: graph.live[i], cached: n.cached, result, thumbnail, about: crate::graph::about(n.name), reads: n.reads.iter().map(|r| r.to_string()).collect(), writes: n.writes.iter().map(|w| w.to_string()).collect() }
             })
             .collect();
         // The DAG's arrows, between rows: what flows from one node to the next
@@ -1539,13 +1542,16 @@ impl Renderer {
             drawn.push((*rect, content));
         }
         let scene_state = main.as_ref().map_or(request.state, |m| &m.state);
+        // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures.
+        let boxes: Vec<(String, String)> = request.diagram.filter(|_| !scene_beat).map(|d| d.lit_groups()).unwrap_or_default();
+        let renders = scene_beat || !boxes.is_empty();
         // A recording (no history) waits for the data, so every frame is the same each time.
-        if scene_beat {
+        if renders {
             self.select_data(scene_state, !request.history);
         }
         let mut content = match prepared.or(built) {
             Some(c) => Some(c),
-            None => scene_beat.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
+            None => renders.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
         };
         if let Some(content) = content.as_mut() {
             // The frames the view has held still: the same records, uniforms
@@ -1564,7 +1570,7 @@ impl Renderer {
         // its buffers and what follows its camera are read from it, and it is
         // shown in a corner.
         let free = request.state.free_camera;
-        let free_content = content.as_ref().filter(|_| free.on && drawn.is_empty() && compare.is_none()).map(|main| {
+        let free_content = content.as_ref().filter(|_| scene_beat && free.on && drawn.is_empty() && compare.is_none()).map(|main| {
             let mut content = crate::free_view::content(main, request.state, &free);
             self.swap_free_slot();
             if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
@@ -1600,8 +1606,9 @@ impl Renderer {
 
         if content.is_some() {
             self.prepare_views(request.state);
-            self.prepare_inspections(request.state);
+            self.prepare_inspections(request.state, &boxes);
         }
+        let diagram_pictures: Vec<crate::diagram::Picture> = boxes.iter().filter_map(|(group, _)| self.inspections.get(&format!("{BOX_IMAGE}{group}")).map(|x| (group.clone(), x.id, x.size))).collect();
         let shows_performance = matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
         // A recording (no live frames before it, or a single snapshot) times a
         // few renders of the same shot first, so its panel shows measurements.
@@ -1642,6 +1649,7 @@ impl Renderer {
             textures: &self.textures,
             scene_type: request.scene_type,
             diagram: request.diagram,
+            diagram_pictures: &diagram_pictures,
             beat_sources: request.beat_sources,
             notices: request.notices,
             chapter_number: request.chapter_number,
@@ -1876,7 +1884,7 @@ impl Renderer {
 
     /// Makes (or keeps) the texture of each graph image the state shows,
     /// and writes its parameters (src/graph.rs `Show`, `INSPECT_PARAMS`).
-    fn prepare_inspections(&mut self, state: &ShotState) {
+    fn prepare_inspections(&mut self, state: &ShotState, boxes: &[(String, String)]) {
         use crate::graph::{inspect_entry, FrameGraph, Shape, Show};
         use crate::utility::inset::{view_texture, ImageSource};
         let shown: Vec<(String, String, Option<String>, std::collections::BTreeMap<String, Vec<f32>>)> = state
@@ -1893,6 +1901,20 @@ impl Renderer {
             for (i, n) in graph.nodes.iter().enumerate() {
                 if let Some(r) = graph.result_of(i) {
                     shown.push((format!("{DAG_IMAGE}{}", n.name), format!("{}.{r}", n.name), None, Default::default()));
+                }
+            }
+        }
+        // The frame graph scene's lit boxes: a pass's result, or a resource as the frame leaves it.
+        if !boxes.is_empty() {
+            let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
+            for (group, member) in boxes {
+                let key = match graph.node(member) {
+                    _ if member.contains('.') => Some(member.clone()),
+                    Some(n) => graph.result_of(n).map(|r| format!("{member}.{r}")),
+                    None => graph.last_user(member).map(|n| format!("{}.{member}", graph.nodes[n].name)),
+                };
+                if let Some(key) = key {
+                    shown.push((format!("{BOX_IMAGE}{group}"), key, None, Default::default()));
                 }
             }
         }
@@ -2373,7 +2395,7 @@ impl Renderer {
         self.upload(&content);
         self.upload_draws(&content);
         // An experiment that measures a resource of the frame's graph (`Experiment::inspect`).
-        self.prepare_inspections(state);
+        self.prepare_inspections(state, &[]);
         let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("experiment") });
         self.encode_scene(&mut encoder, &content, true);
         let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));

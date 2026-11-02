@@ -146,8 +146,8 @@ narration, or only with a still, is not taught.
   should already know (the starting level; the viewer's Prerequisites tab lists it), and what they will gain: what
   they will be able to explain, reason about, or do afterwards (read the engine's code for it, tune its settings,
   judge its trade-offs, apply the techniques elsewhere). Show it on screen as a short list beside the narration.
-- **Then where it runs.** The first chapter places it in the engine's frame (a Mermaid beat of the passes, the
-  feature's lit) and says what decides whether it runs at all: project settings, quality levels, platform paths,
+- **Then where it runs.** The first chapter places it in the engine's frame (the frame graph's 2D scene, `graph: frame`,
+  the feature's passes lit) and says what decides whether it runs at all: project settings, quality levels, platform paths,
   and their defaults.
 - **Explain each mechanism; showing its data is not explaining it.** A viewer who sees what a structure looks
   like may still not know what it is for. For every mechanism, the story answers, in this order where it fits:

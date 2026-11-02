@@ -1,0 +1,53 @@
+# The frame graph's sections (the resource `graph/frame`; tools/video/frame_graph.py has the
+# format): the story's frame graph scene (`graph: frame`), and the viewer's DAG panel:
+# each section a box the beats' `focus:` names, the lab's passes (or resources)
+# inside; dashed, what the lab's frame does not run.
+
+[[section]]
+id = "BAKE"
+title-text = "frame.bake"
+note-text = "frame.bake_note"
+outside = true
+to = ["SDF", "LIGHT"]
+
+[[section]]
+id = "SDF"
+title-text = "frame.sdf"
+note-text = "frame.sdf_note"
+outside = true
+to = ["LIGHT"]
+
+[[section]]
+id = "LIGHT"
+title-text = "frame.light"
+passes = ["voxelgiLightCS", "voxelgiBounceCS", "voxelgiMipmapsCS", "voxelgiWriteCS"]
+
+[[section]]
+id = "TEX"
+title-text = "frame.tex"
+resources = ["voxelgiLight"]
+
+[[section]]
+id = "DYN"
+title-text = "frame.dyn"
+note-text = "frame.dyn_note"
+outside = true
+to = ["TEX"]
+
+[[section]]
+id = "PRE"
+title-text = "frame.pre"
+passes = ["voxelgiPrepassFS"]
+
+# The lab draws the opaque pass's direct light before the cones and mixes their
+# light in after them (Godot mixes it in one opaque pass): the arrow back.
+
+[[section]]
+id = "CONE"
+title-text = "frame.cone"
+passes = ["voxelgiGiCS"]
+
+[[section]]
+id = "OPAQUE"
+title-text = "frame.opaque"
+passes = ["voxelgiForwardFS", "voxelgiComposeCS"]

@@ -24,19 +24,19 @@ sources: frame-order, voxelgi-gate, voxelgi-doc, mobile-stub, gles3-stub, node-d
 {@off> voxelgiMix=1..0.3}VoxelGI's answer is to bake the room once into a grid of small boxes, called cells{<off}, {@on> voxelgiMix=0.3..1}light those cells, and let every pixel read them back through a few wide cones, each a cheap average of many cells{<on}.
 
 ## c1-map-bake | 2d | Baked once
-diagram: frame
+graph: frame
 focus: BAKE, SDF
 
 {@ callout=bake-entry} The bake runs once, usually in the editor: it turns the meshes in a box into an octree of cells, and adds a distance field, used later to find shadows.
 
 ## c1-map-light | 2d | Lit when something changes
-diagram: frame
+graph: frame
 focus: LIGHT, TEX, DYN
 
 {@ callout=relight-gate} At run time, light passes fill a three-dimensional texture from those cells, and run again only when a light or the data changes; moving objects are added to it every frame.
 
 ## c1-map-read | 2d | Read every frame
-diagram: frame
+graph: frame
 focus: PRE, CONE, OPAQUE
 
 {@ callout=process-gi} Every frame, a screen pass traces cones through that texture for the pixels it covers, and the opaque pass mixes the result into the image.
@@ -95,7 +95,7 @@ summary: The bake makes the box a cube of cells, sends every triangle down an oc
 sources: bake-entry, find-meshes, begin-bake, plot-mesh, plot-face-recurse, tri-box, leaf-scan, material-cache
 
 ## c2-map | 2d | The bake comes first
-diagram: frame
+graph: frame
 focus: BAKE
 
 Everything VoxelGI knows about the room comes from one bake, so that is where it starts.
@@ -194,7 +194,7 @@ summary: Leaves are averaged, parents emptied, the cells sorted and packed into 
 sources: fixup-leaf, fixup-parent, sort-cells, export-octree, export-data, rgbe9995, sdf-edt, sdf-encode, allocate-data, instance-texture
 
 ## c3-map | 2d | From cells to bytes
-diagram: frame
+graph: frame
 focus: BAKE, SDF
 
 The bake has left a tree of cells holding raw sums; before the GPU sees them, they are finished, sorted, and packed.
@@ -284,7 +284,7 @@ summary: When the lights change, each leaf gets its direct light, shadowed throu
 sources: relight-gate, light-cache, max-lights, light-upload, compute-light, light-at-pos, raymarch, area-light, write-texture
 
 ## c4-map | 2d | Light passes, on change
-diagram: frame
+graph: frame
 focus: LIGHT, TEX
 
 The cells now hold what each surface is; the light passes give them the light each one receives.
@@ -371,7 +371,7 @@ summary: The coarse levels are filled from their children, then six cones from e
 sources: update-mipmaps, pass-order, second-bounce, bounce-cones, bounce-march, bounce-restore
 
 ## c5-map | 2d | The texture reads itself back
-diagram: frame
+graph: frame
 focus: LIGHT, TEX
 
 One pass of light reaches only what the lights see; a second pass reads the texture the first wrote, so the cells light each other.
@@ -446,7 +446,7 @@ summary: An object marked Dynamic is drawn from six sides every frame, lit, shru
 sources: gi-mode-flags, dynamic-list, dynamic-oversample, dynamic-views, material-outputs, dynamic-lighting, shrink, plot-blend, dynamic-clear
 
 ## c6-map | 2d | Dynamic objects write into the texture
-diagram: frame
+graph: frame
 focus: DYN, TEX
 
 The bake knows only what stood still, and baking again every frame would be far too slow; so an object marked Dynamic is drawn into the texture again every frame instead.
@@ -521,7 +521,7 @@ summary: The pre-pass tags each pixel with its VoxelGIs; the screen pass moves i
 sources: pairing-two, instance-ubo, tag-write, process-gi, voxel-gi-compute, edge-blend, cones-low, cone-trace-45, cones-high, cone-trace, spec-cone, range-restore
 
 ## c7-map | 2d | The screen pass reads the texture
-diagram: frame
+graph: frame
 focus: PRE, CONE, TEX
 
 With the texture full of light, the question becomes how a pixel reads it cheaply; every frame, the screen pass answers it.
@@ -612,7 +612,7 @@ summary: The bill, and how Godot keeps it small: light passes only on change, ov
 sources: relight-gate, update-gate, light-cache, sort-cells, level-dispatch, local-size, pass-order, raymarch, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc
 
 ## c8-map | 2d | Three rates
-diagram: frame
+graph: frame
 focus: BAKE, LIGHT, CONE
 
 Before the opaque pass turns those buffers into colour, a look at the bill: what all of this costs, and how Godot keeps it small.
@@ -735,7 +735,7 @@ summary: The opaque pass mixes the environment toward VoxelGI's light by its alp
 sources: gi-buffer-mix, forward-gi-transparent, forward-cones, fog-inject, debug-noop, bias-mismatch
 
 ## c9-map | 2d | The opaque pass
-diagram: frame
+graph: frame
 focus: CONE, OPAQUE
 
 Now the opaque pass turns the two buffers the screen pass left, an ambient and a reflection, into colour.
