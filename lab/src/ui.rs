@@ -240,6 +240,8 @@ pub enum ViewerAction {
     Home,
     /// The narration's volume; `true` when the change is finished (src/volume.rs).
     SetNarration(crate::volume::Volume, bool),
+    /// The timeline's and the narration's speed (one of `SPEEDS`).
+    SetSpeed(f32),
     /// One value (a channel) back to the demonstration's default (the Experiments tab).
     ResetParam(&'static str),
     /// The live state becomes the reference the experiment compares against (src/experiment.rs).
@@ -373,6 +375,8 @@ pub struct ViewerChrome {
     pub popups: crate::popup::Popups,
     /// The narration's volume, which the dock and the timeline bar set.
     pub narration: crate::volume::Volume,
+    /// The timeline's speed, which the dock and the timeline bar set.
+    pub speed: f32,
     /// Paused on a diagram beat: the diagram panel's zoom and pan.
     pub diagram: Option<DiagramPage>,
     /// The Experiments tab's view of the experiment.
@@ -2865,6 +2869,30 @@ fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
 
 /// The narration's volume at the timeline bar's right end: its width.
 const BAR_VOLUME: f32 = 300.0;
+/// The speed menu before it: its width.
+const BAR_SPEED: f32 = 96.0;
+
+/// The speeds a timeline plays at, its narration too (its pitch kept).
+pub const SPEEDS: [f32; 9] = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0];
+
+/// A speed as the menu shows it: `1.25x`.
+pub fn speed_label(speed: f32) -> String {
+    format!("{}x", speed)
+}
+
+/// The speed menu: its button shows the speed, its list `SPEEDS`; the speed picked, if one was.
+pub fn speed_menu(ui: &mut egui::Ui, id: &str, speed: f32, width: f32) -> (Option<f32>, Rect) {
+    let mut picked = None;
+    let r = egui::ComboBox::from_id_salt(id).width(width).selected_text(speed_label(speed)).show_ui(ui, |ui| {
+        for s in SPEEDS {
+            if ui.selectable_label((s - speed).abs() < 1e-4, speed_label(s)).clicked() {
+                picked = Some(s);
+            }
+        }
+    });
+    let rect = r.response.rect;
+    (picked.filter(|s| (s - speed).abs() >= 1e-4), rect)
+}
 
 /// The viewer's timeline: a play/pause button, the time, a bar with the
 /// chapters that seeks where it is clicked or dragged, and the narration's volume.
@@ -2872,8 +2900,9 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
     let Some((frame, total)) = viewer.timeline else { return };
     let painter = ink.painter;
     let button = Rect::from_min_size(pos2(l.footer.min.x, l.footer.min.y + 4.0), vec2(150.0, 40.0));
-    let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x - BAR_VOLUME - 24.0, l.footer.min.y + 30.0));
-    let volume = Rect::from_min_max(pos2(bar.max.x + 24.0, l.footer.min.y + 4.0), pos2(l.footer.max.x, l.footer.min.y + 44.0));
+    let bar = Rect::from_min_max(pos2(button.max.x + 24.0, l.footer.min.y + 18.0), pos2(l.footer.max.x - BAR_VOLUME - BAR_SPEED - 36.0, l.footer.min.y + 30.0));
+    let speed = Rect::from_min_max(pos2(bar.max.x + 24.0, l.footer.min.y + 4.0), pos2(bar.max.x + 24.0 + BAR_SPEED, l.footer.min.y + 44.0));
+    let volume = Rect::from_min_max(pos2(speed.max.x + 12.0, l.footer.min.y + 4.0), pos2(l.footer.max.x, l.footer.min.y + 44.0));
     // In front of the dock, so the bar keeps its hover preview while the timeline is paused.
     // Not kept on screen: its controls are placed at the footer's rectangles, so an area
     // moved up to fit would grow over the dock every frame and take its pointer.
@@ -2889,6 +2918,13 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
                 viewer.actions.push(ViewerAction::Seek((p.x - bar.min.x) / bar.width()));
             }
         }
+        ui.scope_builder(egui::UiBuilder::new().max_rect(speed).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+            let (picked, rect) = speed_menu(ui, "bar:speed", viewer.speed, BAR_SPEED - 16.0);
+            viewer.widgets.push(("bar:speed".into(), rect));
+            if let Some(s) = picked {
+                viewer.actions.push(ViewerAction::SetSpeed(s));
+            }
+        });
         ui.scope_builder(egui::UiBuilder::new().max_rect(volume).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
             let mut narration = viewer.narration;
             let r = crate::volume::slider(ui, &mut narration, 32.0, BAR_VOLUME - 150.0);

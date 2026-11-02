@@ -26,6 +26,8 @@
   "controls.listing_hint": "Python pseudo-code of the {engine} function named in the panel.",
   "controls.narration": "Narration",
   "controls.narration_hint": "The narration's volume, as on the Config page; it is kept when you leave the viewer.",
+  "controls.speed": "Speed",
+  "controls.speed_hint": "How fast the timeline plays, its narration too (at its own pitch).",
   "home.mit_license": "MIT License",
   "home.on": "on",
   "home.off": "off",

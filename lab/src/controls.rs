@@ -42,6 +42,8 @@ pub struct Dock<'a> {
     animated: Vec<&'static str>,
     /// The narration's volume (src/volume.rs).
     narration: Volume,
+    /// The timeline's speed.
+    speed: f32,
     pub actions: Vec<ViewerAction>,
     widgets: Vec<(String, Rect)>,
     /// In the Experiments tab: the demonstration's defaults, so each row
@@ -152,6 +154,7 @@ impl<'a> Dock<'a> {
             timeline: viewer.timeline_mode,
             animated: investigation::current().animation(input.state.demo, 0.0).into_iter().map(|p| p.0).collect(),
             narration: viewer.narration,
+            speed: viewer.speed,
             actions: Vec::new(),
             widgets: Vec::new(),
             defaults: None,
@@ -207,6 +210,18 @@ impl Dock<'_> {
             .inner;
         if r.changed || r.committed {
             self.actions.push(ViewerAction::SetNarration(narration, r.committed));
+        }
+        // The timeline's speed, the narration's too; the timeline bar has it too.
+        let picked = ui
+            .horizontal(|ui| {
+                ui.label(RichText::new(tr("controls.speed")).color(palette::text_dim())).on_hover_text(tr("controls.speed_hint"));
+                let (picked, rect) = crate::ui::speed_menu(ui, "dock:speed", self.speed, 110.0);
+                self.widgets.push(("speed".into(), rect));
+                picked
+            })
+            .inner;
+        if let Some(s) = picked {
+            self.actions.push(ViewerAction::SetSpeed(s));
         }
     }
 

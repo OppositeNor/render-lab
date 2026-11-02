@@ -26,6 +26,8 @@
   "controls.listing_hint": "面板中所列 {engine} 函数的 Python 伪代码。",
   "controls.narration": "旁白",
   "controls.narration_hint": "调整旁白音量，与设置页面同步；退出查看器后仍会保留。",
+  "controls.speed": "速度",
+  "controls.speed_hint": "时间线的播放速度，旁白随之变速（音高不变）。",
   "home.mit_license": "MIT 许可证",
   "home.on": "开",
   "home.off": "关",

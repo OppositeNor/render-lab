@@ -13,7 +13,8 @@
 //! The homepage opens the viewer on the demonstrations, or on a timeline,
 //! paused at its start or at a chosen chapter. Either way the camera first
 //! moves into the shot, one of three intros at random (`animation::Intro`);
-//! touching the camera stops it there. Playing runs it in real time with the narration (FFplay) and
+//! touching the camera stops it there. Playing runs it in real time (times the speed the dock and the bar set,
+//! 0.25x to 4x, the narration's pitch kept) with the narration (FFplay) and
 //! captions; the footer's bar seeks. Pausing hands the current shot to the
 //! user: the camera, the dock's sliders, and picking work on a copy of the
 //! timeline's state, and playing again returns to the timeline where it
@@ -167,6 +168,8 @@ pub struct App {
     audio: Option<crate::audio::AudioPlayer>,
     /// The narration's volume; the viewer hands it back when it closes.
     pub narration: Volume,
+    /// The timeline's speed, the narration's too (`ui::SPEEDS`; 1 by default).
+    pub speed: f32,
     /// Paused on a diagram beat: a first view of it (a snapshot's: src/diagram.rs
     /// `Paused`), which the UI's view (zoom, pan, boxes moved) starts from.
     diagram_preset: Option<(f32, egui::Vec2)>,
@@ -261,6 +264,7 @@ impl App {
             shader_reload: None,
             audio,
             narration,
+            speed: 1.0,
             diagram_preset: None,
             cursor: Vec2::ZERO,
             drag: None,
@@ -501,7 +505,7 @@ impl App {
     /// The playing timeline's frame at `now`, from the wall clock since its anchor.
     pub fn anchored_frame(&self, now: Instant) -> u64 {
         let (at, from) = self.timeline_anchor;
-        from + (now.saturating_duration_since(at).as_secs_f64() * self.fps()) as u64
+        from + (now.saturating_duration_since(at).as_secs_f64() * self.fps() * self.speed as f64) as u64
     }
 
     /// The instant the playing timeline's clock counts from.
@@ -518,7 +522,11 @@ impl App {
     /// so the picture holds this frame that long.
     fn start_audio(&mut self) {
         let seconds = self.timeline_frame as f64 / self.fps();
-        let started = self.audio.as_mut().is_some_and(|a| a.play_from(seconds));
+        let speed = self.speed;
+        let started = self.audio.as_mut().is_some_and(|a| {
+            a.set_speed(speed);
+            a.play_from(seconds)
+        });
         let delay = if started { AUDIO_START_DELAY } else { std::time::Duration::ZERO };
         self.timeline_anchor = (Instant::now() + delay, self.timeline_frame);
     }
@@ -744,6 +752,17 @@ impl App {
                 // FFplay takes a volume when it starts: a playing narration restarts where it is.
                 if finished && self.timeline_playing() {
                     self.start_audio();
+                }
+            }
+            ViewerAction::SetSpeed(speed) => {
+                // Playing, the timeline goes on from where it is at the new speed, the narration with it.
+                if self.timeline_playing() {
+                    let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
+                    self.timeline_frame = self.anchored_frame(Instant::now()).min(total.saturating_sub(1));
+                    self.speed = speed;
+                    self.start_audio();
+                } else {
+                    self.speed = speed;
                 }
             }
             _ => {}
@@ -1157,6 +1176,7 @@ impl App {
             widgets: Vec::new(),
             popups: std::mem::take(&mut self.popups),
             narration: self.narration,
+            speed: self.speed,
             diagram: None,
             experiment: crate::ui::ExperimentView::default(),
             knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
