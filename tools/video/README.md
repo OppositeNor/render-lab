@@ -46,14 +46,18 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
   lab checks against the value's declaration when it loads the timeline), `demo`,
   `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
-  `demo` switch), `record=object:3` (or `camera`), `highlight=a,b`, `panel` (`declaration`, `values`, `memory`, `code`,
+  `demo` switch), `freeCamera.on=1` (the scene seen from the free camera, while the demonstration keeps following the
+  main camera, drawn with its view cone and with its own view in a corner) placed by `freeCamera.target=x,y,z`,
+  `freeCamera.yaw` (`pitch`, `distance`, `fov`; `cameraDrift` sways it instead of the main camera while it is on, and a
+  `demo` switch turns it off), `record=object:3` (or `camera`), `highlight=a,b`, `panel` (`declaration`, `values`, `memory`, `code`,
   `performance`: the GPU time per pass, measured as the frame renders, with `highlight` naming the passes to call out,
   `hidden`), `code`, `callout`, `run=action` with
   `run.<arg>=value` and `stop=a,b` (the package's actions, `render-lab actions`), `image=name` with `imageTitle`,
   `imageCorner`, `imageFrom=kind` and `image.<param>=value`, and `imageHide=a,b` (images, `render-lab images`), `blend`, `delay` (seconds),
   `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON
   (`lab/src/animation.rs`), each driving its channels until a later key sets them; a channel is a shot parameter or
-  `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or `camera.fov`:
+  `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or `camera.fov`
+  (or the same of `freeCamera`):
   - `{"path": {"params": [...], "through": [[...], ...], "seconds": ...}}` runs from the channels' values through the
     waypoints on a smooth curve, without stopping at each one (`ease` paces the whole curve; `closed` returns to the
     start);
@@ -73,6 +77,14 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
 - **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
   lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
   cues. A storyboard or translation may also be JSON; `.story` is read by its suffix.
+- **Lamlet regions** (optional). A `.story` file or its translation may compute its text with Lamlet: `${…}` and
+  `$[…]` regions (`$$` is a dollar), with `$[Import* std]` and `$[Import* rlstd]` before the first use. `lamlet.py`
+  expands them before the file is read (the `lamlet` command, or `LAMLET`), so a region's value is ordinary story
+  text. rlstd's library, `packages/rlstd/language/story.lam`, writes cues from typed values (`cue`, `sweep`,
+  `callout`, `panel`, `code`, `highlight`, `demo`, `image`, `imageFrom`, `imageMark`, `imageHide`, `arrow`,
+  `label`, `run`, `stop`, `formulaTex`, `codespanSaid`, `pause`, `delay`) and numbers as the voice says them
+  (`spoken 42289`, `rounded 42289 2`, `spokenFloat 3.2`). A file without a region needs no Lamlet. Text keys that
+  only a region names (an image's mark, a label) are not seen by the text check.
 
 ### Text-driven shots: tags in a sentence
 

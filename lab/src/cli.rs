@@ -61,6 +61,7 @@ enum Command {
         /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
         /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
+        /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
         /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
         /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
         /// viewer-knowledge[:<demo>] (that panel zoomed onto a topic of the audience's level, selected), or
@@ -296,6 +297,7 @@ pub fn main(app: App) -> Result<()> {
                     let (listing, tag) = page["viewer-code:".len()..].split_once('@').map_or((&page["viewer-code:".len()..], None), |(l, t)| (l, Some(t)));
                     home::snapshot_code(&options, listing, tag, &png)
                 }
+                (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png),
                 (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),

@@ -31,6 +31,7 @@ pub mod experiment;
 pub mod formats;
 pub mod formula;
 pub mod frame;
+pub mod free_view;
 pub mod frost;
 pub mod gpu;
 pub mod home;

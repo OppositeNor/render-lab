@@ -221,6 +221,10 @@ impl Investigation for Lighting {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
+    fn view_from(&self, content: &mut FrameContent) {
+        demos::view_from(content)
+    }
+
     fn panes(&self, state: &ShotState) -> Vec<lab::investigation::Pane> {
         demos::panes(state)
     }

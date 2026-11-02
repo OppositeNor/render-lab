@@ -119,7 +119,7 @@ pub struct VoxelgiValues {
     #[value(default = 0.0, toggle, text = "values.workedPixel", help = "help.workedPixel")]
     pub worked_pixel: f32,
     /// The worked pixel's place on the sphere: its azimuth from the red wall and its elevation, degrees.
-    #[value(default = 0.0, range = -90.0..=90.0, unit = deg, text = "controls.pixel_azimuth", color = palette::VIEW, label(cones), help = "help.pixelAzimuth")]
+    #[value(default = 60.0, range = -180.0..=180.0, unit = deg, text = "controls.pixel_azimuth", color = palette::VIEW, label(cones), help = "help.pixelAzimuth")]
     pub pixel_azimuth: f32,
     #[value(default = 10.0, range = -30.0..=80.0, unit = deg, text = "controls.pixel_elevation", color = palette::VIEW, label(cones), help = "help.pixelElevation")]
     pub pixel_elevation: f32,

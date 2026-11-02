@@ -302,7 +302,7 @@ pub struct LightingValues {
     /// Camera sway, as in the lab's other investigations.
     #[value(default = 0.0, text = "values.cameraDrift", help = "help.cameraDrift")]
     pub camera_drift: f32,
-    /// The sun's cascades for the observer camera drawn in the scene: its frustum and split planes (cascades.rs).
+    /// The sun's cascades for the main camera drawn in the scene: its frustum and split planes (cascades.rs).
     #[value(default = 0.0, toggle, text = "values.cascades", help = "help.cascades")]
     pub cascades: f32,
     /// How many of the four cascades are drawn (the video adds them one by one; a fraction grows the next one).
@@ -320,9 +320,6 @@ pub struct LightingValues {
     /// Each cascade's light-space box, snapped to texels, drawn (a fraction fades it in).
     #[value(default = 0.0, range = 0.0..=1.0, text = "controls.cascade_boxes", label(cascades_view), help = "help.cascadeBoxes")]
     pub cascade_boxes: f32,
-    /// The observer camera's turn about the vertical, degrees, from looking at the sphere.
-    #[value(default = 0.0, range = -90.0..=90.0, unit = deg, text = "controls.observer_turn", label(cascades_view), help = "help.observerYaw")]
-    pub observer_yaw: f32,
     /// The light's direction: its turn about the vertical, degrees.
     #[value(default = 35.0, range = -180.0..=180.0, unit = deg, text = "controls.sun_yaw", label(cascades_view), help = "help.sunYaw")]
     pub sun_yaw: f32,
@@ -333,10 +330,6 @@ pub struct LightingValues {
     /// The component's default is 4 EV100 of illuminance, 40 lux.
     #[value(default = 0.0, range = 0.0..=120.0, text = "controls.sun_lux", color = LIGHT, label(sun), engine = "DirectionalLightComponentConfig::m_intensity (lux)", help = "help.sunLux")]
     pub sun_lux: f32,
-    /// The camera the cascades cover: 0 the camera that renders (as O3DE's
-    /// active camera), 1 the fixed observer of `cascade_observer`.
-    #[value(default = 0.0, toggle, text = "values.cascadeCamera", help = "help.cascadeCamera")]
-    pub cascade_camera: f32,
     /// The component's normal shadow bias (m_normalShadowBias): the offset
     /// along the normal is this times 2 / the map's size, metres.
     #[value(default = 2.5, range = 0.0..=10.0, text = "controls.normal_shadow_bias", label(sun), engine = "DirectionalLightComponentConfig::m_normalShadowBias", help = "help.normalShadowBias")]

@@ -179,6 +179,11 @@ pub struct Renderer {
     panel_empty: bool,
     /// The reference's view, while an experiment compares (src/experiment.rs).
     reference_slot: ViewSlot,
+    /// The free camera's view (src/free_view.rs), while it is on.
+    free_slot: ViewSlot,
+    /// Where the last frame drew the main camera's own view while the free
+    /// camera was on: a corner of the viewport, in canvas points.
+    pub last_main_view: Option<egui::Rect>,
     compare: Option<CompareRequest>,
     /// The difference view's gain (group 2 of `composite_diff`).
     compare_params: wgpu::Buffer,
@@ -698,6 +703,8 @@ impl Renderer {
             last_panes: Vec::new(),
             panel_empty: false,
             reference_slot: ViewSlot::default(),
+            free_slot: ViewSlot::default(),
+            last_main_view: None,
             compare: None,
             compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("compare"), layout: &pipelines_compare_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: compare_params.as_entire_binding() }] }),
             compare_params,
@@ -827,6 +834,7 @@ impl Renderer {
         self.frame_view = self.frame.create_view(&Default::default());
         self.viewport = None;
         self.reference_slot = ViewSlot::default();
+        self.free_slot = ViewSlot::default();
     }
 
     /// Upload the frame's records and uniforms.
@@ -1112,6 +1120,8 @@ impl Renderer {
             self.still_scene = (None, 0);
             self.reference_slot.still = (None, 0);
             self.reference_slot.still_scene = (None, 0);
+            self.free_slot.still = (None, 0);
+            self.free_slot.still_scene = (None, 0);
         }
     }
 
@@ -1194,6 +1204,14 @@ impl Renderer {
             self.reference_slot = ViewSlot::default();
         }
         self.compare = compare;
+    }
+
+    /// The free view's slot and the renderer's trade places.
+    fn swap_free_slot(&mut self) {
+        std::mem::swap(&mut self.viewport, &mut self.free_slot.viewport);
+        std::mem::swap(&mut self.chain, &mut self.free_slot.chain);
+        std::mem::swap(&mut self.still, &mut self.free_slot.still);
+        std::mem::swap(&mut self.still_scene, &mut self.free_slot.still_scene);
     }
 
     /// The reference's slot and the renderer's trade places.
@@ -1422,6 +1440,42 @@ impl Renderer {
             self.still_scene = count(self.still_scene, still_key(content, viewport_size, false));
             content.uniforms.view_params[3] = if request.history && drawn.is_empty() { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
         }
+        // The free camera's view (src/free_view.rs): the main frame drawn from
+        // the free camera, in its own submission and targets (so its history
+        // builds up as the main view's does), before the main frame's uniforms
+        // are written. The main frame is still drawn after it: the pictures of
+        // its buffers and what follows its camera are read from it, and it is
+        // shown in a corner.
+        let free = request.state.free_camera;
+        let free_content = content.as_ref().filter(|_| free.on && drawn.is_empty() && compare.is_none()).map(|main| {
+            let mut content = crate::free_view::content(main, request.state, &free);
+            self.swap_free_slot();
+            if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
+                self.chain = None;
+                self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
+            }
+            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+            self.still = count(self.still, still_key(&content, viewport_size, true));
+            self.still_scene = count(self.still_scene, still_key(&content, viewport_size, false));
+            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+            self.upload(&content);
+            self.upload_draws(&content);
+            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("free camera") });
+            self.encode_scene(&mut encoder, &content, false);
+            self.gpu.queue.submit([encoder.finish()]);
+            self.swap_free_slot();
+            content
+        });
+        if free_content.is_none() {
+            self.free_slot = ViewSlot::default();
+        }
+        // The main camera's own view, in the viewport's lower right corner, at its shape.
+        let main_view = free_content.as_ref().map(|_| {
+            let v = layout.viewport;
+            let size = v.size() * 0.26;
+            egui::Rect::from_min_size(v.max - size - egui::vec2(16.0, 16.0), size)
+        });
+        self.last_main_view = main_view;
         if let Some(content) = &content {
             self.upload(content);
             self.upload_draws(content);
@@ -1463,7 +1517,8 @@ impl Renderer {
         let ui_input = UiInput {
             layout,
             state: request.state,
-            content: content.as_ref(),
+            content: free_content.as_ref().or(content.as_ref()),
+            main_view,
             statics: &self.statics,
             textures: &self.textures,
             scene_type: request.scene_type,
@@ -1512,7 +1567,13 @@ impl Renderer {
             self.encode_scene(&mut encoder, content, true);
             self.dispatch_views(&mut encoder, true);
         }
-        if scene_beat {
+        if let (Some(free), Some(rect)) = (self.free_slot.viewport.as_ref().filter(|_| free_content.is_some()), main_view) {
+            // The free view fills the viewport; the main view sits in its corner.
+            self.composite_from(&mut encoder, free, vp, true, None);
+            let at = Layout { viewport: rect, ..layout }.viewport_px();
+            let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
+            self.composite_pass(&mut encoder, self.viewport.as_ref().unwrap(), at, false, None, timed.as_ref().map(|t| t.writes()));
+        } else if scene_beat {
             let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
             self.composite_timed(&mut encoder, vp, drawn.is_empty(), timed.as_ref().map(|t| t.writes()));
         }
@@ -1567,7 +1628,7 @@ impl Renderer {
         for id in output.textures_delta.free.drain() {
             self.egui_renderer.free_texture(&id);
         }
-        FrameResult { report, content }
+        FrameResult { report, content: free_content.or(content) }
     }
 
     /// The frame cleared to the background colour.

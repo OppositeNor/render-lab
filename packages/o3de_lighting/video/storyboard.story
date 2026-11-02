@@ -680,7 +680,7 @@ summary: The sun's cascaded shadow maps: four 1024-texel cascades split near-den
 sources: cascade-image, cascade-splits, cascade-sphere-fit, cascade-snap, shadow-coords, shadow-normal-offset, cascade-select, shadow-is-shadowed, shadow-filter-default, fullscreen-shadow, fullscreen-shadow-normal, shadow-blur-settings, shadow-use-fullscreen, shadow-atlas, point-shadow-faces
 
 ## c5-why | 3d | The sun's shadow is a depth map seen from the sun
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=1 labels=0 cascadeCamera=0}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=1 labels=0}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[28, 26, 7.5], [8, 20, 8.2], [24, 30, 7.2]], "seconds": "beat"}}]}
 
 The per-light formula ended in a lit ratio, and for the sun that ratio was computed before the forward pass ran.
@@ -702,8 +702,8 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ image=cm imageMark=""} {@ animate=[{"path": {"params": ["sunYaw"], "through": [[75]], "seconds": "sentence"}}]} {@ callout=shadow-caster-state} Every shadow-casting mesh is drawn into it with only a depth test and a small depth bias, every frame, so the cascades follow the camera and the sun.
 
 ## c5-cascades | 3d | Four cascades, split near-dense
-{@ image="" demo=cascades callout="" panel=values cameraDrift=0.5 labels=0 cascadeCamera=1 cascades=1 cascadesShown=4 shadowFar=30 sunYaw=35}
-{@ camera.target=0,0,0 camera.distance=26 camera.pitch=48 camera.yaw=36}
+{@ image="" demo=cascades callout="" panel=values cameraDrift=0.5 labels=0 freeCamera.on=1 cascades=1 cascadesShown=4 shadowFar=30 sunYaw=35}
+{@ freeCamera.target=0,0,0 freeCamera.distance=26 freeCamera.pitch=48 freeCamera.yaw=36 camera.target=-1.05,0.9,-0.55 camera.yaw=49.6 camera.pitch=9 camera.distance=4.45 camera.fov=60}
 
 {@ callout=cascade-splits} The cascades cut the camera's view into four slices of depth, near ones small and sharp, far ones wide and coarse.
 
@@ -716,19 +716,19 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ image=cm imageFrom=cascadeMap image.cascade=4 image.from=0.9 imageCorner=bottom-left imageTitle=views.cascade_map} {@ cascadeColors=1} {@ callout=cascade-select} O3DE's debug colouring tints each pixel by its cascade: red, green, blue, then yellow.
 
 ## c5-fit | 3d | A sphere around each slice, snapped to texels
-{@ image="" demo=cascades callout="" panel=values cameraDrift=0.4 labels=0 cascadeCamera=1 cascades=1 cascadesShown=4 shadowFar=30 cascadeSpheres=0 cascadeBoxes=0 cascadeColors=0}
-{@ camera.target=0,0,0 camera.distance=26 camera.pitch=48 camera.yaw=36}
+{@ image="" demo=cascades callout="" panel=values cameraDrift=0.4 labels=0 freeCamera.on=1 cascades=1 cascadesShown=4 shadowFar=30 cascadeSpheres=0 cascadeBoxes=0 cascadeColors=0}
+{@ freeCamera.target=0,0,0 freeCamera.distance=26 freeCamera.pitch=48 freeCamera.yaw=36 camera.target=-1.05,0.9,-0.55 camera.yaw=49.6 camera.pitch=9 camera.distance=4.45 camera.fov=60}
 
 {@sph> cascadeSpheres=0..1} {@ callout=cascade-sphere-fit} Each slice is wrapped in a bounding sphere, so its size does not change as the camera turns.{<sph}
 
 {@box> cascadeBoxes=0..1} {@ callout=cascade-sphere-fit} The cascade's box in the light's view is that sphere's cube, stretched back toward the sun, so that casters between the sun and the view, even behind the camera, still land in the map.{<box}
 
-{@ animate=[{"path": {"params": ["observerYaw"], "through": [[25], [-25], [0]], "seconds": "sentence"}}]} {@ callout=cascade-snap} The box is snapped to whole shadow-map texels, so as the camera moves, the map's texels stay fixed in the world and shadow edges do not shimmer.
+{@ animate=[{"path": {"params": ["camera.yaw"], "through": [[74.6], [24.6], [49.6]], "seconds": "sentence"}}]} {@ callout=cascade-snap} The box is snapped to whole shadow-map texels, so as the camera moves, the map's texels stay fixed in the world and shadow edges do not shimmer.
 
 {@ callout=cascade-sphere-fit} A cascade's texel is its sphere's diameter over one thousand and twenty-four, so the far cascades are much coarser.
 
 ## c5-lookup | 3d | P in its cascade: offset, biased, compared
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.4 labels=0 cascadeCamera=0 shadowFar=100}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.4 labels=0 shadowFar=100}
 {@ inspectX=-0.315 inspectY=0.124 inspectZ=-1.478 inspectNX=-0.23 inspectNY=-0.02 inspectNZ=0.97 inspectObject=8 pickShown=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[20, 22, 5.0], [6, 18, 5.4], [18, 24, 4.8]], "seconds": "beat"}}]}
 
@@ -743,7 +743,7 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ callout=shadow-is-shadowed} If something nearer the sun was stored there, P is in shadow; with the default filter, None, the answer is exactly zero or one.
 
 ## c5-bias | 3d | Biases against acne; the slope bias is off
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.3 labels=0 cascadeCamera=0 shadowFar=100 normalShadowBias=2.5}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.3 labels=0 shadowFar=100 normalShadowBias=2.5}
 {@ camera.target=0.8,0,0.8 camera.distance=3.2 camera.pitch=40 camera.yaw=30}
 
 {@ image=sb imageFrom=shadowBuffer image.blurred=0 imageCorner=top-left imageTitle=views.shadow_buffer} {@ callout=shadow-caster-state} Without a bias, a surface can shadow itself in a pattern of stripes, called acne.
@@ -763,7 +763,7 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ callout=shadow-normal-offset} The normal offset depends only on the map's size, not on the cascade, so a far cascade, many times coarser, gets the same five millimetres: read from the code.
 
 ## c5-fullscreen | 3d | Opaque pixels read a shadow buffer, not the cascades
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.6 labels=0 cascadeCamera=0 shadowFar=100}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.6 labels=0 shadowFar=100}
 {@ inspectX=-0.315 inspectY=0.124 inspectZ=-1.478 inspectNX=-0.23 inspectNY=-0.02 inspectNZ=0.97 inspectObject=8 pickShown=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[28, 26, 7.5], [10, 20, 8.0], [26, 28, 7.2]], "seconds": "beat"}}]}
 
@@ -774,7 +774,7 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ callout=shadow-use-fullscreen} Every opaque and cut-out material reads this buffer in the forward pass; transparent ones look up the cascades themselves.
 
 ## c5-blur | 3d | A binary shadow, softened in screen space
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.3 labels=0 cascadeCamera=0 shadowFar=100 shadowBlur=0}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.3 labels=0 shadowFar=100 shadowBlur=0}
 {@ camera.target=-0.6,0.2,-0.4 camera.distance=3.4 camera.pitch=34 camera.yaw=24}
 
 {@ image=raw imageFrom=shadowBuffer image.blurred=0 imageCorner=top-left imageTitle=views.shadow_buffer} {@ callout=shadow-filter-default} The default filter is None, so the raw buffer holds hard zeros and ones, stepped at the cascade's texels.
@@ -792,7 +792,7 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ callout=pcf-squared} Percentage-closer filtering and exponential shadow maps exist as options; the lab does not port them, and read from the code, the PCF kernels square their result.
 
 ## c5-local | 3d | Spot and point shadows live in an atlas
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.8 labels=0 cascadeCamera=0 shadowFar=100}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=0.8 labels=0 shadowFar=100}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[28, 26, 7.5], [12, 22, 7.8], [24, 28, 7.2]], "seconds": "beat"}}]}
 
 {@ callout=shadow-atlas} Spot and disk lights, and sphere lights, can cast shadows too, but they are off by default; their maps share one atlas of depth slices.
@@ -802,7 +802,7 @@ The per-light formula ended in a lit ratio, and for the sun that ratio was compu
 {@ callout=shadow-atlas} Maps of different sizes are packed into the atlas like a quadtree, at least two hundred and fifty-six texels a side.
 
 ## c5-recap | 3d | The shadow, ready before the light
-{@ image="" demo=cascades callout="" panel=hidden cameraDrift=1 labels=0 cascadeCamera=0 shadowFar=100}
+{@ image="" demo=cascades callout="" panel=hidden cameraDrift=1 labels=0 shadowFar=100}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch", "camera.distance"], "through": [[28, 26, 7.5], [8, 20, 8.2], [24, 30, 7.2]], "seconds": "beat"}}, {"path": {"params": ["sunYaw"], "through": [[55], [30]], "seconds": "beat"}}]}
 
 {@ image=blur imageFrom=shadowBuffer image.blurred=1 imageCorner=top-left imageTitle=views.shadow_buffer} So the sun's shadow is computed once per pixel, from four cascades, before any light is shaded.

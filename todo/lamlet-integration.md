@@ -184,6 +184,18 @@ dependency. The current no-vendor-edits rule means an offline source/distributio
 policy change must be settled first; don't quietly break the public-only build to obtain a prototype. Local
 development overrides stay local; the published build contract must stand on its own.
 
+## Status (2026-11-01)
+
+A first slice of stage A, without a Rust dependency on Lamlet: `tools/video/lamlet.py` expands a storyboard's
+Lamlet regions with the `lamlet` command (`prepare` for the prose spans, `eval` for every region's value) before
+story.py reads it, and `packages/rlstd/language/story.lam` is the beginning of rlstd's library (cues and images
+written from typed values, spoken numbers). Tested by `tools/video/test_lamlet.py`. No published storyboard uses it
+yet. Still open: Lamlet under version control, the adapter out of Lamlet's repository (`crates/lamlet-present`),
+the text check seeing keys a region names, typed checks of keys/images/actions against the lab's registries
+(natives), and values computed by package code (natives).
+The in-process plan for those is [lamlet-in-process.md](lamlet-in-process.md); its language-side work is Lamlet's
+`plans/embedding.md`.
+
 ## Integration milestones
 
 1. **Baselines and boundary.** Record current public story text/captions/cues and representative offscreen views,

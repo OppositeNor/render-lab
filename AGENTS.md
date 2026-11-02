@@ -76,13 +76,14 @@ O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/s
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)
-python3 -m unittest tools/video/test_markup.py tools/video/test_story.py   # the .story format and its tags (cues and formulas)
+python3 -m unittest tools/video/test_markup.py tools/video/test_story.py tools/video/test_lamlet.py   # the .story format, its tags, and Lamlet regions (LAMLET=… to run those)
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{@ run=… run.<arg>=…}`, `stop=…`) and their arguments
 cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom=`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
+cargo run --release -- home --snapshot /path/to/free.png --page viewer-free         # the free camera on (C): the main camera and its view cone seen from beside it, its own view in a corner
 cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
 cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the knowledge graph in the panel (viewer-knowledge: zoomed onto a level topic; viewer-knowledge-graph: full screen; viewer-knowledge-compact: full screen, only the topics its context needs; select-knowledge: over the homepage)
 cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels, --mermaid)

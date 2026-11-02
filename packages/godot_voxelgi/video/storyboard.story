@@ -532,19 +532,19 @@ With the texture full of light, the question becomes how a pixel reads it cheapl
 
 {@ callout=pairing-two}{@ta> pixelElevation=10..30}Each object keeps the first two VoxelGIs it overlaps{<ta}.
 
-{@ callout=tag-write}{@t0> focusRow=-1..0}{@ta2> pixelAzimuth=0..-30}The depth pre-pass writes their indices into every pixel it draws, two bytes, with two hundred fifty-five meaning none{<ta2}{<t0}.
+{@ callout=tag-write}{@t0> focusRow=-1..0}{@ta2> pixelAzimuth=60..90}The depth pre-pass writes their indices into every pixel it draws, two bytes, with two hundred fifty-five meaning none{<ta2}{<t0}.
 
-{@ callout=instance-ubo}{@ta3> pixelAzimuth=-30..0}{@ta4> pixelElevation=30..10}Up to eight VoxelGIs in view share one buffer of their settings; this sphere's pixels name the room's only one{<ta4}{<ta3}.
+{@ callout=instance-ubo}{@ta3> pixelAzimuth=90..60}{@ta4> pixelElevation=30..10}Up to eight VoxelGIs in view share one buffer of their settings; this sphere's pixels name the room's only one{<ta4}{<ta3}.
 
 ## c7-space | 3d | Into the box's cells
-{@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=0 pixelAzimuth=0 focusRow=1 cameraDrift=0.3}
+{@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=0 pixelAzimuth=60 focusRow=1 cameraDrift=0.3}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.distance"], "through": [[40, 3.4], [32, 3.0]], "seconds": "beat"}}]}
 
 {@ callout=voxel-gi-compute}{@el> pixelElevation=30..10}Take this pixel on the sphere's side, ringed, facing the red wall{<el}.
 
-{@az> pixelAzimuth=0..-40}Its position and normal are moved into the box's cells{<az}, and a pixel outside the box gets nothing from it.
+{@az> pixelAzimuth=60..100}Its position and normal are moved into the box's cells{<az}, and a pixel outside the box gets nothing from it.
 
-{@ callout=edge-blend}{@s2> focusRow=1..2}{@az2> pixelAzimuth=-40..0}An edge fade weighs it: one at the box's centre, zero at its faces{<az2}{<s2}.
+{@ callout=edge-blend}{@s2> focusRow=1..2}{@az2> pixelAzimuth=100..60}An edge fade weighs it: one at the box's centre, zero at its faces{<az2}{<s2}.
 
 {@el2> pixelElevation=10..40}The fade exists to blend two overlapping boxes; with one box, the sums are divided by that same fade, so it cancels, and only a pixel exactly on a face loses the box's light{<el2}.
 
@@ -556,7 +556,7 @@ With the texture full of light, the question becomes how a pixel reads it cheapl
 
 {@ callout=cone-trace-45}{@cs> coneSteps=0..2}Such a cone's radius equals its distance, so each step doubles the distance{<cs}, {@cs2> coneSteps=2..6}and reads one mip coarser, a texel twice as wide, which already blends everything in its footprint{<cs2}.
 
-{@la> pixelAzimuth=0..-25}The samples are laid front to back, until the cone is opaque, its alpha one, or leaves the box{<la}.
+{@la> pixelAzimuth=60..85}The samples are laid front to back, until the cone is opaque, its alpha one, or leaves the box{<la}.
 
 ## c7-high | 3d | Six cones at High
 {@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=6 coneSteps=16 quality=0 cameraDrift=0.3}
@@ -572,17 +572,17 @@ With the texture full of light, the question becomes how a pixel reads it cheapl
 {@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=0 specCone=1 quality=0 sphereRoughness=0.5 cameraDrift=0.3}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch"], "through": [[38, 16], [30, 20]], "seconds": "beat"}}]}
 
-{@ callout=spec-cone}{@sa> pixelAzimuth=0..-20}The reflection gets one cone along the mirror direction{<sa}.
+{@ callout=spec-cone}{@sa> pixelAzimuth=60..80}The reflection gets one cone along the mirror direction{<sa}.
 
 {@ro> sphereRoughness=0.5..0.15}Its width follows the roughness, squared first: a smooth sphere's cone is narrow and travels far{<ro}, {@ro2> sphereRoughness=0.15..0.9}a rough one's opens seventy degrees from its axis{<ro2}.
 
-{@ro3> sphereRoughness=0.9..0.5}{@sa2> pixelAzimuth=-20..0}The sphere's reflection in the room follows it, from sharp to blurred{<sa2}{<ro3}.
+{@ro3> sphereRoughness=0.9..0.5}{@sa2> pixelAzimuth=80..60}The sphere's reflection in the room follows it, from sharp to blurred{<sa2}{<ro3}.
 
 ## c7-scale | 3d | The range restored, the coverage kept
 {@ demo=pixel callout="" image="" panel=values workedPixel=1 conesShown=4 specCone=1 interior=0 cameraDrift=0.3}
 {@ animate=[{"path": {"params": ["camera.yaw"], "through": [[36], [44]], "seconds": "beat"}}]}
 
-{@ callout=range-restore}{@sc> pixelAzimuth=0..-15}The cones' light is multiplied back by the dynamic range that the texture divided it by, and by the energy{<sc}.
+{@ callout=range-restore}{@sc> pixelAzimuth=60..75}The cones' light is multiplied back by the dynamic range that the texture divided it by, and by the energy{<sc}.
 
 {@ panel=code code=voxel-gi-compute highlight=interior}{@in> interior=0..1}Their alpha says how much of the view they found filled; with interior set, it is forced to one{<in}.
 
@@ -598,9 +598,9 @@ With the texture full of light, the question becomes how a pixel reads it cheapl
 {@ demo=pixel callout="" image="" panel=hidden workedPixel=1 conesShown=4 specCone=1 cameraDrift=1}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.distance"], "through": [[30, 3.4], [44, 3.8]], "seconds": "beat"}}]}
 
-{@az3> pixelAzimuth=0..30}So every pixel traces four cones and a reflection cone through the texture{<az3}, and keeps how much of each view they filled.
+{@az3> pixelAzimuth=60..90}So every pixel traces four cones and a reflection cone through the texture{<az3}, and keeps how much of each view they filled.
 
-{@az4> pixelAzimuth=30..0}Those two results go into buffers, which the opaque pass turns into colour{<az4}.
+{@az4> pixelAzimuth=90..60}Those two results go into buffers, which the opaque pass turns into colour{<az4}.
 
 ## c7-sources | 2d | Where to read
 sources: pairing-two, tag-write, process-gi, voxel-gi-compute, edge-blend, cones-low, cone-trace-45, cones-high, cone-trace, spec-cone, range-restore
@@ -744,13 +744,13 @@ Now the opaque pass turns the two buffers the screen pass left, an ambient and a
 {@ demo=compose callout="" image="" panel=values viewMode=0 interior=0 focusRow=1 cameraDrift=0.5}
 {@ animate=[{"path": {"params": ["camera.yaw", "camera.pitch"], "through": [[36, 14], [46, 18]], "seconds": "beat"}}]}
 
-{@ callout=gi-buffer-mix}{@vm> viewMode=0..1}{@pa1> pixelAzimuth=0..-30}The ambient buffer holds the cones' light{<pa1}{<vm}, {@vm2> viewMode=1..3}and its alpha, how much of the view they filled{<vm2}.
+{@ callout=gi-buffer-mix}{@vm> viewMode=0..1}{@pa1> pixelAzimuth=60..90}The ambient buffer holds the cones' light{<pa1}{<vm}, {@vm2> viewMode=1..3}and its alpha, how much of the view they filled{<vm2}.
 
 {@vm3> viewMode=3..0}{@x1> focusRow=1..2}A cone that leaves the box finds nothing, so where the alpha is low the pass mixes toward the environment's own ambient light, and the sky's reflection the same way{<x1}{<vm3}.
 
 {@in> interior=0..1}{@x2> focusRow=2..3}So the sky still lights what the cones saw empty, here through the room's open top and front, unless interior is set{<x2}{<in}.
 
-{@in2> interior=1..0}{@x3> focusRow=3..7}{@pa3> pixelAzimuth=-30..0}Then ambient occlusion, the albedo, screen-space effects, and the environment's reflectance follow, as for any ambient light{<pa3}{<x3}{<in2}.
+{@in2> interior=1..0}{@x3> focusRow=3..7}{@pa3> pixelAzimuth=90..60}Then ambient occlusion, the albedo, screen-space effects, and the environment's reflectance follow, as for any ambient light{<pa3}{<x3}{<in2}.
 
 ## c9-others | 3d | Transparent surfaces and fog read it too
 {@ demo=room callout="" image="" panel=hidden voxelgiMix=1 cameraDrift=1}

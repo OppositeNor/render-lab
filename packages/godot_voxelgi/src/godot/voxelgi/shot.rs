@@ -77,7 +77,7 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Bounce => vec![wave("coneSteps", 8.0, 8.0, 12.0)],
         Demo::Mips => vec![wave("propagation", 0.5, 0.5, 12.0)],
         Demo::Dynamic => vec![wave("dynamicX", 0.5, 1.0, 14.0)],
-        Demo::Pixel => vec![wave("pixelAzimuth", 0.0, 60.0, 16.0)],
+        Demo::Pixel => vec![wave("pixelAzimuth", 75.0, 25.0, 16.0)],
         Demo::Cost => vec![wave("quality", 0.5, 0.5, 8.0)],
     })
 }

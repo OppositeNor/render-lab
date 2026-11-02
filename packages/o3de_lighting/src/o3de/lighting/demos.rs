@@ -286,6 +286,23 @@ fn cubemap_cross_labels(labels: &mut Vec<Label>, state: &ShotState, camera: &lab
     labels.push(Label { anchor: at(3.0, 2.5), text, color: palette::accent() });
 }
 
+/// The near plane of O3DE's camera (AzFramework CameraState and the Camera
+/// component's default near clip distance), in metres.
+pub const CAMERA_NEAR: f32 = 0.1;
+
+/// The rendering camera's clip-to-world matrix, which the full-screen passes
+/// rebuild positions from depth with: `shading_frame`'s first four vectors.
+fn clip_to_world(camera: &lab::layout::CameraData) -> [[f32; 4]; 4] {
+    glam::Mat4::from_cols_array_2d(&camera.world_to_clip).inverse().to_cols_array_2d()
+}
+
+/// The frame drawn from another camera (the free camera): the passes rebuild
+/// positions with that camera's matrix; everything else (the cascades fitted
+/// to the main camera, the demonstration) stays as built.
+pub fn view_from(content: &mut FrameContent) {
+    content.shading_frame[..4].copy_from_slice(&clip_to_world(&content.uniforms.camera));
+}
+
 /// A direction perpendicular to `n` in the plane of `n` and `l`.
 fn in_plane(n: Vec3, l: Vec3) -> Vec3 {
     let t = l - n * n.dot(l);
@@ -297,7 +314,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let objects = posed_objects(state, statics);
     let shading = shading(state);
     let lighting = statics.scene.lighting;
-    let camera = state.camera.camera_data(viewport);
+    // O3DE's camera near plane (Camera::Configuration's default, 0.1 m), which the cascades split from.
+    let base = state.camera.camera_data(viewport);
+    let camera = state.camera.camera_data_like(&lab::layout::CameraData { near_plane: CAMERA_NEAR, ..base });
     let eye = Vec3::from(camera.position);
     let exposure = state.p("exposure");
     let walls = (1 << ids::BACK_WALL) | (1 << ids::LEFT_WALL) | (1 << ids::RIGHT_WALL);
@@ -320,8 +339,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     // gShading is the lab's to pack (`shader_data`).
     let mut content = FrameContent::new(objects, uniforms);
     // The full-screen passes rebuild positions from depth (shaders/standard_lighting.wgsl).
-    let inverse = glam::Mat4::from_cols_array_2d(&uniforms.camera.world_to_clip).inverse();
-    content.shading_frame = inverse.to_cols_array_2d().to_vec();
+    content.shading_frame = clip_to_world(&uniforms.camera).to_vec();
     content.shading_frame.extend(shading.frame_materials());
     content.shading_frame.extend(shading.frame_lights());
     content.shading_frame.resize(FRAME_DECALS, [0.0; 4]);
@@ -463,7 +481,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         }
     }
     if state.p("cascades") > 0.0 {
-        cascade_overlay(&mut content.draw, &mut content.labels, state, p, n);
+        cascade_overlay(&mut content.draw, &mut content.labels, state, &uniforms.camera, p, n);
     }
     let readout = readout(demo, state, &shading, &px, statics, &content.objects, &uniforms.camera);
     content.readout = Some(readout);
@@ -475,16 +493,6 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         cubemap_cross_labels(&mut content.labels, state, &content.uniforms.camera);
     }
     content
-}
-
-/// The observer camera of the cascades demonstration: in the room's front
-/// corner, looking at the sphere, turned by `observerYaw`, with the shadow
-/// far as its depth (cascades.rs).
-pub fn cascade_observer(state: &ShotState) -> super::cascades::Observer {
-    let position = Vec3::new(2.3, 1.6, 2.3);
-    let look = (Vec3::new(-1.05, 0.9, -0.55) - position).normalize();
-    let forward = glam::Quat::from_rotation_y(state.p("observerYaw").to_radians()) * look;
-    super::cascades::Observer { position, forward, fov_y: 60f32.to_radians(), aspect: 16.0 / 9.0, near: 0.1, far: state.p("shadowFar").max(0.2) }
 }
 
 /// With `splitView`, two views from the same camera: on the left the frame in
@@ -511,14 +519,11 @@ pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
 /// Where gShadingFrame holds the sun's cascades (shaders/standard_lighting.wgsl FRAME_CASCADES).
 pub const FRAME_CASCADES: usize = 240;
 
-/// The camera the sun's cascades cover: the camera that renders, as O3DE
-/// takes the active camera's (DirectionalLightComponentController::
-/// GetCameraConfiguration), its far plane the light's shadow far; or, with
-/// `cascadeCamera`, the fixed observer.
+/// The camera the sun's cascades cover: the main camera, as O3DE takes the
+/// active camera's (DirectionalLightComponentController::
+/// GetCameraConfiguration), its far plane the light's shadow far. The free
+/// camera (lab/src/free_view.rs) sees them from elsewhere.
 pub fn shadow_camera(state: &ShotState, camera: &lab::layout::CameraData) -> super::cascades::Observer {
-    if state.p("cascadeCamera") > 0.5 {
-        return cascade_observer(state);
-    }
     let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
     let forward = -Vec3::new(view.x_axis.z, view.y_axis.z, view.z_axis.z).normalize();
     let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
@@ -561,18 +566,18 @@ pub fn sun_direction(state: &ShotState) -> Vec3 {
 
 pub const CASCADE_COLORS: [Color32; 4] = [palette::rgb(0x64dfd1), palette::rgb(0x8fb8ff), palette::rgb(0xffd98a), palette::rgb(0xff8fc8)];
 
-/// The observer's frustum split into its cascades (the first `cascadesShown`,
-/// a fraction growing the next), each cascade's bounding sphere and snapped
-/// light-space box, the light's direction, and the inspected point's cascade.
-fn cascade_overlay(draw: &mut DrawLists, labels: &mut Vec<Label>, state: &ShotState, p: Vec3, n: Vec3) {
+/// The main camera's frustum split into its cascades (the first
+/// `cascadesShown`, a fraction growing the next), each cascade's bounding
+/// sphere and snapped light-space box, the light's direction, and the
+/// inspected point's cascade: seen from the free camera, which also draws the
+/// main camera itself.
+fn cascade_overlay(draw: &mut DrawLists, labels: &mut Vec<Label>, state: &ShotState, camera: &lab::layout::CameraData, p: Vec3, n: Vec3) {
     use super::cascades;
     let alpha = state.p("cascades");
-    let observer = cascade_observer(state);
+    let observer = shadow_camera(state, camera);
     let dir = sun_direction(state);
     let set = cascades::cascades(observer, dir, state.p("cascadeSplitRatio"));
     let shown = state.p("cascadesShown").clamp(0.0, cascades::CASCADES as f32);
-    draw.point(observer.position, 12.0, palette::VIEW, alpha);
-    labels.push(Label { anchor: observer.position + Vec3::Y * 0.12, text: tr("demos.observer_camera").into(), color: palette::VIEW });
     let near = observer.corners(observer.near);
     for (i, c) in set.cascades.iter().enumerate() {
         let grown = (shown - i as f32).clamp(0.0, 1.0);

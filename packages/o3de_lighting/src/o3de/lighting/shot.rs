@@ -141,7 +141,7 @@ pub fn play_clip(demo: Demo) -> Clip {
         // Roughness walks through the specular cubemap's mips.
         Demo::Ibl => vec![cosine("sphereRoughness", 0.5, -0.5, 12.0)],
         // The observer looks around, so the slices turn and the snapped boxes hold still; the split ratio swings.
-        Demo::Cascades => vec![wave("observerYaw", 0.0, 35.0, 16.0), cosine("cascadeSplitRatio", 0.6, 0.3, 11.0)],
+        Demo::Cascades => vec![wave("camera.yaw", 28.0, 35.0, 16.0), cosine("cascadeSplitRatio", 0.6, 0.3, 11.0)],
         // The sun walks round the hills, its shadows with it.
         Demo::Terrain => vec![wave("sunYaw", 120.0, 60.0, 20.0)],
     })

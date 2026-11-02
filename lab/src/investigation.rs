@@ -392,6 +392,13 @@ pub trait Investigation: Sync {
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;
+    /// The frame built for the main camera, drawn from another (the free
+    /// camera, src/free_view.rs): `content.uniforms.camera` is already that
+    /// camera's. Rewrite here only what the scene's own passes derive from the
+    /// camera that renders (an inverse view-projection the shading rebuilds
+    /// positions with); what the investigation demonstrates, and the engine
+    /// state that follows the main camera, stay as built. The default: nothing.
+    fn view_from(&self, _content: &mut FrameContent) {}
     /// The views the scene area is split into, left to right and all the same
     /// size, each built from its own state (its camera, its values). The last
     /// is the main one: the struct panel, the insets, and clicks are its.

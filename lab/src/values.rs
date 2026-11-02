@@ -505,10 +505,11 @@ impl Value {
     }
 }
 
-/// Every value of the current investigation: the camera's, then its own
+/// Every value of the current investigation: the cameras' (the main one's,
+/// then the free one's), then its own
 /// parameters that declare their metadata (its shaders' tagged values).
 pub fn list() -> Vec<&'static Entry> {
-    let mut entries: Vec<&'static Entry> = crate::camera::OrbitCamera::schema().iter().collect();
+    let mut entries: Vec<&'static Entry> = crate::camera::OrbitCamera::schema().iter().chain(crate::camera::FreeCamera::schema()).collect();
     if let Some(demos) = investigation::current().demo_specs() {
         entries.extend(demos.entries.iter().copied());
     }
@@ -525,6 +526,7 @@ pub fn labelled(label: &str) -> Vec<&'static Entry> {
 pub fn entry(key: &str) -> Option<&'static Entry> {
     crate::camera::OrbitCamera::schema()
         .iter()
+        .chain(crate::camera::FreeCamera::schema())
         .find(|e| e.key == key || e.components.contains(&key))
         .or_else(|| investigation::current().demo_specs().and_then(|d| d.entry(key)))
 }
@@ -721,6 +723,7 @@ mod tests {
         ShotState {
             demo: crate::shot::DemoId::new("test"),
             camera: crate::camera::OrbitCamera::default(),
+            free_camera: Default::default(),
             record: crate::shot::RecordRef::None,
             highlight: Vec::new(),
             panel: crate::shot::PanelMode::Values,

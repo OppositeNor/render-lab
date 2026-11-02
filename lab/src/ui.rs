@@ -264,6 +264,8 @@ pub enum ViewerAction {
     SaveLayout,
     /// The whole layout back to its defaults (and written).
     ResetLayout,
+    /// Look through the free camera, or the main camera again (src/camera.rs `FreeCamera`).
+    ToggleFreeCamera,
     /// Open or close the knowledge graph full screen (src/knowledge.rs).
     SetKnowledgeOverlay(bool),
 }
@@ -411,6 +413,10 @@ pub struct UiInput<'a> {
     pub panes: &'a [PaneView<'a>],
     /// The main view's title, when the scene area is split.
     pub title: Option<&'a str>,
+    /// While the free camera is on (src/free_view.rs): where the main
+    /// camera's own view is drawn, a corner of the viewport (`content` is
+    /// then the free view's).
+    pub main_view: Option<egui::Rect>,
     /// An experiment's comparison drawn with the live view (src/experiment.rs).
     pub compare: Option<CompareOverlay>,
     /// What the performance panel shows (`PanelMode::Performance`).
@@ -556,6 +562,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 if let Some(title) = input.title {
                     let insets = obstacles.clone();
                     obstacles.push(draw_pane_title(&ink, l.viewport, title, &insets));
+                }
+                // The main camera's own view, framed and named.
+                if let Some(rect) = input.main_view {
+                    painter.rect_stroke(rect.expand(1.0), CornerRadius::same(6), Stroke::new(2.0, palette::VIEW), StrokeKind::Outside);
+                    obstacles.push(rect);
+                    obstacles.push(draw_pane_title(&ink, rect, tr("ui.main_view"), &[]));
                 }
                 if let Some(compare) = input.compare {
                     let insets = obstacles.clone();

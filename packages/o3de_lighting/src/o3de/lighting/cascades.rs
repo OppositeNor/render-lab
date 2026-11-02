@@ -3,7 +3,7 @@
 //! fits each with a sphere and a light-space box snapped to texels, and how
 //! DirectionalLightShadowCalculator picks a pixel's cascade. The lab has no
 //! directional light and renders no shadow maps; this module follows the
-//! engine's arithmetic for an observer camera in the room, so the
+//! engine's arithmetic for the main camera, so the
 //! demonstration can draw it (schematic, and said so on screen).
 //!
 //! Code ported from the Open 3D Engine (Gems/Atom/Feature/Common/Code/Source/

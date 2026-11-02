@@ -70,6 +70,24 @@ impl OrbitCamera {
         }
     }
 
+    /// Its camera data with `like`'s viewport, near and far planes (an
+    /// investigation may set its own far plane): another camera seeing the
+    /// same frame.
+    pub fn camera_data_like(&self, like: &CameraData) -> CameraData {
+        let view = self.view();
+        let aspect = like.viewport_size[0] / like.viewport_size[1].max(1.0);
+        // Reversed depth, as `projection`: the far plane first.
+        let proj = glam::camera::rh::proj::directx::perspective(self.fov.to_radians(), aspect, like.far_plane, like.near_plane);
+        CameraData {
+            world_to_view: view.to_cols_array_2d(),
+            view_to_clip: proj.to_cols_array_2d(),
+            world_to_clip: (proj * view).to_cols_array_2d(),
+            position: self.eye().to_array(),
+            vertical_fov: self.fov.to_radians(),
+            ..*like
+        }
+    }
+
     /// Orbit by a pointer drag in viewport pixels.
     pub fn orbit(&mut self, delta: Vec2) {
         self.yaw -= delta.x * 0.3;
@@ -89,6 +107,75 @@ impl OrbitCamera {
     pub fn zoom(&mut self, steps: f32) {
         self.distance = (self.distance * 0.9f32.powf(steps)).clamp(0.4, 30.0);
     }
+}
+
+/// The free camera: a second orbit camera the viewer may look through
+/// (`freeCamera.on`), its values `freeCamera.yaw`, `freeCamera.x`, … as the
+/// main camera's. The scene renders from it while everything the lab
+/// demonstrates (the investigation's frame: its arrows, readouts, buffers,
+/// and the engine state that follows a camera) keeps following the main
+/// camera, which the free view shows with its view cone.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, crate::Values)]
+#[values(scope = "freeCamera", package = "rlstd")]
+pub struct FreeCamera {
+    /// Whether the viewport shows the scene from the free camera.
+    pub on: bool,
+    /// The point it orbits.
+    #[value(components(x, y, z))]
+    pub target: [f32; 3],
+    /// Degrees around +Y; 0 looks down -Z.
+    #[value(range = -180.0..=180.0, unit = deg, wrap)]
+    pub yaw: f32,
+    /// Degrees above the horizon.
+    #[value(range = -85.0..=85.0, unit = deg)]
+    pub pitch: f32,
+    /// Metres from the target.
+    #[value(range = 0.4..=60.0, unit = m)]
+    pub distance: f32,
+    /// Vertical field of view in degrees.
+    #[value(range = 20.0..=90.0, unit = deg)]
+    pub fov: f32,
+}
+
+impl Default for FreeCamera {
+    /// Off, placed to see the room and a camera in it from above and aside.
+    fn default() -> Self {
+        FreeCamera { on: false, target: [0.0, 0.9, 0.0], yaw: 40.0, pitch: 32.0, distance: 13.0, fov: 50.0 }
+    }
+}
+
+impl FreeCamera {
+    /// Whether it is off (a state then serializes without it).
+    pub fn is_off(&self) -> bool {
+        !self.on
+    }
+
+    /// Its pose, as an orbit camera.
+    pub fn orbit(&self) -> OrbitCamera {
+        OrbitCamera { target: self.target, yaw: self.yaw, pitch: self.pitch, distance: self.distance, fov: self.fov }
+    }
+
+    /// Takes the pose of `camera`.
+    pub fn place(&mut self, camera: &OrbitCamera) {
+        (self.target, self.yaw, self.pitch, self.distance, self.fov) = (camera.target, camera.yaw, camera.pitch, camera.distance, camera.fov);
+    }
+
+    /// A pose that sees `main` and what it looks at: further back, higher,
+    /// and turned aside, about the middle of its view.
+    pub fn beside(main: &OrbitCamera) -> OrbitCamera {
+        let middle = (main.eye() + Vec3::from(main.target)) * 0.5;
+        OrbitCamera { target: middle.to_array(), yaw: main.yaw + 40.0, pitch: (main.pitch + 18.0).clamp(25.0, 70.0), distance: main.distance * 1.4 + 4.0, fov: main.fov }
+    }
+}
+
+/// The corners of `camera`'s view at `depth` metres in front of it, in the
+/// world (top left, top right, bottom right, bottom left), from its own view
+/// and projection: its view cone's cross-section there.
+pub fn frustum_corners(camera: &CameraData, depth: f32) -> [Vec3; 4] {
+    let to_world = Mat4::from_cols_array_2d(&camera.world_to_view).inverse();
+    let h = (camera.vertical_fov * 0.5).tan() * depth;
+    let w = h * camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
+    [(-w, h), (w, h), (w, -h), (-w, -h)].map(|(x, y)| to_world.transform_point3(Vec3::new(x, y, -depth)))
 }
 
 /// Projection helpers built from the same matrix the GPU receives.

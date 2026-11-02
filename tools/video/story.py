@@ -1,6 +1,7 @@
 """The storyboard file type, `.story`: a video's chapters, beats, and
 narration as text, with its shots as tags (markup.py), and its translation
-in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is.
+in a parallel file (`storyboard.zh-CN.story`). LaTeX is written as is. Lamlet
+regions in either file are expanded before it is read (lamlet.py).
 
     title: The opaque frame of O3DE 26.05
     fps: 30
@@ -48,6 +49,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import lamlet
 import markup
 
 Json = dict[str, Any]
@@ -219,7 +221,7 @@ def as_list(value: Any) -> list[str]:
 
 def load(path: Path) -> Json:
     """A `.story` file as the storyboard the builder reads."""
-    header, chapters = split_sections(path.read_text(), path)
+    header, chapters = split_sections(lamlet.read(path), path)
     board, _ = properties(header)
     board['chapters'] = []
     for chapter_heading, chapter_lines, beats in chapters:
@@ -278,7 +280,7 @@ def load(path: Path) -> Json:
 
 def load_translation(path: Path) -> Json:
     """A translation `.story` file as the translation the builder reads."""
-    header, chapters = split_sections(path.read_text(), path)
+    header, chapters = split_sections(lamlet.read(path), path)
     translation, _ = properties(header)
     translation['chapters'] = []
     translation['beats'] = {}

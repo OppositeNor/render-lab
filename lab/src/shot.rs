@@ -14,7 +14,7 @@ use crate::actions::{ActionCall, ActionFrame, RunningAction};
 use crate::animation::{Ease, Motion};
 use crate::utility::annotations::{Anchor, AnnotationKind, NoteKind, StoryNote};
 use crate::utility::inset::{Corner, ImageSource, StoryImage};
-use crate::camera::OrbitCamera;
+use crate::camera::{FreeCamera, OrbitCamera};
 use crate::investigation;
 use crate::values::{self, Reflect, Value, ValueMap};
 use anyhow::{bail, Context, Result};
@@ -87,7 +87,12 @@ pub enum PanelMode {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ShotState {
     pub demo: DemoId,
+    /// The main camera: what the investigation's frame follows.
     pub camera: OrbitCamera,
+    /// The camera the viewport shows the scene from while it is on
+    /// (src/camera.rs `FreeCamera`); the main camera otherwise.
+    #[serde(skip_serializing_if = "FreeCamera::is_off")]
+    pub free_camera: FreeCamera,
     pub record: RecordRef,
     pub highlight: Vec<String>,
     pub panel: PanelMode,
@@ -159,7 +164,7 @@ impl ShotState {
     /// Sets a number by name: a value (in its type: a flag on above 0.5, an
     /// index the nearest whole number), a component, a parameter, or the camera's.
     pub fn set(&mut self, name: &str, value: f32) {
-        if self.camera.set(name, Value::F32(value)) {
+        if self.camera.set(name, Value::F32(value)) || self.free_camera.set(name, Value::F32(value)) {
             return;
         }
         let investigation = investigation::current();
@@ -213,16 +218,23 @@ impl ShotState {
         self.channels()
     }
 
-    /// Every channel a timeline blends: the camera's, then the values'.
+    /// Every channel a timeline blends: the cameras', then the values'.
     fn channels(&self) -> Vec<(String, f32)> {
         let camera = camera_channels().into_iter().map(|c| (c.to_string(), self.camera.get(c).expect("a camera channel").f32()));
-        camera.chain(self.value_channels()).collect()
+        let free = free_camera_channels().into_iter().map(|c| (c.to_string(), self.free_camera.get(c).expect("a free camera channel").f32()));
+        camera.chain(free).chain(self.value_channels()).collect()
+    }
+
+    /// The camera the viewport shows the scene from: the free camera while
+    /// it is on, else the main camera.
+    pub fn view_camera(&self) -> OrbitCamera {
+        if self.free_camera.on { self.free_camera.orbit() } else { self.camera }
     }
 
     /// The value of `key` (src/values.rs): the camera's, a stored one, a
     /// vector's component (an `F32`), or None for no such key.
     pub fn try_get(&self, key: &str) -> Option<Value> {
-        if let Some(v) = self.camera.get(key) {
+        if let Some(v) = self.camera.get(key).or_else(|| self.free_camera.get(key)) {
             return Some(v);
         }
         if let Some(v) = self.values.get(key) {
@@ -242,7 +254,7 @@ impl ShotState {
     /// stored value (a vector whole), a component, or a parameter.
     pub fn set_value(&mut self, key: &str, value: impl Into<Value>) {
         let value = value.into();
-        if self.camera.set(key, value) {
+        if self.camera.set(key, value) || self.free_camera.set(key, value) {
             return;
         }
         match values::entry(key).filter(|e| e.key == key) {
@@ -811,6 +823,11 @@ fn camera_channels() -> Vec<&'static str> {
     OrbitCamera::schema().iter().flat_map(|e| e.channels()).collect()
 }
 
+/// The free camera's channels (`freeCamera.on`, `freeCamera.yaw`, …).
+fn free_camera_channels() -> Vec<&'static str> {
+    FreeCamera::schema().iter().flat_map(|e| e.channels()).collect()
+}
+
 impl Timeline {
     pub fn load(path: &std::path::Path) -> Result<Timeline> {
         let text = std::fs::read_to_string(path).with_context(|| format!("read timeline {}", path.display()))?;
@@ -832,7 +849,7 @@ impl Timeline {
                     bail!("{problem}, in key at frame {} ({:?})", key.frame, key.source);
                 }
                 for name in motion.params() {
-                    if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) {
+                    if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) && !free_camera_channels().contains(&name) {
                         bail!("unknown channel `{name}` in a motion of the key at frame {} ({:?})", key.frame, key.source);
                     }
                     if key.sets(name) {
@@ -1041,7 +1058,20 @@ impl Timeline {
         for name in &camera {
             keyed.set(name, Value::F32(value(name)));
         }
-        state.camera = camera_drift(keyed, 0.0, frame as f32 / self.fps as f32, segments.get("cameraDrift").map_or(0.0, |s| s.value(frame)));
+        for name in free_camera_channels() {
+            state.free_camera.set(name, Value::F32(value(name)));
+        }
+        // The sway moves the camera the viewport shows: the free one while it is on
+        // (so the main camera's cone holds still unless a cue moves it).
+        let drift = segments.get("cameraDrift").map_or(0.0, |s| s.value(frame));
+        let seconds = frame as f32 / self.fps as f32;
+        if state.free_camera.on {
+            state.camera = keyed;
+            let free = camera_drift(state.free_camera.orbit(), 0.0, seconds, drift);
+            state.free_camera.place(&free);
+        } else {
+            state.camera = camera_drift(keyed, 0.0, seconds, drift);
+        }
         for (name, _) in state.value_channels() {
             state.set(&name, value(&name));
         }

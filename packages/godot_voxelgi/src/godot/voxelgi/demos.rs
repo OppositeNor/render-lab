@@ -256,7 +256,9 @@ pub fn shot_lights(state: &ShotState, w: &World) -> Vec<light::Light> {
 }
 
 /// The worked pixel: a point on the sphere, `pixelAzimuth` degrees round from
-/// the direction of the red wall (-x), `pixelElevation` up.
+/// the direction of the red wall (-x) toward +z, `pixelElevation` up. At the
+/// default, 60, it faces the sphere camera (demos/presets/sphere-camera.toml),
+/// still turned toward the red wall; at 0 it would face away from it.
 pub fn pixel_point(state: &ShotState, scene: &Scene) -> (Vec3, Vec3) {
     let s = scene.records()[ids::SPHERE];
     let c = Vec3::from(s.world_center);
@@ -302,7 +304,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
         floor_params: [objects[ids::FLOOR].albedo_roughness[3], lighting.f0, 0.0, 1.0],
         overlay_params: [lighting.exposure, pixel_scale, time, 0.0],
         // The panel would hide the room from a camera above it (the slices).
-        counts: [objects.len() as u32, ids::FLOOR as u32, 0, if state.camera.pitch > 60.0 || state.p("octreeLevel") >= 0.0 { 1 << ids::PANEL } else { 0 }],
+        counts: [objects.len() as u32, ids::FLOOR as u32, 0, if state.view_camera().pitch > 60.0 || state.p("octreeLevel") >= 0.0 { 1 << ids::PANEL } else { 0 }],
         view_params: [1.0, 0.0, 0.0, 0.0],
     };
     let _ = FAR_PLANE;

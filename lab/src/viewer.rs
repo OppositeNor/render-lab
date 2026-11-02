@@ -144,6 +144,10 @@ pub struct App {
     pub renderer: Option<Renderer>,
     pending: Option<Pending>,
     pub state: ShotState,
+    /// The free camera as the user set it (toggled, or moved while on), over
+    /// whatever the state or a playing timeline says, until Reset or a
+    /// change of mode.
+    free_view: Option<crate::camera::FreeCamera>,
     pub demo_time: f32,
     /// Demo time at which the camera sway of the playing animation started.
     drift_from: f32,
@@ -240,6 +244,7 @@ impl App {
             renderer: None,
             pending: None,
             state,
+            free_view: None,
             demo_time: 0.0,
             drift_from: 0.0,
             playing: false,
@@ -317,19 +322,34 @@ impl App {
     /// interactive state (a paused timeline's shot, or a demonstration with
     /// its animation applied while it plays).
     pub fn render_state(&self) -> ShotState {
-        if self.timeline_playing() {
-            if let Some(t) = &self.timeline {
-                return t.state_at(self.timeline_frame);
+        let mut s = match &self.timeline {
+            Some(t) if self.timeline_playing() => t.state_at(self.timeline_frame),
+            _ => {
+                let mut s = self.state.clone();
+                if self.playing && !self.timeline_mode {
+                    for (k, v) in investigation::current().animation(s.demo, self.demo_time) {
+                        s.set(k, v);
+                    }
+                    s.camera = shot::camera_drift(s.camera, self.drift_from, self.demo_time, drift(&s));
+                }
+                s
             }
-        }
-        let mut s = self.state.clone();
-        if self.playing && !self.timeline_mode {
-            for (k, v) in investigation::current().animation(s.demo, self.demo_time) {
-                s.set(k, v);
-            }
-            s.camera = shot::camera_drift(s.camera, self.drift_from, self.demo_time, drift(&s));
+        };
+        if let Some(free) = self.free_view {
+            s.free_camera = free;
         }
         s
+    }
+
+    /// The free camera the user moves: theirs, else the shown one, now theirs.
+    fn free_view(&mut self) -> &mut crate::camera::FreeCamera {
+        let shown = self.render_state().free_camera;
+        self.free_view.get_or_insert(shown)
+    }
+
+    /// Whether the viewport shows the free camera's view.
+    fn free_camera_on(&self) -> bool {
+        self.render_state().free_camera.on
     }
 
     pub fn default_state(&mut self, demo: impl Into<DemoId>) -> ShotState {
@@ -548,7 +568,18 @@ impl App {
                     self.bake_animation();
                 }
             }
+            ViewerAction::ToggleFreeCamera => {
+                let shown = self.render_state();
+                let mut free = shown.free_camera;
+                free.on = !free.on;
+                // Turned on, it starts beside the main camera, seeing it and its view.
+                if free.on {
+                    free.place(&crate::camera::FreeCamera::beside(&shown.camera));
+                }
+                self.free_view = Some(free);
+            }
             ViewerAction::Reset => {
+                self.free_view = None;
                 if self.timeline_mode {
                     self.seek(0);
                 } else {
@@ -563,6 +594,7 @@ impl App {
                     self.stop_audio();
                     self.playing = false;
                     self.timeline_mode = !self.timeline_mode;
+                    self.free_view = None;
                     if self.timeline_mode {
                         self.take_timeline_shot();
                     }
@@ -805,6 +837,7 @@ impl App {
             KeyCode::ArrowRight | KeyCode::Period => self.apply(ViewerAction::Step),
             KeyCode::KeyR => self.apply(ViewerAction::Reset),
             KeyCode::KeyT => self.apply(ViewerAction::ToggleTimeline),
+            KeyCode::KeyC => self.apply(ViewerAction::ToggleFreeCamera),
             KeyCode::Escape => {
                 if let Some(el) = event_loop {
                     self.exit = ViewerExit::Back;
@@ -867,7 +900,8 @@ impl App {
         drag.moved += delta.length();
         drag.last = at;
         self.drag = Some(drag.clone());
-        if self.timeline_playing() {
+        // A playing timeline holds its camera; the free camera stays the viewer's to move.
+        if self.timeline_playing() && !self.free_camera_on() {
             return;
         }
         if let Some((handler, picture)) = &drag.inset {
@@ -884,8 +918,20 @@ impl App {
             }
             return;
         }
-        self.end_intro();
         let height = self.viewport_height();
+        // With the free camera on, the pointer moves it; the main camera keeps its place.
+        if self.free_camera_on() {
+            let free = self.free_view();
+            let mut orbit = free.orbit();
+            match drag.button {
+                MouseButton::Left => orbit.orbit(delta),
+                MouseButton::Right | MouseButton::Middle => orbit.pan(delta, height),
+                _ => {}
+            }
+            free.place(&orbit);
+            return;
+        }
+        self.end_intro();
         match drag.button {
             MouseButton::Left => self.state.camera.orbit(delta),
             MouseButton::Right | MouseButton::Middle => self.state.camera.pan(delta, height),
@@ -983,7 +1029,12 @@ impl App {
             }
             return;
         }
-        if !self.timeline_playing() && !self.ui_has_pointer {
+        if self.free_camera_on() && !self.ui_has_pointer {
+            let free = self.free_view();
+            let mut orbit = free.orbit();
+            orbit.zoom(steps);
+            free.place(&orbit);
+        } else if !self.timeline_playing() && !self.ui_has_pointer {
             self.end_intro();
             self.state.camera.zoom(steps);
         }
@@ -1605,6 +1656,27 @@ pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &st
     write_png(png, size[0], size[1], &rgba)?;
     let list: Vec<String> = passes.iter().map(|(n, mean, _)| format!("{n} {mean:.2} ms")).collect();
     eprintln!("viewer performance: {} ({}x{}); {}; called out: {}", png.display(), size[0], size[1], if list.is_empty() { "no GPU timestamps".into() } else { list.join(", ") }, top.unwrap_or_else(|| "none".into()));
+    Ok(())
+}
+
+/// The viewer offscreen with the free camera on (`home --snapshot … --page
+/// viewer-free[:<demo>]`): the scene from beside the main camera, which is
+/// drawn with its view cone, and the main camera's own view in a corner.
+pub fn snapshot_free(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    let (mut app, gpu, size) = offscreen_app(options, demo)?;
+    app.state = app.default_state(app.state.demo);
+    app.apply(ViewerAction::ToggleFreeCamera);
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    for _ in 0..8 {
+        app.render(Some(&buffer))?;
+        app.frames += 30;
+    }
+    let padded = padded_row_bytes(size[0]) as u64;
+    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
+    write_png(png, size[0], size[1], &rgba)?;
+    let free = app.render_state().free_camera;
+    eprintln!("viewer free camera: {} ({}x{}); {:?}, free camera yaw {:.0} pitch {:.0} distance {:.1}, main view {:?}", png.display(), size[0], size[1], app.state.demo, free.yaw, free.pitch, free.distance, app.renderer().last_main_view);
     Ok(())
 }
 

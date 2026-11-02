@@ -1,0 +1,212 @@
+rlstd's story library for Lamlet
+================================
+
+A storyboard (`.story`, tools/video/README.md) may hold Lamlet regions: `$${...}` and `$$[...]`, with
+`$$[Import* std]` and `$$[Import* rlstd]` (or `$$[ImportAs rlstd rl]`) before the first use. The video builder
+expands them before it reads the storyboard (tools/video/lamlet.py), so what they compute is ordinary story
+text: narration, and the `{@ ...}` cues the storyboard format already has. Nothing here runs at playback.
+
+These functions build that text from typed values: numbers spoken as words, and cues whose attributes are
+named and quoted for you. A cue the functions below do not name is written with `cue`, from attribute pairs.
+The lab checks every key, image, and action when it loads the timeline, as it does for a hand-written cue.
+
+$[Import* std]
+
+1. Attributes and cues
+
+An attribute is a pair of Strings: its name and its value as the story writes it.
+
+$[# attr {^ {name value} {pair name value}}]
+
+A number attribute: an Int or a Float, written as the story's number syntax.
+
+$[# num {^ {name value} {pair name {str value}}}]
+
+A range of a number attribute, `name=a..b` (a sweep's start and end).
+
+$[# span {^ {name from to} {pair name {++ {str from} {++ ".." {str to}}}}}]
+
+A value as the story writes it: quoted when it has a space, a brace, a quote, or is empty.
+
+$[# _needsQuote {^ {s}
+    {!if {= s ""} true {any {chars s} {^ {c} {contains {' " " "{" "}" "\"" "\t"} c}}}}
+}]
+$[# _quote {^ {s}
+    {!if {_needsQuote s}
+        {++ "\"" {++ {concat {map {chars s} {^ {c} {!if {= c "\"" } "\\\"" c}}}} "\""}}
+        s}
+}]
+$[# _attrText {^ {a} {++ {first a} {++ "=" {_quote {second a}}}}}]
+
+A cue, `{@ name=value ...}`, from a list of attributes. It fires on the word that follows it.
+
+$[# cue {^ {attrs} {++ "{@ " {++ {join " " {map attrs _attrText}} "}"}}}]
+
+A named range, `{@name> attrs}text{<name}`: its attributes blend from their first value to their last over
+the words of `text`, which must stay inside one sentence.
+
+$[# sweep {^ {name attrs text}
+    {++ "{@" {++ name {++ "> " {++ {join " " {map attrs _attrText}} {++ "}" {++ text {++ "{<" {++ name "}"}}}}}}}}
+}]
+
+2. What a cue shows
+
+The source line cited while a sentence is said (a key of the investigation's source index).
+
+$[# callout {^ {key} {cue {' {attr "callout" key}}}}]
+
+The right-hand panel: values, code, performance, declaration, memory, or hidden.
+
+$[# panel {^ {kind} {cue {' {attr "panel" kind}}}}]
+
+A code listing in the panel, its tag lit.
+
+$[# code {^ {listing tag} {cue {' {attr "panel" "code"} {attr "code" listing} {attr "highlight" tag}}}}]
+
+Passes, rows, or fields lit in the panel (`highlight=a,b`); an empty list lights nothing.
+
+$[# highlight {^ {names} {cue {' {attr "highlight" {join "," names}}}}}]
+
+Switch the demonstration (its state replaces the shot's).
+
+$[# demo {^ {name} {cue {' {attr "demo" name}}}}]
+
+3. Images
+
+An image the investigation publishes (`render-lab images`) or a PNG resource, in a corner of the viewport:
+top-left, top-right, bottom-left, or bottom-right.
+
+$[# image {^ {name corner} {cue {' {attr "image" name} {attr "imageCorner" corner}}}}]
+
+The same, with a title (a text key of the package).
+
+$[# imageTitled {^ {name corner title} {cue {' {attr "image" name} {attr "imageCorner" corner} {attr "imageTitle" title}}}}]
+
+A GPU image: an instance `name` of the image kind `kind`, with its parameters as attributes (`num` or `attr`
+pairs, named without the `image.` prefix).
+
+$[# imageFrom {^ {name kind params}
+    [# prefixed {map params {^ {p} {pair {++ "image." {first p}} {second p}}}}]
+    {cue {cons {attr "image" name} {cons {attr "imageFrom" kind} prefixed}}}
+}]
+
+A region of a shown image pointed out: u0, v0, u1, v1 are fractions of the picture from its top left, `text` a
+text key ("" for no label).
+
+$[# imageMark {^ {name u0 v0 u1 v1 text}
+    {cue {' {attr "image" name}
+            {attr "imageMark" {join "," {map {' u0 v0 u1 v1} str}}}
+            {attr "imageMarkText" text}}}
+}]
+
+Clear a shown image's mark.
+
+$[# imageUnmark {^ {name} {cue {' {attr "image" name} {attr "imageMark" ""}}}}]
+
+Hide some images, or all of them.
+
+$[# imageHide {^ {names} {cue {' {attr "imageHide" {join "," names}}}}}]
+$[# imagesOff [% {cue {' {attr "image" ""}}}]]
+
+4. Arrows and labels
+
+A point: three Floats, or a point the package publishes by name (`render-lab images` lists them).
+
+$[# at {^ {x y z} {join "," {map {' x y z} str}}}]
+
+An arrow from one point to another, in a colour (`#rrggbb`).
+
+$[# arrow {^ {name from to color}
+    {cue {' {attr "arrow" name} {attr "arrowFrom" from} {attr "arrowTo" to} {attr "arrowColor" color}}}
+}]
+
+A label at a point, its text a text key of the package.
+
+$[# label {^ {name point text} {cue {' {attr "label" name} {attr "labelAt" point} {attr "labelText" text}}}}]
+
+Hide arrows or labels by name.
+
+$[# arrowHide {^ {names} {cue {' {attr "arrowHide" {join "," names}}}}}]
+$[# labelHide {^ {names} {cue {' {attr "labelHide" {join "," names}}}}}]
+
+5. Actions, formulas, code names, timing
+
+Run a package action (`render-lab actions`) with its arguments (named without the `run.` prefix), or stop some.
+
+$[# run {^ {action args}
+    {cue {cons {attr "run" action} {map args {^ {p} {pair {++ "run." {first p}} {second p}}}}}}
+}]
+$[# stop {^ {names} {cue {' {attr "stop" {join "," names}}}}}]
+
+A formula: LaTeX for the caption and card, and what the voice says for it.
+
+$[# formula {^ {latex spoken} {cue {' {attr "formula" latex} {attr "say" spoken}}}}]
+
+The same from a `[latex "..."]` value, whose backslashes are literal: the usual way to write one.
+
+$[# formulaTex {^ {tex spoken} {formula {.latex tex} spoken}}]
+
+A code name the narration says (a function, a struct, a file, a setting), and how the voice says it.
+
+$[# codespan {^ {code} {cue {' {attr "codespan" code}}}}]
+$[# codespanSaid {^ {code spoken} {cue {' {attr "codespan" code} {attr "say" spoken}}}}]
+
+Silence at the end of a sentence, and a pause before the next idea, in seconds.
+
+$[# pause {^ {seconds} {cue {' {num "pause" seconds}}}}]
+$[# delay {^ {seconds} {cue {' {num "delay" seconds}}}}]
+
+6. Numbers as the voice says them
+
+Narration says its numbers in words, so the voice reads them right: `spoken` writes a non-negative Int in
+English words, `spokenFloat` a Float with its decimals ("three point two"), `rounded` an Int to its leading
+`digits` significant digits ("about forty-two thousand" is `rounded 42289 2`).
+
+$[# _ones [% {' "zero" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine" "ten" "eleven" "twelve"
+                "thirteen" "fourteen" "fifteen" "sixteen" "seventeen" "eighteen" "nineteen"}]]
+$[# _tens [% {' "" "" "twenty" "thirty" "forty" "fifty" "sixty" "seventy" "eighty" "ninety"}]]
+$[# _under100 {^ {n}
+    {!if {< n 20} {nth _ones n}
+        {!if {= {% n 10} 0} {nth _tens {div n 10}}
+            {++ {nth _tens {div n 10}} {++ "-" {nth _ones {% n 10}}}}}}
+}]
+$[# _under1000 {^ {n}
+    {!if {< n 100} {_under100 n}
+        {!if {= {% n 100} 0}
+            {++ {nth _ones {div n 100}} " hundred"}
+            {++ {nth _ones {div n 100}} {++ " hundred " {_under100 {% n 100}}}}}}
+}]
+$[# _withScale {^ {self n unit name}
+    [# r {% n unit}]
+    {++ {self {div n unit}} {++ " " {++ name {!if {= r 0} "" {++ " " {self r}}}}}}
+}]
+$[# spoken {^ self {n}
+    {!if {< n 0} {++ "minus " {self {neg n}}}
+        {!if {< n 1000} {_under1000 n}
+            {!if {< n 1000000} {_withScale self n 1000 "thousand"}
+                {!if {< n 1000000000} {_withScale self n 1000000 "million"}
+                    {_withScale self n 1000000000 "billion"}}}}}
+}]
+$[# _digit {^ {c}
+    {withDefault {fold {range 0 10} none {^ {found d} {!if {= {str d} c} {some d} found}}} 0}
+}]
+$[# _digitWords {^ {digits} {join " " {map {chars digits} {^ {c} {nth _ones {_digit c}}}}}}]
+$[# _toInt {^ {digits} {fold {chars digits} 0 {^ {acc c} {+ {* acc 10} {_digit c}}}}}]
+$[# spokenFloat {^ {x}
+    [# text {str {abs x}}]
+    [# parts {split text "."}]
+    [# whole {spoken {_toInt {head parts}}}]
+    [# sign {!if {< x 0.0} "minus " ""}]
+    {!if {= {length parts} 1}
+        {++ sign whole}
+        {!if {= {nth parts 1} "0"}
+            {++ sign whole}
+            {++ sign {++ whole {++ " point " {_digitWords {nth parts 1}}}}}}}
+}]
+$[# _pow10 {^ go {k} {!if {<= k 0} 1 {* 10 {go {- k 1}}}}}]
+$[# rounded {^ {n digits}
+    [# size {length {chars {str {abs n}}}}]
+    [# step {_pow10 {- size digits}}]
+    [# r {* {div {+ {abs n} {div step 2}} step} step}]
+    {spoken {!if {< n 0} {neg r} r}}
+}]

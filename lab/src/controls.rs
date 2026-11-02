@@ -183,6 +183,11 @@ impl Dock<'_> {
         if reset.on_hover_text(tr("controls.reset_parameters_hint")).clicked() {
             self.actions.push(ViewerAction::ResetParameters);
         }
+        let free = ui.add(egui::Button::new(tr("controls.free_camera")).min_size(full).selected(self.state.free_camera.on));
+        self.widgets.push(("free-camera".into(), free.rect));
+        if free.on_hover_text(tr("controls.free_camera_hint")).clicked() {
+            self.actions.push(ViewerAction::ToggleFreeCamera);
+        }
         let layout = ui.add(egui::Button::new(tr("controls.reset_layout")).min_size(full));
         self.widgets.push(("reset-layout".into(), layout.rect));
         if layout.on_hover_text(tr("controls.reset_layout_hint")).clicked() {

@@ -319,6 +319,7 @@ impl Demos {
         ShotState {
             demo,
             camera: spec.camera,
+            free_camera: Default::default(),
             record: RecordRef::None,
             highlight: Vec::new(),
             panel: PanelMode::Values,

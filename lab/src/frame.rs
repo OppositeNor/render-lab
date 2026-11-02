@@ -55,7 +55,7 @@ pub const SEG_OBJECT_AXIS: u32 = 1;
 pub const BOX_OBJECT_OBB: u32 = 0;
 pub const BOX_OBJECT_AABB: u32 = 1;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct DrawLists {
     pub segments: Vec<SegmentInstance>,
     pub boxes: Vec<BoxInstance>,
@@ -137,6 +137,7 @@ pub const SHADING_UNIFORMS: usize = 32;
 /// The most vectors `FrameContent::shading_frame` may hold.
 pub const SHADING_FRAME_CAPACITY: usize = 4096;
 
+#[derive(Clone)]
 pub struct FrameContent {
     pub objects: Vec<ObjectData>,
     pub uniforms: FrameUniforms,
