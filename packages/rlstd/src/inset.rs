@@ -438,7 +438,7 @@ fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Optio
 
 /// The PNG resource `key` as a texture, decoded the first time it is drawn;
 /// None (and the reason, once) when it is not a PNG.
-fn resource_texture(ctx: &egui::Context, key: &str) -> Option<egui::TextureHandle> {
+pub fn resource_texture(ctx: &egui::Context, key: &str) -> Option<egui::TextureHandle> {
     let id = egui::Id::unique(("picture-resource", key));
     if let Some(texture) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
         return texture;

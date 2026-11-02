@@ -52,7 +52,8 @@ the code that is correct, and the one study room throughout.
 
 ## The architecture map
 
-One Mermaid diagram (`video/diagrams/`), true to Godot 4.7.2: cascades, voxelization and the distance field,
+The frame graph's scene (`graph: frame`, the package's `graphs/frame.toml`; its stages the lab computes on the CPU
+are dashed boxes), true to Godot 4.7.2: cascades, voxelization and the distance field,
 occlusion, light injection and the bounce from the probes back into the voxels (a feedback loop, not a line),
 probe tracing and their history, and the screen pass. Each chapter opens on it with its part lit, and ends by
 showing what it feeds.

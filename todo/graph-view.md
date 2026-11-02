@@ -1,6 +1,6 @@
-# One graph view for every graph the lab draws
+# One graph view for every graph the lab draws (implemented 2026-11-02)
 
-Today the lab draws graphs three ways, each with its own model, layout, and drawing:
+Before this plan the lab drew graphs three ways, each with its own model, layout, and drawing:
 
 | Graph | Model | Layout | Drawing | Interaction |
 |---|---|---|---|---|
@@ -8,7 +8,7 @@ Today the lab draws graphs three ways, each with its own model, layout, and draw
 | Knowledge graph (panel, full screen) | `knowledge::Graph` | `layered::clustered` (areas boxed) | `ui::draw_knowledge_graph` | zoom, pan, select, centre on a topic |
 | Frame graph DAG (panel, full screen) | `ui::GraphView` from `FrameGraph` | its own longest-path layers | `ui::draw_dag_panel` | pan, drag cards, inspect, scroll to call-outs |
 
-Goal: one model, one layout, one drawing, one interaction, used by all three, and no Mermaid in the lab.
+Goal (met): one model, one layout, one drawing, one interaction, used by all three, and no Mermaid in the lab.
 
 ## The abstraction (`lab/src/graph_view.rs`)
 
@@ -65,7 +65,7 @@ Goal: one model, one layout, one drawing, one interaction, used by all three, an
   the video's documents; the guide lists each diagram's boxes as text, as it does for the frame graph scene now.
 - **The DAG panel uses the story's sections**: they move from `video/frame.toml` into a package resource the viewer
   loads, and the panel, its full screen, and the story's scene show one grouping (each pass still its own card).
-- **Plan only for now**: the user reviews this plan before any of it is implemented.
+- **Plan first**: the user reviewed this plan before it was implemented (then asked for it, the same day).
 
 ## Status (2026-11-02)
 
@@ -83,3 +83,14 @@ they grow); a diagram's first beat builds it up layer by layer, each edge drawn 
 (`lab/src/diagram.rs` `Transition`, `record::beat_fade`).
 
 Kept: the resources view and the grid (a card grid and a matrix, not graphs).
+
+Then (on request): every view that pans, zooms, or drags goes through one lifecycle in the graph view (`view`,
+`start`, `centre_on`, `keep`, `interact`): the DAG and resources panels, the knowledge graph's pointer, and a paused
+2D diagram (its zoom, pan, and boxes moved; the viewer only keeps its camera still), so `ui::CardView`,
+`ui::DiagramView`, and the viewer's own wheel, drag, and double-click handling for diagrams are gone. A diagram's node
+can hold an image (`image = "<png key>"`), so a 2D beat that shows a picture is a graph of one node. The sources and
+notices cards stay cards: they are pages of wrapped text with links, not graphs.
+
+Removed with it: the JSON storyboards and translations (`story.load_story` reads `.story` only), `video.json`'s
+per-language diagram directories, sixteen functions nothing called (scene, mesh, layout, renderer, record, frame,
+viewer), a duplicate colour blend, the empty `video/zh-CN/` directories, the stories' outlines and review notes.

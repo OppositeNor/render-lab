@@ -190,44 +190,6 @@ record!(FrameUniforms {
     "viewParams" => view_params: F32(4),
 });
 
-/// Words a dump kernel in verify.wgsl writes for one record:
-/// every field in declaration order, matrices as m[row][column].
-pub fn expected_dump_words<T: Record>(record: &T) -> Vec<u32> {
-    let bytes = bytemuck::bytes_of(record);
-    let word = |offset: usize| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-    let mut out = Vec::new();
-    for field in T::fields() {
-        match field.kind {
-            FieldKind::F32(n) | FieldKind::U32(n) => {
-                for i in 0..n as usize {
-                    out.push(word(field.offset + 4 * i));
-                }
-            }
-            // Column-major storage: element (row r, column c) lives in column c.
-            FieldKind::Mat3 => {
-                for r in 0..3 {
-                    for c in 0..3 {
-                        out.push(word(field.offset + 16 * c + 4 * r));
-                    }
-                }
-            }
-            FieldKind::Mat4 => {
-                for r in 0..4 {
-                    for c in 0..4 {
-                        out.push(word(field.offset + 16 * c + 4 * r));
-                    }
-                }
-            }
-            FieldKind::Nested => {}
-        }
-    }
-    out
-}
-
-pub fn dump_words_per_record<T: Record>() -> usize {
-    T::fields().iter().map(|f| f.kind.dump_words()).sum()
-}
-
 // ---------------------------------------------------------------------------
 // Struct layouts naga computes for types.wgsl at run time (shaders::layout_json).
 

@@ -97,14 +97,29 @@ fn laid_out(graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspe
     cache.entry(h.finish()).or_insert_with(|| Box::leak(Box::new(graph_view::lay_out(graph, width, pictured, aspect, &Options::default()))))
 }
 
-/// Draws `beat`'s diagram in its panel `area`: fitted (its labels at most
-/// `MAX_FONT` high), or, with `picture`, scaled into that rectangle (the
-/// panel's area zoomed and panned). A lit box with one of `pictures` holds it
-/// under its rows (`plan`). Coming from the beat before, the diagram moves
-/// from that beat's plan to its own; a first beat builds it up. Labels go
-/// through `ink`, whose smallest size the recorder checks against the lab's
-/// minimum.
-pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram, pictures: &[Picture]) {
+/// A paused timeline's diagram in the viewer (src/graph_view.rs `view`):
+/// the wheel zooms it (from fitted to `MAX_ZOOM` times), a drag pans it or
+/// moves a box, a double click fits it again; `key` names its beat, and
+/// `preset` is a first view (the zoom, and the point at the centre as
+/// fractions of the diagram across and down).
+#[derive(Clone, Copy)]
+pub struct Paused<'a> {
+    pub ctx: &'a egui::Context,
+    pub key: u64,
+    pub preset: Option<(f32, egui::Vec2)>,
+}
+
+/// How far a paused diagram zooms in.
+pub const MAX_ZOOM: f32 = 8.0;
+
+/// Draws `beat`'s diagram in its panel `area`, fitted (its labels at most
+/// `MAX_FONT` high), or paused in the viewer (`paused`: zoomed, panned, its
+/// boxes moved). A lit box with one of `pictures` holds it under its rows
+/// (`plan`). Coming from the beat before, the diagram moves from that beat's
+/// plan to its own; a first beat builds it up. Labels go through `ink`,
+/// whose smallest size the recorder checks against the lab's minimum.
+/// Returns the zoom (1: fitted).
+pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pictures: &[Picture]) -> f32 {
     let painter = ink.painter;
     painter.rect_filled(area, CornerRadius::same(12), palette::panel());
     let graph = beat.graph;
@@ -126,15 +141,29 @@ pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram, pic
         None => (current.0.clone(), current.1),
     };
     let shown = &current.2;
-    // Zoomed and panned: the panel's picture rectangle stands for the area.
-    let t = match picture {
+    // Paused: the viewer's view of it, from the fitted one.
+    let (t, moved) = match paused {
         Some(p) => {
-            let zoom = p.width() / area.width();
-            Transform { scale: base.scale * zoom, origin: p.min + (base.origin - area.min) * zoom }
+            let id = egui::Id::unique("paused-diagram");
+            let fitted = (area.center() - base.origin) / base.scale;
+            let setup = |v: &mut graph_view::ViewState, _: bool| {
+                v.scale = base.scale;
+                v.centre = fitted;
+                if let Some((zoom, at)) = p.preset {
+                    v.scale = base.scale * zoom;
+                    v.centre = laid.bounds.min.to_vec2() + laid.bounds.size() * at;
+                }
+            };
+            let controls = graph_view::Controls { zoom: Some((base.scale, base.scale * MAX_ZOOM)), move_nodes: true };
+            let (mut state, _) = graph_view::view(p.ctx, id, area, &laid, true, p.key, &controls, &setup);
+            graph_view::keep(&mut state, &laid, area);
+            p.ctx.data_mut(|d| d.insert_temp(id, state.clone()));
+            (state.transform(area), state.moved)
         }
-        None => base,
+        None => (base, Vec::new()),
     };
-    let zoom = (t.scale / base.scale).min(2.0);
+    let zoom_now = t.scale / base.scale;
+    let zoom = zoom_now.min(2.0);
     let look = |focus: &[String], i: usize| -> NodeLook {
         let node = &graph.nodes[i];
         let named = focus.contains(&node.id);
@@ -157,6 +186,10 @@ pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram, pic
                 None => look(beat.focus, i),
             };
             l.picture = pictures.iter().find(|p| p.0 == graph.nodes[i].id).filter(|_| shown.contains(&i)).map(|p| (p.1, p.2));
+            // An image node: its PNG, decoded once.
+            if let Some((key, _)) = &graph.nodes[i].image {
+                l.picture = crate::utility::inset::resource_texture(painter.ctx(), key).map(|t| (t.id(), [t.size()[0] as u32, t.size()[1] as u32]));
+            }
             // A picture new to this beat fades in as its room grows.
             if moving.is_some() && !before.contains(&i) {
                 l.tint = egui::Color32::WHITE.gamma_multiply(e);
@@ -173,8 +206,9 @@ pub fn draw(ink: &Ink, area: Rect, picture: Option<Rect>, beat: BeatDiagram, pic
             graph_view::EdgeLook { color: palette::text_dim(), width: 1.8 * zoom, hidden: false, drawn }
         })
         .collect();
-    graph_view::draw(ink, area, &t, graph, &laid, &Look { nodes, edges, clusters: Vec::new(), moved: &[], edge_labels: true, tracked: true });
+    graph_view::draw(ink, area, &t, graph, &laid, &Look { nodes, edges, clusters: Vec::new(), moved: &moved, edge_labels: true, tracked: true });
     painter.rect_stroke(area, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    zoom_now
 }
 
 /// A diagram's layout and framing in `area` with `pictured` boxes holding

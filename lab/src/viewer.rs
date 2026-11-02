@@ -36,7 +36,7 @@ use crate::loading::{self, Loading};
 use crate::record::beat_fade;
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
-use crate::ui::{Chrome, DiagramView, DockTab, ViewerAction, ViewerChrome};
+use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
 use crate::values::Reflect;
 use crate::volume::Volume;
 use anyhow::Result;
@@ -164,13 +164,9 @@ pub struct App {
     audio: Option<crate::audio::AudioPlayer>,
     /// The narration's volume; the viewer hands it back when it closes.
     pub narration: Volume,
-    /// Paused on a diagram beat: its panel's zoom and pan, the beat it is for
-    /// (its first frame), the fitted picture's rectangle (egui points), and
-    /// the last click (a second one soon after resets the view).
-    diagram: DiagramView,
-    diagram_beat: Option<u64>,
-    diagram_fit: Option<egui::Rect>,
-    last_click: Option<Instant>,
+    /// Paused on a diagram beat: a first view of it (a snapshot's: src/diagram.rs
+    /// `Paused`), which the UI's view (zoom, pan, boxes moved) starts from.
+    diagram_preset: Option<(f32, egui::Vec2)>,
     cursor: Vec2,
     drag: Option<Drag>,
     pub ui_has_pointer: bool,
@@ -259,10 +255,7 @@ impl App {
             skip: None,
             audio,
             narration,
-            diagram: DiagramView::default(),
-            diagram_beat: None,
-            diagram_fit: None,
-            last_click: None,
+            diagram_preset: None,
             cursor: Vec2::ZERO,
             drag: None,
             ui_has_pointer: false,
@@ -313,12 +306,6 @@ impl App {
     /// Paused on a 2D scene that shows a diagram: the viewport is the diagram's panel, zoomed and panned.
     pub fn paused_diagram(&self) -> bool {
         self.paused_page() && self.timeline.as_ref().is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_diagram())
-    }
-
-    /// A pointer position in window pixels, in egui points.
-    fn points(&self, p: Vec2) -> egui::Vec2 {
-        let scale = self.renderer().layout().scale;
-        egui::vec2(p.x / scale, p.y / scale)
     }
 
     /// The state that is rendered: the playing timeline's frame, or the
@@ -930,13 +917,8 @@ impl App {
             self.run_inset_click(handler, *picture, point);
             return;
         }
+        // A paused diagram takes the pointer itself (src/diagram.rs): the camera keeps its place.
         if self.paused_diagram() {
-            if let Some(fit) = self.diagram_fit {
-                let d = self.points(delta);
-                let size = fit.size() * self.diagram.zoom;
-                self.diagram.center -= egui::vec2(d.x / size.x, d.y / size.y);
-                self.diagram.center = self.diagram.center.clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
-            }
             return;
         }
         let height = self.viewport_height();
@@ -967,13 +949,8 @@ impl App {
             return;
         }
         if drag.button == button && button == MouseButton::Left && drag.moved < 4.0 {
+            // A paused diagram takes its clicks itself (src/diagram.rs).
             if self.paused_diagram() {
-                // A double click on the diagram fits it to its panel again.
-                let now = Instant::now();
-                if self.last_click.is_some_and(|t| now.duration_since(t).as_secs_f32() < 0.4) {
-                    self.diagram = DiagramView::default();
-                }
-                self.last_click = Some(now);
                 return;
             }
             self.click(at);
@@ -1034,20 +1011,8 @@ impl App {
     }
 
     pub fn wheel(&mut self, steps: f32) {
-        if self.paused_diagram() && !self.ui_has_pointer {
-            // Zoom about the point under the pointer, which stays where it is.
-            if let Some(fit) = self.diagram_fit {
-                let p = self.points(self.cursor);
-                let offset = egui::pos2(p.x, p.y) - fit.center();
-                let before = fit.size() * self.diagram.zoom;
-                let under = self.diagram.center + egui::vec2(offset.x / before.x, offset.y / before.y);
-                self.diagram.zoom = (self.diagram.zoom * 1.15f32.powf(steps)).clamp(1.0, DiagramView::MAX_ZOOM);
-                let after = fit.size() * self.diagram.zoom;
-                self.diagram.center = (under - egui::vec2(offset.x / after.x, offset.y / after.y)).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
-                if self.diagram.zoom <= 1.0 {
-                    self.diagram = DiagramView::default();
-                }
-            }
+        // A paused diagram zooms itself (src/diagram.rs).
+        if self.paused_diagram() {
             return;
         }
         if self.free_camera_on() && !self.ui_has_pointer {
@@ -1059,11 +1024,6 @@ impl App {
             self.end_intro();
             self.state.camera.zoom(steps);
         }
-    }
-
-    /// The insets of the last frame drawn, in canvas points (for a viewer test's clicks).
-    pub fn inset_areas(&self) -> &[crate::ui::InsetArea] {
-        &self.last_insets
     }
 
     fn click(&mut self, at: Vec2) {
@@ -1217,20 +1177,16 @@ impl App {
                 // Playing, a diagram moves from the beat before (or builds up); paused, it is settled.
                 let shown = if self.timeline_playing() { t.diagram_at(self.timeline_frame) } else { beat.beat_diagram() };
                 let diagram = shown.map(|d| (d.graph.clone(), d.focus.to_vec(), d.scene.cloned(), (d.transition.from.map(<[String]>::to_vec), d.transition.seconds, d.transition.built)));
-                if paused_diagram && self.diagram_beat != Some(beat.start_frame) {
-                    self.diagram = DiagramView::default();
-                    self.diagram_beat = Some(beat.start_frame);
-                }
                 let fade = if self.paused_page() { 0.0 } else { beat_fade(t, self.timeline_frame) };
                 (beat.kind, diagram, beat.sources.clone(), beat.chapter, fade, beat.notices)
             }
             _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false),
         };
         if paused_diagram {
-            chrome.diagram = Some(self.diagram);
-            self.diagram_fit = diagram.as_ref().map(|_| self.renderer().layout().content);
-        } else {
-            self.diagram_fit = None;
+            // The view is set up afresh for another beat, or another first view.
+            let beat = self.timeline.as_ref().map_or(0, |t| t.beat_at(self.timeline_frame).1.start_frame);
+            let preset = self.diagram_preset.map_or(0, |(z, c)| (z.to_bits() as u64) << 32 ^ (c.x.to_bits() as u64) << 16 ^ c.y.to_bits() as u64);
+            chrome.diagram = Some(crate::ui::DiagramPage { key: beat ^ preset.rotate_left(7), preset: self.diagram_preset });
         }
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
         let renderer = self.renderer.as_mut().expect("renderer");
@@ -1836,7 +1792,7 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
         app.playing = false;
         app.render(None)?;
         if page == PausedPage::Diagram {
-            app.diagram = DiagramView { zoom: 2.5, center: egui::vec2(0.35, 0.5) };
+            app.diagram_preset = Some((2.5, egui::vec2(0.35, 0.5)));
         }
     } else {
         app.state = app.default_state(app.state.demo);

@@ -1,9 +1,8 @@
 //! A layered (Sugiyama-style) layout of a directed acyclic graph, left to
 //! right: ranks (columns) by the longest path from the sources, dummy points
 //! on edges that skip ranks, a few barycentric sweeps to order each rank.
-//! The story's diagrams (src/diagram.rs) use it; the knowledge panel
-//! (src/knowledge.rs) uses `clustered`, which keeps groups of nodes in boxes
-//! of their own.
+//! The lab's graph view (src/graph_view.rs) lays every graph out with it:
+//! `layout`, or `clustered`, which keeps groups of nodes in boxes of their own.
 
 use std::collections::BTreeMap;
 

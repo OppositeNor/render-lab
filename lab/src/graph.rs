@@ -716,7 +716,7 @@ impl FrameGraph {
                     title.extend(s.note.iter().flat_map(|n| lines(n)));
                 }
                 let rows = s.passes.iter().map(|p| crate::graph_view::Row { id: p.clone(), label: label(p) }).chain(s.resources.iter().map(|r| crate::graph_view::Row { id: r.clone(), label: r.clone() })).collect();
-                crate::graph_view::Node { id: s.id.clone(), title, rows, dashed: s.outside, card: None }
+                crate::graph_view::Node { id: s.id.clone(), title, rows, dashed: s.outside, card: None, image: None }
             })
             .collect();
         let index = |id: &str| ids.iter().position(|i| *i == id).expect("a section");

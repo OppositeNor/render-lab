@@ -95,7 +95,7 @@ right in execution order.
   `{@ panel=graph highlight=<node>}` opens the panel and lights a node, for the narration to walk the frame.
 - Experiments may name an intermediate as a metric's input (`metric.of = "<node>.<resource>"`), so a sweep can measure
   a pass's output, not only the final frame.
-- `render-lab --investigation <id> graph` prints the compiled graph (`--mermaid`, `--dot`, `--state <demo>`), as
+- `render-lab --investigation <id> graph` prints the compiled graph (`--dot`, `--state <demo>`; a `--mermaid` export was built, then removed on 2026-11-02), as
   `knowledge` does.
 
 ## Phases
@@ -134,7 +134,7 @@ also differs between two runs of the baseline binary):
 
 1. **Declarations and the graph as data.** `lab/src/graph.rs`: `FrameGraph` (nodes, resources, edges, order,
    culling, lifetimes), `lint` (naga's per-entry-point global uses against `reads`/`writes`, run when a shading
-   loads; a mismatch refuses it), `render-lab graph` (`--json`, `--mermaid`, `--dot`). Declarations fixed:
+   loads; a mismatch refuses it), `render-lab graph` (`--json`, `--dot`). Declarations fixed:
    o3de_lighting's buffers listed as written by their readers, voxelgi's update buffer and the volume its GI pass
    samples. `UpdatePass` lists now take the update's buffers; a chain pass lists the volumes it samples.
 2. **The inspector.** `packages/rlstd/shaders/inspect.wgsl` (six entry points), `ImageSource::Graph`, story keys
@@ -161,7 +161,7 @@ Decisions made while building (open to change):
 - **The update passes run first, in their plan's dispatch order**, not reordered per node (they read nothing the
   frame writes).
 - **The panel is a pass-by-resource matrix**, not a layered DAG: it fits the tall side panel and shows lifetimes;
-  `--mermaid`/`--dot` give the DAG.
+  `--dot` gives the DAG as text; the viewer draws it (below).
 - **Story keys are `imageGraph`/`imageShow`**, following `imageFrom`, rather than the plan's `graph=`.
 - **No aliasing** of transients: it would make "right after node N" depend on the schedule and saves little here.
 - **The inspector captures the main view only** (panes, reference, free camera are not).
@@ -185,3 +185,16 @@ Not built, and why:
 - Whether `Investigation::frame_graph` replaces `scene_shading` once every public package has moved, or both stay.
 - How a raster node names what it draws without the lab knowing the investigation (a mesh filter by scene tag, or an
   instance buffer the node's resources provide).
+
+## Since (2026-11-02)
+
+- **The DAG**: each pass a card holding its result, boxed by the package's sections (`graphs/frame.toml`, the resource
+  `graph/frame`), in the panel or full screen; dragged, panned, called out by a story's `highlight` (`panel=dag`).
+  **Resources**: every resource's card as the frame leaves it (`panel=resources`). Both draw through the shared graph
+  view (`lab/src/graph_view.rs`); the longest-path layers of the first DAG (`FrameGraph::layers`) are gone.
+- **The Frame graph tab** in the dock: what the hovered or selected pass does (`Investigation::pass_about`, a
+  `pass.<entry>` key per pass), its GPU time, and its reads and writes; the Experiments tab's button opens it.
+- **`SceneShading::shows`**: how a resource is drawn unless told otherwise.
+- **The frame graph scene** in stories (`graph: frame`): the sections as boxes of passes, drawn from the live graph,
+  each lit box holding a picture of its result (the frame rendered unseen behind it); its beats move from one focus to
+  the next, and its first beat builds it up.

@@ -25,6 +25,8 @@ pub const PAD_Y: f32 = 0.8;
 pub const ROW: f32 = 1.12;
 pub const RULE: f32 = 0.4;
 pub const PICTURE: f32 = 4.2;
+/// An image node's least width and greatest height (font units).
+pub const IMAGE: f32 = 14.0;
 
 /// A texture shown in a node, and its size in texels.
 pub type Picture = (egui::TextureId, [u32; 2]);
@@ -47,6 +49,18 @@ pub struct Node {
     pub dashed: bool,
     /// A card of this size (font units): its title on one line over its picture.
     pub card: Option<(f32, f32)>,
+    /// An image under its title: a PNG resource's key and its shape (height over width).
+    pub image: Option<(String, f32)>,
+}
+
+/// The shape (height over width) of the PNG resource `key`, from its header.
+pub fn png_aspect(key: &str) -> Result<f32, String> {
+    let bytes = crate::resources::find(key).ok_or_else(|| format!("no resource `{key}`"))?.bytes();
+    if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" {
+        return Err(format!("`{key}` is not a PNG"));
+    }
+    let word = |at: usize| u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) as f32;
+    Ok(word(20) / word(16).max(1.0))
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -88,6 +102,9 @@ pub struct SpecNode {
     pub rows: Vec<SpecRow>,
     #[serde(default)]
     pub dashed: bool,
+    /// An image under its title: a PNG resource's key (`<package>.<id>`).
+    #[serde(default)]
+    pub image: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -123,8 +140,11 @@ impl Spec {
         let nodes = self
             .nodes
             .iter()
-            .map(|n| Node { id: n.id.clone(), title: n.title.clone(), rows: n.rows.iter().map(|r| Row { id: r.id.clone(), label: r.label.clone() }).collect(), dashed: n.dashed, card: None })
-            .collect();
+            .map(|n| {
+                let image = n.image.as_ref().map(|key| png_aspect(key).map(|a| (key.clone(), a))).transpose().map_err(|e| format!("{}: {e}", n.id))?;
+                Ok(Node { id: n.id.clone(), title: n.title.clone(), rows: n.rows.iter().map(|r| Row { id: r.id.clone(), label: r.label.clone() }).collect(), dashed: n.dashed, card: None, image })
+            })
+            .collect::<Result<_, String>>()?;
         Ok(Graph { nodes, edges, clusters: Vec::new() })
     }
 }
@@ -262,11 +282,18 @@ fn size(node: &Node, width: &dyn Fn(&str) -> f32, pictured: bool, aspect: f32) -
     if let Some(card) = node.card {
         return (card, 0.0);
     }
+    // An image: at least `IMAGE` wide, its own shape, at most `IMAGE` high.
+    let (pictured, aspect) = match &node.image {
+        Some((_, a)) => (true, *a),
+        None => (pictured, aspect),
+    };
     let grouped = !node.rows.is_empty() || pictured;
     let bold = if grouped { 1.08 } else { 1.0 };
     let w = node.title.iter().map(|l| width(l) * bold).chain(node.rows.iter().map(|r| width(&r.label))).fold(0.0, f32::max);
     let rule = if node.rows.is_empty() { 0.0 } else { RULE };
-    let picture = if pictured { (w * aspect).min(PICTURE) } else { 0.0 };
+    let w = if node.image.is_some() { w.max(IMAGE) } else { w };
+    let most = if node.image.is_some() { IMAGE } else { PICTURE };
+    let picture = if pictured { (w * aspect).min(most) } else { 0.0 };
     let extra = if pictured { picture + RULE } else { 0.0 };
     ((w + PAD_X, node.title.len() as f32 * LINE + node.rows.len() as f32 * ROW + rule + extra + PAD_Y), picture)
 }
@@ -442,8 +469,9 @@ pub struct EdgeLook {
     pub drawn: f32,
 }
 
-/// `a` to `b` by `t`, in each channel.
+/// `a` to `b` by `t` (0..1), in each channel.
 pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
     let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round().clamp(0.0, 255.0) as u8;
     Color32::from_rgba_premultiplied(m(a.r(), b.r()), m(a.g(), b.g()), m(a.b(), b.b()), m(a.a(), b.a()))
 }
@@ -616,7 +644,14 @@ pub fn draw(ink: &Ink, clip: Rect, t: &Transform, graph: &Graph, laid: &Laid, lo
             let label = scale * 1.33;
             let inner = r.shrink2(vec2(scale * 0.33, 0.0));
             text(pos2(inner.min.x, r.min.y + label / 2.0), Align2::LEFT_CENTER, &draw_ink.fit_right(&node.title.join(" "), inner.width(), scale, FontFamily::Proportional), scale, FontFamily::Proportional, l.text);
-            let room = Rect::from_min_max(pos2(r.min.x + scale * 0.17, r.min.y + label), r.max - vec2(scale * 0.17, scale * 0.17));
+            // Its rows under the picture, a line each.
+            let rows = node.rows.len() as f32 * ROW * scale;
+            let room = Rect::from_min_max(pos2(r.min.x + scale * 0.17, r.min.y + label), pos2(r.max.x - scale * 0.17, r.max.y - scale * 0.17 - rows));
+            for (k, row) in node.rows.iter().enumerate() {
+                let (color, _) = l.rows.get(k).copied().unwrap_or((palette::text_dim(), false));
+                let at = pos2(inner.min.x, r.max.y - rows + (k as f32 + 0.5) * ROW * scale - scale * 0.08);
+                text(at, Align2::LEFT_CENTER, &draw_ink.fit_right(&row.label, inner.width(), scale, FontFamily::Proportional), scale, FontFamily::Proportional, color);
+            }
             match l.picture {
                 Some(p) => picture(&painter, room, p, l.tint, false),
                 None => text(room.center(), Align2::CENTER_CENTER, l.note.as_deref().unwrap_or("–"), scale, FontFamily::Proportional, palette::text_faint()),
@@ -691,19 +726,71 @@ pub struct ViewState {
     pub centre: Vec2,
     pub moved: Vec<(usize, Vec2)>,
     drag: Option<Option<usize>>,
-    /// A key the adopter compares to set the view up again (a graph, a focus).
-    pub key: Option<u64>,
+    /// What the view was set up for (`view`'s key), and the layout it was of.
+    key: Option<u64>,
+    laid: usize,
 }
 
 impl ViewState {
     pub fn transform(&self, area: Rect) -> Transform {
         Transform::centred(area, self.centre.to_pos2(), self.scale)
     }
+}
 
-    /// The node a drag holds.
-    pub fn dragging(&self) -> Option<usize> {
-        self.drag.flatten()
+/// A view of `laid` in `area` for this frame: in the viewer (`interactive`)
+/// kept in egui's memory under `id`, else made afresh. When `key` changes (a
+/// new graph, new call-outs) `setup` sets it up again (told whether it is
+/// still the same layout: the nodes moved by hand stay then); then the
+/// pointer is read (`interact`), and a double click on the background sets
+/// it up afresh, its nodes back in place.
+pub fn view(ctx: &egui::Context, id: egui::Id, area: Rect, laid: &Laid, interactive: bool, key: u64, controls: &Controls, setup: &dyn Fn(&mut ViewState, bool)) -> (ViewState, Picks) {
+    let mut state: ViewState = if interactive { ctx.data(|d| d.get_temp(id)).unwrap_or_default() } else { ViewState::default() };
+    let this = laid as *const Laid as usize;
+    if state.key != Some(key) || state.scale <= 0.0 {
+        let same = state.scale > 0.0 && state.laid == this;
+        if !same {
+            state.moved.clear();
+        }
+        setup(&mut state, same);
+        state.key = Some(key);
+        state.laid = this;
     }
+    let picks = if interactive { interact(ctx, area, laid, &mut state, controls, &|_| true) } else { Picks::default() };
+    if picks.reset {
+        state.moved.clear();
+        setup(&mut state, false);
+    }
+    if interactive {
+        ctx.data_mut(|d| d.insert_temp(id, state.clone()));
+    }
+    (state, picks)
+}
+
+/// The centre that shows `laid` from its start (its top-left) at `scale` in `area`, centred where it fits.
+pub fn start(laid: &Laid, area: Rect, scale: f32) -> Vec2 {
+    let half = area.size() / scale / 2.0;
+    let b = laid.bounds;
+    vec2(keep_in(b.min.x, b.min.x, b.max.x, half.x), keep_in(b.min.y, b.min.y, b.max.y, half.y))
+}
+
+/// The centre that shows `nodes` at `scale` in `area`, as near the middle as the graph's edges allow (none: no nodes).
+pub fn centre_on(laid: &Laid, area: Rect, scale: f32, nodes: &[usize]) -> Option<Vec2> {
+    let half = area.size() / scale / 2.0;
+    let b = laid.bounds;
+    let r = nodes.iter().map(|&i| laid.rects[i]).reduce(|a, r| a.union(r))?;
+    Some(vec2(keep_in(r.center().x, b.min.x, b.max.x, half.x), keep_in(r.center().y, b.min.y, b.max.y, half.y)))
+}
+
+/// Keeps a view on its graph: its centre no further out than half the view past the graph's edges.
+pub fn keep(state: &mut ViewState, laid: &Laid, area: Rect) {
+    let half = area.size() / state.scale.max(1e-3) / 2.0;
+    let b = laid.bounds;
+    state.centre = vec2(keep_in(state.centre.x, b.min.x - half.x, b.max.x + half.x, half.x), keep_in(state.centre.y, b.min.y - half.y, b.max.y + half.y, half.y));
+}
+
+/// `c` between `a + h` and `z - h`; the middle where those cross.
+fn keep_in(c: f32, a: f32, z: f32, h: f32) -> f32 {
+    if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) }
 }
 
 /// What a view lets the pointer do: zoom with the wheel between two scales
@@ -791,7 +878,7 @@ mod tests {
 
     fn spec(nodes: &[(&str, &[&str])], edges: &[(&str, &str)]) -> Spec {
         Spec {
-            nodes: nodes.iter().map(|(id, rows)| SpecNode { id: id.to_string(), title: vec![id.to_string()], rows: rows.iter().map(|r| SpecRow { id: r.to_string(), label: r.to_string() }).collect(), dashed: false }).collect(),
+            nodes: nodes.iter().map(|(id, rows)| SpecNode { id: id.to_string(), title: vec![id.to_string()], rows: rows.iter().map(|r| SpecRow { id: r.to_string(), label: r.to_string() }).collect(), dashed: false, image: None }).collect(),
             edges: edges.iter().map(|(a, b)| SpecEdge { from: a.to_string(), to: b.to_string(), ..Default::default() }).collect(),
         }
     }
@@ -823,6 +910,16 @@ mod tests {
         let down = lay_out(&g, &width, &[], 0.5625, &Options { flow: Flow::Down, ..Default::default() });
         assert!(down.rects[0].center().y < down.rects[1].center().y && down.rects[1].center().y < down.rects[2].center().y);
         assert!(down.bounds.contains_rect(down.rects[1]));
+    }
+
+    #[test]
+    fn an_image_node_takes_its_pictures_shape() {
+        let mut g = spec(&[("A", &[]), ("I", &[])], &[("A", "I")]).graph().unwrap();
+        g.nodes[1].image = Some(("p.image".into(), 0.5));
+        let laid = lay_out(&g, &|s| s.len() as f32 * 0.6, &[], 0.5625, &Options::default());
+        // At least `IMAGE` wide (with its padding), its picture as high as half its width, at most `IMAGE`.
+        assert!(laid.rects[1].width() >= IMAGE);
+        assert!(laid.pictures[1] > 0.0 && laid.pictures[1] <= IMAGE && laid.pictures[0] == 0.0);
     }
 
     #[test]

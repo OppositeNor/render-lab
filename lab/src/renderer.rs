@@ -2465,29 +2465,6 @@ impl Renderer {
         self.gpu.queue.submit([encoder.finish()]);
     }
 
-    /// Run a verification kernel with `count` workgroups and read `words` back.
-    pub fn run_verify(&self, entry: &str, count: u32, tests: &[[f32; 4]], words: usize) -> Vec<u32> {
-        let device = &self.gpu.device;
-        let out = device.create_buffer(&wgpu::BufferDescriptor { label: Some("verify out"), size: (words.max(1) * 4) as u64, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
-        let test_data: Vec<[f32; 4]> = if tests.is_empty() { vec![[0.0; 4]] } else { tests.to_vec() };
-        let input = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("verify tests"), contents: bytemuck::cast_slice(&test_data), usage: wgpu::BufferUsages::STORAGE });
-        let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("verify"),
-            layout: &self.pipelines.verify_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: out.as_entire_binding() }, wgpu::BindGroupEntry { binding: 1, resource: input.as_entire_binding() }],
-        });
-        let mut encoder = device.create_command_encoder(&Default::default());
-        {
-            let mut pass = encoder.begin_compute_pass(&Default::default());
-            pass.set_pipeline(&self.pipelines.verify[entry]);
-            pass.set_bind_group(0, &self.frame_bind_group, &[]);
-            pass.set_bind_group(1, &bind, &[]);
-            pass.dispatch_workgroups(count, 1, 1);
-        }
-        self.gpu.queue.submit([encoder.finish()]);
-        read_buffer(device, &self.gpu.queue, &out, 0, (words * 4) as u64).chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
-    }
-
     /// Run a verification kernel of the current investigation's scene shading
     /// (`SceneShading::verify`) with `count` workgroups and read `words` back;
     /// the shading's uniforms are those of the last uploaded frame.
@@ -2545,19 +2522,6 @@ impl Renderer {
         unpad_rows(&data, self.width, self.height)
     }
 
-    /// Read back a byte range of one of the record buffers.
-    pub fn read_record_bytes(&self, buffer: &str, offset: u64, size: u64) -> Vec<u8> {
-        let b = match buffer {
-            "objects" => &self.records.objects.buffer,
-            _ => return Vec::new(),
-        };
-        let device = &self.gpu.device;
-        let staging = device.create_buffer(&wgpu::BufferDescriptor { label: Some("record readback"), size, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
-        let mut encoder = device.create_command_encoder(&Default::default());
-        encoder.copy_buffer_to_buffer(b, offset, &staging, 0, size);
-        self.gpu.queue.submit([encoder.finish()]);
-        read_buffer(device, &self.gpu.queue, &staging, 0, size)
-    }
 }
 
 pub fn gpu_summary(gpu: &gpu::Gpu) -> serde_json::Value {

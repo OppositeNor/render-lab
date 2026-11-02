@@ -135,9 +135,6 @@ pub struct SceneObject {
 }
 
 impl SceneObject {
-    pub fn has_tag(&self, tag: &str) -> bool {
-        self.tags.contains(&tag)
-    }
 
     pub fn local_to_world(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
@@ -390,23 +387,6 @@ pub fn transform_box(m: Mat4, center: Vec3, extent: Vec3) -> (Vec3, Vec3) {
     (world_center, abs * extent)
 }
 
-/// Brute-force reference: transform the eight corners and take min/max.
-pub fn transform_box_corners(m: Mat4, center: Vec3, extent: Vec3) -> (Vec3, Vec3) {
-    let mut lo = Vec3::splat(f32::INFINITY);
-    let mut hi = Vec3::splat(f32::NEG_INFINITY);
-    for i in 0..8 {
-        let s = Vec3::new(
-            if i & 1 != 0 { 1.0 } else { -1.0 },
-            if i & 2 != 0 { 1.0 } else { -1.0 },
-            if i & 4 != 0 { 1.0 } else { -1.0 },
-        );
-        let p = m.transform_point3(center + s * extent);
-        lo = lo.min(p);
-        hi = hi.max(p);
-    }
-    ((lo + hi) * 0.5, (hi - lo) * 0.5)
-}
-
 pub fn object_record(o: &SceneObject, index: u32) -> ObjectData {
     let m = o.local_to_world();
     let inv = m.inverse();
@@ -446,49 +426,6 @@ pub fn normal_to_world(o: &ObjectData, n_local: Vec3) -> Vec3 {
 
 pub fn occludes_light(o: &ObjectData) -> bool {
     o.shape_kind == SHAPE_BOX || o.shape_kind == SHAPE_SPHERE || o.shape_kind == SHAPE_MESH || o.shape_kind == SHAPE_TERRAIN
-}
-
-/// Distance from `p` to an object's surface, and the closest surface point,
-/// in world space. Closed shapes (sphere, boxes) are signed, negative
-/// inside; planes, the panel, and the open teapot mesh are unsigned. The
-/// terrain's is the vertical distance to its surface, negative below it.
-pub fn object_distance(o: &ObjectData, p: Vec3) -> (f32, Vec3) {
-    let l2w = m4(&o.local_to_world);
-    let lp = m4(&o.world_to_local).transform_point3(p);
-    let c = Vec3::from(o.local_center);
-    let e = Vec3::from(o.local_extent);
-    let (q, inside) = match o.shape_kind {
-        SHAPE_SPHERE => {
-            let r = lp - c;
-            (c + r.normalize_or(Vec3::X) * e.x, r.length() < e.x)
-        }
-        SHAPE_BOX => {
-            let r = lp - c;
-            let inside = r.abs().cmple(e).all();
-            let q = if inside {
-                // Push out through the nearest face.
-                let gap = e - r.abs();
-                let mut q = r;
-                let axis = if gap.x <= gap.y && gap.x <= gap.z { 0 } else if gap.y <= gap.z { 1 } else { 2 };
-                q[axis] = e[axis] * r[axis].signum();
-                q
-            } else {
-                r.clamp(-e, e)
-            };
-            (c + q, inside)
-        }
-        SHAPE_MESH => (crate::mesh::teapot().closest_point(lp).1, false),
-        SHAPE_TERRAIN => {
-            let t = crate::terrain::terrain();
-            let q = Vec3::new(lp.x.clamp(-t.half_size.x, t.half_size.x), 0.0, lp.z.clamp(-t.half_size.y, t.half_size.y));
-            let q = Vec3::new(q.x, t.height_at(q.x, q.z), q.z);
-            (q, lp.y < q.y)
-        }
-        _ => (Vec3::new(lp.x.clamp(c.x - e.x, c.x + e.x), c.y, lp.z.clamp(c.z - e.z, c.z + e.z)), false),
-    };
-    let world = l2w.transform_point3(q);
-    let d = (world - p).length();
-    (if inside { -d } else { d }, world)
 }
 
 pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Option<(f32, Vec3)> {
@@ -602,10 +539,6 @@ pub fn trace_scene(objects: &[ObjectData], ro: Vec3, rd: Vec3, t_max: f32, skip:
     hit
 }
 
-pub fn trace_one(objects: &[ObjectData], index: usize, ro: Vec3, rd: Vec3, t_max: f32) -> Option<(f32, Vec3)> {
-    intersect_object(&objects[index], ro, rd, t_max)
-}
-
 fn shadowed(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, self_object: u32) -> bool {
     objects.iter().enumerate().any(|(i, o)| {
         // A surface does not shadow itself, except the terrain, whose hills do.
@@ -622,25 +555,6 @@ fn shadowed(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, self_object: 
         }
         intersect_object(o, p, dir, dist).is_some()
     })
-}
-
-/// The 16 points of the ceiling panel that direct_irradiance samples (a 4×4 grid).
-pub fn light_samples(lighting: &Lighting) -> Vec<Vec3> {
-    let l = &lighting.light;
-    (0..16).map(|k| l.center + l.axis_u * (((k % 4) as f32 + 0.5) / 2.0 - 1.0) + l.axis_v * (((k / 4) as f32 + 0.5) / 2.0 - 1.0)).collect()
-}
-
-/// The nearest light blocker along a shadow ray, where `shadowed` only asks whether there is one.
-pub fn shadow_blocker(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, self_object: u32) -> Option<f32> {
-    objects
-        .iter()
-        .enumerate()
-        .filter(|(i, o)| (*i as u32 != self_object || o.shape_kind == SHAPE_TERRAIN) && occludes_light(o))
-        .filter_map(|(i, o)| {
-            let start = if i as u32 == self_object { TERRAIN_SELF_SHADOW_BIAS } else { 0.0 };
-            intersect_object(o, p + dir * start, dir, dist - start).map(|h| h.0 + start)
-        })
-        .min_by(f32::total_cmp)
 }
 
 pub fn direct_irradiance(objects: &[ObjectData], lighting: &Lighting, p: Vec3, n: Vec3, self_object: u32) -> Vec3 {

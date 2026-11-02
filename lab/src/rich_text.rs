@@ -214,7 +214,7 @@ pub fn draw_formula(ink: &Ink, at: Pos2, latex: &str, size: f32, display: bool, 
     let base = texture(ctx, latex, size, display, f, 0);
     match lit.filter(|(l, _)| l.term >= 1 && l.term <= f.terms.len() && l.weight > 0.0) {
         Some((l, dim)) => {
-            ink.painter.image(base.id(), rect, uv, lerp_color(color, dim, l.weight));
+            ink.painter.image(base.id(), rect, uv, crate::graph_view::lerp_color(color, dim, l.weight));
             let term = texture(ctx, latex, size, display, f, l.term);
             ink.painter.image(term.id(), rect, uv, l.color.gamma_multiply(l.weight));
         }
@@ -224,12 +224,6 @@ pub fn draw_formula(ink: &Ink, at: Pos2, latex: &str, size: f32, display: bool, 
     }
     ink.min_size.set(ink.min_size.get().min(f.min_glyph_px * scale));
     rect
-}
-
-fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
-    let t = t.clamp(0.0, 1.0);
-    let mix = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-    Color32::from_rgba_unmultiplied(mix(a.r(), b.r()), mix(a.g(), b.g()), mix(a.b(), b.b()), mix(a.a(), b.a()))
 }
 
 /// One laid-out run: its width, its ascent and descent about the line's

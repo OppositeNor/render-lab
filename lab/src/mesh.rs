@@ -106,58 +106,6 @@ impl TriangleMesh {
         Some((t, self.triangle_normal(i as usize, u, v)))
     }
 
-    /// Reference for the selftest: every triangle, no hierarchy.
-    pub fn intersect_brute(&self, ro: Vec3, rd: Vec3, t_max: f32) -> Option<(f32, Vec3)> {
-        let mut best: Option<(f32, usize, f32, f32)> = None;
-        let mut t_best = t_max;
-        for (i, tri) in self.triangles.iter().enumerate() {
-            if let Some((t, u, v)) = intersect_triangle(tri, ro, rd, t_best) {
-                t_best = t;
-                best = Some((t, i, u, v));
-            }
-        }
-        let (t, i, u, v) = best?;
-        Some((t, self.triangle_normal(i, u, v)))
-    }
-
-    /// The nearest hit with `t_min < t < t_max`, skipping triangle `skip`:
-    /// `(t, interpolated normal, triangle)`. Rays that continue through the
-    /// mesh (card generation's surfel rays) step past each hit this way.
-    pub fn intersect_after(&self, ro: Vec3, rd: Vec3, t_min: f32, t_max: f32, skip: Option<u32>) -> Option<(f32, Vec3, u32)> {
-        let inv = safe_inverse(rd);
-        let mut best: Option<(f32, u32, f32, f32)> = None;
-        let mut t_best = t_max;
-        let mut stack = [0u32; MAX_DEPTH + 2];
-        let mut sp = 1;
-        while sp > 0 {
-            sp -= 1;
-            let node = &self.nodes[stack[sp] as usize];
-            if box_entry(node, ro, inv, t_best).is_none() {
-                continue;
-            }
-            if node.triangle_count > 0 {
-                for i in node.first_or_left..node.first_or_left + node.triangle_count {
-                    if Some(i) == skip {
-                        continue;
-                    }
-                    if let Some((t, u, v)) = intersect_triangle(&self.triangles[i as usize], ro, rd, t_best) {
-                        if t > t_min {
-                            t_best = t;
-                            best = Some((t, i, u, v));
-                        }
-                    }
-                }
-                continue;
-            }
-            for child in [node.first_or_left, node.first_or_left + 1] {
-                stack[sp] = child;
-                sp += 1;
-            }
-        }
-        let (t, i, u, v) = best?;
-        Some((t, self.triangle_normal(i as usize, u, v), i))
-    }
-
     /// The unsigned distance from `p` to the mesh and the closest point
     /// (branch and bound over the BVH; the mesh is open, so it has no inside).
     pub fn closest_point(&self, p: Vec3) -> (f32, Vec3) {

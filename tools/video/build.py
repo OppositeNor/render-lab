@@ -55,9 +55,9 @@ def reexec_in_environment(env: Environment) -> None:
 def load_board(cfg: Config) -> Json:
     import zh
     import story
-    board = story.load_any(cfg.storyboard)
+    board = story.load_story(cfg.storyboard)
     if cfg.zh():
-        board = zh.localize(board, story.load_any(cfg.translation, translation=True))
+        board = zh.localize(board, story.load_story(cfg.translation, translation=True))
     return board
 
 

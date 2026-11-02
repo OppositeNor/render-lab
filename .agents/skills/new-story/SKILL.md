@@ -442,7 +442,8 @@ Send one more agent, not anchored on the drafts, to check the facts (`new-invest
 factual sentence and every `inspect`, against the checkout, in the classes of that step, with file:line
 evidence. Uncertain claims are never rewritten as facts: they are verified, narrated as uncertain, or cut.
 
-Save the reviews in `story/reviews/`. Then revise: more animation where the reviewers found a still idea, more
+Save the reviews in `story/reviews/` (working files, as `story/outline.md` is: delete both once the story is
+finished; the research and demonstration notes stay). Then revise: more animation where the reviewers found a still idea, more
 explanation where they found a gap, and every fact that is not verified (or a stated simplification) fixed in
 the narration, the index, the README, and the translation. Report the corrections to the user with their
 evidence.

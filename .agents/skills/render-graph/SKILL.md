@@ -124,8 +124,9 @@ cargo run --release -- home --snapshot graph.png --page viewer-graph        # th
 ```
 
 **The DAG** (`PanelMode::Dag`: the panel's **DAG** button; a story's `panel=dag`) draws the same graph as cards in
-the wider panel, a layer per step of the longest path to a node (`FrameGraph::layers`, ordered to keep arrows from
-crossing), top to bottom; **Full screen** shows it over the viewer, left to right (Esc closes it). Each card is a
+the wider panel, laid out by the lab's graph view (`lab/src/graph_view.rs`: layers by the longest path to a node,
+ordered to keep arrows from crossing, each section of `graphs/frame.toml` a box around its passes), top to bottom;
+**Full screen** shows it over the viewer, left to right (Esc closes it). Each card is a
 node: its name, its GPU time, and its result as it stood right after it (`FrameGraph::result_of`: its first write,
 the one its dispatch covers; the composite's, the `hdr` it reads), drawn by the inspector at 256 texels. An arrow
 runs from a writer to each reader of what it wrote, coloured by the resource's lifetime; a faint one is an order

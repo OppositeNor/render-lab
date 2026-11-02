@@ -72,20 +72,6 @@ impl DrawLists {
         self.segments.push(SegmentInstance { p0: p0.to_array(), width, p1: p1.to_array(), flags, color: to_f32(color, alpha), rid: [SEG_EXPLICIT, 0, 0, 0] });
     }
 
-    pub fn record_segment(&mut self, kind: u32, index: u32, sub: u32, length: f32, color: [f32; 4], width: f32, flags: u32) {
-        if color[3] == 0.0 {
-            return;
-        }
-        self.segments.push(SegmentInstance { p0: [length, 0.0, 0.0], width, p1: [0.0; 3], flags, color, rid: [kind, index, sub, 0] });
-    }
-
-    pub fn record_box(&mut self, kind: u32, index: u32, color: Color32, alpha: f32, width: f32, flags: u32) {
-        if alpha <= 0.0 {
-            return;
-        }
-        self.boxes.push(BoxInstance { rid: [kind, index, 0, flags], color: to_f32(color, alpha), params: [width, 0.0, 0.0, 0.0] });
-    }
-
     pub fn point(&mut self, p: Vec3, radius: f32, color: Color32, alpha: f32) {
         if alpha <= 0.0 {
             return;

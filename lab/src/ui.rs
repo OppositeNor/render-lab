@@ -335,28 +335,12 @@ pub struct BarSection {
     pub headline: String,
 }
 
-/// How a paused timeline's diagram is shown in its panel: the zoom (1 fits the
-/// panel), and the point of the picture (0..1 across, 0..1 down) at the panel's centre.
+/// A paused timeline's diagram page in the viewer: its beat (the view is
+/// set up afresh for another), and a first view (src/diagram.rs `Paused`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DiagramView {
-    pub zoom: f32,
-    pub center: Vec2,
-}
-
-impl Default for DiagramView {
-    fn default() -> DiagramView {
-        DiagramView { zoom: 1.0, center: vec2(0.5, 0.5) }
-    }
-}
-
-impl DiagramView {
-    pub const MAX_ZOOM: f32 = 8.0;
-
-    /// The picture's rectangle for a fitted rectangle `fit`.
-    pub fn rect(&self, fit: Rect) -> Rect {
-        let size = fit.size() * self.zoom;
-        Rect::from_min_size(fit.center() - vec2(self.center.x * size.x, self.center.y * size.y), size)
-    }
+pub struct DiagramPage {
+    pub key: u64,
+    pub preset: Option<(f32, Vec2)>,
 }
 
 pub struct ViewerChrome {
@@ -388,7 +372,7 @@ pub struct ViewerChrome {
     /// The narration's volume, which the dock and the timeline bar set.
     pub narration: crate::volume::Volume,
     /// Paused on a diagram beat: the diagram panel's zoom and pan.
-    pub diagram: Option<DiagramView>,
+    pub diagram: Option<DiagramPage>,
     /// The Experiments tab's view of the experiment.
     pub experiment: ExperimentView,
     /// The Prerequisites tab's and the knowledge panel's chapters.
@@ -696,16 +680,22 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
         SceneType::TwoD => {
             if let Some(diagram) = input.diagram {
                 let area = l.content;
-                let view = match &chrome {
+                let page = match &chrome {
                     Chrome::Viewer(v) => v.diagram,
                     Chrome::Recording { .. } => None,
                 };
-                match view {
-                    None => crate::diagram::draw(&ink, area, None, diagram, input.diagram_pictures),
-                    Some(v) => {
-                        // The diagram panel of a paused timeline: zoomed and panned, clipped to the panel.
-                        crate::diagram::draw(&ink, area, Some(v.rect(area)), diagram, input.diagram_pictures);
-                        let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{:.1}", v.zoom)));
+                match page {
+                    None => {
+                        crate::diagram::draw(&ink, area, None, diagram, input.diagram_pictures);
+                    }
+                    Some(page) => {
+                        // The diagram panel of a paused timeline: zoomed, panned, its boxes moved, clipped to the panel.
+                        let paused = crate::diagram::Paused { ctx, key: page.key, preset: page.preset };
+                        let zoom = crate::diagram::draw(&ink, area, Some(paused), diagram, input.diagram_pictures);
+                        if let Chrome::Viewer(v) = &mut chrome {
+                            v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
+                        }
+                        let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{zoom:.1}")));
                         let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
                         let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
                         painter.rect_filled(Rect::from_min_size(at - vec2(8.0, galley.size().y + 4.0), galley.size() + vec2(16.0, 8.0)), CornerRadius::same(6), Color32::from_rgba_unmultiplied(7, 18, 31, 220));
@@ -1392,94 +1382,6 @@ fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, pl
     (y + 36.0, pick)
 }
 
-/// A draggable view of cards (the DAG, the resources), kept in egui's
-/// memory between frames: its pan, each moved card's offset by name, the
-/// call-outs it last centred on, and what the pointer is dragging.
-#[derive(Clone, Debug, Default)]
-struct CardView {
-    pan: Vec2,
-    moved: Vec<(String, Vec2)>,
-    highlight: Option<Vec<String>>,
-    drag: Option<CardDrag>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum CardDrag {
-    Pan,
-    Card(String),
-}
-
-impl CardView {
-    fn offset(&self, name: &str) -> Vec2 {
-        self.moved.iter().find(|(n, _)| n == name).map_or(Vec2::ZERO, |(_, v)| *v)
-    }
-}
-
-/// This frame's `CardView` `id`: a story (not `interactive`) always shows
-/// its call-outs at `centre` (none: the start) and the cards where they lie;
-/// in the viewer, a change of call-outs moves the view to them, the wheel
-/// scrolls along `wheel` (a unit axis), a drag on the background pans, a drag
-/// on a card (`hit`: the card under a point, given the view) moves it, and a
-/// double-click on the background puts the view and its cards back.
-fn card_view(ctx: &egui::Context, id: egui::Id, area: Rect, interactive: bool, highlight: &[String], centre: Option<Vec2>, wheel: Vec2, hit: impl Fn(Pos2, &CardView) -> Option<String>) -> CardView {
-    if !interactive {
-        return CardView { pan: centre.unwrap_or(Vec2::ZERO), ..Default::default() };
-    }
-    let mut v: CardView = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
-    if v.highlight.as_deref() != Some(highlight) {
-        if let Some(c) = centre {
-            v.pan = c;
-        }
-        v.highlight = Some(highlight.to_vec());
-    }
-    let (pointer, pressed, down, delta, scroll, double) = ctx.input(|i| {
-        (i.pointer.hover_pos(), i.pointer.primary_pressed(), i.pointer.primary_down(), i.pointer.delta(), i.smooth_scroll_delta, i.pointer.button_double_clicked(egui::PointerButton::Primary))
-    });
-    let inside = pointer.filter(|p| area.contains(*p));
-    if let Some(p) = inside {
-        v.pan += vec2(wheel.x * (scroll.x + scroll.y), wheel.y * scroll.y);
-        if pressed {
-            v.drag = Some(hit(p, &v).map_or(CardDrag::Pan, CardDrag::Card));
-        }
-        if double && hit(p, &v).is_none() {
-            v.pan = Vec2::ZERO;
-            v.moved.clear();
-        }
-    }
-    if !down {
-        v.drag = None;
-    }
-    match v.drag.clone() {
-        Some(CardDrag::Pan) => v.pan += delta,
-        Some(CardDrag::Card(name)) => match v.moved.iter_mut().find(|(n, _)| *n == name) {
-            Some((_, at)) => *at += delta,
-            None => v.moved.push((name, delta)),
-        },
-        None => {}
-    }
-    ctx.data_mut(|d| d.insert_temp(id, v.clone()));
-    v
-}
-
-/// A card's picture: `texture` (of `size` texels) fitted inside `picture`,
-/// dimmed when `dim`; or `note` when there is none.
-fn card_picture(painter: &Painter, ink: &Ink, picture: Rect, texture: Option<(egui::TextureId, [u32; 2])>, dim: bool, note: &str) {
-    match texture {
-        Some((texture, size)) => {
-            let shape = size[1] as f32 / size[0].max(1) as f32;
-            let fitted = if shape > picture.height() / picture.width() {
-                Rect::from_center_size(picture.center(), vec2(picture.height() / shape, picture.height()))
-            } else {
-                Rect::from_center_size(picture.center(), vec2(picture.width(), picture.width() * shape))
-            };
-            painter.image(texture, fitted, Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), if dim { Color32::from_gray(140) } else { Color32::WHITE });
-        }
-        None => {
-            ink.text(picture.center(), Align2::CENTER_CENTER, note, 24.0, FontFamily::Proportional, palette::text_faint());
-        }
-    }
-}
-
 /// The frame's shape (the composite's `hdr`), which the cards' pictures take.
 fn frame_aspect(view: &GraphView) -> f32 {
     view.nodes.iter().filter(|n| n.result.as_deref() == Some("hdr")).find_map(|n| n.thumbnail).map_or(9.0 / 16.0, |(_, s)| s[1] as f32 / s[0].max(1) as f32).clamp(0.3, 1.5)
@@ -1563,11 +1465,6 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     };
     // The view: kept in the viewer; set up again for a new graph; a story's highlight centres its nodes.
     let lit: Vec<usize> = view.nodes.iter().enumerate().filter(|(_, n)| highlight.contains(&n.name)).map(|(i, _)| i).collect();
-    let half = area.size() / scale / 2.0;
-    let keep = |c: f32, a: f32, z: f32, h: f32| if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) };
-    let b = laid.bounds;
-    let start = vec2(keep(b.min.x, b.min.x, b.max.x, half.x), keep(b.min.y, b.min.y, b.max.y, half.y));
-    let on_lit = lit.iter().map(|&i| laid.rects[i]).reduce(|a, r| a.union(r)).map(|r| vec2(keep(r.center().x, b.min.x, b.max.x, half.x), keep(r.center().y, b.min.y, b.max.y, half.y)));
     let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
     let key = {
         use std::hash::{Hash, Hasher};
@@ -1575,30 +1472,14 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
         (laid as *const graph_view::Laid as usize, highlight).hash(&mut h);
         h.finish()
     };
-    let mut state: graph_view::ViewState = if interactive { ctx.data(|d| d.get_temp(id)).unwrap_or_default() } else { Default::default() };
-    if state.key != Some(key) {
-        // A new graph, or new call-outs: the view moves to them (or to the start).
-        let same_graph = state.scale > 0.0 && state.key.is_some() && ctx.data(|d| d.get_temp::<usize>(id.with("laid"))) == Some(laid as *const _ as usize);
-        if !same_graph {
-            state.moved.clear();
-        }
-        state.scale = scale;
-        state.centre = on_lit.unwrap_or(if same_graph { state.centre } else { start });
-        state.key = Some(key);
-    }
-    let shown = |_: usize| true;
-    let picks = if interactive { graph_view::interact(ctx, area, laid, &mut state, &graph_view::Controls { zoom: None, move_nodes: true }, &shown) } else { Default::default() };
-    if picks.reset {
-        state.moved.clear();
-        state.centre = start;
-    }
-    // Along the flow the view stays on the graph; across it, as dragged.
-    state.centre = vec2(keep(state.centre.x, b.min.x - half.x, b.max.x + half.x, half.x), keep(state.centre.y, b.min.y - half.y, b.max.y + half.y, half.y));
+    let setup = |v: &mut graph_view::ViewState, same: bool| {
+        v.scale = scale;
+        v.centre = graph_view::centre_on(laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(laid, area, scale) });
+    };
+    let (mut state, picks) = graph_view::view(ctx, id, area, laid, interactive, key, &graph_view::Controls { zoom: None, move_nodes: true }, &setup);
+    graph_view::keep(&mut state, laid, area);
     if interactive {
-        ctx.data_mut(|d| {
-            d.insert_temp(id, state.clone());
-            d.insert_temp(id.with("laid"), laid as *const _ as usize);
-        });
+        ctx.data_mut(|d| d.insert_temp(id, state.clone()));
     }
     let hovered = picks.hovered;
     let inspected = view.inspected.as_deref().and_then(|k| k.rsplit_once('.')).and_then(|(n, r)| view.nodes.iter().position(|x| x.name == n && x.result.as_deref() == Some(r)));
@@ -1734,57 +1615,76 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
     }
     let footer = 3.0 * 30.0 + 12.0;
     let area = Rect::from_min_max(pos2(x, y), pos2(right, rect.max.y - 16.0 - footer));
-    let gap = 16.0;
-    let columns = (((area.width() + gap) / (220.0 + gap)).floor() as usize).clamp(1, shown.len());
-    let card_w = ((area.width() - (columns - 1) as f32 * gap) / columns as f32).min(340.0);
-    let (label, info) = (32.0, 30.0);
-    let card = vec2(card_w, label + card_w * frame_aspect(view) + info);
-    let rows = shown.len().div_ceil(columns);
-    let length = rows as f32 * (card.y + gap) - gap;
-    let left = area.min.x + (area.width() - (columns as f32 * (card.x + gap) - gap)) / 2.0;
-    let base = |k: usize| Rect::from_min_size(pos2(left + (k % columns) as f32 * (card.x + gap), area.min.y + (k / columns) as f32 * (card.y + gap)), card);
+    // The cards in a grid (graph units: a label's font is 1 high), drawn and dragged as any graph's.
+    use crate::graph_view;
+    let scale = MIN_TEXT_PT;
+    let gap = 0.7;
+    let width = area.width() / scale;
+    let columns = (((width + gap) / (9.2 + gap)).floor() as usize).clamp(1, shown.len());
+    let card_w = ((width - (columns - 1) as f32 * gap) / columns as f32).min(14.0);
+    let card = vec2(card_w, 1.33 + card_w * frame_aspect(view) + graph_view::ROW + 0.34);
+    let left = (width - (columns as f32 * (card.x + gap) - gap)) / 2.0;
+    let rects: Vec<Rect> = (0..shown.len()).map(|k| Rect::from_min_size(pos2(left + (k % columns) as f32 * (card.x + gap), (k / columns) as f32 * (card.y + gap)), card)).collect();
+    let bounds = rects.iter().copied().reduce(|a, r| a.union(r)).expect("a card");
+    let laid = graph_view::Laid { pictures: vec![0.0; rects.len()], routes: Vec::new(), boxes: Vec::new(), flow: graph_view::Flow::Down, bounds, rects };
+    let nodes: Vec<graph_view::Node> = shown
+        .iter()
+        .map(|&r| {
+            let res = &view.resources[r];
+            let detail = format!("{} · {}", graph_lifetime_label(res.lifetime), res.shape);
+            graph_view::Node { id: res.name.clone(), title: vec![res.name.clone()], rows: vec![graph_view::Row { id: res.name.clone(), label: detail }], card: Some((card.x, card.y)), ..Default::default() }
+        })
+        .collect();
+    let graph = graph_view::Graph { nodes, edges: Vec::new(), clusters: Vec::new() };
     // Lit: what the called-out nodes read and write.
-    let lit: Vec<usize> = shown.iter().copied().filter(|&r| view.uses.iter().any(|u| u.1 == r && highlight.contains(&view.nodes[u.0].name))).collect();
-    let centre = lit.iter().filter_map(|r| shown.iter().position(|s| s == r)).map(|k| k / columns).min().filter(|_| length > area.height()).map(|row| {
-        let top = row as f32 * (card.y + gap);
-        vec2(0.0, -(top - (area.height() - card.y) / 2.0).clamp(0.0, length - area.height()))
-    });
+    let lit: Vec<usize> = (0..shown.len()).filter(|&k| view.uses.iter().any(|u| u.1 == shown[k] && highlight.contains(&view.nodes[u.0].name))).collect();
     let id = egui::Id::unique(if full { "frame-graph-resources-overlay" } else { "frame-graph-resources-panel" });
-    let at = |v: &CardView, k: usize| base(k).translate(v.pan + v.offset(&view.resources[shown[k]].name));
-    let cv = card_view(ctx, id, area, interactive, highlight, centre, vec2(0.0, 1.0), |p, v| (0..shown.len()).find(|&k| at(v, k).contains(p)).map(|k| view.resources[shown[k]].name.clone()));
-    let rects: Vec<Rect> = (0..shown.len()).map(|k| at(&cv, k)).collect();
-    let pointer = ctx.input(|i| i.pointer.hover_pos());
-    let hovered = pointer.filter(|p| area.contains(*p)).and_then(|p| rects.iter().rposition(|r| r.contains(p)));
-    let inspected = view.inspected.as_deref().and_then(|key| shown.iter().position(|&r| view.resources[r].key.as_deref() == Some(key)));
-    let clipped = painter.with_clip_rect(area.expand(4.0));
-    let cink = Ink::new(&clipped);
-    for (k, &r) in shown.iter().enumerate() {
-        let (resource, rect) = (&view.resources[r], rects[k]);
-        if !rect.intersects(area) {
-            continue;
-        }
-        let is_lit = lit.contains(&r);
-        clipped.rect_filled(rect, CornerRadius::same(8), palette::background());
-        let stroke = if is_lit {
-            Stroke::new(3.0, palette::accent())
-        } else if Some(k) == hovered || Some(k) == inspected {
-            Stroke::new(2.0, palette::text())
-        } else {
-            Stroke::new(1.0, palette::border())
-        };
-        let dim = !lit.is_empty() && !is_lit;
-        let inner = rect.shrink2(vec2(8.0, 0.0));
-        cink.text(pos2(inner.min.x, rect.min.y + label / 2.0), Align2::LEFT_CENTER, cink.fit_right(&resource.name, inner.width(), 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, if dim { palette::text_faint() } else { palette::text() });
-        let picture = Rect::from_min_max(pos2(rect.min.x + 4.0, rect.min.y + label), pos2(rect.max.x - 4.0, rect.max.y - info));
-        card_picture(&clipped, &cink, picture, resource.thumbnail, dim, "–");
-        // Its lifetime's colour, and its shape.
-        let line = rect.max.y - info / 2.0;
-        clipped.rect_filled(Rect::from_center_size(pos2(inner.min.x + 6.0, line), vec2(12.0, 12.0)), CornerRadius::same(2), graph_lifetime_color(resource.lifetime));
-        let detail = format!("{} · {}", graph_lifetime_label(resource.lifetime), resource.shape);
-        cink.text(pos2(inner.min.x + 20.0, line), Align2::LEFT_CENTER, cink.fit_right(&detail, inner.width() - 20.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
-        clipped.rect_stroke(rect, CornerRadius::same(8), stroke, StrokeKind::Outside);
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (columns, shown.len(), (card.x * 100.0) as i32, highlight).hash(&mut h);
+        h.finish()
+    };
+    let setup = |v: &mut graph_view::ViewState, same: bool| {
+        v.scale = scale;
+        v.centre = graph_view::centre_on(&laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(&laid, area, scale) });
+    };
+    let (mut state, picks) = graph_view::view(ctx, id, area, &laid, interactive, key, &graph_view::Controls { zoom: None, move_nodes: true }, &setup);
+    graph_view::keep(&mut state, &laid, area);
+    if interactive {
+        ctx.data_mut(|d| d.insert_temp(id, state.clone()));
     }
-    ink.min_size.set(ink.min_size.get().min(cink.min_size.get()));
+    let hovered = picks.hovered;
+    let inspected = view.inspected.as_deref().and_then(|key| shown.iter().position(|&r| view.resources[r].key.as_deref() == Some(key)));
+    let looks = shown
+        .iter()
+        .enumerate()
+        .map(|(k, &r)| {
+            let res = &view.resources[r];
+            let is_lit = lit.contains(&k);
+            let dim = !lit.is_empty() && !is_lit;
+            let outline = if is_lit {
+                Stroke::new(3.0, palette::accent())
+            } else if Some(k) == hovered || Some(k) == inspected {
+                Stroke::new(2.0, palette::text())
+            } else {
+                Stroke::new(1.0, palette::border())
+            };
+            graph_view::NodeLook {
+                fill: palette::background(),
+                outline,
+                text: if dim { palette::text_faint() } else { palette::text() },
+                rows: vec![(graph_lifetime_color(res.lifetime), false)],
+                picture: res.thumbnail,
+                tint: if dim { Color32::from_gray(140) } else { Color32::WHITE },
+                badge: None,
+                note: Some("–".to_string()),
+                hidden: false,
+                alpha: 1.0,
+            }
+        })
+        .collect();
+    graph_view::draw(ink, area.expand(4.0), &state.transform(area), &graph, &laid, &graph_view::Look { nodes: looks, edges: Vec::new(), clusters: Vec::new(), moved: &state.moved, edge_labels: false, tracked: true });
     // The footer: the hovered (or inspected) resource's writers and readers, or the hint.
     let mut fy = rect.max.y - 16.0 - footer + 8.0;
     let width = right - x;
@@ -1806,8 +1706,7 @@ fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphV
     } else {
         ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(tr("graph.resources_hint"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
     }
-    let clicked = interactive && ctx.input(|i| i.pointer.primary_clicked());
-    hovered.filter(|_| clicked).and_then(|k| view.resources[shown[k]].key.clone()).map(GraphPick::Inspect)
+    picks.clicked.and_then(|k| view.resources[shown[k]].key.clone()).map(GraphPick::Inspect)
 }
 
 fn graph_lifetime_color(lifetime: crate::graph::Lifetime) -> Color32 {

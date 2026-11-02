@@ -72,7 +72,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   cuts a running motion. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times
   the narration.
 - **`diagrams/*.toml`**: the diagrams (`tools/video/diagrams.py` has the format): boxes, with rows if any, dashed or
-  not, and edges, labelled or dotted; their text is keys of the package's text, so one file serves every edition. The
+  not, an image (`image = "<png key>"`: a beat that shows a picture is a diagram of one node), and edges, labelled or
+  dotted; their text is keys of the package's text, so one file serves every edition. The
   lab draws them with its shared graph view (`lab/src/graph_view.rs`); `focus` names the lit boxes or rows. Two beats
   in a row of one diagram (in a chapter) run on without a fade: the diagram moves from the first's focus to the
   second's, its boxes gliding and its new pictures growing in; a diagram's first beat builds it up, layer by layer,
@@ -87,7 +88,7 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   the timeline: every pass in a section, and the passes, resources, and pictures it names.
 - **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
   lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
-  cues. A storyboard or translation may also be JSON; `.story` is read by its suffix.
+  cues.
 - **Lamlet regions** (optional). A `.story` file or its translation may compute its text with Lamlet: `${…}` and
   `$[…]` regions (`$$` is a dollar), with `$[Import* std]` and `$[Import* rlstd]` before the first use. `lamlet.py`
   expands them before the file is read (the `lamlet` command, or `LAMLET`), so a region's value is ordinary story

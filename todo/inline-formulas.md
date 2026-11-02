@@ -1,7 +1,7 @@
 # Formulas in on-screen text (superseded)
 
 Done, with a different syntax: formulas are tags, `{@ formula="…"}`, typeset by Typst through MiTeX at run time
-(`src/lab/formula.rs`, `src/lab/rich_text.rs`), and storyboards use the same tags with word-timed shot cues
+(`lab/src/formula.rs`, `lab/src/rich_text.rs`; the paths below are as they are now), and storyboards use the same tags with word-timed shot cues
 (`tools/video/README.md`). What follows is the original plan, kept for its measurements.
 
 An investigation's readout formulas are LaTeX in `src/<engine>/<feature>/formulas/formulas.json`. `tools/video/formulas.py`
@@ -12,7 +12,7 @@ be written inside on-screen text as `$...$`, rendered at build time without Node
 ## Where it stands
 
 - **Colour baked in.** Every term a demonstration can light is its own RGBA image: 55 PNGs for O3DE's 13 formulas,
-  1.6 MB. `draw_readout` (`src/lab/ui.rs`) already draws them with a tint, which is white today.
+  1.6 MB. `draw_readout` (`lab/src/ui.rs`) already draws them with a tint, which is white today.
 - **Node after every edit.** Changing a formula means running `formulas.py` and committing the images; the lab builds
   offline only because the images are committed.
 - **Formulas live apart from the text.** The readout names a formula by key (`Readout::formula`); labels, notes, and
@@ -36,7 +36,7 @@ Measured on the 55 committed images (their alpha):
 - **Signed distance fields.** Not worth it: formulas are drawn at or near 1:1, and one channel rounds corners.
 - **Lit terms.** One mask of the whole formula plus one per term (at most four, so they pack into one RGBA image): draw
   the formula dim, then the lit term in its readout colour. The highlight can then fade with an eased tint alpha
-  (`src/lab/animation.rs`) instead of switching images.
+  (`lab/src/animation.rs`) instead of switching images.
 
 ## Rendering without Node: Typst and MiTeX
 
@@ -74,10 +74,10 @@ Rust options (from a survey; versions and maintenance not checked):
    translate, a glyph under 24 px or a display formula wider than 546 px, a formula that differs between `en` and
    `zh-CN` for the same key (formulas stay English), and a `{name}` value inside a formula (values cannot be
    pre-rendered; keep them outside the `$...$`).
-2. **Rich text in the lab.** A new `src/lab/rich_text.rs` splits a string into text and formula runs and lays them out
+2. **Rich text in the lab.** A new `lab/src/rich_text.rs` splits a string into text and formula runs and lays them out
    with egui's fonts (egui cannot put images inline): formulas on the baseline, lines wrapped between runs but never
    inside a formula, each formula tinted with its run's colour, `$$...$$` on its own line. Textures load at first use,
-   as `formula_texture` in `src/lab/renderer.rs` does now. `src/lab` reaches investigations' formulas only through the
+   as `formula_texture` in `lab/src/renderer.rs` does now. `lab/src` reaches investigations' formulas only through the
    generated table or the `Investigation` trait. Readout titles, rows and notes, labels, and dock text use it; strings
    without `$` keep today's path.
 3. **Readout formulas move into the text.** Each becomes a text key holding a `$$...$$` formula, which

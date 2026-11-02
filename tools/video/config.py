@@ -112,9 +112,8 @@ class Config:
 
     @property
     def diagrams(self) -> Path:
-        """The edition's diagram sources (one directory, or one per language)."""
-        value = self.spec['diagrams']
-        return self.path(value if isinstance(value, str) else value[self.lang])
+        """The package's diagram sources (one directory for every edition: their text is translated)."""
+        return self.path(self.spec['diagrams'])
 
     @property
     def source_index(self) -> Path:

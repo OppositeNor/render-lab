@@ -114,15 +114,6 @@ pub struct RecordSummary {
     pub output: Option<String>,
 }
 
-/// Read the 24-bit frame index that `--frame-stamp` draws in the top-left
-/// corner (one 8x8 block per bit: red = 1, green = 0).
-pub fn read_stamp(frame: &[u8], width: u32) -> u64 {
-    (0..24u32).fold(0u64, |acc, bit| {
-        let px = ((4 * width + bit * 8 + 4) * 4) as usize;
-        if frame[px] > 127 { acc | (1 << bit) } else { acc }
-    })
-}
-
 pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let started = std::time::Instant::now();
     let timeline = Timeline::load(&options.timeline)?;

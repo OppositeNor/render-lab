@@ -10,8 +10,7 @@ adds four things:
 3. **A Prerequisites tab** in the viewer's dock, listing the nodes before the separator.
 4. **A knowledge-graph panel** in the viewer that draws the graph.
 
-The draft graph (83 nodes, 138 edges) and each chapter's requirements are in [knowledge-graph-tree.md](knowledge-graph-tree.md),
-together with its Mermaid diagram.
+The draft graph (83 nodes, 138 edges) and each chapter's requirements are in [knowledge-graph-tree.md](knowledge-graph-tree.md).
 
 ## The three bases
 
@@ -162,7 +161,7 @@ None of this is investigation-specific. The lab reads the `knowledge` resource o
     a problem) and prints the split: the level, the carries, what to teach, and each chapter's line.
   - `--known a,b,…` tries another audience; `--levels` lists the neighbouring candidates (one level node added or
     one maximal known node removed), ranked by carries.
-  - `--mermaid <path>` writes the diagram, which regenerates the one in the tree file.
+  - (`--mermaid <path>` wrote the diagram; removed on 2026-11-02 with every Mermaid export.)
 - **Unit tests** in `cargo test --workspace`:
   - the reduction of a hand-made graph with a skip edge;
   - the antichain and separation properties checked on the subdivision for random downsets;
@@ -189,8 +188,9 @@ None of this is investigation-specific. The lab reads the `knowledge` resource o
 
 - Add `PanelMode::Knowledge` (the side panel, `draw_panel`, `lab/src/ui.rs:770`). Open it with `ViewerAction::SetPanel`
   from a button in the Prerequisites tab, or by clicking a node there.
-- **Pan and zoom.** Reuse `DiagramView` and `fit_rect`, the drag and wheel hooks (`viewer.rs:678`, `viewer.rs:770`),
-  and double-click to reset. Add a `knowledge_view()` guard next to `paused_diagram()` so the panel gets the pointer.
+- **Pan and zoom.** (As planned: reuse `DiagramView` and `fit_rect`; as built, a view of its own; since 2026-11-02
+  the lab's shared graph view, `lab/src/graph_view.rs`, which every graph's panning, zooming, and dragging go through.)
+  Double-click to reset. Add a `knowledge_view()` guard next to `paused_diagram()` so the panel gets the pointer.
 - **Drawing.**
   - Nodes are rounded boxes with their translated titles, and the three bases sit along the bottom.
   - Edges are polylines through the layout's dummy points, with arrowheads.
@@ -277,3 +277,6 @@ Validate each phase as AGENTS.md describes before starting the next. Run one bui
 - **2026-11-01: renamed** from the skill graph to the knowledge graph (a node is a topic), so it is not confused with
   agent skills.
 - **2026-11-01: engine-neutral topics of local packages go in the global graph**, named by technique, never by engine.
+- **2026-11-02:** the panel and its full screen draw through the shared graph view (`lab/src/graph_view.rs`, from
+  `knowledge::Graph::view`): the same layout, with its areas and groups as clusters; its topics can be dragged; the
+  `knowledge --mermaid` export is gone.

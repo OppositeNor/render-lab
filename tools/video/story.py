@@ -298,12 +298,8 @@ def load_translation(path: Path) -> Json:
     return translation
 
 
-def load_any(path: Path, translation: bool = False) -> Json:
-    """A storyboard or translation from `.story` or (older) `.json`."""
-    if path.suffix == '.story':
-        return load_translation(path) if translation else load(path)
-    board = json.loads(path.read_text())
-    for chapter in [] if translation else board.get('chapters', []):
-        for beat in chapter['beats']:
-            check_scene_type(beat['kind'], f'{path}: {beat["id"]}')
-    return board
+def load_story(path: Path, translation: bool = False) -> Json:
+    """A storyboard, or a translation, from its `.story` file."""
+    if path.suffix != '.story':
+        raise StoryError(f'{path}: a storyboard or translation is a .story file')
+    return load_translation(path) if translation else load(path)
