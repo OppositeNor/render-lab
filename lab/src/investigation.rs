@@ -642,6 +642,12 @@ pub trait Investigation: Sync {
     fn annotations(&self) -> &'static [crate::utility::annotations::AnnotationSpec] {
         &[]
     }
+    /// Functions of its code a storyboard may call, so its narration says the numbers the code computes
+    /// (`${spoken {leaves}}`): `Pure` natives registered with ids `<package>/<name>` (lab/src/script), which a
+    /// storyboard imports as the package `<package>_natives` (`render-lab --investigation <id> lamlet …`).
+    fn script_natives(&self, _natives: &mut crate::script::lamlet::embed::NativeRegistry) -> Result<(), crate::script::lamlet::embed::Error> {
+        Ok(())
+    }
     /// The images it publishes for a story to show (`{@ image=key}`,
     /// packages/render_lab/src/inset.rs), in `FrameContent::images` of the frames
     /// that show them.

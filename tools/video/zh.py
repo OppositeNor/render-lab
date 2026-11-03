@@ -13,7 +13,7 @@ from typing import Any
 
 import markup
 
-CAPTION_UNITS = 64          # display units per caption line: a Chinese character is 2, Latin 1
+CAPTION_UNITS = 64          # display units per caption line (a Chinese character is 2, Latin 1), unless the translation's heading gives `captionWidth`
 
 Board = dict[str, Any]
 
@@ -25,9 +25,18 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
     out = copy.deepcopy(board)
     out['title'], out['subtitle'] = translation['title'], translation['subtitle']
     out['locale'] = translation['locale']
-    chapters = {c['number']: c for c in translation['chapters']}
+    if 'captionWidth' in translation:
+        out['captionWidthZh'] = translation['captionWidth']
+    chapters = {c['id']: c for c in translation['chapters']}
+    unknown = set(chapters) - {c['id'] for c in out['chapters']}
+    if unknown:
+        raise RuntimeError(f'translation: unknown chapters {sorted(unknown)}')
     for chapter in out['chapters']:
-        zh = chapters[chapter['number']]
+        zh = chapters.get(chapter['id'])
+        if zh is None:
+            raise RuntimeError(f'translation: no entry for chapter {chapter["id"]}')
+        if zh.get('number', chapter['number']) != chapter['number']:
+            raise RuntimeError(f'translation: chapter {chapter["id"]} is number {chapter["number"]}, not {zh["number"]}')
         chapter['titleEn'], chapter['title'], chapter['summary'] = chapter['title'], zh['title'], zh['summary']
         for beat in chapter['beats']:
             t = translation['beats'].get(beat['id'])

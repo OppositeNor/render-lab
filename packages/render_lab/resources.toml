@@ -29,17 +29,18 @@ scale = 0.14
 leaf-triangles = 4
 max-depth = 30
 
-# The lab's scenes (lab/src/scene.rs), by key: `scene/<key>`.
+# The lab's scenes (lab/src/scene.rs), by key: `scene/<key>`. A `.lam` source is read as the TOML of its binding
+# named after the key (`studyRoom`; lab/src/script/data.rs).
 [[resource]]
 id = "scene/study-room"
 kind = "file"
-source = "scenes/study-room.toml"
+source = "scenes/study-room.lam"
 license = "MIT"
 
 [[resource]]
 id = "scene/study-room-grounds"
 kind = "file"
-source = "scenes/study-room-grounds.toml"
+source = "scenes/study-room.lam"
 license = "MIT"
 
 [[resource]]

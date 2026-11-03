@@ -3,7 +3,7 @@ as a document, with its shots as typed cues, and its translation in a parallel p
 (`storyboard.zh-CN.lam`). The lab reads it with the Lamlet it pins (`render-lab lamlet ir`, lamlet.py), and this
 loader turns the document into the storyboard the builder reads.
 
-    $[Import* std]$[Import* content]$[Import* present]$[Import* godot_voxelgi]
+    $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* godot_voxelgi]
     # How VoxelGI Lights a Room {#video subtitle="..." fps=30 width=1920 height=1080}
 
     ## Where it runs {#c1 number=1 target=185 summary="..." sources="frame-order, settings"}
@@ -13,7 +13,7 @@ loader turns the document into the storyboard the builder reads.
     ${cue "key" {' {demoRoom} {cameraYaw 24.0} {cameraDistance 6.2}}}
 
     The first sentence, ${cue "key" {' {callout "settings"}}}with a cue on a word, and
-    ${during "grow" {' {voxelgiMixRange 0.0 1.0} {blend 2.0}} {text "a range over words"}}.
+    ${over {' {voxelgiMixRange 0.0 1.0} {blend 2.0}} {text "a range over words"}}.
 
 - The level-1 heading is the video: its text is the title, its attributes the rest of the header (`subtitle`,
   `fps`, `width`, ...; a value that reads as JSON is that value). Level 2 is a chapter (`number`, `target` in
@@ -22,18 +22,21 @@ loader turns the document into the storyboard the builder reads.
 - Before a beat's first sentence, a paragraph of cues only sets the beat's keys, one key per cue.
 - Each other paragraph is one sentence. Its prose is CommonMark; `$` is written `$$`.
 - Cues are `present`'s: `${cue "key" ATTRS}` at a point (it fires on the next word), `${during NAME ATTRS
-  CONTENT}` (or `duringText`) over words, a range whose `xRange a b` values blend from `a` to `b`. Attributes are
-  the investigation's vocabulary (`render-lab story keys`; the builder writes it to the package's
-  `build/<package>.lam`): `{cameraYaw 24.0}`, `{panelCode}`, `{listing "voxelize"}` (`code=`), `{inset "t0"}`
-  (`image=`), `{motion "[...]"}` (`animate=`, JSON), `{easing "inOut"}` (`ease=`), and `{attr "key" "value"}`
-  for any other.
-- A formula is a cue and what is said for it: `${cue "formula" {' {formula "R + TT"}}}${say {math "R + TT"}
-  "R plus T T"}`; `${cue "formula" {' {formulaOff}}}` closes the card. A code name is `${code "Name"}` (said as
+  CONTENT}` (or `duringText`, or render_lab's `over` and `overText` without a name, which this loader gives one)
+  over words, a range whose `xRange a b` values blend from `a` to `b`. Attributes are the investigation's vocabulary
+  (`render-lab story keys`; the builder writes it to the package's `build/<package>.lam`): `{cameraYaw 24.0}`,
+  `{panelCode}`, `{listing "voxelize"}` (`code=`), `{inset "t0"}` (`image=`), `{easing "inOut"}` (`ease=`), and
+  `{attr "key" "value"}` for any other; and render_lab's typed ones: `{motion {' {cameraPath …}}}` (`animate=`),
+  `{mark …}`, `{at …}`, `{highlight {' …}}`, and the checked `callout`, `imageTitle`, `imageMarkText`, `labelText`.
+- A formula is a cue and what is said for it: `${formulaSaid "R + TT" "R plus T T" {'}}` (render_lab's, the cue
+  `${cue "formula" {' {formula "R + TT"}}}` and `${say {math "R + TT"} "R plus T T"}`); `${cue "formula" {'
+  {formulaOff}}}` closes the card. A code name is `${code "Name"}` (said as
   written) or `${say {code "Name"} "how it is said"}`.
 
-The translation has the same headings (its own title, chapter titles and summaries, and headlines; the video's
-`subtitle`, `locale`, and `glossary`, comma-separated) and one paragraph per English sentence, with no cues: its
-formulas are `${math "..."}`, its code names `${code "..."}`.
+The translation has the same headings, by id (its own title, chapter titles and summaries, and headlines; the
+video's `subtitle`, `locale`, `glossary`, comma-separated, and `captionWidth`; a chapter's number is the
+English's), and one paragraph per English sentence, with no cues: its formulas are `${math "..."}`, its code
+names `${code "..."}`.
 """
 from __future__ import annotations
 
@@ -46,7 +49,6 @@ import markup
 
 Json = dict[str, Any]
 
-CAMERA = ('target', 'yaw', 'pitch', 'distance', 'fov')
 # A point cue's name (the rest are named ranges), and the cue that carries a formula's attributes.
 KEY, FORMULA = 'key', 'formula'
 
@@ -71,43 +73,12 @@ def as_list(value: Any) -> list[str]:
     return value if isinstance(value, list) else [v.strip() for v in str(value).split(',') if v.strip()]
 
 
-def attrs_key(attrs: list[tuple[str, str]], where: str) -> Json:
-    """Cue attributes as a storyboard key, every value typed (a beat's keys)."""
-    key: Json = {}
-    params: Json = {}
-    for name, v in attrs:
-        if name.startswith('param.'):
-            params[name[6:]] = markup.param_value(v, where)
-        elif name == 'camera' and v == 'continuous':
-            key.setdefault('camera', {})
-        elif name.startswith('camera.'):
-            part = name.split('.', 1)[1]
-            if part not in CAMERA:
-                raise PresentationError(f'{where}: unknown camera field {part!r}')
-            key.setdefault('camera', {})[part] = [markup.number(x, where) for x in v.split(',')] if part == 'target' else markup.number(v, where)
-        elif name == 'record':
-            kind, _, index = v.partition(':')
-            key['record'] = {'type': kind} if not index else {'type': kind, 'index': int(markup.number(index, where))}
-        elif name == 'highlight':
-            key['highlight'] = [h for h in v.split(',') if h]
-        elif name == 'animate':
-            try:
-                key['animate'] = json.loads(v)
-            except ValueError as e:
-                raise PresentationError(f'{where}: animate is JSON: {e}') from None
-        elif name in ('blend', 'delay'):
-            key[name] = markup.number(v.removesuffix('s'), where)
-        elif name == 'term':
-            key['term'] = int(markup.number(v, where))
-        elif name in ('demo', 'panel', 'code', 'callout', 'ease', 'formula', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageClick', 'imageMarkText', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor'):
-            key[name] = v
-        elif markup.action_attr(key, name, v, where) or markup.image_attr(key, name, v, where):
-            continue
-        else:
-            params[name] = markup.param_value(v, where)
-    markup.check_action(key, where)
-    if params:
-        key['params'] = params
+def point_key(tag: markup.Tag, where: str, fields: markup.Fields) -> Json:
+    """The key a point cue (or one of a beat's keys) sets: its values set at once, none blended over a range."""
+    key = markup.cue_key(tag, where, fields)
+    for name, v in key.get('params', {}).items():
+        if isinstance(v, markup.Range):
+            raise PresentationError(f'{where}: {name}={v.start}..{v.end} blends over a range; write it in a range, ${{during "name" …}}')
     return key
 
 
@@ -173,9 +144,10 @@ class Reader:
     """A paragraph's inlines as a parsed sentence: its caption, its spoken pieces cut at each cue,
     its tags, and its formulas."""
 
-    def __init__(self, at: str, translation: bool):
+    def __init__(self, at: str, translation: bool, fields: markup.Fields | None):
         self.at = at
         self.translation = translation
+        self.fields = fields
         self.caption: list[str] = []
         self.pieces: list[str] = ['']
         self.tags: list[markup.Tag] = []
@@ -214,26 +186,36 @@ class Reader:
                 attrs = pairs(x['attrs'])
                 if x['name'] == FORMULA:
                     if dict(attrs).get('formula') == 'off':
-                        self.tags.append(markup.Tag('formula', None, attrs, len(self.pieces)))
+                        self.tag(markup.Tag('formula', None, attrs, len(self.pieces)))
                         self.pieces.append('')
                     else:
                         self.formula = attrs
                 elif x['name'] == KEY:
-                    self.tags.append(markup.Tag('cue', None, attrs, len(self.pieces)))
+                    self.tag(markup.Tag('cue', None, attrs, len(self.pieces)))
                     self.pieces.append('')
                 else:
                     raise PresentationError(f'{self.at}: a point cue is named "{KEY}" (or "{FORMULA}"), not {x["name"]!r}')
             elif kind == 'span':
                 self.no_cues(f'the range {x["name"]!r}')
-                self.tags.append(markup.Tag('open', x['name'], pairs(x['attrs']), len(self.pieces)))
+                # A range written without a name (render_lab's `over`) is named by its place.
+                name = x['name'] or f'range-{sum(t.kind == "open" for t in self.tags) + 1}'
+                if any(t.kind == 'open' and t.name == name for t in self.tags):
+                    raise PresentationError(f'{self.at}: two ranges named {name!r} in one sentence')
+                self.tag(markup.Tag('open', name, pairs(x['attrs']), len(self.pieces)))
                 self.pieces.append('')
                 self.inlines(x['inlines'])
-                self.tags.append(markup.Tag('close', x['name'], [], len(self.pieces)))
+                self.tags.append(markup.Tag('close', name, [], len(self.pieces)))
                 self.pieces.append('')
             else:
                 raise PresentationError(f'{self.at}: a sentence holds text, cues, ranges, formulas, and code names, not {kind}')
         if self.formula is not None:
             raise PresentationError(f'{self.at}: a formula cue stands right before its `say {{math ...}} "..."`')
+
+    def tag(self, tag: markup.Tag) -> None:
+        """A cue, a range's start, or a formula, with the key it sets."""
+        assert self.fields is not None
+        tag.key = markup.cue_key(tag, self.at, self.fields) if tag.kind == 'open' else point_key(tag, self.at, self.fields)
+        self.tags.append(tag)
 
     def say(self, x: Json) -> None:
         shown, spoken = x['shown'], x['spoken']
@@ -251,7 +233,7 @@ class Reader:
             tag = markup.Tag('formula', None, [*attrs, ('say', spoken)], len(self.pieces))
             self.formulas.append(tex)
             self.caption.append(markup.formula_tag(tag))
-            self.tags.append(tag)
+            self.tag(tag)
             # The tag stands before the first word of what is said for it.
             self.pieces.append(f' {spoken} ')
             self.pieces.append('')
@@ -263,8 +245,8 @@ class Reader:
                                [markup.tidy(p) for p in self.pieces], self.tags, self.formulas)
 
 
-def parsed(inlines: list[Json], at: str, translation: bool = False) -> markup.Sentence:
-    reader = Reader(at, translation)
+def parsed(inlines: list[Json], at: str, fields: markup.Fields | None, translation: bool = False) -> markup.Sentence:
+    reader = Reader(at, translation, fields)
     reader.inlines(inlines)
     return reader.sentence()
 
@@ -317,15 +299,20 @@ def number(value: str | None, what: str, at: str) -> float:
     return markup.number(value, at)
 
 
-def load(path: Path, packages: list[tuple[str, Path]]) -> Json:
-    """A presentation as the storyboard the builder reads, with these packages to import (its vocabulary)."""
-    video, chapters = sections(lamlet.ir(path, packages), path)
+def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, investigation: str | None = None) -> Json:
+    """A presentation as the storyboard the builder reads, with these packages to import (its vocabulary), the
+    fields the vocabulary's key list names (`markup.Fields`), and the investigation the lab checks its names
+    against (callouts, text keys, points, formulas)."""
+    video, chapters = sections(lamlet.ir(path, packages, investigation), path)
     board = header(video, path)
     board['chapters'] = []
     for chapter_heading, beats in chapters:
         at = where(chapter_heading, path)
         attrs = dict(pairs(chapter_heading['attrs']))
-        chapter: Json = {'number': int(number(attrs.get('number'), 'chapter `number`', at)), 'title': plain(chapter_heading['inlines'], at),
+        chapter_id = chapter_heading.get('id') or ''
+        if not chapter_id:
+            raise PresentationError(f'{at}: a chapter heading names its id, {{#c1 number=1 …}}')
+        chapter: Json = {'id': chapter_id, 'number': int(number(attrs.get('number'), 'chapter `number`', at)), 'title': plain(chapter_heading['inlines'], at),
                          'targetSeconds': number(attrs.get('target'), 'chapter `target` (seconds)', at),
                          'summary': value_of(attrs['summary']) if 'summary' in attrs else '', 'sources': as_list(value_of(attrs.get('sources', '[]'))), 'beats': []}
         for beat_heading, paragraphs in beats:
@@ -361,9 +348,9 @@ def load(path: Path, packages: list[tuple[str, Path]]) -> Json:
                             continue
                         if x['name'] != KEY:
                             raise PresentationError(f'{at}: a beat\'s keys are point cues, ${{cue "{KEY}" ...}}')
-                        keys.append(attrs_key(pairs(x['attrs']), f'{path}: {beat_id}'))
+                        keys.append(point_key(markup.Tag('cue', None, pairs(x['attrs']), 0), f'{path}: {beat_id}', fields))
                     continue
-                narration.append({'text': at, 'parsed': parsed(inlines, at)})
+                narration.append({'text': at, 'parsed': parsed(inlines, at, fields)})
             if keys:
                 beat['keys'] = keys
             beat['narration'] = narration
@@ -381,10 +368,14 @@ def load_translation(path: Path) -> Json:
     for chapter_heading, beats in chapters:
         at = where(chapter_heading, path)
         attrs = dict(pairs(chapter_heading['attrs']))
-        translation['chapters'].append({'number': int(number(attrs.get('number'), 'chapter `number`', at)), 'title': plain(chapter_heading['inlines'], at),
-                                        'summary': value_of(attrs['summary']) if 'summary' in attrs else ''})
+        # A chapter is the English one of the same id; its number is the English's (a `number` given must agree).
+        chapter: Json = {'id': chapter_heading.get('id') or '', 'title': plain(chapter_heading['inlines'], at),
+                         'summary': value_of(attrs['summary']) if 'summary' in attrs else ''}
+        if 'number' in attrs:
+            chapter['number'] = int(number(attrs['number'], 'chapter `number`', at))
+        translation['chapters'].append(chapter)
         for beat_heading, paragraphs in beats:
             at = where(beat_heading, path)
-            narration = [{'text': where(p, path), 'shown': parsed(p['inlines'], where(p, path), translation=True)} for p in paragraphs]
+            narration = [{'text': where(p, path), 'shown': parsed(p['inlines'], where(p, path), None, translation=True)} for p in paragraphs]
             translation['beats'][beat_heading.get('id') or ''] = {'headline': plain(beat_heading['inlines'], at), 'narration': narration}
     return translation

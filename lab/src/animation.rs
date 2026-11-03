@@ -35,6 +35,9 @@ pub enum Ease {
 }
 
 impl Ease {
+    /// Every easing, in declaration order (the story vocabulary's options, lab/src/script/keys.rs).
+    pub const ALL: [Ease; 6] = [Ease::Smooth, Ease::Linear, Ease::In, Ease::Out, Ease::InOut, Ease::Sine];
+
     pub fn apply(self, x: f32) -> f32 {
         match self {
             Ease::Smooth => x * x * x * (x * (x * 6.0 - 15.0) + 10.0),

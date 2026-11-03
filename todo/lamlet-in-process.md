@@ -8,7 +8,8 @@ evaluate scripts live. The language-side work it relies on is general and lives 
 Status (2026-11-03): milestone 1 is done, and the storyboards are Lamlet presentations read through it
 (`tools/video/presentation.py`; `tools/video/README.md` and the `render-lab-lamlet` skill describe the format).
 The lab pins Lamlet v0.3.1 and lamlet-present v0.1.3, `lab/src/script/` is its host, and `render-lab lamlet
-ir|deck|vocab` and `render-lab story keys` are its commands. Milestones 2 to 5 are open.
+ir|deck|vocab|toml` and `render-lab story keys` are its commands. Milestone 3 is done and 2 in part
+([lamlet-typed-content.md](lamlet-typed-content.md)); 4 and 5 are open.
 
 ## What runs where
 
@@ -105,13 +106,16 @@ forged (an image handle) would be native opaque types, with the natives above.
    reader had lost came back).
 2. **Checks.** render_lab's `Pure` natives for text keys, sources, images, actions, and points, called by the
    vocabulary (the lamlet-present change above); `lab/check` checks a storyboard with them, replacing its textual
-   harvest of cue attributes.
+   harvest of cue attributes. In part (2026-11-03, [lamlet-typed-content.md](lamlet-typed-content.md) phase 3):
+   `rl::source`, `rl::text`, `rl::point`, `rl::formula`, called by render_lab's own attribute functions rather than
+   the vocabulary, with `render-lab --investigation <id> lamlet …`; images and actions keep the vocabulary's options,
+   and `lab/check` keeps its harvest.
 3. **Package values.** `Investigation::script_natives`; VoxelGI's chapter 8 numbers from `cost.rs`, the story
-   unchanged in what it says.
+   unchanged in what it says. Done (2026-11-03).
 4. **Threads and live use.** A per-thread engine in the viewer; one live readout row computed by a script, as the
    first runtime use ([lamlet-live-logic.md](lamlet-live-logic.md)).
-5. **Curves.** Story animations evaluated per frame where a path cannot express them (optional), and typed
-   motions in the vocabulary in place of `motion`'s JSON String.
+5. **Curves.** Story animations evaluated per frame where a path cannot express them (optional). Typed motions,
+   and the rest of the storyboards' Strings and repetition, are [lamlet-typed-content.md](lamlet-typed-content.md).
 
 ## Validation
 

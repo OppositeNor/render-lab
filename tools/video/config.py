@@ -107,6 +107,12 @@ class Config:
         return self.path(self.spec['storyboard'])
 
     @property
+    def story_library(self) -> Path:
+        """The package's story library (`video/story.lam`, the Lamlet package `<package>_story`): the cue groups
+        its storyboard repeats, which it imports. Optional."""
+        return self.base / 'story.lam'
+
+    @property
     def translation(self) -> Path:
         return self.path(self.spec['translations'][self.lang])
 

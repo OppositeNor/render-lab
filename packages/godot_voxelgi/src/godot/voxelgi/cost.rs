@@ -6,6 +6,7 @@
 
 use super::update;
 use super::world;
+use lab::script::lamlet::embed::{Error, NativeRegistry};
 use lab::shot::ShotState;
 
 /// `voxel_cone_trace_45_degrees`'s steps from `bias` to `max_distance`: the
@@ -73,4 +74,24 @@ pub fn costs(state: &ShotState) -> Costs {
         high_steps: steps_cone(0.577, bias, max),
         spec_steps: [1.0, 0.5, 0.0].map(|r| steps_cone(spec_tan(r), bias, max)),
     }
+}
+
+/// Chapter 8's numbers, for its narration to say (`Investigation::script_natives`; the storyboard's
+/// `godot_voxelgi_natives`): the cost demonstration's leaves, its light passes' dispatches an update with two
+/// bounces and with one, and the cones' steps, counted here as the selftest checks them.
+pub fn natives(r: &mut NativeRegistry) -> Result<(), Error> {
+    fn demo() -> Costs {
+        costs(&super::shot::for_demo(super::shot::Demo::Cost))
+    }
+    fn count(n: usize) -> Result<i64, String> {
+        i64::try_from(n).map_err(|e| e.to_string())
+    }
+    r.function("godot_voxelgi/leaves", |_, ()| count(demo().leaves)).pure().doc("Fn([], Int). The bake's leaves in the cost demonstration's room.").register()?;
+    r.function("godot_voxelgi/texels", |_, ()| count(demo().texels)).pure().doc("Fn([], Int). Texels of the light texture's finest mip.").register()?;
+    r.function("godot_voxelgi/dispatches", |_, ()| count(demo().dispatches)).pure().doc("Fn([], Int). The light passes' dispatches an update, with two bounces.").register()?;
+    r.function("godot_voxelgi/low-steps", |_, ()| count(demo().low_steps)).pure().doc("Fn([], Int). The most steps of one diffuse cone at Low quality.").register()?;
+    r.function("godot_voxelgi/high-steps", |_, ()| count(demo().high_steps)).pure().doc("Fn([], Int). The most steps of one diffuse cone at High quality.").register()?;
+    r.function("godot_voxelgi/rough-steps", |_, ()| count(demo().spec_steps[0])).pure().doc("Fn([], Int). The reflection cone's most steps at roughness 1.").register()?;
+    r.function("godot_voxelgi/mirror-steps", |_, ()| count(demo().spec_steps[2])).pure().doc("Fn([], Int). The reflection cone's most steps at roughness 0.").register()?;
+    Ok(())
 }

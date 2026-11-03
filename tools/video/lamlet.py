@@ -34,11 +34,13 @@ def lab(*args: str) -> str:
     return proc.stdout
 
 
-def ir(path: Path, packages: list[tuple[str, Path]]) -> Any:
+def ir(path: Path, packages: list[tuple[str, Path]], investigation: str | None = None) -> Any:
     """A presentation's document IR (`render-lab lamlet ir`, lamlet-doc's JSON): its prose read as CommonMark, its
-    regions evaluated, with these packages to import besides std, content, present, and render_lab."""
+    regions evaluated, with these packages to import besides std, content, present, and render_lab. The lab's
+    natives (`rl`: callouts, text keys, points, formulas) check the names it gives against `investigation`."""
     given = [a for name, p in packages for a in ('--package', f'{name}={p}')]
-    return json.loads(lab('lamlet', 'ir', str(path), *given))
+    chosen = ['--investigation', investigation] if investigation else []
+    return json.loads(lab(*chosen, 'lamlet', 'ir', str(path), *given))
 
 
 def vocabulary(investigation: str, name: str, out: Path) -> Path:

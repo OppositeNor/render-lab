@@ -137,6 +137,13 @@ impl Investigation for Sdfgi {
     fn annotations(&self) -> &'static [lab::utility::annotations::AnnotationSpec] {
         ANNOTATIONS
     }
+    /// The sizes chapter 2 says (`godot_sdfgi_natives`): the cascade count the resources are made for, and a
+    /// cascade's cells along an axis.
+    fn script_natives(&self, r: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+        r.function("godot_sdfgi/cascades", |_, ()| Ok(gpu::CASCADES as i64)).pure().doc("Fn([], Int). `sdfgi_cascades`, the cascade count.").register()?;
+        r.function("godot_sdfgi/cascade-cells", |_, ()| Ok(model::CASCADE_SIZE as i64)).pure().doc("Fn([], Int). A cascade's cells along an axis.").register()?;
+        Ok(())
+    }
 
     fn id(&self) -> &'static str {
         "sdfgi"

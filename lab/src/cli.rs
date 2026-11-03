@@ -282,6 +282,14 @@ enum LamletCommand {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
+    /// A document's static top-level binding NAME as the TOML document the lab's readers take (src/script/data.rs):
+    /// what a `.lam` content file (a scene) is read as.
+    Toml {
+        file: PathBuf,
+        name: String,
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
 }
 
 fn parse_package(value: &str) -> Result<(String, PathBuf), String> {
@@ -289,8 +297,9 @@ fn parse_package(value: &str) -> Result<(String, PathBuf), String> {
     Ok((name.to_string(), PathBuf::from(path)))
 }
 
-/// `render-lab lamlet …`; an error is a diagnostic (or a file's error) for stderr.
-fn lamlet(command: LamletCommand) -> Result<(), String> {
+/// `render-lab [--investigation <id>] lamlet …`; an error is a diagnostic (or a file's error) for stderr. The lab's
+/// natives (src/script/natives.rs) check names against `investigation`, the one given.
+fn lamlet(command: LamletCommand, investigation: Option<&'static dyn crate::investigation::Investigation>) -> Result<(), String> {
     use crate::script;
     let read = |given: Vec<(String, PathBuf)>| -> Result<Vec<script::Package>, String> {
         script::packages(given.iter().map(|(name, path)| script::Package::read(name, path)).collect::<Result<_, _>>()?)
@@ -305,10 +314,14 @@ fn lamlet(command: LamletCommand) -> Result<(), String> {
         }
     };
     match command {
-        LamletCommand::Ir { file, packages, out } => write(out, script::ir(&file, &read(packages)?)?),
+        LamletCommand::Ir { file, packages, out } => write(out, script::ir(&file, &read(packages)?, investigation)?),
         LamletCommand::Deck { file, packages, out } => {
-            let deck = script::deck(&file, &read(packages)?)?;
+            let deck = script::deck(&file, &read(packages)?, investigation)?;
             write(out, serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n")
+        }
+        LamletCommand::Toml { file, name, out } => {
+            let text = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            write(out, script::data::toml(&file.display().to_string(), &text, &name)?)
         }
         LamletCommand::Vocab { name, keys, packages, out } => {
             let json = std::fs::read_to_string(&keys).map_err(|e| format!("{}: {e}", keys.display()))?;
@@ -370,9 +383,10 @@ pub fn main(app: App) -> Result<()> {
         return Ok(());
     }
     let command = cli.command.unwrap_or(Command::Home { width: 1600, height: 900, ui_scale: DEFAULT_UI_SCALE, snapshot: None, page: "title".into(), autotest: None });
+    // Lamlet runs before an investigation is chosen, unless one is given for its natives to check against.
     let command = match command {
-        Command::Lamlet(command) => {
-            if let Err(e) = lamlet(command) {
+        Command::Lamlet(command) if cli.investigation.is_none() => {
+            if let Err(e) = lamlet(command, None) {
                 eprintln!("{}", e.trim_end());
                 std::process::exit(1);
             }
@@ -496,7 +510,13 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
-        Command::Lamlet(_) => unreachable!("run before an investigation is chosen"),
+        Command::Lamlet(command) => {
+            if let Err(e) = lamlet(command, Some(chosen)) {
+                eprintln!("{}", e.trim_end());
+                std::process::exit(1);
+            }
+            Ok(())
+        }
         Command::Knowledge { known, levels } => knowledge(chosen, &known, levels),
         Command::Graph { dot, json } => graph(chosen, dot.as_deref(), json),
         Command::Values { json, label, scope } => {

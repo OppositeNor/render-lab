@@ -184,7 +184,7 @@ narration, or only with a still, is not taught.
   does.
 - **The code, step by step.** Animation comes first; pseudo-code is shown only alongside it. For a shading or
   lookup step, show its pseudo-code listing (`{panelCode}`) and light the line the sentence is on
-  (`{highlight "<tag>"}`), and with every highlight change the demonstration too, so the scene shows what that line
+  (`{highlight {' "<tag>"}}`), and with every highlight change the demonstration too, so the scene shows what that line
   does (its rays, its samples, its threshold, its result); a highlight that changes nothing on screen is cut, or
   the demonstration gains the step it lacks. Show only the
   lines the step needs, at a size that reads on a laptop, with the inputs and outputs of the lit line beside it
@@ -294,7 +294,9 @@ visual often names something nothing can show.
   (`delay`) before the next idea. Never speed the voice up or cut explanation to fit a budget: raise the
   chapter's budget instead.
 - Numbers about the lab's scene come from the lab (its code computes them, the selftest asserts the ones that
-  matter): never type a measured value into the narration.
+  matter): never type a measured value into the narration. Where the package's code computes one, the narration says
+  it from there (`Investigation::script_natives`: `${spoken {dispatches}}`), and a number both a cue and a sentence
+  use is one binding (`{coneStepsRange 0.0 {float {lowSteps}}}` and `${spoken {lowSteps}} steps`).
 - The beat's first paragraph of cues sets its starting keys, and resets the step parameters of the beat before it
   (instant keys, no `blend`).
 - Images, the callout, the camera, and the panel are not step parameters: they carry into the next beat, across a
@@ -309,7 +311,7 @@ visual often names something nothing can show.
   (`{run "jumpFlood"} {runSeconds 0.5}` … `{stop "jumpFlood"}`; `render-lab actions`), rather than a parameter keyed
   step by step: the story says when and how fast, the package's code what each moment shows.
 - A picture (a slice, a table, a chart, a PNG) is an image the story shows by key, `{inset "floodSeeds"}
-  {imageCornerTopLeft}` … `{imageHide "floodSeeds"}` (`render-lab images`): the package describes it, the story places
+  {imageCornerTopLeft}` … `{imageHide {' "floodSeeds"}}` (`render-lab images`): the package describes it, the story places
   it. A GPU image is an instance of an image kind the package's shaders define, made and driven by the story:
   `{inset "near"} {imageFrom "probeMap"} {imageProbe {' 7.0 7.0 8.0}}`, then `{inset "near"} {imageProbe {' 10.0 7.0
   8.0}} {blend 2.0}`. An image a viewer may click when paused names the package's click handler: `{inset "map"}
@@ -324,14 +326,14 @@ visual often names something nothing can show.
   it looks that way (the floor is light green because it faces up, along y), the pattern to look for (where
   the values jump, and what that means), and what the next pass does with it. Go slowly: one fact per
   sentence, each after a short pause (`{delay 0.4}`), and light the part each sentence names while it is said: a region of the
-  image (`{inset "t0"} {imageMark "u0,v0,u1,v1"} {imageMarkText "<key>"}`, cleared with `{imageMark ""}` on the
+  image (`{inset "t0"} {mark u0 v0 u1 v1} {imageMarkText "<key>"}`, cleared with `unmark` on the
   sentence after), or a label or arrow at the world point a 3D view shows. A view shown and passed over, or
   one whose colours the viewer has to guess, is not finished: add the sentences, or cut the view. Say it
   again, briefly, when the view returns after other views have come between.
-- An arrow or label that points something out is the story's: `{arrow "a"} {arrowFrom "x,y,z"} {arrowTo "field.seed"}`,
-  `{label "l"} {labelAt "…"} {labelText "<text key>"}` (`arrowHide`, `labelHide`), its points fixed or ones the package
+- An arrow or label that points something out is the story's: `{arrow "a"} {arrowFrom {at x y z}} {arrowTo {point
+  "field.seed"}}`, `{label "l"} {labelAt {at …}} {labelText "<text key>"}` (`arrowHide`, `labelHide`), its points fixed or ones the package
   publishes, and `{arrows "<set>"}` for a set the package computes (`render-lab images` lists the points and sets).
-- Keep the camera floating in 3D (`{motion "[{\"path\": …}]"}`, `cameraDrift`), and glide to a still, 2D view
+- Keep the camera floating in 3D (`{motion {' {cameraPath {' {' 18.0 16.0 6.2} …}}}}`, `cameraDrift`), and glide to a still, 2D view
   (`{cameraDrift 0.0}`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.
 - A `callout` on about half the sentences, and the rest covered by the chapter's `sources`.

@@ -3,6 +3,7 @@
 (`cargo build --release --locked --offline`) and are skipped until it is."""
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lamlet  # noqa: E402
 import markup  # noqa: E402
 import presentation  # noqa: E402
+import timeline  # noqa: E402
 
 FORMULA = r'\frac{1}{1+\lit{1}{n}}'
 
@@ -62,11 +64,18 @@ TRANSLATION = r'''$[Import* std]$[Import* content]
 
 @unittest.skipUnless(lamlet.BINARY.exists(), 'the lab is not built (cargo build --release --locked --offline)')
 class Presentation(unittest.TestCase):
+    fields: markup.Fields
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        # The key fields of an investigation's vocabulary (the cues below write them with `attr`).
+        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--investigation', 'godot/voxelgi', 'story', 'keys')))
+
     def load(self, text: str, translation: bool = False) -> dict:
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / 'storyboard.lam'
             path.write_text(text)
-            return presentation.load_translation(path) if translation else presentation.load(path, [])
+            return presentation.load_translation(path) if translation else presentation.load(path, [], self.fields)
 
     def test_reads_every_part(self) -> None:
         board = self.load(STORY)
@@ -92,20 +101,44 @@ class Presentation(unittest.TestCase):
         self.assertEqual([second.pieces[t.piece] for t in second.tags], ['marches', 'step by step', ', with', 'one over one plus n'])
         self.assertEqual(second.caption, f'A ray marches step by step, with {{@ formula="{FORMULA}" colors="#ffd166"}}, {{@ codespan="LightCullingTilePrepare"}} and {{@ codespan="r.Example.Max"}}.')
         self.assertEqual(second.formulas, [FORMULA])
-        self.assertEqual(markup.cue_key(second.tags[3], 'x'), {'formula': f'{{@ formula="{FORMULA}" colors="#ffd166"}}'})
+        self.assertEqual(second.tags[3].key, {'formula': f'{{@ formula="{FORMULA}" colors="#ffd166"}}'})
+        self.assertEqual(second.tags[0].key, {'params': {'radius': markup.Range(0.0, 2.0)}})
         # render_lab's numbers, said in words.
         self.assertEqual(third.spoken, 'There are forty-two thousand two hundred eighty-nine leaves.')
 
     def test_translation(self) -> None:
         translation = self.load(TRANSLATION, translation=True)
         self.assertEqual((translation['title'], translation['glossary']), ('测试', ['SDFGI', 'GI mode']))
-        self.assertEqual(translation['chapters'], [{'number': 1, 'title': '第一章', 'summary': '内容。'}])
+        self.assertEqual(translation['chapters'], [{'id': 'c1', 'number': 1, 'title': '第一章', 'summary': '内容。'}])
         narration = translation['beats']['c1-one']['narration']
         self.assertEqual(narration[1]['shown'].caption, f'第二句，{{@ formula="{FORMULA}"}}，{{@ codespan="LightCullingTilePrepare"}}。')
         self.assertEqual(narration[1]['shown'].formulas, [FORMULA])
+        # A chapter is the English one of its id; its number may be left out.
+        self.assertEqual(self.load(TRANSLATION.replace(' number=1', ''), translation=True)['chapters'], [{'id': 'c1', 'title': '第一章', 'summary': '内容。'}])
         # A translation carries no cues.
         with self.assertRaisesRegex(presentation.PresentationError, 'carries no cues'):
             self.load(TRANSLATION.replace('第一句。', '$[Import* present]${cue "key" {\' {attr "a" "1"}}}第一句。'), translation=True)
+
+    def test_names_the_lab_checks(self) -> None:
+        # A callout, a text key, a published point, and a formula are checked against the investigation at the
+        # storyboard's line, before any speech.
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'storyboard.lam'
+            for wrong in ('{callout "no-such-key"}', '{imageTitle "no.such.text"}', '{arrowTo {point "no.such.point"}}'):
+                with self.subTest(wrong=wrong):
+                    path.write_text(STORY.replace('{attr "callout" "key-a"}', wrong))
+                    with self.assertRaises(lamlet.LamletError) as e:
+                        presentation.load(path, [], self.fields, 'godot/voxelgi')
+                    self.assertIn('storyboard.lam:12:', str(e.exception))
+            path.write_text(STORY.replace('There are ${spoken leaves} leaves.', 'A ${formulaSaid "x^{y^{z^{w}}}" "x to the y" {\'}}.'))
+            with self.assertRaisesRegex(lamlet.LamletError, 'storyboard.lam:16:'):
+                presentation.load(path, [], self.fields, 'godot/voxelgi')
+
+    def test_pacing(self) -> None:
+        # The video heading's pacing attributes, each with its default when left out.
+        board = self.load(STORY.replace('fps=30', 'fps=30 gap=0.5 captionWidth=60'))
+        pacing = timeline.Pacing.of(board)
+        self.assertEqual((pacing.gap, pacing.captionWidth, pacing.lead), (0.5, 60, timeline.Pacing().lead))
 
     def test_errors(self) -> None:
         for kind in ('scene', 'sources'):
@@ -115,6 +148,9 @@ class Presentation(unittest.TestCase):
         # A 2d beat shows a diagram, the frame graph, or a sources card.
         with self.assertRaisesRegex(presentation.PresentationError, 'a 2d beat shows'):
             self.load(STORY.replace(' diagram=frame focus="A, B"', ''))
+        # A point cue sets its values at once; a range blends them.
+        with self.assertRaisesRegex(presentation.PresentationError, 'blends over a range'):
+            self.load(STORY.replace('{cue "key" {\' {attr "opacity" "1"}}}', '{cue "key" {\' {attr "opacity" "0..1"}}}'))
         # A formula needs what is said for it.
         with self.assertRaisesRegex(presentation.PresentationError, 'no spoken form|has no say'):
             self.load(STORY.replace('There are', 'There are ${math "x"}'))

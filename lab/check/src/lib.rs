@@ -237,7 +237,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 /// with the `text = "…"` and `help = "…"` of their `#[value(…)]` attributes (the lab's
 /// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
 /// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle`, `imageMarkText`, and
-/// `labelText` attributes of the cues in its storyboards (`.lam`), and the `-text` fields of its
+/// `labelText` attributes of the cues in its storyboards (`.lam`) and the `titleText` of its Lamlet data files,
+/// and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
 /// `target/`).
 fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
@@ -265,11 +266,19 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             }
             continue;
         }
-        // A storyboard's image title, mark label, and label text: the vocabulary's `{imageTitle "key"}`,
-        // `{imageMarkText "key"}` (empty: none), and `{labelText "key"}`, or `{attr "imageTitle" "key"}`.
+        // A storyboard's image title, mark label, and label text: render_lab's `{imageTitle "key"}`,
+        // `{imageMarkText "key"}` (empty: none), and `{labelText "key"}`, or `{attr "imageTitle" "key"}`; and
+        // a Lamlet data file's `titleText "key"` (a scene's `title-text`, lab/src/script/data.rs).
         if path.extension().is_some_and(|e| e == "lam") {
             println!("cargo:rerun-if-changed={}", path.display());
             for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+                for (i, found) in line.match_indices("titleText \"") {
+                    let rest = &line[i + found.len()..];
+                    let key = &rest[..rest.find('"').unwrap_or(rest.len())];
+                    if !key.is_empty() {
+                        keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                    }
+                }
                 for name in ["imageTitle", "imageMarkText", "labelText"] {
                     let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
                     for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {

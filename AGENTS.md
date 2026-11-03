@@ -76,7 +76,9 @@ O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/s
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py   # cue attributes, and the storyboard format (a Lamlet presentation; the lab built first)
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison
+python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
+cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)

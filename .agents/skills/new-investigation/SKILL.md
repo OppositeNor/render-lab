@@ -272,7 +272,7 @@ A picture the story shows is an image by key (`packages/render_lab/src/inset.rs`
 `Investigation::images` (`ImageSpec { key, doc }`), and publish each in `FrameContent::images` as a `PictureInset`
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
-The story's cues write `{inset "key"} {imageCornerTopLeft}` and `{imageHide "key"}`, and choose the corner and the title.
+The story's cues write `{inset "key"} {imageCornerTopLeft}` and `{imageHide {' "key"}}`, and choose the corner and the title.
 A story's arrows and labels name points the package publishes (`lab/src/frame.rs`, `FrameContent::points`) and
 arrow sets it computes (`FrameContent::arrow_sets`, only while `state.shows_arrows(key)`), declared in
 `Investigation::annotations` (`AnnotationSpec`): publish what an arrow would follow (a hit, a seed, a probe) rather
@@ -306,12 +306,13 @@ Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose 
   heading (`# Title {#video fps=30 …}`), chapters (`## Title {#c<n> number=<n> target=<seconds> summary="…"
   sources="…"}`) of beats (`### Headline {#c<chapter>-<name> kind=3d}`; the scene type `3d`, or `2d` for a diagram
   (`diagram=`) or a sources card (`sources=`)), each paragraph one sentence. Shots are cues with the investigation's
-  vocabulary (`render-lab --investigation <path> story keys`, typed functions the builder generates): a paragraph of
-  cues before the first sentence sets the beat's keys, and cues in a sentence fire on the word they stand before:
-  `${cue "key" {' {demoRoom} {cameraYaw 24.0} {callout "settings"}}}` (shot parameters, `demo`, `camera.*`, `panel`,
-  `listing` for `code`, `highlight`, `callout`, `record`, `blend`, `easing` for `ease`, `delay`), ranges
-  `${duringText "grow" {' {radiusRange 0.0 2.0}} "words"}`, `{motion "[…]"}` motions (JSON), and formulas
-  `${cue "formula" {' {formula "…"}}}${say {math "…"} "…"}`.
+  vocabulary (`render-lab --investigation <path> story keys`, typed functions the builder generates) and
+  render_lab's typed attributes: a paragraph of cues before the first sentence sets the beat's keys, and cues in a
+  sentence fire on the word they stand before: `${cue "key" {' {demoRoom} {cameraYaw 24.0} {callout "settings"}}}`
+  (shot parameters, `demo`, `camera.*`, `panel`, `listing` for `code`, `{highlight {' "tag"}}`, `callout`,
+  `recordCamera`, `blend`, `easing` for `ease`, `delay`), ranges `${overText {' {radiusRange 0.0 2.0}} "words"}`,
+  motions `{motion {' {cameraPath {' {' 18.0 16.0 6.2} …}}}}`, and formulas `${formulaSaid "…" "…" {'}}`. Groups
+  the storyboard repeats (a beat's `opening` keys) go in the package's story library, `video/story.lam`.
 - **`diagrams/*.toml`**: diagrams for `diagram=` beats, boxes and edges whose text is keys of the package's text
   (`tools/video/diagrams.py` has the format; the lab draws them, `lab/src/diagram.rs`; `focus` lights boxes or rows).
   The frame's own map is the frame graph's scene (`graph=frame`, the package's `graphs/frame.toml`).

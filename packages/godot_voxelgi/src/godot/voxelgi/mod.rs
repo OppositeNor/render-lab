@@ -135,6 +135,9 @@ impl Investigation for VoxelGi {
     fn annotations(&self) -> &'static [lab::utility::annotations::AnnotationSpec] {
         ANNOTATIONS
     }
+    fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+        cost::natives(natives)
+    }
 
     fn id(&self) -> &'static str {
         "voxelgi"

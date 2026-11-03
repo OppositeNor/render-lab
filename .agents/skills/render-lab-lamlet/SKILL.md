@@ -26,17 +26,18 @@ uses a `lamlet` installed on the system: `tools/video/lamlet.py` runs the lab's 
 ## 2. A storyboard
 
 ```text
-$[Import* std]$[Import* content]$[Import* present]$[Import* godot_voxelgi]
+$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* godot_voxelgi]$[Import* godot_voxelgi_story]
 # How VoxelGI Lights a Room {#video subtitle="..." fps=30 width=1920 height=1080}
 
 ## Where it runs {#c1 number=1 target=185 summary="..." sources="frame-order, settings"}
 
 ### The headline {#c1-room kind=3d}
 
-${cue "key" {' {demoRoom} {cameraYaw 24.0} {callout ""} {inset ""} {panelHidden}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {' {cameraYaw 24.0}}}}
+${cue "key" {' {motion {' {cameraPath {' {' 14.0 16.0 6.8} {' 26.0 20.0 5.2}}}}}}}
 
 The first sentence, ${cue "key" {' {callout "settings"}}}with a cue on a word, and
-${duringText "grow" {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
+${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 ```
 
 - **Headings:** `#` the video (its text the title, its attributes the header), `##` a chapter (`number`, `target`
@@ -45,15 +46,23 @@ ${duringText "grow" {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 - **Paragraphs:** a paragraph of cues before a beat's first sentence sets its keys, one per cue; every other
   paragraph is one sentence. Prose is CommonMark: `$` is `$$`, and `* _ [ ] < \ `` ` `` are markup (escape them with
   `\`, or put the text in a region).
-- **Cues** are `present`'s: `${cue "key" ATTRS}` at a point, `${duringText NAME ATTRS "words"}` over words, or
-  `${during NAME ATTRS {cat {' {text "a "} {cue "key" ...} {text "b"}}}}` with cues or ranges inside. A point cue is
-  always named `"key"`.
-- **Formulas:** `${cue "formula" {' {formula "TeX"}}}${say {math "TeX"} "what the voice says"}` (the same LaTeX
-  twice, backslashes doubled in Strings); `${cue "formula" {' {formulaOff}}}` closes the card. **Code names:**
+- **Cues** are `present`'s: `${cue "key" ATTRS}` at a point, and render_lab's unnamed ranges, `${overText ATTRS
+  "words"}` over words, or `${over ATTRS {cat {' {text "a "} {cue "key" ...} {text "b"}}}}` with cues or ranges
+  inside (`present`'s `during`/`duringText` take a name nothing needs). A point cue is always named `"key"`. ATTRS is
+  a list of attributes, or an expression giving one (`{opening …}`, `{append baseLight {' …}}`).
+- **Formulas:** `${formulaSaid "TeX" "what the voice says" {' {colors "#ffd166"}}}` (backslashes doubled in
+  Strings; it is the formula cue and its `say`); `${cue "formula" {' {formulaOff}}}` closes the card. **Code names:**
   `${code "Name"}`, or `${say {code "Name"} "how it is said"}`.
-- **The translation** (`storyboard.zh-CN.lam`) imports `std` and `content` only: the same headings with the same ids
-  (its own titles, summaries, headlines; the video's `subtitle`, `locale`, `glossary` comma-separated), one paragraph
-  per English sentence, formulas as `${math "TeX"}`, code names as `${code "Name"}`, no cues.
+- **The translation** (`storyboard.zh-CN.lam`) imports `std` and `content` only: the same headings by id (its own
+  titles, summaries, headlines, with no chapter `number`; the video's `subtitle`, `locale`, `glossary`
+  comma-separated, `captionWidth`), one paragraph per English sentence, formulas as `${math "TeX"}`, code names as
+  `${code "Name"}`, no cues.
+- **Pacing** is the video heading's (`lead`, `gap`, `tail`, `maxExtraPause`, `taggedWeight`, `termFade`,
+  `captionBridge`, `captionWidth`; tools/video/README.md), each with its default when left out.
+- **The story library** (`video/story.lam`, the package `<package>_story`, optional): what the storyboard repeats,
+  bound once (a beat's `opening`, a baseline of values, camera waypoints, chapter numbers it shows and says). It
+  imports what the storyboard does. Write a text key a helper sets at the call site (`{imageTitle "views.…"}` in the
+  helper's `more` list), where the text check finds it.
 
 ## 3. The vocabulary
 
@@ -64,7 +73,10 @@ it into a package named after the investigation's package, `build/<package>.lam`
 time it reads the storyboard, so it always matches the investigation.
 
 - A function is its key in camel case (`camera.yaw` is `cameraYaw`), except `code` (`listing`), `image` (`inset`),
-  `animate` (`motion`, a JSON String), and `ease` (`easing`), whose names `content` and `present` already use. A
+  and `ease` (`easing`), whose names `content` and `present` already use. The fields render_lab types or checks
+  (`animate`, points, `imageMark`, the hide lists, `highlight`, `record`, `callout`, and the text keys `imageTitle`,
+  `imageMarkText`, `labelText`) are in the key list marked `"typed": true` and have no vocabulary function
+  (`keys::TYPED`). A
   value a cue reserves is `param.<name>` (`paramFormula`); a dotted key whose name a field has is `imageParam…` or
   `runArg…`.
 - Every numeric value is a Float (`{octreeLevelRange 7.0 1.0}`), whatever its type in the lab: the timeline blends
@@ -78,9 +90,30 @@ time it reads the storyboard, so it always matches the investigation.
 ## 4. The lab's Lamlet package: `render_lab`
 
 `packages/render_lab/language/render_lab.lam` is the package `render_lab` (the resource
-`render_lab.script/render-lab`). A storyboard may import it for numbers said in words: `spoken 42289`, `rounded
-42289 2`, `spokenFloat 3.2`. It writes no cues. Write it in Lamlet 0.3's style: function definitions `[# {f x}
-body]`, ascriptions without `[% ]`, private helpers with a leading `_`.
+`render_lab.script/render-lab`), which every storyboard imports:
+
+- **Numbers said in words:** `spoken 42289`, `rounded 42289 2`, `spokenFloat 3.2`, `capitalized`.
+- **Typed attributes**, each writing the String the lab reads (tools/video/markup.py): motions (`{motion {' …}}` of
+  `path`, `orbit`, `sway`, with a `Length`, `beat`, `sentence`, or `{seconds 4.0}`, and the wrappers `eased`,
+  `looping`, `pingPonging`, `closed`, `around`, `from`, `centered`, `phased`, `lasting`, `fading`; `cameraPath`,
+  `cameraTurn`), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
+  v1}`, `unmark`), lists of names (`imageHide`, `arrowHide`, `labelHide`, `highlight`), records (`recordNone`,
+  `recordCamera`, `{recordObject n}`), and `formulaSaid`.
+- **Checked names**, through the lab's natives (the package `rl`, `lab/src/script/natives.rs`): `callout` (a
+  source-index key), `imageTitle`, `imageMarkText`, `labelText` (text keys), `point`, and `formulaSaid`'s LaTeX
+  (typeset within the lab's limits). They check against the investigation `render-lab --investigation <id> lamlet ir`
+  names (the video builder passes it); without one they fail, but an empty name (clearing) needs none.
+- **Ranges** without names: `over`, `overText`, `overCallout`.
+
+Write it in Lamlet 0.3's style: function definitions `[# {f x} body]`, ascriptions without `[% ]`, private helpers
+with a leading `_`, definitions before their uses (source order).
+
+A package's code can give its storyboard numbers: `Investigation::script_natives` registers `Pure` natives with ids
+`<package>/<name>`, which the storyboard imports as the package `<package>_natives` (`${spoken {dispatches}}`).
+
+A content file can be Lamlet too: `render-lab lamlet toml FILE NAME` writes a static binding as the TOML document the
+lab's readers take (`lab/src/script/data.rs`; a `.lam` resource is read as its binding named after the resource's key,
+as `scenes/study-room.lam` is).
 
 ## 5. How a storyboard is read
 
@@ -91,8 +124,9 @@ through `markup.sentence` and `markup.shown`. The lab's own timing rules (`timel
 `schedule` is not used. The lab's text check (`lab/check`) finds the text keys a storyboard names
 (`imageTitle`, `imageMarkText`, `labelText`).
 
-Tests: `python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py` (the second skips until
-the lab is built).
+Tests: `python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py`
+(the second skips until the lab is built). A change to a storyboard's form or to the reader leaves every edition's
+prepared outputs equal (`tools/video/compare.py`, tools/video/README.md).
 
 ## 6. Rules
 

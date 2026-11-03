@@ -207,7 +207,8 @@ fn description(id: SceneId) -> &'static Description {
         return d;
     }
     let resource = id.resource();
-    let d: &'static Description = Box::leak(Box::new(read_scene(id, crate::resources::get(&resource).text()).unwrap_or_else(|e| panic!("{resource}: {e:#}"))));
+    let text = crate::script::data::resource_toml(&resource).unwrap_or_else(|e| panic!("{resource}: {e}"));
+    let d: &'static Description = Box::leak(Box::new(read_scene(id, &text).unwrap_or_else(|e| panic!("{resource}: {e:#}"))));
     scenes.insert(id.0, d);
     d
 }
@@ -337,7 +338,7 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
 pub fn terrain_table(id: SceneId) -> anyhow::Result<crate::terrain::TerrainDesc> {
     use anyhow::Context;
     let resource = id.resource();
-    let document = toml_edit::Document::parse(crate::resources::get(&resource).text().to_string())?;
+    let document = toml_edit::Document::parse(crate::script::data::resource_toml(&resource).map_err(anyhow::Error::msg)?)?;
     let t = document.get("terrain").and_then(|t| t.as_table()).with_context(|| format!("{resource} has no `[terrain]`"))?;
     let get = |key: &str| t.get(key).and_then(|i| i.as_value()).with_context(|| format!("{resource}: `[terrain] {key}` is missing"));
     let half = get("half-size")?.as_array().filter(|a| a.len() == 2).context("`half-size` is [x, z]")?;

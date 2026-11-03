@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 import zh
 from config import LAB, Config, Environment, log, run
-from timeline import CAPTION_WIDTH
+from timeline import caption_width
 
 Json = dict[str, Any]
 LINK = re.compile(r'\[([^\]]*)\]\(([^)\s]+)\)')
@@ -109,7 +109,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     cue_count = srt.count(' --> ')
     last = max(float(m.group(1)) * 3600 + float(m.group(2)) * 60 + float(m.group(3).replace(',', '.')) for m in re.finditer(r'--> (\d+):(\d+):([\d,]+)', srt))
     width: Callable[[str], int] = zh.display_width if cfg.zh() else len
-    limit = zh.CAPTION_UNITS if cfg.zh() else CAPTION_WIDTH
+    limit = caption_width(board, cfg)
     caption_lines = [line for line in srt.splitlines() if line and not re.fullmatch(r'\d+|[\d:,]+ --> [\d:,]+', line)]
     # A formula ($LaTeX$ in the files) is measured as drawn, as the captions wrap it (markup.protect).
     drawn = lambda line: re.sub(r'\$([^$]*)\$', lambda m: 'Q' * max(4, len(re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', m.group(1)))), line)

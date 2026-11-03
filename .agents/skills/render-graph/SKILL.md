@@ -199,11 +199,11 @@ when you add the node; the `graph` command checks that each names a node and cit
 ## 6. In a story
 
 ```text
-${cue "key" {' {panelGraph} {highlight "o3deLightCullingCS"}}}
+${cue "key" {' {panelGraph} {highlight {' "o3deLightCullingCS"}}}}
 ${cue "key" {' {inset "lights"} {imageGraph "o3deLightCullingCS.tileData"} {imageShowCount} {attr "image.range" "0,16"}}}
 ${cue "key" {' {inset "lights"} {attr "image.word" "1"} {blend 1.0}}}
-${cue "key" {' {panelDag} {highlight "o3dePrepassFS"}}}       the DAG, the pre-pass's card called out
-${cue "key" {' {highlight "o3deLightCullingCS"}}}             the next step: the view scrolls to it
+${cue "key" {' {panelDag} {highlight {' "o3dePrepassFS"}}}}   the DAG, the pre-pass's card called out
+${cue "key" {' {highlight {' "o3deLightCullingCS"}}}}         the next step: the view scrolls to it
 ```
 
 A 2D beat's `graph=frame` presents the frame graph as a scene of its own, drawn by the lab from the live graph

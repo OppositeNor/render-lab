@@ -1,6 +1,6 @@
 # Hills of the lab's terrain under the sky, lit by a large panel high above
 # them standing in for the sun (src/lab/scene.rs reads it; the format is in
-# study-room.toml).
+# study-room.lam, the TOML its scenes are read as).
 
 title-text = "scene.terrain"
 # A camera sees the hills from above this height.

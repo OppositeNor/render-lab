@@ -95,6 +95,22 @@ pub enum PanelMode {
     Hidden,
 }
 
+impl PanelMode {
+    /// Every mode, in declaration order (the story vocabulary's options, lab/src/script/keys.rs).
+    pub const ALL: [PanelMode; 10] = [
+        PanelMode::Declaration,
+        PanelMode::Values,
+        PanelMode::Memory,
+        PanelMode::Code,
+        PanelMode::Performance,
+        PanelMode::Knowledge,
+        PanelMode::Graph,
+        PanelMode::Dag,
+        PanelMode::Resources,
+        PanelMode::Hidden,
+    ];
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ShotState {
     pub demo: DemoId,

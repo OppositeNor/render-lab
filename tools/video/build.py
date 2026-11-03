@@ -55,13 +55,19 @@ def reexec_in_environment(env: Environment) -> None:
 def load_board(cfg: Config) -> Json:
     """The storyboard, a Lamlet presentation (`storyboard.lam`, presentation.py), with its translation merged
     for a translated edition. It is read with the investigation's cue vocabulary, generated first (into the
-    package's build/<package>.lam), so the vocabulary always matches the investigation's values."""
+    package's build/<package>.lam), so the vocabulary always matches the investigation's values, and with the
+    package's story library (`video/story.lam`, the package `<package>_story`) when it has one."""
     import lamlet
+    import markup
     import presentation
     import zh
     name = cfg.package.name
     vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
-    board = presentation.load(cfg.storyboard, [(name, vocabulary)])
+    fields = markup.Fields.of(json.loads(vocabulary.with_suffix('.keys.json').read_text()))
+    packages = [(name, vocabulary)]
+    if cfg.story_library.exists():
+        packages.append((f'{name}_story', cfg.story_library))
+    board = presentation.load(cfg.storyboard, packages, fields, cfg.investigation)
     if cfg.zh():
         board = zh.localize(board, presentation.load_translation(cfg.translation))
     return board
@@ -70,7 +76,6 @@ def load_board(cfg: Config) -> Json:
 def validate(cfg: Config, board: Json, index: Json) -> None:
     import diagrams
     import frame_graph
-    import markup
     import presentation
     from outputs import beat_listings, listing_path, read_listing
     from timeline import sentences_of
@@ -95,9 +100,6 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                         raise RuntimeError(f'{beat["id"]}: unknown focus node {node} in {beat["diagram"]}')
             for key in beat.get('sources', []):
                 assert key in keys, f'{beat["id"]}: unknown source key {key}'
-            for k in beat.get('keys', []) + [k for s in sentences_of(beat) for k in markup.text_keys(beat, s)]:
-                if k.get('callout'):
-                    assert k['callout'] in keys, f'{beat["id"]}: unknown callout {k["callout"]}'
             assert sentences_of(beat), f'{beat["id"]} has no narration'
             for name in beat_listings(beat):
                 path = listing_path(cfg, name)

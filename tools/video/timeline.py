@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import re
 import textwrap
+from dataclasses import dataclass, fields
 from typing import Any
 
 import diagrams
@@ -19,20 +20,31 @@ import zh
 from config import Config
 from narration import Durations, Narration
 
-LEAD = 0.40      # silence before a beat's first sentence
-GAP = 0.32       # silence between sentences
-TAIL = 0.70      # silence after a beat's last sentence
 NOTICES = 8.0    # the closing card of the package's legal notices
-MAX_EXTRA_PAUSE = 2.2
-CAPTION_WIDTH = 58
 KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
-# How long a lit term takes to fade in when its cue names no blend (seconds).
-TERM_FADE = 0.4
-# How a key's blend moves (src/lab/shot.rs `Ease`); smooth when a key names none.
-EASES = ('smooth', 'linear', 'in', 'out', 'inOut')
-
 Board = dict[str, Any]
 Json = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Pacing:
+    """How a video is paced and its captions wrapped: attributes of the storyboard's video heading
+    (`{#video lead=0.4 gap=0.32 …}`), each with this default when the heading leaves it out (seconds, and
+    characters per caption line). The zh-CN edition's caption width is its translation's heading's
+    `captionWidth` (zh.CAPTION_UNITS display units by default)."""
+    lead: float = 0.40           # silence before a beat's first sentence
+    gap: float = 0.32            # silence between sentences
+    tail: float = 0.70           # silence after a beat's last sentence
+    maxExtraPause: float = 2.2   # the most a chapter's budget lengthens one sentence's pause
+    taggedWeight: float = 2.0    # how much more of the budget's pauses a sentence with tags takes than one without
+    termFade: float = 0.4        # how long a lit term fades in when its cue names no blend
+    captionBridge: float = 0.6   # a caption stays up through a gap this short, to the next
+    captionWidth: int = 58       # characters per caption line (English)
+
+    @staticmethod
+    def of(board: Board) -> Pacing:
+        given = [f.name for f in fields(Pacing) if f.name in board]
+        return Pacing(**{name: int(board[name]) if name == 'captionWidth' else float(board[name]) for name in given})
 
 
 def sentences_of(beat: Json) -> list[Json]:
@@ -43,26 +55,26 @@ def all_sentences(board: Board) -> list[Json]:
     return [s for chapter in board['chapters'] for beat in chapter['beats'] for s in sentences_of(beat)]
 
 
-def balanced_lines(text: str) -> list[str]:
+def balanced_lines(text: str, width: int) -> list[str]:
     """One line if it fits, otherwise two lines split near the middle."""
-    if len(text) <= CAPTION_WIDTH:
+    if len(text) <= width:
         return [text]
     words = text.split()
     best: tuple[int, list[str]] | None = None
     for i in range(1, len(words)):
         a, b = ' '.join(words[:i]), ' '.join(words[i:])
-        if len(a) <= CAPTION_WIDTH and len(b) <= CAPTION_WIDTH:
+        if len(a) <= width and len(b) <= width:
             score = abs(len(a) - len(b))
             if best is None or score < best[0]:
                 best = (score, [a, b])
-    return best[1] if best else textwrap.wrap(text, CAPTION_WIDTH)
+    return best[1] if best else textwrap.wrap(text, width)
 
 
-def caption_chunks(text: str) -> list[str]:
+def caption_chunks(text: str, width: int) -> list[str]:
     """The fewest cues of at most two balanced lines, cut at word boundaries
     near equal character positions."""
     words = text.split()
-    n = max(1, math.ceil(len(text) / (2 * CAPTION_WIDTH - 6)))
+    n = max(1, math.ceil(len(text) / (2 * width - 6)))
     while True:
         total = len(text)
         bounds: list[int] = []
@@ -80,24 +92,24 @@ def caption_chunks(text: str) -> list[str]:
                 k += 1
         cuts = [0] + bounds + [len(words)]
         chunks = [' '.join(words[a:b]) for a, b in zip(cuts, cuts[1:]) if b > a]
-        lines = [balanced_lines(c) for c in chunks]
-        if all(len(group) <= 2 and all(len(x) <= CAPTION_WIDTH for x in group) for group in lines):
+        lines = [balanced_lines(c, width) for c in chunks]
+        if all(len(group) <= 2 and all(len(x) <= width for x in group) for group in lines):
             return ['\n'.join(group) for group in lines]
         n += 1
 
 
-def plan_chapter(chapter: Json, durations: Durations) -> tuple[float, list[float], float]:
+def plan_chapter(chapter: Json, durations: Durations, pacing: Pacing) -> tuple[float, list[float], float]:
     """A chapter's natural length, and the extra pauses that fit it to its budget."""
     natural = 0.0
     weights: list[float] = []
     for beat in chapter['beats']:
-        natural += LEAD + TAIL + beat.get('hold', 0.0)
+        natural += pacing.lead + pacing.tail + beat.get('hold', 0.0)
         for s in sentences_of(beat):
-            natural += durations[s['text']][1] + GAP
-            weights.append(2.0 if markup.tagged(s) else 1.0)
+            natural += durations[s['text']][1] + pacing.gap
+            weights.append(pacing.taggedWeight if markup.tagged(s) else 1.0)
     deficit = max(0.0, chapter['targetSeconds'] - natural)
     total_weight = sum(weights) or 1.0
-    extras = [min(MAX_EXTRA_PAUSE, deficit * w / total_weight) for w in weights]
+    extras = [min(pacing.maxExtraPause, deficit * w / total_weight) for w in weights]
     return natural, extras, deficit - sum(extras)
 
 
@@ -124,8 +136,7 @@ def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, in
         raise RuntimeError(f'{source}: unknown key fields {sorted(unknown)}')
     out: Json = {'frame': base_frame + int(round(k.get('delay', 0.0) * fps)), 'blend': int(round(k.get('blend', 0.0) * fps)), 'source': source}
     if 'ease' in k:
-        if k['ease'] not in EASES:
-            raise RuntimeError(f'{source}: unknown ease {k["ease"]!r} (one of {", ".join(EASES)})')
+        # One of the lab's easings: the reader checked it against the vocabulary's (markup.cue_key).
         out['ease'] = k['ease']
     # In the storyboard's order, so the timeline is the same from run to run.
     for name in (n for n in k if n in KEY_FIELDS):
@@ -135,18 +146,7 @@ def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, in
     return out
 
 
-def numbers(params: Json, where: str) -> Json:
-    """A point cue's parameters as values: numbers, flags, lists of numbers,
-    or names (markup.param_value)."""
-    out: Json = {}
-    for name, value in params.items():
-        if isinstance(value, str) and '..' in value:
-            raise markup.MarkupError(f'{where}: {name}={value} blends over a range; write it in a range, ${{during "name" …}}')
-        out[name] = markup.param_value(value, where) if isinstance(value, str) else value
-    return out
-
-
-def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, where: str) -> list[Json]:
+def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, where: str, pacing: Pacing) -> list[Json]:
     """The keys of a sentence's tags, as storyboard keys with `delay` (from
     the sentence's start) on the frame its word starts, and a range's blend
     ending on the frame its closing word starts."""
@@ -169,7 +169,8 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
     for tag, frame in zip(parsed.tags, frames):
         if tag.kind == 'close':
             continue
-        key = markup.cue_key(tag, where)
+        assert tag.key is not None
+        key = {**tag.key}
         delay = frame / fps
         if tag.kind == 'open':
             length = closes[tag.name] - frame
@@ -178,32 +179,31 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
             jump: Json = {}
             to: Json = {}
             for name, value in key.pop('params', {}).items():
-                if '..' in value:
-                    a, b = value.split('..', 1)
-                    jump[name] = markup.number(a, where)
-                    to[name] = markup.number(b, where)
+                if isinstance(value, markup.Range):
+                    jump[name] = value.start
+                    to[name] = value.end
+                elif isinstance(value, float):
+                    to[name] = value
                 else:
-                    to[name] = markup.number(value, where)
+                    raise markup.MarkupError(f'{where}: {name} in the range {tag.name!r} blends to a number, not {value!r}')
             if jump:
                 keys.append({'params': jump, 'delay': delay})
             keys.append({**key, 'params': to, 'blend': length / fps, 'delay': delay})
             continue
-        if 'params' in key:
-            key['params'] = numbers(key['params'], where)
         if 'term' in key and 'blend' not in key:
-            key['blend'] = TERM_FADE
+            key['blend'] = pacing.termFade
         if key:
             keys.append({**key, 'delay': delay + key.get('delay', 0.0)})
     return keys
 
 
-def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, cfg: Config) -> list[Json]:
+def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, cfg: Config, width: int) -> list[Json]:
     """A sentence's captions: chunks of at most two lines, formulas kept
     whole, each shown from the frame its first word starts (English; the
     Chinese text follows the English audio by its display width)."""
     caption = markup.shown(s, cfg.zh()).caption
     held, tags = markup.protect(caption)
-    chunks = zh.caption_chunks(held) if cfg.zh() else caption_chunks(held)
+    chunks = zh.caption_chunks(held, width) if cfg.zh() else caption_chunks(held, width)
     starts: list[int] = []
     if cfg.zh() or not narration.words:
         weights = [zh.display_width(c) if cfg.zh() else len(c) for c in chunks]
@@ -238,9 +238,18 @@ def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, 
     return out
 
 
+def caption_width(board: Board, cfg: Config) -> int:
+    """Characters per caption line, or the zh-CN edition's display units (its translation's `captionWidth`)."""
+    if cfg.zh():
+        return int(board.get('captionWidthZh', zh.CAPTION_UNITS))
+    return Pacing.of(board).captionWidth
+
+
 def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Json, list[Json], list[Json], dict[int, Json]]:
     """The timeline, the narration placements, the caption cues, and the chapter plans."""
     fps = board['fps']
+    pacing = Pacing.of(board)
+    width = caption_width(board, cfg)
     frame = 0
     beats_out: list[Json] = []
     keys_out: list[Json] = []
@@ -253,7 +262,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         return int(round(seconds * fps))
 
     for chapter in board['chapters']:
-        natural, extras, leftover = plan_chapter(chapter, durations)
+        natural, extras, leftover = plan_chapter(chapter, durations, pacing)
         plans[chapter['number']] = {'natural': natural, 'extraPauses': sum(extras), 'leftover': leftover}
         chapter_start = frame
         sentence_index = 0
@@ -261,7 +270,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         leftover_per_beat = leftover / len(scene_beats)
         for beat in chapter['beats']:
             beat_start = frame
-            cursor = beat_start + to_frames(LEAD)
+            cursor = beat_start + to_frames(pacing.lead)
             captions: list[Json] = []
             pending: list[tuple[list[tuple[Json, int]], int]] = []
             for s in sentences_of(beat):
@@ -270,15 +279,15 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 start = cursor
                 end = start + int(math.ceil(seconds * fps))
                 placements.append({'path': str(path), 'frame': start, 'rate': rate})
-                captions.extend(caption_cues(s, narration, start, end, fps, cfg))
+                captions.extend(caption_cues(s, narration, start, end, fps, cfg, width))
                 extra = extras[sentence_index] if sentence_index < len(extras) else 0.0
                 sentence_index += 1
                 # A sentence runs until the next one starts (or the beat ends).
-                sentence_keys = [(k, start) for k in tag_keys(s, beat, narration, fps, start, beat['id'])]
-                cursor = end + to_frames(GAP + extra)
+                sentence_keys = [(k, start) for k in tag_keys(s, beat, narration, fps, start, beat['id'], pacing)]
+                cursor = end + to_frames(pacing.gap + extra)
                 pending.append((sentence_keys, cursor))
             hold = beat.get('hold', 0.0) + (leftover_per_beat if beat in scene_beats else 0.0)
-            beat_end = cursor - to_frames(GAP) + to_frames(TAIL + hold)
+            beat_end = cursor - to_frames(pacing.gap) + to_frames(pacing.tail + hold)
             for i, (sentence_keys, sentence_end) in enumerate(pending):
                 ends = {'sentence': beat_end if i == len(pending) - 1 else sentence_end, 'beat': beat_end}
                 keys_out.extend(make_key(k, base, fps, beat['id'], ends) for k, base in sentence_keys)
@@ -288,7 +297,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 keys_out.append(make_key({'formula': '', 'term': 0}, beat_end, fps, beat['id'], {'beat': beat_end}))
             # Captions stay up through short gaps.
             for a, b in zip(captions, captions[1:]):
-                if b['start'] - a['end'] <= to_frames(0.6):
+                if b['start'] - a['end'] <= to_frames(pacing.captionBridge):
                     a['end'] = b['start']
             entry: Json = {
                 'id': beat['id'], 'chapter': chapter['number'], 'kind': beat['kind'], 'startFrame': beat_start,

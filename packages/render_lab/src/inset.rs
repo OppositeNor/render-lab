@@ -138,6 +138,9 @@ pub enum Corner {
 }
 
 impl Corner {
+    /// Every corner (the story vocabulary's options, lab/src/script/keys.rs).
+    pub const ALL: [Corner; 4] = [Corner::TopLeft, Corner::TopRight, Corner::BottomLeft, Corner::BottomRight];
+
     fn top(self) -> bool {
         matches!(self, Corner::TopLeft | Corner::TopRight)
     }

@@ -1,7 +1,7 @@
 $[Import* std]$[Import* content]
 # O3DE 如何照亮一帧 {#video subtitle="O3DE Atom 渲染器的光照模型，按渲染阶段逐步讲解：移植到 WGSL，并读自 O3DE 26.05 的源码" locale=zh-CN glossary="O3DE, Atom, WGSL, pass, forward pass, target, G-buffer, StandardPBR, EnhancedPBR, Skin, Eye, Base, Standard, Enhanced, MainRenderPipeline, MSAA, BRDF, GGX, Fresnel, Schlick, Lambert, Smith, microfacet, facet, albedo, F0, roughness, metallic, clear coat, multiscatter, split sum, LUT, IBL, SSAO, SSR, SSS, cubemap, mip, tile, bin, stencil, cascade, probe, reflection probe, mesh, texel, bias, acne, atlas, decal, ACEScg, EV100, nit, candela, Marschner, Gaussian, mask, compute pass, clipmap"}
 
-## 光照在哪里运行 {#c1 number=1 summary="MainRenderPipeline 的不透明帧：深度预处理阶段、分图块的光源剔除、阴影、写入五个渲染目标的前向渲染阶段，以及补全其光照的全屏渲染阶段。"}
+## 光照在哪里运行 {#c1 summary="MainRenderPipeline 的不透明帧：深度预处理阶段、分图块的光源剔除、阴影、写入五个渲染目标的前向渲染阶段，以及补全其光照的全屏渲染阶段。"}
 
 ### 一帧光照，逐阶段组装 {#c1-open}
 
@@ -215,7 +215,7 @@ O3DE 还保留着通过可见性缓冲区实现延迟着色的代码，但没有
 
 本视频中的每个论断都引用 O3DE 检出中的一个文件、一个符号和一行，构建时会检查每一行仍然存在。
 
-## 直接光：哪些光源到达一个图块 {#c2 number=2 summary="分图块的光源剔除：每个 16 × 16 图块的深度范围和掩码、它的深度深度分区、前向渲染阶段遍历的列表，以及每种光源类型如何求值。"}
+## 直接光：哪些光源到达一个图块 {#c2 summary="分图块的光源剔除：每个 16 × 16 图块的深度范围和掩码、它的深度深度分区、前向渲染阶段遍历的列表，以及每种光源类型如何求值。"}
 
 ### 每个图块都有自己的光源列表 {#c2-why}
 
@@ -363,7 +363,7 @@ disk 和 capsule 的做法相同，quad 则使用线性变换余弦，这是一�
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 表面：从材质到反照率、F0、粗糙度 {#c3 number=3 summary="StandardPBR 的输入如何构成一个表面：金属度工作流、粗糙度及其钳制、高光抗锯齿、遮蔽与自发光，以及表面光照数据初始化后贴花如何改变表面。"}
+## 表面：从材质到反照率、F0、粗糙度 {#c3 summary="StandardPBR 的输入如何构成一个表面：金属度工作流、粗糙度及其钳制、高光抗锯齿、遮蔽与自发光，以及表面光照数据初始化后贴花如何改变表面。"}
 
 ### 材质的输入变成一个表面 {#c3-inputs}
 
@@ -445,7 +445,7 @@ disk 和 capsule 的做法相同，quad 则使用线性变换余弦，这是一�
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## BRDF：表面如何回应每盏光源 {#c4 number=4 summary="GGX 镜面反射及其 D、G、F，Lambert 漫反射及其响应，逐光源公式，四种光照模型，BRDF 查找纹理，以及默认关闭的多次散射补偿。"}
+## BRDF：表面如何回应每盏光源 {#c4 summary="GGX 镜面反射及其 D、G、F，Lambert 漫反射及其响应，逐光源公式，四种光照模型，BRDF 查找纹理，以及默认关闭的多次散射补偿。"}
 
 ### 一个点上的四个方向 {#c4-vectors}
 
@@ -559,7 +559,7 @@ A 加 B 是一次反弹保留的份额，它随粗糙度增大而缩小。
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 阴影：来自太阳的贴图，通过屏幕读取 {#c5 number=5 summary="太阳的级联阴影贴图：四级级联、每级 1024 纹素，近处分得更密，各自用球体拟合并对齐纹素；还介绍单点阴影查询及其 bias、前向渲染阶段读取的屏幕空间阴影缓冲及其模糊，以及局部光源的阴影。"}
+## 阴影：来自太阳的贴图，通过屏幕读取 {#c5 summary="太阳的级联阴影贴图：四级级联、每级 1024 纹素，近处分得更密，各自用球体拟合并对齐纹素；还介绍单点阴影查询及其 bias、前向渲染阶段读取的屏幕空间阴影缓冲及其模糊，以及局部光源的阴影。"}
 
 ### 太阳的阴影是从太阳看去的深度图 {#c5-why}
 
@@ -677,7 +677,7 @@ sphere 光源需要六张贴图，围绕它的立方体每个面一张，每张�
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 间接光：天空与探针 {#c6 number=6 summary="全局天光的两张立方体贴图如何提供基于图像的光照：漫反射贴图经余弦卷积，高光贴图经 GGX 预过滤（mip = 5 × roughness）；还介绍 split sum、带模板和权重的反射探针、视差校正，以及 SSR 和漫反射探针网格。"}
+## 间接光：天空与探针 {#c6 summary="全局天光的两张立方体贴图如何提供基于图像的光照：漫反射贴图经余弦卷积，高光贴图经 GGX 预过滤（mip = 5 × roughness）；还介绍 split sum、带模板和权重的反射探针、视差校正，以及 SSR 和漫反射探针网格。"}
 
 ### 两张立方体贴图：一张给漫反射，一张给高光 {#c6-two}
 
@@ -785,7 +785,7 @@ mip m 是用粗糙度为 m 除以 5 的 GGX 波瓣预过滤的，每个纹素 25
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 遮蔽：天空够不到的地方 {#c7 number=7 summary="仅依据深度缓冲计算的屏幕空间环境光遮蔽：每个半分辨率像素采样 52 次，半径按屏幕高度设定，gamma 为 2.2；结果经深度感知模糊和上采样后乘到所有漫反射光上，另介绍材质自带的遮蔽贴图。"}
+## 遮蔽：天空够不到的地方 {#c7 summary="仅依据深度缓冲计算的屏幕空间环境光遮蔽：每个半分辨率像素采样 52 次，半径按屏幕高度设定，gamma 为 2.2；结果经深度感知模糊和上采样后乘到所有漫反射光上，另介绍材质自带的遮蔽贴图。"}
 
 ### SSAO 只凭深度就让缝隙变暗 {#c7-why}
 
@@ -867,7 +867,7 @@ AO 乘在整个漫反射渲染目标上，其中既有太阳的直接光，也�
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 穿过表面的光 {#c8 number=8 summary="Enhanced 和 Skin 光照模型中的透射（厚物体取自 Barré-Brisebois 和 Bouchard，薄物体取自 Jimenez）、它所读取的阴影贴图厚度及其单位、O3DE 中的叶子是什么、屏幕空间次表面散射，以及 Skin 和 Eye 模型。"}
+## 穿过表面的光 {#c8 summary="Enhanced 和 Skin 光照模型中的透射（厚物体取自 Barré-Brisebois 和 Bouchard，薄物体取自 Jimenez）、它所读取的阴影贴图厚度及其单位、O3DE 中的叶子是什么、屏幕空间次表面散射，以及 Skin 和 Eye 模型。"}
 
 ### 只有 Enhanced 和 Skin 让光穿过 {#c8-which}
 
@@ -947,7 +947,7 @@ Eye 使用 Skin 模型的设置，但采用 StandardPBR 的直接光照，它的
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 地形，以及关于头发的几句话 {#c9 number=9 summary="Terrain gem 自带的前向着色器：固定的宏观参数、CPU 逐顶点生成的法线、按权重混合的细节材质，以及只用于天空光、不用于直接光的多次散射补偿；最后简要介绍 AtomTressFX 头发 gem 的 Marschner 模型。"}
+## 地形，以及关于头发的几句话 {#c9 summary="Terrain gem 自带的前向着色器：固定的宏观参数、CPU 逐顶点生成的法线、按权重混合的细节材质，以及只用于天空光、不用于直接光的多次散射补偿；最后简要介绍 AtomTressFX 头发 gem 的 Marschner 模型。"}
 
 ### 地形通过前向渲染阶段绘制，用它自己的着色器 {#c9-own}
 
@@ -1007,7 +1007,7 @@ ${math "R + TT + TRT"} 它默认的光照是 Marschner 模型，三个波瓣：R
 
 这些是本章跟读过的文件和行，按阅读顺序排列。
 
-## 追溯一个像素 {#c10 number=10 summary="按引擎的顺序，把示例点 P 追溯回整帧，以及三个要点。"}
+## 追溯一个像素 {#c10 summary="按引擎的顺序，把示例点 P 追溯回整帧，以及三个要点。"}
 
 ### 再看一遍这一帧 {#c10-map}
 

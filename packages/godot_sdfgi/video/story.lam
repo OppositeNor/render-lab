@@ -1,0 +1,12 @@
+The SDFGI story's cue groups
+============================
+
+What the storyboard (`storyboard.lam`) says again and again, said once: the package `godot_sdfgi_story`, which
+the storyboard imports (`$$[Import* godot_sdfgi_story]`; tools/video/build.py gives it to the reader).
+
+$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* godot_sdfgi]
+
+A beat's opening keys: its demonstration, and how far the camera drifts while it holds; `more` are the beat's
+own.
+
+$[# {opening demo drift more} {append {' demo {cameraDrift drift}} more}]

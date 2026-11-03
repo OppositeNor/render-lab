@@ -7,9 +7,12 @@ keeps for the lab to draw (src/lab/rich_text.rs): a formula is
 `{@ formula="…"}`, a code name `{@ codespan="…"}`.
 
 A cue's attributes are pairs of Strings, as the investigation's vocabulary
-writes them (`render-lab story keys`): any shot parameter, `callout`,
+writes them (`render-lab story keys`; `Fields` reads its field list): any
+shot parameter, `callout`,
 `code`, `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`,
-`blend=0.5` (seconds), `term=n`, and the package's actions
+`blend=0.5` (seconds), `term=n` (render_lab's Lamlet package writes
+`highlight`, `record`, `animate`, `imageMark`, points, and the hide
+lists), and the package's actions
 (src/lab/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
 arguments, `stop=a,b` stops them; and `image=name` (`imageTitle=text-key`,
 `imageCorner=top-left`), an image the investigation publishes, a PNG
@@ -36,23 +39,54 @@ from typing import Any
 
 Json = dict[str, Any]
 
-# Key fields a tag attribute names directly (the rest are shot parameters).
-STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageClick', 'imageMarkText', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
+# Fields the reader types itself (`cue_key`); every other field of the vocabulary is kept as written.
+TYPED = ('camera', 'animate', 'delay', 'blend', 'term', 'run', 'stop', 'ease', 'imageMark', 'imageHide', 'arrowHide', 'labelHide',
+         'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlight', 'record', *FORMULA_ATTRS)
 
 
 class MarkupError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class Fields:
+    """What a cue's attributes name besides values, from the investigation's
+    vocabulary key list (`render-lab story keys`, which the builder writes to
+    the package's build/<package>.keys.json; `"field": true` marks a key's
+    fields): the fields kept as written, the camera's fields, and the easings."""
+    text: frozenset[str]
+    camera: frozenset[str]
+    eases: frozenset[str]
+
+    @staticmethod
+    def of(keys: list[Json]) -> Fields:
+        def attr(k: Json) -> str:
+            return k.get('key', k['name'])
+        fields = [k for k in keys if k.get('field')]
+        return Fields(text=frozenset(attr(k) for k in fields if k['kind'] == 'text' and attr(k) not in TYPED and '.' not in attr(k)),
+                      camera=frozenset(attr(k).removeprefix('camera.') for k in keys if not k.get('field') and attr(k).startswith('camera.')),
+                      eases=frozenset(o for k in fields if attr(k) == 'ease' for o in k.get('options', [])))
+
+
+@dataclass(frozen=True)
+class Range:
+    """A value a range blends over its words: it jumps to `start` where the
+    range opens and blends to `end` where it closes (`a..b`)."""
+    start: float
+    end: float
+
+
 @dataclass
 class Tag:
     """A tag of a sentence: what kind it is, its name (cues, ranges), its
-    attributes, and the index of the spoken piece it stands before."""
+    attributes, the index of the spoken piece it stands before, and the key
+    it sets (`cue_key`; none for a range's close)."""
     kind: str                  # 'cue', 'open', 'close', or 'formula'
     name: str | None
     attrs: list[tuple[str, str]]
     piece: int
+    key: Json | None = None
 
     def attr(self, name: str) -> str | None:
         return next((v for k, v in self.attrs if k == name), None)
@@ -176,47 +210,58 @@ def check_action(key: Json, where: str) -> None:
         del run['args']
 
 
-def cue_key(tag: Tag, where: str) -> Json:
-    """The shot key a point cue or a range's start sets, before timing:
-    fields as the storyboard writes them (`blend` in seconds)."""
+def value(text: str, where: str) -> float | bool | str | list[float] | Range:
+    """A value as a cue writes it (`param_value`), or a range's `a..b`."""
+    if '..' in text:
+        a, b = text.split('..', 1)
+        return Range(number(a, where), number(b, where))
+    return param_value(text, where)
+
+
+def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
+    """The shot key a cue (a point cue, a range's start, a formula, or one of
+    a beat's keys) sets, before timing: fields as the storyboard writes them
+    (`blend` and `delay` in seconds), values typed (`value`)."""
     key: Json = {}
     params: Json = {}
-    for name, value in tag.attrs:
+    for name, v in tag.attrs:
         if name.startswith('param.'):
-            params[name[6:]] = value
-        elif name == 'camera' and value == 'continuous':
+            params[name[6:]] = value(v, where)
+        elif name == 'camera' and v == 'continuous':
             key.setdefault('camera', {})
         elif name.startswith('camera.'):
             part = name.split('.', 1)[1]
-            if part not in ('target', 'yaw', 'pitch', 'distance', 'fov'):
+            if part not in fields.camera:
                 raise MarkupError(f'{where}: unknown camera field {part!r}')
-            key.setdefault('camera', {})[part] = [number(x, where) for x in value.split(',')] if part == 'target' else number(value, where)
+            key.setdefault('camera', {})[part] = [number(x, where) for x in v.split(',')] if part == 'target' else number(v, where)
         elif name == 'animate':
             try:
-                key['animate'] = json.loads(value)
+                key['animate'] = json.loads(v)
             except ValueError as e:
                 raise MarkupError(f'{where}: animate is JSON: {e}') from None
-        elif name == 'delay':
-            key['delay'] = number(value.removesuffix('s'), where)
-        elif action_attr(key, name, value, where) or image_attr(key, name, value, where):
+        elif name in ('blend', 'delay'):
+            key[name] = number(v.removesuffix('s'), where)
+        elif name == 'ease':
+            if v not in fields.eases:
+                raise MarkupError(f'{where}: unknown ease {v!r} (one of {", ".join(sorted(fields.eases))})')
+            key['ease'] = v
+        elif action_attr(key, name, v, where) or image_attr(key, name, v, where):
             continue
-        elif name in STRING_FIELDS:
-            key[name] = value
+        elif name in fields.text:
+            key[name] = v
         elif name == 'highlight':
-            key['highlight'] = [v for v in value.split(',') if v]
+            key['highlight'] = [h for h in v.split(',') if h]
         elif name == 'record':
-            kind, _, index = value.partition(':')
+            kind, _, index = v.partition(':')
             key['record'] = {'type': kind} if not index else {'type': kind, 'index': int(number(index, where))}
-        elif name == 'blend':
-            key['blend'] = number(value.removesuffix('s'), where)
         elif name == 'term':
-            key['term'] = int(number(value, where))
+            key['term'] = int(number(v, where))
         elif name == 'formula':
-            key['formula'] = '' if value == 'off' else formula_tag(tag)
-        elif name in ('say', 'card', 'display', 'colors'):
+            key['formula'] = '' if v == 'off' else formula_tag(tag)
+        elif name in FORMULA_ATTRS:
             continue
         else:
-            params[name] = value
+            params[name] = value(v, where)
     if tag.kind == 'formula' and tag.attr('card') == 'no':
         key.pop('formula', None)
     check_action(key, where)
@@ -295,4 +340,4 @@ def tagged(s: Json) -> bool:
 def text_keys(beat: Json, s: Json) -> list[Json]:
     """The keys a sentence's tags set, untimed: for checks that look at every
     key (callouts, listings)."""
-    return [cue_key(t, beat['id']) for t in sentence(s).tags if t.kind != 'close']
+    return [t.key for t in sentence(s).tags if t.key is not None]
