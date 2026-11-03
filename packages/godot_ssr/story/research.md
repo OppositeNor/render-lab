@@ -116,6 +116,10 @@ Checked by the merging agent against the source unless marked otherwise.
 9. **No temporal accumulation, jitter, or denoiser**: the only cross-frame data are the previous frame's HDR colour
    and camera; no previous depth is kept, so disocclusion is not detected (sections O, A).
 10. **No tests or demos in the checkout use SSR** (section U).
+11. **Section O's line numbers in `filter.glsl`, `resolve.glsl`, and `hiz.glsl` are wrong** (checked: the files have
+    131, 99, and 45 lines, and O cites lines past their ends, e.g. resolve.glsl:333, hiz.glsl:84-101), and its 7-tap
+    sigma (~1.8) disagrees with section F's fit (2.021, from the weights). For those shaders, sections C and F are the
+    reference; re-read the lines before indexing anything from section O.
 
 Where a section below disagrees with this list, this list is the checked version.
 

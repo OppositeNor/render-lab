@@ -35,6 +35,10 @@ whose license allows publishing code derived from them:
   4.7's Forward+ renderer computes signed distance field global illumination, followed on the CPU at the engine's sizes:
   the cascades and their scrolling, voxelization, the jump-flood distance field, occlusion, light injection and bounce,
   probe tracing and its history, the octahedral probe maps, and the screen pass, ported to WGSL.
+- **Godot Engine: screen-space reflections** ([`packages/godot_ssr/src/godot/ssr`](packages/godot_ssr/src/godot/ssr/README.md)). How
+  Godot 4.7's Forward+ renderer reflects what is on screen, its passes ported to WGSL and mirrored on the CPU: the
+  normal-roughness pre-pass, the half-size downsample, the Hi-Z pyramid, the trace through it, its validation and
+  last frame's colour, the roughness filter, the bilateral resolve, and the opaque pass's blend.
 - **Godot Engine: VoxelGI** ([`packages/godot_voxelgi/src/godot/voxelgi`](packages/godot_voxelgi/src/godot/voxelgi/README.md)). How
   Godot 4.7's Forward+ renderer computes its baked voxel global illumination, followed on the CPU at the engine's
   default subdivision: the bake's octree and distance field, the cells' records, the light, mip, and bounce passes, the

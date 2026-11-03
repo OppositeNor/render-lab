@@ -1,0 +1,17 @@
+# SSR in the study room, its floor glossy.
+
+key = "room"
+title-text = "shot.room_title"
+tab-text = "shot.room"
+hint-text = "investigation.demo_hint"
+scene = "render_lab.scene/study-room"
+listing = "frame"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+floorRoughness = 0.15
+# Environment.reflected_light_source = Disabled: the room has no reflection probe, and the sky would leak through its walls.
+skyReflection = 0.0
+# A polished metal floor (BaseMaterial3D.metallic 1): its f0 is its albedo, so the reflections read clearly.
+floorMetallic = 1.0

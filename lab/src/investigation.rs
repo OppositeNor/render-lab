@@ -254,6 +254,12 @@ pub struct ShadingProgram {
     /// whether the frame builds on the ones before it (a live view) or
     /// stands alone (a recording's frame, a snapshot).
     pub plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand>,
+    /// For a program that reads what earlier frames left (an image an
+    /// `AfterScene` pass copied the frame into): how many times a frame that
+    /// stands alone draws the same shot first, each planned and drawn in full,
+    /// the first told it has no history (so it starts from zero), the rest
+    /// that they do. 0: a standalone frame is drawn once.
+    pub warmup: u32,
 }
 
 /// What a plan is told about the frame.
@@ -263,6 +269,8 @@ pub struct ProgramFrame<'a> {
     pub history: bool,
     /// The device's optional features that are on (`Gpu::features`).
     pub features: wgpu::Features,
+    /// The main view's size in pixels (what `ProgramImage::viewport` divides).
+    pub viewport: [u32; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -281,6 +289,14 @@ pub struct ProgramImage {
     pub size: [u32; 3],
     pub format: wgpu::TextureFormat,
     pub count: u32,
+    /// Its mip levels: 1, or at most this many, each half the one before
+    /// (rounded down) until a side reaches one texel (`u32::MAX`: all of them).
+    /// A use binds them all, or one per instance (`Which::Mip`).
+    pub mips: u32,
+    /// 0: `size`. Otherwise its width and height are the main view's divided
+    /// by this (rounded down, at least 1), and it is made again, at zero,
+    /// when the view's size changes.
+    pub viewport: u32,
 }
 
 /// `count` buffers of a program, each `bytes` long; `indirect`, also a dispatch's arguments.
@@ -316,6 +332,9 @@ pub enum ProgramStage {
     AfterPrepass,
     /// Right before the scene pass.
     BeforeScene,
+    /// Right after the scene pass (before the chain's passes after it): what
+    /// it wrote, `hdr` included, is this frame's.
+    AfterScene,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -340,9 +359,11 @@ pub struct ProgramPass {
     pub instances: u32,
 }
 
-/// A binding of group 3: the resource (an image, a buffer, or the lab's
-/// samplers `"linearSampler"`, `"nearestSampler"`, clamped to the edge) and
-/// how the pass uses it.
+/// A binding of group 3: the resource (an image, a buffer, the lab's
+/// samplers `"linearSampler"`, `"nearestSampler"`, `"trilinearSampler"`
+/// (linear between mips too), all clamped to the edge, or, for a pass, one
+/// of the frame's textures it reads with `Load`: `"depth"` (multisampled),
+/// `"hdr"`, or a target of the pass chain) and how the pass uses it.
 #[derive(Clone, Copy, Debug)]
 pub struct ProgramUse {
     pub binding: u32,
@@ -364,6 +385,10 @@ pub enum Which {
     Pick(&'static [u32]),
     /// Element `k`.
     Fixed(u32),
+    /// Element 0's one mip level: the command's instance plus this offset,
+    /// clamped to its levels (a pass per level, each reading the one before:
+    /// `Mip(-1)` read, `Mip(0)` written).
+    Mip(i32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,0 +1,101 @@
+{
+  "investigation": "godot/ssr",
+  "storyboard": "storyboard.lam",
+  "translations": {
+    "zh-CN": "storyboard.zh-CN.lam"
+  },
+  "diagrams": "diagrams",
+  "sourceIndex": "../source-index.json",
+  "pseudocode": "../pseudocode",
+  "video": {
+    "en": "godot-ssr.mp4",
+    "zh-CN": "godot-ssr-zh-CN.mp4"
+  },
+  "engineLabel": "Godot 4.7.2-stable · ed1daf0b",
+  "checkoutEnv": "GODOT_SOURCE_DIR",
+  "durationMinutes": [
+    14,
+    19
+  ],
+  "readingPath": [
+    "gating",
+    "process-ssr",
+    "nr-write",
+    "encode24",
+    "downsample-winner",
+    "hiz-max",
+    "loop",
+    "hit-test",
+    "tolerance",
+    "validity",
+    "fades",
+    "reprojection",
+    "last-frame-color",
+    "mip-bias",
+    "filter-weights",
+    "resolve-weights",
+    "ssr-blend",
+    "env-brdf",
+    "copy-last-frame"
+  ],
+  "pronunciations": {
+    "SSR": "S S R",
+    "Hi-Z": "high Z",
+    "VoxelGI": "voxel G I",
+    "SDFGI": "S D F G I",
+    "BRDF": "B R D F",
+    "Forward+": "forward plus"
+  },
+  "documents": {
+    "en": {
+      "guideTitle": "Source-reading guide: screen-space reflections in Godot 4.7",
+      "intro": "**What this is.** A narrated walkthrough of how Godot 4.7's Forward+ renderer computes screen-space reflections, built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`, Python pseudo-code of the Godot functions involved, and a diagram of its frame. The lab runs Godot's SSR passes, ported to WGSL, in Godot's order on the GPU (the normal-roughness pre-pass, the half-size downsample, the Hi-Z pyramid, the trace, the roughness filter, the resolve, and the opaque pass's blend), checks the trace and the pyramid against a CPU mirror on the GPU's own data, and steps one pixel's trace on a CPU copy of the frame; the scene is the lab's own.",
+      "demos": {
+        "room": "the study room with SSR",
+        "inputs": "depth and normal-roughness at a pixel",
+        "pyramid": "the depth pyramid",
+        "trace": "one pixel's trace",
+        "hit": "its validity",
+        "blur": "its blur level",
+        "compose": "the opaque pass"
+      },
+      "simplifications": [
+        "The lab's depth is 4x multisampled; the downsample and the resolve read its first sample (Godot resolves it).",
+        "The normal-roughness buffer is multisampled too, and read at its first sample.",
+        "The lab's objects are static, so no roughness byte carries the dynamic flag.",
+        "The sky's reflection reads the lab's environment, box-filtered mips blended by `sqrt(roughness) * 7`, where Godot",
+        "The environment BRDF is Karis's analytic fit (2014), where Godot reads its DFG table.",
+        "Godot's ambient light is the sky's irradiance; the lab's ambient term divided by pi stands in for it, in the",
+        "Where Godot compiles odd-size variants of the downsample and Hi-Z shaders, the port reads a flag.",
+        "Only the default half-size path runs; the full-size path is described, not run.",
+        "A frame drawn alone (a recording, a snapshot) first draws the same shot four times, so its trace reads a last",
+        "The lab renders at its own size: the SSR size and mip count are the lab's, not 1080p's."
+      ]
+    },
+    "zh-CN": {
+      "guideTitle": "源码阅读指南：Godot 4.7 中的屏幕空间反射",
+      "intro": "**这是什么。** 讲解 Godot 4.7 的 Forward+ 渲染器如何计算屏幕空间反射，由 `render-lab` 中 Rust/wgpu 实验室渲染的 3D 演示、相关 Godot 函数的 Python 伪代码以及其帧的图示组成。实验室按 Godot 的顺序在 GPU 上运行移植到 WGSL 的 SSR 渲染阶段（法线-粗糙度预渲染、半尺寸下采样、Hi-Z 金字塔、追踪、粗糙度滤波、resolve 以及不透明渲染的混合），在 GPU 自身的数据上将追踪和金字塔与 CPU 镜像对比，并在该帧的 CPU 副本上逐步演示一个像素的追踪；场景是实验室自己的。",
+      "demos": {
+        "room": "带 SSR 的书房",
+        "inputs": "一个像素的深度和法线-粗糙度",
+        "pyramid": "深度金字塔",
+        "trace": "一个像素的追踪",
+        "hit": "其有效度",
+        "blur": "其模糊级别",
+        "compose": "不透明渲染"
+      },
+      "simplifications": [
+        "实验室的深度为 4 倍多重采样；下采样和 resolve 读取其第一个采样（Godot 先将其解析）。",
+        "法线-粗糙度缓冲同样为多重采样，读取其第一个采样。",
+        "实验室的物体都是静态的，因此粗糙度字节不带动态标志。",
+        "天空反射读取实验室的环境贴图，按 sqrt(roughness) * 7 在盒式滤波的 mip 之间混合，而 Godot 读取其辐射八面体贴图的 GGX 滤波粗糙度层；房间里没有反射探针或 GI 缓冲。",
+        "环境 BRDF 使用 Karis 的解析拟合（2014），而 Godot 读取其 DFG 表。",
+        "Godot 的环境光是天空的辐照度；这里用实验室的环境项除以 pi 代替，镜面遮蔽中也是如此。",
+        "Godot 为下采样和 Hi-Z 着色器编译奇数尺寸变体，移植版本读取一个标志。",
+        "只运行默认的半尺寸路径；全尺寸路径只作说明，不运行。",
+        "单独绘制的一帧（录制、快照）会先把同一镜头绘制四次，使其追踪读到静止相机下的上一帧；Godot 的第一帧读取的是被清空的纹理。",
+        "实验室以自己的尺寸渲染：SSR 尺寸和 mip 数量是实验室的，而非 1080p 的。"
+      ]
+    }
+  }
+}

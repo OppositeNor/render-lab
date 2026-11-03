@@ -1,0 +1,15 @@
+# What the trace starts from: depth and normal-roughness at the pixel.
+
+key = "inputs"
+title-text = "shot.inputs_title"
+tab-text = "shot.inputs"
+hint-text = "hints.inputs_demo"
+scene = "render_lab.scene/study-room"
+listing = "prepass"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+floorRoughness = 0.15
+skyReflection = 0.0
+floorMetallic = 1.0

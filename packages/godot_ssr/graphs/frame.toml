@@ -1,0 +1,27 @@
+# The frame graph's sections (the resource `graph/frame`; tools/video/frame_graph.py has the
+# format): the story's frame graph scene (`graph=frame`), and the viewer's DAG panel. Godot's
+# Forward+ frame around SSR, in its order: the depth pre-pass, the screen-space passes before
+# the opaque pass, the opaque pass, and the copy of the frame the next frame reads.
+
+[[section]]
+id = "PRE"
+title-text = "frame.prepass"
+passes = ["ssrBestFit", "ssrPrepassFS"]
+to = ["SSR"]
+
+[[section]]
+id = "SSR"
+title-text = "frame.ssr"
+passes = ["ssrDownsample", "ssrHiz", "ssrTrace", "ssrFilter", "ssrResolve"]
+to = ["OPAQUE"]
+
+[[section]]
+id = "OPAQUE"
+title-text = "frame.opaque"
+passes = ["ssrForwardFS"]
+to = ["HISTORY"]
+
+[[section]]
+id = "HISTORY"
+title-text = "frame.history"
+passes = ["ssrCopyLastFrame"]

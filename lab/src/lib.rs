@@ -30,6 +30,7 @@ pub mod environment;
 pub mod experiment;
 pub mod formats;
 pub mod formula;
+pub mod fetch;
 pub mod frame;
 pub mod free_view;
 pub mod frost;

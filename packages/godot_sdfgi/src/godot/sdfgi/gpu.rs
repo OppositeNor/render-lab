@@ -46,7 +46,7 @@ pub const LIGHT_BYTES: u64 = 112;
 pub const CONVERGED_FRAMES: u32 = super::sim::CONVERGED_FRAMES;
 
 const fn image(name: &'static str, kind: ImageKind, size: [u32; 3], format: F, count: u32) -> ProgramImage {
-    ProgramImage { name, kind, size, format, count }
+    ProgramImage { name, kind, size, format, count, mips: 1, viewport: 0 }
 }
 
 pub static IMAGES: &[ProgramImage] = &[
@@ -235,6 +235,7 @@ pub static PROGRAM: ShadingProgram = ShadingProgram {
     scene_uses: &[u(1, "lightprobeData", Load, First), u(2, "screenData", Read, First)],
     init: || Box::new(Plan::default()),
     plan: |state, frame| state.downcast_mut::<Plan>().expect("the SDFGI plan").frame(frame),
+    warmup: 0,
 };
 
 /// The CPU side of SDFGI for the GPU program: the cascades and the counters

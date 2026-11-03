@@ -149,9 +149,24 @@ pub struct FrameContent {
     /// Per-frame data of that shading too large for uniforms (lights, decals,
     /// probes), at most SHADING_FRAME_CAPACITY vectors.
     pub shading_frame: Vec<[f32; 4]>,
+    /// The GPU reads it asks for (src/fetch.rs), copied after the frame's passes.
+    pub fetches: Vec<crate::fetch::Request>,
 }
 
 impl FrameContent {
+    /// Ask for `region` of `source` to be read back after this frame's passes
+    /// (src/fetch.rs), its result named `key`, tagged with the frame's inputs;
+    /// and return the latest result of `key`, of this frame or one before it.
+    pub fn fetch(&mut self, key: &str, source: crate::fetch::Source, region: crate::fetch::Region) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
+        self.fetch_tagged(key, source, region, None)
+    }
+
+    /// `fetch` with a tag of the investigation's own (what the result depends on), None for the frame's inputs.
+    pub fn fetch_tagged(&mut self, key: &str, source: crate::fetch::Source, region: crate::fetch::Region, tag: Option<u64>) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
+        self.fetches.push(crate::fetch::Request { key: key.to_string(), source, region, tag });
+        crate::fetch::get(key)
+    }
+
     /// A frame of `objects` under `uniforms` with nothing else: no overlays,
     /// labels, panel record, or insets.
     pub fn new(objects: Vec<ObjectData>, uniforms: FrameUniforms) -> FrameContent {
@@ -167,6 +182,7 @@ impl FrameContent {
             images: Vec::new(),
             points: Vec::new(),
             arrow_sets: Vec::new(),
+            fetches: Vec::new(),
             shading: Default::default(),
             shading_frame: Vec::new(),
         }

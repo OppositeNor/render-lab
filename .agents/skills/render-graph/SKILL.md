@@ -25,6 +25,7 @@ Nodes, in declaration order:
 | early compute passes | their entry points | `SceneShading::early` |
 | program passes (`BeforeScene`) | their names | `SceneShading::program` |
 | scene pass | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`, with none), MSAA |
+| program passes (`AfterScene`) | their names | `SceneShading::program` (what the scene pass wrote, `hdr` included, is this frame's) |
 | compute passes | their entry points (a repeated entry: `name#2`) | `SceneShading::passes` |
 | overlay, composite | `overlay`, `composite` | the lab's |
 
@@ -51,11 +52,19 @@ wrote (`scene_reads`); it has no `passes` after the scene.
 the chain cannot express: images (2D, 2D arrays, 3D; integer formats; `count` elements, bound one at a time or as a
 binding array) and buffers (indirect ones too), compute and raster passes, and a plan (CPU, with its own state) that
 returns each frame's commands in order: uploads, clears, copies, dispatches (direct or indirect, each with 16 words
-of parameters at group 2), and draws of the scene's meshes into a framebuffer of its own size. A pass's `uses` are
-its group-3 bindings (`Which` picks an element: the command's `instance`, a fixed one, a table's, or all); each pass
-is a node whose reads and writes come from its uses, always live (it writes what outlives the frame). The scene
-pass and the chain's compute passes read `scene_uses` at group 3 (in a shading without volumes). The plan runs in
-the main view only. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) is one.
+of parameters at group 2), and draws of the scene's meshes into a framebuffer of its own size. An image may have a
+mip chain (`ProgramImage::mips`) and may follow the view's size (`viewport`: the view divided by it, made again at
+zero when the size changes); the plan is told the view's size (`ProgramFrame::viewport`). A pass's `uses` are its
+group-3 bindings (`Which` picks an element: the command's `instance`, a fixed one, a table's, or all; `Mip(k)`
+binds element 0's one level, the instance plus `k`, so a pass per level reads level m - 1 and writes level m); a
+pass may also read the frame's textures with `Load`: `depth` (multisampled), `hdr`, or a chain target. The
+samplers are `linearSampler`, `nearestSampler`, and `trilinearSampler` (linear between mips too). Each pass is a
+node whose reads and writes come from its uses, always live (it writes what outlives the frame). The scene pass,
+the pre-pass, and the chain's compute passes read `scene_uses` at group 3 (in a shading without volumes). The
+plan runs in the main view only. A program that reads what an earlier frame left (an `AfterScene` copy of `hdr`)
+sets `warmup`: a frame drawn alone (a recording's, a snapshot) first draws the same shot that many times, the first
+told it has no history. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) and SSR (packages/godot_ssr, `gpu.rs`, mip
+chains, the frame's textures, an `AfterScene` copy) are programs.
 
 ## 2. Declaring reads and writes
 
@@ -128,6 +137,30 @@ cargo run --release -- home --snapshot inspect.png --page "viewer-inspect:o3deLi
 cargo run --release -- --investigation godot/voxelgi home --snapshot vol.png --page "viewer-inspect:voxelgiWriteCS.voxelgiLight/color?slice=0.05&exposure=2"
 cargo run --release -- --investigation godot/sdfgi home --snapshot light.png --page "viewer-inspect:sdfgiDynamicLight.lightData/color?encoding=3&slice=0.4&index=1"
 ```
+
+### Reading a resource back on the CPU (`lab::fetch`)
+
+A demonstration that draws from what the GPU computed (a pixel's depth, a level of a pyramid, a buffer's words)
+asks for it while it builds the frame, and reads it back without stalling (lab/src/fetch.rs):
+
+```rust
+use lab::fetch::{Region, Source};
+// Just P's texel of the program image `hiz` at level 0; the latest result, if one has landed.
+let depth = content.fetch("my_pkg.depth", Source::image("hiz", 0), Region::around(p, 0)).and_then(|f| f.texel(p));
+// A whole level, a rectangle (`Region::rect`), a program buffer's bytes (`Source::buffer`, `Region::bytes`), a volume's mip (`Source::volume`).
+```
+
+- The renderer copies each region after the frame's passes into a staging buffer and maps it; `get(key)` (or
+  `fetch`'s return) gives the latest result: its texels decoded to floats (`texel`, `floats`; `bytes`, `words` for
+  a buffer), its region, its resource's `extent`, and the `tag` and `frame` it was read at.
+- A result is tagged with the frame's inputs (records, uniforms, shading values, viewport) unless `fetch_tagged`
+  gives a tag of its own; a request already answered or in flight for the same source, region, and tag is not
+  copied again, and a key has one read in flight at a time. So a still view reads once, and in the viewer a moving
+  view's result trails it by a frame or two (draw from the latest).
+- A frame drawn alone (a recording, a snapshot, a selftest) is settled: if a request has no result of its own
+  frame, the frame is drawn, the reads waited for, and the frame built again, so recordings stay exact.
+- Only single-sampled images with `COPY_SRC` are read (the program's images and volumes are); the viewer copies at
+  most `fetch::BUDGET` bytes a frame. Results are dropped when the scene changes. Name keys after the package.
 
 ## 5. The graph panel
 

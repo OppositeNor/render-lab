@@ -5,7 +5,7 @@
 //! offset; wgpu keeps dynamic offsets out of a group with binding arrays),
 //! group 3 its uses; group 3 of the scene pass holds `scene_uses`.
 
-use crate::investigation::{Access, Element, ImageKind, PassKind, ProgramCommand, ProgramFrame, ProgramStage, ProgramUse, ShadingProgram, Which};
+use crate::investigation::{Access, Element, ImageKind, PassKind, ProgramCommand, ProgramFrame, ProgramImage, ProgramStage, ProgramUse, SceneShading, ShadingProgram, Which};
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 
@@ -38,7 +38,50 @@ fn view_dimension(kind: ImageKind) -> wgpu::TextureViewDimension {
     }
 }
 
-fn binding_type(program: &ShadingProgram, u: &ProgramUse) -> (wgpu::BindingType, Option<NonZeroU32>) {
+/// One of the frame's textures a program pass may read (`ProgramUse`): its
+/// format and whether it is multisampled; None for a program's own resource.
+pub fn external(shading: &SceneShading, name: &str) -> Option<(wgpu::TextureFormat, bool)> {
+    let program = shading.program?;
+    if program.images.iter().any(|i| i.name == name) || program.buffers.iter().any(|b| b.name == name) {
+        return None;
+    }
+    match name {
+        "depth" => Some((crate::gpu::DEPTH_FORMAT, true)),
+        "hdr" => Some((crate::gpu::HDR_FORMAT, false)),
+        _ => shading.targets.iter().find(|t| t.name == name).map(|t| (t.format, shading.attachment(t.name))),
+    }
+}
+
+/// Whether a program's groups wait for the frame's textures (`ProgramRuntime::bind`):
+/// it has images the size of the view, or uses the frame's textures.
+fn needs_bind(shading: &SceneShading, program: &ShadingProgram) -> bool {
+    program.images.iter().any(|i| i.viewport > 0) || program.passes.iter().flat_map(|p| p.uses.iter()).any(|u| external(shading, u.resource).is_some())
+}
+
+/// An image's mip levels at `size`.
+fn levels(i: &ProgramImage, size: [u32; 3]) -> u32 {
+    let largest = if i.kind == ImageKind::D3 { size[0].max(size[1]).max(size[2]) } else { size[0].max(size[1]) };
+    i.mips.max(1).min(32 - largest.max(1).leading_zeros())
+}
+
+/// An image's size for a view of `viewport` pixels.
+fn image_size(i: &ProgramImage, viewport: [u32; 2]) -> [u32; 3] {
+    if i.viewport == 0 { [i.size[0], i.size[1], i.size[2].max(1)] } else { [(viewport[0] / i.viewport).max(1), (viewport[1] / i.viewport).max(1), i.size[2].max(1)] }
+}
+
+fn binding_type(shading: &SceneShading, program: &ShadingProgram, u: &ProgramUse) -> (wgpu::BindingType, Option<NonZeroU32>) {
+    if let Some((format, multisampled)) = external(shading, u.resource) {
+        let sample_type = if format == crate::gpu::DEPTH_FORMAT {
+            wgpu::TextureSampleType::Depth
+        } else {
+            match format.sample_type(None, None) {
+                Some(wgpu::TextureSampleType::Float { .. }) | None => wgpu::TextureSampleType::Float { filterable: false },
+                Some(t) => t,
+            }
+        };
+        assert!(u.access == Access::Load, "a program reads the frame's `{}` with Load, not {:?}", u.resource, u.access);
+        return (wgpu::BindingType::Texture { sample_type, view_dimension: wgpu::TextureViewDimension::D2, multisampled }, None);
+    }
     if let Some(image) = program.images.iter().find(|i| i.name == u.resource) {
         let view_dimension = view_dimension(image.kind);
         let count = (u.which == Which::All).then(|| NonZeroU32::new(image.count.max(1)).expect("a count"));
@@ -72,10 +115,10 @@ fn binding_type(program: &ShadingProgram, u: &ProgramUse) -> (wgpu::BindingType,
 }
 
 /// Group 3 of a pass or of the scene pass.
-fn group_layout(device: &wgpu::Device, program: &ShadingProgram, label: &str, uses: &[ProgramUse], visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayout {
+fn group_layout(device: &wgpu::Device, shading: &SceneShading, program: &ShadingProgram, label: &str, uses: &[ProgramUse], visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayout {
     let mut entries = Vec::new();
     for u in uses {
-        let (ty, count) = binding_type(program, u);
+        let (ty, count) = binding_type(shading, program, u);
         // A raster pass writes storage from its fragments (vertex stages may not, without a feature).
         let visibility = if u.access.writes() && visibility.contains(wgpu::ShaderStages::FRAGMENT) { wgpu::ShaderStages::FRAGMENT } else { visibility };
         entries.push(wgpu::BindGroupLayoutEntry { binding: u.binding, visibility, ty, count });
@@ -84,13 +127,13 @@ fn group_layout(device: &wgpu::Device, program: &ShadingProgram, label: &str, us
 }
 
 /// The scene pass's group 3, for its pipeline layout (`Pipelines::shading`).
-pub fn scene_layout(device: &wgpu::Device, program: &ShadingProgram) -> Option<wgpu::BindGroupLayout> {
+pub fn scene_layout(device: &wgpu::Device, shading: &SceneShading, program: &ShadingProgram) -> Option<wgpu::BindGroupLayout> {
     // The scene pass and the chain's compute passes (a shading without volumes) bind it.
-    (!program.scene_uses.is_empty()).then(|| group_layout(device, program, "program (scene)", program.scene_uses, wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE))
+    (!program.scene_uses.is_empty()).then(|| group_layout(device, shading, program, "program (scene)", program.scene_uses, wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE))
 }
 
 /// Every pass's pipeline, from the shading's module.
-pub fn pipelines(device: &wgpu::Device, module: &wgpu::ShaderModule, program: &ShadingProgram, frame: &wgpu::BindGroupLayout, shading: &wgpu::BindGroupLayout, scene: Option<wgpu::BindGroupLayout>) -> ProgramPipelines {
+pub fn pipelines(device: &wgpu::Device, module: &wgpu::ShaderModule, source: &SceneShading, program: &ShadingProgram, frame: &wgpu::BindGroupLayout, shading: &wgpu::BindGroupLayout, scene: Option<wgpu::BindGroupLayout>) -> ProgramPipelines {
     let params = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("program parameters"),
         entries: &[wgpu::BindGroupLayoutEntry {
@@ -108,7 +151,7 @@ pub fn pipelines(device: &wgpu::Device, module: &wgpu::ShaderModule, program: &S
                 PassKind::Compute { .. } => wgpu::ShaderStages::COMPUTE,
                 PassKind::Raster { .. } => wgpu::ShaderStages::VERTEX_FRAGMENT,
             };
-            let group = group_layout(device, program, pass.name, pass.uses, visibility);
+            let group = group_layout(device, source, program, pass.name, pass.uses, visibility);
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some(pass.name), bind_group_layouts: &[Some(frame), Some(shading), Some(&params), Some(&group)], immediate_size: 0 });
             let pipeline = match pass.kind {
                 PassKind::Compute { entry, .. } => PassPipeline::Compute(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -161,8 +204,9 @@ pub enum ProgramHandle {
 }
 
 impl ProgramHandle {
-    /// Image `index`'s whole view, as the inspector binds it (a 2D image of an integer format as a one-layer array).
-    pub fn view(&self, index: u32) -> Option<wgpu::TextureView> {
+    /// Image `index`'s view, as the inspector binds it (a 2D image of an integer format as a one-layer array):
+    /// a 2D image's mip `level` alone (clamped to its levels), else the whole image.
+    pub fn view(&self, index: u32, level: u32) -> Option<wgpu::TextureView> {
         let ProgramHandle::Image { kind, textures } = self else { return None };
         let t = textures.get(index as usize).or(textures.first())?;
         let integer = crate::graph::image_class(t.format()) != 0;
@@ -170,14 +214,22 @@ impl ProgramHandle {
             ImageKind::D2 if integer => wgpu::TextureViewDimension::D2Array,
             k => view_dimension(*k),
         };
-        Some(t.create_view(&wgpu::TextureViewDescriptor { dimension: Some(dimension), ..Default::default() }))
+        let one = matches!(kind, ImageKind::D2) && t.mip_level_count() > 1;
+        let base_mip_level = if one { level.min(t.mip_level_count() - 1) } else { 0 };
+        Some(t.create_view(&wgpu::TextureViewDescriptor { dimension: Some(dimension), base_mip_level, mip_level_count: one.then_some(1), ..Default::default() }))
     }
 }
 
 /// A program's resources, bind groups, plan state, and this frame's commands.
 pub struct ProgramRuntime {
     pub source: &'static ShadingProgram,
+    shading: &'static SceneShading,
     images: Vec<Vec<wgpu::Texture>>,
+    /// Each image's views: every element whole, and element 0's mip levels one by one.
+    views: Vec<(Vec<wgpu::TextureView>, Vec<wgpu::TextureView>)>,
+    samplers: [wgpu::Sampler; 3],
+    /// What the groups were made for (`bind`): the view's size and the frame's textures.
+    bound: Option<([u32; 2], usize)>,
     buffers: Vec<Vec<wgpu::Buffer>>,
     params: wgpu::Buffer,
     params_group: wgpu::BindGroup,
@@ -204,28 +256,32 @@ fn usage_of(program: &ShadingProgram, name: &str) -> wgpu::TextureUsages {
     usage
 }
 
-impl ProgramRuntime {
-    pub fn new(device: &wgpu::Device, program: &'static ShadingProgram, pipelines: &ProgramPipelines) -> ProgramRuntime {
-        let images: Vec<Vec<wgpu::Texture>> = program
-            .images
-            .iter()
-            .map(|i| {
-                (0..i.count.max(1))
-                    .map(|_| {
-                        device.create_texture(&wgpu::TextureDescriptor {
-                            label: Some(i.name),
-                            size: wgpu::Extent3d { width: i.size[0], height: i.size[1], depth_or_array_layers: i.size[2].max(1) },
-                            mip_level_count: 1,
-                            sample_count: 1,
-                            dimension: if i.kind == ImageKind::D3 { wgpu::TextureDimension::D3 } else { wgpu::TextureDimension::D2 },
-                            format: i.format,
-                            usage: usage_of(program, i.name),
-                            view_formats: &[],
-                        })
-                    })
-                    .collect()
+/// Image `i`'s textures for a view of `viewport` pixels, and their views.
+fn make_image(device: &wgpu::Device, program: &ShadingProgram, i: &ProgramImage, viewport: [u32; 2]) -> (Vec<wgpu::Texture>, (Vec<wgpu::TextureView>, Vec<wgpu::TextureView>)) {
+    let size = image_size(i, viewport);
+    let mips = levels(i, size);
+    let textures: Vec<wgpu::Texture> = (0..i.count.max(1))
+        .map(|_| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(i.name),
+                size: wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: size[2] },
+                mip_level_count: mips,
+                sample_count: 1,
+                dimension: if i.kind == ImageKind::D3 { wgpu::TextureDimension::D3 } else { wgpu::TextureDimension::D2 },
+                format: i.format,
+                usage: usage_of(program, i.name),
+                view_formats: &[],
             })
-            .collect();
+        })
+        .collect();
+    let whole = textures.iter().map(|t| t.create_view(&wgpu::TextureViewDescriptor { dimension: Some(view_dimension(i.kind)), ..Default::default() })).collect();
+    let levels = if mips > 1 { (0..mips).map(|m| textures[0].create_view(&wgpu::TextureViewDescriptor { dimension: Some(view_dimension(i.kind)), base_mip_level: m, mip_level_count: Some(1), ..Default::default() })).collect() } else { Vec::new() };
+    (textures, (whole, levels))
+}
+
+impl ProgramRuntime {
+    pub fn new(device: &wgpu::Device, shading: &'static SceneShading, program: &'static ShadingProgram, pipelines: &ProgramPipelines) -> ProgramRuntime {
+        let (images, views): (Vec<Vec<wgpu::Texture>>, Vec<_>) = program.images.iter().map(|i| make_image(device, program, i, [1, 1])).unzip();
         let buffers: Vec<Vec<wgpu::Buffer>> = program
             .buffers
             .iter()
@@ -241,7 +297,7 @@ impl ProgramRuntime {
             })
             .collect();
         let params = device.create_buffer(&wgpu::BufferDescriptor { label: Some("program parameters"), size: COMMANDS_MAX * PARAMS_STRIDE, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        let sampler = |filter| {
+        let sampler = |filter, mipmap_filter| {
             device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("program sampler"),
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -249,48 +305,85 @@ impl ProgramRuntime {
                 address_mode_w: wgpu::AddressMode::ClampToEdge,
                 mag_filter: filter,
                 min_filter: filter,
+                mipmap_filter,
                 ..Default::default()
             })
         };
-        let (linear, nearest) = (sampler(wgpu::FilterMode::Linear), sampler(wgpu::FilterMode::Nearest));
-        // Every image's views, each as a whole of its kind.
-        let views: Vec<Vec<wgpu::TextureView>> = program
-            .images
-            .iter()
-            .zip(&images)
-            .map(|(i, textures)| textures.iter().map(|t| t.create_view(&wgpu::TextureViewDescriptor { dimension: Some(view_dimension(i.kind)), ..Default::default() })).collect())
-            .collect();
-        let group = |label: &str, layout: &wgpu::BindGroupLayout, uses: &[ProgramUse], instance: u32| -> wgpu::BindGroup {
-            let element = |which: Which| match which {
-                Which::First | Which::All => 0,
-                Which::Instance => instance as usize,
-                Which::Fixed(k) => k as usize,
-                Which::Pick(table) => table.get(instance as usize).copied().unwrap_or(0) as usize,
-            };
-            let refs: Vec<Vec<&wgpu::TextureView>> = views.iter().map(|v| v.iter().collect()).collect();
-            let mut entries = Vec::new();
-            for u in uses {
-                let resource = if let Some(k) = program.images.iter().position(|i| i.name == u.resource) {
-                    if u.which == Which::All { wgpu::BindingResource::TextureViewArray(&refs[k]) } else { wgpu::BindingResource::TextureView(&views[k][element(u.which).min(views[k].len() - 1)]) }
-                } else if let Some(k) = program.buffers.iter().position(|b| b.name == u.resource) {
-                    buffers[k][element(u.which).min(buffers[k].len() - 1)].as_entire_binding()
-                } else if u.resource == "nearestSampler" {
-                    wgpu::BindingResource::Sampler(&nearest)
-                } else {
-                    wgpu::BindingResource::Sampler(&linear)
-                };
-                entries.push(wgpu::BindGroupEntry { binding: u.binding, resource });
-            }
-            device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some(label), layout, entries: &entries })
-        };
-        let groups = program.passes.iter().zip(&pipelines.passes).map(|(p, (_, layout))| (0..p.instances.max(1)).map(|i| group(p.name, layout, p.uses, i)).collect()).collect();
-        let scene_group = pipelines.scene.as_ref().map(|layout| group("program (scene)", layout, program.scene_uses, 0));
+        let samplers = [
+            sampler(wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest),
+            sampler(wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
+            sampler(wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Linear),
+        ];
         let params_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("program parameters"),
             layout: &pipelines.params,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &params, offset: 0, size: wgpu::BufferSize::new(64) }) }],
         });
-        ProgramRuntime { source: program, images, buffers, params, params_group, groups, scene_group, targets: HashMap::new(), state: (program.init)(), commands: Vec::new(), uploads: None }
+        let mut runtime = ProgramRuntime { source: program, shading, images, views, samplers, bound: None, buffers, params, params_group, groups: Vec::new(), scene_group: None, targets: HashMap::new(), state: (program.init)(), commands: Vec::new(), uploads: None };
+        // A program of its own resources only is bound now; the others when the frame's textures exist.
+        if !needs_bind(shading, program) {
+            runtime.make_groups(device, pipelines, &|_| None);
+        }
+        runtime
+    }
+
+    /// Makes the groups again for a view of `viewport` pixels and the frame's
+    /// textures (`external` gives each by name; `key` stands for them): the
+    /// images the size of the view are made again, at zero, when it changes.
+    /// Nothing happens when neither changed, or when the program needs neither.
+    /// Returns whether its images were made again.
+    pub fn bind(&mut self, device: &wgpu::Device, pipelines: &ProgramPipelines, viewport: [u32; 2], key: usize, external: &dyn Fn(&str) -> Option<wgpu::TextureView>) -> bool {
+        if !needs_bind(self.shading, self.source) || self.bound == Some((viewport, key)) {
+            return false;
+        }
+        let remade = self.bound.is_none_or(|(v, _)| v != viewport);
+        if remade {
+            for (k, i) in self.source.images.iter().enumerate().filter(|(_, i)| i.viewport > 0) {
+                (self.images[k], self.views[k]) = make_image(device, self.source, i, viewport);
+            }
+        }
+        self.make_groups(device, pipelines, external);
+        self.bound = Some((viewport, key));
+        remade
+    }
+
+    fn make_groups(&mut self, device: &wgpu::Device, pipelines: &ProgramPipelines, external: &dyn Fn(&str) -> Option<wgpu::TextureView>) {
+        let program = self.source;
+        let (views, buffers, samplers) = (&self.views, &self.buffers, &self.samplers);
+        let group = |label: &str, layout: &wgpu::BindGroupLayout, uses: &[ProgramUse], instance: u32| -> wgpu::BindGroup {
+            let element = |which: Which| match which {
+                Which::First | Which::All | Which::Mip(_) => 0,
+                Which::Instance => instance as usize,
+                Which::Fixed(k) => k as usize,
+                Which::Pick(table) => table.get(instance as usize).copied().unwrap_or(0) as usize,
+            };
+            let refs: Vec<Vec<&wgpu::TextureView>> = views.iter().map(|v| v.0.iter().collect()).collect();
+            let frame: Vec<(u32, wgpu::TextureView)> = uses.iter().filter_map(|u| external(u.resource).map(|v| (u.binding, v))).collect();
+            let mut entries = Vec::new();
+            for u in uses {
+                let resource = if let Some((_, v)) = frame.iter().find(|(b, _)| *b == u.binding) {
+                    wgpu::BindingResource::TextureView(v)
+                } else if let Some(k) = program.images.iter().position(|i| i.name == u.resource) {
+                    match u.which {
+                        Which::All => wgpu::BindingResource::TextureViewArray(&refs[k]),
+                        Which::Mip(offset) if !views[k].1.is_empty() => wgpu::BindingResource::TextureView(&views[k].1[(instance as i64 + offset as i64).clamp(0, views[k].1.len() as i64 - 1) as usize]),
+                        w => wgpu::BindingResource::TextureView(&views[k].0[element(w).min(views[k].0.len() - 1)]),
+                    }
+                } else if let Some(k) = program.buffers.iter().position(|b| b.name == u.resource) {
+                    buffers[k][element(u.which).min(buffers[k].len() - 1)].as_entire_binding()
+                } else if u.resource == "nearestSampler" {
+                    wgpu::BindingResource::Sampler(&samplers[1])
+                } else if u.resource == "trilinearSampler" {
+                    wgpu::BindingResource::Sampler(&samplers[2])
+                } else {
+                    wgpu::BindingResource::Sampler(&samplers[0])
+                };
+                entries.push(wgpu::BindGroupEntry { binding: u.binding, resource });
+            }
+            device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some(label), layout, entries: &entries })
+        };
+        self.groups = program.passes.iter().zip(&pipelines.passes).map(|(p, (_, layout))| (0..p.instances.max(1)).map(|i| group(p.name, layout, p.uses, i)).collect()).collect();
+        self.scene_group = pipelines.scene.as_ref().map(|layout| group("program (scene)", layout, program.scene_uses, 0));
     }
 
     /// Runs the plan for this frame: its commands, their parameters, and their uploads, ready to record.
@@ -370,6 +463,7 @@ impl ProgramRuntime {
         if self.commands.is_empty() {
             return;
         }
+        assert!(!self.groups.is_empty() || self.source.passes.is_empty(), "a program's groups are made when the frame's textures exist (ProgramRuntime::bind)");
         let commands = std::mem::take(&mut self.commands);
         let source = self.source;
         let pass_index = |name: &str| source.passes.iter().position(|p| p.name == name).unwrap_or_else(|| panic!("a program has no pass `{name}`"));
@@ -512,7 +606,7 @@ impl ProgramRuntime {
                 }
             }
         }
-        if stage == ProgramStage::BeforeScene {
+        if stage == ProgramStage::AfterScene {
             self.uploads = None;
         } else {
             self.commands = commands;

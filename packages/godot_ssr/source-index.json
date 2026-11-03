@@ -1,0 +1,884 @@
+{
+  "schema": 1,
+  "engine": {
+    "name": "Godot Engine",
+    "version": "4.7.2-stable",
+    "commit": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "license": "MIT",
+    "note": "Paths are relative to the Godot checkout (godot/). lineHash is the first 16 hex digits of the SHA-256 of the cited line with surrounding whitespace removed."
+  },
+  "entries": {
+    "gating": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1881,
+      "symbol": "RenderForwardClustered::_render_scene",
+      "lineHash": "0e85461e30a4358b",
+      "inspect": "SSR runs when the Environment enables it and the viewport's background is not transparent; a reflection probe's render never computes it.",
+      "inspectZh": "当 Environment 启用 SSR 且视口背景不透明时运行 SSR；反射探针的渲染从不计算它。",
+      "details": []
+    },
+    "ssr-normal-roughness": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1929,
+      "symbol": "RenderForwardClustered::_render_scene",
+      "lineHash": "a11fca806b869e9a",
+      "inspect": "Using SSR makes the depth pre-pass write the normal-roughness buffer too (PASS_MODE_DEPTH_NORMAL_ROUGHNESS).",
+      "inspectZh": "启用 SSR 会让深度预渲染同时写入法线-粗糙度缓冲（PASS_MODE_DEPTH_NORMAL_ROUGHNESS）。",
+      "details": []
+    },
+    "process-ssr": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1483,
+      "symbol": "RenderForwardClustered::_process_ssr",
+      "lineHash": "c73f5df071e2abab",
+      "inspect": "Before the opaque pass: allocate the SSR buffers, build each view's reprojection matrix, keep this frame's camera for the next, and run the SSR passes.",
+      "inspectZh": "在不透明渲染之前：分配 SSR 缓冲，为每个视图构建重投影矩阵，保存本帧相机供下一帧使用，并运行 SSR 各渲染阶段。",
+      "details": []
+    },
+    "reprojection": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 1501,
+      "symbol": "RenderForwardClustered::_process_ssr",
+      "lineHash": "061f49fd5363ae2a",
+      "inspect": "The reprojection: this frame's screen to view space (inverse projection), to the world (camera transform), to last frame's view (its inverse transform), to last frame's screen (its projection). Camera only: no motion vectors.",
+      "inspectZh": "重投影：从本帧屏幕到视图空间（逆投影），到世界（相机变换），到上一帧视图（其逆变换），再到上一帧屏幕（其投影）。只考虑相机：不读取运动矢量。",
+      "details": []
+    },
+    "copy-last-frame": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 2452,
+      "symbol": "RenderForwardClustered::_render_scene",
+      "lineHash": "b614ee0e396e540f",
+      "inspect": "After the transparent pass and the MSAA resolve, the internal HDR colour is copied into the last-frame texture that the next frame's trace reads.",
+      "inspectZh": "在透明渲染和 MSAA 解析之后，内部 HDR 颜色被复制到上一帧纹理，供下一帧的追踪读取。",
+      "details": []
+    },
+    "resolve-flag": {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "line": 768,
+      "symbol": "RenderForwardClustered::_setup_environment",
+      "lineHash": "39ec8a1fdfe9fe2a",
+      "inspect": "The flag named RESOLVE_SSR is set at full size, when no resolve pass ran: the opaque pass then picks the blur level and undoes the compression itself.",
+      "inspectZh": "名为 RESOLVE_SSR 的标志在全尺寸（没有运行 resolve 阶段）时被设置：此时不透明渲染自己选择模糊级别并撤销压缩。",
+      "details": []
+    },
+    "env-defaults": {
+      "path": "scene/resources/environment.h",
+      "line": 125,
+      "symbol": "Environment",
+      "lineHash": "c44a91fcecaed28b",
+      "inspect": "The Environment's SSR settings and defaults: off, 64 steps, fade in 0.15, fade out 2.0, depth tolerance 0.5.",
+      "inspectZh": "Environment 的 SSR 设置及默认值：关闭，64 步，淡入 0.15，淡出 2.0，深度容差 0.5。",
+      "details": [
+        {
+          "line": 124,
+          "lineHash": "f23aefdc4249908b",
+          "note": "Off by default.",
+          "noteZh": "默认关闭。"
+        },
+        {
+          "line": 128,
+          "lineHash": "f0f5b839a27420cf",
+          "note": "The depth tolerance, in view-space units.",
+          "noteZh": "深度容差，单位为视图空间单位。"
+        }
+      ]
+    },
+    "half-size-setting": {
+      "path": "servers/rendering/rendering_server.cpp",
+      "line": 3781,
+      "symbol": "RenderingServer",
+      "lineHash": "de01c2c627ce1c2c",
+      "inspect": "The project setting that runs SSR at half resolution, on by default.",
+      "inspectZh": "让 SSR 以半分辨率运行的项目设置，默认开启。",
+      "details": []
+    },
+    "ssr-size": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1434,
+      "symbol": "SSEffects::ssr_allocate_buffers",
+      "lineHash": "0b42c9dc2911272f",
+      "inspect": "The SSR buffers are half the internal size (rounded down) at half size.",
+      "inspectZh": "半尺寸时，SSR 缓冲是内部尺寸的一半（向下取整）。",
+      "details": []
+    },
+    "mip-count": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1440,
+      "symbol": "SSEffects::ssr_allocate_buffers",
+      "lineHash": "ba3b2566e1afc6f9",
+      "inspect": "The mip count: both sides halved while both are above one texel.",
+      "inspectZh": "mip 数量：两边都大于一个纹素时，两边各减半。",
+      "details": []
+    },
+    "hiz-texture": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1458,
+      "symbol": "SSEffects::ssr_allocate_buffers",
+      "lineHash": "50ddc74f7ab28346",
+      "inspect": "The depth pyramid: R32_SFLOAT at the SSR size, with the full mip chain.",
+      "inspectZh": "深度金字塔：R32_SFLOAT，SSR 尺寸，带完整 mip 链。",
+      "details": []
+    },
+    "mip-level-texture": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1460,
+      "symbol": "SSEffects::ssr_allocate_buffers",
+      "lineHash": "b630593187f60683",
+      "inspect": "The blur level per pixel: R8_UNORM, storing the level divided by 14.",
+      "inspectZh": "每个像素的模糊级别：R8_UNORM，存储级别除以 14。",
+      "details": []
+    },
+    "last-frame-size": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 372,
+      "symbol": "SSEffects::allocate_last_frame_buffer",
+      "lineHash": "11a37c76f1dc8a95",
+      "inspect": "With SSR at half size and SSIL off, the last frame is kept at half size.",
+      "inspectZh": "SSR 为半尺寸且 SSIL 关闭时，上一帧以半尺寸保存。",
+      "details": []
+    },
+    "pass-downsample": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1504,
+      "symbol": "SSEffects::screen_space_reflection",
+      "lineHash": "028894ab3de35083",
+      "inspect": "The half-size downsample of depth and normal-roughness (half size only), choosing a variant when the full size is odd.",
+      "inspectZh": "深度和法线-粗糙度的半尺寸下采样（仅半尺寸），全尺寸为奇数时选择变体。",
+      "details": []
+    },
+    "downsample-winner": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_downsample.glsl",
+      "line": 23,
+      "symbol": "get_sample",
+      "lineHash": "c45d013605c97d1f",
+      "inspect": "Of the four (or six, or nine) full-size depths, the largest wins: with reversed Z that is the nearest surface.",
+      "inspectZh": "在四个（或六个、九个）全尺寸深度中取最大者：在反向 Z 下即最近的表面。",
+      "details": []
+    },
+    "downsample-normal": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_downsample.glsl",
+      "line": 58,
+      "symbol": "main",
+      "lineHash": "301197c32108293a",
+      "inspect": "The half-size normal-roughness is the winner's texel, copied unchanged.",
+      "inspectZh": "半尺寸的法线-粗糙度是胜出者的纹素，原样复制。",
+      "details": []
+    },
+    "pass-hiz": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1560,
+      "symbol": "SSEffects::screen_space_reflection",
+      "lineHash": "e643d5cdab22e771",
+      "inspect": "The pyramid's levels 1 and up, one dispatch per level, each choosing an odd variant from its parent's size.",
+      "inspectZh": "金字塔的第 1 级及以上，每级一次调度，各自根据上一级的尺寸选择奇数变体。",
+      "details": []
+    },
+    "hiz-max": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_hiz.glsl",
+      "line": 26,
+      "symbol": "main",
+      "lineHash": "46c0d61f11afd69c",
+      "inspect": "Each texel of a level is the max of its 2 x 2 parents: the nearest depth anywhere under it.",
+      "inspectZh": "每级的每个纹素是其 2 x 2 上级纹素的最大值：其下方任何位置的最近深度。",
+      "details": []
+    },
+    "pass-main": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1611,
+      "symbol": "SSEffects::screen_space_reflection",
+      "lineHash": "41b5cc858950848e",
+      "inspect": "The trace, one thread per SSR pixel, with the Environment's steps, fades, and tolerance as push constants.",
+      "inspectZh": "追踪，每个 SSR 像素一个线程，Environment 的步数、淡化和容差作为推送常量。",
+      "details": []
+    },
+    "trace-sky": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 111,
+      "symbol": "main",
+      "lineHash": "41694a6852ada49c",
+      "inspect": "A pixel of depth 0 (the far plane: sky) is not traced.",
+      "inspectZh": "深度为 0 的像素（远平面：天空）不追踪。",
+      "details": []
+    },
+    "trace-rough": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 125,
+      "symbol": "main",
+      "lineHash": "b8787c564cb6cdbb",
+      "inspect": "Roughness 0.7 or more is not traced, for speed; it writes zero colour and level.",
+      "inspectZh": "粗糙度 0.7 及以上不追踪，以节省时间；写入零颜色和零级别。",
+      "details": []
+    },
+    "geom-normal": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 67,
+      "symbol": "compute_geometric_normal",
+      "lineHash": "e37b209c368b52d0",
+      "inspect": "The surface's true normal rebuilt from the pyramid's level 0: on each axis, the side whose two depths extrapolate best to the centre.",
+      "inspectZh": "从金字塔第 0 级重建表面的真实法线：在每个轴上，取两个深度外推到中心最准的一侧。",
+      "details": []
+    },
+    "bias": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 134,
+      "symbol": "main",
+      "lineHash": "b01cb41e7fd34573",
+      "inspect": "The start is pushed off the surface along the geometric normal, by one minus the eighth power of how far the shading normal agrees.",
+      "inspectZh": "起点沿几何法线推离表面，距离为一减去着色法线与之一致程度的八次方。",
+      "details": []
+    },
+    "bounce": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 142,
+      "symbol": "main",
+      "lineHash": "3f24b1f22bfe9651",
+      "inspect": "A reflected ray pointing into the true surface is reflected again about the geometric normal.",
+      "inspectZh": "指向真实表面内部的反射射线，会再关于几何法线反射一次。",
+      "details": []
+    },
+    "camera-clip": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 149,
+      "symbol": "main",
+      "lineHash": "ff422ce1e39e73c5",
+      "inspect": "The comment says the near plane; the end point is clipped to the camera's plane, z = -0.00001.",
+      "inspectZh": "注释说的是近平面；终点实际被裁剪到相机平面 z = -0.00001。",
+      "details": []
+    },
+    "parametric-t": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 157,
+      "symbol": "main",
+      "lineHash": "fc0fae0849bca13b",
+      "inspect": "The screen-space ray is scaled so its depth changes by exactly one per unit of t (Supnik's parametric t).",
+      "inspectZh": "屏幕空间射线被缩放，使 t 每变化一个单位深度正好变化一（Supnik 的参数化 t）。",
+      "details": []
+    },
+    "t-max": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 165,
+      "symbol": "main",
+      "lineHash": "eae855c439304b67",
+      "inspect": "Where the ray leaves the screen: the trace stops there.",
+      "inspectZh": "射线离开屏幕之处：追踪在此停止。",
+      "details": []
+    },
+    "start-advance": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 172,
+      "symbol": "main",
+      "lineHash": "08c950b752b24995",
+      "inspect": "The start is advanced out of the pixel's own cell, so the ray never hits itself.",
+      "inspectZh": "起点被推出像素自身的单元格，因此射线不会击中自己。",
+      "details": []
+    },
+    "loop": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 184,
+      "symbol": "main",
+      "lineHash": "d52fe882532a615c",
+      "inspect": "The loop runs while the level is not below zero, steps remain, and the ray is on screen.",
+      "inspectZh": "当级别不低于零、仍有步数、射线仍在屏幕内时，循环继续。",
+      "details": []
+    },
+    "hit-test": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 197,
+      "symbol": "main",
+      "lineHash": "401788ec6565bc98",
+      "inspect": "A cell may hold a hit when the ray reaches the cell's nearest depth before leaving it (or, toward the camera, is already behind it).",
+      "inspectZh": "当射线在离开单元格前到达其最近深度（朝向相机时则是已在其后方）时，该单元格可能包含命中。",
+      "details": []
+    },
+    "tolerance": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 204,
+      "symbol": "main",
+      "lineHash": "f65ef5ec8c4463e1",
+      "inspect": "At level 0 only: a ray more than the tolerance behind the surface passes under it, staying at level 0.",
+      "inspectZh": "仅在第 0 级：位于表面后方超过容差的射线从其下方穿过，停留在第 0 级。",
+      "details": []
+    },
+    "level-step": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 218,
+      "symbol": "main",
+      "lineHash": "0ab4405c7b19e7c2",
+      "inspect": "A miss climbs one level (cells twice as wide), a hit descends one.",
+      "inspectZh": "未命中则上升一级（单元格宽一倍），命中则下降一级。",
+      "details": []
+    },
+    "validity": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 231,
+      "symbol": "main",
+      "lineHash": "eac70e0000c9605d",
+      "inspect": "Validity, not a yes or no: it goes into alpha, so invalid pixels still write a blur level.",
+      "inspectZh": "用有效度代替是或否：它写入 alpha，因此无效像素仍会写入模糊级别。",
+      "details": []
+    },
+    "edge-sky": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 241,
+      "symbol": "main",
+      "lineHash": "3f0fb562b879e84e",
+      "inspect": "A ray that left the screen, or ended on the sky, is invalid.",
+      "inspectZh": "离开屏幕或终止于天空的射线无效。",
+      "details": []
+    },
+    "backface": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 245,
+      "symbol": "main",
+      "lineHash": "f98c4b136aec8e8f",
+      "inspect": "The back-face test runs only when the hit is within two SSR pixels of the start on both axes.",
+      "inspectZh": "背面测试只在命中点在两个轴上都距起点两个 SSR 像素以内时运行。",
+      "details": []
+    },
+    "confidence": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 256,
+      "symbol": "main",
+      "lineHash": "db94e7a32cfc4c84",
+      "inspect": "Confidence falls with the distance between the ray's end and the surface under it, squared.",
+      "inspectZh": "置信度随射线终点与其下方表面之间的距离下降，并取平方。",
+      "details": []
+    },
+    "margin": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 267,
+      "symbol": "main",
+      "lineHash": "e04365e1a37943a9",
+      "inspect": "A fade near the last frame's edges, on the product of the two edge distances.",
+      "inspectZh": "在上一帧边缘附近淡出，基于两个边缘距离的乘积。",
+      "details": []
+    },
+    "fades": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 275,
+      "symbol": "main",
+      "lineHash": "8b1bb042a937e2aa",
+      "inspect": "Fade in and fade out over the ray's screen length: together they peak at 0.58 with the defaults.",
+      "inspectZh": "随射线屏幕长度淡入和淡出：默认值下二者乘积的峰值为 0.58。",
+      "details": [
+        {
+          "line": 274,
+          "lineHash": "fabf3024b2d46fca",
+          "note": "The fade in, ray length to the power fade_in.",
+          "noteZh": "淡入：射线长度的 fade_in 次方。"
+        }
+      ]
+    },
+    "last-frame-color": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 287,
+      "symbol": "main",
+      "lineHash": "908d818641919b72",
+      "inspect": "The colour is last frame's, at the reprojected point, premultiplied by validity.",
+      "inspectZh": "颜色取自上一帧的重投影点，并预乘有效度。",
+      "details": []
+    },
+    "compress": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 291,
+      "symbol": "main",
+      "lineHash": "658ecb8f3f9cfe89",
+      "inspect": "The colour is compressed by its luminance before filtering, so bright texels do not dominate.",
+      "inspectZh": "颜色在滤波前按亮度压缩，使明亮的纹素不会占主导。",
+      "details": []
+    },
+    "cone": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 295,
+      "symbol": "main",
+      "lineHash": "4ebc053ae4c3102e",
+      "inspect": "Roughness becomes a cone's half-angle: roughness times ninety degrees.",
+      "inspectZh": "粗糙度变为圆锥半角：粗糙度乘以九十度。",
+      "details": []
+    },
+    "blur-radius": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 311,
+      "symbol": "main",
+      "lineHash": "6fb4716bccc3220b",
+      "inspect": "The radius of the circle inside the cone where the ray ends.",
+      "inspectZh": "射线终点处圆锥内切圆的半径。",
+      "details": []
+    },
+    "mip-bias": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 318,
+      "symbol": "main",
+      "lineHash": "faa5f803b9563be9",
+      "inspect": "The circle's radius in pixels becomes a mip level: log2 of radius over 16, plus one, clamped to the mips (and later lowered for long rays).",
+      "inspectZh": "以像素计的圆半径变为 mip 级别：半径除以 16 加一后取 log2，限制在 mip 范围内（之后对长射线再降低）。",
+      "details": []
+    },
+    "mip-store": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection.glsl",
+      "line": 328,
+      "symbol": "main",
+      "lineHash": "c9f710510da8be57",
+      "inspect": "The level is stored divided by 14 in eight bits.",
+      "inspectZh": "级别除以 14 后以八位存储。",
+      "details": []
+    },
+    "pass-filter": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1658,
+      "symbol": "SSEffects::screen_space_reflection",
+      "lineHash": "00420a0f593976de",
+      "inspect": "The roughness filter, one dispatch per level, each from the level before.",
+      "inspectZh": "粗糙度滤波，每级一次调度，各自基于上一级。",
+      "details": []
+    },
+    "filter-weights": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_filter.glsl",
+      "line": 21,
+      "symbol": "WEIGHTS",
+      "lineHash": "fbe29881052cb916",
+      "inspect": "Seven Gaussian weights, summing to one.",
+      "inspectZh": "七个高斯权重，总和为一。",
+      "details": []
+    },
+    "filter-weight": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_filter.glsl",
+      "line": 31,
+      "symbol": "get_weight",
+      "lineHash": "c262527b4555bd8f",
+      "inspect": "An invalid texel weighs min(0.2 x level, 1) of a valid one's weight, blended by alpha.",
+      "inspectZh": "无效纹素的权重是有效纹素的 min(0.2 x 级别, 1)，按 alpha 混合。",
+      "details": []
+    },
+    "filter-sample": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_filter.glsl",
+      "line": 105,
+      "symbol": "get_sample",
+      "lineHash": "780cf1817861710c",
+      "inspect": "Each fetch lands on the corner of four parent texels: a 2 x 2 average.",
+      "inspectZh": "每次取样都落在四个上级纹素的角上：即 2 x 2 平均。",
+      "details": []
+    },
+    "pass-resolve": {
+      "path": "servers/rendering/renderer_rd/effects/ss_effects.cpp",
+      "line": 1689,
+      "symbol": "SSEffects::screen_space_reflection",
+      "lineHash": "0932e1491d8c0953",
+      "inspect": "The resolve to the internal size (half size only).",
+      "inspectZh": "解析到内部尺寸（仅半尺寸）。",
+      "details": []
+    },
+    "resolve-taps": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_resolve.glsl",
+      "line": 80,
+      "symbol": "main",
+      "lineHash": "53fc9852003dd537",
+      "inspect": "Four half-size taps around the full-size pixel, each at its own blur level.",
+      "inspectZh": "全尺寸像素周围的四个半尺寸取样点，各自使用自己的模糊级别。",
+      "details": []
+    },
+    "resolve-weights": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_resolve.glsl",
+      "line": 42,
+      "symbol": "get_sample",
+      "lineHash": "bab12f172ef03f9a",
+      "inspect": "Each tap is weighted by depth (2048), normal (32), and roughness (16) similarity.",
+      "inspectZh": "每个取样点按深度（2048）、法线（32）和粗糙度（16）的相似度加权。",
+      "details": []
+    },
+    "resolve-uncompress": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/screen_space_reflection_resolve.glsl",
+      "line": 40,
+      "symbol": "get_sample",
+      "lineHash": "4b760814e05cddd7",
+      "inspect": "The compression is undone per tap, before the taps are averaged.",
+      "inspectZh": "在平均各取样点之前，逐个撤销压缩。",
+      "details": []
+    },
+    "nr-write": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 3020,
+      "symbol": "main",
+      "lineHash": "be51184aee265389",
+      "inspect": "The pre-pass writes the encoded view-space normal and the roughness.",
+      "inspectZh": "预渲染写入编码后的视图空间法线和粗糙度。",
+      "details": [
+        {
+          "line": 3024,
+          "lineHash": "cfb8ce15819c3eeb",
+          "note": "Roughness takes seven bits; above one half means a dynamic object.",
+          "noteZh": "粗糙度占七位；大于一半表示动态物体。"
+        }
+      ]
+    },
+    "encode24": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 1185,
+      "symbol": "encode24",
+      "lineHash": "06c9e90e513f4f56",
+      "inspect": "Best-fit normals: the normal scaled to touch the unit cube, then to the length that quantizes best (Kaplanyan, SIGGRAPH 2010).",
+      "inspectZh": "最佳拟合法线：将法线缩放到接触单位立方体，再缩放到量化误差最小的长度（Kaplanyan，SIGGRAPH 2010）。",
+      "details": []
+    },
+    "best-fit-table": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/best_fit_normal.glsl",
+      "line": 20,
+      "symbol": "find_minimum_error",
+      "lineHash": "848b76fc8669f867",
+      "inspect": "The table, made once at start-up: for each direction of a 1024 x 1024 folded-cube grid, the length whose 8-bit quantization errs least.",
+      "inspectZh": "启动时生成一次的表：对 1024 x 1024 折叠立方体网格的每个方向，取 8 位量化误差最小的长度。",
+      "details": []
+    },
+    "limiter": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 1663,
+      "symbol": "main",
+      "lineHash": "5290221c79173651",
+      "inspect": "The roughness limiter widens roughness where the normal changes across the pixel.",
+      "inspectZh": "粗糙度限制器在法线跨像素变化处增大粗糙度。",
+      "details": []
+    },
+    "sky-reflection": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 1709,
+      "symbol": "main",
+      "lineHash": "b30aa0099370088b",
+      "inspect": "The sky's reflection along a direction bent toward the normal by roughness squared, faded below the horizon.",
+      "inspectZh": "沿按粗糙度平方偏向法线的方向取天空反射，在地平线以下淡出。",
+      "details": []
+    },
+    "spec-occlusion": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2176,
+      "symbol": "main",
+      "lineHash": "5ec9cfab8f25c13a",
+      "inspect": "Specular occlusion from the ambient light's luminance dims the reflection before SSR is blended in.",
+      "inspectZh": "由环境光亮度得出的镜面遮蔽，在混入 SSR 之前使反射变暗。",
+      "details": []
+    },
+    "ssr-fade": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2224,
+      "symbol": "main",
+      "lineHash": "d51cf52a252864f5",
+      "inspect": "Between roughness 0.6 and 0.7 the SSR result fades out, smoothing the trace's cut-off.",
+      "inspectZh": "在粗糙度 0.6 到 0.7 之间 SSR 结果淡出，使追踪的截断变得平滑。",
+      "details": []
+    },
+    "ssr-blend": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2227,
+      "symbol": "main",
+      "lineHash": "4b2cbbe3c1b17859",
+      "inspect": "SSR covers the indirect specular by its validity (alpha is premultiplied).",
+      "inspectZh": "SSR 按其有效度覆盖间接镜面光（alpha 已预乘）。",
+      "details": []
+    },
+    "reflection-source": {
+      "path": "servers/rendering/renderer_rd/storage_rd/render_scene_data_rd.cpp",
+      "line": 200,
+      "symbol": "RenderSceneDataRD::update_ubo",
+      "lineHash": "a144ff7ad52aea89",
+      "inspect": "The sky's reflection is used only when the reflection source is the sky, or the background and the background is the sky; Disabled leaves none for SSR to cover.",
+      "inspectZh": "只有当反射来源是天空，或是背景且背景为天空时，才使用天空反射；Disabled 时 SSR 没有可覆盖的反射。",
+      "details": []
+    },
+    "f0": {
+      "path": "servers/rendering/renderer_rd/shaders/scene_forward_lights_inc.glsl",
+      "line": 82,
+      "symbol": "F0",
+      "lineHash": "8abfecfb1036c188",
+      "inspect": "f0: 0.16 times specular squared for a dielectric (0.04 at the default 0.5), the albedo for a metal, mixed by metallic.",
+      "inspectZh": "f0：电介质为 0.16 乘 specular 的平方（默认 0.5 时为 0.04），金属为反照率，按 metallic 混合。",
+      "details": []
+    },
+    "env-brdf": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 2260,
+      "symbol": "main",
+      "lineHash": "8e2a8af27884c77b",
+      "inspect": "After the blend, the environment BRDF scales it: SSR is treated as incoming light, like a probe.",
+      "inspectZh": "混合之后，环境 BRDF 对其缩放：SSR 被视为入射光，与探针相同。",
+      "details": []
+    }
+  },
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Where SSR runs",
+      "titleZh": "SSR 在哪里运行",
+      "reading": [
+        "gating",
+        "ssr-normal-roughness",
+        "process-ssr",
+        "env-defaults",
+        "half-size-setting",
+        "copy-last-frame"
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Depth, normals, and one thread per pixel",
+      "titleZh": "深度、法线与每像素一个线程",
+      "reading": [
+        "nr-write",
+        "encode24",
+        "best-fit-table",
+        "limiter",
+        "ssr-size",
+        "pass-downsample",
+        "downsample-winner",
+        "downsample-normal",
+        "geom-normal"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "The depth pyramid",
+      "titleZh": "深度金字塔",
+      "reading": [
+        "hiz-texture",
+        "mip-count",
+        "pass-hiz",
+        "hiz-max"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Marching the ray",
+      "titleZh": "步进射线",
+      "reading": [
+        "pass-main",
+        "trace-sky",
+        "trace-rough",
+        "bias",
+        "bounce",
+        "camera-clip",
+        "parametric-t",
+        "t-max",
+        "start-advance",
+        "loop",
+        "hit-test",
+        "tolerance",
+        "level-step"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Is it a hit, and what colour",
+      "titleZh": "是否命中，以及什么颜色",
+      "reading": [
+        "validity",
+        "edge-sky",
+        "backface",
+        "confidence",
+        "margin",
+        "fades",
+        "reprojection",
+        "last-frame-size",
+        "last-frame-color",
+        "compress"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Blurring by roughness",
+      "titleZh": "按粗糙度模糊",
+      "reading": [
+        "cone",
+        "blur-radius",
+        "mip-bias",
+        "mip-store",
+        "mip-level-texture",
+        "pass-filter",
+        "filter-weights",
+        "filter-weight",
+        "filter-sample",
+        "pass-resolve",
+        "resolve-taps",
+        "resolve-weights",
+        "resolve-uncompress",
+        "resolve-flag"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Into the final image",
+      "titleZh": "进入最终图像",
+      "reading": [
+        "reflection-source",
+        "f0",
+        "sky-reflection",
+        "spec-occlusion",
+        "ssr-fade",
+        "ssr-blend",
+        "env-brdf"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "The frame again",
+      "titleZh": "再看一帧",
+      "reading": [
+        "process-ssr",
+        "copy-last-frame"
+      ]
+    }
+  ],
+  "demos": {
+    "room": [
+      "gating",
+      "process-ssr",
+      "ssr-blend",
+      "reflection-source",
+      "f0"
+    ],
+    "inputs": [
+      "nr-write",
+      "encode24",
+      "best-fit-table",
+      "downsample-normal"
+    ],
+    "pyramid": [
+      "hiz-texture",
+      "mip-count",
+      "downsample-winner",
+      "hiz-max"
+    ],
+    "trace": [
+      "loop",
+      "hit-test",
+      "tolerance",
+      "level-step",
+      "parametric-t",
+      "start-advance"
+    ],
+    "hit": [
+      "validity",
+      "edge-sky",
+      "backface",
+      "confidence",
+      "margin",
+      "fades"
+    ],
+    "blur": [
+      "cone",
+      "blur-radius",
+      "mip-bias",
+      "mip-store"
+    ],
+    "compose": [
+      "sky-reflection",
+      "spec-occlusion",
+      "ssr-fade",
+      "ssr-blend",
+      "env-brdf"
+    ]
+  },
+  "mappings": [
+    {
+      "lab": "SsrNormalRoughness",
+      "engineShort": "RB_TEX_NORMAL_ROUGHNESS",
+      "engineName": "The normal-roughness buffer (RB_TEX_NORMAL_ROUGHNESS)",
+      "engineNameZh": "法线-粗糙度缓冲（RB_TEX_NORMAL_ROUGHNESS）",
+      "relationship": "exact",
+      "sources": [
+        "nr-write",
+        "encode24"
+      ],
+      "exact": "R8G8B8A8_UNORM: rgb the view-space normal through encode24, times 0.5 plus 0.5; a the roughness times 127/255, one minus that for a dynamic instance.",
+      "exactZh": "R8G8B8A8_UNORM：rgb 为经 encode24 编码的视图空间法线乘 0.5 加 0.5；a 为粗糙度乘 127/255，动态实例则为一减去它。",
+      "labLayout": "The same texel, written by ssrPrepassFS into a multisampled Rgba8Unorm target; the lab's objects are static.",
+      "labLayoutZh": "相同的纹素，由 ssrPrepassFS 写入多重采样的 Rgba8Unorm 目标；实验室中的物体都是静态的。"
+    },
+    {
+      "lab": "SsrColor",
+      "engineShort": "RB_SSR",
+      "engineName": "The reflection colour (RB_SSR)",
+      "engineNameZh": "反射颜色（RB_SSR）",
+      "relationship": "exact",
+      "sources": [
+        "last-frame-color",
+        "compress",
+        "validity"
+      ],
+      "exact": "R16G16B16A16_SFLOAT at the SSR size with the full mip chain: rgb last frame's colour times validity, divided by one plus its Rec. 709 luminance; a the validity.",
+      "exactZh": "R16G16B16A16_SFLOAT，SSR 尺寸，带完整 mip 链：rgb 为上一帧颜色乘有效度，再除以一加其 Rec. 709 亮度；a 为有效度。",
+      "labLayout": "The same, the program image ssrColor.",
+      "labLayoutZh": "相同，即程序图像 ssrColor。"
+    }
+  ],
+  "passes": [
+    {
+      "lab": "ssrBestFit",
+      "engine": "best_fit_normal (once, at start-up)",
+      "sources": [
+        "best-fit-table"
+      ]
+    },
+    {
+      "lab": "ssrPrepassFS",
+      "engine": "Depth pre-pass (PASS_MODE_DEPTH_NORMAL_ROUGHNESS)",
+      "sources": [
+        "ssr-normal-roughness",
+        "nr-write"
+      ]
+    },
+    {
+      "lab": "ssrDownsample",
+      "engine": "SSR Downsample",
+      "sources": [
+        "pass-downsample",
+        "downsample-winner"
+      ]
+    },
+    {
+      "lab": "ssrHiz",
+      "engine": "SSR HI-Z",
+      "sources": [
+        "pass-hiz",
+        "hiz-max"
+      ]
+    },
+    {
+      "lab": "ssrTrace",
+      "engine": "SSR Main",
+      "sources": [
+        "pass-main",
+        "loop"
+      ]
+    },
+    {
+      "lab": "ssrFilter",
+      "engine": "SSR Roughness Filter",
+      "sources": [
+        "pass-filter",
+        "filter-weights"
+      ]
+    },
+    {
+      "lab": "ssrResolve",
+      "engine": "SSR Resolve",
+      "sources": [
+        "pass-resolve",
+        "resolve-taps"
+      ]
+    },
+    {
+      "lab": "ssrForwardFS",
+      "engine": "Render Opaque Pass",
+      "sources": [
+        "ssr-blend",
+        "env-brdf"
+      ]
+    },
+    {
+      "lab": "ssrCopyLastFrame",
+      "engine": "Copy Framebuffer for SSIL/SSR",
+      "sources": [
+        "copy-last-frame"
+      ]
+    }
+  ]
+}

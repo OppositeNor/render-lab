@@ -1,0 +1,15 @@
+# Roughness becomes a blur level: the cone, its circle, the mip.
+
+key = "blur"
+title-text = "shot.blur_title"
+tab-text = "shot.blur"
+hint-text = "hints.blur_demo"
+scene = "render_lab.scene/study-room"
+listing = "blur"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+skyReflection = 0.0
+floorMetallic = 1.0
+floorRoughness = 0.3

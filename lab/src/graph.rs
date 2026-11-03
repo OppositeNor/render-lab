@@ -67,7 +67,8 @@ pub enum Shape {
     /// A 3D texture with mips (`ShadingVolume`).
     Volume { format: wgpu::TextureFormat, size: [u32; 3], mips: u32 },
     /// A program's image (`ProgramImage`): `count` textures of its kind and size.
-    Image { kind: crate::investigation::ImageKind, format: wgpu::TextureFormat, size: [u32; 3], count: u32 },
+    /// `viewport`: 0, `size`; otherwise the view's size divided by it. `mips`: its levels at most.
+    Image { kind: crate::investigation::ImageKind, format: wgpu::TextureFormat, size: [u32; 3], count: u32, mips: u32, viewport: u32 },
     /// A program's buffer (`ProgramBuffer`), `bytes` long.
     Bytes { bytes: u64 },
 }
@@ -89,14 +90,16 @@ impl Shape {
             Shape::UpdateBuffer => "u32 buffer".to_string(),
             Shape::DepthArray { size, layers } => format!("Depth32Float, {size}x{size}, {layers} layers"),
             Shape::Volume { format, size, mips } => format!("{format:?}, {}x{}x{}, {mips} mips", size[0], size[1], size[2]),
-            Shape::Image { kind, format, size, count } => {
+            Shape::Image { kind, format, size, count, mips, viewport } => {
                 let extent = match kind {
+                    crate::investigation::ImageKind::D2 if *viewport > 0 => if *viewport == 1 { "viewport".to_string() } else { format!("viewport / {viewport}") },
                     crate::investigation::ImageKind::D2 => format!("{}x{}", size[0], size[1]),
                     crate::investigation::ImageKind::D2Array => format!("{}x{}, {} layers", size[0], size[1], size[2]),
                     crate::investigation::ImageKind::D3 => format!("{}x{}x{}", size[0], size[1], size[2]),
                 };
                 let count = if *count > 1 { format!(", {count} of them") } else { String::new() };
-                format!("{format:?}, {extent}{count}")
+                let mips = if *mips > 1 { ", mips".to_string() } else { String::new() };
+                format!("{format:?}, {extent}{mips}{count}")
             }
             Shape::Bytes { bytes } => format!("{bytes} bytes"),
         }
@@ -212,7 +215,7 @@ impl FrameGraph {
             }
             if let Some(program) = s.program {
                 for i in program.images {
-                    resources.push(Resource { name: i.name, lifetime: Lifetime::Persistent, shape: Shape::Image { kind: i.kind, format: i.format, size: i.size, count: i.count } });
+                    resources.push(Resource { name: i.name, lifetime: Lifetime::Persistent, shape: Shape::Image { kind: i.kind, format: i.format, size: i.size, count: i.count, mips: i.mips, viewport: i.viewport } });
                 }
                 for b in program.buffers {
                     resources.push(Resource { name: b.name, lifetime: Lifetime::Persistent, shape: Shape::Bytes { bytes: b.bytes } });
@@ -259,7 +262,7 @@ impl FrameGraph {
                 }
                 nodes.extend(program_nodes(ProgramStage::BeforeScene));
                 let mut reads = s.scene_reads.to_vec();
-                reads.extend(scene_uses.iter().copied());
+                reads.extend(scene_uses.iter().copied().filter(|r| !s.scene_reads.contains(r)));
                 // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
                 let mut writes = if s.outputs.is_empty() { vec!["hdr"] } else { s.outputs.to_vec() };
                 if s.prepass.is_some() {
@@ -268,6 +271,7 @@ impl FrameGraph {
                     writes.push("depth");
                 }
                 nodes.push(Node { name: s.fragment, step: Step::Scene, reads, writes, timing: "scene pass", cached: false });
+                nodes.extend(program_nodes(ProgramStage::AfterScene));
                 for (i, p) in s.passes.iter().enumerate() {
                     nodes.push(Node { name: unique(p.entry), step: Step::Compute(s.early.len() + i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: false });
                 }
@@ -277,6 +281,7 @@ impl FrameGraph {
                 nodes.extend(program_nodes(ProgramStage::BeforeScene));
                 let name = shading.map_or("scene", |s| s.fragment);
                 nodes.push(Node { name, step: Step::Scene, reads: scene_uses.clone(), writes: vec!["hdr", "depth"], timing: "scene pass", cached: false });
+                nodes.extend(program_nodes(ProgramStage::AfterScene));
             }
         }
         nodes.push(Node { name: "overlay", step: Step::Overlay, reads: vec!["depth"], writes: vec!["overlay"], timing: "overlay", cached: false });
@@ -1123,9 +1128,11 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     }
     if shading.chained() {
         check_chain(shading.fragment, shading.scene_reads, None, false);
-        // The pre-pass runs before the passes that fill the scene's reads: it reads none of them.
+        // The pre-pass runs before the passes that fill the scene's reads: it reads none of them,
+        // but may read the program's scene group, which it binds too.
         if let Some(entry) = shading.prepass {
-            check_chain(entry, &[], None, true);
+            let scene_uses: Vec<&str> = shading.program.map_or(Vec::new(), |p| program_reads(p.scene_uses));
+            check_chain(entry, &scene_uses, None, true);
         }
     }
     drop(check_chain);
@@ -1196,8 +1203,12 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         }
     }
     if let Some(program) = shading.program {
-        let chain_entries: Vec<&str> = if shading.volumes.is_empty() { shading.early.iter().chain(shading.passes).map(|p| p.entry).collect() } else { Vec::new() };
-        lint_program(program, &uses, &mut problems, shading.module, shading.fragment, &chain_entries);
+        // The scene group is bound by the scene pass, the pre-pass, and (a shading without volumes) the chain's compute passes.
+        let mut chain_entries: Vec<&str> = shading.prepass.into_iter().collect();
+        if shading.volumes.is_empty() {
+            chain_entries.extend(shading.early.iter().chain(shading.passes).map(|p| p.entry));
+        }
+        lint_program(shading, program, &uses, &mut problems, shading.module, shading.fragment, &chain_entries);
     }
     Ok(problems)
 }
@@ -1205,9 +1216,10 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
 /// A program's passes against their WGSL: every group-3 binding an entry
 /// point uses is one of its `uses`, used as declared (a write where it
 /// writes, atomics where `Atomic`), and every use is used.
-fn lint_program(program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&str) -> Option<Vec<(u32, u32, GlobalUse)>>, problems: &mut Vec<String>, module: &str, fragment: &str, chain_entries: &[&str]) {
+fn lint_program(shading: &SceneShading, program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&str) -> Option<Vec<(u32, u32, GlobalUse)>>, problems: &mut Vec<String>, module: &str, fragment: &str, chain_entries: &[&str]) {
     use crate::investigation::{Access, PassKind};
-    let known = |name: &str| program.images.iter().any(|i| i.name == name) || program.buffers.iter().any(|b| b.name == name) || matches!(name, "linearSampler" | "nearestSampler");
+    let own = |name: &str| program.images.iter().any(|i| i.name == name) || program.buffers.iter().any(|b| b.name == name) || matches!(name, "linearSampler" | "nearestSampler" | "trilinearSampler");
+    let frame = |name: &str| crate::program::external(shading, name).is_some();
     let mut check = |label: &str, entries: &[&str], declared: &[crate::investigation::ProgramUse], read_only: bool| {
         let mut used: Vec<(u32, GlobalUse)> = Vec::new();
         for entry in entries {
@@ -1226,8 +1238,12 @@ fn lint_program(program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&s
             }
         }
         for d in declared {
-            if !known(d.resource) {
-                problems.push(format!("{label}: uses `{}`, which is none of the program's images, buffers, or samplers", d.resource));
+            if read_only && frame(d.resource) {
+                problems.push(format!("{label}: the scene pass reads the frame's `{}` itself, not through the program", d.resource));
+            } else if frame(d.resource) && d.access != Access::Load {
+                problems.push(format!("{label}: reads the frame's `{}` with {:?}; the frame's textures are read with Load", d.resource, d.access));
+            } else if !own(d.resource) && !frame(d.resource) {
+                problems.push(format!("{label}: uses `{}`, which is none of the program's images, buffers, or samplers, nor a texture of the frame", d.resource));
             }
             if read_only && d.access.writes() {
                 problems.push(format!("{label}: the scene pass may only read `{}`", d.resource));
@@ -1309,7 +1325,7 @@ mod tests {
     #[test]
     fn a_program_places_its_passes_at_their_stages() {
         use crate::investigation::{Access, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramStage, ProgramUse, ShadingProgram, Which};
-        static IMAGES: &[ProgramImage] = &[ProgramImage { name: "grid", kind: ImageKind::D3, size: [8, 8, 8], format: wgpu::TextureFormat::R32Uint, count: 2 }];
+        static IMAGES: &[ProgramImage] = &[ProgramImage { name: "grid", kind: ImageKind::D3, size: [8, 8, 8], format: wgpu::TextureFormat::R32Uint, count: 2, mips: 1, viewport: 0 }];
         static BUFFERS: &[ProgramBuffer] = &[ProgramBuffer { name: "list", bytes: 64, indirect: true, count: 1 }];
         static PASSES: &[ProgramPass] = &[
             ProgramPass {
@@ -1326,14 +1342,26 @@ mod tests {
                 stage: ProgramStage::BeforeScene,
                 instances: 1,
             },
+            // This frame's colour, once the scene pass has written it.
+            ProgramPass {
+                name: "keepCS",
+                kind: PassKind::Compute { entry: "keepCS", workgroup: [8, 8, 1] },
+                uses: &[ProgramUse { binding: 1, resource: "hdr", access: Access::Load, which: Which::First }, ProgramUse { binding: 2, resource: "grid", access: Access::Write, which: Which::Mip(0) }],
+                stage: ProgramStage::AfterScene,
+                instances: 1,
+            },
         ];
-        static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new() };
+        static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new(), warmup: 0 };
         let s = shading(&[], &[]);
         // No chain (the scene pass writes the frame), as a program's investigation may have.
         let g = FrameGraph::new(Some(Box::leak(Box::new(SceneShading { program: Some(&PROGRAM), outputs: &[], scene_reads: &[], ..*s }))), &[]);
         assert!(g.errors.is_empty(), "{:?}", g.errors);
         let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
-        assert_eq!(names, ["buildCS", "gatherCS", "sceneFS", "overlay", "composite"]);
+        assert_eq!(names, ["buildCS", "gatherCS", "sceneFS", "keepCS", "overlay", "composite"]);
+        // It reads `hdr` after the scene pass writes it.
+        let keep = g.nodes.iter().position(|n| n.name == "keepCS").unwrap();
+        let scene = g.nodes.iter().position(|n| n.name == "sceneFS").unwrap();
+        assert!(g.edges.iter().any(|e| (e.0, e.1) == (scene, keep)));
         // A program's passes write what outlives the frame: they run though nothing reads their writes this frame.
         assert!(g.live.iter().all(|l| *l));
         let build = &g.nodes[g.node("buildCS").unwrap()];

@@ -51,7 +51,17 @@ impl GrowBuffer {
     }
 }
 
+/// A number for each set of targets made (`ViewportTargets`, `ChainTargets`):
+/// what a program's groups were made for (`ProgramRuntime::bind`).
+static TARGETS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+fn targets_made() -> usize {
+    TARGETS_MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 struct ViewportTargets {
+    /// Its number (`targets_made`).
+    made: usize,
     size: [u32; 2],
     hdr_texture: wgpu::Texture,
     hdr_msaa: wgpu::TextureView,
@@ -91,6 +101,7 @@ impl ViewportTargets {
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&hdr) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&overlay) }],
         });
         ViewportTargets {
+            made: targets_made(),
             size,
             hdr_texture,
             hdr_msaa: view(target(device, "scene hdr msaa", size, HDR_FORMAT, MSAA, attach)),
@@ -204,6 +215,10 @@ pub struct Renderer {
     pub cursor: egui::CursorIcon,
     /// When each recent frame started rendering, for the performance panel's frame times.
     frame_starts: std::collections::VecDeque<std::time::Instant>,
+    /// The GPU reads the frames ask for, in flight (src/fetch.rs).
+    fetches: crate::fetch::Queue,
+    /// How deep the redraws of a frame drawn alone, waiting for its reads, are.
+    settling: u8,
     /// GPU timestamps around the frame's passes (src/timing.rs), while an
     /// experiment asks for them (`set_timing`) and the device has them.
     pub timing: Option<crate::timing::Timing>,
@@ -226,6 +241,8 @@ struct Inspection {
     id: egui::TextureId,
     /// Which image of a program's binding array (`image.index`).
     index: u32,
+    /// The mip level shown of a 2D program image (`image.level`).
+    level: u32,
 }
 
 /// The most texels along an inspector texture's longer side.
@@ -293,8 +310,17 @@ struct Shading {
     program: Option<std::cell::RefCell<crate::program::ProgramRuntime>>,
     /// An empty group 2 for a scene pass that reads the program at group 3 but no chain.
     empty_scene_group: Option<wgpu::BindGroup>,
-    /// The program's resources by name (handles, for the inspector).
-    program_handles: Vec<(&'static str, crate::program::ProgramHandle)>,
+    /// The program's resources by name (handles, for the inspector, which
+    /// draws while the program records): made again when `bind` makes its
+    /// images the size of the view again.
+    program_handles: std::cell::RefCell<Vec<(&'static str, crate::program::ProgramHandle)>>,
+}
+
+impl Shading {
+    /// The program's resource `name`, for the inspector and the selftests' readbacks.
+    fn program_handle(&self, name: &str) -> Option<crate::program::ProgramHandle> {
+        self.program_handles.borrow().iter().find(|(n, _)| *n == name).map(|(_, h)| h.clone())
+    }
 }
 
 /// The volumes of one update key: their textures, group 3 that samples them,
@@ -404,6 +430,8 @@ pub enum ViewKind {
 /// The targets of an investigation's pass chain at one viewport size, with
 /// each pass's group-2 bind group.
 struct ChainTargets {
+    /// Its number (`targets_made`).
+    made: usize,
     source: &'static SceneShading,
     size: [u32; 2],
     /// `Shading::scale` when it was made.
@@ -495,7 +523,7 @@ impl ChainTargets {
         };
         let groups = source.early.iter().chain(source.passes).zip(&shading.pipelines.passes).map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes)).collect();
         let scene_group = group("scene reads", &shading.pipelines.scene_group, source.scene_reads, &[]);
-        ChainTargets { source, size, scale: shading.scale, divisors, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
+        ChainTargets { made: targets_made(), source, size, scale: shading.scale, divisors, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
     }
 
     fn view(&self, name: &str) -> &wgpu::TextureView {
@@ -774,6 +802,8 @@ impl Renderer {
             user_layout: Default::default(),
             cursor: egui::CursorIcon::Default,
             frame_starts: std::collections::VecDeque::new(),
+            fetches: crate::fetch::Queue::default(),
+            settling: 0,
             timing: None,
             statics,
             other_scenes: HashMap::new(),
@@ -816,6 +846,7 @@ impl Renderer {
             Some(statics) => statics,
             None => Statics::prepare(id).unwrap_or_else(|e| panic!("preparing scene {}: {e:#}", id.key())),
         };
+        crate::fetch::clear();
         let previous = std::mem::replace(&mut self.statics, next);
         self.other_scenes.insert(previous.scene.id, previous);
         let scene = Self::scene_resources(&self.gpu.device, &self.statics);
@@ -1083,8 +1114,8 @@ impl Renderer {
                 device.create_buffer(&wgpu::BufferDescriptor { label: Some("update parameters"), size: UPDATE_DISPATCHES_MAX * crate::pipelines::UPDATE_PARAMS_STRIDE, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false })
             });
             let volume_sets = if source.volumes.is_empty() { Vec::new() } else { vec![VolumeSet::new(device, source, &pipelines, &update_buffers, update_params.as_ref(), &sampler)] };
-            let program = source.program.zip(pipelines.program.as_ref()).map(|(p, pp)| std::cell::RefCell::new(crate::program::ProgramRuntime::new(device, p, pp)));
-            let program_handles = program.as_ref().map_or(Vec::new(), |p| p.borrow().handles());
+            let program = source.program.zip(pipelines.program.as_ref()).map(|(p, pp)| std::cell::RefCell::new(crate::program::ProgramRuntime::new(device, source, p, pp)));
+            let program_handles = std::cell::RefCell::new(program.as_ref().map_or(Vec::new(), |p| p.borrow().handles()));
             let empty_scene_group = (source.program.is_some_and(|p| !p.scene_uses.is_empty()) && source.scene_reads.is_empty()).then(|| device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("no scene reads"), layout: &pipelines.scene_group, entries: &[] }));
             self.shadings.push(Shading { source, pipelines, group: group.clone(), data: vec![(None, data, group)], pending: None, frame_data, volume_sets, volume_set: 0, update_runs: Vec::new(), update_buffers, update_params, sampler, scale: 1, clock: 0, program, empty_scene_group, program_handles });
         }
@@ -1230,11 +1261,16 @@ impl Renderer {
     /// slice after slice or layer after layer) and its size, or a buffer's
     /// bytes and `[bytes, 1, 1]`.
     pub fn read_program(&self, name: &str, index: u32) -> Option<(Vec<u8>, [u32; 3])> {
+        self.read_program_mip(name, index, 0)
+    }
+
+    /// `read_program` of an image's mip level `mip` (rows unpadded; its size is that level's).
+    pub fn read_program_mip(&self, name: &str, index: u32, mip: u32) -> Option<(Vec<u8>, [u32; 3])> {
         let source = investigation::current().scene_shading()?;
         let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, source))?;
-        let (_, handle) = shading.program_handles.iter().find(|(n, _)| *n == name)?;
+        let handle = shading.program_handle(name)?;
         let device = &self.gpu.device;
-        match handle {
+        match &handle {
             crate::program::ProgramHandle::Buffer(buffers) => {
                 let b = buffers.get(index as usize)?;
                 let readback = device.create_buffer(&wgpu::BufferDescriptor { label: Some("program readback"), size: b.size(), usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
@@ -1245,14 +1281,18 @@ impl Renderer {
             }
             crate::program::ProgramHandle::Image { textures, .. } => {
                 let texture = textures.get(index as usize)?;
-                let size = [texture.width(), texture.height(), texture.depth_or_array_layers()];
+                if mip >= texture.mip_level_count() {
+                    return None;
+                }
+                let layers = if texture.dimension() == wgpu::TextureDimension::D3 { (texture.depth_or_array_layers() >> mip).max(1) } else { texture.depth_or_array_layers() };
+                let size = [(texture.width() >> mip).max(1), (texture.height() >> mip).max(1), layers];
                 let texel = texture.format().block_copy_size(None)?;
                 let row = size[0] * texel;
                 let padded = row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("program readback"), size: padded as u64 * size[1] as u64 * size[2] as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
                 let mut encoder = device.create_command_encoder(&Default::default());
                 encoder.copy_texture_to_buffer(
-                    wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+                    wgpu::TexelCopyTextureInfo { texture, mip_level: mip, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
                     wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded), rows_per_image: Some(size[1]) } },
                     wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: size[2] },
                 );
@@ -1263,6 +1303,28 @@ impl Renderer {
                     out.extend_from_slice(&bytes[r * padded as usize..r * padded as usize + row as usize]);
                 }
                 Some((out, size))
+            }
+        }
+    }
+
+    /// The resource a fetch reads (src/fetch.rs), of the current scene shading.
+    fn fetch_target(&self, source: &crate::fetch::Source) -> Option<crate::fetch::Target> {
+        use crate::fetch::{Source, Target};
+        use crate::program::ProgramHandle;
+        let shading_source = investigation::current().scene_shading()?;
+        let shading = self.shadings.iter().find(|s| std::ptr::eq(s.source, shading_source))?;
+        match source {
+            Source::Image { name, index, level } => match shading.program_handle(name)? {
+                ProgramHandle::Image { textures, .. } => Some(Target::Texture { texture: textures.get(*index as usize)?.clone(), level: *level }),
+                ProgramHandle::Buffer(_) => None,
+            },
+            Source::Buffer { name, index } => match shading.program_handle(name)? {
+                ProgramHandle::Buffer(buffers) => Some(Target::Buffer(buffers.get(*index as usize)?.clone())),
+                ProgramHandle::Image { .. } => None,
+            },
+            Source::Volume { name, level } => {
+                let v = shading_source.volumes.iter().position(|v| v.name == name)?;
+                Some(Target::Texture { texture: shading.volume_sets.get(shading.volume_set)?.textures[v].clone(), level: *level })
             }
         }
     }
@@ -1509,6 +1571,8 @@ impl Renderer {
     /// selftest to draw known markers).
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
         self.switch_scene(investigation::current().scene(request.state));
+        // The reads earlier frames asked for that have landed (src/fetch.rs).
+        self.fetches.collect(&self.gpu.device, false);
         // The performance panel measures the frames it is shown with.
         if matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources) && request.scene_type == SceneType::ThreeD {
             self.set_timing(true);
@@ -1624,8 +1688,10 @@ impl Renderer {
         // A recording (no history) waits for the data, so every frame is the same each time.
         if renders {
             self.select_data(scene_state, !request.history);
-            self.plan_program(scene_state, request.history);
+            self.plan_program(scene_state, request.history, viewport_size);
         }
+        let settle_prepared = if request.history { None } else { prepared.clone() };
+        let panel_built = built.is_some();
         let mut content = match prepared.or(built) {
             Some(c) => Some(c),
             None => renders.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
@@ -1684,6 +1750,61 @@ impl Renderer {
         if content.is_some() {
             self.prepare_views(request.state);
             self.prepare_inspections(request.state, &boxes);
+        }
+        // A frame that stands alone, of a program that reads what earlier
+        // frames left: the same shot drawn first, each from the one before,
+        // the first from nothing (`ShadingProgram::warmup`), untimed.
+        if let (false, Some(content)) = (request.history, content.as_ref()) {
+            let warmup = investigation::current().scene_shading().and_then(|s| s.program).map_or(0, |p| p.warmup);
+            if warmup > 0 {
+                let timing = self.timing.take();
+                for k in 0..warmup {
+                    self.plan_program(scene_state, k > 0, viewport_size);
+                    let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("program warm-up") });
+                    self.encode_scene(&mut encoder, content, true);
+                    self.gpu.queue.submit([encoder.finish()]);
+                }
+                self.timing = timing;
+                self.plan_program(scene_state, true, viewport_size);
+            }
+        }
+        // A frame that stands alone shows its own frame's reads (src/fetch.rs):
+        // when one is not of this frame's inputs, the frame is drawn (the
+        // warm-up has drawn it already), read, and built again.
+        if let (false, Some(c)) = (request.history, content.as_ref()) {
+            let tag = still_key(c, viewport_size, true);
+            if !c.fetches.is_empty() && !crate::fetch::Queue::answered(&c.fetches, tag) {
+                let warmup = investigation::current().scene_shading().and_then(|s| s.program).map_or(0, |p| p.warmup);
+                let timing = self.timing.take();
+                let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("fetch") });
+                if warmup == 0 {
+                    self.encode_scene(&mut encoder, c, true);
+                }
+                let requests = c.fetches.clone();
+                let mut queue = std::mem::take(&mut self.fetches);
+                queue.collect(&self.gpu.device, true);
+                queue.issue(&self.gpu.device, &mut encoder, &requests, tag, u64::MAX, &|source| self.fetch_target(source));
+                self.gpu.queue.submit([encoder.finish()]);
+                queue.submitted();
+                queue.collect(&self.gpu.device, true);
+                self.fetches = queue;
+                self.timing = timing;
+                // Built again with the reads in hand; drawn again from the start only
+                // when that changes whether its panel shows (and so the view's size).
+                let empty = |c: &FrameContent| c.panel_record.is_none() && c.readout.is_none();
+                let view_params = c.uniforms.view_params;
+                let mut rebuilt = crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time);
+                rebuilt.uniforms.view_params = view_params;
+                if panel_built && empty(&rebuilt) != empty(c) && self.settling < 2 {
+                    self.settling += 1;
+                    let frame = self.render_frame_with(request, readback, settle_prepared);
+                    self.settling -= 1;
+                    return frame;
+                }
+                self.upload(&rebuilt);
+                self.upload_draws(&rebuilt);
+                content = Some(rebuilt);
+            }
         }
         let diagram_pictures: Vec<crate::diagram::Picture> = boxes.iter().filter_map(|(group, _)| self.inspections.get(&format!("{BOX_IMAGE}{group}")).map(|x| (group.clone(), x.id, x.size))).collect();
         let shows_performance = matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
@@ -1771,6 +1892,13 @@ impl Renderer {
             self.dispatch_views(&mut encoder, false);
             self.encode_scene(&mut encoder, content, true);
             self.dispatch_views(&mut encoder, true);
+            // The reads it asks for, of what its passes left (src/fetch.rs).
+            if !content.fetches.is_empty() {
+                let tag = still_key(content, viewport_size, true);
+                let mut queue = std::mem::take(&mut self.fetches);
+                queue.issue(&self.gpu.device, &mut encoder, &content.fetches, tag, crate::fetch::BUDGET, &|source| self.fetch_target(source));
+                self.fetches = queue;
+            }
         }
         if let (Some(free), Some(rect)) = (self.free_slot.viewport.as_ref().filter(|_| free_content.is_some()), main_view) {
             // The free view fills the viewport; the main view sits in its corner.
@@ -1827,6 +1955,7 @@ impl Renderer {
         }
         commands.push(encoder.finish());
         self.gpu.queue.submit(commands);
+        self.fetches.submitted();
         if let Some(t) = self.timing.as_mut() {
             t.submitted(&self.gpu.device);
         }
@@ -1917,12 +2046,12 @@ impl Renderer {
     /// its own (timed while `timing` is given, under the pass's entry).
     /// Runs the current shading's program's plan for the main view's frame
     /// (`ShadingProgram::plan`): the next timed `encode_scene` records its commands.
-    fn plan_program(&mut self, state: &ShotState, history: bool) {
+    fn plan_program(&mut self, state: &ShotState, history: bool, viewport: [u32; 2]) {
         self.shading();
         let Some(source) = investigation::current().scene_shading() else { return };
         let Some(shading) = self.shadings.iter().find(|s| std::ptr::eq(s.source, source)) else { return };
         let Some(program) = &shading.program else { return };
-        let frame = crate::investigation::ProgramFrame { state, history, features: self.gpu.device.features() };
+        let frame = crate::investigation::ProgramFrame { state, history, features: self.gpu.device.features(), viewport };
         program.borrow_mut().plan(&self.gpu.device, &self.gpu.queue, &frame);
     }
 
@@ -2112,7 +2241,11 @@ impl Renderer {
                     2 => [s[0], s[1]],
                     _ => [s[0], s[2]],
                 },
-                Shape::Image { size, .. } => [size[0], size[1]],
+                // A level of an image (the view's size divided, when it follows the view).
+                Shape::Image { size, viewport: d, .. } => {
+                    let s = if *d == 0 { [size[0], size[1]] } else { [(viewport[0] / d).max(1), (viewport[1] / d).max(1)] };
+                    [(s[0] >> level).max(1), (s[1] >> level).max(1)]
+                }
             };
             let long = src[0].max(src[1]).max(1);
             let side = if card_image(&name) { DAG_SIDE } else { INSPECT_SIDE.min(long.max(256)) };
@@ -2139,7 +2272,7 @@ impl Renderer {
                 let (entry, binding) = inspect_entry(&resource.shape);
                 self.textures.insert(view_texture(&name), (id, size));
                 let index = param("index", 0).unwrap_or(0.0) as u32;
-                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id, index });
+                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id, index, level });
             }
             let range = [param("range", 0).unwrap_or(show.range()[0]), param("range", 1).unwrap_or(show.range()[1])];
             let (tile, words, tiles_x, samples) = match &resource.shape {
@@ -2184,6 +2317,7 @@ impl Renderer {
         for x in self.inspections.values().filter(|x| x.node == node) {
             let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else { continue };
             let volume_view;
+            let program_handle;
             let resource: wgpu::BindingResource = match x.resource {
                 "hdr" => wgpu::BindingResource::TextureView(&targets.hdr),
                 "depth" => wgpu::BindingResource::TextureView(&targets.depth),
@@ -2204,14 +2338,15 @@ impl Renderer {
                         Some(r) => r,
                         None => {
                             let Some(s) = shading else { continue };
-                            if let Some((_, h)) = s.program_handles.iter().find(|(n, _)| *n == name) {
-                                match h {
+                            if let Some(h) = s.program_handle(name) {
+                                program_handle = h;
+                                match &program_handle {
                                     crate::program::ProgramHandle::Buffer(b) => {
                                         let Some(b) = b.get(x.index as usize).or(b.first()) else { continue };
                                         b.as_entire_binding()
                                     }
                                     image => {
-                                        let Some(view) = image.view(x.index) else { continue };
+                                        let Some(view) = image.view(x.index, x.level) else { continue };
                                         volume_view = view;
                                         wgpu::BindingResource::TextureView(&volume_view)
                                     }
@@ -2340,6 +2475,23 @@ impl Renderer {
         // The program's commands run in the main view only; the others read what it left.
         use crate::investigation::ProgramStage;
         let program_shading = shading.filter(|_| timed);
+        // Its groups, for this view's size and the frame's textures it reads.
+        if let Some(s) = program_shading {
+            if let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) {
+                let key = targets.made ^ chain.map_or(0, |c| c.made << 32);
+                let external = |name: &str| -> Option<wgpu::TextureView> {
+                    crate::program::external(s.source, name)?;
+                    match name {
+                        "depth" => Some(targets.depth.clone()),
+                        "hdr" => Some(targets.hdr.clone()),
+                        _ => chain.and_then(|c| c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| v.clone())),
+                    }
+                };
+                if program.borrow_mut().bind(&self.gpu.device, pipelines, targets.size, key, &external) {
+                    *s.program_handles.borrow_mut() = program.borrow().handles();
+                }
+            }
+        }
         self.record_program(encoder, ProgramStage::Start, &graph, chain, program_shading, targets, timing.as_mut());
         let mut after_prepass = false;
         // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
@@ -2479,6 +2631,7 @@ impl Renderer {
                         pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                     }
                     drop(pass);
+                    self.record_program(encoder, ProgramStage::AfterScene, &graph, chain, program_shading, targets, timing.as_mut());
                 }
                 Step::Overlay => {
                     let span = timing.as_mut().and_then(|t| t.render_writes("overlay"));
@@ -2552,7 +2705,7 @@ impl Renderer {
         }
         self.switch_scene(investigation::current().scene(state));
         self.select_data(state, true);
-        self.plan_program(state, true);
+        self.plan_program(state, true, size);
         let mut content = crate::shader_data::build_frame(state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, 0.0);
         let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
         self.still = count(self.still, still_key(&content, size, true));

@@ -1,0 +1,16 @@
+# One pixel's ray, stepped through the depth pyramid (screen_space_reflection.glsl's loop).
+
+key = "trace"
+title-text = "shot.trace_title"
+tab-text = "shot.trace"
+hint-text = "hints.trace_demo"
+scene = "render_lab.scene/study-room"
+listing = "trace"
+resets-camera = true
+include = ["room-camera"]
+
+[params]
+floorRoughness = 0.15
+skyReflection = 0.0
+floorMetallic = 1.0
+traceStep = 64.0

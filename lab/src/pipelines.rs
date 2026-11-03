@@ -419,7 +419,7 @@ impl Pipelines {
         let chain_layout = |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| chain_layout(device, shading, label, reads, writes, visibility);
         let scene_group = chain_layout("scene reads", shading.scene_reads, &[], wgpu::ShaderStages::FRAGMENT);
         // What the scene pass reads of the program: group 3.
-        let program_scene = shading.program.and_then(|p| crate::program::scene_layout(device, p));
+        let program_scene = shading.program.and_then(|p| crate::program::scene_layout(device, shading, p));
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading"),
             bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout), Some(&scene_group), program_scene.as_ref()],
@@ -552,7 +552,7 @@ impl Pipelines {
                 })
                 .collect()
         });
-        let program = shading.program.map(|p| crate::program::pipelines(device, &module, p, &self.frame_layout, &self.shading_layout, program_scene));
+        let program = shading.program.map(|p| crate::program::pipelines(device, &module, shading, p, &self.frame_layout, &self.shading_layout, program_scene));
         if let Some(error) = pollster::block_on(scope.pop()) {
             return Err(anyhow!("{} pipeline creation failed: {error}", shading.fragment));
         }
