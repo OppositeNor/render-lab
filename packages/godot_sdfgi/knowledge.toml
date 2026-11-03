@@ -1,57 +1,57 @@
 # The chapters of this investigation's story and what each uses directly, from the
-# knowledge graph (rlstd's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
+# knowledge graph (render_lab's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
 # the `knowledge-graph` agent skill chose it). Recap chapters list nothing.
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
-known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-sync", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#cg-gi"]
+known = ["render_lab.knowledge#gpu-formats", "render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-sync", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-sampling", "render_lab.knowledge#rt-cubemaps", "render_lab.knowledge#rt-blend", "render_lab.knowledge#geo-bounds", "render_lab.knowledge#geo-grids", "render_lab.knowledge#cg-visibility", "render_lab.knowledge#cg-lights", "render_lab.knowledge#cg-brdf", "render_lab.knowledge#cg-fresnel", "render_lab.knowledge#cg-microfacet", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#cg-pbr-materials", "render_lab.knowledge#cg-mc", "render_lab.knowledge#cg-gi"]
 
 [[chapter]]
 number = 1
 demos = ["room"]
-requires = ["rlstd.knowledge#gpu-frame", "rlstd.knowledge#rt-depth", "rlstd.knowledge#cg-gi"]
+requires = ["render_lab.knowledge#gpu-frame", "render_lab.knowledge#rt-depth", "render_lab.knowledge#cg-gi"]
 
 [[chapter]]
 number = 2
 demos = ["cascades"]
-requires = ["rlstd.knowledge#geo-clipmaps", "rlstd.knowledge#gi-probes"]
+requires = ["render_lab.knowledge#geo-clipmaps", "render_lab.knowledge#gi-probes"]
 
 [[chapter]]
 number = 3
 demos = ["regions"]
-requires = ["rlstd.knowledge#geo-bounds", "rlstd.knowledge#cg-lights", "rlstd.knowledge#gpu-amortize"]
+requires = ["render_lab.knowledge#geo-bounds", "render_lab.knowledge#cg-lights", "render_lab.knowledge#gpu-amortize"]
 
 [[chapter]]
 number = 4
 demos = ["voxels"]
-requires = ["rlstd.knowledge#geo-voxelize", "rlstd.knowledge#gpu-hdr-formats"]
+requires = ["render_lab.knowledge#geo-voxelize", "render_lab.knowledge#gpu-hdr-formats"]
 
 [[chapter]]
 number = 5
 demos = ["field"]
-requires = ["rlstd.knowledge#geo-distance-transform"]
+requires = ["render_lab.knowledge#geo-distance-transform"]
 
 [[chapter]]
 number = 6
 demos = ["occlusion"]
-requires = ["rlstd.knowledge#gi-probe-visibility", "rlstd.knowledge#gpu-formats"]
+requires = ["render_lab.knowledge#gi-probe-visibility", "render_lab.knowledge#gpu-formats"]
 
 [[chapter]]
 number = 7
 demos = ["light"]
-requires = ["rlstd.knowledge#gi-voxel-light", "rlstd.knowledge#geo-sphere-tracing", "rlstd.knowledge#gi-multibounce"]
+requires = ["render_lab.knowledge#gi-voxel-light", "render_lab.knowledge#geo-sphere-tracing", "render_lab.knowledge#gi-multibounce"]
 
 [[chapter]]
 number = 8
 demos = ["probes"]
-requires = ["rlstd.knowledge#gi-probe-tracing", "rlstd.knowledge#gi-sdf-tracing", "rlstd.knowledge#cg-environment"]
+requires = ["render_lab.knowledge#gi-probe-tracing", "render_lab.knowledge#gi-sdf-tracing", "render_lab.knowledge#cg-environment"]
 
 [[chapter]]
 number = 9
 demos = ["maps"]
-requires = ["rlstd.knowledge#gi-probe-maps", "rlstd.knowledge#geo-clipmaps"]
+requires = ["render_lab.knowledge#gi-probe-maps", "render_lab.knowledge#geo-clipmaps"]
 
 [[chapter]]
 number = 10
 demos = ["pixel"]
-requires = ["rlstd.knowledge#rt-reconstruct", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#gi-probe-visibility", "rlstd.knowledge#gi-sdf-tracing", "rlstd.knowledge#rt-blend"]
+requires = ["render_lab.knowledge#rt-reconstruct", "render_lab.knowledge#cg-pbr-materials", "render_lab.knowledge#gi-probe-visibility", "render_lab.knowledge#gi-sdf-tracing", "render_lab.knowledge#rt-blend"]

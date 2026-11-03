@@ -75,9 +75,9 @@ pub mod text;
 pub mod theme;
 pub mod timing;
 pub mod ui;
-/// The standard package's code (packages/rlstd/src): the picture inset, a
+/// The standard package's code (packages/render_lab/src): the picture inset, a
 /// selftest's pieces, a package's source index and text table.
-#[path = "../../packages/rlstd/src/mod.rs"]
+#[path = "../../packages/render_lab/src/mod.rs"]
 pub mod utility;
 pub mod values;
 pub mod viewer;

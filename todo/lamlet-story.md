@@ -1,167 +1,235 @@
-# The storyboard as a Lamlet source file (plan)
+# Migrating the storyboards to Lamlet presentations (plan)
 
-Today a storyboard (`.story`) is prose with `{@ …}` tags, and Lamlet regions are optional extras that
-`tools/video/lamlet.py` expands into text before `story.py` reads the file. This plan makes the storyboard
-itself a Lamlet document: the prose stays prose, and the tags become typed regions that return *cue values*.
-A misspelled key or a wrong value type is then reported at the storyboard's line before any speech is
-synthesized, instead of when the lab loads the finished timeline.
+Today a storyboard (`.story`) is prose with `{@ …}` tags, read by `tools/video/story.py` and `markup.py`. This
+plan replaces it with a Lamlet *presentation*, the document format of the Lamlet extension `lamlet-present`
+(`lamlet present …`). Headings are chapters and beats, paragraphs are sentences, and cues are typed values. A
+misspelled key or a wrong value type is then an error at the storyboard's line, reported before any speech is
+synthesized. Today it only shows up when the lab loads the finished timeline.
 
-It builds on [lamlet-integration.md](lamlet-integration.md) (how a storyboard uses Lamlet) and is independent of
-[lamlet-in-process.md](lamlet-in-process.md) and [lamlet-live-logic.md](lamlet-live-logic.md): nothing here runs
-in the lab, and the lab gains no Cargo dependency.
+`lamlet-present` names no host. The lab-specific part, what the cues mean here, stays in this repository
+(`tools/video`). The lab gains no Cargo dependency: `tools/video` runs the installed commands, as `lamlet.py`
+runs `lamlet` today.
 
-Status: plan (2026-11-02). A prototype rewrote the first beat of `godot_voxelgi`'s storyboard with typed
-regions; `story.py` read the original and the generated storyboard as identical boards (beat keys, ranges, and
-sentences). The reader is built in `lamlet-present` (milestone 1). Nothing in the lab is changed.
+It is independent of [lamlet-in-process.md](lamlet-in-process.md) and
+[lamlet-live-logic.md](lamlet-live-logic.md): nothing here runs in the viewer.
 
-## What was checked
+Status: plan (2026-11-02). The facts below come from a survey of the tracked tools and storyboards on that
+date. Nothing in the lab is changed.
 
-- **Every tracked storyboard is already a valid Lamlet document.** None of the six contains a `$`, and all six
-  pass `lamlet check` unchanged: Lamlet reads headings, properties, and `{@ …}` tags as prose. So the switch
-  can be made one beat at a time; old tags and typed cues mix in one file.
-- **Typed cues give the same board.** In the prototype,
+## The approach: replace the reader, keep the timing
 
-  ```text
-  {@m0> voxelgiMix=0..0.15}This is the lab's study room, … flat light{<m0}.
-  ```
-
-  became
-
-  ```text
-  ${open "m0" {' {voxelgiMixRange 0.0 0.15}}}This is the lab's study room, … flat light${close "m0"}.
-  ```
-
-  and the reader wrote the first form back from the second. `story.py` gave equal boards.
-- **Errors point at the storyboard:**
-
-  ```text
-  typo.story:21:17: name error: unknown name `voxelgiMxRange`
-  type.story:16:102: type error: argument 1: type mismatch: `Float` versus `String`
-  ```
-
-## How it works
+The pipeline today:
 
 ```text
-typed .story ──lamlet-present story──▶ canonical .story ──story.py──▶ board ──timeline.py──▶ timeline
-               (check, evaluate,        (the tags story.py
-                write each cue as        reads today)
-                its tag)
+.story ─story.py─▶ board ─narration.py (Piper, marks)─▶ durations ─timeline.py─▶ timeline.json, captions, audio
+          markup.parse(sentence text) is called again in narration.py, timeline.py, zh.py, outputs.py, build.py
 ```
 
-- **Prose stays prose.** Headings, `key: value` properties, `summary:`, paragraphs, and narration are unchanged.
-- **A tag becomes a region whose value is a cue.** The `cues` package (in `lamlet-present`) defines the types:
-  - `Val`: `text`, `num`, `int`, `flag`, `vec`, a `range` `a..b`, a `toward` `=b`, or `json` (motions)
-  - `Attr`: a key and a `Val`, made by `setText`, `setNum`, `setInt`, `setFlag`, `setVec`, `setRange`,
-    `setToward`, or `setJson`
-  - `Cue`: `point` (`{@ k=v …}`), `named` (`{@intro}`), `open`/`close` (a range), or `around` (a range around
-    a String of narration)
-  - The names differ from rlstd's `story.lam` (`at`, `num`, `span`, `cue`, …) so a storyboard can import both.
-- **The reader writes each cue back as its tag**, with `markup.py`'s quoting. A region giving a String or a
-  number is written as text, as `lamlet.py` does today, so rlstd's `story.lam` keeps working unchanged.
-- **Everything after the reader is unchanged:** speech, word timing, captions, the board, and the timeline.
-- **Translations need nothing.** A zh-CN file carries only formulas and code spans, and is already a valid
-  Lamlet document.
+Every downstream step works from one parsed sentence: `markup.parse(text) → Sentence` (`caption`, `spoken`,
+`pieces`, `tags`, `formulas`).
+- `narration.py` turns tag pieces into word marks.
+- `timeline.py` turns tags into keys.
+- Both cut captions from that parsed sentence.
 
-### Typed keys: the values package
+So the migration replaces only the *reader*. A new loader builds the same board, and each sentence carries the
+parsed `Sentence` it would have had. The timing rules stay exactly as they are: `LEAD`, `GAP`, `TAIL`, padding
+to a chapter's target, beat keys at the beat's start, `"sentence"`/`"beat"` motion lengths, and range blending.
 
-The keys a storyboard may set are the investigation's shot parameters. The lab writes them out, and
-`lamlet-present values` turns them into a package of typed setters, one per parameter:
+```text
+storyboard.lam ─lamlet present deck─▶ deck.json ─presentation.py─▶ the same board (sentences already parsed)
+                                                  ─▶ narration.py, timeline.py, zh.py, outputs.py (unchanged)
+```
 
-| Kind (example name) | Setters |
+This makes the check strong. For each storyboard, the timeline from the presentation must be **byte-identical**
+to the timeline from the `.story` file. And because the spoken text is the same, the narration cache is hit and
+nothing is synthesized again.
+
+`lamlet present schedule` (its own timing) is not used. The lab's timing rules are specific to the lab, and
+they stay here.
+
+## What the corpus needs
+
+Counts are from the tracked storyboards (English):
+
+| | sdfgi | voxelgi | o3de | total |
+|---|---|---|---|---|
+| chapters / beats / sentences | 11 / 64 / 136 | 9 / 80 / 219 | 10 / 96 / 414 | 30 / 240 / 769 |
+| tags (`{@…}` and `{<…}`) | 209 | 787 | 889 | 1,885 |
+| point cues (of them in beat-key paragraphs) | 167 (56) | 257 (119) | 737 (177) | 1,161 (352) |
+| ranges `{@n> k=a..b}…{<n}` | 21 | 265 | 76 | 362 |
+| `animate=[…]` motions | 8 | 59 | 92 | 159 |
+| formulas / code spans | 0 / 0 | 0 / 0 | 1 / 2 | 1 / 2 |
+
+There are 197 distinct attribute keys:
+- 167 shot parameters, such as `cameraDrift` (187 uses), `voxelgiMix` and `octreeLevel`
+- 24 tag fields, such as `callout` (555), `image` (255), `panel` (207) and `demo` (191)
+- 5 `camera.*`, and one `param.formula`
+- dotted keys: `image.<p>`, `run.<arg>` and `freeCamera.*`
+
+**Not used anywhere:** named cues, `{@define}`, `pause=`, `=b` values, `record=`, escapes, `$` regions,
+mid-word tags, ranges crossing sentences, and tag-only paragraphs after a beat's first sentence. The converter
+handles only what is used.
+
+**What is used and needs care:**
+- nested ranges, up to 3 deep (voxelgi, 51 sentences)
+- point cues inside ranges (82)
+- several tags before the first word
+- beat-key paragraphs over two lines with `animate` JSON
+- empty values (`callout=""`, 300 uses)
+- quoted values with spaces
+- `param.formula` (a parameter, not a formula tag)
+
+**Translations** (zh-CN): same chapter numbers, beat ids and paragraph counts as English. They have no cues;
+only o3de has 2 code spans and 1 formula, without `say`.
+
+## The presentation format for this lab
+
+| `.story` | Presentation |
 |---|---|
-| float (`voxelgiMix`) | `{voxelgiMix 0.4}`, `{voxelgiMixRange 0.0 1.0}`, `{voxelgiMixToward 1.0}` |
-| int (`steps`) | `{steps 3}` |
-| bool (`showProbes`) | `{showProbes true}` |
-| vector (`tint`) | `{tint {' 1.0 0.8 0.6}}` |
-| text with options (`mode`: `albedo`, `light-only`) | `{mode "albedo"}`, and `modeAlbedo`, `modeLightOnly` |
-| float (`camera.yaw`) | `{cameraYaw 24.0}` (dots and dashes become camel case) |
+| header lines (`title:`, `subtitle:`, `engineVersion:`, `commit:`, `date:`, `fps:`, `width:`, `height:`) | attributes of the level-1 heading: `# How VoxelGI Lights a Room {#video subtitle="…" fps=30 width=1920 …}` |
+| `# 1 \| Where it runs \| 185 s` with `summary:` and `sources:` | `## Where it runs {#c1 number=1 target=185 summary="…" sources="a, b"}`. No summary has a quote or brace; the longest is 284 characters. |
+| `## c1-room \| 3d \| Headline` with `graph:`, `focus:`, `sources:`, `diagram:` | `### Headline {#c1-room kind=3d graph=frame focus="UPD, VOX" sources="…"}` |
+| a tag-only paragraph before the first sentence (beat keys) | a paragraph of cues only, before the first sentence (the same rule) |
+| a sentence | a paragraph |
+| `{@ k=v …}` | `${cue "k" {' {kAttr v} …}}` with typed attributes from the lab's vocabulary |
+| `{@n> k=a..b}…{<n}` | `${during "n" {' {kRange a b}} {text "…"}}`, nested as the ranges are |
+| `animate=[…]` | `{animate "[…]"}`: the JSON as a String for now (typed motions are an open question) |
+| `{@ formula="…" say="…"}` | `${cue "formula" {' {formula "…"}}}${say {math "…"} "…"}`: the cue gives the key, `say` gives what is shown and spoken |
+| `{@ codespan="…"}` | `${say {code "…"} "…"}`, or `${code "…"}` when said as written |
 
-The list is JSON, `[{"name": "camera.yaw", "kind": "float"}, …]`. A shot parameter whose name the tag format
-reserves (`blend`, `image`, …) gets the key `param.<name>` (setter `paramBlend`), as `markup.py`'s `RESERVED`
-requires. The tag format's own fields (`demo`, `callout`, `panel`, `image`, …) are listed with
-`"field": true` and keep their names, for example `{demo "room"}` and `panelHidden`. The package is generated, never edited, and it is regenerated when the
-parameters change; a stale package shows up as an unknown name when a storyboard is checked.
+The level-1 heading is the video, level 2 a chapter, level 3 a beat. The zh-CN presentation has the same
+headings (same ids, its own titles and `summary`) and the same paragraphs, with no cues. Its formulas and code
+spans are `${math "…"}` and `${code "…"}`.
 
-### What Lamlet adds to a storyboard
+**Files.** `packages/<pkg>/video/storyboard.lam` and `storyboard.zh-CN.lam` replace the two `.story` files of
+each package.
 
-- typed keys and values, checked before synthesis
-- named, reusable cues: `$[# warm [% {point {' {voxelgiMix 1.0} {cameraYaw 24.0}}}]]` once, then `$warm`
-- loops and conditions for repetitive sequences, and computed numbers (spoken as words through rlstd)
-- comments (`$;{…}`) that are neither shown nor spoken
-- cue modules shared between storyboards
+### The vocabulary
 
-## Costs and limits
+The keys a cue may set come from the lab. A new lab command, `render-lab --investigation X story keys`, prints
+them as JSON for `lamlet present vocab`.
+- **Shot parameters,** from `values::list()` (as `values --json` has them):
+  - `f32` is a float
+  - `i32` and `u32` are ints
+  - `bool` is a bool
+  - `vecN<f32>` is a vector
+  - a `u32` with `choices` is text with those options
+- **Camera channels:** `camera.*` and `freeCamera.*`.
+- **Key fields,** with their options where the lab knows them:
+  - `demo`: the demo keys
+  - `panel`: the 10 `PanelMode`s
+  - `code`: the listing names
+  - `image`: the published images, resources and kinds
+  - `run`, `stop`, `imageClick`: the actions and click handlers
+  - `ease`, `imageCorner`, `imageShow`: their enums
+  - free text: `callout`, `imageTitle`, `labelText`, …
+- **Names a tag reserves** get `"key"`: `{"name": "paramFormula", "key": "param.formula", …}`, likewise
+  `image.<p>` and `run.<arg>`.
 
-- **Verbosity.** `${open "m0" {' {voxelgiMixRange 0.0 0.15}}}` is about twice as long as the tag it replaces.
-  Named cues help, and so does `around` for a short range. A region cannot wrap prose, so a long range stays an
-  `open`/`close` pair.
-- **Conversion.** The three English storyboards have about 1,900 tags (813, 188, and 522). They need a
-  mechanical converter, checked by comparing boards per storyboard, as the prototype did.
-- **Literal dollars.** A `$` in narration must be written `$$`. None appears today.
-- **Errors raised inside std.** When a cue helper fails through std's `error` in tail position, Lamlet reports
-  the error at `std.lam` instead of at the storyboard. That is a Lamlet fix (keeping the frames tail calls
-  replace), planned there.
+`build.py` writes the vocabulary, a package named after the investigation (`godot_voxelgi`), to
+`build/godot_voxelgi.lam` before reading the storyboard, so it always matches the
+investigation's current parameters. That means the lab binary is built first.
+
+`{attr "key" "value"}` remains as an escape hatch for a key the vocabulary does not have yet.
+
+Attribute values stay text, and `markup.cue_key` and `param_value` read them as today. So `{voxelgiMix 0.15}`
+(written `0.15`) and `0.15` in a tag give the same key.
+
+## Changes, by repository
+
+### Lamlet (general, small)
+
+1. **The speech backend keeps a sentence's inlines.** `Utterance` gains its source inlines, so a host can draw
+   what is shown with structure (formulas, code), not only as plain text.
+
+### lamlet-present (general)
+
+2. **`lamlet present deck FILE`:** the deck as JSON, with no timing.
+   - sections: `id`, `level`, `title`, `attrs`, `path`
+   - sentences: `section`, `spoken`, `pieces`, `anchors` (`kind`, `name`, `attrs`, `piece`), `inlines` (lamlet-doc's
+     IR JSON) and `at`
+
+   This is what a host needs to apply timing rules of its own.
+3. A Lamlet release (a tag with `lamlet-doc`), with lamlet-present pinned to it.
+
+### render-lab
+
+4. **`render-lab story keys`** (lab/src/cli.rs, next to `values`, `actions` and `images`): the vocabulary JSON.
+5. **`tools/video/presentation.py`, the loader.**
+   - It runs `lamlet present deck` with the vocabulary package, and builds the board `story.load` returns:
+     - header properties from the level-1 heading
+     - chapters from level 2
+     - beats from level 3, with `keys` from the beat's first cue-only paragraph
+     - narration from its sentences
+   - Each sentence gets `parsed`, a `markup.Sentence` built from the deck:
+     - `tags` from the anchors: open, close, point, and formula for a `formula` cue. Their attribute pairs are
+       the same strings `markup.parse` would give.
+     - `pieces` from the deck's pieces.
+     - `spoken` as `markup.tidy(' '.join(pieces))`, exactly as `markup.parse` computes it.
+     - `caption` and `formulas` from the inlines, with formulas and code spans as the lab's `{@ formula="…"}` and
+       `{@ codespan="…"}` rich text (which the lab still draws).
+   - Each sentence also gets a stable `text` key for `Durations`.
+6. **One accessor, `markup.sentence(s)`.** It returns `s['parsed']` if present, else `markup.parse(s['text'])`. It
+   replaces the direct `markup.parse` calls in narration.py (`spoken`, `marks`), timeline.py (`tag_keys`,
+   `caption_cues`, `plan_chapter`'s `has_tags`), zh.py (the formula check), outputs.py (`script_text`,
+   `beat_listings`) and build.py (`text_keys`). Then both formats run through the same code during the migration.
+7. **`build.py`** reads `storyboard.lam` when it exists, else `storyboard.story`. The formula check
+   (`'{@ formula=' in timeline text`) still works, because keys keep that rich text.
+8. **`tools/video/convert_story.py`** (temporary): reads a `.story` with today's `story.py` and `markup.py`, and
+   writes the presentation, using the vocabulary's function names. Deleted after the migration.
 
 ## Milestones
 
-1. **The reader** (`lamlet-present`, outside this repository). `lamlet-present story FILE --package
-   name=path …` checks a typed storyboard and prints the canonical storyboard; diagnostics go to stderr with
-   the storyboard's line and column. `lamlet-present values NAME PARAMS.json` writes the values package and
-   checks it against `std`, `cues`, and rlstd for name collisions. Status: done, with tests; the first beat of
-   `godot_voxelgi`'s storyboard expands to byte-identical text and an equal board.
-2. **The lab writes its parameters.** A command (for example `render-lab --investigation X story params`)
-   prints the investigation's shot parameters, their kinds, and the tag format's fields as JSON, for
-   `lamlet-present values`.
-3. **`lamlet.py` uses the reader.** When a storyboard imports `cues`, `lamlet.py` runs `lamlet-present story`
-   (named by a `LAMLET_PRESENT` variable, like `LAMLET`) with rlstd's `story.lam` and the generated values
-   package, instead of `lamlet prepare`/`eval`. Storyboards without regions are read as today.
-4. **Convert one storyboard.** A converter rewrites `godot_voxelgi`'s storyboard. Done when `story.py` gives
-   an identical board from the original and the converted file, and the video's timeline is byte-identical.
-5. **Convert the rest**, one storyboard at a time, with the same check.
+Each milestone ends with a check that can fail.
 
-## Later: the board from Lamlet's document IR
+1. **Lamlet and lamlet-present:** changes 1 to 3. Check: their tests, and `lamlet present deck` on a fixture that
+   has every construct in the table above.
+2. **The vocabulary:** change 4. Check: for each investigation, the generated package checks with `std`,
+   `content`, `present` and render_lab; and every key used in its `.story` is in the vocabulary (197 keys over the
+   three).
+3. **The loader beside the old reader:** changes 5 to 7. Check: a hand-written presentation of one beat gives a
+   board equal to `story.load` of the same beat (sentence `parsed` compared field by field).
+4. **Convert `godot_sdfgi`,** the smallest (209 tags, no formulas). Checks, in order:
+   1. **Boards:** the same chapters, beats, properties and keys. Every sentence's `spoken`, `caption` and
+      `tags` (kind, name, attributes, and the text after each tag) are equal.
+   2. **Narration:** `build.py --prepare-only` synthesizes nothing new (every sentence hits the audio cache), and
+      the marks are equal.
+   3. **Timeline:** `timeline.json` is byte-identical to the one from the `.story`, and so are the captions
+      (`srt`, `vtt`) and `chapter-plans.json`.
+   4. **zh-CN:** the same three checks for the translation.
+5. **Convert `godot_voxelgi`** (nested ranges, 787 tags) and **`o3de_lighting`** (the formula, code spans, images,
+   labels, 889 tags), with the same checks.
+6. **Retire the tag format.**
+   - Delete the `.story` files, `story.py`, `convert_story.py`, the parsing half of `markup.py` (`parse`,
+     `parse_tag`; `cue_key` and `param_value` stay, as they read attributes), the region expansion in
+     `lamlet.py`, and the tag-emitting functions of render_lab's `render_lab.lam` (`render_lab` after [lamlet-naming.md](lamlet-naming.md)). Its spoken-number functions stay,
+     since they return text.
+   - Update `tools/video/README.md`, `test_story.py` and `test_markup.py`, and add a test for the loader.
+   - The lab's `rich_text.rs` stays: captions, text tables, the formula card and WGSL declarations still use
+     tags at runtime.
 
-Milestones 1 to 5 write typed cues back as tag text, which `story.py` then parses. Lamlet plans a document IR
-(Lamlet's `plans/formats.md`): a format-neutral tree with speech nodes (`Say` for shown versus spoken text,
-`Anchor` between words, `Pause`, `Span` for ranges) and a speech writer that gives one utterance per paragraph,
-with the spoken text cut into pieces at each anchor. With it, the board can come from values rather than from
-text.
+## Risks
 
-How the parts divide:
-
-| Where | What |
-|---|---|
-| Lamlet (`lamlet-doc`) | The IR, the speech nodes, the speech writer. Anchor and span attributes are opaque there |
-| `lamlet-present` | A *board writer*: IR to the board `story.py` builds (chapters, beats, `keys`, `cues`, `narration`), interpreting the attributes by this lab's tag rules |
-| The lab | Piper, word times, captions, and the timeline: `narration.py` and `timeline.py`, unchanged at first |
-
-What it takes, as of today's code:
-
-- **Sentences still hold tags.** `story.py`'s board keeps each sentence as text with its tags, and
-  `narration.py` (`spoken`, `synthesize`) and `timeline.py` (`tag_keys`, `caption_cues`) call `markup.parse` on
-  it. So the board writer works in two steps:
-  1. **The board with tag text.** It writes the board as JSON, with each sentence's text in canonical tags.
-     This skips `story.py`'s section and heading parsing. Done when the JSON equals `story.load` of the same
-     storyboard.
-  2. **Parsed sentences.** `narration.py` and `timeline.py` accept a sentence already parsed (`caption`,
-     `spoken`, `pieces`, `tags`: the fields of `markup.Sentence`), and the board writer fills them from the
-     utterances. Tags are then never written or parsed. This changes the lab's tools, so it is a change here,
-     reviewed as one.
-- **Pieces, not words.** The speech writer gives anchors as piece indices, as `markup.Sentence.pieces` does.
-  `narration.py` keeps mapping pieces to words with its phonemizer (`marks`).
-- **Headings.** Until Lamlet parses prose (its phase 7), chapter and beat headings stay prose. The board writer
-  reads them from the IR's `Raw` text, as `story.py` reads them now.
-- **Translations.** A zh-CN storyboard lowers to its own IR. Lamlet's `--align` check (matching sections and
-  paragraph counts, and no anchors) replaces `load_translation`'s matching.
-
-The check is the same as for milestones 4 and 5: an equal board and a byte-identical timeline for every
-converted storyboard.
+- **Whitespace and punctuation.** If a sentence's `spoken` differs by even a space, it is synthesized again and
+  its timing moves.
+  - Check 4.2 catches it, and so does `spoken` being computed with `markup.tidy`.
+  - lamlet-doc collapses whitespace the same way and removes a space before `,.;:!?)`, as `tidy` does.
+- **Mark positions.** A tag's mark counts the phonemizer words *after* it. The deck's pieces must cut the text
+  where the tags stood. A range open before the first word, and several tags in a row, give empty pieces, which
+  must stay empty. Check 4.2 compares marks.
+- **Beat keys.** They fire at the beat's start, before `LEAD`. The loader must take them from the cue-only
+  paragraph, not from the first sentence's start.
+- **The vocabulary drifts.** It is generated from the investigation on every build, so it cannot be stale. A
+  missing key is a check error naming the key, and the escape hatch keeps a build going.
+- **Two readers for a while.** Only until milestone 6. `markup.sentence` keeps the rest of the code shared.
 
 ## Open questions
 
-- **Where the cue helpers live.** The `Cue` type and the reader are in `lamlet-present`; rlstd's `story.lam`
-  could move its cue functions (`cue`, `sweep`, `callout`, `panel`) onto typed cues, or stay a String library.
-- **Motions.** A camera path is a `setJson "animate" "…"` today, JSON in a String. Typed motion constructors
-  (paths, orbits) would check those too.
-- **Pinning.** `lamlet-present` depends on Lamlet's `v0.2.0` tag; the reader is installed with
-  `cargo install`, so the lab's `--locked --offline` build is not involved.
+- **Typed motions.** `animate` stays a JSON String. Typed constructors (`path`, `orbit`, `wave`, checked like
+  keys) would catch motion mistakes too. That's worth a follow-up once the migration is done.
+- **Chapter summaries as attributes.** They fit today. If summaries grow (with quotes or several sentences), a
+  `group "summary"` block under the chapter heading would be the alternative.
+- **The other Lamlet plans.**
+  - [lamlet-render-lab.md](lamlet-render-lab.md)'s text and timeline modules overlap with this format. Its storyboard
+    parts are superseded by this plan.
+  - [lamlet-integration.md](lamlet-integration.md)'s validation gates still apply.

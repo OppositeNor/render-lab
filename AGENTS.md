@@ -10,7 +10,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 
 - **Never publish engine source, or code derived from it, unless the engine's license allows it.** Work on an engine
   whose license does not allow it belongs in the optional `commercial` module, which stays local (ignored by git). Keep
-  anything derived from such an engine's source out of the shared lab (`lab/`, `packages/rlstd`); cite published
+  anything derived from such an engine's source out of the shared lab (`lab/`, `packages/render_lab`); cite published
   methods (papers, talks) by their publication.
 - **Nothing outside the `commercial` module reflects what is inside it.** Published files (everything `git` would
   publish) may know only that an optional module, not provided in this repo, can add local packages to `packages/`.
@@ -42,17 +42,17 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 - Shaders are WGSL; do not introduce Slang or SPIR-V passthrough.
 - Content is in packages: each source package a directory of `packages/` with a `manifest.toml` (name, author, license, `import`,
   `export`, its `library` and `negotiate` symbol if it has code, and what it `provides`: resource collections and demos;
-  the format is in `lab/src/packages.rs`, a collection's in `lab/src/pipeline/mod.rs`). `rlstd` is the lab's own;
+  the format is in `lab/src/packages.rs`, a collection's in `lab/src/pipeline/mod.rs`). `render_lab` is the lab's own;
   an investigation names its package with `Investigation::package`. The loader reads only the built packages beside the
   binary (`target/release/packages/<name>/`: manifest, resources, library), which every launch from a checkout first
   brings up to date with their sources (`lab/src/cook.rs`, incrementally); resources are read through
-  `lab::resources` by full key (`rlstd.font/dejavu-sans`), not with `include_bytes!`; a package's content
+  `lab::resources` by full key (`render_lab.font/dejavu-sans`), not with `include_bytes!`; a package's content
   names another package's resources as `<package>.<key>`, only of a package it imports and only keys that package exports.
   Shaders (`[[shader]]` modules, lab/src/shaders.rs), text tables, listings, source indexes, scenes
-  (`packages/rlstd/scenes/`), demonstrations (a package's `params.toml` and `demos/`, lab/src/demo.rs), and
+  (`packages/render_lab/scenes/`), demonstrations (a package's `params.toml` and `demos/`, lab/src/demo.rs), and
   narrated timelines (a package's demos) are such content: an edit shows on the next launch, without a rebuild. Nothing
   a scene needs is read before it plays (lab/src/loading.rs).
-- On-screen text is a key in the package's `text/en.json` and `text/zh-CN.json` (loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). The package's build.rs (the lab's, for rlstd) fails on a key missing from a language, an unknown key, or an unused one.
+- On-screen text is a key in the package's `text/en.json` and `text/zh-CN.json` (loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents on
   cheaper models: Sonnet, or Haiku for simple lookups. Keep design, edits, and final checks on the main model.

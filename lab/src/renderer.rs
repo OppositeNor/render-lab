@@ -162,7 +162,7 @@ pub struct Renderer {
     viewport: Option<ViewportTargets>,
     pub egui_ctx: egui::Context,
     egui_renderer: egui_wgpu::Renderer,
-    /// The GPU textures an inset's picture can show, by key (packages/rlstd/src/inset.rs).
+    /// The GPU textures an inset's picture can show, by key (packages/render_lab/src/inset.rs).
     textures: Textures,
     /// The story's image instances (src/views.rs) by name, and each kind's pipeline.
     views: HashMap<String, ViewInstance>,
@@ -211,7 +211,7 @@ pub struct Renderer {
 
 /// A story's (or the graph panel's) image of a resource of the frame's
 /// graph (src/graph.rs, `ImageSource::Graph`): its texture, written right
-/// after the node it names by the inspector (packages/rlstd/shaders/inspect.wgsl).
+/// after the node it names by the inspector (packages/render_lab/shaders/inspect.wgsl).
 struct Inspection {
     /// `<node>.<resource>`, and the node by its index in the graph.
     key: String,
@@ -920,7 +920,7 @@ impl Renderer {
     /// those it no longer shows let go.
     fn prepare_views(&mut self, state: &ShotState) {
         use crate::utility::inset::{view_texture, ImageSource};
-        let package = investigation::current().package().unwrap_or("rlstd");
+        let package = investigation::current().package().unwrap_or("render_lab");
         let shown: Vec<(&str, &str, &std::collections::BTreeMap<String, Vec<f32>>)> = state.images.iter().filter_map(|i| match &i.source {
             ImageSource::View { kind, params } => Some((i.name.as_str(), kind.as_str(), params)),
             _ => None,
@@ -2179,7 +2179,7 @@ impl Renderer {
     }
 
     /// Draws each graph image that names node `node` from its resource as it
-    /// stands now (right after the node): packages/rlstd/shaders/inspect.wgsl.
+    /// stands now (right after the node): packages/render_lab/shaders/inspect.wgsl.
     fn capture(&self, encoder: &mut wgpu::CommandEncoder, node: usize, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets) {
         for x in self.inspections.values().filter(|x| x.node == node) {
             let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else { continue };

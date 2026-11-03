@@ -1,6 +1,6 @@
 ---
 name: knowledge-graph
-description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The knowledge graph is a DAG of the computer-graphics knowledge the chapters need, worked back to three bases (GPU parallel execution; radiometry; the graphics pipeline); it lives in rlstd's knowledge.toml, and each investigation's knowledge.toml lists its chapters' direct requirements and its audience. The target audience is an antichain vertex separator of that graph: what the viewer should know (the Prerequisites tab), the level the story starts from, and what it must teach. Use when adding or editing topics or chapter requirements, when choosing or checking an investigation's audience, when outlining or reviewing a story's depth against what its viewer knows, or when asked about the Prerequisites tab or the knowledge panel.
+description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The knowledge graph is a DAG of the computer-graphics knowledge the chapters need, worked back to three bases (GPU parallel execution; radiometry; the graphics pipeline); it lives in render_lab's knowledge.toml, and each investigation's knowledge.toml lists its chapters' direct requirements and its audience. The target audience is an antichain vertex separator of that graph: what the viewer should know (the Prerequisites tab), the level the story starts from, and what it must teach. Use when adding or editing topics or chapter requirements, when choosing or checking an investigation's audience, when outlining or reviewing a story's depth against what its viewer knows, or when asked about the Prerequisites tab or the knowledge panel.
 ---
 
 # The knowledge graph and the target audience
@@ -11,14 +11,14 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
 
 ## The graph
 
-- **Nodes** are `[[topic]]` tables in `packages/rlstd/knowledge.toml`: `key`, `title-text` and `summary-text` (keys of
-  rlstd's `text/en.json` and `text/zh-CN.json`, `topic.<key>.title` and `topic.<key>.summary`), `area` (`gpu`,
+- **Nodes** are `[[topic]]` tables in `packages/render_lab/knowledge.toml`: `key`, `title-text` and `summary-text` (keys of
+  render_lab's `text/en.json` and `text/zh-CN.json`, `topic.<key>.title` and `topic.<key>.summary`), `area` (`gpu`,
   `rt`, `geo`, `cg`, `light`, `gi`: the panel's and the tab's grouping), `requires`, and optional `reading`
   (published references: papers, books, talks, cited by their publication; a book by chapter and section, as
   `Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.5`, naming the edition).
 - **Groups** are `[[group]]` tables (`key`, `title-text` as `group.<key>.title`, `area`): subsections of an area
   that gather related topics ("Shadow maps", "Distance fields", "Monte Carlo"). A topic joins one with
-  `group = "<key>"` (a group of its own area; another package's as `rlstd.knowledge#<key>`). The panel draws each
+  `group = "<key>"` (a group of its own area; another package's as `render_lab.knowledge#<key>`). The panel draws each
   group as a box around its topics, each in a band of its own across the columns it spans (the lab's shared graph
   view, `lab/src/graph_view.rs`). Groups say nothing about requirements: give a new topic the group a reader would
   look in, or none when no group fits.
@@ -35,8 +35,8 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
   chapters, not to nodes. Split a node when stories need half of it at one level and half at another (the loader's
   partition shows this: a node whose requirements are partly known and partly not).
 - **A package's own nodes.** An investigation may declare `[[topic]]` tables in its own `knowledge.toml` and name
-  rlstd's as `rlstd.knowledge#<key>` (rlstd exports `knowledge`); move a node to rlstd once another investigation needs
-  it. **A local package's engine-neutral topics go in rlstd's graph** (decided 2026-11-01): a published technique named
+  render_lab's as `render_lab.knowledge#<key>` (render_lab exports `knowledge`); move a node to render_lab once another investigation needs
+  it. **A local package's engine-neutral topics go in render_lab's graph** (decided 2026-11-01): a published technique named
   by what it is ("per-mesh distance fields", "screen-space probe gather"), never by an engine, with no engine named in
   its summary or reading. Only what can be described solely as one engine's design stays in the local package's file,
   or in its chapters.
@@ -48,16 +48,16 @@ below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the cod
 ```toml
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: …"   # a note, not shown
-known = ["rlstd.knowledge#rt-shadow-maps", "rlstd.knowledge#cg-pbr-materials", "…"]
+known = ["render_lab.knowledge#rt-shadow-maps", "render_lab.knowledge#cg-pbr-materials", "…"]
 
 [[chapter]]
 number = 5                                         # the storyboard's chapter number
 demos = ["field"]                                  # the demonstrations that show it (the tab outside a timeline)
-requires = ["rlstd.knowledge#geo-distance-transform"]
+requires = ["render_lab.knowledge#geo-distance-transform"]
 ```
 
 List what each chapter **uses** directly, as nodes: read its outline section and storyboard chapter, and for every
-concept a sentence leans on, name the node (add it to rlstd with its requirements down to existing nodes if it is
+concept a sentence leans on, name the node (add it to render_lab with its requirements down to existing nodes if it is
 missing). A requirement already implied by another of the chapter's is rejected; keep the higher one. Leave recap
 chapters out (they require nothing new).
 

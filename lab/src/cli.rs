@@ -142,7 +142,7 @@ enum Command {
         ffmpeg: Option<PathBuf>,
     },
     /// Check the current investigation's knowledge graph (lab/src/knowledge.rs:
-    /// rlstd's topics and its package's, its chapters, its audience) and
+    /// render_lab's topics and its package's, its chapters, its audience) and
     /// print its audience split: the level, the known topics used directly
     /// above it, and what the story teaches.
     Knowledge {
@@ -286,7 +286,7 @@ pub fn main(app: App) -> Result<()> {
         }
         let width = all.iter().map(|i| i.path().len()).max().unwrap_or(0);
         for i in all {
-            println!("{:width$}  {} ({}, package {})", i.path(), i.title(), i.engine().name, i.package().unwrap_or("rlstd"));
+            println!("{:width$}  {} ({}, package {})", i.path(), i.title(), i.engine().name, i.package().unwrap_or("render_lab"));
         }
         return Ok(());
     }
@@ -495,7 +495,7 @@ pub fn main(app: App) -> Result<()> {
                     println!("    {}", a.doc);
                 }
             }
-            let package = investigation::current().package().unwrap_or("rlstd");
+            let package = investigation::current().package().unwrap_or("render_lab");
             for kind in crate::views::kinds(package)? {
                 let params: Vec<String> = kind.params.iter().map(|p| format!("{} = {}", p.key, p.default.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))).collect();
                 println!("kind {} ({}x{}{}, {} · {}): {}", kind.key, kind.size[0], kind.size[1], if kind.viewport_aspect { ", the viewport's shape" } else { "" }, kind.module, kind.entry, params.join(", "));

@@ -94,7 +94,7 @@ This uses an ordinary `kind = "file"` resource with id `knowledge`, so no new pi
 has one exports it (`export = ["knowledge"]`).
 
 ```toml
-# packages/rlstd/knowledge.toml: the bases and the engine-neutral nodes
+# packages/render_lab/knowledge.toml: the bases and the engine-neutral nodes
 [[topic]]
 key = "geo-sdf"
 title-text = "topic.geo-sdf.title"       # text keys, checked by lab/check like every `-text` field
@@ -115,21 +115,21 @@ area = "gpu"
 # packages/<investigation>/knowledge.toml: its chapters, and the audience the agent skill chose
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes."   # notes, not on screen
-known = ["rlstd.knowledge#rt-shadow-maps", "rlstd.knowledge#cg-pbr-materials", "..."]          # K; A is its closure
+known = ["render_lab.knowledge#rt-shadow-maps", "render_lab.knowledge#cg-pbr-materials", "..."]          # K; A is its closure
 
 [[chapter]]
 number = 5
 demos = ["field"]                                   # the demonstrations that show it (for the tab outside a timeline)
-requires = ["rlstd.knowledge#geo-distance-transform"]
+requires = ["render_lab.knowledge#geo-distance-transform"]
 
-[[topic]]   # optional: an engine-neutral node only this package needs, until it is worth moving to rlstd
+[[topic]]   # optional: an engine-neutral node only this package needs, until it is worth moving to render_lab
 key = "..."
 ```
 
-- **References into a file.** `rlstd.knowledge#geo-sdf` resolves `rlstd.topics` through `packages::resolve`, which
+- **References into a file.** `render_lab.knowledge#geo-sdf` resolves `render_lab.topics` through `packages::resolve`, which
   checks the import and the export, and then names a node inside it. This is a small, generic addition to the loader:
   a fragment that names a record inside an exported file resource.
-- **A local package's topics.** Engine-neutral topics its chapters need go in rlstd's graph, named by the published
+- **A local package's topics.** Engine-neutral topics its chapters need go in render_lab's graph, named by the published
   technique and never by an engine (decided 2026-11-01). Only what is one engine's own design stays in its own file.
 - **The stored audience.** `known` is stored, not A or S, so editing the graph recomputes the level. The check
   reports when an edit moves the level by more than a few nodes.
@@ -141,7 +141,7 @@ None of this is investigation-specific. The lab reads the `knowledge` resource o
 
 - **Loading.** Parse and merge the nodes in import order. Resolve the references. Validate:
   - the graph is acyclic;
-  - rlstd has exactly the three bases, and no other package declares a base;
+  - render_lab has exactly the three bases, and no other package declares a base;
   - every node reaches a base, and every edge is non-redundant;
   - no key is unknown and no reference fails to resolve;
   - every chapter number is one the timeline has;
@@ -169,7 +169,7 @@ None of this is investigation-specific. The lab reads the `knowledge` resource o
 
 ## The Prerequisites tab
 
-- Add `DockTab::Prerequisites` (`lab/src/ui.rs:210`) and the label `controls.prerequisites` (rlstd `text/en.json`
+- Add `DockTab::Prerequisites` (`lab/src/ui.rs:210`) and the label `controls.prerequisites` (render_lab `text/en.json`
   and `zh-CN.json`).
 - Add the button to `Dock::buttons`'s array (`lab/src/controls.rs:121`).
 - Draw it full width like Sources: a match arm at `controls.rs:93` (skip the scroll area) and at `controls.rs:112`.
@@ -218,7 +218,7 @@ The skill is published, with a link `.claude/skills/knowledge-graph` like the ot
    - Every title and summary is in both languages.
    - Reading lists cite published work.
    - Engine-specific details belong to chapters, not nodes.
-   - A local package's engine-neutral topics go in rlstd's graph, named by technique; only its engine's own design
+   - A local package's engine-neutral topics go in render_lab's graph, named by technique; only its engine's own design
      stays in its file.
    - When to split a node: when stories need half of it at one level and half at another.
 2. **Listing a story's requirements.** Go chapter by chapter from the outline and storyboard. Record what the chapter
@@ -248,7 +248,7 @@ resources.
 Validate each phase as AGENTS.md describes before starting the next. Run one build at a time.
 
 1. **Graph content.**
-   - `packages/rlstd/knowledge.toml`: the 83 draft nodes, reviewed and edited.
+   - `packages/render_lab/knowledge.toml`: the 83 draft nodes, reviewed and edited.
    - Titles and summaries in `text/en.json` and `zh-CN.json`.
    - `knowledge.toml` for `o3de_lighting`, `godot_sdfgi`, and `godot_voxelgi`, with chapters and `demos`.
 

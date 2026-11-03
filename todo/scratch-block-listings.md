@@ -60,7 +60,7 @@ The `.py` files must stay valid Python, because `tools/video/build.py` runs `com
   - Extend the round-trip test.
 - **Global style.** Store the active style in a global like `palette::set_theme` / `palette::theme()`, for example `pseudocode::set_style()` / `style()` with an atomic. `draw_code` has no config parameter, so it reads the global.
 - **Homepage.** In `lab/src/home.rs`, add a control to the Interface category, following the `theme`/`language` control. Apply the style on save.
-- **Text keys.** Add labels for the setting and both options to `packages/rlstd/text/en.json` and `zh-CN.json`. The build fails on a missing or unused key.
+- **Text keys.** Add labels for the setting and both options to `packages/render_lab/text/en.json` and `zh-CN.json`. The build fails on a missing or unused key.
 - **CLI.** In `lab/src/cli.rs`, add a global `--listing-style text|blocks` flag that overrides the config for that run (snapshots, timelines, selftests). Document it next to the other flags.
 
 ### 3. Draw blocks (`lab/src/ui.rs`, `draw_code`)

@@ -1,52 +1,52 @@
 # The chapters of this investigation's story and what each uses directly, from the
-# knowledge graph (rlstd's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
+# knowledge graph (render_lab's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
 # the `knowledge-graph` agent skill chose it). Recap chapters list nothing.
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
-known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-sync", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#rt-normal-maps", "rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#rt-shadow-maps"]
+known = ["render_lab.knowledge#gpu-formats", "render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-sync", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-sampling", "render_lab.knowledge#rt-cubemaps", "render_lab.knowledge#rt-blend", "render_lab.knowledge#rt-color", "render_lab.knowledge#rt-normal-maps", "render_lab.knowledge#rt-gbuffer", "render_lab.knowledge#geo-bounds", "render_lab.knowledge#geo-grids", "render_lab.knowledge#cg-visibility", "render_lab.knowledge#cg-lights", "render_lab.knowledge#cg-brdf", "render_lab.knowledge#cg-fresnel", "render_lab.knowledge#cg-microfacet", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#cg-pbr-materials", "render_lab.knowledge#cg-mc", "render_lab.knowledge#rt-shadow-maps"]
 
 [[chapter]]
 number = 1
 demos = ["room"]
-requires = ["rlstd.knowledge#rt-gbuffer", "rlstd.knowledge#rt-early-z", "rlstd.knowledge#rt-msaa", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gpu-frame", "rlstd.knowledge#gpu-hdr-formats", "rlstd.knowledge#rt-octahedral"]
+requires = ["render_lab.knowledge#rt-gbuffer", "render_lab.knowledge#rt-early-z", "render_lab.knowledge#rt-msaa", "render_lab.knowledge#rt-stencil", "render_lab.knowledge#gpu-frame", "render_lab.knowledge#gpu-hdr-formats", "render_lab.knowledge#rt-octahedral"]
 
 [[chapter]]
 number = 2
 demos = ["culling", "pointlight"]
-requires = ["rlstd.knowledge#rt-forward-plus", "rlstd.knowledge#cg-ltc", "rlstd.knowledge#rt-tonemapping"]
+requires = ["render_lab.knowledge#rt-forward-plus", "render_lab.knowledge#cg-ltc", "render_lab.knowledge#rt-tonemapping"]
 
 [[chapter]]
 number = 3
 demos = ["surface", "decals"]
-requires = ["rlstd.knowledge#cg-specular-aa", "rlstd.knowledge#rt-tonemapping", "rlstd.knowledge#rt-decals"]
+requires = ["render_lab.knowledge#cg-specular-aa", "render_lab.knowledge#rt-tonemapping", "render_lab.knowledge#rt-decals"]
 
 [[chapter]]
 number = 4
 demos = ["specular", "multiscatter", "diffuse", "clearcoat"]
-requires = ["rlstd.knowledge#cg-multiscatter", "rlstd.knowledge#cg-anisotropic", "rlstd.knowledge#cg-layered", "rlstd.knowledge#cg-burley"]
+requires = ["render_lab.knowledge#cg-multiscatter", "render_lab.knowledge#cg-anisotropic", "render_lab.knowledge#cg-layered", "render_lab.knowledge#cg-burley"]
 
 [[chapter]]
 number = 5
 demos = ["cascades"]
-requires = ["rlstd.knowledge#rt-csm", "rlstd.knowledge#rt-shadow-filtering", "rlstd.knowledge#rt-filterable-shadows", "rlstd.knowledge#rt-omni-shadows", "rlstd.knowledge#rt-screen-shadows"]
+requires = ["render_lab.knowledge#rt-csm", "render_lab.knowledge#rt-shadow-filtering", "render_lab.knowledge#rt-filterable-shadows", "render_lab.knowledge#rt-omni-shadows", "render_lab.knowledge#rt-screen-shadows"]
 
 [[chapter]]
 number = 6
 demos = ["ibl", "reflections"]
-requires = ["rlstd.knowledge#rt-reflection-probes", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-stencil", "rlstd.knowledge#gi-probes", "rlstd.knowledge#cg-directional-occlusion"]
+requires = ["render_lab.knowledge#rt-reflection-probes", "render_lab.knowledge#rt-ssr", "render_lab.knowledge#rt-stencil", "render_lab.knowledge#gi-probes", "render_lab.knowledge#cg-directional-occlusion"]
 
 [[chapter]]
 number = 7
 demos = ["ssao"]
-requires = ["rlstd.knowledge#rt-ssao"]
+requires = ["render_lab.knowledge#rt-ssao"]
 
 [[chapter]]
 number = 8
 demos = ["transmission"]
-requires = ["rlstd.knowledge#rt-screen-sss", "rlstd.knowledge#rt-shadow-thickness", "rlstd.knowledge#cg-burley", "rlstd.knowledge#cg-layered"]
+requires = ["render_lab.knowledge#rt-screen-sss", "render_lab.knowledge#rt-shadow-thickness", "render_lab.knowledge#cg-burley", "render_lab.knowledge#cg-layered"]
 
 [[chapter]]
 number = 9
 demos = ["terrain"]
-requires = ["rlstd.knowledge#rt-heightfields", "rlstd.knowledge#cg-hair", "rlstd.knowledge#cg-multiscatter"]
+requires = ["render_lab.knowledge#rt-heightfields", "render_lab.knowledge#cg-hair", "render_lab.knowledge#cg-multiscatter"]

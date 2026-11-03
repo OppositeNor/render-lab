@@ -111,7 +111,7 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                        formulas.rs (optional readout formulas: tags in text/*.json)
                        a script that writes source-index.json from the checkout
                        README.md
-                 manifest.toml      name, author, license, import = ["rlstd"], export, library = "<package>",
+                 manifest.toml      name, author, license, import = ["render_lab"], export, library = "<package>",
                                     negotiate = "<package>_negotiate", and [[provides]]: its collections, and
                                     its demos (the video's timelines and narration)
                  resources.toml     a collection: text, source index, listings, shaders, demonstrations,
@@ -133,17 +133,17 @@ Register it:
   its own instead; see AGENTS.md). Its library hands the lab its investigations when it negotiates
   (`lab/src/plugin.rs`); the homepage lists them under their engine, and `--investigation <engine>/<feature>` selects
   one on the command line. `render-lab packages` shows whether the library loaded, and its handles.
-- If it brings its own shading (`SceneShading`: WGSL composed after `packages/rlstd/shaders/scene.wgsl`, a fragment entry point,
+- If it brings its own shading (`SceneShading`: WGSL composed after `packages/render_lab/shaders/scene.wgsl`, a fragment entry point,
   uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a resource and a
-  `[[shader]]` with `parts = ["rlstd.shader/scene", "<its resource>"]` in its package (copy
+  `[[shader]]` with `parts = ["render_lab.shader/scene", "<its resource>"]` in its package (copy
   `packages/o3de_lighting/resources.toml`), and name that shader's full key in `SceneShading::module`. Ported shading code stays in the
-  investigation, never in `packages/rlstd/shaders`.
+  investigation, never in `packages/render_lab/shaders`.
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `sources`, `listings`,
 `build_frame`, `dock`, `click`, and `selftest`; `package` names its package, and `timelines` comes from the package's
 demos. Return the demonstrations' files from `demo_specs` (and the
 investigation's text from `text`), and `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's
-scenes, `packages/rlstd/scenes/*.toml` read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
+scenes, `packages/render_lab/scenes/*.toml` read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`,
 and `shot_state` come from them. Optional ones include `backdrop` (its homepage scene), `animation` (Play), and
 `scene_shading`. Follow `packages/o3de_lighting/src/o3de/lighting/mod.rs`.
 
@@ -151,7 +151,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 
 - The demonstrations are data, in the investigation's package (the format is in `lab/src/demo.rs`; copy
   `packages/o3de_lighting/demos/` and `src/o3de/lighting/values.rs`, and declare each file in its `resources.toml`; a demonstration's
-  `scene` is one `rlstd` exports, `rlstd.scene/study-room`):
+  `scene` is one `render_lab` exports, `render_lab.scene/study-room`):
   - The values: every number a shot or the video can animate, as the fields of a `#[derive(lab::Values,
     serde::Serialize, serde::Deserialize)]` struct (`#[values(package = "…", rename_all = "camelCase")]`; each field's
     `#[value(default = …, range = a..=b, unit = m, text = "…" or name = "…", color = …, label(group), toggle, help = "help.<key>")]` and its
@@ -268,7 +268,7 @@ indices, toggles, vectors, names; `Option` for optional ones); the function sets
 `&Self::ACTIONS` from `Investigation::actions`, and test one through a timeline in the selftest (Godot's
 `actions.rs`). The story writes `{@ run=jumpFlood run.seconds=0.5}` and `{@ stop=jumpFlood}`.
 
-A picture the story shows is an image by key (`packages/rlstd/src/inset.rs`). Declare the ones the package computes in
+A picture the story shows is an image by key (`packages/render_lab/src/inset.rs`). Declare the ones the package computes in
 `Investigation::images` (`ImageSpec { key, doc }`), and publish each in `FrameContent::images` as a `PictureInset`
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
@@ -362,7 +362,7 @@ cargo run --release -- home --snapshot <scratch>/home.png                   # lo
 
 - Build the public-only tree too: copy what `git ls-files --others --exclude-standard` lists (with `--parents`) into
   an empty directory, link `vendor/` into it, and build there without warnings.
-- If you touched `lab/` or `packages/rlstd/shaders`, check that the other investigations' frames are byte-identical: hash a
+- If you touched `lab/` or `packages/render_lab/shaders`, check that the other investigations' frames are byte-identical: hash a
   dozen stills of their timelines before and after.
 - Never open windows or take screenshots on the user's screen; look at offscreen renders.
 - Write the investigation's `README.md`: what it shows, its demonstrations and sliders, what the lab simplifies, its

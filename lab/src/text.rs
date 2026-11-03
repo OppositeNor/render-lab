@@ -17,12 +17,12 @@ pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     // Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.
     for (name, id) in [
-        ("DejaVuSans", "rlstd.font/dejavu-sans"),
-        ("DejaVuSans-Bold", "rlstd.font/dejavu-sans-bold"),
-        ("DejaVuSansMono", "rlstd.font/dejavu-sans-mono"),
-        ("DejaVuSansMono-Bold", "rlstd.font/dejavu-sans-mono-bold"),
-        ("SourceHanSans", "rlstd.font/source-han-sans"),
-        ("SourceHanSans-Bold", "rlstd.font/source-han-sans-bold"),
+        ("DejaVuSans", "render_lab.font/dejavu-sans"),
+        ("DejaVuSans-Bold", "render_lab.font/dejavu-sans-bold"),
+        ("DejaVuSansMono", "render_lab.font/dejavu-sans-mono"),
+        ("DejaVuSansMono-Bold", "render_lab.font/dejavu-sans-mono-bold"),
+        ("SourceHanSans", "render_lab.font/source-han-sans"),
+        ("SourceHanSans-Bold", "render_lab.font/source-han-sans-bold"),
     ] {
         let mut data = egui::FontData::from_static(resources::get(id).bytes());
         // Source Han Sans' metrics put its glyphs lower than DejaVu's on a shared

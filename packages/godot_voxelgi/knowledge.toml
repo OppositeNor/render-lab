@@ -1,52 +1,52 @@
 # The chapters of this investigation's story and what each uses directly, from the
-# knowledge graph (rlstd's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
+# knowledge graph (render_lab's knowledge.toml), and the audience it is aimed at (lab/src/knowledge.rs;
 # the `knowledge-graph` agent skill chose it). Recap chapters list nothing.
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, G-buffers, microfacet BRDFs, punctual lights, shadow maps, and what global illumination is."
-known = ["rlstd.knowledge#gpu-formats", "rlstd.knowledge#gpu-compute", "rlstd.knowledge#gpu-sync", "rlstd.knowledge#gpu-passes", "rlstd.knowledge#rt-spaces", "rlstd.knowledge#rt-depth", "rlstd.knowledge#rt-sampling", "rlstd.knowledge#rt-cubemaps", "rlstd.knowledge#rt-blend", "rlstd.knowledge#rt-color", "rlstd.knowledge#geo-bounds", "rlstd.knowledge#geo-grids", "rlstd.knowledge#cg-visibility", "rlstd.knowledge#cg-lights", "rlstd.knowledge#cg-brdf", "rlstd.knowledge#cg-fresnel", "rlstd.knowledge#cg-microfacet", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#cg-pbr-materials", "rlstd.knowledge#cg-mc", "rlstd.knowledge#cg-gi"]
+known = ["render_lab.knowledge#gpu-formats", "render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-sync", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-sampling", "render_lab.knowledge#rt-cubemaps", "render_lab.knowledge#rt-blend", "render_lab.knowledge#rt-color", "render_lab.knowledge#geo-bounds", "render_lab.knowledge#geo-grids", "render_lab.knowledge#cg-visibility", "render_lab.knowledge#cg-lights", "render_lab.knowledge#cg-brdf", "render_lab.knowledge#cg-fresnel", "render_lab.knowledge#cg-microfacet", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#cg-pbr-materials", "render_lab.knowledge#cg-mc", "render_lab.knowledge#cg-gi"]
 
 [[chapter]]
 number = 1
 demos = ["room", "bounds"]
-requires = ["rlstd.knowledge#cg-gi", "rlstd.knowledge#gpu-frame", "rlstd.knowledge#rt-depth"]
+requires = ["render_lab.knowledge#cg-gi", "render_lab.knowledge#gpu-frame", "render_lab.knowledge#rt-depth"]
 
 [[chapter]]
 number = 2
 demos = ["octree"]
-requires = ["rlstd.knowledge#geo-octree", "rlstd.knowledge#geo-tri-box", "rlstd.knowledge#cg-pbr-materials"]
+requires = ["render_lab.knowledge#geo-octree", "render_lab.knowledge#geo-tri-box", "render_lab.knowledge#cg-pbr-materials"]
 
 [[chapter]]
 number = 3
 demos = ["cells", "field"]
-requires = ["rlstd.knowledge#geo-octree", "rlstd.knowledge#geo-distance-transform", "rlstd.knowledge#gpu-hdr-formats"]
+requires = ["render_lab.knowledge#geo-octree", "render_lab.knowledge#geo-distance-transform", "render_lab.knowledge#gpu-hdr-formats"]
 
 [[chapter]]
 number = 4
 demos = ["light"]
-requires = ["rlstd.knowledge#gi-voxel-light", "rlstd.knowledge#geo-sphere-tracing", "rlstd.knowledge#cg-ltc"]
+requires = ["render_lab.knowledge#gi-voxel-light", "render_lab.knowledge#geo-sphere-tracing", "render_lab.knowledge#cg-ltc"]
 
 [[chapter]]
 number = 5
 demos = ["mips", "bounce"]
-requires = ["rlstd.knowledge#gi-cone-tracing", "rlstd.knowledge#gi-multibounce"]
+requires = ["render_lab.knowledge#gi-cone-tracing", "render_lab.knowledge#gi-multibounce"]
 
 [[chapter]]
 number = 6
 demos = ["dynamic"]
-requires = ["rlstd.knowledge#rt-reconstruct", "rlstd.knowledge#gi-voxel-mips"]
+requires = ["render_lab.knowledge#rt-reconstruct", "render_lab.knowledge#gi-voxel-mips"]
 
 [[chapter]]
 number = 7
 demos = ["pixel"]
-requires = ["rlstd.knowledge#gi-cone-tracing", "rlstd.knowledge#cg-ggx", "rlstd.knowledge#rt-color"]
+requires = ["render_lab.knowledge#gi-cone-tracing", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#rt-color"]
 
 [[chapter]]
 number = 8
 demos = ["cost"]
-requires = ["rlstd.knowledge#gpu-amortize", "rlstd.knowledge#gi-cone-tracing", "rlstd.knowledge#geo-sphere-tracing"]
+requires = ["render_lab.knowledge#gpu-amortize", "render_lab.knowledge#gi-cone-tracing", "render_lab.knowledge#geo-sphere-tracing"]
 
 [[chapter]]
 number = 9
 demos = ["compose"]
-requires = ["rlstd.knowledge#rt-ssao", "rlstd.knowledge#rt-ssil", "rlstd.knowledge#rt-ssr", "rlstd.knowledge#rt-split-sum", "rlstd.knowledge#rt-blend"]
+requires = ["render_lab.knowledge#rt-ssao", "render_lab.knowledge#rt-ssil", "render_lab.knowledge#rt-ssr", "render_lab.knowledge#rt-split-sum", "render_lab.knowledge#rt-blend"]

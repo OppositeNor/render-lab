@@ -3,7 +3,7 @@
 //! src/shot.rs). The shader defines what is computed; the story says how
 //! many, with what parameters, when, and where. Every frame the renderer runs
 //! each live instance's compute entry point into the instance's own texture
-//! and shows it live in an inset (src/renderer.rs, packages/rlstd/src/inset.rs).
+//! and shows it live in an inset (src/renderer.rs, packages/render_lab/src/inset.rs).
 //!
 //! A kind is a storage texture its module tags, and the uniform of its
 //! parameters (its members tagged as a shader's values are, without `label`

@@ -99,7 +99,7 @@ re-render a mismatch alone with both binaries before calling it a regression.
 ## 4. The inspector
 
 `<node>.<resource>` is the resource as it stood right after that node, whatever later nodes write over it. The
-renderer draws it right after the node, in the main view only, with `packages/rlstd/shaders/inspect.wgsl` (one entry
+renderer draws it right after the node, in the main view only, with `packages/render_lab/shaders/inspect.wgsl` (one entry
 per kind of resource: texture, multisampled texture, multisampled depth, depth array, buffer, volume, and a
 program's integer volumes and 2D arrays), by a visualizer
 (`graph::Show`) its format chooses or `imageShow` names:

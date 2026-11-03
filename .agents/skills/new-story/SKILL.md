@@ -98,7 +98,7 @@ teach everything above it, in the chapters and time it has. A lower level reache
 it is one the story must teach well, and that takes time.
 
 1. **List what each chapter uses**, as topics of the knowledge graph, in the package's `knowledge.toml` (the
-   `knowledge-graph` skill); add missing topics to rlstd's graph.
+   `knowledge-graph` skill); add missing topics to render_lab's graph.
 2. **Start low.** Take an audience that knows only the bases and the topics every graphics programmer meets first
    (rasterization's pipeline, textures, a BRDF, a light): `render-lab --investigation <id> knowledge --known …`
    prints the level and what the story would have to teach, per chapter.
@@ -222,7 +222,7 @@ narration, or only with a still, is not taught.
 
 For each tool the outline needs, look for it first:
 
-- **In the lab** (`lab/`, `packages/rlstd`): use it.
+- **In the lab** (`lab/`, `packages/render_lab`): use it.
 - **In a public package**: reuse it in place, or, when a second investigation needs it, move it into the lab as
   a generic extension point (the `Investigation` trait, `FrameContent`, the dock kit) that names no investigation.
 - **In a commercial package**: code derived from an engine whose license does not allow publishing never moves

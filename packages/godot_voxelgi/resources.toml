@@ -168,7 +168,7 @@ license = "MIT (Godot, THIRD_PARTY.md)"
 
 [[shader]]
 id = "shader/voxelgi-shading"
-parts = ["rlstd.shader/scene", "wgsl/voxelgi-shading", "wgsl/voxelgi-passes"]
+parts = ["render_lab.shader/scene", "wgsl/voxelgi-shading", "wgsl/voxelgi-passes"]
 
 # The pseudo-code listings (pseudocode.rs).
 

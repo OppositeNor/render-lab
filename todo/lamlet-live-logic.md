@@ -189,7 +189,7 @@ The lab keeps no code that only one investigation uses: everything above serves 
 - **The lab depends on the `lamlet` library**, re-exported as `lab::script::lamlet` as lamlet-in-process.md
   plans. Packages use it only through the lab, since a package may not add a crate the lab lacks.
 - **The dependency is a git dependency on a tagged release** of the public repository
-  (`https://github.com/OppositeNor/lamlet`). A fresh clone then builds it from the network, and `setup.sh`
+  (`https://github.com/lamlet/lamlet`). A fresh clone then builds it from the network, and `setup.sh`
   vendors it like any other crate. A path outside this repository would break fresh clones. The `embed` API is not
   in a tag yet: Lamlet needs a release (`v0.2.0`) before this starts. `vendor/` is refreshed by the user with
   `setup.sh`, never edited here.

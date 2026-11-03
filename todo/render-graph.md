@@ -137,7 +137,7 @@ also differs between two runs of the baseline binary):
    loads; a mismatch refuses it), `render-lab graph` (`--json`, `--dot`). Declarations fixed:
    o3de_lighting's buffers listed as written by their readers, voxelgi's update buffer and the volume its GI pass
    samples. `UpdatePass` lists now take the update's buffers; a chain pass lists the volumes it samples.
-2. **The inspector.** `packages/rlstd/shaders/inspect.wgsl` (six entry points), `ImageSource::Graph`, story keys
+2. **The inspector.** `packages/render_lab/shaders/inspect.wgsl` (six entry points), `ImageSource::Graph`, story keys
    `imageGraph`/`imageShow` (Python and Rust), `viewer-inspect:` snapshot page with `?param=` values.
 3. **The graph panel.** `PanelMode::Graph`, the Experiments tab's toggle, `viewer-graph` snapshot page, text keys in
    both languages.

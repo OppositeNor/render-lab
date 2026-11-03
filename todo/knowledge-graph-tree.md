@@ -1,6 +1,6 @@
 # The knowledge graph (draft)
 
-This is the draft content for `packages/rlstd/knowledge.toml` and the three public investigations' `knowledge.toml`. The plan is in
+This is the draft content for `packages/render_lab/knowledge.toml` and the three public investigations' `knowledge.toml`. The plan is in
 [knowledge-graph.md](knowledge-graph.md). An edge u → v means that understanding v requires u. The draft is acyclic,
 transitively reduced, and every node reaches a base. It was checked by script; once the loader exists, the
 `knowledge` command does this check. The viewer draws the graph (the Prerequisites tab's panel, full screen); the

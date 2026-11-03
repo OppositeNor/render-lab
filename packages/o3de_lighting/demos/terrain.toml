@@ -7,7 +7,7 @@ key = "terrain"
 title-text = "shot.terrain"
 tab-text = "shot.terrain"
 hint-text = "investigation.demo_hint"
-scene = "rlstd.scene/terrain"
+scene = "render_lab.scene/terrain"
 listing = "forward-pass"
 
 [camera]

@@ -1,15 +1,15 @@
 # The lab's own package: what every investigation shares (lab/). The lab
 # finds every package in packages/ (lab/src/packages.rs); this one is imported by
-# the others, which name what it exports as `rlstd.<key>`.
+# the others, which name what it exports as `render_lab.<key>`.
 # Its code (src/) is not a library of its own: the lab builds it in as
 # `lab::utility` (lab/src/lib.rs), the pieces investigations share.
 
-name = "rlstd"
+name = "render_lab"
 author = "OppositeNor"
 license = "MIT"
 import = []
 # The scenes demonstrations show, the shader modules investigations build on, and the
-# knowledge graph investigations name the nodes of (`rlstd.knowledge#<key>`, lab/src/knowledge.rs).
+# knowledge graph investigations name the nodes of (`render_lab.knowledge#<key>`, lab/src/knowledge.rs).
 export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "knowledge"]
 
 # The sky, the teapot, the scenes, and the homepage's sounds and icon.

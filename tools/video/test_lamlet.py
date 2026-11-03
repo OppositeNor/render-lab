@@ -1,4 +1,4 @@
-"""Lamlet regions in a storyboard (lamlet.py, packages/rlstd/language/story.lam): skipped without Lamlet."""
+"""Lamlet regions in a storyboard (lamlet.py, packages/render_lab/language/render_lab.lam): skipped without Lamlet."""
 from __future__ import annotations
 
 import shutil
@@ -17,7 +17,7 @@ fps: 30
 summary: Numbers and cues from Lamlet.
 
 $[Import* std]
-$[Import* rlstd]
+$[Import* render_lab]
 $[# leaves 42289]
 
 ## c1-count | 3d | The leaves

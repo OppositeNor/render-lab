@@ -35,13 +35,13 @@ The first two rows are the reason to start; the last two come later and follow t
 
 ## The lab's host (`lab/src/script/`, generic)
 
-- **Engine.** One per thread that needs it, made from the current investigation: `std`, rlstd's library, the
+- **Engine.** One per thread that needs it, made from the current investigation: `std`, render_lab's library, the
   packages' Lamlet modules, and the natives below. Programs are shared across threads (`Arc`, embedding phase 2).
 - **Resolver.** Lamlet packages are package resources: a `script` collection in a package's manifest maps a
-  module name to a file (`rlstd.script/story` is `packages/rlstd/language/story.lam`). The resolver enforces the
+  module name to a file (`render_lab.script/render_lab` is `packages/render_lab/language/render_lab.lam`). The resolver enforces the
   manifest's import/export rules and reads built resources through `lab::resources`, as every other resource is
   read; Lamlet's export table controls symbols. Language files are cooked like other resources.
-- **Natives from the lab (rlstd).** Interface declared once in Rust and written out as a Lamlet stub package
+- **Natives from the lab (render_lab).** Interface declared once in Rust and written out as a Lamlet stub package
   (embedding phase 3), checked at build time with the same stubs:
 
   | Native | Stage | Checks or returns |
@@ -54,7 +54,7 @@ The first two rows are the reason to start; the last two come later and follow t
   | `rl.source key` | Pure | a source-index key exists (callouts) |
   | `rl.point name` | Pure | an annotation point or arrow set the package publishes |
 
-  rlstd's cue helpers call them, so a misspelled key fails when the storyboard is prepared, before speech, with
+  render_lab's cue helpers call them, so a misspelled key fails when the storyboard is prepared, before speech, with
   the region's line, instead of when the timeline loads.
 - **Natives from packages.** A generic hook, `Investigation::script_natives(&mut NativeRegistry)`, through which a
   package exposes its own `Pure` functions (VoxelGI: `voxelgi.cost/leaves`, `dispatches`, `lowSteps`, `specSteps`),
@@ -64,17 +64,17 @@ The first two rows are the reason to start; the last two come later and follow t
 - **Errors** are diagnostics with the storyboard's file and line (the region's position in the `.story` file); a
   native's error carries its API id.
 
-## rlstd's library, adjusted to Lamlet's design
+## render_lab's library, adjusted to Lamlet's design
 
-Lamlet keeps structural records and no variadic functions (its rationale, D2 and D3). The rlstd design draft
-([lamlet-rlstd.md](lamlet-rlstd.md)) was written with `Nominal`, `wrap`, and `K.variadic`; it changes to:
+Lamlet keeps structural records and no variadic functions (its rationale, D2 and D3). The render_lab design draft
+([lamlet-render-lab.md](lamlet-render-lab.md)) was written with `Nominal`, `wrap`, and `K.variadic`; it changes to:
 
 - presentation values (Color, Formula, CodeSpan, Content) as records with a `kind` field or as a variant
-  `<text, formula, code, colored>`, built by rlstd's constructors and checked by them;
+  `<text, formula, code, colored>`, built by render_lab's constructors and checked by them;
 - `content` takes one list (`{content {' a b c}}`), not a variadic call;
 - host kinds that must not be forged (an image handle) as native opaque types.
 
-The cue helpers that exist (`packages/rlstd/language/story.lam`) keep their names and gain the native checks.
+The cue helpers that exist (`packages/render_lab/language/render_lab.lam`) keep their names and gain the native checks.
 
 ## Commands
 
@@ -89,7 +89,7 @@ The cue helpers that exist (`packages/rlstd/language/story.lam`) keep their name
 1. **Release gate.** Lamlet phase 0 and 1 done and vendored; `lab::script` with an engine, the resolver over
    package resources, and `story prepare` reproducing `tools/video/lamlet.py`'s output byte for byte
    (`tools/video/test_lamlet.py` run against both).
-2. **Checks.** rlstd's `Pure` natives for values, images, actions, text keys, sources, and points; the cue helpers
+2. **Checks.** render_lab's `Pure` natives for values, images, actions, text keys, sources, and points; the cue helpers
    use them; `lab/check` harvests text keys from regions (closing the text check's gap).
 3. **Package values.** `Investigation::script_natives`; VoxelGI's chapter 8 numbers from `cost.rs`, the story
    unchanged in what it says.

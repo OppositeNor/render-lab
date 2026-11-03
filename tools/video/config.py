@@ -160,8 +160,8 @@ class Config:
         return self.spec['documents'][self.lang][key]
 
     def lab_text(self, key: str) -> str:
-        """A text of the lab's own package (rlstd), in this edition's language."""
-        return json.loads((LAB / 'packages' / 'rlstd' / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))[key]
+        """A text of the lab's own package (render_lab), in this edition's language."""
+        return json.loads((LAB / 'packages' / 'render_lab' / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))[key]
 
     def notices(self) -> list[tuple[str, Path | None]]:
         """The package's legal notices (its manifest's `[[notice]]`, lab/src/packages.rs): each one's text in this

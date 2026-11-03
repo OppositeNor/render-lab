@@ -1,11 +1,11 @@
 //! The lab's scenes (the study room, and hills of terrain), their
 //! ObjectData records, and CPU mirrors of the scene math in
-//! packages/rlstd/shaders/common.wgsl. The mirrors drive picking and an
+//! packages/render_lab/shaders/common.wgsl. The mirrors drive picking and an
 //! investigation's CPU references; a selftest compares them with the GPU
 //! versions.
 //!
 //! A scene is named by its `SceneId` and described by the resource
-//! `rlstd.scene/<key>` (packages/rlstd/scenes/*.toml): its objects, its light, and its
+//! `render_lab.scene/<key>` (packages/render_lab/scenes/*.toml): its objects, its light, and its
 //! lighting constants. An investigation says which scene each of its
 //! demonstrations shows (`Investigation::demo_scene`), and the renderer
 //! switches to it when a frame needs it.
@@ -44,13 +44,13 @@ pub mod ids {
 }
 
 /// One of the lab's scenes, by its key: the lab's own by theirs
-/// (`"study-room"`, the resource `rlstd.scene/study-room`), another
+/// (`"study-room"`, the resource `render_lab.scene/study-room`), another
 /// package's by its resource's full key (`"<package>.scene/<name>"`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SceneId(&'static str);
 
-/// The lab's scenes' resources: `rlstd.scene/<key>`.
-const SCENE_PREFIX: &str = "rlstd.scene/";
+/// The lab's scenes' resources: `render_lab.scene/<key>`.
+const SCENE_PREFIX: &str = "render_lab.scene/";
 
 impl SceneId {
     pub const STUDY_ROOM: SceneId = SceneId("study-room");
@@ -77,7 +77,7 @@ impl SceneId {
         Some(SceneId(key))
     }
 
-    /// The scene a resource's full key names (`rlstd.scene/terrain`, `<package>.scene/<name>`).
+    /// The scene a resource's full key names (`render_lab.scene/terrain`, `<package>.scene/<name>`).
     pub fn from_resource(id: &str) -> Option<SceneId> {
         match id.strip_prefix(SCENE_PREFIX) {
             Some(key) => SceneId::find(key),
@@ -93,7 +93,7 @@ impl SceneId {
 
     /// The package that declares it, whose text its `title-text` names.
     fn package(self) -> &'static str {
-        self.0.split_once('.').map_or("rlstd", |(package, _)| package)
+        self.0.split_once('.').map_or("render_lab", |(package, _)| package)
     }
 
     /// The scene's name on the viewer's scene tabs, in the current locale.
@@ -104,7 +104,7 @@ impl SceneId {
     /// The resources the loading step prepares before the scene plays: its
     /// sky, and the teapot, whose BVH the renderer binds in every scene.
     pub fn resources(self) -> &'static [&'static str] {
-        &["rlstd.environment", "rlstd.teapot"]
+        &["render_lab.environment", "render_lab.teapot"]
     }
 
     /// Whether a camera at `eye` sees the scene from where it is meant to

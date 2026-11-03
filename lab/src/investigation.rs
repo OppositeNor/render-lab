@@ -61,9 +61,9 @@ pub struct Wording {
 }
 
 /// An investigation's own shading of the scene pass, in place of the lab's
-/// (`sceneFS` in packages/rlstd/shaders/scene.wgsl). `module` is a shader its
+/// (`sceneFS` in packages/render_lab/shaders/scene.wgsl). `module` is a shader its
 /// package declares (src/shaders.rs), composed after the lab's
-/// `rlstd.shader/scene` (the
+/// `render_lab.shader/scene` (the
 /// shared prelude and scene.wgsl, so it may use `SceneVaryings`,
 /// `SceneOutput`, and everything in common.wgsl), and it declares bind group 1:
 ///
@@ -637,13 +637,13 @@ pub trait Investigation: Sync {
         Vec::new()
     }
     /// The points and arrow sets it publishes for a story's arrows and labels
-    /// (packages/rlstd/src/annotations.rs), in `FrameContent::points` and
+    /// (packages/render_lab/src/annotations.rs), in `FrameContent::points` and
     /// `arrow_sets`.
     fn annotations(&self) -> &'static [crate::utility::annotations::AnnotationSpec] {
         &[]
     }
     /// The images it publishes for a story to show (`{@ image=key}`,
-    /// packages/rlstd/src/inset.rs), in `FrameContent::images` of the frames
+    /// packages/render_lab/src/inset.rs), in `FrameContent::images` of the frames
     /// that show them.
     fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {
         &[]

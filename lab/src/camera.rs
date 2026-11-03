@@ -13,7 +13,7 @@ pub const FAR: f32 = 1000.0;
 /// as timelines and stories name them (src/values.rs); the dock's camera
 /// group shows those labelled `view`.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, crate::Values)]
-#[values(scope = "camera", package = "rlstd")]
+#[values(scope = "camera", package = "render_lab")]
 pub struct OrbitCamera {
     /// The point it orbits.
     #[value(components(x, y, z), text = "values.camera.target", help = "help.camera.target")]
@@ -116,7 +116,7 @@ impl OrbitCamera {
 /// and the engine state that follows a camera) keeps following the main
 /// camera, which the free view shows with its view cone.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, crate::Values)]
-#[values(scope = "freeCamera", package = "rlstd")]
+#[values(scope = "freeCamera", package = "render_lab")]
 pub struct FreeCamera {
     /// Whether the viewport shows the scene from the free camera.
     pub on: bool,

@@ -828,7 +828,7 @@ pub fn parse_params(query: &str) -> Result<std::collections::BTreeMap<String, Ve
     Ok(params)
 }
 
-/// How the inspector draws a resource (`imageShow=`; packages/rlstd/shaders/inspect.wgsl).
+/// How the inspector draws a resource (`imageShow=`; packages/render_lab/shaders/inspect.wgsl).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Show {

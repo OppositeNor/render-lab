@@ -53,9 +53,9 @@ Added to the free render's draw lists (`content.draw`):
 - A small camera body at the main camera's eye, and its four frustum edges from the eye out to a set distance
   (the orbit target's distance), with the far rectangle closed. Built from the main `CameraData` (inverse
   `world_to_clip`), so it matches the actual projection, aspect included.
-- A label "Main camera" at the eye (new rlstd text key, en + zh-CN).
+- A label "Main camera" at the eye (new render_lab text key, en + zh-CN).
 
-### Screen-space UI in the free view (`lab/src/ui.rs`, `packages/rlstd/src/inset.rs`)
+### Screen-space UI in the free view (`lab/src/ui.rs`, `packages/render_lab/src/inset.rs`)
 
 - Labels and inset link lines project their world points with the free camera (the content they get is the free
   one).

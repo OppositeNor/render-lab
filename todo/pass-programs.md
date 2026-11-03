@@ -81,7 +81,7 @@ group 3 for the scene shading's fragment entry.
   program resources are Persistent (images, `Shape::Image`) or Persistent buffers (`Shape::Bytes`); a pass with
   no command this frame is shown dashed ("did not run"). The lint checks each entry's real uses against `uses`
   (access flags included: an `Atomic` use must be atomic in the WGSL).
-- **Inspector** (packages/rlstd/shaders/inspect.wgsl): integer images (uint, sint: `Hash`, `Count`, `Signed`, a
+- **Inspector** (packages/render_lab/shaders/inspect.wgsl): integer images (uint, sint: `Hash`, `Count`, `Signed`, a
   bitfield `word`/`range`, and `encoding=rgb9e5`), 2D arrays (a `layer` parameter), 3D images (the volume view's
   `slice`/`axis`), binding arrays (an `index`), and byte buffers (words, as buffers are now).
 - **Timing**: one row per program pass.
@@ -97,7 +97,7 @@ only.
 Implemented (2026-11-02): `lab/src/program.rs`, the declarations in `lab/src/investigation.rs` (`ShadingProgram`,
 with elements per resource (`count`, `Element`, `Which`) and instances per pass, which the plan above did not
 have), the graph's nodes and lint (`lab/src/graph.rs`), the inspector's integer and array entries
-(`packages/rlstd/shaders/inspect.wgsl`), `Renderer::read_program` for selftests, and the device's optional
+(`packages/render_lab/shaders/inspect.wgsl`), `Renderer::read_program` for selftests, and the device's optional
 features (`lab/src/gpu.rs`). The command parameters are at group 2, not group 3 binding 0: wgpu keeps dynamic
 offsets and uniform buffers out of a group with binding arrays. Its first user is Godot's SDFGI
 (packages/godot_sdfgi/src/godot/sdfgi/gpu.rs). Alongside it: `SceneShading::prepass_outputs`, a pre-pass that

@@ -951,7 +951,7 @@ impl Dock<'_> {
                     ui.vertical(|ui| {
                     if !label.is_empty() {
                         // The package's name for the group (its dock's `controls.<label>`), else the label.
-                        let package = engine.iter().find(|e| e.labels.first().copied() == Some(label)).map_or("rlstd", |e| e.package);
+                        let package = engine.iter().find(|e| e.labels.first().copied() == Some(label)).map_or("render_lab", |e| e.package);
                         let title = crate::i18n::try_package_text(package, &format!("controls.{label}")).unwrap_or(label);
                         ui.label(RichText::new(title).color(palette::text_faint()));
                     }

@@ -542,7 +542,7 @@ mod tests {
 
     /// A struct as a package would declare it.
     #[derive(Clone, Debug, PartialEq, lab::Values)]
-    #[values(scope = "probe", package = "rlstd")]
+    #[values(scope = "probe", package = "render_lab")]
     struct Probe {
         /// How far it reaches.
         #[value(default = 2.5, range = 0.0..=10.0, step = 0.1, unit = m, label(light, size))]

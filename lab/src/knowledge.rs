@@ -9,7 +9,7 @@
 //!   (keys of the package's text tables), `area` (the panel's grouping), the
 //!   `requires` list, optional `reading` (published references), optional
 //!   `group` (a group of its area it belongs to), and `base = true` for the
-//!   three bases (rlstd's alone);
+//!   three bases (render_lab's alone);
 //! - `[[group]]` tables, subsections of an area that gather related topics
 //!   (the panel boxes them): `key`, `title-text`, `area`;
 //! - `[[chapter]]` tables, an investigation's chapters: `number`, `demos` (the
@@ -18,7 +18,7 @@
 //!   nodes the audience knows.
 //!
 //! A requirement is a node of the same file (`geo-sdf`), or of a package it
-//! imports whose `knowledge` it exports (`rlstd.knowledge#geo-sdf`). The graph must
+//! imports whose `knowledge` it exports (`render_lab.knowledge#geo-sdf`). The graph must
 //! be acyclic, its only sources the bases, and transitively reduced (an edge
 //! another path already implies is an error), so that "directly requires"
 //! means an edge.
@@ -398,8 +398,8 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
             if index.contains_key(&id) {
                 return Err(format!("knowledge: {}: the topic `{}` is declared twice", p.name, node.key));
             }
-            if node.base && p.name != "rlstd" {
-                return Err(format!("knowledge: {}: `{}` is a base; only rlstd declares the bases", p.name, node.key));
+            if node.base && p.name != "render_lab" {
+                return Err(format!("knowledge: {}: `{}` is a base; only render_lab declares the bases", p.name, node.key));
             }
             index.insert(id.clone(), graph.nodes.len());
             graph.nodes.push(Node { id, package: p.name.clone(), key: node.key.clone(), title: text(&p.name, &node.title), summary: text(&p.name, &node.summary), area: node.area.clone(), base: node.base, requires: Vec::new(), reading: node.reading.clone(), group: None });
@@ -471,8 +471,8 @@ fn merge(package: &str, files: Vec<(&Package, RawFile)>, all: &[Package], text: 
         return Err(format!("knowledge: {package}: `{}` requires `{}`, which another of its requirements already does (remove it)", graph.nodes[*n].id, graph.nodes[*r].id));
     }
     let bases = graph.bases();
-    if graph.nodes.iter().any(|n| n.package == "rlstd") && bases.len() != 3 {
-        return Err(format!("knowledge: rlstd declares {} bases (it declares three)", bases.len()));
+    if graph.nodes.iter().any(|n| n.package == "render_lab") && bases.len() != 3 {
+        return Err(format!("knowledge: render_lab declares {} bases (it declares three)", bases.len()));
     }
     for chapter in &graph.chapters {
         let mut with = requires.clone();
@@ -829,7 +829,7 @@ mod tests {
         let all = packages::scan(root, &root.join("packages")).unwrap();
         for package in ["o3de_lighting", "godot_sdfgi", "godot_voxelgi"] {
             let mut files = Vec::new();
-            for p in all.iter().filter(|p| p.name == package || p.name == "rlstd") {
+            for p in all.iter().filter(|p| p.name == package || p.name == "render_lab") {
                 let path = p.dir.join("knowledge.toml");
                 files.push((p, parse(&std::fs::read_to_string(&path).unwrap(), &path.display().to_string()).unwrap()));
             }

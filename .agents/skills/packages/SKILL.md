@@ -40,7 +40,7 @@ target/release/packages/<name>/
   lib/lib<name>.so     its library, linked from where Cargo put it (beside the binary)
 ```
 
-Nothing a package needs may live outside its folder except the packages it imports and the lab itself. `rlstd`
+Nothing a package needs may live outside its folder except the packages it imports and the lab itself. `render_lab`
 is the lab's own package (the sky, the teapot, the scenes, fonts, the lab's WGSL and text); every investigation's
 package imports it. `packages/o3de_lighting` is the full example of an investigation's package.
 
@@ -51,7 +51,7 @@ name = "my_feature"                  # = the directory's name: lower-case words 
 author = "Your Name"
 contact = "you@example.com"          # optional
 license = "MIT"                      # the package's own content; each resource also names its source's license
-import = ["rlstd"]              # the packages whose resources it names (a list, may be empty)
+import = ["render_lab"]              # the packages whose resources it names (a list, may be empty)
 export = ["scene/garden"]            # its own keys other packages may name (a list, may be empty)
 library = "my_feature"               # optional, with `negotiate`: its code (section 5)
 negotiate = "my_feature_negotiate"
@@ -109,11 +109,11 @@ max-depth = 30
 
 [[shader]]
 id = "shader/my-shading"             # a WGSL module, composed at run time from its parts, in order
-parts = ["rlstd.shader/scene", "wgsl/my-shading"]
+parts = ["render_lab.shader/scene", "wgsl/my-shading"]
 ```
 
 - **Keys and full keys.** A key belongs to its package; everywhere else a resource is named by its full key,
-  `<package>.<key>` (`rlstd.font/dejavu-sans`). The lab's and an investigation's Rust code always name full keys:
+  `<package>.<key>` (`render_lab.font/dejavu-sans`). The lab's and an investigation's Rust code always name full keys:
   `lab::resources::get("my_feature.scene/garden")`.
 - **References** in a package's content (shader `parts`, `override`, a demo's `timeline` and `audio`, a
   demonstration's `scene`): a plain key is the package's own; `<package>.<key>` must name a package in `import` and a
@@ -262,7 +262,7 @@ A package whose library fails is reported and its investigations are left out; i
    has checked its shaders and text.
 2. `render-lab packages`: the package is listed, its library loaded with its handles.
 3. The checks in `AGENTS.md`'s Validation for what the change touches (the homepage autotest, the investigation's
-   selftest, its video's `--snapshots-only` build); after touching `lab/` or `packages/rlstd`, check that the
+   selftest, its video's `--snapshots-only` build); after touching `lab/` or `packages/render_lab`, check that the
    investigations' frames are byte-identical (decoded pixels).
 4. For a public package, the public build: copy the files `git` would publish into an empty directory, link
    `vendor/`, and build there (AGENTS.md).

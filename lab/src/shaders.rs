@@ -1,5 +1,5 @@
 //! WGSL shader modules, composed at run time from the packages' `[[shader]]`
-//! tables (packages/rlstd/shaders.toml, and each investigation's package): a module is its
+//! tables (packages/render_lab/shaders.toml, and each investigation's package): a module is its
 //! parts in order, each a WGSL resource or another module. The lab's pass
 //! modules start with `shader/prelude` (types, bindings, and common math). naga, the
 //! compiler wgpu uses, validates a module before the lab creates it, so a
@@ -21,14 +21,14 @@ use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
 use serde_json::{json, Value};
 
 /// The lab's pass modules.
-pub const SCENE: &str = "rlstd.shader/scene";
-pub const OVERLAY: &str = "rlstd.shader/overlay";
-pub const VERIFY: &str = "rlstd.shader/verify";
-pub const FROST: &str = "rlstd.shader/frost";
+pub const SCENE: &str = "render_lab.shader/scene";
+pub const OVERLAY: &str = "render_lab.shader/overlay";
+pub const VERIFY: &str = "render_lab.shader/verify";
+pub const FROST: &str = "render_lab.shader/frost";
 /// The frame graph's inspector (src/graph.rs).
-pub const INSPECT: &str = "rlstd.shader/inspect";
+pub const INSPECT: &str = "render_lab.shader/inspect";
 /// The records the struct panel displays.
-const TYPES: &str = "rlstd.wgsl/types";
+const TYPES: &str = "render_lab.wgsl/types";
 
 /// The files a module is made of, in order (resource ids).
 pub fn files(id: &str) -> Result<Vec<&'static str>> {

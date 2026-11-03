@@ -16,7 +16,7 @@ use glam::Vec3;
 use std::collections::BTreeMap;
 
 // Overlay instance records (vertex buffers, instance step). Layouts match
-// the @location attributes in packages/rlstd/shaders/overlay.wgsl.
+// the @location attributes in packages/render_lab/shaders/overlay.wgsl.
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
@@ -133,7 +133,7 @@ pub struct FrameContent {
     /// Without a panel record, what the struct panel shows instead.
     pub readout: Option<Readout>,
     pub notes: Vec<(String, Color32)>,
-    /// Pictures in the viewport's corners (packages/rlstd/src/inset.rs).
+    /// Pictures in the viewport's corners (packages/render_lab/src/inset.rs).
     pub insets: Vec<PictureInset>,
     /// The images it publishes for its story (`Investigation::images`), by
     /// key: drawn only while the story shows one (`ShotState::shows_image`).

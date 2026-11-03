@@ -20,7 +20,7 @@ built = true
 
 [[shader]]
 id = "shader/standard-lighting"
-parts = ["rlstd.shader/scene", "wgsl/view-mode", "wgsl/standard-lighting"]
+parts = ["render_lab.shader/scene", "wgsl/view-mode", "wgsl/standard-lighting"]
 
 # The image kinds a story shows of the chain's resources (shaders/views_*.wgsl),
 # one module each (each binds its own output), composed after the shading,

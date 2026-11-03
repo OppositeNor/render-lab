@@ -2,7 +2,7 @@
 # An edge is a `requires` entry: understanding the node needs it directly. The three
 # bases are the only nodes without requirements; the graph is acyclic and
 # transitively reduced (an edge another path implies is an error). Investigations
-# name these nodes as `rlstd.knowledge#<key>` (the `knowledge-graph` agent skill).
+# name these nodes as `render_lab.knowledge#<key>` (the `knowledge-graph` agent skill).
 
 # The groups: subsections of an area that gather related topics; the panel draws
 # each as a box around its topics (a topic names its group with `group`).

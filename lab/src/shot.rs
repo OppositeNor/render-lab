@@ -469,7 +469,7 @@ pub struct Key {
     /// The card's lit term (0: none). It fades in over the key's `blend`.
     #[serde(default)]
     pub term: Option<usize>,
-    /// An image to show in an inset (packages/rlstd/src/inset.rs), by name:
+    /// An image to show in an inset (packages/render_lab/src/inset.rs), by name:
     /// one the investigation publishes, a PNG resource (`<package>.<key>`, or
     /// its package's own key), or, with `image_from`, an instance of an image
     /// kind (src/views.rs) of that name. It fades in over `blend`; `""` fades
@@ -496,7 +496,7 @@ pub struct Key {
     /// The click handler a click on `image`'s picture runs (src/actions.rs, `#[click]`).
     #[serde(default)]
     pub image_click: Option<String>,
-    /// An arrow to show, by name (packages/rlstd/src/annotations.rs); `""`
+    /// An arrow to show, by name (packages/render_lab/src/annotations.rs); `""`
     /// fades out every arrow and set. A new one names both ends.
     #[serde(default)]
     pub arrow: Option<String>,
@@ -855,7 +855,7 @@ fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views
     if let Some(click) = &key.image_click {
         investigation::current().actions().check_click(click)?;
     }
-    let package = investigation::current().package().unwrap_or("rlstd");
+    let package = investigation::current().package().unwrap_or("render_lab");
     if let Some(from) = &key.image_from {
         instances.insert(name.to_string(), crate::views::kind(package, from)?);
     }
@@ -873,7 +873,7 @@ fn image_source(reference: &str) -> Result<ImageSource, String> {
     if current.images().iter().any(|i| i.key == reference) {
         return Ok(ImageSource::Published(reference.to_string()));
     }
-    let package = current.package().unwrap_or("rlstd");
+    let package = current.package().unwrap_or("render_lab");
     let published: Vec<&str> = current.images().iter().map(|i| i.key).collect();
     let full = crate::resources::resolve(package, reference).map_err(|e| format!("image `{reference}`: {e}"))?;
     if crate::resources::find(&full).is_none() {

@@ -31,7 +31,7 @@ render-target and BRDF topics). The GPU part uses, and must teach:
 | `gpu-frame` (a frame as passes declaring reads and writes; ordering and barriers derived) | not known; chapter 1 recalls it, so it is taught here properly | 11 | c11-graph, c11-levels | 45 |
 | `gpu-atomics` (read-modify-write, lost updates, counters) | not known | 12 | c12-race, c12-or | 40 |
 | `gpu-scan` (stream compaction: count, reserve, write contiguous) | not known | 13 | c13-compact | 40 |
-| `gpu-indirect` (**new topic** in rlstd's graph: a dispatch whose size the GPU wrote; requires `gpu-compute`, `gpu-atomics`) | not known | 13 | c13-indirect | 25 |
+| `gpu-indirect` (**new topic** in render_lab's graph: a dispatch whose size the GPU wrote; requires `gpu-compute`, `gpu-atomics`) | not known | 13 | c13-indirect | 25 |
 | `gpu-divergence` (**new topic**: lanes of a workgroup run in lockstep; idle lanes, divergent loops, the slowest lane sets the time; requires `gpu-compute`) | not known | 14 | c14-lanes | 40 |
 | `gpu-compute`, `gpu-sync` | known: recalled in a sentence where used (workgroups and shared memory in 13, barriers in 11 and 13) | | | |
 

@@ -10,7 +10,7 @@ This plan records the actual use cases and integration gates; it does not implem
 - Lamlet's repository owns language semantics, std, scanner/checker/VM, generic package/native interfaces,
   artifacts, CLI, synthetic hosts, and benchmarks. It must contain no Render Lab names, paths, formats, examples,
   edition policies, integration records, or dependencies.
-- This repository owns this plan, the [rlstd language library](lamlet-rlstd.md), `.story`/translation policy,
+- This repository owns this plan, the [render_lab language library](lamlet-render-lab.md), `.story`/translation policy,
   presentation types, native bindings, package-resource mapping, timeline scheduling, viewer/recorder integration,
   and consumer fixtures/baselines. The dependency points from this project to Lamlet.
 - Generic requirements may inform Lamlet's implementation without naming their consumer: preserved source spans,
@@ -27,11 +27,11 @@ refer to the sibling checkout arrangement; the installation/runtime interface mu
 |---|---|---|
 | Rich text, labels, captions, readouts | [rich_text.rs](../lab/src/rich_text.rs) defines Text/Formula/Code runs at lines 19–27. `pieces` parses at 253–280; `measure` and `text` independently consume it at 296–334. [ui.rs](../lab/src/ui.rs) measures labels then draws them, and draws captions twice for shadow/foreground. | Evaluate source before layout. Both measurement and drawing consume the same immutable prepared value; repeated passes must not execute scripts or register effects. |
 | Localized values in text | [i18n.rs](../lab/src/i18n.rs), lines 65–127, lazily loads JSON tables, fills named `{name}` arguments, handles brace escapes, and preserves attribute tags. [check/lib.rs](../lab/check/src/lib.rs), lines 215–351, harvests keys and checks languages, placeholders, formulas, missing/unused entries. | Pass typed arguments to checked message functions. Keep missing/unknown/unused-key and locale checks, and never turn substituted/returned Strings into new code. |
-| Formula preparation and rendering | [formula.rs](../lab/src/formula.rs), lines 83–123, checks formula-bearing files; rich text forces formulas inline while cards use display layout. | rlstd owns Formula descriptions, spoken alternatives, and layout limits. The VM returns data; it does not own a typesetter or GPU objects. |
+| Formula preparation and rendering | [formula.rs](../lab/src/formula.rs), lines 83–123, checks formula-bearing files; rich text forces formulas inline while cards use display layout. | render_lab owns Formula descriptions, spoken alternatives, and layout limits. The VM returns data; it does not own a typesetter or GPU objects. |
 | Offline narrated stories | [build.py](../tools/video/build.py), lines 182–217, validates, synthesizes narration, builds timed output, checks formulas, writes exports, then returns for `--prepare-only`. [story.py](../tools/video/story.py) treats paragraphs as sentences. | Prepare text and typed descriptions before TTS. Preserve source structure and multiline code before sentence splitting; use one Rust compiler through a batch interface. |
 | Word-timed cues/captions | [narration.py](../tools/video/narration.py), lines 180–312, returns word starts and caches audio; [timeline.py](../tools/video/timeline.py), lines 147–244, maps cue word positions to frames and protects formula/code caption spans. | Resolve anchors against the actual prepared spoken words, with stable sentence/cue IDs independent of identical text. Resolve timing after synthesis. |
 | Translated editions | [zh.py](../tools/video/zh.py), lines 21–53, checks chapter/beat correspondence, one translated sentence per English sentence, matching formulas, and absence of control cues. [build.py](../tools/video/build.py), lines 178–181, requires English timing first. | Keep English audio/timing and translated presentation policy here. Translation does not duplicate control logic or execute new host writes. |
-| Typed controls/actions/images | [values.rs](../lab/src/values.rs) defines scalar/vector types, schema entries, and choices. [actions.rs](../lab/src/actions.rs), lines 69–110 and 211–295, defines typed arguments, action calls, and running actions. [views.rs](../lab/src/views.rs) and [inset.rs](../packages/rlstd/src/inset.rs) define image schemas/instances. | Export typed host APIs and immutable descriptors through rlstd. Validate keys, value types/ranges, choices, actions, and image parameters before applying output. |
+| Typed controls/actions/images | [values.rs](../lab/src/values.rs) defines scalar/vector types, schema entries, and choices. [actions.rs](../lab/src/actions.rs), lines 69–110 and 211–295, defines typed arguments, action calls, and running actions. [views.rs](../lab/src/views.rs) and [inset.rs](../packages/render_lab/src/inset.rs) define image schemas/instances. | Export typed host APIs and immutable descriptors through render_lab. Validate keys, value types/ranges, choices, actions, and image parameters before applying output. |
 | Direct seek and recording | [shot.rs](../lab/src/shot.rs), lines 800–1025, validates timelines and computes `state_at(frame)` from keys. [record.rs](../lab/src/record.rs), lines 223–256, evaluates each requested frame independently with explicit time and history disabled. | Reuse compiled code with an explicit requested-frame snapshot. Results cannot depend on having visited preceding frames or crossed a cue during playback. |
 | Viewer interaction | [viewer.rs](../lab/src/viewer.rs), lines 302–319, distinguishes interactive and rendered state; 435–486 controls pause/seek; 762–789 dispatches image clicks with shown state and mutable state. | Separate timeline-owned computed state, displayed state, and user-editable state. Evaluate handlers in an explicit event context and apply validated commands at a defined update point. |
 | Packages/build identity | [packages.rs](../lab/src/packages.rs), [cook.rs](../lab/src/cook.rs), and [pipeline/mod.rs](../lab/src/pipeline/mod.rs) enforce imports/exports and incrementally cook resources. [build.rs](../lab/build.rs), lines 17–45, fingerprints lab sources/Cargo.toml; [plugin.rs](../lab/src/plugin.rs) checks exact ABI compatibility. | Adapt the language resolver to built package resources. Include language/source/interface dependencies in artifact and ABI invalidation; current size/mtime stamps alone are insufficient. |
@@ -58,8 +58,8 @@ Those are generic API/workload requirements. Their concrete mappings, names, res
 
 1. The lab and its build checker use the same version of the independent Lamlet library. Build-time checking uses
    source/type/native metadata and no viewer/device initialization. The lab embeds reusable runtime instances.
-2. `packages/rlstd/language/` contains the authored document/presentation/formula/timeline APIs. Native adapters
-   live with rlstd's existing package code, compiled as `lab::utility`; do not assume a new rlstd cdylib.
+2. `packages/render_lab/language/` contains the authored document/presentation/formula/timeline APIs. Native adapters
+   live with render_lab's existing package code, compiled as `lab::utility`; do not assume a new render_lab cdylib.
    Investigation packages export their own capabilities through generic schemas/extension points.
 3. A lab-side resolver maps a language package/module to declared built resource keys and checks both the lab
    manifest import/export rules and the language export table. The language never calls `lab::resources` itself.
@@ -188,7 +188,7 @@ development overrides stay local; the published build contract must stand on its
 
 A first slice of stage A, without a Rust dependency on Lamlet: `tools/video/lamlet.py` expands a storyboard's
 Lamlet regions with the `lamlet` command (`prepare` for the prose spans, `eval` for every region's value) before
-story.py reads it, and `packages/rlstd/language/story.lam` is the beginning of rlstd's library (cues and images
+story.py reads it, and `packages/render_lab/language/render_lab.lam` is the beginning of render_lab's library (cues and images
 written from typed values, spoken numbers). Tested by `tools/video/test_lamlet.py`. No published storyboard uses it
 yet. Still open: Lamlet under version control, the adapter out of Lamlet's repository (`crates/lamlet-present`),
 the text check seeing keys a region names, typed checks of keys/images/actions against the lab's registries
@@ -206,7 +206,7 @@ The in-process plan for those is [lamlet-in-process.md](lamlet-in-process.md); i
 3. **Check/preparation bridge.** Add the dependency through the agreed offline mechanism; expose package metadata
    to `lab/check` and an offline helper. One public message/story beat compiles, including a multiline lambda,
    typed arguments, static text, presentation values, and useful source diagnostics. No GPU/window is initialized.
-4. **Presentation.** Supply rlstd modules/adapters and change rich text to consume prepared runs. Preserve plain
+4. **Presentation.** Supply render_lab modules/adapters and change rich text to consume prepared runs. Preserve plain
    text and formula fallback policy deliberately. Verify measurement and repeated drawing cause zero evaluations
    or writes, and keep missing/unused/locale checks intact.
 5. **Stories.** Evaluate expansions before TTS, resolve stable cue IDs after word alignment, and produce both

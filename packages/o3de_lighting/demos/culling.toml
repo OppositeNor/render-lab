@@ -4,7 +4,7 @@ key = "culling"
 title-text = "common.tiled_light_culling"
 tab-text = "shot.culling"
 hint-text = "investigation.demo_hint"
-scene = "rlstd.scene/study-room"
+scene = "render_lab.scene/study-room"
 listing = "light-culling"
 include = ["room-camera"]
 

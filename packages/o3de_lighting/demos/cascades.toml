@@ -8,7 +8,7 @@ key = "cascades"
 title-text = "shot.cascaded_shadow_maps"
 tab-text = "shot.cascades"
 hint-text = "investigation.demo_hint"
-scene = "rlstd.scene/study-room-grounds"
+scene = "render_lab.scene/study-room-grounds"
 listing = "fullscreen-shadow"
 
 [camera]

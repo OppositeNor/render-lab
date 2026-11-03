@@ -672,7 +672,7 @@ impl Home {
         self.column_area(ctx, "home-detail", detail_rect, chosen.title(), |home, ui| {
             ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
             // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
-            for (text, _) in crate::resources::notices(chosen.package().unwrap_or("rlstd")) {
+            for (text, _) in crate::resources::notices(chosen.package().unwrap_or("render_lab")) {
                 ui.add_space(6.0);
                 ui.add(egui::Label::new(RichText::new(text).size(24.0).color(palette::text_faint())).wrap());
             }
@@ -1903,12 +1903,12 @@ impl ApplicationHandler for HomeApp<'_> {
     }
 }
 
-/// The homepage's music and the sound of its controls (packages/rlstd/assets/audio/README.md); the
+/// The homepage's music and the sound of its controls (packages/render_lab/assets/audio/README.md); the
 /// lab is silent without them or without FFplay.
-const MUSIC: &str = "rlstd.audio/music";
-const CLICK: &str = "rlstd.audio/click";
+const MUSIC: &str = "render_lab.audio/music";
+const CLICK: &str = "render_lab.audio/click";
 /// The title page's language button.
-const GLOBE: &str = "rlstd.icon/globe";
+const GLOBE: &str = "render_lab.icon/globe";
 
 /// The homepage, then whatever it opens, until it quits or a window is closed.
 pub fn run(options: HomeOptions) -> Result<()> {

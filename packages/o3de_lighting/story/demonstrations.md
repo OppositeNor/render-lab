@@ -9,7 +9,7 @@ viewer can do with it. Storage facts cite `research.md` (formats, sizes, address
   channels are one view with the channels decoded side by side; separate resources are separate views laid out
   together, with the same element outlined in each.
 - **One subject.** The teapot (the worked point P below the spout) and the sphere (curvature sweeps N·L, N·V);
-  the floor contact for occlusion; the hills of `rlstd.scene/terrain` for chapter 9 only.
+  the floor contact for occlusion; the hills of `render_lab.scene/terrain` for chapter 9 only.
 - **A pick lives everywhere at once.** Clicking a pixel of the scene or a texel of any view sets the same values
   (`pickX`, `pickY` in screen pixels, or `pickTile`, `pickCascade`, `pickTexel`, …), which every view outlines and
   the readout decodes; a link line joins the view's texel to the point in the scene (story arrows on published

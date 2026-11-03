@@ -401,7 +401,7 @@ pub struct UiInput<'a> {
     pub state: &'a ShotState,
     pub content: Option<&'a FrameContent>,
     pub statics: &'a Statics,
-    /// The GPU textures an inset's picture can show (packages/rlstd/src/inset.rs).
+    /// The GPU textures an inset's picture can show (packages/render_lab/src/inset.rs).
     pub textures: &'a crate::utility::inset::Textures,
     pub scene_type: SceneType,
     /// The diagram a 2D scene shows (src/diagram.rs).
@@ -598,7 +598,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 // Insets and the callout first; labels then avoid them.
                 let mut obstacles = Vec::new();
                 // The investigation's insets, then the image the story shows.
-                let package = investigation::current().package().unwrap_or("rlstd");
+                let package = investigation::current().package().unwrap_or("render_lab");
                 let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
                 // Insets sharing a corner stack in a row away from it, and in a
                 // new row once the next would leave the viewport.
@@ -811,7 +811,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
     // The engine's version and commit, then its package's copyright and license
     // line (`credit-text`), fitted beside what the left of the header holds.
     let mut right = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
-    if let Some(credit) = crate::resources::credit(investigation::current().package().unwrap_or("rlstd")) {
+    if let Some(credit) = crate::resources::credit(investigation::current().package().unwrap_or("render_lab")) {
         right = format!("{right} · {credit}");
     }
     let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
@@ -2783,7 +2783,7 @@ fn draw_notices_card(ink: &Ink, input: &UiInput) {
     let mut y = rect.min.y + 28.0;
     ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.notices_title"), 36.0, bold(), palette::text());
     y += 64.0;
-    let package = investigation::current().package().unwrap_or("rlstd");
+    let package = investigation::current().package().unwrap_or("render_lab");
     for (text, license) in crate::resources::notices(package) {
         if y > rect.max.y - 90.0 {
             break;
