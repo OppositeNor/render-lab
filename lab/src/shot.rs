@@ -336,9 +336,31 @@ pub struct Timeline {
     /// Language of the captions and on-screen text.
     #[serde(default)]
     pub locale: crate::i18n::Locale,
+    /// Which part of a series it tells (src/packages.rs, `Series`), if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<TimelinePart>,
     pub chapters: Vec<TimelineChapter>,
     pub beats: Vec<TimelineBeat>,
     pub keys: Vec<Key>,
+}
+
+/// A timeline's place in its series: part `number` of `count`, of `series` (its title).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TimelinePart {
+    pub number: u32,
+    pub count: u32,
+    pub series: String,
+}
+
+impl Timeline {
+    /// The tag over a chapter of it: `01 / 08   TITLE`, after its part's (`PART 1 / 3 · `) when it is one.
+    pub fn chapter_tag(&self, chapter: &TimelineChapter) -> String {
+        let tag = format!("{:02} / {:02}   {}", chapter.number, self.chapters.len(), chapter.title.to_uppercase());
+        match &self.part {
+            Some(p) => format!("{}   {tag}", crate::i18n::tr_with("ui.part_tag", crate::args!(number = p.number, count = p.count))),
+            None => tag,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

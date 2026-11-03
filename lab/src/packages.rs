@@ -65,6 +65,30 @@ pub struct Demo {
     pub audio: String,
 }
 
+/// A series a package provides (`type = "series"`): investigations told one
+/// after another as the parts of one story, each part an imported package
+/// (its investigation and its narrated timelines), in order.
+pub struct Series {
+    pub key: String,
+    /// Its title and summary by language (`en`, `zh-CN`, ...).
+    pub title: BTreeMap<String, String>,
+    pub summary: BTreeMap<String, String>,
+    /// The packages of its parts, in the order they are told.
+    pub parts: Vec<String>,
+}
+
+impl Series {
+    /// Its title in `language`, else in English.
+    pub fn title_in(&self, language: &str) -> &str {
+        self.title.get(language).or_else(|| self.title.get("en")).map_or("", String::as_str)
+    }
+
+    /// Its summary in `language`, else in English.
+    pub fn summary_in(&self, language: &str) -> &str {
+        self.summary.get(language).or_else(|| self.summary.get("en")).map_or("", String::as_str)
+    }
+}
+
 pub struct Package {
     pub name: String,
     pub author: String,
@@ -84,6 +108,7 @@ pub struct Package {
     /// Its collections, in the order the manifest lists them.
     pub collections: Vec<PathBuf>,
     pub demos: Vec<Demo>,
+    pub series: Vec<Series>,
     /// Its legal notices, in the order the manifest lists them.
     pub notices: Vec<Notice>,
     /// Its copyright and license line (`credit-text`), a text key.
@@ -104,6 +129,21 @@ fn relative(root: &Path, path: &Path) -> String {
 /// A demonstration's key: letters, digits, `-` and `_` (`video-zh-CN`).
 fn valid_demo_key(key: &str) -> bool {
     !key.is_empty() && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// A field of strings by language (`title = { en = "…", zh-CN = "…" }`), English required.
+fn by_language(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> String) -> Result<BTreeMap<String, String>, String> {
+    let wrong = || fail(format!("`{field}` is a table of strings by language, with `en` (`{field} = {{ en = \"…\", zh-CN = \"…\" }}`)"));
+    let item = table.get(field).ok_or_else(wrong)?;
+    let entries = item.as_inline_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.as_str().map(String::from))).collect::<Vec<_>>()).or_else(|| item.as_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.as_str().map(String::from))).collect())).ok_or_else(wrong)?;
+    let mut out = BTreeMap::new();
+    for (language, text) in entries {
+        out.insert(language, text.filter(|t| !t.is_empty()).ok_or_else(wrong)?);
+    }
+    if !out.contains_key("en") {
+        return Err(wrong());
+    }
+    Ok(out)
 }
 
 /// One table's string field, or an error naming it.
@@ -148,17 +188,19 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     let exports = strings(table, "export", &fail)?;
     let mut collections = Vec::new();
     let mut demos = Vec::new();
+    let mut series = Vec::new();
     let mut references = Vec::new();
     let provides = match table.get("provides") {
         None => Vec::new(),
         Some(item) => item.as_array_of_tables().ok_or_else(|| fail("`provides` is a list of `[[provides]]` tables".into()))?.iter().collect(),
     };
     for entry in provides {
-        let kind = string(entry, "type", &fail)?.ok_or_else(|| fail("a `[[provides]]` needs `type`, \"resource\" or \"demo\"".into()))?;
+        let kind = string(entry, "type", &fail)?.ok_or_else(|| fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into()))?;
         let fields: &[&str] = match kind.as_str() {
             "resource" => &["type", "path"],
             "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
-            other => return Err(fail(format!("unknown type `{other}` (a package provides \"resource\" or \"demo\")"))),
+            "series" => &["type", "key", "title", "summary", "parts"],
+            other => return Err(fail(format!("unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"))),
         };
         if let Some((key, _)) = entry.iter().find(|(key, _)| !fields.contains(key)) {
             return Err(fail(format!("a {kind} has no field `{key}` (it has {})", fields.join(", "))));
@@ -171,6 +213,21 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
                 return Err(fail(format!("resource `{file}`: no such file (a path relative to the manifest)")));
             }
             collections.push(target);
+        } else if kind == "series" {
+            let key = field("key")?;
+            if !valid_demo_key(&key) || series.iter().any(|s: &Series| s.key == key) {
+                return Err(fail(format!("series `{key}`: a key is letters, digits, `-` and `_`, unique in its package")));
+            }
+            let parts = strings(entry, "parts", &fail)?;
+            if parts.is_empty() {
+                return Err(fail(format!("series `{key}`: `parts` lists its parts' packages, in order")));
+            }
+            for (i, part) in parts.iter().enumerate() {
+                if !imports.contains(part) || parts[..i].contains(part) {
+                    return Err(fail(format!("series `{key}`: part `{part}` is a package `import` lists, once")));
+                }
+            }
+            series.push(Series { key, title: by_language(entry, "title", &fail)?, summary: by_language(entry, "summary", &fail)?, parts });
         } else {
             let key = field("key")?;
             if !valid_demo_key(&key) || demos.iter().any(|d: &Demo| d.key == key) {
@@ -199,7 +256,7 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         notices.push(Notice { text, license });
     }
     let credit = string(table, "credit-text", &fail)?;
-    let package = Package { author: required("author")?, contact: string(table, "contact", &fail)?, license: required("license")?, cooked_from: string(table, "cooked-from", &fail)?, name, dir: dir.to_path_buf(), manifest, imports, exports, library, collections, demos, notices, credit };
+    let package = Package { author: required("author")?, contact: string(table, "contact", &fail)?, license: required("license")?, cooked_from: string(table, "cooked-from", &fail)?, name, dir: dir.to_path_buf(), manifest, imports, exports, library, collections, demos, series, notices, credit };
     Ok((package, references))
 }
 
@@ -327,6 +384,20 @@ mod tests {
         assert!(scan(&dir, &dir).err().unwrap().contains("imports `c`"));
         let dir = directory("cycle", &[("a", &manifest("a", "\"b\"", "")), ("b", &manifest("b", "\"a\"", ""))]);
         assert!(scan(&dir, &dir).err().unwrap().contains("cycle"));
+    }
+
+    #[test]
+    fn series_lists_imported_parts() {
+        let series = "[[provides]]\ntype = \"series\"\nkey = \"s\"\ntitle = { en = \"S\", zh-CN = \"甲\" }\nsummary = { en = \"Two parts.\" }\nparts = [\"b\", \"c\"]\n";
+        let a = manifest("a", "\"b\", \"c\"", "") + series;
+        let dir = directory("series", &[("a", &a), ("b", &manifest("b", "", "")), ("c", &manifest("c", "", ""))]);
+        let packages = scan(&dir, &dir).unwrap();
+        let s = &packages.iter().find(|p| p.name == "a").unwrap().series[0];
+        assert_eq!(s.parts, ["b", "c"]);
+        assert_eq!((s.title_in("zh-CN"), s.title_in("fr"), s.summary_in("zh-CN")), ("甲", "S", "Two parts."));
+        let unimported = manifest("a", "\"b\"", "") + series;
+        let dir = directory("series-unimported", &[("a", &unimported), ("b", &manifest("b", "", "")), ("c", &manifest("c", "", ""))]);
+        assert!(scan(&dir, &dir).err().unwrap().contains("part `c`"));
     }
 
     #[test]

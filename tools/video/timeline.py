@@ -331,4 +331,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
     }
     if cfg.zh():
         timeline['locale'] = cfg.lang
+    # A part of a series: the chapters' tag says which part (lab/src/ui.rs).
+    if (part := cfg.part()) is not None:
+        timeline['part'] = part
     return timeline, placements, cues, plans

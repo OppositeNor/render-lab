@@ -176,6 +176,17 @@ class Config:
         texts = json.loads((self.package / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))
         return [(symbols(texts[n['notice-text']]), self.package / n['license'] if 'license' in n else None) for n in manifest.get('notice', [])]
 
+    def part(self) -> dict[str, Any] | None:
+        """Which part of a series this package is (a manifest's `type = "series"`, lab/src/packages.rs): its number,
+        the count, and the series' title in this edition's language (English when it has none); None for no series."""
+        name = tomllib.loads((self.package / 'manifest.toml').read_text(encoding='utf-8'))['name']
+        for manifest in sorted((LAB / 'packages').glob('*/manifest.toml')):
+            for entry in tomllib.loads(manifest.read_text(encoding='utf-8')).get('provides', []):
+                if entry.get('type') == 'series' and name in entry.get('parts', []):
+                    title = entry['title'].get(self.lang, entry['title']['en'])
+                    return {'number': entry['parts'].index(name) + 1, 'count': len(entry['parts']), 'series': title}
+        return None
+
     def checkout(self, index: dict[str, Any]) -> Path:
         """The engine's source: its video.json's `checkoutEnv` variable, else
         where the user says (asked once per run)."""

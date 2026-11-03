@@ -141,6 +141,11 @@ enum Command {
         #[arg(long)]
         ffmpeg: Option<PathBuf>,
     },
+    /// List the series the packages provide (src/packages.rs, `Series`): each
+    /// one's parts in order, the investigation and narrated timelines of each,
+    /// and check that a part's audience knows what the parts before it teach
+    /// (and that no part teaches again what an earlier one taught).
+    Series,
     /// Check the current investigation's knowledge graph (lab/src/knowledge.rs:
     /// render_lab's topics and its package's, its chapters, its audience) and
     /// print its audience split: the level, the known topics used directly
@@ -463,7 +468,7 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None })
+            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None, next: false, autoplay: false })
         }
         Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             let frames = frames
@@ -518,6 +523,7 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
         Command::Knowledge { known, levels } => knowledge(chosen, &known, levels),
+        Command::Series => series(),
         Command::Graph { dot, json } => graph(chosen, dot.as_deref(), json),
         Command::Values { json, label, scope } => {
             use crate::values::Value;
@@ -655,6 +661,9 @@ pub fn main(app: App) -> Result<()> {
                     for d in &m.demos {
                         println!("    demo {}: {} ({}), {} + {}", d.key, d.title, d.edition, d.timeline, d.audio);
                     }
+                    for s in &m.series {
+                        println!("    series {}: {}, parts {}", s.key, s.title_in("en"), s.parts.join(" -> "));
+                    }
                 }
             }
             Ok(())
@@ -754,6 +763,54 @@ fn graph(chosen: &'static dyn investigation::Investigation, dot: Option<&std::pa
 /// The `knowledge` command: check the investigation's knowledge graph, print its
 /// audience split (stored, or `known`), and optionally its nearby audiences.
 /// Fails on a graph or audience problem.
+/// `render-lab series`: each series, its parts, and the knowledge they carry from one to the next.
+fn series() -> Result<()> {
+    let mut problems = Vec::new();
+    let all: Vec<_> = crate::resources::series().collect();
+    if all.is_empty() {
+        println!("no package provides a series");
+    }
+    for (package, series) in all {
+        println!("{}.{}: {} ({} parts)", package.name, series.key, series.title_in("en"), series.parts.len());
+        // Each part's graph, and what the parts before it taught (by topic name).
+        let mut taught: Vec<(usize, String)> = Vec::new();
+        for (k, part) in series.parts.iter().enumerate() {
+            let investigation = crate::investigations::all().iter().copied().find(|i| i.package() == Some(part.as_str()));
+            let timelines = crate::resources::timelines(part).len();
+            match investigation {
+                Some(i) => println!("  part {}: {part}: {} ({}), {timelines} narrated timeline(s)", k + 1, i.title(), i.path()),
+                None => problems.push(format!("{}: part {} (`{part}`) provides no investigation", series.key, k + 1)),
+            }
+            let graph = match crate::knowledge::load(part) {
+                None => {
+                    println!("    no knowledge graph");
+                    continue;
+                }
+                Some(graph) => graph.map_err(|e| anyhow::anyhow!(e))?,
+            };
+            let audience = graph.audience();
+            for (earlier, topic) in &taught {
+                let Some(i) = graph.nodes.iter().position(|n| &n.id == topic) else { continue };
+                if audience.relevant.get(i).copied().unwrap_or(false) && !audience.is_known(i) {
+                    let why = if audience.teach.contains(&i) || audience.level.contains(&i) { "teaches it again" } else { "does not know it" };
+                    problems.push(format!("{}: part {} (`{part}`) needs `{topic}`, which part {earlier} teaches, and {why} (add it to its audience's `known`)", series.key, k + 1));
+                }
+            }
+            let teaches: Vec<usize> = audience.level.iter().chain(&audience.teach).copied().collect();
+            println!("    teaches {} topic(s); its audience knows {} the parts before it taught", teaches.len(), taught.iter().filter(|(_, t)| graph.nodes.iter().position(|n| &n.id == t).is_some_and(|i| audience.is_known(i))).count());
+            for i in teaches {
+                if !taught.iter().any(|(_, t)| t == &graph.nodes[i].id) {
+                    taught.push((k + 1, graph.nodes[i].id.clone()));
+                }
+            }
+        }
+    }
+    for p in &problems {
+        println!("problem: {p}");
+    }
+    if problems.is_empty() { Ok(()) } else { bail!("{} problem(s) in the series", problems.len()) }
+}
+
 fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String], levels: bool) -> Result<()> {
     let package = chosen.package().context("this investigation has no package")?;
     let graph = match crate::knowledge::load(package) {

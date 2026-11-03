@@ -819,7 +819,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
         // The chapter's tag, in bold as it is drawn below.
         Chrome::Recording { timeline, frame } => {
             let chapter = timeline.chapter_at(*frame);
-            rich_text::measure(ink, &format!("{:02} / {:02}   {}", chapter.number, timeline.chapters.len(), chapter.title.to_uppercase()), 24.0, bold()).x
+            rich_text::measure(ink, &timeline.chapter_tag(chapter), 24.0, bold()).x
         }
         Chrome::Viewer(_) => {
             let investigation = investigation::current();
@@ -834,7 +834,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
         Chrome::Recording { timeline, frame } => {
             let chapter = timeline.chapter_at(*frame);
             let (_, beat) = timeline.beat_at(*frame);
-            let tag = format!("{:02} / {:02}   {}", chapter.number, timeline.chapters.len(), chapter.title.to_uppercase());
+            let tag = timeline.chapter_tag(chapter);
             ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, &tag, 24.0, bold(), palette::accent());
             let headline = ink.fit_right(&beat.headline, l.canvas.x - 80.0, 38.0, bold());
             ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, headline, 38.0, bold(), palette::text());

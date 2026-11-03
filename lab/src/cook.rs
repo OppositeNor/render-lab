@@ -217,6 +217,7 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
         }
         kept_files.insert(file.clone());
     }
+    fs::create_dir_all(out).map_err(|e| format!("packages: create {}: {e}", out.display()))?;
     write(&out.join("resources.toml"), &collection)?;
     let mut manifest = format!("# Built from {source}; rebuilt when it changes. Do not edit.\n");
     writeln!(manifest, "name = {}\nauthor = {}", quote(&package.name), quote(&package.author)).unwrap();
@@ -234,6 +235,10 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
     writeln!(manifest, "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"", quote(&source)).unwrap();
     for demo in &package.demos {
         writeln!(manifest, "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\nedition = {}\ntimeline = {}\naudio = {}", quote(&demo.key), quote(&demo.title), quote(&demo.edition), quote(&demo.timeline), quote(&demo.audio)).unwrap();
+    }
+    for series in &package.series {
+        let by_language = |m: &std::collections::BTreeMap<String, String>| format!("{{ {} }}", m.iter().map(|(k, v)| format!("{} = {}", quote(k), quote(v))).collect::<Vec<_>>().join(", "));
+        writeln!(manifest, "\n[[provides]]\ntype = \"series\"\nkey = {}\ntitle = {}\nsummary = {}\nparts = {}", quote(&series.key), by_language(&series.title), by_language(&series.summary), list(&series.parts)).unwrap();
     }
     for notice in &package.notices {
         writeln!(manifest, "\n[[notice]]\nnotice-text = {}", quote(&notice.text)).unwrap();

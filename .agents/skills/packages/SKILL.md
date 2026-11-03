@@ -69,6 +69,13 @@ edition = "English"                  # its name on the homepage's edition picker
 timeline = "timeline/en"             # resources (keys of this package, or `<package>.<key>`)
 audio = "narration/en"
 
+[[provides]]
+type = "series"                      # investigations told one after another as the parts of one story
+key = "indirect-lighting"            # letters, digits, `-`, `_`; unique in the package
+title = { en = "Indirect lighting in Godot", zh-CN = "Godot 中的间接光照" }   # by language, `en` required
+summary = { en = "Three parts, from the simplest to the most involved: …" }
+parts = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]   # in order; each a package `import` lists
+
 [[notice]]                           # optional: a legal notice of what the package holds
 notice-text = "notice.copyright"     # a key of its text tables (both languages)
 license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the package; built with it
@@ -78,6 +85,14 @@ license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the p
 - Packages load after the packages they import (then by name); an import that is not in `packages/`, or a cycle, is
   an error. The homepage lists investigations in that order.
 - Every `export` must name a resource or shader the package declares.
+- A **series** orders investigations as the parts of one story (`packages/godot_indirect`, a package with a manifest
+  only). Each part is a package with an investigation and its own chapters (numbered from 1) and narrated timelines.
+  The homepage's Feature column lists the series (its title, "A story in n parts") in place of its parts; the detail
+  panel shows "Part n of m" with the parts one under another on darker glass, to pick, and, with
+  "Continue with the next parts" ticked, Watch goes on to the next part's timeline (in the same language) when one
+  ends. The video builder writes `part` into each part's timeline, and its chapter tag reads `PART 1 / 3   01 / 08`.
+  `render-lab series` lists the series and checks that a part's audience (knowledge.toml `known`) knows what the
+  parts before it teach.
 - A package that holds an engine's code, or names it, gives its **notices**: the copyright and license of code ported
   from it (the license's own requirement, e.g. MIT's notice in every copy of a substantial portion) and the engine's
   trademarks, with no claim of affiliation. The lab shows them on the homepage's selection page and on a card that ends
@@ -229,7 +244,8 @@ theirs is an error, so rename one of them.
 ## 8. Commands and errors
 
 ```sh
-cargo run --release -- packages     # each built package: author, license, imports, exports, its library and handles, demos
+cargo run --release -- packages     # each built package: author, license, imports, exports, its library and handles, demos, series
+cargo run --release -- series       # each series' parts, their investigations and timelines, and the knowledge they carry on
 cargo run --release -- resources    # every resource by full key: kind, its file's size (or not built), license, source
 cargo run --release -- cook         # build the checkout's packages beside the binary (every launch does it), and report it
 ```

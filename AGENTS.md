@@ -102,7 +102,8 @@ cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.ex
 python3 tools/experiments/report.py /path/to/dir                              # its report: tables, plots, image grid
 python3 -m unittest tools/experiments/test_report.py                          # the report's tests
 cargo run --release -- --list                                                 # the installed investigations: the values --investigation takes
-cargo run --release -- packages                                               # the packages: metadata, imports, exports, libraries and their handles, demos
+cargo run --release -- packages                                               # the packages: metadata, imports, exports, libraries and their handles, demos, series
+cargo run --release -- series                                                 # the series (investigations as the parts of one story): parts in order, and each part's audience knowing what the parts before it teach
 cargo run --release -- resources                                             # the built packages' resources: file size, or not built yet
 cargo run --release -- cook                                                  # build the checkout's packages beside the binary, and report it
 ```

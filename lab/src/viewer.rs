@@ -85,6 +85,11 @@ pub struct ViewerOptions {
     /// drag writes them to (None: kept for this run only).
     pub layout: crate::config::ViewerLayout,
     pub settings: Option<PathBuf>,
+    /// The timeline is a part of a series with a part after it, to play next:
+    /// at its end the viewer leaves with `ViewerExit::Next`.
+    pub next: bool,
+    /// Play the timeline as soon as its scene is ready (the part after one that ended).
+    pub autoplay: bool,
 }
 
 use crate::home::fullscreen_mode;
@@ -97,6 +102,8 @@ pub enum ViewerExit {
     Back,
     /// The window was closed (or the autotest finished).
     Closed,
+    /// A part of a series played to its end: on to the next part.
+    Next,
 }
 
 /// A scripted test of the viewer, driven once per redraw (`viewer-autotest`).
@@ -1130,8 +1137,12 @@ impl App {
                     };
                     self.timeline_frame = frame.min(t.total_frames - 1);
                     if self.timeline_frame + 1 >= t.total_frames {
-                        // The end: pause on the last frame.
+                        // The end: pause on the last frame, or on to the next part.
                         self.stop();
+                        if self.options.next && self.autotest.is_none() {
+                            self.exit = ViewerExit::Next;
+                            self.leaving = true;
+                        }
                     }
                 }
             } else {
@@ -1408,6 +1419,9 @@ impl App {
             self.timeline_anchor = (now, self.timeline_frame);
             if let Some((_, started)) = self.intro.as_mut() {
                 *started = now;
+            }
+            if self.options.autoplay && self.timeline_mode {
+                self.play();
             }
             return Ok(());
         }

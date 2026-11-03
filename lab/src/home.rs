@@ -137,8 +137,9 @@ impl Page {
 /// What the homepage opens.
 #[derive(Clone, Copy)]
 pub enum Choice {
-    /// Play a narrated timeline, from `start_frame`.
-    Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64 },
+    /// Play a narrated timeline, from `start_frame`; with `continue_parts`, a
+    /// part of a series goes on to the parts after it as each one ends.
+    Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64, continue_parts: bool },
     /// The free demonstrations.
     Explore { investigation: &'static dyn Investigation },
     /// The demonstrations with the Experiments tools: every value, A/B, metrics, presets.
@@ -150,7 +151,7 @@ impl Choice {
     /// For reports: `watch engine/feature timeline @ 1234`, `explore engine/feature`, `quit`.
     pub fn describe(&self) -> String {
         match self {
-            Choice::Watch { investigation, timeline, start_frame } => format!("watch {} {} @ {start_frame}", investigation.path(), timeline.id),
+            Choice::Watch { investigation, timeline, start_frame, continue_parts } => format!("watch {} {} @ {start_frame}{}", investigation.path(), timeline.id, if *continue_parts { " then the next parts" } else { "" }),
             Choice::Explore { investigation } => format!("explore {}", investigation.path()),
             Choice::Experiment { investigation } => format!("experiment {}", investigation.path()),
             Choice::Quit => "quit".into(),
@@ -261,6 +262,19 @@ fn exit_icon(painter: &egui::Painter, rect: Rect) {
     painter.line(vec![pos2(r - head, y - head), pos2(r, y), pos2(r - head, y + head)], stroke);
 }
 
+/// An entry of the selection page's Feature column: an investigation, or a
+/// series standing for its parts (src/packages.rs, `Series`).
+#[derive(Clone, Copy)]
+enum Feature {
+    One(&'static dyn Investigation),
+    Series(&'static crate::packages::Series),
+}
+
+/// A series' parts that are installed, in order.
+fn parts_of(series: &crate::packages::Series) -> Vec<&'static dyn Investigation> {
+    series.parts.iter().filter_map(|p| investigations::all().iter().copied().find(|i| i.package() == Some(p.as_str()))).collect()
+}
+
 /// The homepage's state: the page, the selection, and what the chosen
 /// feature's timelines hold.
 pub struct Home {
@@ -271,6 +285,8 @@ pub struct Home {
     settings: Settings,
     engine: usize,
     feature: usize,
+    /// The part chosen when the feature is a series.
+    part: usize,
     /// Per investigation (by `investigations::all()` index), per timeline.
     timelines: Vec<Option<Vec<Result<TimelineSummary, String>>>>,
     /// The timeline (edition) picked on the selection page, by index; until
@@ -293,6 +309,8 @@ pub struct Home {
     pub pse: bool,
     /// The chosen feature's knowledge graph is up, full screen (src/knowledge.rs).
     pub knowledge: bool,
+    /// Watching a part of a series goes on to the parts after it.
+    pub continue_parts: bool,
 }
 
 impl Home {
@@ -314,6 +332,7 @@ impl Home {
             settings,
             engine: 0,
             feature: 0,
+            part: 0,
             timelines: investigations::all().iter().map(|_| None).collect(),
             edition: None,
             globe: None,
@@ -324,6 +343,7 @@ impl Home {
             popups: Popups::default(),
             pse: true,
             knowledge: false,
+            continue_parts: true,
         };
         if message.is_some() {
             home.settings.message = message;
@@ -331,20 +351,38 @@ impl Home {
         // Start on the investigation chosen on the command line.
         let current = investigation::current().path();
         if let Some(chosen) = investigations::find(&current) {
-            home.engine = investigations::engines().iter().position(|e| e.id == chosen.engine().id).unwrap_or(0);
-            home.feature = home.features().iter().position(|f| f.path() == current).unwrap_or(0);
+            home.select(chosen);
         }
         home
     }
 
-    fn features(&self) -> Vec<&'static dyn Investigation> {
+    /// The chosen engine's Feature column: its investigations, a series in
+    /// place of its parts (where the first of them would be).
+    fn features(&self) -> Vec<Feature> {
         let engine = investigations::engines()[self.engine].id;
-        investigations::all().iter().copied().filter(|i| i.engine().id == engine).collect()
+        let mut features: Vec<Feature> = Vec::new();
+        for i in investigations::all().iter().copied().filter(|i| i.engine().id == engine) {
+            match i.package().and_then(crate::resources::part_of) {
+                Some((series, _)) => {
+                    if !features.iter().any(|f| matches!(f, Feature::Series(s) if std::ptr::eq(*s, series))) {
+                        features.push(Feature::Series(series));
+                    }
+                }
+                None => features.push(Feature::One(i)),
+            }
+        }
+        features
     }
 
     fn selected(&self) -> &'static dyn Investigation {
         let features = self.features();
-        features[self.feature.min(features.len() - 1)]
+        match features[self.feature.min(features.len() - 1)] {
+            Feature::One(i) => i,
+            Feature::Series(series) => {
+                let parts = parts_of(series);
+                parts[self.part.min(parts.len() - 1)]
+            }
+        }
     }
 
     fn timeline_rows(&mut self, chosen: &'static dyn Investigation) -> Vec<TimelineRow> {
@@ -652,12 +690,20 @@ impl Home {
         let mut new_feature = None;
         self.column_area(ctx, "home-features", features_rect, tr("home.feature"), |home, ui| {
             for (i, feature) in features.iter().enumerate() {
-                let r = ui.add(egui::Button::selectable(i == home.feature, RichText::new(feature.title()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(ui.available_width(), 56.0)));
-                home.widgets.push((format!("feature:{}", feature.path()), r.rect));
+                // An investigation, or a series (its title, and how many parts it tells).
+                let (title, widget, first) = match feature {
+                    Feature::One(f) => (f.title().to_string(), format!("feature:{}", f.path()), *f),
+                    Feature::Series(s) => (s.title_in(home.applied.language.code()).to_string(), format!("series:{}", s.key), parts_of(s)[0]),
+                };
+                let r = ui.add(egui::Button::selectable(i == home.feature, RichText::new(title).font(FontId::new(30.0, ui::bold()))).min_size(vec2(ui.available_width(), 56.0)));
+                home.widgets.push((widget, r.rect));
                 if r.clicked() {
                     new_feature = Some(i);
                 }
-                let engine = &feature.sources().engine;
+                if let Feature::Series(s) = feature {
+                    ui.label(RichText::new(tr_with("home.series_parts", args!(count = s.parts.len()))).color(palette::text_dim()));
+                }
+                let engine = &first.sources().engine;
                 let commit = engine.commit.get(..8).unwrap_or(&engine.commit);
                 ui.label(RichText::new(format!("{} {} · {commit}", engine.name, engine.version)).color(palette::text_faint()));
                 ui.add_space(12.0);
@@ -668,14 +714,51 @@ impl Home {
         let rows = self.timeline_rows(chosen);
         let edition = self.edition.unwrap_or_else(|| preferred_edition(&rows, self.applied.language)).min(rows.len().saturating_sub(1));
         let mut new_edition = None;
+        let mut new_part: Option<&'static dyn Investigation> = None;
         let error = self.error.clone();
         self.column_area(ctx, "home-detail", detail_rect, chosen.title(), |home, ui| {
-            ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
-            // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
-            for (text, _) in crate::resources::notices(chosen.package().unwrap_or("render_lab")) {
-                ui.add_space(6.0);
-                ui.add(egui::Label::new(RichText::new(text).size(24.0).color(palette::text_faint())).wrap());
-            }
+            // For a part of a series, its parts first (engine, story, part, left to right); beside them, what it covers and its notices.
+            let part = chosen.package().and_then(crate::resources::part_of);
+            let full = ui.available_width();
+            ui.horizontal_top(|ui| {
+                // A part of a series (src/packages.rs, `Series`): which, its parts in order, and whether to go on.
+                if let Some((series, index)) = part {
+                    let language = home.applied.language.code();
+                    // The story's parts, one under another, on darker glass.
+                    let width = full * 0.4 - 24.0;
+                    egui::Frame::new().fill(Color32::from_black_alpha(110)).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::same(12)).show(ui, |ui| ui.vertical(|ui| {
+                        ui.set_width(width);
+                        ui.set_max_width(width);
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        let heading = tr_with("home.part_of", args!(number = index + 1, count = series.parts.len(), series = series.title_in(language)));
+                        ui.add(egui::Label::new(RichText::new(heading).font(FontId::new(24.0, ui::bold())).color(palette::accent())).wrap()).on_hover_text(series.summary_in(language));
+                        ui.add_space(4.0);
+                        for (k, investigation) in parts_of(series).into_iter().enumerate() {
+                            let label = RichText::new(format!("{}  {}", k + 1, investigation.title())).font(FontId::new(24.0, ui::bold()));
+                            let r = ui.add(egui::Button::selectable(k == index, label).min_size(vec2(width, 38.0)));
+                            home.widgets.push((format!("part:{}", investigation.path()), r.rect));
+                            if r.clicked() {
+                                new_part = Some(investigation);
+                            }
+                        }
+                        if index + 1 < series.parts.len() {
+                            ui.add_space(4.0);
+                            let r = ui.checkbox(&mut home.continue_parts, RichText::new(tr("home.continue_parts")).size(24.0));
+                            home.widgets.push(("continue-parts".into(), r.rect));
+                        }
+                    }));
+                    ui.add_space(12.0);
+                }
+                ui.vertical(|ui| {
+                    ui.set_width(if part.is_some() { full * 0.6 - 12.0 } else { full });
+                    ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
+                    // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
+                    for (text, _) in crate::resources::notices(chosen.package().unwrap_or("render_lab")) {
+                        ui.add_space(6.0);
+                        ui.add(egui::Label::new(RichText::new(text).size(24.0).color(palette::text_faint())).wrap());
+                    }
+                });
+            });
             ui.add_space(14.0);
             if let Some(e) = &error {
                 ui.add(egui::Label::new(RichText::new(e).color(palette::HISTORY_REJECT)).wrap());
@@ -688,7 +771,7 @@ impl Home {
                 let watch = glass_button(ui, button, tr("home.watch_the_narrated_video"), 28.0, first.is_some());
                 home.widgets.push(("watch".into(), watch.rect));
                 if let (true, Some(row)) = (watch.clicked(), first) {
-                    choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0 });
+                    choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0, continue_parts: home.continue_parts });
                 }
                 let explore = glass_button(ui, button, tr("home.explore_the_demonstrations"), 28.0, true);
                 home.widgets.push(("explore".into(), explore.rect));
@@ -759,7 +842,7 @@ impl Home {
                                     let r = ui.add(egui::Button::new(RichText::new(format!("{number:02}  {label}"))).frame(false).truncate());
                                     home.widgets.push((format!("chapter:{number}"), r.rect));
                                     if r.clicked() {
-                                        choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: *frame });
+                                        choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: *frame, continue_parts: home.continue_parts });
                                     }
                                 }
                             }
@@ -787,16 +870,40 @@ impl Home {
         if let Some(e) = new_engine {
             self.engine = e;
             self.feature = 0;
+            self.part = 0;
             self.edition = None;
         }
         if let Some(f) = new_feature {
+            if f != self.feature {
+                self.part = 0;
+            }
             self.feature = f;
             self.edition = None;
         }
         if let Some(e) = new_edition {
             self.edition = Some(e);
         }
+        if let Some(part) = new_part {
+            self.select(part);
+        }
         choice
+    }
+
+    /// Select `investigation` on the selection page (its engine and feature).
+    fn select(&mut self, investigation: &'static dyn Investigation) {
+        self.engine = investigations::engines().iter().position(|e| e.id == investigation.engine().id).unwrap_or(0);
+        let path = investigation.path();
+        let features = self.features();
+        let (feature, part) = features
+            .iter()
+            .enumerate()
+            .find_map(|(n, f)| match f {
+                Feature::One(i) => (i.path() == path).then_some((n, 0)),
+                Feature::Series(s) => parts_of(s).iter().position(|p| p.path() == path).map(|k| (n, k)),
+            })
+            .unwrap_or((0, 0));
+        (self.feature, self.part) = (feature, part);
+        self.edition = None;
     }
 
     /// The Config page: the settings, Save and Apply, Discard, and Restore
@@ -1509,7 +1616,7 @@ pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<
     let choice = if timeline {
         let rows = home.timeline_rows(current);
         let row = rows.get(preferred_edition(&rows, home.applied.language)).with_context(|| format!("{} has no timeline", current.path()))?;
-        Choice::Watch { investigation: current, timeline: row.info, start_frame: 0 }
+        Choice::Watch { investigation: current, timeline: row.info, start_frame: 0, continue_parts: false }
     } else {
         Choice::Explore { investigation: current }
     };
@@ -1652,8 +1759,14 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     check("every engine is listed", listed && !engines.is_empty(), engines.join(", "));
     for i in investigations::all() {
         let engine = format!("engine:{}", i.engine().id);
-        let feature = format!("feature:{}", i.path());
-        let selected = offscreen.click(&mut home, &engine).is_some() && offscreen.click(&mut home, &feature).is_some() && home.selected().path() == i.path();
+        // A part of a series: the series in the Feature column, then the part in the detail panel.
+        let series = i.package().and_then(crate::resources::part_of);
+        let feature = series.map_or_else(|| format!("feature:{}", i.path()), |(s, _)| format!("series:{}", s.key));
+        let mut selected = offscreen.click(&mut home, &engine).is_some() && offscreen.click(&mut home, &feature).is_some();
+        if series.is_some() {
+            selected &= offscreen.click(&mut home, &format!("part:{}", i.path())).is_some();
+        }
+        let selected = selected && home.selected().path() == i.path();
         check(&format!("{} can be selected", i.path()), selected, feature.clone());
         let explore = offscreen.click(&mut home, "explore").flatten();
         let ok = matches!(explore, Some(Choice::Explore { investigation }) if investigation.path() == i.path());
@@ -1663,8 +1776,31 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         check(&format!("{}: Experiment opens the experiments", i.path()), ok, describe(experiment));
         let Some(timeline) = i.timelines().first() else { continue };
         let watch = offscreen.click(&mut home, "watch").flatten();
-        let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0 }) if investigation.path() == i.path() && t.id == timeline.id);
+        let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0, .. }) if investigation.path() == i.path() && t.id == timeline.id);
         check(&format!("{}: Watch opens the timeline from its start", i.path()), ok, describe(watch));
+        // A part of a series: its parts can be picked, and watching it goes on to the next part.
+        if let Some((series, index)) = i.package().and_then(crate::resources::part_of) {
+            let parts: Vec<&'static dyn Investigation> = series.parts.iter().filter_map(|p| investigations::all().iter().copied().find(|x| x.package() == Some(p.as_str()))).collect();
+            let listed = parts.iter().all(|p| home.widgets.iter().any(|w| w.0 == format!("part:{}", p.path())));
+            check(&format!("{}: part {} of {} of {}, every part listed", i.path(), index + 1, series.parts.len(), series.key), listed && parts.len() == series.parts.len(), parts.iter().map(|p| p.path()).collect::<Vec<_>>().join(" -> "));
+            if let Some(next) = parts.get(index + 1) {
+                let following = watch.and_then(|w| next_part(w, &mut home));
+                let ok = matches!(following, Some(Choice::Watch { investigation, start_frame: 0, continue_parts: true, .. }) if investigation.path() == next.path());
+                check(&format!("{}: watched to its end, it goes on to part {} ({})", i.path(), index + 2, next.path()), ok, describe(following));
+                // Off, it stops at its end.
+                offscreen.click(&mut home, "continue-parts");
+                let alone = offscreen.click(&mut home, "watch").flatten();
+                let ok = matches!(alone, Some(Choice::Watch { continue_parts: false, .. })) && alone.and_then(|w| next_part(w, &mut home)).is_none();
+                check(&format!("{}: with going on unticked, it stops at its end", i.path()), ok, describe(alone));
+                offscreen.click(&mut home, "continue-parts");
+            }
+            // Picking another part selects its investigation; then back to this one.
+            if let Some(other) = parts.iter().find(|p| p.path() != i.path()) {
+                let picked = offscreen.click(&mut home, &format!("part:{}", other.path())).is_some() && home.selected().path() == other.path();
+                check(&format!("{}: picking part {} selects it", i.path(), other.path()), picked, home.selected().path());
+                offscreen.click(&mut home, &format!("part:{}", i.path()));
+            }
+        }
         match TimelineSummary::load(&options.manifest_dir, timeline) {
             Ok(summary) => {
                 if let Some((number, _, frame)) = summary.chapters.last().cloned() {
@@ -1949,7 +2085,7 @@ pub fn run(options: HomeOptions) -> Result<()> {
 fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: PhysicalSize<u32>) -> Option<ViewerOptions> {
     let (investigation, timeline, audio, start_frame, locale) = match choice {
         Choice::Quit => return None,
-        Choice::Watch { investigation, timeline, start_frame } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
+        Choice::Watch { investigation, timeline, start_frame, .. } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
         Choice::Explore { investigation } | Choice::Experiment { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
     };
     let experiments = matches!(choice, Choice::Experiment { .. });
@@ -1969,13 +2105,53 @@ fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: Phys
         experiments,
         layout: home.applied.layout,
         settings: home.settings.path.clone(),
+        next: false,
+        autoplay: false,
     })
 }
 
-/// Run the viewer on what the homepage chose; false to quit.
-fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
-    let Some(viewer_options) = viewer_options(choice, home, options, size) else { return false };
-    let exit = viewer::run_on(event_loop, viewer_options);
+/// The part after the one `choice` watches, in its language (else its first
+/// built timeline), when the choice goes on to the next parts and there is one.
+fn next_part(choice: Choice, home: &mut Home) -> Option<Choice> {
+    let Choice::Watch { investigation, timeline, continue_parts: true, .. } = choice else { return None };
+    let (series, index) = crate::resources::part_of(investigation.package()?)?;
+    let package = series.parts.get(index + 1)?;
+    let next = investigations::all().iter().copied().find(|i| i.package() == Some(package.as_str()))?;
+    let locale = TimelineSummary::load(&home.manifest_dir, timeline).ok().map(|s| s.locale);
+    let rows = home.timeline_rows(next);
+    let pick = rows.iter().position(|r| r.summary.is_ok() && r.locale.is_some() && r.locale == locale).or_else(|| rows.iter().position(|r| r.summary.is_ok()))?;
+    Some(Choice::Watch { investigation: next, timeline: rows[pick].info, start_frame: 0, continue_parts: true })
+}
+
+/// Run the viewer on what the homepage chose (and, for a part of a series
+/// watched to its end, on the parts after it); false to quit.
+fn open(mut choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
+    let mut autoplay = false;
+    loop {
+        let next = next_part(choice, home);
+        let Some(mut viewer_options) = viewer_options(choice, home, options, size) else { return false };
+        viewer_options.next = next.is_some();
+        viewer_options.autoplay = autoplay;
+        let exit = viewer::run_on(event_loop, viewer_options);
+        if let (Ok((ViewerExit::Next, _, _)), Some(next)) = (&exit, next) {
+            if let Ok((_, narration, layout)) = exit {
+                home.keep_narration(narration);
+                home.keep_layout(layout);
+            }
+            // The homepage, when it comes back, is on the part last watched.
+            if let Choice::Watch { investigation, .. } = next {
+                home.select(investigation);
+            }
+            choice = next;
+            autoplay = true;
+            continue;
+        }
+        return finish(exit, home);
+    }
+}
+
+/// After the viewer: the settings it changed kept, and whether to go on (false to quit).
+fn finish(exit: Result<(ViewerExit, Volume, crate::config::ViewerLayout)>, home: &mut Home) -> bool {
     // A timeline in another language switched the text; the homepage keeps its own.
     i18n::set(home.applied.language);
     let exit = exit.map(|(exit, narration, layout)| {
@@ -1984,7 +2160,7 @@ fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options
         exit
     });
     match exit {
-        Ok(ViewerExit::Back) => {}
+        Ok(ViewerExit::Back | ViewerExit::Next) => {}
         Ok(ViewerExit::Closed) => return false,
         // Show what went wrong on the selection page instead of quitting.
         Err(e) => home.error = Some(format!("{e:#}")),

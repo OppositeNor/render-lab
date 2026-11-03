@@ -1,0 +1,17 @@
+# Indirect lighting in Godot's Forward+ renderer, told in three parts, from the
+# simplest to the most involved: screen-space reflections, then SDFGI, then
+# VoxelGI. Each part is its own investigation's package, with its own chapters
+# and narrated videos; this package only orders them (src/packages.rs, `Series`).
+
+name = "godot_indirect"
+author = "OppositeNor"
+license = "MIT"
+import = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]
+export = []
+
+[[provides]]
+type = "series"
+key = "indirect-lighting"
+title = { en = "Indirect lighting in Godot", zh-CN = "Godot 中的间接光照" }
+summary = { en = "Three parts, from the simplest to the most involved: reflections found on screen, then a distance field and its probes, then a voxel volume traced by cones. Each part builds on what the parts before it taught.", zh-CN = "三个部分，由浅入深：在屏幕上找到的反射，然后是距离场及其探针，最后是用锥体追踪的体素体积。每个部分都建立在前面部分所讲的内容之上。" }
+parts = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]

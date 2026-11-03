@@ -182,6 +182,16 @@ pub fn credit(name: &str) -> Option<String> {
     Some(crate::rich_text::symbols(crate::i18n::package_text(name, key)).replace("{year}", &crate::readback::local_year().to_string()))
 }
 
+/// Every series the packages provide, with the package that provides it.
+pub fn series() -> impl Iterator<Item = (&'static Package, &'static packages::Series)> {
+    packages().iter().flat_map(|p| p.series.iter().map(move |s| (p, s)))
+}
+
+/// The series package `name` is a part of (the first that lists it), and its part's index there.
+pub fn part_of(name: &str) -> Option<(&'static packages::Series, usize)> {
+    series().find_map(|(_, s)| s.parts.iter().position(|p| p == name).map(|i| (s, i)))
+}
+
 pub fn timelines(name: &str) -> &'static [TimelineInfo] {
     registry().timelines.get(name).map(Vec::as_slice).unwrap_or_else(|| panic!("no package `{name}` in {}", packages_dir().display()))
 }
