@@ -160,6 +160,7 @@ pub struct Renderer {
     frame_bind_group: wgpu::BindGroup,
     segments: GrowBuffer,
     segments_xray: GrowBuffer,
+    cuboids: GrowBuffer,
     boxes: GrowBuffer,
     boxes_xray: GrowBuffer,
     points: GrowBuffer,
@@ -762,6 +763,7 @@ impl Renderer {
             sampler,
             segments: GrowBuffer::new(device, "segments", vertex, 1 << 16),
             segments_xray: GrowBuffer::new(device, "segments x-ray", vertex, 1 << 16),
+            cuboids: GrowBuffer::new(device, "cuboids", vertex, 1 << 16),
             boxes: GrowBuffer::new(device, "boxes", vertex, 1 << 16),
             boxes_xray: GrowBuffer::new(device, "boxes x-ray", vertex, 1 << 16),
             points: GrowBuffer::new(device, "points", vertex, 1 << 14),
@@ -1558,6 +1560,7 @@ impl Renderer {
         self.boxes.write(device, queue, &d.boxes);
         self.boxes_xray.write(device, queue, &box_xray);
         self.points.write(device, queue, &d.points);
+        self.cuboids.write(device, queue, &d.cuboids);
         self.ghost_ids.write(device, queue, &d.ghosts);
     }
 
@@ -2672,6 +2675,8 @@ impl Renderer {
                             pass.draw_indexed(range, 0, object..object + 1);
                         }
                     }
+                    // Solid boxes first: they write depth, so the lines after them are hidden behind them (and dashed, x-ray).
+                    draw(&mut pass, &self.pipelines.cuboid, &self.cuboids, 36);
                     draw(&mut pass, &self.pipelines.boxes_xray, &self.boxes_xray, 108);
                     draw(&mut pass, &self.pipelines.segment_xray, &self.segments_xray, 9);
                     draw(&mut pass, &self.pipelines.boxes, &self.boxes, 108);

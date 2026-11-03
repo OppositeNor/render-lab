@@ -280,3 +280,62 @@ fn ghostFS(input: GhostVaryings) -> @location(0) vec4<f32> {
     let a = (0.06 + 0.5 * rim) * gFrame.viewParams.z;
     return vec4<f32>(vec3<f32>(0.75, 0.9, 1.0) * a, a);
 }
+
+// Solid boxes (CuboidInstance): a centre and three half-extent vectors, 36
+// vertices (two triangles a face), lit flat from above the camera's shoulder,
+// their edges darkened so neighbouring columns of a field read apart. They
+// write depth (and so hide each other and the lines drawn after them).
+
+struct CuboidInstance {
+    @location(0) center: vec3<f32>,
+    @location(1) u: vec4<f32>,
+    @location(2) v: vec4<f32>,
+    @location(3) w: vec4<f32>,
+    @location(4) color: vec4<f32>,
+}
+
+struct CuboidVaryings {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) @interpolate(flat) normal: vec3<f32>,
+    @location(2) face: vec2<f32>,
+}
+
+@vertex
+fn cuboidVS(@builtin(vertex_index) vi: u32, inst: CuboidInstance) -> CuboidVaryings {
+    let axes = array<vec3<f32>, 3>(inst.u.xyz, inst.v.xyz, inst.w.xyz);
+    let face = vi / 6u;
+    let a = face / 2u;
+    let s = select(-1.0, 1.0, face % 2u == 1u);
+    let b = (a + 1u) % 3u;
+    let c = (a + 2u) % 3u;
+    let corners = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
+    let k = corners[vi % 6u];
+    let p = inst.center + axes[a] * s + axes[b] * k.x + axes[c] * k.y;
+    var o: CuboidVaryings;
+    o.clip = gFrame.camera.worldToClip * vec4<f32>(p, 1.0);
+    o.color = inst.color;
+    o.normal = normalize(axes[a]) * s;
+    o.face = k;
+    return o;
+}
+
+@fragment
+fn cuboidFS(in: CuboidVaryings) -> @location(0) vec4<f32> {
+    // The camera's axes in the world: the rows of worldToView.
+    let m = gFrame.camera.worldToView;
+    let right = vec3<f32>(m[0][0], m[1][0], m[2][0]);
+    let up = vec3<f32>(m[0][1], m[1][1], m[2][1]);
+    let back = vec3<f32>(m[0][2], m[1][2], m[2][2]);
+    let light = normalize(right * -0.35 + up * 0.75 + back * 0.55);
+    let shade = 0.42 + 0.58 * max(dot(in.normal, light), 0.0);
+    // Darkened edges, about a pixel wide whatever the box's size; none on a
+    // face only a few pixels wide, where they would grey it all.
+    let perPixel = max(fwidth(in.face), vec2<f32>(1e-6));
+    let toEdge = (vec2<f32>(1.0) - abs(in.face)) / perPixel;
+    let facePixels = 2.0 / max(perPixel.x, perPixel.y);
+    let strength = 0.45 * smoothstep(4.0, 12.0, facePixels);
+    let edge = 1.0 - strength * (1.0 - smoothstep(0.5, 1.5, min(toEdge.x, toEdge.y)));
+    let rgb = in.color.rgb * shade * edge;
+    return vec4<f32>(rgb * in.color.a, in.color.a);
+}

@@ -4,12 +4,13 @@
 
 use super::{cpu, gpu};
 use lab::fetch::Source;
+use lab::utility::height_field::{self, HeightField, Placement};
 use super::shot::Demo;
 use super::trace::{self, Exit, Image};
 use crate::godot::ssr::text::{tr, tr_with};
 use egui::Color32;
 use glam::{Vec2, Vec3};
-use lab::frame::{FrameContent, Readout, Statics};
+use lab::frame::{self, FrameContent, Label, Readout, Statics};
 use lab::layout::FrameUniforms;
 use lab::palette;
 use lab::scene::ids;
@@ -69,6 +70,189 @@ fn grey(v: f32) -> [u8; 4] {
     [g, g, g, 255]
 }
 
+fn smooth(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
+/// The depth map drawn as a height field (lab::utility::height_field), over a
+/// dark ground that hides the room: each SSR texel a column as tall as its
+/// reversed depth (near is tall), fading in flat, as the screen shows it
+/// (`fieldShow`), then tilting back as the columns rise (`fieldMorph`).
+/// Its columns are of pyramid level `level` (between two levels, each 2 x 2
+/// rises to the tallest of its parent and merges), around P when zoomed
+/// (`fieldZoom`: a window framing `focus`, a texel box x0, y0, x1, y1).
+/// `lit` colours cells of that level (texel coordinates of the level, a
+/// colour). None while it is not shown.
+fn field(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, pixel: [i32; 2], focus: [f32; 4], level: f32, lit: &[([i32; 2], Color32)]) -> Option<HeightField> {
+    let show = state.p("fieldShow").clamp(0.0, 1.0);
+    if show <= 0.0 {
+        return None;
+    }
+    let morph = smooth(state.p("fieldMorph"));
+    let camera = content.uniforms.camera;
+    // Nearer than the room; the ground behind the field, a little farther, covers the view.
+    // A little height even when flat, so the tiles stand clear of the slab under them.
+    let tilt = state.p("fieldTilt").clamp(0.0, 85.0);
+    let placement = Placement::facing(&camera, 0.25, 0.002 + 0.07 * morph, tilt * morph, state.p("fieldTurn") * morph, 1.0 - 0.4 * morph);
+    let ground = Placement::facing(&camera, 0.42, 0.0, 0.0, 0.0, 1.4);
+    let normal = ground.across.cross(ground.down).normalize() * 1e-3;
+    content.draw.cuboid(ground.at(Vec2::splat(0.5), 0.0), [ground.across * 0.5, ground.down * 0.5, normal], Color32::from_rgb(8, 11, 16), show);
+    let hiz = &screen.hiz;
+    let size = hiz[0].size;
+    let (w, h) = (size[0] as f32, size[1] as f32);
+    // The window: the whole image, or `focus` with a margin, at the image's shape (at least 40 texels across).
+    let zoom = smooth(state.p("fieldZoom"));
+    let across = ((focus[2] - focus[0]) * 1.3).max((focus[3] - focus[1]) * 1.3 * w / h).clamp(40.0, w);
+    let close = [across, across * h / w];
+    let cx = ((focus[0] + focus[2]) * 0.5).clamp(close[0] * 0.5, w - close[0] * 0.5);
+    let cy = ((focus[1] + focus[3]) * 0.5).clamp(close[1] * 0.5, h - close[1] * 0.5);
+    let near = [cx - close[0] * 0.5, cy - close[1] * 0.5, cx + close[0] * 0.5, cy + close[1] * 0.5];
+    let window = [near[0] * zoom, near[1] * zoom, w + (near[2] - w) * zoom, h + (near[3] - h) * zoom];
+    let field = HeightField { size, window, placement };
+    field.base(&mut content.draw, Color32::from_rgb(20, 24, 30), show);
+    let top = field_top(screen, pixel);
+    // Coloured on the depth map's ramp (its inset's), so the flat field is that picture.
+    let ramp = hiz[0].data.iter().copied().fold(0.0f32, f32::max).max(1e-6);
+    let last = hiz.len() - 1;
+    let l = (level.max(0.0).floor() as usize).min(last);
+    let f = if l < last { level - l as f32 } else { 0.0 };
+    let f = smooth(f.clamp(0.0, 1.0));
+    let img = &hiz[l];
+    let (sx, sy) = (w / img.size[0] as f32, h / img.size[1] as f32);
+    for y in 0..img.size[1] as i32 {
+        for x in 0..img.size[0] as i32 {
+            let (x0, y0, x1, y1) = (x as f32 * sx, y as f32 * sy, (x + 1) as f32 * sx, (y + 1) as f32 * sy);
+            if !field.shows(x0, y0, x1, y1) {
+                continue;
+            }
+            let d = img.load([x, y]).x;
+            // Between levels: rising to the parent's tallest.
+            let d = if f > 0.0 { d + (hiz[l + 1].load([(x >> 1).min(hiz[l + 1].size[0] as i32 - 1), (y >> 1).min(hiz[l + 1].size[1] as i32 - 1)]).x - d) * f } else { d };
+            if d <= 0.0 {
+                continue;
+            }
+            let color = lit.iter().find(|(c, _)| *c == [x, y]).map_or_else(|| height_field::grey(d, ramp), |(_, c)| *c);
+            field.column(&mut content.draw, x0, y0, x1, y1, (d / top).min(1.0), color, show);
+        }
+    }
+    // P, on its column.
+    let p = Vec2::new(pixel[0] as f32 + 0.5, pixel[1] as f32 + 0.5);
+    content.draw.point(field.point(p, (hiz[0].load(pixel).x / top).min(1.0)), 6.0, palette::SELECTED, show);
+    Some(field)
+}
+
+/// The cells of `level` the ray crosses from t = 0 to `end`, in order: each
+/// cell, the t where the ray enters and leaves it, and its depth.
+fn cells_along(screen: &cpu::Screen, t: &trace::Trace, level: usize, end: f32) -> Vec<([i32; 2], f32, f32, f32)> {
+    let img = &screen.hiz[level];
+    let size = Vec2::new(img.size[0] as f32, img.size[1] as f32);
+    let mut out: Vec<([i32; 2], f32, f32, f32)> = Vec::new();
+    const SAMPLES: usize = 3000;
+    for k in 0..=SAMPLES {
+        let tt = end * k as f32 / SAMPLES as f32;
+        let p = (t.screen_pos + t.screen_ray * tt).truncate() * size;
+        let cell = [p.x.floor() as i32, p.y.floor() as i32];
+        if cell[0] < 0 || cell[1] < 0 || cell[0] >= img.size[0] as i32 || cell[1] >= img.size[1] as i32 {
+            break;
+        }
+        match out.last_mut() {
+            Some(last) if last.0 == cell => last.2 = tt,
+            _ => out.push((cell, tt, tt, img.load(cell).x)),
+        }
+    }
+    out
+}
+
+/// The trace as a cross-section along the ray (the usual picture of a Hi-Z
+/// march), over the view (`profileShow`): across, the ray's t from P; up,
+/// reversed depth (nearer is higher). The cells of the level the step tests
+/// stand as bars as tall as their nearest depth, the true surface (level 0)
+/// drawn thin over them; the ray is a straight line. For the step shown: its
+/// cell lit, where the ray leaves the cell and where it reaches the cell's
+/// depth marked, whichever comes first deciding (a miss climbs a level, a hit
+/// descends), and an arrow to where the next step starts.
+fn profile(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, t: &trace::Trace, shown: usize) {
+    let alpha = state.p("profileShow").clamp(0.0, 1.0);
+    if alpha <= 0.0 || t.steps.is_empty() {
+        return;
+    }
+    let camera = content.uniforms.camera;
+    let plane = Placement::facing(&camera, 0.25, 0.0, 0.0, 0.0, 1.0);
+    let ground = Placement::facing(&camera, 0.42, 0.0, 0.0, 0.0, 1.4);
+    ground.rect(&mut content.draw, Vec2::ZERO, Vec2::ONE, 0.0, Color32::from_rgb(8, 11, 16), alpha);
+    let current = if shown == 0 { None } else { t.steps.get(shown - 1) };
+    let level = current.map_or(0, |s| s.level.max(0) as usize).min(screen.hiz.len() - 1);
+    // The whole march, with a little room after where it ends.
+    let end = t.steps.last().map_or(0.0, |s| s.next_t).max(current.map_or(0.0, |s| s.edge_t.max(s.next_t))) * 1.08;
+    let end = end.max(1e-6);
+    let bars = cells_along(screen, t, level, end);
+    let surface = cells_along(screen, t, 0, end);
+    let ray = |tt: f32| (t.screen_pos + t.screen_ray * tt).z;
+    let mut lo = ray(0.0).min(ray(end));
+    let mut hi = ray(0.0).max(ray(end));
+    for &(_, _, _, d) in bars.iter().chain(&surface) {
+        if d > 0.0 {
+            lo = lo.min(d);
+            hi = hi.max(d);
+        }
+    }
+    let pad = (hi - lo).max(1e-6) * 0.15;
+    let (lo, hi) = (lo - pad, hi + pad);
+    let (u0, u1, v0, v1) = (0.07, 0.93, 0.2, 0.86);
+    let at = |tt: f32, d: f32| Vec2::new(u0 + (tt / end).clamp(0.0, 1.0) * (u1 - u0), v1 - ((d - lo) / (hi - lo)).clamp(0.0, 1.0) * (v1 - v0));
+    let on = |uv: Vec2| plane.on(uv, 2e-3);
+    // The chart's axes.
+    plane.rect(&mut content.draw, Vec2::new(u0, v0), Vec2::new(u1, v1), -2e-3, Color32::from_rgb(16, 21, 28), alpha);
+    content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u1, v1)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
+    content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u0, v0)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
+    content.labels.push(Label { anchor: on(Vec2::new(u1, v1 + 0.035)), text: tr("demos.profile_t").to_string(), color: palette::text_dim() });
+    content.labels.push(Label { anchor: on(Vec2::new(u0 + 0.06, v0 - 0.03)), text: tr("demos.profile_depth").to_string(), color: palette::text_dim() });
+    // The level's cells along the ray, the one tested lit.
+    for &(cell, a, b, d) in &bars {
+        let lit = current.is_some_and(|s| s.cell == cell);
+        let color = if lit { if current.is_some_and(|s| s.hit) { palette::INCIDENT } else { palette::SELECTED } } else { Color32::from_rgb(92, 100, 112) };
+        plane.rect(&mut content.draw, at(a, lo), at(b, d.max(lo)), 0.0, color, alpha * if lit { 1.0 } else { 0.85 });
+    }
+    // The true surface, thin, over them.
+    for &(_, a, b, d) in &surface {
+        content.draw.segment(on(at(a, d)), on(at(b, d)), palette::SURFACE, alpha * 0.7, 1.5, 0);
+    }
+    // The ray: all of it faint, the part marched bright, each step's start a dot.
+    content.draw.segment(on(at(0.0, ray(0.0))), on(at(end, ray(end))), palette::REFLECTED, alpha * 0.35, 2.0, 0);
+    let reached = current.map_or(0.0, |s| s.t);
+    content.draw.segment(on(at(0.0, ray(0.0))), on(at(reached, ray(reached))), palette::REFLECTED, alpha, 3.0, 0);
+    for s in t.steps.iter().take(shown) {
+        content.draw.point(on(at(s.t, ray(s.t))), 4.0, palette::REFLECTED, alpha);
+    }
+    content.labels.push(Label { anchor: on(at(0.0, ray(0.0)) + Vec2::new(0.0, 0.04)), text: "P".into(), color: palette::SELECTED });
+    let Some(s) = current else { return };
+    // Where the ray leaves the cell and where it reaches the cell's depth: the first decides.
+    let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves")), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"))];
+    for (k, (tt, color, text)) in marks.into_iter().enumerate() {
+        if !(0.0..=end).contains(&tt) {
+            continue;
+        }
+        let x = at(tt, lo).x;
+        content.draw.segment(on(Vec2::new(x, v1)), on(Vec2::new(x, v0)), color, alpha * 0.9, 2.0, frame::FLAG_DASHED);
+        content.draw.point(on(at(tt, ray(tt))), 7.0, color, alpha);
+        content.labels.push(Label { anchor: on(Vec2::new(x, v0 - 0.03 - 0.045 * k as f32)), text: text.to_string(), color });
+    }
+    content.draw.segment(on(at(s.t, ray(s.t))), on(at(s.next_t, ray(s.next_t))), palette::SELECTED, alpha, 3.0, frame::FLAG_ARROW);
+    let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
+    let text = tr_with("demos.profile_level", lab::args!(from = s.level, to = s.next_level, result = result));
+    content.labels.push(Label { anchor: on(Vec2::new(0.5, 0.1)), text, color: if s.hit { palette::INCIDENT } else { palette::SELECTED } });
+}
+
+/// The reversed depth a field column of full height stands for: P's, twice
+/// over, so P's column is half the height. Reversed depth grows
+/// fast near the camera; the floor nearer than P is capped there (the ray
+/// climbs away from it, over farther texels).
+fn field_top(screen: &cpu::Screen, pixel: [i32; 2]) -> f32 {
+    let max = screen.hiz[0].data.iter().copied().fold(0.0f32, f32::max).max(1e-6);
+    (screen.hiz[0].load(pixel).x * 2.0).clamp(1e-6, max)
+}
+
 /// A Hi-Z level as a picture: its depths on a ramp over the room's range.
 fn level_picture(level: &Image, key: String) -> Picture {
     let max = level.data.iter().copied().fold(0.0f32, f32::max).max(1e-6);
@@ -88,19 +272,41 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let inputs = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, state.p("ssrFadeIn"), state.p("ssrFadeOut"), state.p("ssrDepthTolerance"));
     let t = inputs.trace(pixel);
     let shown = (state.p("traceStep").round().max(0.0) as usize).min(t.steps.len());
+    let room = 1.0 - state.p("fieldShow").max(state.p("profileShow")).clamp(0.0, 1.0);
     let start = screen.surface(pixel);
-    content.draw.point(start, 6.0, palette::SELECTED, 1.0);
+    content.draw.point(start, 6.0, palette::SELECTED, room);
     // The ray in the room: the screen-space ray at each iteration's t, back in the world.
     let at = |tt: f32| screen.world_of(t.screen_pos + t.screen_ray * tt);
     let mut path: Vec<Vec3> = vec![screen.view_to_world(t.biased)];
     path.extend(t.steps.iter().take(shown).map(|s| at(s.next_t)));
     if path.len() > 1 {
-        content.draw.polyline(&path, palette::REFLECTED, 1.0, 3.0);
-        content.draw.point(*path.last().expect("a point"), 5.0, palette::REFLECTED, 1.0);
+        content.draw.polyline(&path, palette::REFLECTED, room, 3.0);
+        content.draw.point(*path.last().expect("a point"), 5.0, palette::REFLECTED, room);
     }
     // The level of the iteration shown, the cells visited on it, the current one lit.
     let current = if shown == 0 { None } else { t.steps.get(shown - 1) };
     let level = current.map_or(0, |s| s.level.max(0)) as usize;
+    // The same march over the depth map as a height field: the columns of the level
+    // tested, the cell tested lit (blocking: the hit colour), the ray over them.
+    let lit: Vec<([i32; 2], Color32)> = current.map(|s| (s.cell, if s.hit { palette::INCIDENT } else { palette::SELECTED })).into_iter().collect();
+    // Framing the whole ray, from P to where it ends.
+    let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
+    let ends = [t.screen_pos, t.screen_pos + t.screen_ray * t.steps.last().map_or(0.0, |s| s.next_t)];
+    let focus = [ends[0].x.min(ends[1].x) * w, ends[0].y.min(ends[1].y) * h, ends[0].x.max(ends[1].x) * w, ends[0].y.max(ends[1].y) * h];
+    if let Some(f) = field(state, content, &screen, pixel, focus, level as f32, &lit) {
+        let top = field_top(&screen, pixel);
+        let over = |tt: f32| {
+            let s = t.screen_pos + t.screen_ray * tt;
+            f.point_uv(Vec2::new(s.x, s.y), s.z / top)
+        };
+        let alpha = state.p("fieldShow").clamp(0.0, 1.0);
+        let mut ray: Vec<Vec3> = vec![over(0.0)];
+        ray.extend(t.steps.iter().take(shown).map(|s| over(s.next_t)));
+        if ray.len() > 1 {
+            content.draw.polyline(&ray, palette::REFLECTED, alpha, 3.0);
+            content.draw.point(*ray.last().expect("a point"), 6.0, palette::REFLECTED, alpha);
+        }
+    }
     let img = &screen.hiz[level];
     let mut outlines = Vec::new();
     for (k, s) in t.steps.iter().take(shown).enumerate() {
@@ -116,7 +322,11 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / size.x, (pixel[1] as f32 + 0.5) / size.y], color: palette::SELECTED, label: "P".into() };
     let link = (!outlines.is_empty()).then(|| Link { from: current.map_or(start, |s| at(s.next_t)), outline: outlines.len() - 1 });
     let title = tr_with("demos.trace_inset", lab::args!(level = level, width = img.size[0], height = img.size[1]));
-    content.insets.push(PictureInset { marker: Some(marker), outlines, link, ..PictureInset::new(title, level_picture(img, format!("ssr-trace-level-{level}")), [420.0, 420.0 * img.size[1] as f32 / img.size[0] as f32]) });
+    profile(state, content, &screen, &t, shown);
+    // The level as a picture; the height field, when shown, is that picture risen.
+    if room > 0.5 && state.p("profileShow") < 0.5 {
+        content.insets.push(PictureInset { marker: Some(marker), outlines, link, ..PictureInset::new(title, level_picture(img, format!("ssr-trace-level-{level}")), [420.0, 420.0 * img.size[1] as f32 / img.size[0] as f32]) });
+    }
     // The iteration shown, as the loop computes it.
     let mut rows: Vec<(String, String, Color32)> = Vec::new();
     let row = |rows: &mut Vec<(String, String, Color32)>, name: &str, v: String, c: Color32| rows.push((name.to_string(), v, c));
@@ -126,8 +336,8 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
         row(&mut rows, tr("demos.cell"), format!("({}, {})", s.cell[0], s.cell[1]), palette::SELECTED);
         row(&mut rows, tr("demos.cell_depth"), format!("{:.5}", s.cell_depth), palette::THEME_ACCENT);
         row(&mut rows, tr("demos.ray_depth"), format!("{:.5}", (t.screen_pos + t.screen_ray * s.t).z), palette::REFLECTED);
-        row(&mut rows, tr("demos.depth_t"), format!("{:.5}", s.depth_t), palette::THEME_ACCENT);
-        row(&mut rows, tr("demos.edge_t"), format!("{:.5}", s.edge_t), palette::THEME_ACCENT);
+        row(&mut rows, tr("demos.depth_t"), format!("{:.5}", s.depth_t), palette::INCIDENT);
+        row(&mut rows, tr("demos.edge_t"), format!("{:.5}", s.edge_t), palette::AXIS_Z);
         let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
         row(&mut rows, tr("demos.result"), result.to_string(), palette::SELECTED);
     }
@@ -204,10 +414,23 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
     let (w, h) = (img.size[0] as f32, img.size[1] as f32);
     let outline = Outline { rect: [cell[0] as f32 / w, cell[1] as f32 / h, (cell[0] + 1) as f32 / w, (cell[1] + 1) as f32 / h], color: palette::SELECTED, width: 3.0, outside: false };
     let start = screen.world_at(pixel, p_depth);
+    // The pyramid as a height field: its levels as real columns, rising and merging.
+    if state.p("fieldShow") > 0.0 {
+        if let Some(full) = cpu::screen(content) {
+            let shown = state.p("fieldLevel");
+            let at = (shown.round().max(0.0) as usize).min(full.hiz.len() - 1);
+            let cell = [pixel[0] >> at, pixel[1] >> at];
+            let focus = [pixel[0] as f32 - 16.0, pixel[1] as f32 - 16.0, pixel[0] as f32 + 16.0, pixel[1] as f32 + 16.0];
+            field(state, content, &full, pixel, focus, shown, &[(cell, palette::SELECTED)]);
+        }
+    }
+    let room = 1.0 - state.p("fieldShow").clamp(0.0, 1.0);
     let title = tr_with("demos.pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1]));
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / screen.size[0] as f32, (pixel[1] as f32 + 0.5) / screen.size[1] as f32], color: palette::SELECTED, label: "P".into() };
-    content.insets.push(PictureInset { marker: Some(marker), outlines: vec![outline], link: Some(Link { from: start, outline: 0 }), ..PictureInset::new(title, level_picture(img, format!("ssr-pyramid-{level}")), [480.0, 480.0 * h / w]) });
-    content.draw.point(start, 6.0, palette::SELECTED, 1.0);
+    if room > 0.5 {
+        content.insets.push(PictureInset { marker: Some(marker), outlines: vec![outline], link: Some(Link { from: start, outline: 0 }), ..PictureInset::new(title, level_picture(img, format!("ssr-pyramid-{level}")), [480.0, 480.0 * h / w]) });
+    }
+    content.draw.point(start, 6.0, palette::SELECTED, room);
     let side = 1i32 << level;
     let rows = vec![
         (tr("demos.p_cell").to_string(), format!("({}, {})", cell[0], cell[1]), palette::SELECTED),

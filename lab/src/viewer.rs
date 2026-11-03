@@ -969,6 +969,17 @@ impl App {
             return;
         }
         self.end_intro();
+        // A picture the investigation turns itself takes the drag; the camera keeps its place.
+        if let (MouseButton::Left, Some(values)) = (drag.button, investigation::current().pointer_values(&self.state)) {
+            let turn = |state: &mut ShotState, key: &str, by: f32| {
+                if let Some(v) = state.try_get(key) {
+                    state.set(key, v.f32() + by);
+                }
+            };
+            turn(&mut self.state, values.yaw, -delta.x * 0.3);
+            turn(&mut self.state, values.pitch, -delta.y * 0.3);
+            return;
+        }
         match drag.button {
             MouseButton::Left => self.state.camera.orbit(delta),
             MouseButton::Right | MouseButton::Middle => self.state.camera.pan(delta, height),
@@ -1056,7 +1067,14 @@ impl App {
             free.place(&orbit);
         } else if !self.timeline_playing() && !self.ui_has_pointer {
             self.end_intro();
-            self.state.camera.zoom(steps);
+            match investigation::current().pointer_values(&self.state).and_then(|v| v.zoom) {
+                Some(key) => {
+                    if let Some(v) = self.state.try_get(key) {
+                        self.state.set(key, (v.f32() + steps * 0.1).clamp(0.0, 1.0));
+                    }
+                }
+                None => self.state.camera.zoom(steps),
+            }
         }
     }
 

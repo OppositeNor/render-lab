@@ -7,6 +7,8 @@
 pub mod annotations;
 /// The Play animation of a demonstration, sampled.
 pub mod demo;
+/// An image drawn as a height field of columns, flat as the screen shows it or tilted back.
+pub mod height_field;
 /// Pictures in the viewport's corners.
 pub mod inset;
 /// A selftest's report, its single frames, and its test inputs.

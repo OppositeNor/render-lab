@@ -46,6 +46,19 @@ pub struct PointInstance {
     pub rid: [u32; 4],
 }
 
+/// A solid box: `center`, and its three half-extent vectors `u`, `v`, `w`
+/// (any orientation; `.w` of each unused), lit flat with darkened edges.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct CuboidInstance {
+    pub center: [f32; 3],
+    pub pad: f32,
+    pub u: [f32; 4],
+    pub v: [f32; 4],
+    pub w: [f32; 4],
+    pub color: [f32; 4],
+}
+
 pub const FLAG_ARROW: u32 = 1;
 pub const FLAG_DASHED: u32 = 2;
 // Segment and box kinds (overlay.wgsl): a segment as given, an object's
@@ -60,6 +73,9 @@ pub struct DrawLists {
     pub segments: Vec<SegmentInstance>,
     pub boxes: Vec<BoxInstance>,
     pub points: Vec<PointInstance>,
+    /// Solid boxes (columns of a field, voxels, bars), drawn first and writing
+    /// depth, so they hide each other and the lines behind them.
+    pub cuboids: Vec<CuboidInstance>,
     /// Objects drawn as translucent shells.
     pub ghosts: Vec<u32>,
 }
@@ -77,6 +93,15 @@ impl DrawLists {
             return;
         }
         self.points.push(PointInstance { position: p.to_array(), radius, color: to_f32(color, alpha), rid: [0; 4] });
+    }
+
+    /// A solid box at `center` with half-extent vectors `axes` (lit flat, its edges darkened).
+    pub fn cuboid(&mut self, center: Vec3, axes: [Vec3; 3], color: Color32, alpha: f32) {
+        if alpha <= 0.0 {
+            return;
+        }
+        let [u, v, w] = axes.map(|a| a.extend(0.0).to_array());
+        self.cuboids.push(CuboidInstance { center: center.to_array(), pad: 0.0, u, v, w, color: to_f32(color, alpha) });
     }
 
     pub fn polyline(&mut self, points: &[Vec3], color: Color32, alpha: f32, width: f32) {

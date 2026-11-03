@@ -211,6 +211,16 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
 - `build_frame` fills a `FrameContent` (`lab/src/frame.rs`): objects, uniforms, overlay draw lists (segments, points,
   boxes), labels, notes, and either a struct-panel record or a `Readout` (title, subtitle, rows of name, value, colour,
   and an optional formula). It must be a pure function of its arguments: no wall clock, no state from earlier frames.
+  Solid geometry for a picture goes in the draw lists too: `draw.cuboid(center, half_axes, color, alpha)` is a solid,
+  lit box that writes depth (columns, voxels, bars; lines behind it are dashed). `lab::utility::height_field` draws an
+  image as columns on a plane that can cover the camera's view exactly (the image as the screen shows it) and tilt
+  back as the columns rise (`Placement::facing`, `HeightField::column`): the SSR package's Hi-Z field is its example.
+  The GPU's own data for such a picture comes back through `content.fetch` (`lab::fetch`, render-graph skill).
+  A placement with no tilt is a canvas over the view for 2D charts drawn with the same primitives
+  (`Placement::rect` for bars and panels, `Placement::on` for lines and `content.labels`): the SSR trace's
+  cross-section is its example. A picture with a camera of its own gets the pointer through
+  `Investigation::pointer_values`: while it is shown, a drag and the wheel move the values it names (a field's turn,
+  tilt, zoom) instead of the main camera, so the camera that renders its data keeps its place.
 - **Step parameters** show an algorithm's intermediate steps, so the video can animate them rather than cut from the
   input to the result: how many vectors are drawn, how many samples or rays, how many readout rows (O3DE:
   `vectorsShown`, `ggxSamples`, `readoutRows`).

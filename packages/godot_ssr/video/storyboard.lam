@@ -136,7 +136,7 @@ ${overText {' {hizLevelRange 2.0 0.0}} "With them a ray could walk the depth ima
 
 These are the lines this chapter followed: the pre-pass, its encoding, and the downsample.
 
-## The depth pyramid {#c3 number=3 target=75 summary="Each level of the Hi-Z pyramid keeps the nearest depth of four texels below it, so a ray can skip a whole cell it stays in front of." sources="hiz-texture, mip-count, pass-hiz, hiz-max"}
+## The depth pyramid {#c3 number=3 target=90 summary="Each level of the Hi-Z pyramid keeps the nearest depth of four texels below it, so a ray can skip a whole cell it stays in front of." sources="hiz-texture, mip-count, pass-hiz, hiz-max"}
 
 ### One pixel per step is many steps {#c3-why kind=3d}
 
@@ -145,41 +145,48 @@ ${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 24.0 13.0}}}}}}}
 
 ${overText {' {traceStepRange 0.0 3.0}} "A ray from P that tested every pixel it crossed would take hundreds of steps"}, ${overText {' {traceStepRange 3.0 6.0}} "and most of them would cross empty floor"}.
 
+
+### The depth map as a height field {#c3-field kind=3d}
+
+${cue "key" {opening demoPyramid panelHidden {append baseRoom {' {hizLevel 0.0}}}}}
+
+${overText {' {fieldShowRange 0.0 1.0}} "Here is the depth the downsample keeps, one texel per SSR pixel, as the screen shows it"}.
+
+${overText {' {fieldMorphRange 0.0 1.0} {fieldTurnRange 0.0 -30.0}} "Raise every texel into a column as tall as its reversed depth, and the nearest surfaces stand tallest"}.
+
+${overText {' {fieldTurnRange -30.0 -20.0}} "A reflected ray travels over these columns, and it hits where it passes below the top of one"}.
+
 ### Each level keeps the nearest of four {#c3-max kind=3d}
 
-${cue "key" {opening demoPyramid panelCode {append baseRoom {' {hizLevel 0.0} {listing "pyramid"} {highlight {' "reduce"}}}}}}
+${cue "key" {opening demoPyramid panelCode {append baseRoom {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0} {hizLevel 0.0} {listing "pyramid"} {highlight {' "reduce"}}}}}}
 ${cue "key" {' {inset "hizGpu"} {imageGraph "ssrHiz.hiz"} {attr "image.level" "0"} imageCornerBottomRight}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 22.0 12.0} {' 16.0 11.0}}}}}}}
 
-${cue "key" {' {callout "hiz-texture"}}}${overText {' {hizLevelRange 0.0 1.0}} "Godot builds a pyramid of depths"}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "1"}}}${overText {' {hizLevelRange 1.0 2.0}} "each level half the size of the one below"}.
+${cue "key" {' {callout "hiz-texture"}}}${overText {' {hizLevelRange 0.0 1.0} {fieldLevelRange 0.0 1.0}} "Godot builds a pyramid of depths"}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "1"}}}${overText {' {hizLevelRange 1.0 2.0} {fieldLevelRange 1.0 2.0}} "each level half the size of the one below"}.
 
-${cue "key" {' {callout "hiz-max"} {highlight {' "max"}}}}${over {' {hizLevelRange 2.0 3.0}} {overText {' {pickXRange 250.0 330.0}} "Each texel keeps the largest depth of its four"}}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "3"}}}${overText {' {pickYRange 190.0 230.0}} "which with reversed depth is the nearest surface"}.
+${cue "key" {' {callout "hiz-max"} {highlight {' "max"}}}}${over {' {hizLevelRange 2.0 3.0} {fieldLevelRange 2.0 3.0}} {overText {' {pickXRange 250.0 330.0}} "Each texel keeps the largest depth of its four"}}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "3"}}}${overText {' {pickYRange 190.0 230.0}} "which with reversed depth is the nearest surface"}.
 
-${cue "key" {' {highlight {' "store"}}}}${over {' {hizLevelRange 3.0 4.0}} {overText {' {pickXRange 330.0 270.0}} "So a texel says: nothing under this cell is nearer than this"}}.
+${cue "key" {' {highlight {' "store"}}}}${over {' {hizLevelRange 3.0 4.0} {fieldLevelRange 3.0 4.0}} {overText {' {pickXRange 330.0 270.0}} "So a texel says: nothing under this cell is nearer than this"}}.
 
 ### Halve until a side reaches one {#c3-levels kind=3d}
 
-${cue "key" {opening demoPyramid panelCode {append baseRoom {' {hizLevel 0.0} {listing "pyramid"} {highlight {' "store"}}}}}}
+${cue "key" {opening demoPyramid panelCode {append baseRoom {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0} {hizLevel 0.0} {listing "pyramid"} {highlight {' "store"}}}}}}
 ${cue "key" {' {inset "hizGpu"} {imageGraph "ssrHiz.hiz"} {attr "image.level" "4"} imageCornerBottomRight}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 14.0 12.0} {' 20.0 11.0}}}}}}}
 
-${cue "key" {' {callout "mip-count"}}}${overText {' {hizLevelRange 0.0 5.0}} "Levels are made, one dispatch each"}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "7"}}}${overText {' {hizLevelRange 5.0 9.0}} "until one side is a single texel"}.
+${cue "key" {' {callout "mip-count"}}}${overText {' {hizLevelRange 0.0 5.0} {fieldLevelRange 0.0 5.0}} "Levels are made, one dispatch each"}, ${cue "key" {' {inset "hizGpu"} {attr "image.level" "7"}}}${overText {' {hizLevelRange 5.0 9.0} {fieldLevelRange 5.0 9.0}} "until one side is a single texel"}.
 
-${cue "key" {' {callout "pass-hiz"} {highlight {' "odd"}}}}${over {' {hizLevelRange 9.0 2.0}} {overText {' {pickXRange 200.0 360.0}} "Where a level's parent has an odd side, a third row or column is read, so no texel is left out"}}.
+${cue "key" {' {callout "pass-hiz"} {highlight {' "odd"}}}}${over {' {hizLevelRange 9.0 2.0} {fieldLevelRange 9.0 2.0}} {overText {' {pickXRange 200.0 360.0}} "Where a level's parent has an odd side, a third row or column is read, so no texel is left out"}}.
 
 ### A cell can be skipped when the ray stays in front {#c3-skip kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {' {traceStep 2.0}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 22.0 12.0}}}}}}}
+${cue "key" {opening demoTrace panelValues {append baseRoom {' {profileShow 1.0} {traceStep 2.0}}}}}
 
 ${overText {' {traceStepRange 2.0 5.0}} "If the ray stays in front of a cell's nearest depth all the way across it, nothing in that cell can be hit"}, ${overText {' {traceStepRange 5.0 7.0}} "and the whole cell is skipped in one step"}.
 
 ### Next: the march {#c3-recap kind=3d}
 
-${cue "key" {opening demoPyramid panelHidden {append baseRoom {' {hizLevel 3.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 10.0 5.6} {' 28.0 13.0 5.1}}}}}}}
+${cue "key" {opening demoPyramid panelHidden {append baseRoom {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 3.0} {hizLevel 3.0}}}}}
 
-${over {' {hizLevelRange 3.0 0.0}} {overText {' {pickXRange 300.0 220.0}} "So the pyramid is a map of the nearest depths at every scale"}}, ${overText {' {hizLevelRange 0.0 5.0}} "and the trace walks it next"}.
+${over {' {hizLevelRange 3.0 0.0} {fieldLevelRange 3.0 0.0}} {overText {' {pickXRange 300.0 220.0}} "So the pyramid is a map of the nearest depths at every scale"}}, ${overText {' {fieldMorphRange 1.0 0.0} {fieldTurnRange -30.0 0.0}} "and the trace walks it next"}.
 
 ### Where to read {#c3-sources kind=2d sources="hiz-texture, mip-count, pass-hiz, hiz-max"}
 
@@ -200,19 +207,17 @@ ${cue "key" {' {callout "bounce"} {highlight {' "reflect"}}}}${cue "key" {' {mot
 
 ### The same ray across the screen {#c4-screen kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {' {traceStep 1.0} {listing "trace"} {highlight {' "screen"}}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 14.0 13.0} {' 20.0 11.0}}}}}}}
+${cue "key" {opening demoTrace panelCode {append baseRoom {' {fieldTurn -30.0} {traceStep 1.0} {listing "trace"} {highlight {' "screen"}}}}}}
 
-${cue "key" {' {callout "parametric-t"}}}${overText {' {traceStepRange 1.0 2.0}} "The ray is projected onto the screen and scaled so that its depth changes by exactly one for each unit of t"}.
+${cue "key" {' {callout "parametric-t"}}}${overText {' {fieldShowRange 0.0 1.0}} "The ray is projected onto the screen"} ${overText {' {fieldMorphRange 0.0 1.0} {traceStepRange 1.0 2.0}} "and scaled so that its depth changes by exactly one for each unit of t"}.
 
-${cue "key" {' {callout "camera-clip"}}}${cue "key" {' {motion {' {path {' cameraPitch} {' {' 13.0}} sentence}}}}}An end point behind the camera is clipped to the camera's plane, ${cue "key" {' {callout "t-max"}}}${over {' {pickXRange 280.0 120.0}} {overText {' {traceStepRange 0.0 64.0}} "and the trace stops where the ray leaves the screen"}}.
+${cue "key" {' {callout "camera-clip"}}}An end point behind the camera is clipped to the camera's plane, ${cue "key" {' {callout "t-max"}}}${over {' {pickXRange 280.0 120.0}} {overText {' {traceStepRange 0.0 64.0}} "and the trace stops where the ray leaves the screen"}}.
 
-${cue "key" {' {callout "start-advance"} {highlight {' "start"}} {pickX -1.0} {traceStep 0.0}}}${overText {' {traceStepRange 0.0 1.0}} "The first step starts in the next cell, so the ray never hits its own pixel"}.
+${cue "key" {' {callout "start-advance"} {highlight {' "start"}} {pickX -1.0} {traceStep 0.0}}}${overText {' {traceStepRange 0.0 1.0} {fieldShowRange 1.0 0.0} {profileShowRange 0.0 1.0}} "The first step starts in the next cell, so the ray never hits its own pixel"}.
 
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {' {traceStep 0.0} {listing "trace"} {highlight {' "loop"}}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 22.0 11.0}}}}}}}
+${cue "key" {opening demoTrace panelCode {append baseRoom {' {profileShow 1.0} {traceStep 0.0} {listing "trace"} {highlight {' "loop"}}}}}}
 
 ${cue "key" {' {callout "loop"} {highlight {' "cell"}}}}${overText {' {traceStepRange 0.0 2.0}} "Each iteration takes the cell the ray is in, on the current level"}, ${cue "key" {' {highlight {' "depth" "edge"}}}}${overText {' {traceStepRange 2.0 4.0}} "and compares where the ray reaches that cell's depth with where it leaves the cell"}.
 
@@ -222,8 +227,7 @@ ${cue "key" {' {highlight {' "hit"}}}}${overText {' {traceStepRange 7.0 9.0}} "I
 
 ### At level zero the hit is final {#c4-hit kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {' {traceStep 9.0} {listing "trace"} {highlight {' "tolerance"}}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 14.0 12.0}}}}}}}
+${cue "key" {opening demoTrace panelCode {append baseRoom {' {profileShow 1.0} {traceStep 9.0} {listing "trace"} {highlight {' "tolerance"}}}}}}
 
 ${cue "key" {' {callout "tolerance"}}}${over {' {traceStepRange 9.0 11.0}} {overText {' {ssrDepthToleranceRange 0.5 0.1}} "At level zero only, a ray more than the tolerance behind a surface is passing under it"}}, ${overText {' {ssrDepthToleranceRange 0.1 0.5}} "and stays at level zero"}.
 
@@ -231,17 +235,16 @@ ${cue "key" {' {callout "level-step"} {highlight {' "level"}}}}${overText {' {tr
 
 ### Three ways out {#c4-exits kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {' {traceStep 64.0}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 24.0 12.0}}}}}}}
+${cue "key" {opening demoTrace panelValues {append baseRoom {' {profileShow 1.0} {traceStep 64.0}}}}}
 
 ${overText {' {ssrMaxStepsRange 64.0 32.0}} "The loop also ends when its steps run out, sixty-four by default"}, ${over {' {ssrMaxStepsRange 32.0 64.0}} {overText {' {pickXRange 300.0 60.0}} "or when the ray leaves the screen"}}.
 
 ### The slowest lane sets the time {#c4-lanes kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {' {traceStep 64.0}}}}}
+${cue "key" {opening demoTrace panelValues {append baseRoom {' {profileShow 1.0} {traceStep 64.0}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 20.0 13.0}}}}}}}
 
-${over {' {pickXRange 200.0 207.0}} {overText {' {pickYRange 200.0 207.0}} "The GPU runs a group's sixty-four threads in lockstep waves, so a wave takes as long as its longest trace"}}.
+${over {' {pickXRange 200.0 207.0} {profileShowRange 1.0 0.0}} {overText {' {pickYRange 200.0 207.0}} "The GPU runs a group's sixty-four threads in lockstep waves, so a wave takes as long as its longest trace"}}.
 
 ${overText {' {floorRoughnessRange 0.15 0.75}} "Sky pixels and rough ones finish at once and wait"}, ${over {' {floorRoughnessRange 0.75 0.15}} {overText {' {pickYRange 207.0 60.0}} "and the group is only done when its last ray is"}}.
 

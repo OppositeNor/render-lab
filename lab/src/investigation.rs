@@ -526,6 +526,17 @@ pub struct SelftestOptions {
     pub work_dir: PathBuf,
 }
 
+/// The values a drag and the wheel move in place of the main camera (`Investigation::pointer_values`).
+#[derive(Clone, Copy, Debug)]
+pub struct PointerValues {
+    /// Turned by a horizontal drag (degrees, as the camera's yaw).
+    pub yaw: &'static str,
+    /// Turned by a vertical drag (degrees; dragging down looks more from above).
+    pub pitch: &'static str,
+    /// Stepped by the wheel (a tenth per notch, toward 1 when scrolling in), if any.
+    pub zoom: Option<&'static str>,
+}
+
 pub trait Investigation: Sync {
     fn engine(&self) -> &'static Engine;
     /// Short key, used in `engine/feature` paths.
@@ -702,6 +713,16 @@ pub trait Investigation: Sync {
     /// A click in the viewport at `pixel` on the frame of `shown` (the state on
     /// screen); changes `state` and returns true if it selected something.
     fn click(&self, shown: &ShotState, state: &mut ShotState, content: &FrameContent, statics: &Statics, projector: &Projector, pixel: Vec2) -> bool;
+
+    /// While `shown` shows a picture the investigation turns with a camera of its
+    /// own (one drawn over the scene, such as a field it lays out), the values the
+    /// pointer moves instead of the main camera, so the scene's camera (and what
+    /// it renders) keeps its place: a left drag turns `yaw` and `pitch` (degrees,
+    /// as the camera's orbit), the wheel steps `zoom`. None: the pointer moves the camera.
+    fn pointer_values(&self, shown: &ShotState) -> Option<PointerValues> {
+        let _ = shown;
+        None
+    }
 
     /// The scripted test of the viewer's controls (`viewer-autotest`).
     fn viewer_test(&self, report: PathBuf) -> Option<Box<dyn ViewerTest>> {

@@ -159,6 +159,14 @@ impl Investigation for Ssr {
     }
 
     /// A click on the scene picks the SSR pixel under it (half size): the trace demonstrations follow it.
+    /// While the depth map is shown as a height field, the pointer turns the field
+    /// itself (its turn and tilt; the wheel zooms it toward P), so the camera that
+    /// renders the depth map keeps its place.
+    fn pointer_values(&self, shown: &ShotState) -> Option<lab::investigation::PointerValues> {
+        let field = matches!(Demo::of(shown.demo), Demo::Pyramid | Demo::Trace) && shown.p("fieldShow") > 0.5 && shown.p("fieldMorph") > 0.05 && shown.p("profileShow") < 0.5;
+        field.then_some(lab::investigation::PointerValues { yaw: "fieldTurn", pitch: "fieldTilt", zoom: Some("fieldZoom") })
+    }
+
     fn click(&self, shown: &ShotState, state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, pixel: Vec2) -> bool {
         if Demo::of(shown.demo) != Demo::Trace {
             return false;

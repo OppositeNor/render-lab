@@ -169,6 +169,20 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         );
     }
 
+    // The pointer turns the height field while it is shown, and the camera otherwise.
+    {
+        use lab::investigation::Investigation;
+        let ssr = super::Ssr;
+        let mut state = shot::for_demo(Demo::Trace);
+        let camera = ssr.pointer_values(&state).is_none();
+        state.set("fieldShow", 1.0);
+        state.set("fieldMorph", 1.0);
+        let field = ssr.pointer_values(&state).is_some_and(|v| v.yaw == "fieldTurn" && v.pitch == "fieldTilt");
+        state.set("profileShow", 1.0);
+        let profile = ssr.pointer_values(&state).is_none();
+        report.check("the pointer turns the height field while it is shown (the depth map's camera stays), and the camera otherwise", camera && field && profile, json!({"camera": camera, "field": field, "crossSection": profile}));
+    }
+
     // Every demonstration builds its state.
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check("every demonstration's file loads", states_ok, json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()));

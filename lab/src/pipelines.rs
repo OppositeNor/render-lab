@@ -1,7 +1,7 @@
 //! Every pipeline of the scene renderer, built from the WGSL modules in
 //! src/shaders.rs. Bind group 0 mirrors packages/render_lab/shaders/bindings.wgsl.
 
-use crate::frame::{BoxInstance, PointInstance, SegmentInstance};
+use crate::frame::{BoxInstance, CuboidInstance, PointInstance, SegmentInstance};
 use crate::gpu::{DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
 use crate::investigation::SceneShading;
 use crate::scene::Vertex;
@@ -36,6 +36,7 @@ pub struct Pipelines {
     pub boxes: wgpu::RenderPipeline,
     pub boxes_xray: wgpu::RenderPipeline,
     pub point: wgpu::RenderPipeline,
+    pub cuboid: wgpu::RenderPipeline,
     pub composite: wgpu::RenderPipeline,
     /// The scene without the overlay (the images an experiment measures).
     pub composite_scene: wgpu::RenderPipeline,
@@ -171,6 +172,13 @@ const SEGMENT_ATTRS: [wgpu::VertexAttribute; 6] = [
     attr(5, 48, wgpu::VertexFormat::Uint32x4),
 ];
 const BOX_ATTRS: [wgpu::VertexAttribute; 3] = [attr(0, 0, wgpu::VertexFormat::Uint32x4), attr(1, 16, wgpu::VertexFormat::Float32x4), attr(2, 32, wgpu::VertexFormat::Float32x4)];
+const CUBOID_ATTRS: [wgpu::VertexAttribute; 5] = [
+    attr(0, 0, wgpu::VertexFormat::Float32x3),
+    attr(1, 16, wgpu::VertexFormat::Float32x4),
+    attr(2, 32, wgpu::VertexFormat::Float32x4),
+    attr(3, 48, wgpu::VertexFormat::Float32x4),
+    attr(4, 64, wgpu::VertexFormat::Float32x4),
+];
 const POINT_ATTRS: [wgpu::VertexAttribute; 4] = [
     attr(0, 0, wgpu::VertexFormat::Float32x3),
     attr(1, 12, wgpu::VertexFormat::Float32),
@@ -325,6 +333,7 @@ impl Pipelines {
         let segments = [Some(instance_layout::<SegmentInstance>(&SEGMENT_ATTRS))];
         let boxes = [Some(instance_layout::<BoxInstance>(&BOX_ATTRS))];
         let points = [Some(instance_layout::<PointInstance>(&POINT_ATTRS))];
+        let cuboids = [Some(instance_layout::<CuboidInstance>(&CUBOID_ATTRS))];
         let sky = render_pipeline(device, &frame_only, PipelineSpec {
             label: "sky",
             module: &scene_module,
@@ -344,6 +353,7 @@ impl Pipelines {
             boxes: overlay("box", "boxVS", "lineFS", &boxes, (GreaterEqual, false)),
             boxes_xray: overlay("box x-ray", "boxVS", "lineFS", &boxes, (Always, false)),
             point: overlay("point", "pointVS", "pointFS", &points, (Always, false)),
+            cuboid: overlay("cuboid", "cuboidVS", "cuboidFS", &cuboids, (GreaterEqual, true)),
             composite: render_pipeline(device, &with_pair, PipelineSpec {
                 label: "composite",
                 module: &scene_module,
