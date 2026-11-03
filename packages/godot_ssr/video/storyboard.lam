@@ -136,7 +136,7 @@ ${overText {' {hizLevelRange 2.0 0.0}} "With them a ray could walk the depth ima
 
 These are the lines this chapter followed: the pre-pass, its encoding, and the downsample.
 
-## The depth pyramid {#c3 number=3 target=90 summary="Each level of the Hi-Z pyramid keeps the nearest depth of four texels below it, so a ray can skip a whole cell it stays in front of." sources="hiz-texture, mip-count, pass-hiz, hiz-max"}
+## The depth pyramid {#c3 number=3 target=100 summary="Each level of the Hi-Z pyramid keeps the nearest depth of four texels below it, so a ray can skip a whole cell it stays in front of." sources="hiz-texture, mip-count, pass-hiz, hiz-max"}
 
 ### One pixel per step is many steps {#c3-why kind=3d}
 
@@ -178,9 +178,15 @@ ${cue "key" {' {callout "pass-hiz"} {highlight {' "odd"}}}}${over {append {' {hi
 
 ### A cell can be skipped when the ray stays in front {#c3-skip kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {append {' {traceStep 2.0}} {view "profile" {' {profileShow 1.0}}}}}}}
+${cue "key" {opening demoTrace panelValues {append baseRoom {append {' {traceStep 0.0}} {view "profile" {' {profileShow 1.0}}}}}}}
 
-${overText {' {traceStepRange 2.0 5.0}} "If the ray stays in front of a cell's nearest depth all the way across it, nothing in that cell can be hit"}, ${overText {' {traceStepRange 5.0 7.0}} "and the whole cell is skipped in one step"}.
+${overText {' {traceStepRange 0.0 0.2}} "Take the first cell the ray crosses"}.
+
+${overText {' {traceStepRange 0.2 0.6}} "The ray leaves the cell before it reaches the cell's nearest depth"}.
+
+So nothing in that cell can be hit.
+
+${overText {' {traceStepRange 0.6 0.8}} "The ray skips the whole cell in one step"}.
 
 ### Next: the march {#c3-recap kind=3d}
 
@@ -192,7 +198,7 @@ ${over {append {' {hizLevelRange 3.0 0.0}} {view "field" {' {fieldLevelRange 3.0
 
 These are the lines this chapter followed: the pyramid's texture, its levels, and its reduction.
 
-## Marching the ray {#c4 number=4 target=140 summary="P's ray starts just off the surface, crosses the screen with its depth changing by one per unit of t, climbs a level on a miss and descends on a hit, and ends at level zero." sources="pass-main, trace-sky, trace-rough, bias, bounce, camera-clip, parametric-t, t-max, start-advance, loop, hit-test, tolerance, level-step"}
+## Marching the ray {#c4 number=4 target=160 summary="P's ray starts just off the surface, crosses the screen with its depth changing by one per unit of t, climbs a level on a miss and descends on a hit, and ends at level zero." sources="pass-main, trace-sky, trace-rough, bias, bounce, camera-clip, parametric-t, t-max, start-advance, loop, hit-test, tolerance, level-step"}
 
 ### The ray starts just off the surface {#c4-start kind=3d}
 
@@ -207,37 +213,63 @@ ${cue "key" {' {callout "bounce"} {highlight {' "reflect"}}}}${cue "key" {' {mot
 
 ### The same ray across the screen {#c4-screen kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {append {' {traceStep 1.0} {listing "trace"} {highlight {' "screen"}}} {view "field" {' {fieldTurn -30.0}}}}}}}
+${cue "key" {opening demoTrace panelCode {append baseRoom {append {' {traceStep 15.0} {listing "trace"} {highlight {' "screen"}}} {view "field" {' {fieldTurn -30.0}}}}}}}
 
-${cue "key" {' {callout "parametric-t"}}}${overText {view "field" {' {fieldShowRange 0.0 1.0}}} "The ray is projected onto the screen"} ${overText {append {' {traceStepRange 1.0 2.0}} {view "field" {' {fieldMorphRange 0.0 1.0}}}} "and scaled so that its depth changes by exactly one for each unit of t"}.
+${cue "key" {' {callout "parametric-t"}}}${overText {view "field" {' {fieldShowRange 0.0 1.0}}} "The ray is projected onto the screen"} ${overText {view "field" {' {fieldMorphRange 0.0 1.0}}} "and scaled so that its depth changes by exactly one for each unit of t"}.
 
-${cue "key" {' {callout "camera-clip"}}}An end point behind the camera is clipped to the camera's plane, ${cue "key" {' {callout "t-max"}}}${over {' {pickXRange 280.0 120.0}} {overText {' {traceStepRange 0.0 64.0}} "and the trace stops where the ray leaves the screen"}}.
+${cue "key" {' {callout "camera-clip"}}}An end point behind the camera is clipped to the camera's plane.
 
-${cue "key" {' {callout "start-advance"} {highlight {' "start"}} {pickX -1.0} {traceStep 0.0}}}${overText {append {append {' {traceStepRange 0.0 1.0}} {view "field" {' {fieldShowRange 1.0 0.0}}}} {view "profile" {' {profileShowRange 0.0 1.0}}}} "The first step starts in the next cell, so the ray never hits its own pixel"}.
+${cue "key" {' {callout "t-max"}}}${overText {' {pickXRange 280.0 120.0}} "The trace stops where the ray leaves the screen"}.
+
+${cue "key" {' {callout "start-advance"} {highlight {' "start"}} {pickX -1.0} {traceStep 0.0}}}${overText {append {view "field" {' {fieldShowRange 1.0 0.0}}} {view "profile" {' {profileShowRange 0.0 1.0}}}} "The first step starts in the next cell, so the ray never hits its own pixel"}.
 
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append {' {traceStep 0.0} {listing "trace"} {highlight {' "loop"}}} {view "profile" {' {profileShow 1.0}}}}}}}
 
-${cue "key" {' {callout "loop"} {highlight {' "cell"}}}}${overText {' {traceStepRange 0.0 2.0}} "Each iteration takes the cell the ray is in, on the current level"}, ${cue "key" {' {highlight {' "depth" "edge"}}}}${overText {' {traceStepRange 2.0 4.0}} "and compares where the ray reaches that cell's depth with where it leaves the cell"}.
+${cue "key" {' {callout "loop"} {highlight {' "cell"}}}}${overText {' {traceStepRange 0.0 0.2}} "Each iteration tests one cell, the one the ray is in on the current level"}.
 
-${cue "key" {' {callout "hit-test"} {highlight {' "hit"}}}}${overText {' {traceStepRange 4.0 5.0}} "If it leaves first, the cell is a miss"}: ${cue "key" {' {highlight {' "advance"}}}}${overText {' {traceStepRange 5.0 6.0}} "the ray jumps to the cell's edge"} ${cue "key" {' {highlight {' "level"}}}}${overText {' {traceStepRange 6.0 7.0}} "and climbs a level, to cells twice as wide"}.
+${cue "key" {' {highlight {' "edge"}}}}${overText {' {traceStepRange 0.2 0.4}} "It marks where the ray leaves that cell"}.
 
-${cue "key" {' {highlight {' "hit"}}}}${overText {' {traceStepRange 7.0 9.0}} "If it reaches the depth first, the cell may hold a hit"}, ${cue "key" {' {highlight {' "level"}}}}${overText {' {traceStepRange 9.0 12.0}} "and the ray descends a level to look closer"}.
+${cue "key" {' {highlight {' "depth"}}}}${overText {' {traceStepRange 0.4 0.6}} "Then it marks where the ray reaches the cell's nearest depth"}.
+
+${cue "key" {' {callout "hit-test"} {highlight {' "hit"}}}}Here the ray leaves first, so the cell is a miss.
+
+${cue "key" {' {highlight {' "advance"}}}}${overText {' {traceStepRange 0.6 0.8}} "The ray jumps to the cell's edge"}.
+
+${cue "key" {' {highlight {' "level"}}}}${overText {' {traceStepRange 0.8 1.0}} "Then it climbs a level, to cells twice as wide"}.
+
+${overText {' {traceStepRange 1.0 2.0}} "The next cell is a miss too, so the ray climbs again"}.
+
+${cue "key" {' {highlight {' "hit"}}}}${overText {' {traceStepRange 2.0 2.6}} "On level two, the ray reaches the cell's depth first"}.
+
+${cue "key" {' {highlight {' "advance"}}}}${overText {' {traceStepRange 2.6 2.8}} "That cell may hold a hit, so the ray moves only up to that depth"}.
+
+${cue "key" {' {highlight {' "level"}}}}${overText {' {traceStepRange 2.8 3.0}} "Then it descends a level, to look closer"}.
 
 ### At level zero the hit is final {#c4-hit kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {append {' {traceStep 9.0} {listing "trace"} {highlight {' "tolerance"}}} {view "profile" {' {profileShow 1.0}}}}}}}
+${cue "key" {opening demoTrace panelCode {append baseRoom {append {' {traceStep 3.0} {listing "trace"} {highlight {' "level"}}} {view "profile" {' {profileShow 1.0}}}}}}}
 
-${cue "key" {' {callout "tolerance"}}}${over {' {traceStepRange 9.0 11.0}} {overText {' {ssrDepthToleranceRange 0.5 0.1}} "At level zero only, a ray more than the tolerance behind a surface is passing under it"}}, ${overText {' {ssrDepthToleranceRange 0.1 0.5}} "and stays at level zero"}.
+${overText {' {traceStepRange 3.0 7.0}} "Up and down it goes, one level at a time"}.
 
-${cue "key" {' {callout "level-step"} {highlight {' "level"}}}}${overText {' {traceStepRange 11.0 13.0}} "Otherwise a hit at level zero takes the level below zero"}, ${cue "key" {' {highlight {' "loop"}}}}${overText {' {traceStepRange 13.0 64.0}} "and the loop ends on the teapot"}.
+${overText {' {traceStepRange 7.0 10.0}} "Three hits in a row bring it down to level zero"}.
+
+${cue "key" {' {callout "tolerance"} {highlight {' "tolerance"}}}}${overText {' {ssrDepthToleranceRange 0.5 0.1}} "At level zero only, a ray more than the tolerance behind a surface is passing under it"}.
+
+${overText {' {ssrDepthToleranceRange 0.1 0.5}} "Such a ray stays at level zero and goes on"}.
+
+${cue "key" {' {highlight {' "loop"}}}}${overText {' {traceStepRange 10.0 14.0}} "Near the teapot, it steps a cell at a time"}.
+
+${cue "key" {' {callout "level-step"} {highlight {' "level"}}}}${overText {' {traceStepRange 14.0 15.0}} "A hit at level zero ends the loop, on the teapot"}.
 
 ### Three ways out {#c4-exits kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {append {' {traceStep 64.0}} {view "profile" {' {profileShow 1.0}}}}}}}
+${cue "key" {opening demoTrace panelValues {append baseRoom {append {' {traceStep 15.0}} {view "profile" {' {profileShow 1.0}}}}}}}
 
-${overText {' {ssrMaxStepsRange 64.0 32.0}} "The loop also ends when its steps run out, sixty-four by default"}, ${over {' {ssrMaxStepsRange 32.0 64.0}} {overText {' {pickXRange 300.0 60.0}} "or when the ray leaves the screen"}}.
+${overText {' {ssrMaxStepsRange 64.0 32.0}} "The loop also ends when its steps run out, sixty-four by default"}.
+
+${over {' {ssrMaxStepsRange 32.0 64.0}} {overText {' {pickXRange 300.0 60.0}} "Or it ends when the ray leaves the screen"}}.
 
 ### The slowest lane sets the time {#c4-lanes kind=3d}
 

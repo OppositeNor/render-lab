@@ -78,6 +78,19 @@ pub struct DrawLists {
     pub cuboids: Vec<CuboidInstance>,
     /// Objects drawn as translucent shells.
     pub ghosts: Vec<u32>,
+    /// Text pinned at a point (a chart's axis names and marks): drawn exactly there, unlike `labels`, which are
+    /// placed beside their anchors with a leader line.
+    pub texts: Vec<PinnedText>,
+}
+
+/// Text drawn at a point of the scene (`DrawLists::text`).
+#[derive(Clone, Debug)]
+pub struct PinnedText {
+    pub at: Vec3,
+    pub text: String,
+    pub color: Color32,
+    /// Which point of the text's box sits at `at`: 0 to 1 across (left to right) and down (top to bottom).
+    pub align: [f32; 2],
 }
 
 impl DrawLists {
@@ -93,6 +106,11 @@ impl DrawLists {
             return;
         }
         self.points.push(PointInstance { position: p.to_array(), radius, color: to_f32(color, alpha), rid: [0; 4] });
+    }
+
+    /// Text at `at`, the point `align` of its box (0 to 1 across and down: `[0.5, 1.0]` centres it above `at`).
+    pub fn text(&mut self, at: Vec3, text: impl Into<String>, color: Color32, align: [f32; 2]) {
+        self.texts.push(PinnedText { at, text: text.into(), color, align });
     }
 
     /// A solid box at `center` with half-extent vectors `axes` (lit flat, its edges darkened).

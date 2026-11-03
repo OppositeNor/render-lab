@@ -612,6 +612,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 }
             }
             if let Some(content) = input.content {
+                // A view stacked over the main one (src/view.rs) covers it: the main view's tags (its insets, its
+                // callout, its labels) belong to it, so they are not drawn over the other view's picture.
+                let covered = !input.overs.is_empty();
                 // Insets and the callout first; labels then avoid them.
                 let mut obstacles = Vec::new();
                 // The investigation's insets, then the image the story shows.
@@ -620,7 +623,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 // Insets sharing a corner stack in a row away from it, and in a
                 // new row once the next would leave the viewport.
                 let mut rows: Vec<(crate::utility::inset::Corner, egui::Vec2, f32)> = Vec::new();
-                for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0) {
+                for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0 && !covered) {
                     let size = crate::utility::inset::frame_size(ctx, &ink, l, input.textures, inset);
                     let offset = match rows.iter_mut().find(|(corner, _, _)| *corner == inset.corner) {
                         None => {
@@ -656,7 +659,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let insets = obstacles.clone();
                     obstacles.extend(draw_compare(&ink, l.viewport, compare, &insets));
                 }
-                if let Some(key) = &input.state.callout {
+                if let (Some(key), false) = (&input.state.callout, covered) {
                     let insets = obstacles.clone();
                     obstacles.extend(draw_callout(&ink, l, key, &insets));
                 }
@@ -664,7 +667,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let insets = obstacles.clone();
                     obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
                 }
-                draw_labels(&ink, input, content, &obstacles, &mut report);
+                if !covered {
+                    draw_labels(&ink, input, content, &obstacles, &mut report);
+                }
                 if input.state.panel == PanelMode::Knowledge {
                     let topics = match &chrome {
                         Chrome::Viewer(v) => v.knowledge.clone(),
@@ -971,6 +976,18 @@ fn draw_labels(ink: &Ink, input: &UiInput, content: &FrameContent, obstacles: &[
     let bounds = l.viewport.shrink(6.0);
     let mut placed: Vec<Rect> = Vec::new();
     let blocked = |r: &Rect| obstacles.iter().any(|o| o.intersects(*r));
+    // Pinned text: exactly where it is put (a chart's names), so it neither moves nor needs a leader line.
+    for t in &content.draw.texts {
+        let Some((px, _)) = projector.project(t.at) else { continue };
+        let at = l.viewport_pixel_to_canvas(px);
+        if !l.viewport.contains(at) {
+            continue;
+        }
+        let size = rich_text::measure(ink, &t.text, 24.0, FontFamily::Proportional);
+        let min = at - vec2(size.x * t.align[0], size.y * t.align[1]);
+        ink.text(min, Align2::LEFT_TOP, &t.text, 24.0, FontFamily::Proportional, t.color);
+        placed.push(Rect::from_min_size(min, size));
+    }
     for label in &content.labels {
         let Some((px, _)) = projector.project(label.anchor) else { continue };
         let anchor = l.viewport_pixel_to_canvas(px);

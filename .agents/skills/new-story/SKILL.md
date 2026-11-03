@@ -310,6 +310,15 @@ visual often names something nothing can show.
   before it is written, so it names what that chapter really ended on.
 - One paragraph per sentence; spoken numbers; say where the lab differs. Add a word the voice gets wrong to
   `pronunciations` in `video.json`.
+- **One thing per sentence.** Each sentence describes at most one thing: one step, one comparison, one result, one
+  change on screen. Do not join two ideas with "and", a colon, or a semicolon; give the second its own sentence (and
+  its own cue). A sentence that does several things at once is hard to follow, and so is a picture that changes
+  several things at once: animate one change per sentence, in order (a stepped algorithm advances a fraction of a
+  step per sentence, each fraction one change; see SSR's trace stepper, `traceStep`).
+- **Not too dense.** Leave room between ideas: a pause after each result, a beat that only shows before the next one
+  explains, and no more facts in a chapter than a viewer can take in on one viewing. If a beat lists many values or
+  steps, show a few and summarise the rest ("up and down it goes, a level at a time"). Raise the chapter's budget
+  rather than packing more into each second.
 - Motivation before mechanism, a concrete example before the abstraction, and at most one new term per
   sentence, each introduced the first time it is needed. Say each conclusion once, and give it a pause
   (`delay`) before the next idea. Never speed the voice up or cut explanation to fit a budget: raise the

@@ -10,7 +10,7 @@ use super::trace::{self, Exit, Image};
 use crate::godot::ssr::text::{tr, tr_with};
 use egui::Color32;
 use glam::{Vec2, Vec3};
-use lab::frame::{self, FrameContent, Label, Readout, Statics};
+use lab::frame::{self, FrameContent, Readout, Statics};
 use lab::layout::FrameUniforms;
 use lab::palette;
 use lab::scene::ids;
@@ -208,17 +208,23 @@ fn smooth(x: f32) -> f32 {
 }
 
 /// Where the trace stepper is: `traceStep` = i + f, the iterations before i
-/// done and iteration i f of the way. Over the first half of f, iteration i's
-/// cell and comparison fade in as the last one's fade out; over the second
-/// half, the ray moves to where iteration i sends it, and the level shown
-/// follows it up or down. A whole value shows the iteration before it complete.
+/// done and iteration i f of the way, in fifths, one thing at a time (so a
+/// story can say each in a sentence of its own): its cell lights as the last
+/// iteration's marks fade (f 0 to 0.2); where the ray leaves the cell is
+/// marked (0.2 to 0.4); where it reaches the cell's depth is marked (0.4 to
+/// 0.6); the ray moves to where the iteration sends it (0.6 to 0.8); and the
+/// level shown climbs or descends (0.8 to 1). A whole value shows the
+/// iteration before it complete.
 struct Stepper<'a> {
     steps: &'a [trace::Step],
     /// The iteration in progress (`steps.len()` once all are done).
     i: usize,
-    /// How far its comparison has faded in, and how far the ray has moved on, each 0 to 1.
+    /// Each fifth's progress, 0 to 1: the cell, its leaving mark, its depth mark, the ray's move, the level's change.
     appear: f32,
+    leave: f32,
+    reach: f32,
     travel: f32,
+    climb: f32,
 }
 
 impl<'a> Stepper<'a> {
@@ -227,7 +233,8 @@ impl<'a> Stepper<'a> {
         let x = step.max(0.0);
         let i = (x.floor() as usize).min(len);
         let f = if i < len { x - i as f32 } else { 0.0 };
-        Stepper { steps: &t.steps, i, appear: smooth(f * 2.0), travel: smooth(f * 2.0 - 1.0) }
+        let fifth = |k: f32| smooth(f * 5.0 - k);
+        Stepper { steps: &t.steps, i, appear: fifth(0.0), leave: fifth(1.0), reach: fifth(2.0), travel: fifth(3.0), climb: fifth(4.0) }
     }
 
     fn current(&self) -> Option<&'a trace::Step> {
@@ -261,6 +268,17 @@ impl<'a> Stepper<'a> {
     }
 
     /// Where along the ray (its t) the trace has got to.
+    /// Where the chart's window is anchored along the ray: the start of the
+    /// iteration in progress, moving on to the next start only while the level
+    /// changes (so the ray visibly moves on a still chart, then the chart follows).
+    fn anchor(&self) -> f32 {
+        match (self.current(), self.previous()) {
+            (Some(s), _) => s.t + (s.next_t - s.t) * self.climb,
+            (None, Some(s)) => s.next_t,
+            (None, None) => 0.0,
+        }
+    }
+
     fn tip(&self) -> f32 {
         match (self.current(), self.previous()) {
             (Some(s), _) => s.t + (s.next_t - s.t) * self.travel,
@@ -269,12 +287,29 @@ impl<'a> Stepper<'a> {
         }
     }
 
+    /// How strongly iteration `k`'s marks show (`j` 0 the leaving mark, 1 the
+    /// depth mark): the iteration in progress's as their fifths come, the one
+    /// before it as it fades.
+    fn mark_of(&self, k: usize, j: usize, a: f32) -> f32 {
+        if k == self.i { a.min(if j == 0 { self.leave } else { self.reach }) } else { a }
+    }
+
+    /// How strongly iteration `k`'s decision shows (its arrow): the iteration in progress's once the ray moves.
+    fn move_of(&self, k: usize, a: f32) -> f32 {
+        if k == self.i { a.min(self.travel) } else { a }
+    }
+
+    /// Whether iteration `k`'s result can be named: both its marks are up (or it is the one before).
+    fn decided(&self, k: usize) -> bool {
+        k != self.i || self.reach > 0.9
+    }
+
     /// The pyramid level shown: between two levels while the ray climbs or descends (never below zero).
     fn level(&self) -> f32 {
         match (self.current(), self.previous()) {
             (Some(s), _) => {
                 let (a, b) = (s.level.max(0) as f32, s.next_level.max(0) as f32);
-                a + (b - a) * self.travel
+                a + (b - a) * self.climb
             }
             (None, Some(s)) => s.next_level.max(0) as f32,
             (None, None) => 0.0,
@@ -428,14 +463,22 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
     let pad = (hi - lo).max(1e-6) * 0.15;
     let (lo, hi) = (lo - pad, hi + pad);
     let (u0, u1, v0, v1) = (0.07, 0.93, 0.2, 0.86);
-    let at = |tt: f32, d: f32| Vec2::new(u0 + (tt / end).clamp(0.0, 1.0) * (u1 - u0), v1 - ((d - lo) / (hi - lo)).clamp(0.0, 1.0) * (v1 - v0));
+    // Across, a window around the ray's tip, eight cells of the level shown wide: it follows the tip and widens
+    // as the ray climbs (both move smoothly), so a step on any level reads at the same size.
+    let size = Vec2::new(screen.size[0] as f32, screen.size[1] as f32);
+    let per_texel = 1.0 / (t.screen_ray.x.abs() * size.x).max(t.screen_ray.y.abs() * size.y).max(1e-9);
+    let width = (8.0 * per_texel * 2f32.powf(stepper.level())).min(end);
+    let t0 = (stepper.anchor() - 0.3 * width).clamp(0.0, end - width);
+    let at = |tt: f32, d: f32| Vec2::new(u0 + ((tt - t0) / width).clamp(0.0, 1.0) * (u1 - u0), v1 - ((d - lo) / (hi - lo)).clamp(0.0, 1.0) * (v1 - v0));
+    let inside = |tt: f32| tt >= t0 && tt <= t0 + width;
     let on = |uv: Vec2| plane.on(uv, 2e-3 * lift);
     // The chart's axes.
     plane.rect(&mut content.draw, Vec2::new(u0, v0), Vec2::new(u1, v1), -2e-3 * lift, Color32::from_rgb(16, 21, 28), alpha);
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u1, v1)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u0, v0)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
-    content.labels.push(Label { anchor: on(Vec2::new(u1, v1 + 0.035)), text: tr("demos.profile_t").to_string(), color: palette::text_dim() });
-    content.labels.push(Label { anchor: on(Vec2::new(u0 + 0.06, v0 - 0.03)), text: tr("demos.profile_depth").to_string(), color: palette::text_dim() });
+    // The axes' names where the axes end: pinned, so they never move.
+    content.draw.text(on(Vec2::new(u1, v1 + 0.015)), tr("demos.profile_t"), palette::text_dim(), [1.0, 0.0]);
+    content.draw.text(on(Vec2::new(u0, v0 - 0.012)), tr("demos.profile_depth"), palette::text_dim(), [0.0, 1.0]);
     // The level's cells along the ray: between two levels, the lower fading into the upper.
     let level = stepper.level();
     let below = (level.floor() as usize).min(last_level);
@@ -457,43 +500,57 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
             plane.rect(&mut content.draw, at(x0, lo), at(x1, d.max(lo)), 1e-3 * lift, color, alpha * a);
         }
     }
-    // The true surface, thin, over them.
-    for &(_, a, b, d) in &surface {
-        content.draw.segment(on(at(a, d)), on(at(b, d)), palette::SURFACE, alpha * 0.7, 1.5, 0);
+    // The true surface, thin, over them: only while the bars are of level 0, where they are the surface's own.
+    let surface_alpha = (1.0 - level).clamp(0.0, 1.0) * 0.7;
+    if surface_alpha > 0.0 {
+        for &(_, a, b, d) in &surface {
+            content.draw.segment(on(at(a, d)), on(at(b, d)), palette::SURFACE, alpha * surface_alpha, 1.5, 0);
+        }
     }
-    // The ray: all of it faint, the part marched bright, each finished iteration's start a dot.
-    content.draw.segment(on(at(0.0, ray(0.0))), on(at(end, ray(end))), palette::REFLECTED, alpha * 0.35, 2.0, 0);
+    // The ray as far as the trace has marched it, and where it is.
     let reached = stepper.tip();
     content.draw.segment(on(at(0.0, ray(0.0))), on(at(reached, ray(reached))), palette::REFLECTED, alpha, 3.0, 0);
-    for s in &t.steps[..stepper.i] {
-        content.draw.point(on(at(s.t, ray(s.t))), 4.0, palette::REFLECTED, alpha);
-    }
     content.draw.point(on(at(reached, ray(reached))), 6.0, palette::REFLECTED, alpha);
-    content.labels.push(Label { anchor: on(at(0.0, ray(0.0)) + Vec2::new(0.0, 0.04)), text: "P".into(), color: palette::SELECTED });
+    if inside(0.0) {
+        content.draw.text(on(at(0.0, ray(0.0)) + Vec2::new(0.008, -0.01)), "P", palette::SELECTED, [0.0, 1.0]);
+    }
     // Each iteration's comparison, fading: where the ray leaves the cell and where it reaches the cell's depth.
     let named = stepper.tested().map(|(k, _)| k);
     for &(k, s, a) in &stepper.fading() {
-        let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves")), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"))];
-        for (j, (tt, color, text)) in marks.into_iter().enumerate() {
-            if !(0.0..=end).contains(&tt) {
+        // The leaving mark, then the depth mark, each in its own fifth (one thing at a time).
+        let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves"), stepper.mark_of(k, 0, a)), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"), stepper.mark_of(k, 1, a))];
+        for (j, (tt, color, text, a)) in marks.into_iter().enumerate() {
+            if a <= 0.0 {
+                continue;
+            }
+            if !inside(tt) {
                 continue;
             }
             let x = at(tt, lo).x;
             content.draw.segment(on(Vec2::new(x, v1)), on(Vec2::new(x, v0)), color, alpha * 0.9 * a, 2.0, frame::FLAG_DASHED);
             content.draw.point(on(at(tt, ray(tt))), 7.0, color, alpha * a);
-            // Labels do not fade: only the iteration named carries them.
+            // Names do not fade: only the iteration named carries them.
             if named == Some(k) {
-                content.labels.push(Label { anchor: on(Vec2::new(x, v0 - 0.03 - 0.045 * j as f32)), text: text.to_string(), color });
+                // Under the axis, clear of the depth axis's label above.
+                // At the top of its line, the two in rows of their own so they never overlap.
+                // Right of its line, or left of it in the chart's right half, so it stays inside.
+                let left = x > 0.55;
+                content.draw.text(on(Vec2::new(if left { x - 0.006 } else { x + 0.006 }, v0 + 0.06 + 0.05 * j as f32)), text, color, [if left { 1.0 } else { 0.0 }, 0.0]);
             }
         }
-        if s.next_t > s.t {
-            content.draw.segment(on(at(s.t, ray(s.t))), on(at(s.next_t, ray(s.next_t))), palette::SELECTED, alpha * a, 3.0, frame::FLAG_ARROW);
+        let moving = stepper.move_of(k, a);
+        if s.next_t > s.t && moving > 0.0 {
+            content.draw.segment(on(at(s.t, ray(s.t))), on(at(s.next_t, ray(s.next_t))), palette::SELECTED, alpha * moving, 3.0, frame::FLAG_ARROW);
         }
     }
-    let Some((_, s)) = stepper.tested() else { return };
+    // The result, once both marks are up.
+    let Some((k, s)) = stepper.tested() else { return };
+    if !stepper.decided(k) {
+        return;
+    }
     let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
     let text = tr_with("demos.profile_level", lab::args!(from = s.level, to = s.next_level, result = result));
-    content.labels.push(Label { anchor: on(Vec2::new(0.5, 0.1)), text, color: if s.hit { palette::INCIDENT } else { palette::SELECTED } });
+    content.draw.text(on(Vec2::new(0.5, v0 - 0.075)), text, if s.hit { palette::INCIDENT } else { palette::SELECTED }, [0.5, 1.0]);
 }
 
 /// The reversed depth a field column of full height stands for: P's, twice
