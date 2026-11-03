@@ -18,7 +18,7 @@ from typing import Any
 from config import LAB, TOOLS, Config, Environment, log, run
 import diagrams
 import frame_graph
-import story
+import presentation
 from timeline import sentences_of
 
 Json = dict[str, Any]
@@ -195,18 +195,16 @@ def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json, resol
 def script_text(cfg: Config, sentence: Json) -> str:
     """A sentence as the script shows it: its tags gone, its formulas as `$LaTeX$`."""
     import markup
-    return markup.readable(markup.parse(sentence['text'], spoken_only=cfg.zh()).caption)
+    return markup.readable(markup.shown(sentence, cfg.zh()).caption)
 
 
 def beat_listings(beat: Json) -> list[str]:
     """Pseudo-code listings a beat shows, in order of first use."""
     import markup
     names: list[str] = []
-    for item in [beat] + sentences_of(beat):
-        tagged = markup.text_keys(beat, item) if item is not beat else []
-        for k in item.get('keys', []) + item.get('sequence', []) + tagged:
-            if k.get('code') and k['code'] not in names:
-                names.append(k['code'])
+    for k in beat.get('keys', []) + [k for s in sentences_of(beat) for k in markup.text_keys(beat, s)]:
+        if k.get('code') and k['code'] not in names:
+            names.append(k['code'])
     return names
 
 
@@ -279,9 +277,9 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             lines += [f'### {beat["headline"]}', '']
             if 'graph' in beat:
                 lines += [f'*{when} · {w["graph"]} `{beat["graph"]}.toml`*', ''] + frame_graph.markdown(frame_graph.load(cfg, beat['graph']))
-            elif story.is_diagram(beat):
+            elif presentation.is_diagram(beat):
                 lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.toml`*', ''] + diagrams.markdown(diagrams.load(cfg, beat['diagram']))
-            elif story.is_3d(beat):
+            elif presentation.is_3d(beat):
                 demo = next((k['demo'] for k in beat.get('keys', []) if 'demo' in k), None)
                 lines += [f'*{when} · {w["demo"]}{": " + demos.get(demo, demo) if demo else ""}*', '']
             else:
@@ -289,7 +287,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             lines += [joiner.join(script_text(cfg, s) for s in sentences_of(beat)), '']
             for name in beat_listings(beat):
                 lines += listing_markdown(cfg, name, doc_dir, index, shown)
-            if story.is_card(beat):
+            if presentation.is_card(beat):
                 for key in beat.get('sources', []):
                     entry = index['entries'][key]
                     inspect = entry.get('inspectZh', entry['inspect']) if cfg.zh() else entry['inspect']

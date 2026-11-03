@@ -236,8 +236,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
 /// with the `text = "…"` and `help = "…"` of their `#[value(…)]` attributes (the lab's
 /// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
-/// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle=` and `labelText=`
-/// of the tags in its `.story` files, and the `-text` fields of its
+/// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle`, `imageMarkText`, and
+/// `labelText` attributes of the cues in its storyboards (`.lam`), and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
 /// `target/`).
 fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
@@ -265,16 +265,19 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             }
             continue;
         }
-        // A story's image title, mark label, and label text: `{@ … imageTitle=key …}`,
-        // `{@ … imageMarkText=key …}` (empty: none), `{@ … labelText=key …}`.
-        if path.extension().is_some_and(|e| e == "story") {
+        // A storyboard's image title, mark label, and label text: the vocabulary's `{imageTitle "key"}`,
+        // `{imageMarkText "key"}` (empty: none), and `{labelText "key"}`, or `{attr "imageTitle" "key"}`.
+        if path.extension().is_some_and(|e| e == "lam") {
             println!("cargo:rerun-if-changed={}", path.display());
             for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                for (i, attr) in line.match_indices("imageTitle=").chain(line.match_indices("imageMarkText=")).chain(line.match_indices("labelText=")) {
-                    let rest = line[i + attr.len()..].trim_start_matches('"');
-                    let key = &rest[..rest.find(|c: char| c == '"' || c == '}' || c.is_whitespace()).unwrap_or(rest.len())];
-                    if !key.is_empty() {
-                        keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                for name in ["imageTitle", "imageMarkText", "labelText"] {
+                    let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
+                    for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {
+                        let rest = &line[i + found.len()..];
+                        let key = &rest[..rest.find('"').unwrap_or(rest.len())];
+                        if !key.is_empty() {
+                            keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+                        }
                     }
                 }
             }

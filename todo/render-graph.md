@@ -90,9 +90,10 @@ right in execution order.
 
 ### Stories and experiments
 
-- `{@ image=gbuffer graph=o3deLightCullingCS.lightList show=heatmap image.range=0,32}`: an image whose source is the
+- `{inset "gbuffer"} {imageGraph "o3deLightCullingCS.lightList"} {imageShowCount} {attr "image.range" "0,32"}` in a
+  storyboard's cue: an image whose source is the
   inspector (`ImageSource::Graph`, beside `View` and PNG), validated by `check_image` against the compiled graph.
-  `{@ panel=graph highlight=<node>}` opens the panel and lights a node, for the narration to walk the frame.
+  `{panelGraph} {highlight "<node>"}` opens the panel and lights a node, for the narration to walk the frame.
 - Experiments may name an intermediate as a metric's input (`metric.of = "<node>.<resource>"`), so a sweep can measure
   a pass's output, not only the final frame.
 - `render-lab --investigation <id> graph` prints the compiled graph (`--dot`, `--state <demo>`; a `--mermaid` export was built, then removed on 2026-11-02), as

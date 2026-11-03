@@ -76,3 +76,10 @@ id = "knowledge"
 kind = "file"
 source = "knowledge.toml"
 license = "MIT"
+
+# render_lab's Lamlet package (lab/src/script/): storyboards import it as `render_lab`.
+[[resource]]
+id = "script/render-lab"
+kind = "file"
+source = "language/render_lab.lam"
+license = "MIT"

@@ -53,11 +53,17 @@ def reexec_in_environment(env: Environment) -> None:
 
 
 def load_board(cfg: Config) -> Json:
+    """The storyboard, a Lamlet presentation (`storyboard.lam`, presentation.py), with its translation merged
+    for a translated edition. It is read with the investigation's cue vocabulary, generated first (into the
+    package's build/<package>.lam), so the vocabulary always matches the investigation's values."""
+    import lamlet
+    import presentation
     import zh
-    import story
-    board = story.load_story(cfg.storyboard)
+    name = cfg.package.name
+    vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
+    board = presentation.load(cfg.storyboard, [(name, vocabulary)])
     if cfg.zh():
-        board = zh.localize(board, story.load_story(cfg.translation, translation=True))
+        board = zh.localize(board, presentation.load_translation(cfg.translation))
     return board
 
 
@@ -65,7 +71,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
     import diagrams
     import frame_graph
     import markup
-    import story
+    import presentation
     from outputs import beat_listings, listing_path, read_listing
     from timeline import sentences_of
     keys = index['entries']
@@ -82,18 +88,16 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                 for node in beat.get('focus', []):
                     if node not in known:
                         raise RuntimeError(f'{beat["id"]}: unknown focus {node} in the frame graph {beat["graph"]}')
-            elif story.is_diagram(beat):
+            elif presentation.is_diagram(beat):
                 known = diagrams.names(diagrams.load(cfg, beat['diagram']))
                 for node in beat.get('focus', []):
                     if node not in known:
                         raise RuntimeError(f'{beat["id"]}: unknown focus node {node} in {beat["diagram"]}')
             for key in beat.get('sources', []):
                 assert key in keys, f'{beat["id"]}: unknown source key {key}'
-            for item in [beat] + sentences_of(beat):
-                tagged = markup.text_keys(beat, item) if item is not beat else []
-                for k in item.get('keys', []) + item.get('sequence', []) + tagged + list(item.get('cues', {}).values()):
-                    if k.get('callout'):
-                        assert k['callout'] in keys, f'{beat["id"]}: unknown callout {k["callout"]}'
+            for k in beat.get('keys', []) + [k for s in sentences_of(beat) for k in markup.text_keys(beat, s)]:
+                if k.get('callout'):
+                    assert k['callout'] in keys, f'{beat["id"]}: unknown callout {k["callout"]}'
             assert sentences_of(beat), f'{beat["id"]} has no narration'
             for name in beat_listings(beat):
                 path = listing_path(cfg, name)
@@ -187,6 +191,8 @@ def main() -> None:
         if not cfg.timeline('en').exists():
             raise SystemExit('build the English edition first: the zh-CN edition uses its narration and timing')
         (build / 'english-checksums.json').write_text(json.dumps(checks.english_checksums(cfg), indent=1) + '\n')
+    # The storyboard's Lamlet regions are expanded by the lab's own interpreter (lamlet.py), so build it first.
+    binary = outputs.cargo_build(cfg)
     board = load_board(cfg)
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
@@ -205,7 +211,6 @@ def main() -> None:
     log(f'Timeline: {tl["totalFrames"]} frames, {tl["totalFrames"] / tl["fps"] / 60:.2f} min, {len(tl["beats"])} beats, {len(tl["keys"])} keys.')
     if '{@ formula=' in cfg.timeline().read_text():
         # The lab typesets them; check each against its limits before anything is rendered.
-        binary = outputs.cargo_build(cfg)
         run([binary, 'formulas', '--check', cfg.timeline()], build / 'logs' / 'formulas.log')
         log('Formulas: each typesets within the lab\'s limits.')
     for c, b in zip(tl['chapters'], board['chapters']):
@@ -220,7 +225,6 @@ def main() -> None:
     outputs.write_notice(cfg)
     if args.prepare_only:
         return
-    binary = outputs.cargo_build(cfg)
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl, args.resolution)
         log(f'Snapshots in {build / "snapshots"}')

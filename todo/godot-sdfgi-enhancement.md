@@ -9,7 +9,7 @@ to 7, and "Revising a finished story"; `new-investigation` §2 step 8). This is 
 
 The review's timestamps are approximate; the zh-CN edition's chapters are:
 
-| zh-CN time | Chapter (`packages/godot_sdfgi/video/storyboard.story`) | Review section |
+| zh-CN time | Chapter (`packages/godot_sdfgi/video/storyboard.lam`) | Review section |
 |---|---|---|
 | 00:00 | 1 Where SDFGI runs | Introduction and overview |
 | 02:28 | 2 Cascades that follow the camera | Cascades and spatial organisation |

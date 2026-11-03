@@ -21,7 +21,7 @@ Board = dict[str, Any]
 def localize(board: Board, translation: dict[str, Any]) -> Board:
     """The storyboard with Chinese text in place of the English. Sentences
     are matched one to one, so every shot key stays on its sentence; each
-    keeps its English text in `en`, which is what is spoken."""
+    keeps its English sentence (`parsed`), which is what is spoken."""
     out = copy.deepcopy(board)
     out['title'], out['subtitle'] = translation['title'], translation['subtitle']
     out['locale'] = translation['locale']
@@ -38,13 +38,14 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
                 raise RuntimeError(f'translation: beat {beat["id"]} has {len(t["narration"])} sentences, the storyboard {len(sentences)}')
             beat['headlineEn'], beat['headline'] = beat['headline'], t['headline']
             narration = []
-            for s, text in zip(sentences, t['narration']):
-                s = dict(s) if isinstance(s, dict) else {'text': s}
+            for s, translated in zip(sentences, t['narration']):
+                s = dict(s)
+                shown, text = translated['shown'], translated['text']
                 # Formulas are shown in both languages: the same LaTeX, as many times.
-                english, chinese = markup.parse(s['text']).formulas, markup.parse(text, spoken_only=True).formulas
+                english, chinese = markup.sentence(s).formulas, shown.formulas
                 if sorted(english) != sorted(chinese):
-                    raise RuntimeError(f'translation: beat {beat["id"]}: the sentence {text!r} has formulas {chinese}, the English {english}')
-                s['en'], s['text'] = s['text'], text
+                    raise RuntimeError(f'translation: beat {beat["id"]}: the sentence {shown.caption!r} has formulas {chinese}, the English {english}')
+                s['text'], s['shown'] = text, shown
                 narration.append(s)
             beat['narration'] = narration
     extra = set(translation['beats']) - {b['id'] for c in out['chapters'] for b in c['beats']}

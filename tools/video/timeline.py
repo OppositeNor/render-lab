@@ -1,8 +1,8 @@
 """From the storyboard and the measured narration to the timeline the lab
 renders (src/lab/shot.rs `Timeline`): sentences placed one after another,
 chapters stretched to their time budgets with extra pauses, shot keys at
-sentence starts (`sequence` keys spread over the sentence) and at the words
-their tags stand before (markup.py), and captions timed by their words.
+beat starts and at the words their cues stand before (markup.py), and
+captions timed by their words.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 import diagrams
 import frame_graph
 import markup
-import story
+import presentation
 import zh
 from config import Config
 from narration import Durations, Narration
@@ -36,7 +36,7 @@ Json = dict[str, Any]
 
 
 def sentences_of(beat: Json) -> list[Json]:
-    return [item if isinstance(item, dict) else {'text': item} for item in beat.get('narration', [])]
+    return beat.get('narration', [])
 
 
 def all_sentences(board: Board) -> list[Json]:
@@ -93,8 +93,8 @@ def plan_chapter(chapter: Json, durations: Durations) -> tuple[float, list[float
     for beat in chapter['beats']:
         natural += LEAD + TAIL + beat.get('hold', 0.0)
         for s in sentences_of(beat):
-            natural += durations[s['text']][1] + GAP + s.get('pause', 0.0)
-            weights.append(2.0 if s.get('keys') or s.get('sequence') or markup.has_tags(s.get('en', s['text'])) else 1.0)
+            natural += durations[s['text']][1] + GAP
+            weights.append(2.0 if markup.tagged(s) else 1.0)
     deficit = max(0.0, chapter['targetSeconds'] - natural)
     total_weight = sum(weights) or 1.0
     extras = [min(MAX_EXTRA_PAUSE, deficit * w / total_weight) for w in weights]
@@ -140,8 +140,8 @@ def numbers(params: Json, where: str) -> Json:
     or names (markup.param_value)."""
     out: Json = {}
     for name, value in params.items():
-        if isinstance(value, str) and ('..' in value or value.startswith('=')):
-            raise markup.MarkupError(f'{where}: {name}={value} blends over a range; write it in {{@name> …}} … {{<name}}')
+        if isinstance(value, str) and '..' in value:
+            raise markup.MarkupError(f'{where}: {name}={value} blends over a range; write it in a range, ${{during "name" …}}')
         out[name] = markup.param_value(value, where) if isinstance(value, str) else value
     return out
 
@@ -150,8 +150,7 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
     """The keys of a sentence's tags, as storyboard keys with `delay` (from
     the sentence's start) on the frame its word starts, and a range's blend
     ending on the frame its closing word starts."""
-    parsed = markup.parse(s.get('en', s['text']))
-    cues = {**beat.get('cues', {}), **s.get('cues', {})}
+    parsed = markup.sentence(s)
     words = narration.words
 
     def frame_of(mark: int, tag: markup.Tag) -> int:
@@ -170,20 +169,12 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
     for tag, frame in zip(parsed.tags, frames):
         if tag.kind == 'close':
             continue
-        key = markup.cue_key(tag, cues, where)
+        key = markup.cue_key(tag, where)
         delay = frame / fps
         if tag.kind == 'open':
             length = closes[tag.name] - frame
             if length <= 0:
                 raise markup.MarkupError(f'{where}: the range {tag.name!r} closes where it opens')
-            if not tag.attrs:
-                # A named cue over the range: it blends there, its motions run for it.
-                key = {**key, 'blend': length / fps}
-                key['animate'] = [{kind: {**body, 'seconds': length / fps} if body.get('seconds') == 'range' else body} for m in key.get('animate', []) for kind, body in m.items()]
-                if not key['animate']:
-                    del key['animate']
-                keys.append({**key, 'delay': delay})
-                continue
             jump: Json = {}
             to: Json = {}
             for name, value in key.pop('params', {}).items():
@@ -192,7 +183,7 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
                     jump[name] = markup.number(a, where)
                     to[name] = markup.number(b, where)
                 else:
-                    to[name] = markup.number(value.removeprefix('='), where)
+                    to[name] = markup.number(value, where)
             if jump:
                 keys.append({'params': jump, 'delay': delay})
             keys.append({**key, 'params': to, 'blend': length / fps, 'delay': delay})
@@ -206,11 +197,11 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
     return keys
 
 
-def caption_cues(text: str, s: Json, narration: Narration, start: int, end: int, fps: int, cfg: Config) -> list[Json]:
+def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, cfg: Config) -> list[Json]:
     """A sentence's captions: chunks of at most two lines, formulas kept
     whole, each shown from the frame its first word starts (English; the
     Chinese text follows the English audio by its display width)."""
-    caption = markup.parse(text, spoken_only=cfg.zh()).caption
+    caption = markup.shown(s, cfg.zh()).caption
     held, tags = markup.protect(caption)
     chunks = zh.caption_chunks(held) if cfg.zh() else caption_chunks(held)
     starts: list[int] = []
@@ -224,7 +215,7 @@ def caption_cues(text: str, s: Json, narration: Narration, start: int, end: int,
         # Each written word stands for one spoken word, a formula for the
         # words said for it, scaled to the words the voice says; a chunk
         # starts when its first word does.
-        parsed = markup.parse(s.get('en', s['text']))
+        parsed = markup.sentence(s)
         says = iter([len((t.attr('say') or '').split()) for t in parsed.tags if t.kind == 'formula' and t.attr('formula') != 'off'])
         # A formula weighs the words said for it; a code span the words it is said as.
         held = [next(says) if tag.startswith('{@ formula') else len(markup.readable(tag).split()) for tag in tags]
@@ -266,7 +257,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         plans[chapter['number']] = {'natural': natural, 'extraPauses': sum(extras), 'leftover': leftover}
         chapter_start = frame
         sentence_index = 0
-        scene_beats = [b for b in chapter['beats'] if story.is_3d(b)] or chapter['beats']
+        scene_beats = [b for b in chapter['beats'] if presentation.is_3d(b)] or chapter['beats']
         leftover_per_beat = leftover / len(scene_beats)
         for beat in chapter['beats']:
             beat_start = frame
@@ -279,15 +270,12 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 start = cursor
                 end = start + int(math.ceil(seconds * fps))
                 placements.append({'path': str(path), 'frame': start, 'rate': rate})
-                captions.extend(caption_cues(s['text'], s, narration, start, end, fps, cfg))
+                captions.extend(caption_cues(s, narration, start, end, fps, cfg))
                 extra = extras[sentence_index] if sentence_index < len(extras) else 0.0
                 sentence_index += 1
                 # A sentence runs until the next one starts (or the beat ends).
-                sentence_keys = [(k, start) for k in s.get('keys', [])]
-                sequence = s.get('sequence', [])
-                sentence_keys += [({'delay': i * seconds / len(sequence), **k}, start) for i, k in enumerate(sequence)]
-                sentence_keys += [(k, start) for k in tag_keys(s, beat, narration, fps, start, beat['id'])]
-                cursor = end + to_frames(GAP + s.get('pause', 0.0) + extra)
+                sentence_keys = [(k, start) for k in tag_keys(s, beat, narration, fps, start, beat['id'])]
+                cursor = end + to_frames(GAP + extra)
                 pending.append((sentence_keys, cursor))
             hold = beat.get('hold', 0.0) + (leftover_per_beat if beat in scene_beats else 0.0)
             beat_end = cursor - to_frames(GAP) + to_frames(TAIL + hold)
@@ -310,7 +298,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 # The lab draws the frame graph as the scene's sections group it (lab/src/graph.rs).
                 entry['graph'] = frame_graph.load(cfg, beat['graph'])
                 entry['focus'] = beat.get('focus', [])
-            elif story.is_diagram(beat):
+            elif presentation.is_diagram(beat):
                 # The lab draws the diagram (lab/src/diagram.rs), its focus nodes lit.
                 entry['diagram'] = diagrams.load(cfg, beat['diagram'])
                 entry['focus'] = beat.get('focus', [])

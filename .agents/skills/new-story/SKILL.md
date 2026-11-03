@@ -6,7 +6,8 @@ description: Plan, research, write, and review a Render Lab investigation's narr
 # A new story for an investigation
 
 A story is an investigation's narrated video: research into the engine's source, an outline, the demonstrations
-it needs, and a storyboard (`packages/<package>/video/storyboard.story`, its format in `tools/video/README.md`).
+it needs, and a storyboard (`packages/<package>/video/storyboard.lam`, a Lamlet presentation, its format in `tools/video/README.md`
+and the `render-lab-lamlet` skill).
 This skill is the process; `new-investigation` is the standard it meets (§1, precision) and the package it builds
 (§3 to §7). Read both.
 
@@ -146,7 +147,7 @@ narration, or only with a still, is not taught.
   should already know (the starting level; the viewer's Prerequisites tab lists it), and what they will gain: what
   they will be able to explain, reason about, or do afterwards (read the engine's code for it, tune its settings,
   judge its trade-offs, apply the techniques elsewhere). Show it on screen as a short list beside the narration.
-- **Then where it runs.** The first chapter places it in the engine's frame (the frame graph's 2D scene, `graph: frame`,
+- **Then where it runs.** The first chapter places it in the engine's frame (the frame graph's 2D scene, `graph=frame`,
   the feature's passes lit) and says what decides whether it runs at all: project settings, quality levels, platform paths,
   and their defaults.
 - **Explain each mechanism; showing its data is not explaining it.** A viewer who sees what a structure looks
@@ -182,8 +183,8 @@ narration, or only with a still, is not taught.
   and where it is read back. Never assume a method because other systems use it: show what this engine's code
   does.
 - **The code, step by step.** Animation comes first; pseudo-code is shown only alongside it. For a shading or
-  lookup step, show its pseudo-code listing (`panel=code`) and light the line the sentence is on
-  (`highlight=<tag>`), and with every highlight change the demonstration too, so the scene shows what that line
+  lookup step, show its pseudo-code listing (`{panelCode}`) and light the line the sentence is on
+  (`{highlight "<tag>"}`), and with every highlight change the demonstration too, so the scene shows what that line
   does (its rays, its samples, its threshold, its result); a highlight that changes nothing on screen is cut, or
   the demonstration gains the step it lacks. Show only the
   lines the step needs, at a size that reads on a laptop, with the inputs and outputs of the lit line beside it
@@ -294,23 +295,25 @@ visual often names something nothing can show.
   chapter's budget instead.
 - Numbers about the lab's scene come from the lab (its code computes them, the selftest asserts the ones that
   matter): never type a measured value into the narration.
-- The beat's first line of tags sets its starting keys, and resets the step parameters of the beat before it
+- The beat's first paragraph of cues sets its starting keys, and resets the step parameters of the beat before it
   (instant keys, no `blend`).
 - Images, the callout, the camera, and the panel are not step parameters: they carry into the next beat, across a
-  demonstration switch too. Give each beat's first line `callout=""` and `image=""` (or `imageHide=` of the
+  demonstration switch too. Give each beat's first cues `{callout ""}` and `{inset ""}` (or `imageHide` of the
   images it no longer needs) unless it keeps them, a `panel` (`hidden` when the investigation has no struct and
   the beat no readout or listing), and reset any camera key the beat before set.
-- Cue each visual on the word that names it: `{@ rayStep=2}its distance`, not at the sentence's start.
+- Cue each visual on the word that names it: `${cue "key" {' {rayStep 2.0}}}its distance`, not at the sentence's start.
 - Wrap each code name the narration says (a function, struct, file, or console variable) in a code span,
-  `{@ codespan="LightCullingTilePrepare"}`, in the translation too; give it `say="…"` when the voice would misread it.
+  `${code "LightCullingTilePrepare"}`, in the translation too; write it `${say {code "…"} "…"}` when the voice would
+  misread it.
 - Work that unfolds over time (an algorithm's passes, a sweep) is an action the package declares, run from the story
-  (`{@ run=jumpFlood run.seconds=0.5}` … `{@ stop=jumpFlood}`; `render-lab actions`), rather than a parameter keyed
+  (`{run "jumpFlood"} {runSeconds 0.5}` … `{stop "jumpFlood"}`; `render-lab actions`), rather than a parameter keyed
   step by step: the story says when and how fast, the package's code what each moment shows.
-- A picture (a slice, a table, a chart, a PNG) is an image the story shows by key, `{@ image=floodSeeds
-  imageCorner=top-left}` … `{@ imageHide=floodSeeds}` (`render-lab images`): the package describes it, the story places
+- A picture (a slice, a table, a chart, a PNG) is an image the story shows by key, `{inset "floodSeeds"}
+  {imageCornerTopLeft}` … `{imageHide "floodSeeds"}` (`render-lab images`): the package describes it, the story places
   it. A GPU image is an instance of an image kind the package's shaders define, made and driven by the story:
-  `{@ image=near imageFrom=probeMap image.probe=7,7,8}`, then `{@ image=near image.probe=10,7,8 blend=2}`. An image a
-  viewer may click when paused names the package's click handler: `{@ image=map imageClick=pickCell}`
+  `{inset "near"} {imageFrom "probeMap"} {imageProbe {' 7.0 7.0 8.0}}`, then `{inset "near"} {imageProbe {' 10.0 7.0
+  8.0}} {blend 2.0}`. An image a viewer may click when paused names the package's click handler: `{inset "map"}
+  {imageClick "pickCell"}`
   (`render-lab actions` lists them).
 - **Say how to read every texture or buffer view the moment it appears**, before the story uses what it shows:
   what it is (the resource, its format), what its axes or layout are (screen pixels, tiles, texels of a
@@ -320,16 +323,16 @@ visual often names something nothing can show.
   resource stores and in what range, how the view maps that to colour, a reading of one marked part and why
   it looks that way (the floor is light green because it faces up, along y), the pattern to look for (where
   the values jump, and what that means), and what the next pass does with it. Go slowly: one fact per
-  sentence, each after a short pause (`{@ delay=0.4}`), and light the part each sentence names while it is said: a region of the
-  image (`{@ image=t0 imageMark=u0,v0,u1,v1 imageMarkText=<key>}`, cleared with `imageMark=""` on the
+  sentence, each after a short pause (`{delay 0.4}`), and light the part each sentence names while it is said: a region of the
+  image (`{inset "t0"} {imageMark "u0,v0,u1,v1"} {imageMarkText "<key>"}`, cleared with `{imageMark ""}` on the
   sentence after), or a label or arrow at the world point a 3D view shows. A view shown and passed over, or
   one whose colours the viewer has to guess, is not finished: add the sentences, or cut the view. Say it
   again, briefly, when the view returns after other views have come between.
-- An arrow or label that points something out is the story's: `{@ arrow=a arrowFrom=x,y,z arrowTo=field.seed}`,
-  `{@ label=l labelAt=… labelText=<text key>}` (`arrowHide`, `labelHide`), its points fixed or ones the package publishes,
-  and `{@ arrows=<set>}` for a set the package computes (`render-lab images` lists the points and sets).
-- Keep the camera floating in 3D (`animate=[{"path": …}]`, `cameraDrift`), and glide to a still, 2D view
-  (`cameraDrift=0`) only for a detailed step; glide back afterwards.
+- An arrow or label that points something out is the story's: `{arrow "a"} {arrowFrom "x,y,z"} {arrowTo "field.seed"}`,
+  `{label "l"} {labelAt "…"} {labelText "<text key>"}` (`arrowHide`, `labelHide`), its points fixed or ones the package
+  publishes, and `{arrows "<set>"}` for a set the package computes (`render-lab images` lists the points and sets).
+- Keep the camera floating in 3D (`{motion "[{\"path\": …}]"}`, `cameraDrift`), and glide to a still, 2D view
+  (`{cameraDrift 0.0}`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.
 - A `callout` on about half the sentences, and the rest covered by the chapter's `sources`.
 
@@ -450,7 +453,7 @@ evidence.
 
 ## Phase 8: Translate and build
 
-- Write `storyboard.zh-CN.story`: the same headings, one paragraph per English sentence, the same formulas, no
+- Write `storyboard.zh-CN.lam`: the same headings, one paragraph per English sentence, the same formulas, no
   cues. Technical terms stay English; keep its `glossary:` of the terms' translations consistent. The Chinese
   edition keeps the English narration, timed by the English sentences.
 - Check (one build or GPU job at a time):

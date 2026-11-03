@@ -199,18 +199,18 @@ when you add the node; the `graph` command checks that each names a node and cit
 ## 6. In a story
 
 ```text
-{@ panel=graph highlight=o3deLightCullingCS}
-{@ image=lights imageGraph=o3deLightCullingCS.tileData imageShow=count image.range=0,16}
-{@ image=lights image.word=1 blend=1}
-{@ panel=dag highlight=o3dePrepassFS}            the DAG, the pre-pass's card called out
-{@ highlight=o3deLightCullingCS}                 the next step: the view scrolls to it
+${cue "key" {' {panelGraph} {highlight "o3deLightCullingCS"}}}
+${cue "key" {' {inset "lights"} {imageGraph "o3deLightCullingCS.tileData"} {imageShowCount} {attr "image.range" "0,16"}}}
+${cue "key" {' {inset "lights"} {attr "image.word" "1"} {blend 1.0}}}
+${cue "key" {' {panelDag} {highlight "o3dePrepassFS"}}}       the DAG, the pre-pass's card called out
+${cue "key" {' {highlight "o3deLightCullingCS"}}}             the next step: the view scrolls to it
 ```
 
-A 2D beat's `graph: frame` presents the frame graph as a scene of its own, drawn by the lab from the live graph
+A 2D beat's `graph=frame` presents the frame graph as a scene of its own, drawn by the lab from the live graph
 as the package's `graphs/frame.toml` (the resource `graph/frame`) groups it (sections of passes or resources, each
 a box; dashed, what the frame does not run; `tools/video/frame_graph.py` has the format); the DAG panel boxes its
 cards by the same sections. Consecutive beats of the scene move from one focus to the next (no fade), and its first
-beat builds it up, layer by layer (`lab/src/diagram.rs` `Transition`). Its `focus:` lights a section, or a pass or resource
+beat builds it up, layer by layer (`lab/src/diagram.rs` `Transition`). Its `focus` lights a section, or a pass or resource
 of one (its row). The lab renders the beat's 3D frame unseen behind the scene, and a lit box holds a picture of
 what it makes (its last pass's result, its last resource as the frame leaves it, or the section's `picture =
 "<pass>.<resource>"`, drawn as `SceneShading::shows` says); when the pictures would take the labels below 24 px the
@@ -220,12 +220,11 @@ the frame must be in a section (the lab's overlay and composite need not be), so
 adding a pass means adding it to a section: the timeline does not load otherwise.
 
 ```text
-## c1-map-cull | 2d | Then the lights are sorted into tiles
-graph: frame
-focus: DEPTH, CULL
+### Then the lights are sorted into tiles {#c1-map-cull kind=2d graph=frame focus="DEPTH, CULL"}
 ```
 
-`imageGraph` makes a graph image (beside `imageFrom`, an image kind's instance, and published or PNG images); a later
+A visualizer's parameters are not in the vocabulary (it has image kinds' parameters), so a cue writes them with
+`attr`, `{attr "image.range" "0,16"}`. `imageGraph` makes a graph image (beside `imageFrom`, an image kind's instance, and published or PNG images); a later
 key of the name sets its parameters (blended) or its `imageShow`. The lab checks the node, that it reads or writes the
 resource, the visualizer, and each parameter when it loads the timeline. Walk a frame in its order and show each
 node's output as the narration reaches it, changing the scene with each step, rather than describing passes.

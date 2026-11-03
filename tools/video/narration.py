@@ -159,7 +159,7 @@ def spoken(cfg: Config, sentence: dict[str, Any]) -> str:
     its tags removed and its formulas said as their `say`, with the words of
     video.json's `pronunciations` replaced by how they are said. Captions keep
     the written form."""
-    return pronounce(cfg, markup.parse(sentence.get('en', sentence['text'])).spoken)
+    return pronounce(cfg, markup.sentence(sentence).spoken)
 
 
 def create_phonemizer(env: Environment, workdir: Path) -> Any:
@@ -300,7 +300,7 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
             with wave.open(str(target), 'rb') as stream:
                 seconds, rate = stream.getnframes() / stream.getframerate(), stream.getframerate()
             words = json.loads(sidecar.read_text())['words']
-            parsed = markup.parse(sentence.get('en', sentence['text']))
+            parsed = markup.sentence(sentence)
             tag_words: list[int] = []
             if parsed.tags:
                 phonemizer = phonemizer or create_phonemizer(env, audio)

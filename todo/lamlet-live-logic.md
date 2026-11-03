@@ -1,14 +1,14 @@
 # Real-time logic in Lamlet scripts (plan)
 
 Today a package's real-time logic is Rust in its library: actions (`#[action]`, started by a story's
-`{@ run=…}`), click handlers (`#[click]`), and the Play animation (`Investigation::animation`). This plan lets
+`{run "…"}`), click handlers (`#[click]`), and the Play animation (`Investigation::animation`). This plan lets
 the same logic be written as Lamlet scripts that are package content. A script is read through `lab::resources`
 like a shader or a text table, so an edit shows on the next launch without rebuilding the package's library, and
 a package can have logic without Rust code.
 
 It builds on [lamlet-in-process.md](lamlet-in-process.md), which puts a Lamlet host in the lab (`lab::script`: an
-engine, a resolver over package resources, natives). It follows the runtime rules of
-[lamlet-integration.md](lamlet-integration.md) ("Runtime inputs, updates, and failure behavior"). The language
+engine, a resolver over package resources, natives). It follows the runtime rules below ("Runtime inputs,
+updates, and failure behavior"). The language
 side is Lamlet's `plans/embedding.md`; this plan asks Lamlet for one general fix (below) and nothing specific to
 the lab.
 
@@ -43,8 +43,8 @@ action, click, or animation.
 - **Unit tests** call `state_at` on test threads (`lab/src/values.rs`). With a `thread_local!`, each test thread
   gets its own engine, which is correct and costs one check of the scripts per thread.
 
-So [lamlet-in-process.md](lamlet-in-process.md)'s milestone 4 ("after Lamlet phase 2: a per-thread engine in the
-viewer") can drop its dependency on phase 2. Phase 2 matters only if scripts must run on several threads at
+So [lamlet-in-process.md](lamlet-in-process.md)'s milestone 4 (a per-thread engine in the viewer) needs no Lamlet
+phase 2. Phase 2 matters only if scripts must run on several threads at
 once, and nothing here does.
 
 ## What a package writes
@@ -84,7 +84,7 @@ $[# marchCone {^ {elapsed run}
     {' {setConeSteps {float {min {+ from {truncate {/ elapsed seconds}}} to}}}}}}]
 ```
 
-The story does not change: `{@ run=marchCone run.seconds=0.7 run.from=1 run.to=6}`.
+The story does not change: `${cue "key" {' {run "marchCone"} {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}`.
 
 ### The contract
 
@@ -104,10 +104,10 @@ The story does not change: `{@ run=marchCone run.seconds=0.7 run.from=1 run.to=6
   - `String` is a name.
 
   The lab derives `ActionSpec`s from them, so `render-lab actions` lists script actions with their arguments,
-  and a story's tags are checked against them as they are for Rust actions.
+  and the storyboard's vocabulary (`render-lab story keys`) has them as it has Rust actions.
 - **A script returns its writes; it never sets state itself.** The lab applies the whole list after the call
-  returns, in order. If the call fails, the lab applies nothing. That is the batch rule of
-  lamlet-integration.md.
+  returns, in order. If the call fails, the lab applies nothing. That is the batch rule
+  ("Runtime inputs, updates, and failure behavior").
 
 ### The generated values package
 
@@ -154,6 +154,36 @@ module `actions` (resource `<package>.script/actions`) is read for hooks:
 - a demo's TOML names its animation function (`animation = "playOrbit"`).
 
 A script action or click handler with the same name as a Rust one is an error when the package loads.
+
+## Runtime inputs, updates, and failure behavior
+
+The rules every runtime use of Lamlet in the lab follows (scripts here, and live text later).
+
+Each evaluation batch receives an immutable snapshot of selected investigation/package schemas, typed parameter
+values, logical time/frame index and fps, applicable elapsed cue time, locale/message arguments, and event payload.
+Playback/recording derive time through the same helper from the requested frame; no ambient wall-clock callback
+is used to reconstruct a recorded frame. Native reads remain Runtime even when a particular snapshot looks constant.
+
+Immutable module initializers run once; they are not implicit reactive controls. Live labels/bindings must call
+functions with the current snapshot or run a document entry with fresh local bindings. Reusing compiled code
+does not mean reusing a stale native read captured during the first initialization. Preserve source order when
+executing a complete document entry; selecting/batching regions must not reorder observable calls.
+
+Pure bindings can be called independently for any requested frame order. A timeline animation computes its state
+from its anchor/interval and requested frame, preserving `Timeline::state_at`; firing callbacks only when a cue is
+crossed is insufficient. Viewer clicks and interactive edits are different inputs from timeline-owned state. Define
+pause/seek/reset/demo-switch ownership and don't let a click mutate a running timeline's reconstructed state by accident.
+
+Collect command/effect descriptions during an event or explicit update evaluation, validate the complete batch,
+then apply it at the host update boundary. Display/layout evaluation has no write capability. Domain natives must
+not mutate the scene immediately and then leave partial changes when the VM exceeds a budget. Reject ambiguous
+multiple writers to one target until explicit composition/precedence is specified. Repeated painting does not
+restart animations or register another handler. Persistent simulations require an explicit event log/checkpoints
+and are outside the initial binding implementation.
+
+On error, discard the pending command batch. Offline preparation/recording reports a source-located failure and
+does not reuse a corrupt artifact. Interactive presentation may keep the last successful value with an error
+indicator, but logs are deduplicated and the next valid input can recover. Choose that visible policy before shipping.
 
 ## The lab's side (generic, in `lab/src/script/`)
 
@@ -248,4 +278,4 @@ The lab keeps no code that only one investigation uses: everything above serves 
    states the intent, so a helper function of the same type cannot become an action by accident. Recommended: by
    type, with names starting with `_` excluded, as Lamlet's own exports are.
 3. **The error policy in the viewer.** Last good state with an indicator, or the default state? This plan
-   assumes the former, as lamlet-integration.md suggests.
+   assumes the former, as the runtime rules suggest.

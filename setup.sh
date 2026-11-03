@@ -9,15 +9,15 @@ lab_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$lab_dir"
 export CARGO_HOME="$lab_dir/.cache/cargo"
 target="${1:-vendor}"
-cargo --config 'net.offline=false' vendor --locked "$target" > /dev/null
-mkdir -p "$CARGO_HOME"
+mkdir -p "$target" "$CARGO_HOME"
+target="$(cd -- "$target" && pwd)"
+# `cargo vendor` prints the source replacement the vendored crates need: crates.io's, and one table per git
+# repository (the Lamlet crates, pinned by tag in lab/Cargo.toml). Given an absolute path, it names the vendored
+# directory absolutely, so builds find it from any directory.
+replacement="$(cargo --config 'net.offline=false' vendor --locked "$target")"
 cat > "$CARGO_HOME/config.toml" <<EOF
 # Written by setup.sh: build from the vendored crates, offline.
-[source.crates-io]
-replace-with = "vendored-sources"
-
-[source.vendored-sources]
-directory = "$(cd -- "$target" && pwd)"
+$replacement
 
 [net]
 offline = true

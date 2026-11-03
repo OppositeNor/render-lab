@@ -64,6 +64,7 @@ pub mod resources;
 pub mod rgb9e5;
 pub mod rich_text;
 pub mod scene;
+pub mod script;
 pub mod shader_data;
 pub mod shaders;
 pub mod shot;

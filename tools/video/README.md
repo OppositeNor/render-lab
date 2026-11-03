@@ -33,31 +33,43 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
 - **`video.json`**: paths (storyboard, translation, diagrams, source index, pseudo-code, timeline directories, and
   optionally `build` per language and `audioCache`), output names, the engine label, the duration the verification expects, the reading path, `pronunciations` (how words are
   spoken; captions keep the written form), and the documents' texts per language.
-- **`storyboard.story`**: the chapters, beats, and narration as text, with the shots as tags (`story.py` reads it;
-  LaTeX is written as is). `# 11 | Title | 150 s` starts a chapter (its `summary:` and `sources:` lines follow);
-  `## beat-id | 3d | Headline` a beat, its scene's type `3d` (the lab's 3D frame) or `2d` (a page in its place: the
-  image `diagram:` names, the frame graph `graph:` names, with its `focus:` nodes, or without either the sources card
-  of its `sources:`), with `diagram:`, `graph:`, `focus:`, `sources:`, `hold:` lines. Only `3d` and `2d` are accepted as scene types in storyboards and
-  timelines; a paused timeline keeps a 2D scene on screen. Before the first sentence, a line of tags sets the beat's keys, and
-  `{@define name …}` defines a named cue. Then each paragraph is one sentence, with its tags (below); a tag before
-  its first word fires at the sentence's start, and `{@ pause=0.5}` at its end adds silence. A tag's attributes:
-  shot parameters (a name a tag reserves, such as `formula`, is written `param.formula`; `render-lab --investigation
-  <path> values` lists every key, the shaders' tagged values and their components included; a value is a number,
-  `true` or `false`, a vector as numbers separated by commas, or a choice's option by name, `viewMode=ndotl`, which the
-  lab checks against the value's declaration when it loads the timeline), `demo`,
-  `camera.target=x,y,z`, `camera.yaw` (`pitch`, `distance`, `fov`; `camera=continuous` keeps the camera through a
-  `demo` switch), `freeCamera.on=1` (the scene seen from the free camera, while the demonstration keeps following the
-  main camera, drawn with its view cone and with its own view in a corner) placed by `freeCamera.target=x,y,z`,
-  `freeCamera.yaw` (`pitch`, `distance`, `fov`; `cameraDrift` sways it instead of the main camera while it is on, and a
-  `demo` switch turns it off), `record=object:3` (or `camera`), `highlight=a,b`, `panel` (`declaration`, `values`, `memory`, `code`,
-  `performance`: the GPU time per pass, measured as the frame renders, with `highlight` naming the passes to call out,
-  `hidden`), `code`, `callout`, `run=action` with
-  `run.<arg>=value` and `stop=a,b` (the package's actions, `render-lab actions`), `image=name` with `imageTitle`,
-  `imageCorner`, `imageFrom=kind` and `image.<param>=value`, `imageGraph=node.resource` and `imageShow=kind`, and `imageHide=a,b` (images, `render-lab images`, `render-lab graph`), `blend`, `delay` (seconds),
-  `ease` (`smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate=[…]`, motions as JSON
-  (`lab/src/animation.rs`), each driving its channels until a later key sets them; a channel is a shot parameter or
-  `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`, `camera.pitch`, `camera.distance`, or `camera.fov`
-  (or the same of `freeCamera`):
+- **`storyboard.lam`**: the chapters, beats, and narration as a Lamlet presentation (the document format of
+  lamlet-present, read with the Lamlet the lab pins: `render-lab lamlet ir`, `lamlet.py`; `presentation.py` turns it
+  into the board). Its first line imports `std`, `content`, `present`, and the investigation's cue vocabulary, named
+  after its package (`$[Import* godot_voxelgi]`; also `render_lab`, for numbers said in words). The level-1 heading
+  is the video, its text the title and its attributes the rest of the header: `# How VoxelGI Lights a Room {#video
+  subtitle="…" fps=30 width=1920 height=1080}`. `## Title {#c11 number=11 target=150 summary="…" sources="a, b"}`
+  starts a chapter (`target` in seconds), `### Headline {#beat-id kind=3d}` a beat, its scene's type `3d` (the lab's
+  3D frame) or `2d` (a page in its place: the image `diagram=` names, the frame graph `graph=` names, with its
+  `focus="A, B"` nodes, or without either the sources card of its `sources=`), with `diagram`, `graph`, `focus`,
+  `sources`, `hold` attributes (a quoted value may hold spaces, not quotes or braces). Only `3d` and `2d` are
+  accepted as scene types in storyboards and timelines; a paused timeline keeps a 2D scene on screen. Before the
+  first sentence, a paragraph of cues sets the beat's keys, one per cue. Then each paragraph is one sentence: its
+  prose is CommonMark (`$` is written `$$`), with its cues (below); a cue before its first word fires at the
+  sentence's start. A cue's attributes are the investigation's vocabulary: `render-lab --investigation <path> story
+  keys` lists them, and the builder writes them as typed functions to the package's `build/<package>.lam` before it
+  reads the storyboard, so a misspelled key is an unknown name and a wrong value a type error, at the storyboard's
+  line. Each is named after its key (`camera.yaw` is `{cameraYaw 24.0}`), but `code` is `listing`, `image` is
+  `inset`, `animate` is `motion`, and `ease` is `easing`; a key with options has one function per option too
+  (`panelCode`, `demoRoom`, `imageCornerTopLeft`), and `{attr "key" "value"}` writes any key as text. The keys:
+  shot parameters (a name a cue reserves, such as `formula`, is `param.formula`, `{paramFormula 1.0}`; `render-lab
+  --investigation <path> values` lists every key, the shaders' tagged values and their components included; a value
+  is a number, written as a Float whatever its type, since the timeline blends every value, a vector,
+  `{lightPosition {' 0.4 1.9 0.8}}`, or a choice's option by name, `{viewModeNdotl}`, which the lab checks against
+  the value's declaration when it loads the timeline), `demo`, `camera.target` (a vector), `camera.yaw` (`pitch`,
+  `distance`, `fov`; `{cameraContinuous}` keeps the camera through a `demo` switch), `freeCamera.on` (`{freeCameraOn
+  1.0}`: the scene seen from the free camera, while the demonstration keeps following the main camera, drawn with its
+  view cone and with its own view in a corner) placed by `freeCamera.target`, `freeCamera.yaw` (`pitch`, `distance`,
+  `fov`; `cameraDrift` sways it instead of the main camera while it is on, and a `demo` switch turns it off),
+  `record` (`"object:3"` or `"camera"`), `highlight` (`"a,b"`), `panel` (`declaration`, `values`, `memory`, `code`,
+  `performance`: the GPU time per pass, measured as the frame renders, with `highlight` naming the passes to call
+  out, `hidden`), `code` (`listing`), `callout`, `run` with `run.<arg>` and `stop` (the package's actions,
+  `render-lab actions`), `image` (`inset`) with `imageTitle`, `imageCorner`, `imageFrom` and `image.<param>`,
+  `imageGraph` and `imageShow`, and `imageHide` (images, `render-lab images`, `render-lab graph`), `blend`, `delay`
+  (seconds), `ease` (`easing`: `smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate`
+  (`motion`), motions as a JSON String (`lab/src/animation.rs`), each driving its channels until a later key sets
+  them; a channel is a shot parameter or `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`,
+  `camera.pitch`, `camera.distance`, or `camera.fov` (or the same of `freeCamera`):
   - `{"path": {"params": [...], "through": [[...], ...], "seconds": ...}}` runs from the channels' values through the
     waypoints on a smooth curve, without stopping at each one (`ease` paces the whole curve; `closed` returns to the
     start);
@@ -68,8 +80,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
     default), with `phase` in degrees, and `seconds` and `fade` to stop it smoothly.
 
   Each takes `ease` and `repeat` (`once`, `loop`, `pingPong`). A motion's `seconds` may be `"sentence"` or `"beat"`: it
-  then runs until its sentence (or beat) ends (`"range"` in a range: until the range closes). A `demo` key resets every channel to the demonstration's state, so it
-  cuts a running motion. Chapters are stretched to `targetSeconds` with extra pauses; keep the budget near 1.2 times
+  then runs until its sentence (or beat) ends. A `demo` key resets every channel to the demonstration's state, so it
+  cuts a running motion. Chapters are stretched to their `target` with extra pauses; keep the budget near 1.2 times
   the narration.
 - **`diagrams/*.toml`**: the diagrams (`tools/video/diagrams.py` has the format): boxes, with rows if any, dashed or
   not, an image (`image = "<png key>"`: a beat that shows a picture is a diagram of one node), and edges, labelled or
@@ -78,57 +90,52 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   in a row of one diagram (in a chapter) run on without a fade: the diagram moves from the first's focus to the
   second's, its boxes gliding and its new pictures growing in; a diagram's first beat builds it up, layer by layer,
   each edge drawn along its path.
-- **`graphs/frame.toml`** (in the package; a beat's `graph: frame`): the frame graph as a 2D scene, which the lab draws from its live render
+- **`graphs/frame.toml`** (in the package; a beat's `graph=frame`): the frame graph as a 2D scene, which the lab draws from its live render
   graph (`tools/video/frame_graph.py` has the format): sections of the frame's passes (or resources), each a box a
-  beat's `focus:` names (or one of its passes or resources, whose row lights), edges where one section's passes write
+  beat's `focus` names (or one of its passes or resources, whose row lights), edges where one section's passes write
   what another's read; dashed, a section the lab's frame does not run (built offline, once, or on the CPU). Titles are
   keys of the package's text (a newline breaks one). The lab renders the beat's 3D frame unseen, and a lit box holds
   a picture of what it makes (its last pass's result, or the section's `picture = "<pass>.<resource>"`), the view
   kept at the lab's minimum text size on the lit boxes when the pictures do not fit. The lab checks it when it loads
   the timeline: every pass in a section, and the passes, resources, and pictures it names.
-- **`storyboard.zh-CN.story`**: the translation, with the same headings (`# 11 | 标题`, `## beat-id | 标题`; header
-  lines `title:`, `subtitle:`, `locale:`, `glossary:`) and one paragraph per English sentence, with its formulas and no
-  cues.
-- **Lamlet regions** (optional). A `.story` file or its translation may compute its text with Lamlet: `${…}` and
-  `$[…]` regions (`$$` is a dollar), with `$[Import* std]` and `$[Import* render_lab]` before the first use. `lamlet.py`
-  expands them before the file is read (the `lamlet` command, or `LAMLET`), so a region's value is ordinary story
-  text. render_lab's library, `packages/render_lab/language/render_lab.lam`, writes cues from typed values (`cue`, `sweep`,
-  `callout`, `panel`, `code`, `highlight`, `demo`, `image`, `imageFrom`, `imageMark`, `imageHide`, `arrow`,
-  `label`, `run`, `stop`, `formulaTex`, `codespanSaid`, `pause`, `delay`) and numbers as the voice says them
-  (`spoken 42289`, `rounded 42289 2`, `spokenFloat 3.2`). A file without a region needs no Lamlet. Text keys that
-  only a region names (an image's mark, a label) are not seen by the text check.
+- **`storyboard.zh-CN.lam`**: the translation, a presentation with the same headings (the same ids, its own title,
+  chapter titles, summaries, and headlines; the video's `subtitle`, `locale`, and `glossary`, comma-separated) and one
+  paragraph per English sentence, with its formulas (`${math "…"}`) and code names (`${code "…"}`) and no cues. It
+  imports only `std` and `content`.
 
-### Text-driven shots: tags in a sentence
+### Text-driven shots: cues in a sentence
 
-A sentence's text may hold tags, `{@ name=value …}` (a value with spaces or braces is quoted, `"…"`, where only `\"` is
-an escape, so LaTeX keeps its backslashes). They are cut out of what is said and shown, and each takes effect on the
-frame where the word after it starts. The voice's model gives every phoneme's duration on the way to the audio, so
-word times are exact to the sample (`narration.py`; each wav has a `<digest>.json` with its word starts). In a JSON
-storyboard they work alongside `keys`, `sequence`, and `pause`; `markup.py` parses them (tests: `python3 -m unittest tools/video/test_markup.py`).
+A sentence holds cues, `present`'s functions with the vocabulary's attributes (`presentation.py` reads them): a
+point cue, `${cue "key" {' {opacity 1.0} {callout "source-key"}}}`, and a range over words, `${duringText "grow"
+{' {radiusRange 0.0 2.0}} "step by step"}` (or `during` with content: `{cat {' {text "a "} {cue "key" …} …}}`, for cues
+and ranges inside it). They are cut out of what is said and shown, and each takes effect on the frame where the word
+after it starts. The voice's model gives every phoneme's duration on the way to the audio, so word times are exact to
+the sample (`narration.py`; each wav has a `<digest>.json` with its word starts). The cues' attributes become keys as
+`markup.py` reads them (tests: `python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py`).
 
-| Tag | Does |
+| Cue attributes | Do |
 |---|---|
-| `{@ opacity=1 callout=source-key}` | A point cue: shot parameters, `callout`, `code`, `panel`, `demo`, `highlight=a,b`, `record=object:3`, `ease`, `blend=0.5` (seconds), `term=n` |
-| `{@ image=floodSeeds imageCorner=top-left imageTitle=demos.seeds}`, `{@ image=""}` | An image in an inset, by key: one the investigation publishes (`render-lab images`; its own title and axes), or a PNG resource of the package (`test/globe`) or one an imported package exports (`render_lab.<key>`), at its own size. It fades in and out over the key's `blend`; `imageCorner` is `top-left`, `top-right` (the default), `bottom-left`, or `bottom-right`; `imageTitle` is a text key of the package. The lab checks the key when it loads the timeline |
-| `{@ image=maps imageFrom=probeMap image.probe=7,7,8}`, `{@ image=maps image.probe=10,7,8 blend=2}`, `{@ imageHide=maps}` | A GPU image: an instance, named by the story, of an image kind the package's shaders define (`lab/src/views.rs`; `render-lab images` lists the kinds and their parameters). The lab runs the kind's compute entry point into the instance's own texture every frame and shows it live. A later `image=` of the name sets its parameters (blended over `blend`), title, or corner; several images show at once; `imageHide` fades some out and `image=""` all. The lab checks the kind and each parameter when it loads the timeline |
-| `{@ image=lights imageGraph=o3deLightCullingCS.tileData imageShow=count image.range=0,16}` | A resource of the frame's graph as it stood right after a node (`lab/src/graph.rs`; `render-lab graph` lists the nodes and what each reads and writes): the lab draws it right after that node, whatever later nodes write over it, with the visualizer `imageShow` names (`color`, `unorm`, `normal`, `depth`, `ramp`, `signed`, `count`, `float`, `hash`; the format's default without one) and its parameters (`exposure`, `channel`, `encoding`, `average`, `range`, `slice`, `level`, `axis`, `word`). The lab checks the node, the resource, the visualizer, and each parameter when it loads the timeline |
-| `{@ image=t0 imageMark=0,0,0.5,0.5 imageMarkText=views.near blend=1}`, `{@ image=t0 imageMark=""}` | A region of a shown image pointed out while a sentence explains it: `u0,v0,u1,v1` are fractions of the picture from its top left; the region is outlined in the accent colour and the rest of the picture dimmed, with an optional label (`imageMarkText`, a text key of the package; `""` for none). It fades in over `blend` where it points, moves to a later `imageMark` of the same image, and `imageMark=""` fades it out |
-| `{@ arrow=toWall arrowFrom=-2.2,0.3,-2.2 arrowTo=field.seed arrowColor=#50d7ff arrowWidth=3}`, `{@ label=hot labelAt=x,y,z labelText=demos.key}`, `{@ arrows=probe.rays}` | Arrows and labels the story declares (`packages/render_lab/src/annotations.rs`), drawn over the frame: a point is three numbers (blended over `blend` when a later key moves it) or a point the package publishes (`render-lab images` lists them), so an arrow can follow what it computes; `arrows=` shows an arrow set the package publishes. A later `arrow=`/`label=` of the name changes it; they fade over `blend`; `arrowHide=a,b`, `labelHide=a,b` hide some, `arrow=""` and `label=""` all. The lab checks every point, set, colour, and text key when it loads the timeline |
-| `{@ image=map imageClick=pickCell}` | A click on the image's picture, in the viewer while the timeline is paused, runs the package's click handler (`#[click]`, `lab/src/actions.rs`; `render-lab actions` lists them) with the point clicked. The lab checks the handler when it loads the timeline |
-| `{@ codespan="LightCullingTilePrepare"}`, `{@ codespan="r.Example.MaxIntensity" say="max ray intensity"}` | A code name: the caption (and any on-screen text) draws it in the monospace font on a soft chip, the voice says it as written (or as `say`), and documents and subtitles show its text. A translation carries the same spans. Wrap every function, struct, file, and console variable the narration names |
-| `{@ run=jumpFlood run.seconds=0.5}`, `{@ stop=jumpFlood}` | An action of the package (`lab/src/actions.rs`; `render-lab actions` lists them): `run` starts it with its arguments (a later `run` of it restarts it), `stop` stops it, and a `demo` switch stops every one. While it runs, it sets the shot's values from the seconds since it started, after every key; the lab checks its name and arguments when it loads the timeline |
-| `{@wide}` | The named cue `wide` from the sentence's or the beat's `cues` (a full key: cameras, records, motions) |
-| `{@grow> radius=0..2}` … `{<grow}` | A range, inside one sentence: `a..b` jumps to `a` where it opens and blends to `b` exactly where it closes (`=b` blends from the current value). `{@name>}` alone blends the cue `name` over the range; its motions with `"seconds": "range"` run for it |
-| `{@ formula="\frac{1}{1+\lit{1}{n}}" say="one over one plus n"}` | A formula: the caption shows it, typeset; the voice says `say`; the formula card in the viewport opens on it and closes with the beat (or at `{@ formula=off}`). `display=yes` sets it in display style on the card, `colors="#rrggbb,…"` colours its `\lit{n}{…}` terms, `card=no` keeps it to the caption |
-| `{@ term=n}` | Lights term `n` of the card (it fades in over `blend`, 0.4 s by default; `term=0` unlights it) |
+| `{opacity 1.0} {callout "source-key"}` | A point cue: shot parameters, `callout`, `listing` (`code`), `panel`, `demo`, `highlight`, `record`, `easing` (`ease`), `blend` (seconds), `term` |
+| `{inset "floodSeeds"} {imageCornerTopLeft} {imageTitle "demos.seeds"}`, `{inset ""}` | An image in an inset, by key: one the investigation publishes (`render-lab images`; its own title and axes), or a PNG resource of the package (`test/globe`) or one an imported package exports (`render_lab.<key>`), at its own size. It fades in and out over the key's `blend`; `imageCorner` is `top-left`, `top-right` (the default), `bottom-left`, or `bottom-right`; `imageTitle` is a text key of the package. The lab checks the key when it loads the timeline |
+| `{inset "maps"} {imageFrom "probeMap"} {imageProbe {' 7.0 7.0 8.0}}`, `{imageHide "maps"}` | A GPU image: an instance, named by the story, of an image kind the package's shaders define (`lab/src/views.rs`; `render-lab images` lists the kinds and their parameters, `image.<param>`, written `imageParam…` where a field has the name). The lab runs the kind's compute entry point into the instance's own texture every frame and shows it live. A later `inset` of the name sets its parameters (blended over `blend`), title, or corner; several images show at once; `imageHide` fades some out and `{inset ""}` all. The lab checks the kind and each parameter when it loads the timeline |
+| `{inset "lights"} {imageGraph "o3deLightCullingCS.tileData"} {imageShowCount} {attr "image.range" "0,16"}` | A resource of the frame's graph as it stood right after a node (`lab/src/graph.rs`; `render-lab graph` lists the nodes and what each reads and writes): the lab draws it right after that node, whatever later nodes write over it, with the visualizer `imageShow` names (`color`, `unorm`, `normal`, `depth`, `ramp`, `signed`, `count`, `float`, `hash`; the format's default without one) and its parameters (`exposure`, `channel`, `encoding`, `average`, `range`, `slice`, `level`, `axis`, `word`; written with `attr`, as the vocabulary has only image kinds' parameters). The lab checks the node, the resource, the visualizer, and each parameter when it loads the timeline |
+| `{inset "t0"} {imageMark "0,0,0.5,0.5"} {imageMarkText "views.near"} {blend 1.0}`, `{imageMark ""}` | A region of a shown image pointed out while a sentence explains it: `u0,v0,u1,v1` are fractions of the picture from its top left; the region is outlined in the accent colour and the rest of the picture dimmed, with an optional label (`imageMarkText`, a text key of the package; `""` for none). It fades in over `blend` where it points, moves to a later `imageMark` of the same image, and `""` fades it out |
+| `{arrow "toWall"} {arrowFrom "-2.2,0.3,-2.2"} {arrowTo "field.seed"} {arrowColor "#50d7ff"} {arrowWidth 3.0}`, `{label "hot"} {labelAt "x,y,z"} {labelText "demos.key"}`, `{arrows "probe.rays"}` | Arrows and labels the story declares (`packages/render_lab/src/annotations.rs`), drawn over the frame: a point is three numbers (blended over `blend` when a later key moves it) or a point the package publishes (`render-lab images` lists them), so an arrow can follow what it computes; `arrows` shows an arrow set the package publishes. A later `arrow`/`label` of the name changes it; they fade over `blend`; `arrowHide`, `labelHide` hide some, `{arrow ""}` and `{label ""}` all. The lab checks every point, set, colour, and text key when it loads the timeline |
+| `{inset "map"} {imageClick "pickCell"}` | A click on the image's picture, in the viewer while the timeline is paused, runs the package's click handler (`#[click]`, `lab/src/actions.rs`; `render-lab actions` lists them) with the point clicked. The lab checks the handler when it loads the timeline |
+| `${code "LightCullingTilePrepare"}`, `${say {code "r.Example.MaxIntensity"} "max ray intensity"}` | A code name (not a cue): the caption (and any on-screen text) draws it in the monospace font on a soft chip, the voice says it as written (or as `say` gives it), and documents and subtitles show its text. A translation carries the same names. Wrap every function, struct, file, and console variable the narration names |
+| `{run "jumpFlood"} {runSeconds 0.5}`, `{stop "jumpFlood"}` | An action of the package (`lab/src/actions.rs`; `render-lab actions` lists them): `run` starts it with its arguments (`run.<arg>`; a later `run` of it restarts it), `stop` stops it, and a `demo` switch stops every one. While it runs, it sets the shot's values from the seconds since it started, after every key; the lab checks its name and arguments when it loads the timeline |
+| `${duringText "grow" {' {radiusRange 0.0 2.0}} "…"}` | A range, inside one sentence: `xRange a b` jumps to `a` where it opens and blends to `b` exactly where it closes (a plain value blends from the current one) |
+| `${cue "formula" {' {formula "\\frac{1}{1+\\lit{1}{n}}"}}}${say {math "\\frac{1}{1+\\lit{1}{n}}"} "one over one plus n"}` | A formula: the cue opens the formula card in the viewport on it (it closes with the beat, or at `{formulaOff}`); the caption shows what `say` shows, typeset, and the voice says its words. `{display "yes"}` sets it in display style on the card, `{colors "#rrggbb,…"}` colours its `\lit{n}{…}` terms, `{card "no"}` keeps it to the caption; in a String, LaTeX's backslashes are doubled |
+| `{term 1}` | Lights term `n` of the card (it fades in over `blend`, 0.4 s by default; `{term 0}` unlights it) |
 
 Captions are cut at word boundaries, never inside a formula, and each one shows from its first word; the `.srt` and
-`.vtt` files and the script write formulas as `$LaTeX$`. A translation's sentence carries the same formula tags
-(`formula`, `display`, `colors`; the same LaTeX, as many times) and no cues. The build typesets every formula of the
-timeline with `render-lab formulas --check` (glyphs of at least 24 px, display formulas at most 546 px wide).
+`.vtt` files and the script write formulas as `$LaTeX$`. A translation's sentence carries the same formulas (the same
+LaTeX, as many times) and no cues. The build typesets every formula of the timeline with `render-lab formulas
+--check` (glyphs of at least 24 px, display formulas at most 546 px wide).
 
 The lab draws formulas itself (lab/src/formula.rs: MiTeX translates the LaTeX into Typst math, and Typst typesets it),
-so the same tag works in its text tables, `{@ formula="…" display=yes colors="…"}`, as O3DE's readout formulas do.
+in the captions and the formula card, and in its text tables, as the rich-text tag `{@ formula="…" display=yes
+colors="…"}`, as O3DE's readout formulas do.
 
 ## Outputs
 

@@ -47,6 +47,11 @@ naga = { version = "=30.0.1", features = ["wgsl-in"] }
 # MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
 # `prebuilt` makes it use the spec it does ship.
 mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
+# Lamlet, the storyboards' language (src/script/), and lamlet-present, its presentations. Lamlet is not stable,
+# so it is pinned by git tag (the commits are in Cargo.lock); setup.sh vendors them with the crates.io crates.
+lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.1" }
+lamlet-doc = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.1" }
+lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.1.3" }
 
 [target.'cfg(unix)'.dependencies]
 # The local time, for screenshots' names (src/readback.rs). Already vendored.

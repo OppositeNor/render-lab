@@ -1,39 +1,31 @@
-"""Tags inside a narration sentence: shot cues timed to the word they stand
-before, and formulas shown in the captions and the formula card.
+"""A narration sentence's cues, parsed: shot cues timed to the word they
+stand before, ranges over words, and formulas shown in the captions and the
+formula card. A storyboard is a Lamlet presentation (presentation.py), whose
+loader gives each sentence its `Sentence`; this module reads a cue's
+attributes into a shot key (`cue_key`), and handles the rich text a caption
+keeps for the lab to draw (src/lab/rich_text.rs): a formula is
+`{@ formula="…"}`, a code name `{@ codespan="…"}`.
 
-A tag is `{@ name=value …}`; a value with spaces or braces is quoted, `"…"`,
-where only `\\"` is an escape (LaTeX keeps its backslashes). The lab parses
-the same tags in on-screen text (src/lab/rich_text.rs).
-
-- `{@ opacity=1 callout=source-key}`: a point cue. Its keys fire when the
-  next word starts. Attributes: any shot parameter, `callout`, `code`,
-  `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`, `blend=0.5`
-  (seconds), `term=n`, and the package's actions (src/lab/actions.rs):
-  `run=jumpFlood run.seconds=0.5` starts one with its arguments, `stop=a,b`
-  stops them; and `image=name` (`imageTitle=text-key`, `imageCorner=top-left`),
-  an image the investigation publishes, a PNG resource, or, with
-  `imageFrom=kind` and `image.<param>=value`, an instance of an image kind its
-  shaders define, or, with `imageGraph=node.resource` (`imageShow=kind`), a
-  resource of the frame's graph as it stood right after a node (the
-  inspector), in an inset (`imageHide=a,b` hides some, `image=""` all;
-  `imageClick=handler` runs the package's click handler on a click on it);
-  arrows and labels: `arrow=name arrowFrom=x,y,z arrowTo=point arrowColor=#rrggbb
-  arrowWidth=3`, `arrows=set`, `label=name labelAt=x,y,z labelText=text-key
-  labelColor=#rrggbb`, a point three numbers or one the package publishes,
-  `arrowHide=a,b`, `labelHide=a,b` (`arrow=""`, `label=""` hide all).
-- `{@intro}`: the named cue `intro` from the sentence's or the beat's `cues`
-  (a full shot key, for cameras, records, and motions).
-- `{@grow> radius=0..2}` … `{<grow}`: a range. `a..b` jumps to `a` where it
-  opens and blends to `b` exactly where it closes; `=b` blends from the current
-  value. A range named after a cue in `cues` blends that cue's values over the
-  range, and its motions run for the range.
-- `{@ codespan="LightCullingTilePrepare"}`: a code name, shown in the caption as
-  code and voiced as written (or as `say="…"`); a translation carries it too.
-- `{@ formula="\\alpha = \\frac{1}{1+n}" say="alpha equals one over one plus n"}`:
-  a formula. The caption shows it, the voice says `say`, and the formula card
-  opens on it (`card=no`: the caption only; `display=yes`: display style;
-  `colors="#rrggbb,…"`: its terms' colours). `{@ formula=off}` closes the card,
-  and `term=n` lights term n of `\\lit{n}{…}`.
+A cue's attributes are pairs of Strings, as the investigation's vocabulary
+writes them (`render-lab story keys`): any shot parameter, `callout`,
+`code`, `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`,
+`blend=0.5` (seconds), `term=n`, and the package's actions
+(src/lab/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
+arguments, `stop=a,b` stops them; and `image=name` (`imageTitle=text-key`,
+`imageCorner=top-left`), an image the investigation publishes, a PNG
+resource, or, with `imageFrom=kind` and `image.<param>=value`, an instance of
+an image kind its shaders define, or, with `imageGraph=node.resource`
+(`imageShow=kind`), a resource of the frame's graph as it stood right after
+a node (the inspector), in an inset (`imageHide=a,b` hides some, `image=""`
+all; `imageClick=handler` runs the package's click handler on a click on
+it); arrows and labels: `arrow=name arrowFrom=x,y,z arrowTo=point
+arrowColor=#rrggbb arrowWidth=3`, `arrows=set`, `label=name labelAt=x,y,z
+labelText=text-key labelColor=#rrggbb`, a point three numbers or one the
+package publishes, `arrowHide=a,b`, `labelHide=a,b` (`arrow=""`, `label=""`
+hide all). A range's values `a..b` jump to `a` where it opens and blend to `b`
+exactly where it closes. A formula's cue (`formula`, `term=n` lighting term
+n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
+`colors="#rrggbb,…"`) opens the formula card; `formula=off` closes it.
 """
 from __future__ import annotations
 
@@ -47,8 +39,6 @@ Json = dict[str, Any]
 # Key fields a tag attribute names directly (the rest are shot parameters).
 STRING_FIELDS = ('callout', 'code', 'panel', 'demo', 'ease', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageClick', 'imageMarkText', 'arrow', 'arrowColor', 'arrows', 'label', 'labelText', 'labelColor')
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
-# Attribute names a tag reserves; a shot parameter of one of these names is written `param.<name>`.
-RESERVED = (*STRING_FIELDS, *FORMULA_ATTRS, 'highlight', 'record', 'blend', 'term', 'delay', 'animate', 'pause', 'camera', 'param', 'run', 'stop', 'imageHide', 'imageMark', 'arrowFrom', 'arrowTo', 'arrowWidth', 'arrowHide', 'labelAt', 'labelHide')
 
 
 class MarkupError(RuntimeError):
@@ -77,73 +67,6 @@ class Sentence:
     formulas: list[str] = field(default_factory=list)
 
 
-def parse_tag(text: str, start: int) -> tuple[list[tuple[str, str | None]], int]:
-    """The attributes of the tag whose body starts at `start` (after `{@`),
-    and the index past its closing brace (as `parse_tag` in rich_text.rs). A
-    bare word (a cue's name) has the value None; `name=""` has ''."""
-    i = start
-    attrs: list[tuple[str, str | None]] = []
-    while True:
-        while i < len(text) and text[i].isspace():
-            i += 1
-        if i >= len(text):
-            raise MarkupError(f'unclosed tag: {text[max(0, start - 2):]!r}')
-        if text[i] == '}':
-            return attrs, i + 1
-        name_start = i
-        while i < len(text) and not text[i].isspace() and text[i] not in '=}':
-            i += 1
-        name = text[name_start:i]
-        if i >= len(text) or text[i] != '=':
-            attrs.append((name, None))
-            continue
-        i += 1
-        if i < len(text) and text[i] == '"':
-            i += 1
-            value = []
-            while True:
-                if i >= len(text):
-                    raise MarkupError(f'unclosed quote in tag: {text[max(0, start - 2):]!r}')
-                if text[i] == '"':
-                    i += 1
-                    break
-                if text[i] == '\\' and i + 1 < len(text) and text[i + 1] == '"':
-                    value.append('"')
-                    i += 2
-                    continue
-                value.append(text[i])
-                i += 1
-            attrs.append((name, ''.join(value)))
-        elif i < len(text) and text[i] in '[{':
-            # A JSON value (motions): up to its matching bracket, past strings.
-            value_start, depth, quoted = i, 0, False
-            while i < len(text):
-                c = text[i]
-                if quoted:
-                    if c == '\\':
-                        i += 1
-                    elif c == '"':
-                        quoted = False
-                elif c == '"':
-                    quoted = True
-                elif c in '[{':
-                    depth += 1
-                elif c in ']}':
-                    depth -= 1
-                    if depth == 0:
-                        i += 1
-                        break
-                i += 1
-            if depth:
-                raise MarkupError(f'unclosed JSON value in tag: {text[max(0, start - 2):]!r}')
-            attrs.append((name, text[value_start:i]))
-        else:
-            value_start = i
-            while i < len(text) and not text[i].isspace() and text[i] != '}':
-                i += 1
-            attrs.append((name, text[value_start:i]))
-
-
 def quote(value: str) -> str:
     return '"' + value.replace('"', '\\"') + '"'
 
@@ -167,102 +90,6 @@ def tidy(text: str) -> str:
     """Spaces as a sentence has them once its tags are gone."""
     text = re.sub(r'\s+', ' ', text).strip()
     return re.sub(r' ([,.;:!?)])', r'\1', text)
-
-
-def parse(text: str, spoken_only: bool = False) -> Sentence:
-    """A sentence's caption, spoken text, pieces, tags, and formulas.
-    `spoken_only` (a translation) allows formulas and nothing else."""
-    caption: list[str] = []
-    pieces: list[str] = ['']
-    tags: list[Tag] = []
-    formulas: list[str] = []
-    i = 0
-    while i < len(text):
-        if text.startswith('\\{', i):
-            caption.append('{')
-            pieces[-1] += '{'
-            i += 2
-            continue
-        if text.startswith('{<', i):
-            end = text.find('}', i)
-            if end < 0:
-                raise MarkupError(f'unclosed range end in {text!r}')
-            if spoken_only:
-                raise MarkupError(f'a translation carries no cues: {text!r}')
-            tags.append(Tag('close', text[i + 2:end].strip(), [], len(pieces)))
-            pieces.append('')
-            i = end + 1
-            continue
-        if text.startswith('{@', i):
-            attrs, end = parse_tag(text, i + 2)
-            if attrs and attrs[0][0] == 'codespan':
-                tag = Tag('code', None, attrs, len(pieces))
-                code = tag.attr('codespan') or ''
-                if not code or any(k not in ('codespan', 'say') for k, _ in attrs):
-                    raise MarkupError(f'a code span is {{@ codespan="name"}}, with an optional say="…": {text[i:end]!r}')
-                caption.append(codespan_tag(code))
-                # It is said as written (or as its say="…"), in the words around it.
-                pieces[-1] += tag.attr('say') or code
-                i = end
-                continue
-            if any(k == 'formula' for k, _ in attrs):  # (a parameter named formula is `param.formula`)
-                tag = Tag('formula', None, attrs, len(pieces))
-                latex = tag.attr('formula') or ''
-                say = tag.attr('say')
-                if latex == 'off':
-                    if spoken_only:
-                        raise MarkupError(f'a translation carries no cues: {text!r}')
-                    tags.append(tag)
-                    pieces.append('')
-                elif spoken_only:
-                    # A translation's formula is shown, never spoken.
-                    if say:
-                        raise MarkupError(f'a translation\'s formula carries no say="…": {latex!r}')
-                    formulas.append(latex)
-                    caption.append(formula_tag(tag))
-                else:
-                    if not say:
-                        raise MarkupError(f'the formula {latex!r} has no say="…": the voice cannot read LaTeX')
-                    formulas.append(latex)
-                    caption.append(formula_tag(tag))
-                    tags.append(tag)
-                    # The tag stands before the first word of what is said for it.
-                    pieces.append(f' {say} ')
-                    pieces.append('')
-                i = end
-                continue
-            if spoken_only:
-                raise MarkupError(f'a translation carries no cues: {text!r}')
-            name = None
-            if attrs and attrs[0][1] is None and attrs[0][0].endswith('>'):
-                name = attrs[0][0][:-1]
-                tags.append(Tag('open', name, attrs[1:], len(pieces)))
-            elif len(attrs) == 1 and attrs[0][1] is None:
-                tags.append(Tag('cue', attrs[0][0], [], len(pieces)))
-            else:
-                if any(v is None for _, v in attrs):
-                    raise MarkupError(f'a cue\'s attributes are name=value: {text[i:end]!r}')
-                tags.append(Tag('cue', None, attrs, len(pieces)))
-            pieces.append('')
-            i = end
-            continue
-        caption.append(text[i])
-        pieces[-1] += text[i]
-        i += 1
-    opened = [t.name for t in tags if t.kind == 'open']
-    closed = [t.name for t in tags if t.kind == 'close']
-    for name in opened:
-        if closed.count(name) != 1:
-            raise MarkupError(f'the range {name!r} must close once in its sentence: {text!r}')
-    for name in closed:
-        if name not in opened:
-            raise MarkupError(f'{{<{name}}} closes no range: {text!r}')
-    spoken = tidy(' '.join(pieces))
-    return Sentence(tidy(''.join(caption)), spoken, [tidy(p) for p in pieces], tags, formulas)
-
-
-def has_tags(text: str) -> bool:
-    return '{@' in text or '{<' in text
 
 
 def number(value: str, where: str) -> float:
@@ -349,13 +176,9 @@ def check_action(key: Json, where: str) -> None:
         del run['args']
 
 
-def cue_key(tag: Tag, cues: Json, where: str) -> Json:
+def cue_key(tag: Tag, where: str) -> Json:
     """The shot key a point cue or a range's start sets, before timing:
     fields as the storyboard writes them (`blend` in seconds)."""
-    if tag.kind in ('cue', 'open') and tag.name and not tag.attrs:
-        if tag.name not in cues:
-            raise MarkupError(f'{where}: no cue named {tag.name!r} in the sentence\'s or the beat\'s cues')
-        return dict(cues[tag.name])
     key: Json = {}
     params: Json = {}
     for name, value in tag.attrs:
@@ -450,9 +273,26 @@ def restore(text: str, tags: list[str]) -> str:
     return re.sub(r'QQF(\d+)Q*', lambda m: tags[int(m.group(1))], text)
 
 
-def text_keys(beat: Json, sentence: Json) -> list[Json]:
+def sentence(s: Json) -> Sentence:
+    """A narration sentence parsed, in English (what is said and cued)."""
+    return s['parsed']
+
+
+def shown(s: Json, translation: bool) -> Sentence:
+    """A narration sentence as its edition shows it: the translation's
+    (`shown`, in the zh-CN edition), else the English."""
+    if translation:
+        return s['shown']
+    return s['parsed']
+
+
+def tagged(s: Json) -> bool:
+    """Whether a sentence has tags: cues, ranges, formulas, or code spans."""
+    parsed = sentence(s)
+    return bool(parsed.tags) or '{@' in parsed.caption
+
+
+def text_keys(beat: Json, s: Json) -> list[Json]:
     """The keys a sentence's tags set, untimed: for checks that look at every
     key (callouts, listings)."""
-    parsed = parse(sentence.get('en', sentence['text']))
-    cues = {**beat.get('cues', {}), **sentence.get('cues', {})}
-    return [cue_key(t, cues, beat['id']) for t in parsed.tags if t.kind != 'close']
+    return [cue_key(t, beat['id']) for t in sentence(s).tags if t.kind != 'close']

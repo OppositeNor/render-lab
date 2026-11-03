@@ -18,7 +18,7 @@ formats, and every translated piece of data shares one system.
   - pseudo-code titles: the `# title: English | 中文` header (`lab/src/pseudocode.rs`)
   - timeline editions: `TimelineInfo::edition` ("English", "中文") and the per-edition titles
   - scene object names: `object.*` keys, prefix-matched by `object_name`
-  - the video's narration translation: an investigation's `video/storyboard.zh-CN.story`, read by `tools/video`
+  - the video's narration translation: an investigation's `video/storyboard.zh-CN.lam`, read by `tools/video`
 - **Fonts by hand.** Source Han Sans CN is bundled for Chinese (`lab/src/text.rs`). The check that every character
   has a glyph runs in only one investigation's selftest.
 
@@ -46,7 +46,7 @@ formats, and every translated piece of data shares one system.
    - timeline edition names
    - object names
    `source_index.py` and the pseudo-code parser write or read keys instead of `…Zh` fields. The narration's
-   `storyboard.zh-CN.story` stays as it is: it holds sentence-by-sentence narration for the video, not interface text.
+   `storyboard.zh-CN.lam` stays as it is: it holds sentence-by-sentence narration for the video, not interface text.
 5. **Report.** A `render-lab i18n --report REPORT` command (or a `build.rs` output) lists, per language and table:
    - missing keys and keys that fall back
    - keys whose text equals English (often fine: technical terms)

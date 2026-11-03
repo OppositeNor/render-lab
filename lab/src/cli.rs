@@ -194,6 +194,9 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// The current investigation's story: `keys`, what its cues may set.
+    #[command(subcommand)]
+    Story(StoryCommand),
     /// List the current investigation's choices (`#[derive(Choice)]` enums),
     /// their options, and the WGSL constants the lab writes for its shaders
     /// (its package's `build/generated/<name>.wgsl`) whenever it loads it.
@@ -236,6 +239,82 @@ enum Command {
         #[arg(long, required = true, num_args = 1..)]
         check: Vec<PathBuf>,
     },
+    /// Lamlet and lamlet-present, from the versions the lab pins (src/script/): `ir`, `deck`, `vocab`. Every
+    /// document may import `std`, `content`, `present`, and render_lab's package `render_lab`. Diagnostics go to
+    /// stderr with the document's line, and the exit status is 1.
+    #[command(subcommand)]
+    Lamlet(LamletCommand),
+}
+
+#[derive(Subcommand)]
+enum StoryCommand {
+    /// The keys a storyboard's cues may set, as JSON (src/script/keys.rs): the vocabulary key list
+    /// `render-lab lamlet vocab` turns into the investigation's cue package.
+    Keys,
+}
+
+#[derive(Subcommand)]
+enum LamletCommand {
+    /// The document's IR as JSON, its prose read as CommonMark (`lamlet build --to ir --prose commonmark`).
+    Ir {
+        file: PathBuf,
+        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
+        packages: Vec<(String, PathBuf)>,
+        /// Write it to this file instead of stdout.
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+    /// A presentation's deck as JSON, with no timing (`lamlet present deck`).
+    Deck {
+        file: PathBuf,
+        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
+        packages: Vec<(String, PathBuf)>,
+        /// Write it to this file instead of stdout.
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+    /// The cue vocabulary package NAME from a host's keys (`lamlet present vocab`), checked with the packages.
+    Vocab {
+        name: String,
+        keys: PathBuf,
+        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
+        packages: Vec<(String, PathBuf)>,
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+}
+
+fn parse_package(value: &str) -> Result<(String, PathBuf), String> {
+    let (name, path) = value.split_once('=').ok_or("expected NAME=PATH")?;
+    Ok((name.to_string(), PathBuf::from(path)))
+}
+
+/// `render-lab lamlet …`; an error is a diagnostic (or a file's error) for stderr.
+fn lamlet(command: LamletCommand) -> Result<(), String> {
+    use crate::script;
+    let read = |given: Vec<(String, PathBuf)>| -> Result<Vec<script::Package>, String> {
+        script::packages(given.iter().map(|(name, path)| script::Package::read(name, path)).collect::<Result<_, _>>()?)
+    };
+    let write = |out: Option<PathBuf>, text: String| -> Result<(), String> {
+        match out {
+            Some(path) => std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display())),
+            None => {
+                print!("{text}");
+                Ok(())
+            }
+        }
+    };
+    match command {
+        LamletCommand::Ir { file, packages, out } => write(out, script::ir(&file, &read(packages)?)?),
+        LamletCommand::Deck { file, packages, out } => {
+            let deck = script::deck(&file, &read(packages)?)?;
+            write(out, serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n")
+        }
+        LamletCommand::Vocab { name, keys, packages, out } => {
+            let json = std::fs::read_to_string(&keys).map_err(|e| format!("{}: {e}", keys.display()))?;
+            write(out, script::vocab(&name, &json, &read(packages)?).map_err(|e| format!("{}: {e}", keys.display()))?)
+        }
+    }
 }
 
 /// `--resolution`: a 16:9 preset by its height, or WIDTHxHEIGHT (even, for
@@ -291,6 +370,16 @@ pub fn main(app: App) -> Result<()> {
         return Ok(());
     }
     let command = cli.command.unwrap_or(Command::Home { width: 1600, height: 900, ui_scale: DEFAULT_UI_SCALE, snapshot: None, page: "title".into(), autotest: None });
+    let command = match command {
+        Command::Lamlet(command) => {
+            if let Err(e) = lamlet(command) {
+                eprintln!("{}", e.trim_end());
+                std::process::exit(1);
+            }
+            return Ok(());
+        }
+        command => command,
+    };
     let chosen = {
         let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
         let path = cli.investigation.clone().or_else(|| known.first().cloned()).context("no investigation is installed")?;
@@ -407,6 +496,7 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
+        Command::Lamlet(_) => unreachable!("run before an investigation is chosen"),
         Command::Knowledge { known, levels } => knowledge(chosen, &known, levels),
         Command::Graph { dot, json } => graph(chosen, dot.as_deref(), json),
         Command::Values { json, label, scope } => {
@@ -450,6 +540,11 @@ pub fn main(app: App) -> Result<()> {
                 (None, false) => bail!("give --out, the directory for the results (or --dry-run)"),
             };
             crate::research::run(&crate::research::ResearchOptions { experiment: file, out, dry_run, root: manifest_dir.clone() })
+        }
+        Command::Story(StoryCommand::Keys) => {
+            let keys = crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
+            println!("{}", serde_json::to_string_pretty(&keys)?);
+            Ok(())
         }
         Command::Choices => {
             for choices in investigation::current().choices() {

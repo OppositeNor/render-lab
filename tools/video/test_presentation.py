@@ -1,0 +1,129 @@
+"""Tests of the storyboard file type, a Lamlet presentation (presentation.py), read by the lab's Lamlet
+(lamlet.py): `python3 -m unittest tools/video/test_presentation.py`. They need the lab built
+(`cargo build --release --locked --offline`) and are skipped until it is."""
+from __future__ import annotations
+
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lamlet  # noqa: E402
+import markup  # noqa: E402
+import presentation  # noqa: E402
+
+FORMULA = r'\frac{1}{1+\lit{1}{n}}'
+
+# The cues use `attr` and `present`'s functions, so the test needs no investigation's vocabulary; a storyboard
+# writes them with it (`{cameraYaw 30.0}` for `{attr "camera.yaw" "30"}`).
+STORY = r'''$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]
+$[# leaves 42289]
+# A test {#video fps=30 subtitle="A short one"}
+
+## First chapter {#c1 number=1 target=60 summary="What it covers." sources="key-a, key-b"}
+
+### One beat {#c1-one kind=3d sources=key-c}
+
+${cue "key" {' {attr "demo" "room"} {attr "camera.target" "0,1,2"} {attr "camera.yaw" "30"} {attr "opacity" "1"} {attr "param.formula" "2"} {attr "viewMode" "ggxD"} {attr "lightOn" "false"}}}
+${cue "key" {' {attr "animate" "[{\"path\": {\"params\": [\"camera.yaw\"], \"through\": [[10], [20]], \"seconds\": \"beat\"}}]"}}}
+
+Diffuse: a sentence that looks like a property, ${cue "key" {' {attr "callout" "key-a"}}}with a cue, and $$5.
+
+A ray ${during "grow" {' {attr "radius" "0..2"}} {cat {' {text "marches "} {cue "key" {' {attr "opacity" "1"}}} {text "step by step"}}}}, with ${cue "formula" {' {attr "formula" "\\frac{1}{1+\\lit{1}{n}}"} {attr "colors" "#ffd166"}}}${say {math "\\frac{1}{1+\\lit{1}{n}}"} "one over one plus n"}, ${code "LightCullingTilePrepare"} and ${say {code "r.Example.Max"} "max intensity"}.
+
+There are ${spoken leaves} leaves.
+
+### A diagram {#c1-two kind=2d diagram=frame focus="A, B"}
+
+The diagram's sentence.
+'''
+
+TRANSLATION = r'''$[Import* std]$[Import* content]
+# 测试 {#video locale=zh-CN glossary="SDFGI, GI mode"}
+
+## 第一章 {#c1 number=1 summary="内容。"}
+
+### 一个 {#c1-one}
+
+第一句。
+
+第二句，${math "\\frac{1}{1+\\lit{1}{n}}"}，${code "LightCullingTilePrepare"}。
+
+第三句。
+
+第四句。
+
+### 图 {#c1-two}
+
+图的句子。
+'''
+
+
+@unittest.skipUnless(lamlet.BINARY.exists(), 'the lab is not built (cargo build --release --locked --offline)')
+class Presentation(unittest.TestCase):
+    def load(self, text: str, translation: bool = False) -> dict:
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'storyboard.lam'
+            path.write_text(text)
+            return presentation.load_translation(path) if translation else presentation.load(path, [])
+
+    def test_reads_every_part(self) -> None:
+        board = self.load(STORY)
+        self.assertEqual((board['title'], board['fps'], board['subtitle']), ('A test', 30, 'A short one'))
+        chapter = board['chapters'][0]
+        self.assertEqual((chapter['number'], chapter['title'], chapter['targetSeconds'], chapter['summary'], chapter['sources']), (1, 'First chapter', 60.0, 'What it covers.', ['key-a', 'key-b']))
+        one, two = chapter['beats']
+        self.assertEqual((one['id'], one['kind'], one['headline'], one['sources']), ('c1-one', '3d', 'One beat', ['key-c']))
+        # A beat's keys, one per cue: a parameter is a number, a flag, an option's name, or a vector.
+        self.assertEqual(one['keys'][0], {'demo': 'room', 'camera': {'target': [0.0, 1.0, 2.0], 'yaw': 30.0}, 'params': {'opacity': 1.0, 'formula': 2.0, 'viewMode': 'ggxD', 'lightOn': False}})
+        self.assertEqual(one['keys'][1], {'animate': [{'path': {'params': ['camera.yaw'], 'through': [[10], [20]], 'seconds': 'beat'}}]})
+        self.assertEqual((two['kind'], two['diagram'], two['focus']), ('2d', 'frame', ['A', 'B']))
+        self.assertTrue(presentation.is_3d(one) and presentation.is_diagram(two) and not presentation.is_card(two))
+
+    def test_sentences_are_parsed(self) -> None:
+        one = self.load(STORY)['chapters'][0]['beats'][0]
+        first, second, third = (markup.sentence(s) for s in one['narration'])
+        self.assertEqual(first.spoken, 'Diffuse: a sentence that looks like a property, with a cue, and $5.')
+        self.assertEqual([(t.kind, t.attrs) for t in first.tags], [('cue', [('callout', 'key-a')])])
+        # Each cue stands before the piece it opens; a range closes where its words end.
+        self.assertEqual(second.spoken, 'A ray marches step by step, with one over one plus n, LightCullingTilePrepare and max intensity.')
+        self.assertEqual([(t.kind, t.name) for t in second.tags], [('open', 'grow'), ('cue', None), ('close', 'grow'), ('formula', None)])
+        self.assertEqual([second.pieces[t.piece] for t in second.tags], ['marches', 'step by step', ', with', 'one over one plus n'])
+        self.assertEqual(second.caption, f'A ray marches step by step, with {{@ formula="{FORMULA}" colors="#ffd166"}}, {{@ codespan="LightCullingTilePrepare"}} and {{@ codespan="r.Example.Max"}}.')
+        self.assertEqual(second.formulas, [FORMULA])
+        self.assertEqual(markup.cue_key(second.tags[3], 'x'), {'formula': f'{{@ formula="{FORMULA}" colors="#ffd166"}}'})
+        # render_lab's numbers, said in words.
+        self.assertEqual(third.spoken, 'There are forty-two thousand two hundred eighty-nine leaves.')
+
+    def test_translation(self) -> None:
+        translation = self.load(TRANSLATION, translation=True)
+        self.assertEqual((translation['title'], translation['glossary']), ('测试', ['SDFGI', 'GI mode']))
+        self.assertEqual(translation['chapters'], [{'number': 1, 'title': '第一章', 'summary': '内容。'}])
+        narration = translation['beats']['c1-one']['narration']
+        self.assertEqual(narration[1]['shown'].caption, f'第二句，{{@ formula="{FORMULA}"}}，{{@ codespan="LightCullingTilePrepare"}}。')
+        self.assertEqual(narration[1]['shown'].formulas, [FORMULA])
+        # A translation carries no cues.
+        with self.assertRaisesRegex(presentation.PresentationError, 'carries no cues'):
+            self.load(TRANSLATION.replace('第一句。', '$[Import* present]${cue "key" {\' {attr "a" "1"}}}第一句。'), translation=True)
+
+    def test_errors(self) -> None:
+        for kind in ('scene', 'sources'):
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(presentation.PresentationError, 'the scene type is 3d or 2d'):
+                    self.load(STORY.replace('kind=3d', f'kind={kind}'))
+        # A 2d beat shows a diagram, the frame graph, or a sources card.
+        with self.assertRaisesRegex(presentation.PresentationError, 'a 2d beat shows'):
+            self.load(STORY.replace(' diagram=frame focus="A, B"', ''))
+        # A formula needs what is said for it.
+        with self.assertRaisesRegex(presentation.PresentationError, 'no spoken form|has no say'):
+            self.load(STORY.replace('There are', 'There are ${math "x"}'))
+        # Lamlet's diagnostic, with the document's line.
+        with self.assertRaises(lamlet.LamletError) as e:
+            self.load(STORY.replace('There are ${spoken leaves}', 'There are ${unknownName 3}'))
+        self.assertIn('unknownName', str(e.exception))
+        self.assertIn('storyboard.lam:16:', str(e.exception))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -247,7 +247,7 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   language; `build.rs` checks it). Name the tag's text in `Readout::formula` and the lit term in `Readout::formula_lit`;
   the lab typesets it (`lab/src/formula.rs`; glyphs at least 24 px, at most 546 px wide, which
   `render-lab formulas --check` and the selftest enforce). A `formula` parameter can pick the lit term. Narration can
-  show formulas too, with a formula tag in a sentence (`tools/video/README.md`).
+  show formulas too, with a formula cue and `say` in a sentence (`tools/video/README.md`).
 
 ## 6. The Play animation
 
@@ -266,13 +266,13 @@ Option<u32>)`. The parameters after the frame are its arguments, their kinds rea
 indices, toggles, vectors, names; `Option` for optional ones); the function sets the shot's values from
 `frame.elapsed`, the seconds since the story started it, so any frame still renders on its own. Return
 `&Self::ACTIONS` from `Investigation::actions`, and test one through a timeline in the selftest (Godot's
-`actions.rs`). The story writes `{@ run=jumpFlood run.seconds=0.5}` and `{@ stop=jumpFlood}`.
+`actions.rs`). The story's cues write `{run "jumpFlood"} {runSeconds 0.5}` and `{stop "jumpFlood"}` (the vocabulary, `render-lab story keys`).
 
 A picture the story shows is an image by key (`packages/render_lab/src/inset.rs`). Declare the ones the package computes in
 `Investigation::images` (`ImageSpec { key, doc }`), and publish each in `FrameContent::images` as a `PictureInset`
 (its pixels, title, axes, marker) only in the frames whose state shows it (`state.shows_image(key)`); Godot's
 `field_demo` publishes its slices so. A PNG needs no code: a `file` resource of the package is an image by its key.
-The story writes `{@ image=key imageCorner=top-left}` and `{@ imageHide=key}`, and chooses the corner and the title.
+The story's cues write `{inset "key"} {imageCornerTopLeft}` and `{imageHide "key"}`, and choose the corner and the title.
 A story's arrows and labels name points the package publishes (`lab/src/frame.rs`, `FrameContent::points`) and
 arrow sets it computes (`FrameContent::arrow_sets`, only while `state.shows_arrows(key)`), declared in
 `Investigation::annotations` (`AnnotationSpec`): publish what an arrow would follow (a hit, a seed, a probe) rather
@@ -281,7 +281,7 @@ than drawing a fixed annotation in Rust. Godot's `field_demo` publishes `field.w
 A click on an inset never reaches the scene behind it. What a click on an image's picture does is a click handler, a
 `#[click]` function in the `#[lab::actions]` block, `fn pick_cell(frame: &mut ClickFrame) -> bool` (the state on
 screen, the state it sets, and `frame.uv`, the point clicked, 0..1 with y down). The story gives an image one,
-`{@ image=map imageClick=pickCell}`; an inset the package draws names one in `PictureInset::click`. A click happens
+`{inset "map"} {imageClick "pickCell"}`; an inset the package draws names one in `PictureInset::click`. A click happens
 while no timeline drives the state (a demonstration, or a timeline paused).
 
 A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`, Godot's
@@ -291,7 +291,7 @@ A GPU image is an image kind a shader of the package defines (`lab/src/views.rs`
 range=0,16}`. The entry point runs with the frame (group 0) and the scene shading (group 1) bound, one invocation per
 texel, and writes display colours. A kind that pictures the screen adds `aspect=viewport`: its texture then takes
 the viewport's shape (the longer side of `size` kept), so a tall viewport gives a tall picture. No Rust: the story makes instances and drives their parameters
-(`{@ image=near imageFrom=probeMap image.probe=7,7,8}`). Keep `//` comments away from just above a tagged
+(`{inset "near"} {imageFrom "probeMap"} {imageProbe {' 7.0 7.0 8.0}}`). Keep `//` comments away from just above a tagged
 declaration: naga then drops its `///` lines.
 
 ## 7. The narrated video
@@ -302,22 +302,26 @@ Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose 
   timelines), output names, `engineLabel`, `checkoutEnv`, `durationMinutes`, `readingPath` (index keys for the
   source-reading guide), `pronunciations`, and the documents' texts per language (intro, demo descriptions,
   simplifications). Copy O3DE's and adapt it.
-- **`storyboard.story`**: chapters (`# n | Title | N s`, with `summary:` and `sources:`) of beats
-  (`## c<chapter>-<name> | 3d | Headline`; the scene type `3d`, or `2d` for a diagram (`diagram:`) or a sources
-  card (`sources:`)), each paragraph one sentence.
-  Shots are tags (`tools/video/README.md`): a line of tags before the first sentence sets the beat's keys,
-  `{@define name …}` names a cue, and tags in a sentence fire on the word they stand before (`demo`, `camera.*`,
-  shot parameters, `panel`, `code`, `highlight`, `callout`, `record`, `blend`, `ease`, `delay`, ranges
-  `{@name> p=a..b}`…`{<name}`, `animate=[…]` motions, and formulas `{@ formula="…" say="…"}`).
-- **`diagrams/*.toml`**: diagrams for `diagram:` beats, boxes and edges whose text is keys of the package's text
+- **`storyboard.lam`**: a Lamlet presentation (`tools/video/README.md`; the `render-lab-lamlet` skill): the video's
+  heading (`# Title {#video fps=30 …}`), chapters (`## Title {#c<n> number=<n> target=<seconds> summary="…"
+  sources="…"}`) of beats (`### Headline {#c<chapter>-<name> kind=3d}`; the scene type `3d`, or `2d` for a diagram
+  (`diagram=`) or a sources card (`sources=`)), each paragraph one sentence. Shots are cues with the investigation's
+  vocabulary (`render-lab --investigation <path> story keys`, typed functions the builder generates): a paragraph of
+  cues before the first sentence sets the beat's keys, and cues in a sentence fire on the word they stand before:
+  `${cue "key" {' {demoRoom} {cameraYaw 24.0} {callout "settings"}}}` (shot parameters, `demo`, `camera.*`, `panel`,
+  `listing` for `code`, `highlight`, `callout`, `record`, `blend`, `easing` for `ease`, `delay`), ranges
+  `${duringText "grow" {' {radiusRange 0.0 2.0}} "words"}`, `{motion "[…]"}` motions (JSON), and formulas
+  `${cue "formula" {' {formula "…"}}}${say {math "…"} "…"}`.
+- **`diagrams/*.toml`**: diagrams for `diagram=` beats, boxes and edges whose text is keys of the package's text
   (`tools/video/diagrams.py` has the format; the lab draws them, `lab/src/diagram.rs`; `focus` lights boxes or rows).
-  The frame's own map is the frame graph's scene (`graph: frame`, the package's `graphs/frame.toml`).
-- **`storyboard.zh-CN.story`**: the same headings in Chinese and one paragraph per English sentence (formulas, no
-  cues), plus `title:`, `subtitle:`, `locale:`, and `glossary:` lines.
+  The frame's own map is the frame graph's scene (`graph=frame`, the package's `graphs/frame.toml`).
+- **`storyboard.zh-CN.lam`**: the same headings (the same ids) in Chinese and one paragraph per English sentence
+  (formulas as `${math "…"}`, code names as `${code "…"}`, no cues), the video's heading with `subtitle`, `locale`,
+  and `glossary` (comma-separated).
 
 Animate, don't cut:
 
-- Drive step parameters across sentences or `sequence` keys: rays appearing, samples filling in, a light sweeping, a
+- Drive step parameters across sentences, cues, and ranges: rays appearing, samples filling in, a light sweeping, a
   term lit while the narration names it.
 - Reset a step parameter with an instant key (no `blend`) at the next beat of the same demonstration; a `demo` key
   resets everything.

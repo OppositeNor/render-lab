@@ -76,12 +76,13 @@ O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/s
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)
-python3 -m unittest tools/video/test_markup.py tools/video/test_story.py tools/video/test_lamlet.py   # the .story format, its tags, and Lamlet regions (LAMLET=… to run those)
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py   # cue attributes, and the storyboard format (a Lamlet presentation; the lab built first)
+cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
-cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{@ run=… run.<arg>=…}`, `stop=…`) and their arguments
-cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{@ image=…}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom=`) with their parameters
+cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{run "…"}` with `run.<arg>`, `{stop "…"}`) and their arguments
+cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{inset "…"}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
 cargo run --release -- home --snapshot /path/to/free.png --page viewer-free         # the free camera on (C): the main camera and its view cone seen from beside it, its own view in a corner
 cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
@@ -105,7 +106,7 @@ cargo run --release -- cook                                                  # b
 ```
 
 The video builder is described in `tools/video/README.md`. Run one GPU job at a time. The zh-CN edition
-(`--lang zh-CN`) needs the English edition built first, and `packages/o3de_lighting/video/storyboard.zh-CN.story` must keep one sentence per
+(`--lang zh-CN`) needs the English edition built first, and `packages/o3de_lighting/video/storyboard.zh-CN.lam` must keep one sentence per
 English sentence.
 
 To check the public build, copy the files `git ls-files --cached --others --exclude-standard` lists (with `cp -P --parents`, so
@@ -118,8 +119,9 @@ one link per skill to it for Claude Code. `new-investigation` (starting an inves
 (researching, outlining, writing, and reviewing an investigation's story, in phases with subagents), `packages`
 (packages: manifests, collections, references, code and its negotiation, local packages, packing), `experiments`
 (the Experiments tab, research experiment files and their reports, exposing an engine's settings), `knowledge-graph`
-(the knowledge graph, chapters' requirements, and choosing an investigation's audience), and `render-graph` (a frame's
-passes and resources as a render graph: declaring and checking reads and writes, the inspector, the graph panel and its DAG) are
+(the knowledge graph, chapters' requirements, and choosing an investigation's audience), `render-graph` (a frame's
+passes and resources as a render graph: declaring and checking reads and writes, the inspector, the graph panel and its DAG), and
+`render-lab-lamlet` (storyboards as Lamlet presentations, their cue vocabulary, the lab's Lamlet package and commands) are
 published.
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.
