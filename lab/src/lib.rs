@@ -82,6 +82,7 @@ pub mod ui;
 #[path = "../../packages/render_lab/src/mod.rs"]
 pub mod utility;
 pub mod values;
+pub mod view;
 pub mod viewer;
 pub mod views;
 pub mod volume;

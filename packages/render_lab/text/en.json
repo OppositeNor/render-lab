@@ -141,6 +141,7 @@
   "loading.done": "Ready",
   "scene.study_room": "Study room",
   "scene.study_room_grounds": "Study room, grounds",
+  "scene.canvas": "Canvas",
   "scene.terrain": "Terrain",
   "object.terrain": "terrain",
   "object.sun_panel": "sun panel",

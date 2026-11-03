@@ -40,6 +40,7 @@ pub struct Pipelines {
     pub composite: wgpu::RenderPipeline,
     /// The scene without the overlay (the images an experiment measures).
     pub composite_scene: wgpu::RenderPipeline,
+    pub composite_over: wgpu::RenderPipeline,
     /// The experiment's difference view (`compositeDiffFS`): group 2 holds its gain.
     pub composite_diff: wgpu::RenderPipeline,
     pub compare_layout: wgpu::BindGroupLayout,
@@ -364,6 +365,21 @@ impl Pipelines {
                 samples: 1,
                 depth: None,
                 blend: None,
+            }),
+            // A view laid over another (src/view.rs): blended by a constant (its alpha).
+            composite_over: render_pipeline(device, &with_pair, PipelineSpec {
+                label: "composite over",
+                module: &scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Constant, dst_factor: wgpu::BlendFactor::OneMinusConstant, operation: wgpu::BlendOperation::Add },
+                    alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Constant, dst_factor: wgpu::BlendFactor::OneMinusConstant, operation: wgpu::BlendOperation::Add },
+                }),
             }),
             composite_scene: render_pipeline(device, &with_pair, PipelineSpec {
                 label: "composite scene",

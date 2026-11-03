@@ -104,8 +104,14 @@ time it reads the storyboard, so it always matches the investigation.
   (typeset within the lab's limits). They check against the investigation `render-lab --investigation <id> lamlet ir`
   names (the video builder passes it); without one they fail, but an empty name (clearing) needs none.
 - **Ranges** without names: `over`, `overText`, `overCallout`.
+- **Another view's values:** `{view "field" {' {fieldMorph 1.0}}}` renames each attribute `view.field.<key>`, so a
+  cue or a range sets the values (and the own camera) of a view the investigation stacks over the main one
+  (lab/src/view.rs) rather than the main view's; join it to other attributes with `append`
+  (`{append {' {traceStep 6.0}} {view "profile" {' {profileShow 1.0}}}}`).
 
-Write it in Lamlet 0.3's style: function definitions `[# {f x} body]`, ascriptions without `[% ]`, private helpers
+Write it in Lamlet 0.4's style (the lab pins Lamlet v0.4.0 and lamlet-present v0.1.4, lab/Cargo.toml): templates
+`f"{...}"` (the bracket `[f "..."]` and `[latex "..."]` forms are gone), an attribute's value typed data (`Data`,
+compared but not read: `eased` finds its easing's name by equality), function definitions `[# {f x} body]`, ascriptions without `[% ]`, private helpers
 with a leading `_`, definitions before their uses (source order).
 
 A package's code can give its storyboard numbers: `Investigation::script_natives` registers `Pure` natives with ids

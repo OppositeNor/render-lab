@@ -60,6 +60,7 @@ pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) 
         raw_input: egui::RawInput { time: Some(0.0), ..Default::default() },
         chrome: Chrome::Recording { timeline, frame },
         stamp: None,
+        focus: None,
         history: false,
     }
 }

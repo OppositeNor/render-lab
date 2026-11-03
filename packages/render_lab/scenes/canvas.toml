@@ -1,0 +1,26 @@
+# An empty scene, for a view that draws only its own pictures over a dark
+# ground (a chart, a field of columns; lab/src/view.rs): one dark panel far
+# below as its light (a scene names one), under the sky.
+
+title-text = "scene.canvas"
+# Any camera sees it (there is nothing to stand inside).
+camera-clear = { above = -1000.0 }
+
+[lighting]
+light = "canvas light"
+ambient = 0.0
+f0 = 0.04
+reflection-strength = 0.0
+ggx-samples = 1
+exposure = 1.0
+
+[[object]]
+name = "canvas light"
+shape = "panel"
+extent = [0.1, 0.0, 0.1]
+translation = [0.0, -100.0, 0.0]
+rotation = { aim = [0.0, 1.0, 0.0] }
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [0.0, 0.0, 0.0]
+emissive-strength = 0.0

@@ -18,10 +18,14 @@
 //!   a request's result is not of this frame's tag, the frame is drawn, the read
 //!   waited for, and the frame built again, so it shows its own frame's data.
 //! - The viewer copies at most `BUDGET` bytes a frame; the rest wait.
+//! - Results belong to the view that asked for them (src/view.rs): `get`
+//!   reads the current view's; `get_in` another's, a view drawing what
+//!   another computed (a data link).
 
 use glam::Vec4;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
+use crate::view::ViewId;
 use std::sync::{Arc, Mutex};
 
 /// The most bytes the viewer copies back in one frame.
@@ -181,19 +185,29 @@ impl Fetched {
     }
 }
 
-/// The latest result of `key`, if any has landed (of the current investigation).
+/// The latest result of `key` the current view asked for, if any has landed.
 pub fn get(key: &str) -> Option<Arc<Fetched>> {
-    store().lock().expect("fetch store").results.get(key).cloned()
+    get_in(crate::view::current(), key)
 }
 
-/// Every result dropped (when the investigation or its shading changes).
+/// The latest result of `key` that `view` asked for: what a view reads of another's data.
+pub fn get_in(view: ViewId, key: &str) -> Option<Arc<Fetched>> {
+    store().lock().expect("fetch store").results.get(&(view, key.to_string())).cloned()
+}
+
+/// Every result dropped.
 pub fn clear() {
     store().lock().expect("fetch store").results.clear();
 }
 
+/// The results of `view` dropped (its scene changed).
+pub fn clear_view(view: ViewId) {
+    store().lock().expect("fetch store").results.retain(|(v, _), _| *v != view);
+}
+
 #[derive(Default)]
 struct Store {
-    results: HashMap<String, Arc<Fetched>>,
+    results: HashMap<(ViewId, String), Arc<Fetched>>,
 }
 
 fn store() -> &'static Mutex<Store> {
@@ -279,6 +293,8 @@ pub fn decode(format: wgpu::TextureFormat, bytes: &[u8]) -> Vec<f32> {
 
 /// One read in flight: its staging buffer and what it holds.
 struct Flight {
+    /// The view that asked (its results are its own).
+    view: ViewId,
     key: String,
     source: Source,
     asked: Region,
@@ -309,7 +325,8 @@ impl Queue {
     /// result of its key, nor in flight.
     pub fn wants(&self, request: &Request, tag: u64) -> bool {
         let tag = request.tag.unwrap_or(tag);
-        if self.flights.iter().any(|f| f.key == request.key && f.source == request.source && f.asked == request.region && f.tag == tag) {
+        let view = crate::view::current();
+        if self.flights.iter().any(|f| f.view == view && f.key == request.key && f.source == request.source && f.asked == request.region && f.tag == tag) {
             return false;
         }
         !get(&request.key).is_some_and(|r| r.answers(&request.source, &request.region, tag))
@@ -328,7 +345,8 @@ impl Queue {
         self.frame += 1;
         let mut spent = 0u64;
         for request in requests {
-            if !self.wants(request, tag) || self.flights.iter().any(|f| f.key == request.key) {
+            let view = crate::view::current();
+            if !self.wants(request, tag) || self.flights.iter().any(|f| f.view == view && f.key == request.key) {
                 continue;
             }
             let Some(target) = find(&request.source) else {
@@ -363,7 +381,7 @@ impl Queue {
                         wgpu::TexelCopyBufferInfo { buffer: &staging, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(pitch), rows_per_image: Some(region.size[1]) } },
                         wgpu::Extent3d { width: region.size[0], height: region.size[1], depth_or_array_layers: region.size[2] },
                     );
-                    self.flights.push(Flight { key: request.key.clone(), source: request.source.clone(), asked: request.region, region, extent, format: Some(format), row, pitch, rows, tag, frame: self.frame, staging, state: Arc::new(AtomicU8::new(0)) });
+                    self.flights.push(Flight { view, key: request.key.clone(), source: request.source.clone(), asked: request.region, region, extent, format: Some(format), row, pitch, rows, tag, frame: self.frame, staging, state: Arc::new(AtomicU8::new(0)) });
                 }
                 Target::Buffer(buffer) => {
                     if !buffer.usage().contains(wgpu::BufferUsages::COPY_SRC) {
@@ -380,7 +398,7 @@ impl Queue {
                     let staging = self.staging(device, bytes);
                     encoder.copy_buffer_to_buffer(&buffer, region.origin[0] as u64, &staging, 0, bytes);
                     let extent = [buffer.size().min(u32::MAX as u64) as u32, 1, 1];
-                    self.flights.push(Flight { key: request.key.clone(), source: request.source.clone(), asked: request.region, region, extent, format: None, row: region.size[0], pitch: region.size[0], rows: 1, tag, frame: self.frame, staging, state: Arc::new(AtomicU8::new(0)) });
+                    self.flights.push(Flight { view, key: request.key.clone(), source: request.source.clone(), asked: request.region, region, extent, format: None, row: region.size[0], pitch: region.size[0], rows: 1, tag, frame: self.frame, staging, state: Arc::new(AtomicU8::new(0)) });
                 }
             }
         }
@@ -430,7 +448,7 @@ impl Queue {
                         None => (Vec::new(), 0),
                     };
                     let fetched = Fetched { source: f.source, region: f.region, extent: f.extent, format: f.format, bytes, floats, channels, tag: f.tag, frame: f.frame, asked: f.asked };
-                    store().lock().expect("fetch store").results.insert(f.key, Arc::new(fetched));
+                    store().lock().expect("fetch store").results.insert((f.view, f.key), Arc::new(fetched));
                     self.pool.push(f.staging);
                 }
                 3 => {}

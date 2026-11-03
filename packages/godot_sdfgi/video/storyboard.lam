@@ -68,7 +68,7 @@ ${cue "key" {' {motion {' {cameraPath {' {' 20.0 40.0 140.0} {' 36.0 42.0 230.0}
 
 Before any voxel is drawn, SDFGI decides where its grids sit, so that is where the frame's work begins.
 
-${cue "key" {' {callout "cascade-create"}}} Around the camera sit ${overText {' {cascadesShownRange 0.0 {float {cascades}}}} [f "${spoken {cascades}} cascades, all ${spoken {cascadeCells}} cells wide"]}.
+${cue "key" {' {callout "cascade-create"}}} Around the camera sit ${overText {' {cascadesShownRange 0.0 {float {cascades}}}} f"{${spoken {cascades}} cascades, all ${spoken {cascadeCells}} cells wide}"}.
 
 ${cue "key" {' {callout "cell-size-double"}}} The first has cells of twenty centimetres and spans twenty-five point six metres; each next one doubles its cells and its span, out to two hundred and five metres: fine detail near the camera, long reach far away.
 

@@ -148,7 +148,8 @@ pub fn draw_experiment_panel(ctx: &egui::Context, ink: &Ink, input: &UiInput, vi
 impl<'a> Dock<'a> {
     fn new(input: &'a UiInput<'a>, viewer: &ViewerChrome) -> Dock<'a> {
         Dock {
-            state: input.state,
+            // The focused view's (src/view.rs): its camera and values.
+            state: input.focus.unwrap_or(input.state),
             input,
             playing: viewer.playing,
             timeline: viewer.timeline_mode,

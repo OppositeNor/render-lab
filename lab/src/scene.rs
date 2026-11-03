@@ -55,6 +55,8 @@ const SCENE_PREFIX: &str = "render_lab.scene/";
 impl SceneId {
     pub const STUDY_ROOM: SceneId = SceneId("study-room");
     pub const TERRAIN: SceneId = SceneId("terrain");
+    /// An empty scene, for a view that draws only its own pictures (src/view.rs).
+    pub const CANVAS: SceneId = SceneId("canvas");
 
     pub fn key(self) -> &'static str {
         self.0

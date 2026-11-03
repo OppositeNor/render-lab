@@ -26,7 +26,139 @@ pub fn objects_for(state: &ShotState, statics: &Statics) -> Vec<lab::layout::Obj
     objects
 }
 
+/// The views SSR stacks over the main one (lab/src/view.rs): the depth map as
+/// a height field (the pyramid and the trace), and the trace as a
+/// cross-section along its ray. Each has its own camera and its own values
+/// (`view.field.…`, `view.profile.…`), and draws the main view's data.
+pub const FIELD: &str = "field";
+pub const PROFILE: &str = "profile";
+
+/// How far a picture view's plane is from its camera at rest; the camera orbits the plane's centre.
+const REST: f32 = 2.0;
+
+/// A picture view's camera at rest: facing its plane from `REST` away, as wide
+/// as the main camera, so the flat picture covers the view as the main frame does.
+pub fn rest_camera(main: &lab::camera::OrbitCamera) -> lab::camera::OrbitCamera {
+    lab::camera::OrbitCamera { target: [0.0; 3], yaw: 0.0, pitch: 0.0, distance: REST, fov: main.fov }
+}
+
+/// The views over the main one for `state`, back to front: each shown as far as its `…Show` value.
+pub fn views(state: &ShotState) -> Vec<lab::investigation::OverView> {
+    let demo = Demo::of(state.demo);
+    let mut out = Vec::new();
+    for (name, show, demos) in [(FIELD, "fieldShow", &[Demo::Pyramid, Demo::Trace][..]), (PROFILE, "profileShow", &[Demo::Trace][..])] {
+        let alpha = state.view_state(name).p(show).clamp(0.0, 1.0);
+        if alpha > 0.0 && demos.contains(&demo) {
+            out.push(lab::investigation::OverView { name, state: state.clone(), camera: state.own_camera(name, rest_camera(&state.camera)), alpha });
+        }
+    }
+    out
+}
+
+/// How far the views over the main one cover it (its own pictures fade as they do).
+fn covered(state: &ShotState) -> f32 {
+    views(state).iter().map(|v| v.alpha).fold(0.0, f32::max)
+}
+
+/// The study room's records (where the teapot is, for the default P), read once.
+fn room_objects() -> &'static [lab::layout::ObjectData] {
+    static ROOM: std::sync::OnceLock<Vec<lab::layout::ObjectData>> = std::sync::OnceLock::new();
+    ROOM.get_or_init(|| lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM).expect("the study room").scene.records())
+}
+
+/// A picture view's frame: its canvas scene (`statics`), its own camera, and a dark room around it.
+fn canvas_content(state: &ShotState, statics: &Statics, camera: &lab::camera::OrbitCamera, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    let objects = statics.scene.records();
+    let lighting = statics.scene.lighting;
+    let uniforms = FrameUniforms {
+        camera: camera.camera_data(viewport),
+        light_center_radiance: lighting.light.center.extend(lighting.light.radiance).to_array(),
+        light_axis_u: lighting.light.axis_u.extend(0.0).to_array(),
+        light_axis_v: lighting.light.axis_v.extend(0.0).to_array(),
+        light_color: lighting.light.color.extend(1.0).to_array(),
+        ambient_color: lighting.ambient.extend(1.0).to_array(),
+        floor_params: [objects[0].albedo_roughness[3], lighting.f0, 0.0, 1.0],
+        overlay_params: [lighting.exposure, pixel_scale, time, 0.0],
+        counts: [objects.len() as u32, 0, 0, 0],
+        view_params: [1.0, 1.0, 0.0, 0.0],
+    };
+    let _ = state;
+    let mut content = FrameContent::new(objects, uniforms);
+    // A dark room around the picture, so the sky never shows behind it, from any side.
+    content.draw.cuboid(Vec3::ZERO, [Vec3::X * 60.0, Vec3::Y * 60.0, Vec3::Z * 60.0], Color32::from_rgb(8, 11, 16), 1.0);
+    content
+}
+
+/// The main view's trace of P, on the main view's data (for a picture view).
+fn main_trace(state: &ShotState, screen: &cpu::Screen) -> ([i32; 2], trace::Trace) {
+    let pixel = picked(state, screen, room_objects());
+    let last = Image::new([1, 1], 4);
+    let inputs = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, state.p("ssrFadeIn"), state.p("ssrFadeOut"), state.p("ssrDepthTolerance"));
+    (pixel, inputs.trace(pixel))
+}
+
+/// The field view: the main view's depth map as a height field, from its own camera.
+fn field_view(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    let own = state.view_state(FIELD);
+    let camera = state.own_camera(FIELD, rest_camera(&state.camera));
+    let mut content = canvas_content(&own, statics, &camera, viewport, pixel_scale, time);
+    let rest = rest_camera(&state.camera).camera_data(viewport);
+    // The main view's data (a data link), seen as the main camera saw it.
+    let Some(screen) = cpu::screen_in(lab::view::ViewId::MAIN, &state.camera.camera_data(viewport)) else {
+        return content;
+    };
+    if Demo::of(state.demo) == Demo::Trace {
+        let (pixel, t) = main_trace(state, &screen);
+        let stepper = Stepper::new(&t, state.p("traceStep"));
+        let level = stepper.level();
+        // The columns of the level shown, the cell tested lit (blocking: the hit colour), the ray over them.
+        let lit: Vec<([i32; 2], Color32)> = stepper.tested().map(|(_, s)| field_cells(s, level).into_iter().map(|c| (c, if s.hit { palette::INCIDENT } else { palette::SELECTED })).collect()).unwrap_or_default();
+        let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
+        let ends = [t.screen_pos, t.screen_pos + t.screen_ray * t.steps.last().map_or(0.0, |s| s.next_t)];
+        let focus = [ends[0].x.min(ends[1].x) * w, ends[0].y.min(ends[1].y) * h, ends[0].x.max(ends[1].x) * w, ends[0].y.max(ends[1].y) * h];
+        let f = field(&own, &mut content, &rest, &screen, pixel, focus, level, &lit);
+        let top = field_top(&screen, pixel);
+        let over = |tt: f32| {
+            let s = t.screen_pos + t.screen_ray * tt;
+            f.point_uv(Vec2::new(s.x, s.y), s.z / top)
+        };
+        let ray: Vec<Vec3> = std::iter::once(0.0).chain(stepper.path()).map(over).collect();
+        if ray.len() > 1 {
+            content.draw.polyline(&ray, palette::REFLECTED, 1.0, 3.0);
+            content.draw.point(*ray.last().expect("a point"), 6.0, palette::REFLECTED, 1.0);
+        }
+    } else {
+        let pixel = picked(state, &screen, room_objects());
+        let shown = own.p("fieldLevel");
+        let at = (shown.round().max(0.0) as usize).min(screen.hiz.len() - 1);
+        let cell = [pixel[0] >> at, pixel[1] >> at];
+        let focus = [pixel[0] as f32 - 16.0, pixel[1] as f32 - 16.0, pixel[0] as f32 + 16.0, pixel[1] as f32 + 16.0];
+        field(&own, &mut content, &rest, &screen, pixel, focus, shown, &[(cell, palette::SELECTED)]);
+    }
+    content
+}
+
+/// The cross-section view: the main view's trace along its ray, from its own camera.
+fn profile_view(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    let own = state.view_state(PROFILE);
+    let camera = state.own_camera(PROFILE, rest_camera(&state.camera));
+    let mut content = canvas_content(&own, statics, &camera, viewport, pixel_scale, time);
+    let rest = rest_camera(&state.camera).camera_data(viewport);
+    let Some(screen) = cpu::screen_in(lab::view::ViewId::MAIN, &state.camera.camera_data(viewport)) else {
+        return content;
+    };
+    let (_, t) = main_trace(state, &screen);
+    profile(&mut content, &rest, &screen, &t, &Stepper::new(&t, state.p("traceStep")));
+    content
+}
+
 pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    // A view stacked over the main one builds its own picture (lab/src/view.rs).
+    match lab::view::name() {
+        Some(FIELD) => return field_view(state, statics, viewport, pixel_scale, time),
+        Some(PROFILE) => return profile_view(state, statics, viewport, pixel_scale, time),
+        _ => {}
+    }
     let demo = Demo::of(state.demo);
     let objects = objects_for(state, statics);
     let lighting = statics.scene.lighting;
@@ -75,6 +207,104 @@ fn smooth(x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
+/// Where the trace stepper is: `traceStep` = i + f, the iterations before i
+/// done and iteration i f of the way. Over the first half of f, iteration i's
+/// cell and comparison fade in as the last one's fade out; over the second
+/// half, the ray moves to where iteration i sends it, and the level shown
+/// follows it up or down. A whole value shows the iteration before it complete.
+struct Stepper<'a> {
+    steps: &'a [trace::Step],
+    /// The iteration in progress (`steps.len()` once all are done).
+    i: usize,
+    /// How far its comparison has faded in, and how far the ray has moved on, each 0 to 1.
+    appear: f32,
+    travel: f32,
+}
+
+impl<'a> Stepper<'a> {
+    fn new(t: &'a trace::Trace, step: f32) -> Stepper<'a> {
+        let len = t.steps.len();
+        let x = step.max(0.0);
+        let i = (x.floor() as usize).min(len);
+        let f = if i < len { x - i as f32 } else { 0.0 };
+        Stepper { steps: &t.steps, i, appear: smooth(f * 2.0), travel: smooth(f * 2.0 - 1.0) }
+    }
+
+    fn current(&self) -> Option<&'a trace::Step> {
+        self.steps.get(self.i)
+    }
+
+    fn previous(&self) -> Option<&'a trace::Step> {
+        self.i.checked_sub(1).and_then(|k| self.steps.get(k))
+    }
+
+    /// The iterations whose comparison is on screen, each with its index and how strongly it shows.
+    fn fading(&self) -> Vec<(usize, &'a trace::Step, f32)> {
+        let mut out = Vec::new();
+        if let Some(s) = self.previous() {
+            let a = if self.current().is_some() { 1.0 - self.appear } else { 1.0 };
+            if a > 0.0 {
+                out.push((self.i - 1, s, a));
+            }
+        }
+        if let Some(s) = self.current() {
+            if self.appear > 0.0 {
+                out.push((self.i, s, self.appear));
+            }
+        }
+        out
+    }
+
+    /// The iteration a still names (the readout's, the lit cell's): the stronger of the two fading.
+    fn tested(&self) -> Option<(usize, &'a trace::Step)> {
+        self.fading().into_iter().max_by(|a, b| a.2.total_cmp(&b.2)).map(|(k, s, _)| (k, s))
+    }
+
+    /// Where along the ray (its t) the trace has got to.
+    fn tip(&self) -> f32 {
+        match (self.current(), self.previous()) {
+            (Some(s), _) => s.t + (s.next_t - s.t) * self.travel,
+            (None, Some(s)) => s.next_t,
+            (None, None) => 0.0,
+        }
+    }
+
+    /// The pyramid level shown: between two levels while the ray climbs or descends (never below zero).
+    fn level(&self) -> f32 {
+        match (self.current(), self.previous()) {
+            (Some(s), _) => {
+                let (a, b) = (s.level.max(0) as f32, s.next_level.max(0) as f32);
+                a + (b - a) * self.travel
+            }
+            (None, Some(s)) => s.next_level.max(0) as f32,
+            (None, None) => 0.0,
+        }
+    }
+
+    /// The ray's path as values of t: where each finished iteration sent it, then the tip.
+    fn path(&self) -> Vec<f32> {
+        let mut out: Vec<f32> = self.steps[..self.i].iter().map(|s| s.next_t).collect();
+        if self.current().is_some() && self.travel > 0.0 {
+            out.push(self.tip());
+        }
+        out
+    }
+}
+
+/// The cells of the level the field shows (`level`, between two levels while it
+/// changes) that stand for an iteration's cell: the cell itself on its own
+/// level, or the four it splits into while the ray descends from it.
+fn field_cells(s: &trace::Step, level: f32) -> Vec<[i32; 2]> {
+    let l = level.max(0.0).floor() as i32;
+    let own = s.level.max(0);
+    if own <= l {
+        return vec![[s.cell[0] >> (l - own), s.cell[1] >> (l - own)]];
+    }
+    let k = own - l;
+    let n = 1 << k;
+    (0..n * n).map(|j| [(s.cell[0] << k) + j % n, (s.cell[1] << k) + j / n]).collect()
+}
+
 /// The depth map drawn as a height field (lab::utility::height_field), over a
 /// dark ground that hides the room: each SSR texel a column as tall as its
 /// reversed depth (near is tall), fading in flat, as the screen shows it
@@ -84,20 +314,13 @@ fn smooth(x: f32) -> f32 {
 /// (`fieldZoom`: a window framing `focus`, a texel box x0, y0, x1, y1).
 /// `lit` colours cells of that level (texel coordinates of the level, a
 /// colour). None while it is not shown.
-fn field(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, pixel: [i32; 2], focus: [f32; 4], level: f32, lit: &[([i32; 2], Color32)]) -> Option<HeightField> {
-    let show = state.p("fieldShow").clamp(0.0, 1.0);
-    if show <= 0.0 {
-        return None;
-    }
+fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &cpu::Screen, pixel: [i32; 2], focus: [f32; 4], level: f32, lit: &[([i32; 2], Color32)]) -> HeightField {
+    let show = 1.0;
     let morph = smooth(state.p("fieldMorph"));
-    let camera = content.uniforms.camera;
-    // Nearer than the room; the ground behind the field, a little farther, covers the view.
-    // A little height even when flat, so the tiles stand clear of the slab under them.
+    // On the plane the view's camera faces at rest; a little height even when flat, so the
+    // tiles stand clear of the slab under them.
     let tilt = state.p("fieldTilt").clamp(0.0, 85.0);
-    let placement = Placement::facing(&camera, 0.25, 0.002 + 0.07 * morph, tilt * morph, state.p("fieldTurn") * morph, 1.0 - 0.4 * morph);
-    let ground = Placement::facing(&camera, 0.42, 0.0, 0.0, 0.0, 1.4);
-    let normal = ground.across.cross(ground.down).normalize() * 1e-3;
-    content.draw.cuboid(ground.at(Vec2::splat(0.5), 0.0), [ground.across * 0.5, ground.down * 0.5, normal], Color32::from_rgb(8, 11, 16), show);
+    let placement = Placement::facing(rest, REST, (0.002 + 0.07 * morph) * REST / 0.25, tilt * morph, state.p("fieldTurn") * morph, 1.0 - 0.4 * morph);
     let hiz = &screen.hiz;
     let size = hiz[0].size;
     let (w, h) = (size[0] as f32, size[1] as f32);
@@ -139,7 +362,7 @@ fn field(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, pi
     // P, on its column.
     let p = Vec2::new(pixel[0] as f32 + 0.5, pixel[1] as f32 + 0.5);
     content.draw.point(field.point(p, (hiz[0].load(pixel).x / top).min(1.0)), 6.0, palette::SELECTED, show);
-    Some(field)
+    field
 }
 
 /// The cells of `level` the ray crosses from t = 0 to `end`, in order: each
@@ -166,32 +389,37 @@ fn cells_along(screen: &cpu::Screen, t: &trace::Trace, level: usize, end: f32) -
 
 /// The trace as a cross-section along the ray (the usual picture of a Hi-Z
 /// march), over the view (`profileShow`): across, the ray's t from P; up,
-/// reversed depth (nearer is higher). The cells of the level the step tests
-/// stand as bars as tall as their nearest depth, the true surface (level 0)
-/// drawn thin over them; the ray is a straight line. For the step shown: its
-/// cell lit, where the ray leaves the cell and where it reaches the cell's
-/// depth marked, whichever comes first deciding (a miss climbs a level, a hit
-/// descends), and an arrow to where the next step starts.
-fn profile(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, t: &trace::Trace, shown: usize) {
-    let alpha = state.p("profileShow").clamp(0.0, 1.0);
-    if alpha <= 0.0 || t.steps.is_empty() {
+/// reversed depth (nearer is higher). The cells of the level shown stand as
+/// bars as tall as their nearest depth (two levels cross-fading while the ray
+/// climbs or descends), the true surface (level 0) drawn thin over them; the
+/// ray is a straight line. For the iteration tested: its cell lit, where the
+/// ray leaves the cell and where it reaches the cell's depth marked, whichever
+/// comes first deciding (a miss climbs a level, a hit descends), and an arrow
+/// to where the next iteration starts. The axes span the whole trace, so they
+/// stay still while it is stepped.
+fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &cpu::Screen, t: &trace::Trace, stepper: &Stepper) {
+    let alpha = 1.0;
+    if t.steps.is_empty() {
         return;
     }
-    let camera = content.uniforms.camera;
-    let plane = Placement::facing(&camera, 0.25, 0.0, 0.0, 0.0, 1.0);
-    let ground = Placement::facing(&camera, 0.42, 0.0, 0.0, 0.0, 1.4);
-    ground.rect(&mut content.draw, Vec2::ZERO, Vec2::ONE, 0.0, Color32::from_rgb(8, 11, 16), alpha);
-    let current = if shown == 0 { None } else { t.steps.get(shown - 1) };
-    let level = current.map_or(0, |s| s.level.max(0) as usize).min(screen.hiz.len() - 1);
+    // On the plane the view's camera faces at rest.
+    let plane = Placement::facing(rest, REST, 0.0, 0.0, 0.0, 1.0);
+    let lift = REST / 0.25;
+    let last_level = screen.hiz.len() - 1;
     // The whole march, with a little room after where it ends.
-    let end = t.steps.last().map_or(0.0, |s| s.next_t).max(current.map_or(0.0, |s| s.edge_t.max(s.next_t))) * 1.08;
-    let end = end.max(1e-6);
-    let bars = cells_along(screen, t, level, end);
+    let reach = t.steps.iter().map(|s| s.edge_t.max(s.next_t)).fold(0.0f32, f32::max).min(t.t_max.max(1e-6));
+    let end = (reach.max(t.steps.last().map_or(0.0, |s| s.next_t)) * 1.08).max(1e-6);
+    // Every level the trace visits, once: the bars of each, and the range of depths over all of them.
+    let mut levels: Vec<usize> = t.steps.iter().map(|s| (s.level.max(0) as usize).min(last_level)).collect();
+    levels.sort_unstable();
+    levels.dedup();
+    let bars_of: Vec<(usize, Vec<([i32; 2], f32, f32, f32)>)> = levels.iter().map(|&l| (l, cells_along(screen, t, l, end))).collect();
+    let bars_at = |l: usize| bars_of.iter().find(|(k, _)| *k == l).map(|(_, b)| b.as_slice()).unwrap_or(&[]);
     let surface = cells_along(screen, t, 0, end);
     let ray = |tt: f32| (t.screen_pos + t.screen_ray * tt).z;
     let mut lo = ray(0.0).min(ray(end));
     let mut hi = ray(0.0).max(ray(end));
-    for &(_, _, _, d) in bars.iter().chain(&surface) {
+    for &(_, _, _, d) in bars_of.iter().flat_map(|(_, b)| b).chain(&surface) {
         if d > 0.0 {
             lo = lo.min(d);
             hi = hi.max(d);
@@ -201,44 +429,68 @@ fn profile(state: &ShotState, content: &mut FrameContent, screen: &cpu::Screen, 
     let (lo, hi) = (lo - pad, hi + pad);
     let (u0, u1, v0, v1) = (0.07, 0.93, 0.2, 0.86);
     let at = |tt: f32, d: f32| Vec2::new(u0 + (tt / end).clamp(0.0, 1.0) * (u1 - u0), v1 - ((d - lo) / (hi - lo)).clamp(0.0, 1.0) * (v1 - v0));
-    let on = |uv: Vec2| plane.on(uv, 2e-3);
+    let on = |uv: Vec2| plane.on(uv, 2e-3 * lift);
     // The chart's axes.
-    plane.rect(&mut content.draw, Vec2::new(u0, v0), Vec2::new(u1, v1), -2e-3, Color32::from_rgb(16, 21, 28), alpha);
+    plane.rect(&mut content.draw, Vec2::new(u0, v0), Vec2::new(u1, v1), -2e-3 * lift, Color32::from_rgb(16, 21, 28), alpha);
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u1, v1)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u0, v0)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
     content.labels.push(Label { anchor: on(Vec2::new(u1, v1 + 0.035)), text: tr("demos.profile_t").to_string(), color: palette::text_dim() });
     content.labels.push(Label { anchor: on(Vec2::new(u0 + 0.06, v0 - 0.03)), text: tr("demos.profile_depth").to_string(), color: palette::text_dim() });
-    // The level's cells along the ray, the one tested lit.
-    for &(cell, a, b, d) in &bars {
-        let lit = current.is_some_and(|s| s.cell == cell);
-        let color = if lit { if current.is_some_and(|s| s.hit) { palette::INCIDENT } else { palette::SELECTED } } else { Color32::from_rgb(92, 100, 112) };
-        plane.rect(&mut content.draw, at(a, lo), at(b, d.max(lo)), 0.0, color, alpha * if lit { 1.0 } else { 0.85 });
+    // The level's cells along the ray: between two levels, the lower fading into the upper.
+    let level = stepper.level();
+    let below = (level.floor() as usize).min(last_level);
+    let above = (below + 1).min(last_level);
+    let mix = if above > below { level - below as f32 } else { 0.0 };
+    for (l, a) in [(below, 1.0 - mix), (above, mix)] {
+        if a <= 0.0 || (l == above && above == below) {
+            continue;
+        }
+        for &(_, x0, x1, d) in bars_at(l) {
+            plane.rect(&mut content.draw, at(x0, lo), at(x1, d.max(lo)), 0.0, Color32::from_rgb(92, 100, 112), alpha * 0.85 * a);
+        }
+    }
+    // The cell each iteration on screen tests, lit on its own level, as strongly as it shows.
+    for &(_, s, a) in &stepper.fading() {
+        let l = (s.level.max(0) as usize).min(last_level);
+        let color = if s.hit { palette::INCIDENT } else { palette::SELECTED };
+        if let Some(&(_, x0, x1, d)) = bars_at(l).iter().find(|(c, ..)| *c == s.cell) {
+            plane.rect(&mut content.draw, at(x0, lo), at(x1, d.max(lo)), 1e-3 * lift, color, alpha * a);
+        }
     }
     // The true surface, thin, over them.
     for &(_, a, b, d) in &surface {
         content.draw.segment(on(at(a, d)), on(at(b, d)), palette::SURFACE, alpha * 0.7, 1.5, 0);
     }
-    // The ray: all of it faint, the part marched bright, each step's start a dot.
+    // The ray: all of it faint, the part marched bright, each finished iteration's start a dot.
     content.draw.segment(on(at(0.0, ray(0.0))), on(at(end, ray(end))), palette::REFLECTED, alpha * 0.35, 2.0, 0);
-    let reached = current.map_or(0.0, |s| s.t);
+    let reached = stepper.tip();
     content.draw.segment(on(at(0.0, ray(0.0))), on(at(reached, ray(reached))), palette::REFLECTED, alpha, 3.0, 0);
-    for s in t.steps.iter().take(shown) {
+    for s in &t.steps[..stepper.i] {
         content.draw.point(on(at(s.t, ray(s.t))), 4.0, palette::REFLECTED, alpha);
     }
+    content.draw.point(on(at(reached, ray(reached))), 6.0, palette::REFLECTED, alpha);
     content.labels.push(Label { anchor: on(at(0.0, ray(0.0)) + Vec2::new(0.0, 0.04)), text: "P".into(), color: palette::SELECTED });
-    let Some(s) = current else { return };
-    // Where the ray leaves the cell and where it reaches the cell's depth: the first decides.
-    let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves")), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"))];
-    for (k, (tt, color, text)) in marks.into_iter().enumerate() {
-        if !(0.0..=end).contains(&tt) {
-            continue;
+    // Each iteration's comparison, fading: where the ray leaves the cell and where it reaches the cell's depth.
+    let named = stepper.tested().map(|(k, _)| k);
+    for &(k, s, a) in &stepper.fading() {
+        let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves")), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"))];
+        for (j, (tt, color, text)) in marks.into_iter().enumerate() {
+            if !(0.0..=end).contains(&tt) {
+                continue;
+            }
+            let x = at(tt, lo).x;
+            content.draw.segment(on(Vec2::new(x, v1)), on(Vec2::new(x, v0)), color, alpha * 0.9 * a, 2.0, frame::FLAG_DASHED);
+            content.draw.point(on(at(tt, ray(tt))), 7.0, color, alpha * a);
+            // Labels do not fade: only the iteration named carries them.
+            if named == Some(k) {
+                content.labels.push(Label { anchor: on(Vec2::new(x, v0 - 0.03 - 0.045 * j as f32)), text: text.to_string(), color });
+            }
         }
-        let x = at(tt, lo).x;
-        content.draw.segment(on(Vec2::new(x, v1)), on(Vec2::new(x, v0)), color, alpha * 0.9, 2.0, frame::FLAG_DASHED);
-        content.draw.point(on(at(tt, ray(tt))), 7.0, color, alpha);
-        content.labels.push(Label { anchor: on(Vec2::new(x, v0 - 0.03 - 0.045 * k as f32)), text: text.to_string(), color });
+        if s.next_t > s.t {
+            content.draw.segment(on(at(s.t, ray(s.t))), on(at(s.next_t, ray(s.next_t))), palette::SELECTED, alpha * a, 3.0, frame::FLAG_ARROW);
+        }
     }
-    content.draw.segment(on(at(s.t, ray(s.t))), on(at(s.next_t, ray(s.next_t))), palette::SELECTED, alpha, 3.0, frame::FLAG_ARROW);
+    let Some((_, s)) = stepper.tested() else { return };
     let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
     let text = tr_with("demos.profile_level", lab::args!(from = s.level, to = s.next_level, result = result));
     content.labels.push(Label { anchor: on(Vec2::new(0.5, 0.1)), text, color: if s.hit { palette::INCIDENT } else { palette::SELECTED } });
@@ -271,46 +523,29 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let last = Image::new([1, 1], 4);
     let inputs = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, state.p("ssrFadeIn"), state.p("ssrFadeOut"), state.p("ssrDepthTolerance"));
     let t = inputs.trace(pixel);
-    let shown = (state.p("traceStep").round().max(0.0) as usize).min(t.steps.len());
-    let room = 1.0 - state.p("fieldShow").max(state.p("profileShow")).clamp(0.0, 1.0);
+    if std::env::var("SSR_DUMP").is_ok() { for (k, s) in t.steps.iter().enumerate() { eprintln!("STEP {k} L{}->{} t {:.6}->{:.6} hit {} held {} edge {:.6} depth {:.6}", s.level, s.next_level, s.t, s.next_t, s.hit, s.held, s.edge_t, s.depth_t); } eprintln!("EXIT {:?}", t.exit); }
+    let stepper = Stepper::new(&t, state.p("traceStep"));
+    // The views over this one (the field, the cross-section) fade its own pictures as they cover it.
+    let room = 1.0 - covered(state);
     let start = screen.surface(pixel);
     content.draw.point(start, 6.0, palette::SELECTED, room);
     // The ray in the room: the screen-space ray at each iteration's t, back in the world.
     let at = |tt: f32| screen.world_of(t.screen_pos + t.screen_ray * tt);
     let mut path: Vec<Vec3> = vec![screen.view_to_world(t.biased)];
-    path.extend(t.steps.iter().take(shown).map(|s| at(s.next_t)));
+    path.extend(stepper.path().into_iter().map(at));
     if path.len() > 1 {
         content.draw.polyline(&path, palette::REFLECTED, room, 3.0);
         content.draw.point(*path.last().expect("a point"), 5.0, palette::REFLECTED, room);
     }
-    // The level of the iteration shown, the cells visited on it, the current one lit.
-    let current = if shown == 0 { None } else { t.steps.get(shown - 1) };
+    // The level of the iteration tested, the cells visited on it, the tested one lit.
+    let tested = stepper.tested();
+    let current = tested.map(|(_, s)| s);
+    let shown = tested.map_or(0, |(k, _)| k + 1);
     let level = current.map_or(0, |s| s.level.max(0)) as usize;
-    // The same march over the depth map as a height field: the columns of the level
-    // tested, the cell tested lit (blocking: the hit colour), the ray over them.
-    let lit: Vec<([i32; 2], Color32)> = current.map(|s| (s.cell, if s.hit { palette::INCIDENT } else { palette::SELECTED })).into_iter().collect();
-    // Framing the whole ray, from P to where it ends.
-    let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
-    let ends = [t.screen_pos, t.screen_pos + t.screen_ray * t.steps.last().map_or(0.0, |s| s.next_t)];
-    let focus = [ends[0].x.min(ends[1].x) * w, ends[0].y.min(ends[1].y) * h, ends[0].x.max(ends[1].x) * w, ends[0].y.max(ends[1].y) * h];
-    if let Some(f) = field(state, content, &screen, pixel, focus, level as f32, &lit) {
-        let top = field_top(&screen, pixel);
-        let over = |tt: f32| {
-            let s = t.screen_pos + t.screen_ray * tt;
-            f.point_uv(Vec2::new(s.x, s.y), s.z / top)
-        };
-        let alpha = state.p("fieldShow").clamp(0.0, 1.0);
-        let mut ray: Vec<Vec3> = vec![over(0.0)];
-        ray.extend(t.steps.iter().take(shown).map(|s| over(s.next_t)));
-        if ray.len() > 1 {
-            content.draw.polyline(&ray, palette::REFLECTED, alpha, 3.0);
-            content.draw.point(*ray.last().expect("a point"), 6.0, palette::REFLECTED, alpha);
-        }
-    }
     let img = &screen.hiz[level];
     let mut outlines = Vec::new();
     for (k, s) in t.steps.iter().take(shown).enumerate() {
-        if s.level as usize != level {
+        if s.level.max(0) as usize != level {
             continue;
         }
         let (w, h) = (img.size[0] as f32, img.size[1] as f32);
@@ -320,11 +555,10 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     }
     let size = Vec2::new(screen.size[0] as f32, screen.size[1] as f32);
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / size.x, (pixel[1] as f32 + 0.5) / size.y], color: palette::SELECTED, label: "P".into() };
-    let link = (!outlines.is_empty()).then(|| Link { from: current.map_or(start, |s| at(s.next_t)), outline: outlines.len() - 1 });
+    let link = (!outlines.is_empty()).then(|| Link { from: if path.len() > 1 { at(stepper.tip()) } else { start }, outline: outlines.len() - 1 });
     let title = tr_with("demos.trace_inset", lab::args!(level = level, width = img.size[0], height = img.size[1]));
-    profile(state, content, &screen, &t, shown);
     // The level as a picture; the height field, when shown, is that picture risen.
-    if room > 0.5 && state.p("profileShow") < 0.5 {
+    if room > 0.5 {
         content.insets.push(PictureInset { marker: Some(marker), outlines, link, ..PictureInset::new(title, level_picture(img, format!("ssr-trace-level-{level}")), [420.0, 420.0 * img.size[1] as f32 / img.size[0] as f32]) });
     }
     // The iteration shown, as the loop computes it.
@@ -341,7 +575,7 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
         let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
         row(&mut rows, tr("demos.result"), result.to_string(), palette::SELECTED);
     }
-    if shown == t.steps.len() {
+    if stepper.i == t.steps.len() {
         let exit = match t.exit {
             Exit::Hit => tr("demos.exit_hit"),
             Exit::Steps => tr("demos.exit_steps"),
@@ -414,17 +648,11 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
     let (w, h) = (img.size[0] as f32, img.size[1] as f32);
     let outline = Outline { rect: [cell[0] as f32 / w, cell[1] as f32 / h, (cell[0] + 1) as f32 / w, (cell[1] + 1) as f32 / h], color: palette::SELECTED, width: 3.0, outside: false };
     let start = screen.world_at(pixel, p_depth);
-    // The pyramid as a height field: its levels as real columns, rising and merging.
-    if state.p("fieldShow") > 0.0 {
-        if let Some(full) = cpu::screen(content) {
-            let shown = state.p("fieldLevel");
-            let at = (shown.round().max(0.0) as usize).min(full.hiz.len() - 1);
-            let cell = [pixel[0] >> at, pixel[1] >> at];
-            let focus = [pixel[0] as f32 - 16.0, pixel[1] as f32 - 16.0, pixel[0] as f32 + 16.0, pixel[1] as f32 + 16.0];
-            field(state, content, &full, pixel, focus, shown, &[(cell, palette::SELECTED)]);
-        }
+    // The field view over this one draws this view's whole pyramid: read it back for it (a data link, lab::fetch).
+    let room = 1.0 - covered(state);
+    if room < 1.0 {
+        cpu::screen(content);
     }
-    let room = 1.0 - state.p("fieldShow").clamp(0.0, 1.0);
     let title = tr_with("demos.pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1]));
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / screen.size[0] as f32, (pixel[1] as f32 + 0.5) / screen.size[1] as f32], color: palette::SELECTED, label: "P".into() };
     if room > 0.5 {

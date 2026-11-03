@@ -44,6 +44,12 @@ source = "scenes/study-room.lam"
 license = "MIT"
 
 [[resource]]
+id = "scene/canvas"
+kind = "file"
+source = "scenes/canvas.toml"
+license = "MIT"
+
+[[resource]]
 id = "scene/terrain"
 kind = "file"
 source = "scenes/terrain.toml"

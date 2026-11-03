@@ -117,10 +117,26 @@ pub fn image_of(f: &Fetched) -> Option<Image> {
 /// the view changes size they are of the size before it, and the screen's
 /// pixels are theirs.
 pub fn screen(content: &mut FrameContent) -> Option<Arc<Screen>> {
-    let mut view = View::of(&content.uniforms.camera);
+    let view = View::of(&content.uniforms.camera);
     let mips = gpu::mipmaps(view.size);
     let levels: Vec<Option<Arc<Fetched>>> = (0..mips).map(|m| content.fetch(&format!("godot_ssr.hiz/{m}"), Source::image("hiz", m), Region::ALL)).collect();
     let normal = content.fetch("godot_ssr.halfNormal", Source::image("halfNormal", 0), Region::ALL);
+    assemble(view, levels, normal)
+}
+
+/// The screen of view `of` (lab/src/view.rs), drawn by `camera`: what it read
+/// back for itself (a picture view drawing the main view's data; nothing is
+/// asked for here, `of` asks). None until it has.
+pub fn screen_in(of: lab::view::ViewId, camera: &CameraData) -> Option<Arc<Screen>> {
+    let view = View::of(camera);
+    let mips = gpu::mipmaps(view.size);
+    let levels: Vec<Option<Arc<Fetched>>> = (0..mips).map(|m| lab::fetch::get_in(of, &format!("godot_ssr.hiz/{m}"))).collect();
+    let normal = lab::fetch::get_in(of, "godot_ssr.halfNormal");
+    assemble(view, levels, normal)
+}
+
+/// The screen from a pyramid's levels and the normals read back, all of one frame (kept for the current view).
+fn assemble(mut view: View, levels: Vec<Option<Arc<Fetched>>>, normal: Option<Arc<Fetched>>) -> Option<Arc<Screen>> {
     let (levels, normal): (Vec<Arc<Fetched>>, Arc<Fetched>) = (levels.into_iter().collect::<Option<_>>()?, normal?);
     // All of one frame: the levels and the normals read after the same passes.
     let frames: Vec<u64> = levels.iter().chain([&normal]).map(|f| f.frame).collect();
@@ -137,18 +153,21 @@ pub fn screen(content: &mut FrameContent) -> Option<Arc<Screen>> {
         return kept(&view, None);
     }
     let screen = Arc::new(Screen::new(view, hiz, image_of(&normal)?));
-    *KEPT.lock().expect("the kept screen") = Some((key, screen.clone()));
+    let mut kept = KEPT.lock().expect("the kept screens");
+    kept.retain(|(v, _, _)| *v != lab::view::current());
+    kept.push((lab::view::current(), key, screen.clone()));
     Some(screen)
 }
 
 type Key = (u64, u64, [u32; 48]);
 
-static KEPT: Mutex<Option<(Key, Arc<Screen>)>> = Mutex::new(None);
+/// The screen kept for each view (lab::view): views never evict or read each other's.
+static KEPT: Mutex<Vec<(lab::view::ViewId, Key, Arc<Screen>)>> = Mutex::new(Vec::new());
 
-/// The screen kept: the one of `key`, or with no key the last one of this view's size.
+/// The current view's screen kept: the one of `key`, or with no key its last one of this view's size.
 fn kept(view: &View, key: Option<Key>) -> Option<Arc<Screen>> {
-    let kept = KEPT.lock().expect("the kept screen");
-    let (k, s) = kept.as_ref()?;
+    let kept = KEPT.lock().expect("the kept screens");
+    let (_, k, s) = kept.iter().find(|(v, _, _)| *v == lab::view::current())?;
     match key {
         Some(key) => (*k == key).then(|| s.clone()),
         None => (s.size == view.size).then(|| s.clone()),

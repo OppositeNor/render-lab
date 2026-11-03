@@ -442,6 +442,15 @@ pub trait Choice: Sized + Copy {
 /// declared value, in its type (a flag 1 or 0, an option its index), or the
 /// number of any other parameter.
 pub fn resolve(name: &str, json: &serde_json::Value) -> Result<Vec<(String, f32)>, String> {
+    // A value of another view (src/view.rs): its key's channels, by the view's names.
+    if let Some((view, key)) = crate::shot::view_key(name) {
+        let camera = crate::camera::OrbitCamera::schema().iter().any(|e| e.key == key || e.components.contains(&key));
+        if camera {
+            let n = json.as_f64().ok_or_else(|| format!("`{name}` is a number, not {json}"))?;
+            return Ok(vec![(name.to_string(), n as f32)]);
+        }
+        return Ok(resolve(key, json)?.into_iter().map(|(c, v)| (format!("view.{view}.{c}"), v)).collect());
+    }
     let entry = entry(name);
     match entry {
         Some(e) if e.key == name => {

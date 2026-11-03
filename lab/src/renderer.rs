@@ -3,6 +3,7 @@
 //! layer, the composite into the viewport rectangle, then egui on top. The
 //! viewer blits that target to its window; the recorder reads it back.
 
+use crate::view::ViewId;
 use crate::frame::{self, FrameContent, Statics};
 use crate::investigation::{self, SceneShading};
 use crate::gpu::{self, Gpu, Pipelines, DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
@@ -142,7 +143,10 @@ pub struct Renderer {
     /// The prepared data of the scene the renderer shows.
     pub statics: Statics,
     /// The other scenes prepared so far, kept for switching back.
-    other_scenes: HashMap<SceneId, Statics>,
+    /// The scenes not being drawn, each with its mesh buffers (so a view can show its own scene, src/view.rs).
+    other_scenes: HashMap<SceneId, (Statics, SceneResources)>,
+    /// The scene each view was last drawn with: its data is dropped when that changes.
+    view_scenes: std::collections::BTreeMap<ViewId, SceneId>,
     pub records: RecordBuffers,
     mesh_vertices: wgpu::Buffer,
     mesh_indices: wgpu::Buffer,
@@ -198,12 +202,17 @@ pub struct Renderer {
     /// listing), so this frame first lays out without it (`render_frame_with`).
     panel_empty: bool,
     /// The reference's view, while an experiment compares (src/experiment.rs).
-    reference_slot: ViewSlot,
+    /// The views not being drawn, each its slot (src/view.rs); `active` is the one being drawn, its slot in the fields above.
+    slots: std::collections::BTreeMap<ViewId, ViewSlot>,
+    active: ViewId,
     /// The free camera's view (src/free_view.rs), while it is on.
-    free_slot: ViewSlot,
     /// Where the last frame drew the main camera's own view while the free
     /// camera was on: a corner of the viewport, in canvas points.
     pub last_main_view: Option<egui::Rect>,
+    /// The last frame's views and where each is on screen (canvas points), back to front (src/view.rs).
+    pub last_views: Vec<(ViewId, egui::Rect)>,
+    /// The last frame's views stacked over the main one: each its id, name, and camera (src/view.rs).
+    pub last_overs: Vec<(ViewId, &'static str, crate::camera::OrbitCamera)>,
     compare: Option<CompareRequest>,
     /// The difference view's gain (group 2 of `composite_diff`).
     compare_params: wgpu::Buffer,
@@ -398,15 +407,18 @@ impl VolumeSet {
 /// How many `scene_data` builds a shading keeps.
 const SCENE_DATA_KEPT: usize = 4;
 
-/// What a frame's reference view (src/experiment.rs) draws from and into:
-/// its own viewport targets, pass chain, and still counts, so its history
-/// builds up as the live view's does. Swapped with the renderer's while it draws.
+/// What a view keeps of its own between frames (src/view.rs): its targets,
+/// its chain, how long it has held still, and its scene shading's program
+/// (images, history, plan), by shading. The view being drawn has its slot's
+/// contents in the renderer's own fields (`Renderer::enter`).
 #[derive(Default)]
 struct ViewSlot {
     viewport: Option<ViewportTargets>,
     chain: Option<ChainTargets>,
     still: (Option<u64>, u32),
     still_scene: (Option<u64>, u32),
+    /// Each program's runtime and handles, by its shading's source.
+    programs: Vec<(usize, std::cell::RefCell<crate::program::ProgramRuntime>, std::cell::RefCell<Vec<(&'static str, crate::program::ProgramHandle)>>)>,
 }
 
 /// The experiment's comparison the next frames draw (`Renderer::set_compare`).
@@ -674,13 +686,18 @@ pub struct FrameRequest<'a> {
     pub time: f32,
     pub raw_input: egui::RawInput,
     pub chrome: Chrome<'a>,
+    /// The focused view's state when it is not the main view (src/view.rs): the dock shows and sets it.
+    pub focus: Option<&'a ShotState>,
     /// Draw this frame index as a binary stamp (frame-order verification).
     pub stamp: Option<u64>,
 }
 
 pub struct FrameResult {
     pub report: UiReport,
+    /// The content on screen: the free camera's while it is on, else the main view's.
     pub content: Option<FrameContent>,
+    /// The main view's content, when it is not the one on screen (the free camera is on).
+    pub main_content: Option<FrameContent>,
 }
 
 impl Renderer {
@@ -794,9 +811,11 @@ impl Renderer {
             last_layout: Layout::new(width, height),
             last_panes: Vec::new(),
             panel_empty: false,
-            reference_slot: ViewSlot::default(),
-            free_slot: ViewSlot::default(),
+            slots: std::collections::BTreeMap::new(),
+            active: ViewId::MAIN,
             last_main_view: None,
+            last_views: Vec::new(),
+            last_overs: Vec::new(),
             compare: None,
             compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("compare"), layout: &pipelines_compare_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: compare_params.as_entire_binding() }] }),
             compare_params,
@@ -809,6 +828,7 @@ impl Renderer {
             timing: None,
             statics,
             other_scenes: HashMap::new(),
+            view_scenes: std::collections::BTreeMap::new(),
             gpu,
         };
         renderer.resize(width, height);
@@ -844,17 +864,30 @@ impl Renderer {
         if self.statics.scene.id == id {
             return;
         }
-        let next = match self.other_scenes.remove(&id) {
-            Some(statics) => statics,
-            None => Statics::prepare(id).unwrap_or_else(|e| panic!("preparing scene {}: {e:#}", id.key())),
+        let (next, scene) = match self.other_scenes.remove(&id) {
+            Some(kept) => kept,
+            None => {
+                let statics = Statics::prepare(id).unwrap_or_else(|e| panic!("preparing scene {}: {e:#}", id.key()));
+                let scene = Self::scene_resources(&self.gpu.device, &statics);
+                (statics, scene)
+            }
         };
-        crate::fetch::clear();
         let previous = std::mem::replace(&mut self.statics, next);
-        self.other_scenes.insert(previous.scene.id, previous);
-        let scene = Self::scene_resources(&self.gpu.device, &self.statics);
-        self.mesh_vertices = scene.mesh_vertices;
-        self.mesh_indices = scene.mesh_indices;
-        self.object_ids = scene.object_ids;
+        let resources = SceneResources {
+            mesh_vertices: std::mem::replace(&mut self.mesh_vertices, scene.mesh_vertices),
+            mesh_indices: std::mem::replace(&mut self.mesh_indices, scene.mesh_indices),
+            object_ids: std::mem::replace(&mut self.object_ids, scene.object_ids),
+        };
+        self.other_scenes.insert(previous.scene.id, (previous, resources));
+    }
+
+    /// The view being drawn shows scene `id`: its own data is dropped when its scene changed.
+    fn view_scene(&mut self, id: SceneId) {
+        self.switch_scene(id);
+        let view = self.active;
+        if self.view_scenes.insert(view, id).is_some_and(|last| last != id) {
+            crate::fetch::clear_view(view);
+        }
     }
 
     fn frame_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -900,6 +933,11 @@ impl Renderer {
 
     /// The last frame's views beside the main one, in canvas points (the
     /// viewer orbits and picks from them too).
+    /// The last frame's views and their places on screen, back to front (src/view.rs).
+    pub fn frame_views(&self) -> &[(ViewId, egui::Rect)] {
+        &self.last_views
+    }
+
     pub fn frame_panes(&self) -> &[egui::Rect] {
         &self.last_panes
     }
@@ -928,8 +966,7 @@ impl Renderer {
         self.frame = Self::frame_texture(&self.gpu.device, width, height);
         self.frame_view = self.frame.create_view(&Default::default());
         self.viewport = None;
-        self.reference_slot = ViewSlot::default();
-        self.free_slot = ViewSlot::default();
+        self.slots.clear();
     }
 
     /// Upload the frame's records and uniforms.
@@ -1216,10 +1253,10 @@ impl Renderer {
         if finished {
             self.still = (None, 0);
             self.still_scene = (None, 0);
-            self.reference_slot.still = (None, 0);
-            self.reference_slot.still_scene = (None, 0);
-            self.free_slot.still = (None, 0);
-            self.free_slot.still_scene = (None, 0);
+            for slot in self.slots.values_mut() {
+                slot.still = (None, 0);
+                slot.still_scene = (None, 0);
+            }
         }
     }
 
@@ -1461,25 +1498,106 @@ impl Renderer {
     /// Compare the next frames' live view with a reference (src/experiment.rs), or stop.
     pub fn set_compare(&mut self, compare: Option<CompareRequest>) {
         if compare.is_none() {
-            self.reference_slot = ViewSlot::default();
+            self.slots.remove(&ViewId::REFERENCE);
         }
         self.compare = compare;
     }
 
     /// The free view's slot and the renderer's trade places.
-    fn swap_free_slot(&mut self) {
-        std::mem::swap(&mut self.viewport, &mut self.free_slot.viewport);
-        std::mem::swap(&mut self.chain, &mut self.free_slot.chain);
-        std::mem::swap(&mut self.still, &mut self.free_slot.still);
-        std::mem::swap(&mut self.still_scene, &mut self.free_slot.still_scene);
+    /// Makes `view` the one being drawn: the drawn view's slot goes back to
+    /// `slots`, and `view`'s (a new one the first time) into the renderer's
+    /// fields: its targets, chain, stillness, and programs.
+    fn enter(&mut self, view: ViewId) {
+        crate::view::set_current(view);
+        if self.active == view {
+            return;
+        }
+        let mut slot = self.slots.remove(&view).unwrap_or_default();
+        self.trade(&mut slot);
+        self.slots.insert(self.active, slot);
+        self.active = view;
     }
 
-    /// The reference's slot and the renderer's trade places.
-    fn swap_slot(&mut self) {
-        std::mem::swap(&mut self.viewport, &mut self.reference_slot.viewport);
-        std::mem::swap(&mut self.chain, &mut self.reference_slot.chain);
-        std::mem::swap(&mut self.still, &mut self.reference_slot.still);
-        std::mem::swap(&mut self.still_scene, &mut self.reference_slot.still_scene);
+    /// The renderer's per-view fields and `slot`'s trade places.
+    fn trade(&mut self, slot: &mut ViewSlot) {
+        std::mem::swap(&mut self.viewport, &mut slot.viewport);
+        std::mem::swap(&mut self.chain, &mut slot.chain);
+        std::mem::swap(&mut self.still, &mut slot.still);
+        std::mem::swap(&mut self.still_scene, &mut slot.still_scene);
+        let device = &self.gpu.device;
+        let mut kept = Vec::new();
+        for s in self.shadings.iter_mut() {
+            let (Some(program), Some(pipelines)) = (s.source.program, s.pipelines.program.as_ref()) else { continue };
+            let id = s.source as *const SceneShading as usize;
+            // The slot's runtime for this shading, or a new one (made for this view's size when it binds).
+            let incoming = match slot.programs.iter().position(|(k, _, _)| *k == id) {
+                Some(i) => {
+                    let (_, runtime, handles) = slot.programs.swap_remove(i);
+                    (runtime, handles)
+                }
+                None => {
+                    let runtime = std::cell::RefCell::new(crate::program::ProgramRuntime::new(device, s.source, program, pipelines));
+                    let handles = std::cell::RefCell::new(runtime.borrow().handles());
+                    (runtime, handles)
+                }
+            };
+            let runtime = s.program.replace(incoming.0).expect("a shading with a program has its runtime");
+            let handles = std::mem::replace(&mut s.program_handles, incoming.1);
+            kept.push((id, runtime, handles));
+        }
+        slot.programs.extend(kept);
+    }
+
+    /// Counts how long the view being drawn has held still and writes it into
+    /// `content`'s `viewParams.w` (`FrameRequest::history`; 0 without history).
+    fn hold_still(&mut self, content: &mut FrameContent, viewport: [u32; 2], history: bool) {
+        let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+        self.still = count(self.still, still_key(content, viewport, true));
+        self.still_scene = count(self.still_scene, still_key(content, viewport, false));
+        content.uniforms.view_params[3] = if history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+    }
+
+    /// The view being drawn's targets at `size` (made again, its chain with them, when the size changed).
+    fn targets_at(&mut self, size: [u32; 2]) {
+        if self.viewport.as_ref().is_none_or(|v| v.size != size) {
+            self.chain = None;
+            self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, size));
+        }
+    }
+
+    /// A view other than the main one, drawn in a submission of its own from
+    /// its own slot: built (or `content` as given), planned, drawn, and, with
+    /// `at`, composited there.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_view(&mut self, view: ViewId, state: &ShotState, content: Option<FrameContent>, size: [u32; 2], scale: f32, time: f32, history: bool, at: Option<([u32; 4], bool)>) -> FrameContent {
+        let main_scene = self.statics.scene.id;
+        self.enter(view);
+        // Its own scene (src/view.rs).
+        self.view_scene(investigation::current().scene(state));
+        self.targets_at(size);
+        self.select_data(state, !history);
+        let mut content = content.unwrap_or_else(|| crate::shader_data::build_frame(state, &self.statics, [size[0] as f32, size[1] as f32], scale, time));
+        self.hold_still(&mut content, size, history);
+        self.plan_program(state, history, size);
+        self.upload(&content);
+        self.upload_draws(&content);
+        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("view") });
+        self.encode_scene(&mut encoder, &content, false);
+        // The reads it asks for, of what its own passes left (src/fetch.rs).
+        if !content.fetches.is_empty() {
+            let tag = still_key(&content, size, true);
+            let mut queue = std::mem::take(&mut self.fetches);
+            queue.issue(&self.gpu.device, &mut encoder, &content.fetches, tag, crate::fetch::BUDGET, &|source| self.fetch_target(source));
+            self.fetches = queue;
+        }
+        if let Some((at, clear)) = at {
+            self.composite(&mut encoder, at, clear);
+        }
+        self.gpu.queue.submit([encoder.finish()]);
+        self.fetches.submitted();
+        self.enter(ViewId::MAIN);
+        self.switch_scene(main_scene);
+        content
     }
 
     /// The last frame's image of a view, without the overlay: displayed
@@ -1491,7 +1609,7 @@ impl Renderer {
         }
         let targets = match which {
             ViewKind::Live => self.viewport.as_ref()?,
-            ViewKind::Reference => self.reference_slot.viewport.as_ref()?,
+            ViewKind::Reference => self.slots.get(&ViewId::REFERENCE)?.viewport.as_ref()?,
         };
         let device = &self.gpu.device;
         let [w, h] = targets.size;
@@ -1573,7 +1691,8 @@ impl Renderer {
     /// Like `render_frame`, but with prepared frame content (used by the
     /// selftest to draw known markers).
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
-        self.switch_scene(investigation::current().scene(request.state));
+        self.enter(ViewId::MAIN);
+        self.view_scene(investigation::current().scene(request.state));
         // The reads earlier frames asked for that have landed (src/fetch.rs).
         self.fetches.collect(&self.gpu.device, false);
         // The performance panel measures the frames it is shown with.
@@ -1639,50 +1758,23 @@ impl Renderer {
         self.last_panes = rects.iter().take(panes.len()).copied().collect();
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
-        if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
-            self.chain = None;
-            self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
-        }
+        self.targets_at(viewport_size);
         let size = [vp[2] as f32, vp[3] as f32];
         self.reference_drawn = false;
         if let Some(c) = &compare {
-            // The reference first, in its own submission and its own targets,
-            // so its history builds up as the live view's does.
-            self.swap_slot();
-            if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
-                self.chain = None;
-                self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
-            }
-            self.select_data(&c.reference, !request.history);
-            let mut content = crate::shader_data::build_frame(&c.reference, &self.statics, size, layout.scale, request.time);
-            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
-            self.still = count(self.still, still_key(&content, viewport_size, true));
-            self.still_scene = count(self.still_scene, still_key(&content, viewport_size, false));
-            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
-            self.upload(&content);
-            self.upload_draws(&content);
-            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("reference") });
-            self.encode_scene(&mut encoder, &content, false);
-            self.gpu.queue.submit([encoder.finish()]);
-            self.swap_slot();
+            // The reference first, from its own slot (src/view.rs), so its history builds up as the live view's does.
+            self.draw_view(ViewId::REFERENCE, &c.reference, None, viewport_size, layout.scale, request.time, request.history, None);
             self.reference_drawn = true;
         }
-        // Each other view: built, drawn, and composited into its rectangle in
-        // a submission of its own, so the shared uniforms and targets hold its
-        // camera and values while it draws.
+        // Each other view of a split area: from its own slot, composited into its rectangle.
         let mut drawn = Vec::new();
-        for (pane, rect) in panes.iter().zip(&rects) {
-            let mut content = crate::shader_data::build_frame(&pane.state, &self.statics, size, layout.scale, request.time);
-            content.uniforms.view_params[3] = 0.0;
-            self.select_data(&pane.state, !request.history);
-            self.upload(&content);
-            self.upload_draws(&content);
-            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("pane") });
-            self.encode_scene(&mut encoder, &content, false);
+        for (n, (pane, rect)) in panes.iter().zip(&rects).enumerate() {
             let at = Layout { viewport: *rect, ..layout }.viewport_px();
-            self.composite(&mut encoder, at, drawn.is_empty());
-            self.gpu.queue.submit([encoder.finish()]);
+            let content = self.draw_view(ViewId::pane(n as u32), &pane.state, None, [at[2], at[3]], layout.scale, request.time, request.history, Some((at, drawn.is_empty())));
             drawn.push((*rect, content));
+        }
+        for n in panes.len() as u32..8 {
+            self.slots.remove(&ViewId::pane(n));
         }
         let scene_state = main.as_ref().map_or(request.state, |m| &m.state);
         // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures.
@@ -1694,6 +1786,7 @@ impl Renderer {
             self.plan_program(scene_state, request.history, viewport_size);
         }
         let settle_prepared = if request.history { None } else { prepared.clone() };
+        let given = prepared.is_some();
         let panel_built = built.is_some();
         let mut content = match prepared.or(built) {
             Some(c) => Some(c),
@@ -1702,12 +1795,7 @@ impl Renderer {
         if let Some(content) = content.as_mut() {
             // The frames the view has held still: the same records, uniforms
             // (but the clock), shading values, and viewport as the last frame.
-            // None while the area is split: its views share the targets that
-            // hold what earlier frames built up.
-            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
-            self.still = count(self.still, still_key(content, viewport_size, true));
-            self.still_scene = count(self.still_scene, still_key(content, viewport_size, false));
-            content.uniforms.view_params[3] = if request.history && drawn.is_empty() { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+            self.hold_still(content, viewport_size, request.history);
         }
         // The free camera's view (src/free_view.rs): the main frame drawn from
         // the free camera, in its own submission and targets (so its history
@@ -1717,26 +1805,37 @@ impl Renderer {
         // shown in a corner.
         let free = request.state.free_camera;
         let free_content = content.as_ref().filter(|_| scene_beat && free.on && drawn.is_empty() && compare.is_none()).map(|main| {
-            let mut content = crate::free_view::content(main, request.state, &free);
-            self.swap_free_slot();
-            if self.viewport.as_ref().is_none_or(|v| v.size != viewport_size) {
-                self.chain = None;
-                self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, viewport_size));
-            }
-            let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
-            self.still = count(self.still, still_key(&content, viewport_size, true));
-            self.still_scene = count(self.still_scene, still_key(&content, viewport_size, false));
-            content.uniforms.view_params[3] = if request.history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
-            self.upload(&content);
-            self.upload_draws(&content);
-            let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("free camera") });
-            self.encode_scene(&mut encoder, &content, false);
-            self.gpu.queue.submit([encoder.finish()]);
-            self.swap_free_slot();
-            content
+            let content = crate::free_view::content(main, request.state, &free);
+            // The program plans for the camera this view is drawn from.
+            let seen = ShotState { camera: free.orbit(), ..request.state.clone() };
+            self.draw_view(ViewId::FREE, &seen, Some(content), viewport_size, layout.scale, request.time, request.history, None)
         });
         if free_content.is_none() {
-            self.free_slot = ViewSlot::default();
+            self.slots.remove(&ViewId::FREE);
+        }
+        // The views the investigation stacks over the main one (src/view.rs):
+        // each from its own slot, in its own scene, laid over the main view below.
+        let overs = if scene_beat && !given && main.is_none() && free_content.is_none() { investigation::current().views(request.state) } else { Vec::new() };
+        let mut over_drawn: Vec<(ViewId, f32, FrameContent)> = Vec::new();
+        for (n, over) in overs.iter().enumerate() {
+            if over.alpha <= 0.0 {
+                continue;
+            }
+            let id = ViewId::over(n as u32);
+            crate::view::set_name(Some(over.name));
+            let content = self.draw_view(id, &over.state, None, viewport_size, layout.scale, request.time, request.history, None);
+            crate::view::set_name(None);
+            over_drawn.push((id, over.alpha.min(1.0), content));
+        }
+        for n in 0..8u32 {
+            if !over_drawn.iter().any(|(id, _, _)| *id == ViewId::over(n)) {
+                self.slots.remove(&ViewId::over(n));
+            }
+        }
+        self.last_overs = overs.iter().enumerate().filter(|(_, o)| o.alpha > 0.0).map(|(n, o)| (ViewId::over(n as u32), o.name, o.camera)).collect();
+        // The shading's data is the main view's again (an over view selected its own).
+        if renders && !over_drawn.is_empty() {
+            self.select_data(scene_state, !request.history);
         }
         // The main camera's own view, in the viewport's lower right corner, at its shape.
         let main_view = free_content.as_ref().map(|_| {
@@ -1745,6 +1844,20 @@ impl Renderer {
             egui::Rect::from_min_size(v.max - size - egui::vec2(16.0, 16.0), size)
         });
         self.last_main_view = main_view;
+        // Where each view is, back to front, for the pointer (src/view.rs).
+        self.last_views = match (&free_content, main_view) {
+            (Some(_), Some(corner)) => vec![(ViewId::FREE, layout.viewport), (ViewId::MAIN, corner)],
+            _ => {
+                let mut views: Vec<(ViewId, egui::Rect)> = drawn.iter().enumerate().map(|(n, (rect, _))| (ViewId::pane(n as u32), *rect)).collect();
+                if compare.as_ref().is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide) {
+                    views.push((ViewId::REFERENCE, reference_rect));
+                }
+                views.push((ViewId::MAIN, layout.viewport));
+                views
+            }
+        };
+        // The views over the main one take the pointer where they are mostly shown.
+        self.last_views.extend(over_drawn.iter().filter(|(_, a, _)| *a > 0.5).map(|(id, _, _)| (*id, layout.viewport)));
         if let Some(content) = &content {
             self.upload(content);
             self.upload_draws(content);
@@ -1837,6 +1950,7 @@ impl Renderer {
         let performance = shows_performance.then(|| self.performance_view());
         let graph_view = matches!(request.state.panel, crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources).then(|| self.graph_view());
         let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
+        let over_views: Vec<ui::PaneView> = over_drawn.iter().filter(|(_, a, _)| *a > 0.5).map(|(_, _, content)| ui::PaneView { rect: layout.viewport, content, title: None }).collect();
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));
@@ -1844,6 +1958,7 @@ impl Renderer {
         let ui_input = UiInput {
             layout,
             state: request.state,
+            focus: request.focus,
             content: free_content.as_ref().or(content.as_ref()),
             main_view,
             statics: &self.statics,
@@ -1857,6 +1972,7 @@ impl Renderer {
             fade: request.fade,
             stamp: request.stamp,
             panes: &pane_views,
+            overs: &over_views,
             title: main.as_ref().and_then(|m| m.title.as_deref()),
             compare: compare.as_ref().filter(|_| self.reference_drawn).map(|c| ui::CompareOverlay { mode: c.mode, reference: reference_rect, split: c.split, gain: c.gain }),
             performance: performance.as_ref(),
@@ -1903,7 +2019,7 @@ impl Renderer {
                 self.fetches = queue;
             }
         }
-        if let (Some(free), Some(rect)) = (self.free_slot.viewport.as_ref().filter(|_| free_content.is_some()), main_view) {
+        if let (Some(free), Some(rect)) = (self.slots.get(&ViewId::FREE).and_then(|s| s.viewport.as_ref()).filter(|_| free_content.is_some()), main_view) {
             // The free view fills the viewport; the main view sits in its corner.
             self.composite_from(&mut encoder, free, vp, true, None);
             let at = Layout { viewport: rect, ..layout }.viewport_px();
@@ -1913,7 +2029,13 @@ impl Renderer {
             let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
             self.composite_timed(&mut encoder, vp, drawn.is_empty(), timed.as_ref().map(|t| t.writes()));
         }
-        if let (Some(c), true, Some(reference)) = (&compare, self.reference_drawn, self.reference_slot.viewport.as_ref()) {
+        // The views stacked over the main one, each at its alpha.
+        for (id, alpha, _) in &over_drawn {
+            if let Some(targets) = self.slots.get(id).and_then(|s| s.viewport.as_ref()) {
+                self.composite_over(&mut encoder, targets, vp, *alpha);
+            }
+        }
+        if let (Some(c), true, Some(reference)) = (&compare, self.reference_drawn, self.slots.get(&ViewId::REFERENCE).and_then(|s| s.viewport.as_ref())) {
             use crate::experiment::Compare;
             match c.mode {
                 Compare::Off => {}
@@ -1965,7 +2087,10 @@ impl Renderer {
         for id in output.textures_delta.free.drain() {
             self.egui_renderer.free_texture(&id);
         }
-        FrameResult { report, content: free_content.or(content) }
+        match free_content {
+            Some(free) => FrameResult { report, content: Some(free), main_content: content },
+            None => FrameResult { report, content, main_content: None },
+        }
     }
 
     /// The frame cleared to the background colour.
@@ -2016,9 +2141,27 @@ impl Renderer {
         pass.draw(0..3, 0..1);
     }
 
+    /// A view's picture laid over the frame at `at`, blended at `alpha` (src/view.rs).
+    fn composite_over(&self, encoder: &mut wgpu::CommandEncoder, targets: &ViewportTargets, at: [u32; 4], alpha: f32) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("composite over"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &self.frame_view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_viewport(at[0] as f32, at[1] as f32, at[2] as f32, at[3] as f32, 0.0, 1.0);
+        pass.set_pipeline(&self.pipelines.composite_over);
+        pass.set_blend_constant(wgpu::Color { r: alpha as f64, g: alpha as f64, b: alpha as f64, a: alpha as f64 });
+        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        pass.set_bind_group(1, &targets.composite, &[]);
+        pass.draw(0..3, 0..1);
+    }
+
     /// The experiment's difference view of the live and reference HDR targets into `at`.
     fn composite_difference(&self, encoder: &mut wgpu::CommandEncoder, at: [u32; 4], gain: f32) {
-        let (Some(live), Some(reference)) = (self.viewport.as_ref(), self.reference_slot.viewport.as_ref()) else { return };
+        let (Some(live), Some(reference)) = (self.viewport.as_ref(), self.slots.get(&ViewId::REFERENCE).and_then(|s| s.viewport.as_ref())) else { return };
         self.gpu.queue.write_buffer(&self.compare_params, 0, bytemuck::cast_slice(&[gain, 0.0, 0.0, 0.0]));
         let pair = self.gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("compare pair"),
@@ -2475,9 +2618,9 @@ impl Renderer {
             None => vec![Some(wgpu::RenderPassColorAttachment { view: &targets.hdr_msaa, depth_slice: None, resolve_target: Some(&targets.hdr), ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Discard } })],
         };
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
-        // The program's commands run in the main view only; the others read what it left.
+        // Every view runs its program, from its own slot (its images and history; `Renderer::enter`).
         use crate::investigation::ProgramStage;
-        let program_shading = shading.filter(|_| timed);
+        let program_shading = shading;
         // Its groups, for this view's size and the frame's textures it reads.
         if let Some(s) = program_shading {
             if let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) {

@@ -667,7 +667,7 @@ ${cue "key" {' {callout "local-size"}}}${overText {' {focusRowRange 1.0 2.0}} "E
 
 ${cue "key" {' {callout "level-dispatch"}}}${overText {' {octreeLevelRange 7.0 1.0}} "The light pass lights the leaves; then the mips climb one level per dispatch, with a barrier between, because a parent sums its children's light"}.
 
-${cue "key" {' {callout "pass-order"}}}${over {' {focusRowRange 2.0 1.0}} {overText {' {octreeLevelRange 1.0 7.0}} [f "Then eight writes copy every level into the texture: with two bounces, ${spoken {dispatches}} dispatches in this room"]}}.
+${cue "key" {' {callout "pass-order"}}}${over {' {focusRowRange 2.0 1.0}} {overText {' {octreeLevelRange 1.0 7.0}} f"{Then eight writes copy every level into the texture: with two bounces, ${spoken {dispatches}} dispatches in this room}"}}.
 
 ${cue "key" {' {imageHide {' "cellArray"}} {focusRow -1.0}}}${overText {' {octreeLevelRange 7.0 -1.0}} "The lab's light passes follow the same order on the graphics card"}.
 
@@ -687,11 +687,11 @@ ${cue "key" {' {callout "light-at-pos"}}}Before any march, a light out of range,
 ${cue "key" {opening demoPixel panelValues 0.3 {' {workedPixel 1.0} {conesShown 0.0} {coneSteps 0.0} {specCone 0.0} {quality 0.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {' 34.0 18.0} {' 44.0 20.0}}}}}}}
 
-${cue "key" {' {callout "cones-low"}}}${overText {' {conesShownRange 0.0 {float lowCones}}} [f "Everything so far runs only on change; the screen pass runs every frame, so its price is per pixel: ${spoken lowCones} cones"]}, ${overText {' {coneStepsRange 0.0 {float {lowSteps}}}} [f "each at most ${spoken {lowSteps}} steps in this box, ${spoken {* lowCones {lowSteps}}} samples at most"]}.
+${cue "key" {' {callout "cones-low"}}}${overText {' {conesShownRange 0.0 {float lowCones}}} f"{Everything so far runs only on change; the screen pass runs every frame, so its price is per pixel: ${spoken lowCones} cones}"}, ${overText {' {coneStepsRange 0.0 {float {lowSteps}}}} f"{each at most ${spoken {lowSteps}} steps in this box, ${spoken {* lowCones {lowSteps}}} samples at most}"}.
 
 ${overText {' {coneStepsRange 3.0 7.0}} "Each sample reads a prefiltered mip as wide as the cone there: the average of the cells it covers, a cheap stand-in for many rays, at the price of blurring thin walls"}.
 
-${cue "key" {' panelPerformance {highlight {' "voxelgiGiCS"}} {callout "cones-high"}}}${over {' {qualityRange 0.0 1.0}} {over {' {conesShownRange {float lowCones} {float highCones}}} {overText {' {coneStepsRange {float {lowSteps}} {float {highSteps}}}} [f "At High, ${spoken highCones} narrower cones widen more slowly, so their steps are shorter and more numerous, and the screen pass's row grows"]}}}.
+${cue "key" {' panelPerformance {highlight {' "voxelgiGiCS"}} {callout "cones-high"}}}${over {' {qualityRange 0.0 1.0}} {over {' {conesShownRange {float lowCones} {float highCones}}} {overText {' {coneStepsRange {float {lowSteps}} {float {highSteps}}}} f"{At High, ${spoken highCones} narrower cones widen more slowly, so their steps are shorter and more numerous, and the screen pass's row grows}"}}}.
 
 ${cue "key" {' {callout "quality-doc"} {specCone 1.0}}}${over {' {qualityRange 1.0 0.0}} {overText {' {conesShownRange {float highCones} {float lowCones}}} "The documentation says High also gives better reflections, but only the diffuse cones change: the reflection cone stays the same"}}.
 
@@ -700,7 +700,7 @@ ${cue "key" {' {callout "quality-doc"} {specCone 1.0}}}${over {' {qualityRange 1
 ${cue "key" {' demoPixel {callout "spec-cone"} {inset ""} panelValues {workedPixel 1.0} {conesShown 0.0} {specCone 1.0} {sphereRoughness 1.0} {cameraDrift 0.3}}}
 ${cue "key" {' {motion {' {cameraTurn {' {' 38.0 16.0} {' 30.0 20.0}}}}}}}
 
-${overText {' {sphereRoughnessRange 1.0 0.5}} "That reflection cone is the one to watch: its width follows the roughness"}, ${overText {' {sphereRoughnessRange 0.5 0.0}} [f "from at most ${spoken {roughSteps}} steps when fully rough to at most ${spoken {mirrorSteps}} on a mirror"]}.
+${overText {' {sphereRoughnessRange 1.0 0.5}} "That reflection cone is the one to watch: its width follows the roughness"}, ${overText {' {sphereRoughnessRange 0.5 0.0}} f"{from at most ${spoken {roughSteps}} steps when fully rough to at most ${spoken {mirrorSteps}} on a mirror}"}.
 
 ${overText {' {sphereRoughnessRange 0.0 0.1}} "A mirror's cone is nearly a ray, so it steps half a cell at a time, not to skip a wall: smooth surfaces are the most expensive pixels"}.
 

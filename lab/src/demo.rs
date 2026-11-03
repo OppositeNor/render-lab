@@ -293,6 +293,15 @@ impl Demos {
     /// `value` in `values`, in its declared type (a flag on above 0.5, an
     /// index the nearest whole number); false for a name it does not declare.
     pub fn set(&self, values: &mut ValueMap, name: &str, value: f32) -> bool {
+        // A value of another view (lab/src/view.rs), `view.<name>.<key>`: kept by its full name, a known key or a camera's.
+        if let Some((_, key)) = crate::shot::view_key(name) {
+            let camera = crate::camera::OrbitCamera::schema().iter().any(|e| e.key == key || e.components.contains(&key));
+            if !camera && self.entry(key).is_none() && self.param_default(key).is_none() {
+                return false;
+            }
+            values.insert(name.to_string(), Value::F32(value));
+            return true;
+        }
         match self.entry(name) {
             Some(entry) => {
                 let mut numbers = values.get(entry.key).copied().or(entry.default).expect("a declared value has a default").components();

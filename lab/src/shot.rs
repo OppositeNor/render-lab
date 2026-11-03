@@ -161,7 +161,44 @@ fn is_zero_f32(x: &f32) -> bool {
     *x == 0.0
 }
 
+/// A value of view `name` (src/view.rs): `view.<name>.<key>`, its view and key.
+pub fn view_key(name: &str) -> Option<(&str, &str)> {
+    name.strip_prefix("view.")?.split_once('.')
+}
+
 impl ShotState {
+    /// The state view `name` sees: this one with that view's values
+    /// (`view.<name>.<key>`, set by a story's `{view …}` cue or the dock) in
+    /// place of the main view's, its camera theirs too.
+    pub fn view_state(&self, name: &str) -> ShotState {
+        let mut out = self.clone();
+        let prefix = format!("view.{name}.");
+        let own: Vec<(String, f32)> = self.values.iter().filter_map(|(k, v)| k.strip_prefix(&prefix).map(|inner| (inner.to_string(), v.f32()))).collect();
+        for (key, value) in own {
+            out.set(&key, value);
+        }
+        out
+    }
+
+    /// View `name`'s own camera: `rest`, with the camera values the view has of its own.
+    pub fn own_camera(&self, name: &str, rest: OrbitCamera) -> OrbitCamera {
+        let mut camera = rest;
+        for c in camera_channels() {
+            if let Some(v) = self.values.get(&format!("view.{name}.{c}")) {
+                camera.set(c, *v);
+            }
+        }
+        camera
+    }
+
+    /// Sets view `name`'s own camera (its camera values, `view.<name>.camera…`).
+    pub fn set_own_camera(&mut self, name: &str, camera: &OrbitCamera) {
+        for c in camera_channels() {
+            let v = camera.get(c).expect("a camera channel").f32();
+            self.values.insert(format!("view.{name}.{c}"), Value::F32(v));
+        }
+    }
+
     /// The current investigation's starting state for a demonstration.
     pub fn for_demo(demo: impl Into<DemoId>) -> ShotState {
         investigation::current().shot_state(demo.into())
@@ -192,6 +229,12 @@ impl ShotState {
     /// index the nearest whole number), a component, a parameter, or the camera's.
     pub fn set(&mut self, name: &str, value: f32) {
         if self.camera.set(name, Value::F32(value)) || self.free_camera.set(name, Value::F32(value)) {
+            return;
+        }
+        // A value of another view (src/view.rs): kept by its full name, a known key.
+        if let Some((_, key)) = view_key(name) {
+            assert!(self.try_get(key).is_some(), "unknown shot parameter {name}");
+            self.values.insert(name.to_string(), Value::F32(value));
             return;
         }
         let investigation = investigation::current();
@@ -266,6 +309,10 @@ impl ShotState {
         }
         if let Some(v) = self.values.get(key) {
             return Some(*v);
+        }
+        // Another view's value not set: the main view's.
+        if let Some((_, inner)) = view_key(key) {
+            return self.try_get(inner);
         }
         let entry = values::entry(key)?;
         let stored = self.values.get(entry.key)?;
@@ -1201,6 +1248,10 @@ impl Timeline {
         }
         for (name, _) in state.value_channels() {
             state.set(&name, value(&name));
+        }
+        // Other views' values (src/view.rs), which a state starts without.
+        for (name, segment) in segments.range("view.".to_string()..).take_while(|(c, _)| c.starts_with("view.")) {
+            state.set(name, segment.value(frame));
         }
         state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
         if state.formula_lit <= 0.0 {

@@ -159,12 +159,15 @@ impl Investigation for Ssr {
     }
 
     /// A click on the scene picks the SSR pixel under it (half size): the trace demonstrations follow it.
-    /// While the depth map is shown as a height field, the pointer turns the field
-    /// itself (its turn and tilt; the wheel zooms it toward P), so the camera that
-    /// renders the depth map keeps its place.
-    fn pointer_values(&self, shown: &ShotState) -> Option<lab::investigation::PointerValues> {
-        let field = matches!(Demo::of(shown.demo), Demo::Pyramid | Demo::Trace) && shown.p("fieldShow") > 0.5 && shown.p("fieldMorph") > 0.05 && shown.p("profileShow") < 0.5;
-        field.then_some(lab::investigation::PointerValues { yaw: "fieldTurn", pitch: "fieldTilt", zoom: Some("fieldZoom") })
+    /// The depth map as a height field and the trace as a cross-section, each a
+    /// view of its own over the main one (demos.rs `views`).
+    fn views(&self, state: &ShotState) -> Vec<lab::investigation::OverView> {
+        demos::views(state)
+    }
+
+    /// A view over the main one draws on the canvas (lab/src/view.rs); the main view its demonstration's scene.
+    fn scene(&self, state: &ShotState) -> lab::scene::SceneId {
+        if lab::view::name().is_some() { lab::scene::SceneId::CANVAS } else { self.demo_scene(state.demo) }
     }
 
     fn click(&self, shown: &ShotState, state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, pixel: Vec2) -> bool {

@@ -1968,21 +1968,21 @@ dependencies = [
 
 [[package]]
 name = "lamlet"
-version = "0.3.1"
-source = "git+https://github.com/lamlet/lamlet?tag=v0.3.1#622233e9d4f5040b7db1c3bcb7e45ba79501597d"
+version = "0.4.0"
+source = "git+https://github.com/lamlet/lamlet?tag=v0.4.0#00997cabcd1f99f9ccda6d0bc5cbe9ecd76a6808"
 
 [[package]]
 name = "lamlet-doc"
-version = "0.3.1"
-source = "git+https://github.com/lamlet/lamlet?tag=v0.3.1#622233e9d4f5040b7db1c3bcb7e45ba79501597d"
+version = "0.4.0"
+source = "git+https://github.com/lamlet/lamlet?tag=v0.4.0#00997cabcd1f99f9ccda6d0bc5cbe9ecd76a6808"
 dependencies = [
  "lamlet",
 ]
 
 [[package]]
 name = "lamlet-present"
-version = "0.1.3"
-source = "git+https://github.com/lamlet/lamlet-present?tag=v0.1.3#883c65183a1cdd34c7150ecfcfe1e2e43bcabfa0"
+version = "0.2.0"
+source = "git+https://github.com/lamlet/lamlet-present?tag=v0.1.4#01a8c48f93deaa8d08cc297bd2a2fa4e03bff0b7"
 dependencies = [
  "lamlet",
  "lamlet-doc",

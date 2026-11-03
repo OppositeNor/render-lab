@@ -128,7 +128,9 @@ amplitude grows and shrinks (`fading`).
 $[# {_part kinds name json m}
     {!if {contains kinds {.kind m}} {.fields= m {append {.fields m} {' {_field name json}}}}
         {error {++ "a " {++ {.kind m} {++ " motion has no " name}}}}}]
-$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"} {_part {' "path" "orbit"} "ease" {_quoted {.value easing}} m}
+$[# _easings [% {' "smooth" "linear" "in" "out" "inOut" "sine"}]]
+$[# {_easeName easing} {fold _easings "" {^ {found n} {!if {= {.value {: easing Attr}} {toData n}} n found}}}]
+$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"} {_part {' "path" "orbit"} "ease" {_quoted {_easeName easing}} m}
     {error {++ "eased takes an easing (easingSine, …), not " {.key easing}}}}]
 $[# {looping m} {_part {' "path" "orbit"} "repeat" {_quoted "loop"} m}]
 $[# {pingPonging m} {_part {' "path" "orbit"} "repeat" {_quoted "pingPong"} m}]
@@ -160,6 +162,15 @@ A range needs a name only to be told from another: `over` and `overText` are `pr
 
 $[# {over attrs body} {during "" attrs body}]
 $[# {overText attrs s} {duringText "" attrs s}]
+
+Another view's values
+
+A cue sets the main view's values; `view` makes its attributes another view's (lab/src/view.rs): each named
+`view.<name>.<key>`, a view an investigation stacks over the main one (its own camera keys too). It wraps a cue's
+or a range's attributes (`cue "key" {view "field" {' {fieldMorph 1.0}}}`, or a range's `{view "field" {'
+{fieldMorphRange 0.0 1.0}}}`), and joins other attributes with `append`.
+
+$[# {view name attrs} {map {: attrs {List Attr}} {^ {a} {attr {++ "view." {++ name {++ "." {.key a}}}} {.value a}}}}]
 
 Points, marks, and names
 

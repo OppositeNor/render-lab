@@ -389,6 +389,8 @@ pub struct ViewerChrome {
     pub graph_source: bool,
     /// The last live reload of the shaders: what it says, and whether it failed (src/resources.rs `reload_changed`).
     pub shader_reload: Option<(String, bool)>,
+    /// The focused view's place, when several views are on screen (src/view.rs): drawn with a lit border.
+    pub focus_rect: Option<Rect>,
 }
 
 pub enum Chrome<'a> {
@@ -399,6 +401,8 @@ pub enum Chrome<'a> {
 pub struct UiInput<'a> {
     pub layout: Layout,
     pub state: &'a ShotState,
+    /// The focused view's state when it is not the main view (src/view.rs): the dock's.
+    pub focus: Option<&'a ShotState>,
     pub content: Option<&'a FrameContent>,
     pub statics: &'a Statics,
     /// The GPU textures an inset's picture can show (packages/render_lab/src/inset.rs).
@@ -417,6 +421,8 @@ pub struct UiInput<'a> {
     /// The views beside the main one (`Investigation::panes`), left to right:
     /// each drawn with its own border, title, and labels.
     pub panes: &'a [PaneView<'a>],
+    /// The views stacked over the main one (src/view.rs), their labels drawn over it.
+    pub overs: &'a [PaneView<'a>],
     /// The main view's title, when the scene area is split.
     pub title: Option<&'a str>,
     /// While the free camera is on (src/free_view.rs): where the main
@@ -593,6 +599,17 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 let at = UiInput { layout: Layout { viewport: pane.rect, ..*l }, content: Some(pane.content), ..*input };
                 let title = pane.title.map(|t| draw_pane_title(&ink, pane.rect, t, &[])).into_iter().collect::<Vec<_>>();
                 draw_labels(&ink, &at, pane.content, &title, &mut report);
+            }
+            // The views stacked over the main one: their labels (their pictures are in the frame).
+            for over in input.overs {
+                let at = UiInput { layout: Layout { viewport: over.rect, ..*l }, content: Some(over.content), ..*input };
+                draw_labels(&ink, &at, over.content, &[], &mut report);
+            }
+            // The focused view (the dock's), when there are several.
+            if let Chrome::Viewer(v) = &chrome {
+                if let Some(r) = v.focus_rect {
+                    painter.rect_stroke(r.expand(2.0), CornerRadius::same(10), Stroke::new(2.5, palette::accent()), StrokeKind::Outside);
+                }
             }
             if let Some(content) = input.content {
                 // Insets and the callout first; labels then avoid them.

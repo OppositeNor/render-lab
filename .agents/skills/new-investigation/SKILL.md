@@ -218,9 +218,17 @@ and `shot_state` come from them. Optional ones include `backdrop` (its homepage 
   The GPU's own data for such a picture comes back through `content.fetch` (`lab::fetch`, render-graph skill).
   A placement with no tilt is a canvas over the view for 2D charts drawn with the same primitives
   (`Placement::rect` for bars and panels, `Placement::on` for lines and `content.labels`): the SSR trace's
-  cross-section is its example. A picture with a camera of its own gets the pointer through
-  `Investigation::pointer_values`: while it is shown, a drag and the wheel move the values it names (a field's turn,
-  tilt, zoom) instead of the main camera, so the camera that renders its data keeps its place.
+  cross-section is its example.
+- **Views** (lab/src/view.rs): every picture on screen is a view of its own: the main view, the panes of a split area
+  (`Investigation::panes`), the experiment's reference, the free camera's, and the views an investigation stacks over
+  the main one (`Investigation::views` → `OverView { name, state, camera, alpha }`). Each draws from its own slot
+  (targets, chain, history, program images), in its own scene (`Investigation::scene`, asked while `lab::view::name()`
+  names the view; `render_lab.scene/canvas` is an empty one for pictures), and reads its own data (`lab::fetch` is
+  scoped by `lab::view::current()`; `fetch::get_in(view, key)` reads another view's, a data link). A view's values are
+  `view.<name>.<key>` in the state (`ShotState::view_state`, `own_camera`, `set_own_camera`): a story sets them with a
+  `{view "<name>" {' …}}` cue, and the dock does when the view is focused. The pointer goes to the view under it (a
+  drag orbits an over view's own camera; the main camera keeps its place), and a click focuses a view: the dock then
+  shows and sets that view's camera and values. SSR's height field and cross-section are over views (its demos.rs).
 - **Step parameters** show an algorithm's intermediate steps, so the video can animate them rather than cut from the
   input to the result: how many vectors are drawn, how many samples or rays, how many readout rows (O3DE:
   `vectorsShown`, `ggxSamples`, `readoutRows`).

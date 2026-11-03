@@ -169,18 +169,22 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         );
     }
 
-    // The pointer turns the height field while it is shown, and the camera otherwise.
+    // The field and the cross-section are views of their own over the main one (lab/src/view.rs): shown by
+    // their own values, each with its own camera, which the pointer moves without moving the main one.
     {
-        use lab::investigation::Investigation;
-        let ssr = super::Ssr;
         let mut state = shot::for_demo(Demo::Trace);
-        let camera = ssr.pointer_values(&state).is_none();
-        state.set("fieldShow", 1.0);
-        state.set("fieldMorph", 1.0);
-        let field = ssr.pointer_values(&state).is_some_and(|v| v.yaw == "fieldTurn" && v.pitch == "fieldTilt");
-        state.set("profileShow", 1.0);
-        let profile = ssr.pointer_values(&state).is_none();
-        report.check("the pointer turns the height field while it is shown (the depth map's camera stays), and the camera otherwise", camera && field && profile, json!({"camera": camera, "field": field, "crossSection": profile}));
+        let none = super::demos::views(&state).is_empty();
+        state.set("view.field.fieldShow", 1.0);
+        let views = super::demos::views(&state);
+        let field = views.len() == 1 && views[0].name == super::demos::FIELD && views[0].alpha == 1.0;
+        let main = state.camera;
+        let mut turned = views[0].camera;
+        turned.orbit(glam::Vec2::new(40.0, -20.0));
+        state.set_own_camera(super::demos::FIELD, &turned);
+        let own = super::demos::views(&state)[0].camera == turned && state.camera == main;
+        state.set("view.profile.profileShow", 1.0);
+        let both = super::demos::views(&state).iter().map(|v| v.name).collect::<Vec<_>>() == [super::demos::FIELD, super::demos::PROFILE];
+        report.check("the height field and the cross-section are views of their own: shown by their own values, each with its own camera, which moves without moving the main one", none && field && own && both, json!({"none": none, "field": field, "ownCamera": own, "both": both}));
     }
 
     // Every demonstration builds its state.

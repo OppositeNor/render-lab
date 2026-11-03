@@ -526,15 +526,20 @@ pub struct SelftestOptions {
     pub work_dir: PathBuf,
 }
 
-/// The values a drag and the wheel move in place of the main camera (`Investigation::pointer_values`).
-#[derive(Clone, Copy, Debug)]
-pub struct PointerValues {
-    /// Turned by a horizontal drag (degrees, as the camera's yaw).
-    pub yaw: &'static str,
-    /// Turned by a vertical drag (degrees; dragging down looks more from above).
-    pub pitch: &'static str,
-    /// Stepped by the wheel (a tenth per notch, toward 1 when scrolling in), if any.
-    pub zoom: Option<&'static str>,
+/// A view an investigation stacks over the main one (`Investigation::views`,
+/// src/view.rs): a picture of its own, with its own state (its scene, its
+/// camera, its values), drawn from its own slot and laid over the main view
+/// at `alpha`. The pointer and, focused, the dock act on it.
+#[derive(Clone, Debug)]
+pub struct OverView {
+    /// Its name: its values are `view.<name>.<key>` (`ShotState::view_state`), and `lab::view::name()` while it is built.
+    pub name: &'static str,
+    /// What it is built from: the main view's state (its values and camera), whose `view.<name>.…` values are
+    /// this view's own (`ShotState::view_state`).
+    pub state: ShotState,
+    /// The camera it is drawn from: its own (`ShotState::own_camera`), which the pointer moves.
+    pub camera: crate::camera::OrbitCamera,
+    pub alpha: f32,
 }
 
 pub trait Investigation: Sync {
@@ -714,14 +719,12 @@ pub trait Investigation: Sync {
     /// screen); changes `state` and returns true if it selected something.
     fn click(&self, shown: &ShotState, state: &mut ShotState, content: &FrameContent, statics: &Statics, projector: &Projector, pixel: Vec2) -> bool;
 
-    /// While `shown` shows a picture the investigation turns with a camera of its
-    /// own (one drawn over the scene, such as a field it lays out), the values the
-    /// pointer moves instead of the main camera, so the scene's camera (and what
-    /// it renders) keeps its place: a left drag turns `yaw` and `pitch` (degrees,
-    /// as the camera's orbit), the wheel steps `zoom`. None: the pointer moves the camera.
-    fn pointer_values(&self, shown: &ShotState) -> Option<PointerValues> {
-        let _ = shown;
-        None
+    /// The views stacked over the main one this frame (src/view.rs), back to
+    /// front: each is built with `build_frame` (`lab::view::name()` names it)
+    /// in its own scene (`scene` of its state) and its own slot. None by default.
+    fn views(&self, state: &ShotState) -> Vec<OverView> {
+        let _ = state;
+        Vec::new()
     }
 
     /// The scripted test of the viewer's controls (`viewer-autotest`).

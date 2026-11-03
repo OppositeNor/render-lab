@@ -37,6 +37,7 @@ use crate::loading::{self, Loading};
 use crate::record::beat_fade;
 use crate::renderer::{FrameRequest, Renderer};
 use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
+use crate::view::ViewId;
 use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
 use crate::values::Reflect;
 use crate::volume::Volume;
@@ -128,6 +129,8 @@ pub struct Surface {
 #[derive(Clone)]
 struct Drag {
     button: MouseButton,
+    /// The view pressed on (src/view.rs): the drag moves its camera, the click goes to it.
+    view: ViewId,
     last: Vec2,
     moved: f32,
     /// A press on an inset's picture with a click handler: the handler and
@@ -189,6 +192,10 @@ pub struct App {
     /// The dock's slider rectangles from the last frame.
     pub dock_widgets: Vec<(String, egui::Rect)>,
     pub last_content: Option<FrameContent>,
+    /// The main view's last content when it was not the one on screen (the free camera on).
+    last_main_content: Option<FrameContent>,
+    /// The view the dock and the keyboard act on (src/view.rs): a click on a view focuses it.
+    pub focus: ViewId,
     /// The insets of the last frame drawn, for clicks (`UiReport::insets`).
     last_insets: Vec<crate::ui::InsetArea>,
     /// Every beat of the timeline, for the bar's hover preview.
@@ -281,6 +288,8 @@ impl App {
             tab,
             dock_widgets: Vec::new(),
             last_content: None,
+            last_main_content: None,
+            focus: ViewId::MAIN,
             last_insets: Vec::new(),
             last_tick: Instant::now(),
             frames: 0,
@@ -627,6 +636,22 @@ impl App {
                 let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
                 self.seek((fraction.clamp(0.0, 1.0) as f64 * total as f64) as u64);
             }
+            // The experiment's reference focused: the slider sets the reference's value (its camera is the live one's).
+            ViewerAction::SetParam(name, value) if interactive && self.focus == ViewId::REFERENCE && self.experiment.reference.is_some() => {
+                let reference = self.experiment.reference.as_mut().expect("a reference");
+                reference.set(name, value);
+                for (k, v) in investigation::current().linked_params(name, value) {
+                    reference.set(k, v);
+                }
+            }
+            // A view stacked over the main one focused: the slider sets that view's value (src/view.rs).
+            ViewerAction::SetParam(name, value) if interactive && self.over_camera(self.focus).is_some() => {
+                let (view, _) = self.over_camera(self.focus).expect("a view over the main one");
+                self.state.set(&format!("view.{view}.{name}"), value);
+                for (k, v) in investigation::current().linked_params(name, value) {
+                    self.state.set(&format!("view.{view}.{k}"), v);
+                }
+            }
             ViewerAction::SetParam(name, value) if interactive => {
                 // Taking hold of an animated value stops the animation where it is.
                 if self.playing && self.animated(name) {
@@ -636,6 +661,14 @@ impl App {
                 for (k, v) in investigation::current().linked_params(name, value) {
                     self.state.set(k, v);
                 }
+            }
+            // The free camera's view focused: the camera sliders move the free camera.
+            ViewerAction::SetCamera(camera) if self.focus == ViewId::FREE && self.free_camera_on() => {
+                self.free_view().place(&camera);
+            }
+            ViewerAction::SetCamera(camera) if self.over_camera(self.focus).is_some() => {
+                let (view, _) = self.over_camera(self.focus).expect("a view over the main one");
+                self.state.set_own_camera(view, &camera);
             }
             ViewerAction::SetCamera(camera) if interactive => {
                 // The camera sliders show the swayed view; hold it before changing it.
@@ -894,22 +927,27 @@ impl App {
     /// view beside it at the same place of the main one (the views share
     /// one size, and usually the camera), so a drag or a click in any view
     /// moves or picks through the main view's camera.
-    fn scene_pixel(&self, window_px: Vec2) -> Option<Vec2> {
-        let renderer = self.renderer();
-        let layout = renderer.frame_layout();
-        layout.target_to_viewport_pixel(window_px.x, window_px.y).or_else(|| {
-            renderer.frame_panes().iter().find_map(|rect| crate::ui::Layout { viewport: *rect, ..layout }.target_to_viewport_pixel(window_px.x, window_px.y))
-        })
+    /// A view stacked over the main one (src/view.rs): its name and its camera as last drawn.
+    fn over_camera(&self, view: ViewId) -> Option<(&'static str, crate::camera::OrbitCamera)> {
+        self.renderer.as_ref()?.last_overs.iter().find(|(id, _, _)| *id == view).map(|(_, name, camera)| (*name, *camera))
     }
+
+    /// The view on top under `window_px` (src/view.rs), and where it is (canvas points).
+    fn view_at(&self, window_px: Vec2) -> Option<(ViewId, egui::Rect)> {
+        let point = self.to_egui(window_px);
+        self.renderer().frame_views().iter().rev().find(|(_, rect)| rect.contains(point)).copied()
+    }
+
 
     pub fn viewport_height(&self) -> f32 {
         self.renderer().frame_layout().viewport_size_px()[1] as f32
     }
 
     pub fn pointer_down(&mut self, button: MouseButton, at: Vec2) {
-        if self.ui_has_pointer || self.scene_pixel(at).is_none() {
+        if self.ui_has_pointer {
             return;
         }
+        let Some((view, _)) = self.view_at(at) else { return };
         // A left press on a picture with a click handler picks there at once,
         // and dragging keeps picking under the cursor.
         let point = self.to_egui(at);
@@ -920,7 +958,7 @@ impl App {
         if let Some((handler, picture)) = &inset {
             self.run_inset_click(handler, *picture, point);
         }
-        self.drag = Some(Drag { button, last: at, moved: 0.0, inset });
+        self.drag = Some(Drag { button, view, last: at, moved: 0.0, inset });
     }
 
     /// Run an inset's click handler at `point` (canvas points), clamped to its picture.
@@ -943,7 +981,7 @@ impl App {
         drag.last = at;
         self.drag = Some(drag.clone());
         // A playing timeline holds its camera; the free camera stays the viewer's to move.
-        if self.timeline_playing() && !self.free_camera_on() {
+        if self.timeline_playing() && drag.view != ViewId::FREE {
             return;
         }
         if let Some((handler, picture)) = &drag.inset {
@@ -956,8 +994,8 @@ impl App {
             return;
         }
         let height = self.viewport_height();
-        // With the free camera on, the pointer moves it; the main camera keeps its place.
-        if self.free_camera_on() {
+        // On the free camera's view, the pointer moves the free camera; on the main view (in its corner) the main one.
+        if drag.view == ViewId::FREE {
             let free = self.free_view();
             let mut orbit = free.orbit();
             match drag.button {
@@ -969,15 +1007,14 @@ impl App {
             return;
         }
         self.end_intro();
-        // A picture the investigation turns itself takes the drag; the camera keeps its place.
-        if let (MouseButton::Left, Some(values)) = (drag.button, investigation::current().pointer_values(&self.state)) {
-            let turn = |state: &mut ShotState, key: &str, by: f32| {
-                if let Some(v) = state.try_get(key) {
-                    state.set(key, v.f32() + by);
-                }
-            };
-            turn(&mut self.state, values.yaw, -delta.x * 0.3);
-            turn(&mut self.state, values.pitch, -delta.y * 0.3);
+        // A view stacked over the main one moves its own camera (src/view.rs); the main camera keeps its place.
+        if let Some((name, mut camera)) = self.over_camera(drag.view) {
+            match drag.button {
+                MouseButton::Left => camera.orbit(delta),
+                MouseButton::Right | MouseButton::Middle => camera.pan(delta, height),
+                _ => {}
+            }
+            self.state.set_own_camera(name, &camera);
             return;
         }
         match drag.button {
@@ -998,7 +1035,9 @@ impl App {
             if self.paused_diagram() {
                 return;
             }
-            self.click(at);
+            // A click focuses the view it is on (when there are several): the dock acts on it.
+            self.focus = drag.view;
+            self.click(at, drag.view);
         }
     }
 
@@ -1060,32 +1099,41 @@ impl App {
         if self.paused_diagram() {
             return;
         }
-        if self.free_camera_on() && !self.ui_has_pointer {
+        let under = self.view_at(self.cursor).map(|(v, _)| v);
+        if under == Some(ViewId::FREE) && !self.ui_has_pointer {
             let free = self.free_view();
             let mut orbit = free.orbit();
             orbit.zoom(steps);
             free.place(&orbit);
         } else if !self.timeline_playing() && !self.ui_has_pointer {
             self.end_intro();
-            match investigation::current().pointer_values(&self.state).and_then(|v| v.zoom) {
-                Some(key) => {
-                    if let Some(v) = self.state.try_get(key) {
-                        self.state.set(key, (v.f32() + steps * 0.1).clamp(0.0, 1.0));
-                    }
+            match under.and_then(|v| self.over_camera(v)) {
+                Some((name, mut camera)) => {
+                    camera.zoom(steps);
+                    self.state.set_own_camera(name, &camera);
                 }
                 None => self.state.camera.zoom(steps),
             }
         }
     }
 
-    fn click(&mut self, at: Vec2) {
-        let Some(pixel) = self.scene_pixel(at) else { return };
-        let Some(content) = &self.last_content else { return };
+    fn click(&mut self, at: Vec2, view: ViewId) {
+        let Some((_, rect)) = self.view_at(at).filter(|(v, _)| *v == view) else { return };
+        // The view's content, by field (so `self.state` stays free to change).
+        let content = match view {
+            ViewId::FREE => self.last_content.as_ref(),
+            _ => self.last_main_content.as_ref().or(self.last_content.as_ref()),
+        };
+        let Some(content) = content else { return };
+        // The pixel of the view's own frame (its picture may be shown smaller, as the main view in a corner).
+        let point = self.to_egui(at);
+        let uv = (point - rect.min) / rect.size();
+        let size = content.uniforms.camera.viewport_size;
+        let pixel = Vec2::new(uv.x * size[0], uv.y * size[1]);
         let shown = self.render_state();
         let Some(renderer) = &self.renderer else { return };
         // An inset covers the scene behind it; a click on the picture of one
         // with a click handler (`PictureInset::click`) runs the handler.
-        let point = self.to_egui(at);
         if self.last_insets.iter().rev().any(|i| i.frame.contains(point)) {
             return;
         }
@@ -1212,6 +1260,7 @@ impl App {
             dag_overlay: self.dag_overlay && matches!(self.state.panel, PanelMode::Dag | PanelMode::Resources),
             graph_source: self.graph_source,
             shader_reload: self.shader_reload.as_ref().filter(|(_, failed, at)| *failed || at.elapsed().as_secs_f32() < 4.0).map(|(t, f, _)| (t.clone(), *f)),
+            focus_rect: self.renderer.as_ref().map(|r| r.frame_views()).filter(|v| v.len() > 1).and_then(|v| v.iter().find(|(id, _)| *id == self.focus).map(|(_, r)| *r)),
         };
         // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
         let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
@@ -1261,10 +1310,16 @@ impl App {
             chrome.diagram = Some(crate::ui::DiagramPage { key: beat ^ preset.rotate_left(7), preset: self.diagram_preset });
         }
         let raw_input = egui::RawInput { time: Some(self.frames as f64 / 60.0), events: std::mem::take(&mut self.egui_events), ..Default::default() };
+        // The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it.
+        let focus = match self.focus {
+            ViewId::FREE => state.free_camera.on.then(|| ShotState { camera: state.free_camera.orbit(), ..state.clone() }),
+            ViewId::REFERENCE => self.experiment.reference_state(&state),
+            view => self.over_camera(view).map(|(name, camera)| ShotState { camera, ..state.view_state(name) }),
+        };
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(graph, focus, scene, (from, seconds, built))| crate::diagram::BeatDiagram { graph, focus, scene: scene.as_ref(), transition: crate::diagram::Transition { from: from.as_deref(), seconds: *seconds, built: *built } }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true },
+            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(graph, focus, scene, (from, seconds, built))| crate::diagram::BeatDiagram { graph, focus, scene: scene.as_ref(), transition: crate::diagram::Transition { from: from.as_deref(), seconds: *seconds, built: *built } }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true, focus: focus.as_ref() },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
@@ -1283,6 +1338,11 @@ impl App {
         }
         if result.content.is_some() {
             self.last_content = result.content;
+            self.last_main_content = result.main_content;
+            // A focused view that is gone gives the focus back to the main view.
+            if !self.renderer().frame_views().iter().any(|(v, _)| *v == self.focus) {
+                self.focus = ViewId::MAIN;
+            }
             self.last_insets = result.report.insets;
         }
         for action in chrome.actions {
