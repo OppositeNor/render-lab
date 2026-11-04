@@ -52,14 +52,15 @@ The fixed slots (update, program `Start`, depth views, pre-pass, `AfterPrepass`,
 list (`SceneShading::nodes`, `FrameNode`). Each node has a `kind`, which carries its own declaration:
 
 - `update` (they come first: they run before the frame, when their plan's key changes), `depth-views`, `prepass`,
-  `compute` (those before the scene node are `early`, those after it `passes`), `program`, and `scene` (exactly one).
+  `compute`, `program`, and `scene` (exactly one).
 - The graph declares the nodes in that order and checks it: each declared node once, update nodes first, the pre-pass
   before the scene pass. Its order is the list's, since every edge follows declaration order.
 - `ProgramStage` is gone. A run of consecutive program nodes is where the plan's commands for its passes are recorded
   (`SceneShading::program_runs`); the commands after the plan's last pass command are recorded right before the scene
   pass, as `BeforeScene`'s trailing commands were. `ProgramRuntime::finish` ends the frame's recording, which the
   `AfterScene` stage used to do.
-- A `SceneShading` built in Rust with empty `nodes` (the graph's tests) gets the usual order (`frame_nodes`).
+- The slot layout is gone from `SceneShading` too: `nodes` is required (no fallback order), and the compute passes
+  are one list, `passes`, in node order (`FrameNode::Compute(i)`), with no `early`/`passes` split.
 
 The files were converted by a script that keeps comments, placing the nodes in the old slot order. Status
 (2026-11-03): done. `render-lab graph --json` is unchanged for every investigation; the unit tests (the parser's and

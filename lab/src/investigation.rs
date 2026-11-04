@@ -81,18 +81,19 @@ pub struct Wording {
 /// Its compute entry points in `verify` take the verification buffers as
 /// group 2 (`Renderer::run_shading_verify`).
 ///
-/// With no `outputs`, the scene pass writes the lab's HDR target. With
-/// `outputs`, it is the first pass of a chain: the fragment shader writes
-/// those `targets` (in order), which stay multisampled, then each of `passes`
-/// runs as a compute pass, and the last writes `"hdr"`, which the frame
-/// shows. A pass binds group 2 as described on `ShadingPass`.
+/// The frame runs its `nodes` in order. With no `outputs`, the scene pass
+/// writes the lab's HDR target. With `outputs`, it starts a chain: the
+/// fragment shader writes those `targets` (in order), which stay
+/// multisampled, the compute nodes after it run `passes`, and the last
+/// writes `"hdr"`, which the frame shows. A pass binds group 2 as described
+/// on `ShadingPass`.
 ///
-/// With a `prepass` fragment entry, the chain starts with a depth pre-pass
-/// (that entry writes `prepass_outputs`, if any, and `@builtin(sample_mask)`, and reads nothing of
-/// group 2), then runs `early`
-/// compute passes, then the scene pass tests against that depth (LessEqual,
-/// no depth writes). The scene pass's fragment shader may read `scene_reads`
-/// from group 2, bound as for a pass.
+/// With a `prepass` fragment entry, a depth pre-pass node (that entry writes
+/// `prepass_outputs`, if any, and `@builtin(sample_mask)`, and reads nothing
+/// of group 2) comes before the scene pass, which tests against its depth
+/// (LessEqual, no depth writes); compute nodes between them read what it
+/// wrote. The scene pass's fragment shader may read `scene_reads` from
+/// group 2, bound as for a pass.
 pub struct SceneShading {
     /// The full key of its shader module (`[[shader]]` in its package).
     pub module: &'static str,
@@ -104,14 +105,15 @@ pub struct SceneShading {
     pub targets: &'static [ShadingTarget],
     /// The scene pass's colour outputs, by target name; empty for `"hdr"` alone.
     pub outputs: &'static [&'static str],
+    /// The chain's compute passes, in the order of their nodes
+    /// (`FrameNode::Compute(i)` is `passes[i]`).
     pub passes: &'static [ShadingPass],
     pub prepass: Option<&'static str>,
     /// The targets the pre-pass's fragment entry writes besides the depth
     /// (multisampled, as the scene pass's outputs; a depth and normal pre-pass).
-    /// With them and no `outputs`, the chain is the pre-pass and its `early`
-    /// passes before an ordinary scene pass, which writes the lab's HDR target.
+    /// With them and no `outputs`, the chain is the pre-pass and the compute
+    /// passes after it before an ordinary scene pass, which writes the lab's HDR target.
     pub prepass_outputs: &'static [&'static str],
-    pub early: &'static [ShadingPass],
     /// The chain's storage buffers, besides its targets.
     pub buffers: &'static [ShadingBuffer],
     pub scene_reads: &'static [&'static str],
@@ -140,7 +142,7 @@ pub struct SceneShading {
     pub program: Option<&'static ShadingProgram>,
     /// The frame's nodes in order (its file's `[[node]]` list): the frame
     /// graph declares them so, and the renderer runs them in that order where
-    /// their reads and writes allow. Empty: `frame_nodes`' usual order.
+    /// their reads and writes allow. Every declared pass is in it once.
     pub nodes: &'static [FrameNode],
 }
 
@@ -154,7 +156,7 @@ pub enum FrameNode {
     DepthViews,
     /// The depth pre-pass (`SceneShading::prepass`).
     Prepass,
-    /// Compute pass `i` of `early` then `passes`, in one index.
+    /// Compute pass `i` of `SceneShading::passes`.
     Compute(usize),
     /// Pass `i` of `ShadingProgram::passes`. A run of consecutive program
     /// nodes is recorded where the run is: the plan's commands for its passes,
@@ -166,33 +168,13 @@ pub enum FrameNode {
 }
 
 impl SceneShading {
-    /// Its frame's nodes in order: `nodes`, or, when that is empty, the usual
-    /// order: the update passes, the depth views, the pre-pass, the `early`
-    /// passes, the scene pass, then `passes` (a program's passes need `nodes`).
-    pub fn frame_nodes(&self) -> std::borrow::Cow<'static, [FrameNode]> {
-        if !self.nodes.is_empty() {
-            return std::borrow::Cow::Borrowed(self.nodes);
-        }
-        let mut nodes: Vec<FrameNode> = (0..self.update.map_or(0, |u| u.passes.len())).map(FrameNode::Update).collect();
-        if self.depth_views.is_some() {
-            nodes.push(FrameNode::DepthViews);
-        }
-        if self.prepass.is_some() {
-            nodes.push(FrameNode::Prepass);
-        }
-        nodes.extend((0..self.early.len()).map(FrameNode::Compute));
-        nodes.push(FrameNode::Scene);
-        nodes.extend((0..self.passes.len()).map(|i| FrameNode::Compute(self.early.len() + i)));
-        std::borrow::Cow::Owned(nodes)
-    }
-
     /// The run of consecutive program nodes each program pass is in (by
     /// pass index; `u32::MAX` for a pass in no node): where its commands are recorded.
     pub fn program_runs(&self) -> Vec<u32> {
         let mut runs = vec![u32::MAX; self.program.map_or(0, |p| p.passes.len())];
         let mut run = 0u32;
         let mut previous = false;
-        for node in self.frame_nodes().iter() {
+        for node in self.nodes {
             let program = matches!(node, FrameNode::Program(_));
             if let FrameNode::Program(i) = node {
                 if let Some(r) = runs.get_mut(*i) {

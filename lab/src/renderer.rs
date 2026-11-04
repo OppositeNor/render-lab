@@ -459,7 +459,7 @@ struct ChainTargets {
     /// What the depth views were last drawn from (`depth_views_key`): they
     /// are drawn again only when that changes.
     depth_views_drawn: std::cell::Cell<Option<u64>>,
-    /// Group 2 of each early pass, then of each later pass.
+    /// Group 2 of each compute pass (`SceneShading::passes`).
     groups: Vec<wgpu::BindGroup>,
     /// Group 2 of the scene pass.
     scene_group: wgpu::BindGroup,
@@ -469,7 +469,7 @@ impl ChainTargets {
     fn new(device: &wgpu::Device, shading: &Shading, viewport: &ViewportTargets) -> ChainTargets {
         let source = shading.source;
         let size = viewport.size;
-        let written: Vec<&str> = source.early.iter().chain(source.passes).flat_map(|p| p.writes.iter().copied()).collect();
+        let written: Vec<&str> = source.passes.iter().flat_map(|p| p.writes.iter().copied()).collect();
         let divisors: Vec<(&'static str, u32)> = source.targets.iter().map(|t| (t.name, if source.resolution.is_some_and(|r| r.targets.contains(&t.name)) { shading.scale } else { t.divisor })).collect();
         let views: Vec<(&'static str, wgpu::TextureView)> = source
             .targets
@@ -534,7 +534,7 @@ impl ChainTargets {
             }
             device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some(label), layout, entries: &entries })
         };
-        let groups = source.early.iter().chain(source.passes).zip(&shading.pipelines.passes).map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes)).collect();
+        let groups = source.passes.iter().zip(&shading.pipelines.passes).map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes)).collect();
         let scene_group = group("scene reads", &shading.pipelines.scene_group, source.scene_reads, &[]);
         ChainTargets { made: targets_made(), source, size, scale: shading.scale, divisors, views, buffers, depth_views, depth_views_drawn: std::cell::Cell::new(None), groups, scene_group }
     }
@@ -581,14 +581,14 @@ impl ChainTargets {
         }
     }
 
-    /// Encode compute passes `steps` (indices into `early` then `passes`),
+    /// Encode compute passes `steps` (indices into `SceneShading::passes`),
     /// in order, with their bind groups. Timed (src/timing.rs), each pass
     /// runs in a compute pass of its own that writes its timestamps.
     fn dispatch(&self, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::BindGroup, shading: &Shading, steps: &[usize], timing: Option<&mut crate::timing::Timing>) {
         if steps.is_empty() {
             return;
         }
-        let all: Vec<&crate::investigation::ShadingPass> = self.source.early.iter().chain(self.source.passes).collect();
+        let all: Vec<&crate::investigation::ShadingPass> = self.source.passes.iter().collect();
         if let Some(timing) = timing {
             for &i in steps {
                 let step = all[i];

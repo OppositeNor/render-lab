@@ -15,7 +15,7 @@
 //! - `prepass`: the depth pre-pass, `entry` (its fragment entry), `writes`
 //!   (the targets it writes besides the depth);
 //! - `compute`: a compute pass of the chain, `entry`, `reads`, `writes`,
-//!   `workgroup` (`[x, y]`); those before the scene pass are its `early`;
+//!   `workgroup` (`[x, y]`);
 //! - `program`: a pass of the program, `name`, `compute` and `workgroup`
 //!   (`[x, y, z]`) or `vertex` and `fragment`, `instances` (1), `uses`; a run
 //!   of consecutive program nodes is where the plan's commands for them are
@@ -302,7 +302,6 @@ struct Nodes {
     updates: Vec<UpdatePass>,
     depth_views: Option<&'static DepthViews>,
     prepass: Option<(&'static str, &'static [&'static str])>,
-    early: Vec<ShadingPass>,
     passes: Vec<ShadingPass>,
     programs: Vec<ProgramPass>,
     scene: Option<(&'static str, &'static [&'static str], &'static [&'static str])>,
@@ -346,9 +345,8 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
                 let entry = required(x, "entry", what)?;
                 let what = &format!("compute pass `{entry}`");
                 let pass = ShadingPass { entry, reads: strings(x, "reads", what)?, writes: strings(x, "writes", what)?, workgroup: u32s(x, "workgroup", what)? };
-                // Its index counts the early passes, then those after the scene pass: the order they come in.
-                n.order.push(FrameNode::Compute(n.early.len() + n.passes.len()));
-                if n.scene.is_some() { n.passes.push(pass) } else { n.early.push(pass) }
+                n.order.push(FrameNode::Compute(n.passes.len()));
+                n.passes.push(pass);
             }
             "program" => {
                 n.order.push(FrameNode::Program(n.programs.len()));
@@ -451,7 +449,6 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
         passes: leak_slice(n.passes),
         prepass: n.prepass.map(|(entry, _)| entry),
         prepass_outputs: n.prepass.map_or(&[][..], |(_, writes)| writes),
-        early: leak_slice(n.early),
         buffers: leak_slice(buffers),
         scene_reads,
         depth_views: n.depth_views,
@@ -561,8 +558,7 @@ mips = "all"
         assert_eq!((s.data)(), vec![[1.0; 4]]);
         assert_eq!((s.targets[1].format, s.targets[1].divisor), (wgpu::TextureFormat::R8Unorm, 2));
         assert_eq!(s.nodes, &[FrameNode::Program(0), FrameNode::DepthViews, FrameNode::Prepass, FrameNode::Compute(0), FrameNode::Scene, FrameNode::Compute(1)]);
-        // The compute passes before the scene pass are its early ones.
-        assert_eq!((s.early.len(), s.early[0].entry, s.passes[0].entry, s.passes[0].workgroup), (1, "tilesCS", "blurCS", [8, 8]));
+        assert_eq!((s.passes[0].entry, s.passes[1].entry, s.passes[1].workgroup), ("tilesCS", "blurCS", [8, 8]));
         assert_eq!((s.prepass, s.prepass_outputs), (Some("prepassFS"), &[][..]));
         let d = s.depth_views.unwrap();
         assert_eq!((d.name, d.size, d.bias), ("shadow", 512, (-2, -1.5)));

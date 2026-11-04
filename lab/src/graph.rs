@@ -124,7 +124,7 @@ pub enum Step {
     Prepass,
     /// The scene pass: the scene's meshes, MSAA, into the outputs (or `hdr`).
     Scene,
-    /// Compute pass `i` of `early` then `passes`, in one index.
+    /// Compute pass `i` of `SceneShading::passes`.
     Compute(usize),
     /// Pass `i` of the program (`ShadingProgram::passes`): its commands this frame.
     Program(usize),
@@ -219,7 +219,7 @@ impl FrameGraph {
             }
         }
         // The program's scene group: what the scene pass reads of it, but what the chain's passes declare they read.
-        let chain_reads: Vec<&str> = shading.map_or(Vec::new(), |s| s.early.iter().chain(s.passes).flat_map(|p| p.reads.iter().copied()).collect());
+        let chain_reads: Vec<&str> = shading.map_or(Vec::new(), |s| s.passes.iter().flat_map(|p| p.reads.iter().copied()).collect());
         let scene_uses: Vec<&'static str> = shading.and_then(|s| s.program).map_or(Vec::new(), |p| program_reads(p.scene_uses)).into_iter().filter(|r| !chain_reads.contains(r)).collect();
         resources.push(Resource { name: "overlay", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::OVERLAY_FORMAT, divisor: 1, samples: 1 } });
         resources.push(Resource { name: "frame", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::FRAME_FORMAT, divisor: 1, samples: 1 } });
@@ -232,10 +232,11 @@ impl FrameGraph {
         nodes.push(Node { name: "composite", step: Step::Composite, reads: vec!["hdr", "overlay"], writes: vec!["frame"], timing: "composite", cached: false });
         let shows = shading.map_or(Vec::new(), |s| s.shows.to_vec());
         let mut graph = FrameGraph { nodes, resources, edges: Vec::new(), order: Vec::new(), live: Vec::new(), errors, shows };
-        if let Some(s) = shading.filter(|s| !s.chained() && !(s.early.is_empty() && s.passes.is_empty())) {
+        if let Some(s) = shading.filter(|s| !s.chained() && !s.passes.is_empty()) {
             graph.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
         }
-        if let Some(s) = shading.filter(|s| s.outputs.is_empty() && !s.passes.is_empty()) {
+        let after_scene = |s: &SceneShading| s.nodes.iter().skip_while(|n| **n != crate::investigation::FrameNode::Scene).any(|n| matches!(n, crate::investigation::FrameNode::Compute(_)));
+        if let Some(s) = shading.filter(|s| s.outputs.is_empty() && after_scene(s)) {
             graph.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.fragment));
         }
         if let Some(s) = shading {
@@ -262,19 +263,19 @@ impl FrameGraph {
         FrameGraph::new(crate::investigation::current().scene_shading(), sinks)
     }
 
-    /// The nodes of a shading's frame, in its order (`SceneShading::frame_nodes`),
+    /// The nodes of a shading's frame, in its order (`SceneShading::nodes`),
     /// and what is wrong with that order.
     fn shading_nodes(s: &'static SceneShading, scene_uses: &[&'static str], nodes: &mut Vec<Node>, errors: &mut Vec<String>) {
         use crate::investigation::FrameNode;
         let chained = s.chained();
-        let frame = s.frame_nodes();
+        let frame = s.nodes;
         let mut named: Vec<&'static str> = Vec::new();
         let mut unique = |entry: &'static str| -> &'static str {
             let k = named.iter().filter(|n| **n == entry).count();
             named.push(entry);
             if k == 0 { entry } else { Box::leak(format!("{entry}#{}", k + 1).into_boxed_str()) }
         };
-        let computes: Vec<&crate::investigation::ShadingPass> = s.early.iter().chain(s.passes).collect();
+        let computes = s.passes;
         let updates = s.update.map_or(&[][..], |u| u.passes);
         let programs = s.program.map_or(&[][..], |p| p.passes);
         // How many times each declared node is placed.
@@ -1163,7 +1164,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
             }
         }
     };
-    for pass in shading.early.iter().chain(shading.passes) {
+    for pass in shading.passes.iter() {
         check_chain(pass.entry, pass.reads, Some(pass.writes), false);
     }
     if shading.chained() {
@@ -1176,7 +1177,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         }
     }
     drop(check_chain);
-    for pass in shading.early.iter().chain(shading.passes) {
+    for pass in shading.passes.iter() {
         if pass.writes.iter().any(|w| is_volume(shading, w)) {
             problems.push(format!("{}: a chain pass cannot write a volume (an update pass does)", pass.entry));
         }
@@ -1246,7 +1247,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         // The scene group is bound by the scene pass, the pre-pass, and (a shading without volumes) the chain's compute passes.
         let mut chain_entries: Vec<&str> = shading.prepass.into_iter().collect();
         if shading.volumes.is_empty() {
-            chain_entries.extend(shading.early.iter().chain(shading.passes).map(|p| p.entry));
+            chain_entries.extend(shading.passes.iter().map(|p| p.entry));
         }
         lint_program(shading, program, &uses, &mut problems, shading.module, shading.fragment, &chain_entries);
     }
@@ -1332,13 +1333,20 @@ mod tests {
     use super::*;
     use crate::investigation::{ShadingBuffer, ShadingPass, ShadingTarget};
 
-    fn shading(early: &'static [ShadingPass], passes: &'static [ShadingPass]) -> &'static SceneShading {
+    /// A chain: the pre-pass, `early`, the scene pass, then `after`.
+    fn shading(early: &'static [ShadingPass], after: &'static [ShadingPass]) -> &'static SceneShading {
+        use crate::investigation::FrameNode;
         static TARGETS: &[ShadingTarget] = &[
             ShadingTarget { name: "color", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
             ShadingTarget { name: "blur", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
             ShadingTarget { name: "unused", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
         ];
         static BUFFERS: &[ShadingBuffer] = &[ShadingBuffer { name: "tiles", words_per_tile: 4, tile: 16 }];
+        let passes: &'static [ShadingPass] = Box::leak(early.iter().chain(after).map(|p| ShadingPass { ..*p }).collect::<Vec<_>>().into_boxed_slice());
+        let mut nodes = vec![FrameNode::Prepass];
+        nodes.extend((0..early.len()).map(FrameNode::Compute));
+        nodes.push(FrameNode::Scene);
+        nodes.extend((early.len()..passes.len()).map(FrameNode::Compute));
         Box::leak(Box::new(SceneShading {
             module: "test",
             fragment: "sceneFS",
@@ -1349,7 +1357,6 @@ mod tests {
             passes,
             prepass: Some("prepassFS"),
             prepass_outputs: &[],
-            early,
             buffers: BUFFERS,
             scene_reads: &["tiles"],
             depth_views: None,
@@ -1359,7 +1366,7 @@ mod tests {
             history: &[],
             shows: &[],
             program: None,
-            nodes: &[],
+            nodes: Box::leak(nodes.into_boxed_slice()),
         }))
     }
 

@@ -58,7 +58,7 @@ pub struct ShadingPipelines {
     pub depth_views: Vec<wgpu::RenderPipeline>,
     /// Group 2 of the scene pass (`SceneShading::scene_reads`).
     pub scene_group: wgpu::BindGroupLayout,
-    /// The early passes, then the passes after the scene pass, in order.
+    /// The shading's compute passes, in `SceneShading::passes` order.
     pub passes: Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
     pub verify: BTreeMap<&'static str, wgpu::ComputePipeline>,
     /// Group 3, the volumes sampled (`SceneShading::volumes`), when it has any.
@@ -513,9 +513,8 @@ impl Pipelines {
         });
         let volumes = (!shading.volumes.is_empty()).then(|| volume_layout(device, shading));
         let passes = shading
-            .early
+            .passes
             .iter()
-            .chain(shading.passes)
             .map(|pass| {
                 let group = chain_layout(pass.entry, pass.reads, pass.writes, wgpu::ShaderStages::COMPUTE);
                 let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

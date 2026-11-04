@@ -16,8 +16,8 @@ The declaration is data: the package's `shading.toml` (a `shading` resource; the
 rebuild. The frame is its `[[node]]` list, in order, each node a `kind`: `update`, `depth-views`, `prepass`,
 `compute`, `program`, `scene` (exactly one); the rest is what they use, the struct's fields in kebab case
 (`[[target]]`, `[[buffer]]`, `[[volume]]`, `[update]`, `[resolution]`, `[shows]`, `[program]` with
-`[[program.image]]` and `[[program.buffer]]`). Below, `SceneShading::x` is the file's `x`; `early` are the compute
-nodes before the scene node, `passes` those after it. What computes stays code, named in the file and
+`[[program.image]]` and `[[program.buffer]]`). Below, `SceneShading::x` is the file's `x`; `passes` are the compute
+nodes' passes, in their order. What computes stays code, named in the file and
 registered by `Investigation::shading_hooks`: `data`, an update's `plan` and a buffer's `words`, a resolution's
 `divisor`, a program's `plan` (`ShadingHook`). Keep an engine source citation beside what it explains, as a TOML
 comment.
@@ -54,8 +54,8 @@ kind reads (`reads=`), and the inspected resource's writer. The raster nodes are
 depth views, and a program's raster passes; there is no general raster node yet.
 
 A chain without `outputs` but with `prepass_outputs` (a depth and normal pre-pass, Godot's normal-roughness buffer)
-is the pre-pass and its `early` passes before an ordinary scene pass, which writes `hdr` and may read what they
-wrote (`scene_reads`); it has no `passes` after the scene.
+is the pre-pass and compute nodes before an ordinary scene pass, which writes `hdr` and may read what they wrote
+(`scene_reads`); it has no compute nodes after the scene.
 
 **Programs** (`SceneShading::program`, `lab/src/program.rs`, todo/pass-programs.md) are an engine's own GPU work that
 the chain cannot express: images (2D, 2D arrays, 3D; integer formats; `count` elements, bound one at a time or as a
