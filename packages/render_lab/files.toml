@@ -83,3 +83,11 @@ id = "script/render-lab"
 kind = "file"
 source = "language/render_lab.lam"
 license = "MIT"
+
+# render_lab's runtime library (lab/src/script/runtime.rs): every package's scripts import it as
+# `render_lab_runtime`.
+[[resource]]
+id = "script/runtime"
+kind = "file"
+source = "language/runtime.lam"
+license = "MIT"

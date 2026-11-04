@@ -249,6 +249,20 @@ enum Command {
     /// stderr with the document's line, and the exit status is 1.
     #[command(subcommand)]
     Lamlet(LamletCommand),
+    /// The investigation's scripts (src/script/runtime.rs): its package's `script/…` resources, which the lab runs
+    /// while it draws and records.
+    #[command(subcommand)]
+    Script(ScriptCommand),
+}
+
+#[derive(Subcommand)]
+enum ScriptCommand {
+    /// Check the scripts and list their hooks (overlays, click handlers, actions, animations); fails with the
+    /// first diagnostic.
+    Check,
+    /// The Lamlet packages a script may import besides `std` (the runtime library, the generated values package,
+    /// the natives' stubs), for reading and for editors; with NAME, that one package's source.
+    Stubs { name: Option<String> },
 }
 
 #[derive(Subcommand)]
@@ -331,6 +345,41 @@ fn lamlet(command: LamletCommand, investigation: Option<&'static dyn crate::inve
         LamletCommand::Vocab { name, keys, packages, out } => {
             let json = std::fs::read_to_string(&keys).map_err(|e| format!("{}: {e}", keys.display()))?;
             write(out, script::vocab(&name, &json, &read(packages)?).map_err(|e| format!("{}: {e}", keys.display()))?)
+        }
+    }
+}
+
+/// `render-lab --investigation <id> script …`.
+fn script(command: ScriptCommand, investigation: &'static dyn crate::investigation::Investigation) -> Result<(), String> {
+    use crate::script::runtime;
+    match command {
+        ScriptCommand::Check => {
+            let hooks = runtime::check()?;
+            if hooks.is_empty() {
+                println!("{}: no scripts with hooks", investigation.path());
+            }
+            for h in hooks {
+                println!("{h}");
+            }
+            Ok(())
+        }
+        ScriptCommand::Stubs { name } => {
+            let (_, sources) = runtime::engine(investigation)?;
+            match name {
+                Some(name) => {
+                    let p = sources.packages.iter().find(|p| p.name == name).ok_or_else(|| format!("no package `{name}`"))?;
+                    print!("{}", p.source);
+                }
+                None => {
+                    for p in &sources.packages {
+                        println!("{}\t{}", p.name, p.file);
+                    }
+                    if !sources.skipped.is_empty() {
+                        println!("values left out of the values package (their names are taken): {}", sources.skipped.join(", "));
+                    }
+                }
+            }
+            Ok(())
         }
     }
 }
@@ -471,6 +520,8 @@ pub fn main(app: App) -> Result<()> {
             viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None, next: false, autoplay: false })
         }
         Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
+            // A frame a script did not draw must not reach a video.
+            crate::script::runtime::set_strict(true);
             let frames = frames
                 .map(|r| -> Result<(u64, u64)> {
                     let (a, b) = r.split_once(':').context("--frames expects START:END")?;
@@ -499,6 +550,7 @@ pub fn main(app: App) -> Result<()> {
             Ok(())
         }
         Command::Selftest { report, timeline, work_dir, ffmpeg } => {
+            crate::script::runtime::set_strict(true);
             let work_dir = work_dir.unwrap_or_else(|| manifest_dir.join("target/selftest"));
             let passed = chosen.selftest(&investigation::SelftestOptions { report: report.clone(), timeline, ffmpeg: ffmpeg.unwrap_or_else(|| record::default_ffmpeg(&manifest_dir)), work_dir })?;
             if !passed {
@@ -517,6 +569,13 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::Lamlet(command) => {
             if let Err(e) = lamlet(command, Some(chosen)) {
+                eprintln!("{}", e.trim_end());
+                std::process::exit(1);
+            }
+            Ok(())
+        }
+        Command::Script(command) => {
+            if let Err(e) = script(command, chosen) {
                 eprintln!("{}", e.trim_end());
                 std::process::exit(1);
             }
@@ -589,6 +648,13 @@ pub fn main(app: App) -> Result<()> {
                 if !click.doc.is_empty() {
                     println!("    {}", click.doc);
                 }
+            }
+            for click in crate::script::runtime::click_handlers() {
+                println!("click {click} (a script's)");
+            }
+            for action in crate::script::runtime::actions() {
+                let args: Vec<String> = action.args.iter().map(|a| a.describe()).collect();
+                println!("{}({}) (a script's)", action.name, args.join(", "));
             }
             for spec in actions.specs {
                 let args: Vec<String> = spec.args.iter().map(|a| format!("{}: {}{}", a.key, a.kind.describe(), if a.required { "" } else { " (optional)" })).collect();

@@ -120,7 +120,8 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Room => vec![orbit(1.6, 14.0)],
         // The lights' rings turn back and forth, so lights cross tiles and bins, while their radius breathes.
         Demo::Culling => vec![wave("extraLightMotion", 0.0, 200.0, 28.0), wave("extraLightRadius", 0.8, 0.5, 10.0)],
-        Demo::Surface => vec![wave("sphereMetallic", 0.5, 0.5, 8.0), wave("sphereRoughness", 0.45, 0.35, 13.0)],
+        // Its script's (script/animations.lam, `playSurface`).
+        Demo::Surface => vec![],
         // The grid turns under the splat, and the splat tilts away from the floor's normal.
         Demo::Decals => vec![cosine("decalTurn", 45.0, -45.0, 16.0), cosine("decalTilt", 30.0, -30.0, 11.0)],
         // The light sweeps from near the normal to grazing and back, while the roughness slowly widens and narrows the lobe.
@@ -138,8 +139,8 @@ pub fn play_clip(demo: Demo) -> Clip {
         Demo::Reflections => vec![wave("probeInnerScale", 0.55, 0.45, 12.0), cosine("floorRoughness", 0.25, -0.1, 9.0), cosine("probeCubemapMip", 2.5, -2.5, 14.0)],
         // The sampling radius grows and shrinks: wider and softer, then tighter.
         Demo::Ssao => vec![wave("ssaoRadius", 0.05, 0.04, 10.0)],
-        // Roughness walks through the specular cubemap's mips.
-        Demo::Ibl => vec![cosine("sphereRoughness", 0.5, -0.5, 12.0)],
+        // Its script's (script/animations.lam, `playIbl`).
+        Demo::Ibl => vec![],
         // The observer looks around, so the slices turn and the snapped boxes hold still; the split ratio swings.
         Demo::Cascades => vec![wave("camera.yaw", 28.0, 35.0, 16.0), cosine("cascadeSplitRatio", 0.6, 0.3, 11.0)],
         // The sun walks round the hills, its shadows with it.

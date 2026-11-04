@@ -194,6 +194,20 @@ pub struct FrameContent {
     pub shading_frame: Vec<[f32; 4]>,
     /// The GPU reads it asks for (src/fetch.rs), copied after the frame's passes.
     pub fetches: Vec<crate::fetch::Request>,
+    /// What `build_frame` leaves for the package's script natives in this frame (lab/src/script/runtime.rs,
+    /// `frame_data`): values it computed that an overlay draws from, so a native need not compute them again.
+    pub script: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+    /// Where the scripts' overlays go in what `build_frame` drew (`mark`): labels are placed in their order, so an
+    /// overlay keeps the place its drawing had. None: after everything.
+    pub overlay_at: Option<DrawMark>,
+}
+
+/// A place in a frame's draw lists and labels (`FrameContent::mark`).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DrawMark {
+    pub segments: usize,
+    pub points: usize,
+    pub labels: usize,
 }
 
 impl FrameContent {
@@ -208,6 +222,11 @@ impl FrameContent {
     pub fn fetch_tagged(&mut self, key: &str, source: crate::fetch::Source, region: crate::fetch::Region, tag: Option<u64>) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
         self.fetches.push(crate::fetch::Request { key: key.to_string(), source, region, tag });
         crate::fetch::get(key)
+    }
+
+    /// Where its draw lists and labels end now: what `overlay_at` takes.
+    pub fn mark(&self) -> DrawMark {
+        DrawMark { segments: self.draw.segments.len(), points: self.draw.points.len(), labels: self.labels.len() }
     }
 
     /// A frame of `objects` under `uniforms` with nothing else: no overlays,
@@ -226,6 +245,8 @@ impl FrameContent {
             points: Vec::new(),
             arrow_sets: Vec::new(),
             fetches: Vec::new(),
+            script: None,
+            overlay_at: None,
             shading: Default::default(),
             shading_frame: Vec::new(),
         }

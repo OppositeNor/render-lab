@@ -303,12 +303,6 @@ pub fn view_from(content: &mut FrameContent) {
     content.shading_frame[..4].copy_from_slice(&clip_to_world(&content.uniforms.camera));
 }
 
-/// A direction perpendicular to `n` in the plane of `n` and `l`.
-fn in_plane(n: Vec3, l: Vec3) -> Vec3 {
-    let t = l - n * n.dot(l);
-    if t.length_squared() > 1e-6 { t.normalize() } else { n.any_orthonormal_vector() }
-}
-
 pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
     let demo = Demo::of(state.demo);
     let objects = posed_objects(state, statics);
@@ -397,59 +391,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
             labels.push(Label { anchor: light.position, text: format!("{} · {:.1} cd", tr("common.point_light_sphere"), state.p("sphereLightIntensity")), color: SPHERE_LIGHT });
         }
     }
-    let radius = shading.light.attenuation_radius();
-    if state.p("radius") > 0.0 {
-        attenuation_radius(draw, lp, radius, state.p("radius"));
-    }
-    if state.p("falloff") > 0.0 {
-        falloff_curve(draw, labels, &shading.light, state.p("falloff"));
-    }
-
-    // The inspected point's vectors and lobe.
-    let vectors = state.p("vectors");
-    if vectors > 0.0 {
-        let len = 0.5;
-        let l = px.light.dir_to_light;
-        let v = px.lighting.dir_to_camera;
-        draw.point(p, 8.0, palette::SELECTED, vectors);
-        // N, L, V, H, then R, the first `vectorsShown` of them.
-        let mut shown = vec![(n, palette::NORMAL, "N")];
-        if shading.light_on {
-            shown.push((l, LIGHT, "L"));
-        }
-        shown.push((v, palette::VIEW, "V"));
-        if shading.light_on {
-            shown.push((px.terms.half_vector, HALF, "H"));
-        }
-        if demo == Demo::Ibl {
-            shown.push((px.ibl.reflect_dir, palette::REFLECTED, "R"));
-        }
-        // A fractional count grows the next vector out of the point.
-        let shown_count = state.p("vectorsShown").max(0.0);
-        let count = shown_count.ceil() as usize;
-        for (i, &(dir, color, name)) in shown.iter().take(count).enumerate() {
-            let grown = if shown_count >= (i + 1) as f32 { 1.0 } else { Ease::Smooth.apply(shown_count - i as f32) };
-            draw.segment(p, p + dir * len * grown, color, vectors, 4.0, FLAG_ARROW);
-            if grown > 0.6 {
-                labels.push(Label { anchor: p + dir * (len * grown + 0.04), text: name.into(), color });
-            }
-        }
-        if shading.light_on && shown.iter().take(count).any(|s| s.2 == "L") {
-            draw.segment(p, lp, LIGHT, vectors * 0.5, 1.5, FLAG_DASHED);
-        }
-        if state.p("observer") > 0.5 {
-            draw.point(seen_from, 9.0, palette::VIEW, vectors);
-            draw.segment(p, seen_from, palette::VIEW, vectors * 0.5, 1.5, FLAG_DASHED);
-            labels.push(Label { anchor: seen_from, text: tr("demos.observer").into(), color: palette::VIEW });
-        }
-    }
-    if state.p("lobe") > 0.0 {
-        lobes(draw, labels, &px, n, state.p("lobe"));
-    }
-    let samples = state.p("ggxSamples").round().clamp(0.0, 256.0) as u32;
-    if samples > 0 {
-        ggx_samples(draw, &px, samples);
-    }
+    // The light's attenuation radius and falloff, and the inspected point's vectors, lobes, and GGX samples are its
+    // overlay script's (script/overlay.lam, from `script::Frame`), here.
+    let overlay_at = lab::frame::DrawMark { segments: draw.segments.len(), points: draw.points.len(), labels: labels.len() };
 
     if state.p("labels") > 0.0 {
         for (i, anchor) in [(ids::SPHERE, Vec3::new(-1.05, 1.36, -0.55)), (ids::TEAPOT, Vec3::new(-0.25, 0.72, -1.75)), (ids::BOX, Vec3::new(1.05, 1.02, 0.15))] {
@@ -485,6 +429,9 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     }
     let readout = readout(demo, state, &shading, &px, statics, &content.objects, &uniforms.camera);
     content.readout = Some(readout);
+    content.overlay_at = Some(overlay_at);
+    let surface_channels = shading.material(shading.inspected).lighting_channels;
+    content.script = Some(std::sync::Arc::new(super::script::Frame { light_on: shading.light_on, light: shading.light, surface_channels, normal: n, pixel: px }));
     content.notes = notes(demo, &shading);
     // The unfolded cubemap covers the room, so the room's markers and labels give way to its faces' names.
     if state.p("probeCubemap") > 0.5 {
@@ -669,107 +616,6 @@ fn decal_boxes(draw: &mut DrawLists, labels: &mut Vec<Label>, decals: &[super::d
         }
         draw.segment(d.position, d.position + z * (d.half_size.z + 0.25), color, alpha, 3.0, FLAG_ARROW);
         labels.push(Label { anchor: d.position + z * (d.half_size.z + 0.3), text: format!("{} · sortKey {}", decal_name(d.texture), d.sort_key), color });
-    }
-}
-
-/// Three great circles around the light at its attenuation radius, and the
-/// circle where that sphere meets the floor.
-fn attenuation_radius(draw: &mut DrawLists, center: Vec3, radius: f32, alpha: f32) {
-    let circle = |axis_a: Vec3, axis_b: Vec3, r: f32, c: Vec3| -> Vec<Vec3> { (0..=96).map(|k| k as f32 / 96.0 * std::f32::consts::TAU).map(|a| c + (axis_a * a.cos() + axis_b * a.sin()) * r).collect() };
-    for (a, b) in [(Vec3::X, Vec3::Y), (Vec3::Y, Vec3::Z), (Vec3::X, Vec3::Z)] {
-        draw.polyline(&circle(a, b, radius, center), LIGHT, alpha * 0.35, 1.5);
-    }
-    if center.y < radius {
-        let r = (radius * radius - center.y * center.y).sqrt();
-        draw.polyline(&circle(Vec3::X, Vec3::Z, r, Vec3::new(center.x, 0.005, center.z)), LIGHT, alpha * 0.9, 3.0);
-    }
-}
-
-/// The illuminance on the floor along +x from below the light, as a curve
-/// standing on the floor: inverse-square alone (dashed) and with
-/// SimplePointLight's radius attenuation (solid), both on one scale.
-fn falloff_curve(draw: &mut DrawLists, labels: &mut Vec<Label>, light: &PointLight, alpha: f32) {
-    let foot = Vec3::new(light.position.x, 0.0, light.position.z);
-    let dir = Vec3::new(1.0, 0.0, 0.0);
-    let reach = 3.0;
-    let height = 1.2;
-    let candelas = light.rgb_intensity_candelas.y;
-    // Scaled so the inverse-square value one light height away is 1.
-    let unit = candelas / (light.position.y * light.position.y);
-    let point = |x: f32, value: f32| foot + dir * x + Vec3::Y * (height * (value / unit).min(1.4));
-    let mut plain = Vec::new();
-    let mut attenuated = Vec::new();
-    for k in 0..=120 {
-        let x = reach * k as f32 / 120.0;
-        let s = brdf::simple_point_light(light, foot + dir * x);
-        plain.push(point(x, candelas / s.distance_squared));
-        attenuated.push(point(x, if s.falloff < 1.0 { s.intensity.y } else { 0.0 }));
-    }
-    draw.segment(foot, foot + dir * reach, palette::text_faint(), alpha * 0.6, 1.5, FLAG_ARROW);
-    for w in plain.windows(2) {
-        draw.segment(w[0], w[1], palette::text_dim(), alpha * 0.8, 2.0, FLAG_DASHED);
-    }
-    draw.polyline(&attenuated, LIGHT, alpha, 3.5);
-    labels.push(Label { anchor: plain[40], text: "I / d²".into(), color: palette::text_dim() });
-    labels.push(Label { anchor: attenuated[70], text: "I / d² · (1 − (d²/r²)²)²".into(), color: LIGHT });
-}
-
-/// The diffuse and specular lobes at the inspected point, for an outgoing
-/// direction swept through the plane of N and L, horizon to horizon, as a
-/// radius (each lobe on its own scale). The diffuse lobe is the term itself,
-/// the radiance seen from that direction, which Lambert keeps constant until
-/// the response flattens it. The specular lobe is the light the term reflects
-/// into that direction, the term times N·V: its radiance grows toward the
-/// horizon, where G's division by N·V outpaces it, and would stretch the lobe
-/// flat along the surface instead of around the mirror direction.
-fn lobes(draw: &mut DrawLists, labels: &mut Vec<Label>, px: &brdf::Pixel, n: Vec3, alpha: f32) {
-    let s = &px.surface;
-    let l = px.light.dir_to_light;
-    let t = in_plane(n, l);
-    let samples = 90;
-    let mut specular = Vec::new();
-    let mut diffuse = Vec::new();
-    for k in 0..=samples {
-        let a = (k as f32 / samples as f32 - 0.5) * std::f32::consts::PI;
-        let w = n * a.cos() + t * a.sin();
-        let n_dot_v = w.dot(n).clamp(0.0, 1.0);
-        let spec = brdf::specular_ggx(w, l, n, s.specular_f0, n_dot_v, s.roughness_a2, px.lighting.multi_scatter_compensation);
-        let response = Vec3::ONE - brdf::fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
-        let diff = brdf::diffuse_lambertian(s.albedo, n, l, response);
-        specular.push((w, spec.dot(Vec3::splat(1.0 / 3.0)) * n_dot_v));
-        diffuse.push((w, diff.dot(Vec3::splat(1.0 / 3.0))));
-    }
-    let p = s.position;
-    for (lobe, color, size) in [(&specular, SPECULAR, 0.8), (&diffuse, DIFFUSE, 0.4)] {
-        let peak = lobe.iter().map(|x| x.1).fold(0.0f32, f32::max);
-        if peak <= 0.0 {
-            continue;
-        }
-        let points: Vec<Vec3> = std::iter::once(p).chain(lobe.iter().map(|(w, v)| p + *w * (size * v / peak))).chain(std::iter::once(p)).collect();
-        draw.polyline(&points, color, alpha, 3.0);
-        // Say what the specular lobe is, at its tip.
-        if color == SPECULAR {
-            let tip = lobe.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map_or(n, |x| x.0);
-            labels.push(Label { anchor: p + tip * (size + 0.06), text: tr("demos.specular_lobe").into(), color: SPECULAR });
-        }
-    }
-    // The mirror direction of L, where the specular lobe of a smooth surface peaks.
-    let mirror = (2.0 * n.dot(l) * n - l).normalize();
-    draw.segment(p, p + mirror * 0.65, SPECULAR, alpha * 0.6, 1.5, FLAG_DASHED);
-}
-
-/// The first `count` of the 256 directions the specular prefilter samples for
-/// a texel along R (N = V = R), at the inspected surface's roughness.
-fn ggx_samples(draw: &mut DrawLists, px: &brdf::Pixel, count: u32) {
-    let r = px.ibl.reflect_dir;
-    let p = px.surface.position;
-    for i in 0..count {
-        let h = brdf::importance_sample_ggx(brdf::hammersley(i, 256), px.surface.roughness_a, r);
-        let l = 2.0 * r.dot(h) * h - r;
-        let weight = r.dot(l);
-        if weight > 0.0 {
-            draw.segment(p, p + l * 0.55, SPECULAR, 0.25 + 0.6 * weight, 1.5, 0);
-        }
     }
 }
 
@@ -1178,21 +1024,8 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             }
             ("DirectionalLightFeatureProcessor", object)
         }
-        Demo::PointLight => {
-            let d2 = px.light.distance_squared;
-            row(tr("common.distance_d"), format!("{:.3} m", d2.sqrt()), palette::text());
-            row(tr("demos.attenuation_radius_r"), format!("{:.3} m", shading.light.attenuation_radius()), LIGHT);
-            row("m_invAttenuationRadiusSquared", f1(shading.light.inv_attenuation_radius_squared), LIGHT);
-            row("falloff = d² / r²", f1(px.light.falloff), LIGHT);
-            row("(1 − falloff²)²", f1(px.light.radius_attenuation), LIGHT);
-            row("I / max(d², 1e-6)", f3(shading.light.rgb_intensity_candelas / d2.max(1e-6)), palette::text_dim());
-            row(tr("demos.lightintensity_lux"), f3(px.light.intensity), LIGHT);
-            row(tr("demos.skipped_falloff_1"), if px.light.falloff >= 1.0 { tr("demos.yes") } else { tr("demos.no") }.into(), palette::text());
-            let surface_channels = shading.material(shading.inspected).lighting_channels;
-            let same = shading.light.lighting_channel_mask & surface_channels != 0;
-            row(tr("demos.lighting_channels_light_surface"), format!("0x{:02X} & 0x{:02X} → {}", shading.light.lighting_channel_mask, surface_channels, if same { tr("demos.lit") } else { tr("demos.skipped") }), LIGHT);
-            ("SimplePointLightUtil", object)
-        }
+        // Its rows are its readout script's (script/readout.lam, from `script::Frame`).
+        Demo::PointLight => ("SimplePointLightUtil", object),
     };
     rows.truncate(state.p("readoutRows").round().max(0.0) as usize);
     let (formula, formula_lit) = super::formulas::readout(demo, state.p("formula"));

@@ -244,6 +244,50 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         let mut renderer = lab::renderer::Renderer::new(gpu, statics, 640, 360)?;
         let still = still_timeline(640, 360);
         renderer.render_frame(request(&shot::for_demo(Demo::Room), &still), None);
+        // The scripts (script/logic.lam): marchCone steps the cone one sample every `seconds` on every frame the
+        // story runs it, and pickSliceCell picks the leaf under a click at the slice's height.
+        {
+            let timeline = lab::shot::Timeline::load(&lab::resources::root().join("packages/godot_voxelgi/build/timelines/en/timeline.json"))?;
+            let (mut checked, mut differ) = (0, Vec::new());
+            for key in timeline.keys.iter().filter(|k| k.run.as_ref().is_some_and(|r| r.name == "marchCone")) {
+                for f in key.frame..(key.frame + 600).min(timeline.total_frames) {
+                    let st = timeline.state_at(f);
+                    let Some(a) = st.actions.iter().find(|a| a.key == "marchCone") else { continue };
+                    let seconds: f32 = a.arg("seconds").map_err(anyhow::Error::msg)?;
+                    let from: Option<u32> = a.arg("from").map_err(anyhow::Error::msg)?;
+                    let to: Option<u32> = a.arg("to").map_err(anyhow::Error::msg)?;
+                    let rust = (from.unwrap_or(0) + (a.elapsed / seconds) as u32).min(to.unwrap_or(16)) as f32;
+                    checked += 1;
+                    if st.p("coneSteps") != rust {
+                        differ.push(json!({"frame": f, "script": st.p("coneSteps"), "rust": rust}));
+                    }
+                }
+            }
+            let shown0 = shot::for_demo(Demo::Room);
+            let content = lab::shader_data::build_frame(&shown0, &renderer.statics, [640.0, 360.0], 1.0, 0.0);
+            let s = w.probe.octree_size;
+            let mut clicks = 0;
+            for height in [0.0f32, 0.3, 1.27, 2.9] {
+                let mut shown = shot::for_demo(Demo::Room);
+                shown.set("sliceHeight", height);
+                for i in 0..=40 {
+                    for j in 0..=40 {
+                        let uv = glam::Vec2::new(i as f32 / 40.0, j as f32 / 40.0);
+                        let mut state = shown.clone();
+                        let mut frame = lab::actions::ClickFrame { shown: &shown, state: &mut state, uv, content: &content, statics: &renderer.statics };
+                        let ran = lab::script::runtime::click("pickSliceCell", &mut frame);
+                        let y = super::demos::leaf_of(&w.probe, glam::Vec3::new(0.0, height, 0.0)).y.clamp(0, s.y - 1);
+                        let x = ((uv.x * s.x as f32) as i32).clamp(0, s.x - 1);
+                        let z = ((uv.y * s.z as f32) as i32).clamp(0, s.z - 1);
+                        clicks += 1;
+                        if ran != Some(true) || state.p("cellX") != x as f32 || state.p("cellY") != y as f32 || state.p("cellZ") != z as f32 {
+                            differ.push(json!({"uv": [uv.x, uv.y], "height": height, "script": [state.p("cellX"), state.p("cellY"), state.p("cellZ")], "rust": [x, y, z]}));
+                        }
+                    }
+                }
+            }
+            report.check("the scripts: marchCone steps one sample every `seconds` on the story's frames; pickSliceCell picks the leaf under the click (41 x 41 points at 4 heights)", differ.is_empty() && checked > 0, json!({"actionFrames": checked, "clicks": clicks, "differ": differ.iter().take(20).collect::<Vec<_>>()}));
+        }
         // The light passes on the GPU (update.rs) against light.rs: every texel of every mip.
         let mut gpu_texture = lit.texture.clone();
         {

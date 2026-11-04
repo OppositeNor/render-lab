@@ -39,7 +39,7 @@ Each demonstration has a **readout** in the struct panel's place: the record it 
 values, or the values of its step, computed by the CPU model. Its **step parameters** (in the dock) walk the octree's
 levels, a triangle's descent, a leaf's columns, the distance transform's passes, a light's steps and its shadow march,
 the cones and their samples, the dynamic object's views and shrink maps. A **click** on a surface picks the leaf cell
-under it (`cellX`, `cellY`, `cellZ`), and a click on a slice inset picks the cell at that point (`pickSliceCell`).
+under it (`cellX`, `cellY`, `cellZ`), and a click on a slice inset picks the cell at that point (`pickSliceCell`, script/logic.lam, with the `marchCone` action its story runs).
 Cell points hidden behind the room's objects are dimmed, since the overlay has no depth test of its own.
 
 ## Findings

@@ -582,5 +582,6 @@
   "home.knowledge_graph_hint": "故事需要的全部知识，从三个基础向上，按它假定你已知的程度着色；按 Esc 关闭。",
   "home.prerequisites_more": "等 {count} 个",
   "home.prerequisites_level": "起点：{topics}。",
-  "home.prerequisites_known": "假定已知 {count} 个知识点；直接用到的有：{topics}。"
+  "home.prerequisites_known": "假定已知 {count} 个知识点；直接用到的有：{topics}。",
+  "script.error": "脚本错误：{message}"
 }

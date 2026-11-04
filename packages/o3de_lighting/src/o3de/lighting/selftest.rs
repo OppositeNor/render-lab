@@ -70,7 +70,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         report.check("every demonstration's values read the same through the typed struct (view) and back (store)", detail.is_empty(), json!({"differing": detail}));
     }
 
-    // A pick round-trips (actions::pick): a click at a pixel of the scene, as
+    // A pick round-trips (script/picks.lam, `pickPixel`): a click at a pixel of the scene, as
     // a click on a chain-target view at the same place sets it, picks that
     // pixel, and the point it inspects projects back to it.
     {
@@ -79,8 +79,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let content = demos::build_frame(&shot::for_demo(Demo::Room), &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
         let projector = Projector::new(&content.uniforms.camera);
         for (u, v) in [(0.30, 0.70), (0.42, 0.62), (0.55, 0.55), (0.70, 0.80), (0.50, 0.40)] {
+            let shown = shot::for_demo(Demo::Room);
             let mut state = shot::for_demo(Demo::Room);
-            if !super::actions::pick(&mut state, &content, Vec2::new(u, v)) {
+            let mut frame = lab::actions::ClickFrame { shown: &shown, state: &mut state, uv: Vec2::new(u, v), content: &content, statics: &renderer.statics };
+            if lab::script::runtime::click("pickPixel", &mut frame) != Some(true) {
                 continue;
             }
             picked += 1;
@@ -90,6 +92,33 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             worst = worst.max(back.distance(at));
         }
         report.check("a pick round-trips: the picked pixel's surface point projects back to it (5 pixels, within 1 px)", picked == 5 && worst < 1.0 && shot::for_demo(Demo::Room).p("pickShown") == 0.0, json!({"picked": picked, "worstPixels": worst}));
+    }
+
+    // The scripts' Play animations (script/animations.lam) are the waves they describe, and say what they set.
+    {
+        use lab::animation::{Clip, Motion, Wave};
+        let mut worst = 0.0f32;
+        let mut samples = 0;
+        let cases: [(Demo, Vec<Motion>); 2] = [
+            (Demo::Surface, vec![Motion::Wave(Wave::new("sphereMetallic", 0.5, 0.5, 8.0)), Motion::Wave(Wave::new("sphereRoughness", 0.45, 0.35, 13.0))]),
+            (Demo::Ibl, vec![Motion::Wave(Wave::new("sphereRoughness", 0.5, -0.5, 12.0).cosine())]),
+        ];
+        for (demo, motions) in cases {
+            let clip = Clip(motions);
+            for k in 0..400 {
+                let t = k as f32 * 0.137;
+                let mut state = shot::for_demo(demo);
+                let keys = lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
+                for (param, value) in clip.sample(t, |_| 0.0) {
+                    samples += 1;
+                    worst = worst.max((state.p(&param) - value).abs());
+                    if !keys.contains(&param) {
+                        worst = f32::MAX;
+                    }
+                }
+            }
+        }
+        report.check("the scripts' Play animations (surface, ibl) are their waves within 1e-5, and set what they move", worst < 1e-5, json!({"samples": samples, "worst": worst}));
     }
 
     // A frame uploads the objects and gShading the kernels read.

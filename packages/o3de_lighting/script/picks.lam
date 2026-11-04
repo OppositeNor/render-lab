@@ -1,0 +1,24 @@
+The O3DE lighting investigation's picks
+=======================================
+
+A click on the scene, or on a view of a screen-sized resource (a forward target, the depth, the stencil), picks
+the pixel there: the surface point the readout inspects, which every such view rings where it projects
+(`pickShown`). The lab traces the ray (`trace`); this says what the hit sets.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* o3de_lighting_values]$[ImportAs rl_runtime rt]
+
+The values a hit sets: the point, its normal turned to face the viewer, and the object. Nothing when the ray
+misses (the ceiling's light panel is not a surface the readout inspects).
+$[# {_pick click}
+    {caseOption {rt::trace {.u click} {.v click} {' "emissive panel"}} {^ {} {'}} {^ {hit}
+        [# n {!if {> {vdot {.normal hit} {.dir hit}} 0.0} {vscale {.normal hit} -1.0} {.normal hit}}]
+        [# p {.point hit}]
+        {' {setPickShown 1.0} {setInspectX {.x p}} {setInspectY {.y p}} {setInspectZ {.z p}}
+           {setInspectNX {.x n}} {setInspectNY {.y n}} {setInspectNZ {.z n}} {setInspectObject {float {.object hit}}}}}}]
+
+Picks the pixel clicked on a view of a screen-sized resource: ringed in every such view, and its surface point
+inspected in the scene.
+$[# pickPixel {: _pick ClickHandler}]
+
+A click on the scene picks its pixel and inspects its point.
+$[# scene {: _pick ClickHandler}]

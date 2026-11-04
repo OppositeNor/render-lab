@@ -11,6 +11,7 @@
 pub mod data;
 pub mod keys;
 pub mod natives;
+pub mod runtime;
 
 pub use lamlet;
 pub use lamlet_doc;

@@ -1,0 +1,28 @@
+The VoxelGI investigation's logic
+=================================
+
+The action its story runs (`{run "marchCone"}`) and the click handler of its slice insets (`imageClick`), over
+the octree its code bakes (src/godot/voxelgi/script.rs: `octreeSize`, `leafOf`).
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_voxelgi_values]$[Import* godot_voxelgi_natives]
+
+The arguments a story passes to `marchCone` (`run.seconds=…`); the optional ones are options.
+$[# MarchCone [% {Struct {' {Field "seconds" Float} {Field "from" {Option Int}} {Field "to" {Option Int}}}}]]
+
+Steps a cone's march (`coneSteps`) from `from` (0 by default) to `to` (16 by default), one sample every `seconds`.
+$[# marchCone {: {^ {elapsed run}
+    [# seconds {.seconds run}]
+    [# from {withDefault {.from run} 0}]
+    [# to {withDefault {.to run} 16}]
+    {!if {<= seconds 0.0}
+        {error f"{a step takes $seconds s; it takes longer than 0}"}
+        {' {setConeSteps {float {min {+ from {steps seconds elapsed}} to}}}}}} {Action MarchCone}}]
+
+Picks the cell under a click on a slice inset (x across, z down, at the slice's height; the slice is the leaves'
+grid).
+$[# pickSliceCell {: {^ {click}
+    [# s {octreeSize}]
+    [# y {clamp {.y {leafOf {vec3 0.0 {sliceHeight} 0.0}}} 0 {- {.y s} 1}}]
+    [# x {clamp {truncate {* {.u click} {float {.x s}}}} 0 {- {.x s} 1}}]
+    [# z {clamp {truncate {* {.v click} {float {.z s}}}} 0 {- {.z s} 1}}]
+    {' {setCellX {float x}} {setCellY {float y}} {setCellZ {float z}}}} ClickHandler}]

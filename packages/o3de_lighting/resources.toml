@@ -432,3 +432,31 @@ id = "graph/frame"
 kind = "file"
 source = "graphs/frame.toml"
 license = "MIT"
+
+# Its scripts (lab/src/script/runtime.rs): the overlay drawn over each frame.
+[[resource]]
+id = "script/overlay"
+kind = "file"
+source = "script/overlay.lam"
+license = "MIT"
+
+# Its click handlers: a click on the scene or on a view of a screen-sized resource picks the pixel there.
+[[resource]]
+id = "script/picks"
+kind = "file"
+source = "script/picks.lam"
+license = "MIT"
+
+# Its demonstrations' Play animations (a demo's `animation`).
+[[resource]]
+id = "script/animations"
+kind = "file"
+source = "script/animations.lam"
+license = "MIT"
+
+# Its readout rows (the point light demonstration's).
+[[resource]]
+id = "script/readout"
+kind = "file"
+source = "script/readout.lam"
+license = "MIT"

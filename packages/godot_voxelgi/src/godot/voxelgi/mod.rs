@@ -13,7 +13,6 @@
 //! source-index.json (written by source_index.py), and the pseudo-code in
 //! pseudocode/.
 
-pub mod actions;
 pub mod bake;
 pub mod cone;
 pub mod controls;
@@ -22,6 +21,7 @@ pub mod demos;
 pub mod dynamic;
 pub mod light;
 pub mod pseudocode;
+pub mod script;
 pub mod sdf;
 pub mod selftest;
 pub mod shot;
@@ -126,9 +126,6 @@ impl Investigation for VoxelGi {
     fn engine(&self) -> &'static Engine {
         &crate::godot::ENGINE
     }
-    fn actions(&self) -> &'static lab::actions::Actions {
-        &Self::ACTIONS
-    }
     fn images(&self) -> &'static [ImageSpec] {
         IMAGES
     }
@@ -136,7 +133,8 @@ impl Investigation for VoxelGi {
         ANNOTATIONS
     }
     fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
-        cost::natives(natives)
+        cost::natives(natives)?;
+        script::register(natives)
     }
 
     fn id(&self) -> &'static str {

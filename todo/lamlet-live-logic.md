@@ -1,37 +1,71 @@
 # Real-time logic in Lamlet scripts (plan)
 
-Today a package's real-time logic is Rust in its library: actions (`#[action]`, started by a story's
-`{run "…"}`), click handlers (`#[click]`), and the Play animation (`Investigation::animation`). This plan lets
-the same logic be written as Lamlet scripts that are package content. A script is read through `lab::resources`
-like a shader or a text table, so an edit shows on the next launch without rebuilding the package's library, and
-a package can have logic without Rust code.
+Today a package's real-time logic is Rust in its library:
+- **Actions:** `#[action]`, started by a story's `{run "…"}`.
+- **Click handlers:** `#[click]` and `Investigation::click`.
+- **The Play animation:** `Investigation::animation`.
+- **What `build_frame` draws over the scene:** vectors, lobes, labels, and markers.
 
-It builds on [lamlet-in-process.md](lamlet-in-process.md), which puts a Lamlet host in the lab (`lab::script`: an
-engine, a resolver over package resources, natives). It follows the runtime rules below ("Runtime inputs,
-updates, and failure behavior"). The language
-side is Lamlet's `plans/embedding.md`; this plan asks Lamlet for one general fix (below) and nothing specific to
-the lab.
+This plan lets the app run Lamlet scripts for all of it, the way a game engine runs its scripts:
+- **The script decides behaviour:** what moves where, how it eases, what a click means, and what is drawn where.
+- **The package's native Rust code does the heavy work:** rendering, BRDF evaluation, ray tracing, octrees.
 
-Status: plan (2026-11-02). The script in "A script action" was checked and run with Lamlet's embedding API
-against a stand-in for the generated values package. It matches the Rust action at the sampled times. Nothing
-in the lab is implemented.
+A script is package content, read through `lab::resources` like a shader or a text table. An edit shows on the
+next launch without rebuilding the package's library, and a package can have logic without Rust code.
 
-## Why the fit is good
+It builds on [lamlet-in-process.md](lamlet-in-process.md) and follows the runtime rules below ("Runtime inputs,
+updates, and failure behavior"). It asks Lamlet for nothing specific to the lab.
 
-The lab already requires what Lamlet guarantees:
+Status: implemented 2026-11-03, milestones 0 to 7 (milestone 5 in part: see "Implementation notes"). The lab pins
+Lamlet v0.4.0 and lamlet-present v0.1.4. The host is `lab/src/script/runtime.rs`, the runtime library
+`packages/render_lab/language/runtime.lam`, and the first scripts are O3DE's (`packages/o3de_lighting/script/`:
+overlay, readout, picks, animations) and VoxelGI's (`packages/godot_voxelgi/script/logic.lam`). The sketches below
+are kept as the design; the scripts in the packages are the checked versions.
 
-| The lab requires | Where | Lamlet gives |
-|---|---|---|
-| An action is a pure function of its arguments, its `elapsed`, and the state so far, because `state_at` replays every key from frame 0 for each frame, and seeking and recording rely on that | `lab/src/shot.rs` (`state_at`, "Pure function of (timeline, frame)"; the running actions loop) | No side effects; reads only explicit inputs; math that gives the same bits on every platform |
-| A hook only sets values of the shot (`ShotState`); it never touches GPU resources or the scene | `lab/src/actions.rs` (`ActionFrame`, `ClickFrame`) | Code returns descriptions, and the host applies them |
-| `state_at` runs several times per rendered frame | `lab/src/viewer.rs` | A call of a small compiled function costs about 0.2 µs (Lamlet's benchmarks) |
-| A hook cannot run forever or crash the viewer | | Instruction, call-depth, and allocation budgets per call; caught panics; a checker bounded on every input |
+## The split: native or script
 
-## Threads: Lamlet's phase 2 is not needed
+| Native (Rust, in the package's library or the lab) | Script (Lamlet, package content) |
+|---|---|
+| The frame's passes, shaders, and GPU work | Which values a demo sets over time: the camera, lights, and parameters |
+| CPU mirrors of engine math: `brdf.rs`, cascades, octrees, SSAO kernels | Where an overlay's arrows, lobes, points, and labels go, how long they are, and how they grow in |
+| Tracing a ray into the scene; projecting a point to a view | What a hit means: which values a click sets |
+| Anything that loops over pixels, texels, or thousands of samples | Choosing the samples (a sweep's directions); scaling and drawing the results |
+| Selftests, readouts that need the full CPU mirror | Story actions: steps, sweeps, reveals |
 
-Every hook this plan touches runs on the main (winit) thread. That holds in the viewer (`state_at`, clicks,
-`animation`) and in the recorder, which is single-threaded. The loading worker builds the renderer and runs no
-action, click, or animation.
+**Rule:** a native works on whole lists, not single values. The script makes one call with all 90 directions of a
+lobe, not 90 calls. The per-frame cost then does not grow with the number of samples.
+
+## No state in the script
+
+Every hook is a pure function of what the lab passes in. The script keeps nothing between calls, and the lab
+holds all state, as it does today in `ShotState`. Each call receives:
+
+- **a snapshot:** the shot's values (read through the values package below) and the call context of the natives;
+- **time:** the action's `elapsed`, or the demo's time;
+- **arguments:** the action's arguments, or the click.
+
+Anything that seems to need state is derived from time. A sequence such as "wait 2 s, then move" is a piecewise
+function of time, and the combinators below (`seq`, `after`, `tween`) write it. "Blend from where the value was"
+evaluates the previous segment at the same time. This is what `Timeline::state_at` already does: it rebuilds the
+state from frame 0 for every frame (`lab/src/shot.rs`). Seeking, scrubbing, pausing, and frame-exact recording
+keep working.
+
+This is Lamlet's own host boundary (its `docs/rationale.md`, D10, "descriptions, not effects"):
+- A script returns descriptions: writes of values and shapes to draw.
+- The lab validates and applies them.
+- Natives only *query*: they read the snapshot they are given and change nothing. They are pure functions of
+  their arguments and the call's snapshot, so determinism holds.
+
+Persistent simulations, such as physics integrated step by step, stay native. They are outside this plan.
+
+## Threads
+
+Every hook this plan touches runs on the main (winit) thread:
+- **In the viewer:** `state_at`, clicks, `animation`, and `build_frame` through `shader_data::build_frame`.
+- **In the recorder:** it is single-threaded.
+
+The loading worker builds the renderer and runs no action, click, or animation. Milestone 0 checks that it never
+calls `build_frame` either; if it does, the overlay is skipped there, because no picture is drawn from it.
 
 - **The engine.** One Lamlet engine, its checked scripts, and their instances live in a `thread_local!` in
   `lab::script`, on the main thread. Lamlet's `Engine`, `Document`, and `Instance` are `!Send`, which is fine
@@ -43,11 +77,80 @@ action, click, or animation.
 - **Unit tests** call `state_at` on test threads (`lab/src/values.rs`). With a `thread_local!`, each test thread
   gets its own engine, which is correct and costs one check of the scripts per thread.
 
-So [lamlet-in-process.md](lamlet-in-process.md)'s milestone 4 (a per-thread engine in the viewer) needs no Lamlet
-phase 2. Phase 2 matters only if scripts must run on several threads at
-once, and nothing here does.
+Lamlet's phase 2 (sharing checked documents across threads) is not needed. It would matter only if scripts had
+to run on several threads at once, and nothing here does.
 
 ## What a package writes
+
+### An overlay: O3DE's vectors and lobe
+
+Today `build_frame` draws the inspected point's vectors and lobes in Rust
+(`packages/o3de_lighting/src/o3de/lighting/demos.rs:408-447`, `lobes` at `:725`):
+- **The arrows:** N, L, V, H (and R in the IBL demo), half a metre long.
+- **`vectorsShown`:** a fractional value of it grows the next arrow out of the point with `Ease::Smooth`, and an
+  arrow's label shows past 0.6 of its length.
+- **The dashed lines:** to the light and to the observer.
+- **The two lobes:** swept in the plane of N and L, horizon to horizon, at sizes 0.8 and 0.4, each normalised to
+  its peak.
+- **The rest:** the label at the specular lobe's tip, and the dashed mirror direction.
+
+All of that is layout around two native results: the inspected pixel (`brdf::Pixel`), and the BRDF terms in
+given directions.
+
+As a script (`packages/o3de_lighting/script/overlay.lam`; a sketch):
+
+```text
+$[Import* std]$[Import* render_lab_runtime]$[Import* o3de_lighting.values]$[Import* o3de_lighting_natives]
+
+The inspected point's vectors; a fractional `vectorsShown` grows the next one out of the point.
+$[# _vectors {^ {px}
+  [# shown {!if {.lightOn px}
+     {' {named "N" {.normal px} normal} {named "L" {.toLight px} light} {named "V" {.toView px} view} {named "H" {.half px} half}}
+     {' {named "N" {.normal px} normal} {named "V" {.toView px} view}}}]
+  {grownArrows {.point px} shown 0.5 {vectors} {vectorsShown}}}]
+
+The specular and diffuse lobes in the plane of N and L, each on its own scale.
+$[# _lobes {^ {px}
+  [# dirs {sweep {.normal px} {inPlane {.normal px} {.toLight px}} 90}]
+  [# terms {brdfTerms dirs}]
+  {concat {' {lobeLine {.point px} dirs {.specular terms} specular 0.8 {lobe} {#some {rl.text "demos.specular_lobe"}}}
+             {lobeLine {.point px} dirs {.diffuse terms} diffuse 0.4 {lobe} #none}
+             {' {dashed {.point px} {v+ {.point px} {v* {mirror {.normal px} {.toLight px}} 0.65}} specular {* {lobe} 0.6}}}}}}]
+
+$[# overlay {^ {t} {!match {inspected} {#none} {'} {#some px} {append {_vectors px} {_lobes px}}}}]
+```
+
+- **Natives it calls:**
+  - `inspected` gives the inspected pixel's point, normal, and directions as a record, computed by the CPU mirror
+    from the call's snapshot.
+  - `brdfTerms` evaluates both terms in every direction of the list, in one call.
+
+  Both are `o3de_lighting` natives (`Investigation::script_natives`).
+- **Helpers it uses:** `sweep`, `inPlane`, `mirror`, `v+`, `v*`, `grownArrows`, `lobeLine`, `dashed`, and the
+  colour names. They are plain Lamlet in render_lab's runtime library.
+- **Native calls per frame:** two.
+- **What is removed from Rust:** the Rust drawing of the vectors and lobes goes, once the script draws the same
+  lists (milestone 1). The readout, the culling tiles, and the other overlays stay in Rust until they are
+  ported, one at a time.
+
+### A click handler: picking a pixel
+
+`pick` (`packages/o3de_lighting/src/o3de/lighting/actions.rs:14`) traces a ray through the clicked point, flips
+the normal to face the viewer, and sets `pickShown`, `inspectX/Y/Z`, `inspectNX/NY/NZ`, and `inspectObject`. Only
+the trace is heavy. As a script (a sketch):
+
+```text
+Picks the surface point under the click, which the readout inspects and every screen-sized view rings.
+$[# pickPixel {^ {click}
+  {!match {rl.trace {.uv click} {.except {' panel}}}
+    {#miss} {'}
+    {#hit h} {' {setPickShown 1.0} {setInspect {.point h}} {setInspectN {facing {.normal h} {.dir h}}}
+                {setInspectObject {float {.object h}}}}}}]
+```
+
+`rl.trace` is the lab's native. It casts the ray from the call's camera through `uv` into the frame's objects
+(`scene::trace_scene`) and returns a variant. Ringing the picked point in other views is
+`rl.project point view`, which an overlay calls.
 
 ### A script action
 
@@ -80,19 +183,36 @@ $[# marchCone {^ {elapsed run}
   [# from {withDefault {.from args} 0}]
   [# to {withDefault {.to args} 16}]
   {!if {<= seconds 0.0}
-    {error [f "a step takes $seconds s; it takes longer than 0"]}
+    {error f"{a step takes $seconds s; it takes longer than 0}"}
     {' {setConeSteps {float {min {+ from {truncate {/ elapsed seconds}}} to}}}}}}]
 ```
 
 The story does not change: `${cue "key" {' {run "marchCone"} {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}`.
 
+### A behaviour: the Play animation and the camera
+
+A demo's Play animation is a function of the demo's time. Today it is `Investigation::animation(demo, t)` in Rust;
+O3DE's light sweep is in `packages/o3de_lighting/src/o3de/lighting/shot.rs:126`. As a script, it is written with
+the combinators (a sketch):
+
+```text
+The light sweeps from near the normal to grazing and back, while the roughness widens and narrows the lobe.
+$[# playSpecular {^ {t}
+  {append {orbitLight {pingPong {tween 0.0 1.0 6.0 easeSine} t}}
+          {' {setSphereRoughness {pingPong {tween 0.15 0.6 9.0 smooth} t}}}}}]
+```
+
+A demo's TOML names it: `animation = "playSpecular"`. The same functions serve a story. A cue
+`{run "playSpecular"}` runs it as an action from the cue's frame, since an action is a function of `elapsed`.
+
 ### The contract
 
-| Hook | A script exports | Type |
-|---|---|---|
-| Action | a function | `Fn([Float, Args], List(Write))`: the seconds since the story started it, the arguments as one record |
-| Click handler | a function | `Fn([Click], List(Write))`, where `Click` is `{u: Float, v: Float}` (the point on the image, 0..1, y down) |
-| Play animation | a function per demo | `Fn([Float], List(Write))`: the demo's time in seconds |
+| Hook | A script exports | Type | Writes? |
+|---|---|---|---|
+| Action | a function | `Fn([Float, Args], List(Write))`: the seconds since the story started it; the arguments as one record | yes |
+| Click handler | a function | `Fn([Click], List(Write))`, where `Click` is `{u: Float, v: Float}` (the point on the image, 0..1, y down) | yes |
+| Play animation | a function per demo | `Fn([Float], List(Write))`: the demo's time in seconds | yes |
+| Overlay | `overlay` | `Fn([Float], List(Shape))`: the frame's time; drawn over what `build_frame` drew | no |
 
 - **The arguments come as one record**, because a host sees a record's field names and types but not a
   function's parameter names. The ascription (`{: run MarchCone}`) makes the function's type ground, so the lab
@@ -108,6 +228,7 @@ The story does not change: `${cue "key" {' {run "marchCone"} {runSeconds 0.7} {r
 - **A script returns its writes; it never sets state itself.** The lab applies the whole list after the call
   returns, in order. If the call fails, the lab applies nothing. That is the batch rule
   ("Runtime inputs, updates, and failure behavior").
+- **An overlay is display.** Its natives have no write capability, and its shapes are drawn but change no value.
 
 ### The generated values package
 
@@ -116,10 +237,11 @@ For each investigation the lab writes a Lamlet package, `<package>.values`, from
 
 - **`Write`**, the record `{key: String, value: <bool: Bool, float: Float, int: Int, vec2: …, vec3: …, vec4: …>}`.
 - **A setter per key:** `setConeSteps : Fn([Float], Write)`. Setters are plain Lamlet functions, not natives,
-  so they are pure and cost nothing to declare.
-- **A reader per key:** `sliceHeight : Fn([], Float) !Runtime`, a native that reads the shot as it is when the
-  script runs. For an action that is the state so far in `state_at`; for a click, the state on screen
-  (`ClickFrame::shown`).
+  so they are pure and cost nothing to declare. Keys that form a vector have one setter for the vector as well
+  (`setInspect {x, y, z}` beside `setInspectX`).
+- **A reader per key:** `sliceHeight : Fn([], Float) !Runtime`, a native that reads the call's snapshot. For an
+  action that is the state so far in `state_at`. For a click, it is the state on screen (`ClickFrame::shown`).
+  For an overlay, it is the state being drawn.
 - **A choice as a variant:** a choice's setter takes a variant of its option names
   (`{setQuality {#high unit}}`), not an index.
 
@@ -137,20 +259,53 @@ The types map as follows:
 | `Vec2`, `Vec3`, `Vec4` | `{x, y}`, `{x, y, z}`, `{x, y, z, w}` of `Float` |
 | A choice | a variant of its option names |
 
-### Package data a script needs
+### render_lab's runtime library
 
-Logic often needs a package's own data. `godot_voxelgi`'s click handler (`pick_slice_cell`) reads the probe's
-octree size and calls `leaf_of`. A script gets such data through natives the package registers, which is
-lamlet-in-process.md's `Investigation::script_natives` hook. The logic moves to the script; computing the
-octree stays in Rust.
+A new module of render_lab's Lamlet package, `render_lab_runtime` (`packages/render_lab/language/runtime.lam`).
+It is plain Lamlet, generic, and the same for every investigation:
+
+- **Vectors:** `Vec3` is `{x, y, z}` of `Float`, and `v+`, `v-`, `v*`, `dot`, `cross`, `normalize`, `length`,
+  `mirror`, `inPlane`, and `sweep` work on it. Lamlet's `sqrt`, `sin`, and `cos` are deterministic builtins, so
+  no native is needed.
+- **Shapes:** a variant the lab draws with `DrawLists` and `Label` (`lab/src/frame.rs:72`, `:133`):
+  - `arrow`, `segment`, `dashed`, `polyline`, `point`, and `label`, each with a colour, an alpha, and a width;
+  - helpers built from them: `grownArrows` and `lobeLine`.
+
+  A label's text is a text key, checked by `rl.text`.
+- **Colours:** the lab's palette by name (`normal`, `view`, `light`, `selected`, …). A package adds its own as
+  constants (`specular`, `diffuse`, `half`), as `demos.rs` does today.
+- **Curves and combinators:** `tween from to seconds ease`, `hold`, `seq`, `par`, `after`, `loop`, `pingPong`,
+  and `orbit` and `path` as the lab's motions (`lab/src/animation.rs`). The eases are the lab's: `smooth`,
+  `linear`, `easeIn`, `easeOut`, `easeInOut`, `easeSine`.
+
+### Query natives and the call context
+
+Before each call, the lab sets a call context in a `thread_local!`, and it clears the context after the call:
+- the snapshot (`ShotState`);
+- the frame's content (`FrameContent`) and `Statics`, where the call has them (overlays and clicks);
+- the view being drawn (`lab::view::name()`).
+
+Natives read the context; they never keep it. Natives are registered once on the engine:
+
+| Native | From | Returns |
+|---|---|---|
+| a reader per value | the lab (values package) | the snapshot's value |
+| `rl.trace uv except` | the lab | `#hit {point, normal, dir, object}` or `#miss`: a ray from the call's camera into its objects |
+| `rl.project point view` | the lab | the point on a view's picture (0..1), or `#none` behind the camera |
+| `rl.text`, `rl.source`, `rl.point`, `rl.formula` | the lab (exist) | the checked name |
+| `<package>/<name>` | the package, `Investigation::script_natives` | its own data: O3DE's `inspected` and `brdfTerms`; VoxelGI's `leafOf` and its octree size |
+
+`script_natives` registers `Pure` natives today, for storyboards. Runtime natives join it on the same
+registry, with Lamlet's default `.runtime()` stage.
 
 ### Where scripts are declared
 
-A package's manifest provides a `script` collection, as in lamlet-in-process.md (module name → file). Its
-module `actions` (resource `<package>.script/actions`) is read for hooks:
+A package's manifest provides a `script` collection, as in lamlet-in-process.md (module name → file). The lab
+reads hooks from its modules:
 
 - an exported function of the action type is an action, named by its binding;
 - one of the click type is a click handler;
+- `overlay` is the overlay;
 - a demo's TOML names its animation function (`animation = "playOrbit"`).
 
 A script action or click handler with the same name as a Rust one is an error when the package loads.
@@ -159,116 +314,185 @@ A script action or click handler with the same name as a Rust one is an error wh
 
 The rules every runtime use of Lamlet in the lab follows (scripts here, and live text later).
 
-Each evaluation batch receives an immutable snapshot of selected investigation/package schemas, typed parameter
-values, logical time/frame index and fps, applicable elapsed cue time, locale/message arguments, and event payload.
-Playback/recording derive time through the same helper from the requested frame; no ambient wall-clock callback
-is used to reconstruct a recorded frame. Native reads remain Runtime even when a particular snapshot looks constant.
+**Inputs.**
+- Each evaluation batch receives an immutable snapshot of:
+  - the selected investigation's and package's schemas;
+  - typed parameter values;
+  - logical time: the frame index and fps;
+  - the elapsed cue time, where one applies;
+  - locale and message arguments;
+  - the event payload.
+- Playback and recording derive time through the same helper from the requested frame. No ambient wall-clock
+  callback is used to reconstruct a recorded frame.
+- Native reads remain Runtime even when a particular snapshot looks constant.
 
-Immutable module initializers run once; they are not implicit reactive controls. Live labels/bindings must call
-functions with the current snapshot or run a document entry with fresh local bindings. Reusing compiled code
-does not mean reusing a stale native read captured during the first initialization. Preserve source order when
-executing a complete document entry; selecting/batching regions must not reorder observable calls.
+**Reuse.**
+- Immutable module initializers run once; they are not implicit reactive controls.
+- Live labels and bindings must call functions with the current snapshot, or run a document entry with fresh
+  local bindings. Reusing compiled code does not mean reusing a stale native read captured during the first
+  initialization.
+- Preserve source order when executing a complete document entry. Selecting or batching regions must not reorder
+  observable calls.
 
-Pure bindings can be called independently for any requested frame order. A timeline animation computes its state
-from its anchor/interval and requested frame, preserving `Timeline::state_at`; firing callbacks only when a cue is
-crossed is insufficient. Viewer clicks and interactive edits are different inputs from timeline-owned state. Define
-pause/seek/reset/demo-switch ownership and don't let a click mutate a running timeline's reconstructed state by accident.
+**Timelines and clicks.**
+- Pure bindings can be called independently for any requested frame order.
+- A timeline animation computes its state from its anchor or interval and the requested frame, preserving
+  `Timeline::state_at`. Firing callbacks only when a cue is crossed is insufficient.
+- Viewer clicks and interactive edits are different inputs from timeline-owned state. Define pause, seek, reset,
+  and demo-switch ownership, and don't let a click mutate a running timeline's reconstructed state by accident.
 
-Collect command/effect descriptions during an event or explicit update evaluation, validate the complete batch,
-then apply it at the host update boundary. Display/layout evaluation has no write capability. Domain natives must
-not mutate the scene immediately and then leave partial changes when the VM exceeds a budget. Reject ambiguous
-multiple writers to one target until explicit composition/precedence is specified. Repeated painting does not
-restart animations or register another handler. Persistent simulations require an explicit event log/checkpoints
-and are outside the initial binding implementation.
+**Applying writes.**
+- Collect command and effect descriptions during an event or explicit update evaluation, validate the complete
+  batch, then apply it at the host update boundary.
+- Display and layout evaluation has no write capability.
+- Domain natives must not mutate the scene immediately and then leave partial changes when the VM exceeds a
+  budget.
+- Reject ambiguous multiple writers to one target until explicit composition or precedence is specified.
+- Repeated painting does not restart animations or register another handler.
+- Persistent simulations require an explicit event log or checkpoints, and are outside the initial binding
+  implementation.
 
-On error, discard the pending command batch. Offline preparation/recording reports a source-located failure and
-does not reuse a corrupt artifact. Interactive presentation may keep the last successful value with an error
-indicator, but logs are deduplicated and the next valid input can recover. Choose that visible policy before shipping.
+**Errors.**
+- On error, discard the pending command batch.
+- Offline preparation and recording report a source-located failure and do not reuse a corrupt artifact.
+- Interactive presentation may keep the last successful value with an error indicator. Logs are deduplicated,
+  and the next valid input can recover. Choose that visible policy before shipping.
 
 ## The lab's side (generic, in `lab/src/script/`)
 
-- **Values package generation** from the current investigation's values, with readers registered as natives
-  that read a `ShotState` passed in for the call. The `ShotState` is passed as host context, never kept between
-  calls.
+- **The runtime engine.** A `thread_local!` engine with the resolver over the packages' `script` collections. It
+  holds the values package, render_lab's runtime library, and the natives above. Each script is checked once per
+  launch, when its package loads; after that, calls only run compiled functions. One instance serves all calls,
+  with its inputs set before each call.
 - **Dispatch.**
-  - The running actions loop in `state_at` (`lab/src/shot.rs`) first looks the key up among the script
-    actions, and otherwise calls the investigation's `Actions::run`.
-  - Clicks are dispatched the same way (`lab/src/viewer.rs`).
+  - The running actions loop in `state_at` (`lab/src/shot.rs`) looks the key up among the script actions first,
+    and otherwise calls the investigation's `Actions::run`.
+  - Clicks go the same way: script handlers before `#[click]` handlers, then `Investigation::click`
+    (`lab/src/viewer.rs`).
   - `Investigation::animation` falls back to the demo's script animation.
+  - `shader_data::build_frame` (`lab/src/shader_data.rs:511`) calls the overlay after the investigation's
+    `build_frame`, beside the story's annotations, once per view.
 - **Arguments.** The lab converts a `RunningAction`'s arguments into the script's argument record, filling an
   omitted optional argument with `#none`.
 - **Applying writes.** The lab validates the whole list (known key, matching type, range for integers), then
   applies it in order through `ShotState::set_value`.
-- **Caching.** A script is checked once per launch, when its package loads, not on each `state_at`. `state_at`
-  only calls compiled functions. One instance serves all calls; its inputs are set before each call.
-- **Budgets.** Each call runs under small `Limits` (on the order of 10⁶ instructions), so a broken script fails
-  one call instead of freezing a frame.
+- **Drawing shapes.** The lab decodes the overlay's list (`Data`) into `DrawLists` calls and `Label`s, with the
+  text from the package's table.
+- **Text keys.** The text check (`lab/check`) finds the keys a script names, as it finds a storyboard's. Unused
+  and unknown keys stay build errors.
+- **Budgets.** Each call runs under small `Limits`, on the order of 10⁶ instructions, so a broken script fails
+  one call instead of freezing a frame. Lamlet's allocation budget is cumulative per call, not per instance; a
+  long session is checked for it (milestone 0).
 - **Errors.**
   - Check errors (syntax, types, an unknown key) are reported when the package loads, with the script's file and
     line, so they never reach a timeline.
   - A runtime error while recording or building a video fails the run with the script's file, line, and the
     frame. Today a failing action panics at that point (`shot.rs`).
-  - In the viewer, the shot keeps its last good state, and an error indicator shows the message. The message is a
-    text key in both languages. Further failures of the same message are not logged again, and the next
-    successful call clears the indicator.
+  - In the viewer, the shot keeps its last good state, and an overlay its last good shapes. An error indicator
+    shows the message, which is a text key in both languages. Further failures of the same message are not
+    logged again, and the next successful call clears the indicator.
 
 The lab keeps no code that only one investigation uses: everything above serves any package's scripts.
 
-## Dependency and release
+## Dependency
 
-- **The lab depends on the `lamlet` library**, re-exported as `lab::script::lamlet` as lamlet-in-process.md
-  plans. Packages use it only through the lab, since a package may not add a crate the lab lacks.
-- **The dependency is a git dependency on a tagged release** of the public repository
-  (`https://github.com/lamlet/lamlet`). A fresh clone then builds it from the network, and `setup.sh`
-  vendors it like any other crate. A path outside this repository would break fresh clones. The `embed` API is not
-  in a tag yet: Lamlet needs a release (`v0.2.0`) before this starts. `vendor/` is refreshed by the user with
-  `setup.sh`, never edited here.
-- **Lamlet has no dependencies**, so it adds no other crate to the lab's build or to `vendor/`.
-- **Compiler version.** The lab requires Rust 1.88. Lamlet builds with a Rust 1.90 nightly from 2025-06-30; 1.88
-  itself is not verified yet.
-- **Rebuilds.** Changing the lab changes its ABI string, so every package library is rebuilt, as for any lab
-  change.
-
-## Needed from Lamlet (general, in its repository)
-
-- **Locate errors raised through tail calls.** A function whose last step calls std's `error` loses its own
-  frame before the error is raised: the VM releases the caller's frame for a tail call. The diagnostic then
-  points at std's `error` definition instead of the script's line. This was seen with `marchCone`'s check
-  above. Lamlet should keep a short trace of the frames tail calls replaced, so the script's line is in the
-  diagnostic. Every script that rejects bad arguments needs this.
-- **A tagged release with `lamlet::embed`** (`v0.2.0`).
+Done. The lab pins `lamlet` v0.4.0 (lamlet-in-process.md, "Dependency and distribution") and re-exports it as
+`lab::script::lamlet`; packages use it only through the lab. Lamlet has no dependencies. This plan needs no new
+crate and no new Lamlet release.
 
 ## Milestones
 
-1. **Prerequisites.**
-   - Lamlet `v0.2.0`, with the tail-call trace.
-   - The lab depends on it.
-   - From lamlet-in-process.md milestone 1, only the engine and the resolver over package resources are needed
-     here; `story prepare` is not.
-2. **Script actions.** The values package, the dispatch in `state_at`, writes, `ActionSpec`s from script types,
-   and load-time checking. `marchCone` is ported as a script, and the Rust version stays until frame identity
-   passes; then the Rust version goes.
-3. **Errors.** The recorder's located failure, the viewer's indicator with its text keys, and budgets.
-4. **Click handlers.** `script_natives` from lamlet-in-process.md, and `pick_slice_cell` ported, with the octree
-   data as natives.
-5. **Play animations** from scripts.
-6. **Live readouts and labels.** lamlet-in-process.md's milestone 4, on the same main-thread engine, without
-   Lamlet phase 2.
+0. **The runtime host.** The `thread_local!` engine, the `script` collection and its resolver, the values
+   package, the call context, and the `Write` and `Shape` decoding. It also covers:
+   - budgets and the error policy, with the viewer's indicator and its text keys;
+   - `render-lab --investigation <id> script stubs`;
+   - checking that the loading worker never builds a frame, and measuring allocation over a long session.
+
+   No investigation uses it yet, so every frame stays unchanged.
+1. **The overlay pilot: O3DE's vectors and lobe.**
+   - `render_lab_runtime`'s vectors, shapes, and colours.
+   - O3DE's `inspected` and `brdfTerms` natives.
+   - `overlay.lam`.
+
+   The Rust drawing stays behind a switch until the draw lists match (Validation), then goes.
+2. **Clicks.** `rl.trace` and `rl.project`, then O3DE's `pickPixel` as a script, then VoxelGI's
+   `pick_slice_cell`, with the octree data as natives.
+3. **Script actions.** `marchCone` ported. The Rust version stays until frame identity passes, then goes.
+4. **Behaviours.** The combinators, demo Play animations from scripts (O3DE's first), and story actions written
+   with them.
+5. **More overlays.** O3DE's other `build_frame` drawing, one overlay at a time:
+   - the falloff curve and radius;
+   - the GGX samples;
+   - the culling tiles;
+   - the cascades.
+
+   Each moves only if it is layout around native data.
+6. **Live readouts and labels.** lamlet-in-process.md's milestone 4, on the same main-thread engine.
+7. **Documentation.**
+   - The `render-lab-lamlet` and `packages` skills: scripts, hooks, natives, and the split.
+   - `tools/video/README.md`, where cues run script actions.
+   - `AGENTS.md`'s list of content.
 
 ## Validation
 
+- **Draw lists.** For the pilot, a unit test builds O3DE's frame at a set of states with the Rust drawing and
+  with the script, and compares the draw lists and labels within 1e-5. The script computes in f64 and Rust in
+  f32, so they are not compared bit for bit. Then:
+  - Offscreen snapshots (`--page viewer:specular`, `viewer:diffuse`) are looked at.
+  - O3DE's timeline frames that show vectors or lobes are compared by decoded-pixel hashes. O3DE's batch renders
+    vary from run to run, so a mismatch alone is re-rendered first.
 - **Frame identity.** With the Rust `marchCone` and with the script, `state_at` gives equal values for every
   frame of every timeline that runs it, and recorded frames are byte-identical.
 - **Precision.** The script computes in f64, and the Rust action in f32. At an exact step boundary they could
   disagree, so frame identity is checked frame by frame, not only at a few times. If they disagree, the plan
   decides which one is correct.
-- **Purity.** `state_at(f)` in a shuffled order of frames equals the sequential results.
-- **Hostile scripts.** A script with bad syntax, a misspelled key, a wrong type, an endless loop, and a deep type
-  each give a located diagnostic when the package loads, or a budget error at the frame. Never a panic or a hang.
-- **Cost.** `state_at` on a timeline with a running script action stays within a small factor of the Rust
-  action. Measure it with the viewer's performance panel or a unit test.
-- **Builds.** Both builds are clean: the lab with `lamlet` vendored, and the public-only copy alone. Selftests
-  of every investigation pass, as does `cargo test --release --locked --offline --workspace`.
+- **Clicks.** A pick through the script sets the same values as `actions::pick` at a grid of points on each view
+  of a screen-sized resource (the existing pick round-trip check).
+- **Purity.** `state_at(f)` in a shuffled order of frames equals the sequential results, and an overlay at the
+  same state gives the same list twice.
+- **Hostile scripts.** A script with bad syntax, a misspelled key, a wrong type, an endless loop, or a deep type
+  gives a located diagnostic when the package loads, or a budget error at the frame. Never a panic or a hang.
+- **Cost.** The pilot's overlay and `state_at` with a running script action stay within a small factor of the
+  Rust versions: the viewer's performance panel, or a unit test timing the calls.
+- **Builds.** Both builds are clean: the lab, and the public-only copy alone. Each local package's workspace is
+  rebuilt after the lab. Selftests of every investigation pass, as does
+  `cargo test --release --locked --offline --workspace`.
+
+## Implementation notes (2026-11-03)
+
+What was built, and how it differs from the sketches above:
+
+- **Scripts are resources**, not a `script` collection: each `script/<name>` resource of the investigation's
+  package is a module, imported by the others as `<package>_<name>`. `render-lab --investigation <id> script check`
+  lists the hooks; `script stubs [NAME]` prints what a script imports.
+- **Readers** are functions of the generated values package (`{vectorsShown}`), each calling a generic native
+  (`rl_runtime/value-float "vectorsShown"`): the names are still checked when a script is checked, with one native per
+  type instead of one per key. A key whose name std, the library, or the natives declare is left out (listed by
+  `script stubs`); so a package's native must not be named like one of its values.
+- **Hooks by type** (open question 2): the types are the library's (`Overlay`, `Readout`, `ClickHandler`,
+  `{Action Args}`, `Animation`), and a hook's type must be ground, so a script ascribes it. A sixth hook was added:
+  **readouts**, rows the lab adds to the frame's readout (O3DE's point light rows).
+- **The overlay's place** (open question 4): beside `build_frame`, but labels are placed in order, so drawing after
+  everything moved O3DE's vector labels (seven of its 97 beats). An investigation marks the place its drawing had
+  (`FrameContent::overlay_at`, a `DrawMark`), and the lab inserts the overlay's shapes there.
+- **Frame data**: `FrameContent::script` holds what `build_frame` computed for the natives (O3DE's inspected pixel),
+  read with `frame_data::<T>()`; the natives compute nothing twice.
+- **Errors** (open question 3): in the viewer, the last good shapes and no writes, with the message as a note
+  (`script.error`) until the hook succeeds; a recording or a selftest fails (`set_strict`).
+- **Precision**: Lamlet computes in f64 and the lab in f32. An action's numbers are read at f32, as the code read
+  them. `marchCone` disagreed with the Rust action on one of 487 frames, where the f64 quotient was a rounding short
+  of the step's whole number; `steps` counts a step from its frame (the Rust action was right there by its rounding).
+- **Clicks on the scene**: the script click handler named `scene` runs before `Investigation::click`.
+- **Milestone 5, in part**: O3DE's vectors, lobes, GGX samples, attenuation radius, and falloff curve are its
+  overlay's; the culling tiles, cascades, decal boxes, and SSAO samples stay in its code (camera and tile geometry).
+- **Animations**: a demo's `animation` names a script animation, applied after `Investigation::animation`; O3DE's
+  surface and IBL demonstrations' moved. Story curves per frame (lamlet-in-process.md milestone 5) stay keys.
+
+Validation, as run: viewer snapshots of O3DE's specular, diffuse, IBL, and point light demonstrations identical to
+the Rust drawing's; 93 of O3DE's 97 beat midpoints identical and four differing by one to six anti-aliased pixels
+on a lobe or a curve (f64 against f32 endpoints), the same rendered alone; the selftests compare `pickPixel` with the
+old pick at 336 points (the same), `pickSliceCell` at 6724 clicks, `marchCone` on every frame its story runs it, and
+the animations with their waves; unit tests of the library, shapes, and action arguments.
 
 ## Open questions
 
@@ -279,3 +503,8 @@ The lab keeps no code that only one investigation uses: everything above serves 
    type, with names starting with `_` excluded, as Lamlet's own exports are.
 3. **The error policy in the viewer.** Last good state with an indicator, or the default state? This plan
    assumes the former, as the runtime rules suggest.
+4. **An overlay beside `build_frame`, or replacing parts of it.** Beside it (recommended): the investigation
+   stops drawing what the script draws, and the lab draws the script's shapes after it. That keeps
+   `build_frame`'s contract unchanged.
+5. **Recording interactive sessions.** Logging each click with its time and its natives' results would let an
+   interactive exploration be replayed or recorded as a video. Not needed by any hook above; later, if wanted.

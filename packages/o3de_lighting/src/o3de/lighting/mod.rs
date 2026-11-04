@@ -13,7 +13,6 @@
 //! index in source-index.json (written by source_index.py), the
 //! pseudo-code in pseudocode/, and the readout's formulas in `formulas`.
 
-pub mod actions;
 pub mod brdf;
 pub mod cascades;
 pub mod controls;
@@ -25,6 +24,7 @@ pub mod ibl;
 pub mod maps;
 pub mod pseudocode;
 pub mod reflections;
+pub mod script;
 pub mod selftest;
 pub mod shot;
 pub mod ssao;
@@ -285,14 +285,14 @@ impl Investigation for Lighting {
         controls::parameters(dock, ui);
     }
 
-    /// A click on a surface picks its pixel and inspects its point (actions::pick).
-    fn click(&self, _shown: &ShotState, state: &mut ShotState, content: &FrameContent, _statics: &Statics, _projector: &Projector, pixel: Vec2) -> bool {
-        let viewport = Vec2::from(content.uniforms.camera.viewport_size);
-        actions::pick(state, content, pixel / viewport)
+    /// A click on the scene is its script's (script/picks.lam, `scene`): the lab runs that first.
+    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+        false
     }
 
-    fn actions(&self) -> &'static lab::actions::Actions {
-        &Self::ACTIONS
+    /// What its scripts read from its code (script.rs).
+    fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+        script::register(natives)
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {

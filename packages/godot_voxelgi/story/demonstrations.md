@@ -44,7 +44,7 @@ it.
   its cell coordinates, `cellPicked` 1). The cell is outlined in the scene, its records fill the readout, its texel
   is marked in the slice insets (link lines from the inset's marker to the cell). A story shows the same pick by
   setting the same values.
-- **Click a slice inset** (`#[click] pick_slice_cell`): picks the cell under the click at the slice's height and mip.
+- **Click a slice inset** (`pickSliceCell`, script/logic.lam): picks the cell under the click at the slice's height and mip.
 - **Sliders**: `octreeLevel`, `cellView`, `byteRow`, `edtPass`, `sliceHeight`, `mipLevel`, `dynamicRange`,
   `propagation`, `lightX/Z/Height`, `marchSteps`, `conesShown`, `coneSteps`, `quality`, `sphereRoughness`,
   `pixelU/V` (the worked pixel's place on the sphere), `dynamicX`, `dynamicView`, `shrinkLevel`, `viewMode`, `interior`,

@@ -347,6 +347,7 @@ impl App {
                     for (k, v) in investigation::current().animation(s.demo, self.demo_time) {
                         s.set(k, v);
                     }
+                    crate::script::runtime::animate(s.demo, self.demo_time, &mut s);
                     s.camera = shot::camera_drift(s.camera, self.drift_from, self.demo_time, drift(&s));
                 }
                 s
@@ -472,6 +473,7 @@ impl App {
     /// Whether the demonstration's animation drives `param`.
     fn animated(&self, param: &str) -> bool {
         investigation::current().animation(self.state.demo, self.demo_time).iter().any(|p| p.0 == param)
+            || crate::script::runtime::animate(self.state.demo, self.demo_time, &mut self.state.clone()).is_some_and(|keys| keys.iter().any(|k| k == param))
     }
 
     /// Keep the animation's current values and the swayed camera, so that
@@ -480,6 +482,7 @@ impl App {
         for (k, v) in investigation::current().animation(self.state.demo, self.demo_time) {
             self.state.set(k, v);
         }
+        crate::script::runtime::animate(self.state.demo, self.demo_time, &mut self.state);
         self.state.camera = shot::camera_drift(self.state.camera, self.drift_from, self.demo_time, drift(&self.state));
         self.drift_from = self.demo_time;
     }
@@ -968,8 +971,11 @@ impl App {
         let Some(renderer) = &self.renderer else { return };
         let uv = ((point - picture.min) / picture.size()).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
         let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
-        if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
-            eprintln!("click on an image: {e}");
+        // The scripts' handler of that name, else the investigation's code's.
+        if crate::script::runtime::click(handler, &mut frame).is_none() {
+            if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
+                eprintln!("click on an image: {e}");
+            }
         }
     }
 
@@ -1135,6 +1141,11 @@ impl App {
         // An inset covers the scene behind it; a click on the picture of one
         // with a click handler (`PictureInset::click`) runs the handler.
         if self.last_insets.iter().rev().any(|i| i.frame.contains(point)) {
+            return;
+        }
+        // The scripts' `scene` click handler, else the investigation's code's.
+        let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
+        if crate::script::runtime::click("scene", &mut frame).is_some() {
             return;
         }
         let projector = Projector::new(&content.uniforms.camera);

@@ -7,9 +7,10 @@ evaluate scripts live. The language-side work it relies on is general and lives 
 
 Status (2026-11-03): milestone 1 is done, and the storyboards are Lamlet presentations read through it
 (`tools/video/presentation.py`; `tools/video/README.md` and the `render-lab-lamlet` skill describe the format).
-The lab pins Lamlet v0.3.1 and lamlet-present v0.1.3, `lab/src/script/` is its host, and `render-lab lamlet
+The lab pins Lamlet v0.4.0 and lamlet-present v0.1.4, `lab/src/script/` is its host, and `render-lab lamlet
 ir|deck|vocab|toml` and `render-lab story keys` are its commands. Milestone 3 is done and 2 in part
-([lamlet-typed-content.md](lamlet-typed-content.md)); 4 and 5 are open.
+([lamlet-typed-content.md](lamlet-typed-content.md)); 4 is done ([lamlet-live-logic.md](lamlet-live-logic.md): the
+viewer's engine runs a package's scripts); 5 is open.
 
 ## What runs where
 
@@ -27,9 +28,9 @@ ir|deck|vocab|toml` and `render-lab story keys` are its commands. Milestone 3 is
 - **Pinned by git tag**, because Lamlet is not stable yet: in `lab/Cargo.toml`,
 
   ```toml
-  lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.1" }
-  lamlet-doc = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.1" }
-  lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.1.3" }
+  lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.4.0" }
+  lamlet-doc = { git = "https://github.com/lamlet/lamlet", tag = "v0.4.0" }
+  lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.1.4" }
   ```
 
   `Cargo.lock` records the exact commits. The lab's `lamlet` tag must be the one lamlet-present depends on (its

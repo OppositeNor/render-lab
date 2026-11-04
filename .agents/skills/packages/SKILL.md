@@ -195,6 +195,10 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
   `pub` (not `pub(crate)`), and a lab macro `#[macro_export]`.
 - Add a public package to the root `Cargo.toml`'s `[workspace] members` and `default-members`, so
   `cargo build --release --locked --offline` builds it.
+- **Behaviour can be content instead of code:** a resource `script/<name>` (Lamlet) is a script the lab runs: overlays,
+  readout rows, click handlers, actions, Play animations (the `render-lab-lamlet` skill, section 6). The library keeps
+  what is heavy and exposes it to them through `Investigation::script_natives`; `render-lab --investigation <id>
+  script check` checks them. A script edit shows on the next launch without rebuilding the library.
 
 ### The negotiation, in short
 

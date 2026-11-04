@@ -60,6 +60,9 @@ pub struct DemoSpec {
     pub camera: OrbitCamera,
     /// The parameters it changes, in the order they apply.
     pub params: Vec<(&'static str, f32)>,
+    /// Its Play animation in the package's scripts (`animation = "playSurface"`, src/script/runtime.rs), applied
+    /// after the investigation's own (`Investigation::animation`).
+    pub animation: Option<&'static str>,
 }
 
 /// An investigation's demonstrations and parameters.
@@ -233,6 +236,7 @@ impl Demos {
                     hint: string(table, "hint-text")?.map(leak),
                     scene,
                     listing: string(table, "listing")?.map(leak),
+                    animation: string(table, "animation")?.map(leak),
                     resets_camera: table.get("resets-camera").map(|r| r.as_bool().context("`resets-camera` is true or false")).transpose()?.unwrap_or(false),
                     camera: camera.context("no `[camera]`, in the file or a preset")?,
                     params: overrides,

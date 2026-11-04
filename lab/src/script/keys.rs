@@ -68,7 +68,8 @@ fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     out.push(options("imageFrom", "imageFrom", kinds.iter().map(|k| k.key.to_string())));
     out.push(key("imageGraph", "imageGraph", "text"));
     out.push(options("imageShow", "imageShow", crate::graph::Show::ALL.map(|s| s.key().to_string())));
-    out.push(options("imageClick", "imageClick", investigation.actions().clicks.iter().map(|c| c.key.to_string())));
+    let clicks = investigation.actions().clicks.iter().map(|c| c.key.to_string());
+    out.push(options("imageClick", "imageClick", clicks.chain(crate::script::runtime::click_handlers())));
     for name in ["arrow", "arrowColor", "label", "labelColor"] {
         out.push(key(name, name, "text"));
     }
@@ -79,7 +80,8 @@ fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     out.push(key("delay", "delay", "float"));
     out.push(key("term", "term", "int"));
     out.push(options("camera", "camera", ["continuous".to_string()]));
-    out.push(options("run", "run", investigation.actions().specs.iter().map(|s| s.key.to_string())));
+    let scripts = crate::script::runtime::actions();
+    out.push(options("run", "run", investigation.actions().specs.iter().map(|s| s.key.to_string()).chain(scripts.iter().map(|a| a.name.clone()))));
     out.push(key("stop", "stop", "text"));
     out.push(options("formula", "formula", ["off".to_string()]));
     for name in ["card", "display", "colors"] {
@@ -132,17 +134,17 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
             merge(&mut dotted, format!("image.{}", p.key), if p.components > 1 { "vector" } else { "float" });
         }
     }
-    for spec in investigation.actions().specs {
-        for a in spec.args {
-            use crate::actions::ArgKind;
-            let kind = match a.kind {
-                ArgKind::Number | ArgKind::Index | ArgKind::Integer => "float",
-                ArgKind::Toggle => "bool",
-                ArgKind::Vector(_) => "vector",
-                ArgKind::Name => "text",
-            };
-            merge(&mut dotted, format!("run.{}", a.key), kind);
-        }
+    let script_args: Vec<(String, crate::actions::ArgKind)> = crate::script::runtime::actions().into_iter().flat_map(|a| a.args).map(|a| (a.key, a.kind)).collect();
+    let code_args = investigation.actions().specs.iter().flat_map(|s| s.args).map(|a| (a.key.to_string(), a.kind));
+    for (key, kind) in code_args.chain(script_args) {
+        use crate::actions::ArgKind;
+        let kind = match kind {
+            ArgKind::Number | ArgKind::Index | ArgKind::Integer => "float",
+            ArgKind::Toggle => "bool",
+            ArgKind::Vector(_) => "vector",
+            ArgKind::Name => "text",
+        };
+        merge(&mut dotted, format!("run.{key}"), kind);
     }
     // A dotted key is named after it (`image.mip` is `imageMip`), or `imageParam…`/`runArg…` where that name is taken.
     let taken: std::collections::BTreeSet<String> = out.iter().filter_map(|k| lamlet_present::vocab::camel(&[k["name"].as_str()?]).ok()).collect();

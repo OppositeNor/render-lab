@@ -237,7 +237,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 /// with the `text = "…"` and `help = "…"` of their `#[value(…)]` attributes (the lab's
 /// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
 /// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle`, `imageMarkText`, and
-/// `labelText` attributes of the cues in its storyboards (`.lam`) and the `titleText` of its Lamlet data files,
+/// `labelText` attributes of the cues in its storyboards (`.lam`), the `titleText` of its Lamlet data files,
+/// and the `{textKey "…"}` its scripts name (lab/src/script/runtime.rs),
 /// and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
 /// `target/`).
@@ -279,7 +280,7 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
                         keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
                     }
                 }
-                for name in ["imageTitle", "imageMarkText", "labelText"] {
+                for name in ["imageTitle", "imageMarkText", "labelText", "textKey"] {
                     let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
                     for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {
                         let rest = &line[i + found.len()..];

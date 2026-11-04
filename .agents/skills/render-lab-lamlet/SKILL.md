@@ -1,6 +1,6 @@
 ---
 name: render-lab-lamlet
-description: Work with Lamlet in Render Lab - the storyboards, which are Lamlet presentations (`packages/<package>/video/storyboard.lam` and `storyboard.zh-CN.lam`, read by `tools/video/presentation.py`), their cue vocabulary (`render-lab story keys`), the lab's own Lamlet package (`packages/render_lab/language/render_lab.lam`), and the lab's pinned Lamlet and its `render-lab lamlet` commands. Use when writing or editing a storyboard, `render_lab.lam`, or the lab's Lamlet code, together with the `lamlet` and `lamlet-present` skills for the language and the presentation format.
+description: Work with Lamlet in Render Lab - the storyboards, which are Lamlet presentations (`packages/<package>/video/storyboard.lam` and `storyboard.zh-CN.lam`, read by `tools/video/presentation.py`), their cue vocabulary (`render-lab story keys`), the lab's own Lamlet package (`packages/render_lab/language/render_lab.lam`), a package's scripts that the lab runs live (`script/*.lam`: overlays, readouts, click handlers, actions, animations; the runtime library `packages/render_lab/language/runtime.lam`, `render-lab script check|stubs`), and the lab's pinned Lamlet and its `render-lab lamlet` commands. Use when writing or editing a storyboard, a package's script or the runtime library, `render_lab.lam`, or the lab's Lamlet code, together with the `lamlet` and `lamlet-present` skills for the language and the presentation format.
 ---
 
 # Lamlet in Render Lab
@@ -134,11 +134,56 @@ Tests: `python3 -m unittest tools/video/test_markup.py tools/video/test_presenta
 (the second skips until the lab is built). A change to a storyboard's form or to the reader leaves every edition's
 prepared outputs equal (`tools/video/compare.py`, tools/video/README.md).
 
-## 6. Rules
+## 6. Scripts: Lamlet the lab runs
+
+A package's **scripts** are Lamlet the lab runs while the viewer plays and while a video records
+(`lab/src/script/runtime.rs`; the plan and its decisions are `todo/lamlet-live-logic.md`). The split: what is heavy
+or engine math stays the package's native code (passes, CPU mirrors, a ray into the scene, octrees), and a script
+says what to do with it: where an overlay's arrows, lobes, and labels go, what a click sets, how a value moves
+over time, what a readout row says.
+
+- **Where.** Each resource `script/<name>` of the investigation's package (`[[resource]] id = "script/overlay"`,
+  `source = "script/overlay.lam"`) is a script; the package's other scripts import it as `<package>_<name>`.
+- **Imports.** `std`; render_lab's runtime library `render_lab_runtime`
+  (`packages/render_lab/language/runtime.lam`: the hooks' types, `Vec3` and vector functions, shapes, eases and
+  curves, `text`, `demo`, colours); the investigation's **values package** `<package>_values`, which the lab
+  writes from its values: a reader per key (`{vectorsShown}`, the shot the hook reads) and a setter
+  (`{setVectorsShown 1.0}`, a `Write`), a choice as a variant (`{setViewMode {#final unit}}`); its natives
+  `<package>_natives`; and the lab's `rl_runtime` (`trace`, the readers' natives). A key whose name std, the
+  library, or the natives already have is left out of the values package (`script stubs` lists them).
+- **Hooks**, found by their type (ascribe it; a name starting with `_` is never one):
+
+  | Hook | Type | The lab |
+  |---|---|---|
+  | overlay | `Overlay` = `Fn([Float], List(Shape))` | draws its shapes over every frame (`shader_data::build_frame`), at `FrameContent::overlay_at` when the code marks its place |
+  | readout | `Readout` = `Fn([Float], List(Row))` | adds its rows to the frame's readout |
+  | click handler | `ClickHandler` = `Fn([Click], List(Write))` | runs it for an image's `imageClick` of its name; the one named `scene` takes a click on the scene, before `Investigation::click` |
+  | action | `{Action Args}` = `Fn([Float, Args], List(Write))` | runs it from a story's `{run "name"}`, with `run.<arg>` as the record `Args` (its fields' types are the arguments' kinds) |
+  | animation | `Animation` = `Fn([Float], List(Write))` | the viewer's Play animation of a demonstration whose file names it (`animation = "playSurface"`), after the code's |
+
+- **No state.** A hook is a function of what it is passed (the time, a click, its arguments) and what it reads;
+  it keeps nothing between calls, so seeking and recording stay exact. A sequence is a function of time (`seq`,
+  `span`, `steps`); a hook returns a description, which the lab checks whole and then applies (writes all or none).
+  Lamlet computes in f64 and the lab in f32: count steps with `steps`, which counts a step from its frame.
+- **Natives.** `Investigation::script_natives` registers the package's (`<package>/<name>`). One that reads the
+  frame takes what `build_frame` left in `FrameContent::script` (`lab::script::runtime::frame_data::<T>()`), so it
+  computes nothing twice; `state`, `frame`, and `statics` read the call's context. A native works on a whole list
+  (all of a lobe's directions in one call), and `lab::lamlet_record!` declares a record it returns. Its name must not
+  be a value's key (the key would leave the values package).
+- **Text.** A label's or a row's text is a text key: `{labelText at {textKey "demos.observer"} color}`, or
+  `{text {textKey "…"}}` for the string; the text check (`lab/check`) finds `textKey`.
+- **Errors.** A script that does not check fails when its package loads, with its line (`render-lab --investigation
+  <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
+  (`set_strict`); in the viewer it keeps its last good shapes, sets nothing, and shows its message as a note until
+  it succeeds again. A script hook named like one of the code's (`#[click]`, `#[action]`) is an error.
+- **Examples.** `packages/o3de_lighting/script/` (overlay, readout, picks, animations; natives in `script.rs`) and
+  `packages/godot_voxelgi/script/logic.lam` (`marchCone`, `pickSliceCell`).
+
+## 7. Rules
 
 - **Builds** stay `--locked --offline` and clean (`AGENTS.md`). The Lamlet crates are pinned by git tag; never
   depend on a path outside the repository. `vendor/` is regenerated by `setup.sh`, never edited.
-- **The lab names no investigation** in its Lamlet code; investigations reach it through the `Investigation`
-  trait, as everywhere else.
+- **The lab names no investigation** in its Lamlet code (the runtime library included); investigations reach it
+  through the `Investigation` trait, as everywhere else.
 - **Ids and names in documents** use `-` (`c1-room`, range names); Lamlet package names use `_`.
 - **Read only tracked files** (`git ls-files`), and never name anything outside git.

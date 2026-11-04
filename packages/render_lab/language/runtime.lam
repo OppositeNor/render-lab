@@ -1,0 +1,262 @@
+render_lab's runtime library for Lamlet
+=======================================
+
+A package's scripts (its `script/…` resources, lab/src/script/runtime.rs) are Lamlet that the lab runs while the
+viewer plays and while a video records: what the investigation's native code computes stays native (its passes,
+its CPU mirrors, a ray through the scene), and the scripts say what to do with it (where an overlay's arrows go,
+what a click sets, how a value moves over time). Every script imports this package as
+`$$[Import* render_lab_runtime]`; it is the same for every investigation.
+
+A script keeps nothing between calls. Each hook is a function of what the lab passes in (the frame's time, a
+click, an action's arguments) and of what it reads (the shot's values, through the investigation's values
+package `<package>_values`, and the natives), and returns a description: shapes to draw, or values to set, which
+the lab checks and applies after the call returns.
+
+$[Import* std]$[ImportAs rl_runtime rt]
+
+Types
+
+A point or a direction in the scene, in metres; and the two- and four-component vectors values hold.
+$[# Vec3 [% {Struct {' {Field "x" Float} {Field "y" Float} {Field "z" Float}}}]]
+$[# Vec2 [% {Struct {' {Field "x" Float} {Field "y" Float}}}]]
+$[# Vec4 [% {Struct {' {Field "x" Float} {Field "y" Float} {Field "z" Float} {Field "w" Float}}}]]
+
+A value a hook sets: a key of the shot (lab/src/values.rs) and its value. The values package's setters
+(`setVectorsShown 1.0`) make them; the lab checks every one (the key, its type, an integer's range) before it
+applies any, in order.
+$[# Write [% {Struct {' {Field "key" String} {Field "value" Data}}}]]
+
+$[# _Segment [% {Struct {' {Field "from" Vec3} {Field "to" Vec3} {Field "color" String} {Field "alpha" Float}
+    {Field "width" Float} {Field "arrow" Bool} {Field "dashed" Bool}}}]]
+$[# _Point [% {Struct {' {Field "at" Vec3} {Field "radius" Float} {Field "color" String} {Field "alpha" Float}}}]]
+$[# _Label [% {Struct {' {Field "at" Vec3} {Field "text" String} {Field "color" String}}}]]
+
+What an overlay draws over the scene (lab/src/frame.rs `DrawLists`, `Label`): a segment (an arrow, or dashed), a
+point, or a label beside a point, whose text is written out (`label`) or a key of the package's text table
+(`labelText`). A colour is `#rrggbb`, or one of the theme's, which follow the viewer's theme: `textColor`,
+`textDimColor`, `textFaintColor`, `accentColor`. Nothing with an alpha of 0 or less is drawn.
+$[# Shape [% {Variant {' {Field "segment" _Segment} {Field "point" _Point} {Field "label" _Label}
+    {Field "labelText" _Label}}}]]
+
+A row of the readout beside the scene (lab/src/frame.rs `Readout`): its name, its value, and the value's colour
+(as a shape's).
+$[# Row [% {Struct {' {Field "name" String} {Field "value" String} {Field "color" String}}}]]
+
+A click on an image or the scene: the point clicked, 0 to 1 across and down.
+$[# Click [% {Struct {' {Field "u" Float} {Field "v" Float}}}]]
+
+The hooks the lab finds in a package's scripts by their types (a binding whose name starts with `_` is never
+one):
+
+- an overlay, `Overlay`, the shapes drawn over each frame at its time in seconds;
+- a readout, `Readout`, rows added to the frame's readout (after the investigation's own), at its time;
+- a click handler, `ClickHandler`, named by its binding as a `#[click]` handler is (`imageClick`);
+- an action, `{Action Args}`, which a story runs (`{run "name"}`) with its arguments as the record `Args`, at the
+  seconds since the story started it;
+- an animation, `Animation`, the values at a demonstration's time in seconds (its `animation` in the demo's
+  TOML).
+
+A hook's type must be exactly one of these: ascribe it (`{: {^ {t} …} Overlay}`).
+$[# Overlay [% {Fn {' Float} {List Shape}}]]
+$[# Readout [% {Fn {' Float} {List Row}}]]
+$[# ClickHandler [% {Fn {' Click} {List Write}}]]
+$[# Animation [% {Fn {' Float} {List Write}}]]
+$[# {Action args} {Fn {' Float args} {List Write}}]
+
+The shot
+
+Fn([], String). The key of the demonstration the shot shows (`ibl`).
+$[# {demo} {rt::demo}]
+
+Fn([String], String). The package's text `key` (`textKey`) in the viewer's language, or the lab's.
+$[# {text key} {rt::text key}]
+
+Vectors
+
+Fn([Float, Float, Float], Vec3). A vector.
+$[# {vec3 x y z} {: {. x x y y z z} Vec3}]
+Fn([Vec3, Vec3], Vec3). The sum.
+$[# {vadd a b} {vec3 {+ {.x a} {.x b}} {+ {.y a} {.y b}} {+ {.z a} {.z b}}}]
+Fn([Vec3, Vec3], Vec3). The difference.
+$[# {vsub a b} {vec3 {- {.x a} {.x b}} {- {.y a} {.y b}} {- {.z a} {.z b}}}]
+Fn([Vec3, Float], Vec3). Scaled by `s`.
+$[# {vscale a s} {vec3 {* {.x a} s} {* {.y a} s} {* {.z a} s}}]
+Fn([Vec3, Vec3], Float). The dot product.
+$[# {vdot a b} {+ {+ {* {.x a} {.x b}} {* {.y a} {.y b}}} {* {.z a} {.z b}}}]
+Fn([Vec3, Vec3], Vec3). The cross product.
+$[# {vcross a b} {vec3 {- {* {.y a} {.z b}} {* {.z a} {.y b}}} {- {* {.z a} {.x b}} {* {.x a} {.z b}}}
+    {- {* {.x a} {.y b}} {* {.y a} {.x b}}}}]
+Fn([Vec3], Float). The length.
+$[# {vlength a} {sqrt {vdot a a}}]
+Fn([Vec3], Vec3). The unit vector along `a`.
+$[# {vnormalize a} {vscale a {/ 1.0 {vlength a}}}]
+
+Fn([Vec3], Vec3). A unit vector perpendicular to the unit vector `n` (Duff et al. 2017, "Building an
+Orthonormal Basis, Revisited", as glam's `any_orthonormal_vector`).
+$[# {anyOrthonormal n}
+    [# sign {!if {< {.z n} 0.0} -1.0 1.0}]
+    [# a {/ -1.0 {+ sign {.z n}}}]
+    {vec3 {* {* {.x n} {.y n}} a} {+ sign {* {* {.y n} {.y n}} a}} {neg {.y n}}}]
+
+Fn([Vec3, Vec3], Vec3). The direction perpendicular to `n` in the plane of `n` and `l`, or any perpendicular one
+when `l` is along `n`.
+$[# {inPlane n l}
+    [# t {vsub l {vscale n {vdot n l}}}]
+    {!if {> {vdot t t} 0.000001} {vnormalize t} {anyOrthonormal n}}]
+
+Fn([Vec3, Vec3], Vec3). The mirror direction of `l` about the normal `n`.
+$[# {mirror n l} {vnormalize {vsub {vscale n {* 2.0 {vdot n l}}} l}}]
+
+Fn([Vec3, Vec3, Int], List(Vec3)). `count + 1` directions swept from horizon to horizon through `n`, in the
+plane of `n` and its perpendicular `t`.
+$[# {sweep n t count}
+    {map {range 0 {+ count 1}} {^ {k}
+        [# a {* {- {/ {float k} {float count}} 0.5} pi}]
+        {vadd {vscale n {cos a}} {vscale t {sin a}}}}}]
+
+Easings and curves
+
+A curve is a function of time, `Fn([Float], Float)`: an animation is the values its curves give at the
+demonstration's time, an action's at the seconds since the story started it. Nothing remembers where a value
+was; a sequence is a function of time too (`seq`).
+
+The lab's eases (lab/src/animation.rs `Ease`), each from 0 to 1 over 0 to 1.
+
+Fn([Float], Float). Smootherstep: at rest at both ends (the lab's `smooth`).
+$[# {smooth x} {* {* {* x x} x} {+ {* x {- {* x 6.0} 15.0}} 10.0}}]
+Fn([Float], Float). Constant speed.
+$[# {linear x} x]
+Fn([Float], Float). Cubic, from rest.
+$[# {easeIn x} {* {* x x} x}]
+Fn([Float], Float). Cubic, to rest.
+$[# {easeOut x} [# y {- 1.0 x}] {- 1.0 {* {* y y} y}}]
+Fn([Float], Float). Cubic, at rest at both ends.
+$[# {easeInOut x} [# y {- 1.0 x}] {!if {< x 0.5} {* 4.0 {* {* x x} x}} {- 1.0 {* 4.0 {* {* y y} y}}}}]
+Fn([Float], Float). Half a cosine: a ping-pong of it is a pure sine.
+$[# {easeSine x} {- 0.5 {* 0.5 {cos {* pi x}}}}]
+
+Fn([Float, Float], Float). The fraction of `seconds` done `t` seconds in, held at 0 before and 1 after.
+$[# {once seconds t} {clamp {/ t seconds} 0.0 1.0}]
+Fn([Float, Float], Float). The fraction of `seconds` done, starting again every `seconds`.
+$[# {looping seconds t} [# x {/ t seconds}] {- x {float {floor x}}}]
+Fn([Float, Float], Float). The fraction of `seconds` done, running back to 0 and forward again.
+$[# {pingPong seconds t} [# x {/ t seconds}] {- 1.0 {abs {- {- x {* 2.0 {float {floor {/ x 2.0}}}}} 1.0}}}]
+Fn([Float, Float], Int). How many whole steps of `seconds` are done `t` seconds in. A step counts from the frame it
+starts on: `t` comes from whole frames, so a quotient a rounding short of a whole number (4 × 0.7 s is
+2.8 s, but 2.8 / 0.7 is 3.9999999999999996) is that number.
+$[# {steps seconds t} {floor {+ {/ t seconds} 0.0001}}]
+Fn([Float, Float, Fn([Float], Float), Float], Float). From `from` to `to`, eased, at the fraction `x`.
+$[# {tween from to ease x} {lerp from to {ease x}}]
+
+Fn([Float, Float, Float, Float], Float). A sine wave around `center`, `amplitude` high, every `period` seconds
+(the lab's `Wave`: `center + amplitude · sin(2π t / period)`).
+$[# {wave center amplitude period t} {+ center {* amplitude {sin {/ {* {* 2.0 pi} t} period}}}}]
+Fn([Float, Float, Float, Float], Float). The same wave a quarter period earlier, a cosine.
+$[# {cosineWave center amplitude period t} {+ center {* amplitude {sin {+ {/ {* {* 2.0 pi} t} period} {/ pi 2.0}}}}}]
+
+$[# _Span [% {Struct {' {Field "seconds" Float} {Field "curve" {Fn {' Float} Float}}}}]]
+
+Fn([Float, Fn([Float], Float)], {curve: Fn([Float], Float), seconds: Float}). A part of a sequence: a curve
+for `seconds`, given the seconds since its part began.
+$[# {span seconds curve} {: {. seconds seconds curve curve} _Span}]
+
+Fn([List({curve: Fn([Float], Float), seconds: Float}), Float], Float). Parts one after another (at least one):
+at `t`, the part that holds `t`, at the seconds since it began; the last part holds its end after it.
+$[# {seq spans t}
+    [# {_at rest start}
+        [# s {head rest}]
+        [# local {- t start}]
+        {!if {!or {isEmpty {tail rest}} {< local {.seconds s}}}
+            {{.curve s} {clamp local 0.0 {.seconds s}}}
+            {_at {tail rest} {+ start {.seconds s}}}}]
+    {_at spans 0.0}]
+
+Shapes
+
+Fn([Vec3, Vec3, String, Float, Float], Shape). A segment, `width` pixels wide.
+$[# {segment from to color alpha width}
+    {: {#segment {. from from to to color color alpha alpha width width arrow false dashed false}} Shape}]
+Fn([Vec3, Vec3, String, Float, Float], Shape). An arrow from `from` to `to`.
+$[# {arrow from to color alpha width}
+    {: {#segment {. from from to to color color alpha alpha width width arrow true dashed false}} Shape}]
+Fn([Vec3, Vec3, String, Float, Float], Shape). A dashed segment.
+$[# {dashed from to color alpha width}
+    {: {#segment {. from from to to color color alpha alpha width width arrow false dashed true}} Shape}]
+Fn([Vec3, Float, String, Float], Shape). A point, `radius` pixels across.
+$[# {point at radius color alpha} {: {#point {. at at radius radius color color alpha alpha}} Shape}]
+Fn([Vec3, String, String], Shape). A label beside `at`, its text as written (a symbol: `N`).
+$[# {label at text color} {: {#label {. at at text text color color}} Shape}]
+Fn([Vec3, String, String], Shape). A label beside `at`, its text the package's text `key` (`textKey`).
+$[# {labelText at key color} {: {#labelText {. at at text key color color}} Shape}]
+Fn([String], String). A key of the package's text table, as `labelText` takes it; the text check
+(lab/check) finds the keys a script names this way.
+$[# {textKey key} key]
+
+Fn([String, String, String], Row). A readout row.
+$[# {row name value color} {: {. name name value value color color} Row}]
+
+Fn([Int], String). A whole number 0 or more in hexadecimal, upper case, at least two digits (`1F`).
+$[# _hexDigits [% {chars "0123456789ABCDEF"}]]
+$[# {_hex n} {!if {< n 16} {nth _hexDigits n} {++ {_hex {div n 16}} {nth _hexDigits {% n 16}}}}]
+$[# {hex2 n} [# h {_hex n}] {!if {< n 16} {++ "0" h} h}]
+
+Fn([Vec3, Int], String). A vector as `(x, y, z)`, each with `digits` decimals.
+$[# {vectorText v digits} f"{(${fixed {.x v} digits}, ${fixed {.y v} digits}, ${fixed {.z v} digits})}"]
+
+Fn([List(Vec3), String, Float, Float], List(Shape)). Segments through the points in turn.
+$[# {polyline points color alpha width}
+    {!if {isEmpty points} {'}
+        {map {zip points {tail points}} {^ {p} {segment {.first p} {.second p} color alpha width}}}}]
+
+$[# _Arrow [% {Struct {' {Field "name" String} {Field "dir" Vec3} {Field "color" String}}}]]
+
+Fn([String, Vec3, String], {color: String, dir: Vec3, name: String}). One of `grownArrows`'s arrows: its name,
+its direction (a unit vector), and its colour.
+$[# {named name dir color} {: {. name name dir dir color color} _Arrow}]
+
+Fn([Vec3, List({color: String, dir: Vec3, name: String}), Float, Float, Float, Float], List(Shape)). Arrows
+`size` long from `at`, each labelled with its name, the first `count` of them: a fractional count grows the next one
+out of the point (smoothly), and its label shows once it is past 0.6 of its length.
+$[# {grownArrows at arrows size alpha width count}
+    {flatten {map {zip {range 0 {length arrows}} arrows} {^ {e}
+        [# i {float {.first e}}]
+        [# a {.second e}]
+        [# grown {!if {>= count {+ i 1.0}} 1.0 {smooth {- count i}}}]
+        [# tip {vadd at {vscale {.dir a} {* size grown}}}]
+        [# shaft {' {arrow at tip {.color a} alpha width}}]
+        [# name {!if {> grown 0.6} {' {label {vadd at {vscale {.dir a} {+ {* size grown} 0.04}}} {.name a} {.color a}}} {'}}]
+        {!if {> count i} {append shaft name} {'}}}}}]
+
+Fn([List(Float)], Float). The largest value, or 0 when none is above 0.
+$[# {_peak values} {fold values 0.0 max}]
+
+Fn([List(Vec3), List(Float)], Vec3). The direction of the largest value (the last of equal ones).
+$[# {_tip dirs values}
+    {.first {fold {tail {zip dirs values}} {head {zip dirs values}}
+        {^ {best e} {!if {>= {.second e} {.second best}} e best}}}}]
+
+Fn([Vec3, List(Vec3), List(Float), String, Float, Float, Float, Option(String)], List(Shape)). A polar plot
+around `at`: each value as a radius along its direction, scaled so the largest is `size`, closed through `at`;
+with a text key, labelled at its tip. Nothing when no value is above 0.
+$[# {lobeLine at dirs values color size alpha width tag}
+    [# peak {_peak values}]
+    [# {line u} [# points {append {cons at {map {zip dirs values} {^ {e} {vadd at {vscale {.first e} {/ {* size {.second e}} peak}}}}}} {' at}}]
+        {polyline points color alpha width}]
+    [# {_labelled u} {caseOption tag {^ {} {'}} {^ {key} {' {labelText {vadd at {vscale {_tip dirs values} {+ size 0.06}}} key color}}}}]
+    {!if {<= peak 0.0} {'} {append {line unit} {_labelled unit}}}]
+
+Colours
+
+The lab's palette (lab/src/palette.rs): the normal, the direction to the viewer, a reflected ray, an incident
+one, and what is selected.
+$[# normalColor "#6be3b0"]
+$[# viewColor "#8fb8ff"]
+$[# reflectedColor "#ff6fb5"]
+$[# incidentColor "#ffa14a"]
+$[# selectedColor "#ffd166"]
+
+The theme's text colours (full, dim, faint) and its accent, as the viewer's theme draws them.
+$[# textColor "text"]
+$[# textDimColor "textDim"]
+$[# textFaintColor "textFaint"]
+$[# accentColor "accent"]

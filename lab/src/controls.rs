@@ -39,7 +39,7 @@ pub struct Dock<'a> {
     /// A timeline is shown (it adds the Captions tab).
     timeline: bool,
     /// Parameters the demonstration's animation drives.
-    animated: Vec<&'static str>,
+    animated: Vec<String>,
     /// The narration's volume (src/volume.rs).
     narration: Volume,
     /// The timeline's speed.
@@ -153,7 +153,12 @@ impl<'a> Dock<'a> {
             input,
             playing: viewer.playing,
             timeline: viewer.timeline_mode,
-            animated: investigation::current().animation(input.state.demo, 0.0).into_iter().map(|p| p.0).collect(),
+            animated: {
+                // The investigation's animation's keys, and its script animation's (src/script/runtime.rs).
+                let mut keys: Vec<String> = investigation::current().animation(input.state.demo, 0.0).into_iter().map(|p| p.0.to_string()).collect();
+                keys.extend(crate::script::runtime::animate(input.state.demo, 0.0, &mut input.state.clone()).unwrap_or_default());
+                keys
+            },
             narration: viewer.narration,
             speed: viewer.speed,
             actions: Vec::new(),
@@ -626,7 +631,7 @@ impl Dock<'_> {
 
     /// Animated parameters are drawn in the accent colour while they play.
     pub fn color(&self, key: &str, normal: Color32) -> Color32 {
-        if self.playing && self.animated.contains(&key) {
+        if self.playing && self.animated.iter().any(|k| k == key) {
             palette::accent()
         } else {
             normal

@@ -4,6 +4,8 @@ tab = "IBL"
 hint-text = "investigation.demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "ibl-passes"
+# Its Play animation (script/animations.lam).
+animation = "playIbl"
 include = ["close-up"]
 
 [camera]

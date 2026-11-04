@@ -582,5 +582,6 @@
   "home.knowledge_graph_hint": "Every topic the story needs, from three bases up, coloured by what it assumes you know; Esc closes it.",
   "home.prerequisites_more": " and {count} more",
   "home.prerequisites_level": "Starts from: {topics}.",
-  "home.prerequisites_known": "Assumes {count} topics known; it uses these directly: {topics}."
+  "home.prerequisites_known": "Assumes {count} topics known; it uses these directly: {topics}.",
+  "script.error": "Script error: {message}"
 }

@@ -305,3 +305,10 @@ id = "graph/frame"
 kind = "file"
 source = "graphs/frame.toml"
 license = "MIT"
+
+# Its scripts (lab/src/script/runtime.rs): the actions a story runs and the click handlers of its images.
+[[resource]]
+id = "script/logic"
+kind = "file"
+source = "script/logic.lam"
+license = "MIT"

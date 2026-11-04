@@ -938,7 +938,9 @@ fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views
         return Err(format!("imageShow draws a graph image; `{name}` is not one (make it with imageGraph=<node>.<resource>)"));
     }
     if let Some(click) = &key.image_click {
-        investigation::current().actions().check_click(click)?;
+        if !crate::script::runtime::click_handlers().iter().any(|h| h == click) {
+            investigation::current().actions().check_click(click)?;
+        }
     }
     let package = investigation::current().package().unwrap_or("render_lab");
     if let Some(from) = &key.image_from {
@@ -1015,7 +1017,9 @@ impl Timeline {
                 bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
             }
             if let Some(call) = &key.run {
-                if let Err(e) = investigation::current().actions().check(call) {
+                // A script's action, else the investigation's code's.
+                let checked = crate::script::runtime::check_action(call).unwrap_or_else(|| investigation::current().actions().check(call));
+                if let Err(e) = checked {
                     bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
                 }
             }
@@ -1283,6 +1287,10 @@ impl Timeline {
             a.elapsed = (frame - a.started) as f32 / self.fps as f32;
         }
         for action in state.actions.clone() {
+            // A script's action, else the investigation's code's.
+            if crate::script::runtime::run_action(&action, &mut state).is_some() {
+                continue;
+            }
             let elapsed = action.elapsed;
             (actions.run)(&action, &mut ActionFrame { state: &mut state, elapsed }).unwrap_or_else(|e| panic!("{e}, at frame {frame}"));
         }

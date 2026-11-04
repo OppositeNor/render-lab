@@ -48,7 +48,8 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   brings up to date with their sources (`lab/src/cook.rs`, incrementally); resources are read through
   `lab::resources` by full key (`render_lab.font/dejavu-sans`), not with `include_bytes!`; a package's content
   names another package's resources as `<package>.<key>`, only of a package it imports and only keys that package exports.
-  Shaders (`[[shader]]` modules, lab/src/shaders.rs), text tables, listings, source indexes, scenes
+  Shaders (`[[shader]]` modules, lab/src/shaders.rs), scripts (Lamlet the lab runs live: a package's `script/<name>`
+  overlays, readouts, click handlers, actions, and animations, lab/src/script/runtime.rs), text tables, listings, source indexes, scenes
   (`packages/render_lab/scenes/`), demonstrations (a package's `params.toml` and `demos/`, lab/src/demo.rs), and
   narrated timelines (a package's demos) are such content: an edit shows on the next launch, without a rebuild. Nothing
   a scene needs is read before it plays (lab/src/loading.rs).
@@ -80,6 +81,7 @@ python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py 
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
+cargo run --release -- --investigation o3de/lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself

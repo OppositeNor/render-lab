@@ -32,7 +32,8 @@ The story behind the video (research, outline, demonstrations, reviews) is in [`
 Image kinds (GPU views a story shows by key, `render-lab --investigation o3de/lighting images`): `chainTarget` (any
 forward target, the depth, or the stencil), `tileGrid`, `lightList`, `cascadeMap`, `shadowBuffer`, `cubemap`,
 `brdfLut`, `ssaoStage`. Each rings the inspected point (`pickShown`); a click on a view or the scene picks it
-(`pickPixel`).
+(`pickPixel` and `scene`, script/picks.lam). The vectors and lobes at the inspected point are drawn by
+script/overlay.lam, from the CPU mirror's pixel (`script.rs`).
 
 ## What the lab leaves out
 
