@@ -15,7 +15,7 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::OnceLock;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub enum Locale {
     #[default]
     #[serde(rename = "en")]

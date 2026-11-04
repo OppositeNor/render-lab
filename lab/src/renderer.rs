@@ -221,6 +221,8 @@ pub struct Renderer {
     reference_drawn: bool,
     /// The sizes the viewer's user dragged (src/config.rs); the default for a recording.
     pub user_layout: crate::config::ViewerLayout,
+    /// A recording's code panel width for each listing and language (ui::code_panel_fit).
+    code_fit: HashMap<(&'static str, crate::i18n::Locale, crate::pseudocode::Style), f32>,
     /// The pointer's cursor the last frame's interface asked for (egui's).
     pub cursor: egui::CursorIcon,
     /// When each recent frame started rendering, for the performance panel's frame times.
@@ -821,6 +823,7 @@ impl Renderer {
             compare_params,
             reference_drawn: false,
             user_layout: Default::default(),
+            code_fit: HashMap::new(),
             cursor: egui::CursorIcon::Default,
             frame_starts: std::collections::VecDeque::new(),
             fetches: crate::fetch::Queue::default(),
@@ -944,7 +947,8 @@ impl Renderer {
 
     /// `dock`: the interactive viewer's layout with the slider dock.
     /// With `values`, the panel shows (the Experiments tab's values) whatever the state's panel mode.
-    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool, values: bool) -> Layout {
+    /// `code_width`: the code panel's width when a listing shows (a recording's, fit to it).
+    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool, values: bool, code_width: Option<f32>) -> Layout {
         let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden || values;
         let mut layout = self.layout();
         if dock {
@@ -952,7 +956,10 @@ impl Renderer {
         }
         // The pseudo-code and the knowledge graph take the wider panel.
         let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Knowledge | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
-        layout = layout.with_user(&self.user_layout, dock, code);
+        layout = match code_width {
+            Some(width) if code && state.panel == crate::shot::PanelMode::Code => layout.with_panel_width(width),
+            _ => layout.with_user(&self.user_layout, dock, code),
+        };
         layout.for_panel(panel)
     }
 
@@ -1705,7 +1712,25 @@ impl Renderer {
         }
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
         let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if v.tab == ui::DockTab::Experiments);
-        let mut layout = self.layout_for(request.state, request.scene_type, dock, values);
+        // A recording's code panel is as wide as its listing needs.
+        let listing = match &request.chrome {
+            Chrome::Recording { .. } if request.state.panel == crate::shot::PanelMode::Code => request.state.code.as_deref().and_then(|c| investigation::current().listing(c)),
+            _ => None,
+        };
+        let code_width = listing.map(|listing| {
+            let key = (listing.name, crate::i18n::current(), crate::pseudocode::style());
+            if let Some(width) = self.code_fit.get(&key) {
+                return *width;
+            }
+            // The fonts are there from the first pass on.
+            if self.egui_ctx.cumulative_pass_nr() == 0 {
+                let _ = self.egui_ctx.run_pass(egui::RawInput::default(), |_| {});
+            }
+            let width = ui::code_panel_fit(&self.egui_ctx, listing);
+            self.code_fit.insert(key, width);
+            width
+        });
+        let mut layout = self.layout_for(request.state, request.scene_type, dock, values, code_width);
         let scene_beat = request.scene_type == SceneType::ThreeD;
         // A split scene area: the views beside the main one, each in its own
         // rectangle; the main view takes the last (Investigation::panes).

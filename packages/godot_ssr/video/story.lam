@@ -17,3 +17,17 @@ $[# baseRoom {append {append {' {floorMetallic 1.0} {skyReflection 0.0} {ssrEnab
 A camera low over the floor, the teapot and the sphere reflected in it.
 
 $[# lowCamera {' {cameraTarget {' 0.0 0.55 -0.6}} {cameraYaw 18.0} {cameraPitch 10.0} {cameraDistance 5.6}}]
+
+The march's worked example: P on the inside of the teapot's spout, whose ray crosses the gap to the teapot's body (far
+wall's low columns, then the body's tall ones). A camera close beside the teapot, the spout clear of the trace's inset.
+
+$[# spoutCamera {' {cameraTarget {' -0.15 0.38 -1.7}} {cameraYaw 35.0} {cameraPitch 12.0} {cameraDistance 1.8}}]
+
+P is an SSR pixel, and the panel beside the scene sets the scene's width, so the same spot of the spout is a pixel of
+its own for each panel: beside the values panel (613 by 364 SSR pixels) and beside the trace listing's code panel (522
+by 364: a recording fits the code panel to its listing, ui::code_panel_fit, so a change to that listing moves it). The
+two pyramids' cells fall differently, so the two walks differ after the first iterations; the story narrates the code
+panel's.
+
+$[# spoutValues {' {pickX 368.0} {pickY 198.0}}]
+$[# spoutCode {' {pickX 297.0} {pickY 198.0}}]

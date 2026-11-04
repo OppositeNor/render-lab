@@ -2461,6 +2461,49 @@ fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highli
     report.code_overflow += code_view::draw(ink, Rect::from_min_max(pos2(x, y), pos2(x + width, rect.max.y - 12.0)), code_view::Language::Python, &sections, true, None);
 }
 
+/// The code panel's width that shows `listing` as `draw_code` lays it out, in the listing style in use,
+/// without wrapping a line or shortening its header: what a recording gives it (Layout::with_panel_width
+/// keeps it inside the canvas), at most CODE_PANEL_WIDTH. `ctx`'s fonts measure it.
+pub fn code_panel_fit(ctx: &egui::Context, listing: &crate::pseudocode::Listing) -> f32 {
+    let measure = |text: &str, size: f32, family: FontFamily| ctx.fonts_mut(|f| f.layout(text.to_string(), egui::FontId::new(size, family), Color32::WHITE, f32::INFINITY).size().x);
+    let column = measure("0", 24.0, FontFamily::Monospace);
+    // The header: its heading, the listing's title, and its source on two lines at most.
+    let mut inner = measure(&tr("ui.python_pseudo_code"), 30.0, bold()).max(measure(listing.title(), 24.0, FontFamily::Proportional));
+    if let Some(entry) = sources::index().entries.get(&listing.source) {
+        let engine = investigation::current().wording().engine_short;
+        for text in [format!("≈ {engine}: {}", entry.short_symbol()), format!("    {}:{}", entry.file_name(), entry.line)] {
+            inner = inner.max(measure(&text, 24.0, FontFamily::Proportional));
+        }
+    }
+    let chars = |t: &str| t.chars().count() as f32;
+    let code = if crate::pseudocode::style() == crate::pseudocode::Style::Blocks {
+        // As BlockPainter::stack: each bar's lines from their first's indent, a body an arm further in.
+        fn width(blocks: &[crate::pseudocode::Block], listing: &crate::pseudocode::Listing, column: f32, dispatch: &mut Option<f32>) -> f32 {
+            use crate::pseudocode::Block;
+            let indent = |t: &str| t.chars().take_while(|c| *c == ' ').count();
+            let bar = |lines: &std::ops::Range<usize>| {
+                let base = indent(&listing.lines[lines.start].text);
+                let widest = listing.lines[lines.clone()].iter().map(|l| l.text.chars().count() - indent(&l.text).min(base)).max().unwrap_or(0);
+                BLOCK_EDGE + BLOCK_TEXT + 4.0 + widest as f32 * column + 1.0
+            };
+            blocks.iter().map(|block| match block {
+                Block::Hat { lines } => dispatch.take().unwrap_or_else(|| bar(lines)),
+                Block::Stmt { lines } | Block::Cap { lines } => bar(lines),
+                Block::Note { line } => BLOCK_EDGE + BLOCK_TEXT + listing.lines[*line].text.trim_start().chars().count() as f32 * column,
+                Block::Gap => 0.0,
+                Block::C { arms } => arms.iter().map(|a| bar(&a.head).max(BLOCK_ARM + width(&a.body, listing, column, dispatch))).fold(0.0, f32::max),
+            }).fold(0.0, f32::max)
+        }
+        let mut dispatch = listing.dispatch().map(|d| measure(d, 24.0, bold()) + BLOCK_EDGE + BLOCK_TEXT + 8.0);
+        // draw_blocks is given 20 more than the header.
+        width(&crate::pseudocode::blocks(listing), listing, column, &mut dispatch) - 20.0
+    } else {
+        // code_view::draw wraps a line longer than the columns its width holds.
+        listing.lines.iter().map(|l| chars(&l.text)).fold(0.0, f32::max) * column + 1.0
+    };
+    (inner.max(code) + 44.0).ceil().min(CODE_PANEL_WIDTH)
+}
+
 /// The block style's spacing, tighter for a listing that would not fit.
 #[derive(Clone, Copy)]
 struct BlockSpacing {

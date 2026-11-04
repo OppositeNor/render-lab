@@ -523,7 +523,17 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
             if a <= 0.0 {
                 continue;
             }
+            // Past the window's edge (a far wall's depth, or one already behind the ray): an arrow at that edge
+            // pointing to it, in the mark's own row, so the comparison still reads.
             if !inside(tt) {
+                let right = tt > t0 + width;
+                let (edge, back) = if right { (u1, u1 - 0.05) } else { (u0, u0 + 0.05) };
+                let y = v0 + 0.075 + 0.05 * j as f32;
+                content.draw.segment(on(Vec2::new(back, y)), on(Vec2::new(edge, y)), color, alpha * 0.9 * a, 2.0, frame::FLAG_ARROW);
+                if named == Some(k) {
+                    let x = if right { back - 0.006 } else { back + 0.006 };
+                    content.draw.text(on(Vec2::new(x, y - 0.015)), text, color, [if right { 1.0 } else { 0.0 }, 0.0]);
+                }
                 continue;
             }
             let x = at(tt, lo).x;
@@ -580,7 +590,6 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let last = Image::new([1, 1], 4);
     let inputs = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, state.p("ssrFadeIn"), state.p("ssrFadeOut"), state.p("ssrDepthTolerance"));
     let t = inputs.trace(pixel);
-    if std::env::var("SSR_DUMP").is_ok() { for (k, s) in t.steps.iter().enumerate() { eprintln!("STEP {k} L{}->{} t {:.6}->{:.6} hit {} held {} edge {:.6} depth {:.6}", s.level, s.next_level, s.t, s.next_t, s.hit, s.held, s.edge_t, s.depth_t); } eprintln!("EXIT {:?}", t.exit); }
     let stepper = Stepper::new(&t, state.p("traceStep"));
     // The views over this one (the field, the cross-section) fade its own pictures as they cover it.
     let room = 1.0 - covered(state);
@@ -778,9 +787,14 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
     for y in 0..h as i32 {
         plot(&mut rgba, w, h, mx, y, palette::REFLECTED);
     }
-    let title = tr_with("demos.fade_chart", lab::args!(peak = format!("{peak:.2}"), at = format!("{at:.2}")));
-    let marker = Marker { at: [at, 1.0 - peak], color: palette::SELECTED, label: format!("{peak:.2}") };
-    content.insets.push(PictureInset { marker: Some(marker), ..PictureInset::new(title, Picture::Pixels { key: "ssr-fade-chart".into(), size: [w, h], rgba: Arc::new(rgba) }, [360.0, 180.0]) });
+    // The circle and the line told apart in the inset's own lines, in their colours (a marker's label would hide the curve).
+    let marker = Marker { at: [at, peak], color: palette::SELECTED, label: String::new() };
+    let lines = vec![
+        (tr_with("demos.fade_peak", lab::args!(peak = format!("{peak:.2}"), at = format!("{at:.2}"))), palette::SELECTED),
+        (tr_with("demos.fade_p", lab::args!(len = format!("{:.2}", t.ray_len), fade = format!("{:.2}", trace::fade(t.ray_len.clamp(0.0, 1.0), fade_in, fade_out)))), palette::REFLECTED),
+    ];
+    let picture = Picture::Pixels { key: "ssr-fade-chart".into(), size: [w, h], rgba: Arc::new(rgba) };
+    content.insets.push(PictureInset { marker: Some(marker), x_axis: tr("demos.ray_len").to_string(), y_axis: tr("demos.fade_axis").to_string(), lines, ..PictureInset::new(tr("demos.fade_chart"), picture, [360.0, 180.0]) });
 }
 
 /// P's roughness as a cone, the circle inside it where the ray ends, and the blur level.

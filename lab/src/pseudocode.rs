@@ -20,7 +20,7 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 /// How the code panel draws a listing.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Style {
     /// Python text, indented.
     Text,
