@@ -67,6 +67,7 @@ pub mod rich_text;
 pub mod scene;
 pub mod script;
 pub mod shader_data;
+pub mod shading_file;
 pub mod shaders;
 pub mod shot;
 /// The knowledge graph and an investigation's audience (the Prerequisites tab, the knowledge panel).

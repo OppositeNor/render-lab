@@ -5,112 +5,20 @@
 //! path (rendering/environment/screen_space_reflection/half_size, default on).
 
 use glam::{Mat4, Vec4};
-use lab::investigation::{
-    Access::{self, Load, Sampled, Sampler, Uniform, Write},
-    Element, ImageKind, PassKind, ProgramBuffer, ProgramCommand, ProgramFrame, ProgramImage, ProgramPass, ProgramStage, ProgramUse, ShadingProgram,
-    Which::{self, First, Mip},
-};
-use wgpu::TextureFormat as F;
-
-/// The levels one pass may write (a bind group per level): more than any view needs.
-pub const LEVELS: u32 = 16;
+use lab::investigation::{Element, ProgramCommand, ProgramFrame};
 
 /// The best-fit normal table's size (best_fit_normal_texture, render_forward_clustered.cpp:5171-5176).
 pub const BEST_FIT_SIZE: u32 = 1024;
-
-const fn image(name: &'static str, format: F, mips: u32, viewport: u32) -> ProgramImage {
-    ProgramImage { name, kind: ImageKind::D2, size: [BEST_FIT_SIZE, BEST_FIT_SIZE, 1], format, count: 1, mips, viewport }
-}
-
-/// The SSR scope's textures (ssr_allocate_buffers, ss_effects.cpp:1428-1465), at
-/// half the view's size, and the last frame (allocate_last_frame_buffer,
-/// ss_effects.cpp:366-394: half size while SSIL is off).
-pub static IMAGES: &[ProgramImage] = &[
-    image("bestFit", F::R8Unorm, 1, 0),
-    // RB_HIZ: R32_SFLOAT, the full chain.
-    image("hiz", F::R32Float, u32::MAX, 2),
-    // RB_NORMAL_ROUGHNESS (half size only): R8G8B8A8_UNORM.
-    image("halfNormal", F::Rgba8Unorm, 1, 2),
-    // RB_SSR: the base data format, R16G16B16A16_SFLOAT, the full chain.
-    image("ssrColor", F::Rgba16Float, u32::MAX, 2),
-    // RB_MIP_LEVEL: R8_UNORM, the blur level / 14.
-    image("mipLevel", F::R8Unorm, 1, 2),
-    // RB_FINAL (half size only): the internal size.
-    image("final", F::Rgba16Float, 1, 1),
-    // RB_LAST_FRAME: R16G16B16A16_SFLOAT.
-    image("lastFrame", F::Rgba16Float, 1, 2),
-];
 
 /// The SSR UBO (ScreenSpaceReflectionSceneData): projection, its inverse, the
 /// reprojection, and the eye offset, one view.
 pub const SCENE_WORDS: usize = 16 * 3 + 4;
 
-pub static BUFFERS: &[ProgramBuffer] = &[ProgramBuffer { name: "ssrScene", bytes: SCENE_WORDS as u64 * 4, indirect: false, count: 1 }];
-
-const fn u(binding: u32, resource: &'static str, access: Access, which: Which) -> ProgramUse {
-    ProgramUse { binding, resource, access, which }
-}
-
-const fn compute(name: &'static str, entry: &'static str, uses: &'static [ProgramUse], stage: ProgramStage, instances: u32) -> ProgramPass {
-    ProgramPass { name, kind: PassKind::Compute { entry, workgroup: [8, 8, 1] }, uses, stage, instances }
-}
-
-pub static PASSES: &[ProgramPass] = &[
-    compute("ssrBestFit", "ssrBestFitCS", &[u(1, "bestFit", Write, First)], ProgramStage::Start, 1),
-    compute(
-        "ssrDownsample",
-        "ssrDownsampleCS",
-        &[u(1, "depth", Load, First), u(2, "normalRoughness", Load, First), u(3, "hiz", Write, Mip(0)), u(4, "halfNormal", Write, First)],
-        ProgramStage::AfterPrepass,
-        1,
-    ),
-    compute("ssrHiz", "ssrHizCS", &[u(1, "hiz", Load, Mip(-1)), u(2, "hiz", Write, Mip(0))], ProgramStage::AfterPrepass, LEVELS),
-    compute(
-        "ssrTrace",
-        "ssrTraceCS",
-        &[
-            u(1, "lastFrame", Sampled, First),
-            u(2, "hiz", Load, First),
-            u(3, "halfNormal", Load, First),
-            u(4, "ssrColor", Write, Mip(0)),
-            u(5, "mipLevel", Write, First),
-            u(6, "ssrScene", Uniform, First),
-            u(7, "linearSampler", Sampler, First),
-        ],
-        ProgramStage::AfterPrepass,
-        1,
-    ),
-    compute("ssrFilter", "ssrFilterCS", &[u(1, "ssrColor", Sampled, Mip(-1)), u(2, "ssrColor", Write, Mip(0)), u(3, "linearSampler", Sampler, First)], ProgramStage::AfterPrepass, LEVELS),
-    compute(
-        "ssrResolve",
-        "ssrResolveCS",
-        &[
-            u(1, "depth", Load, First),
-            u(2, "normalRoughness", Load, First),
-            u(3, "hiz", Load, First),
-            u(4, "halfNormal", Load, First),
-            u(5, "ssrColor", Sampled, First),
-            u(6, "mipLevel", Load, First),
-            u(7, "final", Write, First),
-            u(8, "trilinearSampler", Sampler, First),
-        ],
-        ProgramStage::AfterPrepass,
-        1,
-    ),
-    compute("ssrCopyLastFrame", "ssrCopyLastFrameCS", &[u(1, "hdr", Load, First), u(2, "lastFrame", Write, First)], ProgramStage::AfterScene, 1),
-];
-
-pub static PROGRAM: ShadingProgram = ShadingProgram {
-    images: IMAGES,
-    buffers: BUFFERS,
-    passes: PASSES,
-    scene_uses: &[u(1, "final", Load, First), u(2, "bestFit", Load, First)],
-    init: || Box::new(Plan::default()),
-    plan: |state, frame| state.downcast_mut::<Plan>().expect("the SSR plan").frame(frame),
-    // A frame drawn alone first draws the shot four times: the trace reads the
-    // frame before it, so a reflection of a reflection needs one more frame.
-    warmup: 4,
-};
+/// The functions shading.toml names.
+pub static HOOKS: &[(&str, lab::investigation::ShadingHook)] = &[(
+    "plan",
+    lab::investigation::ShadingHook::Program { init: || Box::new(Plan::default()), plan: |state, frame| state.downcast_mut::<Plan>().expect("the SSR plan").frame(frame) },
+)];
 
 /// What the plan keeps from frame to frame: the camera of the frame before
 /// (`ssr_last_frame_projections`, `ssr_last_frame_transform`), and whether the

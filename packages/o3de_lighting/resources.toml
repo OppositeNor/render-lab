@@ -139,6 +139,13 @@ kind = "file"
 source = "knowledge.toml"
 license = "MIT"
 
+# Its frame: targets, passes, and what they read and write (lab/src/shading_file.rs).
+[[resource]]
+id = "shading"
+kind = "file"
+source = "shading.toml"
+license = "MIT (O3DE, THIRD_PARTY.md)"
+
 [[resource]]
 id = "listing/forward-pass"
 kind = "file"

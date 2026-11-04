@@ -1,0 +1,194 @@
+# The Godot SSR investigation's frame (a `shading` resource of its package, read by the lab at run time). The format
+# is in lab/src/shading_file.rs; the functions it names are in src/godot/ssr/gpu.rs (`HOOKS`).
+#
+# The frame is Godot's: the depth pre-pass writes depth and the normal-roughness buffer; the program's passes
+# (shaders/ssr_passes.wgsl) downsample them, build the Hi-Z pyramid, trace, filter, and resolve, in Godot's order
+# (SSEffects::screen_space_reflection, ss_effects.cpp:1467-1722), the half-size path
+# (rendering/environment/screen_space_reflection/half_size, default on); the opaque pass blends the result into the
+# indirect specular; and after it the frame is kept for the next frame's trace.
+
+module = "godot_ssr.shader/ssr-shading"
+
+# Godot's normal-roughness buffer, R8G8B8A8_UNORM (rfc.cpp:263-265).
+[[target]]
+name = "normalRoughness"
+format = "rgba8unorm"
+
+# The frame, in order (lab/src/shading_file.rs): each node's passes run where it is, as their reads and
+# writes allow.
+[[node]]
+kind = "program"
+name = "ssrBestFit"
+compute = "ssrBestFitCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "bestFit", access = "write" },
+]
+
+[[node]]
+kind = "prepass"
+entry = "ssrPrepassFS"
+writes = ["normalRoughness"]
+
+[[node]]
+kind = "program"
+name = "ssrDownsample"
+compute = "ssrDownsampleCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "depth", access = "load" },
+    { binding = 2, resource = "normalRoughness", access = "load" },
+    { binding = 3, resource = "hiz", access = "write", mip = 0 },
+    { binding = 4, resource = "halfNormal", access = "write" },
+]
+
+# One bind group per level it may write (16): more than any view needs.
+[[node]]
+kind = "program"
+name = "ssrHiz"
+compute = "ssrHizCS"
+workgroup = [8, 8, 1]
+instances = 16
+uses = [
+    { binding = 1, resource = "hiz", access = "load", mip = -1 },
+    { binding = 2, resource = "hiz", access = "write", mip = 0 },
+]
+
+[[node]]
+kind = "program"
+name = "ssrTrace"
+compute = "ssrTraceCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "lastFrame", access = "sampled" },
+    { binding = 2, resource = "hiz", access = "load" },
+    { binding = 3, resource = "halfNormal", access = "load" },
+    { binding = 4, resource = "ssrColor", access = "write", mip = 0 },
+    { binding = 5, resource = "mipLevel", access = "write" },
+    { binding = 6, resource = "ssrScene", access = "uniform" },
+    { binding = 7, resource = "linearSampler", access = "sampler" },
+]
+
+[[node]]
+kind = "program"
+name = "ssrFilter"
+compute = "ssrFilterCS"
+workgroup = [8, 8, 1]
+instances = 16
+uses = [
+    { binding = 1, resource = "ssrColor", access = "sampled", mip = -1 },
+    { binding = 2, resource = "ssrColor", access = "write", mip = 0 },
+    { binding = 3, resource = "linearSampler", access = "sampler" },
+]
+
+[[node]]
+kind = "program"
+name = "ssrResolve"
+compute = "ssrResolveCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "depth", access = "load" },
+    { binding = 2, resource = "normalRoughness", access = "load" },
+    { binding = 3, resource = "hiz", access = "load" },
+    { binding = 4, resource = "halfNormal", access = "load" },
+    { binding = 5, resource = "ssrColor", access = "sampled" },
+    { binding = 6, resource = "mipLevel", access = "load" },
+    { binding = 7, resource = "final", access = "write" },
+    { binding = 8, resource = "trilinearSampler", access = "sampler" },
+]
+
+[[node]]
+kind = "scene"
+entry = "ssrForwardFS"
+# The resolved reflections, a program image the scene pass reads at group 3.
+reads = ["final"]
+
+[[node]]
+kind = "program"
+name = "ssrCopyLastFrame"
+compute = "ssrCopyLastFrameCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "hdr", access = "load" },
+    { binding = 2, resource = "lastFrame", access = "write" },
+]
+
+[shows]
+hiz = "ramp?range=0,0.04"
+mipLevel = "ramp?range=0,0.4"
+bestFit = "ramp?range=0.5,1"
+
+[program]
+plan = "plan"
+# A frame drawn alone first draws the shot four times: the trace reads the frame before it, so a reflection of a
+# reflection needs one more frame.
+warmup = 4
+scene-uses = [
+    { binding = 1, resource = "final", access = "load" },
+    { binding = 2, resource = "bestFit", access = "load" },
+]
+
+# The best-fit normal table, 1024 a side (best_fit_normal_texture, render_forward_clustered.cpp:5171-5176). The SSR
+# scope's textures (ssr_allocate_buffers, ss_effects.cpp:1428-1465) follow, at half the view's size, and the last
+# frame (allocate_last_frame_buffer, ss_effects.cpp:366-394: half size while SSIL is off).
+[[program.image]]
+name = "bestFit"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r8unorm"
+
+# RB_HIZ: R32_SFLOAT, the full chain.
+[[program.image]]
+name = "hiz"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r32float"
+mips = "all"
+viewport = 2
+
+# RB_NORMAL_ROUGHNESS (half size only): R8G8B8A8_UNORM.
+[[program.image]]
+name = "halfNormal"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba8unorm"
+viewport = 2
+
+# RB_SSR: the base data format, R16G16B16A16_SFLOAT, the full chain.
+[[program.image]]
+name = "ssrColor"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba16float"
+mips = "all"
+viewport = 2
+
+# RB_MIP_LEVEL: R8_UNORM, the blur level / 14.
+[[program.image]]
+name = "mipLevel"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r8unorm"
+viewport = 2
+
+# RB_FINAL (half size only): the internal size.
+[[program.image]]
+name = "final"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba16float"
+viewport = 1
+
+# RB_LAST_FRAME: R16G16B16A16_SFLOAT.
+[[program.image]]
+name = "lastFrame"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba16float"
+viewport = 2
+
+# The SSR UBO (ScreenSpaceReflectionSceneData): projection, its inverse, the reprojection, and the eye offset, one
+# view (gpu.rs `SCENE_WORDS` words).
+[[program.buffer]]
+name = "ssrScene"
+bytes = 208

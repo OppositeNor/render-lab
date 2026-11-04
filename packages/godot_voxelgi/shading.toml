@@ -1,0 +1,110 @@
+# The Godot VoxelGI investigation's frame (a `shading` resource of its package, read by the lab at run time). The
+# format is in lab/src/shading_file.rs; the functions it names are in src/godot/voxelgi/mod.rs (`shading_hooks`),
+# update.rs, and world.rs.
+#
+# The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order: the light passes when the settings change
+# (update.rs, writing the RGBA8 3D texture), a depth pre-pass, the scene pass (the lab's direct light and the
+# normal), the WGSL port of Godot's VoxelGI screen pass once per pixel (or per 2 × 2 block at half resolution), then
+# the opaque pass's mix.
+
+module = "godot_voxelgi.shader/voxelgi-shading"
+data = "data"
+verify = ["voxelgiProcessTests", "voxelgiLightTests", "voxelgiBounceTests", "voxelgiSampleTests"]
+
+[[target]]
+name = "direct"
+format = "rgba16float"
+
+[[target]]
+name = "normal"
+format = "rgba16float"
+
+[[target]]
+name = "giAmbient"
+format = "rgba16float"
+
+[[target]]
+name = "giReflection"
+format = "rgba16float"
+
+# The light texture: the octree's size (world.rs's node, subdiv 128), one mip per octree level.
+[[volume]]
+name = "voxelgiLight"
+format = "rgba8unorm"
+size = [128, 64, 128]
+mips = 8
+
+# The frame, in order (lab/src/shading_file.rs): each node's passes run where it is, as their reads and
+# writes allow.
+[[node]]
+kind = "update"
+entry = "voxelgiLightCS"
+writes = ["voxelgiOutputs"]
+workgroup = 64
+
+[[node]]
+kind = "update"
+entry = "voxelgiBounceCS"
+reads = ["voxelgiLight", "voxelgiOutputs"]
+writes = ["voxelgiOutputs"]
+workgroup = 64
+
+[[node]]
+kind = "update"
+entry = "voxelgiMipmapsCS"
+reads = ["voxelgiOutputs"]
+writes = ["voxelgiOutputs"]
+workgroup = 64
+
+[[node]]
+kind = "update"
+entry = "voxelgiWriteCS"
+reads = ["voxelgiOutputs"]
+writes = ["voxelgiLight"]
+workgroup = 64
+
+[[node]]
+kind = "prepass"
+entry = "voxelgiPrepassFS"
+
+[[node]]
+kind = "scene"
+entry = "voxelgiForwardFS"
+outputs = ["direct", "normal"]
+
+[[node]]
+kind = "compute"
+entry = "voxelgiGiCS"
+reads = ["direct", "normal", "depth", "voxelgiLight"]
+writes = ["giAmbient", "giReflection"]
+workgroup = [8, 8]
+
+[[node]]
+kind = "compute"
+entry = "voxelgiComposeCS"
+reads = ["direct", "normal", "giAmbient", "giReflection", "depth"]
+writes = ["hdr"]
+workgroup = [8, 8]
+
+# rendering/global_illumination/gi/use_half_resolution: the GI buffers at half the viewport's size
+# (gi.cpp:3987-3996, `size >>= 1`).
+[resolution]
+targets = ["giAmbient", "giReflection"]
+divisor = "gi-divisor"
+
+# The light passes, as `GI::VoxelGIInstance::update` runs them (gi.cpp:3096-3171): only when the light settings
+# change, one dispatch per pass and level over that level's cells, 64 to a workgroup (voxel_gi.glsl's local size);
+# update.rs plans them and light.rs is their CPU mirror.
+[update]
+plan = "light-update"
+
+# `write_buffer` (`VoxelGIInstance::write_buffer`): one float light per cell, four words each.
+[[update.buffer]]
+name = "voxelgiOutputs"
+words = "outputs-words"
+
+# The cells' light is four floats a cell, listed in cell order; the light texture is dim (it is divided by its
+# dynamic range): a slice near the floor, brighter.
+[shows]
+voxelgiOutputs = "float?range=0,2"
+voxelgiLight = "color?slice=0.05&exposure=2"

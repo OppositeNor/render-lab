@@ -33,7 +33,7 @@ use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
-use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingPass, ShadingTarget, Wording};
+use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
@@ -50,63 +50,6 @@ static WORDING: Wording = Wording {
     engine_tag: "Godot",
     checkout_dir: "godot/",
 };
-
-/// The frame is Godot's (shaders/sdfgi_shading.wgsl, gpu.rs): the program's
-/// GPU passes (Godot's own, ported) write the probe maps; the depth pre-pass
-/// writes the normal-roughness buffer; the screen gather (gi.glsl's
-/// sdfgi_process) writes the AMBIENT and REFLECTION buffers; and the scene
-/// pass adds them to the lab's direct light. The converged CPU world's data (sim.rs) is what the selftest's
-/// kernels read.
-pub static SHADING: SceneShading = SceneShading {
-    module: "godot_sdfgi.shader/sdfgi-shading",
-    fragment: "sdfgiForwardFS",
-    data: sim::shading_data,
-    verify: &["sdfgiProcessTests", "sdfgiLightTests", "sdfgiProbeTests", "sdfgiStoreTests"],
-    // Godot's normal-roughness buffer (R8G8B8A8_UNORM) and the screen gather's AMBIENT and
-    // REFLECTION buffers (R16G16B16A16_SFLOAT), gi.cpp:3986-3999, rfc.cpp:263-269.
-    targets: &[
-        ShadingTarget { name: "normalRoughness", format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1 },
-        ShadingTarget { name: "ambient", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-        ShadingTarget { name: "reflection", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ],
-    outputs: &[],
-    passes: &[],
-    prepass: Some("sdfgiPrepassFS"),
-    prepass_outputs: &["normalRoughness"],
-    early: &[ShadingPass { entry: "sdfgiGatherCS", reads: &["normalRoughness", "depth", "lightprobeData", "screenData"], writes: &["ambient", "reflection"], workgroup: [8, 8] }],
-    buffers: &[],
-    scene_reads: &["ambient", "reflection"],
-    depth_views: None,
-    volumes: &[],
-    update: None,
-    resolution: Some(&RESOLUTION),
-    history: &[],
-    // How the inspector shows the program's resources (slices through the floor of cascade 0).
-    shows: &[
-        ("renderAlbedo", "hash?slice=0.4&bits=1,15"),
-        ("renderGeomFacing", "hash?slice=0.4"),
-        ("renderEmission", "color?encoding=3&slice=0.4"),
-        ("renderEmissionAniso", "hash?slice=0.4"),
-        ("renderOcclusion", "ramp?slice=0.4"),
-        ("renderSdf", "hash?slice=0.4"),
-        ("renderSdfHalf", "hash?slice=0.4"),
-        ("occlusionData", "count?slice=0.1&bits=12,4&range=0,15"),
-        ("sdf", "ramp?slice=0.4&range=0,0.1"),
-        ("lightData", "color?encoding=3&slice=0.4&exposure=3"),
-        ("lightAniso0", "unorm?slice=0.4"),
-        ("lightAniso1", "unorm?slice=0.4"),
-        ("lightprobeHistory", "signed?range=-600,600"),
-        ("lightprobeAverage", "signed?range=-18000,18000"),
-        ("lightprobeHistoryScroll", "signed?range=-600,600"),
-        ("lightprobeAverageScroll", "signed?range=-18000,18000"),
-        ("lightprobeData", "color?encoding=3&exposure=1"),
-    ],
-    program: Some(&gpu::PROGRAM),
-};
-
-/// rendering/global_illumination/gi/use_half_resolution: the gather's buffers at
-/// half the viewport's size (gi.cpp:3987-3996, `size >>= 1`).
-static RESOLUTION: lab::investigation::ShadingResolution = lab::investigation::ShadingResolution { targets: &["ambient", "reflection"], divisor: gi_divisor };
 
 fn gi_divisor(state: &lab::shot::ShotState) -> u32 {
     if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
@@ -227,8 +170,14 @@ impl Investigation for Sdfgi {
         })
     }
 
-    fn scene_shading(&self) -> Option<&'static SceneShading> {
-        Some(&SHADING)
+    fn shading_hooks(&self) -> &'static [(&'static str, lab::investigation::ShadingHook)] {
+        use lab::investigation::ShadingHook;
+        static HOOKS: &[(&str, ShadingHook)] = &[
+            ("data", ShadingHook::Data(sim::shading_data)),
+            ("gi-divisor", ShadingHook::Divisor(gi_divisor)),
+            ("plan", ShadingHook::Program { init: gpu::init, plan: gpu::plan }),
+        ];
+        HOOKS
     }
 
     fn shader_data(&self, block: &mut lab::shader_data::Block, state: &ShotState) {

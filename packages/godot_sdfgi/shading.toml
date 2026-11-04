@@ -1,0 +1,476 @@
+# The Godot SDFGI investigation's frame (a `shading` resource of its package, read by the lab at run time). The
+# format is in lab/src/shading_file.rs; the functions it names are in src/godot/sdfgi/mod.rs (`shading_hooks`) and
+# gpu.rs (the plan).
+#
+# The frame is Godot's (shaders/sdfgi_shading.wgsl, gpu.rs): the program's GPU passes (Godot's own, ported) write
+# the probe maps; the depth pre-pass writes the normal-roughness buffer; the screen gather (gi.glsl's sdfgi_process)
+# writes the AMBIENT and REFLECTION buffers; and the scene pass adds them to the lab's direct light. The converged
+# CPU world's data (sim.rs) is what the selftest's kernels read.
+
+module = "godot_sdfgi.shader/sdfgi-shading"
+data = "data"
+verify = ["sdfgiProcessTests", "sdfgiLightTests", "sdfgiProbeTests", "sdfgiStoreTests"]
+
+# Godot's normal-roughness buffer (R8G8B8A8_UNORM) and the screen gather's AMBIENT and REFLECTION buffers
+# (R16G16B16A16_SFLOAT), gi.cpp:3986-3999, rfc.cpp:263-269.
+[[target]]
+name = "normalRoughness"
+format = "rgba8unorm"
+
+[[target]]
+name = "ambient"
+format = "rgba16float"
+
+[[target]]
+name = "reflection"
+format = "rgba16float"
+
+# The frame, in order (lab/src/shading_file.rs): each node's passes run where it is, as their reads and
+# writes allow.
+# _update_sdfgi: each region voxelized, then each dirty cascade pre-processed (gi.cpp:2061-2418).
+[[node]]
+kind = "program"
+name = "sdfgiVoxelize"
+vertex = "sdfgiVoxelizeVS"
+fragment = "sdfgiVoxelizeFS"
+uses = [
+    { binding = 1, resource = "renderAlbedo", access = "write" },
+    { binding = 2, resource = "renderEmission", access = "write" },
+    { binding = 3, resource = "renderEmissionAniso", access = "write" },
+    { binding = 4, resource = "renderGeomFacing", access = "atomic" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiScroll"
+compute = "sdfgiScrollCS"
+workgroup = [64, 1, 1]
+instances = 4
+uses = [
+    { binding = 1, resource = "renderAlbedo", access = "write" },
+    { binding = 2, resource = "renderGeomFacing", access = "write" },
+    { binding = 3, resource = "renderEmission", access = "write" },
+    { binding = 4, resource = "renderEmissionAniso", access = "write" },
+    { binding = 5, resource = "dispatchStorage", access = "read", which = "instance" },
+    { binding = 6, resource = "solidCells", access = "read", which = "instance" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiScrollOcclusion"
+compute = "sdfgiScrollOcclusionCS"
+workgroup = [4, 4, 4]
+uses = [
+    { binding = 1, resource = "renderOcclusion", access = "write", fixed = 0 },
+    { binding = 2, resource = "renderOcclusion", access = "write", fixed = 1 },
+    { binding = 3, resource = "renderOcclusion", access = "write", fixed = 2 },
+    { binding = 4, resource = "renderOcclusion", access = "write", fixed = 3 },
+    { binding = 5, resource = "renderOcclusion", access = "write", fixed = 4 },
+    { binding = 6, resource = "renderOcclusion", access = "write", fixed = 5 },
+    { binding = 7, resource = "renderOcclusion", access = "write", fixed = 6 },
+    { binding = 8, resource = "renderOcclusion", access = "write", fixed = 7 },
+    { binding = 9, resource = "occlusionData", access = "load" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiProbeScroll"
+compute = "sdfgiProbeScrollCS"
+workgroup = [8, 8, 1]
+instances = 4
+uses = [
+    { binding = 7, resource = "cascadesUbo", access = "read" },
+    { binding = 9, resource = "lightprobeHistory", access = "load", which = "instance" },
+    { binding = 10, resource = "lightprobeAverage", access = "load", which = "instance" },
+    { binding = 11, resource = "lightprobeHistoryScroll", access = "write" },
+    { binding = 12, resource = "lightprobeAverageScroll", access = "write" },
+    # The parent cascade's average a scrolled cascade seeds new probes from (the last binds the one below it,
+    # "won't be used", gi.cpp:1083-1099).
+    { binding = 13, resource = "lightprobeAverage", access = "load", pick = [1, 2, 3, 2] },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiProbeScrollStore"
+compute = "sdfgiProbeScrollStoreCS"
+workgroup = [8, 8, 1]
+instances = 4
+uses = [
+    { binding = 9, resource = "lightprobeHistory", access = "write", which = "instance" },
+    { binding = 10, resource = "lightprobeAverage", access = "write", which = "instance" },
+    { binding = 11, resource = "lightprobeHistoryScroll", access = "load" },
+    { binding = 12, resource = "lightprobeAverageScroll", access = "load" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiProbeStoreScroll"
+compute = "sdfgiProbeStoreCS"
+workgroup = [8, 8, 1]
+instances = 4
+uses = [
+    { binding = 8, resource = "lightprobeData", access = "write" },
+    { binding = 10, resource = "lightprobeAverage", access = "load", which = "instance" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiJumpFloodInit"
+compute = "sdfgiJumpFloodInitCS"
+workgroup = [4, 4, 4]
+uses = [
+    { binding = 1, resource = "renderAlbedo", access = "load" },
+    { binding = 2, resource = "renderSdfHalf", access = "write", fixed = 0 },
+]
+
+# Ping-pong: each instance reads one of the two half-size fields and writes the other.
+[[node]]
+kind = "program"
+name = "sdfgiJumpFlood"
+compute = "sdfgiJumpFloodCS"
+workgroup = [4, 4, 4]
+instances = 2
+uses = [
+    { binding = 1, resource = "renderSdfHalf", access = "load", pick = [0, 1] },
+    { binding = 2, resource = "renderSdfHalf", access = "write", pick = [1, 0] },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiJumpFloodShared"
+compute = "sdfgiJumpFloodSharedCS"
+workgroup = [8, 8, 8]
+instances = 2
+uses = [
+    { binding = 1, resource = "renderSdfHalf", access = "load", pick = [0, 1] },
+    { binding = 2, resource = "renderSdfHalf", access = "write", pick = [1, 0] },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiUpscale"
+compute = "sdfgiUpscaleCS"
+workgroup = [4, 4, 4]
+uses = [
+    { binding = 1, resource = "renderAlbedo", access = "load" },
+    { binding = 2, resource = "renderSdfHalf", access = "load", fixed = 0 },
+    { binding = 3, resource = "renderSdf", access = "write", fixed = 0 },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiJumpFloodFull"
+compute = "sdfgiJumpFloodSharedCS"
+workgroup = [8, 8, 8]
+uses = [
+    { binding = 1, resource = "renderSdf", access = "load", fixed = 0 },
+    { binding = 2, resource = "renderSdf", access = "write", fixed = 1 },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiOcclusion"
+compute = "sdfgiOcclusionCS"
+workgroup = [64, 1, 1]
+instances = 8
+uses = [
+    { binding = 1, resource = "renderOcclusion", access = "read-write", which = "instance" },
+    { binding = 2, resource = "renderGeomFacing", access = "load" },
+]
+
+[[node]]
+kind = "program"
+name = "sdfgiStore"
+compute = "sdfgiStoreCS"
+workgroup = [4, 4, 4]
+instances = 4
+uses = [
+    { binding = 1, resource = "renderSdf", access = "load", fixed = 1 },
+    { binding = 2, resource = "renderAlbedo", access = "load" },
+    # The eight occlusion images, as STORE reads them (bindings 3 to 10).
+    { binding = 3, resource = "renderOcclusion", access = "load", fixed = 0 },
+    { binding = 4, resource = "renderOcclusion", access = "load", fixed = 1 },
+    { binding = 5, resource = "renderOcclusion", access = "load", fixed = 2 },
+    { binding = 6, resource = "renderOcclusion", access = "load", fixed = 3 },
+    { binding = 7, resource = "renderOcclusion", access = "load", fixed = 4 },
+    { binding = 8, resource = "renderOcclusion", access = "load", fixed = 5 },
+    { binding = 9, resource = "renderOcclusion", access = "load", fixed = 6 },
+    { binding = 10, resource = "renderOcclusion", access = "load", fixed = 7 },
+    { binding = 11, resource = "renderEmission", access = "load" },
+    { binding = 12, resource = "renderEmissionAniso", access = "load" },
+    { binding = 13, resource = "renderGeomFacing", access = "load" },
+    { binding = 14, resource = "sdf", access = "write", which = "instance" },
+    { binding = 15, resource = "occlusionData", access = "write" },
+    { binding = 16, resource = "dispatchStorage", access = "atomic", which = "instance" },
+    { binding = 17, resource = "solidCells", access = "write", which = "instance" },
+]
+
+# render_static_lights, update_light (gi.cpp:2422-2610, 1249-1309).
+[[node]]
+kind = "program"
+name = "sdfgiStaticLight"
+compute = "sdfgiStaticLightCS"
+workgroup = [64, 1, 1]
+instances = 4
+uses = [
+    { binding = 1, resource = "sdf", access = "sampled", which = "all" },
+    { binding = 2, resource = "linearSampler", access = "sampler" },
+    { binding = 3, resource = "dispatchStorage", access = "read", which = "instance" },
+    { binding = 4, resource = "solidCells", access = "read-write", which = "instance" },
+    { binding = 8, resource = "cascadesUbo", access = "read" },
+    { binding = 9, resource = "lights", access = "read", which = "instance" },
+]
+
+# What the light passes read: every cascade's field, the cascades, the cell list, the lights.
+[[node]]
+kind = "program"
+name = "sdfgiDynamicLight"
+compute = "sdfgiDynamicLightCS"
+workgroup = [64, 1, 1]
+instances = 4
+uses = [
+    { binding = 1, resource = "sdf", access = "sampled", which = "all" },
+    { binding = 2, resource = "linearSampler", access = "sampler" },
+    { binding = 3, resource = "dispatchStorage", access = "read", which = "instance" },
+    { binding = 4, resource = "solidCells", access = "read", which = "instance" },
+    { binding = 5, resource = "lightData", access = "write", which = "instance" },
+    { binding = 6, resource = "lightAniso0", access = "write", which = "instance" },
+    { binding = 7, resource = "lightAniso1", access = "write", which = "instance" },
+    { binding = 8, resource = "cascadesUbo", access = "read" },
+    { binding = 9, resource = "lights", access = "read", which = "instance" },
+    { binding = 10, resource = "lightprobeData", access = "load" },
+    { binding = 11, resource = "occlusionData", access = "load" },
+]
+
+[[node]]
+kind = "prepass"
+entry = "sdfgiPrepassFS"
+writes = ["normalRoughness"]
+
+# update_probes, inside the depth pre-pass (rfc.cpp:2120-2133); store_probes in _pre_opaque_render (rfc.cpp:1534).
+# What the probe passes bind (`integrate_uniform_set`, gi.cpp:1000-1122).
+[[node]]
+kind = "program"
+name = "sdfgiProbeProcess"
+compute = "sdfgiProbeProcessCS"
+workgroup = [8, 8, 1]
+instances = 4
+uses = [
+    { binding = 1, resource = "sdf", access = "sampled", which = "all" },
+    { binding = 2, resource = "lightData", access = "load", which = "all" },
+    { binding = 3, resource = "lightAniso0", access = "sampled", which = "all" },
+    { binding = 4, resource = "lightAniso1", access = "sampled", which = "all" },
+    { binding = 6, resource = "linearSampler", access = "sampler" },
+    { binding = 7, resource = "cascadesUbo", access = "read" },
+    { binding = 9, resource = "lightprobeHistory", access = "read-write", which = "instance" },
+    { binding = 10, resource = "lightprobeAverage", access = "read-write", which = "instance" },
+]
+
+# Both after the pre-pass, before the screen gather that reads the maps (_pre_opaque_render, rfc.cpp:1517-1607).
+[[node]]
+kind = "program"
+name = "sdfgiProbeStore"
+compute = "sdfgiProbeStoreCS"
+workgroup = [8, 8, 1]
+instances = 4
+uses = [
+    { binding = 8, resource = "lightprobeData", access = "write" },
+    { binding = 10, resource = "lightprobeAverage", access = "load", which = "instance" },
+]
+
+[[node]]
+kind = "compute"
+entry = "sdfgiGatherCS"
+reads = ["normalRoughness", "depth", "lightprobeData", "screenData"]
+writes = ["ambient", "reflection"]
+workgroup = [8, 8]
+
+[[node]]
+kind = "scene"
+entry = "sdfgiForwardFS"
+reads = ["ambient", "reflection"]
+
+# rendering/global_illumination/gi/use_half_resolution: the gather's buffers at half the viewport's size
+# (gi.cpp:3987-3996, `size >>= 1`).
+[resolution]
+targets = ["ambient", "reflection"]
+divisor = "gi-divisor"
+
+# How the inspector shows the program's resources (slices through the floor of cascade 0).
+[shows]
+renderAlbedo = "hash?slice=0.4&bits=1,15"
+renderGeomFacing = "hash?slice=0.4"
+renderEmission = "color?encoding=3&slice=0.4"
+renderEmissionAniso = "hash?slice=0.4"
+renderOcclusion = "ramp?slice=0.4"
+renderSdf = "hash?slice=0.4"
+renderSdfHalf = "hash?slice=0.4"
+occlusionData = "count?slice=0.1&bits=12,4&range=0,15"
+sdf = "ramp?slice=0.4&range=0,0.1"
+lightData = "color?encoding=3&slice=0.4&exposure=3"
+lightAniso0 = "unorm?slice=0.4"
+lightAniso1 = "unorm?slice=0.4"
+lightprobeHistory = "signed?range=-600,600"
+lightprobeAverage = "signed?range=-18000,18000"
+lightprobeHistoryScroll = "signed?range=-600,600"
+lightprobeAverageScroll = "signed?range=-18000,18000"
+lightprobeData = "color?encoding=3&exposure=1"
+
+# Godot's SDFGI as it runs on the GPU: its resources at the engine's formats and sizes (`SDFGI::create`,
+# gi.cpp:414-1129), its passes (the voxelizer's three raster passes, the pre-process's compute chain, the light, the
+# probes), and the plan (gpu.rs) that records them each frame in the engine's order. Sizes: cascade_size cells a
+# side (128), `sdfgi_cascades` cascades (4, gpu.rs `CASCADES`), 17 probes a side (289 = 17², 272 = 17 × 16),
+# `history_size` at `frames_to_converge`'s default (30, gpu.rs `HISTORY`).
+[program]
+plan = "plan"
+scene-uses = [
+    { binding = 1, resource = "lightprobeData", access = "load" },
+    { binding = 2, resource = "screenData", access = "read" },
+]
+
+# Shared by all cascades (one working set, rebuilt by each cascade in turn).
+[[program.image]]
+name = "renderAlbedo"
+kind = "3d"
+size = [128, 128, 128]
+format = "r16uint"
+
+[[program.image]]
+name = "renderEmission"
+kind = "3d"
+size = [128, 128, 128]
+format = "r32uint"
+
+[[program.image]]
+name = "renderEmissionAniso"
+kind = "3d"
+size = [128, 128, 128]
+format = "r32uint"
+
+[[program.image]]
+name = "renderGeomFacing"
+kind = "3d"
+size = [128, 128, 128]
+format = "r32uint"
+
+[[program.image]]
+name = "renderOcclusion"
+kind = "3d"
+size = [128, 128, 128]
+format = "r8unorm"
+count = 8
+
+[[program.image]]
+name = "renderSdf"
+kind = "3d"
+size = [128, 128, 128]
+format = "rgba8uint"
+count = 2
+
+[[program.image]]
+name = "renderSdfHalf"
+kind = "3d"
+size = [64, 64, 64]
+format = "rgba8uint"
+count = 2
+
+[[program.image]]
+name = "occlusionData"
+kind = "3d"
+size = [256, 128, 512]
+format = "r16uint"
+
+[[program.image]]
+name = "lightprobeHistoryScroll"
+kind = "2d-array"
+size = [289, 272, 30]
+format = "rgba16sint"
+
+[[program.image]]
+name = "lightprobeAverageScroll"
+kind = "2d"
+size = [289, 272, 1]
+format = "rgba32sint"
+
+[[program.image]]
+name = "lightprobeData"
+kind = "2d-array"
+size = [2312, 136, 8]
+format = "r32uint"
+
+# One per cascade.
+[[program.image]]
+name = "sdf"
+kind = "3d"
+size = [128, 128, 128]
+format = "r8unorm"
+count = 4
+
+[[program.image]]
+name = "lightData"
+kind = "3d"
+size = [128, 128, 128]
+format = "r32uint"
+count = 4
+
+[[program.image]]
+name = "lightAniso0"
+kind = "3d"
+size = [128, 128, 128]
+format = "rgba8unorm"
+count = 4
+
+[[program.image]]
+name = "lightAniso1"
+kind = "3d"
+size = [128, 128, 128]
+format = "rg8unorm"
+count = 4
+
+[[program.image]]
+name = "lightprobeHistory"
+kind = "2d-array"
+size = [289, 272, 30]
+format = "rgba16sint"
+count = 4
+
+[[program.image]]
+name = "lightprobeAverage"
+kind = "2d"
+size = [289, 272, 1]
+format = "rgba32sint"
+count = 4
+
+# `cascades_ubo`: 8 x 48 bytes (gi.h:572-578).
+[[program.buffer]]
+name = "cascadesUbo"
+bytes = 384
+
+# `solid_cell_count = cascade_size^3 * solid_cell_ratio (0.25)` (gi.cpp:429) cells of 16 bytes.
+[[program.buffer]]
+name = "solidCells"
+bytes = 8388608
+count = 4
+
+[[program.buffer]]
+name = "dispatchStorage"
+bytes = 16
+count = 4
+
+[[program.buffer]]
+name = "dispatchCall"
+bytes = 16
+indirect = true
+count = 4
+
+# `MAX(MAX_STATIC_LIGHTS, MAX_DYNAMIC_LIGHTS)` (1024) lights of 112 bytes (gi.cpp:590).
+[[program.buffer]]
+name = "lights"
+bytes = 114688
+count = 4
+
+# What the scene pass reads of the frame's cascades (`SDFGIData`'s cascades, gi.cpp:1883-1901): two vec4 each,
+# relative to SDFGI's camera, then that camera.
+[[program.buffer]]
+name = "screenData"
+bytes = 272

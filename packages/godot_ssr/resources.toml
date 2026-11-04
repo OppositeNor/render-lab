@@ -25,6 +25,13 @@ kind = "file"
 source = "knowledge.toml"
 license = "MIT"
 
+# Its frame: targets, passes, and what they read and write (lab/src/shading_file.rs).
+[[resource]]
+id = "shading"
+kind = "file"
+source = "shading.toml"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
 [[resource]]
 id = "demos"
 kind = "file"

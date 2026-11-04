@@ -38,7 +38,7 @@ use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
 use crate::o3de::lighting::text::tr;
-use lab::investigation::{DepthViews, Engine, Investigation, SceneShading, SelftestOptions, ShadingBuffer, ShadingPass, ShadingTarget, Wording};
+use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
@@ -53,121 +53,6 @@ static WORDING: Wording = Wording {
     engine_short: "O3DE",
     engine_tag: "O3DE",
     checkout_dir: "o3de/",
-};
-
-/// O3DE's opaque passes, in the main pipeline's order (OpaqueParent.pass):
-/// the forward pass into O3DE's targets (Forward.pass formats, where wgpu has
-/// them; the lab adds a false-colour target for its views), then
-/// DiffuseGlobalFullscreen, ReflectionGlobalFullscreen into its own
-/// reflection target, ReflectionComposite, and DiffuseSpecularMerge. Compute
-/// passes cannot blend, so each writes its sum to a new target.
-const TARGETS: &[ShadingTarget] = &[
-    ShadingTarget { name: "diffuse", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "specular", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "albedo", format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1 },
-    ShadingTarget { name: "specularF0", format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1 },
-    ShadingTarget { name: "normal", format: wgpu::TextureFormat::Rgb10a2Unorm, divisor: 1 },
-    ShadingTarget { name: "debug", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    // The stencil reference each sample was drawn with (RenderCommon.h StencilRefs), / 255.
-    ShadingTarget { name: "stencil", format: wgpu::TextureFormat::R8Unorm, divisor: 1 },
-    ShadingTarget { name: "diffuseLit", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "reflection", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "specularLit", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    // The probe stencil (RGB) and blend-weight (A) views.
-    ShadingTarget { name: "probeView", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-];
-
-/// Light culling (LightCullingParent.pass), after the depth pre-pass and
-/// before the forward pass: one workgroup per 16 x 16 tile.
-const EARLY: &[ShadingPass] = &[
-    ShadingPass { entry: "o3deLightCullingTilePrepareCS", reads: &["depth"], writes: &["tileData"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deLightCullingCS", reads: &["tileData", "lightList"], writes: &["lightList", "tileData"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deLightCullingRemapCS", reads: &["tileData", "lightList"], writes: &["lightListRemapped", "tileData"], workgroup: [16, 16] },
-    // DepthToLinearDepth (DepthParent.pass), which the shadow blur and SSAO read.
-    ShadingPass { entry: "o3deLinearDepthCS", reads: &["depth"], writes: &["linearDepth"], workgroup: [16, 16] },
-    // Shadows (ShadowParent.pass): FullscreenShadow, then FullscreenShadowBlur
-    // (its vertical pass, then its horizontal one), before the forward pass.
-    ShadingPass { entry: "o3deFullscreenShadowCS", reads: &["depth", "cascades"], writes: &["shadowRaw"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deShadowBlurVerticalCS", reads: &["depth", "linearDepth", "shadowRaw", "shadowBlurV"], writes: &["shadowBlurV"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deShadowBlurHorizontalCS", reads: &["depth", "linearDepth", "shadowRaw", "shadowBlurV"], writes: &["shadowBuffer"], workgroup: [16, 16] },
-];
-
-/// Per 16 x 16 tile: TileLightData, the light list, and the remapped list (8 bins of 256).
-const BUFFERS: &[ShadingBuffer] = &[
-    ShadingBuffer { name: "tileData", words_per_tile: 4, tile: 16 },
-    ShadingBuffer { name: "lightList", words_per_tile: 256, tile: 16 },
-    ShadingBuffer { name: "lightListRemapped", words_per_tile: 8 * 256, tile: 16 },
-    // SSAO's stages, one f32 per pixel: the linear depth (R32_FLOAT), the
-    // half-res depth (R32_FLOAT), SsaoCompute's output, the two blurs, and the
-    // upsampled AO (R8_UNORM, rounded to 8 bits).
-    ShadingBuffer { name: "linearDepth", words_per_tile: 1, tile: 1 },
-    ShadingBuffer { name: "halfDepth", words_per_tile: 1, tile: 2 },
-    ShadingBuffer { name: "ssao", words_per_tile: 1, tile: 2 },
-    ShadingBuffer { name: "ssaoBlurV", words_per_tile: 1, tile: 2 },
-    ShadingBuffer { name: "ssaoBlur", words_per_tile: 1, tile: 2 },
-    ShadingBuffer { name: "ssaoFull", words_per_tile: 1, tile: 1 },
-    // FullscreenShadow's output and the two passes of its blur (R8_UNORM:
-    // floats rounded to 8 bits); the forward pass reads the last.
-    ShadingBuffer { name: "shadowRaw", words_per_tile: 1, tile: 1 },
-    ShadingBuffer { name: "shadowBlurV", words_per_tile: 1, tile: 1 },
-    ShadingBuffer { name: "shadowBuffer", words_per_tile: 1, tile: 1 },
-];
-
-/// The sun's cascaded shadow maps (CascadedShadowmaps.pass): four 1024 x
-/// 1024 layers, one per cascade, each drawn by its vertex entry point.
-static CASCADE_VIEWS: DepthViews = DepthViews {
-    name: "cascades",
-    size: 1024,
-    vertices: &["o3deCascade0VS", "o3deCascade1VS", "o3deCascade2VS", "o3deCascade3VS"],
-    // The caster's raster state (Shadowmap.shader, ShadowmapPass.shader.template):
-    // depthBias 10, depthBiasSlopeScale 4, on O3DE's forward depth; negated
-    // for the lab's reversed depth.
-    bias: (-10, -4.0),
-};
-
-const PASSES: &[ShadingPass] = &[
-    ShadingPass { entry: "o3deDiffuseGlobalCS", reads: &["diffuse", "normal", "albedo", "stencil"], writes: &["diffuseLit"], workgroup: [8, 8] },
-    ShadingPass { entry: "o3deReflectionsCS", reads: &["normal", "albedo", "specularF0", "stencil", "depth"], writes: &["reflection", "probeView"], workgroup: [8, 8] },
-    ShadingPass { entry: "o3deReflectionCompositeCS", reads: &["specular", "reflection", "depth"], writes: &["specularLit"], workgroup: [8, 8] },
-    // AoParent.pass (SsaoParent.pass), after the MSAA resolves; ModulateWithSsao is in the merge.
-    ShadingPass { entry: "o3deDepthDownsampleCS", reads: &["depth", "linearDepth"], writes: &["halfDepth"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoCS", reads: &["depth", "halfDepth"], writes: &["ssao"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoBlurVerticalCS", reads: &["depth", "halfDepth", "ssao", "ssaoBlurV"], writes: &["ssaoBlurV"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoBlurHorizontalCS", reads: &["depth", "halfDepth", "ssao", "ssaoBlurV"], writes: &["ssaoBlur"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deSsaoUpsampleCS", reads: &["depth", "linearDepth", "halfDepth", "ssaoBlur"], writes: &["ssaoFull"], workgroup: [16, 16] },
-    ShadingPass { entry: "o3deMergeCS", reads: &["diffuse", "specular", "debug", "diffuseLit", "specularLit", "reflection", "probeView", "depth", "ssaoFull"], writes: &["hdr"], workgroup: [8, 8] },
-];
-
-pub static SHADING: SceneShading = SceneShading {
-    module: "o3de_lighting.shader/standard-lighting",
-    fragment: "o3deForwardFS",
-    data: ibl::shading_data,
-    verify: &["o3deBrdfTests", "o3dePixelTests", "o3deBrdfMapTests", "o3deIblTests", "o3deResolveTests"],
-    targets: TARGETS,
-    outputs: &["diffuse", "specular", "albedo", "specularF0", "normal", "debug", "stencil"],
-    passes: PASSES,
-    prepass: Some("o3dePrepassFS"),
-    prepass_outputs: &[],
-    early: EARLY,
-    buffers: BUFFERS,
-    scene_reads: &["tileData", "lightListRemapped", "shadowBuffer", "cascades"],
-    depth_views: Some(&CASCADE_VIEWS),
-    volumes: &[],
-    update: None,
-    resolution: None,
-    history: &[],
-    // The tile data's fourth word is the tile's light count after culling, which
-    // counts an end-of-group mark for each of the 7 light groups (a tile without
-    // lights: 7); the light lists pack a light's index and its depth bins; depths
-    // are view distances.
-    shows: &[
-        ("tileData", "count?word=3&range=7,11"),
-        ("lightList", "hash"),
-        ("lightListRemapped", "hash"),
-        ("linearDepth", "float?range=0,12"),
-        ("halfDepth", "float?range=0,12"),
-    ],
-    program: None,
 };
 
 impl Investigation for Lighting {
@@ -273,8 +158,9 @@ impl Investigation for Lighting {
         })
     }
 
-    fn scene_shading(&self) -> Option<&'static SceneShading> {
-        Some(&SHADING)
+    fn shading_hooks(&self) -> &'static [(&'static str, lab::investigation::ShadingHook)] {
+        static HOOKS: &[(&str, lab::investigation::ShadingHook)] = &[("data", lab::investigation::ShadingHook::Data(ibl::shading_data))];
+        HOOKS
     }
 
     fn shader_data(&self, block: &mut lab::shader_data::Block, state: &ShotState) {

@@ -2574,10 +2574,11 @@ impl Renderer {
     /// update passes (their plan's dispatches), then each live node: the
     /// depth views, the pre-pass, the chain's compute passes, the scene pass,
     /// and the overlay. The composite is the caller's.
-    /// Records the program's commands of `stage` (the main view's frame only),
-    /// the inspector drawing what each pass wrote right after it.
+    /// Records the program's commands of run `run` (`runs`, each pass's:
+    /// `SceneShading::program_runs`), the inspector drawing what each pass
+    /// wrote right after it.
     #[allow(clippy::too_many_arguments)]
-    fn record_program(&self, encoder: &mut wgpu::CommandEncoder, stage: crate::investigation::ProgramStage, graph: &crate::graph::FrameGraph, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets, timing: Option<&mut crate::timing::Timing>) {
+    fn record_program(&self, encoder: &mut wgpu::CommandEncoder, runs: &[u32], run: u32, graph: &crate::graph::FrameGraph, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets, timing: Option<&mut crate::timing::Timing>) {
         let Some(s) = shading else { return };
         let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) else { return };
         let meshes = crate::program::Meshes { vertices: &self.mesh_vertices, objects: &self.object_ids, indices: &self.mesh_indices, ranges: &self.statics.meshes.ranges };
@@ -2588,7 +2589,7 @@ impl Renderer {
                 }
             }
         };
-        program.borrow_mut().record(&self.gpu.device, encoder, pipelines, stage, &self.frame_bind_group, &s.group, &meshes, timing, &mut after);
+        program.borrow_mut().record(&self.gpu.device, encoder, pipelines, runs, run, &self.frame_bind_group, &s.group, &meshes, timing, &mut after);
     }
 
     fn encode_scene(&mut self, encoder: &mut wgpu::CommandEncoder, content: &FrameContent, timed: bool) {
@@ -2619,8 +2620,10 @@ impl Renderer {
         };
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
         // Every view runs its program, from its own slot (its images and history; `Renderer::enter`).
-        use crate::investigation::ProgramStage;
         let program_shading = shading;
+        // Each program pass's run of nodes, and the runs recorded so far.
+        let runs = shading.map_or(Vec::new(), |s| s.source.program_runs());
+        let mut recorded: Vec<u32> = Vec::new();
         // Its groups, for this view's size and the frame's textures it reads.
         if let Some(s) = program_shading {
             if let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) {
@@ -2638,8 +2641,6 @@ impl Renderer {
                 }
             }
         }
-        self.record_program(encoder, ProgramStage::Start, &graph, chain, program_shading, targets, timing.as_mut());
-        let mut after_prepass = false;
         // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
         let mut pending: Vec<usize> = Vec::new();
         for &n in &graph.order {
@@ -2663,7 +2664,15 @@ impl Renderer {
                 c.dispatch(encoder, &self.frame_bind_group, s, &std::mem::take(&mut pending), timing.as_mut());
             }
             match node.step {
-                Step::Update(_) | Step::Compute(_) | Step::Composite | Step::Program(_) => {}
+                Step::Update(_) | Step::Compute(_) | Step::Composite => {}
+                // A run of program nodes: its commands, where its first node is.
+                Step::Program(i) => {
+                    let run = runs[i];
+                    if !recorded.contains(&run) {
+                        recorded.push(run);
+                        self.record_program(encoder, &runs, run, &graph, chain, program_shading, targets, timing.as_mut());
+                    }
+                }
                 Step::DepthViews => {
                     let (Some(s), Some(c)) = (chained, chain) else { continue };
                     // The depth views (shadow maps), one layer at a time, when what
@@ -2731,14 +2740,9 @@ impl Renderer {
                             pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                         }
                     }
-                    self.record_program(encoder, ProgramStage::AfterPrepass, &graph, chain, program_shading, targets, timing.as_mut());
-                    after_prepass = true;
                 }
                 Step::Scene => {
-                    if !std::mem::replace(&mut after_prepass, true) {
-                        self.record_program(encoder, ProgramStage::AfterPrepass, &graph, chain, program_shading, targets, timing.as_mut());
-                    }
-                    self.record_program(encoder, ProgramStage::BeforeScene, &graph, chain, program_shading, targets, timing.as_mut());
+                    self.record_program(encoder, &runs, crate::program::BEFORE_SCENE, &graph, chain, program_shading, targets, timing.as_mut());
                     let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("scene"),
@@ -2776,8 +2780,6 @@ impl Renderer {
                     for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
                         pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
                     }
-                    drop(pass);
-                    self.record_program(encoder, ProgramStage::AfterScene, &graph, chain, program_shading, targets, timing.as_mut());
                 }
                 Step::Overlay => {
                     let span = timing.as_mut().and_then(|t| t.render_writes("overlay"));
@@ -2833,6 +2835,9 @@ impl Renderer {
         }
         if let (Some(s), Some(c)) = (chained, chain) {
             c.dispatch(encoder, &self.frame_bind_group, s, &pending, timing.as_mut());
+        }
+        if let Some(program) = program_shading.and_then(|s| s.program.as_ref()) {
+            program.borrow_mut().finish();
         }
         self.timing = timing.or(self.timing.take());
     }

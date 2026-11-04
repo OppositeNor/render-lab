@@ -61,7 +61,9 @@ pub struct Wording {
 }
 
 /// An investigation's own shading of the scene pass, in place of the lab's
-/// (`sceneFS` in packages/render_lab/shaders/scene.wgsl). `module` is a shader its
+/// (`sceneFS` in packages/render_lab/shaders/scene.wgsl). A package declares
+/// it in its `shading.toml`, which src/shading_file.rs reads into this; its
+/// functions are the investigation's `shading_hooks`. `module` is a shader its
 /// package declares (src/shaders.rs), composed after the lab's
 /// `render_lab.shader/scene` (the
 /// shared prelude and scene.wgsl, so it may use `SceneVaryings`,
@@ -136,9 +138,75 @@ pub struct SceneShading {
     /// The investigation's own GPU resources and passes, and the commands
     /// that run them each frame (`ShadingProgram`).
     pub program: Option<&'static ShadingProgram>,
+    /// The frame's nodes in order (its file's `[[node]]` list): the frame
+    /// graph declares them so, and the renderer runs them in that order where
+    /// their reads and writes allow. Empty: `frame_nodes`' usual order.
+    pub nodes: &'static [FrameNode],
+}
+
+/// One node of a shading's frame, in `SceneShading::nodes`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FrameNode {
+    /// Pass `i` of `ShadingUpdate::passes`; update passes come first (they
+    /// run before the frame, when their plan's key changes).
+    Update(usize),
+    /// The depth views (`SceneShading::depth_views`).
+    DepthViews,
+    /// The depth pre-pass (`SceneShading::prepass`).
+    Prepass,
+    /// Compute pass `i` of `early` then `passes`, in one index.
+    Compute(usize),
+    /// Pass `i` of `ShadingProgram::passes`. A run of consecutive program
+    /// nodes is recorded where the run is: the plan's commands for its passes,
+    /// in the plan's order, with the uploads, clears, and copies before each.
+    Program(usize),
+    /// The scene pass (`SceneShading::fragment`); a plan's commands after its
+    /// last pass command are recorded right before it.
+    Scene,
 }
 
 impl SceneShading {
+    /// Its frame's nodes in order: `nodes`, or, when that is empty, the usual
+    /// order: the update passes, the depth views, the pre-pass, the `early`
+    /// passes, the scene pass, then `passes` (a program's passes need `nodes`).
+    pub fn frame_nodes(&self) -> std::borrow::Cow<'static, [FrameNode]> {
+        if !self.nodes.is_empty() {
+            return std::borrow::Cow::Borrowed(self.nodes);
+        }
+        let mut nodes: Vec<FrameNode> = (0..self.update.map_or(0, |u| u.passes.len())).map(FrameNode::Update).collect();
+        if self.depth_views.is_some() {
+            nodes.push(FrameNode::DepthViews);
+        }
+        if self.prepass.is_some() {
+            nodes.push(FrameNode::Prepass);
+        }
+        nodes.extend((0..self.early.len()).map(FrameNode::Compute));
+        nodes.push(FrameNode::Scene);
+        nodes.extend((0..self.passes.len()).map(|i| FrameNode::Compute(self.early.len() + i)));
+        std::borrow::Cow::Owned(nodes)
+    }
+
+    /// The run of consecutive program nodes each program pass is in (by
+    /// pass index; `u32::MAX` for a pass in no node): where its commands are recorded.
+    pub fn program_runs(&self) -> Vec<u32> {
+        let mut runs = vec![u32::MAX; self.program.map_or(0, |p| p.passes.len())];
+        let mut run = 0u32;
+        let mut previous = false;
+        for node in self.frame_nodes().iter() {
+            let program = matches!(node, FrameNode::Program(_));
+            if let FrameNode::Program(i) = node {
+                if let Some(r) = runs.get_mut(*i) {
+                    *r = run;
+                }
+            }
+            if previous && !program {
+                run += 1;
+            }
+            previous = program;
+        }
+        runs
+    }
+
     /// Whether its frame is a pass chain: the scene pass writes `outputs`, or
     /// a pre-pass writes targets for the passes before the scene pass.
     pub fn chained(&self) -> bool {
@@ -254,12 +322,28 @@ pub struct ShadingProgram {
     /// whether the frame builds on the ones before it (a live view) or
     /// stands alone (a recording's frame, a snapshot).
     pub plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand>,
-    /// For a program that reads what earlier frames left (an image an
-    /// `AfterScene` pass copied the frame into): how many times a frame that
+    /// For a program that reads what earlier frames left (an image a
+    /// pass after the scene pass copied the frame into): how many times a frame that
     /// stands alone draws the same shot first, each planned and drawn in full,
     /// the first told it has no history (so it starts from zero), the rest
     /// that they do. 0: a standalone frame is drawn once.
     pub warmup: u32,
+}
+
+/// A function of an investigation that its package's shading file names
+/// (src/shading_file.rs): what the declaration cannot say, because it computes.
+#[derive(Clone, Copy)]
+pub enum ShadingHook {
+    /// `SceneShading::data`.
+    Data(fn() -> Vec<[f32; 4]>),
+    /// `ShadingUpdate::plan`.
+    UpdatePlan(fn(&ShotState) -> UpdatePlan),
+    /// `UpdateBuffer::words`.
+    Words(fn() -> u64),
+    /// `ShadingResolution::divisor`.
+    Divisor(fn(&ShotState) -> u32),
+    /// `ShadingProgram::init` and `plan`.
+    Program { init: fn() -> Box<dyn std::any::Any + Send>, plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand> },
 }
 
 /// What a plan is told about the frame.
@@ -325,19 +409,6 @@ impl Element {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProgramStage {
-    /// Before anything else of the frame (the depth views included).
-    Start,
-    /// Right after the depth pre-pass (at the start without one).
-    AfterPrepass,
-    /// Right before the scene pass.
-    BeforeScene,
-    /// Right after the scene pass (before the chain's passes after it): what
-    /// it wrote, `hdr` included, is this frame's.
-    AfterScene,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PassKind {
     /// A compute entry point and its workgroup's size (`@workgroup_size`).
     Compute { entry: &'static str, workgroup: [u32; 3] },
@@ -352,7 +423,6 @@ pub struct ProgramPass {
     pub name: &'static str,
     pub kind: PassKind,
     pub uses: &'static [ProgramUse],
-    pub stage: ProgramStage,
     /// Its bind groups: a command names one (`instance`), whose uses of
     /// `Which::Instance` bind that element of their resource (an engine's
     /// per-cascade uniform sets).
@@ -706,9 +776,15 @@ pub trait Investigation: Sync {
     fn pass_about(&self, _node: &str) -> Option<&'static str> {
         None
     }
-    /// The scene pass's shading, when the investigation brings its own.
+    /// The scene pass's shading, when the investigation brings its own: by
+    /// default its package's `shading` resource (src/shading_file.rs), read
+    /// once, its functions looked up in `shading_hooks`.
     fn scene_shading(&self) -> Option<&'static SceneShading> {
-        None
+        crate::shading_file::of(self.package()?, self.shading_hooks())
+    }
+    /// The functions its package's shading file names, by name.
+    fn shading_hooks(&self) -> &'static [(&'static str, ShadingHook)] {
+        &[]
     }
     /// The derived members of the scene shading's `@shader_data` uniform
     /// (src/shader_data.rs), from the state; the lab has packed its values.

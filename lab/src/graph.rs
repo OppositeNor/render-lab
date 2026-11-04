@@ -188,7 +188,6 @@ impl FrameGraph {
             Resource { name: "hdr", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::HDR_FORMAT, divisor: 1, samples: 1 } },
             Resource { name: "depth", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::DEPTH_FORMAT, divisor: 1, samples: crate::gpu::MSAA } },
         ];
-        let chained = shading.filter(|s| s.chained());
         if let Some(s) = shading {
             for t in s.targets {
                 let divisor = if s.resolution.is_some_and(|r| r.targets.contains(&t.name)) { 0 } else { t.divisor };
@@ -209,9 +208,6 @@ impl FrameGraph {
                 for b in u.buffers {
                     resources.push(Resource { name: b.name, lifetime: Lifetime::Persistent, shape: Shape::UpdateBuffer });
                 }
-                for (i, p) in u.passes.iter().enumerate() {
-                    nodes.push(Node { name: p.entry, step: Step::Update(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: true });
-                }
             }
             if let Some(program) = s.program {
                 for i in program.images {
@@ -222,72 +218,20 @@ impl FrameGraph {
                 }
             }
         }
-        // A program's passes of one stage, in its order.
-        let program_nodes = |stage: crate::investigation::ProgramStage| -> Vec<Node> {
-            let Some(program) = shading.and_then(|s| s.program) else { return Vec::new() };
-            program
-                .passes
-                .iter()
-                .enumerate()
-                .filter(|(_, p)| p.stage == stage)
-                .map(|(i, p)| Node { name: p.name, step: Step::Program(i), reads: program_reads(p.uses), writes: program_writes(p.uses), timing: p.name, cached: false })
-                .collect()
-        };
-        use crate::investigation::ProgramStage;
-        nodes.extend(program_nodes(ProgramStage::Start));
         // The program's scene group: what the scene pass reads of it, but what the chain's passes declare they read.
         let chain_reads: Vec<&str> = shading.map_or(Vec::new(), |s| s.early.iter().chain(s.passes).flat_map(|p| p.reads.iter().copied()).collect());
         let scene_uses: Vec<&'static str> = shading.and_then(|s| s.program).map_or(Vec::new(), |p| program_reads(p.scene_uses)).into_iter().filter(|r| !chain_reads.contains(r)).collect();
         resources.push(Resource { name: "overlay", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::OVERLAY_FORMAT, divisor: 1, samples: 1 } });
         resources.push(Resource { name: "frame", lifetime: Lifetime::Imported, shape: Shape::Texture { format: crate::gpu::FRAME_FORMAT, divisor: 1, samples: 1 } });
-        match chained {
-            Some(s) => {
-                if let Some(d) = s.depth_views {
-                    nodes.push(Node { name: "depthViews", step: Step::DepthViews, reads: Vec::new(), writes: vec![d.name], timing: "depth views", cached: true });
-                }
-                if let Some(entry) = s.prepass {
-                    let mut writes = vec!["depth"];
-                    writes.extend(s.prepass_outputs.iter().copied());
-                    nodes.push(Node { name: entry, step: Step::Prepass, reads: Vec::new(), writes, timing: "depth pre-pass", cached: false });
-                }
-                nodes.extend(program_nodes(ProgramStage::AfterPrepass));
-                let mut named: Vec<&'static str> = Vec::new();
-                let mut unique = |entry: &'static str| -> &'static str {
-                    let k = named.iter().filter(|n| **n == entry).count();
-                    named.push(entry);
-                    if k == 0 { entry } else { Box::leak(format!("{entry}#{}", k + 1).into_boxed_str()) }
-                };
-                for (i, p) in s.early.iter().enumerate() {
-                    nodes.push(Node { name: unique(p.entry), step: Step::Compute(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: false });
-                }
-                nodes.extend(program_nodes(ProgramStage::BeforeScene));
-                let mut reads = s.scene_reads.to_vec();
-                reads.extend(scene_uses.iter().copied().filter(|r| !s.scene_reads.contains(r)));
-                // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
-                let mut writes = if s.outputs.is_empty() { vec!["hdr"] } else { s.outputs.to_vec() };
-                if s.prepass.is_some() {
-                    reads.push("depth");
-                } else {
-                    writes.push("depth");
-                }
-                nodes.push(Node { name: s.fragment, step: Step::Scene, reads, writes, timing: "scene pass", cached: false });
-                nodes.extend(program_nodes(ProgramStage::AfterScene));
-                for (i, p) in s.passes.iter().enumerate() {
-                    nodes.push(Node { name: unique(p.entry), step: Step::Compute(s.early.len() + i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: false });
-                }
-            }
-            None => {
-                nodes.extend(program_nodes(ProgramStage::AfterPrepass));
-                nodes.extend(program_nodes(ProgramStage::BeforeScene));
-                let name = shading.map_or("scene", |s| s.fragment);
-                nodes.push(Node { name, step: Step::Scene, reads: scene_uses.clone(), writes: vec!["hdr", "depth"], timing: "scene pass", cached: false });
-                nodes.extend(program_nodes(ProgramStage::AfterScene));
-            }
+        let mut errors = Vec::new();
+        match shading {
+            Some(s) => Self::shading_nodes(s, &scene_uses, &mut nodes, &mut errors),
+            None => nodes.push(Node { name: "scene", step: Step::Scene, reads: Vec::new(), writes: vec!["hdr", "depth"], timing: "scene pass", cached: false }),
         }
         nodes.push(Node { name: "overlay", step: Step::Overlay, reads: vec!["depth"], writes: vec!["overlay"], timing: "overlay", cached: false });
         nodes.push(Node { name: "composite", step: Step::Composite, reads: vec!["hdr", "overlay"], writes: vec!["frame"], timing: "composite", cached: false });
         let shows = shading.map_or(Vec::new(), |s| s.shows.to_vec());
-        let mut graph = FrameGraph { nodes, resources, edges: Vec::new(), order: Vec::new(), live: Vec::new(), errors: Vec::new(), shows };
+        let mut graph = FrameGraph { nodes, resources, edges: Vec::new(), order: Vec::new(), live: Vec::new(), errors, shows };
         if let Some(s) = shading.filter(|s| !s.chained() && !(s.early.is_empty() && s.passes.is_empty())) {
             graph.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
         }
@@ -316,6 +260,102 @@ impl FrameGraph {
     /// The graph of the current investigation's frame.
     pub fn current(sinks: &[&str]) -> FrameGraph {
         FrameGraph::new(crate::investigation::current().scene_shading(), sinks)
+    }
+
+    /// The nodes of a shading's frame, in its order (`SceneShading::frame_nodes`),
+    /// and what is wrong with that order.
+    fn shading_nodes(s: &'static SceneShading, scene_uses: &[&'static str], nodes: &mut Vec<Node>, errors: &mut Vec<String>) {
+        use crate::investigation::FrameNode;
+        let chained = s.chained();
+        let frame = s.frame_nodes();
+        let mut named: Vec<&'static str> = Vec::new();
+        let mut unique = |entry: &'static str| -> &'static str {
+            let k = named.iter().filter(|n| **n == entry).count();
+            named.push(entry);
+            if k == 0 { entry } else { Box::leak(format!("{entry}#{}", k + 1).into_boxed_str()) }
+        };
+        let computes: Vec<&crate::investigation::ShadingPass> = s.early.iter().chain(s.passes).collect();
+        let updates = s.update.map_or(&[][..], |u| u.passes);
+        let programs = s.program.map_or(&[][..], |p| p.passes);
+        // How many times each declared node is placed.
+        let mut placed = std::collections::BTreeMap::<FrameNode, usize>::new();
+        let mut leading = true;
+        for node in frame.iter() {
+            *placed.entry(*node).or_default() += 1;
+            let update = matches!(node, FrameNode::Update(_));
+            if update && !leading {
+                errors.push(format!("{}: update passes run before the frame; list them first", s.fragment));
+            }
+            leading &= update;
+            match *node {
+                FrameNode::Update(i) => match updates.get(i) {
+                    Some(p) => nodes.push(Node { name: p.entry, step: Step::Update(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: true }),
+                    None => errors.push(format!("{}: no update pass {i}", s.fragment)),
+                },
+                FrameNode::DepthViews => match s.depth_views {
+                    Some(d) if chained => nodes.push(Node { name: "depthViews", step: Step::DepthViews, reads: Vec::new(), writes: vec![d.name], timing: "depth views", cached: true }),
+                    Some(_) => {}
+                    None => errors.push(format!("{}: a depth views node without depth views", s.fragment)),
+                },
+                FrameNode::Prepass => match s.prepass {
+                    Some(entry) if chained => {
+                        let mut writes = vec!["depth"];
+                        writes.extend(s.prepass_outputs.iter().copied());
+                        nodes.push(Node { name: entry, step: Step::Prepass, reads: Vec::new(), writes, timing: "depth pre-pass", cached: false });
+                    }
+                    Some(_) => {}
+                    None => errors.push(format!("{}: a pre-pass node without a pre-pass", s.fragment)),
+                },
+                FrameNode::Compute(i) => match computes.get(i) {
+                    // Without a chain they never run (an error below).
+                    Some(p) if chained => nodes.push(Node { name: unique(p.entry), step: Step::Compute(i), reads: p.reads.to_vec(), writes: p.writes.to_vec(), timing: p.entry, cached: false }),
+                    Some(_) => {}
+                    None => errors.push(format!("{}: no compute pass {i}", s.fragment)),
+                },
+                FrameNode::Program(i) => match programs.get(i) {
+                    Some(p) => nodes.push(Node { name: p.name, step: Step::Program(i), reads: program_reads(p.uses), writes: program_writes(p.uses), timing: p.name, cached: false }),
+                    None => errors.push(format!("{}: no program pass {i}", s.fragment)),
+                },
+                FrameNode::Scene => {
+                    let (reads, writes) = if chained {
+                        let mut reads = s.scene_reads.to_vec();
+                        reads.extend(scene_uses.iter().copied().filter(|r| !s.scene_reads.contains(r)));
+                        // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
+                        let mut writes = if s.outputs.is_empty() { vec!["hdr"] } else { s.outputs.to_vec() };
+                        if s.prepass.is_some() {
+                            reads.push("depth");
+                        } else {
+                            writes.push("depth");
+                        }
+                        (reads, writes)
+                    } else {
+                        (scene_uses.to_vec(), vec!["hdr", "depth"])
+                    };
+                    nodes.push(Node { name: s.fragment, step: Step::Scene, reads, writes, timing: "scene pass", cached: false });
+                }
+            }
+        }
+        // Each declared node once, the scene pass once, the pre-pass before it.
+        let count = |n: FrameNode| placed.get(&n).copied().unwrap_or(0);
+        let mut wanted: Vec<(FrameNode, String)> = vec![(FrameNode::Scene, format!("the scene pass `{}`", s.fragment))];
+        wanted.extend(updates.iter().enumerate().map(|(i, p)| (FrameNode::Update(i), format!("update pass `{}`", p.entry))));
+        wanted.extend(s.depth_views.map(|d| (FrameNode::DepthViews, format!("the depth views `{}`", d.name))));
+        wanted.extend(s.prepass.map(|e| (FrameNode::Prepass, format!("the pre-pass `{e}`"))));
+        wanted.extend(computes.iter().enumerate().map(|(i, p)| (FrameNode::Compute(i), format!("compute pass {i} `{}`", p.entry))));
+        wanted.extend(programs.iter().enumerate().map(|(i, p)| (FrameNode::Program(i), format!("program pass `{}`", p.name))));
+        for (node, what) in wanted {
+            match count(node) {
+                1 => {}
+                0 => errors.push(format!("{}: {what} is in no node of the frame", s.fragment)),
+                n => errors.push(format!("{}: {what} is in {n} nodes of the frame", s.fragment)),
+            }
+        }
+        let at = |n: FrameNode| frame.iter().position(|x| *x == n);
+        if let (Some(p), Some(scene)) = (at(FrameNode::Prepass), at(FrameNode::Scene)) {
+            if p > scene {
+                errors.push(format!("{}: the pre-pass comes after the scene pass, which tests against its depth", s.fragment));
+            }
+        }
     }
 
     pub fn resource(&self, name: &str) -> Option<usize> {
@@ -1319,12 +1359,13 @@ mod tests {
             history: &[],
             shows: &[],
             program: None,
+            nodes: &[],
         }))
     }
 
     #[test]
-    fn a_program_places_its_passes_at_their_stages() {
-        use crate::investigation::{Access, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramStage, ProgramUse, ShadingProgram, Which};
+    fn a_program_places_its_passes_where_its_nodes_are() {
+        use crate::investigation::{Access, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramUse, ShadingProgram, Which};
         static IMAGES: &[ProgramImage] = &[ProgramImage { name: "grid", kind: ImageKind::D3, size: [8, 8, 8], format: wgpu::TextureFormat::R32Uint, count: 2, mips: 1, viewport: 0 }];
         static BUFFERS: &[ProgramBuffer] = &[ProgramBuffer { name: "list", bytes: 64, indirect: true, count: 1 }];
         static PASSES: &[ProgramPass] = &[
@@ -1332,14 +1373,12 @@ mod tests {
                 name: "buildCS",
                 kind: PassKind::Compute { entry: "buildCS", workgroup: [4, 4, 4] },
                 uses: &[ProgramUse { binding: 1, resource: "grid", access: Access::Write, which: Which::Instance }, ProgramUse { binding: 2, resource: "list", access: Access::Atomic, which: Which::First }],
-                stage: ProgramStage::Start,
                 instances: 2,
             },
             ProgramPass {
                 name: "gatherCS",
                 kind: PassKind::Compute { entry: "gatherCS", workgroup: [8, 8, 1] },
                 uses: &[ProgramUse { binding: 1, resource: "grid", access: Access::Load, which: Which::All }],
-                stage: ProgramStage::BeforeScene,
                 instances: 1,
             },
             // This frame's colour, once the scene pass has written it.
@@ -1347,15 +1386,25 @@ mod tests {
                 name: "keepCS",
                 kind: PassKind::Compute { entry: "keepCS", workgroup: [8, 8, 1] },
                 uses: &[ProgramUse { binding: 1, resource: "hdr", access: Access::Load, which: Which::First }, ProgramUse { binding: 2, resource: "grid", access: Access::Write, which: Which::Mip(0) }],
-                stage: ProgramStage::AfterScene,
                 instances: 1,
             },
         ];
         static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new(), warmup: 0 };
         let s = shading(&[], &[]);
         // No chain (the scene pass writes the frame), as a program's investigation may have.
-        let g = FrameGraph::new(Some(Box::leak(Box::new(SceneShading { program: Some(&PROGRAM), outputs: &[], scene_reads: &[], ..*s }))), &[]);
+        // Its pre-pass does not run without a chain.
+        static NODES: &[FrameNode] = &[FrameNode::Program(0), FrameNode::Prepass, FrameNode::Program(1), FrameNode::Scene, FrameNode::Program(2)];
+        let with = |nodes: &'static [FrameNode]| -> &'static SceneShading { Box::leak(Box::new(SceneShading { program: Some(&PROGRAM), outputs: &[], scene_reads: &[], nodes, ..*s })) };
+        let g = FrameGraph::new(Some(with(NODES)), &[]);
         assert!(g.errors.is_empty(), "{:?}", g.errors);
+        // Its commands are recorded in three runs: before the pre-pass, between it and the scene pass, after the scene pass.
+        assert_eq!(with(NODES).program_runs(), vec![0, 1, 2]);
+        // A pass in no node, or in two, is an error; so is a pre-pass after the scene pass.
+        let missing = FrameGraph::new(Some(with(&[FrameNode::Prepass, FrameNode::Program(0), FrameNode::Program(1), FrameNode::Scene])), &[]);
+        assert!(missing.errors.iter().any(|e| e.contains("program pass `keepCS` is in no node")), "{:?}", missing.errors);
+        let twice = FrameGraph::new(Some(with(&[FrameNode::Program(0), FrameNode::Program(1), FrameNode::Scene, FrameNode::Program(2), FrameNode::Program(2), FrameNode::Prepass])), &[]);
+        assert!(twice.errors.iter().any(|e| e.contains("`keepCS` is in 2 nodes")), "{:?}", twice.errors);
+        assert!(twice.errors.iter().any(|e| e.contains("pre-pass comes after the scene pass")), "{:?}", twice.errors);
         let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
         assert_eq!(names, ["buildCS", "gatherCS", "sceneFS", "keepCS", "overlay", "composite"]);
         // It reads `hdr` after the scene pass writes it.

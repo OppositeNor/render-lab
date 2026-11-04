@@ -50,7 +50,8 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     report.check("Rust struct layouts match the WGSL layouts computed by naga", checks.iter().all(|c| c.ok), serde_json::to_value(&checks)?);
     let manifest: Value = lab::shaders::manifest();
     let modules = manifest["modules"].as_array().cloned().unwrap_or_default();
-    let ported = modules.iter().any(|m| m["module"] == super::SHADING.module && m["validated"] == true);
+    let module = lab::investigation::Investigation::scene_shading(&super::LIGHTING).map_or("", |s| s.module);
+    let ported = modules.iter().any(|m| m["module"] == module && m["validated"] == true);
     report.check("the WGSL port (scene module + standard_lighting.wgsl) validated by naga", ported, json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()));
 
     // The values (values.rs): each demonstration's, read through the typed struct and stored back, are the same.

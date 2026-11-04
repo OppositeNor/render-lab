@@ -1,0 +1,273 @@
+# The O3DE lighting investigation's frame (a `shading` resource of its package, read by the lab at run time). The
+# format is in lab/src/shading_file.rs; the functions it names are in src/o3de/lighting/mod.rs (`shading_hooks`).
+#
+# O3DE's opaque passes, in the main pipeline's order (OpaqueParent.pass): the forward pass into O3DE's targets
+# (Forward.pass formats, where wgpu has them; the lab adds a false-colour target for its views), then
+# DiffuseGlobalFullscreen, ReflectionGlobalFullscreen into its own reflection target, ReflectionComposite, and
+# DiffuseSpecularMerge. Compute passes cannot blend, so each writes its sum to a new target.
+
+module = "o3de_lighting.shader/standard-lighting"
+data = "data"
+verify = ["o3deBrdfTests", "o3dePixelTests", "o3deBrdfMapTests", "o3deIblTests", "o3deResolveTests"]
+
+[[target]]
+name = "diffuse"
+format = "rgba16float"
+
+[[target]]
+name = "specular"
+format = "rgba16float"
+
+[[target]]
+name = "albedo"
+format = "rgba8unorm"
+
+[[target]]
+name = "specularF0"
+format = "rgba8unorm"
+
+[[target]]
+name = "normal"
+format = "rgb10a2unorm"
+
+[[target]]
+name = "debug"
+format = "rgba16float"
+
+# The stencil reference each sample was drawn with (RenderCommon.h StencilRefs), / 255.
+[[target]]
+name = "stencil"
+format = "r8unorm"
+
+[[target]]
+name = "diffuseLit"
+format = "rgba16float"
+
+[[target]]
+name = "reflection"
+format = "rgba16float"
+
+[[target]]
+name = "specularLit"
+format = "rgba16float"
+
+# The probe stencil (RGB) and blend-weight (A) views.
+[[target]]
+name = "probeView"
+format = "rgba16float"
+
+# Per 16 x 16 tile: TileLightData, the light list, and the remapped list (8 bins of 256).
+[[buffer]]
+name = "tileData"
+words-per-tile = 4
+tile = 16
+
+[[buffer]]
+name = "lightList"
+words-per-tile = 256
+tile = 16
+
+[[buffer]]
+name = "lightListRemapped"
+words-per-tile = 2048
+tile = 16
+
+# SSAO's stages, one f32 per pixel: the linear depth (R32_FLOAT), the half-res depth (R32_FLOAT), SsaoCompute's
+# output, the two blurs, and the upsampled AO (R8_UNORM, rounded to 8 bits).
+[[buffer]]
+name = "linearDepth"
+words-per-tile = 1
+tile = 1
+
+[[buffer]]
+name = "halfDepth"
+words-per-tile = 1
+tile = 2
+
+[[buffer]]
+name = "ssao"
+words-per-tile = 1
+tile = 2
+
+[[buffer]]
+name = "ssaoBlurV"
+words-per-tile = 1
+tile = 2
+
+[[buffer]]
+name = "ssaoBlur"
+words-per-tile = 1
+tile = 2
+
+[[buffer]]
+name = "ssaoFull"
+words-per-tile = 1
+tile = 1
+
+# FullscreenShadow's output and the two passes of its blur (R8_UNORM: floats rounded to 8 bits); the forward pass
+# reads the last.
+[[buffer]]
+name = "shadowRaw"
+words-per-tile = 1
+tile = 1
+
+[[buffer]]
+name = "shadowBlurV"
+words-per-tile = 1
+tile = 1
+
+[[buffer]]
+name = "shadowBuffer"
+words-per-tile = 1
+tile = 1
+
+# The frame, in order (lab/src/shading_file.rs): each node's passes run where it is, as their reads and
+# writes allow.
+# The sun's cascaded shadow maps (CascadedShadowmaps.pass): four 1024 x 1024 layers, one per cascade, each drawn by
+# its vertex entry point.
+[[node]]
+kind = "depth-views"
+name = "cascades"
+size = 1024
+vertices = ["o3deCascade0VS", "o3deCascade1VS", "o3deCascade2VS", "o3deCascade3VS"]
+# The caster's raster state (Shadowmap.shader, ShadowmapPass.shader.template): depthBias 10, depthBiasSlopeScale 4,
+# on O3DE's forward depth; negated for the lab's reversed depth.
+bias = [-10, -4.0]
+
+[[node]]
+kind = "prepass"
+entry = "o3dePrepassFS"
+
+# Light culling (LightCullingParent.pass), after the depth pre-pass and before the forward pass: one workgroup per
+# 16 x 16 tile.
+[[node]]
+kind = "compute"
+entry = "o3deLightCullingTilePrepareCS"
+reads = ["depth"]
+writes = ["tileData"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deLightCullingCS"
+reads = ["tileData", "lightList"]
+writes = ["lightList", "tileData"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deLightCullingRemapCS"
+reads = ["tileData", "lightList"]
+writes = ["lightListRemapped", "tileData"]
+workgroup = [16, 16]
+
+# DepthToLinearDepth (DepthParent.pass), which the shadow blur and SSAO read.
+[[node]]
+kind = "compute"
+entry = "o3deLinearDepthCS"
+reads = ["depth"]
+writes = ["linearDepth"]
+workgroup = [16, 16]
+
+# Shadows (ShadowParent.pass): FullscreenShadow, then FullscreenShadowBlur (its vertical pass, then its horizontal
+# one), before the forward pass.
+[[node]]
+kind = "compute"
+entry = "o3deFullscreenShadowCS"
+reads = ["depth", "cascades"]
+writes = ["shadowRaw"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deShadowBlurVerticalCS"
+reads = ["depth", "linearDepth", "shadowRaw", "shadowBlurV"]
+writes = ["shadowBlurV"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deShadowBlurHorizontalCS"
+reads = ["depth", "linearDepth", "shadowRaw", "shadowBlurV"]
+writes = ["shadowBuffer"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "scene"
+entry = "o3deForwardFS"
+outputs = ["diffuse", "specular", "albedo", "specularF0", "normal", "debug", "stencil"]
+reads = ["tileData", "lightListRemapped", "shadowBuffer", "cascades"]
+
+[[node]]
+kind = "compute"
+entry = "o3deDiffuseGlobalCS"
+reads = ["diffuse", "normal", "albedo", "stencil"]
+writes = ["diffuseLit"]
+workgroup = [8, 8]
+
+[[node]]
+kind = "compute"
+entry = "o3deReflectionsCS"
+reads = ["normal", "albedo", "specularF0", "stencil", "depth"]
+writes = ["reflection", "probeView"]
+workgroup = [8, 8]
+
+[[node]]
+kind = "compute"
+entry = "o3deReflectionCompositeCS"
+reads = ["specular", "reflection", "depth"]
+writes = ["specularLit"]
+workgroup = [8, 8]
+
+# AoParent.pass (SsaoParent.pass), after the MSAA resolves; ModulateWithSsao is in the merge.
+[[node]]
+kind = "compute"
+entry = "o3deDepthDownsampleCS"
+reads = ["depth", "linearDepth"]
+writes = ["halfDepth"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deSsaoCS"
+reads = ["depth", "halfDepth"]
+writes = ["ssao"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deSsaoBlurVerticalCS"
+reads = ["depth", "halfDepth", "ssao", "ssaoBlurV"]
+writes = ["ssaoBlurV"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deSsaoBlurHorizontalCS"
+reads = ["depth", "halfDepth", "ssao", "ssaoBlurV"]
+writes = ["ssaoBlur"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deSsaoUpsampleCS"
+reads = ["depth", "linearDepth", "halfDepth", "ssaoBlur"]
+writes = ["ssaoFull"]
+workgroup = [16, 16]
+
+[[node]]
+kind = "compute"
+entry = "o3deMergeCS"
+reads = ["diffuse", "specular", "debug", "diffuseLit", "specularLit", "reflection", "probeView", "depth", "ssaoFull"]
+writes = ["hdr"]
+workgroup = [8, 8]
+
+# The tile data's fourth word is the tile's light count after culling, which counts an end-of-group mark for each of
+# the 7 light groups (a tile without lights: 7); the light lists pack a light's index and its depth bins; depths are
+# view distances.
+[shows]
+tileData = "count?word=3&range=7,11"
+lightList = "hash"
+lightListRemapped = "hash"
+linearDepth = "float?range=0,12"
+halfDepth = "float?range=0,12"

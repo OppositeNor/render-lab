@@ -1,11 +1,12 @@
 //! A scene shading's program (`ShadingProgram`, todo/pass-programs.md): the
 //! investigation's own images, buffers, and passes, and the commands its plan
-//! returns each frame, recorded in order at their passes' stages. Group 2 of
+//! returns each frame, recorded in order where their passes' nodes are in the
+//! frame (`SceneShading::program_runs`). Group 2 of
 //! a pass holds the command's 16 words of parameters (binding 0, at a dynamic
 //! offset; wgpu keeps dynamic offsets out of a group with binding arrays),
 //! group 3 its uses; group 3 of the scene pass holds `scene_uses`.
 
-use crate::investigation::{Access, Element, ImageKind, PassKind, ProgramCommand, ProgramFrame, ProgramImage, ProgramStage, ProgramUse, SceneShading, ShadingProgram, Which};
+use crate::investigation::{Access, Element, ImageKind, PassKind, ProgramCommand, ProgramFrame, ProgramImage, ProgramUse, SceneShading, ShadingProgram, Which};
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 
@@ -13,6 +14,9 @@ use std::num::NonZeroU32;
 pub const PARAMS_STRIDE: u64 = 256;
 /// The most dispatches and draws one frame's plan may return.
 pub const COMMANDS_MAX: u64 = 4096;
+/// The run of a plan's commands after its last pass command: recorded right
+/// before the scene pass.
+pub const BEFORE_SCENE: u32 = u32::MAX;
 /// The format of a raster pass's attachment, which it never writes.
 const TARGET_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
 
@@ -444,8 +448,9 @@ impl ProgramRuntime {
         self.images[k].get(index as usize)
     }
 
-    /// Records the commands of `stage` (each upload, clear, and copy at the
-    /// stage of the next pass command after it), calling `after` with each
+    /// Records the commands of run `run` (`runs`, each pass's run; each
+    /// upload, clear, and copy in the run of the next pass command after it,
+    /// those after the last in `BEFORE_SCENE`), calling `after` with each
     /// pass's name once its consecutive commands are recorded (the inspector).
     #[allow(clippy::too_many_arguments)]
     pub fn record(
@@ -453,7 +458,8 @@ impl ProgramRuntime {
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         pipelines: &ProgramPipelines,
-        stage: ProgramStage,
+        runs: &[u32],
+        run: u32,
         frame: &wgpu::BindGroup,
         shading: &wgpu::BindGroup,
         meshes: &Meshes,
@@ -466,15 +472,16 @@ impl ProgramRuntime {
         assert!(!self.groups.is_empty() || self.source.passes.is_empty(), "a program's groups are made when the frame's textures exist (ProgramRuntime::bind)");
         let commands = std::mem::take(&mut self.commands);
         let source = self.source;
+        let stage = run;
         let pass_index = |name: &str| source.passes.iter().position(|p| p.name == name).unwrap_or_else(|| panic!("a program has no pass `{name}`"));
-        // Each command's stage, and its parameters' slot.
-        let mut stages = vec![ProgramStage::Start; commands.len()];
+        // Each command's run, and its parameters' slot.
+        let mut stages = vec![BEFORE_SCENE; commands.len()];
         let mut next = None;
         for (i, c) in commands.iter().enumerate().rev() {
             if let Some(p) = c.pass() {
-                next = Some(source.passes[pass_index(p)].stage);
+                next = Some(runs[pass_index(p)]);
             }
-            stages[i] = next.unwrap_or(ProgramStage::BeforeScene);
+            stages[i] = next.unwrap_or(BEFORE_SCENE);
         }
         let mut slot = 0u64;
         let mut slots = vec![0u64; commands.len()];
@@ -606,10 +613,12 @@ impl ProgramRuntime {
                 }
             }
         }
-        if stage == ProgramStage::AfterScene {
-            self.uploads = None;
-        } else {
-            self.commands = commands;
-        }
+        self.commands = commands;
+    }
+
+    /// Ends the frame's recording: its commands and uploads are spent.
+    pub fn finish(&mut self) {
+        self.commands.clear();
+        self.uploads = None;
     }
 }

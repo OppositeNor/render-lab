@@ -24,6 +24,7 @@ packages/<name>/
   resources.toml ...   its collections: [[resource]] and [[shader]] tables (any file names; the manifest lists them)
   text/, shaders/, demos/, params.toml, pseudocode/, source-index.json, assets/ ...   its content
   knowledge.toml       its chapters' requirements in the knowledge graph and its audience (resource id `knowledge`; the knowledge-graph skill)
+  shading.toml         its frame, if it shades the scene its own way (resource id `shading`; lab/src/shading_file.rs, the render-graph skill)
   video/               a narrated video's inputs (video.json, storyboards, diagrams), for tools/video
   Cargo.toml, build.rs, src/   its code, if it has investigations (section 5)
   build/               what its tools write: build/timelines/<lang>/, build/video/<lang>/ (git-ignored)

@@ -29,7 +29,7 @@ use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
-use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingTarget, Wording};
+use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
@@ -43,35 +43,6 @@ static WORDING: Wording = Wording {
     engine_short: "Godot",
     engine_tag: "Godot",
     checkout_dir: "godot/",
-};
-
-/// The frame is Godot's: the depth pre-pass writes depth and the
-/// normal-roughness buffer; the program's passes (gpu.rs) downsample them,
-/// build the Hi-Z pyramid, trace, filter, and resolve; the opaque pass blends
-/// the result into the indirect specular; and after it the frame is kept for
-/// the next frame's trace.
-pub static SHADING: SceneShading = SceneShading {
-    module: "godot_ssr.shader/ssr-shading",
-    fragment: "ssrForwardFS",
-    data: Vec::new,
-    verify: &[],
-    // Godot's normal-roughness buffer, R8G8B8A8_UNORM (rfc.cpp:263-265).
-    targets: &[ShadingTarget { name: "normalRoughness", format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1 }],
-    outputs: &[],
-    passes: &[],
-    prepass: Some("ssrPrepassFS"),
-    prepass_outputs: &["normalRoughness"],
-    early: &[],
-    buffers: &[],
-    // The resolved reflections, a program image the scene pass reads at group 3.
-    scene_reads: &["final"],
-    depth_views: None,
-    volumes: &[],
-    update: None,
-    resolution: None,
-    history: &[],
-    shows: &[("hiz", "ramp?range=0,0.04"), ("mipLevel", "ramp?range=0,0.4"), ("bestFit", "ramp?range=0.5,1")],
-    program: Some(&gpu::PROGRAM),
 };
 
 impl Investigation for Ssr {
@@ -150,8 +121,8 @@ impl Investigation for Ssr {
         })
     }
 
-    fn scene_shading(&self) -> Option<&'static SceneShading> {
-        Some(&SHADING)
+    fn shading_hooks(&self) -> &'static [(&'static str, lab::investigation::ShadingHook)] {
+        gpu::HOOKS
     }
 
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {

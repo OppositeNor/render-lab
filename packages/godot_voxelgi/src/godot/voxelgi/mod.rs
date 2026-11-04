@@ -37,7 +37,7 @@ use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
-use lab::investigation::{Engine, Investigation, SceneShading, SelftestOptions, ShadingPass, ShadingTarget, Wording};
+use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
@@ -54,51 +54,6 @@ static WORDING: Wording = Wording {
     engine_tag: "Godot",
     checkout_dir: "godot/",
 };
-
-/// The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order:
-/// the light passes when the settings change (update.rs, writing the RGBA8 3D
-/// texture), a depth pre-pass, the scene pass (the lab's direct light and the
-/// normal), the WGSL port of Godot's VoxelGI screen pass once per pixel (or
-/// per 2 × 2 block at half resolution), then the opaque pass's mix.
-const TARGETS: &[ShadingTarget] = &[
-    ShadingTarget { name: "direct", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "normal", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "giAmbient", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-    ShadingTarget { name: "giReflection", format: wgpu::TextureFormat::Rgba16Float, divisor: 1 },
-];
-
-const PASSES: &[ShadingPass] = &[
-    ShadingPass { entry: "voxelgiGiCS", reads: &["direct", "normal", "depth", "voxelgiLight"], writes: &["giAmbient", "giReflection"], workgroup: [8, 8] },
-    ShadingPass { entry: "voxelgiComposeCS", reads: &["direct", "normal", "giAmbient", "giReflection", "depth"], writes: &["hdr"], workgroup: [8, 8] },
-];
-
-pub static SHADING: SceneShading = SceneShading {
-    module: "godot_voxelgi.shader/voxelgi-shading",
-    fragment: "voxelgiForwardFS",
-    data: world::shading_data,
-    verify: &["voxelgiProcessTests", "voxelgiLightTests", "voxelgiBounceTests", "voxelgiSampleTests"],
-    targets: TARGETS,
-    outputs: &["direct", "normal"],
-    passes: PASSES,
-    prepass: Some("voxelgiPrepassFS"),
-    prepass_outputs: &[],
-    early: &[],
-    buffers: &[],
-    scene_reads: &[],
-    depth_views: None,
-    volumes: update::VOLUMES,
-    update: Some(&update::UPDATE),
-    resolution: Some(&RESOLUTION),
-    history: &[],
-    // The cells' light is four floats a cell, listed in cell order; the light
-    // texture is dim (it is divided by its dynamic range): a slice near the floor, brighter.
-    shows: &[("voxelgiOutputs", "float?range=0,2"), ("voxelgiLight", "color?slice=0.05&exposure=2")],
-    program: None,
-};
-
-/// rendering/global_illumination/gi/use_half_resolution: the GI buffers at
-/// half the viewport's size (gi.cpp:3987-3996, `size >>= 1`).
-static RESOLUTION: lab::investigation::ShadingResolution = lab::investigation::ShadingResolution { targets: &["giAmbient", "giReflection"], divisor: gi_divisor };
 
 fn gi_divisor(state: &ShotState) -> u32 {
     if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
@@ -211,8 +166,15 @@ impl Investigation for VoxelGi {
         })
     }
 
-    fn scene_shading(&self) -> Option<&'static SceneShading> {
-        Some(&SHADING)
+    fn shading_hooks(&self) -> &'static [(&'static str, lab::investigation::ShadingHook)] {
+        use lab::investigation::ShadingHook;
+        static HOOKS: &[(&str, ShadingHook)] = &[
+            ("data", ShadingHook::Data(world::shading_data)),
+            ("gi-divisor", ShadingHook::Divisor(gi_divisor)),
+            ("light-update", ShadingHook::UpdatePlan(update::plan)),
+            ("outputs-words", ShadingHook::Words(update::outputs_words)),
+        ];
+        HOOKS
     }
 
     fn shader_data(&self, block: &mut lab::shader_data::Block, state: &ShotState) {

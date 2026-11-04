@@ -25,12 +25,7 @@
 
 use super::model::{Cascades, Dirty, Settings, CASCADE_SIZE, PROBE_AXIS_COUNT, PROBE_CELLS};
 use glam::{IVec3, Vec3};
-use lab::investigation::{
-    Access::{self, *},
-    Element, ImageKind, PassKind, ProgramBuffer, ProgramCommand, ProgramFrame, ProgramImage, ProgramPass, ProgramStage, ProgramUse, ShadingProgram,
-    Which::{self, *},
-};
-use wgpu::TextureFormat as F;
+use lab::investigation::{Element, ProgramCommand, ProgramFrame};
 
 /// `sdfgi_cascades` (4), the cascade count the resources are made for.
 pub const CASCADES: u32 = 4;
@@ -38,208 +33,21 @@ pub const CASCADES: u32 = 4;
 pub const HISTORY: u32 = 30;
 const N: u32 = CASCADE_SIZE as u32;
 const P: u32 = PROBE_AXIS_COUNT as u32;
-/// `solid_cell_count = cascade_size^3 * solid_cell_ratio (0.25)` (gi.cpp:429).
-pub const SOLID_CELLS: u64 = (N as u64 * N as u64 * N as u64) / 4;
-/// `MAX(MAX_STATIC_LIGHTS, MAX_DYNAMIC_LIGHTS)` lights of 112 bytes (gi.cpp:590).
-pub const LIGHT_BYTES: u64 = 112;
 /// Frames a frame that does not follow the last is converged for first.
 pub const CONVERGED_FRAMES: u32 = super::sim::CONVERGED_FRAMES;
 
-const fn image(name: &'static str, kind: ImageKind, size: [u32; 3], format: F, count: u32) -> ProgramImage {
-    ProgramImage { name, kind, size, format, count, mips: 1, viewport: 0 }
-}
-
-pub static IMAGES: &[ProgramImage] = &[
-    // Shared by all cascades (one working set, rebuilt by each cascade in turn).
-    image("renderAlbedo", ImageKind::D3, [N; 3], F::R16Uint, 1),
-    image("renderEmission", ImageKind::D3, [N; 3], F::R32Uint, 1),
-    image("renderEmissionAniso", ImageKind::D3, [N; 3], F::R32Uint, 1),
-    image("renderGeomFacing", ImageKind::D3, [N; 3], F::R32Uint, 1),
-    image("renderOcclusion", ImageKind::D3, [N; 3], F::R8Unorm, 8),
-    image("renderSdf", ImageKind::D3, [N; 3], F::Rgba8Uint, 2),
-    image("renderSdfHalf", ImageKind::D3, [N / 2; 3], F::Rgba8Uint, 2),
-    image("occlusionData", ImageKind::D3, [N * 2, N, N * CASCADES], F::R16Uint, 1),
-    image("lightprobeHistoryScroll", ImageKind::D2Array, [P * P, P * 16, HISTORY], F::Rgba16Sint, 1),
-    image("lightprobeAverageScroll", ImageKind::D2, [P * P, P * 16, 1], F::Rgba32Sint, 1),
-    image("lightprobeData", ImageKind::D2Array, [P * P * 8, P * 8, CASCADES * 2], F::R32Uint, 1),
-    // One per cascade.
-    image("sdf", ImageKind::D3, [N; 3], F::R8Unorm, CASCADES),
-    image("lightData", ImageKind::D3, [N; 3], F::R32Uint, CASCADES),
-    image("lightAniso0", ImageKind::D3, [N; 3], F::Rgba8Unorm, CASCADES),
-    image("lightAniso1", ImageKind::D3, [N; 3], F::Rg8Unorm, CASCADES),
-    image("lightprobeHistory", ImageKind::D2Array, [P * P, P * 16, HISTORY], F::Rgba16Sint, CASCADES),
-    image("lightprobeAverage", ImageKind::D2, [P * P, P * 16, 1], F::Rgba32Sint, CASCADES),
-];
-
-pub static BUFFERS: &[ProgramBuffer] = &[
-    // `cascades_ubo`: 8 x 48 bytes (gi.h:572-578).
-    ProgramBuffer { name: "cascadesUbo", bytes: 8 * 48, indirect: false, count: 1 },
-    ProgramBuffer { name: "solidCells", bytes: SOLID_CELLS * 16, indirect: false, count: CASCADES },
-    ProgramBuffer { name: "dispatchStorage", bytes: 16, indirect: false, count: CASCADES },
-    ProgramBuffer { name: "dispatchCall", bytes: 16, indirect: true, count: CASCADES },
-    ProgramBuffer { name: "lights", bytes: 1024 * LIGHT_BYTES, indirect: false, count: CASCADES },
-    // What the scene pass reads of the frame's cascades (`SDFGIData`'s cascades, gi.cpp:1883-1901):
-    // two vec4 each, relative to SDFGI's camera, then that camera.
-    ProgramBuffer { name: "screenData", bytes: 8 * 32 + 16, indirect: false, count: 1 },
-];
-
-const fn u(binding: u32, resource: &'static str, access: Access, which: Which) -> ProgramUse {
-    ProgramUse { binding, resource, access, which }
-}
-
-const PING: &[u32] = &[0, 1];
-const PONG: &[u32] = &[1, 0];
-/// The parent cascade's average a scrolled cascade seeds new probes from (the
-/// last binds the one below it, "won't be used", gi.cpp:1083-1099).
-const PARENT: &[u32] = &[1, 2, 3, 2];
-
-const fn compute(name: &'static str, entry: &'static str, workgroup: [u32; 3], uses: &'static [ProgramUse], stage: ProgramStage, instances: u32) -> ProgramPass {
-    ProgramPass { name, kind: PassKind::Compute { entry, workgroup }, uses, stage, instances }
-}
-
-/// The eight occlusion images, as STORE reads them (bindings 3 to 10).
-const STORE_USES: &[ProgramUse] = &[
-    u(1, "renderSdf", Load, Fixed(1)),
-    u(2, "renderAlbedo", Load, First),
-    u(3, "renderOcclusion", Load, Fixed(0)),
-    u(4, "renderOcclusion", Load, Fixed(1)),
-    u(5, "renderOcclusion", Load, Fixed(2)),
-    u(6, "renderOcclusion", Load, Fixed(3)),
-    u(7, "renderOcclusion", Load, Fixed(4)),
-    u(8, "renderOcclusion", Load, Fixed(5)),
-    u(9, "renderOcclusion", Load, Fixed(6)),
-    u(10, "renderOcclusion", Load, Fixed(7)),
-    u(11, "renderEmission", Load, First),
-    u(12, "renderEmissionAniso", Load, First),
-    u(13, "renderGeomFacing", Load, First),
-    u(14, "sdf", Write, Instance),
-    u(15, "occlusionData", Write, First),
-    u(16, "dispatchStorage", Atomic, Instance),
-    u(17, "solidCells", Write, Instance),
-];
-
-const SCROLL_OCCLUSION_USES: &[ProgramUse] = &[
-    u(1, "renderOcclusion", Write, Fixed(0)),
-    u(2, "renderOcclusion", Write, Fixed(1)),
-    u(3, "renderOcclusion", Write, Fixed(2)),
-    u(4, "renderOcclusion", Write, Fixed(3)),
-    u(5, "renderOcclusion", Write, Fixed(4)),
-    u(6, "renderOcclusion", Write, Fixed(5)),
-    u(7, "renderOcclusion", Write, Fixed(6)),
-    u(8, "renderOcclusion", Write, Fixed(7)),
-    u(9, "occlusionData", Load, First),
-];
-
-/// What the light passes read: every cascade's field, the cascades, the cell list, the lights.
-const LIGHT_USES_DYNAMIC: &[ProgramUse] = &[
-    u(1, "sdf", Sampled, All),
-    u(2, "linearSampler", Sampler, First),
-    u(3, "dispatchStorage", Read, Instance),
-    u(4, "solidCells", Read, Instance),
-    u(5, "lightData", Write, Instance),
-    u(6, "lightAniso0", Write, Instance),
-    u(7, "lightAniso1", Write, Instance),
-    u(8, "cascadesUbo", Read, First),
-    u(9, "lights", Read, Instance),
-    u(10, "lightprobeData", Load, First),
-    u(11, "occlusionData", Load, First),
-];
-
-const LIGHT_USES_STATIC: &[ProgramUse] = &[
-    u(1, "sdf", Sampled, All),
-    u(2, "linearSampler", Sampler, First),
-    u(3, "dispatchStorage", Read, Instance),
-    u(4, "solidCells", ReadWrite, Instance),
-    u(8, "cascadesUbo", Read, First),
-    u(9, "lights", Read, Instance),
-];
-
-/// What the probe passes bind (`integrate_uniform_set`, gi.cpp:1000-1122).
-const PROCESS_USES: &[ProgramUse] = &[
-    u(1, "sdf", Sampled, All),
-    u(2, "lightData", Load, All),
-    u(3, "lightAniso0", Sampled, All),
-    u(4, "lightAniso1", Sampled, All),
-    u(6, "linearSampler", Sampler, First),
-    u(7, "cascadesUbo", Read, First),
-    u(9, "lightprobeHistory", ReadWrite, Instance),
-    u(10, "lightprobeAverage", ReadWrite, Instance),
-];
-
-const STORE_PROBE_USES: &[ProgramUse] = &[u(8, "lightprobeData", Write, First), u(10, "lightprobeAverage", Load, Instance)];
-
-const SCROLL_PROBE_USES: &[ProgramUse] = &[
-    u(7, "cascadesUbo", Read, First),
-    u(9, "lightprobeHistory", Load, Instance),
-    u(10, "lightprobeAverage", Load, Instance),
-    u(11, "lightprobeHistoryScroll", Write, First),
-    u(12, "lightprobeAverageScroll", Write, First),
-    u(13, "lightprobeAverage", Load, Pick(PARENT)),
-];
-
-const SCROLL_STORE_PROBE_USES: &[ProgramUse] = &[
-    u(9, "lightprobeHistory", Write, Instance),
-    u(10, "lightprobeAverage", Write, Instance),
-    u(11, "lightprobeHistoryScroll", Load, First),
-    u(12, "lightprobeAverageScroll", Load, First),
-];
-
-pub static PASSES: &[ProgramPass] = &[
-    // _update_sdfgi: each region voxelized, then each dirty cascade pre-processed (gi.cpp:2061-2418).
-    ProgramPass {
-        name: "sdfgiVoxelize",
-        kind: PassKind::Raster { vertex: "sdfgiVoxelizeVS", fragment: "sdfgiVoxelizeFS" },
-        uses: &[u(1, "renderAlbedo", Write, First), u(2, "renderEmission", Write, First), u(3, "renderEmissionAniso", Write, First), u(4, "renderGeomFacing", Atomic, First)],
-        stage: ProgramStage::Start,
-        instances: 1,
-    },
-    compute(
-        "sdfgiScroll",
-        "sdfgiScrollCS",
-        [64, 1, 1],
-        &[u(1, "renderAlbedo", Write, First), u(2, "renderGeomFacing", Write, First), u(3, "renderEmission", Write, First), u(4, "renderEmissionAniso", Write, First), u(5, "dispatchStorage", Read, Instance), u(6, "solidCells", Read, Instance)],
-        ProgramStage::Start,
-        CASCADES,
-    ),
-    compute("sdfgiScrollOcclusion", "sdfgiScrollOcclusionCS", [4, 4, 4], SCROLL_OCCLUSION_USES, ProgramStage::Start, 1),
-    compute("sdfgiProbeScroll", "sdfgiProbeScrollCS", [8, 8, 1], SCROLL_PROBE_USES, ProgramStage::Start, CASCADES),
-    compute("sdfgiProbeScrollStore", "sdfgiProbeScrollStoreCS", [8, 8, 1], SCROLL_STORE_PROBE_USES, ProgramStage::Start, CASCADES),
-    compute("sdfgiProbeStoreScroll", "sdfgiProbeStoreCS", [8, 8, 1], STORE_PROBE_USES, ProgramStage::Start, CASCADES),
-    compute("sdfgiJumpFloodInit", "sdfgiJumpFloodInitCS", [4, 4, 4], &[u(1, "renderAlbedo", Load, First), u(2, "renderSdfHalf", Write, Fixed(0))], ProgramStage::Start, 1),
-    compute("sdfgiJumpFlood", "sdfgiJumpFloodCS", [4, 4, 4], &[u(1, "renderSdfHalf", Load, Pick(PING)), u(2, "renderSdfHalf", Write, Pick(PONG))], ProgramStage::Start, 2),
-    compute("sdfgiJumpFloodShared", "sdfgiJumpFloodSharedCS", [8, 8, 8], &[u(1, "renderSdfHalf", Load, Pick(PING)), u(2, "renderSdfHalf", Write, Pick(PONG))], ProgramStage::Start, 2),
-    compute(
-        "sdfgiUpscale",
-        "sdfgiUpscaleCS",
-        [4, 4, 4],
-        &[u(1, "renderAlbedo", Load, First), u(2, "renderSdfHalf", Load, Fixed(0)), u(3, "renderSdf", Write, Fixed(0))],
-        ProgramStage::Start,
-        1,
-    ),
-    compute("sdfgiJumpFloodFull", "sdfgiJumpFloodSharedCS", [8, 8, 8], &[u(1, "renderSdf", Load, Fixed(0)), u(2, "renderSdf", Write, Fixed(1))], ProgramStage::Start, 1),
-    compute("sdfgiOcclusion", "sdfgiOcclusionCS", [64, 1, 1], &[u(1, "renderOcclusion", ReadWrite, Instance), u(2, "renderGeomFacing", Load, First)], ProgramStage::Start, 8),
-    compute("sdfgiStore", "sdfgiStoreCS", [4, 4, 4], STORE_USES, ProgramStage::Start, CASCADES),
-    // render_static_lights, update_light (gi.cpp:2422-2610, 1249-1309).
-    compute("sdfgiStaticLight", "sdfgiStaticLightCS", [64, 1, 1], LIGHT_USES_STATIC, ProgramStage::Start, CASCADES),
-    compute("sdfgiDynamicLight", "sdfgiDynamicLightCS", [64, 1, 1], LIGHT_USES_DYNAMIC, ProgramStage::Start, CASCADES),
-    // update_probes, inside the depth pre-pass (rfc.cpp:2120-2133); store_probes in _pre_opaque_render (rfc.cpp:1534).
-    compute("sdfgiProbeProcess", "sdfgiProbeProcessCS", [8, 8, 1], PROCESS_USES, ProgramStage::AfterPrepass, CASCADES),
-    // Both after the pre-pass, before the screen gather that reads the maps (_pre_opaque_render, rfc.cpp:1517-1607).
-    compute("sdfgiProbeStore", "sdfgiProbeStoreCS", [8, 8, 1], STORE_PROBE_USES, ProgramStage::AfterPrepass, CASCADES),
-];
-
-pub static PROGRAM: ShadingProgram = ShadingProgram {
-    images: IMAGES,
-    buffers: BUFFERS,
-    passes: PASSES,
-    scene_uses: &[u(1, "lightprobeData", Load, First), u(2, "screenData", Read, First)],
-    init: || Box::new(Plan::default()),
-    plan: |state, frame| state.downcast_mut::<Plan>().expect("the SDFGI plan").frame(frame),
-    warmup: 0,
-};
-
 /// The CPU side of SDFGI for the GPU program: the cascades and the counters
 /// gi.cpp keeps between frames.
+/// The plan's state, made once per renderer.
+pub fn init() -> Box<dyn std::any::Any + Send> {
+    Box::new(Plan::default())
+}
+
+/// This frame's commands.
+pub fn plan(state: &mut dyn std::any::Any, frame: &ProgramFrame) -> Vec<ProgramCommand> {
+    state.downcast_mut::<Plan>().expect("the SDFGI plan").frame(frame)
+}
+
 #[derive(Default)]
 pub struct Plan {
     cascades: Option<Cascades>,

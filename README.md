@@ -214,13 +214,15 @@ An investigation is a package in `packages/<engine>_<feature>/`: its content, an
 and out of any public copy of the repository unless the engine's license allows it (then credit it in
 [`THIRD_PARTY.md`](THIRD_PARTY.md)).
 
-An investigation that shades the scene its own way returns a `SceneShading` from `Investigation::scene_shading`: WGSL
-composed after the scene module, with a fragment entry point, per-frame uniforms (`FrameContent::shading`) and per-frame
+An investigation that shades the scene its own way declares it in its package's `shading.toml` (a `shading` resource,
+read at run time into a `SceneShading`; the format is in [`lab/src/shading_file.rs`](lab/src/shading_file.rs)), and
+registers the functions the file names, which compute rather than declare (its static data, an update's or a program's
+plan), with `Investigation::shading_hooks`. The shading is WGSL composed after the scene module, with a fragment entry point, per-frame uniforms (`FrameContent::shading`) and per-frame
 data (`FrameContent::shading_frame`), static data, and compute kernels for its selftest (`Renderer::run_shading_verify`).
 It may also be a **pass chain**, for an engine that renders through several targets: the fragment shader writes the
 shading's `outputs` (multisampled targets), its `passes` run as compute passes over named targets at fixed bindings
-(`ShadingPass`), and the last one writes `"hdr"`, which the frame shows. Declare its WGSL in the investigation's package as a
-`[[shader]]` whose parts start with `render_lab.shader/scene`, and name that shader in `SceneShading::module`; build.rs validates it, and so
+(`compute` nodes of its `[[node]]` list, the frame in order), and the last one writes `"hdr"`, which the frame shows. Declare its WGSL in the investigation's package as a
+`[[shader]]` whose parts start with `render_lab.shader/scene`, and name that shader in the file's `module`; build.rs validates it, and so
 does the lab when it loads it. A frame without a struct-panel record can show a `Readout` (names and values) in its place.
 
 ## Building and local caches

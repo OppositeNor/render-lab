@@ -28,6 +28,13 @@ kind = "file"
 source = "knowledge.toml"
 license = "MIT"
 
+# Its frame: targets, passes, and what they read and write (lab/src/shading_file.rs).
+[[resource]]
+id = "shading"
+kind = "file"
+source = "shading.toml"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
 # The demonstrations (lab/src/demo.rs): the order, one file per
 # demonstration, and the presets they share. Their values are declared in
 # src/godot/sdfgi/values.rs.

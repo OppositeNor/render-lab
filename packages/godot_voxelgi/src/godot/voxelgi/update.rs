@@ -14,34 +14,15 @@
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
 use super::world;
-use lab::investigation::{ShadingUpdate, ShadingVolume, UpdateBuffer, UpdateDispatch, UpdatePass, UpdatePlan};
+use lab::investigation::{UpdateDispatch, UpdatePlan};
 use lab::shot::ShotState;
-
-/// The light texture's size: the octree's (world.rs's node, subdiv 128).
-pub const LIGHT_SIZE: [u32; 3] = [128, 64, 128];
-/// One mip per octree level.
-pub const LIGHT_MIPS: u32 = 8;
 
 /// `voxel_gi.glsl`'s `local_size_x = 64`.
 pub const WORKGROUP: u32 = 64;
 
-pub static VOLUMES: &[ShadingVolume] = &[ShadingVolume { name: "voxelgiLight", format: wgpu::TextureFormat::Rgba8Unorm, size: LIGHT_SIZE, mips: LIGHT_MIPS }];
-
-pub static PASSES: &[UpdatePass] = &[
-    UpdatePass { entry: "voxelgiLightCS", reads: &[], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiBounceCS", reads: &["voxelgiLight", "voxelgiOutputs"], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiMipmapsCS", reads: &["voxelgiOutputs"], writes: &["voxelgiOutputs"], workgroup: WORKGROUP },
-    UpdatePass { entry: "voxelgiWriteCS", reads: &["voxelgiOutputs"], writes: &["voxelgiLight"], workgroup: WORKGROUP },
-];
-
-/// `write_buffer` (`VoxelGIInstance::write_buffer`): one float light per cell, four words each.
-pub static BUFFERS: &[UpdateBuffer] = &[UpdateBuffer { name: "voxelgiOutputs", words: outputs_words }];
-
-fn outputs_words() -> u64 {
+pub fn outputs_words() -> u64 {
     world::world().probe.data.len() as u64 * 4
 }
-
-pub static UPDATE: ShadingUpdate = ShadingUpdate { passes: PASSES, buffers: BUFFERS, plan };
 
 /// The key of the light settings a texture was lit for.
 pub fn settings_key(s: &world::LightSettings) -> u64 {

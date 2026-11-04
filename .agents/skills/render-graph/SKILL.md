@@ -11,23 +11,32 @@ passes, checks it, runs the frame in its order (`Renderer::encode_scene`), times
 resource right after any node. Declare the frame so it mirrors the engine's passes: the graph is a demonstration
 of its own.
 
+The declaration is data: the package's `shading.toml` (a `shading` resource; the format is in
+`lab/src/shading_file.rs`), read at run time into a `SceneShading`, so an edit shows on the next launch without a
+rebuild. The frame is its `[[node]]` list, in order, each node a `kind`: `update`, `depth-views`, `prepass`,
+`compute`, `program`, `scene` (exactly one); the rest is what they use, the struct's fields in kebab case
+(`[[target]]`, `[[buffer]]`, `[[volume]]`, `[update]`, `[resolution]`, `[shows]`, `[program]` with
+`[[program.image]]` and `[[program.buffer]]`). Below, `SceneShading::x` is the file's `x`; `early` are the compute
+nodes before the scene node, `passes` those after it. What computes stays code, named in the file and
+registered by `Investigation::shading_hooks`: `data`, an update's `plan` and a buffer's `words`, a resolution's
+`divisor`, a program's `plan` (`ShadingHook`). Keep an engine source citation beside what it explains, as a TOML
+comment.
+
 ## 1. What a frame's graph is made of
 
-Nodes, in declaration order:
+Nodes, in the order of the file's `[[node]]` list (`SceneShading::nodes`, `FrameNode`), then the lab's two:
 
-| Node | Name | From |
+| Node (`kind`) | Name | What it is |
 |---|---|---|
-| update passes | their entry points | `SceneShading::update` (run when their plan's key changes; their dispatches in the plan's order, before the rest) |
-| program passes (`Start`) | their names | `SceneShading::program`, below |
-| depth views | `depthViews` | `SceneShading::depth_views` (drawn when what they see changes) |
-| pre-pass | its fragment entry | `SceneShading::prepass` (writes `depth` and `prepass_outputs`; reads nothing of group 2) |
-| program passes (`AfterPrepass`) | their names | `SceneShading::program` |
-| early compute passes | their entry points | `SceneShading::early` |
-| program passes (`BeforeScene`) | their names | `SceneShading::program` |
-| scene pass | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`, with none), MSAA |
-| program passes (`AfterScene`) | their names | `SceneShading::program` (what the scene pass wrote, `hdr` included, is this frame's) |
-| compute passes | their entry points (a repeated entry: `name#2`) | `SceneShading::passes` |
+| `update` | its entry point | an update pass (run when its plan's key changes, its dispatches in the plan's order, before the rest: update nodes come first) |
+| `depth-views` | `depthViews` | the depth views, `SceneShading::depth_views` (drawn when what they see changes) |
+| `prepass` | its fragment entry | the pre-pass (writes `depth` and its `writes`, `prepass_outputs`; reads nothing of group 2; before the scene node) |
+| `compute` | its entry point (a repeated entry: `name#2`) | a compute pass of the chain |
+| `program` | its name | a program's pass, below |
+| `scene` | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`, with none), MSAA |
 | overlay, composite | `overlay`, `composite` | the lab's |
+
+The graph checks the list: every declared node once, update nodes first, the pre-pass before the scene pass.
 
 Resources:
 
@@ -41,8 +50,8 @@ Resources:
 The order: for each resource, its accesses keep their declared order (a writer before the readers after it, those
 before the next writer); nodes with no path between them keep their declared order. A compute node whose writes
 nothing live reads is **culled**: live are the composite, cached nodes, writers of history, writers of what an image
-kind reads (`reads=`), and the inspected resource's writer. General raster nodes declared as data are not built: the
-scene pass, pre-pass, depth views, and a program's raster passes are the raster nodes an investigation has.
+kind reads (`reads=`), and the inspected resource's writer. The raster nodes are the scene pass, the pre-pass, the
+depth views, and a program's raster passes; there is no general raster node yet.
 
 A chain without `outputs` but with `prepass_outputs` (a depth and normal pre-pass, Godot's normal-roughness buffer)
 is the pre-pass and its `early` passes before an ordinary scene pass, which writes `hdr` and may read what they
@@ -61,15 +70,19 @@ pass may also read the frame's textures with `Load`: `depth` (multisampled), `hd
 samplers are `linearSampler`, `nearestSampler`, and `trilinearSampler` (linear between mips too). Each pass is a
 node whose reads and writes come from its uses, always live (it writes what outlives the frame). The scene pass,
 the pre-pass, and the chain's compute passes read `scene_uses` at group 3 (in a shading without volumes). The
-plan runs in the main view only. A program that reads what an earlier frame left (an `AfterScene` copy of `hdr`)
+plan runs in the main view only. Its commands are recorded where its passes' nodes are: a run of consecutive program
+nodes records, in the plan's order, the commands of its passes and the uploads, clears, and copies before each; the
+commands after the plan's last pass command are recorded right before the scene pass
+(`SceneShading::program_runs`, `ProgramRuntime::record`). A program that reads what an earlier frame left (a copy of
+`hdr` by a program node after the scene node)
 sets `warmup`: a frame drawn alone (a recording's, a snapshot) first draws the same shot that many times, the first
 told it has no history. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) and SSR (packages/godot_ssr, `gpu.rs`, mip
-chains, the frame's textures, an `AfterScene` copy) are programs.
+chains, the frame's textures, a copy after the scene pass) are programs.
 
 ## 2. Declaring reads and writes
 
-`ShadingPass::reads` and `writes` (and `UpdatePass`'s) are the graph's edges, so they say what the entry point
-does:
+A node's `reads` and `writes` (`compute` and `update` nodes) are the graph's edges, so they say what
+the entry point does:
 
 - A buffer it reads is in `reads`, one it writes in `writes`, both if both. Every buffer is bound `read_write`
   either way (`pipelines::chain_binding`); the lists, not the binding, say which.

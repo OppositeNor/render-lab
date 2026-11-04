@@ -51,8 +51,13 @@ Register it:
 - If it brings its own shading (`SceneShading`: WGSL composed after `packages/render_lab/shaders/scene.wgsl`, a
   fragment entry point, uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a
   resource and a `[[shader]]` with `parts = ["render_lab.shader/scene", "<its resource>"]` in its package (copy
-  `packages/o3de_lighting/resources.toml`), and name that shader's full key in `SceneShading::module`. Ported shading
-  code stays in the investigation, never in `packages/render_lab/shaders`.
+  `packages/o3de_lighting/resources.toml`). Declare the frame itself (its `[[node]]` list in the engine's order:
+  passes and their reads and writes, the pre-pass, depth views, the scene pass, a program's passes; and the targets,
+  buffers, volumes they use) in the package's `shading.toml`, a `shading` resource (format in
+  `lab/src/shading_file.rs`; copy `packages/o3de_lighting/shading.toml`), with that shader's full key as its
+  `module`; register the functions it names (`data`, a plan, a divisor) in `Investigation::shading_hooks`, and the
+  lab's default `scene_shading` reads it. Ported shading code stays in the investigation, never in
+  `packages/render_lab/shaders`.
 
 ## The trait
 
@@ -61,7 +66,7 @@ The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, 
 the package's demos. Return the demonstrations' files from `demo_specs` (and the investigation's text from `text`), and
 `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's scenes, `packages/render_lab/scenes/`
 read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`, and `shot_state` come from them.
-Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scene_shading`, `script_natives`,
+Optional ones include `backdrop` (its homepage scene), `animation` (Play), `shading_hooks`, `script_natives`,
 `images`, `annotations`, `actions`, `panes`, `views`, `scene`, `scene_data`, `shader_data`, `choices`, and
 `pass_about`. Follow `packages/o3de_lighting/src/o3de/lighting/mod.rs`.
 
@@ -105,8 +110,8 @@ Optional ones include `backdrop` (its homepage scene), `animation` (Play), `scen
   settings baked into scene data, settings whose GPU work is redone) is the `experiments` skill's, "Exposing an
   engine's settings". Ship one experiment in `experiments/` that compares a cheap setting with the engine's most
   expensive one.
-- **GPU work at the engine's rates** (`SceneShading`, `lab/src/investigation.rs`), when the port needs more than a pass
-  chain per frame:
+- **GPU work at the engine's rates** (`SceneShading`, `lab/src/investigation.rs`, declared in `shading.toml`), when the
+  port needs more than a pass chain per frame:
   - `volumes`: 3D textures with mips, sampled by the chain's passes and verify kernels at group 3 (a trilinear,
     mip-linear sampler at binding 0), written by update passes one mip per dispatch.
   - `update`: compute passes that run only when their plan's key changes (`UpdatePlan`: the key, `always` for a
