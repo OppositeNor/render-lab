@@ -55,8 +55,31 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   a scene needs is read before it plays (lab/src/loading.rs).
 - On-screen text is a key in the package's `text/en.json` and `text/zh-CN.json` (loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
-- Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents on
-  cheaper models: Sonnet, or Haiku for simple lookups. Keep design, edits, and final checks on the main model.
+- Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents when
+  your environment has them, on a cheaper model when you can choose one (Sonnet; Haiku for simple lookups). Keep
+  design, edits, and final checks with the main agent. Without subagents, do the same research yourself, one
+  explicitly scoped question at a time, and write each finding (with file, symbol, and line) into the task's
+  working notes before the next. Either way, verify a delegated finding before building on it.
+
+## How deep a task goes
+
+Match the workflow to what the change can break, not to how many files it touches. The skills' full pipelines are
+for the last level; each skill says what the levels mean for its tasks (a "Choose the depth" table, or "Checks, by
+change").
+
+1. **Local change** (one cue, one source-index line, one pass's reads, one script hook, one value): find what reads
+   the thing you change, make the smallest correct change, run the targeted checks the skill names, and look at the
+   offscreen render of what it changes.
+2. **Chapter or subsystem change** (a chapter rewritten, a demonstration added, a pass restructured, a package's
+   format): also re-verify the technical claims it touches against the engine's source, check the content,
+   resources, and behaviour beside it, and run the investigation's tests and visual reviews.
+3. **New investigation, new story, or major redesign**: the skill's whole pipeline (research, implementation,
+   review, validation).
+
+Raise the level when a small change reaches an invariant: a narrated fact or `inspect` text (verify it against the
+checkout), anything in `lab/` or `packages/render_lab` (every investigation's frames, the frame identity check
+below), the public/local boundary (the public build), a storyboard's form or its reader (`tools/video/compare.py`),
+or text keys (both languages). These are never skipped because a change is small.
 
 ## Validation
 
@@ -117,16 +140,44 @@ English sentence.
 To check the public build, copy the files `git ls-files --cached --others --exclude-standard` lists (with `cp -P --parents`, so
 links stay links) into an empty directory, link `vendor/` into it, and build there.
 
+The frame identity check, after any change to `lab/` or `packages/render_lab` (or a restructuring that must not change
+what a frame shows): build the change's parent commit in a `git worktree` as the baseline, render the same stills with
+both binaries (the timelines' beat midpoints, a dozen or more per investigation), and compare hashes of their decoded
+pixels, not of the PNG files. Some frames vary from run to run (a measured CPU-time readout, viewport noise):
+re-render a mismatch alone with both binaries before calling it a regression.
+
 ## Skills
 
-Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout); `.claude/skills` holds
-one link per skill to it for Claude Code. `new-investigation` (starting an investigation and animating it), `new-story`
-(researching, outlining, writing, and reviewing an investigation's story, in phases with subagents), `packages`
-(packages: manifests, collections, references, code and its negotiation, local packages, packing), `experiments`
-(the Experiments tab, research experiment files and their reports, exposing an engine's settings), `knowledge-graph`
-(the knowledge graph, chapters' requirements, and choosing an investigation's audience), `render-graph` (a frame's
-passes and resources as a render graph: declaring and checking reads and writes, the inspector, the graph panel and its DAG), and
-`render-lab-lamlet` (storyboards as Lamlet presentations, their cue vocabulary, the lab's Lamlet package and commands) are
-published.
+Task guides for coding agents are in `.agents/skills/<name>/SKILL.md` (the Agent Skills layout), with detail they load
+only when a step needs it in `references/` beside them; `.claude/skills` holds one link per skill to it for Claude
+Code. All are published. Load the skill that owns the task; load another only where the table says it is required.
+
+| Task | Skill | Also required | Useful |
+|---|---|---|---|
+| A new investigation; porting an engine's shader; a source index, listing, formula, demonstration, value, or Play animation; verifying an investigation's claims against the engine | `new-investigation` | `packages` (a new package) | `render-graph`, `experiments` |
+| Researching, outlining, writing, reviewing, or revising an investigation's narrated story | `new-story` | `new-investigation` (its precision standard), `render-lab-lamlet` (when writing cues) | `knowledge-graph` |
+| A storyboard's syntax or cues, a package's live scripts (`script/*.lam`), the runtime library, `render_lab.lam`, the lab's Lamlet code | `render-lab-lamlet` | the pinned `lamlet` / `lamlet-present` skills it names | `new-story` (what a story should say and show) |
+| A pass, target, buffer, volume, history, or program of a frame; the lint's refusals; the inspector, graph panel, DAG | `render-graph` | | `experiments` (`[inspect]`) |
+| Topics, chapter requirements, an investigation's audience, the Prerequisites tab | `knowledge-graph` | | `new-story` (costing a story's level) |
+| Comparing settings, sweeps, ablations, quality or cost measurement; making an engine setting tunable | `experiments` | | `render-graph` |
+| A manifest, collection, resource, key, override, demo entry, a package's library and negotiation, local packages, packing, loader errors | `packages` | | |
+
+Validate the skills themselves after editing them: `python3 tools/check_skills.py` (front matter, names, links, the
+paths they cite, and the `.claude/skills` links).
 
 Do not open windows or take screenshots on the user's screen; check visuals from offscreen renders.
+
+## Code Search and Context Efficiency
+
+Use XERJ as the preferred discovery tool when it is available and its index is current.
+
+- Search before reading. Locate relevant files, symbols, implementations, and documentation through indexed queries instead of loading large files or directory trees into context.
+- Retrieve only the relevant passages initially. Expand to surrounding code and related files when needed to understand behavior.
+- Treat search results as navigation aids, not authoritative evidence. Verify important claims against the actual source code, especially execution paths, configuration, defaults, and version-specific behavior.
+- Use direct file reads, `rg`, or other repository tools when exact text matching, exhaustive search, or inspection of recent unindexed changes is required.
+- Never assume that an indexed result reflects the current checkout. Verify the index's freshness before relying on it.
+- Do not repeatedly reindex unchanged repositories. Reuse existing indexes when possible.
+- If XERJ is unavailable, unconfigured, stale, or unsuitable for a task, fall back to ordinary repository search without blocking the work.
+- Optimize total task cost and correctness, not search-tool usage or token count alone.
+
+For detailed XERJ setup and query workflows, consult the project's code-search instructions when needed.

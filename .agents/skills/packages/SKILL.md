@@ -1,6 +1,6 @@
 ---
 name: packages
-description: Create, change, build, and troubleshoot Render Lab packages, the self-contained folders the lab loads at run time (sources in the checkout's packages/, built into packages/ beside the binary). Covers the manifest (name, author, license, import, export, library, negotiate, provides), resource collections and their kinds, full keys and references between packages, overrides, built files (timelines, narration), demos (a timeline and its audio), a package's code (a cdylib that negotiates with the loader through lab::negotiate! and hands it investigations), local packages with a Cargo workspace of their own, packing a package to share it, the build of the packages beside the binary, and the loader's errors. Use when adding or editing a manifest.toml or a collection, adding a resource, scene, shader, text table, or demo, giving a package code, when a package or its library does not load, or when asked how packages, the loader, or the negotiation work.
+description: Create, change, build, and troubleshoot Render Lab packages, the self-contained folders the lab loads at run time (sources in packages/, built beside the binary). Covers the manifest (import, export, library, negotiate, provides, series, notices), resource collections, kinds, full keys and references, overrides, built tool outputs, demos, a package's cdylib and its negotiation (`lab::negotiate!`), local packages with a Cargo workspace of their own, packing, the cook step, and the loader's errors. Use when adding or editing a manifest.toml or a collection, adding a resource, scene, shader module, text table, or demo entry, giving a package code, when a package or its library does not load, or when asked how packages, the loader, or the negotiation work. For an investigation's code inside its library use `new-investigation`; for live scripts use `render-lab-lamlet`.
 ---
 
 # Packages
@@ -191,8 +191,8 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
 - The symbol is the manifest's `negotiate`; the library's file is `lib<library>.so`.
 - The investigation's `fn package(&self) -> Option<&'static str> { Some("my_feature") }` ties it to its package: its
   timelines are the package's demos, and its text, listings, demonstrations, and shading name its keys.
-- Code that used `crate::lab::…` inside the old single crate now writes `lab::…`. A lab item the library uses must be
-  `pub` (not `pub(crate)`), and a lab macro `#[macro_export]`.
+- The library names the lab's items as `lab::…`. A lab item the library uses must be `pub` (not `pub(crate)`), and a
+  lab macro `#[macro_export]`.
 - Add a public package to the root `Cargo.toml`'s `[workspace] members` and `default-members`, so
   `cargo build --release --locked --offline` builds it.
 - **Behaviour can be content instead of code:** a resource `script/<name>` (Lamlet) is a script the lab runs: overlays,
@@ -278,11 +278,19 @@ A package whose library fails is reported and its investigations are left out; i
 
 ## 9. Checks after changing a package
 
-1. `cargo build --release --locked --offline` (and each local package's workspace) with no warnings; its `build.rs`
-   has checked its shaders and text.
-2. `render-lab packages`: the package is listed, its library loaded with its handles.
-3. The checks in `AGENTS.md`'s Validation for what the change touches (the homepage autotest, the investigation's
-   selftest, its video's `--snapshots-only` build); after touching `lab/` or `packages/render_lab`, check that the
-   investigations' frames are byte-identical (decoded pixels).
-4. For a public package, the public build: copy the files `git` would publish into an empty directory, link
-   `vendor/`, and build there (AGENTS.md).
+Every change:
+
+1. `cargo build --release --locked --offline` (and each local package's workspace, after it) with no warnings; its
+   `build.rs` has checked its shaders and text.
+2. `render-lab packages` (the package is listed, its library loaded with its handles) and `render-lab resources` (each
+   new resource built, not `not built` unless a tool has yet to write it).
+
+Then what the change touches:
+
+- Content an investigation shows (a scene, a demonstration, a shader, text): the investigation's selftest and an
+  offscreen snapshot of it, looked at; a demo entry, its timeline in the homepage autotest.
+- A format or the loader (`lab/src/packages.rs`, `lab/src/pipeline/`, `lab/src/cook.rs`, `lab/src/plugin.rs`): the
+  unit tests (`cargo test --release --locked --offline --workspace`), the homepage autotest, every investigation's
+  selftest, and the frame identity check (AGENTS.md, Validation).
+- Anything in `lab/` or `packages/render_lab`: the frame identity check, and every local package's workspace rebuilt.
+- A public package's files, or anything near the public/local boundary: the public build (AGENTS.md, Validation).

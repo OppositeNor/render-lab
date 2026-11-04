@@ -34,6 +34,47 @@ python3 tools/video/compare.py save /tmp/before        # after build.py --all --
 python3 tools/video/compare.py /tmp/before /tmp/after   # after the change, the same build, and a save to /tmp/after
 ```
 
+### Lamlet consumer regression
+
+`regression.py` makes that comparison a strict gate for the public SSR, SDFGI, VoxelGI and O3DE Lighting
+stories, English and every declared translation. It runs the production preparation pipeline on cached speech
+and measured word timings, checks each investigation's live scripts, and saves the document IR as well as every
+prepared output. Missing editions, files, audio or word timings fail the capture; a partial capture cannot pass
+comparison. Cached WAV and timing sidecars are hashed, so changing their contents under the same name is detected.
+Every capture prepares into a fresh directory, so old outputs cannot hide a missing new artifact, and existing
+video and timeline builds are preserved.
+
+Build the pinned host and its package libraries, and prepare the narration caches once with the normal builder
+(`--prepare-only --tts-device cpu`, English before zh-CN for each investigation). The gate itself never synthesizes
+speech or renders frames. It needs the video Python environment and voice's phonemizer from `setup.sh`, even
+with complete caches. Then, from the same content checkout:
+
+```sh
+python3 tools/video/regression.py save /tmp/lamlet-before
+python3 tools/video/regression.py save /tmp/lamlet-after --binary /path/to/candidate/target/release/render-lab
+python3 tools/video/regression.py compare /tmp/lamlet-before /tmp/lamlet-after
+```
+
+Build the candidate and **all its matching public package libraries** in a disposable source checkout. To test a
+local Lamlet revision, patch both `lamlet` and `lamlet-doc` from `https://github.com/lamlet/lamlet` to that revision
+only in that disposable workspace, resolve its temporary lock offline, then build with `--release --locked --offline`.
+Keep this checkout's manifests, lock and vendor unchanged. A candidate is a host build, not a standalone `lamlet`
+executable: the host's natives, conversions and presentation extension are part of the contract being checked.
+
+Capture directories must be new. `--investigation godot/ssr` (repeatable) selects a smaller corpus; both captures
+must select the same cases and languages. Each capture has `outputs/`, per-command `logs/`, and a completion
+`manifest.json` recording the corpus, artifact hashes, host hashes and lock hash. Input hashes detect content
+changes between captures; changing the host is expected. Comparison exits nonzero on any missing or changed output.
+Run the gate in CI where its builds and narration cache are available. Test the gate itself with:
+
+```sh
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py
+```
+
+This gate proves real-document compilation and preparation compatibility, including script hook discovery. It
+does not execute live hooks or prove their determinism, failure recovery, final GPU appearance or render timing;
+those need runtime and rendering tests separately.
+
 ## Inputs
 
 An investigation keeps its video in its package, `packages/<package>/video/` (the builder finds the `video.json` whose

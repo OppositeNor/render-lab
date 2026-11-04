@@ -1,6 +1,6 @@
 ---
 name: experiments
-description: Run experiments on a Render Lab investigation's algorithm, interactively (the viewer's Experiments tab, the homepage's "Experiment with the algorithm") or as research (an experiment file run headless by `render-lab experiment`, reported by tools/experiments/report.py). Covers the experiment file format (base, reference, sweeps, variants, metrics, frames, warm-up, repeats, convergence), choosing a reference and controls, the metrics (GPU time per pass, PSNR, SSIM, ꟻLIP, relMSE), the output directory and its manifest, reading the report, and exposing an engine's settings to experiments (`engine=` on a value, `Investigation::scene_data` for settings baked into scene data). Use when asked to compare settings, sweep a parameter, ablate a feature, measure quality or cost, reproduce a result, ship an experiment with a package, or make an engine setting tunable.
+description: Run and design experiments on a Render Lab investigation's algorithm: interactively (the viewer's Experiments tab, A/B compare, the performance panel) or as research (an experiment TOML run headless by `render-lab experiment`, reported by tools/experiments/report.py). Covers the file format (base, reference, sweeps, variants, metrics, frames, warm-up, repeats, convergence, `[inspect]`), choosing a reference and controls, the metrics (GPU time per pass, PSNR, SSIM, FLIP, relMSE), the output and its manifest, and exposing an engine's settings (`engine=` on a value, `Investigation::scene_data`, update passes). Use when asked to compare settings, sweep or add an experiment parameter, ablate a feature, measure quality or cost, reproduce a result, ship an experiment with a package, or make an engine setting tunable. Not for a pass's reads and writes (`render-graph`).
 ---
 
 # Experiments
@@ -162,5 +162,17 @@ The Experiments tab lists it, and `render-lab experiment <package>.experiment/<n
 - Then check:
   - `render-lab values` shows the property;
   - the selftest still passes;
-  - default-state frames are unchanged (the frame identity check);
-  - a sweep through the new value moves the metrics the way the engine's documentation says it should.
+  - default-state frames are unchanged (the frame identity check, AGENTS.md, Validation);
+  - a sweep through the new value moves the metrics the way the engine's code (and its documentation) says it should.
+
+## 5. Checks, by change
+
+- **An experiment file edited or added** (a parameter, a sweep, a variant): `render-lab --investigation <id>
+  experiment <file or key> --dry-run` (the runs, and unknown keys fail here), then the run itself in a scratch folder
+  and `tools/experiments/report.py` on it when the numbers are wanted. A shipped file is also declared in the
+  package's `resources.toml` and listed by the Experiments tab (`--page viewer-experiments`).
+- **An engine setting exposed**: the checks at the end of section 4.
+- **The runner or report changed** (`lab/src/experiment.rs`, `lab/src/research.rs`, `lab/src/metrics.rs`,
+  `tools/experiments/`): `python3 -m unittest tools/experiments/test_report.py`, the unit tests, a shipped experiment
+  run end to end, and the method's own checks (section 2: a run equal to the base gives the base's numbers; a variant
+  equal to the reference measures identical).

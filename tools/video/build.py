@@ -153,6 +153,9 @@ def main() -> None:
     parser.add_argument('--lang', choices=LANGS, help='en (the default) or zh-CN; with --all, only that language')
     parser.add_argument('--resolution', default='1080p', type=resolution_arg, help='frame size: 720p, 1080p (default), 1440p, 2160p, 4k, or WIDTHxHEIGHT')
     parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')
+    parser.add_argument('--binary', type=Path, help='use this prebuilt render-lab and its package libraries instead of building')
+    parser.add_argument('--cached-audio-only', action='store_true', help='fail if narration or word timings are missing from the cache')
+    parser.add_argument('--prepare-dir', type=Path, help='write this investigation\'s timelines and video outputs under this directory')
     parser.add_argument('--snapshots-only', action='store_true', help='prepare, then render beat-midpoint stills for review')
     parser.add_argument('--skip-render', action='store_true', help='reuse the rendered video.mp4')
     parser.add_argument('--verify-only', action='store_true')
@@ -161,6 +164,8 @@ def main() -> None:
     parser.add_argument('--listing-style', default='blocks', choices=['blocks', 'text'], help='how the code panel draws pseudo-code listings: blocks (the default) or text')
     args = parser.parse_args()
     if args.all:
+        if args.prepare_dir:
+            parser.error('--prepare-dir names one investigation\'s output directory; it does not go with --all')
         if args.investigation_dir:
             parser.error('--investigation-dir names one video; it does not go with --all')
         # Each build gets the options given here but the choice of video and language.
@@ -185,6 +190,7 @@ def main() -> None:
     import timeline as timing
     import verify as checks
     cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
+    cfg.prepared_root = args.prepare_dir.resolve() if args.prepare_dir else None
     cfg.listing_style = args.listing_style
     build = cfg.build()
     for d in (build, build / 'logs'):
@@ -194,7 +200,12 @@ def main() -> None:
             raise SystemExit('build the English edition first: the zh-CN edition uses its narration and timing')
         (build / 'english-checksums.json').write_text(json.dumps(checks.english_checksums(cfg), indent=1) + '\n')
     # The storyboard's Lamlet regions are expanded by the lab's own interpreter (lamlet.py), so build it first.
-    binary = outputs.cargo_build(cfg)
+    import lamlet
+    if args.binary:
+        lamlet.BINARY = args.binary.resolve()
+        binary = lamlet.command()
+    else:
+        binary = outputs.cargo_build(cfg)
     board = load_board(cfg)
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
@@ -205,7 +216,7 @@ def main() -> None:
 
     device, reason = narration.select_device(env, args.tts_device)
     log(f'Narration device: {device} ({reason}).')
-    durations = narration.synthesize(cfg, env, device, timing.all_sentences(board))
+    durations = narration.synthesize(cfg, env, device, timing.all_sentences(board), cached_only=args.cached_audio_only)
     tl, placements, cues, plans = timing.build_timeline(board, durations, cfg)
     cfg.timeline_dir().mkdir(parents=True, exist_ok=True)
     cfg.timeline().write_text(json.dumps(tl, indent=1, ensure_ascii=False) + '\n')

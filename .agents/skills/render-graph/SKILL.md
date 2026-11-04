@@ -1,6 +1,6 @@
 ---
 name: render-graph
-description: Declare, check, inspect, and demonstrate a Render Lab investigation's frame as a render graph - its nodes (the lab's depth views, pre-pass, scene pass, overlay, and composite; the investigation's update and compute passes) and resources (transient, imported, persistent, history), the order and culling the lab derives from their reads and writes, the lint that checks those declarations against the WGSL, the `graph` command, the inspector that shows any resource as it stood right after any node, the graph panel (passes by resources, GPU time per node, the engine pass each mirrors) its DAG (each pass a card holding its result, `SceneShading::shows`, dragged), and its resources (every resource's card), and the story (`imageGraph`, `imageShow`, `panel=graph`, `panel=dag`, `panel=resources`) and experiment (`[inspect]`) forms that point at intermediate states. Use when adding or changing a pass, target, buffer, volume, or history of an investigation's frame (`SceneShading`), when the lab refuses a shading because its reads and writes do not match its WGSL, when a graph does not compile, when mapping passes to the engine's, when showing an intermediate result in a story or the viewer, or when measuring a pass's output in an experiment.
+description: Declare, check, inspect, and demonstrate a Render Lab investigation's frame as a render graph: its nodes (the lab's passes; the investigation's update, compute, and program passes) and resources (transient, imported, persistent, history), the order and culling derived from their reads and writes, the lint that checks them against the WGSL, `render-lab graph`, the inspector (a resource right after a node), `lab::fetch` read-backs, the graph panel, its DAG and resource cards, and the story and experiment forms that show intermediate results (`imageGraph`, `panel=dag`, `[inspect]`). Use when adding, changing, or fixing a pass, target, buffer, volume, history, or program dependency (`SceneShading`), when the lab refuses a shading's reads and writes, when a graph does not compile, when mapping passes to the engine's, or when showing or measuring an intermediate result. For porting the shader itself use `new-investigation`.
 ---
 
 # Render graph
@@ -101,9 +101,18 @@ It fails on a compile error (an unknown name, a read before any write, a cycle, 
 problem, and on a source-index pass that names no node. A note lists writes nothing after reads: an image kind or the
 inspector may want them; otherwise they are dead work.
 
-Restructuring must keep frames identical: render the timelines' beat midpoints with a HEAD-worktree build and with
-yours and compare decoded pixels. Some frames vary from run to run (a measured CPU-time readout, some viewport noise):
-re-render a mismatch alone with both binaries before calling it a regression.
+Checks, by change:
+
+- **A pass's reads or writes corrected** (the lint's refusal): fix the lists to match the WGSL, then `render-lab graph`
+  passes, the selftest passes, and the graph's DAG snapshot (`viewer-dag`) shows the edge you meant. If the order of
+  nodes changed, the frame identity check too.
+- **A pass, resource, or history added or restructured**: `render-lab graph` (no problem, the culled list as
+  intended, the new node in a `graphs/frame.toml` section and in the index's `passes`), its `pass_about` text in both
+  languages, `viewer-inspect` of what it writes, the selftest, and `--prepare-only` of the package's video (the
+  timeline does not load when a pass lacks a section).
+- **Restructuring that must not change frames**: the frame identity check (AGENTS.md, Validation): a baseline build of
+  the parent commit and yours, the timelines' beat midpoints compared by decoded pixels, a varying frame re-rendered
+  alone before calling it a regression.
 
 ## 4. The inspector
 

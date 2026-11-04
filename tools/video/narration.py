@@ -268,9 +268,8 @@ def speak(voice: Any, text: str, syn_config: Any) -> tuple[bytes, int, list[floa
     return b''.join(chunks), config.sample_rate, starts
 
 
-def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[str, Any]]) -> Durations:
+def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[str, Any]], *, cached_only: bool = False) -> Durations:
     """The narration of every sentence, keyed by the sentence's (shown) text."""
-    from piper.config import SynthesisConfig
     audio = cfg.audio_cache
     audio.mkdir(parents=True, exist_ok=True)
     voice = None
@@ -286,6 +285,9 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
             sidecar = audio / f'{digest}.json'
             # A wav made before word timings has no sidecar: make both again.
             if not (target.exists() and sidecar.exists()):
+                if cached_only:
+                    raise RuntimeError(f'narration cache miss ({digest}): {text!r}; prepare this corpus before capturing a regression baseline')
+                from piper.config import SynthesisConfig
                 if voice is None:
                     voice = create_voice(env, device, audio)
                 pcm, rate, starts = speak(voice, text, SynthesisConfig(length_scale=VOICE_SPEED))

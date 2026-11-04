@@ -75,6 +75,7 @@ class Config:
     spec: dict[str, Any]
     base: Path                       # the directory of video.json
     listing_style: str = 'blocks'    # how the code panel draws listings: blocks or text
+    prepared_root: Path | None = None  # an isolated preparation (regression captures)
 
     @staticmethod
     def load(investigation: str, lang: str, directory: Path | None = None) -> Config:
@@ -137,13 +138,15 @@ class Config:
     def timeline_dir(self, lang: str | None = None) -> Path:
         """The edition's timeline and diagram frames: the package's build/timelines/<lang> (generated, so git
         ignores it; the package's demo names the same file)."""
-        return self.package / 'build' / 'timelines' / (lang or self.lang)
+        return (self.prepared_root or self.package / 'build') / 'timelines' / (lang or self.lang)
 
     def timeline(self, lang: str | None = None) -> Path:
         return self.timeline_dir(lang) / 'timeline.json'
 
     def build(self, lang: str | None = None) -> Path:
         """The edition's build directory: the package's build/video/<lang>, or video.json's `build`."""
+        if self.prepared_root is not None:
+            return self.prepared_root / 'video' / (lang or self.lang)
         if 'build' in self.spec:
             return self.path(self.spec['build'][lang or self.lang])
         return self.package / 'build' / 'video' / (lang or self.lang)

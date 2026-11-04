@@ -1,6 +1,6 @@
 ---
 name: render-lab-lamlet
-description: Work with Lamlet in Render Lab - the storyboards, which are Lamlet presentations (`packages/<package>/video/storyboard.lam` and `storyboard.zh-CN.lam`, read by `tools/video/presentation.py`), their cue vocabulary (`render-lab story keys`), the lab's own Lamlet package (`packages/render_lab/language/render_lab.lam`), a package's scripts that the lab runs live (`script/*.lam`: overlays, readouts, click handlers, actions, animations; the runtime library `packages/render_lab/language/runtime.lam`, `render-lab script check|stubs`), and the lab's pinned Lamlet and its `render-lab lamlet` commands. Use when writing or editing a storyboard, a package's script or the runtime library, `render_lab.lam`, or the lab's Lamlet code, together with the `lamlet` and `lamlet-present` skills for the language and the presentation format.
+description: Work with Lamlet in Render Lab: storyboards as Lamlet presentations (`packages/<package>/video/storyboard.lam`, `storyboard.zh-CN.lam`, read by tools/video/presentation.py) and their cue vocabulary (`render-lab story keys`); the lab's Lamlet package (`render_lab.lam`); a package's live scripts (`script/*.lam`: overlays, readouts, click handlers, actions, animations), the runtime library (`runtime.lam`), and `render-lab script check|stubs`; Lamlet content files; the pinned Lamlet and `render-lab lamlet` commands. Use when writing or editing a storyboard's syntax or cues, a script or the runtime library, `render_lab.lam`, the story reader, or the lab's Lamlet code, with the pinned `lamlet` and `lamlet-present` skills for the language. What a story should say and show is `new-story`'s.
 ---
 
 # Lamlet in Render Lab
@@ -12,16 +12,19 @@ storyboard is written and read here, its vocabulary, the lab's own Lamlet packag
 
 ## 1. The language skills
 
-Read these before writing Lamlet. They are versioned with the Lamlet the lab pins, so read the copies at the
-pinned version:
+Read these before writing Lamlet beyond a change that copies a form already in the file (a cue's value, a
+sentence). They are versioned with the Lamlet the lab pins, so read the copies at the pinned version:
 
 | Skill | Pinned copy (after `cargo fetch`, in the project-local CARGO_HOME) | Source |
 |---|---|---|
 | `lamlet` | `.cache/cargo/git/checkouts/lamlet-<hash>/<rev>/.agents/skills/lamlet/SKILL.md` | github.com/lamlet/lamlet |
 | `lamlet-present` | `.cache/cargo/git/checkouts/lamlet-present-<hash>/<rev>/.agents/skills/lamlet-present/SKILL.md` | github.com/lamlet/lamlet-present |
+| `lamlet-embedding` (for the lab's Rust side: natives, the runtime) | `.cache/cargo/git/checkouts/lamlet-<hash>/<rev>/.agents/skills/lamlet-embedding/SKILL.md` | github.com/lamlet/lamlet |
 
-The pinned versions are the tags in `lab/Cargo.toml` (and the exact commits in `Cargo.lock`). Nothing in the lab
-uses a `lamlet` installed on the system: `tools/video/lamlet.py` runs the lab's own `render-lab lamlet …`.
+The pinned versions are the tags in `lab/Cargo.toml`, and the exact commits in `Cargo.lock` (`grep -A2 'name =
+"lamlet' Cargo.lock`): `<rev>` is the first seven hex digits of that commit. The cache may hold other revisions
+beside it; read only the pinned one. Nothing in the lab uses a `lamlet` installed on the system:
+`tools/video/lamlet.py` runs the lab's own `render-lab lamlet …`.
 
 ## 2. A storyboard
 
@@ -186,4 +189,17 @@ over time, what a readout row says.
 - **The lab names no investigation** in its Lamlet code (the runtime library included); investigations reach it
   through the `Investigation` trait, as everywhere else.
 - **Ids and names in documents** use `-` (`c1-room`, range names); Lamlet package names use `_`.
-- **Read only tracked files** (`git ls-files`), and never name anything outside git.
+- **Name only tracked files.** What you write (storyboards, scripts, the lab's Lamlet) names and imports only files
+  and packages `git ls-files` lists, never anything outside git (a local package included). The pinned language
+  skills under `.cache/` are read as references; nothing written names them.
+
+## Checks, by change
+
+| Change | Check |
+|---|---|
+| A cue or sentence of a storyboard | `render-lab --investigation <id> story keys` when unsure of a key; `python3 tools/video/build.py --investigation <id> --prepare-only` (unknown names and type errors fail here, with the storyboard's line); stills of the beat (`new-story`, `references/storyboard.md`), looked at |
+| The translation | `--prepare-only --lang zh-CN`; one paragraph per English sentence, the same heading ids |
+| A package's script (`script/*.lam`) | `render-lab --investigation <id> script check` (and `script stubs` for what it may import); the selftest; an offscreen snapshot of a demonstration it draws or animates (`home --snapshot … --page viewer:<demo>`), looked at (a failing hook fails the selftest and a recording, but only shows a note in the viewer) |
+| The runtime library, `render_lab.lam`, or the lab's Lamlet code | every investigation's `script check`, the unit tests below, `--prepare-only` for every edition and `tools/video/compare.py` (outputs unchanged), the frame identity check (AGENTS.md) when it changes what frames show |
+| The story reader (`tools/video/presentation.py`, `markup.py`) or a storyboard's form | the unit tests below and `tools/video/compare.py` over every edition |
+| A Lamlet content file | `render-lab lamlet toml FILE NAME`, compared with what the reader expected; a snapshot of what it feeds |

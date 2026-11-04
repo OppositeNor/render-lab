@@ -339,7 +339,7 @@ ${cue "key" {' {callout "last-frame-color"}}}${cue "key" {' {motion {' {path {' 
 ${cue "key" {opening demoHit panelCode {append baseRoom {' {listing "validate"} {highlight {' "compress"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 14.0 11.0}}}}}}}
 
-${cue "key" {' {callout "compress"}}}${formulaSaid "\\frac{c}{1 + L(c)}" "the colour over one plus its luminance" {'}}: before any blur, each colour is divided by one plus its luminance, so one bright texel cannot dominate an average.
+${cue "key" {' {callout "compress"}}}${formulaSaid f"{\frac{c}{1 + L(c)}}" "the colour over one plus its luminance" {'}}: before any blur, each colour is divided by one plus its luminance, so one bright texel cannot dominate an average.
 
 ### Next: the blur {#c5-recap kind=3d}
 
@@ -365,7 +365,7 @@ ${cue "key" {' {callout "cone"}}}${overText {' {floorRoughnessRange 0.3 0.6}} "T
 
 ${cue "key" {' {callout "blur-radius"} {highlight {' "base" "circle"}}}}${overText {' {floorRoughnessRange 0.6 0.3}} "Where the ray ends, the circle inside the cone gives the blur's size"}.
 
-${cue "key" {' {callout "mip-bias"} {highlight {' "mip"}}}}${formulaSaid "\\log_2\\left(\\frac{r \\cdot \\max(w, h)}{16} + 1\\right)" "the log of the radius in pixels over sixteen, plus one" {'}}: ${over {' {floorRoughnessRange 0.3 0.65}} {overText {' {pickXRange 260.0 340.0}} "that radius in pixels sets the mip level, lowered for long rays"}}.
+${cue "key" {' {callout "mip-bias"} {highlight {' "mip"}}}}${formulaSaid f"{\log_2\left(\frac{r \cdot \max(w, h)}{16} + 1\right)}" "the log of the radius in pixels over sixteen, plus one" {'}}: ${over {' {floorRoughnessRange 0.3 0.65}} {overText {' {pickXRange 260.0 340.0}} "that radius in pixels sets the mip level, lowered for long rays"}}.
 
 ### The level, stored per pixel {#c6-miplevel kind=3d}
 
@@ -393,7 +393,7 @@ ${cue "key" {' {motion {' {cameraTurn {' {' 18.0 10.0} {' 12.0 12.0} {' 18.0 11.
 
 ${cue "key" {' {callout "resolve-taps"}}}${cue "key" {' {motion {' {path {' cameraDistance} {' {' 4.8}} sentence}}}}}${overText {' {floorRoughnessRange 0.3 0.45}} "The result is half size, so the resolve reads four half-size texels around each full-size pixel, each at its own blur level"}.
 
-${cue "key" {' {callout "resolve-weights"}}}${formulaSaid "e^{-2048\\,\\Delta d}\\; e^{-32\\,(1 - n \\cdot n')}\\; e^{-16\\,\\Delta r}" "one weight each for depth, normal, and roughness" {'}}: ${overText {' {floorRoughnessRange 0.3 0.5}} "each tap counts by how alike its depth, normal, and roughness are"}, ${cue "key" {' {motion {' {path {' cameraDistance} {' {' 4.4}} sentence}}}}}so the teapot's edge stays sharp.
+${cue "key" {' {callout "resolve-weights"}}}${formulaSaid f"{e^{-2048\,\Delta d}\; e^{-32\,(1 - n \cdot n')}\; e^{-16\,\Delta r}}" "one weight each for depth, normal, and roughness" {'}}: ${overText {' {floorRoughnessRange 0.3 0.5}} "each tap counts by how alike its depth, normal, and roughness are"}, ${cue "key" {' {motion {' {path {' cameraDistance} {' {' 4.4}} sentence}}}}}so the teapot's edge stays sharp.
 
 ${cue "key" {' {callout "resolve-uncompress"}}}${overText {' {floorRoughnessRange 0.45 0.3}} "Each tap's compression is undone before they are averaged"}.
 

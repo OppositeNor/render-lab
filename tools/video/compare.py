@@ -37,6 +37,23 @@ PREPARED = ('chapter-plans.json', 'captions.srt', 'captions.vtt', 'chapters.ffme
 SHOWN = 8
 
 
+def save_edition(cfg: Config, out: Path, *, required: bool = False) -> Path:
+    """Copy one edition. A regression capture requires every prepared output, never a partial build."""
+    sources = [(cfg.timeline(), 'timeline.json'), *((cfg.build() / name, name) for name in PREPARED)]
+    if required:
+        missing = [str(path) for path, _ in sources if not path.is_file()]
+        if missing:
+            raise RuntimeError('missing prepared outputs:\n' + '\n'.join(missing))
+    dest = out / cfg.package.name / cfg.lang
+    dest.mkdir(parents=True, exist_ok=True)
+    for path, name in sources:
+        if path.is_file():
+            shutil.copy2(path, dest / name)
+    clips = sorted(p.name for p in cfg.audio_cache.glob('*') if p.is_file())
+    (out / cfg.package.name / 'audio.txt').write_text('\n'.join(clips) + '\n')
+    return dest
+
+
 def save(out: Path, investigations: list[str]) -> None:
     """Copies every edition's prepared outputs under `out`."""
     for investigation, langs in videos():
@@ -46,14 +63,7 @@ def save(out: Path, investigations: list[str]) -> None:
             cfg = Config.load(investigation, lang)
             if not cfg.timeline().exists():
                 continue
-            dest = out / cfg.package.name / lang
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(cfg.timeline(), dest / 'timeline.json')
-            for name in PREPARED:
-                if (cfg.build() / name).exists():
-                    shutil.copy2(cfg.build() / name, dest / name)
-            clips = sorted(p.name for p in cfg.audio_cache.glob('*') if p.is_file())
-            (out / cfg.package.name / 'audio.txt').write_text('\n'.join(clips) + '\n')
+            save_edition(cfg, out)
         print(f'saved {investigation}')
 
 
@@ -63,7 +73,7 @@ def same(a: Any, b: Any, path: str, out: list[str]) -> None:
         if a is not b:
             out.append(f'{path}: {a!r} != {b!r}')
     elif isinstance(a, (int, float)) and isinstance(b, (int, float)):
-        if float(a) != float(b):
+        if a != b:
             out.append(f'{path}: {a!r} != {b!r}')
     elif isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
@@ -102,7 +112,7 @@ def file_differences(old: Path, new: Path) -> list[str]:
     lines = [f'line {i + 1}: {x!r} != {y!r}' for i, (x, y) in enumerate(zip(a, b)) if x != y]
     if len(a) != len(b):
         lines.append(f'{len(a)} lines != {len(b)}')
-    return lines
+    return lines or ['bytes differ (line endings or final newline)']
 
 
 def compare(old: Path, new: Path) -> list[str]:

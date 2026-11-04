@@ -1,6 +1,6 @@
 ---
 name: knowledge-graph
-description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The knowledge graph is a DAG of the computer-graphics knowledge the chapters need, worked back to three bases (GPU parallel execution; radiometry; the graphics pipeline); it lives in render_lab's knowledge.toml, and each investigation's knowledge.toml lists its chapters' direct requirements and its audience. The target audience is an antichain vertex separator of that graph: what the viewer should know (the Prerequisites tab), the level the story starts from, and what it must teach. Use when adding or editing topics or chapter requirements, when choosing or checking an investigation's audience, when outlining or reviewing a story's depth against what its viewer knows, or when asked about the Prerequisites tab or the knowledge panel.
+description: Use and extend Render Lab's knowledge graph and choose an investigation's target audience. The graph is a DAG of the graphics knowledge the chapters need, down to three bases, in render_lab's knowledge.toml; each investigation's knowledge.toml lists its chapters' direct requirements and its `[audience]`, an antichain vertex separator of the graph (what the viewer should know, the level the story starts from, what it must teach). Use when adding or editing topics, groups, or chapter requirements, choosing or checking an audience (`render-lab knowledge --known --levels`), checking a series' parts, or working on the Prerequisites tab or the knowledge panel. How a story costs and teaches its level is `new-story`'s.
 ---
 
 # The knowledge graph and the target audience
@@ -61,9 +61,9 @@ concept a sentence leans on, name the node (add it to render_lab with its requir
 missing). A requirement already implied by another of the chapter's is rejected; keep the higher one. Leave recap
 chapters out (they require nothing new).
 
-Delegate the listing to a subagent (Sonnet) per investigation with the outline, the storyboard, and the node table
-(the `knowledge.toml` files, or `todo/knowledge-graph-tree.md`); check its result with the
-`knowledge` command.
+Delegate the listing per investigation when your environment has subagents (a cheaper model is enough: AGENTS.md),
+with the outline, the storyboard, and the node table (the `knowledge.toml` files, or `todo/knowledge-graph-tree.md`);
+otherwise list it yourself, a chapter at a time. Check the result with the `knowledge` command either way.
 
 ## The target audience
 
@@ -75,16 +75,16 @@ chapters' ancestors:
 - **Carries**: edges from A to a topic beyond the level (or to a chapter): known topics used directly above the
   level. The tab marks them (↗); the story names them as tools, without explaining them.
 - **What the story teaches**: everything else the chapters need. Each is taught before its first use, like a
-  teacher: a sequence of beats with a demonstration of its own, animated and explorable (`new-story`, "Teaching a
-  topic").
+  teacher: a sequence of beats with a demonstration of its own, animated and explorable (`new-story`,
+  `references/outline.md`, "Teaching a topic").
 
 With every level-skipping edge subdivided, S and the carries form an antichain vertex separator between A (what
 you should know: the Prerequisites tab) and the rest (what you might not know). The proof is in the plan.
 
 The procedure:
 
-1. Choose the level as `new-story`'s "The knowledge level" says: the lowest one at which the story can still teach
-   everything above it in its chapters and time. Start from an audience that knows only the bases and the topics
+1. Choose the level as `new-story`'s "The knowledge level" (its `references/outline.md`) says: the lowest one at which
+   the story can still teach everything above it in its chapters and time. Start from an audience that knows only the bases and the topics
    every graphics programmer meets first, cost what the story would have to teach, and raise the level, one general
    topic at a time, only where a chapter or the story's length does not fit.
 2. Choose K, the topics that viewer knows (only topics some chapter needs: the check names the others), and write
@@ -98,10 +98,10 @@ The procedure:
 
 ## What it means for the story
 
-- **Outline (new-story Phase 2):** run the procedure; plan the beats that teach every topic the story teaches,
+- **Outline** (`new-story` Phase 2, its `references/outline.md`): run the procedure; plan the beats that teach every topic the story teaches,
   before its first use, with their seconds, and a one-sentence reminder for each level topic. The opening names
   the main topics taught, the starting level, and what the viewer will gain.
-- **Review (new-story Phase 7):** check each chapter against its line of the `knowledge` output: nothing below the level
+- **Review** (`new-story` Phase 7, its `references/review.md`): check each chapter against its line of the `knowledge` output: nothing below the level
   explained at length, every topic it teaches explained, every carried topic named.
 - Reviewers may propose graph changes (a missing node, a split); the main agent makes them and reruns the check.
 
@@ -118,7 +118,7 @@ The procedure:
 - **The homepage**: the selection page's "Before you start" names the starting level and the known topics the story
   uses directly, and its Knowledge graph button shows the graph full screen.
 
-## Commands
+## Commands and checks
 
 From the lab's root (`CARGO_HOME=$PWD/.cache/cargo`):
 
@@ -134,3 +134,9 @@ cargo test --release --locked --offline --workspace                             
 ```
 
 Look at the snapshots. Titles and summaries are in both languages; the text check fails on a key missing from one.
+
+Checks, by change: a topic or edge added or changed in render_lab's graph is checked with the `knowledge` command of
+every investigation (the loader rejects a cycle or a redundant edge for all of them), `cargo test` (the public
+graphs), `render-lab series`, and both languages' text; a chapter's requirements or an audience, with that
+investigation's `knowledge` command and its Prerequisites snapshot; a change to `lab/src/knowledge.rs`, with all of
+these. Write snapshots to a scratch folder.

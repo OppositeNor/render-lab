@@ -30,12 +30,16 @@ class Compare(unittest.TestCase):
         self.assertTrue(self.sets(old, {'p/en/timeline.json': json.dumps({'keys': []})}))
         # A flag is not a number.
         self.assertTrue(self.sets({'a.json': 'true'}, {'a.json': '1'}))
+        # Do not round distinct integers through binary64 before comparing them.
+        self.assertTrue(self.sets({'a.json': '9007199254740992'}, {'a.json': '9007199254740993'}))
 
     def test_text_and_files(self) -> None:
         self.assertEqual(self.sets({'p/en/captions.srt': 'a\nb\n'}, {'p/en/captions.srt': 'a\nb\n'}), [])
         self.assertEqual(self.sets({'p/en/captions.srt': 'a\nb\n'}, {'p/en/captions.srt': 'a\nc\n'}), ["p/en/captions.srt: line 2: 'b' != 'c'"])
         self.assertEqual(len(self.sets({'p/en/script.md': ''}, {})), 1)
         self.assertEqual(len(self.sets({}, {'p/en/script.md': ''})), 1)
+        self.assertTrue(self.sets({'script.md': 'same\n'}, {'script.md': 'same'}))
+        self.assertTrue(self.sets({'script.md': 'same\r\n'}, {'script.md': 'same\n'}))
 
     def test_no_new_synthesis(self) -> None:
         self.assertEqual(self.sets({'p/audio.txt': 'a.wav\nb.wav\n'}, {'p/audio.txt': 'a.wav\nb.wav\n'}), [])
