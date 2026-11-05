@@ -1,4 +1,4 @@
-$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* godot_ssr]$[Import* godot_ssr_story]
+$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* godot_ssr]$[Import* godot_ssr_story]$[Import* godot_ssr_natives]
 # How Godot's SSR Reflects a Room {#video subtitle="Screen-space reflections in Godot 4.7, followed through the source and ported pass by pass" engineVersion=4.7.2-stable commit=ed1daf0bf001b61586d9930840f2f1394092c079 date=2026-11-03 fps=30 width=1920 height=1080}
 
 ## Where SSR runs {#c1 number=1 target=245 summary="What SSR adds, the problem it solves, the passes of Godot's frame it is made of, and what switches it on." sources="gating, ssr-normal-roughness, process-ssr, copy-last-frame, env-defaults, half-size-setting"}
@@ -535,9 +535,9 @@ ${overText {' {ssrFadeOutRange 2.0 5.0}} "The fade out falls from one to zero as
 
 ${overText {' {ssrFadeOutRange 5.0 2.0}} "With the defaults, the two fades multiplied together never reach one"}.
 
-${cue "key" {' {glide cameraDistance 5.0 sentence}}}Their product peaks at fifty-eight hundredths, for a ray seven hundredths of the screen long.
+${cue "key" {' {glide cameraDistance 5.0 sentence}}}Their product peaks at ${spoken {fadePeak}} hundredths, for a ray ${spoken {fadePeakLength}} hundredths of the screen long.
 
-${cue "key" {' {glide cameraDistance 5.4 sentence}}}So SSR never covers more than fifty-eight percent of the sky's reflection under it, as chapter seven shows.
+${cue "key" {' {glide cameraDistance 5.4 sentence}}}So SSR never covers more than ${spoken {fadePeak}} percent of the sky's reflection under it, as chapter seven shows.
 
 ### The colour is last frame's {#c5-where kind=3d}
 
@@ -809,7 +809,7 @@ ${overText {' {floorRoughnessRange 0.03 0.3}} "And it blurs by roughness with a 
 
 ${cue "key" {' {glide cameraDistance 5.6 sentence}}}${overText {' {ssrEnabledRange 1.0 0.0}} "What is off screen is lost, and what has moved lags a frame"}.
 
-${over {' {ssrEnabledRange 0.0 1.0}} {overText {' {floorRoughnessRange 0.3 0.04}} "And the fades keep every pixel's validity at fifty-eight hundredths or less, so SSR only ever covers part of the sky's reflection"}}.
+${over {' {ssrEnabledRange 0.0 1.0}} {overText {' {floorRoughnessRange 0.3 0.04}} f"{And the fades keep every pixel's validity at ${spoken {fadePeak}} hundredths or less, so SSR only ever covers part of the sky's reflection}"}}.
 
 ### Where to read {#c8-sources kind=2d sources="process-ssr, copy-last-frame"}
 

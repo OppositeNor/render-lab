@@ -143,6 +143,19 @@ impl Investigation for Ssr {
         false
     }
 
+    /// The fade's ceiling the narration says (chapter 5, the summary): with the default fades, the most the
+    /// screen-edge and length fades leave of a pixel's validity, and the ray length where they do, in hundredths.
+    fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+        fn peak() -> (f32, f32) {
+            let d = shot::demos();
+            let (fade_in, fade_out) = (d.param_default("ssrFadeIn").unwrap_or(0.15), d.param_default("ssrFadeOut").unwrap_or(2.0));
+            (1..2000).map(|k| k as f32 / 2000.0).map(|l| (l, trace::fade(l, fade_in, fade_out))).fold((0.0, 0.0), |a, b| if b.1 > a.1 { b } else { a })
+        }
+        natives.function("godot_ssr/fade-peak", |_, ()| Ok((peak().1 * 100.0).round() as i64)).pure().doc("Fn([], Int). The default fades' peak, in hundredths of validity.").register()?;
+        natives.function("godot_ssr/fade-peak-length", |_, ()| Ok((peak().0 * 100.0).round() as i64)).pure().doc("Fn([], Int). The ray length where the default fades peak, in hundredths of the screen.").register()?;
+        Ok(())
+    }
+
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {
         selftest::run(options)
     }
