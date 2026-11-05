@@ -46,16 +46,19 @@ class References(unittest.TestCase):
     def test_passes_use_the_active_consumer(self) -> None:
         for panel in ('graph', 'dag', 'resources', 'performance'):
             with self.subTest(panel=panel):
-                self.check({'panel': panel, 'highlight': ['ssrTrace']})
-                self.error({'panel': panel, 'highlight': ['ssrTrcae']}, contains='did you mean `ssrTrace`?')
-        self.check({'panel': 'graph', 'highlight': ['ssrPrepassFS']})
-        self.check({'panel': 'performance', 'highlight': ['depth pre-pass']})
-        self.error({'panel': 'performance', 'highlight': ['ssrPrepassFS']}, contains='unknown pass')
-        self.error({'panel': 'graph', 'highlight': ['depth pre-pass']}, contains='unknown pass')
+                self.check({'panel': panel, 'highlight': [{'kind': 'pass', 'name': 'ssrTrace'}]})
+                self.error({'panel': panel, 'highlight': [{'kind': 'pass', 'name': 'ssrTrcae'}]}, contains='did you mean `ssrTrace`?')
+        self.check({'panel': 'graph', 'highlight': [{'kind': 'pass', 'name': 'ssrPrepassFS'}]})
+        self.check({'panel': 'performance', 'highlight': [{'kind': 'pass', 'name': 'depth pre-pass'}]})
+        self.error({'panel': 'performance', 'highlight': [{'kind': 'pass', 'name': 'ssrPrepassFS'}]}, contains='unknown pass')
+        self.error({'panel': 'graph', 'highlight': [{'kind': 'pass', 'name': 'depth pre-pass'}]}, contains='unknown pass')
+
+    def test_a_bare_name_is_refused(self) -> None:
+        self.error({'panel': 'graph', 'highlight': ['ssrTrace']}, field='key', contains='expected internally tagged enum Highlight')
 
     def test_listing_scope_and_inherited_highlights(self) -> None:
-        self.error({'panel': 'code', 'code': 'trace', 'highlight': ['compress']}, contains='tag in listing `trace`')
-        self.check({'panel': 'code', 'code': 'validate', 'highlight': ['compress']})
+        self.error({'panel': 'code', 'code': 'trace', 'highlight': [{'kind': 'code', 'listing': 'trace', 'tag': 'compress'}]}, contains='tag in listing `trace`')
+        self.check({'panel': 'code', 'code': 'validate', 'highlight': [{'kind': 'code', 'listing': 'validate', 'tag': 'compress'}]})
         scoped = {'kind': 'code', 'listing': 'trace', 'tag': 'edge'}
         self.check({'panel': 'code', 'code': 'trace', 'highlight': [scoped]})
         # Both listings have edge, but the explicit reference stays bound to trace.
@@ -63,25 +66,30 @@ class References(unittest.TestCase):
                                 {'code': 'validate'}, contains='namespace does not match')
         self.assertEqual(diagnostic['piece'], 1)
         self.check({'panel': 'code', 'code': 'trace', 'highlight': [scoped]}, {'code': 'validate', 'highlight': []})
-        self.error({'panel': 'code', 'code': 'trace', 'highlight': ['edge']}, {'panel': 'graph'}, contains='unknown pass')
-        self.check({'panel': 'code', 'code': 'trace', 'highlight': ['edge']}, {'demo': 'room', 'panel': 'graph'})
+        self.error({'panel': 'code', 'code': 'trace', 'highlight': [scoped]}, {'panel': 'graph'}, contains='namespace does not match')
+        self.check({'panel': 'code', 'code': 'trace', 'highlight': [scoped]}, {'demo': 'room', 'panel': 'graph'})
 
     def test_record_fields_do_not_share_a_namespace(self) -> None:
         camera = {'panel': 'values', 'record': {'type': 'camera'}}
         self.check({**camera, 'highlight': [{'kind': 'field', 'record': 'CameraData', 'field': 'worldToView'}]})
-        self.error({**camera, 'highlight': ['localToWorld']}, contains='field in `CameraData`')
+        self.error({**camera, 'highlight': [{'kind': 'field', 'record': 'CameraData', 'field': 'localToWorld'}]}, contains='field in `CameraData`')
         self.error({**camera, 'highlight': [{'kind': 'field', 'record': 'ObjectData', 'field': 'localToWorld'}]},
                    contains='namespace does not match')
-        self.check({'panel': 'memory', 'record': {'type': 'object', 'index': 0}, 'highlight': ['localToWorld']})
+        self.check({'panel': 'memory', 'record': {'type': 'object', 'index': 0}, 'highlight': [{'kind': 'field', 'record': 'ObjectData', 'field': 'localToWorld'}]})
 
-    def test_inactive_legacy_targets_warn_and_explicit_targets_still_check(self) -> None:
-        report = self.check({'panel': 'hidden', 'highlight': ['unknownUntilConsumed']})
-        self.assertTrue(report['ok'])
-        self.assertEqual(report['diagnostics'][0]['code'], 'story.highlight.ambiguous')
-        self.assertEqual(report['diagnostics'][0]['severity'], 'warning')
+    def test_a_highlight_nothing_shows_is_refused(self) -> None:
+        scoped = {'kind': 'code', 'listing': 'trace', 'tag': 'edge'}
+        diagnostic = self.error({'panel': 'hidden', 'highlight': [scoped]}, contains='nothing shows this highlight')
+        self.assertEqual(diagnostic['code'], 'story.highlight.unseen')
+        self.error({'panel': 'code', 'code': 'trace', 'highlight': [scoped]}, {'panel': 'values', 'highlight': [scoped]},
+                   contains='nothing shows this highlight')
+        self.error({'panel': 'hidden', 'highlight': [{'kind': 'pass', 'name': 'ssrTrace'}]}, {'panel': 'graph'},
+                   contains='nothing shows this highlight')
+        # An explicit target's own mistake is reported first.
         self.error({'panel': 'hidden', 'highlight': [{'kind': 'pass', 'name': 'ssrTrcae'}]}, contains='did you mean `ssrTrace`?')
-        self.check({'panel': 'hidden', 'highlight': [{'kind': 'pass', 'name': 'ssrTrace'}]}, {'panel': 'graph'})
+        # Clearing needs no panel, and a highlight stays set while its panel is away.
         self.check({'panel': 'hidden', 'highlight': []})
+        self.check({'panel': 'graph', 'highlight': [{'kind': 'pass', 'name': 'ssrTrace'}]}, {'panel': 'hidden'}, {'panel': 'graph'})
 
     def test_raw_references_and_options_have_spelling_help(self) -> None:
         self.error({'panel': 'grph'}, field='panel', contains='did you mean `graph`?')
@@ -121,7 +129,7 @@ Before ${cue "key" {' ATTRS}}after.
             ('panelGraph {highlightPasses {\' "ssrTrace"}}', {'panel': 'graph', 'highlight': [{'kind': 'pass', 'name': 'ssrTrace'}]}),
             ('panelCode {highlightCode "trace" {\' "edge"}}', {'panel': 'code', 'code': 'trace', 'highlight': [{'kind': 'code', 'listing': 'trace', 'tag': 'edge'}]}),
             ('panelValues recordCamera {highlightFields "CameraData" {\' "worldToView"}}', {'panel': 'values', 'record': {'type': 'camera'}, 'highlight': [{'kind': 'field', 'record': 'CameraData', 'field': 'worldToView'}]}),
-            ('{highlightPasses {\' "ssrTrace"}} {highlight {\'}}', {'highlight': []}),
+            ('{highlightPasses {\' "ssrTrace"}} unhighlight', {'highlight': []}),
         ]
         for attrs, expected in cases:
             with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory:

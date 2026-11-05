@@ -80,7 +80,7 @@ has), each with the `{attr "…" "…"}` that still writes it.
 
 - A function is its key in camel case (`camera.yaw` is `cameraYaw`), except `code` (`listing`), `image` (`inset`),
   and `ease` (`easing`), whose names `content` and `present` already use. The fields render_lab types or checks
-  (`animate`, points, `imageMark`, the hide lists, `highlight`, `record`, `callout`, and the text keys `imageTitle`,
+  (`animate`, points, `imageMark`, the hide lists, the highlights, `record`, `callout`, and the text keys `imageTitle`,
   `imageMarkText`, `labelText`) are in the key list marked `"typed": true` and have no vocabulary function
   (`keys::TYPED`). A
   value a cue reserves is `param.<name>` (`paramFormula`); a dotted key whose name a field has is `imageParam…` or
@@ -105,7 +105,9 @@ has), each with the `{attr "…" "…"}` that still writes it.
   `cameraTurn` over the beat, `cameraPathOver`, `cameraTurnOver` over a `Length`, their waypoints `{pose yaw pitch
   distance}` and `{aim yaw pitch}`; and the commonest, one channel to one value, as a whole attribute:
   `{glide cameraYaw 24.0 sentence}`. Write those short forms; the general `path` is the fallback), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
-  v1}`, `unmark`), lists of names (`imageHide`, `arrowHide`, `labelHide`, `highlight`), records (`recordNone`,
+  v1}`, `unmark`), lists of names (`imageHide`, `arrowHide`, `labelHide`), highlights in their namespace (`highlightCode "listing"
+  {' "tag"}`, `highlightPasses {' "pass"}`, `highlightFields "ObjectData" {' "field"}`, `unhighlight`; one that the
+  cue's panel does not show is refused), records (`recordNone`,
   `recordCamera`, `{recordObject n}`), and `formulaSaid`.
 - **Checked names**, through the lab's natives (the package `rl`, `lab/src/script/natives.rs`): `callout` (a
   source-index key), `imageTitle`, `imageMarkText`, `labelText` (text keys), `point`, and `formulaSaid`'s LaTeX

@@ -1038,7 +1038,7 @@ mod tests {
             assert!(error(serde_json::json!({"frame": 0, "image": "x", "imageGraph": "scene.hdr", "imageParams": {"gain": 1}})).contains("a graph image takes"));
             assert!(error(serde_json::json!({"frame": 0, "image": "chart", "imageShow": "color"})).contains("imageShow draws a graph image"));
             // The same graph as a DAG, a pass called out.
-            let t = timeline(serde_json::json!([{"frame": 0, "panel": "dag", "highlight": ["scene"]}]));
+            let t = timeline(serde_json::json!([{"frame": 0, "panel": "dag", "highlight": [{"kind": "pass", "name": "scene"}]}]));
             t.validate().unwrap();
             assert_eq!(t.state_at(0).panel, crate::shot::PanelMode::Dag);
             let t = timeline(serde_json::json!([{"frame": 0, "panel": "resources"}]));

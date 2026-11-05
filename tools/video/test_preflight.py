@@ -148,8 +148,8 @@ runpy.run_path(sys.argv[0], run_name='__main__')
 
     def test_semantic_failure_precedes_device_selection_and_synthesis(self) -> None:
         import narration
-        for attrs in ('{attr "param.typo" "1"}', '{attr "panel" "graph"} {highlight {\' "ssrTrcae"}}',
-                      '{attr "panel" "code"} {attr "code" "trace"} {highlight {\' "compress"}}', '{attr "panel" "grph"}'):
+        for attrs in ('{attr "param.typo" "1"}', '{attr "panel" "graph"} {highlightPasses {\' "ssrTrcae"}}',
+                      '{attr "panel" "code"} {highlightCode "trace" {\' "compress"}}', '{attr "panel" "grph"}'):
             board = self.board(attrs)
             with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory, \
                     mock.patch.object(sys, 'argv', ['build.py', '--investigation', self.cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \

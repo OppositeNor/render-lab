@@ -221,19 +221,18 @@ A region of an image to point out, in fractions of the picture (`u0 v0` to `u1 v
 $[# {mark u0 v0 u1 v1} {attr "imageMark" {join "," {map {: {' u0 v0 u1 v1} {List Float}} str}}}]
 $[# unmark [% {attr "imageMark" ""}]]
 
-Names to hide or to call out: images, arrows, labels, and the code panel's or the graph's highlighted lines and
-passes. An empty list clears the highlight.
+Names to hide: images, arrows, and labels.
 
 $[# {_name n} {!if {contains {chars n} ","} {error {++ "a name has no comma: " n}} n}]
 $[# {_names key names} {attr key {join "," {map {: names {List String}} _name}}}]
 $[# {imageHide names} {_names "imageHide" names}]
 $[# {arrowHide names} {_names "arrowHide" names}]
 $[# {labelHide names} {_names "labelHide" names}]
-$[# {highlight names} {_names "highlight" names}]
 
-Explicit highlighter namespaces. A code highlight selects its listing; record fields refer to the selected
-record's WGSL struct name (`ObjectData` or `CameraData`). These use typed Data, checked against the host's
-actual context, instead of joining names into an unqualified list.
+What the panel highlights, each name in its namespace, checked against the panel the cue shows (a highlight
+nothing shows is refused): passes of the graph, DAG, resources, or performance panel; a listing's tags (the cue
+also selects the listing); or fields of the selected record's WGSL struct (`ObjectData` or `CameraData`).
+`unhighlight` clears it.
 
 $[# {highlightPasses names} {attr "highlightPasses" {: names {List String}}}]
 $[# {highlightCode name tags} {attr "highlightCode" {.
@@ -242,6 +241,7 @@ $[# {highlightCode name tags} {attr "highlightCode" {.
 $[# {highlightFields record fields} {attr "highlightFields" {.
     record {: record String}
     fields {: fields {List String}}}}]
+$[# unhighlight [% {highlightPasses {'}}]]
 
 What the frame records (`record`): nothing, the camera, or one object (by index).
 

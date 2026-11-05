@@ -81,22 +81,22 @@ ${cue "key" {' {callout "ssr-blend"}}} That pass uses their result when it shade
 ### Ordered by what they read and write {#c1-graph kind=3d}
 
 ${cue "key" {opening demoRoom panelDag baseRoom}}
-${cue "key" {' {highlight {' "ssrHiz" "ssrTrace"}}}}
+${cue "key" {' {highlightPasses {' "ssrHiz" "ssrTrace"}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 24.0 12.0} {aim 20.0 11.0}}}}}}}
 
-${cue "key" {' {highlight {' "ssrPrepassFS"}}}}A frame is a list of passes.
+${cue "key" {' {highlightPasses {' "ssrPrepassFS"}}}}A frame is a list of passes.
 
-${cue "key" {' {highlight {' "ssrDownsample"}}}}A pass may start only when everything it reads has been written.
+${cue "key" {' {highlightPasses {' "ssrDownsample"}}}}A pass may start only when everything it reads has been written.
 
-${cue "key" {' {highlight {' "ssrHiz"}}}}For example, the pyramid pass writes the depth pyramid.
+${cue "key" {' {highlightPasses {' "ssrHiz"}}}}For example, the pyramid pass writes the depth pyramid.
 
-${cue "key" {' {highlight {' "ssrTrace"}}}}The trace reads that pyramid, ${cue "key" {'
-    {highlight {' "ssrHiz" "ssrTrace"}}}}so the trace must run after the pyramid pass.
+${cue "key" {' {highlightPasses {' "ssrTrace"}}}}The trace reads that pyramid, ${cue "key" {'
+    {highlightPasses {' "ssrHiz" "ssrTrace"}}}}so the trace must run after the pyramid pass.
 
-${cue "key" {' {highlight {' "ssrDownsample" "ssrHiz"}}}}In the graph, each arrow runs from the pass that writes a resource to a pass that reads it.
+${cue "key" {' {highlightPasses {' "ssrDownsample" "ssrHiz"}}}}In the graph, each arrow runs from the pass that writes a resource to a pass that reads it.
 
-${cue "key" {' {highlight {' "ssrTrace" "ssrFilter"}}}}Following those arrows from pass to pass ${cue "key"
-    {' {highlight {' "ssrDownsample" "ssrHiz" "ssrTrace" "ssrFilter" "ssrResolve"}}}}gives the whole order.
+${cue "key" {' {highlightPasses {' "ssrTrace" "ssrFilter"}}}}Following those arrows from pass to pass ${cue "key"
+    {' {highlightPasses {' "ssrDownsample" "ssrHiz" "ssrTrace" "ssrFilter" "ssrResolve"}}}}gives the whole order.
 
 ### Last frame closes a loop {#c1-history kind=2d graph=frame focus="HISTORY, SSR"}
 
@@ -227,7 +227,7 @@ ${cue "key" {' {inset "nr"} {mark 0.0 0.0 0.3 1.0} {imageMarkText "views.red_wal
 
 ${cue "key" {opening demoInputs panelCode {append baseRoom {'
     {listing "prepass"}
-    {highlight {' "encode"}}
+    {highlightCode "prepass" {' "encode"}}
     {pickX 200.0}
     {pickY 230.0}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0}}}}}}}
@@ -240,15 +240,15 @@ ${overText
     {' {pickYRange 230.0 175.0}}
     "Only the direction matters, because the trace rescales the normal to length one when it reads the buffer"}.
 
-${cue "key" {' {highlight {' "cube"}}}}${overText
+${cue "key" {' {highlightCode "prepass" {' "cube"}}}}${overText
     {' {pickYRange 175.0 120.0}}
     "So Godot first scales the normal until it touches a cube, the box from minus one to one on each axis"}.
 
-${cue "key" {' {highlight {' "fit"}}}}${overText
+${cue "key" {' {highlightCode "prepass" {' "fit"}}}}${overText
     {' {pickXRange 380.0 250.0}}
     "Then it shortens the normal to the length that, once rounded to bytes, points closest to the true direction"}.
 
-${cue "key" {' {callout "best-fit-table"} {highlight {' "table"}}}}${overText
+${cue "key" {' {callout "best-fit-table"} {highlightCode "prepass" {' "table"}}}}${overText
     {' {pickYRange 120.0 170.0}}
     "Godot looks up that best length in a table, by the normal's direction"}.
 
@@ -256,7 +256,7 @@ ${overText
     {' {pickYRange 170.0 220.0}}
     "At start-up, Godot fills the table by trying a hundred and twenty-six lengths for each direction of a 1024-by-1024 grid"}.
 
-${cue "key" {' {callout "nr-write"} {highlight {' "roughness"}}}}${overText
+${cue "key" {' {callout "nr-write"} {highlightCode "prepass" {' "roughness"}}}}${overText
     {' {floorRoughnessRange 0.15 0.4}}
     "The alpha byte holds the roughness"}.
 
@@ -264,7 +264,7 @@ ${overText
     {' {floorRoughnessRange 0.4 0.6}}
     "The roughness is scaled by one hundred twenty-seven over two hundred fifty-five, so it fills only the lower half of the byte"}.
 
-${cue "key" {' {highlight {' "dynamic"}}}}${overText
+${cue "key" {' {highlightCode "prepass" {' "dynamic"}}}}${overText
     {' {floorRoughnessRange 0.6 0.4}}
     "A moving object stores one minus the scaled roughness, so its alpha lands in the upper half"}.
 
@@ -277,7 +277,7 @@ ${overText {' {floorRoughnessRange 0.25 0.15}} "Undoing the one minus gives its 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {'
     {hizLevel 0.0}
     {listing "pyramid"}
-    {highlight {' "winner"}}}}}}
+    {highlightCode "pyramid" {' "winner"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
 ${cue "key" {' {callout "ssr-size"}}}${overText
@@ -294,7 +294,7 @@ ${overText
 
 ${cue "key" {' {callout "pass-downsample"}}}So the first pass, the downsample, shrinks the two images to that size.
 
-${cue "key" {' {callout "downsample-winner"} {highlight {' "level0"}}}}${overText
+${cue "key" {' {callout "downsample-winner"} {highlightCode "pyramid" {' "level0"}}}}${overText
     {' {hizLevelRange 0.0 0.5}}
     "From each two-by-two block of pixels, it keeps the nearest depth"}.
 
@@ -302,7 +302,7 @@ ${overText
     {' {hizLevelRange 0.5 1.0}}
     "Godot stores depth reversed, one at the near plane and zero at the far one, so the nearest surface has the largest value"}.
 
-${cue "key" {' {callout "downsample-normal"} {highlight {' "normal"}}}}${overText
+${cue "key" {' {callout "downsample-normal"} {highlightCode "pyramid" {' "normal"}}}}${overText
     {' {hizLevelRange 1.0 0.0}}
     "It also keeps the normal-roughness of the pixel with that nearest depth, so the depth and the normal still belong to one surface"}.
 
@@ -436,7 +436,7 @@ ${overText
 ### Each level keeps the nearest of four {#c3-max kind=3d}
 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {append
-    {' {hizLevel 0.0} {listing "pyramid"} {highlight {' "reduce"}}}
+    {' {hizLevel 0.0} {listing "pyramid"} {highlightCode "pyramid" {' "reduce"}}}
     {view "field" {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0}}}}}}}
 ${cue "key" {'
     {inset "hizGpu"}
@@ -456,7 +456,7 @@ ${overText
     {' {pickXRange 250.0 290.0}}
     "So a texel on a higher level covers a square cell of the screen"}.
 
-${cue "key" {' {callout "hiz-max"} {highlight {' "max"}}}}${over
+${cue "key" {' {callout "hiz-max"} {highlightCode "pyramid" {' "max"}}}}${over
     {append {' {hizLevelRange 2.0 3.0}} {view "field" {' {fieldLevelRange 2.0 3.0}}}}
     {overText
         {' {pickXRange 290.0 330.0}}
@@ -466,7 +466,7 @@ ${cue "key" {' {inset "hizGpu"} {attr "image.level" "3"}}}${overText
     {' {pickYRange 190.0 230.0}}
     "With reversed depth, the largest value is the nearest surface"}.
 
-${cue "key" {' {highlight {' "store"}}}}${over
+${cue "key" {' {highlightCode "pyramid" {' "store"}}}}${over
     {append {' {hizLevelRange 3.0 4.0}} {view "field" {' {fieldLevelRange 3.0 4.0}}}}
     {overText
         {' {pickXRange 330.0 270.0}}
@@ -475,7 +475,7 @@ ${cue "key" {' {highlight {' "store"}}}}${over
 ### Halve until a side reaches one {#c3-levels kind=3d}
 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {append
-    {' {hizLevel 0.0} {listing "pyramid"} {highlight {' "store"}}}
+    {' {hizLevel 0.0} {listing "pyramid"} {highlightCode "pyramid" {' "store"}}}
     {view "field" {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0}}}}}}}
 ${cue "key" {'
     {inset "hizGpu"}
@@ -491,7 +491,7 @@ ${cue "key" {' {inset "hizGpu"} {attr "image.level" "7"}}}${overText
     {append {' {hizLevelRange 5.0 9.0}} {view "field" {' {fieldLevelRange 5.0 9.0}}}}
     "It stops when one side of a level is a single texel"}.
 
-${cue "key" {' {callout "pass-hiz"} {highlight {' "odd"}}}}${over
+${cue "key" {' {callout "pass-hiz"} {highlightCode "pyramid" {' "odd"}}}}${over
     {append {' {hizLevelRange 9.0 5.0}} {view "field" {' {fieldLevelRange 9.0 5.0}}}}
     {overText
         {' {pickXRange 200.0 280.0}}
@@ -571,7 +571,7 @@ They are the pyramid's texture, its levels, and the step that keeps the nearest 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {'
     {traceStep 0.0}
     {listing "trace"}
-    {highlight {' "bias"}}}}}}
+    {highlightCode "trace" {' "bias"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
 ${cue "key" {' {callout "trace-sky"}}}${cue "key" {' {glide cameraPitch 14.0 sentence}}}Before any ray walks the pyramid, the trace skips the sky's pixels, because no surface is there to reflect.
@@ -580,11 +580,12 @@ ${cue "key" {' {callout "trace-rough"}}}${overText
     {' {floorRoughnessRange 0.15 0.7}}
     "It also skips surfaces of roughness seven tenths or more, the cut-off where chapter one's reflections stopped"}.
 
-${cue "key" {' {callout "bias"} {floorRoughness 0.15} {highlight {' "reflect"}}}}${overText
+${cue "key" {' {callout "bias"} {floorRoughness 0.15} {highlightCode "trace" {' "reflect"}}}}${overText
     {' {traceStepRange 0.0 1.0}}
     "For P, the trace reflects the view direction about P's stored normal"}.
 
-${cue "key" {' {highlight {' "bias"}}}}${cue "key" {' {glide cameraDistance 4.6 sentence}}}Then it pushes the start a little off the surface, along the true normal from chapter two.
+${cue "key" {' {highlightCode "trace" {' "bias"}}}}${cue "key" {'
+    {glide cameraDistance 4.6 sentence}}}Then it pushes the start a little off the surface, along the true normal from chapter two.
 
 ${cue "key" {' {glide cameraPitch 12.0 sentence}}}That keeps the ray from hitting its own surface at once.
 
@@ -592,13 +593,13 @@ ${cue "key" {' {glide cameraPitch 10.0 sentence}}}The push is larger where a nor
 
 ${cue "key" {' {glide cameraPitch 12.0 sentence}}}A tilted normal like that can also reflect the ray into the real surface.
 
-${cue "key" {' {callout "bounce"} {highlight {' "reflect"}}}}${cue "key" {'
+${cue "key" {' {callout "bounce"} {highlightCode "trace" {' "reflect"}}}}${cue "key" {'
     {glide cameraDistance 5.6 sentence}}}Such a ray is reflected once more, about the true normal, so it leaves the surface.
 
 ### The same ray across the screen {#c4-screen kind=3d}
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append
-    {' {traceStep 15.0} {listing "trace"} {highlight {' "screen"}}}
+    {' {traceStep 15.0} {listing "trace"} {highlightCode "trace" {' "screen"}}}
     {view "field" {' {fieldTurn -30.0}}}}}}}
 
 ${cue "key" {' {callout "parametric-t"}}}${overText
@@ -627,20 +628,24 @@ ${cue "key" {' {callout "t-max"}}}${overText
     {' {pickXRange 280.0 120.0}}
     "It also finds the t where the ray leaves the screen, because the trace must stop there"}.
 
-${cue "key" {' {callout "start-advance"} {highlight {' "start"}} {pickX -1.0} {traceStep 0.0}}}${overText
-    {view "field" {' {fieldShowRange 1.0 0.0}}}
-    "The first step starts in the next cell on level zero, so the ray never hits its own pixel"}.
+${cue "key" {'
+    {callout "start-advance"}
+    {highlightCode "trace" {' "start"}}
+    {pickX -1.0}
+    {traceStep 0.0}}}${overText
+        {view "field" {' {fieldShowRange 1.0 0.0}}}
+        "The first step starts in the next cell on level zero, so the ray never hits its own pixel"}.
 
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
-    {' {traceStep 0.0} {listing "trace"} {highlight {' "loop"}}}}}}}}
+    {' {traceStep 0.0} {listing "trace"} {highlightCode "trace" {' "loop"}}}}}}}}
 
 ${overText
     {view "profile" {' {profileShowRange 0.0 1.0}}}
     "Back on the spout, P's ray is laid out over the depths again, in the cross-section from chapter three"}.
 
-${cue "key" {' {callout "loop"} {highlight {' "cell"}}}}${overText
+${cue "key" {' {callout "loop"} {highlightCode "trace" {' "cell"}}}}${overText
     {' {traceStepRange 0.0 0.1}}
     "The trace walks in a loop, and each iteration tests one cell"}.
 
@@ -648,21 +653,21 @@ ${overText
     {' {traceStepRange 0.1 0.2}}
     "The tested cell is the one that holds the ray, on the current level"}.
 
-${cue "key" {' {highlight {' "edge"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "edge"}}}}${overText
     {' {traceStepRange 0.2 0.4}}
     "First it finds the t where the ray leaves that cell"}.
 
-${cue "key" {' {highlight {' "depth"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "depth"}}}}${overText
     {' {traceStepRange 0.4 0.6}}
     "Then it finds the t where the ray reaches the cell's nearest depth, the top of its column"}.
 
-${cue "key" {' {callout "hit-test"} {highlight {' "hit"}}}}Here the ray leaves first, so it stays above the whole cell, and the cell is a miss.
+${cue "key" {' {callout "hit-test"} {highlightCode "trace" {' "hit"}}}}Here the ray leaves first, so it stays above the whole cell, and the cell is a miss.
 
-${cue "key" {' {highlight {' "advance"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "advance"}}}}${overText
     {' {traceStepRange 0.6 0.8}}
     "The ray jumps to the cell's edge"}.
 
-${cue "key" {' {highlight {' "level"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 0.8 1.0}}
     "Then it climbs a level, to cells twice as wide, so its next step can skip farther"}.
 
@@ -670,15 +675,15 @@ ${overText
     {' {traceStepRange 1.0 4.0}}
     "The next three cells, on levels one, two, and three, are misses too, so the ray climbs to level four"}.
 
-${cue "key" {' {highlight {' "hit"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "hit"}}}}${overText
     {' {traceStepRange 4.0 4.6}}
     "On level four, the ray is already below the top of the cell"}.
 
-${cue "key" {' {highlight {' "advance"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "advance"}}}}${overText
     {' {traceStepRange 4.6 4.8}}
     "So that cell may hold a hit, and the ray stays where it is, without jumping"}.
 
-${cue "key" {' {highlight {' "level"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 4.8 5.0}}
     "Then it descends a level, to test smaller cells at the same spot"}.
 
@@ -686,12 +691,12 @@ ${cue "key" {' {highlight {' "level"}}}}${overText
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
     {append
-        {' {traceStep 5.0} {listing "trace"} {highlight {' "level"}}}
+        {' {traceStep 5.0} {listing "trace"} {highlightCode "trace" {' "level"}}}
         {view "profile" {' {profileShow 1.0}}}}}}}}}
 
-${cue "key" {' {highlight {' "hit"}}}}Above level zero, a hit only says that the cell may hold a surface.
+${cue "key" {' {highlightCode "trace" {' "hit"}}}}Above level zero, a hit only says that the cell may hold a surface.
 
-${cue "key" {' {highlight {' "level"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 5.0 7.0}}
     "On levels three and two, the cells may hold hits too, so the ray comes down to level one"}.
 
@@ -701,7 +706,7 @@ ${overText
 
 ${overText {' {traceStepRange 11.0 12.0}} "A hit on level one takes the ray to level zero"}.
 
-${cue "key" {' {callout "tolerance"} {highlight {' "tolerance"}}}}${overText
+${cue "key" {' {callout "tolerance"} {highlightCode "trace" {' "tolerance"}}}}${overText
     {' {ssrDepthToleranceRange 0.5 0.3}}
     "At level zero only, the trace uses the depth tolerance, half a unit by default"}.
 
@@ -715,11 +720,11 @@ ${overText
     {' {ssrDepthToleranceRange 0.3 0.5}}
     "It stays at level zero, so it does not climb and descend over the same spot again"}.
 
-${cue "key" {' {highlight {' "loop"}}}}${overText
+${cue "key" {' {highlightCode "trace" {' "loop"}}}}${overText
     {' {traceStepRange 12.0 14.0}}
     "Near the body, the ray steps one cell at a time"}.
 
-${cue "key" {' {callout "level-step"} {highlight {' "level"}}}}${overText
+${cue "key" {' {callout "level-step"} {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 14.0 15.0}}
     "A hit at level zero lowers the level to minus one, and a level below zero ends the loop, on the teapot's body"}.
 
@@ -793,7 +798,7 @@ They are the trace's start, its ray on the screen, and its loop.
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {listing "validate"}
-    {highlight {' "store"}}}}}}
+    {highlightCode "validate" {' "store"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
 ${cue "key" {' {callout "validity"}}}${overText
@@ -812,14 +817,17 @@ ${over
 
 ${cue "key" {' {glide cameraDistance 5.2 sentence}}}Later passes weight the reflection by the validity, so a doubtful hit shows only faintly.
 
-${cue "key" {' {callout "edge-sky"} {highlight {' "edge"}}}}${over
+${cue "key" {' {callout "edge-sky"} {highlightCode "validate" {' "edge"}}}}${over
     {' {pickXRange 330.0 60.0}}
     {overText
         {' {pickYRange 220.0 300.0}}
         "A ray that left the screen, or ended on a sky pixel, gets zero, because no surface on screen is there to reflect"}}.
 
-${cue "key" {' {callout "backface"} {highlight {' "back"}} {pickX -1.0} {pickY -1.0}}}${cue "key"
-    {' {glide cameraDistance 4.8 sentence}}}Godot rejects a hit on a surface that faces away from the ray, but only within two SSR pixels of the start.
+${cue "key" {'
+    {callout "backface"}
+    {highlightCode "validate" {' "back"}}
+    {pickX -1.0}
+    {pickY -1.0}}}${cue "key" {' {glide cameraDistance 4.8 sentence}}}Godot rejects a hit on a surface that faces away from the ray, but only within two SSR pixels of the start.
 
 ${cue "key" {' {glide cameraDistance 5.6 sentence}}}That limit is Godot's choice, and farther away the trace never checks which way the surface faces.
 
@@ -827,7 +835,7 @@ ${cue "key" {' {glide cameraDistance 5.6 sentence}}}That limit is Godot's choice
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {listing "validate"}
-    {highlight {' "confidence"}}}}}}
+    {highlightCode "validate" {' "confidence"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0}}}}}}}
 
 ${cue "key" {' {callout "confidence"}}}${overText
@@ -842,7 +850,7 @@ ${overText
     {' {ssrDepthToleranceRange 0.05 0.5}}
     "Squaring the confidence makes it fall faster, and the squared confidence multiplies the validity"}.
 
-${cue "key" {' {callout "margin"} {highlight {' "margin"}}}}${cue "key" {'
+${cue "key" {' {callout "margin"} {highlightCode "validate" {' "margin"}}}}${cue "key" {'
     {glide cameraYaw 30.0 sentence}}}A hit whose colour would come from near the edge of last frame's image is faded out, over a margin along that edge.
 
 ${cue "key" {' {glide cameraYaw 24.0 sentence}}}That fade keeps the reflection from ending in a hard line.
@@ -851,7 +859,7 @@ ${cue "key" {' {glide cameraYaw 24.0 sentence}}}That fade keeps the reflection f
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {listing "validate"}
-    {highlight {' "fade"}}}}}}
+    {highlightCode "validate" {' "fade"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
 ${cue "key" {' {callout "fades"}}}${overText
@@ -880,7 +888,7 @@ ${cue "key" {' {glide cameraDistance 5.4 sentence}}}So SSR never covers more tha
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {listing "validate"}
-    {highlight {' "color"}}}}}}
+    {highlightCode "validate" {' "color"}}}}}}
 ${cue "key" {'
     {inset "last"}
     {imageGraph "ssrCopyLastFrame.lastFrame"}
@@ -914,7 +922,7 @@ ${overText
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {listing "validate"}
-    {highlight {' "compress"}}}}}}
+    {highlightCode "validate" {' "compress"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 11.0}}}}}}}
 
 ${cue "key" {' {glide cameraDistance 5.2 sentence}}}The trace multiplies the colour it read by the validity.
@@ -954,7 +962,7 @@ They are the terms of the validity, the reprojection, and the colour.
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.02}
     {listing "blur"}
-    {highlight {' "cone"}}}}}}
+    {highlightCode "blur" {' "cone"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
 ${cue "key" {' {glide cameraDistance 5.0 sentence}}}For P, the floor pixel we follow, a mirror floor reflects just the one colour its ray hit.
@@ -971,7 +979,7 @@ ${overText
     {' {floorRoughnessRange 0.6 0.3}}
     "The cone's half-angle is the roughness times ninety degrees"}.
 
-${cue "key" {' {callout "blur-radius"} {highlight {' "base" "circle"}}}}${overText
+${cue "key" {' {callout "blur-radius"} {highlightCode "blur" {' "base" "circle"}}}}${overText
     {' {floorRoughnessRange 0.3 0.6}}
     "Where the cone reaches the hit, the largest circle that fits inside it gives the blur radius"}.
 
@@ -980,7 +988,7 @@ ${cue "key" {' {callout "blur-radius"} {highlight {' "base" "circle"}}}}${overTe
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.3}
     {listing "blur"}
-    {highlight {' "mip"}}}}}}
+    {highlightCode "blur" {' "mip"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 16.0 11.0} {aim 20.0 12.0}}}}}}}
 
 ${overText {' {floorRoughnessRange 0.3 0.15}} "SSR does not blur each pixel by its own radius"}.
@@ -1015,7 +1023,7 @@ ${overText
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.3}
     {listing "blur"}
-    {highlight {' "store"}}}}}}
+    {highlightCode "blur" {' "store"}}}}}}
 ${cue "key" {'
     {inset "level"}
     {imageGraph "ssrTrace.mipLevel"}
@@ -1148,7 +1156,7 @@ ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 0.0}
     {listing "compose"}
-    {highlight {' "sky"}}}}}}
+    {highlightCode "compose" {' "sky"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 10.0}}}}}}}
 
 ${cue "key" {' {callout "reflection-source"}}}${overText
@@ -1159,7 +1167,7 @@ ${overText
     {' {ssrComposeStepRange 0.5 1.0}}
     "Godot reads the sky along the reflected direction, bent toward the normal by the roughness squared"}.
 
-${cue "key" {' {callout "spec-occlusion"} {highlight {' "occlusion"}}}}${overText
+${cue "key" {' {callout "spec-occlusion"} {highlightCode "compose" {' "occlusion"}}}}${overText
     {' {floorRoughnessRange 0.15 0.4}}
     "Then specular occlusion, an estimate of how much of that reflection is blocked, dims it"}.
 
@@ -1173,14 +1181,14 @@ ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 1.0}
     {listing "compose"}
-    {highlight {' "ssr"}}}}}}
+    {highlightCode "compose" {' "ssr"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0} {aim 20.0 11.0}}}}}}}
 
 ${cue "key" {' {callout "ssr-blend"}}}${cue "key" {' {glide cameraDistance 5.1 sentence}}}${overText
     {' {ssrComposeStepRange 1.0 2.0}}
     "Then SSR is laid over the sky's reflection in proportion to its validity, the alpha from chapter five"}.
 
-${cue "key" {' {highlight {' "blend"}}}}${overText
+${cue "key" {' {highlightCode "compose" {' "blend"}}}}${overText
     {' {ssrComposeStepRange 2.0 2.5}}
     "The sky's part is scaled by one minus that alpha"}.
 
@@ -1190,7 +1198,7 @@ ${overText
 
 ${cue "key" {' {glide cameraDistance 5.4 sentence}}}So the more valid SSR's hit is, the more the room replaces the sky.
 
-${cue "key" {' {callout "ssr-fade"} {highlight {' "ssr"}}}}${overText
+${cue "key" {' {callout "ssr-fade"} {highlightCode "compose" {' "ssr"}}}}${overText
     {' {floorRoughnessRange 0.15 0.7}}
     "Between a roughness of six tenths and seven tenths, the opaque pass fades the SSR result out, with a fade separate from chapter five's"}.
 
@@ -1204,7 +1212,7 @@ ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 3.0}
     {listing "compose"}
-    {highlight {' "brdf"}}}}}}
+    {highlightCode "compose" {' "brdf"}}}}}}
 
 ${cue "key" {' {callout "env-brdf"}}}${cue "key" {' {glide cameraDistance 5.0 sentence}}}After the blend, Godot scales the floor's whole indirect specular light by the environment BRDF.
 
@@ -1225,21 +1233,21 @@ ${overText
 ### What it costs {#c7-cost kind=3d}
 
 ${cue "key" {opening demoRoom panelPerformance {append baseRoom {'
-    {highlight {' "ssrTrace" "ssrResolve"}}}}}}
+    {highlightPasses {' "ssrTrace" "ssrResolve"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
-${cue "key" {' {highlight {' "ssrTrace"}}}}In the lab's port of Godot's passes, timed on the GPU, the trace ${cue "key"
-    {' {highlight {' "ssrTrace" "ssrResolve"}}}}and the resolve are the costliest of the SSR passes.
+${cue "key" {' {highlightPasses {' "ssrTrace"}}}}In the lab's port of Godot's passes, timed on the GPU, the trace ${cue "key"
+    {' {highlightPasses {' "ssrTrace" "ssrResolve"}}}}and the resolve are the costliest of the SSR passes.
 
-${cue "key" {' {highlight {' "ssrTrace"}}}}By default, the trace runs at a quarter of the screen's pixels, but each of its rays may take many steps.
+${cue "key" {' {highlightPasses {' "ssrTrace"}}}}By default, the trace runs at a quarter of the screen's pixels, but each of its rays may take many steps.
 
-${cue "key" {' {highlight {' "ssrResolve"}}}}The resolve runs at every full-size pixel, and reads four half-size texels for each.
+${cue "key" {' {highlightPasses {' "ssrResolve"}}}}The resolve runs at every full-size pixel, and reads four half-size texels for each.
 
 ${cue "key" {' {glide cameraDistance 5.0 sentence}}}${overText
     {' {floorRoughnessRange 0.15 0.8}}
     "Sky and rough pixels skip the trace"}.
 
-${cue "key" {' {highlight {' "ssrFilter" "ssrResolve"}}}}${overText
+${cue "key" {' {highlightPasses {' "ssrFilter" "ssrResolve"}}}}${overText
     {' {floorRoughnessRange 0.8 0.15}}
     "But the blur of chapter six and the resolve still visit every pixel, so their cost does not shrink with what SSR finds"}.
 

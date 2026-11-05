@@ -221,12 +221,16 @@ ${cue "key" {opening demoCascades 0.0 {'
     {cameraDistance 14.0}
     {cameraTarget {' 1.0 0.0 0.0}}}}}
 
-${cue "key" {' {callout "scroll-update"} panelCode listingCascadeUpdate {highlight {' "cell"}}}}
+${cue "key" {'
+    {callout "scroll-update"}
+    panelCode
+    listingCascadeUpdate
+    {highlightCode "cascade-update" {' "cell"}}}}
 The code turns the camera's position into a cell of the grid.
 
 Each cascade compares the camera's cell with its own centre cell.
 
-${cue "key" {' {highlight {' "jump"}}}}${overText
+${cue "key" {' {highlightCode "cascade-update" {' "jump"}}}}${overText
     {' {cameraXRange 0.0 1.0}}
     f"{When the camera strays more than ${spoken {dragMargin}} cells away, the cascade jumps ${spoken {probeCells}} cells to follow it}"}.
 
@@ -235,7 +239,7 @@ cells is one probe spacing, so after the jump, every probe lands where a probe s
 
 ${cue "key" {'
     {regions 1.0}
-    {highlight {' "dirty"}}
+    {highlightCode "cascade-update" {' "dirty"}}
     {cameraDistance 40.0}
     {cameraTarget {' 10.0 0.0 0.0}}}}
 The jump carries the cascade's leading edge into new space, an eight-cell slab that holds nothing yet.
@@ -244,7 +248,7 @@ That slab is marked dirty, which means it must be voxelized again.
 
 Only the dirty slab is voxelized, so the rest of the cascade keeps its work.
 
-${cue "key" {' {callout "dirty-all-rule"} {highlight {' "all"}}}}
+${cue "key" {' {callout "dirty-all-rule"} {highlightCode "cascade-update" {' "all"}}}}
 But if the new part would be more than half the size of the part that is kept, the whole cascade is rebuilt instead.
 
 ### So far: grids that follow the camera {#c2-recap kind=2d graph=frame focus="UPD, SCROLL"}
@@ -337,10 +341,14 @@ ${cue "key" {opening demoRegions 0.5 {'
     {cameraX 2.22}
     {cameraJump 1.0}}}}
 
-${cue "key" {' {callout "static-lights-index"} panelCode listingRegions {highlight {' "stored"}}}}
+${cue "key" {'
+    {callout "static-lights-index"}
+    panelCode
+    listingRegions
+    {highlightCode "regions" {' "stored"}}}}
 The CPU stores these light lists in slots, one slot per cascade.
 
-${cue "key" {' {highlight {' "read"}}}}But the code that reads them counts the slots differently, by position among the cascades that moved.
+${cue "key" {' {highlightCode "regions" {' "read"}}}}But the code that reads them counts the slots differently, by position among the cascades that moved.
 
 The two counts agree only when the cascades that moved are the first ones, in order.
 
@@ -405,12 +413,16 @@ ${cue "key" {opening demoVoxels 0.4 {'
     {cameraDistance 4.0}
     {cameraTarget {' -1.05 0.9 -0.55}}}}}
 
-${cue "key" {' {callout "sdf-fragment"} panelCode listingVoxelize {highlight {' "position"}}}}
+${cue "key" {'
+    {callout "sdf-fragment"}
+    panelCode
+    listingVoxelize
+    {highlightCode "voxelize" {' "position"}}}}
 Each fragment uses its own 3D position to find the voxel it falls in, and writes there.
 
 So the fragment's depth, not just its pixel, decides which voxel it fills.
 
-${cue "key" {' {callout "albedo-pack"} {highlight {' "albedo"}}}}
+${cue "key" {' {callout "albedo-pack"} {highlightCode "voxelize" {' "albedo"}}}}
 The voxel's colour, its albedo, is packed into sixteen bits.
 
 One bit marks the voxel as solid, so later passes can tell it from empty space.
@@ -430,7 +442,11 @@ ${cue "key" {opening demoVoxels 0.4 {'
     {cameraDistance 3.4}
     {cameraTarget {' -1.05 0.9 -0.55}}}}}
 
-${cue "key" {' {callout "facing-mask"} panelCode listingVoxelize {highlight {' "facing"}}}}
+${cue "key" {'
+    {callout "facing-mask"}
+    panelCode
+    listingVoxelize
+    {highlightCode "voxelize" {' "facing"}}}}
 A second 3D texture keeps six more bits per voxel, one for each axis direction.
 
 ${cue "key" {' {voxelFacing 1.0}}}Each fragment sets the one bit whose direction is nearest its normal.
@@ -443,7 +459,11 @@ So a voxel on the sphere's curve can face two or three ways at once.
 
 ${cue "key" {opening demoVoxels 0.6 {' {voxels 1.0} {voxelFacing 1.0}}}}
 
-${cue "key" {' {callout "emission-pack"} panelCode listingVoxelize {highlight {' "emission"}}}}
+${cue "key" {'
+    {callout "emission-pack"}
+    panelCode
+    listingVoxelize
+    {highlightCode "voxelize" {' "emission"}}}}
 An emissive surface also writes its light into the voxel.
 
 That light's colour is packed into thirty bits, in a shared-exponent format.
@@ -507,7 +527,11 @@ Each step lands closer to a surface, until the ray reaches it.
 
 ${cue "key" {opening demoField 0.0 {' {slice 2.0} {floodStep 0.0}}}}
 
-${cue "key" {' {callout "jump-flood-init"} panelCode listingJumpFlood {highlight {' "init"}}}}
+${cue "key" {'
+    {callout "jump-flood-init"}
+    panelCode
+    listingJumpFlood
+    {highlightCode "jump-flood" {' "init"}}}}
 SDFGI finds each cell's nearest voxel with a jump flood.
 
 In a jump flood, each cell holds a seed.
@@ -526,10 +550,10 @@ A block with no solid voxel starts with no seed.
 
 ${cue "key" {opening demoField 0.0 {' {slice 2.0} {floodStep 0.0}}}}
 
-${cue "key" {' {callout "jump-flood"} {highlight {' "neighbours"}}}}
+${cue "key" {' {callout "jump-flood"}}}
 In each pass, a cell looks at twenty-six other cells, each a fixed step away along an axis or a diagonal.
 
-${cue "key" {' {highlight {' "nearest"}}}}The cell keeps whichever of their seeds is nearest to itself.
+The cell keeps whichever of their seeds is nearest to itself.
 
 ${overText
     {' {floodStepRange 0.0 3.0}}
@@ -541,23 +565,23 @@ ${overText
     {' {floodStepRange 4.5 6.0}}
     "A big step can hand a cell a seed that is not its nearest, and the smaller steps after it correct that"}.
 
-${cue "key" {' {callout "jump-flood-schedule"} {highlight {' "regular"}}}}
+${cue "key" {' {callout "jump-flood-schedule"}}}
 The first two passes use the plain version of the shader.
 
-${cue "key" {' {highlight {' "optimized"}}}}The last four use a version that is faster for small steps, because it keeps each workgroup's nearby cells in shared memory.
+The last four use a version that is faster for small steps, because it keeps each workgroup's nearby cells in shared memory.
 
 ### Back to full size, then one more pass {#c5-upscale kind=3d}
 
 ${cue "key" {opening demoField 0.0 {' {slice 2.0} {floodStep 6.0}}}}
 
-${cue "key" {' {callout "jump-flood-upscale"} {highlight {' "upscale"}} {floodStep 7.0}}}
+${cue "key" {' {callout "jump-flood-upscale"} {floodStep 7.0}}}
 The seeds are then scaled back up to the full one hundred twenty-eight cells.
 
 Each full cell takes the seed of its half-size cell.
 
 Then it checks the eight voxels of the block that seed lies in, and keeps a nearer solid one.
 
-${cue "key" {' {highlight {' "final"}} {floodStep 8.0}}}
+${cue "key" {' {floodStep 8.0}}}
 Searching at half size still leaves some cells with a seed one cell off.
 
 Those cells are shown here in orange.
@@ -568,7 +592,7 @@ One last pass, with a step of one, fixes them.
 
 ${cue "key" {opening demoField 0.0 {' {slice 1.0}}}}
 
-${cue "key" {' {callout "sdf-store"} panelCode listingStore {highlight {' "distance"}}}}
+${cue "key" {' {callout "sdf-store"} panelCode listingStore {highlightCode "store" {' "distance"}}}}
 STORE, the pass that writes the field, keeps one byte per cell.
 
 A solid voxel stores zero, and any other cell stores one plus its distance, in cells.
@@ -588,14 +612,18 @@ The readout shows a cell two cells from a surface, storing three.
 
 ${cue "key" {opening demoField 0.0 {' {slice 1.0}}}}
 
-${cue "key" {' {callout "solid-cell-store"} panelCode listingStore {highlight {' "cell"}}}}
+${cue "key" {'
+    {callout "solid-cell-store"}
+    panelCode
+    listingStore
+    {highlightCode "store" {' "cell"}}}}
 Every solid voxel also goes into a list of sixteen-byte records.
 
 A record holds where the voxel is, its albedo and facing, and its stored light.
 
 With that list, later passes can visit only the solid cells.
 
-${cue "key" {' {callout "process-voxel"} {highlight {' "neighbours"}}}}
+${cue "key" {' {callout "process-voxel"} {highlightCode "store" {' "neighbours"}}}}
 The record's spare bits hold twenty-six flags, one for each neighbour of the voxel.
 
 A neighbour's flag is set when that neighbour is empty and this voxel is the nearest surface to it.
@@ -628,7 +656,11 @@ While SDFGI builds the distance field for a region, it also measures how well ea
 
 That matters because a probe behind a wall should not lend its light to the other side.
 
-${cue "key" {' {callout "occlusion-dispatch"} panelCode listingOcclusion {highlight {' "shells"}}}}
+${cue "key" {'
+    {callout "occlusion-dispatch"}
+    panelCode
+    listingOcclusion
+    {highlightCode "occlusion" {' "shells"}}}}
 For each probe, it works on a cube of sixteen cells a side, which reaches out to the neighbouring probes.
 
 ${cue "key" {' {callout "occlusion-shells"}}}
@@ -638,7 +670,7 @@ ${overText
     {' {occlusionShellRange 0.0 8.0}}
     "SDFGI fills in the visibility layer by layer, each layer one step farther from the probe"}.
 
-${cue "key" {' {highlight {' "average"}}}}${overText
+${cue "key" {' {highlightCode "occlusion" {' "average"}}}}${overText
     {' {occlusionShellRange 8.0 16.0}}
     "Each cell takes the average visibility of its neighbours one step closer to the probe"}.
 
@@ -650,7 +682,11 @@ ${overText
 
 ${cue "key" {opening demoOcclusion 0.0 {'}}}
 
-${cue "key" {' {callout "occlusion-store"} panelCode listingOcclusion {highlight {' "store"}}}}
+${cue "key" {'
+    {callout "occlusion-store"}
+    panelCode
+    listingOcclusion
+    {highlightCode "occlusion" {' "store"}}}}
 Every cell lies inside a cube with a probe at each of its eight corners.
 
 So each cell keeps eight visibilities, one for each of those probes, in four bits each.
@@ -716,7 +752,7 @@ ${cue "key" {'
     {callout "omni-attenuation"}
     panelCode
     listingDirectLight
-    {highlight {' "attenuation"}}}} ${overText
+    {highlightCode "direct-light" {' "attenuation"}}}} ${overText
         {' {lightHeightRange 0.5 1.6}}
         "The falloff starts from the cell's distance, divided by the light's range"}.
 
@@ -730,7 +766,7 @@ ${overText
 
 So by default, the light falls off with the distance, not with its square.
 
-${cue "key" {' panelValues {highlight {' "distance"}}}}
+${cue "key" {' panelValues}}
 The code shows that the cell's distance to the light is measured with every height multiplied by the y scale's one and a half.
 
 So the light behaves as if it hung one and a half times higher than it really does.
@@ -753,18 +789,22 @@ ${cue "key" {opening demoLight 0.2 {'
     {cameraYaw 10.0}
     {cameraPitch 24.0}}}}
 
-${cue "key" {' {callout "shadow-march"} panelCode listingShadowMarch {highlight {' "march"}}}}
+${cue "key" {'
+    {callout "shadow-march"}
+    panelCode
+    listingShadowMarch
+    {highlightCode "shadow-march" {' "march"}}}}
 A shadow ray starts at the cell and steps toward the light.
 
 Each step is as long as the distance the field stores there.
 
 That is the longest step that cannot jump over a surface.
 
-${cue "key" {' {highlight {' "hit"}}}}${overText
+${cue "key" {' {highlightCode "shadow-march" {' "hit"}}}}${overText
     {' {lightXRange 2.4 0.9}}
     "When the ray reaches a solid cell, the light is blocked"}.
 
-${cue "key" {' {highlight {' "lit"}}}}If the ray leaves the coarsest cascade without a hit, the cell is lit.
+${cue "key" {' {highlightCode "shadow-march" {' "lit"}}}}If the ray leaves the coarsest cascade without a hit, the cell is lit.
 
 ${cue "key" {' {callout "light-thread"}}}
 The shadow is all or nothing, so a cell is either fully lit or fully dark.
@@ -775,12 +815,16 @@ Every light gets this shadow ray, even one whose own shadow setting is off.
 
 ${cue "key" {opening demoLight 0.5 {' {extraLight 1.0} {shadowRay 0.0}}}}
 
-${cue "key" {' {callout "aniso-pack"} panelCode listingDirectLight {highlight {' "faces"}}}}
+${cue "key" {'
+    {callout "aniso-pack"}
+    panelCode
+    listingDirectLight
+    {highlightCode "direct-light" {' "faces"}}}}
 A voxel has no single normal, so its light is summed separately for each of the six faces it shows.
 
-${cue "key" {' {highlight {' "store"}}}}The cell stores the sum of all six as one colour, plus a weight per face for how much of that colour the face gets.
+${cue "key" {' {highlightCode "direct-light" {' "store"}}}}The cell stores the sum of all six as one colour, plus a weight per face for how much of that colour the face gets.
 
-${cue "key" {' {highlight {' "neighbours"}}}}
+${cue "key" {' {highlightCode "direct-light" {' "neighbours"}}}}
 The cell's light is also copied into the empty neighbours flagged in chapter five, those whose nearest surface is this cell.
 
 So a filtered read next to a wall blends in the wall's light, rather than fading toward black.
@@ -890,9 +934,13 @@ The halves alternate from frame to frame, and they are shown here in two colours
 
 ${cue "key" {opening demoProbes 0.3 {' {probeRays 0.0} {raySteps 0.0} {cameraDistance 2.6}}}}
 
-${cue "key" {' {callout "probe-march"} panelCode listingProbeRays {highlight {' "march"}}}} ${overText
-    {' {rayStepsRange 0.0 15.0}}
-    "A probe's ray marches the same way as the shadow ray, and each circle here is one step"}.
+${cue "key" {'
+    {callout "probe-march"}
+    panelCode
+    listingProbeRays
+    {highlightCode "probe-rays" {' "march"}}}} ${overText
+        {' {rayStepsRange 0.0 15.0}}
+        "A probe's ray marches the same way as the shadow ray, and each circle here is one step"}.
 
 ${overText
     {' {rayStepsRange 15.0 30.0}}
@@ -904,7 +952,7 @@ When the ray leaves the first cascade, it carries on through the next one, which
 
 ${cue "key" {opening demoProbes 0.5 {' {probeRays 1.0} {rayFrames 1.0}}}}
 
-${cue "key" {' {callout "probe-hit"} {highlight {' "hit"}}}}
+${cue "key" {' {callout "probe-hit"}}}
 At a hit, the field's gradient yields the surface normal, because the stored distance grows fastest directly away from the surface.
 
 That normal decides how much of each face's light the ray takes.
@@ -917,7 +965,7 @@ That light already includes the bounce that the last chapter added from last fra
 
 ${cue "key" {opening demoProbes 0.5 {' {probeRays 1.0} {rayFrames 4.0}}}}
 
-${cue "key" {' {callout "probe-sky"} {highlight {' "sky"}}}}
+${cue "key" {' {callout "probe-sky"}}}
 A ray that leaves every cascade reads the sky instead.
 
 It reads the sky's mip level two, a blurred copy.
@@ -939,12 +987,16 @@ A later commit fixes the mismatch.
 
 ${cue "key" {opening demoProbes 0.5 {' {probeRays 1.0} {rayFrames 1.0}}}}
 
-${cue "key" {' {callout "sh-accum"} panelCode listingProbeRays {highlight {' "sh"}}}}
+${cue "key" {'
+    {callout "sh-accum"}
+    panelCode
+    listingProbeRays
+    {highlightCode "probe-rays" {' "sh"}}}}
 A probe stores its light as spherical harmonics, a compact way to describe light from every direction in a few numbers.
 
 Each ray's light is added into sixteen of these spherical harmonic coefficients.
 
-${cue "key" {' {highlight {' "fixed"}}}}The coefficients are then scaled by one thousand twenty-four and kept as integers.
+${cue "key" {' {highlightCode "probe-rays" {' "fixed"}}}}The coefficients are then scaled by one thousand twenty-four and kept as integers.
 
 Integers add and subtract exactly, and the probe's history in the next step depends on that.
 
@@ -952,7 +1004,11 @@ Integers add and subtract exactly, and the probe's history in the next step depe
 
 ${cue "key" {opening demoProbes 0.5 {' {probeRays 0.0} {frames 0.0} {historyChart 1.0}}}}
 
-${cue "key" {' {callout "history-ring"} panelCode listingProbeRays {highlight {' "ring"}}}}
+${cue "key" {'
+    {callout "history-ring"}
+    panelCode
+    listingProbeRays
+    {highlightCode "probe-rays" {' "ring"}}}}
 The probe keeps its last thirty frames in a ring, where the newest frame replaces the oldest.
 
 Each frame, the probe subtracts the oldest frame from its sum and adds the newest.
@@ -993,20 +1049,24 @@ The sixteen coefficients from the last chapter are not a texture that a pixel ca
 
 So this step turns each probe's coefficients into small maps that a pixel can sample.
 
-${cue "key" {' {callout "oct-store"} panelCode listingProbeStore {highlight {' "direction"}}}}
+${cue "key" {'
+    {callout "oct-store"}
+    panelCode
+    listingProbeStore
+    {highlightCode "probe-store" {' "direction"}}}}
 Each probe gets two maps of six by six texels.
 
 Each is an octahedral map, which folds the sphere of directions flat into a square.
 
 Every texel of the map then stands for one direction.
 
-${cue "key" {' {highlight {' "irradiance"}}}}One map holds irradiance, the light a surface facing that way receives.
+${cue "key" {' {highlightCode "probe-store" {' "irradiance"}}}}One map holds irradiance, the light a surface facing that way receives.
 
-${cue "key" {' {highlight {' "radiance"}}}}The other map holds radiance, the light arriving from that way.
+${cue "key" {' {highlightCode "probe-store" {' "radiance"}}}}The other map holds radiance, the light arriving from that way.
 
 A diffuse surface reads the irradiance map, and a reflection reads the radiance map.
 
-${cue "key" {' {callout "oct-border"} {highlight {' "border"}}}}
+${cue "key" {' {callout "oct-border"} {highlightCode "probe-store" {' "border"}}}}
 Each map has a border of one texel, drawn darker here.
 
 Bilinear filtering near a map's edge reads one texel beyond it.
@@ -1019,7 +1079,11 @@ That way, filtering at the edge reads the directions that really lie beyond it.
 
 ${cue "key" {opening demoMaps 0.5 {' {probeMaps 1.0} {showGain 1.0}}}}
 
-${cue "key" {' {callout "sh-gain"} panelCode listingProbeStore {highlight {' "gain"}}}}
+${cue "key" {'
+    {callout "sh-gain"}
+    panelCode
+    listingProbeStore
+    {highlightCode "probe-store" {' "gain"}}}}
 To turn the rays into the light over the whole sphere, their sum should be multiplied by four pi over the ray count.
 
 Four pi is the solid angle of the whole sphere.
@@ -1038,7 +1102,11 @@ The readout shows the same extra brightness in the lab's model.
 
 ${cue "key" {opening demoMaps 0.5 {' {probeMaps 1.0}}}}
 
-${cue "key" {' {callout "oct-read"} panelCode listingProbeStore {highlight {' "direction"}}}}
+${cue "key" {'
+    {callout "oct-read"}
+    panelCode
+    listingProbeStore
+    {highlightCode "probe-store" {' "direction"}}}}
 The code computes each texel's direction from the texel's corner.
 
 But a lookup treats a texel's value as sitting at its centre, half a texel away.
@@ -1106,9 +1174,13 @@ ${cue "key" {opening demoPixel 0.4 {'
 ${cue "key" {' {callout "cascade-select"}}}
 A pixel reads from the finest cascade whose grid contains it.
 
-${cue "key" {' {callout "cascade-blend"} panelCode listingScreenPass {highlight {' "blend"}}}} ${overText
-    {' {blendPointRange 1.0 7.0}}
-    "Near that grid's edge, the pixel blends toward the next cascade, so there is no hard seam"}.
+${cue "key" {'
+    {callout "cascade-blend"}
+    panelCode
+    listingScreenPass
+    {highlightCode "screen-pass" {' "blend"}}}} ${overText
+        {' {blendPointRange 1.0 7.0}}
+        "Near that grid's edge, the pixel blends toward the next cascade, so there is no hard seam"}.
 
 ${overText
     {' {blendPointRange 7.0 14.0}}
@@ -1125,10 +1197,14 @@ ${cue "key" {opening demoPixel 0.3 {'
     {cameraYaw 70.0}
     {cameraPitch 10.0}}}}
 
-${cue "key" {' {callout "probe-weights"} panelCode listingScreenPass {highlight {' "bias"}}}}
+${cue "key" {'
+    {callout "probe-weights"}
+    panelCode
+    listingScreenPass
+    {highlightCode "screen-pass" {' "bias"}}}}
 Before reading the probes, the pass pushes the point off the wall along its normal, by one point one cells.
 
-${cue "key" {' {highlight {' "weight"}}}}
+${cue "key" {' {highlightCode "screen-pass" {' "weight"}}}}
 Then it weights the eight probes at the corners of the probe cube around the point.
 
 Each weight grows as the probe gets closer and as it sits farther in front of the surface.

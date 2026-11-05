@@ -511,29 +511,23 @@ pub struct CameraKey {
     pub fov: Option<f32>,
 }
 
-/// A legacy context-dependent name, or a target with an explicit namespace.
-/// Existing timelines keep their string representation unchanged.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum Highlight {
-    Name(String),
-    Target(HighlightTarget),
-}
-
+/// What a cue highlights: a name in the namespace of the panel that shows it (a pass of the graph, DAG,
+/// resources, or performance panel; a tag of a listing; a field of a record's struct).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
-pub enum HighlightTarget {
+pub enum Highlight {
     Pass { name: String },
     Code { listing: String, tag: String },
     Field { record: String, field: String },
 }
 
 impl Highlight {
+    /// The name the panel lights.
     pub fn name(&self) -> &str {
         match self {
-            Self::Name(name) | Self::Target(HighlightTarget::Pass { name }) => name,
-            Self::Target(HighlightTarget::Code { tag, .. }) => tag,
-            Self::Target(HighlightTarget::Field { field, .. }) => field,
+            Self::Pass { name } => name,
+            Self::Code { tag, .. } => tag,
+            Self::Field { field, .. } => field,
         }
     }
 }

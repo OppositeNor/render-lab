@@ -121,7 +121,7 @@ story; the rest are the standard to meet, applied where the chapter has the thin
   varies smoothly with direction"), then what it keeps, what it loses, why that is worth it, and where it is read
   back. Never assume a method because other systems use it: show what this engine's code does (required).
 - **The code, step by step.** Animation comes first; pseudo-code is shown only alongside it. For a shading or lookup
-  step, show its pseudo-code listing (`{panelCode}`) and light the line the sentence is on (`{highlight {' "<tag>"}}`),
+  step, show its pseudo-code listing (`{panelCode}`) and light the line the sentence is on (`{highlightCode "<listing>" {' "<tag>"}}`),
   and with every highlight change the demonstration too, so the scene shows what that line does (its rays, its
   samples, its threshold, its result); a highlight that changes nothing on screen is cut, or the demonstration gains
   the step it lacks. Show only the lines the step needs, at a size that reads on a laptop, with the inputs and outputs
