@@ -1,4 +1,4 @@
-$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* o3de_lighting]$[Import* o3de_lighting_story]
+$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* o3de_lighting]$[Import* o3de_lighting_story]$[Import* o3de_lighting_natives]
 # How O3DE Lights a Frame {#video subtitle="The lighting model of O3DE's Atom renderer, pass by pass: ported to WGSL and read from O3DE 26.05's source" engineVersion="26.05 (2.6.0)" commit=3db6943249d8bd7960b9ed7e9aee310b7668586e date=2026-10-30 fps=30 width=1920 height=1080}
 
 ## Where the lighting runs {#c1 number=1 target=810 summary="The opaque frame of MainRenderPipeline: a depth pre-pass, tiled light culling, shadows, a forward pass into five targets, and the full-screen passes that finish its light." sources="engine-version, msaa-default, opaque-pass-order, forward-pixel, evaluate-lighting, forward-targets, target-formats, normal-encoding, forward-ibl-stencil, lighting-model-select, lowend-forward, deferred-inert"}
@@ -47,7 +47,7 @@ ${cue "key" {' {callout "depth-prepass"}}} First a depth pre-pass draws only the
 
 ### Then the lights are sorted into tiles {#c1-map-cull kind=2d graph=frame focus="DEPTH, CULL"}
 
-${cue "key" {' {callout "light-culling-pass"}}} Light culling reads that depth and sorts the lights into lists, one for each tile of sixteen by sixteen pixels.
+${cue "key" {' {callout "light-culling-pass"}}} Light culling reads that depth and sorts the lights into lists, one for each tile of ${spoken {tilePixels}} by ${spoken {tilePixels}} pixels.
 
 Later, each pixel reads only its own tile's list, so it meets only the lights near it.
 
@@ -345,7 +345,7 @@ ${overText {' {extraLightsRange 0.0 24.0}} " Here are twenty-four small point li
 
 Each of them reaches only part of the room, so shading every pixel against all of them would waste most of the work.
 
-${cue "key" {' {splitView 1.0}}} ${cue "key" {' {callout "light-culling-tile"}}} So the screen is cut into tiles of sixteen by sixteen pixels, and each tile keeps only the lights that can reach it.
+${cue "key" {' {splitView 1.0}}} ${cue "key" {' {callout "light-culling-tile"}}} So the screen is cut into tiles of ${spoken {tilePixels}} by ${spoken {tilePixels}} pixels, and each tile keeps only the lights that can reach it.
 
 ${cue "key" {' {callout "light-culling-tile"}}} At nineteen twenty by ten eighty, that makes one hundred and twenty by sixty-eight tiles.
 
@@ -410,7 +410,7 @@ $settle That clear gap is what lets the culling reject a light that floats betwe
 ${cue "key" {opening demoCulling panelValues 0.3 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 
-${cue "key" {' {inset "bins"} imageFromTileGrid {imageMode 2.0} imageCornerTopLeft {imageTitle "views.tile_bins"}}} ${cue "key" {' {callout "tile-prepare"}}} The tile also chooses how many depth bins its lists are split into, either one, two, four, or eight.
+${cue "key" {' {inset "bins"} imageFromTileGrid {imageMode 2.0} imageCornerTopLeft {imageTitle "views.tile_bins"}}} ${cue "key" {' {callout "tile-prepare"}}} The tile also chooses how many depth bins its lists are split into, either one, two, four, or ${spoken {maxBins}}.
 
 The new view in the corner shades each tile by its number of depth bins.
 
@@ -428,7 +428,7 @@ To choose the count, the pass takes the base two log of the span, rounds it, cla
 
 So a span under one point four one metres gets one bin.
 
-Each doubling of that span doubles the bins, up to eight beyond five point six six metres.
+Each doubling of that span doubles the bins, up to ${spoken {maxBins}} beyond five point six six metres.
 
 So no bin is deeper than about one and a half metres, for any tile up to about eleven metres deep.
 
@@ -490,7 +490,7 @@ Each group ends in its marker, so the forward pass can run a separate loop for e
 
 ${cue "key" {' {callout "light-culling-remap"}}} A second pass, the remap, then copies each entry into the list of every bin it overlaps.
 
-That makes up to eight lists of up to two hundred and fifty-six entries, each ended by an end-of-list marker.
+That makes up to ${spoken {maxBins}} lists of up to two hundred and fifty-six entries, each ended by an end-of-list marker.
 
 ${cue "key" {' {callout "nvlc-constants"}}} At most two hundred and fifty-five of a list's entries survive, and the seven group markers take seven of them.
 
@@ -978,7 +978,7 @@ It draws the scene's depth, as seen from that light, into a shadow map.
 
 ${cue "key" {' {inset "cm"} imageFromCascadeMap {imageCascade 4.0} {imageParamFrom 0.9} imageCornerBottomLeft {imageTitle "views.cascade_map"}}} ${cue "key" {' {callout "cascade-image"}}} The map is one texture array of thirty-two bit float depth.
 
-It has four slices of one thousand and twenty-four by one thousand and twenty-four texels.
+It has ${spoken {cascadeCount}} slices of one thousand and twenty-four by one thousand and twenty-four texels.
 
 Each slice belongs to one cascade, a shadow map for one range of distances from the camera.
 

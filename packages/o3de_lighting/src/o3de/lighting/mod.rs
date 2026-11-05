@@ -178,7 +178,12 @@ impl Investigation for Lighting {
 
     /// What its scripts read from its code (script.rs).
     fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
-        script::register(natives)
+        script::register(natives)?;
+        // The numbers the narration says of the light culling and the shadow cascades, so it says what the code holds.
+        natives.function("o3de_lighting/tile-pixels", |_, ()| Ok(culling::TILE_DIM as i64)).pure().doc("Fn([], Int). A light-culling tile's side, in pixels.").register()?;
+        natives.function("o3de_lighting/max-bins", |_, ()| Ok(culling::MAX_BINS as i64)).pure().doc("Fn([], Int). The most depth bins a tile splits its lists into.").register()?;
+        natives.function("o3de_lighting/cascade-count", |_, ()| Ok(cascades::CASCADES as i64)).pure().doc("Fn([], Int). The directional light's shadow cascades.").register()?;
+        Ok(())
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {
