@@ -38,3 +38,14 @@ uncertain, 2 wrong. Corrected, each verified in the checkout first:
 - The index entry `update-light`: a frame processes every Nth cell (gi.cpp:1287-1298).
 Answered: the c1-room ambient (the lab's SDFGI shading has no sky ambient, checked in the lab's code). Kept as
 simplifications (the narration's level): the fact files' remaining SIMPLIFICATION rows.
+
+## Change log (2026-11-05)
+
+- Every chapter (2-10) opens on the frame graph with its stage lit (`cN-map`), and every chapter (1-10) ends with a
+  recap of what it built and what uses it next (`cN-recap`), before its sources card.
+- The last chapter ends on the room, SDFGI faded from on to off, with three takeaways (`c11-takeaways`).
+- Chapter 2 says what the cell size costs: 128 cells a side, so a smaller cell gives finer detail and a shorter reach.
+- Corrected: the pre-pass condition (stencil materials), area lights among positional lights, the line-hash
+  sentence, the chapter 6 recap's occlusion (off by default), the `update-light` entry's every-Nth-cell schedule.
+- Budgets: chapter 6 85 → 105 s, chapter 11 65 → 100 s. The video is 32.19 minutes (it was about 28).
+- Both editions built and verified (`build/video/en/verification-report.md`, `build/video/zh-CN/…`: passed).

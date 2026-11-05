@@ -92,8 +92,8 @@ Progress (2026-11-05): stages 1 to 5 are done (`packages/godot_sdfgi/story/revie
 table, the reviews, and the fact check's corrections; `facts-c1-c5.md` and `facts-c6-c11.md` the fact check). Changes 2
 to 4: chapter 2 already said why several scales ("fine detail near the camera, and a long reach far away"), and
 chapter 7 follows one floor cell; the cell size's cost was missing, and is now one sentence in chapter 2 (128 cells
-a side, so a smaller cell gives finer detail and a shorter reach). Stage 6 (both editions built, the change log) is next, then the user
-watches; the story's working files and its guide are deleted when the user has nothing left to adjust.
+a side, so a smaller cell gives finer detail and a shorter reach). Stage 6 is done too: both editions built and verified (32.19 minutes each), the change log in
+reviews/enhancement.md. Left: the user watches; the story's working files and its guide are deleted when the user has nothing left to adjust.
 
 One commit each; every stage keeps the zh-CN storyboard one sentence per English sentence, passes `tools/video/check.py`
 for both languages, and is reviewed from `build.py --snapshots-only` stills of the beats it touches.
