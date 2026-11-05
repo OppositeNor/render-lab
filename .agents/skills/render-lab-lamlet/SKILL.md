@@ -145,10 +145,13 @@ prepared outputs equal (`tools/video/compare.py`, tools/video/README.md).
 ## 6. Scripts: Lamlet the lab runs
 
 A package's **scripts** are Lamlet the lab runs while the viewer plays and while a video records
-(`lab/src/script/runtime.rs`; the plan and its decisions are `todo/lamlet-live-logic.md`). The split: what is heavy
+(`lab/src/script/runtime.rs`). The split: what is heavy
 or engine math stays the package's native code (passes, CPU mirrors, a ray into the scene, octrees), and a script
 says what to do with it: where an overlay's arrows, lobes, and labels go, what a click sets, how a value moves
-over time, what a readout row says.
+over time, what a readout row says. Drawing moves to a script only when it is layout around data the native code
+already hands over (O3DE's vectors and lobes, from its inspected point); marks drawn beside the readout they share a
+trace or a read-back with stay in `build_frame` (O3DE's tiles and cascades; SSR's, VoxelGI's, and SDFGI's demonstration
+marks), since moving them would add a frame-data struct and natives to move a few lines.
 
 - **Where.** Each resource `script/<name>` of the investigation's package (`[[resource]] id = "script/overlay"`,
   `source = "script/overlay.lam"`) is a script; the package's other scripts import it as `<package>_<name>`.

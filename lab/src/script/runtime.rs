@@ -1,4 +1,4 @@
-//! Scripts: Lamlet a package runs while the viewer plays and while a video records (todo/lamlet-live-logic.md).
+//! Scripts: Lamlet a package runs while the viewer plays and while a video records (the `render-lab-lamlet` skill).
 //! What the investigation's native code computes stays native (its passes, its CPU mirrors, a ray through the
 //! scene); a script says what to do with it: where an overlay's arrows go, what a click sets, how a value moves.
 //!
