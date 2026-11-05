@@ -77,8 +77,8 @@ An investigation is only as good as its claims. Each of these is required, not a
   path.
 - **Coverage.** Every factual sentence of the narration is backed by a `callout` on that sentence or by its chapter's
   `sources`; aim for a callout on about half of all sentences. Every chapter has a reading table in the index's
-  `chapters`, and every entry has `inspect` and `inspectZh` saying precisely what the line does, plus `details` for
-  the other lines a claim depends on (each with its own hash, note, and noteZh).
+  `chapters`, and every entry has `inspect` saying precisely what the line does, plus `details` for the other lines a
+  claim depends on (each with its own hash and note), translated in the package's `text/sources/<locale>.ftl`.
 - **Corrections are reported.** When verification contradicts a request, an earlier statement, or a common belief,
   say so to the user with the file:line evidence, and narrate the corrected version.
 

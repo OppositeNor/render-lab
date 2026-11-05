@@ -13,6 +13,13 @@ kind = "file"
 source = "text/zh-CN.ftl"
 license = "MIT"
 
+# The source index's text in Chinese (its English is source-index.json's own; lab/src/sources.rs).
+[[resource]]
+id = "sources/zh-cn"
+kind = "file"
+source = "text/sources/zh-CN.ftl"
+license = "MIT (Godot, THIRD_PARTY.md)"
+
 [[resource]]
 id = "source-index"
 kind = "file"

@@ -6,9 +6,13 @@ establish is SKILL.md's "Precision"; this file is their formats and checks.
 ## The source index (`source-index.json`)
 
 - `engine` (name, version, commit, license) and `entries` (`path`, `line`, `symbol`, `lineHash`, `inspect`,
-  `inspectZh`, `details`). `lineHash` is the first 16 hex digits of the SHA-256 of the cited line, trimmed.
-- Every entry has `inspect` and `inspectZh` saying precisely what the line does, plus `details` for the other lines a
-  claim depends on (each with its own hash, note, and noteZh).
+  `details`). `lineHash` is the first 16 hex digits of the SHA-256 of the cited line, trimmed.
+- Every entry has `inspect` saying precisely what the line does, plus `details` for the other lines a claim depends on
+  (each with its own hash and note). The index is English; another language's text is the package's source table,
+  `text/sources/<locale>.ftl` (the resource `sources/<locale in lower case>`), keyed `entry-<key>-inspect`,
+  `entry-<key>-detail-<n>` (from 1), `chapter-<n>-title`, and `mapping-<lab>-engine-name`, `-exact`, `-lab-layout`
+  (the lab name with anything but letters, digits, `_`, `-` as `-`). The build fails when a complete language's
+  table lacks a key or has one the index does not.
 - `chapters`: a reading table per chapter; `mappings`: each record or readout the lab shows, the engine structure it
   stands for, whether the relationship is exact or conceptual, the engine's exact layout (`exact`), and the lab's
   (`labLayout`); `passes`: the engine pass each render-graph node mirrors (the `render-graph` skill).

@@ -29,10 +29,9 @@ pub struct SourceEntry {
     pub path: String,
     pub line: u32,
     pub symbol: String,
+    /// What the line does, in English; another language's is the package's
+    /// source table's `entry-<key>-inspect` (`i18n::source_text`).
     pub inspect: String,
-    /// Chinese version of `inspect`, for the zh-CN edition.
-    #[serde(default, rename = "inspectZh")]
-    pub inspect_zh: Option<String>,
     #[serde(default)]
     pub details: Vec<Detail>,
 }
@@ -88,12 +87,10 @@ pub struct PassMapping {
 }
 
 impl SourceEntry {
-    /// What to inspect, in the current locale.
-    pub fn inspect_text(&self) -> &str {
-        match &self.inspect_zh {
-            Some(zh) if crate::i18n::zh() => zh,
-            _ => &self.inspect,
-        }
+    /// What to inspect (the entry `key`'s), in the current locale.
+    pub fn inspect_text(&self, key: &str) -> &str {
+        let package = crate::investigation::current().package().unwrap_or("render_lab");
+        crate::i18n::source_text(package, &format!("entry-{key}-inspect")).unwrap_or(&self.inspect)
     }
 
     pub fn file_name(&self) -> &str {

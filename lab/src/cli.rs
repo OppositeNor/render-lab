@@ -256,6 +256,10 @@ enum Command {
         package: String,
         #[arg(long, default_value = "en")]
         locale: String,
+        /// The package's source table instead (`text/sources/<locale>.ftl`: the source index's text in another
+        /// language, along the locale's fallback chain; empty in English, the index's own).
+        #[arg(long)]
+        sources: bool,
     },
     /// Typeset every formula in these files (Fluent text tables, timelines) and check the lab's limits: glyphs of at least 24 px, display
     /// formulas at most 546 px wide. Prints a JSON report; fails on a problem.
@@ -598,9 +602,13 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
-        Command::Text { package, locale } => {
+        Command::Text { package, locale, sources } => {
             crate::i18n::set(crate::i18n::Locale::from_code(&locale).with_context(|| format!("unknown locale `{locale}`"))?);
-            let table: serde_json::Map<String, serde_json::Value> = crate::i18n::package_keys(&package).into_iter().map(|k| (k.to_string(), crate::i18n::package_text(&package, k).into())).collect();
+            let table: serde_json::Map<String, serde_json::Value> = if sources {
+                crate::i18n::source_texts(&package).into_iter().map(|(k, v)| (k.to_string(), v.into())).collect()
+            } else {
+                crate::i18n::package_keys(&package).into_iter().map(|k| (k.to_string(), crate::i18n::package_text(&package, k).into())).collect()
+            };
             println!("{}", serde_json::to_string_pretty(&table)?);
             Ok(())
         }
