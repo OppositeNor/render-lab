@@ -210,7 +210,9 @@ mod tests {
         for block in doc["blocks"].as_array().unwrap() {
             for inline in block["inlines"].as_array().into_iter().flatten().filter(|i| i["type"] == "anchor") {
                 for pair in inline["attrs"].as_array().unwrap() {
-                    out.push((pair[0].as_str().unwrap().to_string(), pair[1].as_str().unwrap().to_string()));
+                    // A typed attribute (motions) is Data, the others a String.
+                    let value = pair[1].as_str().map(str::to_string).unwrap_or_else(|| pair[1].to_string());
+                    out.push((pair[0].as_str().unwrap().to_string(), value));
                 }
             }
         }
@@ -235,11 +237,29 @@ mod tests {
         ];
         let attrs = doc(&format!("${{cue \"key\" {{' {{motion {{' {}}}}}}}}}", motions.join(" "))).unwrap();
         assert_eq!(attrs[0].0, "animate");
+        // `animate` is Data, each motion its kind and fields; the timeline's motion is what tools/video/markup.py's
+        // `motion_of` makes of it (a `Length` variant is "beat", "sentence", or its seconds).
+        fn plain(v: &serde_json::Value) -> serde_json::Value {
+            match v {
+                serde_json::Value::Object(o) if o.len() == 2 && o.contains_key("tag") && o.contains_key("value") => {
+                    if o["value"].is_null() { o["tag"].clone() } else { plain(&o["value"]) }
+                }
+                serde_json::Value::Array(xs) => xs.iter().map(plain).collect(),
+                other => other.clone(),
+            }
+        }
+        let data: serde_json::Value = serde_json::from_str(&attrs[0].1).unwrap();
+        let value: serde_json::Value = data.as_array().unwrap().iter().map(|m| {
+            let fields: serde_json::Map<String, serde_json::Value> =
+                m["fields"].as_array().unwrap().iter().map(|f| (f["name"].as_str().unwrap().to_string(), plain(&f["value"]))).collect();
+            let mut motion = serde_json::Map::new();
+            motion.insert(m["kind"].as_str().unwrap().to_string(), serde_json::Value::Object(fields));
+            serde_json::Value::Object(motion)
+        }).collect();
         // A beat's or a sentence's length is `seconds` the video builder fills in; here, a number.
-        let json = attrs[0].1.replace("\"beat\"", "1.5").replace("\"sentence\"", "2.5");
+        let json = value.to_string().replace("\"beat\"", "1.5").replace("\"sentence\"", "2.5");
         let parsed: Vec<crate::animation::Motion> = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{e}: {json}"));
         assert_eq!(parsed.len(), motions.len());
-        let value: serde_json::Value = serde_json::from_str(&attrs[0].1).unwrap();
         assert_eq!(value[0]["path"]["through"], serde_json::json!([[18.0, 16.0], [-8.0, 22.5]]));
         assert_eq!(value[0]["path"]["seconds"], "beat");
         assert_eq!(value[2]["orbit"]["repeat"], "pingPong");
