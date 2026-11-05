@@ -218,7 +218,72 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
         k["prefix"] = json!(true);
         out.push(k);
     }
+    out.extend(heading_keys(false));
     Ok(out)
+}
+
+/// A heading key of `levels` (lamlet-present's: no function; `apply_keys` reads the heading's attribute by its
+/// kind, or adds `default` when the heading leaves it out).
+fn heading(name: &str, kind: &str, levels: &[u8], default: Option<Value>) -> Value {
+    let mut k = key(name, name, kind);
+    k["on"] = json!("heading");
+    if !levels.is_empty() {
+        k["levels"] = json!(levels);
+    }
+    if let Some(d) = default {
+        k["default"] = d;
+    }
+    k
+}
+
+/// The attributes a storyboard's headings take (`# video`, `## chapter`, `### beat`), or its translation's: each
+/// read by its kind (`fps=30` an Int, `sources="a, b"` a list of names), the pacing and caption width with their
+/// defaults (tools/video/README.md), and the archival metadata on any heading (`engineVersion`, `commit`, `date`,
+/// `meta.<name>`), kept as written. What a kind cannot say (a required key, a number's limits) tools/video's
+/// headings.py checks.
+pub fn heading_keys(translation: bool) -> Vec<Value> {
+    let locales: Vec<String> = crate::i18n::Locale::all().into_iter().map(|l| l.code().to_string()).collect();
+    let mut locale = heading("locale", "text", &[1], None);
+    locale["options"] = json!(locales);
+    locale["closed"] = json!(true);
+    let mut out = vec![heading("title", "text", &[1], None), heading("subtitle", "text", &[1], None), locale];
+    if translation {
+        out.push(heading("glossary", "names", &[1], None));
+        // The zh-CN edition's display units per caption line (tools/video/zh.py's `CAPTION_UNITS` when left out).
+        out.push(heading("captionWidth", "int", &[1], None));
+        out.push(heading("number", "int", &[2], None));
+        out.push(heading("summary", "text", &[2], None));
+    } else {
+        for name in ["fps", "width", "height"] {
+            out.push(heading(name, "int", &[1], None));
+        }
+        // Characters per caption line, and the pacing (seconds; `taggedWeight` a ratio).
+        out.push(heading("captionWidth", "int", &[1], Some(json!(58))));
+        for (name, default) in [("lead", 0.40), ("gap", 0.32), ("tail", 0.70), ("maxExtraPause", 2.2), ("taggedWeight", 2.0), ("termFade", 0.4), ("captionBridge", 0.6)] {
+            out.push(heading(name, "float", &[1], Some(json!(default))));
+        }
+        out.push(heading("number", "int", &[2], None));
+        out.push(heading("target", "float", &[2], None));
+        out.push(heading("summary", "text", &[2], None));
+        out.push(heading("sources", "names", &[2], None));
+        let mut kind = heading("kind", "text", &[3], None);
+        kind["options"] = json!(["3d", "2d"]);
+        kind["closed"] = json!(true);
+        out.push(kind);
+        for name in ["diagram", "graph"] {
+            out.push(heading(name, "text", &[3], None));
+        }
+        for name in ["focus", "sources"] {
+            out.push(heading(name, "names", &[3], None));
+        }
+    }
+    for name in ["engineVersion", "commit", "date"] {
+        out.push(heading(name, "any", &[], None));
+    }
+    let mut meta = heading("meta", "any", &[], None);
+    meta["prefix"] = json!(true);
+    out.push(meta);
+    out
 }
 
 /// The key list with what a reader needs to write each key (`render-lab story schema`): a value's type, unit,

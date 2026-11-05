@@ -297,6 +297,12 @@ enum StoryCommand {
     /// default, and doc; the attribute and function of each key; and what the vocabulary leaves out (options that
     /// make no Lamlet name, keys whose function name another has), each with the `attr` that still writes it.
     Schema,
+    /// The keys a storyboard's headings take (src/script/keys.rs `heading_keys`, also in `keys`), or with
+    /// --translation its translation's, as a key list for `lamlet ir --keys`; needs no investigation.
+    Headings {
+        #[arg(long)]
+        translation: bool,
+    },
     /// Check untimed cues as JSON, without speech or a GPU; `-` reads stdin.
     /// With --timeline, check a complete measured timeline instead.
     Check {
@@ -689,6 +695,10 @@ pub fn main(app: App) -> Result<()> {
         Command::Story(StoryCommand::Keys) => {
             let keys = crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
             println!("{}", serde_json::to_string_pretty(&keys)?);
+            Ok(())
+        }
+        Command::Story(StoryCommand::Headings { translation }) => {
+            println!("{}", serde_json::to_string_pretty(&crate::script::keys::heading_keys(translation))?);
             Ok(())
         }
         Command::Story(StoryCommand::Schema) => {

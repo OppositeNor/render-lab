@@ -64,7 +64,7 @@ class PresentationError(DiagnosticError):
 # Values
 
 def value_of(text: str) -> Any:
-    """A header or property value: JSON when it reads as JSON, else the text."""
+    """An archival metadata value (kept as written by the heading keys): JSON when it reads as JSON, else the text."""
     text = text.strip()
     try:
         return json.loads(text)
@@ -72,13 +72,7 @@ def value_of(text: str) -> Any:
         return text
 
 
-def as_list(value: Any) -> list[str]:
-    if isinstance(value, str) and value.lstrip().startswith('['):
-        value = json.loads(value)
-    return value if isinstance(value, list) else [v.strip() for v in str(value).split(',') if v.strip()]
-
-
-def metadata(attrs: dict[str, str]) -> Json:
+def metadata(attrs: dict[str, Any]) -> Json:
     """Keep registered annotations on their heading, independently of timing."""
     return {name: value_of(value) for name, value in attrs.items() if name in headings.METADATA or headings.META_NAME.fullmatch(name)}
 
@@ -94,11 +88,6 @@ def point_key(tag: markup.Tag, where: str, fields: markup.Fields) -> Json:
 
 # ---------------------------------------------------------------------------
 # Beats
-
-def check_scene_type(kind: str, where: str) -> None:
-    """A beat's scene type is 3d or 2d."""
-    if kind not in ('3d', '2d'):
-        raise PresentationError(f'{where}: the scene type is 3d or 2d, not {kind!r}')
 
 
 def is_3d(beat: Json) -> bool:
@@ -302,23 +291,16 @@ def sections(doc: Json, path: Path, translation: bool = False) -> tuple[Json, he
     return video, chapters
 
 
-def header(video: Json, path: Path, lists: tuple[str, ...] = ()) -> Json:
-    """The video's properties: its title, then its heading's attributes in order."""
+def header(video: Json, path: Path) -> Json:
+    """The video's properties: its title, then its heading's attributes in order, typed by the heading keys
+    (`lamlet ir --keys`), the defaults of those it leaves out after them."""
     attrs = pairs(video['attrs'])
     out: Json = {}
     if 'title' not in dict(attrs):
         out['title'] = plain(video['inlines'], where(video, path))
     for name, value in attrs:
-        out[name] = as_list(value) if name in lists else value if name in ('title', 'subtitle', 'locale') else value_of(value)
-        if name in ('fps', 'width', 'height', 'captionWidth'):
-            out[name] = markup.integer(value, where(video, path))
+        out[name] = value_of(value) if name in headings.METADATA or headings.META_NAME.fullmatch(name) else value
     return out
-
-
-def number(value: str | None, what: str, at: str) -> float:
-    if value is None:
-        raise PresentationError(f'{at}: a {what} needs it')
-    return markup.number(value, at)
 
 
 def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, investigation: str | None = None,
@@ -326,7 +308,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
     """A presentation as the storyboard the builder reads, with these packages to import (its vocabulary), the
     fields the vocabulary's key list names (`markup.Fields`), the investigation the lab checks its names
     against (callouts, text keys, points, formulas), and the key list every cue attribute is checked against."""
-    video, chapters = sections(lamlet.ir(path, packages, investigation, keys), path)
+    video, chapters = sections(lamlet.ir(path, packages, investigation, keys or lamlet.heading_keys()), path)
     board = header(video, path)
     board['chapters'] = []
     for chapter_heading, beats in chapters:
@@ -335,9 +317,9 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
         chapter_id = chapter_heading.get('id') or ''
         if not chapter_id:
             raise PresentationError(f'{at}: a chapter heading names its id, {{#c1 number=1 …}}')
-        chapter: Json = {'id': chapter_id, 'number': markup.integer(attrs['number'], at, 1), 'title': plain(chapter_heading['inlines'], at),
-                         'targetSeconds': number(attrs.get('target'), 'chapter `target` (seconds)', at),
-                         'summary': attrs.get('summary', ''), 'sources': as_list(value_of(attrs.get('sources', '[]'))), 'beats': []}
+        chapter: Json = {'id': chapter_id, 'number': attrs['number'], 'title': plain(chapter_heading['inlines'], at),
+                         'targetSeconds': float(attrs['target']), 'summary': attrs.get('summary', ''), 'sources': attrs.get('sources', []),
+                         'beats': []}
         chapter['source'] = location(chapter_heading, {'file': str(path)})
         chapter.update(metadata(attrs))
         for beat_heading, paragraphs in beats:
@@ -346,20 +328,20 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
             if not beat_id:
                 raise PresentationError(f'{at}: a beat heading names its id, {{#c1-room kind=3d}}')
             props = dict(pairs(beat_heading['attrs']))
-            kind = props.get('kind', '')
-            check_scene_type(kind, f'{path}: {beat_id}')
+            # Its scene type is 3d or 2d (a closed heading key); a beat needs one.
+            if 'kind' not in props:
+                raise PresentationError(f'{path}: {beat_id}: a beat heading needs its scene type, kind=3d or kind=2d')
+            kind = props['kind']
             beat: Json = {'id': beat_id, 'kind': kind, 'headline': plain(beat_heading['inlines'], at)}
             beat.update(metadata(props))
             if kind == '2d' and not {'diagram', 'graph', 'sources'} & set(props):
                 raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), or a sources card (sources=)')
             if 'diagram' in props and 'graph' in props:
                 raise PresentationError(f'{path}: {beat_id}: a beat shows a diagram or the frame graph, not both')
-            for name in ('diagram', 'graph', 'hold'):
+            # `hold` is lamlet-present's own heading attribute, kept as written (headings.py checks it is a number).
+            for name in ('diagram', 'graph', 'hold', 'focus', 'sources'):
                 if name in props:
                     beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
-            for name in ('focus', 'sources'):
-                if name in props:
-                    beat[name] = as_list(value_of(props[name]))
             beat['source'] = location(beat_heading, {'file': str(path)})
             keys: list[Json] = []
             key_sources: list[Json] = []
@@ -401,8 +383,8 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
 
 def load_translation(path: Path) -> Json:
     """A translation presentation as the translation the builder reads (zh.localize)."""
-    video, chapters = sections(lamlet.ir(path, []), path, translation=True)
-    translation = header(video, path, lists=('glossary',))
+    video, chapters = sections(lamlet.ir(path, [], keys=lamlet.heading_keys(translation=True)), path, translation=True)
+    translation = header(video, path)
     translation['chapters'] = []
     translation['beats'] = {}
     for chapter_heading, beats in chapters:
@@ -412,7 +394,7 @@ def load_translation(path: Path) -> Json:
         chapter: Json = {'id': chapter_heading.get('id') or '', 'title': plain(chapter_heading['inlines'], at),
                          'summary': attrs.get('summary', '')}
         if 'number' in attrs:
-            chapter['number'] = markup.integer(attrs['number'], at, 1)
+            chapter['number'] = attrs['number']
         chapter.update(metadata(attrs))
         translation['chapters'].append(chapter)
         for beat_heading, paragraphs in beats:
