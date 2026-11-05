@@ -57,16 +57,16 @@ impl App {
             };
             let chapter = tl.chapter_at(self.timeline_frame);
             let what = if self.playing {
-                tr("viewer.playing")
+                tr("viewer-playing")
             } else {
-                tr("viewer.paused_hint")
+                tr("viewer-paused_hint")
             };
-            let audio = if self.audio.is_some() { "" } else { tr("viewer.no_narration_track") };
-            format!("{} / {} · {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), tr_with("viewer.chapter", args!(number = chapter.number)))
+            let audio = if self.audio.is_some() { "" } else { tr("viewer-no_narration_track") };
+            format!("{} / {} · {} · {what}{audio}", clock(self.timeline_frame), clock(tl.total_frames), tr_with("viewer-chapter", args!(number = chapter.number)))
         } else {
-            format!("{} · t = {:.2} s", if self.playing { tr("viewer.playing") } else { tr("viewer.paused") }, self.demo_time)
+            format!("{} · t = {:.2} s", if self.playing { tr("viewer-playing") } else { tr("viewer-paused") }, self.demo_time)
         };
-        let hint = investigation::current().demo_hint(self.state.demo).unwrap_or_else(|| tr("viewer.drag_hint"));
+        let hint = investigation::current().demo_hint(self.state.demo).unwrap_or_else(|| tr("viewer-drag_hint"));
         format!("{mode} · {hint}")
     }
 
@@ -93,8 +93,8 @@ impl App {
                 use crate::i18n::{args, tr_with};
                 let files: Vec<String> = changed.iter().map(|id| crate::resources::get(id).source().rsplit('/').next().unwrap_or_default().to_string()).collect();
                 self.shader_reload = Some(match renderer.reload_shaders() {
-                    Ok(()) => (tr_with("graph.reloaded", args!(files = files.join(", "))), false, now),
-                    Err(e) => (tr_with("graph.reload_failed", args!(error = e)), true, now),
+                    Ok(()) => (tr_with("graph-reloaded", args!(files = files.join(", "))), false, now),
+                    Err(e) => (tr_with("graph-reload_failed", args!(error = e)), true, now),
                 });
             }
         }

@@ -11,7 +11,7 @@
 //!
 //! ```wgsl
 //! /// The followed probe's two octahedral maps, side by side.
-//! /// {@ view=probeMap entry=sdfgiProbeMapView size=240,120 text=demos.probe_maps_gpu}
+//! /// {@ view=probeMap entry=sdfgiProbeMapView size=240,120 text=demos-probe_maps_gpu}
 //! @group(3) @binding(0) var gProbeMapOut: texture_storage_2d<rgba8unorm, write>;
 //! struct ProbeMapParams {
 //!     /// {@ key=probe default=7,7,8 range=0,16}

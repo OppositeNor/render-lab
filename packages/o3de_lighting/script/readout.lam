@@ -28,22 +28,22 @@ $[# {_and a b} {fold
 
 $[# {_rows l}
     [# lit {!if {= 0 {_and {.lightChannels l} {.surfaceChannels l}}}
-        {text {textKey "demos.skipped"}}
-        {text {textKey "demos.lit"}}}]
+        {text {textKey "demos-skipped"}}
+        {text {textKey "demos-lit"}}}]
     {'
-        {row {text {textKey "common.distance_d"}} f"{${fixed {.distance l} 3} m}" textColor}
-        {row {text {textKey "demos.attenuation_radius_r"}} f"{${fixed {.radius l} 3} m}" _light}
+        {row {text {textKey "common-distance_d"}} f"{${fixed {.distance l} 3} m}" textColor}
+        {row {text {textKey "demos-attenuation_radius_r"}} f"{${fixed {.radius l} 3} m}" _light}
         {row "m_invAttenuationRadiusSquared" {_number {.invRadiusSquared l}} _light}
         {row "falloff = d² / r²" {_number {.falloff l}} _light}
         {row "(1 − falloff²)²" {_number {.radiusAttenuation l}} _light}
         {row "I / max(d², 1e-6)" {vectorText {.inverseSquare l} 3} textDimColor}
-        {row {text {textKey "demos.lightintensity_lux"}} {vectorText {.intensity l} 3} _light}
+        {row {text {textKey "demos-lightintensity_lux"}} {vectorText {.intensity l} 3} _light}
         {row
-            {text {textKey "demos.skipped_falloff_1"}}
-            {!if {>= {.falloff l} 1.0} {text {textKey "demos.yes"}} {text {textKey "demos.no"}}}
+            {text {textKey "demos-skipped_falloff_1"}}
+            {!if {>= {.falloff l} 1.0} {text {textKey "demos-yes"}} {text {textKey "demos-no"}}}
             textColor}
         {row
-            {text {textKey "demos.lighting_channels_light_surface"}}
+            {text {textKey "demos-lighting_channels_light_surface"}}
             f"{0x${hex2 {.lightChannels l}} & 0x${hex2 {.surfaceChannels l}} → $lit}"
             _light}}]
 

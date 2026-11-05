@@ -56,7 +56,7 @@ import = ["render_lab"]              # the packages whose resources it names (a 
 export = ["scene/garden"]            # its own keys other packages may name (a list, may be empty)
 library = "my_feature"               # optional, with `negotiate`: its code (section 5)
 negotiate = "my_feature_negotiate"
-credit-text = "notice.credit"        # optional: a short copyright and license line, after the engine's version at the top right
+credit-text = "notice-credit"        # optional: a short copyright and license line, after the engine's version at the top right
 
 [[provides]]
 type = "resource"                    # a collection, relative to the manifest
@@ -78,7 +78,7 @@ summary = { en = "Three parts, from the simplest to the most involved: …" }
 parts = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]   # in order; each a package `import` lists
 
 [[notice]]                           # optional: a legal notice of what the package holds
-notice-text = "notice.copyright"     # a key of its text tables (both languages)
+notice-text = "notice-copyright"     # a key of its text tables (both languages)
 license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the package; built with it
 ```
 

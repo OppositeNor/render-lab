@@ -77,7 +77,7 @@ class CueKey(unittest.TestCase):
                          {'panel': 'graph', 'image': 'lights', 'imageGraph': 'o3deLightCullingCS.tileData', 'imageShow': 'count', 'imageParams': {'range': [0.0, 16.0]}})
         self.assertEqual(key(cue(('arrow', 'a'), ('arrowFrom', '0,1,2'), ('arrowTo', 'probe.top'), ('arrowColor', '#50d7ff'), ('arrowWidth', '4'))),
                          {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowColor': '#50d7ff', 'arrowWidth': 4.0})
-        self.assertEqual(key(cue(('label', 'l'), ('labelAt', 'probe.top'), ('labelText', 'demos.hit'))), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos.hit'})
+        self.assertEqual(key(cue(('label', 'l'), ('labelAt', 'probe.top'), ('labelText', 'demos-hit'))), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos-hit'})
         self.assertEqual(key(cue(('arrows', 'rays'), ('arrowHide', 'a'), ('labelHide', 'l'))), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
         self.assertEqual(key(cue(('image', 'map'), ('imageClick', 'pickCell'))), {'image': 'map', 'imageClick': 'pickCell'})
         self.assertEqual(key(cue(('image', 'map'), ('imageMark', '0,0.5,0.25,1'), ('imageMarkText', 'demos.near'), ('blend', '1'))),

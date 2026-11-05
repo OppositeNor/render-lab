@@ -11,7 +11,7 @@ pub(super) fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::List
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     report.panel_code = Some(listing.name.to_string());
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.python_pseudo_code"), 30.0, bold(), palette::text());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui-python_pseudo_code"), 30.0, bold(), palette::text());
     y += 42.0;
     let title = ink.fit_right(listing.title(), width, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::accent());
@@ -52,7 +52,7 @@ pub fn code_panel_fit(ctx: &egui::Context, listing: &crate::pseudocode::Listing)
     let measure = |text: &str, size: f32, family: FontFamily| ctx.fonts_mut(|f| f.layout(text.to_string(), egui::FontId::new(size, family), Color32::WHITE, f32::INFINITY).size().x);
     let column = measure("0", 24.0, FontFamily::Monospace);
     // The header: its heading, the listing's title, and its source on two lines at most.
-    let mut inner = measure(tr("ui.python_pseudo_code"), 30.0, bold()).max(measure(listing.title(), 24.0, FontFamily::Proportional));
+    let mut inner = measure(tr("ui-python_pseudo_code"), 30.0, bold()).max(measure(listing.title(), 24.0, FontFamily::Proportional));
     if let Some(entry) = sources::index().entries.get(&listing.source) {
         let engine = investigation::current().wording().engine_short;
         for text in [format!("≈ {engine}: {}", entry.short_symbol()), format!("    {}:{}", entry.file_name(), entry.line)] {

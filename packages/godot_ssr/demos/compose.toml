@@ -1,9 +1,9 @@
 # The opaque pass: the sky's reflection, the SSR result, and the blend.
 
 key = "compose"
-title-text = "shot.compose_title"
-tab-text = "shot.compose"
-hint-text = "hints.compose_demo"
+title-text = "shot-compose_title"
+tab-text = "shot-compose"
+hint-text = "hints-compose_demo"
 scene = "render_lab.scene/study-room"
 listing = "compose"
 resets-camera = true

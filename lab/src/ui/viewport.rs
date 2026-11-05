@@ -66,20 +66,20 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
                         }
                     }
                     ui.separator();
-                    if ui.button(if viewer.playing { tr("ui.pause") } else { tr("ui.play") }).clicked() {
+                    if ui.button(if viewer.playing { tr("ui-pause") } else { tr("ui-play") }).clicked() {
                         viewer.actions.push(ViewerAction::TogglePlay);
                     }
-                    if ui.button(tr("ui.step")).clicked() {
+                    if ui.button(tr("ui-step")).clicked() {
                         viewer.actions.push(ViewerAction::Step);
                     }
-                    if ui.button(tr("ui.reset")).clicked() {
+                    if ui.button(tr("ui-reset")).clicked() {
                         viewer.actions.push(ViewerAction::Reset);
                     }
-                    if viewer.timeline.is_some() && ui.selectable_label(viewer.timeline_mode, tr("ui.timeline")).clicked() {
+                    if viewer.timeline.is_some() && ui.selectable_label(viewer.timeline_mode, tr("ui-timeline")).clicked() {
                         viewer.actions.push(ViewerAction::ToggleTimeline);
                     }
                     ui.separator();
-                    if ui.button(tr("ui.home")).on_hover_text(tr("ui.home_hint")).clicked() {
+                    if ui.button(tr("ui-home")).on_hover_text(tr("ui-home_hint")).clicked() {
                         viewer.actions.push(ViewerAction::Home);
                     }
                 });
@@ -119,7 +119,7 @@ pub(super) fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInpu
         });
         egui::Area::new(id).fixed_pos(rect.min).order(egui::Order::Background).show(ctx, |ui| {
             let (_, response) = ui.allocate_exact_size(rect.size(), egui::Sense::click_and_drag());
-            let response = response.on_hover_text(tr("ui.resize_hint"));
+            let response = response.on_hover_text(tr("ui-resize_hint"));
             if response.hovered() || response.dragged() {
                 ctx.set_cursor_icon(cursor);
                 let stroke = Stroke::new(3.0, if response.dragged() { palette::accent() } else { palette::border() });
@@ -253,7 +253,7 @@ pub(super) fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, l
 /// reference's border beside the live view, and which view is which.
 pub(super) fn draw_compare(ink: &Ink, view: Rect, compare: CompareOverlay, insets: &[Rect]) -> Vec<Rect> {
     use crate::experiment::Compare;
-    let (a, b) = (tr("experiments.label_reference"), tr("experiments.label_live"));
+    let (a, b) = (tr("experiments-label_reference"), tr("experiments-label_live"));
     match compare.mode {
         Compare::Off => Vec::new(),
         Compare::Wipe => {
@@ -276,7 +276,7 @@ pub(super) fn draw_compare(ink: &Ink, view: Rect, compare: CompareOverlay, inset
             ink.painter.rect_stroke(compare.reference.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
             vec![draw_pane_title(ink, compare.reference, a, &[]), draw_pane_title(ink, view, b, insets)]
         }
-        Compare::Difference => vec![draw_pane_title(ink, view, &tr_with("experiments.label_difference", args!(gain = format!("{:.0}", compare.gain))), insets)],
+        Compare::Difference => vec![draw_pane_title(ink, view, &tr_with("experiments-label_difference", args!(gain = format!("{:.0}", compare.gain))), insets)],
         Compare::Reference => vec![draw_pane_title(ink, view, a, insets)],
     }
 }

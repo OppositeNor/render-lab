@@ -1,9 +1,9 @@
 # What the trace starts from: depth and normal-roughness at the pixel.
 
 key = "inputs"
-title-text = "shot.inputs_title"
-tab-text = "shot.inputs"
-hint-text = "hints.inputs_demo"
+title-text = "shot-inputs_title"
+tab-text = "shot-inputs"
+hint-text = "hints-inputs_demo"
 scene = "render_lab.scene/study-room"
 listing = "prepass"
 resets-camera = true

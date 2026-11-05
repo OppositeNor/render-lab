@@ -378,7 +378,7 @@ def write_notice(cfg: Config) -> None:
     if not notices:
         out.unlink(missing_ok=True)
         return
-    parts = [cfg.lab_text('ui.notices_title'), ''] + [text for text, _ in notices]
+    parts = [cfg.lab_text('ui-notices_title'), ''] + [text for text, _ in notices]
     for text, license in notices:
         if license is not None:
             parts += ['', '-' * 78, license.name, '-' * 78, '', license.read_text(encoding='utf-8').rstrip()]

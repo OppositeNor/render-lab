@@ -1,9 +1,9 @@
 # The bounce demonstration (src/godot/voxelgi/demos.rs).
 
 key = "bounce"
-title-text = "shot.bounce_title"
-tab-text = "shot.bounce"
-hint-text = "investigation.demo_hint"
+title-text = "shot-bounce_title"
+tab-text = "shot-bounce"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "second-bounce"
 resets-camera = true

@@ -1,7 +1,7 @@
 key = "ibl"
-title-text = "shot.image_based_lighting"
+title-text = "shot-image_based_lighting"
 tab = "IBL"
-hint-text = "investigation.demo_hint"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "ibl-passes"
 # Its Play animation (script/animations.lam).

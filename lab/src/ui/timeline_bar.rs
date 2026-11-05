@@ -25,7 +25,7 @@ pub fn draw_caption_tab(ink: &Ink, rect: Rect, previous: Option<&str>, caption: 
     let painter = ink.painter.with_clip_rect(rect);
     let ink = Ink::new(&painter);
     let Some(caption) = caption else {
-        ink.text(rect.center(), Align2::CENTER_CENTER, tr("ui.no_caption"), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(rect.center(), Align2::CENTER_CENTER, tr("ui-no_caption"), 24.0, FontFamily::Proportional, palette::text_dim());
         return;
     };
     let mut y = rect.min.y + 14.0;
@@ -61,9 +61,9 @@ pub(super) fn draw_reload_notice(ink: &Ink, l: &Layout, text: &str, failed: bool
 
 pub(super) fn draw_skip_notice(ink: &Ink, l: &Layout, seconds: i64, opacity: f32) {
     let text = if seconds < 0 {
-        format!("◀◀  {}", tr_with("ui.skip_back", args!(seconds = -seconds)))
+        format!("◀◀  {}", tr_with("ui-skip_back", args!(seconds = -seconds)))
     } else {
-        format!("{}  ▶▶", tr_with("ui.skip_forward", args!(seconds = seconds)))
+        format!("{}  ▶▶", tr_with("ui-skip_forward", args!(seconds = seconds)))
     };
     let size = ink.measure(&text, 34.0, bold()) + vec2(56.0, 28.0);
     let x = if seconds < 0 { l.viewport.min.x + l.viewport.width() * 0.2 } else { l.viewport.max.x - l.viewport.width() * 0.2 };
@@ -114,7 +114,7 @@ pub(super) fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, view
     // moved up to fit would grow over the dock every frame and take its pointer.
     let response = egui::Area::new(egui::Id::unique("timeline-bar")).order(egui::Order::Foreground).fixed_pos(l.footer.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(l.footer.size());
-        let play = ui.put(button, egui::Button::new(if viewer.playing { tr("ui.bar_pause") } else { tr("ui.bar_play") }));
+        let play = ui.put(button, egui::Button::new(if viewer.playing { tr("ui-bar_pause") } else { tr("ui-bar_play") }));
         if play.clicked() {
             viewer.actions.push(ViewerAction::TogglePlay);
         }
@@ -177,7 +177,7 @@ pub(super) fn draw_bar_preview(ctx: &egui::Context, bar: Rect, share: f32, total
         format!("{}:{:02}", s / 60, s % 60)
     };
     let at = (share as f64 * total as f64) as u64;
-    let chapter = tr_with("ui.bar_chapter", args!(chapter = section.chapter, title = section.chapter_title));
+    let chapter = tr_with("ui-bar_chapter", args!(chapter = section.chapter, title = section.chapter_title));
     let width = 720.0f32;
     let chapter_line = ink.fit_right(&chapter, width - 120.0, 24.0, bold());
     let headline = ink.fit_right(&section.headline, width, 26.0, bold());
@@ -198,7 +198,7 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
     let wording = investigation::current().wording();
     let x = rect.min.x + 20.0;
     let mut y = rect.min.y + 10.0;
-    let heading = tr_with("ui.source_list_heading", args!(engine = wording.engine_short, demo = demo.title(), checkout = wording.checkout_dir));
+    let heading = tr_with("ui-source_list_heading", args!(engine = wording.engine_short, demo = demo.title(), checkout = wording.checkout_dir));
     ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 24.0, bold(), palette::accent());
     y += 34.0;
     let keys = index.demos.get(demo.key()).cloned().unwrap_or_default();

@@ -1,9 +1,9 @@
 # A probe's octahedral maps.
 
 key = "maps"
-title-text = "shot.maps_title"
-tab-text = "shot.maps"
-hint-text = "investigation.demo_hint"
+title-text = "shot-maps_title"
+tab-text = "shot-maps"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "probe-store"
 resets-camera = true

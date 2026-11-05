@@ -1,9 +1,9 @@
 # The depth pyramid, a level at a time, the pixel's cell in it.
 
 key = "pyramid"
-title-text = "shot.pyramid_title"
-tab-text = "shot.pyramid"
-hint-text = "hints.pyramid_demo"
+title-text = "shot-pyramid_title"
+tab-text = "shot-pyramid"
+hint-text = "hints-pyramid_demo"
 scene = "render_lab.scene/study-room"
 listing = "pyramid"
 resets-camera = true

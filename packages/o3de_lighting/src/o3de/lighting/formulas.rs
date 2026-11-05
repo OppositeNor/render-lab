@@ -11,21 +11,21 @@ use lab::rich_text;
 /// The demonstration's formula tag.
 pub fn text(demo: Demo) -> &'static str {
     match demo {
-        Demo::Room => tr("formula.room"),
-        Demo::Culling => tr("formula.culling"),
-        Demo::Surface => tr("formula.surface"),
-        Demo::Decals => tr("formula.decals"),
-        Demo::Specular => tr("formula.specular"),
-        Demo::ClearCoat => tr("formula.clearcoat"),
-        Demo::Diffuse => tr("formula.diffuse"),
-        Demo::Transmission => tr("formula.transmission"),
-        Demo::Multiscatter => tr("formula.multiscatter"),
-        Demo::PointLight => tr("formula.pointlight"),
-        Demo::Ibl => tr("formula.ibl"),
-        Demo::Reflections => tr("formula.reflections"),
-        Demo::Ssao => tr("formula.ssao"),
-        Demo::Cascades => tr("formula.cascades"),
-        Demo::Terrain => tr("formula.terrain"),
+        Demo::Room => tr("formula-room"),
+        Demo::Culling => tr("formula-culling"),
+        Demo::Surface => tr("formula-surface"),
+        Demo::Decals => tr("formula-decals"),
+        Demo::Specular => tr("formula-specular"),
+        Demo::ClearCoat => tr("formula-clearcoat"),
+        Demo::Diffuse => tr("formula-diffuse"),
+        Demo::Transmission => tr("formula-transmission"),
+        Demo::Multiscatter => tr("formula-multiscatter"),
+        Demo::PointLight => tr("formula-pointlight"),
+        Demo::Ibl => tr("formula-ibl"),
+        Demo::Reflections => tr("formula-reflections"),
+        Demo::Ssao => tr("formula-ssao"),
+        Demo::Cascades => tr("formula-cascades"),
+        Demo::Terrain => tr("formula-terrain"),
     }
 }
 

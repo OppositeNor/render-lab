@@ -1,9 +1,9 @@
 # The cells demonstration (src/godot/voxelgi/demos.rs).
 
 key = "cells"
-title-text = "shot.cells_title"
-tab-text = "shot.cells"
-hint-text = "investigation.demo_hint"
+title-text = "shot-cells_title"
+tab-text = "shot-cells"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "pack-cell"
 resets-camera = true

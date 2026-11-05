@@ -347,7 +347,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
     if cfg.notices() and chapters_out:
         notice_frames = to_frames(NOTICES)
         beats_out.append({'id': 'notices', 'chapter': chapters_out[-1]['number'], 'kind': '2d', 'startFrame': frame, 'frames': notice_frames,
-                          'headline': cfg.lab_text('ui.notices_title'), 'captions': [], 'sources': [], 'notices': True})
+                          'headline': cfg.lab_text('ui-notices_title'), 'captions': [], 'sources': [], 'notices': True})
         frame += notice_frames
         chapters_out[-1]['endFrame'] = frame
     keys_out.sort(key=lambda k: k['frame'])

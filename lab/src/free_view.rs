@@ -25,7 +25,7 @@ pub fn content(main: &FrameContent, state: &ShotState, free: &FreeCamera) -> Fra
     let mut content = main.clone();
     content.uniforms.camera = free.orbit().camera_data_like(&main.uniforms.camera);
     investigation::current().view_from(&mut content);
-    mark_camera(&mut content, &main.uniforms.camera, state.camera.distance, Some(tr("ui.main_camera")));
+    mark_camera(&mut content, &main.uniforms.camera, state.camera.distance, Some(tr("ui-main_camera")));
     content
 }
 

@@ -16,19 +16,19 @@ pub const FAR: f32 = 1000.0;
 #[values(scope = "camera", package = "render_lab")]
 pub struct OrbitCamera {
     /// The point it orbits.
-    #[value(components(x, y, z), text = "values.camera.target", help = "help.camera.target")]
+    #[value(components(x, y, z), text = "values-camera-target", help = "help-camera-target")]
     pub target: [f32; 3],
     /// Degrees around +Y; 0 looks down -Z.
-    #[value(range = -180.0..=180.0, unit = deg, wrap, label(view), text = "values.camera.yaw", help = "help.camera.yaw")]
+    #[value(range = -180.0..=180.0, unit = deg, wrap, label(view), text = "values-camera-yaw", help = "help-camera-yaw")]
     pub yaw: f32,
     /// Degrees above the horizon.
-    #[value(range = -85.0..=85.0, unit = deg, label(view), text = "values.camera.pitch", help = "help.camera.pitch")]
+    #[value(range = -85.0..=85.0, unit = deg, label(view), text = "values-camera-pitch", help = "help-camera-pitch")]
     pub pitch: f32,
     /// Metres from the target.
-    #[value(range = 0.4..=15.0, unit = m, label(view), text = "controls.distance", help = "help.camera.distance")]
+    #[value(range = 0.4..=15.0, unit = m, label(view), text = "controls-distance", help = "help-camera-distance")]
     pub distance: f32,
     /// Vertical field of view in degrees.
-    #[value(range = 20.0..=90.0, unit = deg, label(view), text = "values.camera.fov", help = "help.camera.fov")]
+    #[value(range = 20.0..=90.0, unit = deg, label(view), text = "values-camera-fov", help = "help-camera-fov")]
     pub fov: f32,
 }
 

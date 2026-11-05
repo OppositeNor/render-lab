@@ -96,7 +96,7 @@ class References(unittest.TestCase):
         self.error({'code': 'trcae'}, field='code', contains='did you mean `trace`?')
         self.error({'params': {'ssrMaxStpes': 2}}, field='params.ssrMaxStpes', contains='did you mean `ssrMaxSteps`?')
         self.error({'callout': 'pass-mian'}, field='callout', contains='did you mean `pass-main`?')
-        self.error({'image': 'screen', 'imageGraph': 'ssrTrace.ssrColor', 'imageTitle': 'ui.paly'}, field='imageTitle', contains='did you mean `ui.play`?')
+        self.error({'image': 'screen', 'imageGraph': 'ssrTrace.ssrColor', 'imageTitle': 'ui-paly'}, field='imageTitle', contains='did you mean `ui-play`?')
         self.check({'callout': ''})
 
     def test_cleanup_can_precede_activation_but_names_must_exist(self) -> None:
@@ -104,7 +104,7 @@ class References(unittest.TestCase):
         declarations = [
             {'image': 'screen', 'imageGraph': 'ssrTrace.ssrColor'},
             {'arrow': 'ray', 'arrowFrom': [0, 0, 0], 'arrowTo': [1, 1, 1]},
-            {'label': 'caption', 'labelAt': [0, 0, 0], 'labelText': 'ui.play'},
+            {'label': 'caption', 'labelAt': [0, 0, 0], 'labelText': 'ui-play'},
         ]
         self.check(cleanup, *declarations, cleanup, cleanup)
         self.error({'imageHide': ['scren']}, *declarations, field='imageHide', contains='did you mean `screen`?')

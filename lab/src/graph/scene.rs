@@ -243,10 +243,10 @@ pub fn entry_of(name: &str) -> &str {
 pub fn about(name: &str) -> Option<&'static str> {
     let name = entry_of(name);
     match name {
-        "depthViews" => Some(crate::i18n::tr("graph.about_depth_views")),
-        "scene" => Some(crate::i18n::tr("graph.about_scene")),
-        "overlay" => Some(crate::i18n::tr("graph.about_overlay")),
-        "composite" => Some(crate::i18n::tr("graph.about_composite")),
+        "depthViews" => Some(crate::i18n::tr("graph-about_depth_views")),
+        "scene" => Some(crate::i18n::tr("graph-about_scene")),
+        "overlay" => Some(crate::i18n::tr("graph-about_overlay")),
+        "composite" => Some(crate::i18n::tr("graph-about_composite")),
         _ => crate::investigation::current().pass_about(name),
     }
 }

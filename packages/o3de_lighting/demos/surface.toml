@@ -1,7 +1,7 @@
 key = "surface"
-title-text = "shot.the_metallic_workflow"
-tab-text = "shot.surface"
-hint-text = "investigation.demo_hint"
+title-text = "shot-the_metallic_workflow"
+tab-text = "shot-surface"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "surface-setup"
 # Its Play animation (script/animations.lam).

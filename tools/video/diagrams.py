@@ -5,7 +5,7 @@ language). Boxes, and the edges between them:
 
     [[node]]
     id = "FWD1"                         # what a beat's `focus:` names
-    title-text = "diagram.fwd1.forward" # a key of the package's text (a newline breaks a line)
+    title-text = "diagram-fwd1-forward" # a key of the package's text (a newline breaks a line)
     dashed = true                       # optional: a dashed box
     image = "o3de_lighting.image/room"  # optional: a PNG resource under its title (one node of
                                         # an image is how a 2D beat shows a picture)

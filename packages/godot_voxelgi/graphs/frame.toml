@@ -5,38 +5,38 @@
 
 [[section]]
 id = "BAKE"
-title-text = "frame.bake"
-note-text = "frame.bake_note"
+title-text = "frame-bake"
+note-text = "frame-bake_note"
 outside = true
 to = ["SDF", "LIGHT"]
 
 [[section]]
 id = "SDF"
-title-text = "frame.sdf"
-note-text = "frame.sdf_note"
+title-text = "frame-sdf"
+note-text = "frame-sdf_note"
 outside = true
 to = ["LIGHT"]
 
 [[section]]
 id = "LIGHT"
-title-text = "frame.light"
+title-text = "frame-light"
 passes = ["voxelgiLightCS", "voxelgiBounceCS", "voxelgiMipmapsCS", "voxelgiWriteCS"]
 
 [[section]]
 id = "TEX"
-title-text = "frame.tex"
+title-text = "frame-tex"
 resources = ["voxelgiLight"]
 
 [[section]]
 id = "DYN"
-title-text = "frame.dyn"
-note-text = "frame.dyn_note"
+title-text = "frame-dyn"
+note-text = "frame-dyn_note"
 outside = true
 to = ["TEX"]
 
 [[section]]
 id = "PRE"
-title-text = "frame.pre"
+title-text = "frame-pre"
 passes = ["voxelgiPrepassFS"]
 
 # The lab draws the opaque pass's direct light before the cones and mixes their
@@ -44,10 +44,10 @@ passes = ["voxelgiPrepassFS"]
 
 [[section]]
 id = "CONE"
-title-text = "frame.cone"
+title-text = "frame-cone"
 passes = ["voxelgiGiCS"]
 
 [[section]]
 id = "OPAQUE"
-title-text = "frame.opaque"
+title-text = "frame-opaque"
 passes = ["voxelgiForwardFS", "voxelgiComposeCS"]

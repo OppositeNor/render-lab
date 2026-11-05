@@ -253,7 +253,7 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             text_keys_used(&path, keys);
             continue;
         }
-        // Data files name keys in fields ending in `-text` (`title-text = "scene.terrain"`).
+        // Data files name keys in fields ending in `-text` (`title-text = "scene-terrain"`).
         if path.extension().is_some_and(|e| e == "toml") {
             println!("cargo:rerun-if-changed={}", path.display());
             for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {

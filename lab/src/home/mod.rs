@@ -75,7 +75,7 @@ pub use app::*;
 
 /// The bottom-left line of the title page.
 fn credits() -> String {
-    format!("© 2026 OppositeNor · {} · v{}", tr("home.mit_license"), env!("CARGO_PKG_VERSION"))
+    format!("© 2026 OppositeNor · {} · v{}", tr("home-mit_license"), env!("CARGO_PKG_VERSION"))
 }
 
 pub struct HomeOptions {
@@ -412,13 +412,13 @@ impl Home {
             Some(path) => match config.save(path) {
                 Ok(()) => {
                     self.settings.saved = config;
-                    format!("{} {}", tr("home.saved_to"), path.display())
+                    format!("{} {}", tr("home-saved_to"), path.display())
                 }
-                Err(e) => format!("{} {e:#}", tr("home.applied_but_not_saved")),
+                Err(e) => format!("{} {e:#}", tr("home-applied_but_not_saved")),
             },
             None => {
                 self.settings.saved = config;
-                tr("home.applied_for_session").to_string()
+                tr("home-applied_for_session").to_string()
             }
         });
     }
@@ -457,7 +457,7 @@ impl Home {
         if let Some(trial) = self.settings.trial.take() {
             self.apply(trial.before);
             self.settings.pending = self.settings.saved.clone();
-            self.settings.message = Some(tr("home.restored_the_previous_settings").to_string());
+            self.settings.message = Some(tr("home-restored_the_previous_settings").to_string());
         }
     }
 
@@ -486,7 +486,7 @@ impl Home {
         self.settings.saved.narration = narration;
         self.settings.pending.narration = narration;
         if let Some(path) = &self.settings.path && let Err(e) = self.settings.saved.save(path) {
-            self.settings.message = Some(format!("{} {e:#}", tr("home.applied_but_not_saved")));
+            self.settings.message = Some(format!("{} {e:#}", tr("home-applied_but_not_saved")));
         }
     }
 

@@ -5,8 +5,8 @@
 //!
 //! Text is named by key. Each layer keeps its text in its package's
 //! `text/en.json` and `text/zh-CN.json` (the lab's in packages/render_lab/text/)
-//! and reads it through a [`Table`]: `tr("viewer.playing")`, or
-//! `tr_with("ui.skip_back", args!(seconds = 10))` for text with values.
+//! and reads it through a [`Table`]: `tr("viewer-playing")`, or
+//! `tr_with("ui-skip_back", args!(seconds = 10))` for text with values.
 
 use crate::resources;
 use serde::{Deserialize, Serialize};
@@ -201,18 +201,18 @@ pub fn object_name(name: &str) -> String {
         return name.to_string();
     }
     let objects = [
-        ("floor", tr("object.floor")),
-        ("back wall", tr("object.back_wall")),
-        ("left wall", tr("object.left_wall")),
-        ("right wall", tr("object.right_wall")),
-        ("emissive panel", tr("object.emissive_panel")),
-        ("sphere", tr("object.sphere")),
-        ("rotated box", tr("object.rotated_box")),
-        ("small box", tr("object.small_box")),
-        ("teapot", tr("object.teapot")),
-        ("terrain", tr("object.terrain")),
-        ("sun panel", tr("object.sun_panel")),
-        ("none", tr("object.none")),
+        ("floor", tr("object-floor")),
+        ("back wall", tr("object-back_wall")),
+        ("left wall", tr("object-left_wall")),
+        ("right wall", tr("object-right_wall")),
+        ("emissive panel", tr("object-emissive_panel")),
+        ("sphere", tr("object-sphere")),
+        ("rotated box", tr("object-rotated_box")),
+        ("small box", tr("object-small_box")),
+        ("teapot", tr("object-teapot")),
+        ("terrain", tr("object-terrain")),
+        ("sun panel", tr("object-sun_panel")),
+        ("none", tr("object-none")),
     ];
     for (en, zh) in objects {
         if let Some(rest) = name.strip_prefix(en) && (rest.is_empty() || rest.starts_with(' ')) {

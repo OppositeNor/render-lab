@@ -523,7 +523,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 if let Some(rect) = input.main_view {
                     painter.rect_stroke(rect.expand(1.0), CornerRadius::same(6), Stroke::new(2.0, palette::VIEW), StrokeKind::Outside);
                     obstacles.push(rect);
-                    obstacles.push(draw_pane_title(&ink, rect, tr("ui.main_view"), &[]));
+                    obstacles.push(draw_pane_title(&ink, rect, tr("ui-main_view"), &[]));
                 }
                 if let Some(compare) = input.compare {
                     let insets = obstacles.clone();
@@ -597,13 +597,13 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                         if let Chrome::Viewer(v) = &mut chrome {
                             v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
                         }
-                        let hint = tr_with("viewer.diagram_hint", args!(zoom = format!("{zoom:.1}")));
+                        let hint = tr_with("viewer-diagram_hint", args!(zoom = format!("{zoom:.1}")));
                         let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
                         let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
                         painter.rect_filled(Rect::from_min_size(at - vec2(8.0, galley.size().y + 4.0), galley.size() + vec2(16.0, 8.0)), CornerRadius::same(6), Color32::from_rgba_unmultiplied(7, 18, 31, 220));
                         ink.text(at, Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_dim());
                         // Beside the hint: put the moved boxes back (and the view).
-                        let label = tr("graph.reset");
+                        let label = tr("graph-reset");
                         let size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
                         egui::Area::new(egui::Id::unique("paused-diagram-reset")).fixed_pos(pos2(area.min.x + 14.0 + galley.size().x + 24.0, area.max.y - 12.0 - size.y)).fade_in(false).show(ctx, |ui| {
                             if ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(size)).clicked() {

@@ -1,9 +1,9 @@
 # The distance field.
 
 key = "field"
-title-text = "shot.field_title"
-tab-text = "shot.field"
-hint-text = "investigation.demo_hint"
+title-text = "shot-field_title"
+tab-text = "shot-field"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "jump-flood"
 resets-camera = true

@@ -5,9 +5,9 @@
 # FullscreenShadow and its blur (shaders/standard_lighting.wgsl).
 
 key = "cascades"
-title-text = "shot.cascaded_shadow_maps"
-tab-text = "shot.cascades"
-hint-text = "investigation.demo_hint"
+title-text = "shot-cascaded_shadow_maps"
+tab-text = "shot-cascades"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room-grounds"
 listing = "fullscreen-shadow"
 

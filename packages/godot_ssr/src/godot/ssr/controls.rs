@@ -11,23 +11,23 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     dock.camera(ui);
     match demo {
         Demo::Room => {
-            dock.values(ui, tr("controls.ssr"), Some(tr("hints.ssr")), "ssr");
-            dock.values(ui, tr("controls.surface"), Some(tr("hints.surface")), "surface");
+            dock.values(ui, tr("controls-ssr"), Some(tr("hints-ssr")), "ssr");
+            dock.values(ui, tr("controls-surface"), Some(tr("hints-surface")), "surface");
         }
         Demo::Pyramid | Demo::Trace => {
-            dock.values(ui, tr("controls.pick"), Some(tr("hints.pick")), "pick");
-            dock.values(ui, tr("controls.field"), Some(tr("hints.field")), "field");
-            dock.values(ui, tr("controls.ssr"), Some(tr("hints.ssr")), "ssr");
-            dock.values(ui, tr("controls.surface"), Some(tr("hints.surface")), "surface");
+            dock.values(ui, tr("controls-pick"), Some(tr("hints-pick")), "pick");
+            dock.values(ui, tr("controls-field"), Some(tr("hints-field")), "field");
+            dock.values(ui, tr("controls-ssr"), Some(tr("hints-ssr")), "ssr");
+            dock.values(ui, tr("controls-surface"), Some(tr("hints-surface")), "surface");
         }
         Demo::Inputs | Demo::Hit | Demo::Blur => {
-            dock.values(ui, tr("controls.pick"), Some(tr("hints.pick")), "pick");
-            dock.values(ui, tr("controls.ssr"), Some(tr("hints.ssr")), "ssr");
-            dock.values(ui, tr("controls.surface"), Some(tr("hints.surface")), "surface");
+            dock.values(ui, tr("controls-pick"), Some(tr("hints-pick")), "pick");
+            dock.values(ui, tr("controls-ssr"), Some(tr("hints-ssr")), "ssr");
+            dock.values(ui, tr("controls-surface"), Some(tr("hints-surface")), "surface");
         }
         Demo::Compose => {
-            dock.values(ui, tr("controls.compose"), Some(tr("hints.compose")), "compose");
-            dock.values(ui, tr("controls.surface"), Some(tr("hints.surface")), "surface");
+            dock.values(ui, tr("controls-compose"), Some(tr("hints-compose")), "compose");
+            dock.values(ui, tr("controls-surface"), Some(tr("hints-surface")), "surface");
         }
     }
 }

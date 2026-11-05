@@ -5,7 +5,7 @@
 /// the indices its bin keeps, the groups' markers, and END_OF_LIST. A cell is
 /// coloured by its light's group; a marker is dark, END_OF_LIST black, and
 /// the row of the bin the picked pixel's depth falls in is marked on the left.
-/// {@ view=lightList entry=o3deLightListView size=528,240 text=views.light_list reads=tileData,lightList,lightListRemapped,depth}
+/// {@ view=lightList entry=o3deLightListView size=528,240 text=views-light_list reads=tileData,lightList,lightListRemapped,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct LightListParams {

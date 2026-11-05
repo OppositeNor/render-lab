@@ -8,37 +8,37 @@
 
 [[section]]
 id = "UPD"
-title-text = "frame.cascades"
-note-text = "frame.cpu"
+title-text = "frame-cascades"
+note-text = "frame-cpu"
 outside = true
 to = ["SCROLL"]
 
 [[section]]
 id = "SCROLL"
-title-text = "frame.scroll"
+title-text = "frame-scroll"
 passes = ["sdfgiScroll", "sdfgiScrollOcclusion", "sdfgiProbeScroll", "sdfgiProbeScrollStore", "sdfgiProbeStoreScroll"]
 
 [[section]]
 id = "VOX"
-title-text = "frame.voxels"
+title-text = "frame-voxels"
 passes = ["sdfgiVoxelize", "sdfgiJumpFloodInit", "sdfgiJumpFlood", "sdfgiJumpFloodShared", "sdfgiUpscale", "sdfgiJumpFloodFull", "sdfgiOcclusion", "sdfgiStore"]
 
 [[section]]
 id = "LIGHT"
-title-text = "frame.light"
+title-text = "frame-light"
 passes = ["sdfgiStaticLight", "sdfgiDynamicLight"]
 
 [[section]]
 id = "PRE"
-title-text = "frame.probes"
+title-text = "frame-probes"
 passes = ["sdfgiProbeProcess"]
 
 [[section]]
 id = "STORE"
-title-text = "frame.store"
+title-text = "frame-store"
 passes = ["sdfgiProbeStore"]
 
 [[section]]
 id = "GI"
-title-text = "frame.screen"
+title-text = "frame-screen"
 passes = ["sdfgiPrepassFS", "sdfgiGatherCS", "sdfgiForwardFS"]

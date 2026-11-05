@@ -1,9 +1,9 @@
 # The pixel demonstration (src/godot/voxelgi/demos.rs).
 
 key = "pixel"
-title-text = "shot.pixel_title"
-tab-text = "shot.pixel"
-hint-text = "investigation.demo_hint"
+title-text = "shot-pixel_title"
+tab-text = "shot-pixel"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "voxel-gi-compute"
 resets-camera = true

@@ -5,7 +5,7 @@
 /// A probe's two octahedral maps, irradiance and radiance side by side, as the
 /// probe pass stored them (E5B9G9R9, each 6 x 6 texels and a one-texel border,
 /// dimmed), tone mapped as the CPU picture of them is (`demos.rs`, `maps`).
-/// {@ view=probeMap entry=sdfgiProbeMapView size=208,104 text=demos.probe_maps_gpu}
+/// {@ view=probeMap entry=sdfgiProbeMapView size=208,104 text=demos-probe_maps_gpu}
 @group(3) @binding(0) var gProbeMapOut: texture_storage_2d<rgba8unorm, write>;
 
 struct ProbeMapParams {

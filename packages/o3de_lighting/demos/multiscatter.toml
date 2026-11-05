@@ -1,7 +1,7 @@
 key = "multiscatter"
-title-text = "shot.multiscatter_compensation"
-tab-text = "shot.multiscatter"
-hint-text = "investigation.demo_hint"
+title-text = "shot-multiscatter_compensation"
+tab-text = "shot-multiscatter"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "multiscatter"
 include = ["close-up", "sphere-camera"]

@@ -41,22 +41,22 @@ impl Home {
         ink.text(pos2(center, card.min.y + 64.0), Align2::CENTER_TOP, "Render Lab", 128.0, ui::bold(), palette::text());
         let rule = card.min.y + 230.0;
         ink.painter.line_segment([pos2(center - 150.0, rule), pos2(center + 150.0, rule)], Stroke::new(2.0, palette::accent()));
-        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, tr("home.subtitle"), 28.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(center, rule + 22.0), Align2::CENTER_TOP, tr("home-subtitle"), 28.0, FontFamily::Proportional, palette::text_dim());
         let button = vec2(460.0, 84.0);
         let mut choice = None;
         egui::Area::new(egui::Id::unique("home-title")).fixed_pos(pos2(center - button.x / 2.0, rule + 96.0)).fade_in(false).constrain(false).show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 22.0);
-            let play = glass_button(ui, button, tr("home.play"), 40.0, true);
+            let play = glass_button(ui, button, tr("home-play"), 40.0, true);
             self.widgets.push(("play".into(), play.rect));
             if play.clicked() {
                 self.page = Page::Select;
             }
-            let config = glass_button(ui, button, tr("home.config"), 40.0, true);
+            let config = glass_button(ui, button, tr("home-config"), 40.0, true);
             self.widgets.push(("config".into(), config.rect));
             if config.clicked() {
                 self.open_config(Category::Interface);
             }
-            let quit = glass_button(ui, button, tr("home.quit"), 40.0, true);
+            let quit = glass_button(ui, button, tr("home-quit"), 40.0, true);
             self.widgets.push(("quit".into(), quit.rect));
             if quit.clicked() {
                 choice = Some(Choice::Quit);
@@ -79,7 +79,7 @@ impl Home {
             }
             ui.painter().text(pos2(icon_rect.max.x + 14.0, r.rect.center().y), Align2::LEFT_CENTER, name, FontId::new(28.0, ui::bold()), color);
             self.widgets.push(("language".into(), r.rect));
-            if r.on_hover_text(tr("home.language_hint")).clicked() {
+            if r.on_hover_text(tr("home-language_hint")).clicked() {
                 self.open_config(Category::Interface);
                 self.settings.flash = Some(time);
             }
@@ -97,10 +97,10 @@ impl Home {
         let painter = ink.painter;
 
         ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::accent());
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.choose"), 38.0, ui::bold(), palette::text());
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home-choose"), 38.0, ui::bold(), palette::text());
         let back_size = vec2(200.0, 60.0);
         egui::Area::new(egui::Id::unique("home-back")).fixed_pos(pos2(canvas.x - 40.0 - back_size.x, 30.0)).fade_in(false).constrain(false).show(ctx, |ui| {
-            let back = glass_button(ui, back_size, tr("home.back"), 28.0, true);
+            let back = glass_button(ui, back_size, tr("home-back"), 28.0, true);
             self.widgets.push(("back".into(), back.rect));
             if back.clicked() {
                 self.page = Page::Title;
@@ -119,7 +119,7 @@ impl Home {
         // Engines.
         let engines = investigations::engines();
         let mut new_engine = None;
-        self.column_area(ctx, "home-engines", engines_rect, tr("home.engine"), |home, ui| {
+        self.column_area(ctx, "home-engines", engines_rect, tr("home-engine"), |home, ui| {
             for (i, engine) in engines.iter().enumerate() {
                 let r = ui.add(egui::Button::selectable(i == home.engine, RichText::new(engine.name).font(FontId::new(30.0, ui::bold()))).min_size(vec2(ui.available_width(), 56.0)));
                 home.widgets.push((format!("engine:{}", engine.id), r.rect));
@@ -137,7 +137,7 @@ impl Home {
         // Features of the chosen engine, with the version each was read from.
         let features = self.features();
         let mut new_feature = None;
-        self.column_area(ctx, "home-features", features_rect, tr("home.feature"), |home, ui| {
+        self.column_area(ctx, "home-features", features_rect, tr("home-feature"), |home, ui| {
             for (i, feature) in features.iter().enumerate() {
                 // An investigation, or a series (its title, and how many parts it tells).
                 let (title, widget, first) = match feature {
@@ -150,7 +150,7 @@ impl Home {
                     new_feature = Some(i);
                 }
                 if let Feature::Series(s) = feature {
-                    ui.label(RichText::new(tr_with("home.series_parts", args!(count = s.parts.len()))).color(palette::text_dim()));
+                    ui.label(RichText::new(tr_with("home-series_parts", args!(count = s.parts.len()))).color(palette::text_dim()));
                 }
                 let engine = &first.sources().engine;
                 let commit = engine.commit.get(..8).unwrap_or(&engine.commit);
@@ -179,7 +179,7 @@ impl Home {
                         ui.set_width(width);
                         ui.set_max_width(width);
                         ui.spacing_mut().item_spacing.y = 2.0;
-                        let heading = tr_with("home.part_of", args!(number = index + 1, count = series.parts.len(), series = series.title_in(language)));
+                        let heading = tr_with("home-part_of", args!(number = index + 1, count = series.parts.len(), series = series.title_in(language)));
                         ui.add(egui::Label::new(RichText::new(heading).font(FontId::new(24.0, ui::bold())).color(palette::accent())).wrap()).on_hover_text(series.summary_in(language));
                         ui.add_space(4.0);
                         for (k, investigation) in parts_of(series).into_iter().enumerate() {
@@ -192,7 +192,7 @@ impl Home {
                         }
                         if index + 1 < series.parts.len() {
                             ui.add_space(4.0);
-                            let r = ui.checkbox(&mut home.continue_parts, RichText::new(tr("home.continue_parts")).size(24.0));
+                            let r = ui.checkbox(&mut home.continue_parts, RichText::new(tr("home-continue_parts")).size(24.0));
                             home.widgets.push(("continue-parts".into(), r.rect));
                         }
                     }));
@@ -217,17 +217,17 @@ impl Home {
                 ui.spacing_mut().item_spacing.x = 16.0;
                 let first = rows.get(edition).filter(|r| r.summary.is_ok());
                 let button = vec2((ui.available_width() - 32.0) / 3.0, 64.0);
-                let watch = glass_button(ui, button, tr("home.watch_the_narrated_video"), 28.0, first.is_some());
+                let watch = glass_button(ui, button, tr("home-watch_the_narrated_video"), 28.0, first.is_some());
                 home.widgets.push(("watch".into(), watch.rect));
                 if let (true, Some(row)) = (watch.clicked(), first) {
                     choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0, continue_parts: home.continue_parts });
                 }
-                let explore = glass_button(ui, button, tr("home.explore_the_demonstrations"), 28.0, true);
+                let explore = glass_button(ui, button, tr("home-explore_the_demonstrations"), 28.0, true);
                 home.widgets.push(("explore".into(), explore.rect));
                 if explore.clicked() {
                     choice = Some(Choice::Explore { investigation: chosen });
                 }
-                let experiment = glass_button(ui, button, tr("home.experiment_with_the_algorithm"), 28.0, true);
+                let experiment = glass_button(ui, button, tr("home-experiment_with_the_algorithm"), 28.0, true);
                 home.widgets.push(("experiment".into(), experiment.rect));
                 if experiment.clicked() {
                     choice = Some(Choice::Experiment { investigation: chosen });
@@ -240,24 +240,24 @@ impl Home {
                 // The first few of a list; the knowledge graph has the rest.
                 const SHOWN: usize = 8;
                 let names = |list: &[usize]| {
-                    let mut text = list.iter().take(SHOWN).map(|&i| graph.nodes[i].title.as_str()).collect::<Vec<_>>().join(tr("knowledge.separator"));
+                    let mut text = list.iter().take(SHOWN).map(|&i| graph.nodes[i].title.as_str()).collect::<Vec<_>>().join(tr("knowledge-separator"));
                     if list.len() > SHOWN {
-                        text += &tr_with("home.prerequisites_more", args!(count = list.len() - SHOWN));
+                        text += &tr_with("home-prerequisites_more", args!(count = list.len() - SHOWN));
                     }
                     text
                 };
                 ui.add_space(14.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(tr("home.prerequisites")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
-                    let open = ui.button(RichText::new(tr("home.knowledge_graph")).size(24.0)).on_hover_text(tr("home.knowledge_graph_hint"));
+                    ui.label(RichText::new(tr("home-prerequisites")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
+                    let open = ui.button(RichText::new(tr("home-knowledge_graph")).size(24.0)).on_hover_text(tr("home-knowledge_graph_hint"));
                     home.widgets.push(("knowledge".into(), open.rect));
                     if open.clicked() {
                         home.knowledge = true;
                     }
                 });
-                ui.add(egui::Label::new(RichText::new(tr_with("home.prerequisites_level", args!(topics = names(&p.level)))).color(palette::text())).wrap());
+                ui.add(egui::Label::new(RichText::new(tr_with("home-prerequisites_level", args!(topics = names(&p.level)))).color(palette::text())).wrap());
                 let known = p.known.iter().filter(|k| **k).count();
-                ui.add(egui::Label::new(RichText::new(tr_with("home.prerequisites_known", args!(count = known, topics = names(&p.carried())))).color(palette::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new(tr_with("home-prerequisites_known", args!(count = known, topics = names(&p.carried())))).color(palette::text_dim())).wrap());
             }
             ui.add_space(18.0);
             let width = ui.available_width();
@@ -268,7 +268,7 @@ impl Home {
                     // With several editions, a picker; the chapters and Watch follow it.
                     if rows.len() > 1 {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(tr("home.edition")).color(palette::text_dim()));
+                            ui.label(RichText::new(tr("home-edition")).color(palette::text_dim()));
                             for (i, row) in rows.iter().enumerate() {
                                 let r = ui.selectable_label(i == edition, RichText::new(&row.info.edition).font(FontId::new(24.0, ui::bold())));
                                 home.widgets.push((format!("edition:{}", row.info.id), r.rect));
@@ -284,9 +284,9 @@ impl Home {
                             Ok((title, length, chapters, narrated)) => {
                                 ui.label(RichText::new(format!("{title} · {length}")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
                                 if !narrated {
-                                    ui.label(RichText::new(tr("home.no_narration")).color(palette::text_faint()));
+                                    ui.label(RichText::new(tr("home-no_narration")).color(palette::text_faint()));
                                 }
-                                ui.label(RichText::new(tr("home.start_from_a_chapter")).color(palette::text_dim()));
+                                ui.label(RichText::new(tr("home-start_from_a_chapter")).color(palette::text_dim()));
                                 for (number, label, frame) in chapters {
                                     let r = ui.add(egui::Button::new(RichText::new(format!("{number:02}  {label}"))).frame(false).truncate());
                                     home.widgets.push((format!("chapter:{number}"), r.rect));
@@ -297,7 +297,7 @@ impl Home {
                             }
                             Err(e) => {
                                 ui.label(RichText::new(&row.info.title).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
-                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", tr("home.not_built_yet"))).color(palette::text_faint())).wrap());
+                                ui.add(egui::Label::new(RichText::new(format!("{} {e}", tr("home-not_built_yet"))).color(palette::text_faint())).wrap());
                             }
                         }
                         ui.add_space(10.0);
@@ -305,7 +305,7 @@ impl Home {
                 });
                 // The demonstrations, with their keys in the viewer.
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(tr("home.demonstrations")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
+                    ui.label(RichText::new(tr("home-demonstrations")).font(FontId::new(24.0, ui::bold())).color(palette::accent()));
                     const KEYS: [&str; 12] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "−", "="];
                     for (i, demo) in chosen.demos().iter().enumerate() {
                         ui.add(egui::Label::new(RichText::new(format!("{}  {}", KEYS.get(i).unwrap_or(&" "), chosen.demo_title(*demo))).color(palette::text_dim())).truncate());
@@ -313,7 +313,7 @@ impl Home {
                 });
             });
         });
-        let footer = tr("home.esc_hint");
+        let footer = tr("home-esc_hint");
         ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::text_faint());
 
         if let Some(e) = new_engine {
@@ -363,7 +363,7 @@ impl Home {
         }
         let trying = self.settings.trial.is_some();
         ink.text(pos2(40.0, 20.0), Align2::LEFT_TOP, "RENDER LAB", 24.0, ui::bold(), palette::accent());
-        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home.config"), 38.0, ui::bold(), palette::text());
+        ink.text(pos2(38.0, 52.0), Align2::LEFT_TOP, tr("home-config"), 38.0, ui::bold(), palette::text());
         // The card's top; it grows to fit what it holds (the path at its foot may wrap).
         let card = Rect::from_min_size(pos2(canvas.x / 2.0 - 620.0, canvas.y * 0.53 - 410.0), vec2(1240.0, 820.0));
         let inner = card.shrink2(vec2(48.0, 34.0));
@@ -408,7 +408,7 @@ impl Home {
                         let pending = &mut settings.pending;
                         match settings.category {
                             Category::Interface => {
-                                heading(ui, tr("home.language"));
+                                heading(ui, tr("home-language"));
                                 let (row, restore) = option_row(ui, widgets, "language", pending.language != defaults.language, defaults.language.name(), !trying, |ui, widgets| {
                                     ui.spacing_mut().item_spacing.x = 12.0;
                                     for locale in Locale::ALL {
@@ -425,12 +425,12 @@ impl Home {
                                 if let Some(alpha) = flash {
                                     ui.painter().rect_stroke(row.expand2(vec2(28.0, 8.0)), CornerRadius::same(12), Stroke::new(3.0, palette::accent().gamma_multiply(alpha)), StrokeKind::Outside);
                                 }
-                                hint(ui, tr("home.language_hint"));
+                                hint(ui, tr("home-language_hint"));
 
-                                heading(ui, tr("home.listing_style"));
+                                heading(ui, tr("home-listing_style"));
                                 let style_name = |style: crate::pseudocode::Style| match style {
-                                    crate::pseudocode::Style::Text => tr("home.listing_style_text"),
-                                    crate::pseudocode::Style::Blocks => tr("home.listing_style_blocks"),
+                                    crate::pseudocode::Style::Text => tr("home-listing_style_text"),
+                                    crate::pseudocode::Style::Blocks => tr("home-listing_style_blocks"),
                                 };
                                 let (_, restore) = option_row(ui, widgets, "listing_style", pending.listing_style != defaults.listing_style, style_name(defaults.listing_style), !trying, |ui, widgets| {
                                     ui.spacing_mut().item_spacing.x = 12.0;
@@ -445,9 +445,9 @@ impl Home {
                                 if restore {
                                     pending.listing_style = defaults.listing_style;
                                 }
-                                hint(ui, tr("home.listing_style_hint"));
+                                hint(ui, tr("home-listing_style_hint"));
 
-                                heading(ui, tr("home.theme"));
+                                heading(ui, tr("home-theme"));
                                 let themes = &settings.themes;
                                 let name = |id: &str| themes.iter().find(|t| t.id == id).map_or(id.to_string(), |t| t.name.clone());
                                 let (_, restore) = option_row(ui, widgets, "theme", pending.theme != defaults.theme, &name(&defaults.theme), !trying, |ui, widgets| {
@@ -466,7 +466,7 @@ impl Home {
                                 if restore {
                                     pending.theme = defaults.theme.clone();
                                 }
-                                ui.add(egui::Label::new(RichText::new(tr("home.theme_hint")).color(palette::text_dim())).wrap());
+                                ui.add(egui::Label::new(RichText::new(tr("home-theme_hint")).color(palette::text_dim())).wrap());
                                 let folders = theme::dirs().iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join("\n");
                                 ui.add(egui::Label::new(RichText::new(folders).color(palette::text_faint())).wrap());
                                 ui.add_space(24.0);
@@ -475,20 +475,20 @@ impl Home {
                                 }
                             }
                             Category::Render => {
-                                heading(ui, tr("home.display"));
+                                heading(ui, tr("home-display"));
                                 let (_, restore) = option_row(ui, widgets, "fullscreen", pending.fullscreen != defaults.fullscreen, on_off(defaults.fullscreen), !trying, |ui, widgets| {
-                                    let r = ui.checkbox(&mut pending.fullscreen, RichText::new(tr("home.full_screen")).font(FontId::new(30.0, ui::bold())));
+                                    let r = ui.checkbox(&mut pending.fullscreen, RichText::new(tr("home-full_screen")).font(FontId::new(30.0, ui::bold())));
                                     widgets.push(("option:fullscreen".into(), r.rect));
                                 });
                                 if restore {
                                     pending.fullscreen = defaults.fullscreen;
                                 }
-                                hint(ui, tr("home.full_screen_hint"));
-                                hint(ui, tr("home.render_hint"));
+                                hint(ui, tr("home-full_screen_hint"));
+                                hint(ui, tr("home-render_hint"));
                             }
                             Category::Audio => {
-                                heading(ui, tr("home.volume"));
-                                for (name, label, volume, default) in [("music", tr("home.music"), &mut pending.music, defaults.music), ("narration", tr("home.narration"), &mut pending.narration, defaults.narration)] {
+                                heading(ui, tr("home-volume"));
+                                for (name, label, volume, default) in [("music", tr("home-music"), &mut pending.music, defaults.music), ("narration", tr("home-narration"), &mut pending.narration, defaults.narration)] {
                                     let (_, restore) = option_row(ui, widgets, name, *volume != default, &format!("{} %", default.percent), !trying, |ui, widgets| {
                                         let (rect, _) = ui.allocate_exact_size(vec2(240.0, 48.0), Sense::hover());
                                         ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, label, FontId::new(30.0, ui::bold()), palette::text());
@@ -500,7 +500,7 @@ impl Home {
                                         *volume = default;
                                     }
                                 }
-                                hint(ui, tr("home.audio_hint"));
+                                hint(ui, tr("home-audio_hint"));
                             }
                         }
                     });
@@ -513,8 +513,8 @@ impl Home {
                         ui.spacing_mut().item_spacing.x = 18.0;
                         let size = vec2((inner.width() - 36.0) / 3.0, 72.0);
                         // Save and Apply only when something changed; otherwise Return.
-                        let first = if changed { ("save", tr("home.save_and_apply")) } else { ("return", tr("home.return")) };
-                        [first, ("discard", tr("home.discard")), ("defaults", tr("home.restore_defaults"))].map(|(name, label)| {
+                        let first = if changed { ("save", tr("home-save_and_apply")) } else { ("return", tr("home-return")) };
+                        [first, ("discard", tr("home-discard")), ("defaults", tr("home-restore_defaults"))].map(|(name, label)| {
                             let r = glass_button(ui, size, label, 30.0, !trying);
                             widgets.push((name.into(), r.rect));
                             r.clicked()
@@ -534,25 +534,25 @@ impl Home {
                 }
                 if reset {
                     self.settings.pending = Config::default();
-                    self.settings.message = Some(tr("home.defaults_shown").to_string());
+                    self.settings.message = Some(tr("home-defaults_shown").to_string());
                 }
                 ui.add_space(24.0);
                 if self.settings.pending != self.settings.saved {
-                    ui.label(RichText::new(tr("home.unsaved_changes")).color(palette::accent()));
+                    ui.label(RichText::new(tr("home-unsaved_changes")).color(palette::accent()));
                 }
                 if let Some(message) = &self.settings.message {
                     ui.add(egui::Label::new(RichText::new(message).color(palette::text_dim())).wrap());
                 }
                 let stored = match &self.settings.path {
-                    Some(path) => format!("{} {}", tr("home.stored_in"), path.display()),
-                    None => tr("home.no_config_dir").to_string(),
+                    Some(path) => format!("{} {}", tr("home-stored_in"), path.display()),
+                    None => tr("home-no_config_dir").to_string(),
                 };
                 ui.add(egui::Label::new(RichText::new(stored).color(palette::text_faint())).wrap());
             });
         });
         // The background layer is drawn under every area, so the card can follow its content.
         glass_panel(ink.painter, Rect::from_min_max(card.min, pos2(card.max.x, area.response.rect.max.y + 34.0)), 24, true);
-        let footer = if trying { tr("home.esc_restores") } else { tr("home.esc_discards") };
+        let footer = if trying { tr("home-esc_restores") } else { tr("home-esc_discards") };
         ink.text(pos2(40.0, canvas.y - 58.0), Align2::LEFT_TOP, footer, 24.0, FontFamily::Proportional, palette::text_faint());
 
         // The countdown popup, above everything else on the page.
@@ -564,8 +564,8 @@ impl Home {
             let popup = Rect::from_center_size(pos2(canvas.x / 2.0, canvas.y * 0.5), vec2(820.0, 360.0));
             painter.rect_filled(popup, CornerRadius::same(22), palette::theme().popup);
             painter.rect_stroke(popup, CornerRadius::same(22), Stroke::new(2.0, palette::accent()), StrokeKind::Inside);
-            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, tr("home.keep_these_settings"), FontId::new(38.0, ui::bold()), palette::text());
-            let countdown = tr_with("home.countdown", args!(seconds = left));
+            painter.text(pos2(popup.center().x, popup.min.y + 44.0), Align2::CENTER_TOP, tr("home-keep_these_settings"), FontId::new(38.0, ui::bold()), palette::text());
+            let countdown = tr_with("home-countdown", args!(seconds = left));
             painter.text(pos2(popup.center().x, popup.min.y + 110.0), Align2::CENTER_TOP, countdown, FontId::new(28.0, FontFamily::Proportional), palette::text_dim());
             let size = vec2(300.0, 72.0);
             let row = Rect::from_center_size(pos2(popup.center().x, popup.max.y - 80.0), vec2(size.x * 2.0 + 24.0, size.y));
@@ -573,10 +573,10 @@ impl Home {
             let mut restore = false;
             ui.scope_builder(egui::UiBuilder::new().max_rect(row).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
                 ui.spacing_mut().item_spacing.x = 24.0;
-                let apply = glass_button(ui, size, tr("home.apply"), 32.0, true);
+                let apply = glass_button(ui, size, tr("home-apply"), 32.0, true);
                 self.widgets.push(("trial:apply".into(), apply.rect));
                 keep = apply.clicked();
-                let back = glass_button(ui, size, tr("home.restore"), 32.0, true);
+                let back = glass_button(ui, size, tr("home-restore"), 32.0, true);
                 self.widgets.push(("trial:restore".into(), back.rect));
                 restore = back.clicked();
             });
@@ -600,11 +600,11 @@ impl Home {
             painter.rect_filled(full, CornerRadius::ZERO, palette::background());
             // The title, the message, then Exit and Continue, centred as one column.
             let width = 1080.0f32.min(canvas.x - 160.0);
-            let text = painter.layout(tr("home.pse_message").to_string(), FontId::new(30.0, FontFamily::Proportional), palette::text(), width);
+            let text = painter.layout(tr("home-pse_message").to_string(), FontId::new(30.0, FontFamily::Proportional), palette::text(), width);
             let height = 70.0 + text.size().y + 60.0 + 72.0;
             let top = ((canvas.y - height) / 2.0).max(40.0);
             let x = (canvas.x - width) / 2.0;
-            painter.text(pos2(canvas.x / 2.0, top), Align2::CENTER_TOP, tr("home.pse_title"), FontId::new(40.0, ui::bold()), palette::accent());
+            painter.text(pos2(canvas.x / 2.0, top), Align2::CENTER_TOP, tr("home-pse_title"), FontId::new(40.0, ui::bold()), palette::accent());
             let below = top + 70.0 + text.size().y;
             painter.galley(pos2(x, top + 70.0), text, palette::text());
             let size = vec2(320.0, 72.0);
@@ -613,7 +613,7 @@ impl Home {
             ui.scope_builder(egui::UiBuilder::new().max_rect(exit).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
                 // Exit: a red door with an arrow leaving it, read in any language.
                 let r = glass_button(ui, size, "", 32.0, true);
-                let label = tr("home.quit");
+                let label = tr("home-quit");
                 let font = FontId::new(32.0, ui::bold());
                 let icon = 34.0;
                 let label_width = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette::text()).size().x;
@@ -626,7 +626,7 @@ impl Home {
                 }
             });
             ui.scope_builder(egui::UiBuilder::new().max_rect(next).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
-                let r = glass_button(ui, size, tr("home.pse_continue"), 32.0, true);
+                let r = glass_button(ui, size, tr("home-pse_continue"), 32.0, true);
                 self.widgets.push(("pse:continue".into(), r.rect));
                 if r.clicked() {
                     self.pse = false;

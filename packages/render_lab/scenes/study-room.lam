@@ -130,7 +130,7 @@ $[# {_room r} {.
 The study room, seen from inside its walls.
 
 $[# studyRoom [% {_room {.
-    titleText "scene.study_room"
+    titleText "scene-study_room"
     cameraClear {#roomMargin 0.2}
     floor _half}}]]
 
@@ -138,6 +138,6 @@ The study room standing on wide grounds, its floor extended to 600 m a side, for
 room (cascades of a probe grid, say), seen from above them.
 
 $[# studyRoomGrounds [% {_room {.
-    titleText "scene.study_room_grounds"
+    titleText "scene-study_room_grounds"
     cameraClear {#above 0.1}
     floor 300.0}}]]

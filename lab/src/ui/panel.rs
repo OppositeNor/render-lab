@@ -89,7 +89,7 @@ pub(super) fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, rep
     let width = rect.width() - 44.0;
     let mut y = rect.min.y + 16.0;
     ink.text(pos2(x, y), Align2::LEFT_TOP, record.struct_name, 30.0, mono_bold(), palette::text());
-    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, tr("ui.element")), 24.0, FontFamily::Proportional, palette::text_dim());
+    ink.text(pos2(rect.max.x - 22.0, y + 4.0), Align2::RIGHT_TOP, format!("{} B / {}", layout.size, tr("ui-element")), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 42.0;
     let title = ink.fit_right(&record.title, width, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, y), Align2::LEFT_TOP, title, 24.0, FontFamily::Proportional, palette::accent());
@@ -166,7 +166,7 @@ pub(super) fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, rep
                 y += line;
             }
         } else {
-            let storage = if matches!(field.kind, FieldKind::Mat3) { tr("ui.3_cols_16_b") } else { tr("ui.4_cols_16_b") };
+            let storage = if matches!(field.kind, FieldKind::Mat3) { tr("ui-3_cols_16_b") } else { tr("ui-4_cols_16_b") };
             ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{name}  ({storage})"), 24.0, FontFamily::Monospace, palette::text());
             y += line;
             for row in &lines {
@@ -271,7 +271,7 @@ pub(super) fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::Pan
     let pads = layout.padding();
     let is_pad = |byte: usize| pads.iter().any(|(o, s, _)| byte >= *o && byte < o + s);
     let field_at = |byte: usize| layout.fields.iter().position(|f| byte >= f.offset && byte < f.offset + f.size);
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.byte_0_15"), 24.0, FontFamily::Monospace, palette::text_faint());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui-byte_0_15"), 24.0, FontFamily::Monospace, palette::text_faint());
     y += row_h;
     for r in 0..rows {
         if y + row_h > bottom - 3.0 * row_h {
@@ -312,7 +312,7 @@ pub(super) fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::Pan
     }
     y += 8.0;
     let pad_total: usize = pads.iter().map(|p| p.1).sum();
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, tr("ui.data"), pad_total), 24.0, FontFamily::Proportional, palette::text());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} B {} + {} B padding", layout.size - pad_total, tr("ui-data"), pad_total), 24.0, FontFamily::Proportional, palette::text());
     y += row_h + 2.0;
     for name in &state.highlight {
         if let (Some(f), Some(rf)) = (layout.field(name), rust.iter().find(|r| r.name == name.as_str())) {
@@ -320,8 +320,8 @@ pub(super) fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::Pan
                 break;
             }
             let text = match rf.kind {
-                FieldKind::Mat3 => format!("{name}: {} B = {}", f.size, tr("ui.3_columns_16_b")),
-                FieldKind::Mat4 => format!("{name}: {} B = {}", f.size, tr("ui.4_columns_16_b")),
+                FieldKind::Mat3 => format!("{name}: {} B = {}", f.size, tr("ui-3_columns_16_b")),
+                FieldKind::Mat4 => format!("{name}: {} B = {}", f.size, tr("ui-4_columns_16_b")),
                 _ => format!("{name}: offset {}, {} B", f.offset, f.size),
             };
             let text = ink.fit_right(&text, width, 24.0, FontFamily::Proportional);
@@ -340,10 +340,10 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
     let x = rect.min.x + 40.0;
     let width = rect.width() - 80.0;
     let mut y = rect.min.y + 28.0;
-    let heading = tr_with("ui.read_it_in", args!(engine = index.engine.name, version = index.engine.version, chapter = input.chapter_number));
+    let heading = tr_with("ui-read_it_in", args!(engine = index.engine.name, version = index.engine.version, chapter = input.chapter_number));
     ink.text(pos2(x, y), Align2::LEFT_TOP, heading, 36.0, bold(), palette::text());
     y += 50.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", tr("ui.paths_are_relative_to"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::text_dim());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, format!("{} {} · commit {}", tr("ui-paths_are_relative_to"), investigation::current().wording().checkout_dir, &index.engine.commit[..12]), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 46.0;
     for key in input.beat_sources {
         let Some(entry) = index.entries.get(key) else { continue };
@@ -369,7 +369,7 @@ pub(super) fn draw_notices_card(ink: &Ink, input: &UiInput) {
     let x = rect.min.x + 40.0;
     let width = rect.width() - 80.0;
     let mut y = rect.min.y + 28.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui.notices_title"), 36.0, bold(), palette::text());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("ui-notices_title"), 36.0, bold(), palette::text());
     y += 64.0;
     let package = investigation::current().package().unwrap_or("render_lab");
     for (text, license) in crate::resources::notices(package) {
@@ -378,7 +378,7 @@ pub(super) fn draw_notices_card(ink: &Ink, input: &UiInput) {
         }
         y = ink.wrapped(pos2(x, y), width, &text, 28.0, FontFamily::Proportional, palette::text()) + 8.0;
         if let Some(file) = license.as_ref().and_then(|f| f.file_name()).map(|f| f.to_string_lossy().into_owned()) {
-            ink.text(pos2(x, y), Align2::LEFT_TOP, tr_with("ui.notice_terms", args!(file = file)), 24.0, FontFamily::Proportional, palette::text_dim());
+            ink.text(pos2(x, y), Align2::LEFT_TOP, tr_with("ui-notice_terms", args!(file = file)), 24.0, FontFamily::Proportional, palette::text_dim());
             y += 32.0;
         }
         y += 24.0;

@@ -33,11 +33,11 @@ pub const BRDF_MAP_SAMPLES: u32 = 1024;
 #[serde(rename_all = "camelCase")]
 pub enum ViewMode {
     /// The lit result.
-    #[choice(text = "controls.final")]
+    #[choice(text = "controls-final")]
     Final,
-    #[choice(text = "controls.diffuse_lighting")]
+    #[choice(text = "controls-diffuse_lighting")]
     Diffuse,
-    #[choice(text = "controls.specular_lighting")]
+    #[choice(text = "controls-specular_lighting")]
     Specular,
     #[choice(label = "D (GGX)")]
     D,
@@ -45,35 +45,35 @@ pub enum ViewMode {
     G,
     #[choice(label = "F (Schlick)")]
     F,
-    #[choice(text = "controls.multiscatter_compensation")]
+    #[choice(text = "controls-multiscatter_compensation")]
     Multiscatter,
     #[choice(label = "diffuseResponse")]
     DiffuseResponse,
     #[choice(label = "NdotL")]
     Ndotl,
-    #[choice(text = "controls.radius_attenuation")]
+    #[choice(text = "controls-radius_attenuation")]
     Attenuation,
-    #[choice(text = "common.diffuse_ibl")]
+    #[choice(text = "common-diffuse_ibl")]
     IblDiffuse,
-    #[choice(text = "common.specular_ibl")]
+    #[choice(text = "common-specular_ibl")]
     IblSpecular,
     /// The lights in the pixel's tile and depth bin (the forward pass's list; 0 without tiles).
-    #[choice(text = "controls.lights_per_tile")]
+    #[choice(text = "controls-lights_per_tile")]
     LightCount,
     /// The reflection probes' stencil and blend weight.
-    #[choice(text = "controls.probe_stencil")]
+    #[choice(text = "controls-probe_stencil")]
     ProbeStencil,
-    #[choice(text = "controls.probe_blend_weight")]
+    #[choice(text = "controls-probe_blend_weight")]
     ProbeWeight,
     /// The upsampled SSAO, which is screen space: the CPU mirror shows the final pixel.
     #[choice(label = "SSAO")]
     Ssao,
     /// How much MSAAResolveCustom changes the specular, relative to a plain mean (heat ramp, 0 to 10 percent).
-    #[choice(text = "controls.resolve_difference")]
+    #[choice(text = "controls-resolve_difference")]
     ResolveDifference,
     /// The angle between O3DE's terrain vertex normal (per-axis, 8-bit) and
     /// the exact one, on the terrain (heat ramp, 0 to 15 degrees).
-    #[choice(text = "controls.terrain_normal_error")]
+    #[choice(text = "controls-terrain_normal_error")]
     TerrainNormalError,
 }
 

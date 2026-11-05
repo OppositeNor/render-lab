@@ -5,7 +5,7 @@
 /// 1 - roughness = 0... the texture's rows are flipped: v = 1 - roughness,
 /// so its top row is roughness 1) to smooth. The picked pixel's texel,
 /// (N.V, 1 - roughness), is ringed in both.
-/// {@ view=brdfLut entry=o3deBrdfLutView size=512,256 text=views.brdf_lut reads=normal,specularF0,depth}
+/// {@ view=brdfLut entry=o3deBrdfLutView size=512,256 text=views-brdf_lut reads=normal,specularF0,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct BrdfLutParams {
