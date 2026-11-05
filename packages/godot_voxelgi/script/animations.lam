@@ -1,0 +1,40 @@
+The VoxelGI investigation's animations
+======================================
+
+The viewer's Play animation of each demonstration (its file's `animation`): the values at the demonstration's
+time `t`, in seconds, each a sine wave about its centre (`wave center amplitude period t`).
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_voxelgi_values]
+
+VoxelGI's light faded in and out.
+$[# playMix {: {^ {t} {' {setVoxelgiMix {wave 0.5 0.5 10.0 t}}}} Animation}]
+
+The bounds' steps, one after another.
+$[# playBounds {: {^ {t} {' {setBoundsStep {wave 1.0 1.0 10.0 t}}}} Animation}]
+
+A triangle's descent through the octree's levels.
+$[# playOctree {: {^ {t} {' {setDescentLevel {wave 3.5 3.5 14.0 t}}}} Animation}]
+
+The cut through the cells rises and falls.
+$[# playCells {: {^ {t} {' {setCutHeight {wave 1.6 1.5 12.0 t}}}} Animation}]
+
+The distance field's slice rises and falls.
+$[# playField {: {^ {t} {' {setSliceHeight {wave 1.2 1.0 14.0 t}}}} Animation}]
+
+The light moves across the room.
+$[# playLight {: {^ {t} {' {setLightX {wave 0.0 2.2 14.0 t}}}} Animation}]
+
+A cone's march, sample by sample.
+$[# playBounce {: {^ {t} {' {setConeSteps {wave 8.0 8.0 12.0 t}}}} Animation}]
+
+The propagation rises and falls.
+$[# playMips {: {^ {t} {' {setPropagation {wave 0.5 0.5 12.0 t}}}} Animation}]
+
+The dynamic object moves across the room.
+$[# playDynamic {: {^ {t} {' {setDynamicX {wave 0.5 1.0 14.0 t}}}} Animation}]
+
+The worked pixel moves around the sphere.
+$[# playPixel {: {^ {t} {' {setPixelAzimuth {wave 75.0 25.0 16.0 t}}}} Animation}]
+
+The quality setting rises and falls.
+$[# playCost {: {^ {t} {' {setQuality {wave 0.5 0.5 8.0 t}}}} Animation}]

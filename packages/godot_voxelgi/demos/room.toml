@@ -7,4 +7,6 @@ hint-text = "investigation.demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "frame"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playMix"
 include = ["room-camera"]

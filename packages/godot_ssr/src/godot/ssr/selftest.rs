@@ -216,6 +216,26 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         report.check("the height field and the cross-section are views of their own: shown by their own values, each with its own camera, which moves without moving the main one", none && field && own && both, json!({"none": none, "field": field, "ownCamera": own, "both": both}));
     }
 
+    // The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves set them.
+    {
+        let mut differ = Vec::new();
+        let mut samples = 0;
+        for demo in Demo::ALL {
+            for k in 0..=80 {
+                let t = k as f32 * 0.25;
+                let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
+                let mut state = shot::for_demo(demo);
+                let written = lab::script::runtime::animate(demo.id(), t, &mut state).unwrap_or_default();
+                samples += 1;
+                let same = expected.len() == written.len() && expected.iter().all(|(name, v)| written.iter().any(|w| w == name) && (state.p(name) - v).abs() <= 1e-4 * v.abs().max(1.0));
+                if !same {
+                    differ.push(json!({"demo": demo.key(), "t": t, "rust": expected, "script": written.iter().map(|w| (w.clone(), state.p(w))).collect::<Vec<_>>()}));
+                }
+            }
+        }
+        report.check("the Play animations (script/animations.lam) set what the Rust waves set, within 1e-4, at 81 times of every demonstration", differ.is_empty(), json!({"samples": samples, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
+    }
+
     // Every demonstration builds its state.
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check("every demonstration's file loads", states_ok, json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()));
@@ -224,3 +244,20 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;
     Ok(passed)
 }
+
+/// The Play animations the Rust code had (each a wave), which script/animations.lam must reproduce.
+fn reference_clip(demo: Demo) -> lab::animation::Clip {
+    let wave = |param: &str, center: f32, amplitude: f32, period: f32| lab::animation::Motion::Wave(lab::animation::Wave::new(param, center, amplitude, period));
+    lab::animation::Clip(match demo {
+        // The floor from a mirror to the roughness where SSR stops.
+        Demo::Room => vec![wave("floorRoughness", 0.35, 0.35, 14.0)],
+        // The ray's iterations, one after another.
+        Demo::Trace => vec![wave("traceStep", 16.0, 16.0, 16.0)],
+        Demo::Inputs => vec![wave("pickX", 255.0, 120.0, 16.0)],
+        Demo::Pyramid => vec![wave("hizLevel", 4.5, 4.5, 16.0)],
+        Demo::Hit => vec![wave("ssrFadeOut", 2.5, 1.5, 14.0)],
+        Demo::Blur => vec![wave("floorRoughness", 0.35, 0.33, 14.0)],
+        Demo::Compose => vec![wave("ssrComposeStep", 1.5, 1.5, 12.0)],
+    })
+}
+

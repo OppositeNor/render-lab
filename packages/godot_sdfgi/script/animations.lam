@@ -1,0 +1,38 @@
+The SDFGI investigation's animations
+====================================
+
+The viewer's Play animation of each demonstration (its file's `animation`): the values at the demonstration's
+time `t`, in seconds, each a sine wave about its centre (`wave center amplitude period t`).
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_sdfgi_values]
+
+SDFGI's simulated camera walk, `cameraX`: the values package names `setCameraX` after the orbit camera's
+`camera.x`, so this writes the investigation's own value by its key.
+$[# {_setWalk x} {: {. key "cameraX" value {toData {: x Float}}} Write}]
+
+SDFGI's light faded in and out.
+$[# playMix {: {^ {t} {' {setSdfgiMix {wave 0.5 0.5 10.0 t}}}} Animation}]
+
+The camera walks along x, so cascade 0 jumps one probe each 1.6 m.
+$[# playWalk {: {^ {t} {' {_setWalk {wave 0.0 4.0 20.0 t}}}} Animation}]
+
+The cut through the voxels rises and falls.
+$[# playVoxels {: {^ {t} {' {setCutHeight {wave 2.0 2.0 12.0 t}}}} Animation}]
+
+The distance field's slice rises and falls.
+$[# playField {: {^ {t} {' {setSliceHeight {wave 1.2 1.0 14.0 t}}}} Animation}]
+
+The occlusion's shells, one after another.
+$[# playOcclusion {: {^ {t} {' {setOcclusionShell {wave 11.0 11.0 12.0 t}}}} Animation}]
+
+The light moves across the room.
+$[# playLight {: {^ {t} {' {setLightX {wave 0.0 2.6 14.0 t}}}} Animation}]
+
+The probes' rays, frame after frame.
+$[# playProbes {: {^ {t} {' {setRayFrames {wave 15.0 15.0 16.0 t}}}} Animation}]
+
+The maps converge, frame after frame.
+$[# playMaps {: {^ {t} {' {setFrames {wave 30.0 30.0 16.0 t}}}} Animation}]
+
+The worked pixel moves along the floor.
+$[# playPixel {: {^ {t} {' {setPixelZ {wave 0.0 2.6 16.0 t}}}} Animation}]

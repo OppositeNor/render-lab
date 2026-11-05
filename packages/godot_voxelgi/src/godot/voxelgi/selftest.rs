@@ -553,6 +553,26 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
 
+    // The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves set them.
+    {
+        let mut differ = Vec::new();
+        let mut samples = 0;
+        for demo in Demo::ALL {
+            for k in 0..=80 {
+                let t = k as f32 * 0.25;
+                let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
+                let mut state = shot::for_demo(demo);
+                let written = lab::script::runtime::animate(demo.id(), t, &mut state).unwrap_or_default();
+                samples += 1;
+                let same = expected.len() == written.len() && expected.iter().all(|(name, v)| written.iter().any(|w| w == name) && (state.p(name) - v).abs() <= 1e-4 * v.abs().max(1.0));
+                if !same {
+                    differ.push(json!({"demo": demo.key(), "t": t, "rust": expected, "script": written.iter().map(|w| (w.clone(), state.p(w))).collect::<Vec<_>>()}));
+                }
+            }
+        }
+        report.check("the Play animations (script/animations.lam) set what the Rust waves set, within 1e-4, at 81 times of every demonstration", differ.is_empty(), json!({"samples": samples, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
+    }
+
     let passed = report.passed();
     std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?)?;
     let _ = NODE;
@@ -564,3 +584,22 @@ fn demos_leaf(p: Vec3) -> Option<usize> {
     let w = world::world();
     super::demos::nearest_leaf(&w.probe, super::demos::leaf_of(&w.probe, p)).map(|c| c.0)
 }
+
+/// The Play animations the Rust code had (each a wave), which script/animations.lam must reproduce.
+fn reference_clip(demo: Demo) -> lab::animation::Clip {
+    let wave = |param: &str, center: f32, amplitude: f32, period: f32| lab::animation::Motion::Wave(lab::animation::Wave::new(param, center, amplitude, period));
+    lab::animation::Clip(match demo {
+        Demo::Room | Demo::Compose => vec![wave("voxelgiMix", 0.5, 0.5, 10.0)],
+        Demo::Bounds => vec![wave("boundsStep", 1.0, 1.0, 10.0)],
+        Demo::Octree => vec![wave("descentLevel", 3.5, 3.5, 14.0)],
+        Demo::Cells => vec![wave("cutHeight", 1.6, 1.5, 12.0)],
+        Demo::Field => vec![wave("sliceHeight", 1.2, 1.0, 14.0)],
+        Demo::Light => vec![wave("lightX", 0.0, 2.2, 14.0)],
+        Demo::Bounce => vec![wave("coneSteps", 8.0, 8.0, 12.0)],
+        Demo::Mips => vec![wave("propagation", 0.5, 0.5, 12.0)],
+        Demo::Dynamic => vec![wave("dynamicX", 0.5, 1.0, 14.0)],
+        Demo::Pixel => vec![wave("pixelAzimuth", 75.0, 25.0, 16.0)],
+        Demo::Cost => vec![wave("quality", 0.5, 0.5, 8.0)],
+    })
+}
+

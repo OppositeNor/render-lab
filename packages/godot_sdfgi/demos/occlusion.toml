@@ -7,6 +7,8 @@ hint-text = "investigation.demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "occlusion"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playOcclusion"
 include = ["top-camera"]
 
 [params]

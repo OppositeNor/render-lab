@@ -7,6 +7,8 @@ hint-text = "hints.pyramid_demo"
 scene = "render_lab.scene/study-room"
 listing = "pyramid"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playPyramid"
 include = ["room-camera"]
 
 [params]
