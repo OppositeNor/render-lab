@@ -255,7 +255,7 @@ pub fn shading_data() -> Vec<[f32; 4]> {
         q[..b.len()].copy_from_slice(b);
         u32::from_le_bytes(q)
     }).collect();
-    while words.len() % 4 != 0 {
+    while !words.len().is_multiple_of(4) {
         words.push(0);
     }
     let layout = data_layout();

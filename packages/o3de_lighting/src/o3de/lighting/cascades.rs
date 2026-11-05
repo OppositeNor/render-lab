@@ -94,6 +94,7 @@ pub struct LightFrame {
     pub z: Vec3,
 }
 
+#[allow(clippy::wrong_self_convention)] // maps between the light's frame and the world
 impl LightFrame {
     pub fn new(direction: Vec3) -> LightFrame {
         let y = direction.normalize();

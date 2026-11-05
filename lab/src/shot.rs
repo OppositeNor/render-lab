@@ -985,10 +985,8 @@ fn check_image(key: &Cue, instances: &mut BTreeMap<String, &'static crate::views
     if key.image_show.is_some() {
         return Err(format!("imageShow draws a graph image; `{name}` is not one (make it with imageGraph=<node>.<resource>)"));
     }
-    if let Some(click) = &key.image_click {
-        if !crate::script::runtime::click_handlers().iter().any(|h| h == click) {
-            investigation::current().actions().check_click(click)?;
-        }
+    if let Some(click) = &key.image_click && !crate::script::runtime::click_handlers().iter().any(|h| h == click) {
+        investigation::current().actions().check_click(click)?;
     }
     let package = investigation::current().package().unwrap_or("render_lab");
     if let Some(from) = &key.image_from {

@@ -71,6 +71,7 @@ pub fn shared_exponent(light: Vec3) -> ([u32; 3], u32) {
     const POW2TO9: f32 = 512.0;
     const B: f32 = 15.0;
     const NB: f32 = 9.0;
+    #[allow(clippy::approx_constant)] // the engine's literal
     const LN2: f32 = 0.693_147_2;
     let c = light.clamp(Vec3::ZERO, Vec3::splat(65408.0));
     let c_max = c.max_element();
@@ -481,10 +482,8 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                                             continue;
                                         }
                                         let np = pos + IVec3::new(i, j, k);
-                                        if inside(np) {
-                                            if seed_cell(seeds[index(np)]) == pos {
-                                                neighbours |= 1 << bit;
-                                            }
+                                        if inside(np) && seed_cell(seeds[index(np)]) == pos {
+                                            neighbours |= 1 << bit;
                                         }
                                         bit += 1;
                                     }

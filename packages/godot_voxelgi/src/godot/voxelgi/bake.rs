@@ -624,7 +624,7 @@ pub fn room_meshes(scene: &lab::scene::Scene, meshes: &lab::scene::Meshes, node:
         let normal_xform = Mat3::from_mat4(xf).inverse().transpose();
         let range = meshes.ranges[k].clone();
         let idx = &meshes.indices[range.start as usize..range.end as usize];
-        let triangles = idx.chunks_exact(3).map(|t| {
+        let triangles = idx.as_chunks::<3>().0.iter().map(|t| {
             let v = |i: u32| meshes.vertices[i as usize];
             let vtx = [0, 1, 2].map(|j| xf.transform_point3(Vec3::from(v(t[j]).position)));
             let normal = [0, 1, 2].map(|j| normalized(normal_xform * Vec3::from(v(t[j]).normal)));

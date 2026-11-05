@@ -90,8 +90,9 @@ macro_rules! negotiate {
                 return ERROR_ABI;
             }
             $(
+                let handle = ($handle) as *const ::core::ffi::c_void;
                 // SAFETY: the loader's function, with its own map, and a NUL-terminated name.
-                let code = unsafe { (n.register)(n.map, concat!($name, "\0").as_ptr().cast(), ($handle) as *const ::core::ffi::c_void) };
+                let code = unsafe { (n.register)(n.map, concat!($name, "\0").as_ptr().cast(), handle) };
                 if code != NEGOTIATED {
                     return code;
                 }

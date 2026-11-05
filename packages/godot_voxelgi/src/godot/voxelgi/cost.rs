@@ -37,6 +37,7 @@ pub fn steps_cone(tan_half_angle: f32, bias: f32, max_distance: f32) -> usize {
 
 /// The reflection cone's half-angle tangent at a material's roughness
 /// (process_gi squares it; voxel_gi_compute's `tan(roughness * 0.5 * M_PI * 0.99)`).
+#[allow(clippy::approx_constant)] // the engine's literal
 pub fn spec_tan(roughness: f32) -> f32 {
     (roughness * roughness * 0.5 * 3.141592 * 0.99).tan()
 }

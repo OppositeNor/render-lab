@@ -144,7 +144,7 @@ impl Timing {
                 continue;
             }
             let ticks: Vec<u64> = match slot.buffer.slice(..).get_mapped_range() {
-                Ok(data) => data.chunks_exact(8).take(slot.labels.len() * 2).map(|c| u64::from_le_bytes(c.try_into().expect("8 bytes"))).collect(),
+                Ok(data) => data.as_chunks::<8>().0.iter().take(slot.labels.len() * 2).map(|c| u64::from_le_bytes(*c)).collect(),
                 Err(_) => Vec::new(),
             };
             slot.buffer.unmap();

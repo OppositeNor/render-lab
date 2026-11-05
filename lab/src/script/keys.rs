@@ -73,13 +73,14 @@ fn merge(into: &mut BTreeMap<String, &'static str>, key: String, kind: &'static 
 /// values. Three are named apart from their attribute, where `content` and `present` already have the name
 /// (`code`, `image`, `animate`), and `ease` too, whose options would be `present`'s easings.
 fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
-    let mut out = Vec::new();
-    out.push(options("listing", "code", investigation.listings().iter().map(|l| l.name.to_string())));
-    out.push(options("panel", "panel", names(&crate::shot::PanelMode::ALL)));
-    out.push(options("demo", "demo", investigation.demos().iter().map(|d| d.key().to_string())));
-    out.push(options("easing", "ease", names(&crate::animation::Ease::ALL)));
-    out.push(options("inset", "image", investigation.images().iter().map(|i| i.key.to_string())));
-    out.push(options("imageCorner", "imageCorner", names(&crate::utility::inset::Corner::ALL)));
+    let mut out = vec![
+        options("listing", "code", investigation.listings().iter().map(|l| l.name.to_string())),
+        options("panel", "panel", names(&crate::shot::PanelMode::ALL)),
+        options("demo", "demo", investigation.demos().iter().map(|d| d.key().to_string())),
+        options("easing", "ease", names(&crate::animation::Ease::ALL)),
+        options("inset", "image", investigation.images().iter().map(|i| i.key.to_string())),
+        options("imageCorner", "imageCorner", names(&crate::utility::inset::Corner::ALL)),
+    ];
     let package = investigation.package().unwrap_or("render_lab");
     let kinds = crate::views::kinds(package).map_err(|e| e.to_string())?;
     out.push(options("imageFrom", "imageFrom", kinds.iter().map(|k| k.key.to_string())));

@@ -57,6 +57,7 @@ pub fn downsample(full: &Image) -> Image {
 }
 
 const LOCAL_SAMPLES: [[i32; 2]; 12] = [[0, -4], [-4, 0], [4, 0], [0, 4], [-4, -4], [4, -4], [-4, 4], [4, 4], [0, -8], [-8, 0], [8, 0], [0, 8]];
+#[allow(clippy::approx_constant, clippy::excessive_precision)] // the engine's literal
 const OUTER_SAMPLE_ANGLE: f32 = 2.0 * 3.14159265 / 10.0;
 
 /// GetViewSpacePosition with m_unprojectionConstants from the tangents of half the fields of view.

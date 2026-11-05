@@ -233,7 +233,7 @@ pub fn light_at_pos(probe: &Probe, params: &Params, light: &Light, pos: Vec3, no
         light_pos = to - light_dir * distance;
         let mut steps = Vec::new();
         let occlusion = raymarch(probe, distance, distance_adv, light_pos, light_dir, trace.is_some().then_some(&mut steps));
-        if let Some(t) = trace.as_deref_mut() {
+        if let Some(t) = trace {
             t.march_start = Some(light_pos);
             t.march_end = Some(to);
             t.steps = steps;

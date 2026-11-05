@@ -972,10 +972,8 @@ impl App {
         let uv = ((point - picture.min) / picture.size()).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
         let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
         // The scripts' handler of that name, else the investigation's code's.
-        if crate::script::runtime::click(handler, &mut frame).is_none() {
-            if let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
-                eprintln!("click on an image: {e}");
-            }
+        if crate::script::runtime::click(handler, &mut frame).is_none() && let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
+            eprintln!("click on an image: {e}");
         }
     }
 
@@ -1093,10 +1091,8 @@ impl App {
         if let Some(key) = key {
             self.egui_events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: event.repeat, modifiers: self.modifiers });
         }
-        if let (true, Some(text)) = (pressed, &event.text) {
-            if !text.chars().any(char::is_control) {
-                self.egui_events.push(egui::Event::Text(text.to_string()));
-            }
+        if let (true, Some(text)) = (pressed, &event.text) && !text.chars().any(char::is_control) {
+            self.egui_events.push(egui::Event::Text(text.to_string()));
         }
     }
 
@@ -1191,12 +1187,12 @@ impl App {
         self.last_tick = now;
         // Live reload: about twice a second, the checkout's WGSL files changed since are read
         // again and every pipeline made from them (a broken edit keeps the last good ones).
-        if self.frames % 30 == 0 && self.renderer.is_some() {
+        if self.frames.is_multiple_of(30) && let Some(renderer) = self.renderer.as_mut() {
             let changed = crate::resources::reload_changed();
             if !changed.is_empty() {
                 use crate::i18n::{args, tr_with};
                 let files: Vec<String> = changed.iter().map(|id| crate::resources::get(id).source().rsplit('/').next().unwrap_or_default().to_string()).collect();
-                self.shader_reload = Some(match self.renderer.as_mut().expect("renderer").reload_shaders() {
+                self.shader_reload = Some(match renderer.reload_shaders() {
                     Ok(()) => (tr_with("graph.reloaded", args!(files = files.join(", "))), false, now),
                     Err(e) => (tr_with("graph.reload_failed", args!(error = e)), true, now),
                 });
@@ -1612,10 +1608,8 @@ impl ApplicationHandler for App {
                 if self.renderer().egui_ctx.egui_wants_keyboard_input() {
                     // A slider's value is being typed: the keys belong to it.
                     self.egui_key(&event);
-                } else if event.state == ElementState::Pressed && !event.repeat {
-                    if let PhysicalKey::Code(code) = event.physical_key {
-                        self.key(code, Some(event_loop));
-                    }
+                } else if event.state == ElementState::Pressed && !event.repeat && let PhysicalKey::Code(code) = event.physical_key {
+                    self.key(code, Some(event_loop));
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -1667,10 +1661,8 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
     if let Some(e) = app.error.take() {
         return Err(e);
     }
-    if let Some(test) = app.autotest.take() {
-        if !test.finish()? {
-            anyhow::bail!("viewer autotest failed; see {}", test.report().display());
-        }
+    if let Some(test) = app.autotest.take() && !test.finish()? {
+        anyhow::bail!("viewer autotest failed; see {}", test.report().display());
     }
     Ok((app.exit, app.narration, app.layout))
 }

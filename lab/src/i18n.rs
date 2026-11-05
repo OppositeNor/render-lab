@@ -215,10 +215,8 @@ pub fn object_name(name: &str) -> String {
         ("none", tr("object.none")),
     ];
     for (en, zh) in objects {
-        if let Some(rest) = name.strip_prefix(en) {
-            if rest.is_empty() || rest.starts_with(' ') {
-                return format!("{zh}{rest}");
-            }
+        if let Some(rest) = name.strip_prefix(en) && (rest.is_empty() || rest.starts_with(' ')) {
+            return format!("{zh}{rest}");
         }
     }
     name.to_string()

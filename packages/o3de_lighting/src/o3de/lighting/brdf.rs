@@ -12,7 +12,9 @@ use glam::{Vec2, Vec3};
 use std::sync::OnceLock;
 
 /// Atom/RPI/Math.azsli.
+#[allow(clippy::approx_constant, clippy::excessive_precision)] // the engine's literal
 pub const PI: f32 = 3.14159265;
+#[allow(clippy::approx_constant)] // the engine's literal
 pub const INV_PI: f32 = 0.31830988;
 pub const GGX_EPSILON: f32 = 1e-8;
 /// MaterialUtils.azsli.

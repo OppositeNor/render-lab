@@ -69,6 +69,7 @@ fn levels(i: &ProgramImage, size: [u32; 3]) -> u32 {
 }
 
 /// An image's size for a view of `viewport` pixels.
+#[allow(clippy::manual_checked_ops)] // a fixed size or a fraction of the view, not a failed division
 fn image_size(i: &ProgramImage, viewport: [u32; 2]) -> [u32; 3] {
     if i.viewport == 0 { [i.size[0], i.size[1], i.size[2].max(1)] } else { [(viewport[0] / i.viewport).max(1), (viewport[1] / i.viewport).max(1), i.size[2].max(1)] }
 }

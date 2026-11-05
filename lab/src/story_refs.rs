@@ -39,10 +39,8 @@ pub(crate) fn value_problem(cue: &Cue, original: String) -> CueProblem {
             continue;
         }
         let field = format!("params.{name}");
-        if let (Some(entry), Some(option)) = (crate::values::entry(name), value.as_str()) {
-            if let Some(choices) = entry.choices {
-                return CueProblem::new("story.value", &field, format!("{original}; {}", unknown("option", option, choices.options.iter().map(|o| o.name.to_string()), &format!(" for `{name}`"))));
-            }
+        if let (Some(entry), Some(option)) = (crate::values::entry(name), value.as_str()) && let Some(choices) = entry.choices {
+            return CueProblem::new("story.value", &field, format!("{original}; {}", unknown("option", option, choices.options.iter().map(|o| o.name.to_string()), &format!(" for `{name}`"))));
         }
         if crate::values::entry(name).is_none() && crate::investigation::current().param_default(name).is_none() && crate::shot::view_key(name).is_none() {
             let keys = crate::script::keys::keys(crate::investigation::current()).unwrap_or_default();
@@ -163,10 +161,8 @@ impl References {
 
     pub fn check(&mut self, cue: &Cue) -> Result<(), CueProblem> {
         let current = crate::investigation::current();
-        if let Some(code) = cue.code.as_deref().filter(|c| !c.is_empty()) {
-            if current.listing(code).is_none() {
-                return Err(CueProblem::new("story.listing", "code", unknown("listing", code, current.listings().iter().map(|l| l.name.to_string()), "")));
-            }
+        if let Some(code) = cue.code.as_deref().filter(|c| !c.is_empty()) && current.listing(code).is_none() {
+            return Err(CueProblem::new("story.listing", "code", unknown("listing", code, current.listings().iter().map(|l| l.name.to_string()), "")));
         }
         let actions: BTreeSet<String> = current.actions().specs.iter().map(|a| a.key.to_string()).chain(crate::script::runtime::actions().into_iter().map(|a| a.name)).collect();
         for name in &cue.stop {
@@ -174,10 +170,8 @@ impl References {
                 return Err(CueProblem::new("story.action", "stop", unknown("action", name, actions.iter().cloned(), "")));
             }
         }
-        if let Some(call) = &cue.run {
-            if !actions.contains(&call.name) {
-                return Err(CueProblem::new("story.action", "run", unknown("action", &call.name, actions.iter().cloned(), "")));
-            }
+        if let Some(call) = &cue.run && !actions.contains(&call.name) {
+            return Err(CueProblem::new("story.action", "run", unknown("action", &call.name, actions.iter().cloned(), "")));
         }
         if let Some(click) = &cue.image_click {
             let script_clicks = crate::script::runtime::click_handlers();
@@ -195,10 +189,8 @@ impl References {
                 return Err(CueProblem::new("story.image", "imageFrom", unknown("image kind", from, known.iter().map(|k| k.key.clone()), "")));
             }
         }
-        if let Some(show) = &cue.image_show {
-            if crate::graph::Show::from_key(show).is_err() {
-                return Err(CueProblem::new("story.image", "imageShow", unknown("graph image display", show, crate::graph::Show::ALL.map(|s| s.key().to_string()), "")));
-            }
+        if let Some(show) = &cue.image_show && crate::graph::Show::from_key(show).is_err() {
+            return Err(CueProblem::new("story.image", "imageShow", unknown("graph image display", show, crate::graph::Show::ALL.map(|s| s.key().to_string()), "")));
         }
         self.check_cleanup(cue)?;
         self.check_text(cue)?;
@@ -243,20 +235,16 @@ impl References {
 
     fn check_text(&self, cue: &Cue) -> Result<(), CueProblem> {
         let current = crate::investigation::current();
-        if let Some(key) = cue.callout.as_deref().filter(|k| !k.is_empty()) {
-            if !current.sources().entries.contains_key(key) {
-                return Err(CueProblem::new("story.source", "callout", unknown("source key", key, current.sources().entries.keys().cloned(), "")));
-            }
+        if let Some(key) = cue.callout.as_deref().filter(|k| !k.is_empty()) && !current.sources().entries.contains_key(key) {
+            return Err(CueProblem::new("story.source", "callout", unknown("source key", key, current.sources().entries.keys().cloned(), "")));
         }
         let package = current.package().unwrap_or("render_lab");
         for (field, key) in [("imageTitle", &cue.image_title), ("imageMarkText", &cue.image_mark_text), ("labelText", &cue.label_text)] {
-            if let Some(key) = key.as_deref().filter(|k| !k.is_empty()) {
-                if crate::i18n::try_package_text(package, key).is_none() && crate::i18n::try_package_text("render_lab", key).is_none() {
-                    let known = [package, "render_lab"].into_iter().flat_map(|p| {
-                        crate::resources::find(&format!("{p}.text/en")).and_then(|r| serde_json::from_str::<BTreeMap<String, String>>(r.text()).ok()).unwrap_or_default().into_keys()
-                    });
-                    return Err(CueProblem::new("story.text", field, unknown("text key", key, known, "")));
-                }
+            if let Some(key) = key.as_deref().filter(|k| !k.is_empty()) && crate::i18n::try_package_text(package, key).is_none() && crate::i18n::try_package_text("render_lab", key).is_none() {
+                let known = [package, "render_lab"].into_iter().flat_map(|p| {
+                    crate::resources::find(&format!("{p}.text/en")).and_then(|r| serde_json::from_str::<BTreeMap<String, String>>(r.text()).ok()).unwrap_or_default().into_keys()
+                });
+                return Err(CueProblem::new("story.text", field, unknown("text key", key, known, "")));
             }
         }
         Ok(())

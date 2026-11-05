@@ -36,6 +36,7 @@ pub struct Instance {
     pub exposure_normalization: f32,
 }
 
+#[allow(clippy::wrong_self_convention)] // maps between a frame and the world, named as the engine names them
 impl Instance {
     pub fn to_cell(&self, p: Vec3) -> Vec3 {
         (p - self.to_cell_origin) * self.to_cell_scale
@@ -46,12 +47,14 @@ impl Instance {
 }
 
 /// The Low quality's four cones, 45 degrees from the normal (tangent frame, z the normal).
+#[allow(clippy::approx_constant)] // the engine's literals
 pub const LOW_CONE_DIRS: [Vec3; 4] = [Vec3::new(0.707107, 0.0, 0.707107), Vec3::new(0.0, 0.707107, 0.707107), Vec3::new(-0.707107, 0.0, 0.707107), Vec3::new(0.0, -0.707107, 0.707107)];
 /// High's six: one along the normal, five at 60 degrees (the bounce's own set).
 pub const HIGH_CONE_DIRS: [Vec3; 6] = super::light::BOUNCE_CONE_DIRS;
 pub const HIGH_CONE_WEIGHTS: [f32; 6] = super::light::BOUNCE_CONE_WEIGHTS;
 pub const HIGH_CONE_TAN: f32 = 0.577;
 /// gi.glsl's `M_PI`.
+#[allow(clippy::approx_constant)] // the engine's literal
 pub const M_PI: f32 = 3.141592;
 
 /// `voxel_cone_trace`: from `bias`, the diameter `2 tan dist` (at least a

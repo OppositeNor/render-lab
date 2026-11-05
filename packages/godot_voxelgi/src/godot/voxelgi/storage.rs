@@ -160,6 +160,7 @@ impl Probe {
         (local - self.to_cell_origin) * self.to_cell_scale
     }
 
+    #[allow(clippy::wrong_self_convention)] // maps between a frame and the world, named as the engine names them
     pub fn from_cell(&self, cell: Vec3) -> Vec3 {
         cell / self.to_cell_scale + self.to_cell_origin
     }

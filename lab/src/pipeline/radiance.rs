@@ -128,7 +128,7 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
             }
         } else {
             let flat = data.get(..4 * width).ok_or_else(truncated)?;
-            for (texel, bytes) in scanline.iter_mut().zip(flat.chunks_exact(4)) {
+            for (texel, bytes) in scanline.iter_mut().zip(flat.as_chunks::<4>().0.iter()) {
                 texel.copy_from_slice(bytes);
             }
             data = &data[4 * width..];

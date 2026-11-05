@@ -658,7 +658,7 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
                 for (j, pos, d) in steps.iter().take(24) {
                     let s = *pos / field.to_cell(*j) + field.offset(*j);
                     let r = Vec3::new(s.x, s.y / y_mult, s.z);
-                    circle(content, r, (d.max(0.0) / field.to_cell(*j)).min(1.5).max(0.02), palette::OUTSIDE, 0.9);
+                    circle(content, r, (d.max(0.0) / field.to_cell(*j)).clamp(0.02, 1.5), palette::OUTSIDE, 0.9);
                     ball(content, r, 0.03, palette::OUTSIDE, 1.0);
                 }
                 content.draw.segment(cell_w, light_pos, if hit { palette::MISMATCH } else { palette::HIT }, 1.0, 4.0, 0);

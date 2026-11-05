@@ -443,10 +443,8 @@ impl Home {
         self.pse |= config.language != self.applied.language;
         i18n::set(config.language);
         crate::pseudocode::set_style(config.listing_style);
-        if config.theme != self.applied.theme {
-            if let Err(e) = theme::apply(&config.theme) {
-                self.settings.message = Some(format!("{e:#}"));
-            }
+        if config.theme != self.applied.theme && let Err(e) = theme::apply(&config.theme) {
+            self.settings.message = Some(format!("{e:#}"));
         }
         self.applied = config;
     }
@@ -530,10 +528,8 @@ impl Home {
         self.applied.narration = narration;
         self.settings.saved.narration = narration;
         self.settings.pending.narration = narration;
-        if let Some(path) = &self.settings.path {
-            if let Err(e) = self.settings.saved.save(path) {
-                self.settings.message = Some(format!("{} {e:#}", tr("home.applied_but_not_saved")));
-            }
+        if let Some(path) = &self.settings.path && let Err(e) = self.settings.saved.save(path) {
+            self.settings.message = Some(format!("{} {e:#}", tr("home.applied_but_not_saved")));
         }
     }
 
@@ -1929,10 +1925,8 @@ impl HomeApp<'_> {
         // The frame a screenshot is taken of shows no popup.
         self.home.popups.hidden = self.screenshot;
         let choice = s.painter.paint(&mut s.backdrop, &view, [s.config.width, s.config.height], self.options.ui_scale, events, time, self.home, None);
-        if std::mem::take(&mut self.home.clicked) {
-            if let Some(click) = self.click.as_mut() {
-                click.play_from(0.0);
-            }
+        if std::mem::take(&mut self.home.clicked) && let Some(click) = self.click.as_mut() {
+            click.play_from(0.0);
         }
         if std::mem::take(&mut self.screenshot) {
             let gpu = s.backdrop.gpu();

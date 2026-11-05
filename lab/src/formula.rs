@@ -287,7 +287,7 @@ fn typeset(latex: &str, size_px: f32, display: bool) -> Result<Formula, String> 
     let mut world = WORLD.get_or_init(|| Mutex::new(FormulaWorld::new())).lock().unwrap();
     let (plain, terms) = prepare(latex, None)?;
     let (rgba, width, height, baseline, min_glyph_px) = render(&mut world, &plain, size_px, display)?;
-    let coverage = rgba.chunks_exact(4).map(|p| p[3]).collect();
+    let coverage = rgba.as_chunks::<4>().0.iter().map(|p| p[3]).collect();
     let mut term_masks = Vec::new();
     for n in 1..=terms {
         let (lit, _) = prepare(latex, Some(n))?;
@@ -296,7 +296,7 @@ fn typeset(latex: &str, size_px: f32, display: bool) -> Result<Formula, String> 
             return Err(format!("term {n} changes the formula's size"));
         }
         // Black ink has as much green as red; the lit term is red alone.
-        term_masks.push(rgba.chunks_exact(4).map(|p| p[0].saturating_sub(p[1])).collect());
+        term_masks.push(rgba.as_chunks::<4>().0.iter().map(|p| p[0].saturating_sub(p[1])).collect());
     }
     Ok(Formula { width, height, baseline, coverage, terms: term_masks, min_glyph_px })
 }

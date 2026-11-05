@@ -208,10 +208,8 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
             }
             let c = find_choices(package, &t.args[0])?;
             // The constants the shader compares against must be the enum's current ones.
-            if let Some(source) = c.wgsl_source() {
-                if !r.source.contains(&source) {
-                    bail!("the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)", c.name, c.wgsl_file());
-                }
+            if let Some(source) = c.wgsl_source() && !r.source.contains(&source) {
+                bail!("the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)", c.name, c.wgsl_file());
             }
             Some(c)
         }

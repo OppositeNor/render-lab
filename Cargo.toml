@@ -8,6 +8,13 @@ members = ["lab", "lab/check", "lab/derive", "packages/o3de_lighting", "packages
 default-members = [".", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi"]
 resolver = "3"
 
+# The CPU mirrors keep the shape of the engine and shader code they port: its
+# functions' parameters, its index loops, its nested tuples and closures.
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+needless_range_loop = "allow"
+
 [package]
 name = "render-lab"
 version = "0.1.0"
@@ -22,6 +29,9 @@ license = "MIT"
 name = "render-lab"
 path = "src/main.rs"
 test = false
+
+[lints]
+workspace = true
 
 [dependencies]
 lab = { package = "render-lab-core", path = "lab" }

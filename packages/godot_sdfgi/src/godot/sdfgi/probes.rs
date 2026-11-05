@@ -26,6 +26,7 @@ pub const PROBES: usize = (PROBE_AXIS_COUNT * PROBE_AXIS_COUNT * PROBE_AXIS_COUN
 pub const MAP_WIDTH: i32 = PROBE_AXIS_COUNT * PROBE_AXIS_COUNT * (OCT_SIZE + 2);
 pub const MAP_HEIGHT: i32 = PROBE_AXIS_COUNT * (OCT_SIZE + 2);
 
+#[allow(clippy::approx_constant, clippy::excessive_precision)] // the engine's literal
 const PI: f32 = 3.14159265;
 
 /// `vogel_hemisphere`: point `index` of a Vogel spiral of `count`, its polar
@@ -47,6 +48,7 @@ fn hash3(x: [u32; 3]) -> [u32; 3] {
     })
 }
 
+#[allow(clippy::excessive_precision)] // the engine's literals
 fn hashf3(co: Vec3) -> f32 {
     let v = (co.dot(Vec3::new(12.9898, 78.233, 137.13451)).sin()) * 43758.5453;
     v - v.floor()

@@ -69,6 +69,7 @@ pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) 
 pub struct Rng(pub u64);
 
 impl Rng {
+    #[allow(clippy::should_implement_trait)] // an endless stream of floats, not an iterator
     pub fn next(&mut self) -> f32 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;

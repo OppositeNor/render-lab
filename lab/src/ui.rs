@@ -600,10 +600,8 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_labels(&ink, &at, over.content, &[], &mut report);
             }
             // The focused view (the dock's), when there are several.
-            if let Chrome::Viewer(v) = &chrome {
-                if let Some(r) = v.focus_rect {
-                    painter.rect_stroke(r.expand(2.0), CornerRadius::same(10), Stroke::new(2.5, palette::accent()), StrokeKind::Outside);
-                }
+            if let Chrome::Viewer(v) = &chrome && let Some(r) = v.focus_rect {
+                painter.rect_stroke(r.expand(2.0), CornerRadius::same(10), Stroke::new(2.5, palette::accent()), StrokeKind::Outside);
             }
             if let Some(content) = input.content {
                 // A view stacked over the main one (src/view.rs) covers it: the main view's tags (its insets, its
@@ -902,7 +900,7 @@ fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Cont
                 });
             });
             if input.scene_type == SceneType::ThreeD && !(viewer.timeline_mode && viewer.playing) {
-                draw_layout_handles(ctx, &ink, input, viewer);
+                draw_layout_handles(ctx, ink, input, viewer);
             }
             viewer.ui_has_pointer = ctx.egui_wants_pointer_input() || response.response.hovered();
             // The status fills what the controls leave of the row.
@@ -948,14 +946,12 @@ fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: 
             if response.double_clicked() {
                 viewer.actions.push(ViewerAction::ResizeLayout(part, None));
                 viewer.actions.push(ViewerAction::SaveLayout);
-            } else if response.dragged() {
-                if let Some(p) = response.interact_pointer_pos() {
-                    let size = match part {
-                        LayoutPart::Dock => l.captions.max.y - p.y - 6.0,
-                        _ => l.panel.max.x - p.x - 12.0,
-                    };
-                    viewer.actions.push(ViewerAction::ResizeLayout(part, Some(size)));
-                }
+            } else if response.dragged() && let Some(p) = response.interact_pointer_pos() {
+                let size = match part {
+                    LayoutPart::Dock => l.captions.max.y - p.y - 6.0,
+                    _ => l.panel.max.x - p.x - 12.0,
+                };
+                viewer.actions.push(ViewerAction::ResizeLayout(part, Some(size)));
             }
             if response.drag_stopped() {
                 viewer.actions.push(ViewerAction::SaveLayout);
@@ -2098,18 +2094,16 @@ fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &Kno
         }
     }
     let min_scale = ((graph_area.width() / (whole.width() + 4.0)).min(graph_area.height() / (whole.height() + 4.0)) * 0.8).min(1.5);
-    if let Some(key) = &chrome.focus {
-        if view.focused.as_ref() != Some(key) {
-            if let Some(node) = graph.find(key) {
-                view.selected = Some(node);
-                if let Some(k) = local(node) {
-                    view.view.centre = laid.rects[k].center().to_vec2();
-                    view.view.scale = 18.0;
-                }
+    if let Some(key) = &chrome.focus && view.focused.as_ref() != Some(key) {
+        if let Some(node) = graph.find(key) {
+            view.selected = Some(node);
+            if let Some(k) = local(node) {
+                view.view.centre = laid.rects[k].center().to_vec2();
+                view.view.scale = 18.0;
             }
-            view.focused = Some(key.clone());
-            view.fitted = Some(chapters.clone());
         }
+        view.focused = Some(key.clone());
+        view.fitted = Some(chapters.clone());
     }
     if view.view.scale == 0.0 || view.fitted.as_ref() != Some(&chapters) {
         let b = bounds(&mut (0..graph.nodes.len()).filter(|&i| context[i])).unwrap_or(whole);
@@ -2462,7 +2456,7 @@ pub fn code_panel_fit(ctx: &egui::Context, listing: &crate::pseudocode::Listing)
     let measure = |text: &str, size: f32, family: FontFamily| ctx.fonts_mut(|f| f.layout(text.to_string(), egui::FontId::new(size, family), Color32::WHITE, f32::INFINITY).size().x);
     let column = measure("0", 24.0, FontFamily::Monospace);
     // The header: its heading, the listing's title, and its source on two lines at most.
-    let mut inner = measure(&tr("ui.python_pseudo_code"), 30.0, bold()).max(measure(listing.title(), 24.0, FontFamily::Proportional));
+    let mut inner = measure(tr("ui.python_pseudo_code"), 30.0, bold()).max(measure(listing.title(), 24.0, FontFamily::Proportional));
     if let Some(entry) = sources::index().entries.get(&listing.source) {
         let engine = investigation::current().wording().engine_short;
         for text in [format!("≈ {engine}: {}", entry.short_symbol()), format!("    {}:{}", entry.file_name(), entry.line)] {
@@ -2984,10 +2978,8 @@ fn draw_timeline_bar(ctx: &egui::Context, ink: &Ink, l: &Layout, viewer: &mut Vi
             viewer.actions.push(ViewerAction::TogglePlay);
         }
         let hit = ui.allocate_rect(bar.expand2(vec2(0.0, 10.0)), egui::Sense::click_and_drag());
-        if hit.clicked() || hit.dragged() {
-            if let Some(p) = hit.interact_pointer_pos() {
-                viewer.actions.push(ViewerAction::Seek((p.x - bar.min.x) / bar.width()));
-            }
+        if (hit.clicked() || hit.dragged()) && let Some(p) = hit.interact_pointer_pos() {
+            viewer.actions.push(ViewerAction::Seek((p.x - bar.min.x) / bar.width()));
         }
         ui.scope_builder(egui::UiBuilder::new().max_rect(speed).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
             let (picked, rect) = speed_menu(ui, "bar:speed", viewer.speed, BAR_SPEED - 16.0);
