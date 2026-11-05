@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 import zh
 from config import LAB, Config, Environment, log, run
-from timeline import caption_width
+from timeline import BUDGET_TOLERANCE, budget_rows, caption_width
 
 Json = dict[str, Any]
 LINK = re.compile(r'\[([^\]]*)\]\(([^)\s]+)\)')
@@ -84,16 +84,11 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
           {'seconds': duration, 'minutes': round(duration / 60, 2), 'timelineSeconds': timeline['totalFrames'] / fps})
     frames = int(v.get('nb_frames') or 0)
     check('frame count equals the timeline', frames == timeline['totalFrames'], {'videoFrames': frames, 'timelineFrames': timeline['totalFrames']})
-    rows: list[Json] = []
-    within = True
-    for c, b in zip(timeline['chapters'], board['chapters']):
-        # The closing notices card is not the chapter's: it is left out of its budget.
-        notices = timeline.get('noticeFrames', 0) if c is timeline['chapters'][-1] else 0
-        seconds = (c['endFrame'] - c['startFrame'] - notices) / fps
-        deviation = (seconds - b['targetSeconds']) / b['targetSeconds']
-        within &= abs(deviation) <= 0.10
-        rows.append({'chapter': c['number'], 'title': c['title'], 'seconds': round(seconds, 1), 'target': b['targetSeconds'], 'deviation': f'{deviation:+.1%}', **plans.get(c['number'], {})})
-    check(f'{len(board["chapters"])} chapters in the file, each within 10% of its time budget', len(info.get('chapters', [])) == len(board['chapters']) and within, {'chapters': rows})
+    # The closing notices card is not the last chapter's: it is left out of its budget (timeline.budget_rows).
+    budget = budget_rows(timeline, board, plans)
+    within = all(r['within'] for r in budget)
+    rows = [{'chapter': r['chapter'], 'title': r['title'], 'seconds': round(r['seconds'], 1), 'target': r['target'], 'deviation': f'{r["deviation"]:+.1%}', **plans.get(r['chapter'], {})} for r in budget]
+    check(f'{len(board["chapters"])} chapters in the file, each within {BUDGET_TOLERANCE:.0%} of its time budget', len(info.get('chapters', [])) == len(board['chapters']) and within, {'chapters': rows})
     if decode:
         log('Decoding the complete video and audio.')
         run([env.ffmpeg, '-v', 'error', '-nostdin', '-i', video, '-map', '0:v:0', '-map', '0:a:0', '-f', 'null', '-'], build / 'logs' / 'decode.log')

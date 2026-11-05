@@ -175,7 +175,7 @@ PR 4 分为四个阶段，各自一个提交（2026-11-05）：
 
 - **4a 检查**（已完成，5dcac21）：同 key 重复 motion channel 的语料审计与默认报错（第 1 项）；不依赖测量的 motion 形状、有限数和负时长检查前移（第 2 项）。
 - **4b 契约文档与配方**（已完成）：`sentence` 区间与 reset／carry 表写入 `tools/video/README.md`（第 3、5 项）；可组合的显式 reset 配方加入 `render_lab.lam`，默认行为不变。实际实现：README 的 “Where `sentence` and `beat` end” 与 “What a key resets and carries”；`render_lab.lam` 的 `narrationCleared`（清除 callout、inset 和公式卡，`formula=off`）。
-- **4c 报告**：实测音频后、渲染前的预算报告（第 6 项）；翻译对齐错误显示两侧句段与行号（第 7 项）。
+- **4c 报告**（已完成：`timeline.budget_rows` 由 build 与 verify 共用，超出 10% 容差时在写出时间线前失败；`zh.alignment` 列出两侧句段与行号）：实测音频后、渲染前的预算报告（第 6 项）；翻译对齐错误显示两侧句段与行号（第 7 项）。
 - **4d channel 写入**：explain 中的写入顺序与接管（第 4 项），与 PR 6 的 explain 一起实现。
 
 ### PR 5 — 精简高频写法，并试改真实章节（P1）

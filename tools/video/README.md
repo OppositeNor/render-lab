@@ -258,7 +258,7 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   then runs until its sentence (or beat) ends, as "Where `sentence` and `beat` end" below says. A `demo` key resets
   every channel to the demonstration's state, so it cuts a running motion. Two motions of one key may not drive the
   same channel (`story.motion.duplicate`), nor one motion name a channel twice; a later key taking a channel over is
-  ordinary. A motion's numbers must be finite (`story.motion`). Chapters are stretched to their `target` with extra pauses; keep the budget near 1.2 times
+  ordinary. A motion's numbers must be finite (`story.motion`). Chapters are stretched to their `target` with extra pauses (the build reports each chapter's length, budget, natural length, and any narration over budget as soon as speech is measured, and stops before writing the timeline when a chapter is more than 10% from its budget, which the video's verification would refuse); keep the budget near 1.2 times
   the narration.
 - **`diagrams/*.toml`**: the diagrams (`tools/video/diagrams.py` has the format): boxes, with rows if any, dashed or
   not, an image (`image = "<png key>"`: a beat that shows a picture is a diagram of one node), and edges, labelled or
