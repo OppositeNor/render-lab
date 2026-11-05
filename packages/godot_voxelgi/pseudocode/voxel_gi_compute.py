@@ -1,4 +1,4 @@
-# title: A pixel's cones | 一个像素的锥体
+# title-text: listing-voxel_gi_compute-title
 # source: voxel-gi-compute
 # demo: pixel
 def voxel_gi_compute(probe, position, normal, reflection, roughness):

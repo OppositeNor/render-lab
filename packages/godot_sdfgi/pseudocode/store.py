@@ -1,7 +1,7 @@
-# title: STORE: the distance field and the solid cells | STORE：距离场与实心单元格
+# title-text: listing-store-title
 # source: sdf-store
 # demo: field
-# dispatch: for each cell of the cascade, in parallel | 级联的每个单元格并行
+# dispatch-text: listing-store-dispatch
 def store(pos, seeds, albedo, facing, emission):
     seed = seeds[pos]  # @@read
     if seed.xyz == pos:                                 # @solid

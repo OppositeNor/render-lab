@@ -1,4 +1,4 @@
-# title: A triangle goes down the octree | 三角形沿八叉树下行
+# title-text: listing-plot_face-title
 # source: plot-face-recurse
 # demo: octree
 def plot_face(cell, level, tri, box):

@@ -1,7 +1,7 @@
-# title: Roughness to a blur level | 粗糙度到模糊级别
+# title-text: listing-blur-title
 # source: mip-bias
 # demo: blur
-# dispatch: after validation, the same thread | 验证之后，同一线程
+# dispatch-text: listing-blur-dispatch
 def blur_level(roughness, ray_len):
     angle = min(roughness, 0.999) * pi / 2               # @cone
     a = 2.0 * tan(angle) * ray_len                       # @base

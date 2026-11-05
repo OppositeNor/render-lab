@@ -1,4 +1,4 @@
-# title: The distance field | 距离场
+# title-text: listing-distance_field-title
 # source: sdf-edt
 # demo: field
 def get_sdf_3d_image(cells, size):

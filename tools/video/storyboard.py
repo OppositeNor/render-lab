@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import config
 from config import Config
 from locations import DiagnosticError
 from headings import DEFAULT_CAPTION_WIDTH
@@ -27,20 +28,21 @@ def listing_path(cfg: Config, name: str) -> Path:
     return cfg.pseudocode / (name.replace('-', '_') + '.py')
 
 
-def read_listing(cfg: Config, name: str) -> tuple[str, str, str | None, str]:
-    """(title, Chinese title, source key, code without tags or marks) of a listing."""
+def read_listing(cfg: Config, name: str) -> tuple[str, str | None, str]:
+    """(title in the edition's language, source key, code without tags or marks) of a listing (lab/src/pseudocode.rs):
+    its `# title-text:` is a key of the package's text tables."""
     header: dict[str, str] = {}
     code: list[str] = []
     for line in listing_path(cfg, name).read_text().splitlines():
-        m = re.match(r'# (title|source|demo|dispatch): (.*)$', line)
+        m = re.match(r'# (title-text|source|demo|dispatch-text): (.*)$', line)
         if m and not code:
             header[m.group(1)] = m.group(2).strip()
             continue
         code.append(re.sub(r'\s*# @[^\n]*$', '', line).rstrip())
     while code and not code[-1]:
         code.pop()
-    title, _, title_zh = header.get('title', name).partition(' | ')
-    return title, title_zh or title, header.get('source'), '\n'.join(code)
+    title = config.text_table(cfg.package.name, cfg.lang)[header['title-text']] if 'title-text' in header else name
+    return title, header.get('source'), '\n'.join(code)
 
 
 def load_board(cfg: Config) -> Json:
@@ -116,7 +118,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                 path = listing_path(cfg, name)
                 if not path.is_file():
                     fail('story.listing', f'unknown pseudo-code listing {name}', 'code')
-                _, _, source, code = read_listing(cfg, name)
+                _, source, code = read_listing(cfg, name)
                 if source not in keys:
                     fail('story.source', f'{name}: unknown source key {source}', 'sources')
                 try:

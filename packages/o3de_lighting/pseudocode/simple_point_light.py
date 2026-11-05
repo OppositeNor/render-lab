@@ -1,4 +1,4 @@
-# title: The simple point light | 简易点光源
+# title-text: listing-simple_point_light-title
 # source: point-light-apply
 # demo: pointlight
 def apply_simple_point_light(light, s, lit):

@@ -1,7 +1,7 @@
-# title: The jump flood | 跳跃洪泛
+# title-text: listing-jump_flood-title
 # source: jump-flood-schedule
 # demo: field
-# dispatch: on the CPU: one GPU pass per step | 在 CPU 上：每一步一次 GPU 计算
+# dispatch-text: listing-jump_flood-dispatch
 def jump_flood(solid):
     seeds = initialize_half(solid)        # 64^3       # @init
     s = 64

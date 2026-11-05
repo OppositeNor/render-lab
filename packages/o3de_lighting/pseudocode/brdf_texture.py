@@ -1,4 +1,4 @@
-# title: The BRDF texture, one texel | BRDF 纹理：单个纹素
+# title-text: listing-brdf_texture-title
 # source: brdf-texture
 # demo: multiscatter
 def brdf_texel(x, y, size=256, samples=1024):

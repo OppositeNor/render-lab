@@ -242,7 +242,7 @@ def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, 
         parsed = markup.sentence(s)
         says = iter([len((t.attr('say') or '').split()) for t in parsed.tags if t.kind == 'formula' and t.attr('formula') != 'off'])
         # A formula weighs the words said for it; a code span the words it is said as.
-        held = [next(says) if tag.startswith('{@ formula') else len(markup.readable(tag).split()) for tag in tags]
+        held = [next(says) if tag.startswith('{ FORMULA(') else len(markup.readable(tag).split()) for tag in tags]
 
         def weight(word: str) -> int:
             m = re.match(r'QQF(\d+)', word)

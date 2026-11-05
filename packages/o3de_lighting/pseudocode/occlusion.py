@@ -1,4 +1,4 @@
-# title: Occlusion maps | 遮蔽贴图
+# title-text: listing-occlusion-title
 # source: occlusion-input
 # demo: surface
 def get_occlusion_input(tex, uv, factor, use_texture):  # @input

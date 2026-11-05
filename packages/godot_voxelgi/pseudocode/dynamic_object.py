@@ -1,4 +1,4 @@
-# title: A dynamic object | 动态物体
+# title-text: listing-dynamic_object-title
 # source: dynamic-views
 # demo: dynamic
 def plot_dynamic(obj, texture):

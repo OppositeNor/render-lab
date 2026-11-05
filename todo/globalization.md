@@ -1,4 +1,4 @@
-# Globalization backend (in progress since 2026-11-05)
+# Globalization backend (2026-11-05: stages 1–5, 7, 8 and part of 6 done)
 
 The lab's on-screen text moves to Project Fluent: each package's text tables become `text/<locale>.ftl`, read through
 `fluent-bundle`, and the lab's rich text (formulas and code names inside a string) becomes Fluent function
@@ -49,6 +49,25 @@ translated data moves into the tables. Neither English nor Chinese output change
 
 Left out (nothing uses it): our own plural and number syntax, a CLDR rule parser, locale number separators, plural
 rewording of existing strings. Fluent's selectors are there when a message first needs one.
+
+## Status (2026-11-05)
+
+Done: the keys renamed (`f895fe9`); the tables on Fluent, rich text on `{ FORMULA(…) }` / `{ CODE(…) }` placeables in
+tables and captions, `©` written out, `{@…}` left only in the WGSL doc tags (`shader_data::parse_tag`); the locale
+registry (`packages/render_lab/locales.toml`, `Locale` an index, fallback chains, draft locales); listing titles and
+dispatch lines as text keys (`# title-text:`, `# dispatch-text:`); edition names from the timeline's locale (the
+manifests' `edition` field removed); `render-lab i18n [--check]`; `render-lab text PACKAGE --locale L`, which the video
+tools read tables through.
+
+Checked: both builds clean, the local package's workspace too; unit and video-tool tests; the homepage autotest; every
+selftest (O3DE fails the same two checks at cb757d1: a listing cut in `diffuse`, and the narration's measured
+numbers); every edition's prepared outputs equal to cb757d1's after the key rename and the placeable syntax; 619 stills
+of cb757d1 and the change equal, or different only where two runs of cb757d1 differ too (GPU and CPU timings, viewport
+noise, the config page's checkout path).
+
+Left: the source indexes' own translations (`inspectZh`, `noteZh`, `engineNameZh`, `exactZh`, `labLayoutZh`, written
+by each investigation's `source_index.py` from the engine's checkout). Moving them into the tables changes those
+generators and needs each engine's source to regenerate the indexes; `i18n::zh()` remains for them alone.
 
 ## Stages (each a local commit; never pushed)
 

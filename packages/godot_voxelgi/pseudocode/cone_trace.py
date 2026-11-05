@@ -1,4 +1,4 @@
-# title: Tracing a cone | 追踪一个锥体
+# title-text: listing-cone_trace-title
 # source: cone-trace
 # demo: pixel
 def voxel_cone_trace(pos, direction, tan_half_angle, bias):

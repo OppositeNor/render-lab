@@ -77,10 +77,10 @@ impl GraphScene {
     /// interface's language (once per language); none without the resource.
     pub fn current(name: &str) -> Option<&'static GraphScene> {
         use std::sync::{Mutex, OnceLock};
-        type Cache = Mutex<Vec<((String, bool), Option<&'static GraphScene>)>>;
+        type Cache = Mutex<Vec<((String, crate::i18n::Locale), Option<&'static GraphScene>)>>;
         static CACHE: OnceLock<Cache> = OnceLock::new();
         let package = crate::investigation::current().package()?;
-        let key = (format!("{package}.graph/{name}"), crate::i18n::zh());
+        let key = (format!("{package}.graph/{name}"), crate::i18n::current());
         let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
         if let Some((_, scene)) = cache.iter().find(|(k, _)| *k == key) {
             return *scene;

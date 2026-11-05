@@ -21,7 +21,7 @@ cargo run --release -- --investigation godot/sdfgi knowledge         # 检查知
 
 ## 公式
 
-屏幕上的文字可以以标签的形式包含公式：在文本表、字幕或读数面板（`Readout::formula`）中写 `{@ formula="\\frac{1}{1+n}"}`。
+屏幕上的文字可以以 Fluent 函数调用的形式包含公式：在文本表、字幕或读数面板（`Readout::formula`）中写 `{ FORMULA("\\frac{1}{1+n}") }`。
 实验室在运行时自行排版这些公式（`lab/src/formula.rs`：MiTeX 把 LaTeX 转换为 Typst 数学公式，再由 Typst 排版），因此不需要 Node，
-也不需要提交图片；`render-lab formulas --check FILE…` 按实验室的限制检查文件中的公式。分镜脚本使用同样的标签，镜头提示按旁白的词语计时
+也不需要提交图片；`render-lab formulas --check FILE…` 按实验室的限制检查文件中的公式。分镜脚本中的公式在字幕里成为同样的调用，镜头提示按旁白的词语计时
 （见 [`tools/video`](../tools/video/README.md#text-driven-shots-cues-in-a-sentence)），时间线关键帧的 `formula` 会在视口中打开公式卡片。

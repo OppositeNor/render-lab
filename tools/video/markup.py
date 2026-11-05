@@ -3,8 +3,8 @@ stand before, ranges over words, and formulas shown in the captions and the
 formula card. A storyboard is a Lamlet presentation (presentation.py), whose
 loader gives each sentence its `Sentence`; this module reads a cue's
 attributes into a shot key (`cue_key`), and handles the rich text a caption
-keeps for the lab to draw (src/lab/rich_text.rs): a formula is
-`{@ formula="…"}`, a code name `{@ codespan="…"}`.
+keeps for the lab to draw (lab/src/rich_text.rs), as Project Fluent's function
+placeables: a formula is `{ FORMULA("…") }`, a code name `{ CODE("…") }`.
 
 A cue's attributes are pairs of Strings, as the investigation's vocabulary
 writes them (`render-lab story keys`; `Fields` reads its field list): any
@@ -101,7 +101,7 @@ class Tag:
 
 @dataclass
 class Sentence:
-    caption: str               # tags removed but formulas, as `{@ formula="…"}`
+    caption: str               # tags removed but formulas and code names, as `{ FORMULA("…") }` and `{ CODE("…") }`
     spoken: str                # what the voice says
     pieces: list[str]          # the spoken text cut at each tag
     tags: list[Tag] = field(default_factory=list)
@@ -109,22 +109,29 @@ class Sentence:
 
 
 def quote(value: str) -> str:
-    return '"' + value.replace('"', '\\"') + '"'
+    """A Fluent string literal (lab/src/rich_text.rs `literal`)."""
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def unquote(body: str) -> str:
+    """A Fluent string literal's text, from between its quotes."""
+    return re.sub(r'\\(.)', r'\1', body)
 
 
 def codespan_tag(code: str) -> str:
-    """A code span as the lab draws it."""
-    return '{@ codespan=' + quote(code) + '}'
+    """A code name as the lab draws it."""
+    return '{ CODE(' + quote(code) + ') }'
 
 
 def formula_tag(tag: Tag) -> str:
-    """The formula as the lab draws it: its LaTeX, and display style and term colours if given."""
-    parts = [f'formula={quote(tag.attr("formula") or "")}']
+    """The formula as the lab draws it (lab/src/rich_text.rs `formula_text`): its LaTeX, and display style and
+    term colours if given."""
+    parts = [quote(tag.attr('formula') or '')]
     if tag.attr('display'):
-        parts.append(f'display={tag.attr("display")}')
+        parts.append(f'display: {quote(str(tag.attr("display")))}')
     if tag.attr('colors'):
-        parts.append(f'colors={quote(tag.attr("colors") or "")}')
-    return '{@ ' + ' '.join(parts) + '}'
+        parts.append(f'colors: {quote(tag.attr("colors") or "")}')
+    return '{ FORMULA(' + ', '.join(parts) + ') }'
 
 
 def tidy(text: str) -> str:
@@ -363,10 +370,10 @@ def range_values(key: Json, where: str) -> tuple[Json, Json]:
     return jump, {**rest, 'params': to}
 
 
-FORMULA_TAG = re.compile(r'\{@ formula="((?:[^"\\]|\\.)*)"[^}]*\}')
-CODESPAN_TAG = re.compile(r'\{@ codespan="((?:[^"\\]|\\.)*)"\}')
-# A caption's drawn tags: formulas and code spans.
-DRAWN_TAG = re.compile(r'\{@ (formula|codespan)="((?:[^"\\]|\\.)*)"[^}]*\}')
+FORMULA_TAG = re.compile(r'\{ FORMULA\("((?:[^"\\]|\\.)*)"(?:, [a-z]+: "(?:[^"\\]|\\.)*")*\) \}')
+CODESPAN_TAG = re.compile(r'\{ CODE\("((?:[^"\\]|\\.)*)"\) \}')
+# A caption's drawn calls: formulas and code names.
+DRAWN_TAG = re.compile(r'\{ (FORMULA|CODE)\("((?:[^"\\]|\\.)*)"(?:, [a-z]+: "(?:[^"\\]|\\.)*")*\) \}')
 
 
 def unlit(latex: str) -> str:
@@ -389,20 +396,20 @@ def unlit(latex: str) -> str:
 def readable(caption: str) -> str:
     """A caption with its formulas as `$LaTeX$` (term markers dropped) and
     its code spans as their text, for documents and subtitle files."""
-    caption = CODESPAN_TAG.sub(lambda m: m.group(1).replace('\\"', '"'), caption)
-    return FORMULA_TAG.sub(lambda m: '$' + unlit(m.group(1).replace('\\"', '"')) + '$', caption)
+    caption = CODESPAN_TAG.sub(lambda m: unquote(m.group(1)), caption)
+    return FORMULA_TAG.sub(lambda m: '$' + unlit(unquote(m.group(1))) + '$', caption)
 
 
 def protect(caption: str) -> tuple[str, list[str]]:
-    """A caption with each formula tag and code span replaced by one
+    """A caption with each formula and code name replaced by one
     placeholder word about as wide as it is drawn, so captions wrap and chunk
     around them, never inside one; `restore` puts them back."""
     tags: list[str] = []
 
     def hold(m: re.Match[str]) -> str:
         tags.append(m.group(0))
-        body = m.group(2)
-        visible = body if m.group(1) == 'codespan' else re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', body)
+        body = unquote(m.group(2))
+        visible = body if m.group(1) == 'CODE' else re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', body)
         return f'QQF{len(tags) - 1}' + 'Q' * max(0, len(visible) - 4)
     return DRAWN_TAG.sub(hold, caption), tags
 
@@ -427,7 +434,7 @@ def shown(s: Json, translation: bool) -> Sentence:
 def tagged(s: Json) -> bool:
     """Whether a sentence has tags: cues, ranges, formulas, or code spans."""
     parsed = sentence(s)
-    return bool(parsed.tags) or '{@' in parsed.caption
+    return bool(parsed.tags) or bool(DRAWN_TAG.search(parsed.caption))
 
 
 def text_keys(beat: Json, s: Json) -> list[Json]:

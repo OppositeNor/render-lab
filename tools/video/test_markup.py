@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import markup  # noqa: E402
 
 FORMULA = r'\alpha = \frac{1}{1 + \lit{1}{n}}'
+# FORMULA as a Fluent string literal writes it (backslashes doubled).
+Q = FORMULA.replace('\\', '\\\\')
 
 # A vocabulary key list as `render-lab story keys` writes it: values, then the key's fields.
 KEYS = [{'name': 'camera.target', 'kind': 'vector'}, {'name': 'camera.yaw', 'kind': 'float'}, {'name': 'opacity', 'kind': 'float'},
@@ -47,7 +49,7 @@ class CueKey(unittest.TestCase):
         self.assertEqual(key(cue(('param.formula', '2.0'), ('camera.target', '0.0,1.0,2.0'), ('camera.yaw', '30.0'))),
                          {'camera': {'target': [0.0, 1.0, 2.0], 'yaw': 30.0}, 'params': {'formula': 2.0}})
         formula = markup.Tag('formula', None, [('formula', FORMULA), ('colors', '#ffd166'), ('say', 'alpha')], 1)
-        self.assertEqual(key(formula), {'formula': f'{{@ formula="{FORMULA}" colors="#ffd166"}}'})
+        self.assertEqual(key(formula), {'formula': f'{{ FORMULA("{Q}", colors: "#ffd166") }}'})
         self.assertEqual(key(markup.Tag('formula', None, [('formula', 'off')], 1)), {'formula': ''})
         # A range's value; the easings and the camera's fields are the vocabulary's.
         self.assertEqual(key(cue(('opacity', '0..1'))), {'params': {'opacity': markup.Range(0.0, 1.0)}})
@@ -96,7 +98,7 @@ class CueKey(unittest.TestCase):
 
 class RichText(unittest.TestCase):
     def test_readable_and_protect(self) -> None:
-        caption = f'with {{@ formula="{FORMULA}"}}, and {{@ codespan="r.Example.MaxIntensity"}} up to ten.'
+        caption = f'with {{ FORMULA("{Q}") }}, and {{ CODE("r.Example.MaxIntensity") }} up to ten.'
         self.assertEqual(markup.readable(caption), r'with $\alpha = \frac{1}{1 + n}$, and r.Example.MaxIntensity up to ten.')
         held, tags = markup.protect(caption)
         self.assertNotIn('{', held)

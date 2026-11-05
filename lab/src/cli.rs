@@ -242,8 +242,22 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Typeset every formula tag in these JSON files (text tables, storyboards,
-    /// timelines) and check the lab's limits: glyphs of at least 24 px, display
+    /// Report the text tables of every package, per language: the keys a language's own table lacks (shown in a
+    /// fallback language), the texts equal to English's (often fine: technical terms), and the characters the
+    /// bundled fonts cannot draw. Prints JSON; with --check, fails on a missing key of a complete language or a
+    /// character without a glyph.
+    I18n {
+        #[arg(long)]
+        check: bool,
+    },
+    /// Print a package's text table in one language, as the lab resolves it: a JSON object of key → text (a
+    /// message with variables as Fluent writes them missing, `{$seconds}`). The video builder reads tables so.
+    Text {
+        package: String,
+        #[arg(long, default_value = "en")]
+        locale: String,
+    },
+    /// Typeset every formula in these files (Fluent text tables, timelines) and check the lab's limits: glyphs of at least 24 px, display
     /// formulas at most 546 px wide. Prints a JSON report; fails on a problem.
     Formulas {
         #[arg(long, required = true, num_args = 1..)]
@@ -576,6 +590,20 @@ pub fn main(app: App) -> Result<()> {
             eprintln!("selftest passed; report: {}", report.display());
             Ok(())
         }
+        Command::I18n { check } => {
+            let report = crate::i18n::report();
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            if check && report.iter().any(|r| r["problems"].as_u64() != Some(0)) {
+                bail!("a text table has a missing key or a character without a glyph");
+            }
+            Ok(())
+        }
+        Command::Text { package, locale } => {
+            crate::i18n::set(crate::i18n::Locale::from_code(&locale).with_context(|| format!("unknown locale `{locale}`"))?);
+            let table: serde_json::Map<String, serde_json::Value> = crate::i18n::package_keys(&package).into_iter().map(|k| (k.to_string(), crate::i18n::package_text(&package, k).into())).collect();
+            println!("{}", serde_json::to_string_pretty(&table)?);
+            Ok(())
+        }
         Command::Formulas { check } => {
             let report = crate::formula::check_files(&check)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
@@ -739,7 +767,7 @@ pub fn main(app: App) -> Result<()> {
                 let list: Vec<serde_json::Value> = packages
                     .iter()
                     .map(|m| {
-                        let demos: Vec<serde_json::Value> = m.demos.iter().map(|d| serde_json::json!({"key": d.key, "title": d.title, "edition": d.edition, "timeline": d.timeline, "audio": d.audio})).collect();
+                        let demos: Vec<serde_json::Value> = m.demos.iter().map(|d| serde_json::json!({"key": d.key, "title": d.title, "timeline": d.timeline, "audio": d.audio})).collect();
                         let library = library(m).map(|(file, loaded)| match loaded {
                             Ok(handles) => serde_json::json!({"file": file, "handles": handles}),
                             Err(error) => serde_json::json!({"file": file, "error": error}),
@@ -760,7 +788,7 @@ pub fn main(app: App) -> Result<()> {
                         None => {}
                     }
                     for d in &m.demos {
-                        println!("    demo {}: {} ({}), {} + {}", d.key, d.title, d.edition, d.timeline, d.audio);
+                        println!("    demo {}: {}, {} + {}", d.key, d.title, d.timeline, d.audio);
                     }
                     for s in &m.series {
                         println!("    series {}: {}, parts {}", s.key, s.title_in("en"), s.parts.join(" -> "));

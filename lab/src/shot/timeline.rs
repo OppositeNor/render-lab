@@ -230,7 +230,7 @@ pub struct Cue {
     /// Pseudo-code listing for PanelMode::Code; `""` clears it.
     #[serde(default)]
     pub code: Option<String>,
-    /// The formula card: a formula tag (src/rich_text.rs); `""` clears it.
+    /// The formula card: a formula, `{ FORMULA(…) }` (src/rich_text.rs); `""` clears it.
     #[serde(default)]
     pub formula: Option<String>,
     /// The card's lit term (0: none). It fades in over the key's `blend`.

@@ -1,7 +1,7 @@
-# title: Light in a solid cell | 实心单元格中的光
+# title-text: listing-direct_light-title
 # source: update-light
 # demo: light
-# dispatch: for each solid cell, in parallel | 每个实心单元格并行
+# dispatch-text: listing-direct_light-dispatch
 def process_cell(cell, lights, probes, feedback):
     p = (cell.position + 0.5) / to_cell + offset   # @position @@math
     accum = bounce(cell, probes) * feedback        # @bounce @@read

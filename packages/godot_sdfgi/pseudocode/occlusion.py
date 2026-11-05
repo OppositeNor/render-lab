@@ -1,7 +1,7 @@
-# title: Occlusion around a probe | 探针周围的遮蔽
+# title-text: listing-occlusion-title
 # source: occlusion-shells
 # demo: occlusion
-# dispatch: for each probe's region: 64 threads | 每个探针区域：64 个线程
+# dispatch-text: listing-occlusion-dispatch
 def occlusion(window, probe):    # 16^3 cells around it
     for shell in range(22):      # |x| + |y| + |z|          # @shells
         for cell in window.shell(shell):

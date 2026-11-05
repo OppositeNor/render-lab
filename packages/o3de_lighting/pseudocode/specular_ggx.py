@@ -1,4 +1,4 @@
-# title: SpecularGGX: D, G, and F | SpecularGGX：D、G 与 F
+# title-text: listing-specular_ggx-title
 # source: specular-ggx
 # demo: specular
 def specular_ggx(v, l, n, f0, n_dot_v, a2, compensation):

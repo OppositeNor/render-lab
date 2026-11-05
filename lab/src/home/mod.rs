@@ -216,7 +216,7 @@ struct TimelineRow {
 /// first in English, else the first.
 fn preferred_edition(rows: &[TimelineRow], language: Locale) -> usize {
     let first = |locale: Locale| rows.iter().position(|r| r.locale == Some(locale));
-    first(language).or_else(|| first(Locale::En)).unwrap_or(0)
+    first(language).or_else(|| first(Locale::EN)).unwrap_or(0)
 }
 
 /// An entry of the selection page's Feature column: an investigation, or a

@@ -1,7 +1,7 @@
-# title: sdfgi_process: shading a pixel | sdfgi_process：为一个像素着色
+# title-text: listing-screen_pass-title
 # source: probe-weights
 # demo: pixel
-# dispatch: for each screen pixel, in parallel | 每个屏幕像素并行
+# dispatch-text: listing-screen_pass-dispatch
 def sdfgi_process(vertex, normal, reflection, roughness):
     vertex.y *= y_mult; normal.y *= y_mult         # @squash @@math
     c = finest_cascade_holding(vertex)             # @cascade

@@ -1,4 +1,4 @@
-# title: Direct light in a cell | 单元格中的直接光
+# title-text: listing-compute_light-title
 # source: compute-light
 # demo: light
 def compute_light(cell, lights):

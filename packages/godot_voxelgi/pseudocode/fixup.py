@@ -1,4 +1,4 @@
-# title: Finishing the cells | 收尾单元格
+# title-text: listing-fixup-title
 # source: fixup-leaf
 # demo: cells
 def fixup_plot(cell, level):

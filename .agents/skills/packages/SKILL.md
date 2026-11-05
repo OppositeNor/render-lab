@@ -65,8 +65,7 @@ path = "resources.toml"
 [[provides]]
 type = "demo"                        # a narrated timeline the homepage's Watch plays
 key = "video"                        # letters, digits, `-`, `_`; unique in the package
-title = "How My Feature Works"
-edition = "English"                  # its name on the homepage's edition picker
+title = "How My Feature Works"         # the edition picker names it by its timeline's language (locales.toml)
 timeline = "timeline/en"             # resources (keys of this package, or `<package>.<key>`)
 audio = "narration/en"
 
@@ -99,9 +98,8 @@ license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the p
   trademarks, with no claim of affiliation. The lab shows them on the homepage's selection page and on a card that ends
   every video of the package, and the video builder writes them, with each license's full text, to `NOTICE.txt`
   beside the video.
-- Notice and credit texts write symbols as tags, `{@ symbol=copyright}` (©), `registered` (®), `trademark` (™), so
-  the text tables need no hard-to-type characters (`lab/src/rich_text.rs` `SYMBOLS`); `{year}` in a credit is the
-  current year.
+- Notice and credit texts write symbols as their characters (©, ®, ™); `{ $year }` in a credit is the current
+  year.
 
 ## 3. Collections and keys
 
@@ -150,9 +148,12 @@ parts = ["render_lab.shader/scene", "wgsl/my-shading"]
 - **Experiments.** An experiment file (`lab/src/experiment.rs`) declared as `experiment/<name>`
   (`kind = "file"`, `source = "experiments/<name>.toml"`) is offered by the viewer's Experiments tab and run by
   `render-lab experiment <package>.experiment/<name>` (the `experiments` skill).
-- **Text.** A package's on-screen text is `text/en.json` and `text/zh-CN.json`, declared as `text/en` and `text/zh-cn`,
-  read by the code with `tr("key")`, which `lab::text_table!("<package>.text")` defines in its text module. Data files name text keys in
-  fields ending in `-text` (`title-text = "scene.garden"`).
+- **Text.** A package's on-screen text is a Project Fluent file per language that render_lab's `locales.toml` registers
+  (`text/en.ftl`, `text/zh-CN.ftl`), declared as `text/<code in lower case>` (`text/en`, `text/zh-cn`), read by the code
+  with `tr("key")`, which `lab::text_table!("<package>.text")` defines in its text module. A complete language's table
+  has every key; a draft one's may miss keys, which show in its fallback languages (`render-lab i18n` lists them). Data
+  files name text keys in fields ending in `-text` (`title-text = "scene-garden"`), and pseudo-code listings in their
+  `# title-text:` and `# dispatch-text:` headers.
 
 ## 4. Content without code
 

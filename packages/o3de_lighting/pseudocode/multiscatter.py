@@ -1,4 +1,4 @@
-# title: Multiscatter compensation | 多次散射补偿
+# title-text: listing-multiscatter-title
 # source: multiscatter
 # demo: multiscatter
 def lighting_data_init(s, lit):

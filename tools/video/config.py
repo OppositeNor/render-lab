@@ -9,9 +9,9 @@ package's demos name and the lab's viewer plays.
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
-import re
 import subprocess
 import tomllib
 from dataclasses import dataclass, field
@@ -170,14 +170,14 @@ class Config:
 
     def lab_text(self, key: str) -> str:
         """A text of the lab's own package (render_lab), in this edition's language."""
-        return json.loads((LAB / 'packages' / 'render_lab' / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))[key]
+        return text_table('render_lab', self.lang)[key]
 
     def notices(self) -> list[tuple[str, Path | None]]:
         """The package's legal notices (its manifest's `[[notice]]`, lab/src/packages.rs): each one's text in this
         edition's language, and the file of its terms, if it has one."""
         manifest = tomllib.loads((self.package / 'manifest.toml').read_text(encoding='utf-8'))
-        texts = json.loads((self.package / 'text' / f'{self.lang}.json').read_text(encoding='utf-8'))
-        return [(symbols(texts[n['notice-text']]), self.package / n['license'] if 'license' in n else None) for n in manifest.get('notice', [])]
+        texts = text_table(manifest['name'], self.lang)
+        return [(texts[n['notice-text']], self.package / n['license'] if 'license' in n else None) for n in manifest.get('notice', [])]
 
     def part(self) -> dict[str, Any] | None:
         """Which part of a series this package is (a manifest's `type = "series"`, lab/src/packages.rs): its number,
@@ -209,13 +209,12 @@ class Config:
 CHECKOUTS: dict[str, Path] = {}
 
 
-# The lab's symbol tags (lab/src/rich_text.rs SYMBOLS), for text a file shows as plain text.
-SYMBOLS = {'copyright': '©', 'registered': '®', 'trademark': '™'}
-
-
-def symbols(text: str) -> str:
-    """`text` with its `{@ symbol=name}` tags written as their characters."""
-    return re.sub(r'\{@ symbol=(\w+)\}', lambda m: SYMBOLS[m.group(1)], text)
+@functools.cache
+def text_table(package: str, lang: str) -> dict[str, str]:
+    """A package's text table (its `text/<lang>.ftl`, Project Fluent) in one language, as the lab resolves it
+    (`render-lab text`): key → text."""
+    import lamlet
+    return json.loads(lamlet.lab('text', package, '--locale', lang))
 
 
 def log(message: str) -> None:

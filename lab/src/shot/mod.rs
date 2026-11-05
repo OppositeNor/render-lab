@@ -140,7 +140,7 @@ pub struct ShotState {
     /// The pseudo-code listing (src/pseudocode.rs) shown in PanelMode::Code;
     /// `highlight` then names the tags of the lit lines.
     pub code: Option<String>,
-    /// The formula card in the viewport: a formula tag (src/rich_text.rs).
+    /// The formula card in the viewport: a formula, `{ FORMULA(…) }` (src/rich_text.rs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub formula: Option<String>,
     /// The card's lit term (0: none), and how lit it is (0..1).

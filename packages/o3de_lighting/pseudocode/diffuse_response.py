@@ -1,4 +1,4 @@
-# title: Diffuse lighting and its response | 漫反射光照与响应
+# title-text: listing-diffuse_response-title
 # source: initialize-lighting-data
 # demo: diffuse
 def initialize_lighting_data(s, view_position, lit):

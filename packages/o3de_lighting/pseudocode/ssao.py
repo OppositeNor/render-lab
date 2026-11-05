@@ -1,4 +1,4 @@
-# title: SSAO | 屏幕空间环境光遮蔽
+# title-text: listing-ssao-title
 # source: ssao-compute
 # demo: ssao
 def ssao(depth):           # AoParent -> SsaoParent       # @half

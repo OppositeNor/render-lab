@@ -1,14 +1,14 @@
-//! The formulas above the readout: one formula tag per demonstration in this
-//! investigation's text tables (`formula.<demo>`), typeset by
-//! lab/src/formula.rs. Its terms are marked `\lit{n}{…}`, and the tag's
-//! `colors` give each term's readout colour; the `formula` parameter picks the
+//! The formulas above the readout: one formula per demonstration in this
+//! investigation's text tables (`formula-<demo>`, a `{ FORMULA(…) }` call),
+//! typeset by lab/src/formula.rs. Its terms are marked `\lit{n}{…}`, and the
+//! call's `colors` give each term's readout colour; the `formula` parameter picks the
 //! lit term.
 
 use super::shot::Demo;
 use super::text::tr;
 use lab::rich_text;
 
-/// The demonstration's formula tag.
+/// The demonstration's formula, as rich text.
 pub fn text(demo: Demo) -> &'static str {
     match demo {
         Demo::Room => tr("formula-room"),

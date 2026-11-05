@@ -16,6 +16,8 @@ import presentation  # noqa: E402
 import timeline  # noqa: E402
 
 FORMULA = r'\frac{1}{1+\lit{1}{n}}'
+# FORMULA as a Fluent string literal writes it (backslashes doubled).
+Q = FORMULA.replace('\\', '\\\\')
 
 # The cues use `attr` and `present`'s functions, so the test needs no investigation's vocabulary; a storyboard
 # writes them with it (`{cameraYaw 30.0}` for `{attr "camera.yaw" "30"}`).
@@ -99,9 +101,9 @@ class Presentation(unittest.TestCase):
         self.assertEqual(second.spoken, 'A ray marches step by step, with one over one plus n, LightCullingTilePrepare and max intensity.')
         self.assertEqual([(t.kind, t.name) for t in second.tags], [('open', 'grow'), ('cue', None), ('close', 'grow'), ('formula', None)])
         self.assertEqual([second.pieces[t.piece] for t in second.tags], ['marches', 'step by step', ', with', 'one over one plus n'])
-        self.assertEqual(second.caption, f'A ray marches step by step, with {{@ formula="{FORMULA}" colors="#ffd166"}}, {{@ codespan="LightCullingTilePrepare"}} and {{@ codespan="r.Example.Max"}}.')
+        self.assertEqual(second.caption, f'A ray marches step by step, with {{ FORMULA("{Q}", colors: "#ffd166") }}, {{ CODE("LightCullingTilePrepare") }} and {{ CODE("r.Example.Max") }}.')
         self.assertEqual(second.formulas, [FORMULA])
-        self.assertEqual(second.tags[3].key, {'formula': f'{{@ formula="{FORMULA}" colors="#ffd166"}}'})
+        self.assertEqual(second.tags[3].key, {'formula': f'{{ FORMULA("{Q}", colors: "#ffd166") }}'})
         self.assertEqual(second.tags[0].key, {'params': {'radius': markup.Range(0.0, 2.0)}})
         # render_lab's numbers, said in words.
         self.assertEqual(third.spoken, 'There are forty-two thousand two hundred eighty-nine leaves.')
@@ -111,7 +113,7 @@ class Presentation(unittest.TestCase):
         self.assertEqual((translation['title'], translation['glossary']), ('测试', ['SDFGI', 'GI mode']))
         self.assertEqual(translation['chapters'], [{'id': 'c1', 'number': 1, 'title': '第一章', 'summary': '内容。'}])
         narration = translation['beats']['c1-one']['narration']
-        self.assertEqual(narration[1]['shown'].caption, f'第二句，{{@ formula="{FORMULA}"}}，{{@ codespan="LightCullingTilePrepare"}}。')
+        self.assertEqual(narration[1]['shown'].caption, f'第二句，{{ FORMULA("{Q}") }}，{{ CODE("LightCullingTilePrepare") }}。')
         self.assertEqual(narration[1]['shown'].formulas, [FORMULA])
         # A chapter is the English one of its id; its number may be left out.
         self.assertEqual(self.load(TRANSLATION.replace(' number=1', ''), translation=True)['chapters'], [{'id': 'c1', 'title': '第一章', 'summary': '内容。'}])

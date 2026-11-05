@@ -1,7 +1,7 @@
-# title: The shadow march | 阴影步进
+# title-text: listing-shadow_march-title
 # source: shadow-march
 # demo: light
-# dispatch: in each solid cell's thread, per light | 在每个实心单元格的线程中，逐个光源
+# dispatch-text: listing-shadow_march-dispatch
 def shadow_march(p, light):
     ray = p + sign(dir) * 0.48 * cell + dir * 0.4 * cell  # @bias @@math
     while advance < min(light_distance, exit):          # @march

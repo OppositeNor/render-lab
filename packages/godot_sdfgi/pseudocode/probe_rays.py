@@ -1,7 +1,7 @@
-# title: A probe's rays and its history | 探针的光线与历史
+# title-text: listing-probe_rays-title
 # source: probe-march
 # demo: probes
-# dispatch: for each probe, in parallel | 每个探针并行
+# dispatch-text: listing-probe_rays-dispatch
 def update_probe(probe, history_index):
     rotation = hashf3(hash3(world_offset + probe))      # @rotation @@math
     total = history_size * ray_count     # 30 * 8 = 240 # @rays @@math

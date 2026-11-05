@@ -1,4 +1,4 @@
-# title: A pixel's cascade | 像素所在的级联
+# title-text: listing-cascade_select-title
 # source: cascade-select
 # demo: cascades
 def shadow_cascade(p, normal, size=1024):

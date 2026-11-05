@@ -1,4 +1,4 @@
-# title: VoxelGI in a frame | 一帧中的 VoxelGI
+# title-text: listing-frame-title
 # source: frame-order
 # demo: room
 def render_scene(scene, camera):
