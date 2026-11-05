@@ -7,11 +7,11 @@
 //! renderer keeps under a key (`Picture::Texture`, drawn as it holds when the
 //! frame is drawn, so passes that write it each frame show).
 //!
-//! A story shows images by name (`{@ image=key}`, `StoryImage`): one the
+//! A story shows images by name (`{inset "key"}`, `StoryImage`): one the
 //! investigation declares (`Investigation::images`) and publishes in the
 //! frames that show it (`FrameContent::images`), a PNG resource of its
 //! package or one an imported package exports, or an instance of an image
-//! kind its shaders define (`{@ image=floor imageFrom=probeMap}`, a GPU
+//! kind its shaders define (`{inset "floor"} {imageFrom "probeMap"}`, a GPU
 //! image, src/views.rs). The investigation describes the picture; the story
 //! says when it shows, in which corner, with what title and parameters.
 
@@ -40,12 +40,12 @@ pub enum Picture {
 
 /// An image an investigation publishes for its story (`Investigation::images`).
 pub struct ImageSpec {
-    /// Its key in a story (`{@ image=<key>}`) and in `FrameContent::images`.
+    /// Its key in a story (`{inset "<key>"}`) and in `FrameContent::images`.
     pub key: &'static str,
     pub doc: &'static str,
 }
 
-/// An image a story shows (`{@ image=name imageTitle=text-key imageCorner=top-left}`).
+/// An image a story shows (`{inset "name"} {imageTitle "text-key"} imageCornerTopLeft`).
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct StoryImage {
     /// Its name in the story: a published image's key, a resource's, or an instance's own.

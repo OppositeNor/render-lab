@@ -1,5 +1,5 @@
-//! Arrows and labels a story declares (`{@ arrow=a arrowFrom=… arrowTo=…}`,
-//! `{@ label=l labelAt=… labelText=…}`, `{@ arrows=set}`), drawn over the
+//! Arrows and labels a story declares (`{arrow "a"} {arrowFrom …} {arrowTo …}`,
+//! `{label "l"} {labelAt …} {labelText "…"}`, `{arrows "set"}`), drawn over the
 //! investigation's frame. A point is three numbers, or a point the
 //! investigation publishes by name (`FrameContent::points`, declared in
 //! `Investigation::annotations`), so an arrow can follow what the

@@ -741,7 +741,7 @@ pub trait Investigation: Sync {
     fn script_natives(&self, _natives: &mut crate::script::lamlet::embed::NativeRegistry) -> Result<(), crate::script::lamlet::embed::Error> {
         Ok(())
     }
-    /// The images it publishes for a story to show (`{@ image=key}`,
+    /// The images it publishes for a story to show (`{inset "key"}`,
     /// packages/render_lab/src/inset.rs), in `FrameContent::images` of the frames
     /// that show them.
     fn images(&self) -> &'static [crate::utility::inset::ImageSpec] {

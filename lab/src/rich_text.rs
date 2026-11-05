@@ -58,7 +58,7 @@ pub fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usi
         }
         let name = text[name_start..i].to_string();
         if bytes.get(i) != Some(&b'=') {
-            // A bare word: a named cue (`{@intro}`), kept with an empty value.
+            // A bare word: a flag (`{@ derived}`, `toggle`), kept with an empty value.
             attrs.push((name, String::new()));
             continue;
         }

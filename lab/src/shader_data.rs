@@ -1,9 +1,9 @@
 //! Shader values: the members of a shader's uniform struct that tags in its
 //! `///` comments declare, which the lab reflects (naga, src/shaders.rs)
 //! into values by key (src/values.rs) and packs into the shader's buffer.
-//! A tag is written as a story's are, `{@ name=value …}`, and read by the
-//! same parser (src/rich_text.rs); a value of several numbers or names is
-//! comma-separated, as in a story (`camera.target=0,1,2`).
+//! A tag is written as a rich-text tag is, `{@ name=value …}`, and read by
+//! the same parser (src/rich_text.rs); a value of several numbers or names
+//! is comma-separated (`components=lightX,lightY,lightZ`).
 //!
 //! ```wgsl
 //! struct Shading {
