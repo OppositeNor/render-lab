@@ -73,7 +73,10 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 investigation's values (and their vector components), and a timeline key's fields with their options where the lab
 knows them (demos, panels, listings, images, image kinds, actions, click handlers, eases, corners). `build.py` turns
 it into a package named after the investigation's package, `build/<package>.lam` (`render-lab lamlet vocab`), every
-time it reads the storyboard, so it always matches the investigation.
+time it reads the storyboard, so it always matches the investigation. `render-lab --investigation <path> story schema`
+adds what writing each key needs (a value's type, unit, range, default, and doc; each key's attribute and function)
+and lists what the vocabulary leaves out (an option that makes no Lamlet name, a key whose function name another
+has), each with the `{attr "…" "…"}` that still writes it.
 
 - A function is its key in camel case (`camera.yaw` is `cameraYaw`), except `code` (`listing`), `image` (`inset`),
   and `ease` (`easing`), whose names `content` and `present` already use. The fields render_lab types or checks

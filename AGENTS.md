@@ -106,6 +106,7 @@ python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py 
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
+cargo run --release -- --investigation godot/sdfgi story schema              # the same keys with type, unit, range, default, doc; and what the vocabulary leaves out, with the `attr` that writes it
 cargo run --release -- --investigation o3de/lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)

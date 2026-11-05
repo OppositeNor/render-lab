@@ -274,6 +274,10 @@ enum StoryCommand {
     /// The keys a storyboard's cues may set, as JSON (src/script/keys.rs): the vocabulary key list
     /// `render-lab lamlet vocab` turns into the investigation's cue package.
     Keys,
+    /// The key list with what writing each needs (src/script/keys.rs `schema`): a value's type, unit, range,
+    /// default, and doc; the attribute and function of each key; and what the vocabulary leaves out (options that
+    /// make no Lamlet name, keys whose function name another has), each with the `attr` that still writes it.
+    Schema,
     /// Check untimed cues as JSON, without speech or a GPU; `-` reads stdin.
     /// With --timeline, check a complete measured timeline instead.
     Check {
@@ -641,6 +645,11 @@ pub fn main(app: App) -> Result<()> {
         Command::Story(StoryCommand::Keys) => {
             let keys = crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
             println!("{}", serde_json::to_string_pretty(&keys)?);
+            Ok(())
+        }
+        Command::Story(StoryCommand::Schema) => {
+            let schema = crate::script::keys::schema(investigation::current()).map_err(anyhow::Error::msg)?;
+            println!("{}", serde_json::to_string_pretty(&schema)?);
             Ok(())
         }
         Command::Story(StoryCommand::Check { file, timeline }) => {
