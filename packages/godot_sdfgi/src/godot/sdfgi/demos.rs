@@ -13,7 +13,8 @@ use super::voxels::{self, index, inside, CELLS};
 use crate::godot::sdfgi::text::{tr, tr_with};
 use egui::Color32;
 use glam::{IVec3, Vec3};
-use lab::frame::{FrameContent, Label, Readout, Statics};
+use lab::frame::{FrameContent, Readout, Statics};
+use lab::utility::draw::{ball, circle, label, row, wire_box};
 use lab::utility::inset::{Corner, Marker, Picture, PictureInset};
 use lab::layout::FrameUniforms;
 use lab::palette;
@@ -40,13 +41,6 @@ pub fn cascades(state: &ShotState) -> Cascades {
     model::follow(settings, ORIGIN, &path)
 }
 
-fn wire_box(content: &mut FrameContent, min: Vec3, size: Vec3, color: Color32, alpha: f32, width: f32) {
-    let c = |i: u32| min + size * Vec3::new((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32);
-    for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
-        content.draw.segment(c(a), c(b), color, alpha, width, 0);
-    }
-}
-
 /// The investigation's far plane: the lab's camera stops at 60 m, and the
 /// cascades reach 205 m, so its frames draw out to 1 km.
 pub const FAR_PLANE: f32 = 1000.0;
@@ -61,43 +55,6 @@ fn far_camera(mut camera: lab::layout::CameraData) -> lab::layout::CameraData {
     camera.world_to_clip = (proj * view).to_cols_array_2d();
     camera.far_plane = FAR_PLANE;
     camera
-}
-
-/// The size in pixels of `r` metres at `p`, for the frame's camera (points
-/// are drawn as discs of a radius in pixels).
-fn px(content: &FrameContent, p: Vec3, r: f32) -> f32 {
-    let c = &content.uniforms.camera;
-    let d = (p - Vec3::from(c.position)).length().max(1e-3);
-    r / (d * (c.vertical_fov * 0.5).tan()) * c.viewport_size[1] * 0.5
-}
-
-/// A point of `r` metres.
-fn ball(content: &mut FrameContent, p: Vec3, r: f32, color: Color32, alpha: f32) {
-    let radius = px(content, p, r).max(1.5);
-    content.draw.point(p, radius, color, alpha);
-}
-
-/// A circle of `r` metres about `p`, facing the camera (a march's sphere).
-fn circle(content: &mut FrameContent, p: Vec3, r: f32, color: Color32, alpha: f32) {
-    let eye = Vec3::from(content.uniforms.camera.position);
-    let n = (eye - p).normalize_or_zero();
-    let u = n.any_orthonormal_vector();
-    let v = n.cross(u);
-    let pts: Vec<Vec3> = (0..=32).map(|k| {
-        let a = k as f32 / 32.0 * std::f32::consts::TAU;
-        p + (u * a.cos() + v * a.sin()) * r
-    }).collect();
-    content.draw.polyline(&pts, color, alpha, 1.5);
-}
-
-fn label(content: &mut FrameContent, state: &ShotState, anchor: Vec3, text: String, color: Color32) {
-    if state.p("labels") > 0.5 {
-        content.labels.push(Label { anchor, text, color });
-    }
-}
-
-fn row(name: impl Into<String>, value: impl Into<String>, color: Color32) -> (String, String, Color32) {
-    (name.into(), value.into(), color)
 }
 
 const CASCADE_COLORS: [Color32; 4] = [palette::AXIS_Y, palette::AABB, palette::OBB, palette::REFLECTED];

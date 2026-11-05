@@ -47,7 +47,7 @@
 //! key, a missing field, or a hook the investigation does not register is an
 //! error that names the file; whether the order works (each node once, the
 //! update passes first, the pre-pass before the scene pass, reads after
-//! writes) is the frame graph's to check (src/graph.rs).
+//! writes) is the frame graph's to check (src/graph/).
 
 use crate::investigation::{
     Access, DepthViews, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramUse, SceneShading, ShadingBuffer, ShadingHook, ShadingPass,
@@ -147,7 +147,7 @@ fn table<'a>(t: &'a dyn TableLike, field: &str) -> Result<Option<&'a dyn TableLi
 fn hook(hooks: &Hooks, name: &str, what: &str) -> Result<ShadingHook, String> {
     hooks.iter().find(|(n, _)| *n == name).map(|(_, h)| *h).ok_or_else(|| {
         let names: Vec<&str> = hooks.iter().map(|(n, _)| *n).collect();
-        format!("{what}: no hook `{name}` (its investigation registers {})", if names.is_empty() { "none".to_string() } else { names.join(", ") })
+        format!("{what}: no hook `{name}` (its investigation registers {})", crate::story_refs::names_or_none(&names))
     })
 }
 

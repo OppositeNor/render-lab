@@ -25,7 +25,7 @@ pub const SCENE: &str = "render_lab.shader/scene";
 pub const OVERLAY: &str = "render_lab.shader/overlay";
 pub const VERIFY: &str = "render_lab.shader/verify";
 pub const FROST: &str = "render_lab.shader/frost";
-/// The frame graph's inspector (src/graph.rs).
+/// The frame graph's inspector (src/graph/).
 pub const INSPECT: &str = "render_lab.shader/inspect";
 /// The records the struct panel displays.
 const TYPES: &str = "render_lab.wgsl/types";
@@ -152,7 +152,7 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
 
 /// The module `id`, composed and validated, with what naga's validator
 /// learned of it: which globals each entry point reads and writes
-/// (`ModuleInfo::get_entry_point`, src/graph.rs).
+/// (`ModuleInfo::get_entry_point`, src/graph/).
 pub fn analyse(id: &str) -> Result<(naga::Module, naga::valid::ModuleInfo)> {
     let source = compose(id)?;
     let module = validate(id, &source)?;

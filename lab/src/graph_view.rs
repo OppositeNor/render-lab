@@ -1,5 +1,5 @@
 //! One view for every graph the lab draws: a story's diagrams and the frame
-//! graph's scene (src/diagram.rs), the frame graph's DAG panel (src/ui.rs),
+//! graph's scene (src/diagram.rs), the frame graph's DAG panel (src/ui/),
 //! and the knowledge graph (src/knowledge.rs).
 //!
 //! A `Graph` is boxes (`Node`: title lines, member rows, a dashed outline, or

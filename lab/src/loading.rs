@@ -4,13 +4,14 @@
 //! `Statics`, and a `Renderer` on a clone of the window's device, while the
 //! window draws `Screen`, the progress so far.
 
+use crate::egui_pass::PagePainter;
 use crate::frame::Statics;
 use crate::gpu::Gpu;
 use crate::i18n::{args, tr, tr_with};
 use crate::investigation::{self, Investigation};
 use crate::renderer::Renderer;
 use crate::scene::SceneId;
-use crate::{palette, resources, text};
+use crate::{palette, resources};
 use anyhow::{anyhow, Result};
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, FontId, Rect};
 use std::sync::{Arc, Mutex};
@@ -92,62 +93,19 @@ fn join(worker: JoinHandle<Result<Renderer>>) -> Result<Renderer> {
 /// The window's page while a scene loads: its name, the current step, and a
 /// bar of the steps done.
 pub struct Screen {
-    ctx: egui::Context,
-    renderer: egui_wgpu::Renderer,
+    painter: PagePainter,
 }
 
 impl Screen {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Screen {
-        let ctx = egui::Context::default();
-        text::install_fonts(&ctx);
-        let renderer = egui_wgpu::Renderer::new(device, format, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
-        Screen { ctx, renderer }
+        Screen { painter: PagePainter::new(device, format) }
     }
 
     /// Draws the page into `view` (`size` pixels): `title` over the progress.
     pub fn draw(&mut self, gpu: &Gpu, view: &wgpu::TextureView, size: [u32; 2], ui_scale: f32, title: &str, progress: &Progress) {
-        let scale = (size[0] as f32 / text::REFERENCE.x).min(size[1] as f32 / text::REFERENCE.y) * ui_scale;
-        let canvas = vec2(size[0] as f32, size[1] as f32) / scale;
-        let mut raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, canvas)), ..Default::default() };
-        raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
-        text::restyle(&self.ctx);
-        let mut output = self.ctx.run_pass(raw, |ctx| page(ctx, canvas, title, progress));
-        let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
-        let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
-        let (device, queue) = (&gpu.device, &gpu.queue);
-        // Drain the deltas: epaint asserts (in debug builds) that a
-        // TexturesDelta is empty when it is dropped.
-        for (id, deltas) in output.textures_delta.set.drain() {
-            for delta in &deltas {
-                self.renderer.update_texture(device, queue, id, delta);
-            }
-        }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("loading") });
-        let mut commands = self.renderer.update_buffers(device, queue, &mut encoder, &jobs, &screen);
-        {
-            let bg = palette::background();
-            let mut pass = encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("loading"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view,
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 }), store: wgpu::StoreOp::Store },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                })
-                .forget_lifetime();
-            self.renderer.render(&mut pass, &jobs, &screen);
-        }
-        commands.push(encoder.finish());
-        queue.submit(commands);
-        for id in output.textures_delta.free.drain() {
-            self.renderer.free_texture(&id);
-        }
+        let (raw, canvas) = PagePainter::input(size, ui_scale, egui::RawInput::default());
+        let output = self.painter.run(raw, |ctx| page(ctx, canvas, title, progress));
+        self.painter.draw(gpu, "loading", view, size, palette::background_clear(), output, &mut ());
     }
 }
 
@@ -168,7 +126,7 @@ pub fn page(ctx: &egui::Context, canvas: egui::Vec2, title: &str, progress: &Pro
 /// starts loading the current investigation's first scene, draws the page
 /// while the worker runs into `png`, then waits for the renderer.
 pub fn snapshot(png: &std::path::Path, size: [u32; 2], ui_scale: f32) -> Result<()> {
-    use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows, write_png};
+    use crate::readback::{read_texture_rgba, write_png};
     let gpu = Gpu::new(crate::gpu::instance(None), None)?;
     let format = crate::gpu::FRAME_FORMAT;
     let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -182,22 +140,12 @@ pub fn snapshot(png: &std::path::Path, size: [u32; 2], ui_scale: f32) -> Result<
         view_formats: &[],
     });
     let view = texture.create_view(&Default::default());
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     let current = investigation::current();
     let loading = Loading::start(current, gpu.clone(), current.first_scene(), size);
     let mut screen = Screen::new(&gpu.device, format);
     let progress = loading.progress();
     screen.draw(&gpu, &view, size, ui_scale, current.title(), &progress);
-    let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("loading readback") });
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo { texture: &texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
-        wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded_row_bytes(size[0])), rows_per_image: Some(size[1]) } },
-        wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
-    );
-    gpu.queue.submit([encoder.finish()]);
-    let padded = padded_row_bytes(size[0]) as u64;
-    let rgba = unpad_rows(&read_buffer(&gpu.device, &gpu.queue, &buffer, 0, padded * size[1] as u64), size[0], size[1]);
-    write_png(png, size[0], size[1], &rgba)?;
+    write_png(png, size[0], size[1], &read_texture_rgba(&gpu.device, &gpu.queue, &texture, size))?;
     let started = std::time::Instant::now();
     let renderer = loading.wait()?;
     eprintln!("loading page: {} (drawn at \"{}\", step {} of {}); the renderer ({}x{}) was ready {:.1} s later", png.display(), progress.step, progress.done, progress.total, renderer.width, renderer.height, started.elapsed().as_secs_f32());

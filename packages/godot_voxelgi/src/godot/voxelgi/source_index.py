@@ -477,7 +477,7 @@ DEMOS: dict[str, list[str]] = {
 LAB_LAYOUT = "The same bits, packed by the lab's CPU model (godot/voxelgi, storage.rs)."
 LAB_LAYOUT_ZH = "实验室 CPU 模型（godot/voxelgi，storage.rs）按相同位布局打包。"
 
-# The frame graph's nodes (lab/src/graph.rs) and the engine passes they mirror:
+# The frame graph's nodes (lab/src/graph/) and the engine passes they mirror:
 # the graph panel names each node's pass and its sources.
 PASSES = [
     {"lab": "voxelgiLightCS", "engine": "voxel_gi.glsl MODE_COMPUTE_LIGHT", "sources": ["compute-light"]},

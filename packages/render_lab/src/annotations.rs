@@ -6,7 +6,7 @@
 //! investigation computes; a set is arrows the investigation computes and
 //! publishes by name (`FrameContent::arrow_sets`) in the frames that show it.
 //! The story says which, when, and in what colour; the timeline fades them
-//! over `blend` and blends fixed points (src/shot.rs).
+//! over `blend` and blends fixed points (src/shot/).
 
 use crate::frame::{FrameContent, Label, FLAG_ARROW};
 use egui::Color32;

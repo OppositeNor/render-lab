@@ -14,35 +14,17 @@ use super::world::{self, LightSettings, World, NODE};
 use crate::godot::voxelgi::text::{tr, tr_with};
 use egui::Color32;
 use glam::{IVec3, Vec3, Vec4};
-use lab::frame::{FrameContent, Label, Readout, Statics};
+use lab::frame::{FrameContent, Readout, Statics};
 use lab::layout::FrameUniforms;
 use lab::palette;
 use lab::scene::{ids, Scene};
 use lab::shot::ShotState;
+use lab::utility::draw::{ball, circle, label, row, wire_box};
 use lab::utility::inset::{Corner, Marker, Picture, PictureInset};
 use std::sync::{Arc, OnceLock};
 
 // ---------------------------------------------------------------------------
 // Drawing helpers.
-
-fn wire_box(content: &mut FrameContent, min: Vec3, size: Vec3, color: Color32, alpha: f32, width: f32) {
-    let c = |i: u32| min + size * Vec3::new((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32);
-    for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
-        content.draw.segment(c(a), c(b), color, alpha, width, 0);
-    }
-}
-
-/// The size in pixels of `r` metres at `p`, for the frame's camera.
-fn px(content: &FrameContent, p: Vec3, r: f32) -> f32 {
-    let c = &content.uniforms.camera;
-    let d = (p - Vec3::from(c.position)).length().max(1e-3);
-    r / (d * (c.vertical_fov * 0.5).tan()) * c.viewport_size[1] * 0.5
-}
-
-fn ball(content: &mut FrameContent, p: Vec3, r: f32, color: Color32, alpha: f32) {
-    let radius = px(content, p, r).max(1.5);
-    content.draw.point(p, radius, color, alpha);
-}
 
 /// Points of `r` metres, each dimmed to a ghost where the scene's objects
 /// hide it from the camera (the overlay has no depth test of its own).
@@ -64,29 +46,6 @@ fn balls(content: &mut FrameContent, points: &[(Vec3, f32, Color32)], alpha: f32
 /// The largest circle drawn, metres: a cone's farther samples (or a march's
 /// longer steps) are drawn as dots, so they do not cover the room.
 const MAX_CIRCLE: f32 = 0.8;
-
-/// A circle of `r` metres about `p`, facing the camera (a cone's sample).
-fn circle(content: &mut FrameContent, p: Vec3, r: f32, color: Color32, alpha: f32) {
-    let eye = Vec3::from(content.uniforms.camera.position);
-    let n = (eye - p).normalize_or_zero();
-    let u = n.any_orthonormal_vector();
-    let v = n.cross(u);
-    let pts: Vec<Vec3> = (0..=32).map(|k| {
-        let a = k as f32 / 32.0 * std::f32::consts::TAU;
-        p + (u * a.cos() + v * a.sin()) * r
-    }).collect();
-    content.draw.polyline(&pts, color, alpha, 1.5);
-}
-
-fn label(content: &mut FrameContent, state: &ShotState, anchor: Vec3, text: String, color: Color32) {
-    if state.p("labels") > 0.5 {
-        content.labels.push(Label { anchor, text, color });
-    }
-}
-
-fn row(name: impl Into<String>, value: impl Into<String>, color: Color32) -> (String, String, Color32) {
-    (name.into(), value.into(), color)
-}
 
 /// The rows' colours, the lit row (`focusRow`) in the selection colour.
 fn lit_rows(state: &ShotState, rows: Vec<(String, String, Color32)>) -> Vec<(String, String, Color32)> {

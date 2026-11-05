@@ -73,7 +73,7 @@ pub struct SourceIndex {
     pub chapters: Vec<ChapterReading>,
     pub demos: BTreeMap<String, Vec<String>>,
     pub mappings: Vec<Mapping>,
-    /// The frame graph's nodes (src/graph.rs) and the engine passes they mirror.
+    /// The frame graph's nodes (src/graph/) and the engine passes they mirror.
     #[serde(default)]
     pub passes: Vec<PassMapping>,
 }

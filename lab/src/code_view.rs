@@ -6,7 +6,7 @@
 //! text, comments). Lines wrap within the view (a long one continues deeper
 //! than its indentation), or run on and the view scrolls both ways; a view
 //! that does not scroll counts the lines it leaves out. The pseudo-code's
-//! block style (src/ui.rs `BlockPainter`) draws its statements' text with
+//! block style (src/ui/code.rs `BlockPainter`) draws its statements' text with
 //! `draw_text`.
 
 use crate::palette;

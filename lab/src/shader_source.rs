@@ -3,7 +3,7 @@
 //! pass's entry points and everything they use (the functions they call, the
 //! structs, constants, overrides, aliases, and bindings those name), in the
 //! module's order after the entry points, each piece with the file and line it comes from. The frame
-//! graph's full-screen view shows it beside the graph (src/ui.rs).
+//! graph's full-screen view shows it beside the graph (src/ui/).
 
 use crate::resources;
 use crate::shaders;

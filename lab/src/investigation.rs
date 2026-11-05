@@ -132,7 +132,7 @@ pub struct SceneShading {
     /// one before this frame's writer; the frame graph keeps its writers.
     pub history: &'static [&'static str],
     /// How the frame graph's views show a resource unless told otherwise
-    /// (src/graph.rs): `(resource, "<show>[?<param>=<value>&…]")`, as the
+    /// (src/graph/): `(resource, "<show>[?<param>=<value>&…]")`, as the
     /// inspector's page takes it (`count?word=3&range=0,8`). The DAG's cards
     /// and a graph image without `imageShow` use it; a resource not listed
     /// is shown as its format suggests (`graph::default_show`).
@@ -235,7 +235,7 @@ pub struct UpdatePass {
     pub entry: &'static str,
     /// The volumes it samples (group 3) and the update's buffers it reads
     /// (every buffer is bound whichever it uses; the lists are the frame
-    /// graph's edges, checked against the WGSL: src/graph.rs).
+    /// graph's edges, checked against the WGSL: src/graph/).
     pub reads: &'static [&'static str],
     /// The volumes it writes, at the dispatch's mip, and the buffers it writes.
     pub writes: &'static [&'static str],
@@ -559,7 +559,7 @@ pub struct ShadingTarget {
 /// `reads` lists what the entry point reads, `writes` what it writes: a
 /// buffer it reads and writes is in both (it is bound `read_write` either
 /// way), and a volume it samples (group 3) is in `reads`. These are the
-/// frame graph's edges (src/graph.rs); the lab checks them against the WGSL
+/// frame graph's edges (src/graph/); the lab checks them against the WGSL
 /// when it loads the shading and fails on a difference.
 pub struct ShadingPass {
     pub entry: &'static str,
@@ -750,7 +750,7 @@ pub trait Investigation: Sync {
     fn actions(&self) -> &'static crate::actions::Actions {
         &crate::actions::NONE
     }
-    /// What a node of the frame graph does (its entry point; src/graph.rs), in
+    /// What a node of the frame graph does (its entry point; src/graph/), in
     /// the interface's language, for the graph's panels and its tab: a key
     /// of the package's text table, one per pass (`pass.<entry>`).
     fn pass_about(&self, _node: &str) -> Option<&'static str> {

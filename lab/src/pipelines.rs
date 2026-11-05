@@ -438,7 +438,7 @@ impl Pipelines {
         // The declarations are the graph's edges: they must be what the shaders do.
         let problems = crate::graph::lint(shading)?;
         if !problems.is_empty() {
-            return Err(anyhow!("{}: the passes' reads and writes are not what their WGSL does (src/graph.rs lint):\n  {}", shading.module, problems.join("\n  ")));
+            return Err(anyhow!("{}: the passes' reads and writes are not what their WGSL does (src/graph/lint.rs):\n  {}", shading.module, problems.join("\n  ")));
         }
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = module(device, shading.module, shaders::module(shading.module)?);

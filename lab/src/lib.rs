@@ -27,6 +27,8 @@ pub mod cook;
 pub mod demo;
 pub mod diagram;
 pub mod environment;
+/// A page drawn with egui into a texture: the loading page, the homepage.
+pub mod egui_pass;
 pub mod experiment;
 pub mod formats;
 pub mod formula;
@@ -50,6 +52,8 @@ pub mod mesh;
 pub mod metrics;
 pub mod packages;
 pub mod palette;
+/// The cards the lab's panels and viewport overlays are drawn on.
+pub mod paint;
 pub mod popup;
 pub mod pipeline;
 pub mod pipelines;
@@ -89,4 +93,6 @@ pub mod view;
 pub mod viewer;
 pub mod views;
 pub mod volume;
+/// What the homepage's and the viewer's windows share: the window, its swapchain, pointer input.
+pub mod window;
 

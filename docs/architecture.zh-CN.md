@@ -7,7 +7,7 @@
 | 路径 | 作用 |
 |---|---|
 | [`src/main.rs`](../src/main.rs)、[`lab/`](../lab/Cargo.toml)、[`lab/src/cli.rs`](../lab/src/cli.rs) | 二进制程序，只负责运行实验室：实验室是一个 Rust dylib，二进制程序和每个包的库都链接它，因此共享同一个实验室（它的代码和状态）。命令行属于实验室。 |
-| [`lab/src/home.rs`](../lab/src/home.rs)、[`lab/src/frost.rs`](../lab/src/frost.rs)、[`packages/render_lab/shaders/frost.wgsl`](../packages/render_lab/shaders/frost.wgsl) | 主页：标题、设置和选择页面，背景是标题研究的场景（`investigations::title`，目前为 O3DE 的光照；加载完成前显示加载页面，`home --snapshot --page starting`），经过两次减半、模糊、着色并加上颗粒。 |
+| [`lab/src/home/`](../lab/src/home/)、[`lab/src/frost.rs`](../lab/src/frost.rs)、[`packages/render_lab/shaders/frost.wgsl`](../packages/render_lab/shaders/frost.wgsl) | 主页：标题、设置和选择页面，背景是标题研究的场景（`investigations::title`，目前为 O3DE 的光照；加载完成前显示加载页面，`home --snapshot --page starting`），经过两次减半、模糊、着色并加上颗粒。 |
 | [`lab/src/config.rs`](../lab/src/config.rs)、[`lab/src/volume.rs`](../lab/src/volume.rs) | 设置文件：它的位置、读取（使用 `toml_edit`）和写入；声音的音量（音量值和静音开关）及其滑块，用于设置页面和查看器的面板。 |
 | [`lab/src/theme.rs`](../lab/src/theme.rs)、[`lab/src/palette.rs`](../lab/src/palette.rs)、[`themes/`](../themes) | 主题：查找并读取主题文件（构建会把 `themes/` 复制到程序旁边），以及正在使用的界面颜色（`palette::theme()`、`palette::text()` 等），设置主题之前是实验室自己的配色；叠加图形的颜色保持不变。 |
 | [`lab/src/loading.rs`](../lab/src/loading.rs) | 加载步骤：启动时不读取场景所需的任何内容。查看器打开时（或主页显示背景时），工作线程准备场景的资源、静态数据和渲染器，同时窗口显示进度；`home --snapshot --page loading` 在屏幕外绘制该页面。 |

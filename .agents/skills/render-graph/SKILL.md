@@ -5,7 +5,7 @@ description: Declare, check, inspect, and demonstrate a Render Lab investigation
 
 # Render graph
 
-An investigation's frame is a render graph (`lab/src/graph.rs`): **nodes** (passes) that read and write named
+An investigation's frame is a render graph (`lab/src/graph/`): **nodes** (passes) that read and write named
 **resources**. The lab builds it from the investigation's `SceneShading` (`lab/src/investigation.rs`) and its own
 passes, checks it, runs the frame in its order (`Renderer::encode_scene`), times every node, and can show any
 resource right after any node. Declare the frame so it mirrors the engine's passes: the graph is a demonstration

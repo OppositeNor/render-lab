@@ -285,7 +285,7 @@ source = "experiments/probe-rays.toml"
 license = "MIT"
 
 # The frame graph's sections (graphs/frame.toml): the story's frame graph scene and
-# the viewer's DAG panel group the frame's passes by them (lab/src/graph.rs `GraphScene`).
+# the viewer's DAG panel group the frame's passes by them (lab/src/graph/scene.rs `GraphScene`).
 [[resource]]
 id = "graph/frame"
 kind = "file"

@@ -28,6 +28,31 @@ pub fn unpad_rows(data: &[u8], width: u32, height: u32) -> Vec<u8> {
     out
 }
 
+/// Encode the copy of an RGBA8 `texture`'s first `size` texels (mip 0) into
+/// `buffer`, a `readback_buffer` of that size, its rows padded.
+pub fn copy_to_readback(encoder: &mut wgpu::CommandEncoder, texture: &wgpu::Texture, buffer: &wgpu::Buffer, size: [u32; 2]) {
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyBufferInfo { buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded_row_bytes(size[0])), rows_per_image: Some(size[1]) } },
+        wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
+    );
+}
+
+/// A `readback_buffer`'s RGBA rows of `size` texels, read now, their padding dropped.
+pub fn read_rgba(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &wgpu::Buffer, size: [u32; 2]) -> Vec<u8> {
+    let padded = padded_row_bytes(size[0]) as u64;
+    unpad_rows(&read_buffer(device, queue, buffer, 0, padded * size[1] as u64), size[0], size[1])
+}
+
+/// An RGBA8 `texture`'s first `size` texels (mip 0), copied out and read now.
+pub fn read_texture_rgba(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture, size: [u32; 2]) -> Vec<u8> {
+    let buffer = readback_buffer(device, size[0], size[1]);
+    let mut encoder = device.create_command_encoder(&Default::default());
+    copy_to_readback(&mut encoder, texture, &buffer, size);
+    queue.submit([encoder.finish()]);
+    read_rgba(device, queue, &buffer, size)
+}
+
 /// Map a buffer (copying through a staging buffer if needed) and return its bytes.
 pub fn read_buffer(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &wgpu::Buffer, offset: u64, size: u64) -> Vec<u8> {
     let staging;
@@ -76,15 +101,7 @@ pub fn screenshot(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Te
         format => anyhow::bail!("cannot save a {format:?} window"),
     };
     anyhow::ensure!(texture.usage().contains(wgpu::TextureUsages::COPY_SRC), "the window cannot be copied (its surface lacks COPY_SRC)");
-    let buffer = readback_buffer(device, width, height);
-    let mut encoder = device.create_command_encoder(&Default::default());
-    encoder.copy_texture_to_buffer(
-        texture.as_image_copy(),
-        wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded_row_bytes(width)), rows_per_image: Some(height) } },
-        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-    );
-    queue.submit([encoder.finish()]);
-    let mut rgba = unpad_rows(&read_buffer(device, queue, &buffer, 0, buffer.size()), width, height);
+    let mut rgba = read_texture_rgba(device, queue, texture, [width, height]);
     for pixel in rgba.as_chunks_mut::<4>().0.iter_mut() {
         if bgra {
             pixel.swap(0, 2);

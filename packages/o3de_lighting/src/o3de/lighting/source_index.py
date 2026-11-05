@@ -1315,7 +1315,7 @@ DEMOS = {
 }
 
 # What the lab's readouts and data stand for in O3DE, with both layouts.
-# The frame graph's nodes (lab/src/graph.rs) and the engine passes they mirror:
+# The frame graph's nodes (lab/src/graph/) and the engine passes they mirror:
 # the graph panel names each node's pass and its sources.
 PASSES = [
     {"lab": "depthViews", "engine": "CascadedShadowmaps", "sources": ["cascade-image", "shadow-caster-state"]},

@@ -55,7 +55,7 @@ kind = "file"
 source = "scenes/terrain.toml"
 license = "MIT"
 
-# The homepage's music and click (lab/src/home.rs; assets/audio/README.md),
+# The homepage's music and click (lab/src/home/; assets/audio/README.md),
 # played from their files by FFplay.
 [[resource]]
 id = "audio/music"
@@ -69,7 +69,7 @@ kind = "file"
 source = "assets/audio/ui/soundza-ui-button-click.wav"
 license = "soundza Standard License"
 
-# The title page's language button (lab/src/home.rs), drawn by tools/icons/globe.py.
+# The title page's language button (lab/src/home/), drawn by tools/icons/globe.py.
 [[resource]]
 id = "icon/globe"
 kind = "file"

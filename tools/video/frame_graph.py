@@ -4,7 +4,7 @@ The package's `graphs/<name>.toml` (its resource `graph/<name>`, which the
 viewer's DAG panel groups its passes by too) groups the frame's passes (and resources)
 into sections; the timeline carries them, their titles in the edition's
 language, and the lab draws the scene from its live render graph
-(lab/src/graph.rs `FrameGraph::scene_diagram`, in lab/src/diagram.rs): a box
+(lab/src/graph/scene.rs `FrameGraph::scene_graph`, in lab/src/diagram.rs): a box
 per section holding its passes, an edge wherever a pass of one section writes
 what a pass of another reads, the edges a longer path implies left out. A
 beat's `focus:` names sections (the box lit) or passes and resources (their
@@ -57,7 +57,7 @@ def path(cfg: Config, name: str) -> Path:
 
 
 def load(cfg: Config, name: str) -> Json:
-    """The scene as the timeline carries it (lab/src/graph.rs `GraphScene`):
+    """The scene as the timeline carries it (lab/src/graph/scene.rs `GraphScene`):
     its sections, their titles and notes in the edition's language."""
     spec = tomllib.loads(path(cfg, name).read_text(encoding='utf-8'))
     text = json.loads((cfg.package / 'text' / f'{cfg.lang}.json').read_text(encoding='utf-8'))

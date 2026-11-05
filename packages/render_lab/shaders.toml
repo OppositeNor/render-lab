@@ -72,7 +72,7 @@ parts = ["shader/prelude", "wgsl/verify"]
 id = "shader/frost"
 parts = ["wgsl/frost"]
 
-# The frame graph's inspector (lab/src/graph.rs), without the prelude.
+# The frame graph's inspector (lab/src/graph/), without the prelude.
 [[shader]]
 id = "shader/inspect"
 parts = ["wgsl/inspect"]

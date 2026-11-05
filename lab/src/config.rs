@@ -1,7 +1,7 @@
 //! The user's settings, kept in `$XDG_CONFIG_HOME/render-lab/config.toml`
 //! (`~/.config/render-lab/config.toml` by default) and edited on the
 //! homepage's Config page. The file is written only when a tried setting is
-//! kept (see `Settings` in src/home.rs); a missing file means the
+//! kept (see `Settings` in src/home/); a missing file means the
 //! defaults.
 //!
 //! The settings come in categories (`Category`): the interface's (the
@@ -38,7 +38,7 @@ impl Category {
     }
 }
 
-/// The viewer's layout as the user dragged it (src/ui.rs `Layout`): sizes in
+/// The viewer's layout as the user dragged it (src/ui/ `Layout`): sizes in
 /// canvas points, None for the default. The viewer writes it when a drag ends;
 /// recordings never use it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -18,6 +18,11 @@ pub(crate) fn unknown(category: &str, name: &str, known: impl IntoIterator<Item 
     out
 }
 
+/// Names for a message, comma-separated, or "none".
+pub(crate) fn names_or_none<S: std::borrow::Borrow<str>>(names: &[S]) -> String {
+    if names.is_empty() { "none".into() } else { names.join(", ") }
+}
+
 fn distance(a: &str, b: &str) -> usize {
     let b: Vec<char> = b.chars().collect();
     let mut row: Vec<usize> = (0..=b.len()).collect();

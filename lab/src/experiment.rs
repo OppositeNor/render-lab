@@ -37,7 +37,7 @@
 //!
 //! [inspect]                         # optional: measure a resource of the frame's graph
 //! of = "sdfgiForwardFS.hdr"         # <node>.<resource> (render-lab graph), right after the node
-//! show = "color"                    # how the inspector draws it (src/graph.rs Show)
+//! show = "color"                    # how the inspector draws it (src/graph/ Show)
 //! values = { exposure = 0.0 }       # the inspector's parameters (INSPECT_PARAMS)
 //! ```
 //!
@@ -88,7 +88,7 @@ pub struct Experiment {
 }
 
 /// What an experiment measures in place of the frame: a resource of the
-/// frame's graph right after a node (src/graph.rs), as the inspector draws it.
+/// frame's graph right after a node (src/graph/), as the inspector draws it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Inspect {
     /// `<node>.<resource>`.
