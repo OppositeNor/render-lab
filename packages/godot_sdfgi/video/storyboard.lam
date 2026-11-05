@@ -130,6 +130,8 @@ So the fourth and coarsest cascade spans two hundred and five metres.
 
 That gives fine detail near the camera, and a long reach far away.
 
+Every cascade has ${spoken {cascadeCells}} cells a side, so a smaller cell would give finer detail and a shorter reach.
+
 The study room is only six metres across, so it fits inside the first cascade, at its centre.
 
 ### "Seventy-five percent" squashes the grid by one and a half {#c2-yscale kind=3d}
