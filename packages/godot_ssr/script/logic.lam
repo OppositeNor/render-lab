@@ -1,0 +1,15 @@
+The SSR investigation's logic
+=============================
+
+Its click on the scene: in the trace demonstration, the half-resolution pixel the trace starts from.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_ssr_values]$[ImportAs rl_runtime rt]
+
+A click on the scene, in the trace demonstration, picks the half-resolution pixel under it (`pickX`, `pickY`: the
+trace runs at half the viewport's size), one pixel wide; elsewhere it picks nothing.
+$[# scene {: {^ {click}
+    [# size {rt::viewport}]
+    {!if {= {rt::demo} "trace"}
+        {' {setPickX {float {floor {/ {* {.u click} {.x size}} 2.0}}}} {setPickY {float {floor {/ {* {.v click} {.y size}} 2.0}}}}
+           {setPickWidth 0.0} {setPickHeight 0.0}}
+        {'}}} ClickHandler}]

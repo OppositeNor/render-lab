@@ -44,9 +44,12 @@ lists the images, image kinds, points, and sets.
 
 ## Clicks on images
 
-A click on an inset never reaches the scene behind it. What a click on an image's picture does is a click handler, a
-`#[click]` function in the `#[lab::actions]` block, `fn pick_cell(frame: &mut ClickFrame) -> bool` (the state on
-screen, the state it sets, and `frame.uv`, the point clicked, 0..1 with y down), or a script's click handler. The story
+A click on an inset never reaches the scene behind it. What a click on an image's picture does is a click handler:
+a script's (`render-lab-lamlet`; `pickSliceCell` in `packages/godot_voxelgi/script/logic.lam`), or, for work too
+heavy for a script, a `#[click]` function in the `#[lab::actions]` block, `fn pick_cell(frame: &mut ClickFrame) ->
+bool` (the state on screen, the state it sets, and `frame.uv`, the point clicked, 0..1 with y down). A click on the
+scene itself is the script handler named `scene` (VoxelGI's, SSR's, O3DE's: `rt::trace` gives the surface hit,
+`rt::viewport` the pixel), and `Investigation::click` only where there is none. The story
 gives an image one, `{inset "map"} {imageClick "pickCell"}`; an inset the package draws names one in
 `PictureInset::click`. A click happens while no timeline drives the state (a demonstration, or a timeline paused).
 

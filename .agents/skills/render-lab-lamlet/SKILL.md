@@ -157,7 +157,7 @@ over time, what a readout row says.
   curves, `text`, `demo`, colours); the investigation's **values package** `<package>_values`, which the lab
   writes from its values: a reader per key (`{vectorsShown}`, the shot the hook reads) and a setter
   (`{setVectorsShown 1.0}`, a `Write`), a choice as a variant (`{setViewMode {#final unit}}`); its natives
-  `<package>_natives`; and the lab's `rl_runtime` (`trace`, the readers' natives). A key whose name std, the
+  `<package>_natives`; and the lab's `rl_runtime` (`trace`, `viewport`, the readers' natives). A key whose name std, the
   library, or the natives already have is left out of the values package (`script stubs` lists them).
 - **Hooks**, found by their type (ascribe it; a name starting with `_` is never one):
 

@@ -185,23 +185,9 @@ impl Investigation for VoxelGi {
         controls::parameters(dock, ui);
     }
 
-    /// A click on a surface picks the leaf cell under it (`cellX`, `cellY`, `cellZ`).
-    fn click(&self, shown: &ShotState, state: &mut ShotState, content: &FrameContent, _statics: &Statics, projector: &Projector, pixel: Vec2) -> bool {
-        let (ro, rd) = projector.ray(pixel);
-        let hit = lab::scene::trace_scene(&content.objects, ro, rd, 100.0, u32::MAX);
-        if !hit.is_hit() {
-            return false;
-        }
-        let _ = shown;
-        let w = world::world();
-        let p = ro + rd * hit.t;
-        let n = hit.normal;
-        // The surface's own cell: just behind the point, along its normal.
-        let cell = demos::leaf_of(&w.probe, p - n * 0.01);
-        state.set("cellX", cell.x as f32);
-        state.set("cellY", cell.y as f32);
-        state.set("cellZ", cell.z as f32);
-        true
+    /// A click on a surface is its script's (script/logic.lam `scene`: the leaf cell under it).
+    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+        false
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {

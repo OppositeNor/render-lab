@@ -167,6 +167,35 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
             same && drawn && back.is_some() && back == p,
             json!({"fetched": fetched.map(|f| f.region.size), "gpu": direct.size, "same": same, "drawn": drawn, "pixel": p, "back": back}),
         );
+        // The click on the scene (script/logic.lam `scene`): in the trace demonstration the half-resolution pixel
+        // under it, one pixel wide, as the Rust click picked it; in another, nothing.
+        let size = glam::Vec2::from(content.uniforms.camera.viewport_size);
+        let mut differ = Vec::new();
+        let mut clicks = 0;
+        for demo in [Demo::Trace, Demo::Room] {
+            let shown = shot::for_demo(demo);
+            for i in 0..=40 {
+                for j in 0..=40 {
+                    let uv = glam::Vec2::new(i as f32 / 40.0, j as f32 / 40.0);
+                    let mut state = shown.clone();
+                    let mut frame = lab::actions::ClickFrame { shown: &shown, state: &mut state, uv, content: &content, statics: &renderer.statics };
+                    let ran = lab::script::runtime::click("scene", &mut frame);
+                    let pixel = uv * size;
+                    let expected = (demo == Demo::Trace).then(|| [(pixel.x / 2.0).floor(), (pixel.y / 2.0).floor(), 0.0, 0.0]);
+                    let got = ["pickX", "pickY", "pickWidth", "pickHeight"].map(|k| state.p(k));
+                    let before = ["pickX", "pickY", "pickWidth", "pickHeight"].map(|k| shown.p(k));
+                    clicks += 1;
+                    let same = match expected {
+                        Some(e) => ran == Some(true) && got == e,
+                        None => ran == Some(false) && got == before,
+                    };
+                    if !same {
+                        differ.push(json!({"demo": demo.key(), "uv": [uv.x, uv.y], "script": got, "rust": expected}));
+                    }
+                }
+            }
+        }
+        report.check("the scene click (script/logic.lam `scene`) picks the trace's half-resolution pixel, as the Rust click did, and nothing in another demonstration (41 x 41 points in each)", differ.is_empty(), json!({"clicks": clicks, "differ": differ.iter().take(20).collect::<Vec<_>>()}));
     }
 
     // The field and the cross-section are views of their own over the main one (lab/src/view.rs): shown by

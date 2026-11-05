@@ -40,7 +40,7 @@ it.
 
 ## Interactions
 
-- **Click a surface** (`Investigation::click`): picks the leaf cell under the point (`cellX`, `cellY`, `cellZ` set to
+- **Click a surface** (`scene`, script/logic.lam): picks the leaf cell under the point (`cellX`, `cellY`, `cellZ` set to
   its cell coordinates, `cellPicked` 1). The cell is outlined in the scene, its records fill the readout, its texel
   is marked in the slice insets (link lines from the inset's marker to the cell). A story shows the same pick by
   setting the same values.

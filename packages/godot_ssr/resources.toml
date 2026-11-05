@@ -174,3 +174,10 @@ built = true
 [[shader]]
 id = "shader/ssr-shading"
 parts = ["render_lab.shader/scene", "wgsl/ssr-shading", "wgsl/ssr-passes"]
+
+# Its scripts (lab/src/script/runtime.rs): its click on the scene.
+[[resource]]
+id = "script/logic"
+kind = "file"
+source = "script/logic.lam"
+license = "MIT"
