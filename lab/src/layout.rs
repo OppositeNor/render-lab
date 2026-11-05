@@ -95,18 +95,6 @@ pub enum FieldKind {
     Nested,
 }
 
-impl FieldKind {
-    /// Number of scalar words the GPU dump kernels write for this field.
-    pub fn dump_words(self) -> usize {
-        match self {
-            FieldKind::F32(n) | FieldKind::U32(n) => n as usize,
-            FieldKind::Mat3 => 9,
-            FieldKind::Mat4 => 16,
-            FieldKind::Nested => 0,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize)]
 pub struct RustField {
     pub name: &'static str,

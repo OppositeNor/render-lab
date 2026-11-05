@@ -73,7 +73,7 @@ pub fn list() -> (Vec<Entry>, Vec<String>) {
             Err(e) => errors.push(format!("{e:#}")),
         }
     }
-    entries[1..].sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    entries[1..].sort_by_key(|e| e.name.to_lowercase());
     (entries, errors)
 }
 

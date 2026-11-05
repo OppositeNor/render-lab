@@ -711,7 +711,7 @@ impl FrameGraph {
     /// (through the section that holds the resource, if one does), but those
     /// a longer path implies.
     pub fn scene_graph(&self, scene: &GraphScene) -> Result<crate::graph_view::Graph, String> {
-        let entry = |n: &str| n.split_once('#').map_or(n, |(e, _)| e).to_string();
+        let entry = |n: &str| entry_of(n).to_string();
         let ids: Vec<&str> = scene.sections.iter().map(|s| s.id.as_str()).collect();
         let mut errors = Vec::new();
         let mut section_of = std::collections::HashMap::new();
@@ -827,7 +827,7 @@ impl FrameGraph {
 /// entry points its pipelines use, with `shading` the frame's (none: the
 /// lab's own scene pass): what the frame graph's source view shows.
 pub fn source_of(shading: Option<&SceneShading>, node: &Node) -> (&'static str, Vec<&'static str>) {
-    let entry = node.name.split_once('#').map_or(node.name, |(e, _)| e);
+    let entry = entry_of(node.name);
     match (node.step, shading) {
         (Step::Overlay, _) => (crate::shaders::OVERLAY, vec!["ghostVS", "ghostFS", "segmentVS", "boxVS", "lineFS", "pointVS", "pointFS"]),
         (Step::Composite, _) => (crate::shaders::SCENE, vec!["fullscreenVS", "compositeFS"]),
@@ -839,11 +839,16 @@ pub fn source_of(shading: Option<&SceneShading>, node: &Node) -> (&'static str, 
     }
 }
 
+/// The entry a node's name runs (`name` of a repeated entry's `name#2`).
+pub fn entry_of(name: &str) -> &str {
+    name.split_once('#').map_or(name, |(entry, _)| entry)
+}
+
 /// What node `name` does, in the interface's language: the lab's own nodes'
 /// text, else the investigation's (`Investigation::pass_about`); a repeated
 /// entry (`name#2`) as its first.
 pub fn about(name: &str) -> Option<&'static str> {
-    let name = name.split_once('#').map_or(name, |(n, _)| n);
+    let name = entry_of(name);
     match name {
         "depthViews" => Some(crate::i18n::tr("graph.about_depth_views")),
         "scene" => Some(crate::i18n::tr("graph.about_scene")),

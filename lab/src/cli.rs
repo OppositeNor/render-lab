@@ -412,7 +412,7 @@ fn parse_resolution(value: &str) -> Result<[u32; 2], String> {
             [w.parse().map_err(|_| format!("bad width `{w}`"))?, h.parse().map_err(|_| format!("bad height `{h}`"))?]
         }
     };
-    if size.iter().any(|&n| n < 2 || n > 8192 || n % 2 != 0) {
+    if size.iter().any(|&n| !(2..=8192).contains(&n) || n % 2 != 0) {
         return Err(format!("{}x{}: width and height are even, from 2 to 8192", size[0], size[1]));
     }
     Ok(size)

@@ -167,7 +167,6 @@ pub fn packages() -> &'static [Package] {
     &registry().packages
 }
 
-/// The package `name`'s demos, as the viewer plays them.
 /// The legal notices of package `name` (`[[notice]]`, src/packages.rs):
 /// each one's text in the current language (its symbol tags written out), and the file of its terms in
 /// the built package.

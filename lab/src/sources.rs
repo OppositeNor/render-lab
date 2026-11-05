@@ -127,7 +127,7 @@ impl SourceIndex {
 
     /// The engine pass a node of the frame's graph mirrors (a repeated entry's `#2` too).
     pub fn pass(&self, node: &str) -> Option<&PassMapping> {
-        let entry = node.split_once('#').map_or(node, |(e, _)| e);
+        let entry = crate::graph::entry_of(node);
         self.passes.iter().find(|p| p.lab == entry)
     }
 }

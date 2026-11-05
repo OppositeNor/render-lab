@@ -1,6 +1,6 @@
 //! The lab's environment: Poly Haven's "Tree Lined Driveway" HDRI
 //! (packages/render_lab/assets/environments, CC0), as the resource pipeline makes it
-//! (src/pipeline/radiance.rs, declared in src/resources.toml): its sun is
+//! (src/pipeline/radiance.rs, declared in packages/render_lab/resources.toml): its sun is
 //! clipped, since no investigation has a light of its own for it, and it is
 //! scaled to a mean radiance of one over the sphere; each investigation sets
 //! its sky's level (`Lighting::ambient`, the frame's `ambientColor`). Level 0

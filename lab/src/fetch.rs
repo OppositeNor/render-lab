@@ -413,11 +413,6 @@ impl Queue {
         }
     }
 
-    /// Whether any read is in flight.
-    pub fn busy(&self) -> bool {
-        !self.flights.is_empty()
-    }
-
     /// Store the reads that have landed (polling the device without waiting,
     /// or waiting for all of them with `wait`).
     pub fn collect(&mut self, device: &wgpu::Device, wait: bool) {

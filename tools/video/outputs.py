@@ -7,7 +7,6 @@ from __future__ import annotations
 import html
 import json
 import os
-import re
 import shutil
 import subprocess
 import time
@@ -16,12 +15,12 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from config import LAB, TOOLS, Config, Environment, log, run
+from config import LAB, Config, Environment, log, run
 import diagrams
 import frame_graph
 import presentation
 from timeline import sentences_of
-from storyboard import beat_listings, listing_path, read_listing
+from storyboard import beat_listings, read_listing
 
 Json = dict[str, Any]
 
@@ -397,6 +396,6 @@ def write_preview(cfg: Config, board: Json, timeline: Json) -> None:
 <h1>{html.escape(board["title"])}</h1><p>{html.escape(board["subtitle"])}</p>
 <video controls preload="metadata" poster="poster.png"><source src="{cfg.video_name()}" type="video/mp4"><track kind="captions" src="captions.vtt" srclang="{lang}" label="{label}"{" default" if cfg.zh() else ""}></video>
 <nav>{buttons}</nav><p><a href="script.md">{w["script"]}</a> · <a href="source-reading-guide.md">{w["guide"]}</a> · <a href="verification-report.md">{w["verification"]}</a></p>
-{"".join(f"<p>{html.escape(text)}</p>" for text, _ in cfg.notices())}{f'<p><a href="NOTICE.txt">NOTICE.txt</a></p>' if any(lic for _, lic in cfg.notices()) else ""}
+{"".join(f"<p>{html.escape(text)}</p>" for text, _ in cfg.notices())}{'<p><a href="NOTICE.txt">NOTICE.txt</a></p>' if any(lic for _, lic in cfg.notices()) else ""}
 <script>const v=document.querySelector('video');for(const b of document.querySelectorAll('button'))b.onclick=()=>{{v.currentTime=+b.dataset.time;v.play();}};</script></html>'''
     (cfg.build() / 'preview.html').write_text(page)

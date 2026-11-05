@@ -1,6 +1,6 @@
 //! The Utah teapot (packages/render_lab/assets/models/utah_teapot.obj, Cem Yuksel's 2026
 //! triangle mesh), as the resource pipeline makes it (src/pipeline/mesh.rs,
-//! declared in src/resources.toml): scaled into the room's metres and
+//! declared in packages/render_lab/resources.toml): scaled into the room's metres and
 //! arranged in a bounding-volume hierarchy. The raster pass draws its
 //! triangles; intersectMesh in common.wgsl and `TriangleMesh::intersect` below
 //! traverse the same nodes for shadow and reflection rays.

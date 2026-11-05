@@ -1343,7 +1343,6 @@ dependencies = [
  "render-lab-core",
  "serde",
  "serde_json",
- "wgpu",
 ]
 
 [[package]]
@@ -2390,7 +2389,6 @@ dependencies = [
  "render-lab-core",
  "serde",
  "serde_json",
- "wgpu",
 ]
 
 [[package]]

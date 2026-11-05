@@ -227,7 +227,7 @@ pub fn number(value: &toml_edit::Value) -> anyhow::Result<f32> {
 
 fn vec3(value: &toml_edit::Value) -> anyhow::Result<Vec3> {
     let a = value.as_array().filter(|a| a.len() == 3).ok_or_else(|| anyhow::anyhow!("expected [x, y, z], found {value:?}"))?;
-    Ok(Vec3::new(number(&a.get(0).unwrap())?, number(&a.get(1).unwrap())?, number(&a.get(2).unwrap())?))
+    Ok(Vec3::new(number(a.get(0).unwrap())?, number(a.get(1).unwrap())?, number(a.get(2).unwrap())?))
 }
 
 fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {

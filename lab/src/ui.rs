@@ -171,12 +171,6 @@ impl Layout {
         pos2((v[0] as f32 + px.x) / self.scale, (v[1] as f32 + px.y) / self.scale)
     }
 
-    /// Viewport pixel of a target pixel (e.g. a mouse position).
-    pub fn target_to_viewport_pixel(&self, x: f32, y: f32) -> Option<glam::Vec2> {
-        let v = self.viewport_px();
-        let p = glam::Vec2::new(x - v[0] as f32, y - v[1] as f32);
-        (p.x >= 0.0 && p.y >= 0.0 && p.x < v[2] as f32 && p.y < v[3] as f32).then_some(p)
-    }
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -1498,7 +1492,7 @@ fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, 
     let aspect = frame_aspect(view);
     let card = (8.5, 1.33 + 8.5 * aspect + 0.34);
     let prefix = graph_prefix(view.nodes.iter().map(|n| n.name.as_str()));
-    let entry = |name: &str| name.split_once('#').map_or(name, |(e, _)| e).to_string();
+    let entry = |name: &str| crate::graph::entry_of(name).to_string();
     let nodes: Vec<graph_view::Node> = view
         .nodes
         .iter()

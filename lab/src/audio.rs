@@ -111,6 +111,12 @@ pub fn atempo(speed: f32) -> String {
     out
 }
 
+impl Drop for AudioPlayer {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -120,11 +126,5 @@ mod tests {
         assert_eq!(super::atempo(0.25), ",atempo=0.5,atempo=0.5000");
         assert_eq!(super::atempo(4.0), ",atempo=2,atempo=2.0000");
         assert_eq!(super::atempo(0.75), ",atempo=0.7500");
-    }
-}
-
-impl Drop for AudioPlayer {
-    fn drop(&mut self) {
-        self.stop();
     }
 }

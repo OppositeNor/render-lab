@@ -179,7 +179,7 @@ fn package_table(package: &str) -> &'static Table {
     let prefix = format!("{package}.text");
     let mut tables = TABLES.lock().unwrap();
     match tables.iter().find(|t| t.prefix == prefix) {
-        Some(t) => *t,
+        Some(t) => t,
         None => {
             let t: &'static Table = Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
             tables.push(t);

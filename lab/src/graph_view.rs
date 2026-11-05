@@ -339,7 +339,7 @@ pub fn lay_out(graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], a
             let mut points = vec![p0];
             cubic([p0, pos2(p0.x, y), pos2(p3.x, y), p3], &mut points);
             let label_at = pos2((p0.x + p3.x) / 2.0, if below { y - depth * 0.25 + 0.55 } else { y + depth * 0.25 - 0.55 });
-            let label = edge.label.as_deref().map_or(0.0, |l| width(l));
+            let label = edge.label.as_deref().map_or(0.0, width);
             if below {
                 hi.y = hi.y.max(y + if label > 0.0 { LINE } else { 0.2 });
             } else {
@@ -639,7 +639,7 @@ pub fn draw(ink: &Ink, clip: Rect, t: &Transform, graph: &Graph, laid: &Laid, lo
         let radius = CornerRadius::same((scale * 0.3).min(255.0) as u8);
         painter.rect_filled(r, radius, under);
         painter.rect_filled(r, radius, l.fill);
-        if let Some(_) = node.card {
+        if node.card.is_some() {
             // A card: its title on a line, its picture under it, its badge in the picture's corner.
             let label = scale * 1.33;
             let inner = r.shrink2(vec2(scale * 0.33, 0.0));

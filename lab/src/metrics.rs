@@ -41,6 +41,7 @@ impl Image {
 
     /// From RGBA half floats (a linear HDR target's texels).
     pub fn from_rgba16f(width: usize, height: usize, words: &[u16]) -> Image {
+        use crate::fetch::f16_to_f32;
         Image::new(width, height, words.chunks_exact(4).map(|p| [f16_to_f32(p[0]), f16_to_f32(p[1]), f16_to_f32(p[2])]).collect())
     }
 
@@ -52,19 +53,6 @@ impl Image {
 
 fn byte(x: f32) -> u8 {
     (x.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
-}
-
-/// An IEEE half float as f32.
-pub fn f16_to_f32(h: u16) -> f32 {
-    let sign = if h & 0x8000 != 0 { -1.0 } else { 1.0 };
-    let exponent = ((h >> 10) & 0x1f) as i32;
-    let mantissa = (h & 0x3ff) as f32;
-    match exponent {
-        0 => sign * mantissa * 2f32.powi(-24),
-        31 if mantissa == 0.0 => sign * f32::INFINITY,
-        31 => f32::NAN,
-        e => sign * (1.0 + mantissa / 1024.0) * 2f32.powi(e - 15),
-    }
 }
 
 /// How a test image compares with a reference.
@@ -433,6 +421,7 @@ mod tests {
 
     #[test]
     fn halves_and_summary() {
+        use crate::fetch::f16_to_f32;
         assert_eq!(f16_to_f32(0x3c00), 1.0);
         assert_eq!(f16_to_f32(0xc000), -2.0);
         assert_eq!(f16_to_f32(0x0000), 0.0);

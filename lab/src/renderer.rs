@@ -142,7 +142,6 @@ pub struct Renderer {
     pub pipelines: Pipelines,
     /// The prepared data of the scene the renderer shows.
     pub statics: Statics,
-    /// The other scenes prepared so far, kept for switching back.
     /// The scenes not being drawn, each with its mesh buffers (so a view can show its own scene, src/view.rs).
     other_scenes: HashMap<SceneId, (Statics, SceneResources)>,
     /// The scene each view was last drawn with: its data is dropped when that changes.
@@ -196,12 +195,9 @@ pub struct Renderer {
     inspections: HashMap<String, Inspection>,
     inspect_pipelines: HashMap<&'static str, (wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
     last_layout: Layout,
-    /// The last frame's views beside the main one (`Investigation::panes`), in canvas points.
-    last_panes: Vec<egui::Rect>,
     /// The last frame's panel had nothing to show (no record, readout, or
     /// listing), so this frame first lays out without it (`render_frame_with`).
     panel_empty: bool,
-    /// The reference's view, while an experiment compares (src/experiment.rs).
     /// The views not being drawn, each its slot (src/view.rs); `active` is the one being drawn, its slot in the fields above.
     slots: std::collections::BTreeMap<ViewId, ViewSlot>,
     active: ViewId,
@@ -811,7 +807,6 @@ impl Renderer {
             inspections: HashMap::new(),
             inspect_pipelines: HashMap::new(),
             last_layout: Layout::new(width, height),
-            last_panes: Vec::new(),
             panel_empty: false,
             slots: std::collections::BTreeMap::new(),
             active: ViewId::MAIN,
@@ -934,15 +929,10 @@ impl Renderer {
         self.last_layout
     }
 
-    /// The last frame's views beside the main one, in canvas points (the
-    /// viewer orbits and picks from them too).
-    /// The last frame's views and their places on screen, back to front (src/view.rs).
+    /// The last frame's views and their places on screen, back to front (src/view.rs);
+    /// the viewer orbits and picks from them too.
     pub fn frame_views(&self) -> &[(ViewId, egui::Rect)] {
         &self.last_views
-    }
-
-    pub fn frame_panes(&self) -> &[egui::Rect] {
-        &self.last_panes
     }
 
     /// `dock`: the interactive viewer's layout with the slider dock.
@@ -1667,7 +1657,7 @@ impl Renderer {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         let d = &content.draw;
         // The x-ray copies draw occluded parts dimmed and dashed.
-        let dim = |a: f32| if a < 0.0 { a * 0.3 } else { a * 0.3 };
+        let dim = |a: f32| a * 0.3;
         let seg_xray: Vec<_> = d.segments.iter().map(|s| {
             let mut s = *s;
             s.color[3] = dim(s.color[3]);
@@ -1789,7 +1779,6 @@ impl Renderer {
             layout.viewport = halves[1];
         }
         self.last_layout = layout;
-        self.last_panes = rects.iter().take(panes.len()).copied().collect();
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
         self.targets_at(viewport_size);
@@ -2927,7 +2916,6 @@ impl Renderer {
         let mut layout = Layout::new(self.width, self.height);
         layout.viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas);
         self.last_layout = layout;
-        self.last_panes.clear();
         let vp = layout.viewport_px();
         if self.viewport.as_ref().is_none_or(|v| v.size != [vp[2], vp[3]]) {
             self.chain = None;

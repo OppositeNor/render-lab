@@ -1645,7 +1645,7 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     let stored = || Config::load(&config_path).ok().filter(|_| config_path.exists());
     let has = |home: &Home, name: &str| home.widgets.iter().any(|w| w.0 == name);
     // The photosensitivity warning first, over the title, until Continue.
-    check("the photosensitivity warning is up at start, in the configured language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") == "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    check("the photosensitivity warning is up at start, in the configured language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") == "Photosensitivity warning", tr("home.pse_title").to_string());
     let exit = offscreen.click(&mut home, "pse:exit").flatten();
     check("the warning's Exit quits", matches!(exit, Some(Choice::Quit)), describe(exit));
     offscreen.click(&mut home, "pse:continue");
@@ -1691,7 +1691,7 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     check("picking a language changes nothing until it is saved", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
     offscreen.click(&mut home, "save");
     check("a saved language applies and is written at once, without the popup", home.settings.trial.is_none() && i18n::current() == Locale::ZhCn && tr("home.config") != "Config" && stored().is_some_and(|c| c.language == Locale::ZhCn && c.fullscreen), format!("text {:?}: {}, file {:?}", i18n::current(), tr("home.config"), stored()));
-    check("a new language shows the photosensitivity warning again, in that language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") != "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    check("a new language shows the photosensitivity warning again, in that language", home.pse && has(&home, "pse:continue") && tr("home.pse_title") != "Photosensitivity warning", tr("home.pse_title").to_string());
     offscreen.click(&mut home, "pse:continue");
     // The edition offered first is in the language, else English.
     for i in investigations::all().iter().copied().filter(|i| !i.timelines().is_empty()) {
@@ -1741,7 +1741,7 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "defaults");
     offscreen.click(&mut home, "save");
     offscreen.click(&mut home, "trial:apply");
-    check("back in English, the photosensitivity warning shows again, in English", home.pse && tr("home.pse_title") == "Photosensitivity warning", format!("{}", tr("home.pse_title")));
+    check("back in English, the photosensitivity warning shows again, in English", home.pse && tr("home.pse_title") == "Photosensitivity warning", tr("home.pse_title").to_string());
     offscreen.click(&mut home, "pse:continue");
     check("Restore Defaults, applied, puts English, the default theme, and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && colors(theme::DEFAULT) == Some(palette::theme()) && stored() == Some(Config::default()), format!("file {:?}", stored()));
     offscreen.click(&mut home, "return");
