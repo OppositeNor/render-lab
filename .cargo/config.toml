@@ -1,6 +1,6 @@
 # Keep build artifacts inside this project. A fresh clone builds with plain
 # `cargo build`, from crates.io. `bash setup.sh` vendors the locked crates
 # into `vendor/` and writes `.cache/cargo/config.toml`, which builds from them
-# offline whenever CARGO_HOME=$PWD/.cache/cargo (see README.md).
+# offline whenever CARGO_HOME=$PWD/.cache/cargo (see BUILD.md).
 [build]
 target-dir = "target"
