@@ -1155,7 +1155,7 @@ ${cue "key" {' panelValues}}Each sample is blended in behind what the cone has a
 
 The cone stops once it is ninety-five percent opaque, or when it runs out of distance.
 
-${cue "key" {' {stop "marchCone"}}}${overText
+${cue "key" {' {stop {' "marchCone"}}}}${overText
     {' {conesShownRange 1.0 6.0}}
     "The last cone here takes eleven steps and still ends only two thirds opaque"}.
 

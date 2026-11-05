@@ -52,17 +52,14 @@ class CueKey(unittest.TestCase):
         formula = markup.Tag('formula', None, [('formula', FORMULA), ('colors', '#ffd166'), ('say', 'alpha')], 1)
         self.assertEqual(key(formula), {'formula': f'{{ FORMULA("{Q}", colors: "#ffd166") }}'})
         self.assertEqual(key(markup.Tag('formula', None, [('formula', 'off')], 1)), {'formula': ''})
-        # A range's value; the easings and the camera's fields are the vocabulary's.
+        # A range's value. A wrong ease or camera field is the lab's key check's (`lamlet ir --keys`, test_presentation).
         self.assertEqual(key(cue(('opacity', {'from': 0.0, 'to': 1.0}))), {'params': {'opacity': markup.Range(0.0, 1.0)}})
         self.assertEqual(key(cue(('ease', 'sine'))), {'ease': 'sine'})
-        for bad in (('ease', 'bounce'), ('camera.roll', 1.0)):
-            with self.assertRaises(markup.MarkupError):
-                key(cue(bad))
 
     def test_actions(self) -> None:
         self.assertEqual(key(cue(('run', 'jumpFlood'), ('run.seconds', 0.5), ('run.cell', [34.0, 52.0, 61.0]), ('opacity', 1.0))),
                          {'run': {'name': 'jumpFlood', 'args': {'seconds': 0.5, 'cell': [34.0, 52.0, 61.0]}}, 'params': {'opacity': 1.0}})
-        self.assertEqual(key(cue(('stop', 'jumpFlood'))), {'stop': ['jumpFlood']})
+        self.assertEqual(key(cue(('stop', ['jumpFlood']))), {'stop': ['jumpFlood']})
         self.assertEqual(key(cue(('run', 'sweep'))), {'run': {'name': 'sweep'}})
         # An argument without the action it belongs to.
         with self.assertRaises(markup.MarkupError):

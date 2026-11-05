@@ -14,7 +14,7 @@ shot parameter, `callout`,
 `imageMark`, points, and the hide lists as typed Data, which this reads
 without a grammar of its own), and the package's actions
 (src/lab/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
-arguments, `stop=a,b` stops them; and `image=name` (`imageTitle=text-key`,
+arguments, `stop` (a list of their names) stops them; and `image=name` (`imageTitle=text-key`,
 `imageCorner=top-left`), an image the investigation publishes, a PNG
 resource, or, with `imageFrom=kind` and `image.<param>=value`, an instance of
 an image kind its shaders define, or, with `imageGraph=node.resource`
@@ -58,21 +58,17 @@ class Fields:
     """What a cue's attributes name besides values, from the investigation's
     vocabulary key list (`render-lab story keys`, which the builder writes to
     the package's build/<package>.keys.json; `"field": true` marks a key's
-    fields): the fields kept as written, the camera's fields, and the easings."""
+    fields): the fields kept as written. Which keys a cue may write, and their
+    options, the lab checks before this reads them (`lamlet ir --keys`)."""
     text: frozenset[str]
-    camera: frozenset[str]
-    eases: frozenset[str]
-    options: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @staticmethod
     def of(keys: list[Json]) -> Fields:
         def attr(k: Json) -> str:
             return k.get('key', k['name'])
         fields = [k for k in keys if k.get('field')]
-        return Fields(text=frozenset(attr(k) for k in fields if k['kind'] == 'text' and attr(k) not in TYPED and '.' not in attr(k)),
-                      camera=frozenset(attr(k).removeprefix('camera.') for k in keys if not k.get('field') and attr(k).startswith('camera.')),
-                      eases=frozenset(o for k in fields if attr(k) == 'ease' for o in k.get('options', [])),
-                      options={attr(k): tuple(k['options']) for k in keys if 'options' in k})
+        # render_lab's typed keys are `any` in the list; those this does not type itself (callouts, text keys) are kept too.
+        return Fields(text=frozenset(attr(k) for k in fields if k['kind'] in ('text', 'any') and not k.get('prefix') and attr(k) not in TYPED and '.' not in attr(k)))
 
 
 @dataclass(frozen=True)
@@ -183,14 +179,16 @@ def param_value(value: Any, where: str) -> float | bool | str | list[float]:
 
 def action_attr(key: Json, name: str, value: Any, where: str) -> bool:
     """Reads an action's attribute into `key`: `run=name` starts the action,
-    `run.<arg>=value` gives it an argument, `stop=a,b` stops actions. False
+    `run.<arg>=value` gives it an argument, `stop` (a list) stops actions. False
     for any other attribute."""
     if name == 'run':
         key.setdefault('run', {'name': '', 'args': {}})['name'] = value
     elif name.startswith('run.'):
         key.setdefault('run', {'name': '', 'args': {}})['args'][name[4:]] = param_value(value, where)
     elif name == 'stop':
-        key['stop'] = [v for v in value.split(',') if v]
+        if not isinstance(value, list) or any(not isinstance(v, str) or not v for v in value):
+            raise MarkupError(f'{where}: stop is a list of action names, not {value!r}')
+        key['stop'] = list(value)
     else:
         return False
     return True
@@ -305,18 +303,14 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
     key: Json = {}
     params: Json = {}
     for name, v in tag.attrs:
-        if name in ('card', 'display') and name in fields.options and v not in fields.options[name]:
-            raise MarkupError(f'{where}: {name} is one of {", ".join(fields.options[name])}, not {v!r}')
+        # The lab checked every attribute against the vocabulary's keys (`lamlet ir --keys`): its key, its
+        # value's type, and a closed key's option (`card`, `display`, `camera`, `ease`, …).
         if name.startswith('param.'):
             params[name[6:]] = value(v, where)
-        elif name == 'camera' and v == 'continuous':
-            key.setdefault('camera', {})
         elif name == 'camera':
-            raise MarkupError(f'{where}: camera mode is continuous, not {v!r}')
+            key.setdefault('camera', {})
         elif name.startswith('camera.'):
             part = name.split('.', 1)[1]
-            if part not in fields.camera:
-                raise MarkupError(f'{where}: unknown camera field {part!r}')
             key.setdefault('camera', {})[part] = [number(x, where) for x in v] if part == 'target' and isinstance(v, list) else number(v, where)
         elif name == 'animate':
             if isinstance(v, str):
@@ -329,8 +323,6 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
         elif name in ('blend', 'delay'):
             key[name] = number(v, where)
         elif name == 'ease':
-            if v not in fields.eases:
-                raise MarkupError(f'{where}: unknown ease {v!r} (one of {", ".join(sorted(fields.eases))})')
             key['ease'] = v
         elif action_attr(key, name, v, where) or image_attr(key, name, v, where):
             continue

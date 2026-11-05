@@ -321,11 +321,12 @@ def number(value: str | None, what: str, at: str) -> float:
     return markup.number(value, at)
 
 
-def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, investigation: str | None = None) -> Json:
+def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, investigation: str | None = None,
+         keys: Path | None = None) -> Json:
     """A presentation as the storyboard the builder reads, with these packages to import (its vocabulary), the
-    fields the vocabulary's key list names (`markup.Fields`), and the investigation the lab checks its names
-    against (callouts, text keys, points, formulas)."""
-    video, chapters = sections(lamlet.ir(path, packages, investigation), path)
+    fields the vocabulary's key list names (`markup.Fields`), the investigation the lab checks its names
+    against (callouts, text keys, points, formulas), and the key list every cue attribute is checked against."""
+    video, chapters = sections(lamlet.ir(path, packages, investigation, keys), path)
     board = header(video, path)
     board['chapters'] = []
     for chapter_heading, beats in chapters:

@@ -97,9 +97,84 @@ fn source(file: &Path) -> Result<SourceFile, String> {
 
 /// A document's IR as JSON (lamlet-doc's `ir` backend, what `lamlet build --to ir --prose commonmark` writes): its
 /// prose read as CommonMark, every region evaluated and lowered, cues and spans as their anchors and spans, each
-/// attribute list in its written order.
-pub fn ir(file: &Path, packages: &[Package], investigation: Option<&'static dyn Investigation>) -> Result<String, String> {
-    lamlet_doc::backend::json::write(&lowered(file, packages, investigation)?).map_err(|e| e.render())
+/// attribute list in its written order. With a host's `keys` (lamlet-present's key list), every cue attribute is
+/// checked against them and every heading's attributes are read by them (`apply_keys`).
+pub fn ir(file: &Path, packages: &[Package], investigation: Option<&'static dyn Investigation>, keys: Option<&str>) -> Result<String, String> {
+    let mut doc = lowered(file, packages, investigation)?;
+    if let Some(keys) = keys {
+        apply_keys(&mut doc, keys, packages)?;
+    }
+    lamlet_doc::backend::json::write(&doc).map_err(|e| e.render())
+}
+
+/// lamlet-present's key checks (`vocab::Schema`, what `Presentation::apply_keys` does to a deck) on a lowered
+/// document: every attribute of a cue or a range must be one of the keys' cue keys, with a value of its type and,
+/// for a closed key, one of its options (an `{attr …}` written directly too); every heading attribute must be a key
+/// of its level, and is read by its kind, with the defaults of the keys it leaves out. Every problem is reported.
+pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -> Result<(), String> {
+    use lamlet_doc::ir::{Block, Inline};
+    let keys = lamlet_present::vocab::keys_from_json(keys)?;
+    let sources: Vec<(String, String)> = packages.iter().map(|p| (p.name.clone(), p.source.clone())).collect();
+    let schema = lamlet_present::vocab::Schema::new(&keys, &sources)?;
+    let mut problems = Vec::new();
+    fn at(l: &Option<lamlet::embed::Location>) -> String {
+        l.as_ref().map(|l| format!("{}:{}:{}: ", l.file, l.line, l.column)).unwrap_or_default()
+    }
+    // A range has no location of its own: it is reported at the last location before it in its paragraph.
+    fn inlines(xs: &[Inline], schema: &lamlet_present::vocab::Schema, last: &mut Option<lamlet::embed::Location>, problems: &mut Vec<String>) {
+        for x in xs {
+            match x {
+                Inline::Anchor { name, attrs, at: l } => {
+                    *last = l.clone().or(last.take());
+                    problems.extend(schema.check_cue(attrs).into_iter().map(|m| format!("{}the cue `{name}`: {m}", at(last))));
+                }
+                Inline::Span { name, attrs, inlines: inner } => {
+                    let shown = if name.is_empty() { "a range".to_string() } else { format!("the range `{name}`") };
+                    problems.extend(schema.check_cue(attrs).into_iter().map(|m| format!("{}{shown}: {m}", at(last))));
+                    inlines(inner, schema, last, problems);
+                }
+                Inline::Emph(inner) | Inline::Strong(inner) | Inline::Link { inlines: inner, .. } | Inline::Say { shown: inner, .. } => {
+                    inlines(inner, schema, last, problems)
+                }
+                Inline::Text { at: l, .. } | Inline::Code { at: l, .. } | Inline::Math { at: l, .. } | Inline::Value { at: l, .. } => {
+                    if l.is_some() {
+                        *last = l.clone();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    fn blocks(bs: &mut [Block], file: &str, schema: &lamlet_present::vocab::Schema, problems: &mut Vec<String>) {
+        for b in bs {
+            match b {
+                Block::Heading { level, id, attrs, inlines: xs } => {
+                    match schema.heading(*level, attrs) {
+                        Ok(read) => *attrs = read,
+                        Err(ms) => problems.extend(ms.into_iter().map(|m| format!("{file}: the heading `{}`: {m}", id.as_deref().unwrap_or("")))),
+                    }
+                    inlines(xs, schema, &mut None, problems);
+                }
+                Block::Plain(xs) | Block::Paragraph(xs) => inlines(xs, schema, &mut None, problems),
+                Block::List { items, .. } => items.iter_mut().for_each(|i| blocks(i, file, schema, problems)),
+                Block::Div { blocks: inner, .. } => blocks(inner, file, schema, problems),
+                _ => {}
+            }
+        }
+    }
+    let file = doc.blocks.iter().find_map(|b| match b {
+        Block::Paragraph(xs) | Block::Plain(xs) => xs.iter().find_map(|x| match x {
+            Inline::Text { at: Some(l), .. } => Some(l.file.clone()),
+            _ => None,
+        }),
+        _ => None,
+    });
+    blocks(&mut doc.blocks, file.as_deref().unwrap_or("the document"), &schema, &mut problems);
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems.join("\n"))
+    }
 }
 
 /// A document checked, evaluated, and lowered to lamlet-doc's IR.
@@ -121,16 +196,12 @@ pub fn deck(file: &Path, packages: &[Package], investigation: Option<&'static dy
     lamlet_present::Deck::from_doc(&ir).and_then(|d| d.to_json()).map_err(|e| e.render())
 }
 
-/// The cue vocabulary package `name` from a host's keys (lamlet-present's `vocab`; but those marked `"typed": true`,
-/// which render_lab writes), checked as a presentation
+/// The cue vocabulary package `name` from a host's keys (lamlet-present's `vocab`; those marked `"typed": true`,
+/// which render_lab writes, are `any` and have none), checked as a presentation
 /// imports it with `std`, `content`, `present`, and these packages, so a name that collides shows now.
 pub fn vocab(name: &str, keys: &str, packages: &[Package]) -> Result<String, String> {
-    // Keys render_lab's package writes itself (`"typed": true`, keys::TYPED) have no function here.
-    let mut list: serde_json::Value = serde_json::from_str(keys).map_err(|e| format!("the key list is not JSON: {e}"))?;
-    if let Some(items) = list.as_array_mut() {
-        items.retain(|k| k.get("typed") != Some(&serde_json::Value::Bool(true)));
-    }
-    let keys = lamlet_present::vocab::keys_from_json(&list.to_string())?;
+    // Keys render_lab's package writes itself (`"typed": true`, keys::TYPED) are `any`: no function here.
+    let keys = lamlet_present::vocab::keys_from_json(keys)?;
     let package = lamlet_present::vocab::package(&format!("The `{name}` cue vocabulary"), &keys)?;
     let mut all = packages.to_vec();
     all.push(Package { name: name.to_string(), file: format!("<{name} vocabulary>"), source: package.clone() });
@@ -164,7 +235,7 @@ mod tests {
     fn ir_evaluates_regions_with_a_package() {
         let dir = scratch("ir");
         let file = write(&dir, "doc.lam", "$[Import* std]\n$[Import* p]\nThree is $three, $$5.\n");
-        let out = ir(&file, &[package("p", "$[# three 3]")], None).unwrap();
+        let out = ir(&file, &[package("p", "$[# three 3]")], None, None).unwrap();
         let doc: serde_json::Value = serde_json::from_str(&out).unwrap();
         let text: String = doc["blocks"][0]["inlines"].as_array().unwrap().iter().filter_map(|i| i["text"].as_str()).collect();
         assert_eq!(text, "Three is 3, $5.");
@@ -174,13 +245,13 @@ mod tests {
     fn errors_are_diagnostics_with_the_line() {
         let dir = scratch("error");
         let file = write(&dir, "doc.lam", "$[Import* std]\n\n${unknownName 3}\n");
-        let e = ir(&file, &[], None).unwrap_err();
+        let e = ir(&file, &[], None, None).unwrap_err();
         assert!(e.contains("unknownName") && e.contains(":3:"), "{e}");
         let file = write(&dir, "bad.lam", "${{+ 1}\n");
-        assert!(ir(&file, &[], None).is_err());
+        assert!(ir(&file, &[], None, None).is_err());
         // A native declared with no implementation fails the check, though nothing calls it.
         let file = write(&dir, "unlinked.lam", "$[Import* std]$[Native ping [% {Fn {'} Int}] \"rl/ping\" Pure]\nText.\n");
-        assert!(ir(&file, &[], None).is_err());
+        assert!(ir(&file, &[], None, None).is_err());
     }
 
     #[test]
@@ -205,7 +276,7 @@ mod tests {
 
     /// The attributes of a document's point cues, in order.
     fn cue_attrs(file: &Path, packages: &[Package]) -> Result<Vec<(String, String)>, String> {
-        let doc: serde_json::Value = serde_json::from_str(&ir(file, packages, None)?).unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&ir(file, packages, None, None)?).unwrap();
         let mut out = Vec::new();
         for block in doc["blocks"].as_array().unwrap() {
             for inline in block["inlines"].as_array().into_iter().flatten().filter(|i| i["type"] == "anchor") {

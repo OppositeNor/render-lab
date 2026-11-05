@@ -226,7 +226,7 @@ ${cue "key" {' {inset "nr"} {mark 0.0 0.0 0.3 1.0} {imageMarkText "views-red_wal
 ### Three bytes for a normal, seven bits for roughness {#c2-pack kind=3d}
 
 ${cue "key" {opening demoInputs panelCode {append baseRoom {'
-    {listing "prepass"}
+    listingPrepass
     {highlightCode "prepass" {' "encode"}}
     {pickX 200.0}
     {pickY 230.0}}}}}
@@ -276,7 +276,7 @@ ${overText {' {floorRoughnessRange 0.25 0.15}} "Undoing the one minus gives its 
 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {'
     {hizLevel 0.0}
-    {listing "pyramid"}
+    listingPyramid
     {highlightCode "pyramid" {' "winner"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
@@ -436,7 +436,7 @@ ${overText
 ### Each level keeps the nearest of four {#c3-max kind=3d}
 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {append
-    {' {hizLevel 0.0} {listing "pyramid"} {highlightCode "pyramid" {' "reduce"}}}
+    {' {hizLevel 0.0} listingPyramid {highlightCode "pyramid" {' "reduce"}}}
     {view "field" {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0}}}}}}}
 ${cue "key" {'
     {inset "hizGpu"}
@@ -475,7 +475,7 @@ ${cue "key" {' {highlightCode "pyramid" {' "store"}}}}${over
 ### Halve until a side reaches one {#c3-levels kind=3d}
 
 ${cue "key" {opening demoPyramid panelCode {append baseRoom {append
-    {' {hizLevel 0.0} {listing "pyramid"} {highlightCode "pyramid" {' "store"}}}
+    {' {hizLevel 0.0} listingPyramid {highlightCode "pyramid" {' "store"}}}
     {view "field" {' {fieldShow 1.0} {fieldMorph 1.0} {fieldTurn -30.0} {fieldLevel 0.0}}}}}}}
 ${cue "key" {'
     {inset "hizGpu"}
@@ -570,7 +570,7 @@ They are the pyramid's texture, its levels, and the step that keeps the nearest 
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {'
     {traceStep 0.0}
-    {listing "trace"}
+    listingTrace
     {highlightCode "trace" {' "bias"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
@@ -599,7 +599,7 @@ ${cue "key" {' {callout "bounce"} {highlightCode "trace" {' "reflect"}}}}${cue "
 ### The same ray across the screen {#c4-screen kind=3d}
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append
-    {' {traceStep 15.0} {listing "trace"} {highlightCode "trace" {' "screen"}}}
+    {' {traceStep 15.0} listingTrace {highlightCode "trace" {' "screen"}}}
     {view "field" {' {fieldTurn -30.0}}}}}}}
 
 ${cue "key" {' {callout "parametric-t"}}}${overText
@@ -639,7 +639,7 @@ ${cue "key" {'
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
-    {' {traceStep 0.0} {listing "trace"} {highlightCode "trace" {' "loop"}}}}}}}}
+    {' {traceStep 0.0} listingTrace {highlightCode "trace" {' "loop"}}}}}}}}
 
 ${overText
     {view "profile" {' {profileShowRange 0.0 1.0}}}
@@ -691,7 +691,7 @@ ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
 
 ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
     {append
-        {' {traceStep 5.0} {listing "trace"} {highlightCode "trace" {' "level"}}}
+        {' {traceStep 5.0} listingTrace {highlightCode "trace" {' "level"}}}
         {view "profile" {' {profileShow 1.0}}}}}}}}}
 
 ${cue "key" {' {highlightCode "trace" {' "hit"}}}}Above level zero, a hit only says that the cell may hold a surface.
@@ -797,7 +797,7 @@ They are the trace's start, its ray on the screen, and its loop.
 ### Validity instead of a yes or no {#c5-validity kind=3d}
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
-    {listing "validate"}
+    listingValidate
     {highlightCode "validate" {' "store"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
@@ -834,7 +834,7 @@ ${cue "key" {' {glide cameraDistance 5.6 sentence}}}That limit is Godot's choice
 ### How far the ray ended from the surface {#c5-confidence kind=3d}
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
-    {listing "validate"}
+    listingValidate
     {highlightCode "validate" {' "confidence"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0}}}}}}}
 
@@ -858,7 +858,7 @@ ${cue "key" {' {glide cameraYaw 24.0 sentence}}}That fade keeps the reflection f
 ### The fades never reach one {#c5-fades kind=3d}
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
-    {listing "validate"}
+    listingValidate
     {highlightCode "validate" {' "fade"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
@@ -887,7 +887,7 @@ ${cue "key" {' {glide cameraDistance 5.4 sentence}}}So SSR never covers more tha
 ### The colour is last frame's {#c5-where kind=3d}
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
-    {listing "validate"}
+    listingValidate
     {highlightCode "validate" {' "color"}}}}}}
 ${cue "key" {'
     {inset "last"}
@@ -921,7 +921,7 @@ ${overText
 ### Compressed before it is blurred {#c5-compress kind=3d}
 
 ${cue "key" {opening demoHit panelCode {append baseRoom {'
-    {listing "validate"}
+    listingValidate
     {highlightCode "validate" {' "compress"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 11.0}}}}}}}
 
@@ -961,7 +961,7 @@ They are the terms of the validity, the reprojection, and the colour.
 
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.02}
-    {listing "blur"}
+    listingBlur
     {highlightCode "blur" {' "cone"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 11.0}}}}}}}
 
@@ -987,7 +987,7 @@ ${cue "key" {' {callout "blur-radius"} {highlightCode "blur" {' "base" "circle"}
 
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.3}
-    {listing "blur"}
+    listingBlur
     {highlightCode "blur" {' "mip"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 16.0 11.0} {aim 20.0 12.0}}}}}}}
 
@@ -1022,7 +1022,7 @@ ${overText
 
 ${cue "key" {opening demoBlur panelCode {append baseRoom {'
     {floorRoughness 0.3}
-    {listing "blur"}
+    listingBlur
     {highlightCode "blur" {' "store"}}}}}}
 ${cue "key" {'
     {inset "level"}
@@ -1155,7 +1155,7 @@ These are the lines of Godot's source that this chapter followed.
 ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 0.0}
-    {listing "compose"}
+    listingCompose
     {highlightCode "compose" {' "sky"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 10.0}}}}}}}
 
@@ -1180,7 +1180,7 @@ ${overText
 ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 1.0}
-    {listing "compose"}
+    listingCompose
     {highlightCode "compose" {' "ssr"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0} {aim 20.0 11.0}}}}}}}
 
@@ -1211,7 +1211,7 @@ ${overText
 ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {skyReflection 1.0}
     {ssrComposeStep 3.0}
-    {listing "compose"}
+    listingCompose
     {highlightCode "compose" {' "brdf"}}}}}}
 
 ${cue "key" {' {callout "env-brdf"}}}${cue "key" {' {glide cameraDistance 5.0 sentence}}}After the blend, Godot scales the floor's whole indirect specular light by the environment BRDF.

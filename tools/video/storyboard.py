@@ -56,11 +56,12 @@ def load_board(cfg: Config) -> Json:
     import zh
     name = cfg.package.name
     vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
-    fields = markup.Fields.of(json.loads(vocabulary.with_suffix('.keys.json').read_text()))
+    keys = vocabulary.with_suffix('.keys.json')
+    fields = markup.Fields.of(json.loads(keys.read_text()))
     packages = [(name, vocabulary)]
     if cfg.story_library.exists():
         packages.append((f'{name}_story', cfg.story_library))
-    board = presentation.load(cfg.storyboard, packages, fields, cfg.investigation)
+    board = presentation.load(cfg.storyboard, packages, fields, cfg.investigation, keys)
     if cfg.zh():
         board = zh.localize(board, presentation.load_translation(cfg.translation))
     return board

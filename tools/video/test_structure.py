@@ -292,7 +292,7 @@ class Numbers(unittest.TestCase):
                 markup.integer(value, 'cue')
 
     def test_cue_ordinals_do_not_truncate(self) -> None:
-        fields = markup.Fields(frozenset(), frozenset(), frozenset())
+        fields = markup.Fields(frozenset())
         for name, value in [('term', '1.7'), ('record', {'tag': 'object', 'value': 1.7}), ('term', '-1')]:
             with self.subTest(name=name), self.assertRaises(markup.MarkupError):
                 markup.cue_key(markup.Tag('cue', None, [(name, value)], 0), 'cue', fields)

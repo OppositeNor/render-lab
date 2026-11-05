@@ -45,11 +45,11 @@ class Preflight(unittest.TestCase):
 
     def test_rules_and_source_ranges_use_the_real_host(self) -> None:
         cases = [
-            ('{attr "param.typo" "1"}', 'story.value'),
+            ('{attr "param.typo" 1.0}', 'story.value'),
             ('{attr "run" "noSuchAction"}', 'story.action'),
             ('{attr "image" "sample"} {attr "imageGraph" "missing.resource"}', 'story.image'),
             ('{attr "panel" "typo"}', 'story.option'),
-            ('{attr "camera.target" "1,2"}', 'story.key'),
+            ('{attr "camera.target" {\' 1.0 2.0}}', 'story.key'),
             ('{attr "animate" "[{\\"orbit\\":{\\"params\\":[\\"camera.x\\",\\"camera.y\\"],\\"center\\":[0],\\"seconds\\":\\"sentence\\",\\"degrees\\":90}}]"}', 'story.motion'),
             ('{attr "animate" "[{\\"path\\":{\\"params\\":[\\"camera.yaw\\"],\\"through\\":[[1]],\\"seconds\\":\\"beat\\"}},{\\"wave\\":{\\"param\\":\\"camera.yaw\\",\\"amplitude\\":1,\\"period\\":2}}]"}', 'story.motion.duplicate'),
         ]
@@ -148,7 +148,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
 
     def test_semantic_failure_precedes_device_selection_and_synthesis(self) -> None:
         import narration
-        for attrs in ('{attr "param.typo" "1"}', '{attr "panel" "graph"} {highlightPasses {\' "ssrTrcae"}}',
+        for attrs in ('{attr "param.typo" 1.0}', '{attr "panel" "graph"} {highlightPasses {\' "ssrTrcae"}}',
                       '{attr "panel" "code"} {highlightCode "trace" {\' "compress"}}', '{attr "panel" "grph"}'):
             board = self.board(attrs)
             with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory, \
@@ -167,7 +167,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         import narration
         import outputs
         import timeline
-        board = self.board('{attr "camera.yaw" "20"}')
+        board = self.board('{attr "camera.yaw" 20.0}')
         invalid = {'fps': 30, 'width': 1280, 'height': 720, 'totalFrames': 10,
                    'title': 'test', 'engineLabel': 'test', 'chapters': [], 'beats': [], 'keys': []}
         with tempfile.TemporaryDirectory() as directory, \

@@ -44,6 +44,19 @@ thread_local! {
 
 /// A text key with options: only those that make a Lamlet name, once each (the rest are still written as text).
 fn options(name: &str, key: &str, options: impl IntoIterator<Item = String>) -> Value {
+    open_or_closed(name, key, options, false)
+}
+
+/// A text key whose options are the lab's own (panels, demos, listings, eases, …): closed, so the vocabulary has a
+/// constant per option and no function that takes any String, and the key check (`apply_keys`) refuses any other
+/// value, also one written with `attr`; open when it has no options or the vocabulary left one out.
+fn closed(name: &str, key: &str, options: impl IntoIterator<Item = String>) -> Value {
+    open_or_closed(name, key, options, true)
+}
+
+fn open_or_closed(name: &str, key: &str, options: impl IntoIterator<Item = String>, closed: bool) -> Value {
+    let options: Vec<String> = options.into_iter().collect();
+    let all = options.len();
     let mut names = std::collections::BTreeSet::new();
     let kept: Vec<String> = options
         .into_iter()
@@ -59,6 +72,9 @@ fn options(name: &str, key: &str, options: impl IntoIterator<Item = String>) -> 
         })
         .collect();
     let mut k = self::key(name, key, "text");
+    if closed && !kept.is_empty() && kept.len() == all {
+        k["closed"] = json!(true);
+    }
     k["options"] = json!(kept);
     k
 }
@@ -74,42 +90,51 @@ fn merge(into: &mut BTreeMap<String, &'static str>, key: String, kind: &'static 
 /// (`code`, `image`, `animate`), and `ease` too, whose options would be `present`'s easings.
 fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     let mut out = vec![
-        options("listing", "code", investigation.listings().iter().map(|l| l.name.to_string())),
-        options("panel", "panel", names(&crate::shot::PanelMode::ALL)),
-        options("demo", "demo", investigation.demos().iter().map(|d| d.key().to_string())),
-        options("easing", "ease", names(&crate::animation::Ease::ALL)),
+        closed("listing", "code", investigation.listings().iter().map(|l| l.name.to_string())),
+        closed("panel", "panel", names(&crate::shot::PanelMode::ALL)),
+        closed("demo", "demo", investigation.demos().iter().map(|d| d.key().to_string())),
+        closed("easing", "ease", names(&crate::animation::Ease::ALL)),
+        // Open: a story names the instances of image kinds it makes, and `""` hides every image.
         options("inset", "image", investigation.images().iter().map(|i| i.key.to_string())),
-        options("imageCorner", "imageCorner", names(&crate::utility::inset::Corner::ALL)),
+        closed("imageCorner", "imageCorner", names(&crate::utility::inset::Corner::ALL)),
     ];
     let package = investigation.package().unwrap_or("render_lab");
     let kinds = crate::views::kinds(package).map_err(|e| e.to_string())?;
-    out.push(options("imageFrom", "imageFrom", kinds.iter().map(|k| k.key.to_string())));
+    out.push(closed("imageFrom", "imageFrom", kinds.iter().map(|k| k.key.to_string())));
     out.push(key("imageGraph", "imageGraph", "text"));
-    out.push(options("imageShow", "imageShow", crate::graph::Show::ALL.map(|s| s.key().to_string())));
+    out.push(closed("imageShow", "imageShow", crate::graph::Show::ALL.map(|s| s.key().to_string())));
     let clicks = investigation.actions().clicks.iter().map(|c| c.key.to_string());
-    out.push(options("imageClick", "imageClick", clicks.chain(crate::script::runtime::click_handlers())));
+    out.push(closed("imageClick", "imageClick", clicks.chain(crate::script::runtime::click_handlers())));
     for name in ["arrow", "arrowColor", "label", "labelColor"] {
         out.push(key(name, name, "text"));
     }
     out.push(key("arrowWidth", "arrowWidth", "float"));
     let sets = investigation.annotations().iter().filter(|a| matches!(a.kind, crate::utility::annotations::AnnotationKind::ArrowSet));
-    out.push(options("arrows", "arrows", sets.map(|a| a.key.to_string())));
+    out.push(closed("arrows", "arrows", sets.map(|a| a.key.to_string())));
     out.push(key("blend", "blend", "float"));
     out.push(key("delay", "delay", "float"));
     out.push(key("term", "term", "int"));
-    out.push(options("camera", "camera", ["continuous".to_string()]));
+    out.push(closed("camera", "camera", ["continuous".to_string()]));
     let scripts = crate::script::runtime::actions();
-    out.push(options("run", "run", investigation.actions().specs.iter().map(|s| s.key.to_string()).chain(scripts.iter().map(|a| a.name.clone()))));
-    out.push(key("stop", "stop", "text"));
+    let actions: Vec<String> = investigation.actions().specs.iter().map(|s| s.key.to_string()).chain(scripts.iter().map(|a| a.name.clone())).collect();
+    out.push(closed("run", "run", actions.clone()));
+    // The actions a cue stops: a list of their names, closed to them (an investigation without actions has none).
+    let mut stop = key("stop", "stop", "names");
+    if !actions.is_empty() {
+        stop["options"] = json!(actions);
+        stop["closed"] = json!(true);
+    }
+    out.push(stop);
+    // Open: besides `off`, a formula's cue carries its LaTeX (render_lab's `formulaSaid`).
     out.push(options("formula", "formula", ["off".to_string()]));
     for name in ["card", "display"] {
-        out.push(options(name, name, ["yes", "no"].map(str::to_string)));
+        out.push(closed(name, name, ["yes", "no"].map(str::to_string)));
     }
     out.push(key("colors", "colors", "text"));
-    // render_lab's, listed for tools/video/markup.py; `render-lab lamlet vocab` leaves them out (`"typed": true`).
+    // render_lab's (`"typed": true`, for tools/video/markup.py): keys the vocabulary has no function for (`any`),
+    // so the key check knows them.
     for name in TYPED {
-        let kind = if ["highlightPasses", "highlightCode", "highlightFields"].contains(name) { "data" } else { "text" };
-        let mut k = key(name, name, kind);
+        let mut k = key(name, name, "any");
         k["typed"] = json!(true);
         out.push(k);
     }
@@ -134,7 +159,7 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     for e in crate::values::list() {
         let (name, attr) = if reserved(e.key) { (format!("param.{}", e.key), format!("param.{}", e.key)) } else { (e.key.to_string(), e.key.to_string()) };
         out.push(match e.choices {
-            Some(c) => options(&name, &attr, c.options.iter().map(|o| o.name.to_string())),
+            Some(c) => closed(&name, &attr, c.options.iter().map(|o| o.name.to_string())),
             None if e.ty.components() > 1 => key(&name, &attr, "vector"),
             None => key(&name, &attr, "float"),
         });
@@ -185,6 +210,14 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
         }
         kept
     });
+    // Families the lab checks when it loads the timeline: an image's parameters besides those of the kinds the
+    // package defines (`image.<param>`, after every other key, since the key check takes the first that matches), and another view's values (render_lab's `view`
+    // writes `view.<name>.<key>`). No functions; `{attr "image.level" 1.0}` writes the first.
+    for (name, family) in [("imageParam", "image"), ("view", "view")] {
+        let mut k = key(name, family, "any");
+        k["prefix"] = json!(true);
+        out.push(k);
+    }
     Ok(out)
 }
 
