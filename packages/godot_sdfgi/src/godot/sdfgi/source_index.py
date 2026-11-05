@@ -324,8 +324,8 @@ ENTRIES: list[Entry] = [
 
     # ---- 7. Light in the voxels --------------------------------------------------------------------------------------
     ("update-light", GI, "void GI::SDFGI::update_light() {", "GI::SDFGI::update_light",
-     "The dynamic light pass: for every cascade, copy the solid-cell counters into the indirect-dispatch buffer, push bounce_feedback and use_occlusion, and dispatch one thread per solid cell. Every cascade dispatches even with no light, because the pass also adds emission and the stored static light and feeds the bounce back.",
-     "动态光照渲染阶段：对每个级联，把 solid 单元格计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid 单元格一个线程进行 dispatch。即使没有光，每个级联也会 dispatch，因为该渲染阶段还要加上自发光和已存储的静态光，并回灌反弹。",
+     "The dynamic light pass: for every cascade, copy the solid-cell counters into the indirect-dispatch buffer, push bounce_feedback and use_occlusion, and dispatch one thread per solid cell; unless all of the cascade's lights are dirty, a frame processes only every Nth cell (process_offset and process_increment, N from frames_to_update_light: 1, 2, 4, 8, or 16). Every cascade dispatches even with no light, because the pass also adds emission and the stored static light and feeds the bounce back.",
+     "动态光照渲染阶段：对每个级联，把 solid 单元格计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid 单元格一个线程进行 dispatch；除非该级联的光全部为脏，每帧只处理每第 N 个单元格（process_offset 与 process_increment，N 由 frames_to_update_light 决定：1、2、4、8 或 16）。即使没有光，每个级联也会 dispatch，因为该渲染阶段还要加上自发光和已存储的静态光，并回灌反弹。",
      [("push_constant.bounce_feedback = bounce_feedback;", "the bounce setting reaches the shader here", "反弹设置在此传给 shader"),
       ("push_constant.light_count = cascade_dynamic_light_count[i];", "the lights counted for this cascade by pre_process_gi", "pre_process_gi 为该级联统计的光数量"),
       ("RD::get_singleton()->compute_list_dispatch_indirect(compute_list, cascade.solid_cell_dispatch_buffer_call, 0);", "one thread per solid cell, from the counted list", "每个 solid cell 一个线程，来自已计数的列表")]),

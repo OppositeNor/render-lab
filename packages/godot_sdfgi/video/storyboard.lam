@@ -69,11 +69,11 @@ ${cue "key" {' {callout "prepass-gate"}}} The depth pre-pass draws the scene's d
 
 The code updates the probes in one place only, beside this pass, and only when the pass runs.
 
-${cue "key" {' {callout "prepass-call"}}} The code shows that the pre-pass runs only when its project setting is turned on.
+${cue "key" {' {callout "prepass-gate"}}} The code shows that the pre-pass runs when its project setting is on, or when a material uses the stencil.
 
 SDFGI never switches the pre-pass on by itself.
 
-So with that setting turned off, the probes stop updating, and the light freezes.
+So with that setting off, and no stencil material in view, the probes stop updating, and their light freezes.
 
 ### The default is eight rays, not sixteen {#c1-rays kind=3d}
 
@@ -87,6 +87,12 @@ ${cue "key" {' {callout "ray-count-table"} {focusRow 6.0}}} But the code looks t
 
 So the second choice means eight rays per probe each frame, half of what the label says.
 
+### So far: stages every frame {#c1-recap kind=2d graph=frame focus=UPD}
+
+So SDFGI runs in stages each frame, and only in the Forward+ renderer.
+
+The next chapter takes up the first stage, the cascades.
+
 ### Where to read {#c1-sources kind=2d sources="frame-order, sdfgi-update, prepass-gate, ray-count-table"}
 
 These are the functions this chapter followed.
@@ -95,9 +101,13 @@ They cover the frame's order, the update, the pre-pass, and the ray count.
 
 Every claim in this video cites a file, a symbol, and a line in the Godot checkout.
 
-The build checks that each of those lines is still there.
+Each citation also records a hash of the line it cites, to tell when that line changes.
 
 ## Cascades that follow the camera {#c2 number=2 target=185 summary="Four nested grids, their squashed height, their probes, and how they jump after the camera." sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
+
+### Where the cascades sit in the frame {#c2-map kind=2d graph=frame focus=UPD}
+
+Each frame starts by moving the cascades, the grids around the camera that hold SDFGI's voxels and probes.
 
 ### Four nested grids of 128 cells, each twice as coarse {#c2-nested kind=3d}
 
@@ -175,11 +185,23 @@ Only the dirty slab is voxelized, so the rest of the cascade keeps its work.
 
 ${cue "key" {' {callout "dirty-all-rule"} {highlight {' "all"}}}} But if the new part would be more than half the size of the part that is kept, the whole cascade is rebuilt instead.
 
+### So far: grids that follow the camera {#c2-recap kind=2d graph=frame focus="UPD, SCROLL"}
+
+So SDFGI keeps four grids around the camera, each twice as coarse as the one inside it.
+
+When the camera strays, a grid jumps, and only the slab of new space it takes in needs building.
+
+The next chapter starts on that slab.
+
 ### Where to read {#c2-sources kind=2d sources="cascade-create, y-mult-table, probe-axis-count, scroll-update"}
 
 These are the lines that place and move the cascades.
 
 ## What is voxelized, and which lights {#c3 number=3 target=185 summary="The dirty slab becomes a box; Static meshes and static lights are listed for it." sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
+
+### Still before the GPU draws {#c3-map kind=2d graph=frame focus=UPD}
+
+Before the GPU draws the meshes of that new slab, the CPU decides which meshes and lights belong to it.
 
 ### Each dirty axis becomes one box in the world {#c3-regions kind=3d}
 
@@ -222,7 +244,7 @@ But it is left out of the voxels, so it adds nothing to the distance field.
 
 ${cue "key" {opening demoRegions 1.0 {' {extraLight 1.0} {lightBake 0.0}}}}
 
-${cue "key" {' {callout "light-bake-route"}}} Each positional light, an omni or a spot, also has a bake mode, Static or Dynamic.
+${cue "key" {' {callout "light-bake-route"}}} Each positional light, an omni, a spot, or an area light, also has a bake mode, Static or Dynamic.
 
 SDFGI computes a dynamic light's effect on the voxels at every light update.
 
@@ -256,11 +278,23 @@ So the second cascade gets no static light at all.
 
 The readout shows the lab's model losing that light in the same way.
 
+### So far: a box and its lists {#c3-recap kind=2d graph=frame focus=VOX}
+
+So each dirty slab becomes a box in the world.
+
+The CPU lists the meshes inside it whose GI mode is Static, and the lights whose bake mode is Static.
+
+Those meshes are what the next chapter draws into voxels.
+
 ### Where to read {#c3-sources kind=2d sources="pending-regions, sdfgi-cull, gi-mode, static-lights-index"}
 
 These are the lines that choose the meshes and lights for each region.
 
 ## Voxelization {#c4 number=4 target=170 summary="Three orthographic views write albedo, facing, and emission into the grid." sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
+
+### The GPU draws the slab {#c4-map kind=2d graph=frame focus=VOX}
+
+Next, the GPU rasterizes those meshes into the grid's voxels.
 
 ### Three orthographic views, one pixel per voxel {#c4-passes kind=3d}
 
@@ -337,11 +371,23 @@ The code shows that the voxels form only the sphere's shell, and nothing fills t
 
 That is enough for the distance field of the next chapter, because a ray stops at the shell.
 
+### So far: what a voxel holds {#c4-recap kind=2d graph=frame focus=VOX}
+
+So each voxel now records whether it is solid.
+
+It also records its colour, the direction its surface faces, and the light it emits.
+
+From the solid voxels, the next chapter builds the distance field.
+
 ### Where to read {#c4-sources kind=2d sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask"}
 
 These are the lines that draw the voxels.
 
 ## The distance field {#c5 number=5 target=220 summary="A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells." sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
+
+### The same stage builds the field {#c5-map kind=2d graph=frame focus=VOX}
+
+Those voxels then become a distance field, in the same voxel stage.
 
 ### One byte per cell: the distance to the nearest surface {#c5-why kind=3d}
 
@@ -443,11 +489,23 @@ A neighbour's flag is set when that neighbour is empty and this voxel is the nea
 
 With those flags, the light pass can later copy the voxel's light out to those neighbours.
 
+### So far: how far to a surface {#c5-recap kind=2d graph=frame focus=VOX}
+
+So every cell now holds one byte that says how far it is to the nearest surface.
+
+Rays use that distance to take long steps through empty space.
+
+The next chapter measures how well each probe sees the cells around it, so that light does not leak through walls.
+
 ### Where to read {#c5-sources kind=2d sources="jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
 
 These are the distance field's lines.
 
-## Occlusion {#c6 number=6 target=85 summary="For each probe, how visible every voxel around it is." sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
+## Occlusion {#c6 number=6 target=105 summary="For each probe, how visible every voxel around it is." sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
+
+### The stage's last step {#c6-map kind=2d graph=frame focus=VOX}
+
+The voxel stage ends by measuring, for each probe, how visible the cells around it are.
 
 ### Visibility spreads from a probe, shell by shell {#c6-shells kind=3d}
 
@@ -481,11 +539,25 @@ The code shows that the visibility is still computed every time a cascade is reb
 
 So by default, that work is done and never used.
 
+### So far: what each probe sees {#c6-recap kind=2d graph=frame focus=LIGHT}
+
+So each cell now keeps, for each of the eight probes around it, how well that probe sees it.
+
+The pass over the screen can use it to give less weight to a probe behind a wall.
+
+It does so only when the use occlusion setting is on, and that setting is off by default.
+
+Next, the cells are lit.
+
 ### Where to read {#c6-sources kind=2d sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
 
 These are the occlusion lines.
 
 ## Light in the voxels {#c7 number=7 target=235 summary="Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce." sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
+
+### Then the cells are lit {#c7-map kind=2d graph=frame focus=LIGHT}
+
+With the field built, the scene's lights shine on the solid cells.
 
 ### A thread per solid cell, a quarter of them each frame {#c7-cells kind=3d}
 
@@ -594,11 +666,23 @@ The probes were filled from these same cells a frame earlier.
 
 So the light makes a loop, from the cells to the probes and back, one bounce further each frame.
 
+### So far: light in the cells {#c7-recap kind=2d graph=frame focus=PRE}
+
+So each solid cell now stores, for each face, the light that reaches it.
+
+That is the lights' own light, plus last frame's bounce from the probes.
+
+In the next chapter, the probes' rays bring that light back.
+
 ### Where to read {#c7-sources kind=2d sources="update-light, shadow-march, static-pass, bounce-feedback"}
 
 These are the lines that light the cells.
 
 ## Probes trace the field {#c8 number=8 target=195 summary="Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames." sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
+
+### Then the probes gather {#c8-map kind=2d graph=frame focus=PRE}
+
+Now the probes gather the light stored in the cells, by tracing rays.
 
 ### Eight rays a frame, two hundred forty over thirty frames {#c8-rays kind=3d}
 
@@ -691,11 +775,23 @@ ${overText {' {framesRange 20.0 40.0}} "The chart on screen shows that as a stra
 
 So a light that moves takes thirty frames to show up fully.
 
+### So far: thirty frames of rays {#c8-recap kind=2d graph=frame focus=STORE}
+
+So each probe now keeps sixteen coefficients, which describe the light arriving from every direction.
+
+They are the exact sum of the rays it traced over its last thirty frames.
+
+A pixel cannot sample coefficients the way it samples a texture, so the next chapter turns them into small textures.
+
 ### Where to read {#c8-sources kind=2d sources="vogel-rays, probe-march, sh-accum, history-ring"}
 
 These are the probe tracing lines.
 
 ## From coefficients to maps {#c9 number=9 target=160 summary="Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes." sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
+
+### Then the probes store {#c9-map kind=2d graph=frame focus=STORE}
+
+Next, each probe's coefficients become small textures, called maps.
 
 ### Two six-by-six octahedral maps per probe {#c9-oct kind=3d}
 
@@ -767,11 +863,21 @@ ${cue "key" {' {callout "parent-seed"}}} A probe that the jump brings in at the 
 
 It starts from the light of the coarser cascade's probes around it, rather than from black.
 
+### So far: two small maps {#c9-recap kind=2d graph=frame focus=GI}
+
+So each probe now has two small maps, irradiance for diffuse light and radiance for reflections.
+
+In the next chapter, the screen pass reads them for every pixel.
+
 ### Where to read {#c9-sources kind=2d sources="oct-store, sh-gain, oct-read, parent-seed"}
 
 These are the lines that write and read the probe maps.
 
 ## Shading a pixel {#c10 number=10 target=170 summary="The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them." sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
+
+### Last, the screen {#c10-map kind=2d graph=frame focus=GI}
+
+Last, a compute pass over the screen reads the probes for every pixel.
 
 ### A compute pass reads each pixel's position and normal {#c10-pass kind=3d}
 
@@ -851,11 +957,19 @@ The code shows that the fog never applies the y scale, the factor of one and a h
 
 So the fog samples the probes at the wrong height.
 
+### So far: light for every pixel {#c10-recap kind=2d graph=frame focus=GI}
+
+So every pixel's ambient light now comes from the maps of eight probes around it.
+
+Those probes belong to the finest cascade that holds the pixel, where the probes are closest together.
+
+The last chapter puts the whole frame together.
+
 ### Where to read {#c10-sources kind=2d sources="process-gi, cascade-blend, probe-weights, gi-compose"}
 
 These are the screen pass's lines.
 
-## The frame again {#c11 number=11 target=65 summary="The frame, in order." sources=frame-order}
+## The frame again {#c11 number=11 target=100 summary="The frame, in order." sources=frame-order}
 
 ### The cascades follow the camera {#c11-cascades kind=2d graph=frame focus=UPD}
 
@@ -887,4 +1001,21 @@ ${cue "key" {' {callout "process-gi"}}} Every pixel finds the finest cascade tha
 
 That light from the probes replaces the sky's ambient light.
 
-That is SDFGI, as Godot's source builds it.
+### What SDFGI trades for speed {#c11-takeaways kind=3d}
+
+${cue "key" {opening demoRoom 1.0 {append narrationCleared {' {sdfgiMix 1.0} {cameraYaw 24.0} {cameraPitch 20.0} {cameraDistance 6.2}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 16.0 18.0 6.4} {pose 30.0 22.0 6.0}}}}}}}
+
+So SDFGI keeps the scene around the camera as data.
+
+That data is grids of voxels, a distance field over them, and probes.
+
+It spreads its work across many frames, and each frame reuses what the earlier frames computed.
+
+${overText {' {sdfgiMixRange 1.0 0.0}} f"{The price is that its light is only as fine as its cells, ${spoken {cellCentimetres}} centimetres and larger}"}.
+
+It sees only meshes whose GI mode is Static.
+
+And it takes about thirty frames to catch up with a change.
+
+${cue "key" {' {sdfgiMix 1.0} {blend 1.5}}}That is SDFGI, as Godot's source builds it.

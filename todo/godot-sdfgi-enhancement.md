@@ -88,6 +88,12 @@ states.
 
 ## Stages (2026-11-05)
 
+Progress (2026-11-05): stages 1 to 5 are done (`packages/godot_sdfgi/story/reviews/enhancement.md` has the review
+table, the reviews, and the fact check's corrections; `facts-c1-c5.md` and `facts-c6-c11.md` the fact check). Changes 2
+to 4 needed no new demonstrations: the audit found the chapters already say why several scales, the cell size, and
+one worked cell; the recaps now restate them. Stage 6 (both editions built, the change log) is next, then the user
+watches; the story's working files and its guide are deleted when the user has nothing left to adjust.
+
 One commit each; every stage keeps the zh-CN storyboard one sentence per English sentence, passes `tools/video/check.py`
 for both languages, and is reviewed from `build.py --snapshots-only` stills of the beats it touches.
 
