@@ -226,6 +226,12 @@ $[# {imageTitle name} {_checked "imageTitle" rl::text name}]
 $[# {imageMarkText name} {_checked "imageMarkText" rl::text name}]
 $[# {labelText name} {_checked "labelText" rl::text name}]
 
+What a `demo` cue carries over from the narration, cleared (tools/video/README.md, "What a key resets and
+carries"): no callout, no inset, no formula card. Append it to a beat's opening cue where the beat should start
+clean; arrows and labels are named, so a story hides its own (`arrowHide`, `labelHide`).
+
+$[# narrationCleared [% {' {callout ""} {attr "image" ""} {attr "formula" "off"}}]]
+
 A range whose words start with a callout: the source-index entry `key` is shown as the range's words begin.
 
 $[# {overCallout attrs key words} {during "" attrs {cat {' {text " "} {cue "key" {' {callout key}}} {text {++ " " words}}}}}]
