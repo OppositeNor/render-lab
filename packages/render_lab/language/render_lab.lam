@@ -200,6 +200,14 @@ $[# {arrowHide names} {_names "arrowHide" names}]
 $[# {labelHide names} {_names "labelHide" names}]
 $[# {highlight names} {_names "highlight" names}]
 
+Explicit highlighter namespaces. A code highlight selects its listing; record fields refer to the selected
+record's WGSL struct name (`ObjectData` or `CameraData`). These use typed Data, checked against the host's
+actual context, instead of joining names into an unqualified list.
+
+$[# {highlightPasses names} {attr "highlightPasses" {: names {List String}}}]
+$[# {highlightCode name tags} {attr "highlightCode" {. listing {: name String} tags {: tags {List String}}}}]
+$[# {highlightFields record fields} {attr "highlightFields" {. record {: record String} fields {: fields {List String}}}}]
+
 What the frame records (`record`): nothing, the camera, or one object (by index).
 
 $[# recordNone [% {attr "record" "none"}]]

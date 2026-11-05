@@ -1,6 +1,6 @@
 # Render Lab storyboard 修改计划
 
-日期：2026-11-04。性质：Render Lab storyboard 写作链路的设计与任务清单；PR 1、PR 2 已实施，后续阶段待实施。
+日期：2026-11-04。性质：Render Lab storyboard 写作链路的设计与任务清单；PR 1–3 已实施，后续阶段待实施。
 
 ## 实施进度（2026-11-04）
 
@@ -17,7 +17,13 @@
 - 数值要求 finite；整数输入按原始十进制检查，不再静默截断。fps、尺寸、captionWidth、章节号及 cue 的 term／record 序号检查类型和值域，尺寸复用 CLI 规则。target、hold 和 pacing 的零值保留既有语义；时间须能换算为 64 位帧数，超大权重不能溢出暂停分配。字幕宽度还按实际文本检查不能容纳的长 token，避免在合成后报错或陷入分割循环。
 - PR 2 验证：51 项 Python 测试通过，包括 `python -O` 的结构诊断、两处重复来源、负例在 synthesize 前失败、元数据与 cue 覆盖兼容；公开 8 个版本的时间线、字幕、音频、文档和 IR 经 compare 工具比较均一致。正常构建及各本地包构建无警告；公开调查共 8 张离屏代表画面已查看。未修改 Rust、渲染资源或故事内容。
 
-下一阶段是 PR 3 的引用命名空间与高亮校验；PR 3–7 尚未实施。下文的源码审计与复现记录保留为计划制定时的依据，不代表后续阶段已经完成。
+- PR 3：新增 `highlightPasses`、`highlightCode`、`highlightFields`，保留显式 namespace 到时间线；旧字符串列表兼容。共享宿主检查按实际 demo／panel／listing／record 继承状态验证高亮，切换消费者时重新检查。图面板使用 node 名，性能面板使用 timing 名，代码 tag 只在指定 listing 中查找，字段只在当前 record 中查找。
+- 旧高亮在没有消费者时给 `story.highlight.ambiguous` warning，不改变既有播放；显式目标即使隐藏也检查存在。String helper、常量和 raw attr 的最终引用共用检查，错误包含类别、上下文及邻近拼写；补齐 stop、hide、raw source／text key、graph image click、PNG 资源及封闭选项检查。
+- 清理可引用全文中稍后声明的同类实例，合法但未激活的名称允许幂等清理；参数更新仍要求实例先创建。arrow／label 共用运行时实例名，切换类型须完整声明新类型，同一 cue 不可重复定义同名 note；清理旧类型不会隐藏已改成另一类型的实例。
+- PR 3 验证：104 项 Rust 测试、60 项 Python 测试通过；正常、各本地包及公开文件副本构建无编译警告。公开 8 个版本的时间线、字幕、音频、文档和 IR 与修改前相同；当前管线使用父／新 host 的完整 consumer regression 也通过。公开调查各 12 个 beat 中点共 48 帧已比较解码像素并查看，差异帧单独重渲染后 46 帧完全相同，另 2 帧仅实测耗时读数／性能曲线变化，场景像素相同。另有新入口离屏预览：代码高亮像素完全等同旧写法，pass 入口仅图面板计时数字不同，高亮行相同。
+- 字段验证的边界：检查的是 WGSL schema／field 及请求的 `record` 上下文，不保证当前帧显示该 record。实际显示还需调查的 `build_frame` 提供 `panel_record`，当前公开 demo 没有该 producer；字段入口已验证真实 Lamlet 数据、引用规则、运行时名称与兼容输出，但没有可见字段高亮的公开视觉 fixture。预检不执行 `build_frame`；要精确预测显示能力，需后续增加纯 metadata 契约。二维 beat 也可能保留 panel 设置而实际显示 diagram／source card。
+
+下一阶段是 PR 4 的 motion、range、状态和时间契约；PR 4–7 尚未实施。下文的源码审计与复现记录保留为计划制定时的依据，不代表后续阶段已经完成。
 
 范围是本次反馈涉及的 Lamlet storyboard 写作、引用、校验、计时和预览链路；不是整个渲染器的缺陷清单。下列“已确认”来自当前源码和独立 Python 复现；“编辑负担”是从现有写法可直接观察到的成本；涉及产品取舍的地方单独标为“需决定”。没有把推测写成已发生的故障。
 

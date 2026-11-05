@@ -511,6 +511,33 @@ pub struct CameraKey {
     pub fov: Option<f32>,
 }
 
+/// A legacy context-dependent name, or a target with an explicit namespace.
+/// Existing timelines keep their string representation unchanged.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum Highlight {
+    Name(String),
+    Target(HighlightTarget),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum HighlightTarget {
+    Pass { name: String },
+    Code { listing: String, tag: String },
+    Field { record: String, field: String },
+}
+
+impl Highlight {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Name(name) | Self::Target(HighlightTarget::Pass { name }) => name,
+            Self::Target(HighlightTarget::Code { tag, .. }) => tag,
+            Self::Target(HighlightTarget::Field { field, .. }) => field,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Key {
@@ -551,7 +578,7 @@ pub struct Cue {
     #[serde(default)]
     pub record: Option<RecordRef>,
     #[serde(default)]
-    pub highlight: Option<Vec<String>>,
+    pub highlight: Option<Vec<Highlight>>,
     #[serde(default)]
     pub panel: Option<PanelMode>,
     /// The values it sets, as a story writes them (src/values.rs, `resolve`):
@@ -799,6 +826,12 @@ fn point_value(value: &serde_json::Value) -> Result<PointValue, String> {
 /// the investigation does not have, or a new one without its ends, point, or
 /// text. `made` are the notes the keys before it made.
 fn check_notes(key: &Cue, made: &mut BTreeMap<String, &'static str>) -> Result<(), String> {
+    let mut names = std::collections::BTreeSet::new();
+    for name in [&key.arrow, &key.arrows, &key.label].into_iter().flatten().filter(|n| !n.is_empty()) {
+        if !names.insert(name) {
+            return Err(format!("note `{name}` is defined more than once in one cue (arrow, arrows, label share instance names)"));
+        }
+    }
     for (field, value) in [("arrowFrom", &key.arrow_from), ("arrowTo", &key.arrow_to), ("labelAt", &key.label_at)] {
         if let Some(v) = value {
             point_value(v).map_err(|e| format!("{field}: {e}"))?;
@@ -808,7 +841,7 @@ fn check_notes(key: &Cue, made: &mut BTreeMap<String, &'static str>) -> Result<(
         crate::utility::annotations::parse_color(color)?;
     }
     if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
-        if !made.contains_key(name) && (key.arrow_from.is_none() || key.arrow_to.is_none()) {
+        if made.get(name) != Some(&"arrow") && (key.arrow_from.is_none() || key.arrow_to.is_none()) {
             return Err(format!("the new arrow `{name}` names both its ends (arrowFrom, arrowTo)"));
         }
         made.insert(name.to_string(), "arrow");
@@ -821,9 +854,10 @@ fn check_notes(key: &Cue, made: &mut BTreeMap<String, &'static str>) -> Result<(
             let known: Vec<&str> = investigation::current().annotations().iter().filter(|a| a.kind == AnnotationKind::ArrowSet).map(|a| a.key).collect();
             return Err(format!("no arrow set `{set}` (the investigation's: {})", if known.is_empty() { "none".into() } else { known.join(", ") }));
         }
+        made.insert(set.clone(), "arrows");
     }
     if let Some(name) = key.label.as_deref().filter(|n| !n.is_empty()) {
-        if !made.contains_key(name) && (key.label_at.is_none() || key.label_text.is_none()) {
+        if made.get(name) != Some(&"label") && (key.label_at.is_none() || key.label_text.is_none()) {
             return Err(format!("the new label `{name}` names its point and its text (labelAt, labelText)"));
         }
         made.insert(name.to_string(), "label");
@@ -845,7 +879,10 @@ fn apply_notes(key: &Key, state: &mut ShotState, segments: &mut BTreeMap<String,
     if key.label.as_deref() == Some("") {
         hide(state, targets, &|n| matches!(n.kind, NoteKind::Label { .. }));
     }
-    targets.extend(key.arrow_hide.iter().chain(&key.label_hide).map(|name| (note_alpha(name), 0.0)));
+    targets.extend(state.notes.iter().filter(|n| match n.kind {
+        NoteKind::Label { .. } => key.label_hide.contains(&n.name),
+        _ => key.arrow_hide.contains(&n.name),
+    }).map(|n| (note_alpha(&n.name), 0.0)));
     let color = |c: &Option<String>| c.as_deref().map(|c| crate::utility::annotations::parse_color(c).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)));
     // A point's anchor: published, or fixed and blended over its channels.
     let set_point = |name: &str, end: &str, value: &serde_json::Value, segments: &mut BTreeMap<String, Channel>, targets: &mut Vec<(String, f32)>| -> Anchor {
@@ -972,7 +1009,7 @@ fn check_image(key: &Cue, instances: &mut BTreeMap<String, &'static crate::views
 
 /// What a story's `image=` names: an image the investigation publishes, else
 /// a PNG resource its package names; why not, for neither.
-fn image_source(reference: &str) -> Result<ImageSource, String> {
+pub(crate) fn image_source(reference: &str) -> Result<ImageSource, String> {
     let current = investigation::current();
     if current.images().iter().any(|i| i.key == reference) {
         return Ok(ImageSource::Published(reference.to_string()));
@@ -980,8 +1017,11 @@ fn image_source(reference: &str) -> Result<ImageSource, String> {
     let package = current.package().unwrap_or("render_lab");
     let published: Vec<&str> = current.images().iter().map(|i| i.key).collect();
     let full = crate::resources::resolve(package, reference).map_err(|e| format!("image `{reference}`: {e}"))?;
-    if crate::resources::find(&full).is_none() {
+    let Some(resource) = crate::resources::find(&full) else {
         return Err(format!("image `{reference}`: neither an image the investigation publishes ({}) nor a resource (`{full}`)", if published.is_empty() { "none".into() } else { published.join(", ") }));
+    };
+    if !resource.path().extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("png")) {
+        return Err(format!("image `{reference}`: resource `{full}` is not a PNG image"));
     }
     Ok(ImageSource::Resource(full))
 }
@@ -1022,7 +1062,7 @@ impl std::fmt::Display for TimelineCueProblem {
 impl std::error::Error for TimelineCueProblem {}
 
 impl CueProblem {
-    fn new(code: &'static str, field: &str, message: String) -> Self {
+    pub(crate) fn new(code: &'static str, field: &str, message: String) -> Self {
         Self { code, field: field.to_string(), message }
     }
 }
@@ -1034,21 +1074,25 @@ pub(crate) struct CueChecks {
     instances: BTreeMap<String, &'static crate::views::ViewKind>,
     graphs: std::collections::BTreeSet<String>,
     notes: BTreeMap<String, &'static str>,
+    references: crate::story_refs::References,
 }
 
 impl CueChecks {
+    pub fn take_warnings(&mut self) -> Vec<CueProblem> {
+        self.references.take_warnings()
+    }
+    pub fn declare(&mut self, cue: &Cue) {
+        self.references.declare(cue);
+    }
+
     pub fn check(&mut self, cue: &Cue) -> Result<(), CueProblem> {
-        cue.targets().map_err(|e| CueProblem::new("story.value", "params", e))?;
+        cue.targets().map_err(|e| crate::story_refs::value_problem(cue, e))?;
         check_notes(cue, &mut self.notes).map_err(|e| CueProblem::new("story.note", "annotations", e))?;
+        self.references.check(cue)?;
         check_image(cue, &mut self.instances, &mut self.graphs).map_err(|e| CueProblem::new("story.image", "image", e))?;
         if let Some(call) = &cue.run {
             let checked = crate::script::runtime::check_action(call).unwrap_or_else(|| investigation::current().actions().check(call));
             checked.map_err(|e| CueProblem::new("story.action", "run", e))?;
-        }
-        if let Some(code) = cue.code.as_deref().filter(|c| !c.is_empty()) {
-            if investigation::current().listing(code).is_none() {
-                return Err(CueProblem::new("story.listing", "code", format!("unknown pseudo-code listing `{code}`")));
-            }
         }
         Ok(())
     }
@@ -1081,10 +1125,19 @@ impl Timeline {
     }
 
     pub fn validate(&self) -> Result<()> {
+        self.validate_diagnostics().map(|_| ())
+    }
+
+    pub(crate) fn validate_diagnostics(&self) -> Result<Vec<(usize, CueProblem)>> {
         let mut checks = CueChecks::default();
+        let mut warnings = Vec::new();
+        for key in &self.keys {
+            checks.declare(key);
+        }
         for (index, key) in self.keys.iter().enumerate() {
             let at = |problem| TimelineCueProblem { index, frame: key.frame, source: key.source.clone(), problem };
             checks.check(key).map_err(at)?;
+            warnings.extend(checks.take_warnings().into_iter().map(|warning| (index, warning)));
             for motion in &key.animate {
                 key.check_motion(motion).map_err(at)?;
                 if let Some(problem) = motion.seconds().and_then(|s| crate::animation::seconds_problem(*s)) {
@@ -1108,7 +1161,7 @@ impl Timeline {
         if frame != self.total_frames {
             bail!("beats cover {frame} frames, timeline declares {}", self.total_frames);
         }
-        Ok(())
+        Ok(warnings)
     }
 
     pub fn beat_at(&self, frame: u64) -> (usize, &TimelineBeat) {
@@ -1172,7 +1225,7 @@ impl Timeline {
                 state.record = record;
             }
             if let Some(highlight) = &key.highlight {
-                state.highlight = highlight.clone();
+                state.highlight = highlight.iter().map(|h| h.name().to_string()).collect();
             }
             if let Some(panel) = key.panel {
                 state.panel = panel;

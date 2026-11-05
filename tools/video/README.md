@@ -42,8 +42,51 @@ listings and diagram focus, and asks the host to check values, actions, image
 references and motion shapes using the same rules as playback. The translated
 edition also checks its alignment with English. Motion lengths such as
 `sentence` and `beat` stay symbolic: this does not measure speech or establish
-exact word times, frame boundaries, or chapter budgets. Later work on highlight
-namespaces is tracked in the storyboard authoring plan.
+exact word times, frame boundaries, or chapter budgets.
+
+Highlights are checked in the inherited demo, panel, listing and record context.
+Use an explicit namespace for new cues:
+
+```lamlet
+${cue "key" {' panelGraph {highlightPasses {' "ssrTrace"}}}}
+${cue "key" {' panelCode {highlightCode "trace" {' "edge"}}}}
+${cue "key" {' panelValues recordCamera {highlightFields "CameraData" {' "worldToView"}}}}
+```
+
+`highlightCode` also selects its listing. The other helpers leave panel and record
+selection to the cue. Empty lists clear the highlight. Graph, DAG and resource
+panels use graph node names; Performance uses the original timing names (for
+example `depth pre-pass`), before their display labels are translated. Code tags
+belong to the selected listing; record fields belong to `ObjectData` or
+`CameraData`. Switching the listing or panel checks any inherited highlight again.
+A demo cue first resets this context to that demo's defaults, then applies its
+explicit fields, matching playback.
+
+This validates the requested panel/listing/record context, not whether a frame
+actually displays that panel. A field helper checks the named WGSL schema and
+the `record` selection; the investigation must also supply `FrameContent.panel_record`
+for it to appear. Current public demos supply readouts or no record panel, so
+field membership and runtime names are tested, but their visible field highlight
+has no public demo fixture. Two-dimensional beats can also retain panel settings
+while displaying a diagram or source card instead.
+
+Legacy `highlight` lists still work. A legacy list with no active consumer
+(Hidden, Knowledge, or a readout without a record) emits
+`story.highlight.ambiguous`; membership is checked when a later cue activates a
+consumer. Explicit targets are checked even while hidden. JSON reports retain
+warnings with `ok: true`, and the text checker and builder print them.
+
+String helpers, generated constants and raw `attr` values reach the same host
+checks. Invalid options and references report their category, context and nearby
+spellings. Raw source and text keys are checked too. Image names may be published
+images, PNG resources, or instances created by `imageFrom`/`imageGraph`.
+`stop` accepts a known action even if it has not run. A hide may refer to a
+same-category instance declared later in the document; repeated cleanup while
+inactive is valid. Unknown cleanup names fail. This forward-reference rule applies
+only to cleanup: an image parameter update still needs an earlier instance.
+Arrow and label instances share runtime names. Changing an instance's kind needs
+the new kind's complete geometry (and text for a label); one cue cannot define
+the same note twice. Hiding an old kind leaves a replacement of another kind alone.
 
 Heading contracts are checked before converting attributes or translated IDs
 to dictionaries. Chapter IDs and beat IDs must each be unique throughout an

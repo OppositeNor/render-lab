@@ -21,7 +21,7 @@ const RESERVED: &[&str] = &["say", "param"];
 /// vocabulary leaves them out (the key list marks them `"typed": true`) and the two never define one name twice.
 pub const TYPED: &[&str] = &[
     "animate", "arrowFrom", "arrowTo", "labelAt", "imageMark", "imageHide", "arrowHide", "labelHide", "highlight", "record", "callout", "imageTitle", "imageMarkText",
-    "labelText",
+    "labelText", "highlightPasses", "highlightCode", "highlightFields",
 ];
 
 /// The keys an enum's values are written with (its serde names), in its `ALL` order.
@@ -84,12 +84,14 @@ fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     out.push(options("run", "run", investigation.actions().specs.iter().map(|s| s.key.to_string()).chain(scripts.iter().map(|a| a.name.clone()))));
     out.push(key("stop", "stop", "text"));
     out.push(options("formula", "formula", ["off".to_string()]));
-    for name in ["card", "display", "colors"] {
-        out.push(key(name, name, "text"));
+    for name in ["card", "display"] {
+        out.push(options(name, name, ["yes", "no"].map(str::to_string)));
     }
+    out.push(key("colors", "colors", "text"));
     // render_lab's, listed for tools/video/markup.py; `render-lab lamlet vocab` leaves them out (`"typed": true`).
     for name in TYPED {
-        let mut k = key(name, name, "text");
+        let kind = if ["highlightPasses", "highlightCode", "highlightFields"].contains(name) { "data" } else { "text" };
+        let mut k = key(name, name, kind);
         k["typed"] = json!(true);
         out.push(k);
     }

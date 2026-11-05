@@ -32,8 +32,8 @@ def main() -> None:
     report: dict[str, Any]
     try:
         board = load_board(cfg)
-        validate(cfg, board, json.loads(cfg.source_index.read_text()))
         report = preflight.check(cfg, board)
+        validate(cfg, board, json.loads(cfg.source_index.read_text()))
     except preflight.CheckError as error:
         report = error.report
     except (OSError, ValueError, RuntimeError, lamlet.LamletError) as error:
@@ -47,6 +47,8 @@ def main() -> None:
         print(json.dumps(report, ensure_ascii=False, indent=1, allow_nan=False))
     elif report['ok']:
         print(f'{cfg.investigation} ({cfg.lang}): story check passed (symbolic timing; speech not measured)')
+        for diagnostic in report['diagnostics']:
+            print(f'{describe(diagnostic)}: {diagnostic["severity"]}: {diagnostic["message"]} [{diagnostic["code"]}]', file=sys.stderr)
     else:
         for diagnostic in report['diagnostics']:
             print(f'{describe(diagnostic)}: {diagnostic["message"]} [{diagnostic["code"]}]', file=sys.stderr)

@@ -45,7 +45,7 @@ Json = dict[str, Any]
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Fields the reader types itself (`cue_key`); every other field of the vocabulary is kept as written.
 TYPED = ('camera', 'animate', 'delay', 'blend', 'term', 'run', 'stop', 'ease', 'imageMark', 'imageHide', 'arrowHide', 'labelHide',
-         'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlight', 'record', *FORMULA_ATTRS)
+         'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlight', 'highlightPasses', 'highlightCode', 'highlightFields', 'record', *FORMULA_ATTRS)
 
 
 class MarkupError(DiagnosticError):
@@ -62,6 +62,7 @@ class Fields:
     text: frozenset[str]
     camera: frozenset[str]
     eases: frozenset[str]
+    options: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @staticmethod
     def of(keys: list[Json]) -> Fields:
@@ -70,7 +71,8 @@ class Fields:
         fields = [k for k in keys if k.get('field')]
         return Fields(text=frozenset(attr(k) for k in fields if k['kind'] == 'text' and attr(k) not in TYPED and '.' not in attr(k)),
                       camera=frozenset(attr(k).removeprefix('camera.') for k in keys if not k.get('field') and attr(k).startswith('camera.')),
-                      eases=frozenset(o for k in fields if attr(k) == 'ease' for o in k.get('options', [])))
+                      eases=frozenset(o for k in fields if attr(k) == 'ease' for o in k.get('options', [])),
+                      options={attr(k): tuple(k['options']) for k in keys if 'options' in k})
 
 
 @dataclass(frozen=True)
@@ -88,12 +90,12 @@ class Tag:
     it sets (`cue_key`; none for a range's close)."""
     kind: str                  # 'cue', 'open', 'close', or 'formula'
     name: str | None
-    attrs: list[tuple[str, str]]
+    attrs: list[tuple[str, Any]]
     piece: int
     key: Json | None = None
     source: Json | None = None
 
-    def attr(self, name: str) -> str | None:
+    def attr(self, name: str) -> Any:
         return next((v for k, v in self.attrs if k == name), None)
 
 
@@ -244,6 +246,27 @@ def value(text: str, where: str) -> float | bool | str | list[float] | Range:
     return param_value(text, where)
 
 
+def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
+    """Canonical scoped highlights from the typed Data helpers or raw JSON."""
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except ValueError:
+            raise MarkupError(f'{where}: {name} needs typed Data or JSON') from None
+    if name == 'highlightPasses':
+        names, prefix = data, {'kind': 'pass'}
+        member = 'name'
+    else:
+        field, member = ('listing', 'tag') if name == 'highlightCode' else ('record', 'field')
+        group = 'tags' if name == 'highlightCode' else 'fields'
+        if not isinstance(data, dict) or set(data) != {field, group} or not isinstance(data[field], str):
+            raise MarkupError(f'{where}: {name} is a record with {field} (a name) and {group} (a list of names)')
+        names, prefix = data[group], {'kind': 'code' if name == 'highlightCode' else 'field', field: data[field]}
+    if not isinstance(names, list) or any(not isinstance(item, str) or not item for item in names):
+        raise MarkupError(f'{where}: {name} needs a list of nonempty names')
+    return [{**prefix, member: item} for item in names]
+
+
 def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
     """The shot key a cue (a point cue, a range's start, a formula, or one of
     a beat's keys) sets, before timing: fields as the storyboard writes them
@@ -251,10 +274,14 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
     key: Json = {}
     params: Json = {}
     for name, v in tag.attrs:
+        if name in ('card', 'display') and name in fields.options and v not in fields.options[name]:
+            raise MarkupError(f'{where}: {name} is one of {", ".join(fields.options[name])}, not {v!r}')
         if name.startswith('param.'):
             params[name[6:]] = value(v, where)
         elif name == 'camera' and v == 'continuous':
             key.setdefault('camera', {})
+        elif name == 'camera':
+            raise MarkupError(f'{where}: camera mode is continuous, not {v!r}')
         elif name.startswith('camera.'):
             part = name.split('.', 1)[1]
             if part not in fields.camera:
@@ -275,8 +302,13 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             continue
         elif name in fields.text:
             key[name] = v
+        elif name in ('highlightPasses', 'highlightCode', 'highlightFields'):
+            key['highlight'] = highlight_targets(name, v, where)
+            if name == 'highlightCode':
+                data = json.loads(v) if isinstance(v, str) else v
+                key['code'] = data['listing']
         elif name == 'highlight':
-            key['highlight'] = [h for h in v.split(',') if h]
+            key['highlight'] = v if isinstance(v, list) else [h for h in v.split(',') if h]
         elif name == 'record':
             kind, _, index = v.partition(':')
             key['record'] = {'type': kind} if not index else {'type': kind, 'index': integer(index, where)}

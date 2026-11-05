@@ -48,7 +48,7 @@ class Preflight(unittest.TestCase):
             ('{attr "param.typo" "1"}', 'story.value'),
             ('{attr "run" "noSuchAction"}', 'story.action'),
             ('{attr "image" "sample"} {attr "imageGraph" "missing.resource"}', 'story.image'),
-            ('{attr "panel" "typo"}', 'story.key'),
+            ('{attr "panel" "typo"}', 'story.option'),
             ('{attr "camera.target" "1,2"}', 'story.key'),
             ('{attr "animate" "[{\\"orbit\\":{\\"params\\":[\\"camera.x\\",\\"camera.y\\"],\\"center\\":[0],\\"seconds\\":\\"sentence\\",\\"degrees\\":90}}]"}', 'story.motion'),
         ]
@@ -118,18 +118,20 @@ runpy.run_path(sys.argv[0], run_name='__main__')
 
     def test_semantic_failure_precedes_device_selection_and_synthesis(self) -> None:
         import narration
-        board = self.board('{attr "param.typo" "1"}')
-        with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(sys, 'argv', ['build.py', '--investigation', self.cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
-                mock.patch.object(build, 'reexec_in_environment'), \
-                mock.patch.object(build, 'load_board', return_value=board), \
-                mock.patch.object(build, 'validate'), \
-                mock.patch.object(narration, 'select_device') as device, \
-                mock.patch.object(narration, 'synthesize') as synthesize:
-            with self.assertRaises(preflight.CheckError):
-                build.main()
-            device.assert_not_called()
-            synthesize.assert_not_called()
+        for attrs in ('{attr "param.typo" "1"}', '{attr "panel" "graph"} {highlight {\' "ssrTrcae"}}',
+                      '{attr "panel" "code"} {attr "code" "trace"} {highlight {\' "compress"}}', '{attr "panel" "grph"}'):
+            board = self.board(attrs)
+            with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(sys, 'argv', ['build.py', '--investigation', self.cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
+                    mock.patch.object(build, 'reexec_in_environment'), \
+                    mock.patch.object(build, 'load_board', return_value=board), \
+                    mock.patch.object(build, 'validate'), \
+                    mock.patch.object(narration, 'select_device') as device, \
+                    mock.patch.object(narration, 'synthesize') as synthesize:
+                with self.assertRaises(preflight.CheckError):
+                    build.main()
+                device.assert_not_called()
+                synthesize.assert_not_called()
 
     def test_invalid_final_timeline_is_not_written(self) -> None:
         import narration

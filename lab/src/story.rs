@@ -50,6 +50,12 @@ impl Diagnostic {
     fn problem(context: &Context, problem: CueProblem) -> Self {
         Self::new(context, problem.code, &problem.field, problem.message)
     }
+
+    fn warning(context: &Context, problem: CueProblem) -> Self {
+        let mut diagnostic = Self::problem(context, problem);
+        diagnostic.severity = "warning";
+        diagnostic
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -114,21 +120,29 @@ struct Story {
     cues: Vec<Entry>,
 }
 
-fn untimed(input: &str) -> Result<(), Diagnostic> {
+fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     let story: Story = serde_json::from_str(input).map_err(|e| Diagnostic::new(&Context::default(), "story.schema", "story", e.to_string()))?;
     if story.render_lab_story != 1 {
         return Err(Diagnostic::new(&Context::default(), "story.version", "renderLabStory", "expected renderLabStory = 1".into()));
     }
     let mut checks = CueChecks::default();
+    let mut warnings = Vec::new();
+    let mut entries = Vec::new();
     for entry in story.cues {
-        let at = &entry.context;
-        let key: UntimedKey = serde_json::from_value(entry.key).map_err(|e| Diagnostic::new(at, "story.key", "key", e.to_string()))?;
+        crate::story_refs::check_options(&entry.key).map_err(|e| Diagnostic::problem(&entry.context, e))?;
+        let key: UntimedKey = serde_json::from_value(entry.key).map_err(|e| Diagnostic::new(&entry.context, "story.key", "key", e.to_string()))?;
+        checks.declare(&key.cue);
+        entries.push((entry.context, key));
+    }
+    for (context, key) in entries {
+        let at = &context;
         for (field, value) in [("delay", key.delay), ("blend", key.blend)] {
             if !value.is_finite() || value < 0.0 {
                 return Err(Diagnostic::new(at, "story.time", field, format!("{field} must be finite and nonnegative seconds")));
             }
         }
         checks.check(&key.cue).map_err(|e| Diagnostic::problem(at, e))?;
+        warnings.extend(checks.take_warnings().into_iter().map(|w| Diagnostic::warning(at, w)));
         for motion in &key.animate {
             key.cue.check_motion(motion).map_err(|e| Diagnostic::problem(at, e))?;
             if let Some(length) = motion.seconds() {
@@ -136,10 +150,10 @@ fn untimed(input: &str) -> Result<(), Diagnostic> {
             }
         }
     }
-    Ok(())
+    Ok(warnings)
 }
 
-fn timeline(input: &str) -> Result<(), Diagnostic> {
+fn timeline(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     let mut data: serde_json::Value = serde_json::from_str(input).map_err(|e| Diagnostic::new(&Context::default(), "timeline.schema", "timeline", e.to_string()))?;
     // A raw timeline is also accepted, e.g. `story check --timeline timeline.json`.
     let provenance: Vec<Context> = if data.get("timeline").is_some() {
@@ -149,13 +163,19 @@ fn timeline(input: &str) -> Result<(), Diagnostic> {
     } else {
         Vec::new()
     };
+    if let Some(keys) = data.get("keys").and_then(serde_json::Value::as_array) {
+        for (index, key) in keys.iter().enumerate() {
+            let context = provenance.get(index).cloned().unwrap_or_default();
+            crate::story_refs::check_options(key).map_err(|e| Diagnostic::problem(&context, e))?;
+        }
+    }
     let timeline: Timeline = serde_json::from_value(data).map_err(|e| Diagnostic::new(&Context::default(), "timeline.schema", "timeline", e.to_string()))?;
     // Keep original indices for the sidecar, even when accepting unsorted keys.
     let mut order: Vec<usize> = (0..timeline.keys.len()).collect();
     order.sort_by_key(|&i| timeline.keys[i].frame);
     let mut sorted = timeline.clone();
     sorted.keys.sort_by_key(|k| k.frame);
-    sorted.validate().map_err(|error| {
+    let warnings = sorted.validate_diagnostics().map_err(|error| {
         if let Some(key) = error.downcast_ref::<TimelineCueProblem>() {
             let mut context = provenance.get(order[key.index]).cloned().unwrap_or_default();
             if context.beat.is_none() {
@@ -165,12 +185,20 @@ fn timeline(input: &str) -> Result<(), Diagnostic> {
         } else {
             Diagnostic::new(&Context::default(), "timeline.invalid", "timeline", error.to_string())
         }
-    })
+    })?;
+    Ok(warnings.into_iter().map(|(index, warning)| {
+        let mut context = provenance.get(order[index]).cloned().unwrap_or_default();
+        if context.beat.is_none() {
+            context.beat = sorted.keys[index].source.clone();
+        }
+        Diagnostic::warning(&context, warning)
+    }).collect())
 }
 
 pub(crate) fn check(input: &str, full_timeline: bool) -> Report {
     let result = if full_timeline { timeline(input) } else { untimed(input) };
-    Report { render_lab_story_check: 1, ok: result.is_ok(), diagnostics: result.err().into_iter().collect() }
+    let ok = result.is_ok();
+    Report { render_lab_story_check: 1, ok, diagnostics: result.unwrap_or_else(|error| vec![error]) }
 }
 
 #[cfg(test)]

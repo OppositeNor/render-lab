@@ -123,7 +123,7 @@ def where(node: Json, path: Path) -> str:
     return describe(location(node, {'file': str(path)}))
 
 
-def pairs(attrs: list[list[str]]) -> list[tuple[str, str]]:
+def pairs(attrs: list[list[Any]]) -> list[tuple[str, Any]]:
     return [(k, v) for k, v in attrs]
 
 

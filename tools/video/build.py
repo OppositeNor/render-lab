@@ -38,6 +38,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import LANGS, Config, Environment, log, parse_resolution, run  # noqa: E402
 from storyboard import load_board, validate  # noqa: E402
+from locations import describe  # noqa: E402
 
 Json = dict[str, Any]
 
@@ -152,10 +153,12 @@ def main() -> None:
     else:
         binary = outputs.cargo_build(cfg)
     board = load_board(cfg)
+    import preflight
+    preflight_report = preflight.check(cfg, board)
+    for diagnostic in preflight_report['diagnostics']:
+        log(f'{describe(diagnostic)}: {diagnostic["severity"]}: {diagnostic["message"]} [{diagnostic["code"]}]')
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
-    import preflight
-    preflight.check(cfg, board)
     if args.verify_only:
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}
