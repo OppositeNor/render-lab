@@ -756,6 +756,18 @@ mod tests {
     use crate::shot::ShotState;
 
     #[test]
+    fn two_motions_of_one_key_cannot_drive_one_channel() {
+        with_test(|| {
+            let cue: crate::shot::Cue = serde_json::from_str("{}").unwrap();
+            let motions = |json: &str| serde_json::from_str::<Vec<crate::animation::Motion>>(json).unwrap();
+            let apart = motions(r#"[{"path":{"params":["camera.yaw"],"through":[[1]],"seconds":1}},{"path":{"params":["camera.pitch"],"through":[[1]],"seconds":1}}]"#);
+            assert!(cue.check_motions(&apart).is_ok());
+            let twice = motions(r#"[{"path":{"params":["camera.yaw"],"through":[[1]],"seconds":1}},{"wave":{"param":"camera.yaw","amplitude":1,"period":2}}]"#);
+            assert_eq!(cue.check_motions(&twice).unwrap_err().code, "story.motion.duplicate");
+        })
+    }
+
+    #[test]
     fn a_shot_stores_declared_values_in_their_types() {
         with_test(|| {
             let mut s = shot();

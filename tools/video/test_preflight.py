@@ -51,6 +51,7 @@ class Preflight(unittest.TestCase):
             ('{attr "panel" "typo"}', 'story.option'),
             ('{attr "camera.target" "1,2"}', 'story.key'),
             ('{attr "animate" "[{\\"orbit\\":{\\"params\\":[\\"camera.x\\",\\"camera.y\\"],\\"center\\":[0],\\"seconds\\":\\"sentence\\",\\"degrees\\":90}}]"}', 'story.motion'),
+            ('{attr "animate" "[{\\"path\\":{\\"params\\":[\\"camera.yaw\\"],\\"through\\":[[1]],\\"seconds\\":\\"beat\\"}},{\\"wave\\":{\\"param\\":\\"camera.yaw\\",\\"amplitude\\":1,\\"period\\":2}}]"}', 'story.motion.duplicate'),
         ]
         for attrs, code in cases:
             with self.subTest(code=code, attrs=attrs):
