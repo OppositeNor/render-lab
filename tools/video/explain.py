@@ -17,7 +17,7 @@ Json = dict[str, Any]
 
 # Key fields that name something the lab resolves (a resource, an entry, an action), not a channel.
 NAMES = ('demo', 'callout', 'code', 'record', 'panel', 'image', 'imageFrom', 'imageGraph', 'imageShow', 'imageTitle', 'imageMarkText',
-         'labelText', 'run', 'stop', 'highlight', 'highlightPasses', 'highlightCode', 'highlightFields', 'formula')
+         'labelText', 'run', 'stop', 'highlightPasses', 'highlightCode', 'highlightFields', 'formula')
 
 
 def _at(source: Json) -> str:

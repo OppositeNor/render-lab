@@ -245,8 +245,8 @@ mod tests {
         assert_eq!(value[2]["orbit"]["repeat"], "pingPong");
         assert_eq!(value[4]["wave"]["param"], "camera.yaw");
         // Points, marks, names, and records, as tools/video/markup.py reads them.
-        let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {highlight {' \"scene pass\" \"x\"}} {imageHide {'}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
-        let expected = [("labelAt", "1.8,2.4,-2.95"), ("arrowTo", "0.0,1.0,2.0"), ("imageMark", "0.28,0.42,0.62,1.0"), ("imageMark", ""), ("highlight", "scene pass,x"), ("imageHide", ""), ("record", "camera"), ("record", "object:3"), ("callout", "")];
+        let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {imageHide {'}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
+        let expected = [("labelAt", "1.8,2.4,-2.95"), ("arrowTo", "0.0,1.0,2.0"), ("imageMark", "0.28,0.42,0.62,1.0"), ("imageMark", ""), ("imageHide", ""), ("record", "camera"), ("record", "object:3"), ("callout", "")];
         assert_eq!(attrs, expected.map(|(k, v)| (k.to_string(), v.to_string())));
         // A wrong shape is an error at the storyboard, before any speech: a channel per waypoint value, a
         // length that is a Length, a part only some kinds have, a name without a comma.
@@ -255,7 +255,7 @@ mod tests {
             "{motion {' {path {' cameraYaw} {' {' 18.0}} \"beat\"}}}",
             "{motion {' {closed {sway cameraYaw 1.0 2.0}}}}",
             "{motion {' {eased {cameraYaw 1.0} {path {' cameraYaw} {' {' 18.0}} beat}}}}",
-            "{highlight {' \"a,b\"}}",
+            "{imageHide {' \"a,b\"}}",
             "{labelAt {at 1 2 3}}",
         ] {
             assert!(doc(&format!("${{cue \"key\" {{' {bad}}}}}")).is_err(), "{bad}");

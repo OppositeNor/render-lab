@@ -277,7 +277,7 @@ ${cue "key" {' {callout "begin-bake"}}}${over
         {' {octreeLevelRange -1.0 1.0}}
         "At the default subdivision, the box's longest axis gets one hundred twenty-eight cells, two to the seventh"}}.
 
-${cue "key" {' panelCode listingBeginBake {highlight {' "shrink"}}}}${overText
+${cue "key" {' panelCode listingBeginBake {highlightCode "begin-bake" {' "shrink"}}}}${overText
     {' {boundsStepRange 0.0 1.0}}
     "For a shorter axis, that count is halved again and again, as long as half the longest side still covers the axis"}.
 
@@ -285,7 +285,7 @@ ${overText
     {' {octreeLevelRange 1.0 2.0}}
     "The box is three point two metres tall, half its six point four metre width, so its height gets sixty-four cells"}.
 
-${cue "key" {' {highlight {' "cube"}}}}${overText
+${cue "key" {' {highlightCode "begin-bake" {' "cube"}}}}${overText
     {' {boundsStepRange 1.0 2.0}}
     "Then every side is stretched to the longest one, so the octree covers a cube"}.
 
@@ -293,7 +293,7 @@ ${overText
     {' {octreeLevelRange 2.0 4.0}}
     "The octree's cells are then cubes of one size, five centimetres wide seven levels below the whole cube"}.
 
-${cue "key" {' {highlight {' "cell"}}}}The height's sixty-four cells stop at three point two metres.
+${cue "key" {' {highlightCode "begin-bake" {' "cell"}}}}The height's sixty-four cells stop at three point two metres.
 
 ${overText {' {octreeLevelRange 4.0 3.0}} "So the top half of that cube holds no cells at all"}.
 
@@ -301,7 +301,7 @@ ${overText {' {octreeLevelRange 4.0 3.0}} "So the top half of that cube holds no
 
 ${cue "key" {opening demoOctree panelCode 0.5 {'
     listingPlotFace
-    {highlight {' "octants"}}
+    {highlightCode "plot-face" {' "octants"}}
     {workedTriangle 1.0}
     {descentLevel 0.0}
     {octreeLevel -1.0}
@@ -322,15 +322,15 @@ ${overText
     {' {descentLevelRange 0.75 1.0}}
     "The root is cut into eight children, one for each octant"}.
 
-${cue "key" {' {highlight {' "sat"}}}}${overText
+${cue "key" {' {highlightCode "plot-face" {' "sat"}}}}${overText
     {' {descentLevelRange 1.0 2.0}}
     "Each child is tested against the triangle"}.
 
-${cue "key" {' {highlight {' "create"}}}}${overText
+${cue "key" {' {highlightCode "plot-face" {' "create"}}}}${overText
     {' {descentLevelRange 2.0 3.0}}
     "Only the children the triangle overlaps become cells, so the triangle carves a path one level deeper at a time"}.
 
-${cue "key" {' {highlight {' "down"}}}}${overText
+${cue "key" {' {highlightCode "plot-face" {' "down"}}}}${overText
     {' {descentLevelRange 3.0 7.0}}
     "Seven levels down, the children are five centimetres wide, and these smallest cells are called leaves"}.
 
@@ -410,7 +410,7 @@ ${overText
 
 ${cue "key" {opening demoOctree panelCode 0.2 {'
     listingLeafScan
-    {highlight {' "axis"}}
+    {highlightCode "leaf-scan" {' "axis"}}
     {workedTriangle 1.0}
     {workedLeaf 1.0}
     {leafColumns 0.0}
@@ -423,17 +423,17 @@ ${cue "key" {' {callout "leaf-scan"}}}${overText
     {' {leafColumnsRange 0.0 1.0}}
     "At a leaf, the voxelizer picks the axis the triangle's plane faces most"}.
 
-${cue "key" {' {highlight {' "columns"}}}}${overText
+${cue "key" {' {highlightCode "leaf-scan" {' "columns"}}}}${overText
     {' {leafColumnsRange 1.0 8.0}}
     "The cell is cut into a four-by-four grid of columns along that axis"}.
 
 ${overText {' {leafColumnsRange 8.0 16.0}} "Each column the triangle crosses gives one sample"}.
 
-${cue "key" {' {highlight {' "accum"}} panelValues}}${overText
+${cue "key" {' panelValues}}${overText
     {' {leafColumnsRange 16.0 12.0}}
     "A sample adds the material's albedo, its emission, and the triangle's normal at that point to the leaf's sums"}.
 
-${cue "key" {' {highlight {' "add"}}}}${overText
+${overText
     {' {leafColumnsRange 12.0 8.0}}
     "Each sample is scaled by a sixteenth, one share for each of the sixteen columns"}.
 
@@ -544,7 +544,7 @@ ${overText
     {' {focusRowRange 6.0 9.0}}
     "After the division, its alpha is set to one, so every leaf counts as fully covered"}.
 
-${cue "key" {' panelCode listingFixup {highlight {' "fight"}}}}${overText
+${cue "key" {' panelCode listingFixup {highlightCode "fixup" {' "fight"}}}}${overText
     {' {cellViewRange 0.0 2.0}}
     "Sometimes the samples' normals point in opposite directions and cancel out"}.
 
@@ -558,7 +558,7 @@ ${overText {' {cutHeightRange 0.4 0.5}} "The light passes then treat that leaf a
 
 ${cue "key" {opening demoCells panelCode 1.0 {'
     listingFixup
-    {highlight {' "parent"}}
+    {highlightCode "fixup" {' "parent"}}
     {octreeLevel 6.0}
     {cellView 1.0}
     {cutHeight 1.2}
@@ -576,7 +576,7 @@ ${overText
     {' {cutHeightRange 1.2 1.0}}
     "Its albedo, emission, and normal are all set to zero, because the bake never stores light in a parent"}.
 
-${cue "key" {' {highlight {' "alpha"}}}}${overText
+${cue "key" {' {highlightCode "fixup" {' "alpha"}}}}${overText
     {' {cutHeightRange 1.0 0.8}}
     "A parent keeps only its alpha, its coverage, which is the sum of its children's alpha divided by eight"}.
 
@@ -594,7 +594,7 @@ ${overText
 
 ${cue "key" {opening demoCells panelCode 0.0 {'
     listingSortCells
-    {highlight {' "key"}}
+    {highlightCode "sort-cells" {' "key"}}
     {cellArray 1.0}
     {octreeLevel -1.0}
     {cameraTarget {' 0.0 0.9 -0.3}}
@@ -607,15 +607,15 @@ ${cue "key" {' {callout "sort-cells"}}}${overText
     {' {octreeLevelRange 0.0 2.0}}
     "The cells are then sorted by level first, and then by position"}.
 
-${cue "key" {' {highlight {' "root"}}}}${overText
+${cue "key" {' {highlightCode "sort-cells" {' "root"}}}}${overText
     {' {octreeLevelRange 2.0 3.0}}
     "So the root comes first, at index zero"}.
 
-${cue "key" {' {highlight {' "remap"}}}}${overText
+${cue "key" {' {highlightCode "sort-cells" {' "remap"}}}}${overText
     {' {octreeLevelRange 3.0 5.0}}
     "Each child's index is rewritten to point at its new place"}.
 
-${cue "key" {' {highlight {' "runs"}}}}${overText
+${cue "key" {' {highlightCode "sort-cells" {' "runs"}}}}${overText
     {' {octreeLevelRange 5.0 7.0}}
     "Each level now fills one unbroken run of the array, shown here in its own colour"}.
 
@@ -681,23 +681,23 @@ ${overText
     {' {sliceHeightRange 0.45 0.3}}
     "That distance field will let shadow rays skip through empty space"}.
 
-${cue "key" {' panelCode listingDistanceField {highlight {' "seed"}}}}${overText
+${cue "key" {' panelCode listingDistanceField {highlightCode "distance-field" {' "seed"}}}}${overText
     {' {focusRowRange 1.0 2.0}}
     "Leaves start at a distance of zero, and every other place starts far away, shown white"}.
 
-${cue "key" {' {highlight {' "z"}}}}${overText
+${cue "key" {' {highlightCode "distance-field" {' "z"}}}}${overText
     {' {edtPassRange 0.0 1.0}}
     "Then an exact distance transform runs along every column of cells in the z direction"}.
 
 ${over
     {' {edtPassRange 1.0 3.0}}
     {cat {'
-        {cue "key" {' {highlight {' "y"}}}}
+        {cue "key" {' {highlightCode "distance-field" {' "y"}}}}
         {text "It runs again along y, "}
-        {cue "key" {' {highlight {' "x"}}}}
+        {cue "key" {' {highlightCode "distance-field" {' "x"}}}}
         {text "and then along x, and together the three passes give the exact distance"}}}}.
 
-${cue "key" {' {callout "sdf-encode"} {highlight {' "encode"}} panelValues}}${overText
+${cue "key" {' {callout "sdf-encode"} panelValues}}${overText
     {' {focusRowRange 2.0 3.0}}
     "Each place keeps its distance in a single byte"}.
 
@@ -840,11 +840,11 @@ ${overText
     {' {lightHeightRange 1.6 1.4}}
     "The lab adds an extra omni light here, a point light that shines in every direction"}.
 
-${cue "key" {' panelCode listingComputeLight {highlight {' "vector"}}}}${overText
+${cue "key" {' panelCode listingComputeLight {highlightCode "compute-light" {' "vector"}}}}${overText
     {' {lightStepRange 0.0 1.0}}
     "The pass first finds the direction from the cell to the light"}.
 
-${cue "key" {' {callout "omni-atten"} {highlight {' "atten"}} panelValues}}${over
+${cue "key" {' {callout "omni-atten"} panelValues}}${over
     {' {lightStepRange 1.0 2.0}}
     {overText
         {' {lightXRange 0.9 0.5}}
@@ -858,7 +858,7 @@ ${overText
     {' {lightXRange 0.5 0.9}}
     "Otherwise, the light is weighted by the cosine between the cell's normal and the direction to the light"}.
 
-${cue "key" {' panelCode listingComputeLight {highlight {' "result"}}}}${overText
+${cue "key" {' panelCode listingComputeLight {highlightCode "compute-light" {' "result"}}}}${overText
     {' {lightStepRange 3.0 4.0}}
     "That light times the cell's albedo, plus the cell's emission, is the light the cell sends back out"}.
 
@@ -866,7 +866,7 @@ ${cue "key" {' panelCode listingComputeLight {highlight {' "result"}}}}${overTex
 
 ${cue "key" {opening demoLight panelCode 0.3 {'
     listingRaymarch
-    {highlight {' "loop"}}
+    {highlightCode "raymarch" {' "loop"}}
     {workedLight 1.0}
     {lightStep 4.0}
     {marchSteps 0.0}}}}
@@ -876,15 +876,15 @@ ${cue "key" {' {callout "raymarch"}}}${overText
     {' {marchStepsRange 0.0 1.0}}
     "When the light casts shadows, a ray starts on the light's side and marches back toward the cell through the distance field"}.
 
-${cue "key" {' {highlight {' "read"}}}}${overText
+${cue "key" {' {highlightCode "raymarch" {' "read"}}}}${overText
     {' {marchStepsRange 1.0 2.0}}
     "At each step, the ray reads from the field how far the nearest surface is, shown as the circle"}.
 
-${cue "key" {' {highlight {' "step"}}}}${overText
+${cue "key" {' {highlightCode "raymarch" {' "step"}}}}${overText
     {' {marchStepsRange 2.0 4.0}}
     "Then it jumps that far, rounded down to whole cells along the axis it mostly follows"}.
 
-${cue "key" {' {highlight {' "solid"}}}}${overText
+${cue "key" {' {highlightCode "raymarch" {' "solid"}}}}${overText
     {' {marchStepsRange 4.0 20.0}}
     "Here the ray reaches the sphere's cells and reads a solid cell, where the field is zero"}.
 
@@ -892,7 +892,7 @@ ${overText
     {' {marchStepsRange 20.0 40.0}}
     "So the floor cell is in shadow, and it gets none of this light"}.
 
-${cue "key" {' {highlight {' "partial"}}}}${overText
+${cue "key" {' {highlightCode "raymarch" {' "partial"}}}}${overText
     {' {lightZRange -0.4 -0.25}}
     "Close to a surface, the field reads less than one cell, and the light is only dimmed"}.
 
@@ -1049,7 +1049,7 @@ A second pass reads back the texture the first pass wrote, so the cells light ea
 
 ${cue "key" {opening demoMips panelCode 0.3 {'
     listingUpdateMipmaps
-    {highlight {' "children"}}
+    {highlightCode "update-mipmaps" {' "children"}}
     {slice 2.0}
     {mipLevel 0.0}
     {workedParent 1.0}}}}
@@ -1065,7 +1065,7 @@ ${overText
 
 ${overText {' {mipLevelRange 0.0 1.0}} "Each parent sums the light of its children"}.
 
-${cue "key" {' {highlight {' "divisor"}} panelValues}}${overText
+${cue "key" {' panelValues}}${overText
     {' {mipLevelRange 1.0 2.0}}
     "Then it divides that sum by a divisor, somewhere between eight and the number of children it really has"}.
 
@@ -1109,7 +1109,7 @@ ${overText
 
 ${cue "key" {opening demoBounce panelCode 0.3 {'
     listingSecondBounce
-    {highlight {' "frame"}}
+    {highlightCode "second-bounce" {' "frame"}}
     {workedBounce 1.0}
     {conesShown 0.0}
     {coneSteps 6.0}}}}
@@ -1119,7 +1119,7 @@ ${cue "key" {' {callout "second-bounce"}}}${overText
     {' {coneStepsRange 2.0 6.0}}
     "Take this floor cell near the red wall, the ringed one"}.
 
-${cue "key" {' {highlight {' "cones"}}}}${overText
+${cue "key" {' {highlightCode "second-bounce" {' "cones"}}}}${overText
     {' {coneStepsRange 6.0 4.0}}
     "The bounce pass, the second light pass, builds a set of three axes around the cell's normal"}.
 
@@ -1137,7 +1137,7 @@ ${overText {' {coneStepsRange 6.0 3.0}} "Each cone opens thirty degrees from its
 
 ${cue "key" {opening demoBounce panelCode 0.3 {'
     listingSecondBounce
-    {highlight {' "march"}}
+    {highlightCode "second-bounce" {' "march"}}
     {workedBounce 1.0}
     {conesShown 1.0}
     {coneSteps 0.0}}}}
@@ -1149,9 +1149,9 @@ ${cue "key" {' {callout "bounce-march"}}}${overText
 
 ${cue "key" {' runMarchCone {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}On each step, the cone advances by half its width, so it widens as it goes.
 
-${cue "key" {' {highlight {' "lod"}}}}At each step, it reads the mip whose texels match that width.
+${cue "key" {' {highlightCode "second-bounce" {' "lod"}}}}At each step, it reads the mip whose texels match that width.
 
-${cue "key" {' {highlight {' "accum"}} panelValues}}Each sample is blended in behind what the cone has already seen, front to back, like layers of glass.
+${cue "key" {' panelValues}}Each sample is blended in behind what the cone has already seen, front to back, like layers of glass.
 
 The cone stops once it is ninety-five percent opaque, or when it runs out of distance.
 
@@ -1167,7 +1167,7 @@ ${overText
 
 ${cue "key" {opening demoLight panelCode 1.0 {'
     listingSecondBounce
-    {highlight {' "restore"}}
+    {highlightCode "second-bounce" {' "restore"}}
     {workedLight 0.0}
     {extraLight 0.0}
     {octreeLevel 7.0}
@@ -1304,7 +1304,7 @@ ${overText
 
 ${cue "key" {opening demoDynamic panelCode 0.5 {'
     listingDynamicObject
-    {highlight {' "shrink"}}
+    {highlightCode "dynamic-object" {' "shrink"}}
     {dynamicVoxels 0.0}
     {dynamicView 0.0}
     {shrinkLevel 0.0}}}}
@@ -1318,7 +1318,7 @@ ${overText
     {' {shrinkLevelRange 1.0 3.0}}
     "It goes from sixteen texels a cell to eight, then four, then two"}.
 
-${cue "key" {' {highlight {' "plot"}}}}${overText
+${cue "key" {' {highlightCode "dynamic-object" {' "plot"}}}}${overText
     {' {shrinkLevelRange 3.0 4.0}}
     "At one texel a cell, the pass plots each texel, writing it into the texture's finest mip"}.
 
@@ -1605,7 +1605,7 @@ ${overText
     {' {pixelAzimuthRange 68.0 75.0}}
     "It is also multiplied by the VoxelGI's energy, a brightness setting"}.
 
-${cue "key" {' panelCode listingVoxelGiCompute {highlight {' "interior"}}}}The cones' alpha says how much of their view they found filled.
+${cue "key" {' panelCode listingVoxelGiCompute {highlightCode "voxel-gi-compute" {' "interior"}}}}The cones' alpha says how much of their view they found filled.
 
 ${overText
     {' {interiorRange 0.0 1.0}}
@@ -1619,7 +1619,7 @@ ${cue "key" {' panelValues}}${overText
 
 ${cue "key" {opening demoPixel panelCode 0.3 {'
     listingVoxelGiCompute
-    {highlight {' "space"}}
+    {highlightCode "voxel-gi-compute" {' "space"}}
     {workedPixel 1.0}
     {conesShown 4.0}
     {specCone 0.0}}}}
@@ -1680,7 +1680,7 @@ The screen pass runs every frame.
 ### Reading the panel {#c8-panel kind=3d}
 
 ${cue "key" {opening demoCost panelPerformance 1.0 {'
-    {highlight {'}}
+    unhighlight
     {giRelightEachFrame 0.0}
     {quality 0.0}
     {giHalfResolution 0.0}
@@ -1688,25 +1688,25 @@ ${cue "key" {opening demoCost panelPerformance 1.0 {'
     {viewMode 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 12.0 16.0 6.8} {pose 24.0 20.0 6.2}}}}}}}
 
-${cue "key" {' {highlight {' "scene pass"}}}}The panel on the right times the graphics card's work.
+${cue "key" {' {highlightPasses {' "scene pass"}}}}The panel on the right times the graphics card's work.
 
 Its line is each frame's total time, so a spike is a frame that did more work.
 
-${cue "key" {' {highlight {' "voxelgiGiCS"}}}}Below the line, each row is one pass, averaged over the last frames.
+${cue "key" {' {highlightPasses {' "voxelgiGiCS"}}}}Below the line, each row is one pass, averaged over the last frames.
 
 A row shows the pass's name, a bar for its share of the frame, and its average time in milliseconds.
 
-${cue "key" {' {highlight {' "scene pass" "voxelgiGiCS"}}}}The row called scene pass is the room's own shading, and it takes most of the frame.
+${cue "key" {' {highlightPasses {' "scene pass" "voxelgiGiCS"}}}}The row called scene pass is the room's own shading, and it takes most of the frame.
 
 The screen pass is the row named ${code "voxelgiGiCS"}, after its compute shader, and this chapter shrinks it.
 
-${cue "key" {' {highlight {'}}}}These times are this machine's.
+${cue "key" {' unhighlight}}These times are this machine's.
 
 Watch for the rows that appear only when their work actually runs.
 
 ### Light passes only on change {#c8-cache kind=3d}
 
-${cue "key" {opening demoCost panelPerformance 1.0 {' {highlight {'}} {giRelightEachFrame 0.0}}}}
+${cue "key" {opening demoCost panelPerformance 1.0 {' unhighlight {giRelightEachFrame 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 20.0 16.0 6.6} {pose 30.0 20.0 5.8}}}}}}}
 
 ${cue "key" {' {callout "update-gate"}}}Right now, no light pass is listed.
@@ -1722,11 +1722,11 @@ Those settings are the dynamic range, propagation, and the second bounce.
 ${cue "key" {' {giRelightEachFrame 1.0}}}To measure the light passes, the lab now relights the room every frame, which Godot does only when something changed.
 
 ${cue "key" {'
-    {highlight {' "voxelgiLightCS" "voxelgiBounceCS" "voxelgiMipmapsCS" "voxelgiWriteCS"}}}}Four rows appear, for the direct light, the bounce, the mips, and the writes.
+    {highlightPasses {' "voxelgiLightCS" "voxelgiBounceCS" "voxelgiMipmapsCS" "voxelgiWriteCS"}}}}Four rows appear, for the direct light, the bounce, the mips, and the writes.
 
-${cue "key" {' {highlight {' "voxelgiBounceCS"}}}}On this machine, the bounce takes the longest, because it traces six cones from every leaf that has a normal.
+${cue "key" {' {highlightPasses {' "voxelgiBounceCS"}}}}On this machine, the bounce takes the longest, because it traces six cones from every leaf that has a normal.
 
-${cue "key" {' {highlight {'}} {giRelightEachFrame 0.0}}}When the lab returns to Godot's behaviour, those rows are gone, so a still room's light costs nothing per frame.
+${cue "key" {' unhighlight {giRelightEachFrame 0.0}}}When the lab returns to Godot's behaviour, those rows are gone, so a still room's light costs nothing per frame.
 
 ### Only the occupied cells {#c8-sparse kind=3d}
 
@@ -1867,7 +1867,7 @@ ${cue "key" {' {callout "cones-high"}}}${over
             {' {coneStepsRange {float {lowSteps}} {float {highSteps}}}}
             f"{At High, ${spoken highCones} narrower cones widen more slowly}"}}}.
 
-${cue "key" {' panelPerformance {highlight {' "voxelgiGiCS"}}}}So their steps are shorter and more numerous, and the screen pass's row grows.
+${cue "key" {' panelPerformance {highlightPasses {' "voxelgiGiCS"}}}}So their steps are shorter and more numerous, and the screen pass's row grows.
 
 ${cue "key" {' {callout "quality-doc"} {specCone 1.0}}}${overText
     {' {qualityRange 1.0 0.0}}
@@ -1910,7 +1910,7 @@ ${overText {' {sphereRoughnessRange 0.07 0.1}} "So smooth surfaces are the most 
 ### Half resolution {#c8-half kind=3d}
 
 ${cue "key" {opening demoCost panelPerformance 0.3 {'
-    {highlight {' "voxelgiGiCS"}}
+    {highlightPasses {' "voxelgiGiCS"}}
     {giHalfResolution 0.0}
     {costSplit 1.0}
     {viewMode 0.0}

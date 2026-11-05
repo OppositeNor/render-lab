@@ -957,7 +957,7 @@ ${cue "key" {'
 
 The lights are now sorted, so we turn to the surfaces they light.
 
-${cue "key" {' panelCode listingSurfaceSetup {highlight {' "albedo"}}}}
+${cue "key" {' panelCode listingSurfaceSetup {highlightCode "surface-setup" {' "albedo"}}}}
 ${cue "key" {' {callout "surface-eval"}}}
 For each pixel, the material first evaluates a surface, a small set of numbers the lighting reads.
 
@@ -1022,7 +1022,7 @@ All of a metal's colour is in its reflection.
 ${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${cue "key" {' panelCode listingSurfaceSetup {highlight {' "roughness"}}}}
+${cue "key" {' panelCode listingSurfaceSetup {highlightCode "surface-setup" {' "roughness"}}}}
 ${cue "key" {' {callout "roughness-values"}}}
 The authored roughness is clamped to at least zero point zero two four, so no highlight becomes infinitely sharp.
 
@@ -1199,7 +1199,7 @@ ${cue "key" {opening demoSpecular panelValues 0.4 {'
     {term 1}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "d"}}}}
+${cue "key" {' panelCode listingSpecularGgx {highlightCode "specular-ggx" {' "d"}}}}
 ${cue "key" {' {callout "ggx-d"}}}
 The surface is modelled as tiny mirrors, called microfacets.
 
@@ -1231,7 +1231,7 @@ ${cue "key" {opening demoSpecular panelValues 0.4 {'
     {sphereRoughness 0.5}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "g"}}}}
+${cue "key" {' panelCode listingSpecularGgx {highlightCode "specular-ggx" {' "g"}}}}
 ${cue "key" {' {callout "ggx-g"}}}
 G removes the facets that their neighbours hide from the light or from the eye.
 
@@ -1259,7 +1259,7 @@ ${cue "key" {opening demoSpecular panelValues 0.3 {'
     {sphereRoughness 0.35}
     {sphereMetallic 0.0}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "f"}}}}
+${cue "key" {' panelCode listingSpecularGgx {highlightCode "specular-ggx" {' "f"}}}}
 ${cue "key" {' {callout "fresnel-schlick"}}}
 F is Schlick's Fresnel, measured from the angle between H and the eye.
 
@@ -1271,7 +1271,7 @@ ${overCallout
     "As the light sinks toward the side, L moves away from V, so H turns away from V too, and F climbs."}
 
 ${cue "key" {' {lightX -2.28} {blend 2.0}}}
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "product"}}}}
+${cue "key" {' panelCode listingSpecularGgx {highlightCode "specular-ggx" {' "product"}}}}
 The specular light is D times G times N dot L times F, times the light's intensity.
 
 ### Diffuse: Lambert, scaled by what reflection leaves {#c4-diffuse kind=3d}
@@ -1279,7 +1279,7 @@ The specular light is D times G times N dot L times F, times the light's intensi
 ${cue "key" {opening demoDiffuse panelValues 0.4 {' {vectors 1.0} {lobe 0.0} {paramFormula 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingDiffuseResponse {highlight {' "lambert"}}}}
+${cue "key" {' panelCode listingDiffuseResponse {highlightCode "diffuse-response" {' "lambert"}}}}
 ${cue "key" {' viewModeNdotl}}
 ${cue "key" {'
     {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 70.0 sentence}}}}}}
@@ -1289,7 +1289,7 @@ The diffuse light is Lambert's, the albedo divided by pi, times N dot L.
 So it is brightest where the sphere faces the light.
 
 ${cue "key" {' viewModeDiffuseResponse}}
-${cue "key" {' panelCode listingDiffuseResponse {highlight {' "response"}}}}
+${cue "key" {' panelCode listingDiffuseResponse {highlightCode "diffuse-response" {' "response"}}}}
 ${cue "key" {' {callout "fresnel-roughness"}}}
 The diffuse light is then scaled by the diffuse response, the share of light that is not reflected at the surface.
 
@@ -1306,14 +1306,20 @@ ${cue "key" {opening demoPointlight panelValues 0.5 {' viewModeFinal}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
 
-${cue "key" {' panelCode listingSimplePointLight {highlight {' "falloff"}}}}
+${cue "key" {'
+    panelCode
+    listingSimplePointLight
+    {highlightCode "simple-point-light" {' "falloff"}}}}
 ${cue "key" {' viewModeAttenuation}}
 ${overCallout
     {' {attenuationRadiusRange 2.0 6.0}}
     "point-light-apply"
     "For one simple point light, the shader first finds the falloff from the distance and the radius."}
 
-${cue "key" {' panelCode listingSimplePointLight {highlight {' "intensity"}}}}
+${cue "key" {'
+    panelCode
+    listingSimplePointLight
+    {highlightCode "simple-point-light" {' "intensity"}}}}
 ${cue "key" {' viewModeFinal {attenuationRadius 3.5} {blend 1.0}}}
 ${overCallout
     {' {lightIntensityRange 2.0 12.0}}
@@ -1324,7 +1330,7 @@ It is then multiplied by the window, the factor from chapter two that falls to z
 
 ${cue "key" {' {lightIntensity 6.0} {blend 1.0}}}
 ${cue "key" {' {motion {' {path {' lightX} {' {' 1.4} {' -0.4}} sentence}}}}}
-${cue "key" {' panelCode listingSimplePointLight {highlight {' "shade"}}}}
+${cue "key" {' panelCode listingSimplePointLight {highlightCode "simple-point-light" {' "shade"}}}}
 ${cue "key" {' {callout "point-light-apply"}}}
 Diffuse and specular are each multiplied by that intensity and by the shadow's lit ratio.
 
@@ -1383,7 +1389,7 @@ ${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "vi
 ${cue "key" {' {callout "brdf-execute-once"}}}
 At start-up, before the first frame, a compute pass fills the BRDF look-up texture, two hundred and fifty-six texels on a side.
 
-${cue "key" {' panelCode listingBrdfTexture {highlight {' "inputs"}}}}
+${cue "key" {' panelCode listingBrdfTexture {highlightCode "brdf-texture" {' "inputs"}}}}
 ${cue "key" {' {callout "brdf-texture"}}}
 Across the texture runs N dot V, and down it runs one minus roughness.
 
@@ -1418,11 +1424,11 @@ $settle The ring marks P's texel.
 $settle That texel gives the two numbers that scale P's reflection of the sky.
 
 ${cue "key" {' {inset "lut"} unmark}}
-${cue "key" {' panelCode listingBrdfTexture {highlight {' "sample"}}}}
+${cue "key" {' panelCode listingBrdfTexture {highlightCode "brdf-texture" {' "sample"}}}}
 ${cue "key" {' {callout "brdf-texture"}}}
 The pass averages one thousand and twenty-four directions per texel, chosen by importance sampling GGX.
 
-${cue "key" {' panelCode listingBrdfTexture {highlight {' "store"}}}}
+${cue "key" {' panelCode listingBrdfTexture {highlightCode "brdf-texture" {' "store"}}}}
 ${cue "key" {' {callout "brdf-texture-size"}}}
 That gives the two numbers per texel, the scale A and the bias B.
 
@@ -1444,7 +1450,7 @@ ${cue "key" {opening demoMultiscatter panelValues 0.3 {'
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -8.0 4.0 3.3} {pose 6.0 8.0 3.0}}}}}}}
 
-${cue "key" {' panelCode listingMultiscatter {highlight {' "energy"}}}}
+${cue "key" {' panelCode listingMultiscatter {highlightCode "multiscatter" {' "energy"}}}}
 ${cue "key" {' {glide sphereRoughness 0.9 sentence}}}
 ${cue "key" {' {callout "multiscatter"}}}
 A rough metal looks darker than it should.
@@ -1456,7 +1462,7 @@ ${overCallout
     "multiscatter"
     "A plus B is the share that one bounce keeps, and it shrinks as roughness grows."}
 
-${cue "key" {' panelCode listingMultiscatter {highlight {' "compensate"}}}}
+${cue "key" {' panelCode listingMultiscatter {highlightCode "multiscatter" {' "compensate"}}}}
 ${cue "key" {' {multiscatter 1.0} {blend 1.5}}}
 ${cue "key" {' {callout "multiscatter"}}}
 The compensation multiplies the specular light by a factor.
@@ -1689,11 +1695,14 @@ ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 20.0 22.0 5.0} {pose 6.0 18.0 5.4} {pose 18.0 24.0 4.8}}}}}}}
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "position"}}}}
+${cue "key" {'
+    panelCode
+    listingFullscreenShadow
+    {highlightCode "fullscreen-shadow" {' "position"}}}}
 ${cue "key" {' {callout "fullscreen-shadow"}}}
 To shade P, the shadow pass first rebuilds P's position from the depth.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "offset"}}}}
+${cue "key" {' panelCode listingFullscreenShadow {highlightCode "fullscreen-shadow" {' "offset"}}}}
 ${cue "key" {' {callout "shadow-normal-offset"}}}
 It then moves P a little along its normal.
 
@@ -1701,7 +1710,7 @@ The size of this normal offset is the normal bias setting times two, divided by 
 
 With the default bias of two point five, that is two point five times two over one thousand and twenty-four, about five millimetres.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "range"}}}}
+${cue "key" {' panelCode listingFullscreenShadow {highlightCode "fullscreen-shadow" {' "range"}}}}
 ${cue "key" {'
     {inset "cm"}
     imageFromCascadeMap
@@ -1712,7 +1721,7 @@ ${cue "key" {'
 ${cue "key" {' {callout "cascade-select"}}}
 The pass takes the first cascade whose map holds P at least one and a half texels in from the edge.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "compare"}}}}
+${cue "key" {' panelCode listingFullscreenShadow {highlightCode "fullscreen-shadow" {' "compare"}}}}
 ${cue "key" {' {callout "shadow-coords"}}}
 P's depth from the sun is moved a millimetre and a half toward the sun.
 
@@ -2618,7 +2627,7 @@ ${cue "key" {opening demoTransmission panelValues 0.4 {'
 ${cue "key" {' {motion {' {cameraPath transmissionSweep}}}}}
 
 ${cue "key" {' {motion {' {path {' sunYaw} {' {' -20.0} {' 30.0} {' 10.0}} sentence}}}}}
-${cue "key" {' panelCode listingTransmission {highlight {' "thick"}}}}
+${cue "key" {' panelCode listingTransmission {highlightCode "transmission" {' "thick"}}}}
 ${cue "key" {' {callout "back-lighting"}}}
 The thick object mode, after Barré-Brisebois and Bouchard, brightens where the eye looks toward the light through the object.
 
@@ -2656,7 +2665,7 @@ ${cue "key" {opening demoTransmission panelValues 0.4 {'
 ${cue "key" {' {motion {' {cameraPath transmissionSweep}}}}}
 
 ${cue "key" {' {motion {' {path {' sunPitch} {' {' 10.0} {' 22.0}} sentence}}}}}
-${cue "key" {' panelCode listingTransmission {highlight {' "thin"}}}}
+${cue "key" {' panelCode listingTransmission {highlightCode "transmission" {' "thin"}}}}
 ${cue "key" {' {callout "back-lighting"}}}
 The thin model, after Jimenez, starts from the light falling on the object's far side, its back face.
 

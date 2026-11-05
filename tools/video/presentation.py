@@ -27,7 +27,7 @@ loader turns the document into the storyboard the builder reads.
   (`render-lab story keys`; the builder writes it to the package's `build/<package>.lam`): `{cameraYaw 24.0}`,
   `{panelCode}`, `{listing "voxelize"}` (`code=`), `{inset "t0"}` (`image=`), `{easing "inOut"}` (`ease=`), and
   `{attr "key" "value"}` for any other; and render_lab's typed ones: `{motion {' {cameraPath …}}}` (`animate=`),
-  `{mark …}`, `{at …}`, `{highlight {' …}}`, and the checked `callout`, `imageTitle`, `imageMarkText`, `labelText`.
+  `{mark …}`, `{at …}`, `{highlightCode …}` and its kin, and the checked `callout`, `imageTitle`, `imageMarkText`, `labelText`.
 - A formula is a cue and what is said for it: `${formulaSaid "R + TT" "R plus T T" {'}}` (render_lab's, the cue
   `${cue "formula" {' {formula "R + TT"}}}` and `${say {math "R + TT"} "R plus T T"}`); `${cue "formula" {'
   {formulaOff}}}` closes the card. A code name is `${code "Name"}` (said as

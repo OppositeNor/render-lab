@@ -3,7 +3,7 @@
 Load this to write or revise storyboard sentences and their cues, from one cue to a whole chapter. The storyboard's
 syntax (headings, cue forms, ranges, motions, the translation's form) is the `render-lab-lamlet` skill's; this file is
 what a story says and shows. Keys written here as timeline keys (`panel`, `record`, `highlight`, `run`, `delay`) are
-written in a storyboard with their vocabulary functions (`{panelValues}`, `{highlight {' "tag"}}`, `{run "name"}`,
+written in a storyboard with their vocabulary functions (`{panelValues}`, `{highlightCode "listing" {' "tag"}}`, `{run "name"}`,
 `{delay 0.4}`): `render-lab --investigation <id> story keys` lists them.
 
 ## Phase 5: the storyboard, a chapter at a time

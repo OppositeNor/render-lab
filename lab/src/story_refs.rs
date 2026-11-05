@@ -1,7 +1,7 @@
 //! Reference namespaces shared by untimed stories and runtime timelines.
 //! Only metadata is read: no frame, action, or script effect is evaluated.
 
-use crate::shot::{Cue, CueProblem, Highlight, HighlightTarget, PanelMode, RecordRef, ShotState};
+use crate::shot::{Cue, CueProblem, Highlight, PanelMode, RecordRef, ShotState};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A stable spelling hint, without mixing different reference namespaces.
@@ -84,7 +84,22 @@ struct Context {
 impl Context {
     fn for_demo(demo: crate::shot::DemoId) -> Self {
         let state = ShotState::for_demo(demo);
-        Self { demo, panel: state.panel, code: state.code, record: state.record, highlight: state.highlight.into_iter().map(Highlight::Name).collect() }
+        let mut context = Self { demo, panel: state.panel, code: state.code, record: state.record, highlight: Vec::new() };
+        // The demonstration's own highlight names things of the panel it starts with.
+        context.highlight = state.highlight.into_iter().filter_map(|name| context.scoped(name)).collect();
+        context
+    }
+
+    /// `name` in the namespace of the panel this context shows; `None` when that panel shows no highlight.
+    fn scoped(&self, name: String) -> Option<Highlight> {
+        match self.panel {
+            PanelMode::Code => self.code.clone().map(|listing| Highlight::Code { listing, tag: name }),
+            PanelMode::Performance | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources => Some(Highlight::Pass { name }),
+            PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
+                self.record_name().map(|record| Highlight::Field { record: record.to_string(), field: name })
+            }
+            PanelMode::Hidden | PanelMode::Knowledge => None,
+        }
     }
 
     fn apply(&mut self, cue: &Cue) {
@@ -193,10 +208,15 @@ impl References {
         for target in &context.highlight {
             self.check_highlight(target, &context)?;
         }
+        // A highlight is set only where it shows: a panel that is hidden, or a readout without a record, draws none,
+        // and the next highlight would replace it unseen.
         let no_consumer = matches!(context.panel, PanelMode::Hidden | PanelMode::Knowledge)
             || (matches!(context.panel, PanelMode::Values | PanelMode::Declaration | PanelMode::Memory) && context.record_name().is_none());
-        if no_consumer && cue.highlight.as_ref().is_some_and(|h| h.iter().any(|t| matches!(t, Highlight::Name(_)))) {
-            self.warnings.push(CueProblem::new("story.highlight.ambiguous", "highlight", format!("unqualified highlight has no active consumer{}; use highlightPasses, highlightCode, or highlightFields to make its target explicit", context.description())));
+        if no_consumer && cue.highlight.as_ref().is_some_and(|h| !h.is_empty()) {
+            return Err(CueProblem::new("story.highlight.unseen", "highlight", format!(
+                "nothing shows this highlight{}: show its panel in the same cue (panelCode with its listing, a graph or performance panel, or panelValues with a record), or leave the highlight out",
+                context.description()
+            )));
         }
         Ok(())
     }
@@ -274,44 +294,26 @@ impl References {
         let check = |category: &str, name: &str, known: Vec<String>| -> Result<(), CueProblem> {
             if known.iter().any(|k| k == name) { Ok(()) } else { Err(CueProblem::new("story.highlight", "highlight", unknown(category, name, known, &details))) }
         };
-        // Explicit namespaces are checked even while no panel consumes them.
-        if let Highlight::Target(scope) = target {
-            match scope {
-                HighlightTarget::Pass { name } => check("pass", name, self.pass_names(context.panel))?,
-                HighlightTarget::Code { listing, tag } => check(&format!("tag in listing `{listing}`"), tag, tags(listing)?)?,
-                HighlightTarget::Field { record, field } => check(&format!("field in `{record}`"), field, self.record_fields(record)?)?,
-            }
+        // Each name is checked in its own namespace, even while no panel shows it (pass names are the panel's:
+        // the performance panel's are the timing names).
+        match target {
+            Highlight::Pass { name } => check("pass", name, self.pass_names(context.panel))?,
+            Highlight::Code { listing, tag } => check(&format!("tag in listing `{listing}`"), tag, tags(listing)?)?,
+            Highlight::Field { record, field } => check(&format!("field in `{record}`"), field, self.record_fields(record)?)?,
         }
         let mismatch = || CueProblem::new("story.highlight.context", "highlight", format!("highlight namespace does not match its consumer{details}"));
-        match context.panel {
+        let matches = match context.panel {
             PanelMode::Code => {
                 let listing = context.code.as_deref().ok_or_else(|| CueProblem::new("story.highlight.context", "highlight", format!("code highlight needs a selected listing{details}")))?;
-                if let Highlight::Target(scope) = target {
-                    if !matches!(scope, HighlightTarget::Code { listing: wanted, .. } if wanted == listing) {
-                        return Err(mismatch());
-                    }
-                }
-                check(&format!("tag in listing `{listing}`"), target.name(), tags(listing)?)
+                matches!(target, Highlight::Code { listing: wanted, .. } if wanted == listing)
             }
-            PanelMode::Performance | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources => {
-                if matches!(target, Highlight::Target(scope) if !matches!(scope, HighlightTarget::Pass { .. })) {
-                    return Err(mismatch());
-                }
-                check("pass", target.name(), self.pass_names(context.panel))
-            }
-            PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
-                if let Some(record) = context.record_name() {
-                    if let Highlight::Target(scope) = target {
-                        if !matches!(scope, HighlightTarget::Field { record: wanted, .. } if wanted == record) {
-                            return Err(mismatch());
-                        }
-                    }
-                    check(&format!("field in `{record}`"), target.name(), self.record_fields(record)?)
-                } else {
-                    Ok(()) // a readout has no highlight consumer
-                }
-            }
-            PanelMode::Hidden | PanelMode::Knowledge => Ok(()), // retained, checked on later use
-        }
+            PanelMode::Performance | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources => matches!(target, Highlight::Pass { .. }),
+            PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => match context.record_name() {
+                Some(record) => matches!(target, Highlight::Field { record: wanted, .. } if wanted == record),
+                None => true, // a readout shows no highlight; a cue setting one there is refused in `check`
+            },
+            PanelMode::Hidden | PanelMode::Knowledge => true, // kept until a panel shows it
+        };
+        if matches { Ok(()) } else { Err(mismatch()) }
     }
 }

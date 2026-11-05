@@ -59,8 +59,8 @@ seconds; before that it says the timing is not measured, and synthesizes nothing
 and renders that beat's stills into `build/video/<lang>/preview/<beat>/`: its start and end, each cue and the frame
 before it, where each motion and blend ends, and the midpoint, with `index.json` saying why each was taken.
 
-Highlights are checked in the inherited demo, panel, listing and record context.
-Use an explicit namespace for new cues:
+A highlight names its namespace, and is checked in the inherited demo, panel,
+listing and record context:
 
 ```lamlet
 ${cue "key" {' panelGraph {highlightPasses {' "ssrTrace"}}}}
@@ -85,11 +85,15 @@ field membership and runtime names are tested, but their visible field highlight
 has no public demo fixture. Two-dimensional beats can also retain panel settings
 while displaying a diagram or source card instead.
 
-Legacy `highlight` lists still work. A legacy list with no active consumer
-(Hidden, Knowledge, or a readout without a record) emits
-`story.highlight.ambiguous`; membership is checked when a later cue activates a
-consumer. Explicit targets are checked even while hidden. JSON reports retain
-warnings with `ok: true`, and the text checker and builder print them.
+A bare name (the old `highlight` list) is not a highlight: the timeline refuses
+it. A cue that sets a highlight must show it: after the cue applies, its panel is Code with a listing, a
+graph or performance panel, or Values, Declaration or Memory with a record.
+Otherwise (Hidden, Knowledge, or a readout without a record) nothing draws it
+and the next highlight replaces it unseen, so the check fails with
+`story.highlight.unseen`. An empty list clears without a panel. A highlight
+already set stays while its panel is away, and its names are checked again when
+a later cue shows a consumer. JSON reports keep warnings with `ok: true`, and
+the text checker and builder print them.
 
 String helpers, generated constants and raw `attr` values reach the same host
 checks. Invalid options and references report their category, context and nearby
@@ -358,7 +362,7 @@ the sample (`narration.py`; each wav has a `<digest>.json` with its word starts)
 
 | Cue attributes | Do |
 |---|---|
-| `{opacity 1.0} {callout "source-key"}` | A point cue: shot parameters, `callout`, `listing` (`code`), `panel`, `demo`, `{highlight {' "tag" "pass"}}` (`{highlight {'}}` clears it), `recordCamera`, `{recordObject 3}`, `recordNone`, `easing` (`ease`), `blend` (seconds), `term` |
+| `{opacity 1.0} {callout "source-key"}` | A point cue: shot parameters, `callout`, `listing` (`code`), `panel`, `demo`, `{highlightCode "listing" {' "tag"}}`, `{highlightPasses {' "pass"}}`, `{highlightFields "ObjectData" {' "field"}}` (`unhighlight` clears it), `recordCamera`, `{recordObject 3}`, `recordNone`, `easing` (`ease`), `blend` (seconds), `term` |
 | `{motion {' {cameraPath {' {' 18.0 16.0 6.2} {' 8.0 22.0 5.8}}}}}`, `{motion {' {path {' lightX lightY} {' {' 0.0 1.0}} sentence} {sway cameraYaw 6.0 24.0}}}` | Motions a key starts (`animate`, lab/src/animation.rs): a `path` of channels (the vocabulary's own functions) through waypoints, an `orbit` about a centre by degrees, or a `sway` (a sine wave) of one channel, for the cue's `beat`, its `sentence`, or `{seconds 4.0}`. Wrappers add the rest: `eased easingSine`, `looping`, `pingPonging`, `closed` (a path), `around`, `from` (an orbit), `centered`, `phased`, `lasting`, `fading` (a wave). `cameraPath` and `cameraTurn` are the camera's yaw, pitch, and distance (or yaw and pitch) over the beat, `cameraPathOver` and `cameraTurnOver` over a `Length`; their waypoints may be named, `{pose 18.0 16.0 6.2}` and `{aim 18.0 16.0}`. The commonest motion, one channel to one value, is a whole attribute: `{glide cameraYaw 24.0 sentence}` |
 | `{inset "floodSeeds"} {imageCornerTopLeft} {imageTitle "demos.seeds"}`, `{inset ""}` | An image in an inset, by key: one the investigation publishes (`render-lab images`; its own title and axes), or a PNG resource of the package (`test/globe`) or one an imported package exports (`render_lab.<key>`), at its own size. It fades in and out over the key's `blend`; `imageCorner` is `top-left`, `top-right` (the default), `bottom-left`, or `bottom-right`; `imageTitle` is a text key of the package. The lab checks the key when it loads the timeline |
 | `{inset "maps"} {imageFrom "probeMap"} {imageProbe {' 7.0 7.0 8.0}}`, `{imageHide {' "maps"}}` | A GPU image: an instance, named by the story, of an image kind the package's shaders define (`lab/src/views.rs`; `render-lab images` lists the kinds and their parameters, `image.<param>`, written `imageParam…` where a field has the name). The lab runs the kind's compute entry point into the instance's own texture every frame and shows it live. A later `inset` of the name sets its parameters (blended over `blend`), title, or corner; several images show at once; `imageHide` fades some out and `{inset ""}` all. The lab checks the kind and each parameter when it loads the timeline |

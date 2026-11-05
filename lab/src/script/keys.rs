@@ -20,7 +20,7 @@ const RESERVED: &[&str] = &["say", "param"];
 /// motions, points, marks, lists of names, records; callouts and text keys, through the lab's natives), so the
 /// vocabulary leaves them out (the key list marks them `"typed": true`) and the two never define one name twice.
 pub const TYPED: &[&str] = &[
-    "animate", "arrowFrom", "arrowTo", "labelAt", "imageMark", "imageHide", "arrowHide", "labelHide", "highlight", "record", "callout", "imageTitle", "imageMarkText",
+    "animate", "arrowFrom", "arrowTo", "labelAt", "imageMark", "imageHide", "arrowHide", "labelHide", "record", "callout", "imageTitle", "imageMarkText",
     "labelText", "highlightPasses", "highlightCode", "highlightFields",
 ];
 

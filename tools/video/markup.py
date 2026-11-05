@@ -45,7 +45,7 @@ Json = dict[str, Any]
 FORMULA_ATTRS = ('formula', 'say', 'card', 'display', 'colors')
 # Fields the reader types itself (`cue_key`); every other field of the vocabulary is kept as written.
 TYPED = ('camera', 'animate', 'delay', 'blend', 'term', 'run', 'stop', 'ease', 'imageMark', 'imageHide', 'arrowHide', 'labelHide',
-         'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlight', 'highlightPasses', 'highlightCode', 'highlightFields', 'record', *FORMULA_ATTRS)
+         'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlightPasses', 'highlightCode', 'highlightFields', 'record', *FORMULA_ATTRS)
 
 
 class MarkupError(DiagnosticError):
@@ -328,8 +328,6 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             if name == 'highlightCode':
                 data = json.loads(v) if isinstance(v, str) else v
                 key['code'] = data['listing']
-        elif name == 'highlight':
-            key['highlight'] = v if isinstance(v, list) else [h for h in v.split(',') if h]
         elif name == 'record':
             kind, _, index = v.partition(':')
             key['record'] = {'type': kind} if not index else {'type': kind, 'index': integer(index, where)}
