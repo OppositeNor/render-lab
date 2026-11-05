@@ -18,4 +18,7 @@ $[# jumpFlood {: {^ {elapsed run}
     [# from {withDefault {.from run} 0}]
     {!if {<= seconds 0.0}
         {error f"{a step takes $seconds s; it takes longer than 0}"}
-        {' {setFloodStep {float {min {+ from {steps seconds elapsed}} lastFloodStep}}}}}} {Action JumpFlood}}]
+        {'
+            {setFloodStep {float {min
+                {+ from {steps seconds elapsed}}
+                lastFloodStep}}}}}} {Action JumpFlood}}]

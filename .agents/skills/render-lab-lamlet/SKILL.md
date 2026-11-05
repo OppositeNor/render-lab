@@ -197,6 +197,10 @@ marks), since moving them would add a frame-data struct and natives to move a fe
 - **The lab names no investigation** in its Lamlet code (the runtime library included); investigations reach it
   through the `Investigation` trait, as everywhere else.
 - **Ids and names in documents** use `-` (`c1-room`, range names); Lamlet package names use `_`.
+- **Layout.** `python3 tools/lamlet_fmt.py` lays out the code of every tracked `.lam` file: what fits in 100 columns
+  stays on one line, a longer expression puts one part per line (a list's items, a record's fields, a call's
+  arguments) at a 4-space indent, and a too-long line of cues and its sentence puts each on a line of its own. It
+  changes whitespace only (it checks every token); run it after an edit, and `--check` before a commit.
 - **Name only tracked files.** What you write (storyboards, scripts, the lab's Lamlet) names and imports only files
   and packages `git ls-files` lists, never anything outside git (a local package included). The pinned language
   skills under `.cache/` are read as references; nothing written names them.
@@ -211,3 +215,4 @@ marks), since moving them would add a frame-data struct and natives to move a fe
 | The runtime library, `render_lab.lam`, or the lab's Lamlet code | every investigation's `script check`, the unit tests below, `--prepare-only` for every edition and `tools/video/compare.py` (outputs unchanged), the frame identity check (AGENTS.md) when it changes what frames show |
 | The story reader (`tools/video/presentation.py`, `markup.py`) or a storyboard's form | the unit tests below and `tools/video/compare.py` over every edition |
 | A Lamlet content file | `render-lab lamlet toml FILE NAME`, compared with what the reader expected; a snapshot of what it feeds |
+| Any `.lam` file | `python3 tools/lamlet_fmt.py --check` (lists what is not laid out); the formatter itself: `python3 -m unittest tools/test_lamlet_fmt.py` |

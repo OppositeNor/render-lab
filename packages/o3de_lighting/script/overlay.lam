@@ -6,7 +6,10 @@ light's attenuation radius and falloff, and at the inspected point the vectors t
 lobes, and the directions the specular prefilter samples.
 The lab draws it over each frame (lab/src/script/runtime.rs).
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* o3de_lighting_values]$[Import* o3de_lighting_natives]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* o3de_lighting_values]
+$[Import* o3de_lighting_natives]
 
 The colours of the light, the half vector, and the two lobes (src/o3de/lighting/demos.rs).
 $[# _light "#ffd98a"]
@@ -19,7 +22,9 @@ on, V, and R in the IBL demonstration.
 $[# {_shown i}
     [# n {named "N" {.normal i} normalColor}]
     [# v {named "V" {.toView i} viewColor}]
-    [# lit {!if {.lightOn i} {' n {named "L" {.toLight i} _light} v {named "H" {.half i} _half}} {' n v}}]
+    [# lit {!if {.lightOn i}
+        {' n {named "L" {.toLight i} _light} v {named "H" {.half i} _half}}
+        {' n v}}]
     {!if {= {demo} "ibl"} {append lit {' {named "R" {.reflect i} reflectedColor}}} lit}]
 
 The inspected point and its vectors (`vectors` fades them, `vectorsShown` grows them one by one), a dashed line
@@ -27,12 +32,21 @@ to the light once L is out, and the observer the readout sees the point from, wh
 $[# {_vectors i alpha}
     [# p {.point i}]
     [# count {max {vectorsShown} 0.0}]
-    [# toLight {!if {!and {.lightOn i} {> count 1.0}} {' {dashed p {.lightAt i} _light {* alpha 0.5} 1.5}} {'}}]
+    [# toLight {!if {!and {.lightOn i} {> count 1.0}}
+        {' {dashed p {.lightAt i} _light {* alpha 0.5} 1.5}}
+        {'}}]
     [# seen {vec3 {observerX} {observerY} {observerZ}}]
     [# observed {!if {> {observer} 0.5}
-        {' {point seen 9.0 viewColor alpha} {dashed p seen viewColor {* alpha 0.5} 1.5} {labelText seen {textKey "demos.observer"} viewColor}}
+        {'
+            {point seen 9.0 viewColor alpha}
+            {dashed p seen viewColor {* alpha 0.5} 1.5}
+            {labelText seen {textKey "demos.observer"} viewColor}}
         {'}}]
-    {flatten {' {' {point p 8.0 selectedColor alpha}} {grownArrows p {_shown i} 0.5 alpha 4.0 count} toLight observed}}]
+    {flatten {'
+        {' {point p 8.0 selectedColor alpha}}
+        {grownArrows p {_shown i} 0.5 alpha 4.0 count}
+        toLight
+        observed}}]
 
 The specular and diffuse lobes for an outgoing direction swept through the plane of N and L, horizon to horizon,
 each on its own scale (`brdfTerms`), and the mirror direction of L, where a smooth surface's lobe peaks.
@@ -41,20 +55,44 @@ $[# {_lobes i alpha}
     [# at {.surface i}]
     [# dirs {sweep n {inPlane n {.toLight i}} 90}]
     [# terms {brdfTerms dirs}]
-    {flatten {' {lobeLine at dirs {.specular terms} _specular 0.8 alpha 3.0 {some {textKey "demos.specular_lobe"}}}
-                {lobeLine at dirs {.diffuse terms} _diffuse 0.4 alpha 3.0 none}
-                {' {dashed at {vadd at {vscale {mirror n {.toLight i}} 0.65}} _specular {* alpha 0.6} 1.5}}}}]
+    {flatten {'
+        {lobeLine at dirs
+            {.specular terms}
+            _specular
+            0.8
+            alpha
+            3.0
+            {some {textKey "demos.specular_lobe"}}}
+        {lobeLine at dirs {.diffuse terms} _diffuse 0.4 alpha 3.0 none}
+        {'
+            {dashed at
+                {vadd at {vscale {mirror n {.toLight i}} 0.65}}
+                _specular
+                {* alpha 0.6}
+                1.5}}}}]
 
 Three great circles around the light at its attenuation radius, and the circle where that sphere meets the floor.
-$[# {_circle a b r c} {map {range 0 97} {^ {k} [# t {* {/ {float k} 96.0} {* 2.0 pi}}] {vadd c {vscale {vadd {vscale a {cos t}} {vscale b {sin t}}} r}}}}]
+$[# {_circle a b r c} {map
+    {range 0 97}
+    {^ {k}
+        [# t {* {/ {float k} 96.0} {* 2.0 pi}}]
+        {vadd c {vscale {vadd {vscale a {cos t}} {vscale b {sin t}}} r}}}}]
 $[# {_radius i alpha}
     [# c {.lightAt i}]
     [# r {.lightRadius i}]
     [# x {vec3 1.0 0.0 0.0}]
     [# y {vec3 0.0 1.0 0.0}]
     [# z {vec3 0.0 0.0 1.0}]
-    [# rings {flatten {map {' {pair x y} {pair y z} {pair x z}} {^ {p} {polyline {_circle {.first p} {.second p} r c} _light {* alpha 0.35} 1.5}}}}]
-    [# floor {!if {< {.y c} r} {polyline {_circle x z {sqrt {- {* r r} {* {.y c} {.y c}}}} {vec3 {.x c} 0.005 {.z c}}} _light {* alpha 0.9} 3.0} {'}}]
+    [# rings {flatten {map
+        {' {pair x y} {pair y z} {pair x z}}
+        {^ {p} {polyline {_circle {.first p} {.second p} r c} _light {* alpha 0.35} 1.5}}}}]
+    [# floor {!if {< {.y c} r}
+        {polyline
+            {_circle x z {sqrt {- {* r r} {* {.y c} {.y c}}}} {vec3 {.x c} 0.005 {.z c}}}
+            _light
+            {* alpha 0.9}
+            3.0}
+        {'}}]
     {append rings floor}]
 
 The illuminance on the floor along +x from below the light, as a curve standing on the floor: inverse-square
@@ -67,25 +105,38 @@ $[# {_falloff i alpha}
     [# {at x v} {vadd foot {vec3 x {* 1.2 {min v 1.4}} 0.0}}]
     [# plain {map {zip xs {.plain f}} {^ {e} {at {.first e} {.second e}}}}]
     [# attenuated {map {zip xs {.attenuated f}} {^ {e} {at {.first e} {.second e}}}}]
-    [# dashes {map {zip plain {tail plain}} {^ {e} {dashed {.first e} {.second e} textDimColor {* alpha 0.8} 2.0}}}]
-    {flatten {' {' {arrow foot {vadd foot {vec3 3.0 0.0 0.0}} textFaintColor {* alpha 0.6} 1.5}} dashes
+    [# dashes {map
+        {zip plain {tail plain}}
+        {^ {e} {dashed {.first e} {.second e} textDimColor {* alpha 0.8} 2.0}}}]
+    {flatten {'
+        {' {arrow foot {vadd foot {vec3 3.0 0.0 0.0}} textFaintColor {* alpha 0.6} 1.5}}
+        dashes
         {polyline attenuated _light alpha 3.5}
-        {' {label {nth plain 40} "I / d²" textDimColor} {label {nth attenuated 70} "I / d² · (1 − (d²/r²)²)²" _light}}}}]
+        {'
+            {label {nth plain 40} "I / d²" textDimColor}
+            {label {nth attenuated 70} "I / d² · (1 − (d²/r²)²)²" _light}}}}]
 
 The first `ggxSamples` of the 256 directions the specular prefilter samples for a texel along R, brighter the
 closer to R.
 $[# {_ggx i count}
     [# r {.reflect i}]
     [# p {.surface i}]
-    {flatten {map {ggxDirections count} {^ {l} [# w {vdot r l}] {!if {> w 0.0} {' {segment p {vadd p {vscale l 0.55}} _specular {+ 0.25 {* 0.6 w}} 1.5}} {'}}}}}]
+    {flatten {map
+        {ggxDirections count}
+        {^ {l}
+            [# w {vdot r l}]
+            {!if {> w 0.0}
+                {' {segment p {vadd p {vscale l 0.55}} _specular {+ 0.25 {* 0.6 w}} 1.5}}
+                {'}}}}}]
 
 $[# {_draw i}
     [# samples {clamp {round {ggxSamples}} 0 256}]
-    {flatten {' {!if {> {radius} 0.0} {_radius i {radius}} {'}}
-               {!if {> {falloff} 0.0} {_falloff i {falloff}} {'}}
-               {!if {> {vectors} 0.0} {_vectors i {vectors}} {'}}
-               {!if {> {lobe} 0.0} {_lobes i {lobe}} {'}}
-               {!if {> samples 0} {_ggx i samples} {'}}}}]
+    {flatten {'
+        {!if {> {radius} 0.0} {_radius i {radius}} {'}}
+        {!if {> {falloff} 0.0} {_falloff i {falloff}} {'}}
+        {!if {> {vectors} 0.0} {_vectors i {vectors}} {'}}
+        {!if {> {lobe} 0.0} {_lobes i {lobe}} {'}}
+        {!if {> samples 0} {_ggx i samples} {'}}}}]
 
 The overlay: nothing while the unfolded cubemap covers the room.
 $[# overlay {: {^ {t} {!if {> {probeCubemap} 0.5} {'} {_draw {inspected}}}} Overlay}]

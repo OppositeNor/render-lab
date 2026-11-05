@@ -1,24 +1,48 @@
-$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* o3de_lighting]$[Import* o3de_lighting_story]$[Import* o3de_lighting_natives]
+$[Import* std]
+$[Import* content]
+$[Import* present]
+$[Import* render_lab]
+$[Import* o3de_lighting]
+$[Import* o3de_lighting_story]
+$[Import* o3de_lighting_natives]
 # How O3DE Lights a Frame {#video subtitle="The lighting model of O3DE's Atom renderer, pass by pass: ported to WGSL and read from O3DE 26.05's source" engineVersion="26.05 (2.6.0)" commit=3db6943249d8bd7960b9ed7e9aee310b7668586e date=2026-10-30 fps=30 width=1920 height=1080}
 
 ## Where the lighting runs {#c1 number=1 target=810 summary="The opaque frame of MainRenderPipeline: a depth pre-pass, tiled light culling, shadows, a forward pass into five targets, and the full-screen passes that finish its light." sources="engine-version, msaa-default, opaque-pass-order, forward-pixel, evaluate-lighting, forward-targets, target-formats, normal-encoding, forward-ibl-stencil, lighting-model-select, lowend-forward, deferred-inert"}
 
 ### Light, assembled pass by pass {#c1-open kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {' {labels 0.0} {forwardStage 0.0} {sunLux 20.0} {iblExposure 2.0} {skyboxExposure 2.0} {exposure 0.18} {sunYaw 40.0} {sunPitch 52.0} {lightOn 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 24.0 20.0 6.2} {pose 4.0 14.0 6.6} {pose -14.0 18.0 6.0}}}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {'
+    {labels 0.0}
+    {forwardStage 0.0}
+    {sunLux 20.0}
+    {iblExposure 2.0}
+    {skyboxExposure 2.0}
+    {exposure 0.18}
+    {sunYaw 40.0}
+    {sunPitch 52.0}
+    {lightOn 1.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 24.0 20.0 6.2} {pose 4.0 14.0 6.6} {pose -14.0 18.0 6.0}}}}}}}
 
 This is the lab's study room, lit by the shaders of the Open 3D Engine's Atom renderer, ported to WGSL.
 
-${overText {' {sunLuxRange 20.0 40.0}} " A sun shines in through the open ceiling, and a small point light hangs over the floor."}
+${overText
+    {' {sunLuxRange 20.0 40.0}}
+    " A sun shines in through the open ceiling, and a small point light hangs over the floor."}
 
 Right now we see only the light that the forward pass computed itself.
 
-${overText {' {forwardStageRange 0.0 1.0}} " Now the sky's diffuse light is added, and the shadowed sides fill in."}
+${overText
+    {' {forwardStageRange 0.0 1.0}}
+    " Now the sky's diffuse light is added, and the shadowed sides fill in."}
 
-${overText {' {forwardStageRange 1.0 2.0}} " Next come the reflections of the sky, on the sphere and along the floor."}
+${overText
+    {' {forwardStageRange 1.0 2.0}}
+    " Next come the reflections of the sky, on the sphere and along the floor."}
 
-${overText {' {forwardStageRange 2.0 3.0}} " Last, ambient occlusion darkens the creases, here where the teapot meets the floor."}
+${overText
+    {' {forwardStageRange 2.0 3.0}}
+    " Last, ambient occlusion darkens the creases, here where the teapot meets the floor."}
 
 $settle Each of these parts came from a different pass, at a different time in the frame.
 
@@ -29,11 +53,14 @@ How does O3DE light a room from many lights and the sky, without shading every p
 ### The default pipeline {#c1-pipeline kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose -10.0 16.0 6.2} {pose 12.0 22.0 5.6} {pose 26.0 18.0 6.4}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose -10.0 16.0 6.2} {pose 12.0 22.0 5.6} {pose 26.0 18.0 6.4}}}}}}}
 
-${cue "key" {' {callout "engine-version"}}} Everything here comes from reading the source of O3DE twenty-six oh five, engine version two point six.
+${cue "key" {' {callout "engine-version"}}}
+Everything here comes from reading the source of O3DE twenty-six oh five, engine version two point six.
 
-${cue "key" {' {callout "render-pipeline-path"}}} On Windows, Linux, and macOS, the engine loads one render pipeline by default, which is the set of passes that draw each frame.
+${cue "key" {' {callout "render-pipeline-path"}}}
+On Windows, Linux, and macOS, the engine loads one render pipeline by default, which is the set of passes that draw each frame.
 
 That pipeline is called ${code "MainRenderPipeline"}, and Android and iOS load a mobile one instead.
 
@@ -43,23 +70,29 @@ The lab renders four, so its edges are a little smoother.
 
 ### First, depth {#c1-map kind=2d graph=frame focus=DEPTH}
 
-${cue "key" {' {callout "depth-prepass"}}} First a depth pre-pass draws only the depth of every opaque mesh.
+${cue "key" {' {callout "depth-prepass"}}}
+First a depth pre-pass draws only the depth of every opaque mesh.
 
 ### Then the lights are sorted into tiles {#c1-map-cull kind=2d graph=frame focus="DEPTH, CULL"}
 
-${cue "key" {' {callout "light-culling-pass"}}} Light culling reads that depth and sorts the lights into lists, one for each tile of ${spoken {tilePixels}} by ${spoken {tilePixels}} pixels.
+${cue "key" {' {callout "light-culling-pass"}}}
+Light culling reads that depth and sorts the lights into lists, one for each tile of ${spoken
+    {tilePixels}} by ${spoken {tilePixels}} pixels.
 
 Later, each pixel reads only its own tile's list, so it meets only the lights near it.
 
 ### The sun's shadow, per pixel {#c1-map-shadow kind=2d graph=frame focus="DEPTH, SHADOW"}
 
-${cue "key" {' {callout "fullscreen-shadow"}}} The shadow passes draw the sun's shadow maps and turn them into a shadow value per pixel.
+${cue "key" {' {callout "fullscreen-shadow"}}}
+The shadow passes draw the sun's shadow maps and turn them into a shadow value per pixel.
 
 ### The forward pass writes five targets {#c1-map-forward kind=2d graph=frame focus="CULL, SHADOW, FWD, TARGETS, LUT"}
 
-${cue "key" {' {callout "forward-pixel"}}} Then the forward pass shades each pixel's surface with the lights of its tile, and writes five targets.
+${cue "key" {' {callout "forward-pixel"}}}
+Then the forward pass shades each pixel's surface with the lights of its tile, and writes five targets.
 
-${cue "key" {' {callout "brdf-execute-once"}}} The forward pass also reads a BRDF look-up texture, which is built once, at start-up.
+${cue "key" {' {callout "brdf-execute-once"}}}
+The forward pass also reads a BRDF look-up texture, which is built once, at start-up.
 
 ### Full-screen passes finish the light {#c1-map-after kind=2d graph=frame focus="TARGETS, DIFF, REFL, SSS, AO, MERGE, CUBES"}
 
@@ -71,56 +104,94 @@ Others apply subsurface scattering and ambient occlusion, which later chapters e
 
 A merge pass then adds the diffuse light to the specular, and transparent meshes are drawn on top.
 
-${cue "key" {' {callout "specular-preset"}}} These passes read two cubemaps of the sky, which were built with the assets, long before the frame.
+${cue "key" {' {callout "specular-preset"}}}
+These passes read two cubemaps of the sky, which were built with the assets, long before the frame.
 
 ### Depth first, so lighting knows what is visible {#c1-prepass kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 20.0 6.0} {pose 2.0 15.0 6.6} {pose 16.0 21.0 5.9}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 20.0 6.0} {pose 2.0 15.0 6.6} {pose 16.0 21.0 5.9}}}}}}}
 
-${cue "key" {chainTarget "depth" 5.0 imageCornerTopLeft {' {imageFar 4.0} {imageTitle "views.depth_prepass"}}}} ${cue "key" {' {callout "depth-prepass"}}} The pre-pass stores only depth, as a thirty-two bit float, with an eight bit stencil beside it that we come back to.
+${cue "key" {chainTarget "depth" 5.0 imageCornerTopLeft {'
+    {imageFar 4.0}
+    {imageTitle "views.depth_prepass"}}}}
+${cue "key" {' {callout "depth-prepass"}}}
+The pre-pass stores only depth, as a thirty-two bit float, with an eight bit stencil beside it that we come back to.
 
 That depth is reversed, so a near surface stores a larger value than a far one.
 
-${cue "key" {' {inset "depth"} {imageFar 12.0} {blend 2.0}}} To read the depth, this view turns each stored value back into a distance from the camera.
+${cue "key" {' {inset "depth"} {imageFar 12.0} {blend 2.0}}}
+To read the depth, this view turns each stored value back into a distance from the camera.
 
 $settle The view draws that distance as brightness, from bright at the camera to black at twelve metres.
 
-$settle ${cue "key" {' {inset "depth"} {mark 0.05 0.66 0.95 1.0} {imageMarkText "views.mark_near"} {blend 0.6}}} So the floor in front of us, a metre or two away, is bright.
+$settle ${cue "key" {'
+    {inset "depth"}
+    {mark 0.05 0.66 0.95 1.0}
+    {imageMarkText "views.mark_near"}
+    {blend 0.6}}} So the floor in front of us, a metre or two away, is bright.
 
-$settle ${cue "key" {' {inset "depth"} {mark 0.22 0.1 0.78 0.46} {imageMarkText "views.mark_far"} {blend 0.6}}} The back wall, several metres farther, is a darker blue.
+$settle ${cue "key" {'
+    {inset "depth"}
+    {mark 0.22 0.1 0.78 0.46}
+    {imageMarkText "views.mark_far"}
+    {blend 0.6}}} The back wall, several metres farther, is a darker blue.
 
 $settle Where two surfaces at different distances meet, the brightness jumps.
 
 $settle That jump is why the outlines of the sphere and the boxes stand out against the wall behind them.
 
-$settle ${cue "key" {' {inset "depth"} {mark 0.0 0.0 1.0 0.1} {imageMarkText "views.mark_nothing_drawn"} {blend 0.6}}} Where no mesh was drawn, as in the sky, the depth keeps its clear value of zero.
+$settle ${cue "key" {'
+    {inset "depth"}
+    {mark 0.0 0.0 1.0 0.1}
+    {imageMarkText "views.mark_nothing_drawn"}
+    {blend 0.6}}} Where no mesh was drawn, as in the sky, the depth keeps its clear value of zero.
 
 $settle Zero is the farthest depth, because depth is reversed, so the view shows it as black.
 
 $settle Every later pass that needs a pixel's position starts from this one depth value.
 
-${cue "key" {' {inset "depth"} unmark}} ${cue "key" {' {inset "depth"} {imageFar 12.0} {blend 3.0}}} ${cue "key" {' {callout "forward-depth-state"}}} The forward pass then tests each fragment against that depth, so it shades a pixel only for the surface the camera really sees.
+${cue "key" {' {inset "depth"} unmark}}
+${cue "key" {' {inset "depth"} {imageFar 12.0} {blend 3.0}}}
+${cue "key" {' {callout "forward-depth-state"}}}
+The forward pass then tests each fragment against that depth, so it shades a pixel only for the surface the camera really sees.
 
-${cue "key" {' {callout "depth-linear"}}} Another pass turns this depth into a plain distance from the camera, for the shadow pass and ambient occlusion to read.
+${cue "key" {' {callout "depth-linear"}}}
+Another pass turns this depth into a plain distance from the camera, for the shadow pass and ambient occlusion to read.
 
 ### Five targets, not one colour {#c1-targets kind=3d}
 
-${cue "key" {opening demoRoom panelValues 1.0 {append baseLight {' {labels 0.0} {readoutMode 1.0} {paramFormula -1.0}}}}}
+${cue "key" {opening demoRoom panelValues 1.0 {append baseLight {'
+    {labels 0.0}
+    {readoutMode 1.0}
+    {paramFormula -1.0}}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 10.0 14.0 5.4} {pose -6.0 10.0 5.8} {pose 8.0 16.0 5.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 10.0 14.0 5.4} {pose -6.0 10.0 5.8} {pose 8.0 16.0 5.2}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}} ${cue "key" {' {callout "forward-targets"}}} The forward pass writes five targets at once.
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {' {callout "forward-targets"}}}
+The forward pass writes five targets at once.
 
 We follow one point through them, a point low on the teapot that we call P.
 
 Each view shows one target as the pass leaves it.
 
-$settle ${cue "key" {' {inset "t0"} {mark 0.41 0.37 0.57 0.57} {imageMarkText "views.mark_p"} {blend 0.6}}} In every view, this ring marks P's pixel.
+$settle ${cue "key" {'
+    {inset "t0"}
+    {mark 0.41 0.37 0.57 0.57}
+    {imageMarkText "views.mark_p"}
+    {blend 0.6}}} In every view, this ring marks P's pixel.
 
 $settle Reading the same pixel across the five views is how we follow what the forward pass stored for P.
 
-${cue "key" {' {inset "t0"} unmark}} ${cue "key" {chainTarget "t1" 1.0 imageCornerTopLeft {' {imageStops 2.0} {imageTitle "views.target_specular"}}}} ${cue "key" {' {callout "target-formats"}}} Diffuse light and specular light go to two separate half-float targets.
+${cue "key" {' {inset "t0"} unmark}}
+${cue "key" {chainTarget "t1" 1.0 imageCornerTopLeft {'
+    {imageStops 2.0}
+    {imageTitle "views.target_specular"}}}}
+${cue "key" {' {callout "target-formats"}}}
+Diffuse light and specular light go to two separate half-float targets.
 
 The diffuse target holds the diffuse light that the forward pass computed for each pixel.
 
@@ -128,11 +199,23 @@ That light is stored in half floats, so its values can go above one.
 
 $settle The view tone maps that light, squeezing values above one into the screen's range, as the final frame would.
 
-$settle ${cue "key" {' {inset "t0"} {mark 0.5 0.62 0.98 0.98} {imageMarkText "views.mark_lit"} {blend 0.6}}} So the floor is bright where the sun and the point light reach it.
+$settle ${cue "key" {'
+    {inset "t0"}
+    {mark 0.5 0.62 0.98 0.98}
+    {imageMarkText "views.mark_lit"}
+    {blend 0.6}}} So the floor is bright where the sun and the point light reach it.
 
-$settle ${cue "key" {' {inset "t0"} {mark 0.3 0.5 0.62 0.72} {imageMarkText "views.mark_shadow"} {blend 0.6}}} In the sun's shadow it is black, not dark grey, because the sky's light has not been added yet.
+$settle ${cue "key" {'
+    {inset "t0"}
+    {mark 0.3 0.5 0.62 0.72}
+    {imageMarkText "views.mark_shadow"}
+    {blend 0.6}}} In the sun's shadow it is black, not dark grey, because the sky's light has not been added yet.
 
-$settle ${cue "key" {' {inset "t1"} {mark 0.68 0.05 0.97 0.62} {imageMarkText "views.mark_sheen"} {blend 0.6}}} The specular target is shown two stops brighter, because the light reflected toward us is much weaker.
+$settle ${cue "key" {'
+    {inset "t1"}
+    {mark 0.68 0.05 0.97 0.62}
+    {imageMarkText "views.mark_sheen"}
+    {blend 0.6}}} The specular target is shown two stops brighter, because the light reflected toward us is much weaker.
 
 $settle It holds only that reflected light, such as the highlights, and the faint shine on the walls that face the sun.
 
@@ -140,11 +223,19 @@ $settle That shine grows where we look along a wall at a grazing angle.
 
 $settle Later passes add these two together with the sky's light, and apply the occlusion, to make the final pixel.
 
-${cue "key" {' {inset "t0"} unmark}} ${cue "key" {' {inset "t1"} unmark}} ${cue "key" {chainTarget "t2" 2.0 imageCornerBottomLeft {' {imageTitle "views.target_albedo"}}}} ${cue "key" {' {callout "forward-albedo-target"}}} The third target holds the albedo, the surface's own colour.
+${cue "key" {' {inset "t0"} unmark}}
+${cue "key" {' {inset "t1"} unmark}}
+${cue "key" {chainTarget "t2" 2.0 imageCornerBottomLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {' {callout "forward-albedo-target"}}}
+The third target holds the albedo, the surface's own colour.
 
 Its fourth channel holds the specular occlusion, how much of the reflections a crevice blocks.
 
-$settle ${cue "key" {' {inset "t2"} {mark 0.0 0.05 0.24 0.8} {imageMarkText "views.mark_base_colour"} {blend 0.6}}} Read it as plain colours, with eight bits a channel, from zero to one.
+$settle ${cue "key" {'
+    {inset "t2"}
+    {mark 0.0 0.05 0.24 0.8}
+    {imageMarkText "views.mark_base_colour"}
+    {blend 0.6}}} Read it as plain colours, with eight bits a channel, from zero to one.
 
 $settle These colours are a little darker than the base colours, because the diffuse response and the material's diffuse occlusion are already multiplied in.
 
@@ -154,11 +245,19 @@ $settle So the pass that adds the sky's diffuse light has only to multiply this 
 
 $settle That pass needs no material data of its own.
 
-${cue "key" {' {inset "t2"} unmark}} ${cue "key" {chainTarget "t3" 3.0 imageCornerBottomLeft {' {imageTitle "views.target_specular_f0"}}}} ${cue "key" {' {callout "forward-f0-target"}}} The next target holds F zero, the colour a surface reflects when it is seen head on.
+${cue "key" {' {inset "t2"} unmark}}
+${cue "key" {chainTarget "t3" 3.0 imageCornerBottomLeft {'
+    {imageTitle "views.target_specular_f0"}}}}
+${cue "key" {' {callout "forward-f0-target"}}}
+The next target holds F zero, the colour a surface reflects when it is seen head on.
 
 Its fourth channel holds the roughness.
 
-$settle ${cue "key" {' {inset "t3"} {mark 0.03 0.05 0.97 0.97} {imageMarkText "views.mark_f0_grey"} {blend 0.6}}} In this view, every surface is nearly black.
+$settle ${cue "key" {'
+    {inset "t3"}
+    {mark 0.03 0.05 0.97 0.97}
+    {imageMarkText "views.mark_f0_grey"}
+    {blend 0.6}}} In this view, every surface is nearly black.
 
 $settle Each is a four percent grey, which is how much light a dielectric reflects head on.
 
@@ -170,7 +269,12 @@ $settle The roughness in the fourth channel does not show in this view.
 
 $settle The values panel lists its value for P instead.
 
-${cue "key" {' {inset "t3"} unmark}} ${cue "key" {chainTarget "t4" 4.0 imageCornerBottomLeft {' {imageChannel 5.0} {imageTitle "views.target_normal"}}}} ${cue "key" {' {callout "normal-encoding"}}} The last target holds the normal, packed into ten bits per channel.
+${cue "key" {' {inset "t3"} unmark}}
+${cue "key" {chainTarget "t4" 4.0 imageCornerBottomLeft {'
+    {imageChannel 5.0}
+    {imageTitle "views.target_normal"}}}}
+${cue "key" {' {callout "normal-encoding"}}}
+The last target holds the normal, packed into ten bits per channel.
 
 The view of this target decodes the stored normal back into a direction.
 
@@ -178,17 +282,32 @@ $settle It draws x as red, y as green, and z as blue.
 
 $settle A component of minus one is drawn dark, zero at half brightness, and one at full brightness.
 
-$settle ${cue "key" {' {inset "t4"} {mark 0.05 0.62 0.95 1.0} {imageMarkText "views.mark_up_green"} {blend 0.6}}} The floor faces straight up, along y, so its green is full.
+$settle ${cue "key" {'
+    {inset "t4"}
+    {mark 0.05 0.62 0.95 1.0}
+    {imageMarkText "views.mark_up_green"}
+    {blend 0.6}}} The floor faces straight up, along y, so its green is full.
 
 $settle The floor's red and blue sit at half, which makes a light green.
 
-$settle ${cue "key" {' {inset "t4"} {mark 0.2 0.05 0.8 0.45} {imageMarkText "views.mark_toward_blue"} {blend 0.6}}} The back wall faces us, along z, so it is a lavender blue.
+$settle ${cue "key" {'
+    {inset "t4"}
+    {mark 0.2 0.05 0.8 0.45}
+    {imageMarkText "views.mark_toward_blue"}
+    {blend 0.6}}} The back wall faces us, along z, so it is a lavender blue.
 
-$settle ${cue "key" {' {inset "t4"} {mark 0.0 0.05 0.2 0.8} {imageMarkText "views.mark_x_red"} {blend 0.6}}} The left wall faces along x, so its red is full, and it shows pink.
+$settle ${cue "key" {'
+    {inset "t4"}
+    {mark 0.0 0.05 0.2 0.8}
+    {imageMarkText "views.mark_x_red"}
+    {blend 0.6}}} The left wall faces along x, so its red is full, and it shows pink.
 
 $settle Curved surfaces, like the sphere, run through every colour, because their normal turns from pixel to pixel.
 
-${cue "key" {' {inset "t4"} unmark}} ${cue "key" {' {inset "t3"} {imageChannel 4.0} {blend 1.5}}} ${cue "key" {' {callout "forward-f0-target"}}} In the F zero target from before, the fourth channel stores roughness in only eight bits.
+${cue "key" {' {inset "t4"} unmark}}
+${cue "key" {' {inset "t3"} {imageChannel 4.0} {blend 1.5}}}
+${cue "key" {' {callout "forward-f0-target"}}}
+In the F zero target from before, the fourth channel stores roughness in only eight bits.
 
 So the later passes see roughness to one part in two hundred and fifty-five, while the forward pass used it at full precision.
 
@@ -198,11 +317,19 @@ It holds what the passes after the forward pass need to finish the light.
 
 ### A normal in two numbers and a sign {#c1-normal kind=3d}
 
-${cue "key" {opening demoRoom panelValues 0.5 {append baseLight {' {labels 0.0} {readoutMode 2.0} {paramFormula -1.0}}}}}
+${cue "key" {opening demoRoom panelValues 0.5 {append baseLight {'
+    {labels 0.0}
+    {readoutMode 2.0}
+    {paramFormula -1.0}}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 8.0 12.0 4.6} {pose -4.0 10.0 4.9} {pose 6.0 14.0 4.5}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 8.0 12.0 4.6} {pose -4.0 10.0 4.9} {pose 6.0 14.0 4.5}}}}}}}
 
-${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {' {imageChannel 0.0} {imageTitle "views.target_normal"}}}} ${cue "key" {' {callout "normal-encoding"}}} The normal target stores the normal in signed octahedral form.
+${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {'
+    {imageChannel 0.0}
+    {imageTitle "views.target_normal"}}}}
+${cue "key" {' {callout "normal-encoding"}}}
+The normal target stores the normal in signed octahedral form.
 
 This view shows the target's channels as stored.
 
@@ -210,17 +337,21 @@ $settle To store it, the normal is first divided by the sum of the absolute valu
 
 $settle That puts the normal on an octahedron, the shape on which those absolute values add up to one.
 
-${cue "key" {' {inset "n"} {imageChannel 1.0} {blend 1.2}}} The normal's x and y are then turned by forty-five degrees and moved into the range from zero to one.
+${cue "key" {' {inset "n"} {imageChannel 1.0} {blend 1.2}}}
+The normal's x and y are then turned by forty-five degrees and moved into the range from zero to one.
 
 $settle Those two numbers are the red and green channels.
 
-${cue "key" {' {inset "n"} {imageChannel 3.0} {blend 1.2}}} The blue channel keeps only the sign of z, so a whole ten bit channel holds a single bit.
+${cue "key" {' {inset "n"} {imageChannel 3.0} {blend 1.2}}}
+The blue channel keeps only the sign of z, so a whole ten bit channel holds a single bit.
 
 $settle That is why the colours of this view do not show a direction.
 
 $settle A flat surface shows one flat colour, and the panel decodes P's normal.
 
-${cue "key" {' {inset "n"} {imageChannel 4.0} {blend 1.2}}} ${cue "key" {' {callout "normal-flags"}}} The two bit alpha channel holds two flags, which the reflection passes read.
+${cue "key" {' {inset "n"} {imageChannel 4.0} {blend 1.2}}}
+${cue "key" {' {callout "normal-flags"}}}
+The two bit alpha channel holds two flags, which the reflection passes read.
 
 One flag says whether those passes apply image-based light, the light of the sky, to this pixel.
 
@@ -228,10 +359,15 @@ The other says whether they compensate for multiple scattering, which chapter fo
 
 ### The forward pass leaves the sky for later {#c1-split kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0} {forwardStage 0.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 22.0 18.0 6.0} {pose -8.0 14.0 6.4} {pose 14.0 20.0 5.8}}}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 0.0}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 22.0 18.0 6.0} {pose -8.0 14.0 6.4} {pose 14.0 20.0 5.8}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}} ${cue "key" {' {callout "forward-opaque"}}} For an opaque surface, the forward pass adds only direct light, from the sun and the point light.
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {' {callout "forward-opaque"}}}
+For an opaque surface, the forward pass adds only direct light, from the sun and the point light.
 
 It also adds the light the material emits.
 
@@ -239,63 +375,103 @@ Here is the diffuse target again.
 
 $settle Its shadowed sides are still black, because the sky's light is not in it yet.
 
-${overCallout {' {forwardStageRange 0.0 1.0}} "diffuse-global" "The diffuse light of the sky is added afterwards, by a full-screen pass that reads the albedo and normal targets."}
+${overCallout
+    {' {forwardStageRange 0.0 1.0}}
+    "diffuse-global"
+    "The diffuse light of the sky is added afterwards, by a full-screen pass that reads the albedo and normal targets."}
 
-${overCallout {' {forwardStageRange 1.0 2.0}} "reflection-global" "The sky's reflections come from another chain of full-screen passes, which read F zero, roughness, and the normal."}
+${overCallout
+    {' {forwardStageRange 1.0 2.0}}
+    "reflection-global"
+    "The sky's reflections come from another chain of full-screen passes, which read F zero, roughness, and the normal."}
 
-${cue "key" {' {callout "ibl-forward-transparent"}}} Only transparent materials and skin materials take image-based light inside the forward pass itself.
+${cue "key" {' {callout "ibl-forward-transparent"}}}
+Only transparent materials and skin materials take image-based light inside the forward pass itself.
 
 A material with a clear coat, a second glossy layer on top, brings in just the specular part of the sky's light there.
 
 ### Stencil bits route each pixel {#c1-stencil kind=3d}
 
-${cue "key" {append baseLight {' demoRoom {callout ""} {cameraDrift 1.0} {labels 0.0} panelHidden {forwardStage 3.0} {imageHide {' "t0"}} {sphereClearCoat 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 16.0 18.0 6.0} {pose 0.0 12.0 6.4} {pose 18.0 20.0 5.8}}}}}}}
+${cue "key" {append baseLight {'
+    demoRoom
+    {callout ""}
+    {cameraDrift 1.0}
+    {labels 0.0}
+    panelHidden
+    {forwardStage 3.0}
+    {imageHide {' "t0"}}
+    {sphereClearCoat 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 16.0 18.0 6.0} {pose 0.0 12.0 6.4} {pose 18.0 20.0 5.8}}}}}}}
 
-${cue "key" {chainTarget "st" 6.0 imageCornerTopLeft {' {imageTitle "views.stencil"}}}} ${cue "key" {' {callout "stencil-refs"}}} Each mesh also writes a stencil value, a byte per pixel, and the full-screen passes test it to choose which pixels they shade.
+${cue "key" {chainTarget "st" 6.0 imageCornerTopLeft {' {imageTitle "views.stencil"}}}}
+${cue "key" {' {callout "stencil-refs"}}}
+Each mesh also writes a stencil value, a byte per pixel, and the full-screen passes test it to choose which pixels they shade.
 
-${cue "key" {' {callout "forward-ibl-stencil"}}} The stencil's top bit is worth one hundred and twenty-eight, and when it is set, the pass for the sky's diffuse light shades the pixel.
+${cue "key" {' {callout "forward-ibl-stencil"}}}
+The stencil's top bit is worth one hundred and twenty-eight, and when it is set, the pass for the sky's diffuse light shades the pixel.
 
 Its two lowest bits are worth three together, and when they are set, the reflection passes shade the pixel.
 
-$settle ${cue "key" {' {inset "st"} {mark 0.0 0.0 1.0 0.1} {imageMarkText "views.mark_nothing_drawn"} {blend 0.6}}} In the stencil view, black is a pixel that nothing drew, so its stencil stays zero.
+$settle ${cue "key" {'
+    {inset "st"}
+    {mark 0.0 0.0 1.0 0.1}
+    {imageMarkText "views.mark_nothing_drawn"}
+    {blend 0.6}}} In the stencil view, black is a pixel that nothing drew, so its stencil stays zero.
 
 $settle Every mesh writes its own reference value, and the view gives each value a colour.
 
 $settle Violet would mean the top bit alone, so the sky's diffuse light but no reflections.
 
-$settle ${cue "key" {' {inset "st"} {mark 0.04 0.1 0.96 1.0} {imageMarkText "views.mark_meshes"} {blend 0.6}}} Teal means the top bit together with the two low bits, so the pixel gets both passes.
+$settle ${cue "key" {'
+    {inset "st"}
+    {mark 0.04 0.1 0.96 1.0}
+    {imageMarkText "views.mark_meshes"}
+    {blend 0.6}}} Teal means the top bit together with the two low bits, so the pixel gets both passes.
 
 $settle Every mesh here is teal.
 
 $settle Later, the reflection probes add bits of their own, and the view draws those pixels brighter.
 
-${cue "key" {' {inset "st"} unmark}} ${overCallout {' {sphereClearCoatRange 0.0 1.0}} "clear-coat-forward-ibl" "Give the sphere a clear coat, and its low bits drop to zero, because it now takes its reflections inside the forward pass."}
+${cue "key" {' {inset "st"} unmark}}
+${overCallout
+    {' {sphereClearCoatRange 0.0 1.0}}
+    "clear-coat-forward-ibl"
+    "Give the sphere a clear coat, and its low bits drop to zero, because it now takes its reflections inside the forward pass."}
 
-${cue "key" {' {sphereClearCoat 0.0} {blend 1.5}}} So the stencil keeps a pixel's reflections from being added twice, once in the forward pass and once after it.
+${cue "key" {' {sphereClearCoat 0.0} {blend 1.5}}}
+So the stencil keeps a pixel's reflections from being added twice, once in the forward pass and once after it.
 
 ### A material's lighting model picks its shaders {#c1-models kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 1.0} {sphereClearCoat 0.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose -6.0 14.0 6.6} {pose 12.0 18.0 6.0}}}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 1.0}
+    {sphereClearCoat 0.0}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose -6.0 14.0 6.6} {pose 12.0 18.0 6.0}}}}}}}
 
-${cue "key" {' {callout "lighting-model-select"}}} Every material type names a lighting model, and that name decides which shaders the engine builds for it.
+${cue "key" {' {callout "lighting-model-select"}}}
+Every material type names a lighting model, and that name decides which shaders the engine builds for it.
 
-${cue "key" {' {callout "lighting-models"}}} O3DE has four lighting models, named Base, Standard, Enhanced, and Skin.
+${cue "key" {' {callout "lighting-models"}}}
+O3DE has four lighting models, named Base, Standard, Enhanced, and Skin.
 
 Every surface in this room uses Standard, the model of the ${code "StandardPBR"} material type.
 
 That is the material type of the engine's default materials.
 
-${cue "key" {' {callout "enhanced-draw-list"}}} Enhanced and Skin add subsurface scattering and transmission, so they draw in a second forward pass that writes one more target.
+${cue "key" {' {callout "enhanced-draw-list"}}}
+Enhanced and Skin add subsurface scattering and transmission, so they draw in a second forward pass that writes one more target.
 
 ### One target on mobile; deferred, but off {#c1-alternatives kind=2d diagram=forward-one-target focus=FWD1}
 
-${cue "key" {' {callout "lowend-forward"}}} The low-end and mobile pipelines instead use a classic forward pass, which finishes each pixel in one go.
+${cue "key" {' {callout "lowend-forward"}}}
+The low-end and mobile pipelines instead use a classic forward pass, which finishes each pixel in one go.
 
 It writes one colour target, and it adds the sky's light inside that same pass.
 
-${cue "key" {' {callout "mobile-pipeline"}}} The mobile pipeline has no depth pre-pass and no light culling at all.
+${cue "key" {' {callout "mobile-pipeline"}}}
+The mobile pipeline has no depth pre-pass and no light culling at all.
 
 Without culling, it caps each kind of simple light at five.
 
@@ -303,21 +479,29 @@ Simple lights are the point and spot lights that have no size.
 
 So no pixel loops over more than five lights of one kind.
 
-${cue "key" {' {callout "deferred-inert"}}} O3DE also contains code for deferred shading through a visibility buffer.
+${cue "key" {' {callout "deferred-inert"}}}
+O3DE also contains code for deferred shading through a visibility buffer.
 
 But no pass draws it, and the console variable that would turn it on is off, so nothing in this video uses it.
 
 ### What the forward pass leaves behind {#c1-recap kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0} {forwardStage 3.0}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 3.0}}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 22.0 20.0 6.2} {pose 2.0 14.0 6.6} {pose -12.0 18.0 6.0}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 22.0 20.0 6.2} {pose 2.0 14.0 6.6} {pose -12.0 18.0 6.0}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}} So the forward pass does not finish a pixel.
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+So the forward pass does not finish a pixel.
 
 It leaves direct light in two targets, and the surface in three more.
 
-${cue "key" {chainTarget "t4" 4.0 imageCornerTopLeft {' {imageChannel 5.0} {imageTitle "views.target_normal"}}}} The passes after it read those targets to add the sky, the reflections, and the occlusion.
+${cue "key" {chainTarget "t4" 4.0 imageCornerTopLeft {'
+    {imageChannel 5.0}
+    {imageTitle "views.target_normal"}}}}
+The passes after it read those targets to add the sky, the reflections, and the occlusion.
 
 $settle Before any of that, the engine has to decide which lights reach each tile, and that is the next part.
 
@@ -333,21 +517,33 @@ The build checks that each cited line is still there.
 
 ### Every tile gets its own light list {#c2-why kind=3d}
 
-${cue "key" {opening demoCulling panelHidden 1.0 {' {labels 0.0} {extraLights 0.0} {cullTile 0.0} {lightMarkers 1.0} viewModeFinal {splitView 0.0}}}}
+${cue "key" {opening demoCulling panelHidden 1.0 {'
+    {labels 0.0}
+    {extraLights 0.0}
+    {cullTile 0.0}
+    {lightMarkers 1.0}
+    viewModeFinal
+    {splitView 0.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose 2.0 16.0 6.8} {pose 16.0 24.0 6.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose 2.0 16.0 6.8} {pose 16.0 24.0 6.2}}}}}}}
 
 The frame's first lighting step runs before any surface is shaded.
 
 It decides which lights each part of the screen needs.
 
-${overText {' {extraLightsRange 0.0 24.0}} " Here are twenty-four small point lights over the floor."}
+${overText
+    {' {extraLightsRange 0.0 24.0}}
+    " Here are twenty-four small point lights over the floor."}
 
 Each of them reaches only part of the room, so shading every pixel against all of them would waste most of the work.
 
-${cue "key" {' {splitView 1.0}}} ${cue "key" {' {callout "light-culling-tile"}}} So the screen is cut into tiles of ${spoken {tilePixels}} by ${spoken {tilePixels}} pixels, and each tile keeps only the lights that can reach it.
+${cue "key" {' {splitView 1.0}}}
+${cue "key" {' {callout "light-culling-tile"}}}
+So the screen is cut into tiles of ${spoken {tilePixels}} by ${spoken {tilePixels}} pixels, and each tile keeps only the lights that can reach it.
 
-${cue "key" {' {callout "light-culling-tile"}}} At nineteen twenty by ten eighty, that makes one hundred and twenty by sixty-eight tiles.
+${cue "key" {' {callout "light-culling-tile"}}}
+At nineteen twenty by ten eighty, that makes one hundred and twenty by sixty-eight tiles.
 
 That is eight thousand one hundred and sixty tiles, each with its own lists.
 
@@ -355,27 +551,43 @@ The screen is now split in two, and the left view colours each pixel by how many
 
 $settle Each tile's list is split again by depth, into slabs called depth bins, and a pixel counts only the bin its depth falls in.
 
-$settle ${cue "key" {' {label "few"} {labelAt {at 1.8 2.4 -2.95}} {labelText "views.mark_few_lights"} {blend 0.6}}} In this left view, dark blue means no lights at all.
+$settle ${cue "key" {'
+    {label "few"}
+    {labelAt {at 1.8 2.4 -2.95}}
+    {labelText "views.mark_few_lights"}
+    {blend 0.6}}} In this left view, dark blue means no lights at all.
 
 $settle High on the back wall, every light is out of reach.
 
 $settle Teal is a few, and the ramp runs up to yellow at eight or more.
 
-$settle ${cue "key" {' {label "many"} {labelAt {at -1.05 1.3 -0.55}} {labelText "views.mark_many_lights"} {blend 0.6}}} Over the cluster of lights around the sphere, tiles keep eight or more.
+$settle ${cue "key" {'
+    {label "many"}
+    {labelAt {at -1.05 1.3 -0.55}}
+    {labelText "views.mark_many_lights"}
+    {blend 0.6}}} Over the cluster of lights around the sphere, tiles keep eight or more.
 
 $settle So two pixels of one tile can show different counts, when they lie in different depth bins.
 
 $settle The right view shows the lit frame from the same camera, so each tile on the left lies over the same pixels on the right.
 
-${cue "key" {' {labelHide {' "few" "many"}}}} ${cue "key" {' {motion {' {lasting sentence {sway extraLightMotion 60.0 9.0}}}}}} As the lights move, each tile's count changes, low where nothing is near and high over the cluster.
+${cue "key" {' {labelHide {' "few" "many"}}}}
+${cue "key" {' {motion {' {lasting sentence {sway extraLightMotion 60.0 9.0}}}}}}
+As the lights move, each tile's count changes, low where nothing is near and high over the cluster.
 
 ### P's tile: its depth range {#c2-tile kind=3d}
 
-${cue "key" {opening demoCulling panelValues 0.6 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelValues 0.6 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 12.0 18.0 5.6} {pose -4.0 14.0 6.0} {pose 10.0 20.0 5.4}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 12.0 18.0 5.6} {pose -4.0 14.0 6.0} {pose 10.0 20.0 5.4}}}}}}}
 
-${cue "key" {' {callout "tile-prepare"}}} We follow the tile that holds P, the point low on the teapot.
+${cue "key" {' {callout "tile-prepare"}}}
+We follow the tile that holds P, the point low on the teapot.
 
 First, a compute pass reads the depth of the tile's two hundred and fifty-six pixels.
 
@@ -383,23 +595,34 @@ ${cue "key" {' {callout "tile-prepare"}}} Each sample's depth becomes a distance
 
 The tile keeps the nearest and the farthest of those distances, called z near and z far.
 
-${cue "key" {chainTarget "d" 5.0 imageCornerBottomLeft {' {imageFar 8.0} {imageTitle "views.depth_prepass"}}}} ${cue "key" {' {callout "tile-prepare"}}} The pass reads both multisampling samples of each pixel, so a thin edge still counts.
+${cue "key" {chainTarget "d" 5.0 imageCornerBottomLeft {'
+    {imageFar 8.0}
+    {imageTitle "views.depth_prepass"}}}}
+${cue "key" {' {callout "tile-prepare"}}}
+The pass reads both multisampling samples of each pixel, so a thin edge still counts.
 
 This depth view is drawn as in chapter one, but black now sits at eight metres.
 
 ### A 32-bit mask of the depths actually used {#c2-mask kind=3d}
 
-${cue "key" {opening demoCulling panelValues 0.5 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelValues 0.5 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 30.0 16.0 5.0} {pose 44.0 12.0 5.4} {pose 30.0 18.0 4.8}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 30.0 16.0 5.0} {pose 44.0 12.0 5.4} {pose 30.0 18.0 4.8}}}}}}}
 
-${cue "key" {' {callout "nvlc-constants"}}} To see which depths are used, the tile splits the span between z near and z far into thirty-two equal slices.
+${cue "key" {' {callout "nvlc-constants"}}}
+To see which depths are used, the tile splits the span between z near and z far into thirty-two equal slices.
 
 ${cue "key" {' {callout "tile-prepare"}}} Each pixel sets the bit of the slice its depth falls in.
 
 The bits of the whole tile are combined into one thirty-two bit mask.
 
-${cue "key" {' {callout "is-object-inside-tile"}}} If a tile spans the teapot and the far wall, its mask has bits only at the teapot's depth and the wall's.
+${cue "key" {' {callout "is-object-inside-tile"}}}
+If a tile spans the teapot and the far wall, its mask has bits only at the teapot's depth and the wall's.
 
 $settle The empty space between them stays clear.
 
@@ -407,10 +630,22 @@ $settle That clear gap is what lets the culling reject a light that floats betwe
 
 ### One to eight bins, from the span in metres {#c2-bins kind=3d}
 
-${cue "key" {opening demoCulling panelValues 0.3 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelValues 0.3 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 
-${cue "key" {' {inset "bins"} imageFromTileGrid {imageMode 2.0} imageCornerTopLeft {imageTitle "views.tile_bins"}}} ${cue "key" {' {callout "tile-prepare"}}} The tile also chooses how many depth bins its lists are split into, either one, two, four, or ${spoken {maxBins}}.
+${cue "key" {'
+    {inset "bins"}
+    imageFromTileGrid
+    {imageMode 2.0}
+    imageCornerTopLeft
+    {imageTitle "views.tile_bins"}}}
+${cue "key" {' {callout "tile-prepare"}}}
+The tile also chooses how many depth bins its lists are split into, either one, two, four, or ${spoken
+    {maxBins}}.
 
 The new view in the corner shades each tile by its number of depth bins.
 
@@ -418,11 +653,19 @@ $settle One bin is dark, and two, four, and eight are brighter in turn.
 
 $settle Most tiles cover one surface and keep a single bin.
 
-$settle ${cue "key" {' {inset "bins"} {mark 0.25 0.32 0.85 0.62} {imageMarkText "views.mark_more_bins"} {blend 0.6}}} The bright ones run along edges, where one tile spans the sphere and the wall behind it.
+$settle ${cue "key" {'
+    {inset "bins"}
+    {mark 0.25 0.32 0.85 0.62}
+    {imageMarkText "views.mark_more_bins"}
+    {blend 0.6}}} The bright ones run along edges, where one tile spans the sphere and the wall behind it.
 
 $settle There, more bins mean that a pixel at the front reads only the lights near the front.
 
-${cue "key" {' {inset "bins"} unmark}} ${cue "key" {' {cameraDistance 4.0}}} ${cue "key" {' {glide cameraDistance 9.0 sentence}}} ${cue "key" {' {callout "tile-prepare"}}} The count comes from the tile's depth span, in metres.
+${cue "key" {' {inset "bins"} unmark}}
+${cue "key" {' {cameraDistance 4.0}}}
+${cue "key" {' {glide cameraDistance 9.0 sentence}}}
+${cue "key" {' {callout "tile-prepare"}}}
+The count comes from the tile's depth span, in metres.
 
 To choose the count, the pass takes the base two log of the span, rounds it, clamps it, and raises two to that power.
 
@@ -432,43 +675,68 @@ Each doubling of that span doubles the bins, up to ${spoken {maxBins}} beyond fi
 
 So no bin is deeper than about one and a half metres, for any tile up to about eleven metres deep.
 
-${cue "key" {' {cameraDistance 6.0} {blend 2.0}}} Tiles over a single surface keep one bin, and tiles that cross from the teapot to the far wall get more.
+${cue "key" {' {cameraDistance 6.0} {blend 2.0}}}
+Tiles over a single surface keep one bin, and tiles that cross from the teapot to the far wall get more.
 
 Each bin gets its own list, so a pixel reads only the lights near its own depth.
 
 ### A light is kept by its sphere, then by the mask {#c2-cull kind=3d}
 
-${cue "key" {opening demoCulling panelValues 0.6 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelValues 0.6 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 16.0 20.0 6.0} {pose 0.0 14.0 6.4} {pose 14.0 22.0 5.8}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 16.0 20.0 6.0} {pose 0.0 14.0 6.4} {pose 14.0 22.0 5.8}}}}}}}
 
-${cue "key" {' {callout "light-culling-main"}}} The culling pass runs one thread group of two hundred and fifty-six threads for each tile.
+${cue "key" {' {callout "light-culling-main"}}}
+The culling pass runs one thread group of two hundred and fifty-six threads for each tile.
 
 Each thread takes every two hundred and fifty-sixth light, so together the threads test every light once.
 
-${cue "key" {' {callout "cull-point-light"}}} Each tile has a box, the region of view space it covers between z near and z far.
+${cue "key" {' {callout "cull-point-light"}}}
+Each tile has a box, the region of view space it covers between z near and z far.
 
 A point light is kept when its sphere of influence touches that box.
 
-${cue "key" {' {callout "is-object-inside-tile"}}} Then the light's depth range is turned into slice bits and tested against the tile's mask.
+${cue "key" {' {callout "is-object-inside-tile"}}}
+Then the light's depth range is turned into slice bits and tested against the tile's mask.
 
 If the light's bits and the mask share no bit, the light is dropped.
 
 ${overText {' {extraLightRadiusRange 0.6 1.8}} " A larger radius reaches more tiles and more bins."}
 
-${cue "key" {' {extraLightRadius 1.0} {blend 1.5}}} The test also records which of the tile's bins the light overlaps, as eight bits, one per bin.
+${cue "key" {' {extraLightRadius 1.0} {blend 1.5}}}
+The test also records which of the tile's bins the light overlaps, as eight bits, one per bin.
 
 ### Seven groups, each closed by a marker {#c2-list kind=3d}
 
-${cue "key" {opening demoCulling panelHidden 0.6 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelHidden 0.6 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 16.0 20.0 6.0} {pose 4.0 15.0 6.3} {pose 14.0 21.0 5.9}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 16.0 20.0 6.0} {pose 4.0 15.0 6.3} {pose 14.0 21.0 5.9}}}}}}}
 
-${cue "key" {' {inset "list"} imageFromLightList imageCornerBottomLeft {imageTitle "views.light_list"}}} ${cue "key" {' {callout "light-index-pack"}}} Each kept light becomes one entry in the tile's list.
+${cue "key" {'
+    {inset "list"}
+    imageFromLightList
+    imageCornerBottomLeft
+    {imageTitle "views.light_list"}}}
+${cue "key" {' {callout "light-index-pack"}}}
+Each kept light becomes one entry in the tile's list.
 
 The entry packs the light's index into its upper sixteen bits and the eight bin bits below them, so one number carries both.
 
-$settle ${cue "key" {' {inset "list"} {mark 0.0 0.0 1.0 0.13} {imageMarkText "views.mark_tile_list"} {blend 0.6}}} A new view shows the lists, and it reads from the top.
+$settle ${cue "key" {'
+    {inset "list"}
+    {mark 0.0 0.0 1.0 0.13}
+    {imageMarkText "views.mark_tile_list"}
+    {blend 0.6}}} A new view shows the lists, and it reads from the top.
 
 $settle The first row is the tile's list as the culling wrote it, with one cell per light it kept.
 
@@ -476,23 +744,35 @@ $settle Each cell is coloured by its light's type.
 
 $settle The lights of one type form a group, and a darker cell, a marker, closes each group.
 
-$settle ${cue "key" {' {inset "list"} {mark 0.0 0.14 1.0 1.0} {imageMarkText "views.mark_bin_rows"} {blend 0.6}}} Below that first row are the lists for the depth bins, one row per bin.
+$settle ${cue "key" {'
+    {inset "list"}
+    {mark 0.0 0.14 1.0 1.0}
+    {imageMarkText "views.mark_bin_rows"}
+    {blend 0.6}}} Below that first row are the lists for the depth bins, one row per bin.
 
 $settle Each row holds only the lights that overlap its bin, and it ends in a black end-of-list marker.
 
-$settle ${cue "key" {' {inset "list"} {mark 0.0 0.14 0.1 0.3} {imageMarkText "views.mark_p_bin"} {blend 0.6}}} The row marked on the left is P's bin, the one list the forward pass will read for P.
+$settle ${cue "key" {'
+    {inset "list"}
+    {mark 0.0 0.14 0.1 0.3}
+    {imageMarkText "views.mark_p_bin"}
+    {blend 0.6}}} The row marked on the left is P's bin, the one list the forward pass will read for P.
 
-${cue "key" {' {inset "list"} unmark}} ${cue "key" {' {callout "light-culling-main"}}} The culling writes the list in seven groups, one for each kind of entry.
+${cue "key" {' {inset "list"} unmark}}
+${cue "key" {' {callout "light-culling-main"}}}
+The culling writes the list in seven groups, one for each kind of entry.
 
 Decals, textures projected onto surfaces, come first, then simple point lights, simple spot lights, and sphere, disk, capsule, and quad lights.
 
 Each group ends in its marker, so the forward pass can run a separate loop for each type.
 
-${cue "key" {' {callout "light-culling-remap"}}} A second pass, the remap, then copies each entry into the list of every bin it overlaps.
+${cue "key" {' {callout "light-culling-remap"}}}
+A second pass, the remap, then copies each entry into the list of every bin it overlaps.
 
 That makes up to ${spoken {maxBins}} lists of up to two hundred and fifty-six entries, each ended by an end-of-list marker.
 
-${cue "key" {' {callout "nvlc-constants"}}} At most two hundred and fifty-five of a list's entries survive, and the seven group markers take seven of them.
+${cue "key" {' {callout "nvlc-constants"}}}
+At most two hundred and fifty-five of a list's entries survive, and the seven group markers take seven of them.
 
 So a tile can keep at most two hundred and forty-eight lights and decals.
 
@@ -500,23 +780,44 @@ Beyond that, new entries overwrite the last slot, and the code itself expects fl
 
 ### The forward pass walks its bin's list {#c2-iterate kind=3d}
 
-${cue "key" {opening demoCulling panelHidden 0.4 {' {labels 0.0} {extraLights 24.0} {cullTile 1.0} {lightMarkers 1.0}}}}
+${cue "key" {opening demoCulling panelHidden 0.4 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 1.0}
+    {lightMarkers 1.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 12.0 18.0 5.6} {pose 2.0 15.0 5.9} {pose 12.0 19.0 5.5}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 12.0 18.0 5.6} {pose 2.0 15.0 5.9} {pose 12.0 19.0 5.5}}}}}}}
 
-${cue "key" {' {inset "list"} imageFromLightList {imageWalked 0.0} imageCornerBottomLeft {imageTitle "views.light_list"}}} ${cue "key" {' {callout "tile-iterator"}}} In the forward pass, P finds its tile, then the bin its own depth falls in.
+${cue "key" {'
+    {inset "list"}
+    imageFromLightList
+    {imageWalked 0.0}
+    imageCornerBottomLeft
+    {imageTitle "views.light_list"}}}
+${cue "key" {' {callout "tile-iterator"}}}
+In the forward pass, P finds its tile, then the bin its own depth falls in.
 
-$settle ${cue "key" {' {inset "list"} {mark 0.0 0.14 0.45 0.3} {imageMarkText "views.mark_read_so_far"} {blend 0.6}}} In P's row, the lit cells are the entries the loop has read so far.
+$settle ${cue "key" {'
+    {inset "list"}
+    {mark 0.0 0.14 0.45 0.3}
+    {imageMarkText "views.mark_read_so_far"}
+    {blend 0.6}}} In P's row, the lit cells are the entries the loop has read so far.
 
 $settle The dim cells are still ahead of the loop.
 
 $settle When the loop reaches the black end-of-list marker, it stops.
 
-${cue "key" {' {inset "list"} unmark}} ${cue "key" {' {inset "list"} {imageWalked 12.0} {blend 6.0}}} ${cue "key" {' {callout "tile-iterator"}}} The forward pass reads that bin's list one group at a time.
+${cue "key" {' {inset "list"} unmark}}
+${cue "key" {' {inset "list"} {imageWalked 12.0} {blend 6.0}}}
+${cue "key" {' {callout "tile-iterator"}}}
+The forward pass reads that bin's list one group at a time.
 
 Each light type has its own loop, which reads indices until it meets its group's marker.
 
-${cue "key" {' {inset "list"} {imageWalked 24.0} {blend 3.0}}} ${cue "key" {' {callout "point-light-loop"}}} For each index, the loop loads the light and adds its diffuse and specular light at P.
+${cue "key" {' {inset "list"} {imageWalked 24.0} {blend 3.0}}}
+${cue "key" {' {callout "point-light-loop"}}}
+For each index, the loop loads the light and adds its diffuse and specular light at P.
 
 ${cue "key" {' {callout "directional-lux"}}} Directional lights are not culled at all.
 
@@ -525,9 +826,11 @@ Every pixel loops over the directional lights first, before its tile's list.
 ### Every light fades to zero at its radius {#c2-falloff kind=3d}
 
 ${cue "key" {opening demoPointlight panelValues 0.6 {' {labels 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
 
-${cue "key" {' {callout "point-light-radius"}}} A light's intensity falls as one over the distance squared.
+${cue "key" {' {callout "point-light-radius"}}}
+A light's intensity falls as one over the distance squared.
 
 It is also multiplied by a window, a factor that falls smoothly to zero exactly at the light's attenuation radius.
 
@@ -535,24 +838,42 @@ The window starts from the distance squared over the radius squared, a ratio tha
 
 The code squares that ratio, subtracts it from one, and squares the result.
 
-${overCallout {' {attenuationRadiusRange 2.0 6.0}} "point-light-radius" "So the light ends exactly where the sphere that the culling tested ends."}
+${overCallout
+    {' {attenuationRadiusRange 2.0 6.0}}
+    "point-light-radius"
+    "So the light ends exactly where the sphere that the culling tested ends."}
 
-${cue "key" {' {attenuationRadius 3.5} {blend 1.5}}} ${cue "key" {' {callout "point-light-auto-radius"}}} In its automatic mode, the editor sets that radius from the light's brightness.
+${cue "key" {' {attenuationRadius 3.5} {blend 1.5}}}
+${cue "key" {' {callout "point-light-auto-radius"}}}
+In its automatic mode, the editor sets that radius from the light's brightness.
 
 The radius is the distance where the light's intensity falls to a cutoff of zero point one.
 
 ### Spheres, disks, capsules, quads: one approximation each {#c2-types kind=3d}
 
-${cue "key" {opening demoSpecular panelValues 0.6 {' {labels 0.0} {sphereLight 1.0} {sphereLightBulb 0.05}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 8.0 18.0 3.4} {pose -6.0 14.0 3.7} {pose 6.0 20.0 3.3}}}}}}}
+${cue "key" {opening demoSpecular panelValues 0.6 {'
+    {labels 0.0}
+    {sphereLight 1.0}
+    {sphereLightBulb 0.05}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 8.0 18.0 3.4} {pose -6.0 14.0 3.7} {pose 6.0 20.0 3.3}}}}}}}
 
-${cue "key" {' {callout "area-lights"}}} Lights that have a size are evaluated in closed form, each with its own approximation.
+${cue "key" {' {callout "area-lights"}}}
+Lights that have a size are evaluated in closed form, each with its own approximation.
 
-${overCallout {' {sphereLightBulbRange 0.05 0.15}} "sphere-light-apply" "A sphere light's specular is computed as if all its light came from one point on the sphere."}
+${overCallout
+    {' {sphereLightBulbRange 0.05 0.15}}
+    "sphere-light-apply"
+    "A sphere light's specular is computed as if all its light came from one point on the sphere."}
 
-${overText {' {sphereLightBulbRange 0.15 0.4}} "That point is the one nearest the reflection ray, so a bigger bulb widens the highlight"}.
+${overText
+    {' {sphereLightBulbRange 0.15 0.4}}
+    "That point is the one nearest the reflection ray, so a bigger bulb widens the highlight"}.
 
-${overCallout {' {sphereRoughnessRange 0.2 0.6}} "sphere-light-apply" "The light's intensity is then normalised by the roughness, so the wider highlight does not add energy."}
+${overCallout
+    {' {sphereRoughnessRange 0.2 0.6}}
+    "sphere-light-apply"
+    "The light's intensity is then normalised by the roughness, so the wider highlight does not add energy."}
 
 ${cue "key" {' {callout "area-lights"}}} Disks and capsules work the same way.
 
@@ -564,23 +885,38 @@ The fitted warps are stored in two thirty-two by thirty-two tables.
 
 ### Read from the code: two lights that do not behave {#c2-findings kind=3d}
 
-${cue "key" {opening demoCulling panelHidden 0.6 {' {labels 0.0} {extraLights 24.0} {cullTile 0.0} {lightMarkers 1.0} viewModeFinal {splitView 0.0}}}}
+${cue "key" {opening demoCulling panelHidden 0.6 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 0.0}
+    {lightMarkers 1.0}
+    viewModeFinal
+    {splitView 0.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose 2.0 16.0 6.8} {pose 16.0 24.0 6.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose 2.0 16.0 6.8} {pose 16.0 24.0 6.2}}}}}}}
 
-${cue "key" {' {inset "list"} imageFromLightList imageCornerBottomLeft {imageTitle "views.light_list"}}} ${cue "key" {' {callout "polygon-not-culled"}}} The code shows that polygon lights, area lights shaped as polygons, have no group in the list.
+${cue "key" {'
+    {inset "list"}
+    imageFromLightList
+    imageCornerBottomLeft
+    {imageTitle "views.light_list"}}}
+${cue "key" {' {callout "polygon-not-culled"}}}
+The code shows that polygon lights, area lights shaped as polygons, have no group in the list.
 
 The forward pass's polygon loop starts after the quad group's marker, meets the end of the list at once, and lights nothing.
 
 So with culling on, a polygon light is never shaded.
 
-${cue "key" {' {callout "directional-channel-return"}}} A light can be put on a lighting channel, so that it lights only surfaces on the same channel.
+${cue "key" {' {callout "directional-channel-return"}}}
+A light can be put on a lighting channel, so that it lights only surfaces on the same channel.
 
 In the directional loop, a light on another channel should simply be skipped.
 
 Instead, the code exits the loop, so every directional light after it is lost too.
 
-${cue "key" {' {callout "directional-angular-unused"}}} The code also adjusts the sun's direction for the sun's angular size, its size in the sky.
+${cue "key" {' {callout "directional-angular-unused"}}}
+The code also adjusts the sun's direction for the sun's angular size, its size in the sky.
 
 But the specular uses the plain direction instead, so the sun's size changes nothing.
 
@@ -588,10 +924,18 @@ These findings come from reading O3DE's source, because the lab does not run the
 
 ### The lights each pixel will see {#c2-recap kind=3d}
 
-${cue "key" {opening demoCulling panelHidden 1.0 {' {labels 0.0} {extraLights 24.0} {cullTile 0.0} {lightMarkers 1.0} viewModeFinal {splitView 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose -2.0 16.0 6.8} {pose 14.0 24.0 6.2}}}}}}}
+${cue "key" {opening demoCulling panelHidden 1.0 {'
+    {labels 0.0}
+    {extraLights 24.0}
+    {cullTile 0.0}
+    {lightMarkers 1.0}
+    viewModeFinal
+    {splitView 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 22.0 6.4} {pose -2.0 16.0 6.8} {pose 14.0 24.0 6.2}}}}}}}
 
-${cue "key" {' {splitView 1.0}}} So culling turns all the scene's lights into one short list per tile and depth bin, before a single pixel is shaded.
+${cue "key" {' {splitView 1.0}}}
+So culling turns all the scene's lights into one short list per tile and depth bin, before a single pixel is shaded.
 
 The left view shows each tile's count again, and the right view shows the frame those lists light.
 
@@ -608,15 +952,20 @@ These are the files and lines this chapter followed, in reading order.
 ### The material's inputs become a surface {#c3-inputs kind=3d}
 
 ${cue "key" {opening demoSurface panelValues 0.6 {' {labels 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 4.0 8.0 3.1} {pose -10.0 5.0 3.3} {pose 6.0 10.0 3.0}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 4.0 8.0 3.1} {pose -10.0 5.0 3.3} {pose 6.0 10.0 3.0}}}}}}}
 
 The lights are now sorted, so we turn to the surfaces they light.
 
-${cue "key" {' panelCode listingSurfaceSetup {highlight {' "albedo"}}}} ${cue "key" {' {callout "surface-eval"}}} For each pixel, the material first evaluates a surface, a small set of numbers the lighting reads.
+${cue "key" {' panelCode listingSurfaceSetup {highlight {' "albedo"}}}}
+${cue "key" {' {callout "surface-eval"}}}
+For each pixel, the material first evaluates a surface, a small set of numbers the lighting reads.
 
 They are the base colour, metallic, the specular factor that scales F zero, roughness, the normal, and the occlusion.
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}} ${cue "key" {' {callout "base-colour-acescg"}}} A colour property is first converted from linear sRGB into ACEScg, the colour space the lighting works in.
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {' {callout "base-colour-acescg"}}}
+A colour property is first converted from linear sRGB into ACEScg, the colour space the lighting works in.
 
 The albedo view shows the colour after that conversion, as the lighting uses it.
 
@@ -625,23 +974,44 @@ The albedo view shows the colour after that conversion, as the lighting uses it.
 ${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}} ${cue "key" {chainTarget "f" 3.0 imageCornerTopLeft {' {imageTitle "views.target_specular_f0"}}}} ${cue "key" {' {callout "set-albedo-f0"}}} One base colour feeds two outputs.
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {chainTarget "f" 3.0 imageCornerTopLeft {' {imageTitle "views.target_specular_f0"}}}}
+${cue "key" {' {callout "set-albedo-f0"}}}
+One base colour feeds two outputs.
 
 One is the albedo, which colours the diffuse light, and the other is F zero, the colour of the reflection head on.
 
-${overCallout {' {sphereMetallicRange 0.0 1.0}} "material-utils" "As metallic rises, the albedo fades to black and F zero turns from a dielectric's grey to the base colour itself."}
+${overCallout
+    {' {sphereMetallicRange 0.0 1.0}}
+    "material-utils"
+    "As metallic rises, the albedo fades to black and F zero turns from a dielectric's grey to the base colour itself."}
 
-$settle ${cue "key" {' {inset "a"} {mark 0.28 0.42 0.62 0.98} {imageMarkText "views.mark_albedo"} {blend 0.6}}} Watch the sphere in the albedo target, on the left.
+$settle ${cue "key" {'
+    {inset "a"}
+    {mark 0.28 0.42 0.62 0.98}
+    {imageMarkText "views.mark_albedo"}
+    {blend 0.6}}} Watch the sphere in the albedo target, on the left.
 
 $settle As metallic rises, the sphere goes from its base colour to black.
 
-$settle ${cue "key" {' {inset "f"} {mark 0.28 0.42 0.62 0.98} {imageMarkText "views.mark_f0"} {blend 0.6}}} In F zero, beside it, the same sphere goes from four percent grey to its base colour.
+$settle ${cue "key" {'
+    {inset "f"}
+    {mark 0.28 0.42 0.62 0.98}
+    {imageMarkText "views.mark_f0"}
+    {blend 0.6}}} In F zero, beside it, the same sphere goes from four percent grey to its base colour.
 
 $settle The colour has moved from the diffuse light to the reflection, and that move is what metallic means here.
 
-${cue "key" {' {inset "a"} unmark}} ${cue "key" {' {inset "f"} unmark}} ${cue "key" {' {sphereMetallic 0.0} {blend 1.0}}} ${overCallout {' {specularF0FactorRange 0.0 1.0}} "material-utils" "A dielectric's F zero is zero point zero eight times the specular factor."}
+${cue "key" {' {inset "a"} unmark}}
+${cue "key" {' {inset "f"} unmark}}
+${cue "key" {' {sphereMetallic 0.0} {blend 1.0}}}
+${overCallout
+    {' {specularF0FactorRange 0.0 1.0}}
+    "material-utils"
+    "A dielectric's F zero is zero point zero eight times the specular factor."}
 
-${cue "key" {' {specularF0Factor 0.5} {blend 1.0}}} So the default factor, a half, gives the four percent grey we saw.
+${cue "key" {' {specularF0Factor 0.5} {blend 1.0}}}
+So the default factor, a half, gives the four percent grey we saw.
 
 ${overText {' {sphereMetallicRange 0.0 1.0}} " A metal therefore has no diffuse light at all."}
 
@@ -652,22 +1022,34 @@ All of a metal's colour is in its reflection.
 ${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${cue "key" {' panelCode listingSurfaceSetup {highlight {' "roughness"}}}} ${cue "key" {' {callout "roughness-values"}}} The authored roughness is clamped to at least zero point zero two four, so no highlight becomes infinitely sharp.
+${cue "key" {' panelCode listingSurfaceSetup {highlight {' "roughness"}}}}
+${cue "key" {' {callout "roughness-values"}}}
+The authored roughness is clamped to at least zero point zero two four, so no highlight becomes infinitely sharp.
 
-${overCallout {' {sphereRoughnessRange 0.05 0.8}} "roughness-values" "That roughness is squared into a second value, roughness A, which the microfacet formulas use as the lobe's width."}
+${overCallout
+    {' {sphereRoughnessRange 0.05 0.8}}
+    "roughness-values"
+    "That roughness is squared into a second value, roughness A, which the microfacet formulas use as the lobe's width."}
 
 Roughness A is squared again into a third value, called roughness A two.
 
-${cue "key" {' {sphereRoughness 0.35} {blend 1.5}}} Each later formula picks the form it needs from these three numbers.
+${cue "key" {' {sphereRoughness 0.35} {blend 1.5}}}
+Each later formula picks the form it needs from these three numbers.
 
 ### Specular AA widens roughness where the normal changes fast {#c3-aa kind=3d}
 
-${cue "key" {opening demoSurface panelValues 0.3 {' {labels 0.0} {sphereRoughness 0.1} {sphereMetallic 1.0}}}}
+${cue "key" {opening demoSurface panelValues 0.3 {'
+    {labels 0.0}
+    {sphereRoughness 0.1}
+    {sphereMetallic 1.0}}}}
 ${cue "key" {' {cameraDistance 6.0} {cameraYaw 4.0} {cameraPitch 8.0}}}
 
-${cue "key" {' {callout "specular-aa"}}} Far away, a smooth sphere's highlight covers less than a pixel, and it flickers as the camera moves.
+${cue "key" {' {callout "specular-aa"}}}
+Far away, a smooth sphere's highlight covers less than a pixel, and it flickers as the camera moves.
 
-${cue "key" {' {glide cameraDistance 11.0 sentence}}} ${cue "key" {' {callout "specular-aa"}}} Specular anti-aliasing adds roughness where the normal changes fast from one pixel to the next.
+${cue "key" {' {glide cameraDistance 11.0 sentence}}}
+${cue "key" {' {callout "specular-aa"}}}
+Specular anti-aliasing adds roughness where the normal changes fast from one pixel to the next.
 
 The code measures how much the normal changes between neighbouring pixels, and squares it.
 
@@ -677,64 +1059,98 @@ Twice that variance is added to roughness A two.
 
 The wider highlight then covers more pixels, so it no longer vanishes between them.
 
-${cue "key" {' {callout "specular-aa-default"}}} Specular anti-aliasing is on by default, and the extra roughness is capped at zero point one eight.
+${cue "key" {' {callout "specular-aa-default"}}}
+Specular anti-aliasing is on by default, and the extra roughness is capped at zero point one eight.
 
 ${overText {' {specularAARange 1.0 0.0}} " Switched off, the far highlight thins and sparkles."}
 
-${cue "key" {' {specularAA 1.0} {cameraDistance 3.1} {blend 2.0}}} Close up, the normal changes slowly from pixel to pixel, so much less is added.
+${cue "key" {' {specularAA 1.0} {cameraDistance 3.1} {blend 2.0}}}
+Close up, the normal changes slowly from pixel to pixel, so much less is added.
 
 ### Occlusion maps, and emission {#c3-occl kind=3d}
 
-${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0} {specularAA 1.0} {sphereRoughness 0.35} {sphereMetallic 0.0}}}}
+${cue "key" {opening demoSurface panelValues 0.5 {'
+    {labels 1.0}
+    {specularAA 1.0}
+    {sphereRoughness 0.35}
+    {sphereMetallic 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${overCallout {' {sphereOcclusionRange 0.0 1.0}} "occlusion-input" "An occlusion map's red channel is raised to the power of its factor."}
+${overCallout
+    {' {sphereOcclusionRange 0.0 1.0}}
+    "occlusion-input"
+    "An occlusion map's red channel is raised to the power of its factor."}
 
 So a factor of one keeps the map as it is, and a factor of zero ignores it.
 
-${overCallout {' {diffuseOcclusionFactorRange 0.0 2.0}} "occlusion-input" "With a map, the factor only strengthens or weakens the map's darkening."}
+${overCallout
+    {' {diffuseOcclusionFactorRange 0.0 2.0}}
+    "occlusion-input"
+    "With a map, the factor only strengthens or weakens the map's darkening."}
 
 Without a map, the occlusion is one, and one to any power is still one, so the factor does nothing.
 
-${cue "key" {' {sphereOcclusion 0.0} {blend 1.0}}} ${cue "key" {' {callout "emissive-input"}}} Emission is authored in EV100, a photographic exposure scale, and converted to nits, a unit of luminance.
+${cue "key" {' {sphereOcclusion 0.0} {blend 1.0}}}
+${cue "key" {' {callout "emissive-input"}}}
+Emission is authored in EV100, a photographic exposure scale, and converted to nits, a unit of luminance.
 
 It is added after the lighting, so it shines even where no light reaches.
 
 ### A decal changes the surface, after its lighting is set up {#c3-decal kind=3d}
 
 ${cue "key" {opening demoDecals panelValues 0.5 {' {labels 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 10.0 55.0 2.4} {pose -6.0 48.0 2.7} {pose 8.0 58.0 2.3}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 10.0 55.0 2.4} {pose -6.0 48.0 2.7} {pose 8.0 58.0 2.3}}}}}}}
 
-${cue "key" {' {callout "decal-apply"}}} A decal projects a texture through a box onto whatever surface lies inside it.
+${cue "key" {' {callout "decal-apply"}}}
+A decal projects a texture through a box onto whatever surface lies inside it.
 
-${cue "key" {' {decalOpacity 0.0}}} ${overCallout {' {decalOpacityRange 0.0 1.0}} "decal-apply" "Inside the box, the decal's colour replaces the albedo, as far as its opacity allows."}
+${cue "key" {' {decalOpacity 0.0}}}
+${overCallout
+    {' {decalOpacityRange 0.0 1.0}}
+    "decal-apply"
+    "Inside the box, the decal's colour replaces the albedo, as far as its opacity allows."}
 
 The decal's normal map bends the normal too.
 
 Roughness and F zero stay as they were, so a decal cannot change how shiny a surface is.
 
-${overCallout {' {decalTiltRange 0.0 60.0}} "decal-attenuation" "A decal also fades as the surface turns away from its projection, by a smoothstep of the angle."}
+${overCallout
+    {' {decalTiltRange 0.0 60.0}}
+    "decal-attenuation"
+    "A decal also fades as the surface turns away from its projection, by a smoothstep of the angle."}
 
-${cue "key" {' {decalTilt 0.0} {blend 1.0}}} ${cue "key" {' {callout "evaluate-lighting"}}} In O3DE twenty-six oh five, the forward pass first sets up its lighting data from the original surface.
+${cue "key" {' {decalTilt 0.0} {blend 1.0}}}
+${cue "key" {' {callout "evaluate-lighting"}}}
+In O3DE twenty-six oh five, the forward pass first sets up its lighting data from the original surface.
 
 Only then does it apply the decals, to a copy of the surface that the lights read.
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}} ${cue "key" {' {callout "forward-albedo-target"}}} The code shows that the direct lights see the decal.
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {' {callout "forward-albedo-target"}}}
+The code shows that the direct lights see the decal.
 
 But the targets are written from the original surface, from before the decal.
 
 So the sky's light, which a full-screen pass adds later from those targets, ignores the decal.
 
-$settle ${cue "key" {' {inset "a"} {mark 0.08 0.6 0.92 1.0} {imageMarkText "views.mark_no_decal"} {blend 0.6}}} In the albedo view, the floor under the decals is plain, with none of the decals' paint or grid lines.
+$settle ${cue "key" {'
+    {inset "a"}
+    {mark 0.08 0.6 0.92 1.0}
+    {imageMarkText "views.mark_no_decal"}
+    {blend 0.6}}} In the albedo view, the floor under the decals is plain, with none of the decals' paint or grid lines.
 
 $settle So under a decal, the sky's diffuse light and the reflections still use the colour and the normal from before the decal.
 
 ### A surface, ready to be lit {#c3-recap kind=3d}
 
 ${cue "key" {opening demoSurface panelValues 1.0 {' {labels 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 4.0 8.0 3.1} {pose -10.0 6.0 3.3} {pose 8.0 10.0 3.0}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 4.0 8.0 3.1} {pose -10.0 6.0 3.3} {pose 8.0 10.0 3.0}}}}}}}
 
-${overText {' {sphereRoughnessRange 0.1 0.7}} " So a pixel's surface comes down to an albedo, an F zero, three forms of one roughness, a normal, and two occlusion factors."}
+${overText
+    {' {sphereRoughnessRange 0.1 0.7}}
+    " So a pixel's surface comes down to an albedo, an F zero, three forms of one roughness, a normal, and two occlusion factors."}
 
 One occlusion factor is for diffuse light, and the other is for specular light.
 
@@ -753,13 +1169,20 @@ These are the files and lines this chapter followed, in reading order.
 ### Four directions at a point {#c4-vectors kind=3d}
 
 ${cue "key" {opening demoSpecular panelValues 0.5 {' {vectors 1.0} {lobe 0.0} {paramFormula 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -12.0 4.0 3.3} {pose 6.0 8.0 3.0}}} {pingPonging {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 70.0 beat}}}}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 0.0 6.0 3.1} {pose -12.0 4.0 3.3} {pose 6.0 8.0 3.0}}}
+        {pingPonging {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 70.0 beat}}}}}}}
 
 The surface is now a set of numbers.
 
 The BRDF turns those numbers, the light's direction, and the eye's direction into reflected light.
 
-${cue "key" {' {vectors 0.0}}} ${overCallout {' {vectorsRange 0.0 1.0}} "specular-ggx" "At the top of this sphere are the normal N, the direction L to the light, and the direction V to the eye."}
+${cue "key" {' {vectors 0.0}}}
+${overCallout
+    {' {vectorsRange 0.0 1.0}}
+    "specular-ggx"
+    "At the top of this sphere are the normal N, the direction L to the light, and the direction V to the eye."}
 
 H is the direction halfway between L and V.
 
@@ -769,10 +1192,16 @@ Every term of the specular reflection is measured against these four directions.
 
 ### D: how many microfacets face H {#c4-d kind=3d}
 
-${cue "key" {opening demoSpecular panelValues 0.4 {' {vectors 1.0} {lobe 1.0} {paramFormula 1.0} {term 1}}}}
+${cue "key" {opening demoSpecular panelValues 0.4 {'
+    {vectors 1.0}
+    {lobe 1.0}
+    {paramFormula 1.0}
+    {term 1}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "d"}}}} ${cue "key" {' {callout "ggx-d"}}} The surface is modelled as tiny mirrors, called microfacets.
+${cue "key" {' panelCode listingSpecularGgx {highlight {' "d"}}}}
+${cue "key" {' {callout "ggx-d"}}}
+The surface is modelled as tiny mirrors, called microfacets.
 
 D, the GGX distribution, says how many of them face exactly along H.
 
@@ -780,64 +1209,124 @@ Only a facet that faces along H reflects the light into the eye, so D sets how s
 
 On a smooth surface, almost all facets face the normal, so the lobe is tall and narrow.
 
-${overCallout {' {sphereRoughnessRange 0.1 0.7}} "ggx-d" "On a rough surface, the facets spread out, so the lobe widens and drops."}
+${overCallout
+    {' {sphereRoughnessRange 0.1 0.7}}
+    "ggx-d"
+    "On a rough surface, the facets spread out, so the lobe widens and drops."}
 
-${cue "key" {' viewModeD}} ${cue "key" {' {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}} ${cue "key" {' {callout "ggx-d"}}} Over the sphere, D is brightest where H meets the normal, and that spot follows the light.
+${cue "key" {' viewModeD}}
+${cue "key" {'
+    {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}}
+${cue "key" {' {callout "ggx-d"}}}
+Over the sphere, D is brightest where H meets the normal, and that spot follows the light.
 
 ### G: the facets that see both light and eye {#c4-g kind=3d}
 
-${cue "key" {opening demoSpecular panelValues 0.4 {' {vectors 1.0} {lobe 1.0} {paramFormula 1.0} {term 2} viewModeG {sphereRoughness 0.5}}}}
+${cue "key" {opening demoSpecular panelValues 0.4 {'
+    {vectors 1.0}
+    {lobe 1.0}
+    {paramFormula 1.0}
+    {term 2}
+    viewModeG
+    {sphereRoughness 0.5}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "g"}}}} ${cue "key" {' {callout "ggx-g"}}} G removes the facets that their neighbours hide from the light or from the eye.
+${cue "key" {' panelCode listingSpecularGgx {highlight {' "g"}}}}
+${cue "key" {' {callout "ggx-g"}}}
+G removes the facets that their neighbours hide from the light or from the eye.
 
 O3DE uses the height-correlated Smith form, which treats hiding from the light and hiding from the eye as related, not independent.
 
-${overCallout {' {lightXRange -1.6 -2.5}} "ggx-g" "G itself falls at grazing angles, here as the light sinks toward the sphere's horizon."}
+${overCallout
+    {' {lightXRange -1.6 -2.5}}
+    "ggx-g"
+    "G itself falls at grazing angles, here as the light sinks toward the sphere's horizon."}
 
-${cue "key" {' {lightX -1.6} {blend 1.5}}} ${cue "key" {' {callout "ggx-g"}}} The microfacet formula divides by four times the product of N dot L and N dot V.
+${cue "key" {' {lightX -1.6} {blend 1.5}}}
+${cue "key" {' {callout "ggx-g"}}}
+The microfacet formula divides by four times the product of N dot L and N dot V.
 
 O3DE folds that divisor into G, so the code multiplies D by G and N dot L directly.
 
 ### F: Fresnel, from F zero toward white {#c4-f kind=3d}
 
-${cue "key" {opening demoSpecular panelValues 0.3 {' {vectors 1.0} {lobe 1.0} {paramFormula 1.0} {term 3} viewModeFinal {sphereRoughness 0.35} {sphereMetallic 0.0}}}}
+${cue "key" {opening demoSpecular panelValues 0.3 {'
+    {vectors 1.0}
+    {lobe 1.0}
+    {paramFormula 1.0}
+    {term 3}
+    viewModeFinal
+    {sphereRoughness 0.35}
+    {sphereMetallic 0.0}}}}
 
-${cue "key" {' panelCode listingSpecularGgx {highlight {' "f"}}}} ${cue "key" {' {callout "fresnel-schlick"}}} F is Schlick's Fresnel, measured from the angle between H and the eye.
+${cue "key" {' panelCode listingSpecularGgx {highlight {' "f"}}}}
+${cue "key" {' {callout "fresnel-schlick"}}}
+F is Schlick's Fresnel, measured from the angle between H and the eye.
 
 It is F zero when they line up, and it rises toward white as they move apart.
 
-${overCallout {' {lightXRange -1.6 -2.6}} "fresnel-schlick" "As the light sinks toward the side, L moves away from V, so H turns away from V too, and F climbs."}
+${overCallout
+    {' {lightXRange -1.6 -2.6}}
+    "fresnel-schlick"
+    "As the light sinks toward the side, L moves away from V, so H turns away from V too, and F climbs."}
 
-${cue "key" {' {lightX -2.28} {blend 2.0}}} ${cue "key" {' panelCode listingSpecularGgx {highlight {' "product"}}}} The specular light is D times G times N dot L times F, times the light's intensity.
+${cue "key" {' {lightX -2.28} {blend 2.0}}}
+${cue "key" {' panelCode listingSpecularGgx {highlight {' "product"}}}}
+The specular light is D times G times N dot L times F, times the light's intensity.
 
 ### Diffuse: Lambert, scaled by what reflection leaves {#c4-diffuse kind=3d}
 
 ${cue "key" {opening demoDiffuse panelValues 0.4 {' {vectors 1.0} {lobe 0.0} {paramFormula 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' panelCode listingDiffuseResponse {highlight {' "lambert"}}}} ${cue "key" {' viewModeNdotl}} ${cue "key" {' {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 70.0 sentence}}}}}} ${cue "key" {' {callout "diffuse-lambert"}}} The diffuse light is Lambert's, the albedo divided by pi, times N dot L.
+${cue "key" {' panelCode listingDiffuseResponse {highlight {' "lambert"}}}}
+${cue "key" {' viewModeNdotl}}
+${cue "key" {'
+    {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 70.0 sentence}}}}}}
+${cue "key" {' {callout "diffuse-lambert"}}}
+The diffuse light is Lambert's, the albedo divided by pi, times N dot L.
 
 So it is brightest where the sphere faces the light.
 
-${cue "key" {' viewModeDiffuseResponse}} ${cue "key" {' panelCode listingDiffuseResponse {highlight {' "response"}}}} ${cue "key" {' {callout "fresnel-roughness"}}} The diffuse light is then scaled by the diffuse response, the share of light that is not reflected at the surface.
+${cue "key" {' viewModeDiffuseResponse}}
+${cue "key" {' panelCode listingDiffuseResponse {highlight {' "response"}}}}
+${cue "key" {' {callout "fresnel-roughness"}}}
+The diffuse light is then scaled by the diffuse response, the share of light that is not reflected at the surface.
 
 The response is one minus a Fresnel term at the view angle, so light that reflects off the surface does not also scatter diffusely.
 
-${overCallout {' {sphereRoughnessRange 0.05 0.9}} "fresnel-roughness" "That Fresnel term is made gentler on rough surfaces, so the response stays near one minus F zero across the sphere."}
+${overCallout
+    {' {sphereRoughnessRange 0.05 0.9}}
+    "fresnel-roughness"
+    "That Fresnel term is made gentler on rough surfaces, so the response stays near one minus F zero across the sphere."}
 
 ### Per light: (diffuse + specular) × intensity × shadow {#c4-perlight kind=3d}
 
 ${cue "key" {opening demoPointlight panelValues 0.5 {' viewModeFinal}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
 
-${cue "key" {' panelCode listingSimplePointLight {highlight {' "falloff"}}}} ${cue "key" {' viewModeAttenuation}} ${overCallout {' {attenuationRadiusRange 2.0 6.0}} "point-light-apply" "For one simple point light, the shader first finds the falloff from the distance and the radius."}
+${cue "key" {' panelCode listingSimplePointLight {highlight {' "falloff"}}}}
+${cue "key" {' viewModeAttenuation}}
+${overCallout
+    {' {attenuationRadiusRange 2.0 6.0}}
+    "point-light-apply"
+    "For one simple point light, the shader first finds the falloff from the distance and the radius."}
 
-${cue "key" {' panelCode listingSimplePointLight {highlight {' "intensity"}}}} ${cue "key" {' viewModeFinal {attenuationRadius 3.5} {blend 1.0}}} ${overCallout {' {lightIntensityRange 2.0 12.0}} "point-light-apply" "The intensity is the light's brightness in candelas, divided by the distance squared."}
+${cue "key" {' panelCode listingSimplePointLight {highlight {' "intensity"}}}}
+${cue "key" {' viewModeFinal {attenuationRadius 3.5} {blend 1.0}}}
+${overCallout
+    {' {lightIntensityRange 2.0 12.0}}
+    "point-light-apply"
+    "The intensity is the light's brightness in candelas, divided by the distance squared."}
 
 It is then multiplied by the window, the factor from chapter two that falls to zero at the radius.
 
-${cue "key" {' {lightIntensity 6.0} {blend 1.0}}} ${cue "key" {' {motion {' {path {' lightX} {' {' 1.4} {' -0.4}} sentence}}}}} ${cue "key" {' panelCode listingSimplePointLight {highlight {' "shade"}}}} ${cue "key" {' {callout "point-light-apply"}}} Diffuse and specular are each multiplied by that intensity and by the shadow's lit ratio.
+${cue "key" {' {lightIntensity 6.0} {blend 1.0}}}
+${cue "key" {' {motion {' {path {' lightX} {' {' 1.4} {' -0.4}} sentence}}}}}
+${cue "key" {' panelCode listingSimplePointLight {highlight {' "shade"}}}}
+${cue "key" {' {callout "point-light-apply"}}}
+Diffuse and specular are each multiplied by that intensity and by the shadow's lit ratio.
 
 The lit ratio is the share of the light that no shadow blocks.
 
@@ -850,25 +1339,37 @@ The results are added to the pixel's running sums of diffuse and specular light.
 ${cue "key" {opening demoSpecular panelValues 0.5 {' {vectors 0.0} {lobe 1.0} viewModeFinal}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' {callout "standard-brdf"}}} Standard, the default model, is everything so far, Lambert's diffuse and GGX specular.
+${cue "key" {' {callout "standard-brdf"}}}
+Standard, the default model, is everything so far, Lambert's diffuse and GGX specular.
 
 It also offers an optional clear coat.
 
-${cue "key" {' diffuseModelNormalizedDisney}} ${cue "key" {' {callout "skin-diffuse"}}} Skin uses a different diffuse, Disney's normalised diffuse, and so does Enhanced when subsurface scattering is on.
+${cue "key" {' diffuseModelNormalizedDisney}}
+${cue "key" {' {callout "skin-diffuse"}}}
+Skin uses a different diffuse, Disney's normalised diffuse, and so does Enhanced when subsurface scattering is on.
 
 That diffuse brightens toward grazing angles on rough surfaces.
 
-${cue "key" {' diffuseModelLambertian}} ${overCallout {' {sphereClearCoatRange 0.0 1.0}} "clear-coat-specular" "A clear coat adds a second, smooth GGX lobe, with its F zero fixed at zero point zero four."}
+${cue "key" {' diffuseModelLambertian}}
+${overCallout
+    {' {sphereClearCoatRange 0.0 1.0}}
+    "clear-coat-specular"
+    "A clear coat adds a second, smooth GGX lobe, with its F zero fixed at zero point zero four."}
 
 The coat also dims what lies beneath it, by the coat's own Fresnel.
 
-${cue "key" {' {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}} ${cue "key" {' {callout "enhanced-brdf"}}} Enhanced also offers anisotropic GGX, a lobe stretched along one direction of the surface.
+${cue "key" {'
+    {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}}
+${cue "key" {' {callout "enhanced-brdf"}}}
+Enhanced also offers anisotropic GGX, a lobe stretched along one direction of the surface.
 
 Skin offers a second specular lobe, blended with the first.
 
 Base is Standard without a clear coat.
 
-${cue "key" {' {sphereClearCoat 0.0} {blend 1.0}}} ${cue "key" {' {callout "clear-coat-diffuse"}}} The code shows that a coat dims direct diffuse light twice.
+${cue "key" {' {sphereClearCoat 0.0} {blend 1.0}}}
+${cue "key" {' {callout "clear-coat-diffuse"}}}
+The code shows that a coat dims direct diffuse light twice.
 
 It dims that light once through the diffuse response, and once more inside each light's own calculation.
 
@@ -878,50 +1379,87 @@ ${cue "key" {opening demoMultiscatter panelValues 0.4 {' {sphereRoughness 0.5} v
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}} ${cue "key" {' {callout "brdf-execute-once"}}} At start-up, before the first frame, a compute pass fills the BRDF look-up texture, two hundred and fifty-six texels on a side.
+${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}}
+${cue "key" {' {callout "brdf-execute-once"}}}
+At start-up, before the first frame, a compute pass fills the BRDF look-up texture, two hundred and fifty-six texels on a side.
 
-${cue "key" {' panelCode listingBrdfTexture {highlight {' "inputs"}}}} ${cue "key" {' {callout "brdf-texture"}}} Across the texture runs N dot V, and down it runs one minus roughness.
+${cue "key" {' panelCode listingBrdfTexture {highlight {' "inputs"}}}}
+${cue "key" {' {callout "brdf-texture"}}}
+Across the texture runs N dot V, and down it runs one minus roughness.
 
 Each texel averages the GGX reflection over the hemisphere, once for an F zero of zero and once for one.
 
-$settle ${cue "key" {' {inset "lut"} {mark 0.0 0.0 0.5 1.0} {imageMarkText "views.mark_scale_a"} {blend 0.6}}} The view shows the texture's two channels side by side.
+$settle ${cue "key" {'
+    {inset "lut"}
+    {mark 0.0 0.0 0.5 1.0}
+    {imageMarkText "views.mark_scale_a"}
+    {blend 0.6}}} The view shows the texture's two channels side by side.
 
 $settle On the left is the scale A, in red, the part of the reflection that grows with F zero.
 
-$settle ${cue "key" {' {inset "lut"} {mark 0.5 0.0 1.0 1.0} {imageMarkText "views.mark_bias_b"} {blend 0.6}}} On the right is the bias B, in green, the part added whatever F zero is.
+$settle ${cue "key" {'
+    {inset "lut"}
+    {mark 0.5 0.0 1.0 1.0}
+    {imageMarkText "views.mark_bias_b"}
+    {blend 0.6}}} On the right is the bias B, in green, the part added whatever F zero is.
 
 $settle The bias matters most at grazing angles.
 
 $settle Across each half, N dot V runs from zero at the left, which is grazing, to one at the right, which is head on.
 
-$settle ${cue "key" {' {inset "lut"} {mark 0.0 0.0 1.0 0.16} {imageMarkText "views.mark_rough"} {blend 0.6}}} Down each half, roughness runs from one at the top to zero at the bottom.
+$settle ${cue "key" {'
+    {inset "lut"}
+    {mark 0.0 0.0 1.0 0.16}
+    {imageMarkText "views.mark_rough"}
+    {blend 0.6}}} Down each half, roughness runs from one at the top to zero at the bottom.
 
 $settle The ring marks P's texel.
 
 $settle That texel gives the two numbers that scale P's reflection of the sky.
 
-${cue "key" {' {inset "lut"} unmark}} ${cue "key" {' panelCode listingBrdfTexture {highlight {' "sample"}}}} ${cue "key" {' {callout "brdf-texture"}}} The pass averages one thousand and twenty-four directions per texel, chosen by importance sampling GGX.
+${cue "key" {' {inset "lut"} unmark}}
+${cue "key" {' panelCode listingBrdfTexture {highlight {' "sample"}}}}
+${cue "key" {' {callout "brdf-texture"}}}
+The pass averages one thousand and twenty-four directions per texel, chosen by importance sampling GGX.
 
-${cue "key" {' panelCode listingBrdfTexture {highlight {' "store"}}}} ${cue "key" {' {callout "brdf-texture-size"}}} That gives the two numbers per texel, the scale A and the bias B.
+${cue "key" {' panelCode listingBrdfTexture {highlight {' "store"}}}}
+${cue "key" {' {callout "brdf-texture-size"}}}
+That gives the two numbers per texel, the scale A and the bias B.
 
 So the reflection over the whole hemisphere is F zero times A, plus B.
 
 Because F zero sits outside the texture, one texture serves every material.
 
-${overCallout {' {sphereRoughnessRange 0.2 0.8}} "brdf-texture" "The ringed texel is the one this point reads, and it moves up the texture as the sphere gets rougher."}
+${overCallout
+    {' {sphereRoughnessRange 0.2 0.8}}
+    "brdf-texture"
+    "The ringed texel is the one this point reads, and it moves up the texture as the sphere gets rougher."}
 
 ### Multiscatter: the energy single scattering loses {#c4-multi kind=3d}
 
-${cue "key" {opening demoMultiscatter panelValues 0.3 {' {sphereRoughness 0.2} viewModeFinal {multiscatter 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -8.0 4.0 3.3} {pose 6.0 8.0 3.0}}}}}}}
+${cue "key" {opening demoMultiscatter panelValues 0.3 {'
+    {sphereRoughness 0.2}
+    viewModeFinal
+    {multiscatter 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -8.0 4.0 3.3} {pose 6.0 8.0 3.0}}}}}}}
 
-${cue "key" {' panelCode listingMultiscatter {highlight {' "energy"}}}} ${cue "key" {' {glide sphereRoughness 0.9 sentence}}} ${cue "key" {' {callout "multiscatter"}}} A rough metal looks darker than it should.
+${cue "key" {' panelCode listingMultiscatter {highlight {' "energy"}}}}
+${cue "key" {' {glide sphereRoughness 0.9 sentence}}}
+${cue "key" {' {callout "multiscatter"}}}
+A rough metal looks darker than it should.
 
 GGX counts light that bounces once, and it loses the light that bounces between facets.
 
-${overCallout {' {sphereRoughnessRange 0.2 0.95}} "multiscatter" "A plus B is the share that one bounce keeps, and it shrinks as roughness grows."}
+${overCallout
+    {' {sphereRoughnessRange 0.2 0.95}}
+    "multiscatter"
+    "A plus B is the share that one bounce keeps, and it shrinks as roughness grows."}
 
-${cue "key" {' panelCode listingMultiscatter {highlight {' "compensate"}}}} ${cue "key" {' {multiscatter 1.0} {blend 1.5}}} ${cue "key" {' {callout "multiscatter"}}} The compensation multiplies the specular light by a factor.
+${cue "key" {' panelCode listingMultiscatter {highlight {' "compensate"}}}}
+${cue "key" {' {multiscatter 1.0} {blend 1.5}}}
+${cue "key" {' {callout "multiscatter"}}}
+The compensation multiplies the specular light by a factor.
 
 Take one divided by the kept share, which is A plus B, and subtract one.
 
@@ -929,27 +1467,50 @@ That gives the light lost for each unit of light that one bounce keeps.
 
 To get the factor, that loss is multiplied by F zero, and one is added.
 
-${cue "key" {' viewModeMultiscatter}} ${overText {' {sphereRoughnessRange 0.2 0.95}} " The factor grows with roughness and with F zero, so rough metals gain the most."}
+${cue "key" {' viewModeMultiscatter}}
+${overText
+    {' {sphereRoughnessRange 0.2 0.95}}
+    " The factor grows with roughness and with F zero, so rough metals gain the most."}
 
 ### Finding: compensation is off by default {#c4-default kind=3d}
 
-${cue "key" {opening demoMultiscatter panelValues 0.3 {' {sphereRoughness 0.8} viewModeFinal {multiscatter 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -8.0 4.0 3.3} {pose 6.0 8.0 3.0}}}}}}}
+${cue "key" {opening demoMultiscatter panelValues 0.3 {'
+    {sphereRoughness 0.8}
+    viewModeFinal
+    {multiscatter 1.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -8.0 4.0 3.3} {pose 6.0 8.0 3.0}}}}}}}
 
-${overCallout {' {multiscatterRange 0.0 1.0}} "ms-option" "Compensation has a shader option, and that option defaults to on."}
+${overCallout
+    {' {multiscatterRange 0.0 1.0}}
+    "ms-option"
+    "Compensation has a shader option, and that option defaults to on."}
 
-${cue "key" {' viewModeMultiscatter}} ${overCallout {' {multiscatterRange 1.0 0.0}} "ms-material-property" "But the material property that drives the option has no default value."}
+${cue "key" {' viewModeMultiscatter}}
+${overCallout
+    {' {multiscatterRange 1.0 0.0}}
+    "ms-material-property"
+    "But the material property that drives the option has no default value."}
 
 So the property loads as false, and it switches the option off for every material that does not set it.
 
-${cue "key" {' viewModeFinal}} ${cue "key" {' {callout "ms-preset"}}} Only the metal presets and a few sample materials set the property.
+${cue "key" {' viewModeFinal}}
+${cue "key" {' {callout "ms-preset"}}}
+Only the metal presets and a few sample materials set the property.
 
 The code shows that a default StandardPBR material is therefore rendered without compensation.
 
 ### One light, one formula {#c4-recap kind=3d}
 
-${cue "key" {opening demoSpecular panelValues 1.0 {' {vectors 1.0} {lobe 1.0} viewModeFinal {multiscatter 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 0.0 6.0 3.1} {pose -12.0 4.0 3.3} {pose 8.0 8.0 3.0}}} {pingPonging {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 beat}}}}}}}
+${cue "key" {opening demoSpecular panelValues 1.0 {'
+    {vectors 1.0}
+    {lobe 1.0}
+    viewModeFinal
+    {multiscatter 1.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 0.0 6.0 3.1} {pose -12.0 4.0 3.3} {pose 8.0 8.0 3.0}}}
+        {pingPonging {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 beat}}}}}}}
 
 So each light adds diffuse and specular light, weighed by D, G, F, and the diffuse response, all from the surface's numbers.
 
@@ -968,7 +1529,8 @@ These are the files and lines this chapter followed, in reading order.
 ### The sun's shadow is a depth map seen from the sun {#c5-why kind=3d}
 
 ${cue "key" {opening demoCascades panelHidden 1.0 {' {labels 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 8.0 20.0 8.2} {pose 24.0 30.0 7.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 8.0 20.0 8.2} {pose 24.0 30.0 7.2}}}}}}}
 
 The sun's lit ratio comes from a shadow map, so this chapter follows how that map is made and read.
 
@@ -976,19 +1538,35 @@ ${cue "key" {' {callout "one-shadow-light"}}} O3DE shadows a single directional 
 
 It draws the scene's depth, as seen from that light, into a shadow map.
 
-${cue "key" {' {inset "cm"} imageFromCascadeMap {imageCascade 4.0} {imageParamFrom 0.9} imageCornerBottomLeft {imageTitle "views.cascade_map"}}} ${cue "key" {' {callout "cascade-image"}}} The map is one texture array of thirty-two bit float depth.
+${cue "key" {'
+    {inset "cm"}
+    imageFromCascadeMap
+    {imageCascade 4.0}
+    {imageParamFrom 0.9}
+    imageCornerBottomLeft
+    {imageTitle "views.cascade_map"}}}
+${cue "key" {' {callout "cascade-image"}}}
+The map is one texture array of thirty-two bit float depth.
 
 It has ${spoken {cascadeCount}} slices of one thousand and twenty-four by one thousand and twenty-four texels.
 
 Each slice belongs to one cascade, a shadow map for one range of distances from the camera.
 
-$settle ${cue "key" {' {inset "cm"} {mark 0.0 0.0 0.25 1.0} {imageMarkText "views.mark_cascade_0"} {blend 0.6}}} The view lays the four slices side by side, nearest cascade first, and tints each with its debug colour.
+$settle ${cue "key" {'
+    {inset "cm"}
+    {mark 0.0 0.0 0.25 1.0}
+    {imageMarkText "views.mark_cascade_0"}
+    {blend 0.6}}} The view lays the four slices side by side, nearest cascade first, and tints each with its debug colour.
 
 $settle Each texel holds the depth, from the sun, of the first surface the sun meets there.
 
 $settle Bright is near the sun and dark is far, over the depth range set for this view.
 
-$settle ${cue "key" {' {inset "cm"} {mark 0.5 0.0 1.0 1.0} {imageMarkText "views.mark_whole_room"} {blend 0.6}}} The far cascades cover much more ground.
+$settle ${cue "key" {'
+    {inset "cm"}
+    {mark 0.5 0.0 1.0 1.0}
+    {imageMarkText "views.mark_whole_room"}
+    {blend 0.6}}} The far cascades cover much more ground.
 
 $settle So the whole room fills a sliver of their depth, and it reads as one flat bright patch.
 
@@ -996,102 +1574,208 @@ $settle P is ringed in each slice that covers it.
 
 $settle The shadow test compares P's own depth from the sun with the depth stored under that ring.
 
-${cue "key" {' {inset "cm"} unmark}} ${cue "key" {' {glide sunYaw 75.0 sentence}}} ${cue "key" {' {callout "shadow-caster-state"}}} Every shadow-casting mesh is drawn into the map with only a depth test and a small depth bias.
+${cue "key" {' {inset "cm"} unmark}}
+${cue "key" {' {glide sunYaw 75.0 sentence}}}
+${cue "key" {' {callout "shadow-caster-state"}}}
+Every shadow-casting mesh is drawn into the map with only a depth test and a small depth bias.
 
 This happens every frame, so the cascades follow the camera and the sun.
 
 ### Four cascades, split near-dense {#c5-cascades kind=3d}
 
-${cue "key" {opening demoCascades panelValues 0.5 {' {labels 0.0} {freeCameraOn 1.0} {cascades 1.0} {cascadesShown 4.0} {shadowFar 30.0} {sunYaw 35.0}}}}
-${cue "key" {' {freeCameraTarget {' 0.0 0.0 0.0}} {freeCameraDistance 26.0} {freeCameraPitch 48.0} {freeCameraYaw 36.0} {cameraTarget {' -1.05 0.9 -0.55}} {cameraYaw 49.6} {cameraPitch 9.0} {cameraDistance 4.45} {cameraFov 60.0}}}
+${cue "key" {opening demoCascades panelValues 0.5 {'
+    {labels 0.0}
+    {freeCameraOn 1.0}
+    {cascades 1.0}
+    {cascadesShown 4.0}
+    {shadowFar 30.0}
+    {sunYaw 35.0}}}}
+${cue "key" {'
+    {freeCameraTarget {' 0.0 0.0 0.0}}
+    {freeCameraDistance 26.0}
+    {freeCameraPitch 48.0}
+    {freeCameraYaw 36.0}
+    {cameraTarget {' -1.05 0.9 -0.55}}
+    {cameraYaw 49.6}
+    {cameraPitch 9.0}
+    {cameraDistance 4.45}
+    {cameraFov 60.0}}}
 
-${cue "key" {' {callout "cascade-splits"}}} The cascades cut the camera's view into four slices of depth.
+${cue "key" {' {callout "cascade-splits"}}}
+The cascades cut the camera's view into four slices of depth.
 
 Each gets the same number of texels, so the near ones are small and sharp, and the far ones wide and coarse.
 
-${cue "key" {' {callout "cascade-defaults"}}} By default there are four cascades, reaching out to a shadow far distance of one hundred metres.
+${cue "key" {' {callout "cascade-defaults"}}}
+By default there are four cascades, reaching out to a shadow far distance of one hundred metres.
 
 Here that distance is shortened to thirty metres, so all four cascades fit in view.
 
-${overCallout {' {cascadeSplitRatioRange 0.0 1.0}} "cascade-splits" "Each cut point between cascades blends a uniform spacing with a logarithmic one, by a ratio."}
+${overCallout
+    {' {cascadeSplitRatioRange 0.0 1.0}}
+    "cascade-splits"
+    "Each cut point between cascades blends a uniform spacing with a logarithmic one, by a ratio."}
 
 A ratio of zero is uniform, one is logarithmic, and the default is zero point nine.
 
 A logarithmic split packs the cascades close to the camera.
 
-${cue "key" {' {cascadeSplitRatio 0.9} {blend 1.5}}} ${cue "key" {' {callout "cascade-splits"}}} This camera's near plane is zero point one metres.
+${cue "key" {' {cascadeSplitRatio 0.9} {blend 1.5}}}
+${cue "key" {' {callout "cascade-splits"}}}
+This camera's near plane is zero point one metres.
 
 With the default ratio, these thirty metres split at about one point one, three point one, and eight point seven metres.
 
 The full hundred metres would split at three, seven point nine, and twenty-three point five.
 
-${cue "key" {' {inset "cm"} imageFromCascadeMap {imageCascade 4.0} {imageParamFrom 0.9} imageCornerBottomLeft {imageTitle "views.cascade_map"}}} ${cue "key" {' {cascadeColors 1.0}}} ${cue "key" {' {callout "cascade-select"}}} O3DE's debug colouring tints each pixel by its cascade, red, green, blue, and then yellow.
+${cue "key" {'
+    {inset "cm"}
+    imageFromCascadeMap
+    {imageCascade 4.0}
+    {imageParamFrom 0.9}
+    imageCornerBottomLeft
+    {imageTitle "views.cascade_map"}}}
+${cue "key" {' {cascadeColors 1.0}}}
+${cue "key" {' {callout "cascade-select"}}}
+O3DE's debug colouring tints each pixel by its cascade, red, green, blue, and then yellow.
 
 ### A sphere around each slice, snapped to texels {#c5-fit kind=3d}
 
-${cue "key" {opening demoCascades panelValues 0.4 {' {labels 0.0} {freeCameraOn 1.0} {cascades 1.0} {cascadesShown 4.0} {shadowFar 30.0} {cascadeSpheres 0.0} {cascadeBoxes 0.0} {cascadeColors 0.0}}}}
-${cue "key" {' {freeCameraTarget {' 0.0 0.0 0.0}} {freeCameraDistance 26.0} {freeCameraPitch 48.0} {freeCameraYaw 36.0} {cameraTarget {' -1.05 0.9 -0.55}} {cameraYaw 49.6} {cameraPitch 9.0} {cameraDistance 4.45} {cameraFov 60.0}}}
+${cue "key" {opening demoCascades panelValues 0.4 {'
+    {labels 0.0}
+    {freeCameraOn 1.0}
+    {cascades 1.0}
+    {cascadesShown 4.0}
+    {shadowFar 30.0}
+    {cascadeSpheres 0.0}
+    {cascadeBoxes 0.0}
+    {cascadeColors 0.0}}}}
+${cue "key" {'
+    {freeCameraTarget {' 0.0 0.0 0.0}}
+    {freeCameraDistance 26.0}
+    {freeCameraPitch 48.0}
+    {freeCameraYaw 36.0}
+    {cameraTarget {' -1.05 0.9 -0.55}}
+    {cameraYaw 49.6}
+    {cameraPitch 9.0}
+    {cameraDistance 4.45}
+    {cameraFov 60.0}}}
 
-${overCallout {' {cascadeSpheresRange 0.0 1.0}} "cascade-sphere-fit" "Each slice is wrapped in a bounding sphere, so its size does not change as the camera turns."}
+${overCallout
+    {' {cascadeSpheresRange 0.0 1.0}}
+    "cascade-sphere-fit"
+    "Each slice is wrapped in a bounding sphere, so its size does not change as the camera turns."}
 
-${overCallout {' {cascadeBoxesRange 0.0 1.0}} "cascade-sphere-fit" "In the light's view, the cascade's box is the cube around that sphere, stretched back toward the sun."}
+${overCallout
+    {' {cascadeBoxesRange 0.0 1.0}}
+    "cascade-sphere-fit"
+    "In the light's view, the cascade's box is the cube around that sphere, stretched back toward the sun."}
 
 So casters between the sun and the view still land in the map, even when they are behind the camera.
 
-${cue "key" {' {motion {' {path {' cameraYaw} {' {' 74.6} {' 24.6} {' 49.6}} sentence}}}}} ${cue "key" {' {callout "cascade-snap"}}} The box is snapped to whole shadow-map texels.
+${cue "key" {' {motion {' {path {' cameraYaw} {' {' 74.6} {' 24.6} {' 49.6}} sentence}}}}}
+${cue "key" {' {callout "cascade-snap"}}}
+The box is snapped to whole shadow-map texels.
 
 So as the camera moves, the map's texels stay fixed in the world, and shadow edges do not shimmer.
 
-${cue "key" {' {callout "cascade-sphere-fit"}}} A cascade's texel is its sphere's diameter over one thousand and twenty-four, so the far cascades are much coarser.
+${cue "key" {' {callout "cascade-sphere-fit"}}}
+A cascade's texel is its sphere's diameter over one thousand and twenty-four, so the far cascades are much coarser.
 
 ### P in its cascade: offset, biased, compared {#c5-lookup kind=3d}
 
 ${cue "key" {opening demoCascades panelHidden 0.4 {' {labels 0.0} {shadowFar 100.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 22.0 5.0} {pose 6.0 18.0 5.4} {pose 18.0 24.0 4.8}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 22.0 5.0} {pose 6.0 18.0 5.4} {pose 18.0 24.0 4.8}}}}}}}
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "position"}}}} ${cue "key" {' {callout "fullscreen-shadow"}}} To shade P, the shadow pass first rebuilds P's position from the depth.
+${cue "key" {' panelCode listingFullscreenShadow {highlight {' "position"}}}}
+${cue "key" {' {callout "fullscreen-shadow"}}}
+To shade P, the shadow pass first rebuilds P's position from the depth.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "offset"}}}} ${cue "key" {' {callout "shadow-normal-offset"}}} It then moves P a little along its normal.
+${cue "key" {' panelCode listingFullscreenShadow {highlight {' "offset"}}}}
+${cue "key" {' {callout "shadow-normal-offset"}}}
+It then moves P a little along its normal.
 
 The size of this normal offset is the normal bias setting times two, divided by the map's size in texels.
 
 With the default bias of two point five, that is two point five times two over one thousand and twenty-four, about five millimetres.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "range"}}}} ${cue "key" {' {inset "cm"} imageFromCascadeMap {imageCascade 4.0} {imageParamFrom 0.9} imageCornerBottomLeft {imageTitle "views.cascade_map"}}} ${cue "key" {' {callout "cascade-select"}}} The pass takes the first cascade whose map holds P at least one and a half texels in from the edge.
+${cue "key" {' panelCode listingFullscreenShadow {highlight {' "range"}}}}
+${cue "key" {'
+    {inset "cm"}
+    imageFromCascadeMap
+    {imageCascade 4.0}
+    {imageParamFrom 0.9}
+    imageCornerBottomLeft
+    {imageTitle "views.cascade_map"}}}
+${cue "key" {' {callout "cascade-select"}}}
+The pass takes the first cascade whose map holds P at least one and a half texels in from the edge.
 
-${cue "key" {' panelCode listingFullscreenShadow {highlight {' "compare"}}}} ${cue "key" {' {callout "shadow-coords"}}} P's depth from the sun is moved a millimetre and a half toward the sun.
+${cue "key" {' panelCode listingFullscreenShadow {highlight {' "compare"}}}}
+${cue "key" {' {callout "shadow-coords"}}}
+P's depth from the sun is moved a millimetre and a half toward the sun.
 
 That depth is then compared with the one stored at P's texel.
 
-${cue "key" {' {callout "shadow-is-shadowed"}}} If something nearer the sun was stored there, P is in shadow.
+${cue "key" {' {callout "shadow-is-shadowed"}}}
+If something nearer the sun was stored there, P is in shadow.
 
 O3DE can filter this compare over nearby texels, but the default filter is None, so the answer is exactly zero or one.
 
 ### Biases against acne; the slope bias is off {#c5-bias kind=3d}
 
-${cue "key" {opening demoCascades panelHidden 0.3 {' {labels 0.0} {shadowFar 100.0} {normalShadowBias 2.5}}}}
-${cue "key" {' {cameraTarget {' 0.8 0.0 0.8}} {cameraDistance 3.2} {cameraPitch 40.0} {cameraYaw 30.0}}}
+${cue "key" {opening demoCascades panelHidden 0.3 {'
+    {labels 0.0}
+    {shadowFar 100.0}
+    {normalShadowBias 2.5}}}}
+${cue "key" {'
+    {cameraTarget {' 0.8 0.0 0.8}}
+    {cameraDistance 3.2}
+    {cameraPitch 40.0}
+    {cameraYaw 30.0}}}
 
-${cue "key" {' {inset "sb"} imageFromShadowBuffer {imageBlurred 0.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} ${cue "key" {' {callout "shadow-caster-state"}}} Without a bias, a surface can shadow itself in a pattern of stripes, called acne.
+${cue "key" {'
+    {inset "sb"}
+    imageFromShadowBuffer
+    {imageBlurred 0.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+${cue "key" {' {callout "shadow-caster-state"}}}
+Without a bias, a surface can shadow itself in a pattern of stripes, called acne.
 
-$settle ${cue "key" {' {inset "sb"} {mark 0.62 0.08 1.0 0.62} {imageMarkText "views.mark_lit"} {blend 0.6}}} The shadow buffer is a screen-sized texture that holds each pixel's result in one byte.
+$settle ${cue "key" {'
+    {inset "sb"}
+    {mark 0.62 0.08 1.0 0.62}
+    {imageMarkText "views.mark_lit"}
+    {blend 0.6}}} The shadow buffer is a screen-sized texture that holds each pixel's result in one byte.
 
 $settle It is white where the sun is seen.
 
-$settle ${cue "key" {' {inset "sb"} {mark 0.0 0.0 0.5 0.42} {imageMarkText "views.mark_shadow"} {blend 0.6}}} It is black where the sun is hidden.
+$settle ${cue "key" {'
+    {inset "sb"}
+    {mark 0.0 0.0 0.5 0.42}
+    {imageMarkText "views.mark_shadow"}
+    {blend 0.6}}} It is black where the sun is hidden.
 
 $settle Each pixel holds one test against the cascade, before the blur that comes later, so the shadow's edges follow the shadow map's texels.
 
 $settle Acne would show here as black stripes across faces the sun lights, where a surface fails the test against itself.
 
-${cue "key" {' {inset "sb"} unmark}} ${overCallout {' {normalShadowBiasRange 0.0 6.0}} "shadow-normal-offset" "The normal offset lifts the lookup off the surface, and a larger offset lets shadows detach from their casters' feet."}
+${cue "key" {' {inset "sb"} unmark}}
+${overCallout
+    {' {normalShadowBiasRange 0.0 6.0}}
+    "shadow-normal-offset"
+    "The normal offset lifts the lookup off the surface, and a larger offset lets shadows detach from their casters' feet."}
 
-${cue "key" {' {normalShadowBias 2.5} {blend 1.5}}} ${cue "key" {' {callout "shadow-slope-bias-off"}}} A slope bias, which grows as a surface tilts away from the sun, is computed for each cascade and uploaded.
+${cue "key" {' {normalShadowBias 2.5} {blend 1.5}}}
+${cue "key" {' {callout "shadow-slope-bias-off"}}}
+A slope bias, which grows as a surface tilts away from the sun, is computed for each cascade and uploaded.
 
 But the shader's switch for it is off, so that bias never acts.
 
-${cue "key" {' {callout "shadow-normal-offset"}}} The code shows that the normal offset depends only on the map's size, not on the cascade.
+${cue "key" {' {callout "shadow-normal-offset"}}}
+The code shows that the normal offset depends only on the map's size, not on the cascade.
 
 So a far cascade, with texels many times coarser, gets the same five millimetres as the nearest one.
 
@@ -1099,40 +1783,85 @@ So a far cascade, with texels many times coarser, gets the same five millimetres
 
 ${cue "key" {opening demoCascades panelHidden 0.6 {' {labels 0.0} {shadowFar 100.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 10.0 20.0 8.0} {pose 26.0 28.0 7.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 10.0 20.0 8.0} {pose 26.0 28.0 7.2}}}}}}}
 
-${cue "key" {' {inset "sb"} imageFromShadowBuffer {imageBlurred 0.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} ${cue "key" {' {callout "fullscreen-shadow"}}} All of this runs in a full-screen pass, once per pixel, before the forward pass.
+${cue "key" {'
+    {inset "sb"}
+    imageFromShadowBuffer
+    {imageBlurred 0.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+${cue "key" {' {callout "fullscreen-shadow"}}}
+All of this runs in a full-screen pass, once per pixel, before the forward pass.
 
 Its result is the shadow buffer, one eight bit shadow value per pixel.
 
-${cue "key" {' {callout "fullscreen-shadow-normal"}}} The normal that this pass offsets along is not the mesh's normal.
+${cue "key" {' {callout "fullscreen-shadow-normal"}}}
+The normal that this pass offsets along is not the mesh's normal.
 
 The pass rebuilds it from the depths of the pixel's neighbours, so it is the normal of the flat face.
 
-${cue "key" {' {callout "shadow-use-fullscreen"}}} Every opaque and alpha cut-out material reads this buffer in the forward pass.
+${cue "key" {' {callout "shadow-use-fullscreen"}}}
+Every opaque and alpha cut-out material reads this buffer in the forward pass.
 
 Transparent materials look up the cascades themselves.
 
 ### A binary shadow, softened in screen space {#c5-blur kind=3d}
 
-${cue "key" {opening demoCascades panelHidden 0.3 {' {labels 0.0} {shadowFar 100.0} {shadowBlur 0.0}}}}
-${cue "key" {' {cameraTarget {' -0.6 0.2 -0.4}} {cameraDistance 3.4} {cameraPitch 34.0} {cameraYaw 24.0}}}
+${cue "key" {opening demoCascades panelHidden 0.3 {'
+    {labels 0.0}
+    {shadowFar 100.0}
+    {shadowBlur 0.0}}}}
+${cue "key" {'
+    {cameraTarget {' -0.6 0.2 -0.4}}
+    {cameraDistance 3.4}
+    {cameraPitch 34.0}
+    {cameraYaw 24.0}}}
 
-${cue "key" {' {inset "raw"} imageFromShadowBuffer {imageBlurred 0.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} ${cue "key" {' {callout "shadow-filter-default"}}} The default filter is None, so the raw buffer holds hard zeros and ones, stepped at the cascade's texels.
+${cue "key" {'
+    {inset "raw"}
+    imageFromShadowBuffer
+    {imageBlurred 0.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+${cue "key" {' {callout "shadow-filter-default"}}}
+The default filter is None, so the raw buffer holds hard zeros and ones, stepped at the cascade's texels.
 
-${cue "key" {' {inset "blur"} imageFromShadowBuffer {imageBlurred 1.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} ${overCallout {' {shadowBlurRange 0.0 1.0}} "shadow-blur-settings" "A depth-aware blur then runs over the buffer, first vertically and then horizontally."}
+${cue "key" {'
+    {inset "blur"}
+    imageFromShadowBuffer
+    {imageBlurred 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+${overCallout
+    {' {shadowBlurRange 0.0 1.0}}
+    "shadow-blur-settings"
+    "A depth-aware blur then runs over the buffer, first vertically and then horizontally."}
 
 It reaches eight pixels to each side, with a constant falloff setting of two thirds.
 
-$settle ${cue "key" {' {inset "raw"} {mark 0.3 0.2 0.72 0.62} {imageMarkText "views.mark_stepped"} {blend 0.6}}} The left view is the raw buffer, with hard zeros and ones and edges stepped at the cascade's texels.
+$settle ${cue "key" {'
+    {inset "raw"}
+    {mark 0.3 0.2 0.72 0.62}
+    {imageMarkText "views.mark_stepped"}
+    {blend 0.6}}} The left view is the raw buffer, with hard zeros and ones and edges stepped at the cascade's texels.
 
-$settle ${cue "key" {' {inset "blur"} {mark 0.3 0.2 0.72 0.62} {imageMarkText "views.mark_softened"} {blend 0.6}}} The right view shows the buffer after the blur, with the same edges softened into greys.
+$settle ${cue "key" {'
+    {inset "blur"}
+    {mark 0.3 0.2 0.72 0.62}
+    {imageMarkText "views.mark_softened"}
+    {blend 0.6}}} The right view shows the buffer after the blur, with the same edges softened into greys.
 
 $settle A grey pixel is now partly in shadow, and the forward pass multiplies the sun's light by that fraction.
 
-${cue "key" {' {inset "raw"} unmark}} ${cue "key" {' {inset "blur"} unmark}} ${cue "key" {' {callout "shadow-blur-settings"}}} Where the depth's slope changes, at an object's edge, the blur stops mixing, so a shadow does not bleed onto a surface behind it.
+${cue "key" {' {inset "raw"} unmark}}
+${cue "key" {' {inset "blur"} unmark}}
+${cue "key" {' {callout "shadow-blur-settings"}}}
+Where the depth's slope changes, at an object's edge, the blur stops mixing, so a shadow does not bleed onto a surface behind it.
 
-${cue "key" {' {callout "pcf-squared"}}} Two softer filters exist as options, percentage-closer filtering and exponential shadow maps, but the lab does not port them.
+${cue "key" {' {callout "pcf-squared"}}}
+Two softer filters exist as options, percentage-closer filtering and exponential shadow maps, but the lab does not port them.
 
 Percentage-closer filtering, or PCF, averages the compare over nearby texels.
 
@@ -1141,24 +1870,37 @@ The code shows that the PCF kernels square their result.
 ### Spot and point shadows live in an atlas {#c5-local kind=3d}
 
 ${cue "key" {opening demoCascades panelHidden 0.8 {' {labels 0.0} {shadowFar 100.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 12.0 22.0 7.8} {pose 24.0 28.0 7.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 12.0 22.0 7.8} {pose 24.0 28.0 7.2}}}}}}}
 
-${cue "key" {' {callout "shadow-atlas"}}} Spot, disk, and sphere lights can cast shadows too, but their shadows are off by default.
+${cue "key" {' {callout "shadow-atlas"}}}
+Spot, disk, and sphere lights can cast shadows too, but their shadows are off by default.
 
 Their maps share one atlas, a large texture that holds many maps side by side.
 
-${cue "key" {' {callout "point-shadow-faces"}}} A sphere light needs six maps, one per face of a cube around it.
+${cue "key" {' {callout "point-shadow-faces"}}}
+A sphere light needs six maps, one per face of a cube around it.
 
 Each map has a ninety-one degree field of view, so the faces overlap at their seams.
 
-${cue "key" {' {callout "shadow-atlas"}}} Maps of different sizes are packed into the atlas like a quadtree, each at least two hundred and fifty-six texels on a side.
+${cue "key" {' {callout "shadow-atlas"}}}
+Maps of different sizes are packed into the atlas like a quadtree, each at least two hundred and fifty-six texels on a side.
 
 ### The shadow, ready before the light {#c5-recap kind=3d}
 
 ${cue "key" {opening demoCascades panelHidden 1.0 {' {labels 0.0} {shadowFar 100.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 28.0 26.0 7.5} {pose 8.0 20.0 8.2} {pose 24.0 30.0 7.2}}} {path {' sunYaw} {' {' 55.0} {' 30.0}} beat}}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 28.0 26.0 7.5} {pose 8.0 20.0 8.2} {pose 24.0 30.0 7.2}}}
+        {path {' sunYaw} {' {' 55.0} {' 30.0}} beat}}}}}
 
-${cue "key" {' {inset "blur"} imageFromShadowBuffer {imageBlurred 1.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} So the sun's shadow is computed once per pixel, from four cascades, before any light is shaded.
+${cue "key" {'
+    {inset "blur"}
+    imageFromShadowBuffer
+    {imageBlurred 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+So the sun's shadow is computed once per pixel, from four cascades, before any light is shaded.
 
 The forward pass only reads one number per pixel, and the blur makes a hard compare look soft.
 
@@ -1175,23 +1917,51 @@ These are the files and lines this chapter followed, in reading order.
 ### Two cubemaps: one for diffuse, one for specular {#c6-two kind=3d}
 
 ${cue "key" {opening demoIbl panelHidden 0.6 {' {labels 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 4.0 6.0 3.9} {pose 18.0 14.0 3.4}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 4.0 6.0 3.9} {pose 18.0 14.0 3.4}}}}}}}
 
 The sky's light reaches the frame through two cubemaps, made from the sky image when the assets are built.
 
-${cue "key" {' {inset "spec"} imageFromCubemap {imageMip 0.0} imageCornerTopLeft {imageTitle "views.cubemap_specular"}}} ${cue "key" {' {inset "spec"} {imageMip 5.0} {blend 6.0}}} ${cue "key" {' {callout "specular-preset"}}} The specular cubemap has six mips, with two hundred and fifty-six texels a side at the top by default.
+${cue "key" {'
+    {inset "spec"}
+    imageFromCubemap
+    {imageMip 0.0}
+    imageCornerTopLeft
+    {imageTitle "views.cubemap_specular"}}}
+${cue "key" {' {inset "spec"} {imageMip 5.0} {blend 6.0}}}
+${cue "key" {' {callout "specular-preset"}}}
+The specular cubemap has six mips, with two hundred and fifty-six texels a side at the top by default.
 
 Each smaller mip is prefiltered for a rougher surface.
 
-${cue "key" {' {inset "diff"} imageFromCubemap {imageDiffuse 1.0} imageCornerTopRight {imageTitle "views.cubemap_diffuse"}}} ${cue "key" {' {callout "diffuse-preset"}}} The diffuse cubemap is the sky convolved with a cosine over the whole hemisphere.
+${cue "key" {'
+    {inset "diff"}
+    imageFromCubemap
+    {imageDiffuse 1.0}
+    imageCornerTopRight
+    {imageTitle "views.cubemap_diffuse"}}}
+${cue "key" {' {callout "diffuse-preset"}}}
+The diffuse cubemap is the sky convolved with a cosine over the whole hemisphere.
 
 Each of its texels holds the average light arriving at one normal, and it has one small mip.
 
-$settle ${cue "key" {' {inset "spec"} {mark 0.25 0.0 0.5 0.34} {imageMarkText "views.mark_up_face"} {blend 0.6}}} Each cube is unfolded into a cross, with the face that looks up on top.
+$settle ${cue "key" {'
+    {inset "spec"}
+    {mark 0.25 0.0 0.5 0.34}
+    {imageMarkText "views.mark_up_face"}
+    {blend 0.6}}} Each cube is unfolded into a cross, with the face that looks up on top.
 
-$settle ${cue "key" {' {inset "spec"} {mark 0.0 0.33 1.0 0.67} {imageMarkText "views.mark_sides"} {blend 0.6}}} The four faces that look around the horizon sit in a row, and they show the trees and the field.
+$settle ${cue "key" {'
+    {inset "spec"}
+    {mark 0.0 0.33 1.0 0.67}
+    {imageMarkText "views.mark_sides"}
+    {blend 0.6}}} The four faces that look around the horizon sit in a row, and they show the trees and the field.
 
-$settle ${cue "key" {' {inset "spec"} {mark 0.25 0.66 0.5 1.0} {imageMarkText "views.mark_down_face"} {blend 0.6}}} The face looking down is below it.
+$settle ${cue "key" {'
+    {inset "spec"}
+    {mark 0.25 0.66 0.5 1.0}
+    {imageMarkText "views.mark_down_face"}
+    {blend 0.6}}} The face looking down is below it.
 
 $settle A direction from the cube's centre picks a point on one face, and every lookup reads the cube that way.
 
@@ -1199,27 +1969,47 @@ $settle The specular cube on the left shows its sharpest mip.
 
 $settle The diffuse cube on the right is the same sky averaged over half a sphere, so it is almost flat.
 
-${cue "key" {' {inset "spec"} unmark}} ${overCallout {' {iblExposureRange -2.0 1.0}} "ibl-srg" "Both cubes are bound for the whole scene, with one exposure and one orientation."}
+${cue "key" {' {inset "spec"} unmark}}
+${overCallout
+    {' {iblExposureRange -2.0 1.0}}
+    "ibl-srg"
+    "Both cubes are bound for the whole scene, with one exposure and one orientation."}
 
 The lab builds them from its own sky, at the same sizes.
 
 ### Diffuse IBL: one lookup by the normal {#c6-diffuse kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 0.6 {append baseLight {' {labels 0.0} {forwardStage 0.0}}}}}
+${cue "key" {opening demoRoom panelHidden 0.6 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 0.0}}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 18.0 5.8} {pose 2.0 14.0 6.2} {pose 16.0 20.0 5.6}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 18.0 5.8} {pose 2.0 14.0 6.2} {pose 16.0 20.0 5.6}}}}}}}
 
-${cue "key" {' {inset "diff"} imageFromCubemap {imageDiffuse 1.0} imageCornerTopLeft {imageTitle "views.cubemap_diffuse"}}} ${cue "key" {' {callout "ibl-diffuse-lookup"}}} For P, diffuse image-based light is a single lookup of that cubemap along P's normal.
+${cue "key" {'
+    {inset "diff"}
+    imageFromCubemap
+    {imageDiffuse 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.cubemap_diffuse"}}}
+${cue "key" {' {callout "ibl-diffuse-lookup"}}}
+For P, diffuse image-based light is a single lookup of that cubemap along P's normal.
 
 The ring in the diffuse cross marks that direction.
 
-${overCallout {' {forwardStageRange 0.0 1.0}} "diffuse-global" "A full-screen pass multiplies that light by the albedo target, which already holds the diffuse response and occlusion."}
+${overCallout
+    {' {forwardStageRange 0.0 1.0}}
+    "diffuse-global"
+    "A full-screen pass multiplies that light by the albedo target, which already holds the diffuse response and occlusion."}
 
 It adds the result to the diffuse target.
 
-${cue "key" {chainTarget "st" 6.0 imageCornerTopRight {' {imageTitle "views.stencil"}}}} ${cue "key" {' {callout "diffuse-global-stencil"}}} The pass runs only on pixels whose stencil has the top bit, one hundred and twenty-eight, from chapter one.
+${cue "key" {chainTarget "st" 6.0 imageCornerTopRight {' {imageTitle "views.stencil"}}}}
+${cue "key" {' {callout "diffuse-global-stencil"}}}
+The pass runs only on pixels whose stencil has the top bit, one hundred and twenty-eight, from chapter one.
 
-${cue "key" {' {callout "diffuse-composite"}}} Projects made from O3DE's default template replace that pass with a gem, O3DE's name for an optional module.
+${cue "key" {' {callout "diffuse-composite"}}}
+Projects made from O3DE's default template replace that pass with a gem, O3DE's name for an optional module.
 
 That gem is the diffuse probe grid, which lights rooms from a grid of light probes.
 
@@ -1228,104 +2018,184 @@ The gem's own pass adds the grid's light, and it applies the same sky light wher
 ### Specular IBL: the reflection, a mip chosen by roughness {#c6-specular kind=3d}
 
 ${cue "key" {opening demoIbl panelValues 0.4 {' {labels 0.0} {sphereRoughness 0.05}}}}
-${cue "key" {' {inspectX -1.05} {inspectY 1.24} {inspectZ -0.55} {inspectNX 0.0} {inspectNY 1.0} {inspectNZ 0.0} {inspectObject 5.0} {pickShown 1.0}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 6.0 8.0 3.8} {pose 18.0 12.0 3.5}}}}}}}
+${cue "key" {'
+    {inspectX -1.05}
+    {inspectY 1.24}
+    {inspectZ -0.55}
+    {inspectNX 0.0}
+    {inspectNY 1.0}
+    {inspectNZ 0.0}
+    {inspectObject 5.0}
+    {pickShown 1.0}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 6.0 8.0 3.8} {pose 18.0 12.0 3.5}}}}}}}
 
-${cue "key" {' {inset "spec"} imageFromCubemap {imageMip -1.0} imageCornerTopLeft {imageTitle "views.cubemap_specular"}}} ${cue "key" {' {callout "reflection-global"}}} For specular, the pass reflects the view about the normal, and looks up the specular cubemap along that direction.
+${cue "key" {'
+    {inset "spec"}
+    imageFromCubemap
+    {imageMip -1.0}
+    imageCornerTopLeft
+    {imageTitle "views.cubemap_specular"}}}
+${cue "key" {' {callout "reflection-global"}}}
+For specular, the pass reflects the view about the normal, and looks up the specular cubemap along that direction.
 
 The specular cross now shows the mip that P reads.
 
 The ring marks where P's reflected ray points, and the mip blurs as P's roughness rises.
 
-${overCallout {' {sphereRoughnessRange 0.05 0.95}} "roughness-mip" "The pass reads at mip level roughness times five, blending the two nearest mips, so a rougher surface reads a blurrier sky."}
+${overCallout
+    {' {sphereRoughnessRange 0.05 0.95}}
+    "roughness-mip"
+    "The pass reads at mip level roughness times five, blending the two nearest mips, so a rougher surface reads a blurrier sky."}
 
-${cue "key" {' {callout "cubemap-ggx"}}} Each mip m was prefiltered with the GGX lobe of roughness m over five, using two hundred and fifty-six samples per texel.
+${cue "key" {' {callout "cubemap-ggx"}}}
+Each mip m was prefiltered with the GGX lobe of roughness m over five, using two hundred and fifty-six samples per texel.
 
 So the mip a surface reads matches its own lobe.
 
-${cue "key" {' {sphereRoughness 0.3} {blend 1.5}}} The ringed area is the sky that this point of the sphere reflects.
+${cue "key" {' {sphereRoughness 0.3} {blend 1.5}}}
+The ringed area is the sky that this point of the sphere reflects.
 
 ### The split sum: the cube times F zero A plus B {#c6-splitsum kind=3d}
 
 ${cue "key" {opening demoIbl panelValues 0.4 {' {labels 0.0} {sphereRoughness 0.3}}}}
-${cue "key" {' {inspectX -1.05} {inspectY 1.24} {inspectZ -0.55} {inspectNX 0.0} {inspectNY 1.0} {inspectNZ 0.0} {inspectObject 5.0} {pickShown 1.0}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 6.0 8.0 3.8} {pose 18.0 12.0 3.5}}}}}}}
+${cue "key" {'
+    {inspectX -1.05}
+    {inspectY 1.24}
+    {inspectZ -0.55}
+    {inspectNX 0.0}
+    {inspectNY 1.0}
+    {inspectNZ 0.0}
+    {inspectObject 5.0}
+    {pickShown 1.0}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 6.0 8.0 3.8} {pose 18.0 12.0 3.5}}}}}}}
 
-${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}} ${overCallout {' {sphereRoughnessRange 0.1 0.8}} "reflection-global" "The prefiltered colour is then multiplied by the reflection factor of chapter four, F zero times A, plus B."}
+${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}}
+${overCallout
+    {' {sphereRoughnessRange 0.1 0.8}}
+    "reflection-global"
+    "The prefiltered colour is then multiplied by the reflection factor of chapter four, F zero times A, plus B."}
 
 In the look-up view, the ring marks P's texel, whose red is A and whose green is B.
 
-${cue "key" {' {callout "reflection-global"}}} This is the split sum, which splits an integral over the hemisphere into two pieces computed ahead of time.
+${cue "key" {' {callout "reflection-global"}}}
+This is the split sum, which splits an integral over the hemisphere into two pieces computed ahead of time.
 
 The light is in the cube, and the reflection's response is in the texture.
 
-${overCallout {' {iblExposureRange 0.0 1.0}} "reflection-global-weight" "The result is scaled by two to the power of the sky's exposure setting."}
+${overCallout
+    {' {iblExposureRange 0.0 1.0}}
+    "reflection-global-weight"
+    "The result is scaled by two to the power of the sky's exposure setting."}
 
 The reflection is also scaled by the specular occlusion, from the fourth channel of the albedo target.
 
 ### A reflection probe: a local cube for a box of space {#c6-probe kind=3d}
 
 ${cue "key" {opening demoReflections panelHidden 0.6 {' {labels 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 4.0 14.0 6.8} {pose 16.0 22.0 6.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 4.0 14.0 6.8} {pose 16.0 22.0 6.2}}}}}}}
 
 The sky's cubemap was made outside the room, so the floor reflects a sky it should not see.
 
 A reflection probe fixes that.
 
-${cue "key" {' {probeCubemap 0.0}}} ${overCallout {' {probeCubemapRange 0.0 1.0}} "probe-bake-capture" "A probe renders the room around it into its own cubemap, then prefilters it like the sky's."}
+${cue "key" {' {probeCubemap 0.0}}}
+${overCallout
+    {' {probeCubemapRange 0.0 1.0}}
+    "probe-bake-capture"
+    "A probe renders the room around it into its own cubemap, then prefilters it like the sky's."}
 
-${cue "key" {' {probeCubemap 0.0} {blend 1.0}}} ${overCallout {' {probeBoxesRange 0.0 1.0}} "probe-defaults" "Each probe has an outer box, where its reflection fades in, and an inner box, where it replaces everything else."}
+${cue "key" {' {probeCubemap 0.0} {blend 1.0}}}
+${overCallout
+    {' {probeBoxesRange 0.0 1.0}}
+    "probe-defaults"
+    "Each probe has an outer box, where its reflection fades in, and an inner box, where it replaces everything else."}
 
-${cue "key" {' viewModeProbeStencil}} ${cue "key" {' {callout "probe-stencil"}}} A stencil pass counts how many inner boxes hold each pixel's surface.
+${cue "key" {' viewModeProbeStencil}}
+${cue "key" {' {callout "probe-stencil"}}}
+A stencil pass counts how many inner boxes hold each pixel's surface.
 
 The count starts from three, because a mesh writes three into the two low bits, as chapter one showed.
 
 Each inner box that holds the surface adds one, so later passes know how deeply each pixel's probes are nested.
 
-${over {' {probeInnerScaleRange 0.2 0.9}} {cat {' {text " "} {cue "key" {' viewModeProbeWeight}} {text " "} {cue "key" {' {callout "probe-blend-weight"}}} {text " Between the boxes, a weight ramps from zero at the outer box to one at the inner box."}}}}
+${over
+    {' {probeInnerScaleRange 0.2 0.9}}
+    {cat {'
+        {text " "}
+        {cue "key" {' viewModeProbeWeight}}
+        {text " "}
+        {cue "key" {' {callout "probe-blend-weight"}}}
+        {text
+            " Between the boxes, a weight ramps from zero at the outer box to one at the inner box."}}}}
 
 The weights of all probes add up in a target of their own.
 
 ### Parallax correction: aim where the ray meets the box {#c6-parallax kind=3d}
 
-${cue "key" {opening demoReflections panelHidden 0.4 {' {labels 0.0} viewModeFinal {probeParallax 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 6.0 16.0 6.7} {pose 16.0 22.0 6.2}}}}}}}
+${cue "key" {opening demoReflections panelHidden 0.4 {'
+    {labels 0.0}
+    viewModeFinal
+    {probeParallax 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 6.0 16.0 6.7} {pose 16.0 22.0 6.2}}}}}}}
 
 ${cue "key" {' {callout "parallax-obb"}}} A cubemap holds the room as seen from one point.
 
 So a reflection read straight from it lands in the wrong place, on any part of the floor far from that point.
 
-${overCallout {' {probeParallaxRange 0.0 1.0}} "parallax-obb" "Parallax correction traces the reflected ray out to the point where it hits the probe's outer box."}
+${overCallout
+    {' {probeParallaxRange 0.0 1.0}}
+    "parallax-obb"
+    "Parallax correction traces the reflected ray out to the point where it hits the probe's outer box."}
 
 The lookup then aims at that hit point, so the reflections slide into line with the room.
 
-${overCallout {' {floorRoughnessRange 0.05 0.4}} "parallax-obb" "The correction assumes that the room is the box and the probe sits at its centre."}
+${overCallout
+    {' {floorRoughnessRange 0.05 0.4}}
+    "parallax-obb"
+    "The correction assumes that the room is the box and the probe sits at its centre."}
 
 So the correction is exact only for walls that lie on the faces of the box.
 
 ### Probes and the sky blend by weight {#c6-blend kind=3d}
 
-${cue "key" {opening demoReflections panelValues 0.4 {' {labels 0.0} viewModeFinal {probeParallax 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 6.0 16.0 6.7} {pose 16.0 22.0 6.2}}}}}}}
+${cue "key" {opening demoReflections panelValues 0.4 {'
+    {labels 0.0}
+    viewModeFinal
+    {probeParallax 1.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 6.0 16.0 6.7} {pose 16.0 22.0 6.2}}}}}}}
 
-${overCallout {' {probeInnerScaleRange 0.9 0.2}} "reflection-global-weight" "The sky's reflection is drawn first, weighted by one minus the probes' total weight."}
+${overCallout
+    {' {probeInnerScaleRange 0.9 0.2}}
+    "reflection-global-weight"
+    "The sky's reflection is drawn first, weighted by one minus the probes' total weight."}
 
-${cue "key" {' {callout "probe-render-outer"}}} Each probe then adds its own reflection, and where probes overlap, each probe's weight is divided by the sum of all their weights.
+${cue "key" {' {callout "probe-render-outer"}}}
+Each probe then adds its own reflection, and where probes overlap, each probe's weight is divided by the sum of all their weights.
 
-${cue "key" {' {probeInnerScale 0.55} {blend 1.5}}} ${cue "key" {' {callout "probe-render-inner"}}} Inside an inner box, the probe overwrites the result at full weight.
+${cue "key" {' {probeInnerScale 0.55} {blend 1.5}}}
+${cue "key" {' {callout "probe-render-inner"}}}
+Inside an inner box, the probe overwrites the result at full weight.
 
 With nested probes, the smallest is drawn last, so it wins.
 
 ### Read from the code: what the probes leave out {#c6-findings kind=3d}
 
 ${cue "key" {opening demoReflections panelHidden 0.6 {' {labels 0.0} viewModeFinal}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 2.0 14.0 6.8} {pose 16.0 22.0 6.2}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 20.0 6.4} {pose 2.0 14.0 6.8} {pose 16.0 22.0 6.2}}}}}}}
 
-${cue "key" {' {callout "probe-render-outer"}}} The code shows that the probe passes are not given the albedo target.
+${cue "key" {' {callout "probe-render-outer"}}}
+The code shows that the probe passes are not given the albedo target.
 
 So the specular occlusion in the albedo target's fourth channel never reaches a probe's reflection, and only the sky's reflection is occluded.
 
-${cue "key" {' {callout "reflection-clear"}}} The code also clears the reflection target to a grey of zero point four.
+${cue "key" {' {callout "reflection-clear"}}}
+The code also clears the reflection target to a grey of zero point four.
 
 Some pixels inside an inner box have image-based light switched off.
 
@@ -1335,25 +2205,39 @@ Both findings come from reading the code, not from running the engine.
 
 ### Two more sources, off or out of reach {#c6-ssr-dpg kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0} {forwardStage 3.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose 0.0 14.0 6.6} {pose 16.0 18.0 6.0}}}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 3.0}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose 0.0 14.0 6.6} {pose 16.0 18.0 6.0}}}}}}}
 
-${cue "key" {' {callout "ssr-default-off"}}} Screen-space reflections, which trace rays against the depth buffer, also exist.
+${cue "key" {' {callout "ssr-default-off"}}}
+Screen-space reflections, which trace rays against the depth buffer, also exist.
 
 They trace at half resolution, with ninety-six steps per ray.
 
 But they are off unless a level adds the component that enables them.
 
-${cue "key" {' {callout "diffuse-composite"}}} The diffuse probe grid traces rays from probes to give rooms bounced diffuse light.
+${cue "key" {' {callout "diffuse-composite"}}}
+The diffuse probe grid traces rays from probes to give rooms bounced diffuse light.
 
 Its update shaders ship only as compiled binaries, so only the pass that adds its light can be read.
 
 ### Light from everything around {#c6-recap kind=3d}
 
 ${cue "key" {opening demoIbl panelHidden 1.0 {' {labels 0.0} {sphereRoughness 0.3}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 0.0 6.0 3.9} {pose 16.0 14.0 3.4}}} {path {' sphereRoughness} {' {' 0.7} {' 0.15}} beat}}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 20.0 10.0 3.6} {pose 0.0 6.0 3.9} {pose 16.0 14.0 3.4}}}
+        {path {' sphereRoughness} {' {' 0.7} {' 0.15}} beat}}}}}
 
-${cue "key" {' {inset "spec"} imageFromCubemap {imageMip -1.0} imageCornerTopLeft {imageTitle "views.cubemap_specular"}}} So the sky's light is prefiltered once, into cubes and a texture, and each pixel then pays for only two lookups and a multiply.
+${cue "key" {'
+    {inset "spec"}
+    imageFromCubemap
+    {imageMip -1.0}
+    imageCornerTopLeft
+    {imageTitle "views.cubemap_specular"}}}
+So the sky's light is prefiltered once, into cubes and a texture, and each pixel then pays for only two lookups and a multiply.
 
 Probes replace the sky where a room needs its own reflection.
 
@@ -1373,23 +2257,51 @@ These are the files and lines this chapter followed, in reading order.
 
 ${cue "key" {opening demoSsao panelHidden 0.6 {' {labels 0.0} viewModeFinal {ssao 0.0}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {cameraTarget {' -0.25 0.15 -1.55}} {cameraDistance 1.5} {cameraPitch 24.0} {cameraYaw -28.0}}}
+${cue "key" {'
+    {cameraTarget {' -0.25 0.15 -1.55}}
+    {cameraDistance 1.5}
+    {cameraPitch 24.0}
+    {cameraYaw -28.0}}}
 
-${cue "key" {' {motion {' {path {' cameraYaw cameraPitch cameraDistance} {' {' 30.0 18.0 2.4} {' 8.0 26.0 2.8}} sentence}}}}} Image-based light assumes that the whole sky is visible.
+${cue "key" {'
+    {motion {'
+        {path
+            {' cameraYaw cameraPitch cameraDistance}
+            {' {' 30.0 18.0 2.4} {' 8.0 26.0 2.8}}
+            sentence}}}}}
+Image-based light assumes that the whole sky is visible.
 
 But near the teapot's foot, the floor and the pot hide much of the sky.
 
-${overCallout {' {ssaoRange 0.0 1.0}} "ssao-default" "Screen-space ambient occlusion, or SSAO, is on by default."}
+${overCallout
+    {' {ssaoRange 0.0 1.0}}
+    "ssao-default"
+    "Screen-space ambient occlusion, or SSAO, is on by default."}
 
 It darkens where nearby geometry hides the sky, and it uses nothing but the depth buffer.
 
-${cue "key" {' {inset "raw"} imageFromSsaoStage {imageStage 1.0} imageCornerTopLeft {imageTitle "views.ssao_stage"}}} ${cue "key" {' {callout "ssao-order"}}} SSAO runs after the forward pass and the sky's light.
+${cue "key" {'
+    {inset "raw"}
+    imageFromSsaoStage
+    {imageStage 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.ssao_stage"}}}
+${cue "key" {' {callout "ssao-order"}}}
+SSAO runs after the forward pass and the sky's light.
 
 It reads a half-resolution copy of the linear depth, and writes an eight bit target.
 
-$settle ${cue "key" {' {inset "raw"} {mark 0.0 0.5 0.42 1.0} {imageMarkText "views.mark_unoccluded"} {blend 0.6}}} The view shows that target, one byte per pixel at half resolution, and it is white where nothing occludes.
+$settle ${cue "key" {'
+    {inset "raw"}
+    {mark 0.0 0.5 0.42 1.0}
+    {imageMarkText "views.mark_unoccluded"}
+    {blend 0.6}}} The view shows that target, one byte per pixel at half resolution, and it is white where nothing occludes.
 
-$settle ${cue "key" {' {inset "raw"} {mark 0.3 0.22 1.0 0.48} {imageMarkText "views.mark_crease"} {blend 0.6}}} It is darker in the creases, like where the wall meets the floor.
+$settle ${cue "key" {'
+    {inset "raw"}
+    {mark 0.3 0.22 1.0 0.48}
+    {imageMarkText "views.mark_crease"}
+    {blend 0.6}}} It is darker in the creases, like where the wall meets the floor.
 
 $settle There, many of the depth samples around a pixel land on the other surface, above the pixel's own surface.
 
@@ -1397,15 +2309,37 @@ $settle The darker a pixel, the less of the sky's diffuse light it keeps.
 
 ### Fifty-two samples around P, weighted by distance {#c7-samples kind=3d}
 
-${cue "key" {opening demoSsao panelValues 0.3 {' {labels 0.0} viewModeFinal {ssao 1.0} {ssaoSamples 0.0}}}}
-${cue "key" {' {inspectX -0.25} {inspectY 0.0} {inspectZ -1.4} {inspectNX 0.0} {inspectNY 1.0} {inspectNZ 0.0} {inspectObject 0.0} {pickShown 1.0}}}
-${cue "key" {' {cameraTarget {' -0.3 0.2 -1.55}} {cameraDistance 1.6} {cameraPitch 26.0} {cameraYaw 22.0}}}
+${cue "key" {opening demoSsao panelValues 0.3 {'
+    {labels 0.0}
+    viewModeFinal
+    {ssao 1.0}
+    {ssaoSamples 0.0}}}}
+${cue "key" {'
+    {inspectX -0.25}
+    {inspectY 0.0}
+    {inspectZ -1.4}
+    {inspectNX 0.0}
+    {inspectNY 1.0}
+    {inspectNZ 0.0}
+    {inspectObject 0.0}
+    {pickShown 1.0}}}
+${cue "key" {'
+    {cameraTarget {' -0.3 0.2 -1.55}}
+    {cameraDistance 1.6}
+    {cameraPitch 26.0}
+    {cameraYaw 22.0}}}
 
-${cue "key" {' {glide cameraYaw 34.0 sentence}}} ${cue "key" {' {callout "ssao-view-position"}}} We follow a floor point at the teapot's foot.
+${cue "key" {' {glide cameraYaw 34.0 sentence}}}
+${cue "key" {' {callout "ssao-view-position"}}}
+We follow a floor point at the teapot's foot.
 
 For that point's half-resolution pixel, the shader rebuilds the position in view space from the depth.
 
-${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {' {imageChannel 5.0} {imageTitle "views.target_normal"}}}} ${cue "key" {' {callout "ssao-normal"}}} Its normal is rebuilt from the neighbours' depths too.
+${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {'
+    {imageChannel 5.0}
+    {imageTitle "views.target_normal"}}}}
+${cue "key" {' {callout "ssao-normal"}}}
+Its normal is rebuilt from the neighbours' depths too.
 
 On each axis, the shader looks at the two neighbours, and uses the one whose depth is closer to the point's.
 
@@ -1415,13 +2349,27 @@ Because the normal comes from depth, normal maps never reach SSAO.
 
 The normal view reads as in chapter one, with colour as direction, green up and blue toward the camera.
 
-${over {' {ssaoSamplesRange 0.0 12.0}} {cat {' {text " "} {cue "key" {' {imageHide {' "n"}}}} {text " "} {cue "key" {' {callout "ssao-local-samples"}}} {text " First come twelve fixed samples, four and eight pixels away, in a cross and its diagonals."}}}}
+${over
+    {' {ssaoSamplesRange 0.0 12.0}}
+    {cat {'
+        {text " "}
+        {cue "key" {' {imageHide {' "n"}}}}
+        {text " "}
+        {cue "key" {' {callout "ssao-local-samples"}}}
+        {text
+            " First come twelve fixed samples, four and eight pixels away, in a cross and its diagonals."}}}}
 
-${overCallout {' {ssaoSamplesRange 12.0 52.0}} "ssao-compute" "Then forty more samples follow along a spiral, in ten rounds of four."}
+${overCallout
+    {' {ssaoSamplesRange 12.0 52.0}}
+    "ssao-compute"
+    "Then forty more samples follow along a spiral, in ten rounds of four."}
 
 The spiral is shared between the sixteen pixels of a four by four block.
 
-${cue "key" {' {motion {' {path {' cameraYaw cameraPitch} {' {' 40.0 14.0} {' 10.0 30.0}} sentence}}}}} ${cue "key" {' {callout "ssao-accumulate"}}} Each sample counts by how far it rises above the point's surface.
+${cue "key" {'
+    {motion {' {path {' cameraYaw cameraPitch} {' {' 40.0 14.0} {' 10.0 30.0}} sentence}}}}}
+${cue "key" {' {callout "ssao-accumulate"}}}
+Each sample counts by how far it rises above the point's surface.
 
 That rise is measured as the cosine between the normal and the direction to the sample.
 
@@ -1435,81 +2383,179 @@ No test drops a sample for being too far away, so a far sample fades only throug
 
 ### The radius is a share of the screen, not metres {#c7-radius kind=3d}
 
-${cue "key" {opening demoSsao panelValues 0.3 {' {labels 0.0} viewModeFinal {ssao 1.0} {ssaoSamples 52.0}}}}
-${cue "key" {' {inspectX -0.25} {inspectY 0.0} {inspectZ -1.4} {inspectNX 0.0} {inspectNY 1.0} {inspectNZ 0.0} {inspectObject 0.0} {pickShown 1.0}}}
-${cue "key" {' {cameraTarget {' -0.3 0.2 -1.55}} {cameraDistance 1.6} {cameraPitch 26.0} {cameraYaw 22.0}}}
+${cue "key" {opening demoSsao panelValues 0.3 {'
+    {labels 0.0}
+    viewModeFinal
+    {ssao 1.0}
+    {ssaoSamples 52.0}}}}
+${cue "key" {'
+    {inspectX -0.25}
+    {inspectY 0.0}
+    {inspectZ -1.4}
+    {inspectNX 0.0}
+    {inspectNY 1.0}
+    {inspectNZ 0.0}
+    {inspectObject 0.0}
+    {pickShown 1.0}}}
+${cue "key" {'
+    {cameraTarget {' -0.3 0.2 -1.55}}
+    {cameraDistance 1.6}
+    {cameraPitch 26.0}
+    {cameraYaw 22.0}}}
 
-${cue "key" {' {callout "ssao-radius"}}} The spiral's radius is five percent of the half-resolution image's height.
+${cue "key" {' {callout "ssao-radius"}}}
+The spiral's radius is five percent of the half-resolution image's height.
 
 At ten eighty, that is twenty-seven half-resolution pixels.
 
-${cue "key" {' {glide cameraDistance 4.5 sentence}}} ${cue "key" {' {callout "ssao-radius"}}} So the radius does not scale with distance.
+${cue "key" {' {glide cameraDistance 4.5 sentence}}}
+${cue "key" {' {callout "ssao-radius"}}}
+So the radius does not scale with distance.
 
 As the camera pulls back, the same disc on screen reaches much farther across the room.
 
-${overCallout {' {ssaoRadiusRange 0.02 0.1}} "ssao-defaults" "A larger radius spreads the darkening wider and softer."}
+${overCallout
+    {' {ssaoRadiusRange 0.02 0.1}}
+    "ssao-defaults"
+    "A larger radius spreads the darkening wider and softer."}
 
 ### One minus AO, to the power 2.2, blurred and upsampled {#c7-output kind=3d}
 
-${cue "key" {opening demoSsao panelValues 0.4 {' {labels 0.0} viewModeFinal {ssao 1.0} {ssaoSamples 0.0} {ssaoRadius 0.05}}}}
-${cue "key" {' {cameraTarget {' -0.3 0.3 -1.6}} {cameraDistance 2.6} {cameraPitch 22.0} {cameraYaw 18.0}}}
+${cue "key" {opening demoSsao panelValues 0.4 {'
+    {labels 0.0}
+    viewModeFinal
+    {ssao 1.0}
+    {ssaoSamples 0.0}
+    {ssaoRadius 0.05}}}}
+${cue "key" {'
+    {cameraTarget {' -0.3 0.3 -1.6}}
+    {cameraDistance 2.6}
+    {cameraPitch 22.0}
+    {cameraYaw 18.0}}}
 
-${cue "key" {' {inset "raw"} imageFromSsaoStage {imageStage 1.0} imageCornerTopLeft {imageTitle "views.ssao_stage"}}} ${overCallout {' {ssaoStrengthRange 0.5 1.5}} "ssao-compute" "The pass multiplies the occlusion by a strength setting, and stores one minus the result."}
+${cue "key" {'
+    {inset "raw"}
+    imageFromSsaoStage
+    {imageStage 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.ssao_stage"}}}
+${overCallout
+    {' {ssaoStrengthRange 0.5 1.5}}
+    "ssao-compute"
+    "The pass multiplies the occlusion by a strength setting, and stores one minus the result."}
 
 That value is raised to the power two point two, and kept in eight bits.
 
-${cue "key" {' {ssaoStrength 1.0} {blend 1.0}}} ${cue "key" {' {inset "blur"} imageFromSsaoStage {imageStage 2.0} imageCornerTopLeft {imageTitle "views.ssao_stage"}}} ${overCallout {' {ssaoBlurRange 0.0 1.0}} "blur-step" "A depth-aware blur smooths the noise that the fixed sample pattern leaves."}
+${cue "key" {' {ssaoStrength 1.0} {blend 1.0}}}
+${cue "key" {'
+    {inset "blur"}
+    imageFromSsaoStage
+    {imageStage 2.0}
+    imageCornerTopLeft
+    {imageTitle "views.ssao_stage"}}}
+${overCallout
+    {' {ssaoBlurRange 0.0 1.0}}
+    "blur-step"
+    "A depth-aware blur smooths the noise that the fixed sample pattern leaves."}
 
 It reaches eight pixels each way, and it stops at depth edges.
 
-${cue "key" {' {inset "up"} imageFromSsaoStage {imageStage 3.0} imageCornerTopLeft {imageTitle "views.ssao_stage"}}} ${cue "key" {' {callout "depth-upsample"}}} An upsample then brings the result back to full resolution.
+${cue "key" {'
+    {inset "up"}
+    imageFromSsaoStage
+    {imageStage 3.0}
+    imageCornerTopLeft
+    {imageTitle "views.ssao_stage"}}}
+${cue "key" {' {callout "depth-upsample"}}}
+An upsample then brings the result back to full resolution.
 
 It weighs the four nearest values by how close their depth is, so the dark does not bleed across a silhouette.
 
-$settle ${cue "key" {' {inset "raw"} {mark 0.0 0.0 1.0 1.0} {imageMarkText "views.mark_raw"} {blend 0.6}}} The first view is the raw half-resolution result, with the fixed pattern's noise.
+$settle ${cue "key" {'
+    {inset "raw"}
+    {mark 0.0 0.0 1.0 1.0}
+    {imageMarkText "views.mark_raw"}
+    {blend 0.6}}} The first view is the raw half-resolution result, with the fixed pattern's noise.
 
-$settle ${cue "key" {' {inset "blur"} {mark 0.0 0.0 1.0 1.0} {imageMarkText "views.mark_blurred"} {blend 0.6}}} The next view is after the depth-aware blur, smoother but with its edges still sharp.
+$settle ${cue "key" {'
+    {inset "blur"}
+    {mark 0.0 0.0 1.0 1.0}
+    {imageMarkText "views.mark_blurred"}
+    {blend 0.6}}} The next view is after the depth-aware blur, smoother but with its edges still sharp.
 
-$settle ${cue "key" {' {inset "up"} {mark 0.0 0.0 1.0 1.0} {imageMarkText "views.mark_upsampled"} {blend 0.6}}} The last view is the full-resolution upsample, which the diffuse light is multiplied by.
+$settle ${cue "key" {'
+    {inset "up"}
+    {mark 0.0 0.0 1.0 1.0}
+    {imageMarkText "views.mark_upsampled"}
+    {blend 0.6}}} The last view is the full-resolution upsample, which the diffuse light is multiplied by.
 
 ### Finding: SSAO multiplies all diffuse light, direct too {#c7-where kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 0.4 {append baseLight {' {labels 0.0} {forwardStage 2.0}}}}}
-${cue "key" {' {cameraTarget {' -0.3 0.3 -1.6}} {cameraDistance 2.6} {cameraPitch 22.0} {cameraYaw 18.0}}}
+${cue "key" {opening demoRoom panelHidden 0.4 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 2.0}}}}}
+${cue "key" {'
+    {cameraTarget {' -0.3 0.3 -1.6}}
+    {cameraDistance 2.6}
+    {cameraPitch 22.0}
+    {cameraYaw 18.0}}}
 
-${overCallout {' {forwardStageRange 2.0 3.0}} "ssao-modulate" "The occlusion multiplies the whole diffuse target, which holds the sun's direct light as well as the sky's."}
+${overCallout
+    {' {forwardStageRange 2.0 3.0}}
+    "ssao-modulate"
+    "The occlusion multiplies the whole diffuse target, which holds the sun's direct light as well as the sky's."}
 
-${cue "key" {' {glide sunYaw 80.0 sentence}}} ${cue "key" {' {callout "ssao-modulate"}}} So even the sunlit side of a crease darkens.
+${cue "key" {' {glide sunYaw 80.0 sentence}}}
+${cue "key" {' {callout "ssao-modulate"}}}
+So even the sunlit side of a crease darkens.
 
 The specular target, and the emission in it, are left alone.
 
-${cue "key" {' {callout "ssao-modulate"}}} The way the passes are connected shows that this is not ambient-only occlusion.
+${cue "key" {' {callout "ssao-modulate"}}}
+The way the passes are connected shows that this is not ambient-only occlusion.
 
 O3DE applies it to all diffuse light.
 
 ### A material's occlusion, an exponent on a map {#c7-material kind=3d}
 
-${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0} {sphereOcclusion 1.0} {diffuseOcclusionFactor 1.0}}}}
+${cue "key" {opening demoSurface panelValues 0.5 {'
+    {labels 1.0}
+    {sphereOcclusion 1.0}
+    {diffuseOcclusionFactor 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${overCallout {' {specularOcclusionFactorRange 0.0 2.0}} "occlusion-input" "A material can also carry the occlusion maps of chapter three, one for diffuse light and one for specular."}
+${overCallout
+    {' {specularOcclusionFactorRange 0.0 2.0}}
+    "occlusion-input"
+    "A material can also carry the occlusion maps of chapter three, one for diffuse light and one for specular."}
 
 Each map is raised to the power of its factor.
 
-${overCallout {' {diffuseOcclusionFactorRange 0.0 2.0}} "occlusion-finalize" "They multiply the diffuse and specular light at the end of the forward pass, direct light included."}
+${overCallout
+    {' {diffuseOcclusionFactorRange 0.0 2.0}}
+    "occlusion-finalize"
+    "They multiply the diffuse and specular light at the end of the forward pass, direct light included."}
 
 The albedo target also carries these factors to the full-screen passes that add the sky's light.
 
-${cue "key" {' {callout "forward-ibl-ao-twice"}}} For transparent materials and Skin, the sky's light is added inside the forward pass.
+${cue "key" {' {callout "forward-ibl-ao-twice"}}}
+For transparent materials and Skin, the sky's light is added inside the forward pass.
 
 Inside the forward pass, the diffuse occlusion is applied to that light twice, once on its way in and once at the end.
 
 ### Occlusion, from two sources {#c7-recap kind=3d}
 
 ${cue "key" {opening demoSsao panelHidden 1.0 {' {labels 0.0} viewModeFinal {ssao 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 18.0 22.0 3.0} {pose 4.0 18.0 3.4} {pose 16.0 24.0 2.8}}}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 18.0 22.0 3.0} {pose 4.0 18.0 3.4} {pose 16.0 24.0 2.8}}}}}}}
 
-${cue "key" {' {inset "up"} imageFromSsaoStage {imageStage 3.0} imageCornerTopLeft {imageTitle "views.ssao_stage"}}} So occlusion comes from the screen, every frame, and from the material's maps, both as multipliers.
+${cue "key" {'
+    {inset "up"}
+    imageFromSsaoStage
+    {imageStage 3.0}
+    imageCornerTopLeft
+    {imageTitle "views.ssao_stage"}}}
+So occlusion comes from the screen, every frame, and from the material's maps, both as multipliers.
 
 The screen's occlusion is cheap and needs no data.
 
@@ -1527,61 +2573,137 @@ These are the files and lines this chapter followed, in reading order.
 
 ### Only Enhanced and Skin let light through {#c8-which kind=3d}
 
-${cue "key" {opening demoTransmission panelValues 0.5 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}}}}}}
+${cue "key" {opening demoTransmission panelValues 0.5 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}}}}}}
 
 Light that passes through a surface is called transmission.
 
-${cue "key" {' {motion {' {path {' sunYaw} {' {' 30.0} {' 10.0}} sentence}}}}} ${cue "key" {' {callout "transmission-option"}}} In O3DE, transmission is compiled only into the Enhanced and Skin lighting models.
+${cue "key" {' {motion {' {path {' sunYaw} {' {' 30.0} {' 10.0}} sentence}}}}}
+${cue "key" {' {callout "transmission-option"}}}
+In O3DE, transmission is compiled only into the Enhanced and Skin lighting models.
 
 StandardPBR, the default, has none.
 
-${overCallout {' {teapotTransmissionRange 0.0 1.0}} "transmission-params" "In an EnhancedPBR material, transmission is off by default, in the mode None."}
+${overCallout
+    {' {teapotTransmissionRange 0.0 1.0}}
+    "transmission-params"
+    "In an EnhancedPBR material, transmission is off by default, in the mode None."}
 
 The two other modes are thick object and thin object.
 
 ### Thick objects: light from behind, scattered toward the eye {#c8-thick kind=3d}
 
-${cue "key" {opening demoTransmission panelValues 0.4 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 1.0}}}}
+${cue "key" {opening demoTransmission panelValues 0.4 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath transmissionSweep}}}}}
 
-${cue "key" {' {motion {' {path {' sunYaw} {' {' -20.0} {' 30.0} {' 10.0}} sentence}}}}} ${cue "key" {' panelCode listingTransmission {highlight {' "thick"}}}} ${cue "key" {' {callout "back-lighting"}}} The thick object mode, after Barré-Brisebois and Bouchard, brightens where the eye looks toward the light through the object.
+${cue "key" {' {motion {' {path {' sunYaw} {' {' -20.0} {' 30.0} {' 10.0}} sentence}}}}}
+${cue "key" {' panelCode listingTransmission {highlight {' "thick"}}}}
+${cue "key" {' {callout "back-lighting"}}}
+The thick object mode, after Barré-Brisebois and Bouchard, brightens where the eye looks toward the light through the object.
 
-${overCallout {' {transmissionPowerRange 2.0 16.0}} "back-lighting" "The model measures how directly the eye looks toward the light, with the light's direction bent a little by the normal."}
+${overCallout
+    {' {transmissionPowerRange 2.0 16.0}}
+    "back-lighting"
+    "The model measures how directly the eye looks toward the light, with the light's direction bent a little by the normal."}
 
 That alignment is raised to a power.
 
 A higher power gathers the glow more tightly toward the light's direction.
 
-${cue "key" {' {transmissionPower 6.0} {blend 1.0}}} ${overCallout {' {transmissionThicknessRange 0.05 0.9}} "back-lighting" "The glow fades as the object gets thicker, by the exponential of minus four times the thickness."}
+${cue "key" {' {transmissionPower 6.0} {blend 1.0}}}
+${overCallout
+    {' {transmissionThicknessRange 0.05 0.9}}
+    "back-lighting"
+    "The glow fades as the object gets thicker, by the exponential of minus four times the thickness."}
 
 The glow is also multiplied by one minus the thickness, so it reaches zero at a thickness of one.
 
 ### Thin objects: the back face's light, through a kernel {#c8-thin kind=3d}
 
-${cue "key" {opening demoTransmission panelValues 0.4 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 2.0} {transmissionThickness 0.5}}}}
+${cue "key" {opening demoTransmission panelValues 0.4 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 2.0}
+    {transmissionThickness 0.5}}}}
 ${cue "key" {' {motion {' {cameraPath transmissionSweep}}}}}
 
-${cue "key" {' {motion {' {path {' sunPitch} {' {' 10.0} {' 22.0}} sentence}}}}} ${cue "key" {' panelCode listingTransmission {highlight {' "thin"}}}} ${cue "key" {' {callout "back-lighting"}}} The thin model, after Jimenez, starts from the light falling on the object's far side, its back face.
+${cue "key" {' {motion {' {path {' sunPitch} {' {' 10.0} {' 22.0}} sentence}}}}}
+${cue "key" {' panelCode listingTransmission {highlight {' "thin"}}}}
+${cue "key" {' {callout "back-lighting"}}}
+The thin model, after Jimenez, starts from the light falling on the object's far side, its back face.
 
 That light is the albedo times the back face's N dot L.
 
-${overCallout {' {transmissionThicknessRange 0.1 1.0}} "transmission-kernel" "The thin model then weakens that light by a falloff that depends on the measured thickness and on the scatter distance."}
+${overCallout
+    {' {transmissionThicknessRange 0.1 1.0}}
+    "transmission-kernel"
+    "The thin model then weakens that light by a falloff that depends on the measured thickness and on the scatter distance."}
 
 The scatter distance is how far light travels inside the material, and it is set per colour channel.
 
-${cue "key" {' {transmissionThickness 0.5} {blend 1.0}}} ${cue "key" {' {callout "transmission-params"}}} The default scatter distance is eight for red, two point one six for green, and one point zero four for blue.
+${cue "key" {' {transmissionThickness 0.5} {blend 1.0}}}
+${cue "key" {' {callout "transmission-params"}}}
+The default scatter distance is eight for red, two point one six for green, and one point zero four for blue.
 
 So red passes much farther than blue, and the glow turns orange.
 
-${overCallout {' {sunYawRange 10.0 60.0}} "back-lighting" "As the sun moves from behind the teapot to its side, the back face turns away from it and the glow fades."}
+${overCallout
+    {' {sunYawRange 10.0 60.0}}
+    "back-lighting"
+    "As the sun moves from behind the teapot to its side, the back face turns away from it and the glow fades."}
 
 ### Thickness from the shadow map, and its units {#c8-thickness kind=3d}
 
-${cue "key" {opening demoTransmission panelValues 0.3 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 2.0}}}}
+${cue "key" {opening demoTransmission panelValues 0.3 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 2.0}}}}
 ${cue "key" {' {motion {' {cameraPath transmissionSweep}}}}}
 
-${cue "key" {' {inset "cm"} imageFromCascadeMap {imageCascade 4.0} {imageParamFrom 0.9} imageCornerBottomLeft {imageTitle "views.cascade_map"}}} ${cue "key" {' {callout "shadow-thickness"}}} The thickness comes from the sun's cascade.
+${cue "key" {'
+    {inset "cm"}
+    imageFromCascadeMap
+    {imageCascade 4.0}
+    {imageParamFrom 0.9}
+    imageCornerBottomLeft
+    {imageTitle "views.cascade_map"}}}
+${cue "key" {' {callout "shadow-thickness"}}}
+The thickness comes from the sun's cascade.
 
 It is the depth between the shaded point and the first surface the sun meets.
 
@@ -1589,55 +2711,91 @@ In the cascade view, the ring marks the teapot's point.
 
 The depth stored there belongs to the side facing the sun, and the point's own depth is the far side.
 
-${cue "key" {' {callout "shadow-thickness-camera-span"}}} The code shows that this difference is measured in the cascade's own depth range.
+${cue "key" {' {callout "shadow-thickness-camera-span"}}}
+The code shows that this difference is measured in the cascade's own depth range.
 
 But the code multiplies it by the camera's depth span instead, so the result is not in metres.
 
-${cue "key" {' {callout "shadow-thickness"}}} A flat, thin surface like a leaf gets two shifts when its thickness is measured.
+${cue "key" {' {callout "shadow-thickness"}}}
+A flat, thin surface like a leaf gets two shifts when its thickness is measured.
 
 With the default biases, the normal offset of chapter five and an inward shift of the thin mode nearly cancel.
 
 So the measured thickness is about zero, and the glow runs at full strength.
 
-${overCallout {' {transmissionScaleRange 0.0 1.0}} "transmission-finalize" "The transmitted light is tinted and added to the diffuse light after the material's occlusion, so that occlusion never darkens it."}
+${overCallout
+    {' {transmissionScaleRange 0.0 1.0}}
+    "transmission-finalize"
+    "The transmitted light is tinted and added to the diffuse light after the material's occlusion, so that occlusion never darkens it."}
 
 ### A leaf in O3DE is a material, not a lighting model {#c8-foliage kind=3d}
 
-${cue "key" {opening demoTransmission panelValues 0.5 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}}}}}}
+${cue "key" {opening demoTransmission panelValues 0.5 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}}}}}}
 
 ${cue "key" {' {callout "foliage-sample-material"}}} O3DE has no foliage shading of its own.
 
 Its vegetation system places ordinary meshes, with whatever material they carry.
 
-${cue "key" {' {motion {' {path {' sunYaw} {' {' 40.0} {' 10.0}} sentence}}}}} ${cue "key" {' {callout "cutout-clip"}}} A plain leaf is StandardPBR, cut out by its alpha and drawn double-sided.
+${cue "key" {' {motion {' {path {' sunYaw} {' {' 40.0} {' 10.0}} sentence}}}}}
+${cue "key" {' {callout "cutout-clip"}}}
+A plain leaf is StandardPBR, cut out by its alpha and drawn double-sided.
 
 Lit from behind, it stays dark, because Standard has no transmission.
 
-${overCallout {' {teapotTransmissionRange 0.0 2.0}} "foliage-sample-material" "O3DE's own leaf-like test material is EnhancedPBR, double-sided, in thin mode with a green tint."}
+${overCallout
+    {' {teapotTransmissionRange 0.0 2.0}}
+    "foliage-sample-material"
+    "O3DE's own leaf-like test material is EnhancedPBR, double-sided, in thin mode with a green tint."}
 
 The lab shows that model on its teapot.
 
-${cue "key" {' {callout "vertex-normal-unflipped"}}} On a back face, the shading normal, the one the lighting uses, is flipped, but the mesh's vertex normal is not.
+${cue "key" {' {callout "vertex-normal-unflipped"}}}
+On a back face, the shading normal, the one the lighting uses, is flipped, but the mesh's vertex normal is not.
 
 Transmission and the shadow offset both use that unflipped vertex normal.
 
 ### Subsurface scattering: a blur of the diffuse light {#c8-sss kind=3d}
 
-${cue "key" {opening demoTransmission panelHidden 0.5 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 60.0} {sunPitch 40.0} {sphereLight 0.0} {walls 1.0} {teapotTransmission 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 32.0 5.0 1.8} {pose 38.0 8.0 1.7}}}}}}}
+${cue "key" {opening demoTransmission panelHidden 0.5 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 60.0}
+    {sunPitch 40.0}
+    {sphereLight 0.0}
+    {walls 1.0}
+    {teapotTransmission 0.0}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 32.0 5.0 1.8} {pose 38.0 8.0 1.7}}}}}}}
 
-${cue "key" {' {callout "enhanced-draw-list"}}} Subsurface scattering spreads light under the surface, so it leaves a little away from where it entered.
+${cue "key" {' {callout "enhanced-draw-list"}}}
+Subsurface scattering spreads light under the surface, so it leaves a little away from where it entered.
 
 Enhanced and Skin materials with scattering on write one more target, the scatter distance.
 
 They also pack a scattering factor, for how strong the scattering is, and a quality setting into the diffuse target's alpha.
 
-${cue "key" {' {callout "sss-pack"}}} The pack is the factor's byte times two hundred and fifty-six, plus the quality's byte.
+${cue "key" {' {callout "sss-pack"}}}
+The pack is the factor's byte times two hundred and fifty-six, plus the quality's byte.
 
 That integer is stored in a half float, which holds integers exactly only up to two thousand and forty-eight, so larger packs come back rounded.
 
-${cue "key" {' {callout "sss-kernel"}}} A compute pass then blurs the diffuse light with Burley's normalised diffusion profile, a curve of how far light spreads under the surface.
+${cue "key" {' {callout "sss-kernel"}}}
+A compute pass then blurs the diffuse light with Burley's normalised diffusion profile, a curve of how far light spreads under the surface.
 
 It takes two hundred samples a pixel at full quality, and eighty at the default quality of zero point four.
 
@@ -1652,20 +2810,46 @@ Its targets carry a packed alpha of minus one, which means no scattering, for ev
 ${cue "key" {opening demoDiffuse panelValues 0.4 {' {vectors 0.0} {lobe 0.0} viewModeFinal}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${over {' {sphereRoughnessRange 0.3 0.9}} {cat {' {text " "} {cue "key" {' diffuseModelNormalizedDisney}} {text " "} {cue "key" {' {callout "skin-diffuse"}}} {text " Skin always uses Disney's normalised diffuse, rough or not."}}}}
+${over
+    {' {sphereRoughnessRange 0.3 0.9}}
+    {cat {'
+        {text " "}
+        {cue "key" {' diffuseModelNormalizedDisney}}
+        {text " "}
+        {cue "key" {' {callout "skin-diffuse"}}}
+        {text " Skin always uses Disney's normalised diffuse, rough or not."}}}}
 
 It also offers a second specular lobe, blended with the first.
 
-${cue "key" {' {motion {' {path {' cameraPitch} {' {' 40.0} {' 6.0}} sentence}}}}} ${cue "key" {' {callout "skin-lighting-defines"}}} Skin takes the sky's light inside the forward pass, and uses a human skin profile for thin transmission.
+${cue "key" {' {motion {' {path {' cameraPitch} {' {' 40.0} {' 6.0}} sentence}}}}}
+${cue "key" {' {callout "skin-lighting-defines"}}}
+Skin takes the sky's light inside the forward pass, and uses a human skin profile for thin transmission.
 
-${cue "key" {' diffuseModelLambertian}} ${cue "key" {' {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}} ${cue "key" {' {callout "eye-direct-lighting"}}} Eye uses the Skin model's material setup, but StandardPBR's direct lighting.
+${cue "key" {' diffuseModelLambertian}}
+${cue "key" {'
+    {motion {' {eased easingSine {orbit {' lightX lightY} {' -1.05 1.24} 60.0 sentence}}}}}}
+${cue "key" {' {callout "eye-direct-lighting"}}}
+Eye uses the Skin model's material setup, but StandardPBR's direct lighting.
 
 Its iris looks refracted, because the shader shifts the iris texture inside a sphere.
 
 ### Light that passes through {#c8-recap kind=3d}
 
-${cue "key" {opening demoTransmission panelHidden 1.0 {' {labels 0.0} {sunLux 40.0} {iblExposure 1.0} {skyboxExposure 2.0} {exposure 0.35} {sunYaw 10.0} {sunPitch 22.0} {sphereLight 0.0} {walls 0.0} {teapotTransmission 2.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}} {path {' sunYaw} {' {' 40.0} {' 10.0}} beat}}}}}
+${cue "key" {opening demoTransmission panelHidden 1.0 {'
+    {labels 0.0}
+    {sunLux 40.0}
+    {iblExposure 1.0}
+    {skyboxExposure 2.0}
+    {exposure 0.35}
+    {sunYaw 10.0}
+    {sunPitch 22.0}
+    {sphereLight 0.0}
+    {walls 0.0}
+    {teapotTransmission 2.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 35.0 6.0 1.8} {pose 48.0 4.0 2.0} {pose 40.0 8.0 1.7}}}
+        {path {' sunYaw} {' {' 40.0} {' 10.0}} beat}}}}}
 
 So transmission is extra light from behind, added per light inside the forward pass, and only for Enhanced and Skin materials.
 
@@ -1683,51 +2867,93 @@ These are the files and lines this chapter followed, in reading order.
 
 ### Terrain draws through the forward pass with its own shader {#c9-own kind=3d}
 
-${cue "key" {opening demoTerrain panelValues 0.8 {' {labels 0.0} viewModeFinal {terrainO3deNormal 0.0} {forwardStage 3.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 30.0 28.0 22.0} {pose 10.0 22.0 24.0} {pose 36.0 32.0 20.0}}}}}}}
+${cue "key" {opening demoTerrain panelValues 0.8 {'
+    {labels 0.0}
+    viewModeFinal
+    {terrainO3deNormal 0.0}
+    {forwardStage 3.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 30.0 28.0 22.0} {pose 10.0 22.0 24.0} {pose 36.0 32.0 20.0}}}}}}}
 
 Terrain is drawn with a forward shader of its own.
 
-${cue "key" {chainTarget "ta" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}} ${cue "key" {' {callout "terrain-forward-draw-list"}}} The Terrain gem's material type lists its own forward, depth, and shadow shaders.
+${cue "key" {chainTarget "ta" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {' {callout "terrain-forward-draw-list"}}}
+The Terrain gem's material type lists its own forward, depth, and shadow shaders.
 
 They draw into the same forward pass, and into the same five targets.
 
-$settle ${cue "key" {' {inset "ta"} {mark 0.0 0.18 1.0 0.92} {imageMarkText "views.mark_hills"} {blend 0.6}}} In the albedo view, the hills sit in the same target as everything else, in their macro colour, the coarse colour that covers the whole terrain.
+$settle ${cue "key" {'
+    {inset "ta"}
+    {mark 0.0 0.18 1.0 0.92}
+    {imageMarkText "views.mark_hills"}
+    {blend 0.6}}} In the albedo view, the hills sit in the same target as everything else, in their macro colour, the coarse colour that covers the whole terrain.
 
 $settle So the later passes read a terrain pixel exactly as they read the room's.
 
-${cue "key" {' {inset "ta"} unmark}} ${overCallout {' {forwardStageRange 0.0 3.0}} "opaque-pass-order" "The sky's light, the reflections, and the occlusion likewise reach the hills through the same full-screen passes as everything else."}
+${cue "key" {' {inset "ta"} unmark}}
+${overCallout
+    {' {forwardStageRange 0.0 3.0}}
+    "opaque-pass-order"
+    "The sky's light, the reflections, and the occlusion likewise reach the hills through the same full-screen passes as everything else."}
 
-${cue "key" {' {imageHide {' "ta"}}}} ${cue "key" {' {callout "terrain-pass-request"}}} The terrain's feature processor, the engine part that manages it, adds only compute passes.
+${cue "key" {' {imageHide {' "ta"}}}}
+${cue "key" {' {callout "terrain-pass-request"}}}
+The terrain's feature processor, the engine part that manages it, adds only compute passes.
 
 Those passes fill clipmaps, caches of the terrain's textures that are finest near the camera, and they are off by default.
 
-${cue "key" {' {glide sunYaw 170.0 sentence}}} ${cue "key" {' {callout "terrain-forward-draw-list"}}} The terrain casts and receives the sun's shadows like any opaque surface, and reads the same shadow buffer.
+${cue "key" {' {glide sunYaw 170.0 sentence}}}
+${cue "key" {' {callout "terrain-forward-draw-list"}}}
+The terrain casts and receives the sun's shadows like any opaque surface, and reads the same shadow buffer.
 
 ### Fixed macro values: roughness one, F zero four percent {#c9-fixed kind=3d}
 
-${cue "key" {opening demoTerrain panelValues 0.5 {' {labels 0.0} viewModeFinal {paramFormula 0.0} {sunYaw 120.0} {sunPitch 35.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 30.0 18.0 16.0} {pose 14.0 14.0 18.0} {pose 36.0 20.0 15.0}}}}}}}
+${cue "key" {opening demoTerrain panelValues 0.5 {'
+    {labels 0.0}
+    viewModeFinal
+    {paramFormula 0.0}
+    {sunYaw 120.0}
+    {sunPitch 35.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 30.0 18.0 16.0} {pose 14.0 14.0 18.0} {pose 36.0 20.0 15.0}}}}}}}
 
-${cue "key" {' {term 1}}} ${cue "key" {' {callout "terrain-macro-constants"}}} The macro material is the coarse one that covers the whole terrain.
+${cue "key" {' {term 1}}}
+${cue "key" {' {callout "terrain-macro-constants"}}}
+The macro material is the coarse one that covers the whole terrain.
 
 Where only the macro material covers the ground, the shader fixes roughness at one and metalness at zero.
 
-${cue "key" {' {term 2}}} ${cue "key" {' viewModeSpecular}} ${overCallout {' {sunPitchRange 35.0 8.0}} "terrain-macro-constants" "Its specular factor of a half gives an F zero of zero point zero four."}
+${cue "key" {' {term 2}}}
+${cue "key" {' viewModeSpecular}}
+${overCallout
+    {' {sunPitchRange 35.0 8.0}}
+    "terrain-macro-constants"
+    "Its specular factor of a half gives an F zero of zero point zero four."}
 
 So even with the sun low, the hills keep only a broad, faint sheen.
 
-${cue "key" {' {term 3}}} ${cue "key" {' viewModeFinal {sunPitch 35.0} {blend 1.5}}} ${cue "key" {' {callout "terrain-no-direct-multiscatter"}}} The terrain's lighting data never computes the multiscatter compensation of chapter four.
+${cue "key" {' {term 3}}}
+${cue "key" {' viewModeFinal {sunPitch 35.0} {blend 1.5}}}
+${cue "key" {' {callout "terrain-no-direct-multiscatter"}}}
+The terrain's lighting data never computes the multiscatter compensation of chapter four.
 
 So its direct light uses a compensation factor of one.
 
 Even so, the flag in its normal target, the one from chapter one, still asks the sky's reflection pass for compensation.
 
-${overCallout {' {multiscatterRange 1.0 0.0}} "terrain-multiscatter-flags" "Turning the flag off changes only the sky's reflection on the hills."}
+${overCallout
+    {' {multiscatterRange 1.0 0.0}}
+    "terrain-multiscatter-flags"
+    "Turning the flag off changes only the sky's reflection on the hills."}
 
 Their direct light was never compensated.
 
-${cue "key" {' {multiscatter 1.0} {blend 1.0}}} ${cue "key" {' {callout "terrain-height-blend-option"}}} Up close, detail materials replace the macro one, blended by plain weights.
+${cue "key" {' {multiscatter 1.0} {blend 1.0}}}
+${cue "key" {' {callout "terrain-height-blend-option"}}}
+Up close, detail materials replace the macro one, blended by plain weights.
 
 They could also blend by height instead, but that option is off by default.
 
@@ -1735,41 +2961,66 @@ The lab's hills have no detail materials.
 
 ### Normals made on the CPU, per vertex, in eight bits {#c9-normal kind=3d}
 
-${cue "key" {opening demoTerrain panelValues 0.4 {' {labels 0.0} viewModeFinal {terrainO3deNormal 0.0} {sunYaw 120.0} {sunPitch 20.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 30.0 34.0 18.0} {pose 14.0 30.0 20.0} {pose 36.0 36.0 17.0}}}}}}}
+${cue "key" {opening demoTerrain panelValues 0.4 {'
+    {labels 0.0}
+    viewModeFinal
+    {terrainO3deNormal 0.0}
+    {sunYaw 120.0}
+    {sunPitch 20.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 30.0 34.0 18.0} {pose 14.0 30.0 20.0} {pose 36.0 36.0 17.0}}}}}}}
 
-${cue "key" {' {callout "terrain-normal-cpu"}}} The terrain's normals are computed on the CPU, at each vertex, from central differences of the heights.
+${cue "key" {' {callout "terrain-normal-cpu"}}}
+The terrain's normals are computed on the CPU, at each vertex, from central differences of the heights.
 
-${cue "key" {' {glide sunYaw 60.0 sentence}}} ${cue "key" {' {callout "terrain-normal-cpu"}}} Each axis's slope is normalised on its own, by dividing it by the square root of one plus the slope squared.
+${cue "key" {' {glide sunYaw 60.0 sentence}}}
+${cue "key" {' {callout "terrain-normal-cpu"}}}
+Each axis's slope is normalised on its own, by dividing it by the square root of one plus the slope squared.
 
 The result is stored as an eight bit signed number.
 
-${overCallout {' {terrainO3deNormalRange 0.0 1.0}} "terrain-normal-ps" "The vertex shader rebuilds the up component from the two stored slopes, as the square root of one minus their squares."}
+${overCallout
+    {' {terrainO3deNormalRange 0.0 1.0}}
+    "terrain-normal-ps"
+    "The vertex shader rebuilds the up component from the two stored slopes, as the square root of one minus their squares."}
 
 That is exact where the ground slopes along one axis, and wrong where it slopes both ways.
 
-${cue "key" {' viewModeTerrainNormalError}} ${cue "key" {' {motion {' {path {' cameraYaw cameraPitch} {' {' 60.0 40.0} {' 10.0 30.0}} sentence}}}}} ${cue "key" {' {callout "terrain-normal-ps"}}} This view shows the angle between O3DE's normal and the exact one on the lab's hills.
+${cue "key" {' viewModeTerrainNormalError}}
+${cue "key" {'
+    {motion {' {path {' cameraYaw cameraPitch} {' {' 60.0 40.0} {' 10.0 30.0}} sentence}}}}}
+${cue "key" {' {callout "terrain-normal-ps"}}}
+This view shows the angle between O3DE's normal and the exact one on the lab's hills.
 
 The angle is near zero on gentle ground, and many degrees on the steepest two-way slopes.
 
-${cue "key" {' viewModeFinal}} ${cue "key" {' {glide sunYaw 150.0 sentence}}} Without a macro normal map, a coarse normal texture for the whole terrain, this interpolated vertex normal is the only normal the terrain has.
+${cue "key" {' viewModeFinal}}
+${cue "key" {' {glide sunYaw 150.0 sentence}}}
+Without a macro normal map, a coarse normal texture for the whole terrain, this interpolated vertex normal is the only normal the terrain has.
 
 The sun's shading follows that normal.
 
 ### Hair: three Marschner lobes {#c9-hair kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0} {forwardStage 3.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose 0.0 14.0 6.6} {pose 16.0 18.0 6.0}}}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 3.0}}}}}
+${cue "key" {'
+    {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose 0.0 14.0 6.6} {pose 16.0 18.0 6.0}}}}}}}
 
-${cue "key" {' {callout "hair-pass-after-opaque"}}} Hair, from the AtomTressFX gem, is drawn by passes of its own after the opaque frame, and composited over it.
+${cue "key" {' {callout "hair-pass-after-opaque"}}}
+Hair, from the AtomTressFX gem, is drawn by passes of its own after the opaque frame, and composited over it.
 
-${cue "key" {' {callout "hair-default-model"}}} Its default lighting is Marschner's model, which sums three lobes.
+${cue "key" {' {callout "hair-default-model"}}}
+Its default lighting is Marschner's model, which sums three lobes.
 
 R reflects off the strand's surface, TT passes through the strand, and TRT reflects off its inside.
 
 The light is their sum, ${formulaSaid "R + TT + TRT" "R plus T T plus T R T" {'}}.
 
-${cue "key" {' {callout "hair-marschner"}}} Each lobe is a Gaussian along the strand, times a second term for the angle around the strand.
+${cue "key" {' {callout "hair-marschner"}}}
+Each lobe is a Gaussian along the strand, times a second term for the angle around the strand.
 
 The model uses a refractive index of one point five five, and tilts the cuticle, the strand's scaly surface, by zero point zero eight radians.
 
@@ -1777,8 +3028,14 @@ The lab has no strands to show it on.
 
 ### Special geometry, the same frame {#c9-recap kind=3d}
 
-${cue "key" {opening demoTerrain panelHidden 1.0 {' {labels 0.0} viewModeFinal {terrainO3deNormal 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 30.0 28.0 22.0} {pose 6.0 22.0 24.0} {pose 36.0 32.0 20.0}}} {path {' sunYaw} {' {' 160.0} {' 100.0}} beat}}}}}
+${cue "key" {opening demoTerrain panelHidden 1.0 {'
+    {labels 0.0}
+    viewModeFinal
+    {terrainO3deNormal 1.0}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 30.0 28.0 22.0} {pose 6.0 22.0 24.0} {pose 36.0 32.0 20.0}}}
+        {path {' sunYaw} {' {' 160.0} {' 100.0}} beat}}}}}
 
 So terrain brings its own shader, but it writes the same targets and reads the same lights and shadows.
 
@@ -1800,32 +3057,66 @@ We follow one pixel through it, P, low on the teapot.
 
 ### P's light, in the order the engine made it {#c10-trace kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 0.6 {append baseLight {' {labels 0.0} {forwardStage 0.0} {extraLights 0.0} {cameraTarget {' -0.3 0.25 -1.6}}}}}}
+${cue "key" {opening demoRoom panelHidden 0.6 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 0.0}
+    {extraLights 0.0}
+    {cameraTarget {' -0.3 0.25 -1.6}}}}}}
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose -22.0 18.0 2.8} {pose -34.0 14.0 3.0} {pose -18.0 20.0 2.6}}}}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose -22.0 18.0 2.8} {pose -34.0 14.0 3.0} {pose -18.0 20.0 2.6}}}}}}}
 
-${cue "key" {chainTarget "d" 5.0 imageCornerTopLeft {' {imageFar 6.0} {imageTitle "views.depth_prepass"}}}} ${cue "key" {' {callout "depth-prepass"}}} First the depth pre-pass wrote P's depth, and that depth chose P's depth bin inside its tile.
+${cue "key" {chainTarget "d" 5.0 imageCornerTopLeft {'
+    {imageFar 6.0}
+    {imageTitle "views.depth_prepass"}}}}
+${cue "key" {' {callout "depth-prepass"}}}
+First the depth pre-pass wrote P's depth, and that depth chose P's depth bin inside its tile.
 
-${cue "key" {' {inset "sb"} imageFromShadowBuffer {imageBlurred 1.0} imageCornerTopLeft {imageTitle "views.shadow_buffer"}}} ${cue "key" {' {callout "fullscreen-shadow"}}} The shadow passes compared P against the sun's cascades and left one blurred number in the shadow buffer.
+${cue "key" {'
+    {inset "sb"}
+    imageFromShadowBuffer
+    {imageBlurred 1.0}
+    imageCornerTopLeft
+    {imageTitle "views.shadow_buffer"}}}
+${cue "key" {' {callout "fullscreen-shadow"}}}
+The shadow passes compared P against the sun's cascades and left one blurred number in the shadow buffer.
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerBottomLeft {' {imageTitle "views.target_diffuse"}}}} ${cue "key" {' {callout "evaluate-lighting"}}} The forward pass built P's surface, and walked the lights of its bin and the sun.
+${cue "key" {chainTarget "t0" 0.0 imageCornerBottomLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {' {callout "evaluate-lighting"}}}
+The forward pass built P's surface, and walked the lights of its bin and the sun.
 
 It wrote the resulting light, and the surface, into five targets.
 
-${overCallout {' {forwardStageRange 0.0 1.0}} "diffuse-global" "The sky's diffuse light came from one lookup of the diffuse cubemap, along P's normal."}
+${overCallout
+    {' {forwardStageRange 0.0 1.0}}
+    "diffuse-global"
+    "The sky's diffuse light came from one lookup of the diffuse cubemap, along P's normal."}
 
-${overCallout {' {forwardStageRange 1.0 2.0}} "reflection-global" "P's reflection came from the specular cubemap at the mip of P's roughness, scaled by the look-up texture's factor, F zero times A, plus B."}
+${overCallout
+    {' {forwardStageRange 1.0 2.0}}
+    "reflection-global"
+    "P's reflection came from the specular cubemap at the mip of P's roughness, scaled by the look-up texture's factor, F zero times A, plus B."}
 
-${overCallout {' {forwardStageRange 2.0 3.0}} "ssao-modulate" "SSAO darkened P's diffuse light from fifty-two samples around it."}
+${overCallout
+    {' {forwardStageRange 2.0 3.0}}
+    "ssao-modulate"
+    "SSAO darkened P's diffuse light from fifty-two samples around it."}
 
 Then the merge pass of chapter one added diffuse and specular together.
 
 ### Three takeaways {#c10-takeaways kind=3d}
 
-${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {' {labels 0.0} {forwardStage 3.0}}}}}
-${cue "key" {' {motion {' {cameraPath {' {pose 24.0 20.0 6.2} {pose 4.0 14.0 6.6} {pose -14.0 18.0 6.0}}} {path {' sunYaw} {' {' 70.0} {' 30.0}} beat}}}}}
+${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
+    {labels 0.0}
+    {forwardStage 3.0}}}}}
+${cue "key" {'
+    {motion {'
+        {cameraPath {' {pose 24.0 20.0 6.2} {pose 4.0 14.0 6.6} {pose -14.0 18.0 6.0}}}
+        {path {' sunYaw} {' {' 70.0} {' 30.0}} beat}}}}}
 
-${cue "key" {' {callout "forward-targets"}}} The first takeaway is about the data the forward pass leaves.
+${cue "key" {' {callout "forward-targets"}}}
+The first takeaway is about the data the forward pass leaves.
 
 The forward pass leaves a thin G-buffer of five targets and a stencil.
 

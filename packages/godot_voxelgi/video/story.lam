@@ -9,7 +9,9 @@ $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import*
 A beat's opening keys: its demonstration and panel, the callout and the insets cleared, and how far the camera
 drifts while it holds; `more` are the beat's own.
 
-$[# {opening demo panel drift more} {append {' demo {callout ""} {inset ""} panel {cameraDrift drift}} more}]
+$[# {opening demo panel drift more} {append
+    {' demo {callout ""} {inset ""} panel {cameraDrift drift}}
+    more}]
 
 The diffuse cones the screen pass traces per pixel (gi.glsl's `voxel_gi_compute`): four at Low quality, six at
 High. Chapter 8 says them and shows them (`conesShown`); its other numbers are the package's code's

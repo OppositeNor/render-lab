@@ -5,30 +5,49 @@ The rows of the point light demonstration's readout: SimplePointLightUtil at the
 code computes there (src/o3de/lighting/script.rs `pointLight`). The title, the formula, and the other
 demonstrations' rows are its code's (src/o3de/lighting/demos.rs `readout`).
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* o3de_lighting_values]$[Import* o3de_lighting_natives]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* o3de_lighting_values]
+$[Import* o3de_lighting_natives]
 
 $[# _light "#ffd98a"]
 
 A number as the readout writes one: whole above 1000, two decimals above 10, four below.
-$[# {_number v} {!if {>= {abs v} 1000.0} {fixed v 0} {!if {>= {abs v} 10.0} {fixed v 2} {fixed v 4}}}]
+$[# {_number v} {!if {>= {abs v} 1000.0}
+    {fixed v 0}
+    {!if {>= {abs v} 10.0} {fixed v 2} {fixed v 4}}}]
 
 The bitwise and of two masks of eight bits.
-$[# {_and a b} {fold {range 0 8} 0 {^ {acc k}
-    [# bit {pow 2.0 {float k}}]
-    [# set {^ {n} {= 1 {% {truncate {/ {float n} bit}} 2}}}]
-    {!if {!and {set a} {set b}} {+ acc {round bit}} acc}}}]
+$[# {_and a b} {fold
+    {range 0 8}
+    0
+    {^ {acc k}
+        [# bit {pow 2.0 {float k}}]
+        [# set {^ {n} {= 1 {% {truncate {/ {float n} bit}} 2}}}]
+        {!if {!and {set a} {set b}} {+ acc {round bit}} acc}}}]
 
 $[# {_rows l}
-    [# lit {!if {= 0 {_and {.lightChannels l} {.surfaceChannels l}}} {text {textKey "demos.skipped"}} {text {textKey "demos.lit"}}}]
-    {' {row {text {textKey "common.distance_d"}} f"{${fixed {.distance l} 3} m}" textColor}
-       {row {text {textKey "demos.attenuation_radius_r"}} f"{${fixed {.radius l} 3} m}" _light}
-       {row "m_invAttenuationRadiusSquared" {_number {.invRadiusSquared l}} _light}
-       {row "falloff = d² / r²" {_number {.falloff l}} _light}
-       {row "(1 − falloff²)²" {_number {.radiusAttenuation l}} _light}
-       {row "I / max(d², 1e-6)" {vectorText {.inverseSquare l} 3} textDimColor}
-       {row {text {textKey "demos.lightintensity_lux"}} {vectorText {.intensity l} 3} _light}
-       {row {text {textKey "demos.skipped_falloff_1"}} {!if {>= {.falloff l} 1.0} {text {textKey "demos.yes"}} {text {textKey "demos.no"}}} textColor}
-       {row {text {textKey "demos.lighting_channels_light_surface"}} f"{0x${hex2 {.lightChannels l}} & 0x${hex2 {.surfaceChannels l}} → $lit}" _light}}]
+    [# lit {!if {= 0 {_and {.lightChannels l} {.surfaceChannels l}}}
+        {text {textKey "demos.skipped"}}
+        {text {textKey "demos.lit"}}}]
+    {'
+        {row {text {textKey "common.distance_d"}} f"{${fixed {.distance l} 3} m}" textColor}
+        {row {text {textKey "demos.attenuation_radius_r"}} f"{${fixed {.radius l} 3} m}" _light}
+        {row "m_invAttenuationRadiusSquared" {_number {.invRadiusSquared l}} _light}
+        {row "falloff = d² / r²" {_number {.falloff l}} _light}
+        {row "(1 − falloff²)²" {_number {.radiusAttenuation l}} _light}
+        {row "I / max(d², 1e-6)" {vectorText {.inverseSquare l} 3} textDimColor}
+        {row {text {textKey "demos.lightintensity_lux"}} {vectorText {.intensity l} 3} _light}
+        {row
+            {text {textKey "demos.skipped_falloff_1"}}
+            {!if {>= {.falloff l} 1.0} {text {textKey "demos.yes"}} {text {textKey "demos.no"}}}
+            textColor}
+        {row
+            {text {textKey "demos.lighting_channels_light_surface"}}
+            f"{0x${hex2 {.lightChannels l}} & 0x${hex2 {.surfaceChannels l}} → $lit}"
+            _light}}]
 
 The point light demonstration's rows, the first `readoutRows` of them.
-$[# readout {: {^ {t} {!if {= {demo} "pointlight"} {take {_rows {pointLight}} {max 0 {round {readoutRows}}}} {'}}} Readout}]
+$[# readout {: {^ {t} {!if {= {demo} "pointlight"}
+    {take {_rows {pointLight}} {max 0 {round {readoutRows}}}}
+    {'}}} Readout}]

@@ -8,7 +8,9 @@ demonstration's time, in seconds. The other demonstrations' are the investigatio
 $[Import* std]$[Import* render_lab_runtime]$[Import* o3de_lighting_values]
 
 The sphere turns from dielectric to metal and back while its roughness sweeps more slowly.
-$[# playSurface {: {^ {t} {' {setSphereMetallic {wave 0.5 0.5 8.0 t}} {setSphereRoughness {wave 0.45 0.35 13.0 t}}}} Animation}]
+$[# playSurface {: {^ {t} {'
+    {setSphereMetallic {wave 0.5 0.5 8.0 t}}
+    {setSphereRoughness {wave 0.45 0.35 13.0 t}}}} Animation}]
 
 Roughness walks through the specular cubemap's mips.
 $[# playIbl {: {^ {t} {' {setSphereRoughness {cosineWave 0.5 -0.5 12.0 t}}}} Animation}]

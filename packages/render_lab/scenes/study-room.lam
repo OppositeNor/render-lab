@@ -12,19 +12,39 @@ Right-handed, +Y up, metres. A rotation is one turn about `x`, `y`, or `z` in de
 
 $[Import* std]
 
-$[# Rotation [% {Variant {' {Field "x" Float} {Field "y" Float} {Field "z" Float} {Field "aim" {List Float}}}}]]
+$[# Rotation [% {Variant {'
+    {Field "x" Float}
+    {Field "y" Float}
+    {Field "z" Float}
+    {Field "aim" {List Float}}}}]]
 $[# Vec [% {List Float}]]
 
 An object: its name and shape (plane, box, sphere, panel, mesh, or terrain), its half extent (a mesh's and the
 terrain's are their own), where it stands and how it is turned and scaled, its surface, and its light. The parts
 an object leaves out are `none`.
 
-$[# Object [% {Struct {' {Field "name" String} {Field "shape" String} {Field "mesh" {Option String}} {Field "extent" {Option Vec}}
-    {Field "translation" {Option Vec}} {Field "rotation" {Option Rotation}} {Field "albedo" Vec} {Field "roughness" Float}
-    {Field "emissive" {Option Vec}} {Field "emissiveStrength" {Option Float}}}}]]
-$[# {_object name shape extent albedo roughness}
-    {: {. name name shape shape mesh none extent {some extent} translation none rotation none albedo albedo roughness roughness
-          emissive none emissiveStrength none} Object}]
+$[# Object [% {Struct {'
+    {Field "name" String}
+    {Field "shape" String}
+    {Field "mesh" {Option String}}
+    {Field "extent" {Option Vec}}
+    {Field "translation" {Option Vec}}
+    {Field "rotation" {Option Rotation}}
+    {Field "albedo" Vec}
+    {Field "roughness" Float}
+    {Field "emissive" {Option Vec}}
+    {Field "emissiveStrength" {Option Float}}}}]]
+$[# {_object name shape extent albedo roughness} {: {.
+    name name
+    shape shape
+    mesh none
+    extent {some extent}
+    translation none
+    rotation none
+    albedo albedo
+    roughness roughness
+    emissive none
+    emissiveStrength none} Object}]
 $[# {_at translation o} {.translation= o {some translation}}]
 $[# {_turned rotation o} {.rotation= o {some {: rotation Rotation}}}]
 
@@ -32,40 +52,92 @@ The room's walls, from its half width and its height: each a plane through the r
 
 $[# _half 3.0]
 $[# _height 3.0]
-$[# {_wall name extent translation rotation albedo} {_turned rotation {_at translation {_object name "plane" extent albedo 1.0}}}]
-$[# _walls [% {' {_wall "back wall" {' _half 0.0 {/ _height 2.0}} {' 0.0 {/ _height 2.0} {neg _half}} {#x 90.0} {' 0.72 0.70 0.66}}
-              {_wall "left wall" {' {/ _height 2.0} 0.0 _half} {' {neg _half} {/ _height 2.0} 0.0} {#z -90.0} {' 0.70 0.24 0.18}}
-              {_wall "right wall" {' {/ _height 2.0} 0.0 _half} {' _half {/ _height 2.0} 0.0} {#z 90.0} {' 0.16 0.55 0.50}}}]]
+$[# {_wall name extent translation rotation albedo} {_turned rotation {_at translation {_object name "plane" extent albedo
+    1.0}}}]
+$[# _walls [% {'
+    {_wall "back wall"
+        {' _half 0.0 {/ _height 2.0}}
+        {' 0.0 {/ _height 2.0} {neg _half}}
+        {#x 90.0}
+        {' 0.72 0.70 0.66}}
+    {_wall "left wall"
+        {' {/ _height 2.0} 0.0 _half}
+        {' {neg _half} {/ _height 2.0} 0.0}
+        {#z -90.0}
+        {' 0.70 0.24 0.18}}
+    {_wall "right wall"
+        {' {/ _height 2.0} 0.0 _half}
+        {' _half {/ _height 2.0} 0.0}
+        {#z 90.0}
+        {' 0.16 0.55 0.50}}}]]
 
 A ceiling light: the panel's local +Y normal turned to face down; the scene's light is its rectangle, colour, and
 radiance.
 
-$[# _panel [% {.emissiveStrength= {.emissive= {_turned {#x 180.0} {_at {' 0.0 2.95 -0.2} {_object "emissive panel" "panel" {' 1.2 0.0 0.6} {' 0.8 0.8 0.8} 1.0}}}
-                                           {some {' 1.0 0.88 0.72}}}
-                     {some 6.0}}]]
+$[# _panel [% {.emissiveStrength=
+    {.emissive=
+        {_turned
+            {#x 180.0}
+            {_at
+                {' 0.0 2.95 -0.2}
+                {_object "emissive panel" "panel" {' 1.2 0.0 0.6} {' 0.8 0.8 0.8} 1.0}}}
+        {some {' 1.0 0.88 0.72}}}
+    {some 6.0}}]]
 
 The objects on the floor. The teapot is the bounds demonstration's object: the spout reaches farther than the
 handle, so the local bounds' centre is off the pivot. Its bounds are the mesh's.
 
-$[# _objects [% {' {_at {' -1.05 0.62 -0.55} {_object "sphere" "sphere" {' 0.62 0.62 0.62} {' 0.86 0.82 0.74} 0.5}}
-               {_turned {#y 30.0} {_at {' 1.05 0.45 0.15} {_object "rotated box" "box" {' 0.5 0.45 0.38} {' 0.22 0.42 0.85} 0.6}}}
-               {_turned {#y 20.0} {_at {' 1.95 0.24 1.45} {_object "small box" "box" {' 0.24 0.24 0.24} {' 0.92 0.55 0.22} 0.6}}}
-               {_turned {#y 30.0} {_at {' -0.25 0.0 -1.75} {.extent= {.mesh= {_object "teapot" "mesh" {'} {' 0.50 0.66 0.56} 0.35} {some "teapot"}} none}}}}]]
+$[# _objects [% {'
+    {_at {' -1.05 0.62 -0.55} {_object "sphere" "sphere" {' 0.62 0.62 0.62} {' 0.86 0.82 0.74} 0.5}}
+    {_turned
+        {#y 30.0}
+        {_at
+            {' 1.05 0.45 0.15}
+            {_object "rotated box" "box" {' 0.5 0.45 0.38} {' 0.22 0.42 0.85} 0.6}}}
+    {_turned
+        {#y 20.0}
+        {_at
+            {' 1.95 0.24 1.45}
+            {_object "small box" "box" {' 0.24 0.24 0.24} {' 0.92 0.55 0.22} 0.6}}}
+    {_turned
+        {#y 30.0}
+        {_at
+            {' -0.25 0.0 -1.75}
+            {.extent=
+                {.mesh= {_object "teapot" "mesh" {'} {' 0.50 0.66 0.56} 0.35} {some "teapot"}}
+                none}}}}]]
 
 The room: its title (a text key), how far a camera keeps clear (`roomMargin` inside the walls, or `above` the
 ground), and its floor's half extent. The objects are in the order of `scene::ids`.
 
 $[# CameraClear [% {Variant {' {Field "roomMargin" Float} {Field "above" Float}}}]]
-$[# {_room r}
-    {. titleText {.titleText r} cameraClear {: {.cameraClear r} CameraClear}
-       lighting {. light "emissive panel" ambient 0.12 f0 0.04 reflectionStrength 1.0 ggxSamples 16 exposure 1.0}
-       object {flatten {' {' {_object "floor" "plane" {' {.floor r} 0.0 {.floor r}} {' 0.16 0.17 0.19} 1.0}} _walls {' _panel} _objects}}}]
+$[# {_room r} {.
+    titleText {.titleText r}
+    cameraClear {: {.cameraClear r} CameraClear}
+    lighting {.
+        light "emissive panel"
+        ambient 0.12
+        f0 0.04
+        reflectionStrength 1.0
+        ggxSamples 16
+        exposure 1.0}
+    object {flatten {'
+        {' {_object "floor" "plane" {' {.floor r} 0.0 {.floor r}} {' 0.16 0.17 0.19} 1.0}}
+        _walls
+        {' _panel}
+        _objects}}}]
 
 The study room, seen from inside its walls.
 
-$[# studyRoom [% {_room {. titleText "scene.study_room" cameraClear {#roomMargin 0.2} floor _half}}]]
+$[# studyRoom [% {_room {.
+    titleText "scene.study_room"
+    cameraClear {#roomMargin 0.2}
+    floor _half}}]]
 
 The study room standing on wide grounds, its floor extended to 600 m a side, for views that pull far out of the
 room (cascades of a probe grid, say), seen from above them.
 
-$[# studyRoomGrounds [% {_room {. titleText "scene.study_room_grounds" cameraClear {#above 0.1} floor 300.0}}]]
+$[# studyRoomGrounds [% {_room {.
+    titleText "scene.study_room_grounds"
+    cameraClear {#above 0.1}
+    floor 300.0}}]]
