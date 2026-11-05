@@ -26,16 +26,29 @@ A value a hook sets: a key of the shot (lab/src/values.rs) and its value. The va
 applies any, in order.
 $[# Write [% {Struct {' {Field "key" String} {Field "value" Data}}}]]
 
-$[# _Segment [% {Struct {' {Field "from" Vec3} {Field "to" Vec3} {Field "color" String} {Field "alpha" Float}
-    {Field "width" Float} {Field "arrow" Bool} {Field "dashed" Bool}}}]]
-$[# _Point [% {Struct {' {Field "at" Vec3} {Field "radius" Float} {Field "color" String} {Field "alpha" Float}}}]]
+$[# _Segment [% {Struct {'
+    {Field "from" Vec3}
+    {Field "to" Vec3}
+    {Field "color" String}
+    {Field "alpha" Float}
+    {Field "width" Float}
+    {Field "arrow" Bool}
+    {Field "dashed" Bool}}}]]
+$[# _Point [% {Struct {'
+    {Field "at" Vec3}
+    {Field "radius" Float}
+    {Field "color" String}
+    {Field "alpha" Float}}}]]
 $[# _Label [% {Struct {' {Field "at" Vec3} {Field "text" String} {Field "color" String}}}]]
 
 What an overlay draws over the scene (lab/src/frame.rs `DrawLists`, `Label`): a segment (an arrow, or dashed), a
 point, or a label beside a point, whose text is written out (`label`) or a key of the package's text table
 (`labelText`). A colour is `#rrggbb`, or one of the theme's, which follow the viewer's theme: `textColor`,
 `textDimColor`, `textFaintColor`, `accentColor`. Nothing with an alpha of 0 or less is drawn.
-$[# Shape [% {Variant {' {Field "segment" _Segment} {Field "point" _Point} {Field "label" _Label}
+$[# Shape [% {Variant {'
+    {Field "segment" _Segment}
+    {Field "point" _Point}
+    {Field "label" _Label}
     {Field "labelText" _Label}}}]]
 
 A row of the readout beside the scene (lab/src/frame.rs `Readout`): its name, its value, and the value's colour
@@ -84,7 +97,9 @@ $[# {vscale a s} {vec3 {* {.x a} s} {* {.y a} s} {* {.z a} s}}]
 Fn([Vec3, Vec3], Float). The dot product.
 $[# {vdot a b} {+ {+ {* {.x a} {.x b}} {* {.y a} {.y b}}} {* {.z a} {.z b}}}]
 Fn([Vec3, Vec3], Vec3). The cross product.
-$[# {vcross a b} {vec3 {- {* {.y a} {.z b}} {* {.z a} {.y b}}} {- {* {.z a} {.x b}} {* {.x a} {.z b}}}
+$[# {vcross a b} {vec3
+    {- {* {.y a} {.z b}} {* {.z a} {.y b}}}
+    {- {* {.z a} {.x b}} {* {.x a} {.z b}}}
     {- {* {.x a} {.y b}} {* {.y a} {.x b}}}}]
 Fn([Vec3], Float). The length.
 $[# {vlength a} {sqrt {vdot a a}}]
@@ -109,8 +124,9 @@ $[# {mirror n l} {vnormalize {vsub {vscale n {* 2.0 {vdot n l}}} l}}]
 
 Fn([Vec3, Vec3, Int], List(Vec3)). `count + 1` directions swept from horizon to horizon through `n`, in the
 plane of `n` and its perpendicular `t`.
-$[# {sweep n t count}
-    {map {range 0 {+ count 1}} {^ {k}
+$[# {sweep n t count} {map
+    {range 0 {+ count 1}}
+    {^ {k}
         [# a {* {- {/ {float k} {float count}} 0.5} pi}]
         {vadd {vscale n {cos a}} {vscale t {sin a}}}}}]
 
@@ -131,7 +147,9 @@ $[# {easeIn x} {* {* x x} x}]
 Fn([Float], Float). Cubic, to rest.
 $[# {easeOut x} [# y {- 1.0 x}] {- 1.0 {* {* y y} y}}]
 Fn([Float], Float). Cubic, at rest at both ends.
-$[# {easeInOut x} [# y {- 1.0 x}] {!if {< x 0.5} {* 4.0 {* {* x x} x}} {- 1.0 {* 4.0 {* {* y y} y}}}}]
+$[# {easeInOut x}
+    [# y {- 1.0 x}]
+    {!if {< x 0.5} {* 4.0 {* {* x x} x}} {- 1.0 {* 4.0 {* {* y y} y}}}}]
 Fn([Float], Float). Half a cosine: a ping-pong of it is a pure sine.
 $[# {easeSine x} {- 0.5 {* 0.5 {cos {* pi x}}}}]
 
@@ -140,7 +158,9 @@ $[# {once seconds t} {clamp {/ t seconds} 0.0 1.0}]
 Fn([Float, Float], Float). The fraction of `seconds` done, starting again every `seconds`.
 $[# {looping seconds t} [# x {/ t seconds}] {- x {float {floor x}}}]
 Fn([Float, Float], Float). The fraction of `seconds` done, running back to 0 and forward again.
-$[# {pingPong seconds t} [# x {/ t seconds}] {- 1.0 {abs {- {- x {* 2.0 {float {floor {/ x 2.0}}}}} 1.0}}}]
+$[# {pingPong seconds t}
+    [# x {/ t seconds}]
+    {- 1.0 {abs {- {- x {* 2.0 {float {floor {/ x 2.0}}}}} 1.0}}}]
 Fn([Float, Float], Int). How many whole steps of `seconds` are done `t` seconds in. A step counts from the frame it
 starts on: `t` comes from whole frames, so a quotient a rounding short of a whole number (4 × 0.7 s is
 2.8 s, but 2.8 / 0.7 is 3.9999999999999996) is that number.
@@ -152,7 +172,9 @@ Fn([Float, Float, Float, Float], Float). A sine wave around `center`, `amplitude
 (the lab's `Wave`: `center + amplitude · sin(2π t / period)`).
 $[# {wave center amplitude period t} {+ center {* amplitude {sin {/ {* {* 2.0 pi} t} period}}}}]
 Fn([Float, Float, Float, Float], Float). The same wave a quarter period earlier, a cosine.
-$[# {cosineWave center amplitude period t} {+ center {* amplitude {sin {+ {/ {* {* 2.0 pi} t} period} {/ pi 2.0}}}}}]
+$[# {cosineWave center amplitude period t} {+ center {* amplitude {sin {+
+    {/ {* {* 2.0 pi} t} period}
+    {/ pi 2.0}}}}}]
 
 $[# _Span [% {Struct {' {Field "seconds" Float} {Field "curve" {Fn {' Float} Float}}}}]]
 
@@ -174,16 +196,38 @@ $[# {seq spans t}
 Shapes
 
 Fn([Vec3, Vec3, String, Float, Float], Shape). A segment, `width` pixels wide.
-$[# {segment from to color alpha width}
-    {: {#segment {. from from to to color color alpha alpha width width arrow false dashed false}} Shape}]
+$[# {segment from to color alpha width} {: {#segment {.
+    from from
+    to to
+    color color
+    alpha alpha
+    width width
+    arrow false
+    dashed false}} Shape}]
 Fn([Vec3, Vec3, String, Float, Float], Shape). An arrow from `from` to `to`.
-$[# {arrow from to color alpha width}
-    {: {#segment {. from from to to color color alpha alpha width width arrow true dashed false}} Shape}]
+$[# {arrow from to color alpha width} {: {#segment {.
+    from from
+    to to
+    color color
+    alpha alpha
+    width width
+    arrow true
+    dashed false}} Shape}]
 Fn([Vec3, Vec3, String, Float, Float], Shape). A dashed segment.
-$[# {dashed from to color alpha width}
-    {: {#segment {. from from to to color color alpha alpha width width arrow false dashed true}} Shape}]
+$[# {dashed from to color alpha width} {: {#segment {.
+    from from
+    to to
+    color color
+    alpha alpha
+    width width
+    arrow false
+    dashed true}} Shape}]
 Fn([Vec3, Float, String, Float], Shape). A point, `radius` pixels across.
-$[# {point at radius color alpha} {: {#point {. at at radius radius color color alpha alpha}} Shape}]
+$[# {point at radius color alpha} {: {#point {.
+    at at
+    radius radius
+    color color
+    alpha alpha}} Shape}]
 Fn([Vec3, String, String], Shape). A label beside `at`, its text as written (a symbol: `N`).
 $[# {label at text color} {: {#label {. at at text text color color}} Shape}]
 Fn([Vec3, String, String], Shape). A label beside `at`, its text the package's text `key` (`textKey`).
@@ -201,12 +245,13 @@ $[# {_hex n} {!if {< n 16} {nth _hexDigits n} {++ {_hex {div n 16}} {nth _hexDig
 $[# {hex2 n} [# h {_hex n}] {!if {< n 16} {++ "0" h} h}]
 
 Fn([Vec3, Int], String). A vector as `(x, y, z)`, each with `digits` decimals.
-$[# {vectorText v digits} f"{(${fixed {.x v} digits}, ${fixed {.y v} digits}, ${fixed {.z v} digits})}"]
+$[# {vectorText v digits}
+    f"{(${fixed {.x v} digits}, ${fixed {.y v} digits}, ${fixed {.z v} digits})}"]
 
 Fn([List(Vec3), String, Float, Float], List(Shape)). Segments through the points in turn.
-$[# {polyline points color alpha width}
-    {!if {isEmpty points} {'}
-        {map {zip points {tail points}} {^ {p} {segment {.first p} {.second p} color alpha width}}}}]
+$[# {polyline points color alpha width} {!if {isEmpty points}
+    {'}
+    {map {zip points {tail points}} {^ {p} {segment {.first p} {.second p} color alpha width}}}}]
 
 $[# _Arrow [% {Struct {' {Field "name" String} {Field "dir" Vec3} {Field "color" String}}}]]
 
@@ -217,32 +262,43 @@ $[# {named name dir color} {: {. name name dir dir color color} _Arrow}]
 Fn([Vec3, List({color: String, dir: Vec3, name: String}), Float, Float, Float, Float], List(Shape)). Arrows
 `size` long from `at`, each labelled with its name, the first `count` of them: a fractional count grows the next one
 out of the point (smoothly), and its label shows once it is past 0.6 of its length.
-$[# {grownArrows at arrows size alpha width count}
-    {flatten {map {zip {range 0 {length arrows}} arrows} {^ {e}
+$[# {grownArrows at arrows size alpha width count} {flatten {map
+    {zip {range 0 {length arrows}} arrows}
+    {^ {e}
         [# i {float {.first e}}]
         [# a {.second e}]
         [# grown {!if {>= count {+ i 1.0}} 1.0 {smooth {- count i}}}]
         [# tip {vadd at {vscale {.dir a} {* size grown}}}]
         [# shaft {' {arrow at tip {.color a} alpha width}}]
-        [# name {!if {> grown 0.6} {' {label {vadd at {vscale {.dir a} {+ {* size grown} 0.04}}} {.name a} {.color a}}} {'}}]
+        [# name {!if {> grown 0.6}
+            {' {label {vadd at {vscale {.dir a} {+ {* size grown} 0.04}}} {.name a} {.color a}}}
+            {'}}]
         {!if {> count i} {append shaft name} {'}}}}}]
 
 Fn([List(Float)], Float). The largest value, or 0 when none is above 0.
 $[# {_peak values} {fold values 0.0 max}]
 
 Fn([List(Vec3), List(Float)], Vec3). The direction of the largest value (the last of equal ones).
-$[# {_tip dirs values}
-    {.first {fold {tail {zip dirs values}} {head {zip dirs values}}
-        {^ {best e} {!if {>= {.second e} {.second best}} e best}}}}]
+$[# {_tip dirs values} {.first {fold
+    {tail {zip dirs values}}
+    {head {zip dirs values}}
+    {^ {best e} {!if {>= {.second e} {.second best}} e best}}}}]
 
 Fn([Vec3, List(Vec3), List(Float), String, Float, Float, Float, Option(String)], List(Shape)). A polar plot
 around `at`: each value as a radius along its direction, scaled so the largest is `size`, closed through `at`;
 with a text key, labelled at its tip. Nothing when no value is above 0.
 $[# {lobeLine at dirs values color size alpha width tag}
     [# peak {_peak values}]
-    [# {line u} [# points {append {cons at {map {zip dirs values} {^ {e} {vadd at {vscale {.first e} {/ {* size {.second e}} peak}}}}}} {' at}}]
+    [# {line u}
+        [# points {append
+            {cons at {map
+                {zip dirs values}
+                {^ {e} {vadd at {vscale {.first e} {/ {* size {.second e}} peak}}}}}}
+            {' at}}]
         {polyline points color alpha width}]
-    [# {_labelled u} {caseOption tag {^ {} {'}} {^ {key} {' {labelText {vadd at {vscale {_tip dirs values} {+ size 0.06}}} key color}}}}]
+    [# {_labelled u} {caseOption tag
+        {^ {} {'}}
+        {^ {key} {' {labelText {vadd at {vscale {_tip dirs values} {+ size 0.06}}} key color}}}}]
     {!if {<= peak 0.0} {'} {append {line unit} {_labelled unit}}}]
 
 Colours

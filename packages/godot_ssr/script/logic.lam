@@ -10,6 +10,9 @@ trace runs at half the viewport's size), one pixel wide; elsewhere it picks noth
 $[# scene {: {^ {click}
     [# size {rt::viewport}]
     {!if {= {rt::demo} "trace"}
-        {' {setPickX {float {floor {/ {* {.u click} {.x size}} 2.0}}}} {setPickY {float {floor {/ {* {.v click} {.y size}} 2.0}}}}
-           {setPickWidth 0.0} {setPickHeight 0.0}}
+        {'
+            {setPickX {float {floor {/ {* {.u click} {.x size}} 2.0}}}}
+            {setPickY {float {floor {/ {* {.v click} {.y size}} 2.0}}}}
+            {setPickWidth 0.0}
+            {setPickHeight 0.0}}
         {'}}} ClickHandler}]

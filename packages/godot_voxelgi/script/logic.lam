@@ -4,10 +4,17 @@ The VoxelGI investigation's logic
 The action its story runs (`{run "marchCone"}`), the click handler of its slice insets (`imageClick`), and its
 click on the scene, over the octree its code bakes (src/godot/voxelgi/script.rs: `octreeSize`, `leafOf`).
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* godot_voxelgi_values]$[Import* godot_voxelgi_natives]$[ImportAs rl_runtime rt]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* godot_voxelgi_values]
+$[Import* godot_voxelgi_natives]
+$[ImportAs rl_runtime rt]
 
 The arguments a story passes to `marchCone` (`run.seconds=…`); the optional ones are options.
-$[# MarchCone [% {Struct {' {Field "seconds" Float} {Field "from" {Option Int}} {Field "to" {Option Int}}}}]]
+$[# MarchCone [% {Struct {'
+    {Field "seconds" Float}
+    {Field "from" {Option Int}}
+    {Field "to" {Option Int}}}}]]
 
 Steps a cone's march (`coneSteps`) from `from` (0 by default) to `to` (16 by default), one sample every `seconds`.
 $[# marchCone {: {^ {elapsed run}
@@ -29,7 +36,12 @@ $[# pickSliceCell {: {^ {click}
 
 A click on the scene picks the leaf cell of the surface it hits: just behind the point, along the surface's normal.
 A click that hits nothing picks nothing.
-$[# scene {: {^ {click}
-    {caseOption {rt::trace {.u click} {.v click} {'}} {^ {} {'}} {^ {hit}
+$[# scene {: {^ {click} {caseOption
+    {rt::trace {.u click} {.v click} {'}}
+    {^ {} {'}}
+    {^ {hit}
         [# c {leafOf {vsub {.point hit} {vscale {.normal hit} 0.01}}}]
-        {' {setCellX {float {.x c}}} {setCellY {float {.y c}}} {setCellZ {float {.z c}}}}}}} ClickHandler}]
+        {'
+            {setCellX {float {.x c}}}
+            {setCellY {float {.y c}}}
+            {setCellZ {float {.z c}}}}}}} ClickHandler}]

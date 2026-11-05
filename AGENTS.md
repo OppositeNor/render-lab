@@ -105,6 +105,7 @@ python3 tools/video/build.py --all                                            # 
 python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
+python3 tools/lamlet_fmt.py --check                                           # every tracked .lam file laid out (without --check: lays them out)
 cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
 cargo run --release -- --investigation godot/sdfgi story schema              # the same keys with type, unit, range, default, doc; and what the vocabulary leaves out, with the `attr` that writes it
 cargo run --release -- --investigation o3de/lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)

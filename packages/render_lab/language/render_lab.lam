@@ -17,28 +17,38 @@ Narration says its numbers in words, so the voice reads them right: `spoken` wri
 English words, `spokenFloat` a Float with its decimals ("three point two"), `rounded` an Int to its leading
 `digits` significant digits ("about forty-two thousand" is `rounded 42289 2`).
 
-$[# _ones [% {' "zero" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine" "ten" "eleven" "twelve"
-                "thirteen" "fourteen" "fifteen" "sixteen" "seventeen" "eighteen" "nineteen"}]]
+$[# _ones [% {' "zero" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine" "ten"
+    "eleven" "twelve" "thirteen" "fourteen" "fifteen" "sixteen" "seventeen" "eighteen" "nineteen"}]]
 $[# _tens [% {' "" "" "twenty" "thirty" "forty" "fifty" "sixty" "seventy" "eighty" "ninety"}]]
-$[# {_under100 n} {!if {< n 20} {nth _ones n}
-        {!if {= {% n 10} 0} {nth _tens {div n 10}}
-            {++ {nth _tens {div n 10}} {++ "-" {nth _ones {% n 10}}}}}}]
-$[# {_under1000 n} {!if {< n 100} {_under100 n}
-        {!if {= {% n 100} 0}
-            {++ {nth _ones {div n 100}} " hundred"}
-            {++ {nth _ones {div n 100}} {++ " hundred " {_under100 {% n 100}}}}}}]
-$[# {_withScale self n unit name} [# r {% n unit}]
+$[# {_under100 n} {!if {< n 20}
+    {nth _ones n}
+    {!if {= {% n 10} 0}
+        {nth _tens {div n 10}}
+        {++ {nth _tens {div n 10}} {++ "-" {nth _ones {% n 10}}}}}}]
+$[# {_under1000 n} {!if {< n 100}
+    {_under100 n}
+    {!if {= {% n 100} 0}
+        {++ {nth _ones {div n 100}} " hundred"}
+        {++ {nth _ones {div n 100}} {++ " hundred " {_under100 {% n 100}}}}}}]
+$[# {_withScale self n unit name}
+    [# r {% n unit}]
     {++ {self {div n unit}} {++ " " {++ name {!if {= r 0} "" {++ " " {self r}}}}}}]
-$[# {spoken n}
-    {!if {< n 0} {++ "minus " {spoken {neg n}}}
-        {!if {< n 1000} {_under1000 n}
-            {!if {< n 1000000} {_withScale spoken n 1000 "thousand"}
-                {!if {< n 1000000000} {_withScale spoken n 1000000 "million"}
-                    {_withScale spoken n 1000000000 "billion"}}}}}]
-$[# {_digit c} {withDefault {fold {range 0 10} none {^ {found d} {!if {= {str d} c} {some d} found}}} 0}]
+$[# {spoken n} {!if {< n 0}
+    {++ "minus " {spoken {neg n}}}
+    {!if {< n 1000}
+        {_under1000 n}
+        {!if {< n 1000000}
+            {_withScale spoken n 1000 "thousand"}
+            {!if {< n 1000000000}
+                {_withScale spoken n 1000000 "million"}
+                {_withScale spoken n 1000000000 "billion"}}}}}]
+$[# {_digit c} {withDefault
+    {fold {range 0 10} none {^ {found d} {!if {= {str d} c} {some d} found}}}
+    0}]
 $[# {_digitWords digits} {join " " {map {chars digits} {^ {c} {nth _ones {_digit c}}}}}]
 $[# {_toInt digits} {fold {chars digits} 0 {^ {acc c} {+ {* acc 10} {_digit c}}}}]
-$[# {spokenFloat x} [# text {str {abs x}}]
+$[# {spokenFloat x}
+    [# text {str {abs x}}]
     [# parts {split text "."}]
     [# whole {spoken {_toInt {head parts}}}]
     [# sign {!if {< x 0.0} "minus " ""}]
@@ -48,7 +58,8 @@ $[# {spokenFloat x} [# text {str {abs x}}]
             {++ sign whole}
             {++ sign {++ whole {++ " point " {_digitWords {nth parts 1}}}}}}}]
 $[# {_pow10 k} {!if {<= k 0} 1 {* 10 {_pow10 {- k 1}}}}]
-$[# {rounded n digits} [# size {length {chars {str {abs n}}}}]
+$[# {rounded n digits}
+    [# size {length {chars {str {abs n}}}}]
     [# step {_pow10 {- size digits}}]
     [# r {* {div {+ {abs n} {div step 2}} step} step}]
     {spoken {!if {< n 0} {neg r} r}}]
@@ -58,7 +69,8 @@ A sentence's first word with its first letter capitalized: `{capitalized {spoken
 $[# _lower [% {chars "abcdefghijklmnopqrstuvwxyz"}]]
 $[# _upper [% {chars "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}]]
 $[# {_capital c} {fold {range 0 26} c {^ {out i} {!if {= {nth _lower i} c} {nth _upper i} out}}}]
-$[# {capitalized s} [# cs {chars s}]
+$[# {capitalized s}
+    [# cs {chars s}]
     {!if {isEmpty cs} s {++ {_capital {head cs}} {concat {tail cs}}}}]
 
 Motions
@@ -83,34 +95,39 @@ $[# {_motion kind fields} {: {. kind kind fields fields} Motion}]
 $[# {_field name value} {: {. name name value {toData value}} _Field}]
 $[# {_channel f} {.key {: {f 0.0} Attr}}]
 $[# {_channels fs} {map fs _channel}]
-$[# {_count what fs xs} {!if {= {length fs} {length xs}} unit
-    {error {++ what {++ " has one value per channel: " {++ {str {length fs}} {++ ", not " {str {length xs}}}}}}}}]
+$[# {_count what fs xs} {!if {= {length fs} {length xs}}
+    unit
+    {error {++ what {++ " has one value per channel: " {++
+        {str {length fs}}
+        {++ ", not " {str {length xs}}}}}}}}]
 
 Through `waypoints` after the start (one value per channel each), on a smooth curve.
 
 $[# {path channels waypoints length}
     [# checked {map waypoints {^ {w} {_count "a waypoint" channels w}}}]
-    {_motion "path" {' {_field "params" {_channels channels}}
-                       {_field "through" {: waypoints {List {List Float}}}}
-                       {_field "seconds" {: length Length}}}}]
+    {_motion "path" {'
+        {_field "params" {_channels channels}}
+        {_field "through" {: waypoints {List {List Float}}}}
+        {_field "seconds" {: length Length}}}}]
 
 About `center` (one value per channel), by `degrees`: two channels turn in their plane, from the first towards
 the second; three about an axis (`around`; up by default).
 
 $[# {orbit channels center degrees length}
     [# checked {_count "an orbit's center" channels center}]
-    {_motion "orbit" {' {_field "params" {_channels channels}}
-                        {_field "center" {: center {List Float}}}
-                        {_field "degrees" {: degrees Float}}
-                        {_field "seconds" {: length Length}}}}]
+    {_motion "orbit" {'
+        {_field "params" {_channels channels}}
+        {_field "center" {: center {List Float}}}
+        {_field "degrees" {: degrees Float}}
+        {_field "seconds" {: length Length}}}}]
 
 A sine wave of `amplitude` and `period` (seconds) about the channel's value when it starts, for ever unless
 `lasting`.
 
-$[# {sway channel amplitude period}
-    {_motion "wave" {' {_field "param" {_channel channel}}
-                       {_field "amplitude" {: amplitude Float}}
-                       {_field "period" {: period Float}}}}]
+$[# {sway channel amplitude period} {_motion "wave" {'
+    {_field "param" {_channel channel}}
+    {_field "amplitude" {: amplitude Float}}
+    {_field "period" {: period Float}}}}]
 
 A motion's optional parts, each a wrapper (only the kinds it names take it): the pace along it (`eased`, with the
 vocabulary's easing, `easingSine`), going round again (`looping`, `pingPonging`), back to its start at the end (a
@@ -118,12 +135,15 @@ path, `closed`), the axis of a three-channel orbit (`around`), the point an orbi
 centre (`centered`), its phase in degrees (`phased`), how long it waves (`lasting`), and the seconds over which its
 amplitude grows and shrinks (`fading`).
 
-$[# {_part kinds name value m}
-    {!if {contains kinds {.kind m}} {.fields= m {append {.fields m} {' {: {. name name value value} _Field}}}}
-        {error {++ "a " {++ {.kind m} {++ " motion has no " name}}}}}]
+$[# {_part kinds name value m} {!if {contains kinds {.kind m}}
+    {.fields= m {append {.fields m} {' {: {. name name value value} _Field}}}}
+    {error {++ "a " {++ {.kind m} {++ " motion has no " name}}}}}]
 $[# _easings [% {' "smooth" "linear" "in" "out" "inOut" "sine"}]]
-$[# {_easeName easing} {fold _easings "" {^ {found n} {!if {= {.value {: easing Attr}} {toData n}} n found}}}]
-$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"} {_part {' "path" "orbit"} "ease" {toData {_easeName easing}} m}
+$[# {_easeName easing} {fold _easings "" {^ {found n} {!if {= {.value {: easing Attr}} {toData n}}
+    n
+    found}}}]
+$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"}
+    {_part {' "path" "orbit"} "ease" {toData {_easeName easing}} m}
     {error {++ "eased takes an easing (easingSine, …), not " {.key easing}}}}]
 $[# {looping m} {_part {' "path" "orbit"} "repeat" {toData "loop"} m}]
 $[# {pingPonging m} {_part {' "path" "orbit"} "repeat" {toData "pingPong"} m}]
@@ -151,7 +171,10 @@ $[# {cameraTurn waypoints} {path {' _cameraYaw _cameraPitch} waypoints beat}]
 The same over another length (`sentence`, `{seconds 4.0}`), and their waypoints named, one per line if need be:
 `{pose yaw pitch distance}` for `cameraPath`, `{aim yaw pitch}` for `cameraTurn`.
 
-$[# {cameraPathOver length waypoints} {path {' _cameraYaw _cameraPitch _cameraDistance} waypoints length}]
+$[# {cameraPathOver length waypoints} {path
+    {' _cameraYaw _cameraPitch _cameraDistance}
+    waypoints
+    length}]
 $[# {cameraTurnOver length waypoints} {path {' _cameraYaw _cameraPitch} waypoints length}]
 $[# {pose yaw pitch distance} {: {' yaw pitch distance} {List Float}}]
 $[# {aim yaw pitch} {: {' yaw pitch} {List Float}}]
@@ -176,7 +199,9 @@ A cue sets the main view's values; `view` makes its attributes another view's (l
 or a range's attributes (`cue "key" {view "field" {' {fieldMorph 1.0}}}`, or a range's `{view "field" {'
 {fieldMorphRange 0.0 1.0}}}`), and joins other attributes with `append`.
 
-$[# {view name attrs} {map {: attrs {List Attr}} {^ {a} {attr {++ "view." {++ name {++ "." {.key a}}}} {.value a}}}}]
+$[# {view name attrs} {map
+    {: attrs {List Attr}}
+    {^ {a} {attr {++ "view." {++ name {++ "." {.key a}}}} {.value a}}}}]
 
 Points, marks, and names
 
@@ -211,8 +236,12 @@ record's WGSL struct name (`ObjectData` or `CameraData`). These use typed Data, 
 actual context, instead of joining names into an unqualified list.
 
 $[# {highlightPasses names} {attr "highlightPasses" {: names {List String}}}]
-$[# {highlightCode name tags} {attr "highlightCode" {. listing {: name String} tags {: tags {List String}}}}]
-$[# {highlightFields record fields} {attr "highlightFields" {. record {: record String} fields {: fields {List String}}}}]
+$[# {highlightCode name tags} {attr "highlightCode" {.
+    listing {: name String}
+    tags {: tags {List String}}}}]
+$[# {highlightFields record fields} {attr "highlightFields" {.
+    record {: record String}
+    fields {: fields {List String}}}}]
 
 What the frame records (`record`): nothing, the camera, or one object (by index).
 
@@ -240,11 +269,16 @@ $[# narrationCleared [% {' {callout ""} {attr "image" ""} {attr "formula" "off"}
 
 A range whose words start with a callout: the source-index entry `key` is shown as the range's words begin.
 
-$[# {overCallout attrs key words} {during "" attrs {cat {' {text " "} {cue "key" {' {callout key}}} {text {++ " " words}}}}}]
+$[# {overCallout attrs key words} {during "" attrs {cat {'
+    {text " "}
+    {cue "key" {' {callout key}}}
+    {text {++ " " words}}}}}]
 
 Formulas
 
 A formula, and what the voice says for it: the formula card's cue (with `attrs` besides the LaTeX: `colors`,
 `term`, `display`, `card`) and the `say` that shows it, from one LaTeX String, which the lab typesets first.
 
-$[# {formulaSaid tex said attrs} {cat {' {anchor "formula" {cons {attr "formula" {rl::formula tex}} attrs}} {say {math tex} said}}}]
+$[# {formulaSaid tex said attrs} {cat {'
+    {anchor "formula" {cons {attr "formula" {rl::formula tex}} attrs}}
+    {say {math tex} said}}}]

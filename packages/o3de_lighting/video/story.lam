@@ -10,21 +10,37 @@ $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import*
 A beat's opening keys: its demonstration and panel, the callout and the insets cleared, and how far the camera
 drifts while it holds; `more` are the beat's own.
 
-$[# {opening demo panel drift more} {append {' demo {callout ""} {inset ""} panel {cameraDrift drift}} more}]
+$[# {opening demo panel drift more} {append
+    {' demo {callout ""} {inset ""} panel {cameraDrift drift}}
+    more}]
 
 The room's lighting as most beats show it: the sun at forty thousand lux from yaw 40 and pitch 52, the sky and its
 image-based light at exposure 2, and the camera's exposure.
 
-$[# baseLight {' {sunLux 40.0} {iblExposure 2.0} {skyboxExposure 2.0} {exposure 0.18} {sunYaw 40.0} {sunPitch 52.0}}]
+$[# baseLight {'
+    {sunLux 40.0}
+    {iblExposure 2.0}
+    {skyboxExposure 2.0}
+    {exposure 0.18}
+    {sunYaw 40.0}
+    {sunPitch 52.0}}]
 
 The point low on the teapot that chapters 3 to 9 follow through the frame: its position and its normal.
 
-$[# teapotPoint {' {inspectX -0.315} {inspectY 0.124} {inspectZ -1.478} {inspectNX -0.23} {inspectNY -0.02} {inspectNZ 0.97}}]
+$[# teapotPoint {'
+    {inspectX -0.315}
+    {inspectY 0.124}
+    {inspectZ -1.478}
+    {inspectNX -0.23}
+    {inspectNY -0.02}
+    {inspectNZ 0.97}}]
 
 A target of the frame's chain in an inset: the inset's name, the target's index, and its corner; `more` sets the
 rest (its title's `imageTitle` written at the cue, where the text check finds its key).
 
-$[# {chainTarget name target corner more} {append {' {inset name} imageFromChainTarget {imageTarget target} corner} more}]
+$[# {chainTarget name target corner more} {append
+    {' {inset name} imageFromChainTarget {imageTarget target} corner}
+    more}]
 
 A key a moment into the sentence, before its first words.
 
