@@ -81,6 +81,17 @@ impl Investigation for Sdfgi {
     fn script_natives(&self, r: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
         r.function("godot_sdfgi/cascades", |_, ()| Ok(gpu::CASCADES as i64)).pure().doc("Fn([], Int). `sdfgi_cascades`, the cascade count.").register()?;
         r.function("godot_sdfgi/cascade-cells", |_, ()| Ok(model::CASCADE_SIZE as i64)).pure().doc("Fn([], Int). A cascade's cells along an axis.").register()?;
+        // The numbers chapter 2 says of the default settings, so the narration says what the code holds. Metres are
+        // rounded to a tenth, as said.
+        let tenth = |x: f64| (x * 10.0).round() / 10.0;
+        let cell = model::Settings::default().min_cell_size as f64;
+        r.function("godot_sdfgi/cell-centimetres", move |_, ()| Ok((cell * 100.0).round() as i64)).pure().doc("Fn([], Int). The finest cascade's cell, in centimetres (`sdfgi_min_cell_size`).").register()?;
+        r.function("godot_sdfgi/first-span", move |_, ()| Ok(tenth(cell * model::CASCADE_SIZE as f64))).pure().doc("Fn([], Float). How far the finest cascade spans, in metres, to a tenth.").register()?;
+        r.function("godot_sdfgi/probe-gaps", |_, ()| Ok(model::PROBE_DIVISOR as i64)).pure().doc("Fn([], Int). The gaps between probes along a cascade's axis (`PROBE_DIVISOR`).").register()?;
+        r.function("godot_sdfgi/probe-cells", |_, ()| Ok(model::PROBE_CELLS as i64)).pure().doc("Fn([], Int). Cells from one probe to the next.").register()?;
+        r.function("godot_sdfgi/drag-margin", |_, ()| Ok(((model::CASCADE_SIZE / model::PROBE_DIVISOR) / 2) as i64)).pure().doc("Fn([], Int). How many cells the camera may stray before a cascade scrolls (`drag_margin`).").register()?;
+        r.function("godot_sdfgi/probe-axis-count", |_, ()| Ok(model::PROBE_AXIS_COUNT as i64)).pure().doc("Fn([], Int). Probes along a cascade's axis (`probe_axis_count`).").register()?;
+        r.function("godot_sdfgi/probe-spacing", move |_, ()| Ok(tenth(cell * model::PROBE_CELLS as f64))).pure().doc("Fn([], Float). Metres between the finest cascade's probes, to a tenth.").register()?;
         Ok(())
     }
 
