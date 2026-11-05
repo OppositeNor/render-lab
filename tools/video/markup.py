@@ -25,7 +25,7 @@ it); arrows and labels: `arrow=name arrowFrom arrowTo
 arrowColor=#rrggbb arrowWidth=3`, `arrows=set`, `label=name labelAt
 labelText=text-key labelColor=#rrggbb`, a point three numbers or one the
 package publishes, `arrowHide`, `labelHide` (`arrow=""`, `label=""`
-hide all). A range's values `a..b` jump to `a` where it opens and blend to `b`
+hide all). A range's values `{. from a to b}` jump to `a` where it opens and blend to `b`
 exactly where it closes. A formula's cue (`formula`, `term=n` lighting term
 n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
 `colors="#rrggbb,…"`) opens the formula card; `formula=off` closes it.
@@ -78,7 +78,7 @@ class Fields:
 @dataclass(frozen=True)
 class Range:
     """A value a range blends over its words: it jumps to `start` where the
-    range opens and blends to `end` where it closes (`a..b`)."""
+    range opens and blends to `end` where it closes (`{. from a to b}`)."""
     start: float
     end: float
 
@@ -166,27 +166,22 @@ def integer(value: str | int | float, where: str, minimum: int = 0, maximum: int
     return result
 
 
-def param_value(value: str, where: str) -> float | bool | str | list[float]:
-    """A parameter's value as a tag writes it: a number, `true` or `false`, a
-    comma-separated list of numbers (a vector), or a name (a choice's option).
-    The lab checks it against the parameter's declaration when it loads the
-    timeline (lab/src/values.rs, `resolve`)."""
-    if value in ('true', 'false'):
-        return value == 'true'
-    if ',' in value:
-        return [number(x, where) for x in value.split(',')]
-    try:
-        float(value)
-    except ValueError:
-        pass
-    else:
+def param_value(value: Any, where: str) -> float | bool | str | list[float]:
+    """A parameter's value as the vocabulary writes it (typed data, lamlet-present 0.3): a number, a Bool, a
+    list of numbers (a vector), or a name (a choice's option). The lab checks it against the parameter's
+    declaration when it loads the timeline (lab/src/values.rs, `resolve`)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
         return number(value, where)
-    if value[:1].isalpha() and all(c.isalnum() or c == '_' for c in value):
+    if isinstance(value, list):
+        return [number(x, where) for x in value]
+    if isinstance(value, str) and value[:1].isalpha() and all(c.isalnum() or c == '_' for c in value):
         return value
     raise MarkupError(f'{where}: {value!r} is not a number, true or false, a list of numbers, or a name')
 
 
-def action_attr(key: Json, name: str, value: str, where: str) -> bool:
+def action_attr(key: Json, name: str, value: Any, where: str) -> bool:
     """Reads an action's attribute into `key`: `run=name` starts the action,
     `run.<arg>=value` gives it an argument, `stop=a,b` stops actions. False
     for any other attribute."""
@@ -257,12 +252,11 @@ def check_action(key: Json, where: str) -> None:
         del run['args']
 
 
-def value(text: str, where: str) -> float | bool | str | list[float] | Range:
-    """A value as a cue writes it (`param_value`), or a range's `a..b`."""
-    if '..' in text:
-        a, b = text.split('..', 1)
-        return Range(number(a, where), number(b, where))
-    return param_value(text, where)
+def value(data: Any, where: str) -> float | bool | str | list[float] | Range:
+    """A value as a cue writes it (`param_value`), or a range's `{. from a to b}`."""
+    if isinstance(data, dict) and set(data) == {'from', 'to'}:
+        return Range(number(data['from'], where), number(data['to'], where))
+    return param_value(data, where)
 
 
 def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
@@ -323,7 +317,7 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             part = name.split('.', 1)[1]
             if part not in fields.camera:
                 raise MarkupError(f'{where}: unknown camera field {part!r}')
-            key.setdefault('camera', {})[part] = [number(x, where) for x in v.split(',')] if part == 'target' else number(v, where)
+            key.setdefault('camera', {})[part] = [number(x, where) for x in v] if part == 'target' and isinstance(v, list) else number(v, where)
         elif name == 'animate':
             if isinstance(v, str):
                 try:
@@ -333,7 +327,7 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             else:
                 key['animate'] = [motion_of(m, where) for m in v]
         elif name in ('blend', 'delay'):
-            key[name] = number(v.removesuffix('s'), where)
+            key[name] = number(v, where)
         elif name == 'ease':
             if v not in fields.eases:
                 raise MarkupError(f'{where}: unknown ease {v!r} (one of {", ".join(sorted(fields.eases))})')

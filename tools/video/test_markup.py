@@ -45,45 +45,45 @@ class CueKey(unittest.TestCase):
                 markup.highlight_targets('highlightPasses', data, 'x')
 
     def test_parameters_and_fields(self) -> None:
-        self.assertEqual(key(cue(('opacity', '1'), ('callout', 'x'))), {'callout': 'x', 'params': {'opacity': 1.0}})
-        self.assertEqual(key(cue(('term', '1'))), {'term': 1})
-        self.assertEqual(key(cue(('param.formula', '2.0'), ('camera.target', '0.0,1.0,2.0'), ('camera.yaw', '30.0'))),
+        self.assertEqual(key(cue(('opacity', 1.0), ('callout', 'x'))), {'callout': 'x', 'params': {'opacity': 1.0}})
+        self.assertEqual(key(cue(('term', 1))), {'term': 1})
+        self.assertEqual(key(cue(('param.formula', 2.0), ('camera.target', [0.0, 1.0, 2.0]), ('camera.yaw', 30.0))),
                          {'camera': {'target': [0.0, 1.0, 2.0], 'yaw': 30.0}, 'params': {'formula': 2.0}})
         formula = markup.Tag('formula', None, [('formula', FORMULA), ('colors', '#ffd166'), ('say', 'alpha')], 1)
         self.assertEqual(key(formula), {'formula': f'{{ FORMULA("{Q}", colors: "#ffd166") }}'})
         self.assertEqual(key(markup.Tag('formula', None, [('formula', 'off')], 1)), {'formula': ''})
         # A range's value; the easings and the camera's fields are the vocabulary's.
-        self.assertEqual(key(cue(('opacity', '0..1'))), {'params': {'opacity': markup.Range(0.0, 1.0)}})
+        self.assertEqual(key(cue(('opacity', {'from': 0.0, 'to': 1.0}))), {'params': {'opacity': markup.Range(0.0, 1.0)}})
         self.assertEqual(key(cue(('ease', 'sine'))), {'ease': 'sine'})
-        for bad in (('ease', 'bounce'), ('camera.roll', '1')):
+        for bad in (('ease', 'bounce'), ('camera.roll', 1.0)):
             with self.assertRaises(markup.MarkupError):
                 key(cue(bad))
 
     def test_actions(self) -> None:
-        self.assertEqual(key(cue(('run', 'jumpFlood'), ('run.seconds', '0.5'), ('run.cell', '34,52,61'), ('opacity', '1'))),
+        self.assertEqual(key(cue(('run', 'jumpFlood'), ('run.seconds', 0.5), ('run.cell', [34.0, 52.0, 61.0]), ('opacity', 1.0))),
                          {'run': {'name': 'jumpFlood', 'args': {'seconds': 0.5, 'cell': [34.0, 52.0, 61.0]}}, 'params': {'opacity': 1.0}})
         self.assertEqual(key(cue(('stop', 'jumpFlood'))), {'stop': ['jumpFlood']})
         self.assertEqual(key(cue(('run', 'sweep'))), {'run': {'name': 'sweep'}})
         # An argument without the action it belongs to.
         with self.assertRaises(markup.MarkupError):
-            key(cue(('run.seconds', '1')))
+            key(cue(('run.seconds', 1.0)))
 
     def test_images(self) -> None:
         self.assertEqual(key(cue(('image', 'floodSeeds'), ('imageTitle', 'demos.seeds'), ('imageCorner', 'top-left'))),
                          {'image': 'floodSeeds', 'imageTitle': 'demos.seeds', 'imageCorner': 'top-left'})
         self.assertEqual(key(cue(('image', ''))), {'image': ''})
-        self.assertEqual(key(cue(('image', 'floor'), ('imageFrom', 'probeMap'), ('image.probe', '7,7,8'), ('image.gain', '2'))),
+        self.assertEqual(key(cue(('image', 'floor'), ('imageFrom', 'probeMap'), ('image.probe', [7.0, 7.0, 8.0]), ('image.gain', 2.0))),
                          {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0], 'gain': 2.0}})
         self.assertEqual(key(cue(('imageHide', ['floor', 'ceiling']))), {'imageHide': ['floor', 'ceiling']})
         # A resource of the frame's graph after a node, drawn as counts.
-        self.assertEqual(key(cue(('panel', 'graph'), ('image', 'lights'), ('imageGraph', 'o3deLightCullingCS.tileData'), ('imageShow', 'count'), ('image.range', '0,16'))),
+        self.assertEqual(key(cue(('panel', 'graph'), ('image', 'lights'), ('imageGraph', 'o3deLightCullingCS.tileData'), ('imageShow', 'count'), ('image.range', [0.0, 16.0]))),
                          {'panel': 'graph', 'image': 'lights', 'imageGraph': 'o3deLightCullingCS.tileData', 'imageShow': 'count', 'imageParams': {'range': [0.0, 16.0]}})
-        self.assertEqual(key(cue(('arrow', 'a'), ('arrowFrom', {'tag': 'at', 'value': {'x': 0, 'y': 1, 'z': 2}}), ('arrowTo', {'tag': 'named', 'value': 'probe.top'}), ('arrowColor', '#50d7ff'), ('arrowWidth', '4'))),
+        self.assertEqual(key(cue(('arrow', 'a'), ('arrowFrom', {'tag': 'at', 'value': {'x': 0, 'y': 1, 'z': 2}}), ('arrowTo', {'tag': 'named', 'value': 'probe.top'}), ('arrowColor', '#50d7ff'), ('arrowWidth', 4.0))),
                          {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowColor': '#50d7ff', 'arrowWidth': 4.0})
         self.assertEqual(key(cue(('label', 'l'), ('labelAt', {'tag': 'named', 'value': 'probe.top'}), ('labelText', 'demos-hit'))), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos-hit'})
         self.assertEqual(key(cue(('arrows', 'rays'), ('arrowHide', ['a']), ('labelHide', ['l']))), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
         self.assertEqual(key(cue(('image', 'map'), ('imageClick', 'pickCell'))), {'image': 'map', 'imageClick': 'pickCell'})
-        self.assertEqual(key(cue(('image', 'map'), ('imageMark', {'tag': 'region', 'value': {'u0': 0, 'v0': 0.5, 'u1': 0.25, 'v1': 1}}), ('imageMarkText', 'demos.near'), ('blend', '1'))),
+        self.assertEqual(key(cue(('image', 'map'), ('imageMark', {'tag': 'region', 'value': {'u0': 0, 'v0': 0.5, 'u1': 0.25, 'v1': 1}}), ('imageMarkText', 'demos.near'), ('blend', 1.0))),
                          {'image': 'map', 'imageMark': [0.0, 0.5, 0.25, 1.0], 'imageMarkText': 'demos.near', 'blend': 1.0})
         self.assertEqual(key(cue(('image', 'map'), ('imageMark', {'tag': 'none', 'value': None}), ('imageMarkText', ''))), {'image': 'map', 'imageMark': [], 'imageMarkText': ''})
         # Only the typed Data render_lab writes: no String grammar of points, marks, or names.
@@ -96,8 +96,9 @@ class CueKey(unittest.TestCase):
 
     def test_parameter_values(self) -> None:
         where = 'test'
-        self.assertEqual([markup.param_value(v, where) for v in ('1.5', 'true', 'false', '0.4,1.9,0.8', 'ggxD')], [1.5, True, False, [0.4, 1.9, 0.8], 'ggxD'])
-        for bad in ('a-b', '"x"', '1,b', ''):
+        self.assertEqual([markup.param_value(v, where) for v in (1.5, True, False, [0.4, 1.9, 0.8], 'ggxD')], [1.5, True, False, [0.4, 1.9, 0.8], 'ggxD'])
+        # The vocabulary's typed data, not Strings that look like numbers (lamlet-present 0.3).
+        for bad in ('a-b', '"x"', [1, 'b'], '', '1.5', '0.4,1.9', None, {'from': 0.0}):
             with self.assertRaises(markup.MarkupError):
                 markup.param_value(bad, where)
 

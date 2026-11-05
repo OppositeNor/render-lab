@@ -120,7 +120,7 @@ has), each with the `{attr "…" "…"}` that still writes it.
   (lab/src/view.rs) rather than the main view's; join it to other attributes with `append`
   (`{append {' {traceStep 6.0}} {view "profile" {' {profileShow 1.0}}}}`).
 
-Write it in Lamlet 0.4's style (the lab pins Lamlet v0.4.0 and lamlet-present v0.1.4, lab/Cargo.toml): templates
+Write it in Lamlet 0.4's style (the lab pins Lamlet v0.4.0 and lamlet-present v0.3.0, lab/Cargo.toml): templates
 `f"{...}"` (the bracket `[f "..."]` and `[latex "..."]` forms are gone), an attribute's value typed data (`Data`,
 compared but not read: `eased` finds its easing's name by equality), function definitions `[# {f x} body]`, ascriptions without `[% ]`, private helpers
 with a leading `_`, definitions before their uses (source order).

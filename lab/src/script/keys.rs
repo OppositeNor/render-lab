@@ -3,10 +3,10 @@
 //! `render-lab lamlet vocab` turns the list into the investigation's cue package, so a misspelled key is an
 //! unknown name and a wrong value a type error, at the storyboard's line.
 //!
-//! Every value is written as text, the cue attribute's String, and read by `tools/video/markup.py`
-//! (`cue_key`, `param_value`); so the kinds here are what a cue may be written with, not the lab's types: a
-//! numeric value is a float, whatever its type, since the timeline blends every value as a number (a range
-//! over an integer or a toggle is a fade).
+//! The vocabulary writes each value as typed data (lamlet-present 0.3: a Float, an Int, a Bool, a `List Float`,
+//! a range `{. from a to b}`), read by `tools/video/markup.py` (`cue_key`, `param_value`); the kinds here are
+//! what a cue may be written with, not the lab's types: a numeric value is a float, whatever its type, since
+//! the timeline blends every value as a number (a range over an integer or a toggle is a fade).
 
 use crate::investigation::Investigation;
 use serde_json::{json, Value};

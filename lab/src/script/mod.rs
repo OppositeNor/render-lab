@@ -192,7 +192,7 @@ mod tests {
         let file = write(&dir, "deck.lam", "$[Import* std]$[Import* content]$[Import* present]$[Import* probe]\n# A deck {#top}\n\n${cue \"k\" {' {intensity 0.5}}}Hello there.\n");
         let deck = deck(&file, &[package("probe", &vocabulary)], None).unwrap();
         assert_eq!(deck["sentences"][0]["spoken"], "Hello there.");
-        assert_eq!(deck["sentences"][0]["anchors"][0]["attrs"]["intensity"], "0.5");
+        assert_eq!(deck["sentences"][0]["anchors"][0]["attrs"]["intensity"], 0.5);
         // A key whose function std already has collides when the vocabulary is generated.
         assert!(vocab("probe", r#"[{"name": "map", "kind": "float"}]"#, &[]).is_err());
     }
