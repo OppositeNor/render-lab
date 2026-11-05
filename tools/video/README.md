@@ -255,8 +255,10 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
     default), with `phase` in degrees, and `seconds` and `fade` to stop it smoothly.
 
   Each takes `ease` and `repeat` (`once`, `loop`, `pingPong`). A motion's `seconds` may be `"sentence"` or `"beat"`: it
-  then runs until its sentence (or beat) ends. A `demo` key resets every channel to the demonstration's state, so it
-  cuts a running motion. Chapters are stretched to their `target` with extra pauses; keep the budget near 1.2 times
+  then runs until its sentence (or beat) ends, as "Where `sentence` and `beat` end" below says. A `demo` key resets
+  every channel to the demonstration's state, so it cuts a running motion. Two motions of one key may not drive the
+  same channel (`story.motion.duplicate`), nor one motion name a channel twice; a later key taking a channel over is
+  ordinary. A motion's numbers must be finite (`story.motion`). Chapters are stretched to their `target` with extra pauses; keep the budget near 1.2 times
   the narration.
 - **`diagrams/*.toml`**: the diagrams (`tools/video/diagrams.py` has the format): boxes, with rows if any, dashed or
   not, an image (`image = "<png key>"`: a beat that shows a picture is a diagram of one node), and edges, labelled or
@@ -285,6 +287,43 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `taggedWeight` (2.0, how much more of it a sentence with cues takes), `termFade` (0.4 s), `captionBridge` (0.6 s,
   a caption stays up through a gap this short), and `captionWidth` (58 characters a line; the translation's heading
   gives the zh-CN edition's, 64 display units by default), each with that default when left out (`timeline.Pacing`).
+
+### Where `sentence` and `beat` end
+
+A sentence is one paragraph of the beat (tools/video/timeline.py `build_timeline`). Its cues start on the frame
+their word starts; a `"sentence"` motion runs from there to the **next sentence's start**, which is not where the
+voice stops:
+
+| Boundary | Frame |
+|---|---|
+| The sentence's speech ends | its start + the measured speech |
+| A `"sentence"` motion ends (not the last sentence) | the next sentence's start: speech end + `gap` + the extra pause the chapter's budget gives it |
+| A `"sentence"` motion ends (the last sentence) | the beat's end |
+| A `"beat"` motion ends, and the beat ends | the last speech end + `tail` + the beat's `hold` (and its share of the chapter's leftover budget, for a 3D beat) |
+
+So changing the pacing or a chapter's `target` changes how long a `"sentence"` motion runs; a motion that must end
+with the voice gives its `seconds`. The keys of a paragraph of cues alone (the beat's `keys`) start at the beat's
+start and know only `"beat"`.
+
+### What a key resets and carries
+
+A key sets only what it names. A `demo` key first starts the demonstration's state, then applies the rest of the key
+(lab/src/shot.rs `Timeline::state_at`):
+
+| State | A `demo` key | Cleared by |
+|---|---|---|
+| Parameters, running motions | reset to the demonstration's | a later key |
+| Camera | reset to the demonstration's, unless the key moves the camera: then it blends from where it was | a camera cue |
+| Panel, listing, record, highlight | reset to the demonstration's | `panel…`, `code`, `record…`, `highlight…` |
+| Free camera, running actions | off, stopped | `freeCameraOn`, `{stop "…"}` |
+| Callout | **carried** | `{callout ""}` |
+| Images (insets) and their marks | **carried** | `{inset ""}` (all), `imageHide` (one) |
+| Arrows and labels | **carried** | `arrowHide`, `labelHide` (by name) |
+| Formula card | **carried**; closed at the end of the beat that showed it | a formula cue with `formula=off` |
+
+A story's `opening` (its `video/story.lam`) is its own recipe on top of this; render_lab's `narrationCleared` clears
+the three carried items that can be cleared at once (callout, insets, formula card), to append where a beat should
+start clean.
 
 ### Text-driven shots: cues in a sentence
 

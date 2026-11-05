@@ -78,6 +78,16 @@ class Preflight(unittest.TestCase):
         self.assertNotIn('frame', data['cues'][0]['key'])
         self.assertTrue(preflight.host_check(self.cfg, data)['ok'])
 
+    def test_narration_cleared_passes_and_clears_the_carried_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'storyboard.lam'
+            path.write_text(STORY.replace("{' ATTRS}", 'narrationCleared'))
+            board = presentation.load(path, [], self.fields)
+        data = preflight.normalized(board)
+        key = data['cues'][0]['key']
+        self.assertEqual((key['callout'], key['image'], key['formula']), ('', '', ''))
+        self.assertTrue(preflight.host_check(self.cfg, data)['ok'])
+
     def test_action_arguments_are_checked_without_running_the_action(self) -> None:
         cfg = Config.load('godot/voxelgi', 'en')
         board = self.board('{attr "run" "marchCone"} {attr "run.seconds" "typo"}')
