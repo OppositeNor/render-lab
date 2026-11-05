@@ -1,9 +1,9 @@
 //! A story's 2D diagrams (src/graph_view.rs): a beat's `diagram` (the
 //! package's `video/diagrams/<name>.toml`, which the timeline carries as a
-//! `graph_view::Spec`) or the frame graph's scene (`graph`, src/graph.rs
+//! `graph_view::Spec`) or the frame graph's scene (`graph`, src/graph/
 //! `FrameGraph::scene_graph`), fitted in the beat's panel with its `focus`
 //! lit: a named box, or the row of a named member. The frame graph's lit
-//! boxes hold pictures of what they make (src/renderer.rs captures them).
+//! boxes hold pictures of what they make (src/renderer/ captures them).
 //!
 //! A diagram moves rather than fades: a beat after one of the same diagram
 //! glides from that beat's view (its boxes' places and sizes, its framing,

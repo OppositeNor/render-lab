@@ -119,6 +119,12 @@ pub fn themed(color: Color32) -> Color32 {
 pub fn background() -> Color32 {
     theme().background
 }
+/// The background as a pass's clear colour: a UNORM target holds
+/// sRGB-encoded bytes, so it is the encoded colour itself.
+pub fn background_clear() -> wgpu::Color {
+    let bg = background();
+    wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 }
+}
 pub fn panel() -> Color32 {
     theme().panel
 }

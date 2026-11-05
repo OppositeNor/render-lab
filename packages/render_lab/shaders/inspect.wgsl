@@ -1,4 +1,4 @@
-/// The frame graph's inspector (lab/src/graph.rs, lab/src/renderer.rs): a
+/// The frame graph's inspector (lab/src/graph/, lab/src/renderer/): a
 /// resource of the frame, as it stood right after the node that wrote it,
 /// drawn into a display texture by a visualizer chosen for its format. One
 /// entry point per kind of resource; each binds its source at its own

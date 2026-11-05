@@ -13,6 +13,14 @@ pub const DEFAULT_UI_SCALE: f32 = 0.75;
 pub const CODE_PANEL_WIDTH: f32 = 930.0;
 pub const REFERENCE: Vec2 = vec2(1920.0, 1080.0);
 
+/// The scale of the canvas drawn into `width` × `height` pixels with
+/// everything `ui_scale` times its size, and the canvas's size in points: the
+/// reference canvas fitted to the frame, grown by 1 / `ui_scale`.
+pub fn canvas_for(width: u32, height: u32, ui_scale: f32) -> (f32, Vec2) {
+    let scale = (width as f32 / REFERENCE.x).min(height as f32 / REFERENCE.y) * ui_scale;
+    (scale, vec2(width as f32 / scale, height as f32 / scale))
+}
+
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     // Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.

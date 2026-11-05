@@ -17,7 +17,7 @@ use crate::experiment::Compare;
 use crate::ui::{self, DockTab, ExperimentView, Ink, UiInput, ViewerAction, ViewerChrome};
 use crate::values::{self, Entry, Reflect, Type, Value};
 use crate::volume::{self, Volume};
-use egui::{pos2, vec2, Color32, CornerRadius, FontId, Rect, RichText, Stroke, StrokeKind, Ui};
+use egui::{pos2, vec2, Color32, FontId, Rect, RichText, Stroke, Ui};
 use std::ops::RangeInclusive;
 
 /// Width of the dock's button column.
@@ -57,8 +57,7 @@ pub struct Dock<'a> {
 pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let rect = input.layout.captions;
     let painter = ink.painter;
-    painter.rect_filled(rect, CornerRadius::same(10), palette::panel());
-    painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    crate::paint::panel_card(painter, rect, 10);
     let inner = rect.shrink2(vec2(16.0, 10.0));
     let divider = inner.min.x + BUTTONS + 16.0;
     painter.vline(divider, rect.y_range().shrink(12.0), Stroke::new(1.0, palette::border()));
@@ -119,8 +118,7 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
 /// comparison, the performance, and the experiment files, one column, scrolled.
 pub fn draw_experiment_panel(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let rect = input.layout.panel;
-    ink.painter.rect_filled(rect, CornerRadius::same(10), palette::panel());
-    ink.painter.rect_stroke(rect, CornerRadius::same(10), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    crate::paint::panel_card(ink.painter, rect, 10);
     let inner = rect.shrink2(vec2(16.0, 12.0));
     let mut dock = Dock::new(input, viewer);
     egui::Area::new(egui::Id::unique("viewer-value-panel")).fixed_pos(inner.min).constrain(false).fade_in(false).show(ctx, |ui| {
@@ -231,7 +229,7 @@ impl Dock<'_> {
         }
     }
 
-    /// The Frame graph tab (src/graph.rs; the panel shows the graph): the pass
+    /// The Frame graph tab (src/graph/; the panel shows the graph): the pass
     /// under the pointer in the panel, else the selected one (the inspected
     /// result's): its engine pass, what it does, its GPU time, and what it
     /// reads and writes (a click inspects that resource right after it); then
@@ -855,7 +853,7 @@ impl Dock<'_> {
                 let back = d.defaults.as_ref().map_or(PanelMode::Values, |s| s.panel);
                 d.actions.push(ViewerAction::SetPanel(if shown { back } else { PanelMode::Performance }));
             }
-            // The frame graph (src/graph.rs) has a tab of its own.
+            // The frame graph (src/graph/) has a tab of its own.
             if ui.selectable_label(false, tr("experiments.show_graph")).on_hover_text(tr("experiments.show_graph_hint")).clicked() {
                 d.actions.push(ViewerAction::SelectTab(DockTab::Graph));
             }

@@ -165,7 +165,7 @@ enum Command {
         levels: bool,
     },
     /// Print the current investigation's frame as a render graph
-    /// (lab/src/graph.rs): its nodes in execution order with what each reads
+    /// (lab/src/graph/): its nodes in execution order with what each reads
     /// and writes, its resources with their lifetimes, and the culled nodes;
     /// checks the declarations against the WGSL (fails on a problem).
     Graph {

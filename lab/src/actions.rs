@@ -1,7 +1,7 @@
 //! Actions: named pieces of a package's work that a story starts and stops,
 //! the way a page's script calls its functions. A story's cues write
 //! `{run "floodStep"} {runSeconds 0.5}` and `{stop "floodStep"}`; the
-//! timeline (src/shot.rs) keeps each running action with the frame it
+//! timeline (src/shot/) keeps each running action with the frame it
 //! started, and evaluating a frame calls it with its arguments and the
 //! seconds since then (`ActionFrame::elapsed`). An action sets the shot's
 //! state (its values, camera, callout) before the frame is built, so it is
@@ -244,7 +244,7 @@ impl Actions {
             return Ok(());
         }
         let known: Vec<&str> = self.clicks.iter().map(|c| c.key).collect();
-        Err(format!("no click handler `{key}` (the investigation's: {})", if known.is_empty() { "none".into() } else { known.join(", ") }))
+        Err(format!("no click handler `{key}` (the investigation's: {})", crate::story_refs::names_or_none(&known)))
     }
 
     pub fn spec(&self, key: &str) -> Option<&'static ActionSpec> {
@@ -256,7 +256,7 @@ impl Actions {
     pub fn check(&self, call: &ActionCall) -> Result<(), String> {
         let spec = self.spec(&call.name).ok_or_else(|| {
             let known: Vec<&str> = self.specs.iter().map(|s| s.key).collect();
-            format!("no action `{}` (the investigation's actions: {})", call.name, if known.is_empty() { "none".into() } else { known.join(", ") })
+            format!("no action `{}` (the investigation's actions: {})", call.name, crate::story_refs::names_or_none(&known))
         })?;
         if let Some(extra) = call.args.keys().find(|k| !spec.args.iter().any(|a| a.key == k.as_str())) {
             return Err(format!("the action `{}` takes no argument `{extra}`", spec.key));

@@ -331,7 +331,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
             if 'graph' in beat:
-                # The lab draws the frame graph as the scene's sections group it (lab/src/graph.rs).
+                # The lab draws the frame graph as the scene's sections group it (lab/src/graph/).
                 entry['graph'] = frame_graph.load(cfg, beat['graph'])
                 entry['focus'] = beat.get('focus', [])
             elif presentation.is_diagram(beat):
@@ -358,7 +358,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
     }
     if cfg.zh():
         timeline['locale'] = cfg.lang
-    # A part of a series: the chapters' tag says which part (lab/src/ui.rs).
+    # A part of a series: the chapters' tag says which part (lab/src/ui/).
     if (part := cfg.part()) is not None:
         timeline['part'] = part
     return timeline, placements, cues, plans

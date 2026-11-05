@@ -77,7 +77,7 @@ pub enum ImageSource {
     /// their defaults).
     View { kind: String, params: std::collections::BTreeMap<String, Vec<f32>> },
     /// A resource of the frame's graph as it stood right after a node
-    /// (`<node>.<resource>`, src/graph.rs), drawn by the inspector `show`
+    /// (`<node>.<resource>`, src/graph/), drawn by the inspector `show`
     /// (its format's default when none) with the parameters the story set.
     Graph { key: String, show: Option<String>, params: std::collections::BTreeMap<String, Vec<f32>> },
 }
@@ -308,7 +308,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     let x = if inset.corner.right() { l.viewport.max.x - 16.0 - width - offset.x } else { l.viewport.min.x + 16.0 + offset.x };
     let y = if inset.corner.top() { l.viewport.min.y + 16.0 + offset.y } else { l.viewport.max.y - 16.0 - frame_size.y - offset.y };
     let frame = Rect::from_min_size(pos2(x, y), frame_size);
-    painter.rect_filled(frame, CornerRadius::same(10), fade(Color32::from_rgba_premultiplied(7, 18, 31, 238)));
+    painter.rect_filled(frame, CornerRadius::same(10), fade(crate::paint::overlay_fill(238)));
     painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);
     for (k, (text, color)) in above.iter().enumerate() {
         let text = ink.fit_right(text, width - 28.0, 24.0, FontFamily::Proportional);
@@ -376,7 +376,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
             let y = if below { r.max.y + 6.0 } else { (r.min.y - 6.0 - size.y).max(image.min.y) };
             let x = r.center().x.clamp(image.min.x + size.x * 0.5, (image.max.x - size.x * 0.5).max(image.min.x + size.x * 0.5)) - size.x * 0.5;
             let chip = Rect::from_min_size(pos2(x, y), size);
-            painter.rect_filled(chip, CornerRadius::same(6), Color32::from_rgba_premultiplied(7, 18, 31, 235).gamma_multiply(a));
+            painter.rect_filled(chip, CornerRadius::same(6), crate::paint::overlay_fill(235).gamma_multiply(a));
             painter.rect_stroke(chip, CornerRadius::same(6), Stroke::new(1.5, palette::accent().gamma_multiply(a)), StrokeKind::Inside);
             ink.text(chip.center(), Align2::CENTER_CENTER, text, 24.0, FontFamily::Proportional, palette::text().gamma_multiply(a));
         }
@@ -397,7 +397,7 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
             let right = p.x < image.center().x;
             let (anchor, offset) = if right { (Align2::LEFT_CENTER, 14.0) } else { (Align2::RIGHT_CENTER, -14.0) };
             let size = rich_text::measure(ink, &m.label, 24.0, FontFamily::Proportional);
-            painter.rect_filled(anchor.anchor_size(pos2(p.x + offset, p.y), size).expand(3.0), CornerRadius::same(3), fade(Color32::from_rgba_premultiplied(7, 18, 31, 220)));
+            painter.rect_filled(anchor.anchor_size(pos2(p.x + offset, p.y), size).expand(3.0), CornerRadius::same(3), fade(crate::paint::overlay_fill(220)));
             ink.text(pos2(p.x + offset, p.y), anchor, &m.label, 24.0, FontFamily::Proportional, fade(m.color));
         }
     }

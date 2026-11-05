@@ -7,6 +7,8 @@
 pub mod annotations;
 /// The Play animation of a demonstration, sampled.
 pub mod demo;
+/// What a demonstration draws into a frame's overlay, in metres: points, circles, boxes, labels, rows.
+pub mod draw;
 /// An image drawn as a height field of columns, flat as the screen shows it or tilted back.
 pub mod height_field;
 /// Pictures in the viewport's corners.

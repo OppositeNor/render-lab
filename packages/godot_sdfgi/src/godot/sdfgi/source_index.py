@@ -726,7 +726,7 @@ MAPPINGS = [
 ]
 
 
-# The frame graph's nodes (lab/src/graph.rs; shading.toml) and the engine passes they mirror: the graph panel names each
+# The frame graph's nodes (lab/src/graph/; shading.toml) and the engine passes they mirror: the graph panel names each
 # node's pass and its sources. A pass with a RENDER_TIMESTAMP is named by it; the others by their function and mode.
 PASSES = [
     {"lab": "sdfgiVoxelize", "engine": "Render SDFGI (RenderForwardClustered::_render_sdfgi, MODE_RENDER_SDF)", "sources": ["render-sdfgi", "sdf-fragment"]},

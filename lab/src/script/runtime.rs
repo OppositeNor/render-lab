@@ -522,7 +522,7 @@ impl Runtime {
             for spec in &demos.specs {
                 if let Some(name) = spec.animation.filter(|n| !runtime.animations.contains_key(*n)) {
                     let known: Vec<&str> = runtime.animations.keys().map(String::as_str).collect();
-                    return Err(format!("demonstration `{}`: no animation `{name}` in the scripts (theirs: {})", spec.id.key(), if known.is_empty() { "none".into() } else { known.join(", ") }));
+                    return Err(format!("demonstration `{}`: no animation `{name}` in the scripts (theirs: {})", spec.id.key(), crate::story_refs::names_or_none(&known)));
                 }
             }
         }

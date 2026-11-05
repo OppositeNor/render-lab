@@ -1,6 +1,6 @@
 //! How values move over time: the easing of a blend, and motions (a path
 //! through waypoints, an orbit, a wave) that drive named channels. The
-//! timeline (src/shot.rs) runs a key's blend with an [`Ease`] and its
+//! timeline (src/shot/) runs a key's blend with an [`Ease`] and its
 //! `animate` motions; an investigation's Play animation is a [`Clip`] of
 //! looping motions; the camera's sway is a set of waves.
 //!

@@ -1,9 +1,9 @@
 //! Image kinds: GPU images a package's shaders define, which a story creates
 //! instances of and drives (`{inset "floor"} {imageFrom "probeMap"} {imageProbe
-//! {' 7.0 7.0 8.0}}`, src/shot.rs). The shader defines what is computed; the story says how
+//! {' 7.0 7.0 8.0}}`, src/shot/). The shader defines what is computed; the story says how
 //! many, with what parameters, when, and where. Every frame the renderer runs
 //! each live instance's compute entry point into the instance's own texture
-//! and shows it live in an inset (src/renderer.rs, packages/render_lab/src/inset.rs).
+//! and shows it live in an inset (src/renderer/, packages/render_lab/src/inset.rs).
 //!
 //! A kind is a storage texture its module tags, and the uniform of its
 //! parameters (its members tagged as a shader's values are, without `label`
@@ -169,7 +169,7 @@ pub fn kind(package: &str, key: &str) -> Result<&'static ViewKind, String> {
     let kinds = kinds(package).map_err(|e| format!("{e:#}"))?;
     kinds.iter().find(|k| k.key == key).ok_or_else(|| {
         let known: Vec<&str> = kinds.iter().map(|k| k.key.as_str()).collect();
-        format!("no image kind `{key}` (the package's: {})", if known.is_empty() { "none".into() } else { known.join(", ") })
+        format!("no image kind `{key}` (the package's: {})", crate::story_refs::names_or_none(&known))
     })
 }
 
