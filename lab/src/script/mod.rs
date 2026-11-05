@@ -264,18 +264,30 @@ mod tests {
         assert_eq!(value[0]["path"]["seconds"], "beat");
         assert_eq!(value[2]["orbit"]["repeat"], "pingPong");
         assert_eq!(value[4]["wave"]["param"], "camera.yaw");
-        // Points, marks, names, and records, as tools/video/markup.py reads them.
-        let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {imageHide {'}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
-        let expected = [("labelAt", "1.8,2.4,-2.95"), ("arrowTo", "0.0,1.0,2.0"), ("imageMark", "0.28,0.42,0.62,1.0"), ("imageMark", ""), ("imageHide", ""), ("record", "camera"), ("record", "object:3"), ("callout", "")];
-        assert_eq!(attrs, expected.map(|(k, v)| (k.to_string(), v.to_string())));
+        // Points, marks, names, and records, as Data, which tools/video/markup.py reads.
+        let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {imageHide {' \"a,b\"}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
+        let expected = [
+            ("labelAt", serde_json::json!({"tag": "at", "value": {"x": 1.8, "y": 2.4, "z": -2.95}})),
+            ("arrowTo", serde_json::json!({"tag": "at", "value": {"x": 0.0, "y": 1.0, "z": 2.0}})),
+            ("imageMark", serde_json::json!({"tag": "region", "value": {"u0": 0.28, "v0": 0.42, "u1": 0.62, "v1": 1.0}})),
+            ("imageMark", serde_json::json!({"tag": "none", "value": null})),
+            ("imageHide", serde_json::json!(["a,b"])),
+            ("record", serde_json::json!({"tag": "camera", "value": null})),
+            ("record", serde_json::json!({"tag": "object", "value": 3})),
+        ];
+        let n = expected.len();
+        assert_eq!(attrs.len(), n + 1);
+        for ((k, v), (name, data)) in attrs.iter().zip(expected) {
+            assert_eq!((k.as_str(), serde_json::from_str::<serde_json::Value>(v).unwrap()), (name, data));
+        }
+        assert_eq!(attrs[n], ("callout".to_string(), String::new()));
         // A wrong shape is an error at the storyboard, before any speech: a channel per waypoint value, a
-        // length that is a Length, a part only some kinds have, a name without a comma.
+        // length that is a Length, a part only some kinds have, a point of numbers that are not Floats.
         for bad in [
             "{motion {' {path {' cameraYaw cameraPitch} {' {' 18.0}} beat}}}",
             "{motion {' {path {' cameraYaw} {' {' 18.0}} \"beat\"}}}",
             "{motion {' {closed {sway cameraYaw 1.0 2.0}}}}",
             "{motion {' {eased {cameraYaw 1.0} {path {' cameraYaw} {' {' 18.0}} beat}}}}",
-            "{imageHide {' \"a,b\"}}",
             "{labelAt {at 1 2 3}}",
         ] {
             assert!(doc(&format!("${{cue \"key\" {{' {bad}}}}}")).is_err(), "{bad}");
