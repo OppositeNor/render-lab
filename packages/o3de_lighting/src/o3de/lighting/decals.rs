@@ -159,6 +159,7 @@ pub fn apply_decal(d: &Decal, s: &mut Surface, vertex_normal: Vec3) {
 /// sRGB to XYZ. O3DE converts every material and light colour this way
 /// before lighting; a decal's colour and its texture are blended in as
 /// stored, without it (DecalTextureArrayFeatureProcessor::SetDecalColor).
+#[allow(clippy::excessive_precision)] // the engine's literals
 pub fn linear_srgb_to_acescg(c: Vec3) -> Vec3 {
     let rows = |r: [[f32; 3]; 3]| glam::Mat3::from_cols_array_2d(&r).transpose();
     let xyz_to_acescg = rows([[1.6410233797, -0.3248032942, -0.2364246952], [-0.6636628587, 1.6153315917, 0.0167563477], [0.0117218943, -0.0082844420, 0.9883948585]]);

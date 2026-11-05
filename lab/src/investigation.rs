@@ -176,10 +176,8 @@ impl SceneShading {
         let mut previous = false;
         for node in self.nodes {
             let program = matches!(node, FrameNode::Program(_));
-            if let FrameNode::Program(i) = node {
-                if let Some(r) = runs.get_mut(*i) {
-                    *r = run;
-                }
+            if let FrameNode::Program(i) = node && let Some(r) = runs.get_mut(*i) {
+                *r = run;
             }
             if previous && !program {
                 run += 1;

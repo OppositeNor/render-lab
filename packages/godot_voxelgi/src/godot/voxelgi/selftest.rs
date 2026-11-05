@@ -191,6 +191,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     // ---- 7. The cone traces -------------------------------------------------------
     let inst = world::instance(probe, &LightSettings::default(), false);
     let mut steps = Vec::new();
+    #[allow(clippy::approx_constant)] // the sample's direction as written
     cone::cone_trace_45(&lit.texture, Vec3::ONE / inst.bounds, Vec3::new(64.0, 10.0, 64.0), Vec3::new(0.0, 0.7071, 0.7071), inst.bounds.length(), inst.bias, Some(&mut steps));
     let doubles = steps.windows(2).all(|p| (p[1].dist - 2.0 * p[0].dist).abs() < 1e-4 && (p[1].lod - p[0].lod - 1.0).abs() < 1e-5) && steps.first().is_some_and(|s| (s.lod - 3f32.log2()).abs() < 1e-5);
     report.check("voxel_cone_trace_45_degrees: from bias 1.5 each step doubles the distance and climbs one mip, from log2(3)", doubles, json!(steps.iter().map(|s| [s.dist, s.lod]).collect::<Vec<_>>()));
@@ -330,8 +331,8 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
                 let cpu = &lit.texture.mips[mip];
                 let s = probe.mip_size(mip);
                 sizes &= size == [s.x as u32, s.y as u32, s.z as u32] && bytes.len() == cpu.len() * 4;
-                gpu_texture.mips[mip] = bytes.chunks_exact(4).map(|t| [t[0], t[1], t[2], t[3]]).collect();
-                for (g, c) in bytes.chunks_exact(4).zip(cpu) {
+                gpu_texture.mips[mip] = bytes.as_chunks::<4>().0.to_vec();
+                for (g, c) in bytes.as_chunks::<4>().0.iter().zip(cpu) {
                     let d = g.iter().zip(c).map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0);
                     worst = worst.max(d);
                     differing += (d > 0) as usize;

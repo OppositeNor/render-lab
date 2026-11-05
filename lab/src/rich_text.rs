@@ -143,15 +143,13 @@ pub fn parse(text: &str) -> Result<Vec<Run>, String> {
                 runs.push(Run::Text(std::mem::take(&mut plain)));
             }
             runs.push(Run::Code(code.clone()));
-        } else if let Some((_, latex)) = attrs.iter().find(|(k, _)| k == "formula") {
-            if latex != "off" {
-                if !plain.is_empty() {
-                    runs.push(Run::Text(std::mem::take(&mut plain)));
-                }
-                let display = attrs.iter().any(|(k, v)| k == "display" && v == "yes");
-                let colors = attrs.iter().find(|(k, _)| k == "colors").map(|(_, v)| v.split(',').map(hex_color).collect::<Result<Vec<_>, _>>()).transpose()?.unwrap_or_default();
-                runs.push(Run::Formula { latex: latex.clone(), display, colors });
+        } else if let Some((_, latex)) = attrs.iter().find(|(k, _)| k == "formula") && latex != "off" {
+            if !plain.is_empty() {
+                runs.push(Run::Text(std::mem::take(&mut plain)));
             }
+            let display = attrs.iter().any(|(k, v)| k == "display" && v == "yes");
+            let colors = attrs.iter().find(|(k, _)| k == "colors").map(|(_, v)| v.split(',').map(hex_color).collect::<Result<Vec<_>, _>>()).transpose()?.unwrap_or_default();
+            runs.push(Run::Formula { latex: latex.clone(), display, colors });
         }
         rest = end;
     }

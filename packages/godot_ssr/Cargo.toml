@@ -29,3 +29,6 @@ wgpu = { version = "=30.0.1", default-features = false, features = ["std", "park
 [build-dependencies]
 # build.rs's check of this package.
 render-lab-check = { path = "../../lab/check" }
+
+[lints]
+workspace = true

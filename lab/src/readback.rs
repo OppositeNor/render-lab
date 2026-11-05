@@ -85,7 +85,7 @@ pub fn screenshot(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Te
     );
     queue.submit([encoder.finish()]);
     let mut rgba = unpad_rows(&read_buffer(device, queue, &buffer, 0, buffer.size()), width, height);
-    for pixel in rgba.chunks_exact_mut(4) {
+    for pixel in rgba.as_chunks_mut::<4>().0.iter_mut() {
         if bgra {
             pixel.swap(0, 2);
         }

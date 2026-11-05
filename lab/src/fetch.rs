@@ -176,7 +176,7 @@ impl Fetched {
 
     /// A buffer's bytes as 32-bit words.
     pub fn words(&self) -> Vec<u32> {
-        self.bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
+        self.bytes.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect()
     }
 
     /// Whether this is the result of a request for `source` and `region` at `tag`.
@@ -254,25 +254,25 @@ pub fn f16_to_f32(h: u16) -> f32 {
 /// Texels of `format` as floats (unsigned and signed integers as their values; RGB10A2 and RG11B10 unpacked).
 pub fn decode(format: wgpu::TextureFormat, bytes: &[u8]) -> Vec<f32> {
     use wgpu::TextureFormat as F;
-    let word = |c: &[u8]| u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+    let word = |c: &[u8; 4]| u32::from_le_bytes(*c);
     match format {
         F::R8Unorm | F::Rg8Unorm | F::Rgba8Unorm | F::Rgba8UnormSrgb => bytes.iter().map(|&b| b as f32 / 255.0).collect(),
-        F::Bgra8Unorm => bytes.chunks_exact(4).flat_map(|c| [c[2], c[1], c[0], c[3]].map(|b| b as f32 / 255.0)).collect(),
+        F::Bgra8Unorm => bytes.as_chunks::<4>().0.iter().flat_map(|c| [c[2], c[1], c[0], c[3]].map(|b| b as f32 / 255.0)).collect(),
         F::R8Uint => bytes.iter().map(|&b| b as f32).collect(),
-        F::R16Uint => bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]]) as f32).collect(),
-        F::R16Float | F::Rg16Float | F::Rgba16Float => bytes.chunks_exact(2).map(|c| f16_to_f32(u16::from_le_bytes([c[0], c[1]]))).collect(),
-        F::R32Float | F::Rg32Float | F::Rgba32Float => bytes.chunks_exact(4).map(|c| f32::from_bits(word(c))).collect(),
-        F::R32Uint | F::Rg32Uint | F::Rgba32Uint => bytes.chunks_exact(4).map(|c| word(c) as f32).collect(),
-        F::R32Sint => bytes.chunks_exact(4).map(|c| word(c) as i32 as f32).collect(),
+        F::R16Uint => bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c) as f32).collect(),
+        F::R16Float | F::Rg16Float | F::Rgba16Float => bytes.as_chunks::<2>().0.iter().map(|c| f16_to_f32(u16::from_le_bytes(*c))).collect(),
+        F::R32Float | F::Rg32Float | F::Rgba32Float => bytes.as_chunks::<4>().0.iter().map(|c| f32::from_bits(word(c))).collect(),
+        F::R32Uint | F::Rg32Uint | F::Rgba32Uint => bytes.as_chunks::<4>().0.iter().map(|c| word(c) as f32).collect(),
+        F::R32Sint => bytes.as_chunks::<4>().0.iter().map(|c| word(c) as i32 as f32).collect(),
         F::Rgb10a2Unorm => bytes
-            .chunks_exact(4)
+            .as_chunks::<4>().0.iter()
             .flat_map(|c| {
                 let w = word(c);
                 [(w & 1023) as f32 / 1023.0, ((w >> 10) & 1023) as f32 / 1023.0, ((w >> 20) & 1023) as f32 / 1023.0, (w >> 30) as f32 / 3.0]
             })
             .collect(),
         F::Rg11b10Ufloat => bytes
-            .chunks_exact(4)
+            .as_chunks::<4>().0.iter()
             .flat_map(|c| {
                 let w = word(c);
                 // 11- and 10-bit floats: 5 exponent bits, 6 or 5 mantissa bits, no sign.

@@ -36,13 +36,13 @@ impl Image {
 
     /// From RGBA8 bytes (sRGB-encoded): values 0..1, still encoded.
     pub fn from_rgba8(width: usize, height: usize, rgba: &[u8]) -> Image {
-        Image::new(width, height, rgba.chunks_exact(4).map(|p| [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0]).collect())
+        Image::new(width, height, rgba.as_chunks::<4>().0.iter().map(|p| [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0]).collect())
     }
 
     /// From RGBA half floats (a linear HDR target's texels).
     pub fn from_rgba16f(width: usize, height: usize, words: &[u16]) -> Image {
         use crate::fetch::f16_to_f32;
-        Image::new(width, height, words.chunks_exact(4).map(|p| [f16_to_f32(p[0]), f16_to_f32(p[1]), f16_to_f32(p[2])]).collect())
+        Image::new(width, height, words.as_chunks::<4>().0.iter().map(|p| [f16_to_f32(p[0]), f16_to_f32(p[1]), f16_to_f32(p[2])]).collect())
     }
 
     /// RGBA8 bytes of the image, clamped to 0..1.

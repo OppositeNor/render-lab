@@ -345,13 +345,11 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
         let (rect, kind) = if o.outside { (region(o.rect).expand(2.0), StrokeKind::Outside) } else { (region(o.rect), StrokeKind::Inside) };
         painter.rect_stroke(rect, CornerRadius::ZERO, Stroke::new(o.width, fade(o.color)), kind);
     }
-    if let Some((link, o)) = inset.link.as_ref().and_then(|link| Some((link, inset.outlines.get(link.outline)?))) {
-        if let Some((px, _)) = Projector::new(camera).project(link.from) {
-            let a = l.viewport_pixel_to_canvas(px);
-            if l.viewport.contains(a) {
-                let r = region(o.rect);
-                dashed(painter, a, if inset.corner.top() { r.center_bottom() } else { r.center_top() }, Stroke::new(2.5, fade(o.color)));
-            }
+    if let Some((link, o)) = inset.link.as_ref().and_then(|link| Some((link, inset.outlines.get(link.outline)?))) && let Some((px, _)) = Projector::new(camera).project(link.from) {
+        let a = l.viewport_pixel_to_canvas(px);
+        if l.viewport.contains(a) {
+            let r = region(o.rect);
+            dashed(painter, a, if inset.corner.top() { r.center_bottom() } else { r.center_top() }, Stroke::new(2.5, fade(o.color)));
         }
     }
 

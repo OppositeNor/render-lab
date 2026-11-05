@@ -511,10 +511,8 @@ impl ChainTargets {
             if let Some((_, buffer)) = buffers.iter().find(|(n, _)| *n == name) {
                 return buffer.as_entire_binding();
             }
-            if let (Some(d), Some((all, _))) = (source.depth_views, &depth_views) {
-                if d.name == name {
-                    return wgpu::BindingResource::TextureView(all);
-                }
+            if let (Some(d), Some((all, _))) = (source.depth_views, &depth_views) && d.name == name {
+                return wgpu::BindingResource::TextureView(all);
             }
             wgpu::BindingResource::TextureView(match name {
                 "hdr" => &viewport.hdr,
@@ -1648,7 +1646,7 @@ impl Renderer {
         let halves_padded = read_buffer(device, &self.gpu.queue, &half_buffer, 0, half_row as u64 * h as u64);
         let mut words = Vec::with_capacity((w * h * 4) as usize);
         for row in halves_padded.chunks_exact(half_row as usize) {
-            words.extend(row[..(w * 8) as usize].chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])));
+            words.extend(row[..(w * 8) as usize].as_chunks::<2>().0.iter().map(|b| u16::from_le_bytes(*b)));
         }
         Some((crate::metrics::Image::from_rgba8(w as usize, h as usize, &rgba), crate::metrics::Image::from_rgba16f(w as usize, h as usize, &words)))
     }
@@ -2496,10 +2494,8 @@ impl Renderer {
                         if let Some((_, b)) = c.buffers.iter().find(|(n, _)| *n == name) {
                             return Some(b.as_entire_binding());
                         }
-                        if let (Some(d), Some((all, _))) = (c.source.depth_views, &c.depth_views) {
-                            if d.name == name {
-                                return Some(wgpu::BindingResource::TextureView(all));
-                            }
+                        if let (Some(d), Some((all, _))) = (c.source.depth_views, &c.depth_views) && d.name == name {
+                            return Some(wgpu::BindingResource::TextureView(all));
                         }
                         c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| wgpu::BindingResource::TextureView(v))
                     });
@@ -2579,10 +2575,8 @@ impl Renderer {
         sinks.sort();
         sinks.dedup();
         let key = (source.map_or(0, |s| s as *const SceneShading as usize), sinks);
-        if let Some((k, graph)) = &self.graph {
-            if *k == key {
-                return graph.clone();
-            }
+        if let Some((k, graph)) = &self.graph && *k == key {
+            return graph.clone();
         }
         let names: Vec<&str> = key.1.iter().map(String::as_str).collect();
         let graph = std::sync::Arc::new(crate::graph::FrameGraph::new(source, &names));
@@ -2606,10 +2600,8 @@ impl Renderer {
         let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) else { return };
         let meshes = crate::program::Meshes { vertices: &self.mesh_vertices, objects: &self.object_ids, indices: &self.mesh_indices, ranges: &self.statics.meshes.ranges };
         let mut after = |encoder: &mut wgpu::CommandEncoder, pass: &'static str| {
-            if let Some(n) = graph.nodes.iter().position(|n| n.name == pass && matches!(n.step, Step::Program(_))) {
-                if self.inspections.values().any(|x| x.node == n) {
-                    self.capture(encoder, n, chain, shading, targets);
-                }
+            if let Some(n) = graph.nodes.iter().position(|n| n.name == pass && matches!(n.step, Step::Program(_))) && self.inspections.values().any(|x| x.node == n) {
+                self.capture(encoder, n, chain, shading, targets);
             }
         };
         program.borrow_mut().record(&self.gpu.device, encoder, pipelines, runs, run, &self.frame_bind_group, &s.group, &meshes, timing, &mut after);
@@ -2625,10 +2617,8 @@ impl Renderer {
         let targets = self.viewport.as_ref().unwrap();
         // An investigation's pass chain: its targets follow the viewport.
         let chained = shading.filter(|s| s.source.chained());
-        if let Some(s) = chained {
-            if self.chain.as_ref().is_none_or(|c| c.size != targets.size || c.scale != s.scale || !std::ptr::eq(c.source, s.source)) {
-                self.chain = Some(ChainTargets::new(&self.gpu.device, s, targets));
-            }
+        if let Some(s) = chained && self.chain.as_ref().is_none_or(|c| c.size != targets.size || c.scale != s.scale || !std::ptr::eq(c.source, s.source)) {
+            self.chain = Some(ChainTargets::new(&self.gpu.device, s, targets));
         }
         let chain = chained.and(self.chain.as_ref());
         let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = match chain.filter(|c| !c.source.outputs.is_empty()) {
@@ -2648,20 +2638,18 @@ impl Renderer {
         let runs = shading.map_or(Vec::new(), |s| s.source.program_runs());
         let mut recorded: Vec<u32> = Vec::new();
         // Its groups, for this view's size and the frame's textures it reads.
-        if let Some(s) = program_shading {
-            if let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) {
-                let key = targets.made ^ chain.map_or(0, |c| c.made << 32);
-                let external = |name: &str| -> Option<wgpu::TextureView> {
-                    crate::program::external(s.source, name)?;
-                    match name {
-                        "depth" => Some(targets.depth.clone()),
-                        "hdr" => Some(targets.hdr.clone()),
-                        _ => chain.and_then(|c| c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| v.clone())),
-                    }
-                };
-                if program.borrow_mut().bind(&self.gpu.device, pipelines, targets.size, key, &external) {
-                    *s.program_handles.borrow_mut() = program.borrow().handles();
+        if let Some(s) = program_shading && let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) {
+            let key = targets.made ^ chain.map_or(0, |c| c.made << 32);
+            let external = |name: &str| -> Option<wgpu::TextureView> {
+                crate::program::external(s.source, name)?;
+                match name {
+                    "depth" => Some(targets.depth.clone()),
+                    "hdr" => Some(targets.hdr.clone()),
+                    _ => chain.and_then(|c| c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| v.clone())),
                 }
+            };
+            if program.borrow_mut().bind(&self.gpu.device, pipelines, targets.size, key, &external) {
+                *s.program_handles.borrow_mut() = program.borrow().handles();
             }
         }
         // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
@@ -2988,7 +2976,7 @@ impl Renderer {
             pass.dispatch_workgroups(count, 1, 1);
         }
         self.gpu.queue.submit([encoder.finish()]);
-        read_buffer(device, &self.gpu.queue, &out, 0, (words * 4) as u64).chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
+        read_buffer(device, &self.gpu.queue, &out, 0, (words * 4) as u64).as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect()
     }
 
     /// A buffer of the current shading's pass chain as the last frame left it
@@ -2997,7 +2985,7 @@ impl Renderer {
         let chain = self.chain.as_ref()?;
         let (_, buffer) = chain.buffers.iter().find(|(n, _)| *n == name)?;
         let bytes = read_buffer(&self.gpu.device, &self.gpu.queue, buffer, 0, buffer.size());
-        Some((bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect(), chain.size))
+        Some((bytes.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect(), chain.size))
     }
 
     /// Blocking read of the current frame (unpadded RGBA rows).

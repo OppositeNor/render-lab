@@ -9,7 +9,7 @@ use glam::Vec3;
 /// One unsigned small float with `mantissa` bits, rounded to nearest.
 fn small_float(x: f32, mantissa: u32) -> u32 {
     let max_code = (30u32 << mantissa) | ((1 << mantissa) - 1);
-    if !(x > 0.0) {
+    if x.is_nan() || x <= 0.0 {
         return 0;
     }
     let bits = x.to_bits();
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn r11g11b10_round_trip() {
-        for &x in &[0.0f32, 1e-6, 6.1e-5, 0.01, 0.5, 1.0, 1.7, 3.14159, 100.0, 60000.0] {
+        for &x in &[0.0f32, 1e-6, 6.1e-5, 0.01, 0.5, 1.0, 1.7, std::f32::consts::PI, 100.0, 60000.0] {
             let back = unpack_r11g11b10(pack_r11g11b10(Vec3::splat(x)));
             // 6 mantissa bits for red and green, 5 for blue: relative error ≤ 2^-7 and 2^-6.
             let tol = |bits: i32| (x * 2f32.powi(-bits)).max(2f32.powi(-20));

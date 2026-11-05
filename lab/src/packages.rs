@@ -248,10 +248,8 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         }
         let text = string(entry, "notice-text", &fail)?.ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
         let license = string(entry, "license", &fail)?;
-        if let Some(file) = &license {
-            if Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file() {
-                return Err(fail(format!("notice license `{file}`: no such file (a path inside the package)")));
-            }
+        if let Some(file) = &license && (Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file()) {
+            return Err(fail(format!("notice license `{file}`: no such file (a path inside the package)")));
         }
         notices.push(Notice { text, license });
     }

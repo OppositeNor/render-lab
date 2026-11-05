@@ -71,10 +71,8 @@ pub fn build_packages() -> Result<Option<cook::Report>> {
 
 fn mount() -> Result<Registry> {
     let root = root().to_path_buf();
-    if let Some(report) = build_packages()? {
-        if !report.produced.is_empty() || !report.libraries.is_empty() {
-            eprintln!("packages: built {} resource(s) and {} library(ies) into {}", report.produced.len(), report.libraries.len(), packages_dir().display());
-        }
+    if let Some(report) = build_packages()? && (!report.produced.is_empty() || !report.libraries.is_empty()) {
+        eprintln!("packages: built {} resource(s) and {} library(ies) into {}", report.produced.len(), report.libraries.len(), packages_dir().display());
     }
     let dir = packages_dir();
     if !dir.is_dir() {

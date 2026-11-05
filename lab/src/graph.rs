@@ -352,10 +352,8 @@ impl FrameGraph {
             }
         }
         let at = |n: FrameNode| frame.iter().position(|x| *x == n);
-        if let (Some(p), Some(scene)) = (at(FrameNode::Prepass), at(FrameNode::Scene)) {
-            if p > scene {
-                errors.push(format!("{}: the pre-pass comes after the scene pass, which tests against its depth", s.fragment));
-            }
+        if let (Some(p), Some(scene)) = (at(FrameNode::Prepass), at(FrameNode::Scene)) && p > scene {
+            errors.push(format!("{}: the pre-pass comes after the scene pass, which tests against its depth", s.fragment));
         }
     }
 
@@ -377,10 +375,8 @@ impl FrameGraph {
             }
             let mut seen = BTreeSet::new();
             for name in n.reads.iter().chain(&n.writes).filter(|name| self.resources.iter().any(|r| r.name == **name)) {
-                if n.reads.iter().filter(|r| *r == name).count() > 1 || n.writes.iter().filter(|w| *w == name).count() > 1 {
-                    if seen.insert(*name) {
-                        self.errors.push(format!("{}: lists `{name}` twice", n.name));
-                    }
+                if (n.reads.iter().filter(|r| *r == name).count() > 1 || n.writes.iter().filter(|w| *w == name).count() > 1) && seen.insert(*name) {
+                    self.errors.push(format!("{}: lists `{name}` twice", n.name));
                 }
             }
         }
@@ -747,10 +743,8 @@ impl FrameGraph {
         }
         let mut edges: Vec<(String, String)> = Vec::new();
         let mut add = |a: Option<&String>, b: Option<&String>| {
-            if let (Some(a), Some(b)) = (a, b) {
-                if a != b && !edges.iter().any(|e| e.0 == *a && e.1 == *b) {
-                    edges.push((a.clone(), b.clone()));
-                }
+            if let (Some(a), Some(b)) = (a, b) && a != b && !edges.iter().any(|e| e.0 == *a && e.1 == *b) {
+                edges.push((a.clone(), b.clone()));
             }
         };
         for &(a, b, e) in &self.edges {

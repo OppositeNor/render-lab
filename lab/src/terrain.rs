@@ -181,11 +181,9 @@ impl Terrain {
                 let mut best: Option<(f32, Vec3)> = None;
                 for tri in Self::cell_triangles(ci, cj) {
                     let [a, b, d] = tri.map(|(x, z)| self.vertex(x, z));
-                    if let Some((t, u, v)) = moller_trumbore(lo, ld, a, b, d) {
-                        if t > 1e-4 && t < best.map_or(t_max, |h| h.0) {
-                            let [na, nb, nd] = tri.map(|(x, z)| self.vertex_normal(x, z));
-                            best = Some((t, (na * (1.0 - u - v) + nb * u + nd * v).normalize()));
-                        }
+                    if let Some((t, u, v)) = moller_trumbore(lo, ld, a, b, d) && t > 1e-4 && t < best.map_or(t_max, |h| h.0) {
+                        let [na, nb, nd] = tri.map(|(x, z)| self.vertex_normal(x, z));
+                        best = Some((t, (na * (1.0 - u - v) + nb * u + nd * v).normalize()));
                     }
                 }
                 if best.is_some() {

@@ -120,6 +120,7 @@ struct Story {
     cues: Vec<Entry>,
 }
 
+#[allow(clippy::result_large_err)] // one diagnostic, once per check
 fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     let story: Story = serde_json::from_str(input).map_err(|e| Diagnostic::new(&Context::default(), "story.schema", "story", e.to_string()))?;
     if story.render_lab_story != 1 {
@@ -153,6 +154,7 @@ fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     Ok(warnings)
 }
 
+#[allow(clippy::result_large_err)] // one diagnostic, once per check
 fn timeline(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     let mut data: serde_json::Value = serde_json::from_str(input).map_err(|e| Diagnostic::new(&Context::default(), "timeline.schema", "timeline", e.to_string()))?;
     // A raw timeline is also accepted, e.g. `story check --timeline timeline.json`.

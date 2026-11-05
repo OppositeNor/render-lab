@@ -263,10 +263,8 @@ impl<'a> Stepper<'a> {
                 out.push((self.i - 1, s, a));
             }
         }
-        if let Some(s) = self.current() {
-            if self.appear > 0.0 {
-                out.push((self.i, s, self.appear));
-            }
+        if let Some(s) = self.current() && self.appear > 0.0 {
+            out.push((self.i, s, self.appear));
         }
         out
     }

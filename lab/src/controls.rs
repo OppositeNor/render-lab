@@ -277,10 +277,8 @@ impl Dock<'_> {
             for node in &view.nodes {
                 let selected = focus.is_some_and(|f| f.name == node.name);
                 let label = RichText::new(&node.name).monospace().color(if node.live { palette::text() } else { palette::text_faint() });
-                if ui.selectable_label(selected, label).clicked() {
-                    if let Some(result) = &node.result {
-                        d.actions.push(ViewerAction::Inspect(Some(format!("{}.{result}", node.name))));
-                    }
+                if ui.selectable_label(selected, label).clicked() && let Some(result) = &node.result {
+                    d.actions.push(ViewerAction::Inspect(Some(format!("{}.{result}", node.name))));
                 }
             }
         });
@@ -827,15 +825,11 @@ impl Dock<'_> {
                     }
                 });
                 d.rows(ui, "experiment-compare", |d, ui| {
-                    if view.compare == Compare::Wipe {
-                        if let Some(v) = d.number(ui, "experiment.split", tr("experiments.split"), palette::text(), view.split, 0.0..=1.0, Unit::Plain) {
-                            d.actions.push(ViewerAction::SetSplit(v));
-                        }
+                    if view.compare == Compare::Wipe && let Some(v) = d.number(ui, "experiment.split", tr("experiments.split"), palette::text(), view.split, 0.0..=1.0, Unit::Plain) {
+                        d.actions.push(ViewerAction::SetSplit(v));
                     }
-                    if view.compare == Compare::Difference {
-                        if let Some(v) = d.number(ui, "experiment.gain", tr("experiments.gain"), palette::text(), view.gain, 1.0..=64.0, Unit::Factor) {
-                            d.actions.push(ViewerAction::SetGain(v));
-                        }
+                    if view.compare == Compare::Difference && let Some(v) = d.number(ui, "experiment.gain", tr("experiments.gain"), palette::text(), view.gain, 1.0..=64.0, Unit::Factor) {
+                        d.actions.push(ViewerAction::SetGain(v));
                     }
                 });
                 if ui.button(tr("experiments.measure")).on_hover_text(tr("experiments.measure_hint")).clicked() {

@@ -25,6 +25,7 @@ pub const GGX_SAMPLES: u32 = 256;
 /// runs at the smallest size (irradiance has no detail to lose).
 pub const DIFFUSE_SIZE: usize = 32;
 
+#[allow(clippy::approx_constant, clippy::excessive_precision)] // the engine's literal
 const PI: f32 = 3.14159265;
 
 /// CubeMapGen's face table (sgFace2DMapping): the u direction, the v
