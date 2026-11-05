@@ -6,7 +6,7 @@ $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import*
 ### SDFGI lights the room with light that bounced {#c1-room kind=3d}
 
 ${cue "key" {opening demoRoom 1.0 {' {sdfgiMix 0.0} {cameraYaw 24.0} {cameraPitch 20.0} {cameraDistance 6.2}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 10.0 16.0 6.6} {' 18.0 18.0 6.3}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 10.0 16.0 6.6} {pose 18.0 18.0 6.3}}}}}}}
 
 This is the lab's study room, lit by the ceiling panel alone.
 
@@ -47,7 +47,7 @@ The opaque pass, which shades the solid surfaces, then uses that light as each p
 ### Forward+ only, and the defaults that shape it {#c1-switches kind=3d}
 
 ${cue "key" {opening demoRoom 1.0 {' {focusRow 1.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 18.0 16.0} {' 8.0 22.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 16.0} {aim 8.0 22.0}}}}}}}
 
 ${cue "key" {' {callout "mobile-stub"}}} Only the Forward+ renderer has SDFGI.
 
@@ -102,7 +102,7 @@ The build checks that each of those lines is still there.
 ### Four nested grids of 128 cells, each twice as coarse {#c2-nested kind=3d}
 
 ${cue "key" {opening demoCascades 1.0 {' {cascadesShown 0.0} {probes 0.0} {cameraYaw 30.0} {cameraPitch 38.0} {cameraDistance 60.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 20.0 40.0 140.0} {' 36.0 42.0 230.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 20.0 40.0 140.0} {pose 36.0 42.0 230.0}}}}}}}
 
 The frame begins with the cascades.
 
@@ -143,7 +143,7 @@ The code shows that a cascade is two thirds as tall as it is wide, not the three
 ### Seventeen probes per axis, one every eight cells {#c2-probes kind=3d}
 
 ${cue "key" {opening demoCascades 1.0 {' {cascadesShown 1.0} {probes 1.0} {cameraDistance 18.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 30.0 28.0} {' -10.0 24.0} {' 20.0 30.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 30.0 28.0} {aim -10.0 24.0} {aim 20.0 30.0}}}}}}}
 
 ${cue "key" {' {callout "probe-axis-count"}}} Inside each cascade sits a lattice of probes, one every eight cells.
 
@@ -184,7 +184,7 @@ These are the lines that place and move the cascades.
 ### Each dirty axis becomes one box in the world {#c3-regions kind=3d}
 
 ${cue "key" {opening demoRegions 1.0 {' {cameraYaw 30.0} {cameraPitch 40.0} {cameraDistance 46.0} {cameraTarget {' 6.0 0.0 0.0}}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 44.0 34.0} {' 52.0 30.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 44.0 34.0} {aim 52.0 30.0}}}}}}}
 
 Each jump leaves a dirty slab.
 
@@ -265,7 +265,7 @@ These are the lines that choose the meshes and lights for each region.
 ### Three orthographic views, one pixel per voxel {#c4-passes kind=3d}
 
 ${cue "key" {opening demoVoxels 1.0 {' {voxels 1.0} {voxelPasses 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 16.0 6.4} {' -8.0 20.0 6.0} {' 24.0 18.0 6.6}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 18.0 16.0 6.4} {pose -8.0 20.0 6.0} {pose 24.0 18.0 6.6}}}}}}}
 
 With the meshes chosen, the GPU draws them into the grid of voxels.
 
@@ -490,7 +490,7 @@ These are the occlusion lines.
 ### A thread per solid cell, a quarter of them each frame {#c7-cells kind=3d}
 
 ${cue "key" {opening demoLight 0.3 {' {extraLight 0.0} {shadowRay 0.0} {lightPhase 4.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 16.0 6.4} {' 12.0 18.0 6.5} {' 20.0 18.0 6.6}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 18.0 16.0 6.4} {pose 12.0 18.0 6.5} {pose 20.0 18.0 6.6}}}}}}}
 
 With the distance field and the visibility built, the solid cells can now be lit.
 
@@ -603,7 +603,7 @@ These are the lines that light the cells.
 ### Eight rays a frame, two hundred forty over thirty frames {#c8-rays kind=3d}
 
 ${cue "key" {opening demoProbes 1.0 {' {probeRays 1.0} {rayFrames 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 25.0 18.0 3.6} {' 0.0 24.0 3.2} {' 30.0 16.0 3.8}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 25.0 18.0 3.6} {pose 0.0 24.0 3.2} {pose 30.0 16.0 3.8}}}}}}}
 
 The cells now hold light, but only where the surfaces are.
 

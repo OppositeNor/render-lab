@@ -180,7 +180,7 @@ PR 4 分为四个阶段，各自一个提交（2026-11-05）：
 
 ### PR 5 — 精简高频写法，并试改真实章节（P1）
 
-进度（2026-11-05）：试点已完成。`render_lab.lam` 增加 `glide`（单 channel 到单值，整个 cue 属性）、`pose`／`aim`（具名相机点）、`cameraPathOver`／`cameraTurnOver`（任意 Length）；SSR storyboard 改写 50 处 glide 与 32 段相机路径，各版本准备产物经 compare 相同。下一步：推广到其他公开故事（同样以 compare 验收）。
+进度（2026-11-05）：试点已完成。`render_lab.lam` 增加 `glide`（单 channel 到单值，整个 cue 属性）、`pose`／`aim`（具名相机点）、`cameraPathOver`／`cameraTurnOver`（任意 Length）；SSR storyboard 改写 50 处 glide 与 32 段相机路径，各版本准备产物经 compare 相同。已推广到 SDFGI、VoxelGI、O3DE 的 storyboard（compare 相同）。PR 5 完成。
 
 覆盖 RL01–RL04。
 

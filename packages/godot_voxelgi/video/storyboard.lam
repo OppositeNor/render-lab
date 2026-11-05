@@ -6,7 +6,7 @@ $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import*
 ### VoxelGI adds the light that bounced off the room {#c1-room kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {' {voxelgiMix 0.0} {cameraYaw 24.0} {cameraPitch 18.0} {cameraDistance 6.4}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 14.0 16.0 6.8} {' 26.0 20.0 5.2} {' 20.0 17.0 6.3}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 14.0 16.0 6.8} {pose 26.0 20.0 5.2} {pose 20.0 17.0 6.3}}}}}}}
 
 ${overText {' {voxelgiMixRange 0.0 0.15}} "This is the lab's study room, lit only by its ceiling panel and the sky"}.
 
@@ -55,7 +55,7 @@ By the end, you will be able to follow one pixel's light back through each of th
 ### The parts, on the room {#c1-parts kind=3d}
 
 ${cue "key" {opening demoBounds panelHidden 1.0 {' {showBox 1.0} {boundsStep 0.0} {octreeLevel -1.0} {cellView 0.0} {cutHeight 3.2} {cameraTarget {' 0.0 0.9 -0.3}} {cameraYaw 22.0} {cameraPitch 30.0} {cameraDistance 8.5}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 28.0 8.0} {' 30.0 34.0 8.8} {' 24.0 30.0 8.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 18.0 28.0 8.0} {pose 30.0 34.0 8.8} {pose 24.0 30.0 8.2}}}}}}}
 
 ${over {' {octreeLevelRange -1.0 7.0}} {overText {' {cutHeightRange 3.2 1.4}} "Here are the room's baked cells, drawn as one point each"}}.
 
@@ -70,7 +70,7 @@ ${overText {' {coneStepsRange 1.0 16.0}} "The wider a cone grows, the bigger the
 ### Forward+ only, on whenever a VoxelGI is in view {#c1-gate kind=3d}
 
 ${cue "key" {opening demoRoom panelValues 1.0 {' {focusRow 0.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 16.0 18.0} {' 8.0 22.0} {' 14.0 19.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 16.0 18.0} {aim 8.0 22.0} {aim 14.0 19.0}}}}}}}
 
 ${cue "key" {' {callout "voxelgi-doc"}}}${overText {' {focusRowRange 0.0 1.0}} "Godot has three renderers, and VoxelGI works only in the one called Forward+"}.
 
@@ -93,7 +93,7 @@ ${overText {' {qualityRange 1.0 0.0}} "The other settings arrive in the chapters
 ### The lab's box: six point four metres, five-centimetre cells {#c1-box kind=3d}
 
 ${cue "key" {opening demoBounds panelValues 1.0 {' {showBox 0.0} {boundsStep 0.0} {focusRow -1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 22.0 30.0 12.0} {' 38.0 36.0 10.5}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 22.0 30.0 12.0} {pose 38.0 36.0 10.5}}}}}}}
 
 ${over {' {showBoxRange 0.0 1.0}} {overText {' {focusRowRange -1.0 0.0}} "The lab places one VoxelGI around its room, six point four by three point two by six point four metres"}}.
 
@@ -108,7 +108,7 @@ ${overText {' {boundsStepRange 0.0 2.0}} "It runs that code on the graphics card
 ### Next: the bake {#c1-recap kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {' {voxelgiMix 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 20.0 18.0 6.4} {' 32.0 22.0 6.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 20.0 18.0 6.4} {pose 32.0 22.0 6.0}}}}}}}
 
 ${overText {' {voxelgiMixRange 1.0 0.0}} "So VoxelGI is a box of baked cells"}.
 
@@ -133,7 +133,7 @@ Everything VoxelGI knows about the room comes from one bake, so this chapter sta
 ### Static meshes inside the box are baked {#c2-collect kind=3d}
 
 ${cue "key" {opening demoBounds panelValues 1.0 {' {showBox 1.0} {boundsStep 0.0} {focusRow -1.0} {octreeLevel -1.0} {cellView 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 30.0 32.0 11.0} {' 44.0 34.0 10.0} {' 36.0 30.0 10.8}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 30.0 32.0 11.0} {pose 44.0 34.0 10.0} {pose 36.0 30.0 10.8}}}}}}}
 
 ${cue "key" {' {callout "bake-entry"}}}${overText {' {showBoxRange 0.4 1.0}} "Pressing Bake starts the voxelizer, the code that turns the meshes in the VoxelGI's box into cells"}.
 
@@ -156,7 +156,7 @@ ${overText {' {cutHeightRange 2.2 3.2}} "The panel's light comes from an area li
 ### The box becomes a cube of cells {#c2-cube kind=3d}
 
 ${cue "key" {opening demoBounds panelValues 1.0 {' {showBox 1.0} {boundsStep 0.0} {focusRow 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 28.0 30.0 14.0} {' 40.0 36.0 16.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 28.0 30.0 14.0} {pose 40.0 36.0 16.0}}}}}}}
 
 ${cue "key" {' {callout "begin-bake"}}}${over {' {focusRowRange 0.0 1.0}} {overText {' {octreeLevelRange -1.0 1.0}} "At the default subdivision, the box's longest axis gets one hundred twenty-eight cells, two to the seventh"}}.
 
@@ -194,11 +194,11 @@ ${over {' {octreeLevelRange -1.0 7.0}} {overText {' {cutHeightRange 3.2 0.7}} "T
 ### The test: a separating axis {#c2-sat kind=3d}
 
 ${cue "key" {opening demoOctree panelValues 0.3 {' {workedTriangle 1.0} {descentLevel 5.0} {octreeLevel -1.0} {satStep 0.0} {focusRow 8.0} {cameraTarget {' -0.15 0.15 -1.8}} {cameraDistance 1.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 52.0 22.0} {' 64.0 28.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 52.0 22.0} {aim 64.0 28.0}}}}}}}
 
 ${cue "key" {' {callout "tri-box"}}}${overText {' {satStepRange 0.0 1.0}} "The overlap test looks for a separating axis between the box and the triangle"}.
 
-${cue "key" {' {motion {' {path {' cameraDistance} {' {' 1.2}} sentence}}}}}On such an axis, the two shapes' projections do not overlap, so the shapes cannot touch.
+${cue "key" {' {glide cameraDistance 1.2 sentence}}}On such an axis, the two shapes' projections do not overlap, so the shapes cannot touch.
 
 ${overText {' {descentLevelRange 5.0 6.0}} "The test tries nine axes made from the triangle's edges, then the box's own three, then the triangle's plane"}.
 
@@ -209,7 +209,7 @@ ${overText {' {satStepRange 1.0 3.0}} "The readout panel names the axis that rej
 ### Every triangle, sharing the cells {#c2-all kind=3d}
 
 ${cue "key" {opening demoOctree panelValues 1.0 {' {workedTriangle 0.0} {octreeLevel 3.0} {cutHeight 3.2} {focusRow 3.0} {cameraTarget {' 0.0 0.9 -0.3}} {cameraYaw 24.0} {cameraPitch 28.0} {cameraDistance 7.4}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 30.0 7.2} {' 32.0 26.0 6.6} {' 26.0 28.0 7.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 18.0 30.0 7.2} {pose 32.0 26.0 6.6} {pose 26.0 28.0 7.0}}}}}}}
 
 ${overText {' {octreeLevelRange 0.0 3.0}} "Every triangle of every mesh goes down the octree the same way"}.
 
@@ -228,7 +228,7 @@ ${overText {' {cutHeightRange 1.4 2.0}} "An octree like this, with most of its s
 ### A leaf samples its triangle on four by four columns {#c2-leaf kind=3d}
 
 ${cue "key" {opening demoOctree panelCode 0.2 {' listingLeafScan {highlight {' "axis"}} {workedTriangle 1.0} {workedLeaf 1.0} {leafColumns 0.0} {octreeLevel -1.0} {cameraTarget {' -0.01 0.24 -1.71}} {cameraDistance 0.32}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 50.0 22.0} {' 62.0 30.0} {' 56.0 26.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 50.0 22.0} {aim 62.0 30.0} {aim 56.0 26.0}}}}}}}
 
 ${cue "key" {' {callout "leaf-scan"}}}${overText {' {leafColumnsRange 0.0 1.0}} "At a leaf, the voxelizer picks the axis the triangle's plane faces most"}.
 
@@ -249,7 +249,7 @@ ${overText {' {leafColumnsRange 14.0 16.0}} "The next chapter uses that alpha to
 ### Materials become flat colours {#c2-material kind=3d}
 
 ${cue "key" {opening demoOctree panelHidden 1.0 {' {workedTriangle 0.0} {octreeLevel 7.0} {cellView 0.0} {cutHeight 3.2} {cameraTarget {' 0.0 0.9 -0.3}} {cameraYaw 20.0} {cameraPitch 26.0} {cameraDistance 6.8}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 14.0 24.0 6.4} {' 28.0 30.0 6.9}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 14.0 24.0 6.4} {pose 28.0 30.0 6.9}}}}}}}
 
 ${cue "key" {' {callout "material-cache"}}}${overText {' {cellViewRange 1.0 0.0}} "Each material is read once into two tables, each one hundred twenty-eight texels a side"}.
 
@@ -289,7 +289,7 @@ Before the graphics card sees them, the cells are finished, sorted, and packed.
 ### A leaf becomes an average {#c3-fixup kind=3d}
 
 ${cue "key" {opening demoCells panelValues 0.2 {' {fixupStep 0.0} {focusRow -1.0} {octreeLevel 7.0} {cutHeight 0.3} {cameraTarget {' -0.01 0.24 -1.71}} {cameraDistance 0.7}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 50.0 20.0 0.6} {' 60.0 26.0 0.8}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 50.0 20.0 0.6} {pose 60.0 26.0 0.8}}}}}}}
 
 ${cue "key" {' {callout "fixup-leaf"}}}${overText {' {focusRowRange 1.0 2.0}} "This teapot leaf holds the sums from every triangle that reached it"}.
 
@@ -310,7 +310,7 @@ ${overText {' {cutHeightRange 0.4 0.5}} "The light passes then treat that leaf a
 ### Parents keep only their coverage {#c3-parents kind=3d}
 
 ${cue "key" {opening demoCells panelCode 1.0 {' listingFixup {highlight {' "parent"}} {octreeLevel 6.0} {cellView 1.0} {cutHeight 1.2} {cameraTarget {' 0.0 0.5 -0.6}} {cameraYaw 28.0} {cameraPitch 30.0} {cameraDistance 5.2}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 22.0 28.0 5.0} {' 36.0 34.0 5.6}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 22.0 28.0 5.0} {pose 36.0 34.0 5.6}}}}}}}
 
 ${cue "key" {' {callout "fixup-parent"}}}${overText {' {octreeLevelRange 7.0 6.0}} "A parent cell, one that has children, gets no colour at all"}.
 
@@ -327,7 +327,7 @@ ${overText {' {cutHeightRange 0.5 1.6}} "The coarse levels get their light later
 ### Sorted by level, each level in one run {#c3-sort kind=3d}
 
 ${cue "key" {opening demoCells panelCode 0.0 {' listingSortCells {highlight {' "key"}} {cellArray 1.0} {octreeLevel -1.0} {cameraTarget {' 0.0 0.9 -0.3}} {cameraYaw 24.0} {cameraPitch 30.0} {cameraDistance 7.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 22.0 30.0} {' 30.0 32.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 22.0 30.0} {aim 30.0 32.0}}}}}}}
 
 ${cue "key" {' {callout "sort-cells"}}}${overText {' {octreeLevelRange 0.0 2.0}} "The cells are then sorted by level first, and then by position"}.
 
@@ -344,7 +344,7 @@ ${overText {' {octreeLevelRange 5.0 4.0}} "The renderer, the part of Godot that 
 ### Forty-eight bytes a cell, in two records {#c3-bytes kind=3d}
 
 ${cue "key" {opening demoCells panelValues 0.2 {' {cellArray 0.0} {fixupStep 1.0} {focusRow 1.0} {octreeLevel 7.0} {cellView 0.0} {cutHeight 0.3} {cameraTarget {' -0.01 0.24 -1.71}} {cameraDistance 0.7}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 54.0 20.0 0.6} {' 62.0 26.0 0.8} {' 56.0 22.0 0.7}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 54.0 20.0 0.6} {pose 62.0 26.0 0.8} {pose 56.0 22.0 0.7}}}}}}}
 
 ${cue "key" {' {callout "export-octree"}}}Each cell is stored as two records.
 
@@ -387,13 +387,13 @@ ${overText {' {sliceHeightRange 1.0 0.6}} "In the next chapter, shadow rays use 
 ### What the GPU keeps {#c3-upload kind=3d}
 
 ${cue "key" {opening demoCells panelValues 0.5 {' {slice 2.0} {mipLevel 0.0} {sliceHeight 0.0} {cellArray 0.0} {octreeLevel -1.0} {cameraTarget {' 0.0 0.4 0.0}} {cameraYaw 10.0} {cameraPitch 60.0} {cameraDistance 8.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 0.0 70.0} {' 16.0 58.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 0.0 70.0} {aim 16.0 58.0}}}}}}}
 
 ${cue "key" {' {callout "allocate-data"}}}${overText {' {sliceRange 2.0 1.0}} "The upload turns the two records into two storage buffers, and the field into a three-dimensional texture with one byte per texel"}.
 
 ${cue "key" {' {callout "sdf-gpu-disabled"}}}${overText {' {sliceRange 1.0 2.0}} "The source also holds a graphics-card version of the field, but it is compiled out"}.
 
-${cue "key" {' {motion {' {path {' cameraDistance} {' {' 7.0}} sentence}}}}}So the field the bake made on the processor is the one used.
+${cue "key" {' {glide cameraDistance 7.0 sentence}}}So the field the bake made on the processor is the one used.
 
 ${cue "key" {' {callout "instance-texture"}}}${overText {' {mipLevelRange 0.0 1.0}} "Each VoxelGI in the renderer then gets a colour texture the size of the octree, for the light passes to fill"}.
 
@@ -433,7 +433,7 @@ The light passes, the compute passes from chapter one, give each cell the light 
 ### Only when the data or a light changes {#c4-when kind=3d}
 
 ${cue "key" {opening demoLight panelValues 1.0 {' {workedLight 0.0} {extraLight 1.0} {lightX 0.9} {octreeLevel 7.0} {cellView 5.0} {cutHeight 0.2} {focusRow -1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 0.0 18.0 4.6} {' 12.0 24.0 4.4}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 0.0 18.0 4.6} {pose 12.0 24.0 4.4}}}}}}}
 
 ${cue "key" {' {callout "relight-gate"}}}The light passes do not run every frame.
 
@@ -450,7 +450,7 @@ ${cue "key" {' {callout "light-upload"}}}${overText {' {focusRowRange 0.0 1.0}} 
 ### A cell's direct light, step by step {#c4-direct kind=3d}
 
 ${cue "key" {opening demoLight panelValues 0.3 {' {workedLight 1.0} {lightStep 0.0} {marchSteps 0.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 2.0 16.0} {' 10.0 20.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 2.0 16.0} {aim 10.0 20.0}}}}}}}
 
 ${cue "key" {' {callout "compute-light"}}}${overText {' {lightHeightRange 1.8 1.6}} "Take this floor cell beside the sphere, the ringed one"}.
 
@@ -469,7 +469,7 @@ ${cue "key" {' panelCode listingComputeLight {highlight {' "result"}}}}${overTex
 ### The shadow ray steps through the distance field {#c4-shadow kind=3d}
 
 ${cue "key" {opening demoLight panelCode 0.3 {' listingRaymarch {highlight {' "loop"}} {workedLight 1.0} {lightStep 4.0} {marchSteps 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 0.0 16.0 4.4} {' 8.0 20.0 4.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 0.0 16.0 4.4} {pose 8.0 20.0 4.0}}}}}}}
 
 ${cue "key" {' {callout "raymarch"}}}${overText {' {marchStepsRange 0.0 1.0}} "When the light casts shadows, a ray starts on the light's side and marches back toward the cell through the distance field"}.
 
@@ -488,7 +488,7 @@ ${overText {' {lightZRange -0.25 -0.1}} "That gives the shadow a slightly soft e
 ### The panel's area light has no shadow {#c4-area kind=3d}
 
 ${cue "key" {opening demoLight panelValues 0.5 {' {workedLight 1.0} {lightStep 4.0} {extraLight 0.0} {cameraTarget {' -1.0 1.2 -0.5}} {cameraDistance 5.6}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 0.0 16.0} {' 10.0 22.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 0.0 16.0} {aim 10.0 22.0}}}}}}}
 
 ${cue "key" {' {callout "area-light"}}}${overText {' {lightStepRange 1.0 2.0}} "The ceiling panel is an area light, a glowing rectangle rather than a point"}.
 
@@ -505,7 +505,7 @@ ${cue "key" {' {callout "ltc"}}}${overText {' {cutHeightRange 1.2 0.2}} "Direct 
 ### Every leaf, lit {#c4-all kind=3d}
 
 ${cue "key" {opening demoLight panelHidden 1.0 {' {workedLight 0.0} {extraLight 0.0} {octreeLevel 7.0} {cellView 5.0} {cutHeight 0.2} {cameraTarget {' 0.0 0.6 -0.4}} {cameraYaw 18.0} {cameraPitch 34.0} {cameraDistance 7.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 12.0 32.0 6.6} {' 28.0 38.0 7.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 12.0 32.0 6.6} {pose 28.0 38.0 7.2}}}}}}}
 
 ${overText {' {cutHeightRange 0.2 1.6}} "Every leaf runs the same pass, sixty-four leaves to a workgroup on the graphics card"}.
 
@@ -518,11 +518,11 @@ ${overText {' {cellViewRange 1.0 5.0}} "Cells it cannot see stay dark, waiting f
 ### The texture stores light over the dynamic range {#c4-write kind=3d}
 
 ${cue "key" {opening demoLight panelValues 0.5 {' {workedLight 0.0} {extraLight 0.0} {dynamicRange 2.0} {octreeLevel 7.0} {cellView 4.0} {cutHeight 0.2} {cameraTarget {' 0.0 0.1 -0.3}} {cameraYaw 14.0} {cameraPitch 48.0} {cameraDistance 3.4}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 8.0 50.0} {' 20.0 44.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 8.0 50.0} {aim 20.0 44.0}}}}}}}
 
 ${cue "key" {' {callout "write-texture"} {focusRow 2.0}}}${overText {' {cellViewRange 5.0 4.0}} "A last pass, the write pass, stores each cell's light in that cell's texel of the three-dimensional texture"}.
 
-${cue "key" {' {motion {' {path {' cameraDistance} {' {' 3.0}} sentence}}}}}Each channel of a texel has only eight bits, for values from zero to one.
+${cue "key" {' {glide cameraDistance 3.0 sentence}}}Each channel of a texel has only eight bits, for values from zero to one.
 
 ${overText {' {focusRowRange 2.0 3.0}} "So the pass first divides the light by a scale called the dynamic range"}.
 
@@ -600,7 +600,7 @@ ${overText {' {focusRowRange 3.0 5.0}} "Propagation is a choice between light th
 ### Six cones from every leaf {#c5-cones kind=3d}
 
 ${cue "key" {opening demoBounce panelCode 0.3 {' listingSecondBounce {highlight {' "frame"}} {workedBounce 1.0} {conesShown 0.0} {coneSteps 6.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 34.0 28.0} {' 48.0 32.0} {' 40.0 30.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 34.0 28.0} {aim 48.0 32.0} {aim 40.0 30.0}}}}}}}
 
 ${cue "key" {' {callout "second-bounce"}}}${overText {' {coneStepsRange 2.0 6.0}} "Take this floor cell near the red wall, the ringed one"}.
 
@@ -634,7 +634,7 @@ ${overText {' {coneStepsRange 6.0 11.0}} "That is because the room's cells are t
 ### The bounce is added, and everything rebuilt {#c5-restore kind=3d}
 
 ${cue "key" {opening demoLight panelCode 1.0 {' listingSecondBounce {highlight {' "restore"}} {workedLight 0.0} {extraLight 0.0} {octreeLevel 7.0} {cellView 4.0} {cutHeight 0.2} {bounces 1.0} {cameraTarget {' -1.4 0.4 0.2}} {cameraYaw 40.0} {cameraPitch 34.0} {cameraDistance 4.2}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 34.0 32.0 4.0} {' 48.0 36.0 4.6}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 34.0 32.0 4.0} {pose 48.0 36.0 4.6}}}}}}}
 
 ${cue "key" {' {callout "bounce-restore"}}}${overText {' {cutHeightRange 0.2 0.5}} "Each cone's light is multiplied by its weight, and by the cell's albedo for the bounce off that cell"}.
 
@@ -695,7 +695,7 @@ ${overText {' {dynamicXRange 0.6 0.0}} "These points are only a display, because
 ### Six views, sixteen texels a cell {#c6-views kind=3d}
 
 ${cue "key" {opening demoDynamic panelValues 0.5 {' {dynamicVoxels 0.0} {dynamicView 0.0} {shrinkLevel 0.0} {dynamicX 0.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 48.0 18.0} {' 62.0 24.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 48.0 18.0} {aim 62.0 24.0}}}}}}}
 
 ${cue "key" {' {callout "dynamic-oversample"}}}${overText {' {dynamicXRange 0.3 0.15}} "The object's bounding box is drawn at sixteen texels per cell"}.
 
@@ -731,7 +731,7 @@ ${overText {' {dynamicMipRange 0.0 3.0}} "Each halving divides the light the way
 ### The plotted voxels, mip by mip {#c6-mips kind=3d}
 
 ${cue "key" {opening demoDynamic panelValues 0.5 {' {dynamicVoxels 1.0} {dynamicView -1.0} {dynamicMip 0.0} {dynamicX 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 46.0 18.0 1.8} {' 58.0 24.0 2.4}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 46.0 18.0 1.8} {pose 58.0 24.0 2.4}}}}}}}
 
 ${overText {' {dynamicXRange 0.0 0.3}} "At the finest mip, the teapot is drawn in five-centimetre cells"}.
 
@@ -744,7 +744,7 @@ ${overText {' {dynamicMipRange 3.0 0.0}} "These coarser copies are what the wide
 ### Rewritten every frame, never bounced {#c6-cost kind=3d}
 
 ${cue "key" {opening demoDynamic panelValues 0.5 {' {dynamicVoxels 1.0} {dynamicView -1.0} {dynamicMip 0.0} {dynamicX 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 50.0 20.0 1.6} {' 64.0 26.0 2.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 50.0 20.0 1.6} {pose 64.0 26.0 2.0}}}}}}}
 
 ${cue "key" {' {callout "dynamic-clear"}}}${overText {' {dynamicXRange 0.0 0.15}} "Before the teapot is plotted, the whole texture is cleared"}.
 
@@ -790,7 +790,7 @@ The question is how a pixel reads that light cheaply, and the screen pass answer
 ### Each pixel knows its VoxelGIs {#c7-tag kind=3d}
 
 ${cue "key" {opening demoPixel panelValues 0.5 {' {workedPixel 1.0} {conesShown 0.0} {specCone 0.0} {focusRow -1.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 36.0 14.0} {' 46.0 18.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 36.0 14.0} {aim 46.0 18.0}}}}}}}
 
 ${cue "key" {' {callout "pairing-two"}}}${overText {' {pixelElevationRange 10.0 30.0}} "Each object keeps the first two VoxelGIs it overlaps, so a third one never lights it"}.
 
@@ -828,7 +828,7 @@ ${overText {' {pixelElevationRange 30.0 40.0}} "Only a pixel exactly on a face, 
 ### Four cones at forty-five degrees {#c7-low kind=3d}
 
 ${cue "key" {opening demoPixel panelValues 0.3 {' {workedPixel 1.0} {conesShown 0.0} {coneSteps 16.0} {focusRow 3.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 40.0 16.0} {' 30.0 22.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 40.0 16.0} {aim 30.0 22.0}}}}}}}
 
 ${cue "key" {' {callout "cones-low"}}}${overText {' {conesShownRange 0.0 4.0}} "At the default quality, four cones leave the pixel at forty-five degrees from its normal, each with a weight of one quarter"}.
 
@@ -845,7 +845,7 @@ ${overText {' {pixelAzimuthRange 72.0 85.0}} "The cone stops when its alpha reac
 ### Six cones at High {#c7-high kind=3d}
 
 ${cue "key" {opening demoPixel panelValues 0.3 {' {workedPixel 1.0} {conesShown 6.0} {coneSteps 16.0} {quality 0.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 34.0 18.0} {' 44.0 20.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 34.0 18.0} {aim 44.0 20.0}}}}}}}
 
 ${cue "key" {' {callout "cones-high"}}}${overText {' {qualityRange 0.0 1.0}} "At High quality, the pixel traces the bounce's six cones instead"}.
 
@@ -860,7 +860,7 @@ ${overText {' {qualityRange 1.0 0.0}} "At the default, four wide cones do the wo
 ### One more cone for the reflection {#c7-spec kind=3d}
 
 ${cue "key" {opening demoPixel panelValues 0.3 {' {workedPixel 1.0} {conesShown 0.0} {specCone 1.0} {quality 0.0} {sphereRoughness 0.5}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 38.0 16.0} {' 30.0 20.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 38.0 16.0} {aim 30.0 20.0}}}}}}}
 
 ${cue "key" {' {callout "spec-cone"}}}${overText {' {pixelAzimuthRange 60.0 80.0}} "The reflection gets one more cone, along the mirror direction"}.
 
@@ -934,7 +934,7 @@ The screen pass runs every frame.
 ### Reading the panel {#c8-panel kind=3d}
 
 ${cue "key" {opening demoCost panelPerformance 1.0 {' {highlight {'}} {giRelightEachFrame 0.0} {quality 0.0} {giHalfResolution 0.0} {costSplit 0.0} {viewMode 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 12.0 16.0 6.8} {' 24.0 20.0 6.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 12.0 16.0 6.8} {pose 24.0 20.0 6.2}}}}}}}
 
 ${cue "key" {' {highlight {' "scene pass"}}}}The panel on the right times the graphics card's work.
 
@@ -955,7 +955,7 @@ Watch for the rows that appear only when their work actually runs.
 ### Light passes only on change {#c8-cache kind=3d}
 
 ${cue "key" {opening demoCost panelPerformance 1.0 {' {highlight {'}} {giRelightEachFrame 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 20.0 16.0 6.6} {' 30.0 20.0 5.8}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 20.0 16.0 6.6} {pose 30.0 20.0 5.8}}}}}}}
 
 ${cue "key" {' {callout "update-gate"}}}Right now, no light pass is listed.
 
@@ -978,7 +978,7 @@ ${cue "key" {' {highlight {'}} {giRelightEachFrame 0.0}}}When the lab returns to
 ### Only the occupied cells {#c8-sparse kind=3d}
 
 ${cue "key" {opening demoCost panelValues 0.5 {' {focusRow -1.0} {octreeLevel -1.0} {cutHeight 3.2} {giRelightEachFrame 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 18.0 24.0 6.6} {' 28.0 30.0 6.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 18.0 24.0 6.6} {pose 28.0 30.0 6.0}}}}}}}
 
 ${cue "key" {' {focusRow 1.0}}}The readout on the right counts what one update of the light passes and one frame cost, and this chapter's numbers come from it.
 
@@ -991,7 +991,7 @@ ${over {' {cutHeightRange 3.2 1.2}} {overText {' {focusRowRange 3.0 4.0}} {++ {+
 ### A level at a time {#c8-levels kind=3d}
 
 ${cue "key" {opening demoCost panelValues 0.5 {' {focusRow -1.0} {octreeLevel 7.0} {cutHeight 1.6} {giRelightEachFrame 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 22.0 28.0 6.4} {' 30.0 32.0 6.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 22.0 28.0 6.4} {pose 30.0 32.0 6.0}}}}}}}
 
 ${cue "key" {' insetCellArray imageCornerBottomLeft {callout "sort-cells"}}}${overText {' {cutHeightRange 1.6 2.0}} "The cells are stored sorted by level, with the root first and the leaves last"}.
 
@@ -1014,7 +1014,7 @@ ${cue "key" {' {imageHide {' "cellArray"}} {focusRow -1.0}}}${overText {' {octre
 ### Shadows step by the field {#c8-march kind=3d}
 
 ${cue "key" {opening demoLight panelHidden 0.3 {' {workedLight 1.0} {lightStep 4.0} {marchSteps 0.0} {octreeLevel -1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 0.0 16.0 4.4} {' 8.0 20.0 4.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 0.0 16.0 4.4} {pose 8.0 20.0 4.0}}}}}}}
 
 ${cue "key" {' {callout "raymarch"}}}${overText {' {marchStepsRange 0.0 1.0}} "Inside the light pass, a shadow ray reads the distance field"}.
 
@@ -1031,7 +1031,7 @@ ${cue "key" {' {callout "light-at-pos"}}}A light that is out of range, too dim, 
 ### A few samples per pixel {#c8-cones kind=3d}
 
 ${cue "key" {opening demoPixel panelValues 0.3 {' {workedPixel 1.0} {conesShown 0.0} {coneSteps 0.0} {specCone 0.0} {quality 0.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 34.0 18.0} {' 44.0 20.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 34.0 18.0} {aim 44.0 20.0}}}}}}}
 
 ${cue "key" {' {callout "cones-low"}}}Everything so far runs only on change, but the screen pass runs every frame, so its price is paid per pixel.
 
@@ -1056,7 +1056,7 @@ ${overText {' {conesShownRange {float highCones} {float lowCones}}} "But only th
 ### The reflection cone {#c8-spec kind=3d}
 
 ${cue "key" {' demoPixel {callout "spec-cone"} {inset ""} panelValues {workedPixel 1.0} {conesShown 0.0} {specCone 1.0} {sphereRoughness 1.0} {cameraDrift 0.3}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 38.0 16.0} {' 30.0 20.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 38.0 16.0} {aim 30.0 20.0}}}}}}}
 
 ${overText {' {sphereRoughnessRange 1.0 0.5}} "That reflection cone is the one to watch, because its width follows the roughness"}.
 
@@ -1071,7 +1071,7 @@ ${overText {' {sphereRoughnessRange 0.07 0.1}} "So smooth surfaces are the most 
 ### Half resolution {#c8-half kind=3d}
 
 ${cue "key" {opening demoCost panelPerformance 0.3 {' {highlight {' "voxelgiGiCS"}} {giHalfResolution 0.0} {costSplit 1.0} {viewMode 0.0} {quality 0.0} {cameraTarget {' -1.6 0.7 -0.4}} {cameraYaw 40.0} {cameraPitch 16.0} {cameraDistance 3.4}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 40.0 16.0 3.4} {' 44.0 17.0 3.0} {' 40.0 15.0 1.7} {' 36.0 16.0 1.6} {' 40.0 16.0 3.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 40.0 16.0 3.4} {pose 44.0 17.0 3.0} {pose 40.0 15.0 1.7} {pose 36.0 16.0 1.6} {pose 40.0 16.0 3.2}}}}}}}
 
 ${cue "key" {' {callout "half-res-setting"}}}One project setting, half resolution, trades quality for speed directly, and it is off by default.
 
@@ -1098,7 +1098,7 @@ ${cue "key" {' {viewMode 0.0}}}Each artifact is one half-size texel wide, so at 
 ### Next: into the image {#c8-recap kind=3d}
 
 ${cue "key" {opening demoCost panelHidden 1.0 {' {giHalfResolution 0.0} {costSplit 0.0} {viewMode 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 16.0 16.0 6.8} {' 26.0 20.0 6.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 16.0 16.0 6.8} {pose 26.0 20.0 6.2}}}}}}}
 
 ${overText {' {voxelgiMixRange 1.0 0.75}} "So VoxelGI pays for little each frame"}.
 
@@ -1127,7 +1127,7 @@ One buffer holds the ambient light, and the other holds the reflection.
 ### Mixed with the environment by alpha {#c9-mix kind=3d}
 
 ${cue "key" {opening demoCompose panelValues 0.5 {' {viewMode 0.0} {interior 0.0} {focusRow 1.0}}}}
-${cue "key" {' {motion {' {cameraTurn {' {' 36.0 14.0} {' 46.0 18.0}}}}}}}
+${cue "key" {' {motion {' {cameraTurn {' {aim 36.0 14.0} {aim 46.0 18.0}}}}}}}
 
 ${cue "key" {' {callout "gi-buffer-mix"}}}${over {' {viewModeRange 0.0 1.0}} {overText {' {pixelAzimuthRange 60.0 90.0}} "The ambient buffer holds the cones' light"}}.
 
@@ -1150,7 +1150,7 @@ ${over {' {focusRowRange 3.0 7.0}} {overText {' {pixelAzimuthRange 75.0 60.0}} "
 ### Transparent surfaces and fog read it too {#c9-others kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {' {voxelgiMix 1.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 14.0 16.0 6.6} {' 28.0 20.0 6.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 14.0 16.0 6.6} {pose 28.0 20.0 6.0}}}}}}}
 
 ${cue "key" {' {callout "forward-gi-transparent"}}}${overText {' {viewModeRange 0.0 1.0}} "Transparent surfaces cannot use the buffers, and there are none in this room"}.
 
@@ -1165,7 +1165,7 @@ ${overText {' {voxelgiMixRange 0.75 0.5}} "So at the default range of two, that 
 ### One pixel, followed back {#c9-follow kind=3d}
 
 ${cue "key" {opening demoPixel panelHidden 0.3 {' {workedPixel 1.0} {conesShown 4.0} {specCone 0.0} {coneSteps 16.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 36.0 16.0 3.2} {' 24.0 22.0 3.6} {' 32.0 18.0 3.0}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 36.0 16.0 3.2} {pose 24.0 22.0 3.6} {pose 32.0 18.0 3.0}}}}}}}
 
 ${overText {' {pixelElevationRange 10.0 20.0}} "Follow this pixel on the sphere back through it all"}.
 
@@ -1182,7 +1182,7 @@ ${cue "key" {' demoOctree {workedTriangle 1.0} {workedLeaf 1.0} {leafColumns 0.0
 ### Three takeaways {#c9-recap kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {' {voxelgiMix 0.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 16.0 16.0 6.8} {' 26.0 20.0 6.2} {' 20.0 18.0 6.4}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 16.0 16.0 6.8} {pose 26.0 20.0 6.2} {pose 20.0 18.0 6.4}}}}}}}
 
 ${overText {' {voxelgiMixRange 0.0 1.0}} "The first takeaway is the data"}.
 
