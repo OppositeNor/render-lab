@@ -113,7 +113,7 @@ sixteen, plus one"), and keep its words in one stretch rather than split around 
   "field.seed"}}`, `{label "l"} {labelAt {at …}} {labelText "<text key>"}` (`arrowHide`, `labelHide`), its points
   fixed or ones the package publishes, and `{arrows "<set>"}` for a set the package computes (`render-lab images`
   lists the points and sets).
-- Keep the camera floating in 3D (`{motion {' {cameraPath {' {' 18.0 16.0 6.2} …}}}}`, `cameraDrift`), and glide to a
+- Keep the camera floating in 3D (`{motion {' {cameraPath {' {pose 18.0 16.0 6.2} …}}}}`, `{glide cameraYaw 24.0 sentence}`, `cameraDrift`), and glide to a
   still, 2D view (`{cameraDrift 0.0}`) only for a detailed step; glide back afterwards.
 - Sweep the parameter a relation depends on while the sentence states it, so the values change on screen.
 

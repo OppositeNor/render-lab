@@ -37,7 +37,7 @@ $[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import*
 ### The headline {#c1-room kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden 1.0 {' {cameraYaw 24.0}}}}
-${cue "key" {' {motion {' {cameraPath {' {' 14.0 16.0 6.8} {' 26.0 20.0 5.2}}}}}}}
+${cue "key" {' {motion {' {cameraPath {' {pose 14.0 16.0 6.8} {pose 26.0 20.0 5.2}}}}}}}
 
 The first sentence, ${cue "key" {' {callout "settings"}}}with a cue on a word, and
 ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
@@ -99,7 +99,9 @@ time it reads the storyboard, so it always matches the investigation.
 - **Typed attributes**, each writing the String the lab reads (tools/video/markup.py): motions (`{motion {' …}}` of
   `path`, `orbit`, `sway`, with a `Length`, `beat`, `sentence`, or `{seconds 4.0}`, and the wrappers `eased`,
   `looping`, `pingPonging`, `closed`, `around`, `from`, `centered`, `phased`, `lasting`, `fading`; `cameraPath`,
-  `cameraTurn`), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
+  `cameraTurn` over the beat, `cameraPathOver`, `cameraTurnOver` over a `Length`, their waypoints `{pose yaw pitch
+  distance}` and `{aim yaw pitch}`; and the commonest, one channel to one value, as a whole attribute:
+  `{glide cameraYaw 24.0 sentence}`. Write those short forms; the general `path` is the fallback), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
   v1}`, `unmark`), lists of names (`imageHide`, `arrowHide`, `labelHide`, `highlight`), records (`recordNone`,
   `recordCamera`, `{recordObject n}`), and `formulaSaid`.
 - **Checked names**, through the lab's natives (the package `rl`, `lab/src/script/natives.rs`): `callout` (a
