@@ -264,7 +264,24 @@ impl<D> Motion<D> {
 
     /// Why it cannot run, if its values do not fit its channels.
     pub fn problem(&self) -> Option<String> {
-        let n = self.params().len();
+        let params = self.params();
+        let n = params.len();
+        if let Some((i, p)) = params.iter().enumerate().find(|(i, p)| params[..*i].contains(p)) {
+            return Some(format!("channel `{p}` is named twice in one motion (at {} and {i})", params.iter().position(|q| q == p).unwrap_or(0)));
+        }
+        let values: Vec<f32> = match self {
+            Motion::Path(m) => m.through.iter().flatten().copied().collect(),
+            Motion::Orbit(m) => m.center.iter().chain(m.start.iter().flatten()).chain(m.axis.iter().flatten()).copied().chain([m.degrees]).collect(),
+            Motion::Wave(m) => m.center.into_iter().chain([m.amplitude, m.period, m.phase, m.fade]).collect(),
+        };
+        if values.iter().any(|v| !v.is_finite()) {
+            return Some("a motion's values must be finite numbers".into());
+        }
+        match self {
+            Motion::Orbit(m) if m.axis.is_some_and(|a| a == [0.0; 3]) => return Some("an orbit's axis cannot be zero".into()),
+            Motion::Wave(m) if m.fade < 0.0 => return Some("a wave's fade cannot be negative".into()),
+            _ => {}
+        }
         match self {
             Motion::Path(m) if m.through.is_empty() => Some("a path needs at least one waypoint".into()),
             Motion::Path(m) if m.through.iter().any(|p| p.len() != n) => Some(format!("each waypoint needs {n} values")),
@@ -437,6 +454,20 @@ mod tests {
         assert_eq!(at(0.0), vec![0.0, 0.0]);
         assert!(at(1.0).iter().zip([1.0, 0.0]).all(|(a, b)| (a - b).abs() < 1e-5), "{:?}", at(1.0));
         assert!(at(2.0).iter().zip([1.0, 1.0]).all(|(a, b)| (a - b).abs() < 1e-5));
+    }
+
+    #[test]
+    fn a_motion_with_bad_values_has_a_problem() {
+        let problem = |json: &str| serde_json::from_str::<Motion>(json).unwrap().problem();
+        assert!(problem(r#"{"path":{"params":["a","b"],"through":[[1,2]],"seconds":1}}"#).is_none());
+        assert!(problem(r#"{"path":{"params":["a","a"],"through":[[1,2]],"seconds":1}}"#).unwrap().contains("named twice"));
+        assert!(problem(r#"{"wave":{"param":"a","amplitude":1,"period":2,"fade":-1}}"#).unwrap().contains("fade"));
+        assert!(problem(r#"{"orbit":{"params":["x","y","z"],"center":[0,0,0],"axis":[0,0,0],"degrees":90,"seconds":1}}"#).unwrap().contains("axis"));
+        let mut wave: Motion = serde_json::from_str(r#"{"wave":{"param":"a","amplitude":1,"period":2}}"#).unwrap();
+        if let Motion::Wave(w) = &mut wave {
+            w.period = f32::NAN;
+        }
+        assert!(wave.problem().unwrap().contains("finite"));
     }
 
     #[test]

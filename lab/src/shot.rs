@@ -1113,6 +1113,22 @@ impl Cue {
         }
         Ok(())
     }
+
+    /// A key's motions together: two motions of one key may not drive the same channel (the later would silently
+    /// replace the earlier); a later key taking a channel over is ordinary.
+    pub(crate) fn check_motions<D>(&self, motions: &[Motion<D>]) -> Result<(), CueProblem> {
+        let mut seen: Vec<(&str, usize)> = Vec::new();
+        for (i, motion) in motions.iter().enumerate() {
+            self.check_motion(motion)?;
+            for name in motion.params() {
+                if let Some((_, first)) = seen.iter().find(|(n, _)| *n == name) {
+                    return Err(CueProblem::new("story.motion.duplicate", "animate", format!("`{name}` is driven by two motions of the key (motions {first} and {i}); give each channel one motion, or move one to a later key")));
+                }
+                seen.push((name, i));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Timeline {
@@ -1138,8 +1154,8 @@ impl Timeline {
             let at = |problem| TimelineCueProblem { index, frame: key.frame, source: key.source.clone(), problem };
             checks.check(key).map_err(at)?;
             warnings.extend(checks.take_warnings().into_iter().map(|warning| (index, warning)));
+            key.check_motions(&key.animate).map_err(at)?;
             for motion in &key.animate {
-                key.check_motion(motion).map_err(at)?;
                 if let Some(problem) = motion.seconds().and_then(|s| crate::animation::seconds_problem(*s)) {
                     return Err(at(CueProblem::new("story.motion.length", "animate.seconds", problem.into())).into());
                 }

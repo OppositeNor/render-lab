@@ -143,8 +143,8 @@ fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
         }
         checks.check(&key.cue).map_err(|e| Diagnostic::problem(at, e))?;
         warnings.extend(checks.take_warnings().into_iter().map(|w| Diagnostic::warning(at, w)));
+        key.cue.check_motions(&key.animate).map_err(|e| Diagnostic::problem(at, e))?;
         for motion in &key.animate {
-            key.cue.check_motion(motion).map_err(|e| Diagnostic::problem(at, e))?;
             if let Some(length) = motion.seconds() {
                 length.check(at).map_err(|e| Diagnostic::new(at, "story.motion.length", "animate.seconds", e))?;
             }
