@@ -220,7 +220,10 @@ or the parsed structs equal to the TOML's).
    tables take the kebab keys `data.rs` writes, back in camel case); O3DE's `ssao` experiment is `experiments/ssao.lam`,
    parsed equal to the TOML it replaced (a unit test) and its dry run identical.
 3. **Shared demo presets (phase 6).** `demos/presets/room-camera.toml` is byte-identical in three public packages:
-   it becomes one render_lab preset the packages import; every demo's parsed state unchanged.
+   it becomes one render_lab preset the packages import; every demo's parsed state unchanged. Done (2026-11-05): `render_lab.demo-preset/room-camera`
+   (render_lab exports it), which SDFGI's, VoxelGI's, and O3DE's demonstrations include by full key (a demonstration's
+   `include` now resolves a full key as other references do); SSR's own room camera differs and stays. Frames
+   unchanged.
 4. **knowledge.toml and diagrams (phase 6):** only if a stage above shows the data path pays for itself; otherwise
    they stay TOML, and this plan ends.
 

@@ -132,8 +132,10 @@ parts = ["render_lab.shader/scene", "wgsl/my-shading"]
   `<package>.<key>` (`render_lab.font/dejavu-sans`). The lab's and an investigation's Rust code always name full keys:
   `lab::resources::get("my_feature.scene/garden")`.
 - **References** in a package's content (shader `parts`, `override`, a demo's `timeline` and `audio`, a
-  demonstration's `scene`): a plain key is the package's own; `<package>.<key>` must name a package in `import` and a
-  key that package exports. Anything else is an error that names the manifest and the rule.
+  demonstration's `scene` and the presets it `include`s): a plain key is the package's own (a preset by its name,
+  `"wide-camera"`); `<package>.<key>` must name a package in `import` and a
+  key that package exports (`render_lab.demo-preset/room-camera`, the study room's overview camera several
+  investigations share). Anything else is an error that names the manifest and the rule.
 - **Kinds.** `file` is the source's bytes as they are; `directory` is a folder of files read where they are (the
   diagram frames a timeline names beside it). Both are linked into the built package at their paths. `radiance` makes
   an HDRI into the environment's levels, and `mesh` makes an OBJ into a BVH, at `cooked/<key>.bin`. The build remakes

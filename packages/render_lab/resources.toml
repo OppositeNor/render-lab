@@ -75,3 +75,10 @@ id = "icon/globe"
 kind = "file"
 source = "assets/icons/globe.png"
 license = "MIT"
+
+# A demonstration camera several investigations share (lab/src/demo.rs: a demonstration's `include`).
+[[resource]]
+id = "demo-preset/room-camera"
+kind = "file"
+source = "demos/presets/room-camera.toml"
+license = "MIT"
