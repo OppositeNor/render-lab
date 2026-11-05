@@ -215,7 +215,7 @@ explain 应包含：原文与 spoken text、cue 源位置、展开后属性、�
 
 进度（2026-11-05）：
 - **7a（已完成）**：`render-lab story schema`（`lab/src/script/keys.rs` `schema`）给出每个 key 的 attribute、函数名，值的类型、单位、范围、默认值与说明；`omitted` 列出被 vocabulary 省略的 option 与 key（不是合法 Lamlet 名、名字冲突、函数名被占用），并给出仍可使用的 `{attr "…" "…"}` 写法。`story keys` 输出不变。（第 1、2 项）
-- **7b（待做）**：motion 由 String 中的 JSON 改为结构化 Data（第 4 项）：`render_lab.lam` 的 `Motion` 改为按 kind 的 variant，各包装函数相应改写，`markup.py` 接受 Data；以 compare 验收。
+- **7b（已完成）**：motion 由 String 中的 JSON 改为结构化 Data（第 4 项）：`render_lab.lam` 的 `Motion` 字段值为 Data（`toData`），`motion` 以 Data 写出 `animate`，`markup.motion_of` 转为时间线形式（`Length` variant 转为 `"beat"`／`"sentence"`／秒数）；原始 JSON String 仍可用。公开及本地各版本准备产物经 compare 相同。PR 7 完成（第 3、5 项不做，见下）。
 - **待上游**：vocabulary 的封闭选项集合（lamlet-present 的 `"closed": true`）需要 lamlet-present 发布并在 `lab/Cargo.toml` 中重新固定版本，由用户决定；在此之前由 `story check`（`lab/src/story_refs.rs`）在语音合成前检查这些名字。（原 typed-content 计划第 3 阶段；该计划其余部分已完成并删除。）
 - 不做：第 3 项，Python `markup.TYPED`（Python 自行解析的字段）与 Rust `keys::TYPED`（render_lab 类型化的属性）含义不同，合并无益；第 5 项，仓库没有 CI，回归仍以 `compare.py` 和本地检查执行。
 

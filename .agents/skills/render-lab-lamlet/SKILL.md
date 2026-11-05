@@ -99,7 +99,7 @@ has), each with the `{attr "…" "…"}` that still writes it.
 `render_lab.script/render-lab`), which every storyboard imports:
 
 - **Numbers said in words:** `spoken 42289`, `rounded 42289 2`, `spokenFloat 3.2`, `capitalized`.
-- **Typed attributes**, each writing the String the lab reads (tools/video/markup.py): motions (`{motion {' …}}` of
+- **Typed attributes**, each writing what the lab reads (tools/video/markup.py), a String or, for motions, Data: motions (`{motion {' …}}` of
   `path`, `orbit`, `sway`, with a `Length`, `beat`, `sentence`, or `{seconds 4.0}`, and the wrappers `eased`,
   `looping`, `pingPonging`, `closed`, `around`, `from`, `centered`, `phased`, `lasting`, `fading`; `cameraPath`,
   `cameraTurn` over the beat, `cameraPathOver`, `cameraTurnOver` over a `Length`, their waypoints `{pose yaw pitch
