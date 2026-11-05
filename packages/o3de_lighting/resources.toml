@@ -429,7 +429,7 @@ built = true
 [[resource]]
 id = "experiment/ssao"
 kind = "file"
-source = "experiments/ssao.toml"
+source = "experiments/ssao.lam"
 license = "MIT"
 
 # The frame graph's sections (graphs/frame.toml): the story's frame graph scene and

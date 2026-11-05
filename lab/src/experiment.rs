@@ -210,11 +210,21 @@ fn key(k: &str) -> String {
     if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') { k.to_string() } else { quote(k) }
 }
 
-/// A table of values (`values = {…}` or `[x.values]`) as keys and JSON.
+/// A table of values (`values = {…}` or `[x.values]`) as keys and JSON. A key in kebab case is the value in camel
+/// case (`view-mode` is `viewMode`), as an experiment written in Lamlet writes it (lab/src/script/data.rs); no value's
+/// key has a hyphen.
 fn values_of(json: Option<&Json>, at: &str) -> Result<Map<String, Json>> {
+    let camel = |k: &str| {
+        let mut parts = k.split('-');
+        let first = parts.next().unwrap_or_default().to_string();
+        parts.fold(first, |out, p| {
+            let mut c = p.chars();
+            out + &c.next().map(|f| f.to_ascii_uppercase().to_string() + c.as_str()).unwrap_or_default()
+        })
+    };
     match json {
         None => Ok(Map::new()),
-        Some(Json::Object(o)) => Ok(o.clone()),
+        Some(Json::Object(o)) => Ok(o.iter().map(|(k, v)| (camel(k), v.clone())).collect()),
         Some(other) => bail!("`{at}` is a table of values by key, not {other}"),
     }
 }
@@ -642,8 +652,8 @@ pub struct Preset {
 impl Preset {
     pub fn load(&self) -> Result<Experiment> {
         let (text, at) = match &self.source {
-            Source::Shipped(id) => (crate::resources::get(id).text().to_string(), id.clone()),
-            Source::User(path) => (std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?, path.display().to_string()),
+            Source::Shipped(id) => (crate::script::data::resource_toml(id).map_err(anyhow::Error::msg)?, id.clone()),
+            Source::User(path) => (file_toml(path)?, path.display().to_string()),
         };
         Experiment::parse(&text).with_context(|| at)
     }
@@ -700,15 +710,31 @@ pub fn write(path: &Path, experiment: &Experiment) -> Result<PathBuf> {
 /// Read an experiment: a file, or a package's resource by full key
 /// (`godot_voxelgi.experiment/bias`).
 pub fn load(at: &str) -> Result<Experiment> {
+    Experiment::parse(&source_toml(at)?).with_context(|| at.to_string())
+}
+
+/// An experiment's TOML: a file's (a `.lam` file's binding), or a package's resource's by full key.
+pub fn source_toml(at: &str) -> Result<String> {
     let path = Path::new(at);
     if path.exists() {
-        let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-        return Experiment::parse(&text).with_context(|| path.display().to_string());
+        return file_toml(path);
     }
     match crate::resources::find(at) {
-        Some(resource) => Experiment::parse(resource.text()).with_context(|| at.to_string()),
+        Some(_) => crate::script::data::resource_toml(at).map_err(anyhow::Error::msg),
         None => bail!("no experiment file or resource `{at}`"),
     }
+}
+
+/// An experiment file's text as TOML: a `.lam` file's binding named after the file (`ssao.lam` is `ssao`, as a
+/// resource's is after its key, lab/src/script/data.rs), else the file's own text.
+fn file_toml(path: &Path) -> Result<String> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    if path.extension().is_some_and(|e| e == "lam") {
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+        let name = lamlet_present::vocab::camel(&[stem]).map_err(anyhow::Error::msg)?;
+        return crate::script::data::toml(&path.display().to_string(), &text, &name).map_err(anyhow::Error::msg);
+    }
+    Ok(text)
 }
 
 /// How the viewer compares the reference (A) with the live state (B).
@@ -764,6 +790,32 @@ impl Session {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_experiment_in_lamlet_reads_as_its_toml() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../packages/o3de_lighting/experiments");
+        let lam = super::file_toml(&dir.join("ssao.lam")).unwrap();
+        let toml = r#"name = "ssao"
+description = "O3DE's SSAO sampling radius swept, with and without its blur, against no SSAO."
+investigation = "o3de/lighting"
+demo = "ssao"
+resolution = [1280, 720]
+frames = 2
+warmup = 30
+repeats = 30
+metrics = ["gpu_ms", "mse", "psnr", "ssim", "flip", "luminance"]
+[base.values]
+viewMode = "final"
+[reference.values]
+ssao = false
+[[sweep]]
+values = { ssaoRadius = [0.02, 0.05, 0.1, 0.2] }
+[[variant]]
+name = "no-blur"
+values = { ssaoBlur = false }
+"#;
+        assert_eq!(Experiment::parse(&lam).unwrap(), Experiment::parse(toml).unwrap());
+    }
+
     use super::*;
 
     const FILE: &str = r#"
