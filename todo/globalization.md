@@ -1,94 +1,69 @@
-# Globalization backend (plan, not started)
+# Globalization backend (in progress since 2026-11-05)
 
-**Deferred to the future (2026-11-05):** it changes every package's text tables, the build checks of each, and how all
-on-screen text is formatted, for a third language nobody has asked for yet. The facts below were rechecked on
-2026-11-05 and still hold.
+The lab's on-screen text moves to Project Fluent: each package's text tables become `text/<locale>.ftl`, read through
+`fluent-bundle`, and the lab's rich text (formulas and code names inside a string) becomes Fluent function
+placeables, which the video builder writes into captions too. Languages become data, and every other piece of
+translated data moves into the tables. Neither English nor Chinese output changes.
 
-The lab's on-screen text is keyed: each layer keeps its text in `text/en.json` and `text/zh-CN.json`, read with
-`tr("key")` or `tr_with("key", args!(name = value))` through `lab::i18n::Table`, and each package's build checks the
-tables. This plan turns that into a globalization backend: languages are data, messages handle plurals and number
-formats, and every translated piece of data shares one system.
+## Where it stood (at cb757d1)
 
-## Where it stands
+- **Two languages, fixed in code.** `Locale` (`lab/src/i18n.rs:19`) has two variants; `Table` holds `[HashMap; 2]`;
+  `lab/check/src/lib.rs:13` lists `LOCALES = ["en", "zh-CN"]`. `i18n::zh()` switches `sources.rs:94`,
+  `pseudocode.rs:156,164`, and two caches keyed by `(String, bool)` (`knowledge.rs:692`, `graph/scene.rs:83`).
+- **Keys** are `<namespace>.<name>` (1,945 keys with dots; 259 also have `-`). Rust names them in 767 `tr`, 78
+  `tr_with`, 19 `package_text` calls and about 28 `format!`s; scripts in `textKey "…"`; content in `demos/*.toml`,
+  `knowledge.toml`, scenes, and storyboards. Fluent ids forbid dots.
+- **Placeholders** `{name}`, filled by `i18n::fill`, which passes `{@…}` tags through.
+- **Legacy `{@…}` rich-text tags** (`lab/src/rich_text.rs`): `formula` (with `display`, `colors`), `codespan`,
+  `symbol`; others dropped. In tables only 15 `formula.*` messages (o3de_lighting, each a whole formula, equal in
+  both languages) and 4 `notice.credit` (`{@ symbol=copyright}`). The `.lam` files hold none; `tools/video` writes
+  `formula` and `codespan` tags into timeline captions and the `formula` key (`markup.py`, `presentation.py`,
+  `timeline.py`, `build.py:188`; `config.py:217` writes symbols for the notices). WGSL `/// {@ …}` doc tags
+  (`shader_data::parse_tags`) share only the tag scanner, not the rich text.
+- **Other translated data:** `inspect`/`inspectZh`, `note`/`noteZh` in source indexes; `# title: English | 中文` in
+  listings; `edition = "English" | "中文"` in manifests; `object.*` keys prefix-matched by `object_name`.
+- **Fluent's licenses** (crates.io, 2026-11-05): fluent-bundle, fluent-syntax, fluent-langneg, intl-memoizer,
+  intl_pluralrules, type-map: MIT or Apache-2.0 (taken as MIT). `self_cell` (already vendored) is Apache-2.0 OR
+  GPL-2.0-only, taken as Apache-2.0. All go in `THIRD_PARTY.md`.
 
-- **Two languages, fixed in code.** `Locale` (`lab/src/i18n.rs`) has two variants, `Table` holds exactly two texts,
-  and `lab/check/src/lib.rs`'s `LOCALES` lists `en` and `zh-CN`. A third language means editing all three.
-- **Plurals by hand.** English plurals are passed in as values (`clusters_s = "s"`), so `build.rs` allows a language
-  to use only some of English's placeholders.
-- **Numbers formatted in code.** Values are formatted before they reach the text (`format!("{x:.1}")`), so every
-  language gets `0.91`, never `0,91`.
-- **Other translated data, each its own way:**
-  - source-index notes: `inspect` / `inspectZh`, `note` / `noteZh` (`lab/src/sources.rs`)
-  - pseudo-code titles: the `# title: English | 中文` header (`lab/src/pseudocode.rs`)
-  - timeline editions: `TimelineInfo::edition` ("English", "中文") and the per-edition titles
-  - scene object names: `object.*` keys, prefix-matched by `object_name`
-  - the video's narration translation: an investigation's `video/storyboard.zh-CN.lam`, read by `tools/video`
-- **Fonts by hand.** Source Han Sans CN is bundled for Chinese (`lab/src/text.rs`). The check that every character
-  has a glyph runs in only one investigation's selftest.
+## Decisions
 
-## Design
+1. **Keys renamed everywhere**: `.` → `-` (`viewer.chapter` → `viewer-chapter`), in tables, Rust, scripts, content,
+   storyboards, Python, and docs. Checked: no two keys of a package collide.
+2. **Tables are Fluent**: `text/en.ftl`, `text/zh-CN.ftl`, placeholders `{ $name }`, read by `fluent-bundle` with
+   isolation marks off. `tr` / `tr_with` / `args!` stay the call API.
+3. **Rich text is text with Fluent function placeables**: `{ FORMULA("LaTeX", display: "yes", colors: "#rrggbb,…") }`
+   and `{ CODE("Name") }`. A table message may hold them (the `formula-*` messages); the bundle's `FORMULA` and `CODE`
+   functions write themselves back out, so a resolved message is rich text as written. Captions use the same form:
+   the video builder's backend (`markup.py`) writes it instead of `{@…}`. `rich_text` parses these placeables with
+   `fluent-syntax`; any other text is literal.
+4. **No symbol tags**: `©` is written as the character. `rich_text::symbols`, `SYMBOLS`, and `config.py`'s copy go.
+5. **Locale registry as data**: `packages/render_lab/locales.toml` lists each language's `code`, `name`, `fallback`,
+   and `status` (`complete` | `draft`). `Locale` is an index into it; `lab/check` and `tools/video` read it.
+6. **Fallback**: a key missing from a language falls back along its chain; `lab/check` fails on a key missing from a
+   `complete` language and on variables that differ between languages.
+7. **One home for translated data**: source-index notes, listing titles, and edition names become table keys;
+   `zh()` and its caches become `Locale`.
+8. **Report**: `render-lab i18n` lists, per language and package, missing keys, fallbacks, and characters the bundled
+   fonts lack (moving the glyph check out of one selftest).
 
-1. **Locale registry as data.** A `locales.json` beside `lab/src/i18n.rs` would list, for each language: its code
-   (`zh-CN`), its own name ("中文"), its fallback chain (`zh-CN` → `en`), and the fonts it needs. `Locale` becomes an
-   index into the registry. Tables load every listed language, and `build.rs` reads the registry instead of
-   `LOCALES`. Adding a language is then data only: an entry in the registry and a file per table.
-2. **Fallback while a translation is in progress.** A key missing from a language falls back along the chain. The
-   build keeps failing for a missing key in a *complete* language (en, zh-CN). A language marked `draft` in the
-   registry may miss keys, and the report below lists them.
-3. **Messages with plurals and selections: Project Fluent.** Adopt `fluent-bundle` (vendored like every crate)
-   instead of growing our own syntax.
-   - Plurals: English `{ $count -> [one] cluster *[other] clusters }`, Chinese `{ $count } 个 cluster`. The
-     `_s` values go, and `build.rs`'s placeholder rule becomes "the same variables in every language".
-   - Numbers: `NUMBER($d, maximumFractionDigits: 2)` formats by locale, so values reach the text unformatted.
-     Identifiers, formulas, and record values that must read the same everywhere stay formatted in code.
-   - Fluent ids can't contain dots: `viewer.chapter` becomes `viewer-chapter`, a mechanical rename.
-   - Python has a Fluent runtime (`fluent.runtime`), so `tools/video` could read the same files.
-   - Keep `tr` / `tr_with` / `args!` as the call API, so call sites change only in their keys.
-4. **One home per layer for translated data.** These become keys in the layer's tables, with English kept only once:
-   - source-index notes (`inspectZh`, `noteZh`)
-   - pseudo-code titles
-   - timeline edition names
-   - object names
-   `source_index.py` and the pseudo-code parser write or read keys instead of `…Zh` fields. The narration's
-   `storyboard.zh-CN.lam` stays as it is: it holds sentence-by-sentence narration for the video, not interface text.
-5. **Report.** A `render-lab i18n --report REPORT` command (or a `build.rs` output) lists, per language and table:
-   - missing keys and keys that fall back
-   - keys whose text equals English (often fine: technical terms)
-   - characters the language's registered fonts lack
-   It moves the glyph check out of one investigation's selftest so it covers every table.
+Left out (nothing uses it): our own plural and number syntax, a CLDR rule parser, locale number separators, plural
+rewording of existing strings. Fluent's selectors are there when a message first needs one.
 
-## Steps
+## Stages (each a local commit; never pushed)
 
-1. **Baselines.** Render every beat of every timeline in every edition, the selftests' stills, and the homepage
-   pages, and hash them, as for the move to text tables. Render O3DE frames that mismatch on their own with both
-   binaries before calling them a regression: O3DE's batch renders vary from run to run inside the 3D viewport.
-2. **Vendor Fluent.** Add `fluent-bundle` (and `unic-langid`) to `Cargo.toml` and vendor them with `setup.sh`. Check
-   both builds, and a fresh clone without `vendor/`.
-3. **Registry.** Add `locales.json` and make `Locale` an index into it. Teach `Table` and `build.rs` the registry.
-   Output must not change.
-4. **Convert the tables to Fluent.** A script turns each layer's `text/<locale>.json` into
-   `text/<locale>.ftl`, renaming keys (`.` → `-`) in the tables and the code, and placeholders `{name}` → `{ $name }`.
-   Output must not change.
-5. **Plurals and numbers.** Replace the `_s` plural values with Fluent selectors, and number formatting in code with
-   `NUMBER()` where the text, not the record, owns the number. English and Chinese output must not change.
-6. **Fold in the other translated data** (design point 4), one kind at a time, each with its baseline check.
-7. **Report and fallback** (design points 2 and 5).
-8. **Docs.** Update `AGENTS.md`, `README.md`, the `new-investigation` and demo skills, and the investigations' guides.
+Each stage: both builds clean (the public tree with `-j 4`), the local packages' workspaces rebuilt, `cargo test`,
+the homepage autotest, every selftest, `tools/video` unit tests and `compare.py` over every edition when it touches
+what they read, and the frame identity check against cb757d1 (`../render-lab-baseline`; decoded-pixel hashes of beat
+midpoints of every timeline and the homepage pages; a mismatch re-rendered alone with both binaries).
 
-## Verification
-
-- `cargo build --release --locked --offline` with no warnings, with and without the optional `commercial` module, and a fresh clone
-  building with plain `cargo build`.
-- `cargo test` for the backend: lookup, fallback, plurals, number formats, and switching locale while running.
-- `build.rs` refuses: a key missing from a complete language, variables that differ between languages, an unknown
-  key in code, and an unused key.
-- Every selftest and the homepage autotest pass, and the report shows no missing keys or glyphs for en and zh-CN.
-- The baselines from step 1 are byte-identical after every step, except where a step deliberately changes text
-  (none of steps 3–5 should).
-
-## Open questions
-
-- Fluent, or our own format with a registry and a small plural syntax? Fluent is the standard and covers plurals,
-  selections, and numbers, but adds crates. Our own format keeps the dependency list short.
-- Should a draft language be offered on the homepage, or only through a command-line option?
-- Should `tools/video` read the Fluent tables, or keep its own translated storyboard for narration?
+1. **Plan** (this file).
+2. **Keys renamed** (`.` → `-`), still JSON. Output identical.
+3. **Fluent tables**: vendor the crates; `.json` → `.ftl`; `i18n` on `fluent-bundle`; `lab/check` on `fluent-syntax`;
+   Python's readers of tables. `©` written as the character. Output identical.
+4. **Rich text on Fluent placeables**: `rich_text`, `formula --check`, `tools/video`'s writers and readers, the
+   `formula-*` messages; `{@…}` gone from rich text (the WGSL tag scanner moves to `shader_data`). Output identical.
+5. **Registry and `Locale` as data**; callers off `zh()`. Output identical.
+6. **Translated data into the tables**, one kind per commit. Output identical.
+7. **Fallback and report.**
+8. **Docs**: `AGENTS.md`, `README.md`, the skills (`python3 tools/check_skills.py`), `tools/video/README.md`.
