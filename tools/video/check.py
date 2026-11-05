@@ -2,6 +2,7 @@
 
     python3 tools/video/check.py --investigation godot/ssr --binary target/release/render-lab
     python3 tools/video/check.py --investigation godot/ssr --lang zh-CN --json
+    python3 tools/video/check.py --investigation godot/ssr --explain c1-adds [--json]
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ def main() -> None:
     parser.add_argument('--lang', choices=LANGS, default='en')
     parser.add_argument('--binary', type=Path, default=lamlet.BINARY)
     parser.add_argument('--json', action='store_true', help='structured diagnostics on stdout, including on failure')
+    parser.add_argument('--explain', metavar='BEAT', help='after the check, explain one beat: its sentences, its cues in source order, what each writes and names, takeovers (explain.py); frames and seconds if the edition is prepared')
     args = parser.parse_args()
     cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
     lamlet.BINARY = args.binary.resolve()
@@ -54,6 +56,10 @@ def main() -> None:
             print(f'{describe(diagnostic)}: {diagnostic["message"]} [{diagnostic["code"]}]', file=sys.stderr)
     if not report['ok']:
         raise SystemExit(1)
+    if args.explain:
+        import explain
+        detail = explain.explain(cfg, board, preflight.normalized(board)['cues'], args.explain)
+        print(json.dumps(detail, ensure_ascii=False, indent=1) if args.json else explain.text(detail))
 
 
 if __name__ == '__main__':

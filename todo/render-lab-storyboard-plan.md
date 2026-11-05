@@ -176,7 +176,7 @@ PR 4 分为四个阶段，各自一个提交（2026-11-05）：
 - **4a 检查**（已完成，5dcac21）：同 key 重复 motion channel 的语料审计与默认报错（第 1 项）；不依赖测量的 motion 形状、有限数和负时长检查前移（第 2 项）。
 - **4b 契约文档与配方**（已完成）：`sentence` 区间与 reset／carry 表写入 `tools/video/README.md`（第 3、5 项）；可组合的显式 reset 配方加入 `render_lab.lam`，默认行为不变。实际实现：README 的 “Where `sentence` and `beat` end” 与 “What a key resets and carries”；`render_lab.lam` 的 `narrationCleared`（清除 callout、inset 和公式卡，`formula=off`）。
 - **4c 报告**（已完成：`timeline.budget_rows` 由 build 与 verify 共用，超出 10% 容差时在写出时间线前失败；`zh.alignment` 列出两侧句段与行号）：实测音频后、渲染前的预算报告（第 6 项）；翻译对齐错误显示两侧句段与行号（第 7 项）。
-- **4d channel 写入**：explain 中的写入顺序与接管（第 4 项），与 PR 6 的 explain 一起实现。
+- **4d channel 写入**（已完成，随 PR 6）：explain 中的写入顺序与接管（第 4 项），与 PR 6 的 explain 一起实现。
 
 ### PR 5 — 精简高频写法，并试改真实章节（P1）
 
@@ -194,6 +194,8 @@ PR 4 分为四个阶段，各自一个提交（2026-11-05）：
 验收：常见“按句单 channel 运动”无需作者手写 motion 列表和单元素 waypoint 列表；每个相机点可单独一行编辑，坐标含义清楚。真实章节重写后，旁白文本、cue 顺序、帧、插值参数和可见结果相等；再逐步推广到其他故事。先比较编辑步骤和容易出错的位置，不只比较字符数。
 
 ### PR 6 — beat explain 与局部预览（P1）
+
+进度（2026-11-05）：已完成，含 PR 4d。`check.py --explain BEAT`（`tools/video/explain.py`）列出句段、按源码顺序的 cue、展开属性、引用名、写入的 channel 与接管来源；已准备时附帧与秒，否则注明未测量。`build.py --preview BEAT` 渲染该 beat 的起止、每个 cue 及其前一帧、motion／blend 终点和中点，并写 `index.json`。同词重复 set 的 lint 在现有公开故事中无告警。
 
 覆盖 RL18、RL20–RL25。
 
