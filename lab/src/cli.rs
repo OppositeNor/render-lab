@@ -313,6 +313,10 @@ enum LamletCommand {
         file: PathBuf,
         #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
         packages: Vec<(String, PathBuf)>,
+        /// Check every cue attribute against these keys, and read every heading's attributes by them (lamlet-present's
+        /// key list, `--keys` on `lamlet present`'s commands; `render-lab story keys` writes the lab's).
+        #[arg(long)]
+        keys: Option<PathBuf>,
         /// Write it to this file instead of stdout.
         #[arg(short, long)]
         out: Option<PathBuf>,
@@ -367,7 +371,10 @@ fn lamlet(command: LamletCommand, investigation: Option<&'static dyn crate::inve
         }
     };
     match command {
-        LamletCommand::Ir { file, packages, out } => write(out, script::ir(&file, &read(packages)?, investigation)?),
+        LamletCommand::Ir { file, packages, keys, out } => {
+            let keys = keys.map(|k| std::fs::read_to_string(&k).map_err(|e| format!("{}: {e}", k.display()))).transpose()?;
+            write(out, script::ir(&file, &read(packages)?, investigation, keys.as_deref())?)
+        }
         LamletCommand::Deck { file, packages, out } => {
             let deck = script::deck(&file, &read(packages)?, investigation)?;
             write(out, serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n")

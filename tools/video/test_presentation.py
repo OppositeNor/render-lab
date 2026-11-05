@@ -20,7 +20,7 @@ FORMULA = r'\frac{1}{1+\lit{1}{n}}'
 Q = FORMULA.replace('\\', '\\\\')
 
 # The cues use `attr` and `present`'s functions, so the test needs no investigation's vocabulary; a storyboard
-# writes them with it (`{cameraYaw 30.0}` for `{attr "camera.yaw" "30"}`).
+# writes them with it (`{cameraYaw 30.0}` for `{attr "camera.yaw" 30.0}`), as typed data.
 STORY = r'''$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]
 $[# leaves 42289]
 # A test {#video fps=30 width=1920 height=1080 subtitle="A short one"}
@@ -29,12 +29,12 @@ $[# leaves 42289]
 
 ### One beat {#c1-one kind=3d sources=key-c}
 
-${cue "key" {' {attr "demo" "room"} {attr "camera.target" "0,1,2"} {attr "camera.yaw" "30"} {attr "opacity" "1"} {attr "param.formula" "2"} {attr "viewMode" "ggxD"} {attr "lightOn" "false"}}}
+${cue "key" {' {attr "demo" "room"} {attr "camera.target" {' 0.0 1.0 2.0}} {attr "camera.yaw" 30.0} {attr "opacity" 1.0} {attr "param.formula" 2.0} {attr "viewMode" "ggxD"} {attr "lightOn" false}}}
 ${cue "key" {' {attr "animate" "[{\"path\": {\"params\": [\"camera.yaw\"], \"through\": [[10], [20]], \"seconds\": \"beat\"}}]"}}}
 
 Diffuse: a sentence that looks like a property, ${cue "key" {' {attr "callout" "key-a"}}}with a cue, and $$5.
 
-A ray ${during "grow" {' {attr "radius" "0..2"}} {cat {' {text "marches "} {cue "key" {' {attr "opacity" "1"}}} {text "step by step"}}}}, with ${cue "formula" {' {attr "formula" "\\frac{1}{1+\\lit{1}{n}}"} {attr "colors" "#ffd166"}}}${say {math "\\frac{1}{1+\\lit{1}{n}}"} "one over one plus n"}, ${code "LightCullingTilePrepare"} and ${say {code "r.Example.Max"} "max intensity"}.
+A ray ${during "grow" {' {attr "radius" {. from 0.0 to 2.0}}} {cat {' {text "marches "} {cue "key" {' {attr "opacity" 1.0}}} {text "step by step"}}}}, with ${cue "formula" {' {attr "formula" "\\frac{1}{1+\\lit{1}{n}}"} {attr "colors" "#ffd166"}}}${say {math "\\frac{1}{1+\\lit{1}{n}}"} "one over one plus n"}, ${code "LightCullingTilePrepare"} and ${say {code "r.Example.Max"} "max intensity"}.
 
 There are ${spoken leaves} leaves.
 
@@ -136,6 +136,29 @@ class Presentation(unittest.TestCase):
             with self.assertRaisesRegex(lamlet.LamletError, 'storyboard.lam:16:'):
                 presentation.load(path, [], self.fields, 'godot/voxelgi')
 
+    def test_key_check(self) -> None:
+        # With the investigation's key list, every cue attribute is checked, also one written with `attr`: its key,
+        # its value's type, a closed key's option. Every problem is reported, each at its line.
+        story = ('$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]\n# A test {#video fps=30 width=1920 height=1080}\n\n'
+                 '## One {#c1 number=1 target=60}\n\n### Beat {#c1-one kind=3d}\n\n'
+                 '${cue "key" {\' {attr "ease" "smooth"} {attr "camera.yaw" 30.0} {attr "demo" "room"} {attr "image.level" 1.0}}}A sentence.\n\n'
+                 '${cue "key" {\' WRONG}}Another sentence.\n')
+        with tempfile.TemporaryDirectory() as d:
+            keys = Path(d) / 'keys.json'
+            keys.write_text(lamlet.lab('--investigation', 'godot/voxelgi', 'story', 'keys'))
+            path = Path(d) / 'storyboard.lam'
+            path.write_text(story.replace('WRONG', '{attr "blend" 1.0}'))
+            presentation.load(path, [], self.fields, 'godot/voxelgi', keys)
+            wrong = '{attr "ease" "bounce"} {attr "camera.roll" 1.0} {attr "blend" "1"} {attr "panel" "nowhere"} {attr "stop" {\' "noSuchAction"}}'
+            path.write_text(story.replace('WRONG', wrong))
+            with self.assertRaises(lamlet.LamletError) as e:
+                presentation.load(path, [], self.fields, 'godot/voxelgi', keys)
+            message = str(e.exception)
+            for part in ('`bounce` is not one of', '`camera.roll` is not a cue attribute', '`blend="1"` is not a number', '`nowhere` is not one of',
+                         '`noSuchAction` is not one of'):
+                self.assertIn(part, message)
+            self.assertEqual(message.count('storyboard.lam:10:'), 5, message)
+
     def test_pacing(self) -> None:
         # The video heading's pacing attributes, each with its default when left out.
         board = self.load(STORY.replace('fps=30', 'fps=30 gap=0.5 captionWidth=60'))
@@ -152,7 +175,7 @@ class Presentation(unittest.TestCase):
             self.load(STORY.replace(' diagram=frame focus="A, B"', ''))
         # A point cue sets its values at once; a range blends them.
         with self.assertRaisesRegex(presentation.PresentationError, 'blends over a range'):
-            self.load(STORY.replace('{cue "key" {\' {attr "opacity" "1"}}}', '{cue "key" {\' {attr "opacity" "0..1"}}}'))
+            self.load(STORY.replace('{cue "key" {\' {attr "opacity" 1.0}}}', '{cue "key" {\' {attr "opacity" {. from 0.0 to 1.0}}}}'))
         # A formula needs what is said for it.
         with self.assertRaisesRegex(presentation.PresentationError, 'no spoken form|has no say'):
             self.load(STORY.replace('There are', 'There are ${math "x"}'))

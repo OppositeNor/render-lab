@@ -82,16 +82,25 @@ has), each with the `{attr "…" "…"}` that still writes it.
   and `ease` (`easing`), whose names `content` and `present` already use. The fields render_lab types or checks
   (`animate`, points, `imageMark`, the hide lists, the highlights, `record`, `callout`, and the text keys `imageTitle`,
   `imageMarkText`, `labelText`) are in the key list marked `"typed": true` and have no vocabulary function
-  (`keys::TYPED`). A
+  (`keys::TYPED`; their kind is `any`). A
   value a cue reserves is `param.<name>` (`paramFormula`); a dotted key whose name a field has is `imageParam…` or
   `runArg…`.
-- Every numeric value is a Float (`{octreeLevelRange 7.0 1.0}`), whatever its type in the lab: the timeline blends
-  every value, toggles too. A float key has a `…Range a b` function for ranges. Vectors are lists
-  (`{cameraTarget {' 1.0 0.5 0.0}}`); a key with options has a constant per option (`panelCode`, `demoRoom`) beside
-  the text function.
-- `{attr "key" "value"}` writes a key the vocabulary does not have (a graph visualizer's `image.range`).
+- Values are typed data (lamlet-present 0.3), and every numeric value is a Float (`{octreeLevelRange 7.0 1.0}`,
+  the range `{. from 7.0 to 1.0}`), whatever its type in the lab: the timeline blends every value, toggles too. A
+  float key has a `…Range a b` function for ranges. Vectors are lists (`{cameraTarget {' 1.0 0.5 0.0}}`).
+- A key with options has a constant per option (`panelCode`, `demoRoom`, `listingTrace`). The option lists the lab
+  owns are **closed**: no function that takes any String, so a wrong option is an unknown name. These are panels,
+  demos, listings, eases, corners, image kinds, graph shows, click handlers, arrow sets, actions, `camera`,
+  `card`, `display`, and a value's choices. `inset` (a story names its images) and `formula` (its LaTeX) stay
+  open. `stop` takes a list of action names (`{stop {' "marchCone"}}`).
+- `{attr "key" value}` writes a key the vocabulary has no function for (an image's parameter the package does
+  not declare: `{attr "image.level" 1.0}`), as typed data.
 - A misspelled key is an unknown name and a wrong value a type error, reported with the storyboard's line before any
-  speech is synthesized.
+  speech is synthesized. The video builder also checks every cue attribute against the key list (`render-lab
+  lamlet ir --keys`, lamlet-present's `Schema`; `script::apply_keys`), `attr`s too. A cue attribute must be a
+  key's, or of the families `image.<param>` and `view.<name>.<key>`, which the lab checks when it loads the
+  timeline; its value must have the key's type; a closed key's value must be one of its options. Every problem
+  is reported.
 
 ## 4. The lab's Lamlet package: `render_lab`
 
