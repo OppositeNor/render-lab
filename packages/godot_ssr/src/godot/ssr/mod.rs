@@ -55,11 +55,11 @@ impl Investigation for Ssr {
     }
 
     fn title(&self) -> &'static str {
-        tr("investigation.title")
+        tr("investigation-title")
     }
 
     fn summary(&self) -> &'static str {
-        tr("investigation.summary")
+        tr("investigation-summary")
     }
 
     fn wording(&self) -> &'static Wording {
@@ -67,7 +67,7 @@ impl Investigation for Ssr {
     }
 
     fn footer(&self) -> &'static str {
-        tr("investigation.footer")
+        tr("investigation-footer")
     }
 
     fn sources(&self) -> &'static SourceIndex {
@@ -104,15 +104,15 @@ impl Investigation for Ssr {
 
     fn pass_about(&self, node: &str) -> Option<&'static str> {
         Some(match node {
-            "ssrPrepassFS" => tr("pass.ssrPrepassFS"),
-            "ssrForwardFS" => tr("pass.ssrForwardFS"),
-            "ssrBestFit" => tr("pass.ssrBestFit"),
-            "ssrDownsample" => tr("pass.ssrDownsample"),
-            "ssrHiz" => tr("pass.ssrHiz"),
-            "ssrTrace" => tr("pass.ssrTrace"),
-            "ssrFilter" => tr("pass.ssrFilter"),
-            "ssrResolve" => tr("pass.ssrResolve"),
-            "ssrCopyLastFrame" => tr("pass.ssrCopyLastFrame"),
+            "ssrPrepassFS" => tr("pass-ssrPrepassFS"),
+            "ssrForwardFS" => tr("pass-ssrForwardFS"),
+            "ssrBestFit" => tr("pass-ssrBestFit"),
+            "ssrDownsample" => tr("pass-ssrDownsample"),
+            "ssrHiz" => tr("pass-ssrHiz"),
+            "ssrTrace" => tr("pass-ssrTrace"),
+            "ssrFilter" => tr("pass-ssrFilter"),
+            "ssrResolve" => tr("pass-ssrResolve"),
+            "ssrCopyLastFrame" => tr("pass-ssrCopyLastFrame"),
             _ => return None,
         })
     }

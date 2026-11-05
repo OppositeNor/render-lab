@@ -13,7 +13,7 @@ negotiate = "o3de_lighting_negotiate"
 export = []
 
 # The copyright and license line shown after the engine's version (src/packages.rs).
-credit-text = "notice.credit"
+credit-text = "notice-credit"
 
 [[provides]]
 type = "resource"
@@ -39,12 +39,12 @@ audio = "narration/en"
 # Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
 
 [[notice]]
-notice-text = "notice.copyright"
+notice-text = "notice-copyright"
 license = "LICENSE-O3DE.txt"
 
 [[notice]]
-notice-text = "notice.cubemapgen"
+notice-text = "notice-cubemapgen"
 license = "LICENSE-CubeMapGen.txt"
 
 [[notice]]
-notice-text = "notice.trademark"
+notice-text = "notice-trademark"

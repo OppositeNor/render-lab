@@ -181,7 +181,7 @@ ${cue "key" {opening demoInputs panelValues baseRoom}}
 ${cue "key" {'
     {inset "nr"}
     {imageGraph "ssrPrepassFS.normalRoughness"}
-    {imageTitle "views.normal_roughness"}
+    {imageTitle "views-normal_roughness"}
     imageCornerTopRight}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 13.0} {aim 16.0 11.0}}}}}}}
 
@@ -215,11 +215,11 @@ ${overText
     {' {pickYRange 195.0 150.0}}
     "Each component is stored in one byte, with minus one as dark and one as full brightness"}.
 
-${cue "key" {' {inset "nr"} {mark 0.0 0.55 1.0 1.0} {imageMarkText "views.floor"}}}${overText
+${cue "key" {' {inset "nr"} {mark 0.0 0.55 1.0 1.0} {imageMarkText "views-floor"}}}${overText
     {' {pickXRange 210.0 300.0}}
     "The floor faces up, along y, so its green is high"}.
 
-${cue "key" {' {inset "nr"} {mark 0.0 0.0 0.3 1.0} {imageMarkText "views.red_wall"}}}${over
+${cue "key" {' {inset "nr"} {mark 0.0 0.0 0.3 1.0} {imageMarkText "views-red_wall"}}}${over
     {' {pickXRange 300.0 40.0}}
     {overText {' {pickYRange 150.0 100.0}} "The red wall faces right, along x, so its red is high"}}.
 
@@ -892,7 +892,7 @@ ${cue "key" {opening demoHit panelCode {append baseRoom {'
 ${cue "key" {'
     {inset "last"}
     {imageGraph "ssrCopyLastFrame.lastFrame"}
-    {imageTitle "views.last_frame"}
+    {imageTitle "views-last_frame"}
     imageCornerBottomRight}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 26.0 14.0} {aim 20.0 11.0}}}}}}}
 
@@ -996,7 +996,7 @@ ${overText {' {floorRoughnessRange 0.3 0.15}} "SSR does not blur each pixel by i
 ${cue "key" {'
     {inset "mips"}
     {imageGraph "ssrFilter.ssrColor"}
-    {imageTitle "views.ssr_color"}
+    {imageTitle "views-ssr_color"}
     {attr "image.level" "1"}
     imageCornerBottomRight}}Instead, SSR keeps mip levels, a chain of copies of the reflection, ${cue "key"
         {' {inset "mips"} {attr "image.level" "3"}}}each half the size of the one before and blurrier than it.
@@ -1027,7 +1027,7 @@ ${cue "key" {opening demoBlur panelCode {append baseRoom {'
 ${cue "key" {'
     {inset "level"}
     {imageGraph "ssrTrace.mipLevel"}
-    {imageTitle "views.mip_level"}
+    {imageTitle "views-mip_level"}
     imageCornerBottomRight}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0}}}}}}}
 
@@ -1051,7 +1051,7 @@ ${cue "key" {opening demoBlur panelValues {append baseRoom {' {floorRoughness 0.
 ${cue "key" {'
     {inset "mips"}
     {imageGraph "ssrFilter.ssrColor"}
-    {imageTitle "views.ssr_color"}
+    {imageTitle "views-ssr_color"}
     {attr "image.level" "0"}
     imageCornerBottomRight}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 18.0 11.0}}}}}}}
@@ -1092,7 +1092,7 @@ ${cue "key" {opening demoBlur panelValues {append baseRoom {' {floorRoughness 0.
 ${cue "key" {'
     {inset "final"}
     {imageGraph "ssrResolve.final"}
-    {imageTitle "views.final"}
+    {imageTitle "views-final"}
     imageCornerBottomRight}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 12.0 12.0} {aim 18.0 11.0}}}}}}}
 

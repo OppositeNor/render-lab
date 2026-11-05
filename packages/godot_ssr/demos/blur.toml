@@ -1,9 +1,9 @@
 # Roughness becomes a blur level: the cone, its circle, the mip.
 
 key = "blur"
-title-text = "shot.blur_title"
-tab-text = "shot.blur"
-hint-text = "hints.blur_demo"
+title-text = "shot-blur_title"
+tab-text = "shot-blur"
+hint-text = "hints-blur_demo"
 scene = "render_lab.scene/study-room"
 listing = "blur"
 resets-camera = true

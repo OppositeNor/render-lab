@@ -105,7 +105,7 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
         ImageSource::Graph { key, .. } => {
             let (node, resource) = key.rsplit_once('.').unwrap_or((key.as_str(), ""));
             let mut inset = PictureInset::new(resource.to_string(), Picture::Texture(view_texture(&image.name)), [400.0, 400.0]);
-            inset.title.push(crate::i18n::tr_with("graph.after", crate::args!(node = node)));
+            inset.title.push(crate::i18n::tr_with("graph-after", crate::args!(node = node)));
             inset
         }
     };

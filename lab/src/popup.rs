@@ -55,14 +55,14 @@ impl Popup {
     pub fn screenshot(result: &anyhow::Result<PathBuf>) -> Popup {
         match result {
             Ok(path) => {
-                let popup = Popup::new(tr("popup.screenshot_saved"), path.display().to_string());
+                let popup = Popup::new(tr("popup-screenshot_saved"), path.display().to_string());
                 let popup = match path.parent() {
-                    Some(dir) => popup.button(tr("popup.open_folder"), Action::OpenFolder(dir.to_path_buf())),
+                    Some(dir) => popup.button(tr("popup-open_folder"), Action::OpenFolder(dir.to_path_buf())),
                     None => popup,
                 };
-                popup.button(tr("popup.close"), Action::Close).closing_after(8.0)
+                popup.button(tr("popup-close"), Action::Close).closing_after(8.0)
             }
-            Err(e) => Popup::new(tr("popup.screenshot_failed"), format!("{e:#}")).button(tr("popup.close"), Action::Close),
+            Err(e) => Popup::new(tr("popup-screenshot_failed"), format!("{e:#}")).button(tr("popup-close"), Action::Close),
         }
     }
 }

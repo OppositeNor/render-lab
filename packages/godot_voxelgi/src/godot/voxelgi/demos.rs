@@ -299,11 +299,11 @@ fn shared_overlays(state: &ShotState, w: &World, content: &mut FrameContent) {
         if step > 0.0 {
             let po2 = w.voxelizer.po2_bounds;
             wire_box(content, po2.position + NODE, po2.size, palette::OBB, (show * step).min(1.0) * 0.8, 1.5);
-            label(content, state, po2.position + NODE + po2.size * Vec3::new(0.5, 1.0, 0.0), tr_with("demos.po2_cube", lab::args!(side = format!("{:.1}", po2.size.x))), palette::OBB);
+            label(content, state, po2.position + NODE + po2.size * Vec3::new(0.5, 1.0, 0.0), tr_with("demos-po2_cube", lab::args!(side = format!("{:.1}", po2.size.x))), palette::OBB);
         }
         if step > 1.0 {
             let s = w.probe.octree_size;
-            label(content, state, b.position + NODE + b.size * Vec3::new(0.5, 0.0, 1.0), tr_with("demos.cells_per_axis", lab::args!(x = s.x, y = s.y, z = s.z, size = format!("{:.0}", 100.0 / w.probe.to_cell_scale))), palette::AABB);
+            label(content, state, b.position + NODE + b.size * Vec3::new(0.5, 0.0, 1.0), tr_with("demos-cells_per_axis", lab::args!(x = s.x, y = s.y, z = s.z, size = format!("{:.0}", 100.0 / w.probe.to_cell_scale))), palette::AABB);
         }
     }
     let level = state.p("octreeLevel").round() as i32;
@@ -359,7 +359,7 @@ fn draw_level(state: &ShotState, w: &World, content: &mut FrameContent, level: u
 /// The worked element's mark: a ring about it and its label.
 fn mark(content: &mut FrameContent, state: &ShotState, p: Vec3, r: f32) {
     circle(content, p, r, palette::SELECTED, 1.0);
-    label(content, state, p + Vec3::Y * (r + 0.05), tr("demos.worked_label").into(), palette::SELECTED);
+    label(content, state, p + Vec3::Y * (r + 0.05), tr("demos-worked_label").into(), palette::SELECTED);
 }
 
 // ---------------------------------------------------------------------------
@@ -367,10 +367,10 @@ fn mark(content: &mut FrameContent, state: &ShotState, p: Vec3, r: f32) {
 
 fn room_demo(state: &ShotState, content: &mut FrameContent) {
     let rows = vec![
-        row(tr("demos.voxelgi_shown"), format!("{:.2}", state.p("voxelgiMix")), palette::text()),
-        row(tr("demos.renderer"), tr("demos.forward_plus"), palette::THEME_ACCENT),
+        row(tr("demos-voxelgi_shown"), format!("{:.2}", state.p("voxelgiMix")), palette::text()),
+        row(tr("demos-renderer"), tr("demos-forward_plus"), palette::THEME_ACCENT),
         row("size", "20 x 20 x 20 m", palette::AABB),
-        row(tr("demos.lab_box"), "6.4 x 3.2 x 6.4 m", palette::AABB),
+        row(tr("demos-lab_box"), "6.4 x 3.2 x 6.4 m", palette::AABB),
         row("subdiv", "128", palette::AABB),
         row("dynamic_range", "2.0", palette::INCIDENT),
         row("energy", "1.0", palette::INCIDENT),
@@ -378,10 +378,10 @@ fn room_demo(state: &ShotState, content: &mut FrameContent) {
         row("propagation", "0.5", palette::INCIDENT),
         row("use_two_bounces", "true", palette::INCIDENT),
         row("interior", "false", palette::VIEW),
-        row("voxel_gi/quality", if state.p("quality") > 0.5 { tr("demos.quality_high") } else { tr("demos.quality_low") }, palette::VIEW),
+        row("voxel_gi/quality", if state.p("quality") > 0.5 { tr("demos-quality_high") } else { tr("demos-quality_low") }, palette::VIEW),
         row("gi/use_half_resolution", if state.p("giHalfResolution") > 0.5 { "true" } else { "false" }, palette::VIEW),
     ];
-    content.readout = Some(readout(tr("demos.settings"), tr("demos.settings_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-settings"), tr("demos-settings_subtitle"), lit_rows(state, rows)));
 }
 
 // ---------------------------------------------------------------------------
@@ -397,16 +397,16 @@ fn cost_demo(state: &ShotState, viewport: [f32; 2], content: &mut FrameContent) 
     let (cones, steps) = if high { (6, c.high_steps) } else { (4, c.low_steps) };
     let every = state.p("giRelightEachFrame") > 0.5;
     let rows = vec![
-        row(tr("demos.cost_light_passes"), if every { tr("demos.cost_every_frame") } else { tr("demos.cost_on_change") }, palette::INCIDENT),
-        row(tr("demos.cost_dispatches"), tr_with("demos.cost_dispatches_value", lab::args!(count = c.dispatches, passes = c.passes)), palette::INCIDENT),
-        row(tr("demos.cost_workgroups"), format!("{}", c.workgroups), palette::INCIDENT),
-        row(tr("demos.cost_leaves"), format!("{}", c.leaves), palette::AABB),
-        row(tr("demos.cost_cells"), format!("{} / {}", c.cells, c.texels), palette::AABB),
-        row(tr("demos.cost_pixels"), format!("{w} x {h}"), palette::VIEW),
-        row(tr("demos.cost_cones"), format!("{cones} x {steps} = {}", cones * steps), palette::VIEW),
-        row(tr("demos.cost_spec"), format!("{} / {} / {}", c.spec_steps[0], c.spec_steps[1], c.spec_steps[2]), palette::VIEW),
+        row(tr("demos-cost_light_passes"), if every { tr("demos-cost_every_frame") } else { tr("demos-cost_on_change") }, palette::INCIDENT),
+        row(tr("demos-cost_dispatches"), tr_with("demos-cost_dispatches_value", lab::args!(count = c.dispatches, passes = c.passes)), palette::INCIDENT),
+        row(tr("demos-cost_workgroups"), format!("{}", c.workgroups), palette::INCIDENT),
+        row(tr("demos-cost_leaves"), format!("{}", c.leaves), palette::AABB),
+        row(tr("demos-cost_cells"), format!("{} / {}", c.cells, c.texels), palette::AABB),
+        row(tr("demos-cost_pixels"), format!("{w} x {h}"), palette::VIEW),
+        row(tr("demos-cost_cones"), format!("{cones} x {steps} = {}", cones * steps), palette::VIEW),
+        row(tr("demos-cost_spec"), format!("{} / {} / {}", c.spec_steps[0], c.spec_steps[1], c.spec_steps[2]), palette::VIEW),
     ];
-    content.readout = Some(readout(tr("demos.cost"), tr("demos.cost_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-cost"), tr("demos-cost_subtitle"), lit_rows(state, rows)));
     // The sorted cells, each level one run (the first leaf marked), for the story.
     if state.shows_image("cellArray") {
         let probe = &world::world().probe;
@@ -422,9 +422,9 @@ pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
     }
     let mut left = state.clone();
     left.set("giHalfResolution", 0.0);
-    let right = if state.p("giHalfResolution") > 0.5 { tr("demos.cost_half") } else { tr("demos.cost_full") };
+    let right = if state.p("giHalfResolution") > 0.5 { tr("demos-cost_half") } else { tr("demos-cost_full") };
     vec![
-        lab::investigation::Pane { state: left, title: Some(tr("demos.cost_full").to_string()) },
+        lab::investigation::Pane { state: left, title: Some(tr("demos-cost_full").to_string()) },
         lab::investigation::Pane { state: state.clone(), title: Some(right.to_string()) },
     ]
 }
@@ -437,15 +437,15 @@ fn bounds_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let s = v.octree_size();
     let rows = vec![
         row("size", format!("{:.1} x {:.1} x {:.1} m", world::SIZE.x, world::SIZE.y, world::SIZE.z), palette::AABB),
-        row(tr("demos.longest_axis"), format!("x: 1 << {} = {}", v.cell_subdiv, s[0]), palette::AABB),
-        row(tr("demos.shorter_axes"), format!("y {} (3.2 m), z {}", s[1], s[2]), palette::AABB),
-        row(tr("demos.po2_bounds"), format!("{:.1} m cube", v.po2_bounds.size.x), palette::OBB),
+        row(tr("demos-longest_axis"), format!("x: 1 << {} = {}", v.cell_subdiv, s[0]), palette::AABB),
+        row(tr("demos-shorter_axes"), format!("y {} (3.2 m), z {}", s[1], s[2]), palette::AABB),
+        row(tr("demos-po2_bounds"), format!("{:.1} m cube", v.po2_bounds.size.x), palette::OBB),
         row("cell_size", format!("{:.0} cm", v.cell_size * 100.0), palette::AABB),
-        row(tr("demos.levels"), format!("{}", v.cell_subdiv + 1), palette::AABB),
-        row(tr("demos.dense_cells"), format!("{}", s[0] * s[1] * s[2]), palette::text()),
-        row(tr("demos.bake_time"), format!("{:.2} s", w.bake_seconds), palette::text_dim()),
+        row(tr("demos-levels"), format!("{}", v.cell_subdiv + 1), palette::AABB),
+        row(tr("demos-dense_cells"), format!("{}", s[0] * s[1] * s[2]), palette::text()),
+        row(tr("demos-bake_time"), format!("{:.2} s", w.bake_seconds), palette::text_dim()),
     ];
-    content.readout = Some(readout(tr("demos.bounds"), tr("demos.bounds_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-bounds"), tr("demos-bounds_subtitle"), lit_rows(state, rows)));
 }
 
 fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
@@ -454,7 +454,7 @@ fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let mut rows = Vec::new();
     for (l, &c) in probe.level_counts.iter().enumerate() {
         let color = if l as i32 == level { palette::SELECTED } else { palette::AABB };
-        rows.push(row(tr_with("demos.level_n", lab::args!(level = l)), format!("{c}"), color));
+        rows.push(row(tr_with("demos-level_n", lab::args!(level = l)), format!("{c}"), color));
     }
     // The worked triangle's descent.
     if state.p("workedTriangle") > 0.5 {
@@ -478,7 +478,7 @@ fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         }
         let deepest = descent(w).iter().filter(|d| d.overlaps && d.level as f32 <= shown).map(|d| d.level).max().unwrap_or(0);
         let count = descent(w).iter().filter(|d| d.overlaps && d.level == deepest).count();
-        label(content, state, tri.vtx[0] + NODE + Vec3::Y * 0.06, tr_with("demos.descent", lab::args!(level = deepest, count = count)), palette::SELECTED);
+        label(content, state, tri.vtx[0] + NODE + Vec3::Y * 0.06, tr_with("demos-descent", lab::args!(level = deepest, count = count)), palette::SELECTED);
         // The separating-axis test on the first child it skipped at the deepest level drawn.
         let step = state.p("satStep").round() as i32;
         if step > 0
@@ -487,12 +487,12 @@ fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             let stage = bake::triangle_box_stage(sk.aabb.center(), sk.aabb.size * 0.5, &tri.vtx);
             wire_box(content, sk.aabb.position + NODE, sk.aabb.size, palette::MISMATCH, 1.0, 2.0);
             let text = match stage {
-                bake::SatStage::EdgeAxis(k) => tr_with("demos.sat_edge", lab::args!(k = k + 1)),
-                bake::SatStage::BoxAxis(a) => tr_with("demos.sat_box", lab::args!(axis = ["x", "y", "z"][a])),
-                bake::SatStage::Plane => tr("demos.sat_plane").to_string(),
-                bake::SatStage::Overlap => tr("demos.sat_overlap").to_string(),
+                bake::SatStage::EdgeAxis(k) => tr_with("demos-sat_edge", lab::args!(k = k + 1)),
+                bake::SatStage::BoxAxis(a) => tr_with("demos-sat_box", lab::args!(axis = ["x", "y", "z"][a])),
+                bake::SatStage::Plane => tr("demos-sat_plane").to_string(),
+                bake::SatStage::Overlap => tr("demos-sat_overlap").to_string(),
             };
-            rows.push(row(tr("demos.sat"), text, palette::MISMATCH));
+            rows.push(row(tr("demos-sat"), text, palette::MISMATCH));
         }
     }
     // The worked leaf's columns.
@@ -511,12 +511,12 @@ fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
                 hits += 1;
             }
         }
-        rows.push(row(tr("demos.leaf"), format!("({}, {}, {})", cell.x, cell.y, cell.z), palette::SELECTED));
-        rows.push(row(tr("demos.dominant_axis"), ["x", "y", "z"][s.closest_axis].to_string(), palette::SELECTED));
-        rows.push(row(tr("demos.columns_hit"), format!("{hits} / {n}"), palette::VIEW));
+        rows.push(row(tr("demos-leaf"), format!("({}, {}, {})", cell.x, cell.y, cell.z), palette::SELECTED));
+        rows.push(row(tr("demos-dominant_axis"), ["x", "y", "z"][s.closest_axis].to_string(), palette::SELECTED));
+        rows.push(row(tr("demos-columns_hit"), format!("{hits} / {n}"), palette::VIEW));
         rows.push(row("alpha", format!("{:.4}", hits as f32 / 16.0), palette::VIEW));
     }
-    content.readout = Some(readout(tr("demos.octree"), tr("demos.octree_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-octree"), tr("demos-octree_subtitle"), lit_rows(state, rows)));
 }
 
 // ---------------------------------------------------------------------------
@@ -539,36 +539,36 @@ fn cells_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     // Its normal: the samples' sum before the fixup, the stored normal after.
     let n = if state.p("fixupStep") < 0.5 { super::bake::normalized(Vec3::from(w.sums[cell].normal)) } else { d.normal() };
     content.draw.segment(min + size * 0.5, min + size * 0.5 + n * 0.12, palette::NORMAL, 1.0, 3.0, lab::frame::FLAG_ARROW);
-    let mut rows = vec![row(tr("demos.cell_index"), tr_with("demos.cell_index_value", lab::args!(index = cell, level = level)), palette::text())];
+    let mut rows = vec![row(tr("demos-cell_index"), tr_with("demos-cell_index_value", lab::args!(index = cell, level = level)), palette::text())];
     if state.p("fixupStep") < 0.5 {
         let s = &w.sums[cell];
-        rows.push(row(tr("demos.albedo_sum"), v3(Vec3::from(s.albedo)), palette::AABB));
-        rows.push(row(tr("demos.normal_sum"), v3(Vec3::from(s.normal)), palette::NORMAL));
-        rows.push(row(tr("demos.alpha_sum"), format!("{:.4}", s.alpha), palette::VIEW));
+        rows.push(row(tr("demos-albedo_sum"), v3(Vec3::from(s.albedo)), palette::AABB));
+        rows.push(row(tr("demos-normal_sum"), v3(Vec3::from(s.normal)), palette::NORMAL));
+        rows.push(row(tr("demos-alpha_sum"), format!("{:.4}", s.alpha), palette::VIEW));
     } else {
         let children = probe.octree[cell];
         let none = children.iter().all(|&c| c == CHILD_EMPTY);
-        rows.push(row(tr("demos.children"), if none { tr("demos.children_none").to_string() } else { children.iter().map(|c| if *c == CHILD_EMPTY { "-".to_string() } else { c.to_string() }).collect::<Vec<_>>().join(" ") }, palette::text_dim()));
+        rows.push(row(tr("demos-children"), if none { tr("demos-children_none").to_string() } else { children.iter().map(|c| if *c == CHILD_EMPTY { "-".to_string() } else { c.to_string() }).collect::<Vec<_>>().join(" ") }, palette::text_dim()));
         let word = |name: &str, offset: u32, value: u32| (format!("{name} +{offset}"), format!("0x{value:08X}"));
         let decoded = |v: &[f32]| v.iter().map(|x| format!("{x:.2}")).collect::<Vec<_>>().join(" ");
-        let (n, v) = word(tr("demos.position_word"), 0, d.position);
+        let (n, v) = word(tr("demos-position_word"), 0, d.position);
         rows.push(row(n, v, palette::AABB));
-        rows.push(row(tr("demos.decoded_xyz"), format!("{} {} {}", pos.x, pos.y, pos.z), palette::AABB));
-        let (n, v) = word(tr("demos.albedo_word"), 4, d.albedo);
+        rows.push(row(tr("demos-decoded_xyz"), format!("{} {} {}", pos.x, pos.y, pos.z), palette::AABB));
+        let (n, v) = word(tr("demos-albedo_word"), 4, d.albedo);
         rows.push(row(n, v, palette::AABB));
-        rows.push(row(tr("demos.decoded_rgba"), decoded(&d.albedo().to_array()), palette::AABB));
-        let (n, v) = word(tr("demos.emission_word"), 8, d.emission);
+        rows.push(row(tr("demos-decoded_rgba"), decoded(&d.albedo().to_array()), palette::AABB));
+        let (n, v) = word(tr("demos-emission_word"), 8, d.emission);
         rows.push(row(n, v, palette::INCIDENT));
-        rows.push(row(tr("demos.decoded_rgb"), decoded(&d.emission().to_array()), palette::INCIDENT));
-        let (n, v) = word(tr("demos.normal_word"), 12, d.normal);
+        rows.push(row(tr("demos-decoded_rgb"), decoded(&d.emission().to_array()), palette::INCIDENT));
+        let (n, v) = word(tr("demos-normal_word"), 12, d.normal);
         rows.push(row(n, v, palette::NORMAL));
-        rows.push(row(tr("demos.decoded_xyz"), decoded(&d.normal().to_array()), palette::NORMAL));
+        rows.push(row(tr("demos-decoded_xyz"), decoded(&d.normal().to_array()), palette::NORMAL));
         let t = w.lit.texture.texel(0, pos);
-        rows.push(row(tr("demos.texel"), decoded(&t.to_array()), palette::INCIDENT));
-        rows.push(row(tr("demos.texel_light"), decoded(&(t.truncate() * world::DYNAMIC_RANGE).to_array()), palette::INCIDENT));
-        rows.push(row(tr("demos.sdf_byte"), format!("{}", probe.sdf_at(pos)), palette::OUTSIDE));
+        rows.push(row(tr("demos-texel"), decoded(&t.to_array()), palette::INCIDENT));
+        rows.push(row(tr("demos-texel_light"), decoded(&(t.truncate() * world::DYNAMIC_RANGE).to_array()), palette::INCIDENT));
+        rows.push(row(tr("demos-sdf_byte"), format!("{}", probe.sdf_at(pos)), palette::OUTSIDE));
     }
-    content.readout = Some(readout(tr("demos.cell_records"), tr("demos.cell_records_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-cell_records"), tr("demos-cell_records_subtitle"), lit_rows(state, rows)));
     if state.p("cellArray") > 0.5 || state.shows_image("cellArray") {
         let inset = cell_array_inset(probe, cell);
         if state.shows_image("cellArray") {
@@ -606,10 +606,10 @@ fn cell_array_inset(probe: &Probe, cell: usize) -> PictureInset {
     let level = probe.level_of(cell);
     let within = (cell - probe.level_offset(level)) as f32 / probe.level_counts[level].max(1) as f32;
     let at = (edges[level] as f32 + within * (edges[level + 1] - edges[level]) as f32) / wpx as f32;
-    let mut inset = PictureInset::new(tr("demos.cell_array"), Picture::Pixels { key: "cell-array".into(), size: [wpx, hpx], rgba: Arc::new(rgba) }, [440.0, 40.0]);
+    let mut inset = PictureInset::new(tr("demos-cell_array"), Picture::Pixels { key: "cell-array".into(), size: [wpx, hpx], rgba: Arc::new(rgba) }, [440.0, 40.0]);
     inset.corner = Corner::BottomLeft;
     inset.marker = Some(Marker { at: [at, 0.5], color: palette::SELECTED, label: String::new() });
-    inset.x_axis = tr("demos.cell_array_axis").into();
+    inset.x_axis = tr("demos-cell_array_axis").into();
     inset.lines = probe.level_counts.iter().enumerate().map(|(l, c)| (format!("{l}: {c}"), LEVEL_COLORS[l % 8])).collect();
     inset
 }
@@ -632,7 +632,7 @@ fn slices(state: &ShotState, w: &World, content: &mut FrameContent, mark: Option
         let passes = state.p("edtPass").round().clamp(0.0, 3.0) as usize;
         let sq = edt_passes(w, passes);
         let max = 16.0f32;
-        let inset = slice_inset(tr_with("demos.field_slice", lab::args!(passes = passes)), format!("sdf-{passes}-{y_leaf}"), s.x as usize, s.z as usize, |x, z| {
+        let inset = slice_inset(tr_with("demos-field_slice", lab::args!(passes = passes)), format!("sdf-{passes}-{y_leaf}"), s.x as usize, s.z as usize, |x, z| {
             let v = sq[(x + y_leaf * s.x + z * s.x * s.y) as usize];
             if v == 0.0 {
                 return [10, 10, 10, 255];
@@ -645,7 +645,7 @@ fn slices(state: &ShotState, w: &World, content: &mut FrameContent, mark: Option
             let band = if (d / 2.0).floor() as i32 % 2 == 0 { 1.0 } else { 0.82 };
             let g = ((70.0 + 170.0 * (d / max).min(1.0)) * band) as u8;
             [g, g, g, 255]
-        }, mark.map(|m| [m.x, m.z]), tr("demos.field_legend").into());
+        }, mark.map(|m| [m.x, m.z]), tr("demos-field_legend").into());
         if state.shows_image("fieldSlice") {
             content.images.push(("fieldSlice".into(), inset.clone()));
         }
@@ -660,7 +660,7 @@ fn slices(state: &ShotState, w: &World, content: &mut FrameContent, mark: Option
         let ms = probe.mip_size(mip);
         let y = (y_leaf >> mip).min(ms.y - 1);
         let tex = &lit.texture;
-        let inset = slice_inset(tr_with("demos.mip_slice", lab::args!(mip = mip, x = ms.x, z = ms.z)), format!("mip-{mip}-{y}-{}-{}-{}", settings.dynamic_range, settings.propagation, settings.two_bounces), ms.x as usize, ms.z as usize, |x, z| {
+        let inset = slice_inset(tr_with("demos-mip_slice", lab::args!(mip = mip, x = ms.x, z = ms.z)), format!("mip-{mip}-{y}-{}-{}-{}", settings.dynamic_range, settings.propagation, settings.two_bounces), ms.x as usize, ms.z as usize, |x, z| {
             let t = tex.texel(mip, IVec3::new(x, y, z));
             if t.w == 0.0 {
                 let c = if (x + z) % 2 == 0 { 22 } else { 34 };
@@ -668,7 +668,7 @@ fn slices(state: &ShotState, w: &World, content: &mut FrameContent, mark: Option
             }
             let c = light_color(t.truncate() * settings.dynamic_range);
             [c.r(), c.g(), c.b(), 255]
-        }, mark.map(|m| [m.x >> mip, m.z >> mip]), tr("demos.mip_legend").into());
+        }, mark.map(|m| [m.x >> mip, m.z >> mip]), tr("demos-mip_legend").into());
         if state.shows_image("mipSlice") {
             content.images.push(("mipSlice".into(), inset.clone()));
         }
@@ -722,14 +722,14 @@ fn field_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     content.draw.polyline(&pts, palette::OUTSIDE, 0.7, 1.5);
     let byte = sdf::encode(sq);
     let rows = vec![
-        row(tr("demos.worked_cell"), format!("({}, {}, {})", p.x, p.y, p.z), palette::SELECTED),
-        row(tr("demos.passes"), format!("{passes} / 3"), palette::OUTSIDE),
-        row(tr("demos.squared"), if sq >= sdf::BIG_VAL * 0.5 { "1e20".to_string() } else { format!("{sq:.0}") }, palette::OUTSIDE),
-        row(tr("demos.distance_cells"), if sq >= sdf::BIG_VAL * 0.5 { "-".to_string() } else { format!("{:.2}", sq.sqrt()) }, palette::OUTSIDE),
-        row(tr("demos.byte"), format!("{byte}"), palette::OUTSIDE),
-        row(tr("demos.advance"), format!("{} {}", byte as i32 - 1, tr("demos.cells")), palette::OUTSIDE),
+        row(tr("demos-worked_cell"), format!("({}, {}, {})", p.x, p.y, p.z), palette::SELECTED),
+        row(tr("demos-passes"), format!("{passes} / 3"), palette::OUTSIDE),
+        row(tr("demos-squared"), if sq >= sdf::BIG_VAL * 0.5 { "1e20".to_string() } else { format!("{sq:.0}") }, palette::OUTSIDE),
+        row(tr("demos-distance_cells"), if sq >= sdf::BIG_VAL * 0.5 { "-".to_string() } else { format!("{:.2}", sq.sqrt()) }, palette::OUTSIDE),
+        row(tr("demos-byte"), format!("{byte}"), palette::OUTSIDE),
+        row(tr("demos-advance"), format!("{} {}", byte as i32 - 1, tr("demos-cells")), palette::OUTSIDE),
     ];
-    content.readout = Some(readout(tr("demos.field"), tr("demos.field_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-field"), tr("demos-field_subtitle"), lit_rows(state, rows)));
     slices(state, w, content, Some(p));
 }
 
@@ -747,7 +747,7 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     if state.p("extraLight") > 0.5 {
         let o = omni_position(state);
         ball(content, o, 0.05, palette::INCIDENT, 1.0);
-        label(content, state, o + Vec3::Y * 0.1, tr("demos.omni").into(), palette::INCIDENT);
+        label(content, state, o + Vec3::Y * 0.1, tr("demos-omni").into(), palette::INCIDENT);
     }
     if state.p("workedLight") < 0.5 {
         // How many leaves the write pass clips at this dynamic range (light / range above 1 in a channel).
@@ -757,14 +757,14 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         let clipped = lit.outputs[leaves.clone()].iter().filter(|v| v.max_element() > settings.dynamic_range).count();
         let brightest = lit.outputs[leaves].iter().map(|v| v.max_element()).fold(0.0f32, f32::max);
         let rows = vec![
-            row(tr("demos.lights"), format!("{}", lights.len()), palette::INCIDENT),
-            row(tr("demos.max_lights"), format!("{}", light::MAX_LIGHTS), palette::INCIDENT),
+            row(tr("demos-lights"), format!("{}", lights.len()), palette::INCIDENT),
+            row(tr("demos-max_lights"), format!("{}", light::MAX_LIGHTS), palette::INCIDENT),
             row("dynamic_range", format!("{:.2}", settings.dynamic_range), palette::INCIDENT),
-            row(tr("demos.brightest_leaf"), format!("{brightest:.2}"), palette::INCIDENT),
-            row(tr("demos.leaves_clipped"), format!("{clipped}"), palette::SELECTED),
-            row(tr("demos.light_seconds"), format!("{:.2} s", w.light_seconds), palette::text_dim()),
+            row(tr("demos-brightest_leaf"), format!("{brightest:.2}"), palette::INCIDENT),
+            row(tr("demos-leaves_clipped"), format!("{clipped}"), palette::SELECTED),
+            row(tr("demos-light_seconds"), format!("{:.2} s", w.light_seconds), palette::text_dim()),
         ];
-        content.readout = Some(readout(tr("demos.light_pass"), tr("demos.light_pass_subtitle"), lit_rows(state, rows)));
+        content.readout = Some(readout(tr("demos-light_pass"), tr("demos-light_pass_subtitle"), lit_rows(state, rows)));
         return;
     }
     let Some((cell, pos)) = nearest_leaf(probe, picked_cell(state, leaf_of(probe, LIGHT_POINT))) else { return };
@@ -782,10 +782,10 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     if normal.length() > 0.2 {
         content.draw.segment(center, center + normal * 0.3, palette::NORMAL, 1.0, 2.5, 0);
     }
-    let mut rows = vec![row(tr("demos.worked_cell"), format!("({}, {}, {})", pos.x, pos.y, pos.z), palette::SELECTED), row(tr("demos.normal_word"), v3(normal), palette::NORMAL)];
+    let mut rows = vec![row(tr("demos-worked_cell"), format!("({}, {}, {})", pos.x, pos.y, pos.z), palette::SELECTED), row(tr("demos-normal_word"), v3(normal), palette::NORMAL)];
     let mut total = Vec3::ZERO;
     for (k, lt) in lights.iter().enumerate() {
-        let name = if lt.kind == light::LIGHT_TYPE_AREA { tr("demos.panel") } else { tr("demos.omni") };
+        let name = if lt.kind == light::LIGHT_TYPE_AREA { tr("demos-panel") } else { tr("demos-omni") };
         if lt.kind == light::LIGHT_TYPE_AREA {
             let a = light::area_light(&params, lt, cpos, normal);
             let v = a.map(|x| x * albedo).unwrap_or(Vec3::ZERO);
@@ -794,7 +794,7 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
                 content.draw.segment(center, l.center, palette::INCIDENT, 0.6, 1.5, 0);
             }
             if step >= 4 {
-                rows.push(row(tr("demos.panel_no_shadow"), v3(v), palette::INCIDENT));
+                rows.push(row(tr("demos-panel_no_shadow"), v3(v), palette::INCIDENT));
             }
             continue;
         }
@@ -805,11 +805,11 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             content.draw.segment(center, lp, palette::INCIDENT, 0.9, 2.0, 0);
         }
         if step >= 2 {
-            rows.push(row(tr("demos.attenuation"), format!("{:.3}", trace.attenuation), palette::INCIDENT));
+            rows.push(row(tr("demos-attenuation"), format!("{:.3}", trace.attenuation), palette::INCIDENT));
         }
         if step >= 3 {
             let cos = normal.dot(-trace.light_dir).max(0.0);
-            rows.push(row(tr("demos.cosine"), format!("{cos:.3}"), palette::NORMAL));
+            rows.push(row(tr("demos-cosine"), format!("{cos:.3}"), palette::NORMAL));
         }
         // The shadow march: a circle per step, of the distance the field gave.
         let shown = state.p("marchSteps").round() as usize;
@@ -826,22 +826,22 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             }
         }
         if !trace.steps.is_empty() {
-            rows.push(row(tr("demos.march"), tr_with("demos.march_value", lab::args!(steps = trace.steps.len(), occlusion = format!("{:.2}", trace.occlusion))), palette::OUTSIDE));
+            rows.push(row(tr("demos-march"), tr_with("demos-march_value", lab::args!(steps = trace.steps.len(), occlusion = format!("{:.2}", trace.occlusion))), palette::OUTSIDE));
         }
         let v = res.map(|(li, dir)| if normal.length() > 0.2 { normal.dot(-dir).max(0.0) * li * albedo } else { li * albedo }).unwrap_or(Vec3::ZERO);
         total += v;
         if step >= 4 {
-            rows.push(row(tr_with("demos.light_term", lab::args!(name = name)), v3(v), palette::INCIDENT));
+            rows.push(row(tr_with("demos-light_term", lab::args!(name = name)), v3(v), palette::INCIDENT));
         }
         let _ = k;
     }
     if step >= 4 {
-        rows.push(row(tr("demos.cell_light"), v3(total + d.emission()), palette::SELECTED));
+        rows.push(row(tr("demos-cell_light"), v3(total + d.emission()), palette::SELECTED));
         let dr = state.p("dynamicRange");
         let stored = (total / dr).extend(d.albedo().w);
-        rows.push(row(tr_with("demos.stored", lab::args!(range = format!("{dr:.1}"))), v4(super::storage::unorm8(stored).map(|b| b as f32 / 255.0).into()), palette::SELECTED));
+        rows.push(row(tr_with("demos-stored", lab::args!(range = format!("{dr:.1}"))), v4(super::storage::unorm8(stored).map(|b| b as f32 / 255.0).into()), palette::SELECTED));
     }
-    content.readout = Some(readout(tr("demos.light_pass"), tr("demos.light_pass_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-light_pass"), tr("demos-light_pass_subtitle"), lit_rows(state, rows)));
 }
 
 // ---------------------------------------------------------------------------
@@ -849,9 +849,9 @@ fn light_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
 
 /// The readout's rows for a cone's last drawn step: its distance, width, and mip, in cells.
 fn step_rows(rows: &mut Vec<(String, String, Color32)>, s: &ConeStep) {
-    rows.push(row(tr("demos.step_distance"), format!("{:.1}", s.dist), palette::VIEW));
-    rows.push(row(tr("demos.step_diameter"), format!("{:.1}", s.diameter), palette::VIEW));
-    rows.push(row(tr("demos.step_mip"), format!("{:.2}", s.lod), palette::VIEW));
+    rows.push(row(tr("demos-step_distance"), format!("{:.1}", s.dist), palette::VIEW));
+    rows.push(row(tr("demos-step_diameter"), format!("{:.1}", s.diameter), palette::VIEW));
+    rows.push(row(tr("demos-step_mip"), format!("{:.2}", s.lod), palette::VIEW));
 }
 
 /// A cone drawn as its axis and a circle per sample, coloured by what it read.
@@ -878,8 +878,8 @@ fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let settings = light_settings(state);
     let lit = world::lit_for(&settings);
     if state.p("workedBounce") < 0.5 {
-        let rows = vec![row(tr("demos.passes_run"), format!("{}", lit.passes), palette::INCIDENT)];
-        content.readout = Some(readout(tr("demos.bounce"), tr("demos.bounce_subtitle"), lit_rows(state, rows)));
+        let rows = vec![row(tr("demos-passes_run"), format!("{}", lit.passes), palette::INCIDENT)];
+        content.readout = Some(readout(tr("demos-bounce"), tr("demos-bounce_subtitle"), lit_rows(state, rows)));
         slices(state, w, content, None);
         return;
     }
@@ -893,7 +893,7 @@ fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let normal = d.normal();
     let albedo = d.albedo();
     let params = world::params(probe, &settings);
-    let mut rows = vec![row(tr("demos.worked_cell"), format!("({}, {}, {})", pos.x, pos.y, pos.z), palette::SELECTED), row(tr("demos.direct"), v3(lit.direct[cell]), palette::INCIDENT)];
+    let mut rows = vec![row(tr("demos-worked_cell"), format!("({}, {}, {})", pos.x, pos.y, pos.z), palette::SELECTED), row(tr("demos-direct"), v3(lit.direct[cell]), palette::INCIDENT)];
     let shown = state.p("conesShown").round() as usize;
     let steps_shown = state.p("coneSteps").round() as usize;
     let mut bounce = Vec3::ZERO;
@@ -908,7 +908,7 @@ fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             if i < shown {
                 draw_cone(content, probe, cpos, direction, &steps, steps_shown, params.dynamic_range, 0.9);
                 if i + 1 == shown {
-                    rows.push(row(tr_with("demos.cone_n", lab::args!(n = i + 1)), tr_with("demos.cone_value", lab::args!(steps = steps.len(), alpha = format!("{:.2}", c.w), weight = light::BOUNCE_CONE_WEIGHTS[i])), palette::VIEW));
+                    rows.push(row(tr_with("demos-cone_n", lab::args!(n = i + 1)), tr_with("demos-cone_value", lab::args!(steps = steps.len(), alpha = format!("{:.2}", c.w), weight = light::BOUNCE_CONE_WEIGHTS[i])), palette::VIEW));
                     if let Some(s) = steps.get(steps_shown.min(steps.len()).saturating_sub(1)) {
                         step_rows(&mut rows, s);
                     }
@@ -916,9 +916,9 @@ fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             }
         }
     }
-    rows.push(row(tr("demos.bounce_sum"), v3(bounce), palette::VIEW));
-    rows.push(row(tr("demos.after_bounce"), v3(lit.outputs[cell]), palette::SELECTED));
-    content.readout = Some(readout(tr("demos.bounce"), tr("demos.bounce_subtitle"), lit_rows(state, rows)));
+    rows.push(row(tr("demos-bounce_sum"), v3(bounce), palette::VIEW));
+    rows.push(row(tr("demos-after_bounce"), v3(lit.outputs[cell]), palette::SELECTED));
+    content.readout = Some(readout(tr("demos-bounce"), tr("demos-bounce_subtitle"), lit_rows(state, rows)));
     slices(state, w, content, Some(pos));
 }
 
@@ -946,13 +946,13 @@ fn mips_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             }
             let (value, count) = light::mip_cell(probe, &params, &lit.outputs, parent);
             let divisor = 8.0 + (count as f32 - 8.0) * params.propagation;
-            rows.push(row(tr("demos.children_count"), format!("{count} / 8"), palette::AABB));
-            rows.push(row(tr("demos.divisor"), format!("mix(8, {count}, {:.2}) = {divisor:.2}", params.propagation), palette::INCIDENT));
-            rows.push(row(tr("demos.parent_light"), v3(value), palette::SELECTED));
-            rows.push(row(tr("demos.parent_alpha"), format!("{:.3}", pd.albedo().w), palette::VIEW));
+            rows.push(row(tr("demos-children_count"), format!("{count} / 8"), palette::AABB));
+            rows.push(row(tr("demos-divisor"), format!("mix(8, {count}, {:.2}) = {divisor:.2}", params.propagation), palette::INCIDENT));
+            rows.push(row(tr("demos-parent_light"), v3(value), palette::SELECTED));
+            rows.push(row(tr("demos-parent_alpha"), format!("{:.3}", pd.albedo().w), palette::VIEW));
         }
     }
-    content.readout = Some(readout(tr("demos.mips"), tr("demos.mips_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-mips"), tr("demos-mips_subtitle"), lit_rows(state, rows)));
     slices(state, w, content, Some(leaf));
 }
 
@@ -968,7 +968,7 @@ fn dynamic_demo(state: &ShotState, content: &mut FrameContent) {
     let dx = state.p("dynamicX");
     let plot = world::dynamic_plot(dx);
     let size = plot.end - plot.begin;
-    let mut rows = vec![row(tr("demos.dynamic_box"), format!("{} x {} x {}", size.x, size.y, size.z), palette::SELECTED)];
+    let mut rows = vec![row(tr("demos-dynamic_box"), format!("{} x {} x {}", size.x, size.y, size.z), palette::SELECTED)];
     // The oversampled box, in the world.
     let m = super::dynamic::MULTIPLIER as f32;
     let bmin = probe.from_cell(plot.begin.as_vec3() / m) + NODE;
@@ -990,8 +990,8 @@ fn dynamic_demo(state: &ShotState, content: &mut FrameContent) {
         } else {
             balls(content, &points, 1.0);
         }
-        rows.push(row(tr("demos.dynamic_gain"), format!("x {DYNAMIC_GAIN}"), palette::text_dim()));
-        rows.push(row(tr_with("demos.plotted_mip", lab::args!(mip = mip)), format!("{}", plot.plotted[mip].len()), palette::SELECTED));
+        rows.push(row(tr("demos-dynamic_gain"), format!("x {DYNAMIC_GAIN}"), palette::text_dim()));
+        rows.push(row(tr_with("demos-plotted_mip", lab::args!(mip = mip)), format!("{}", plot.plotted[mip].len()), palette::SELECTED));
     }
     let view = state.p("dynamicView").round() as i32;
     if (0..6).contains(&view) {
@@ -999,8 +999,8 @@ fn dynamic_demo(state: &ShotState, content: &mut FrameContent) {
         let level = state.p("shrinkLevel").round().clamp(0.0, (v.maps.len() - 1) as f32) as usize;
         let map = &v.maps[level];
         let dir = ["+x", "+y", "+z", "-x", "-y", "-z"][view as usize];
-        rows.push(row(tr("demos.view"), format!("{dir}: {} x {}", v.maps[0].rect_size.x, v.maps[0].rect_size.y), palette::SELECTED));
-        rows.push(row(tr("demos.shrink_map"), tr_with("demos.shrink_map_value", lab::args!(level = level, w = map.rect_size.x, h = map.rect_size.y, mip = map.mipmap)), palette::SELECTED));
+        rows.push(row(tr("demos-view"), format!("{dir}: {} x {}", v.maps[0].rect_size.x, v.maps[0].rect_size.y), palette::SELECTED));
+        rows.push(row(tr("demos-shrink_map"), tr_with("demos-shrink_map_value", lab::args!(level = level, w = map.rect_size.x, h = map.rect_size.y, mip = map.mipmap)), palette::SELECTED));
         // The first map's albedo, and the chosen map's light.
         let first = &v.maps[0];
         let (aw, ah) = (first.rect_size.x as usize, first.rect_size.y as usize);
@@ -1008,7 +1008,7 @@ fn dynamic_demo(state: &ShotState, content: &mut FrameContent) {
             let a = v.albedo[y * aw + x];
             if a.w > 0.0 { [(a.x * 255.0) as u8, (a.y * 255.0) as u8, (a.z * 255.0) as u8, 255] } else { [16, 16, 20, 255] }
         }).collect();
-        let mut ins = PictureInset::new(tr_with("demos.view_albedo", lab::args!(dir = dir)), Picture::Pixels { key: format!("dyn-albedo-{dx}-{view}"), size: [aw, ah], rgba: Arc::new(albedo) }, [320.0, 320.0 * ah as f32 / aw.max(1) as f32]);
+        let mut ins = PictureInset::new(tr_with("demos-view_albedo", lab::args!(dir = dir)), Picture::Pixels { key: format!("dyn-albedo-{dx}-{view}"), size: [aw, ah], rgba: Arc::new(albedo) }, [320.0, 320.0 * ah as f32 / aw.max(1) as f32]);
         ins.corner = Corner::TopLeft;
         content.insets.push(ins);
         let (lw, lh) = (map.rect_size.x as usize, map.rect_size.y as usize);
@@ -1021,13 +1021,13 @@ fn dynamic_demo(state: &ShotState, content: &mut FrameContent) {
                 [16, 16, 20, 255]
             }
         }).collect();
-        let mut ins = PictureInset::new(tr_with("demos.view_light", lab::args!(level = level)), Picture::Pixels { key: format!("dyn-light-{dx}-{view}-{level}"), size: [lw.max(1), lh.max(1)], rgba: Arc::new(light) }, [320.0, 320.0 * lh as f32 / lw.max(1) as f32]);
+        let mut ins = PictureInset::new(tr_with("demos-view_light", lab::args!(level = level)), Picture::Pixels { key: format!("dyn-light-{dx}-{view}-{level}"), size: [lw.max(1), lh.max(1)], rgba: Arc::new(light) }, [320.0, 320.0 * lh as f32 / lw.max(1) as f32]);
         ins.corner = Corner::TopRight;
         content.insets.push(ins);
     }
     let maps = super::dynamic::OVERSAMPLED + probe.mip_count();
-    rows.push(row(tr("demos.dispatches"), tr_with("demos.dispatches_value", lab::args!(views = 6, per = maps)), palette::text_dim()));
-    content.readout = Some(readout(tr("demos.dynamic"), tr("demos.dynamic_subtitle"), lit_rows(state, rows)));
+    rows.push(row(tr("demos-dispatches"), tr_with("demos-dispatches_value", lab::args!(views = 6, per = maps)), palette::text_dim()));
+    content.readout = Some(readout(tr("demos-dynamic"), tr("demos-dynamic_subtitle"), lit_rows(state, rows)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1049,7 +1049,7 @@ fn pixel_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let e = eye(content);
     let (p, n, cones, amb, spec) = pixel_cones(state, w, e);
     let inst = world::instance(probe, &LightSettings::default(), false);
-    let mut rows = vec![row(tr("demos.tag"), tr("demos.tag_value"), palette::text_dim())];
+    let mut rows = vec![row(tr("demos-tag"), tr("demos-tag_value"), palette::text_dim())];
     if state.p("workedPixel") > 0.5 {
         ball(content, p, 0.02, palette::SELECTED, 1.0);
         content.points.push(("pixel.point".into(), p));
@@ -1066,22 +1066,22 @@ fn pixel_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         {
             draw_cone_world(content, &inst, cones.position, *dir, st, steps, 1.0);
         }
-        rows.push(row(tr("demos.cell_position"), v3(cones.position), palette::VIEW));
-        rows.push(row(tr("demos.edge_blend"), format!("{:.3}", cones.blend), palette::VIEW));
+        rows.push(row(tr("demos-cell_position"), v3(cones.position), palette::VIEW));
+        rows.push(row(tr("demos-edge_blend"), format!("{:.3}", cones.blend), palette::VIEW));
         let last = shown.min(cones.diffuse.len());
         if let Some((_, _, st, c)) = cones.diffuse.get(last.saturating_sub(1)) {
-            rows.push(row(tr_with("demos.cone_n", lab::args!(n = last.max(1))), tr_with("demos.cone_alpha", lab::args!(steps = st.len(), alpha = format!("{:.2}", c.w))), palette::VIEW));
+            rows.push(row(tr_with("demos-cone_n", lab::args!(n = last.max(1))), tr_with("demos-cone_alpha", lab::args!(steps = st.len(), alpha = format!("{:.2}", c.w))), palette::VIEW));
             if let Some(s) = st.get(steps.min(st.len()).saturating_sub(1)) {
                 step_rows(&mut rows, s);
             }
         }
         if let Some((_, tan, st, _)) = &cones.specular {
-            rows.push(row(tr("demos.spec_cone"), tr_with("demos.spec_value", lab::args!(angle = format!("{:.1}", tan.atan().to_degrees()), steps = st.len())), palette::REFLECTED));
+            rows.push(row(tr("demos-spec_cone"), tr_with("demos-spec_value", lab::args!(angle = format!("{:.1}", tan.atan().to_degrees()), steps = st.len())), palette::REFLECTED));
         }
     }
-    rows.push(row(tr("demos.ambient"), v4(amb), palette::INCIDENT));
-    rows.push(row(tr("demos.reflection"), v4(spec), palette::REFLECTED));
-    content.readout = Some(readout(tr("demos.pixel"), tr("demos.pixel_subtitle"), lit_rows(state, rows)));
+    rows.push(row(tr("demos-ambient"), v4(amb), palette::INCIDENT));
+    rows.push(row(tr("demos-reflection"), v4(spec), palette::REFLECTED));
+    content.readout = Some(readout(tr("demos-pixel"), tr("demos-pixel_subtitle"), lit_rows(state, rows)));
 }
 
 /// A cone of the screen pass (positions in the instance's cells).
@@ -1124,16 +1124,16 @@ fn compose_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         content.points.push(("pixel.point".into(), p));
     }
     let rows = vec![
-        row(tr("demos.env_ambient"), v3(env_amb), palette::text_dim()),
-        row(tr("demos.voxelgi_ambient"), v4(amb), palette::INCIDENT),
-        row(tr("demos.mixed_ambient"), v3(ambient), palette::INCIDENT),
-        row(tr("demos.times_albedo"), v3(ambient * albedo), palette::AABB),
-        row(tr("demos.env_reflection"), v3(env_ref), palette::text_dim()),
-        row(tr("demos.voxelgi_reflection"), v4(spec), palette::REFLECTED),
-        row(tr("demos.mixed_reflection"), v3(reflection), palette::REFLECTED),
-        row(tr("demos.times_brdf"), format!("{} (x {env:.3})", v3(reflection * env)), palette::REFLECTED),
+        row(tr("demos-env_ambient"), v3(env_amb), palette::text_dim()),
+        row(tr("demos-voxelgi_ambient"), v4(amb), palette::INCIDENT),
+        row(tr("demos-mixed_ambient"), v3(ambient), palette::INCIDENT),
+        row(tr("demos-times_albedo"), v3(ambient * albedo), palette::AABB),
+        row(tr("demos-env_reflection"), v3(env_ref), palette::text_dim()),
+        row(tr("demos-voxelgi_reflection"), v4(spec), palette::REFLECTED),
+        row(tr("demos-mixed_reflection"), v3(reflection), palette::REFLECTED),
+        row(tr("demos-times_brdf"), format!("{} (x {env:.3})", v3(reflection * env)), palette::REFLECTED),
     ];
-    content.readout = Some(readout(tr("demos.compose"), tr("demos.compose_subtitle"), lit_rows(state, rows)));
+    content.readout = Some(readout(tr("demos-compose"), tr("demos-compose_subtitle"), lit_rows(state, rows)));
 }
 
 /// voxelgiSkyReflection (shaders/voxelgi_shading.wgsl): the lab's sky

@@ -3,7 +3,7 @@
 /// the lab keeps it as floats rounded to 8 bits), or FullscreenShadowBlur's,
 /// the buffer the forward pass reads. White lit, black shadowed; the picked
 /// pixel ringed.
-/// {@ view=shadowBuffer entry=o3deShadowBufferView size=384,216 aspect=viewport text=views.shadow_buffer reads=shadowRaw,shadowBuffer,depth}
+/// {@ view=shadowBuffer entry=o3deShadowBufferView size=384,216 aspect=viewport text=views-shadow_buffer reads=shadowRaw,shadowBuffer,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct ShadowBufferParams {

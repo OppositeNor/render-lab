@@ -1,9 +1,9 @@
 # Light in the voxels.
 
 key = "light"
-title-text = "shot.light_title"
-tab-text = "shot.light"
-hint-text = "investigation.demo_hint"
+title-text = "shot-light_title"
+tab-text = "shot-light"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "direct-light"
 resets-camera = true

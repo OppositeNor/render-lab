@@ -100,11 +100,11 @@ impl Investigation for Sdfgi {
     }
 
     fn title(&self) -> &'static str {
-        tr("investigation.title")
+        tr("investigation-title")
     }
 
     fn summary(&self) -> &'static str {
-        tr("investigation.summary")
+        tr("investigation-summary")
     }
 
     fn wording(&self) -> &'static Wording {
@@ -112,7 +112,7 @@ impl Investigation for Sdfgi {
     }
 
     fn footer(&self) -> &'static str {
-        tr("investigation.footer")
+        tr("investigation-footer")
     }
 
     fn sources(&self) -> &'static SourceIndex {
@@ -149,26 +149,26 @@ impl Investigation for Sdfgi {
 
     fn pass_about(&self, node: &str) -> Option<&'static str> {
         Some(match node {
-            "sdfgiForwardFS" => tr("pass.sdfgiForwardFS"),
-            "sdfgiPrepassFS" => tr("pass.sdfgiPrepassFS"),
-            "sdfgiGatherCS" => tr("pass.sdfgiGatherCS"),
-            "sdfgiVoxelize" => tr("pass.sdfgiVoxelize"),
-            "sdfgiScroll" => tr("pass.sdfgiScroll"),
-            "sdfgiScrollOcclusion" => tr("pass.sdfgiScrollOcclusion"),
-            "sdfgiProbeScroll" => tr("pass.sdfgiProbeScroll"),
-            "sdfgiProbeScrollStore" => tr("pass.sdfgiProbeScrollStore"),
-            "sdfgiProbeStoreScroll" => tr("pass.sdfgiProbeStoreScroll"),
-            "sdfgiJumpFloodInit" => tr("pass.sdfgiJumpFloodInit"),
-            "sdfgiJumpFlood" => tr("pass.sdfgiJumpFlood"),
-            "sdfgiJumpFloodShared" => tr("pass.sdfgiJumpFloodShared"),
-            "sdfgiUpscale" => tr("pass.sdfgiUpscale"),
-            "sdfgiJumpFloodFull" => tr("pass.sdfgiJumpFloodFull"),
-            "sdfgiOcclusion" => tr("pass.sdfgiOcclusion"),
-            "sdfgiStore" => tr("pass.sdfgiStore"),
-            "sdfgiStaticLight" => tr("pass.sdfgiStaticLight"),
-            "sdfgiDynamicLight" => tr("pass.sdfgiDynamicLight"),
-            "sdfgiProbeProcess" => tr("pass.sdfgiProbeProcess"),
-            "sdfgiProbeStore" => tr("pass.sdfgiProbeStore"),
+            "sdfgiForwardFS" => tr("pass-sdfgiForwardFS"),
+            "sdfgiPrepassFS" => tr("pass-sdfgiPrepassFS"),
+            "sdfgiGatherCS" => tr("pass-sdfgiGatherCS"),
+            "sdfgiVoxelize" => tr("pass-sdfgiVoxelize"),
+            "sdfgiScroll" => tr("pass-sdfgiScroll"),
+            "sdfgiScrollOcclusion" => tr("pass-sdfgiScrollOcclusion"),
+            "sdfgiProbeScroll" => tr("pass-sdfgiProbeScroll"),
+            "sdfgiProbeScrollStore" => tr("pass-sdfgiProbeScrollStore"),
+            "sdfgiProbeStoreScroll" => tr("pass-sdfgiProbeStoreScroll"),
+            "sdfgiJumpFloodInit" => tr("pass-sdfgiJumpFloodInit"),
+            "sdfgiJumpFlood" => tr("pass-sdfgiJumpFlood"),
+            "sdfgiJumpFloodShared" => tr("pass-sdfgiJumpFloodShared"),
+            "sdfgiUpscale" => tr("pass-sdfgiUpscale"),
+            "sdfgiJumpFloodFull" => tr("pass-sdfgiJumpFloodFull"),
+            "sdfgiOcclusion" => tr("pass-sdfgiOcclusion"),
+            "sdfgiStore" => tr("pass-sdfgiStore"),
+            "sdfgiStaticLight" => tr("pass-sdfgiStaticLight"),
+            "sdfgiDynamicLight" => tr("pass-sdfgiDynamicLight"),
+            "sdfgiProbeProcess" => tr("pass-sdfgiProbeProcess"),
+            "sdfgiProbeStore" => tr("pass-sdfgiProbeStore"),
             _ => return None,
         })
     }

@@ -65,18 +65,18 @@ impl Investigation for Lighting {
     }
 
     fn title(&self) -> &'static str {
-        tr("investigation.lighting_model")
+        tr("investigation-lighting_model")
     }
 
     fn summary(&self) -> &'static str {
-        tr("investigation.summary")
+        tr("investigation-summary")
     }
 
     fn wording(&self) -> &'static Wording {
         &WORDING
     }
     fn footer(&self) -> &'static str {
-        tr("investigation.footer")
+        tr("investigation-footer")
     }
 
     fn sources(&self) -> &'static SourceIndex {
@@ -136,24 +136,24 @@ impl Investigation for Lighting {
 
     fn pass_about(&self, node: &str) -> Option<&'static str> {
         Some(match node {
-            "o3dePrepassFS" => tr("pass.o3dePrepassFS"),
-            "o3deLightCullingTilePrepareCS" => tr("pass.o3deLightCullingTilePrepareCS"),
-            "o3deLightCullingCS" => tr("pass.o3deLightCullingCS"),
-            "o3deLightCullingRemapCS" => tr("pass.o3deLightCullingRemapCS"),
-            "o3deLinearDepthCS" => tr("pass.o3deLinearDepthCS"),
-            "o3deFullscreenShadowCS" => tr("pass.o3deFullscreenShadowCS"),
-            "o3deShadowBlurVerticalCS" => tr("pass.o3deShadowBlurVerticalCS"),
-            "o3deShadowBlurHorizontalCS" => tr("pass.o3deShadowBlurHorizontalCS"),
-            "o3deForwardFS" => tr("pass.o3deForwardFS"),
-            "o3deDiffuseGlobalCS" => tr("pass.o3deDiffuseGlobalCS"),
-            "o3deReflectionsCS" => tr("pass.o3deReflectionsCS"),
-            "o3deReflectionCompositeCS" => tr("pass.o3deReflectionCompositeCS"),
-            "o3deDepthDownsampleCS" => tr("pass.o3deDepthDownsampleCS"),
-            "o3deSsaoCS" => tr("pass.o3deSsaoCS"),
-            "o3deSsaoBlurVerticalCS" => tr("pass.o3deSsaoBlurVerticalCS"),
-            "o3deSsaoBlurHorizontalCS" => tr("pass.o3deSsaoBlurHorizontalCS"),
-            "o3deSsaoUpsampleCS" => tr("pass.o3deSsaoUpsampleCS"),
-            "o3deMergeCS" => tr("pass.o3deMergeCS"),
+            "o3dePrepassFS" => tr("pass-o3dePrepassFS"),
+            "o3deLightCullingTilePrepareCS" => tr("pass-o3deLightCullingTilePrepareCS"),
+            "o3deLightCullingCS" => tr("pass-o3deLightCullingCS"),
+            "o3deLightCullingRemapCS" => tr("pass-o3deLightCullingRemapCS"),
+            "o3deLinearDepthCS" => tr("pass-o3deLinearDepthCS"),
+            "o3deFullscreenShadowCS" => tr("pass-o3deFullscreenShadowCS"),
+            "o3deShadowBlurVerticalCS" => tr("pass-o3deShadowBlurVerticalCS"),
+            "o3deShadowBlurHorizontalCS" => tr("pass-o3deShadowBlurHorizontalCS"),
+            "o3deForwardFS" => tr("pass-o3deForwardFS"),
+            "o3deDiffuseGlobalCS" => tr("pass-o3deDiffuseGlobalCS"),
+            "o3deReflectionsCS" => tr("pass-o3deReflectionsCS"),
+            "o3deReflectionCompositeCS" => tr("pass-o3deReflectionCompositeCS"),
+            "o3deDepthDownsampleCS" => tr("pass-o3deDepthDownsampleCS"),
+            "o3deSsaoCS" => tr("pass-o3deSsaoCS"),
+            "o3deSsaoBlurVerticalCS" => tr("pass-o3deSsaoBlurVerticalCS"),
+            "o3deSsaoBlurHorizontalCS" => tr("pass-o3deSsaoBlurHorizontalCS"),
+            "o3deSsaoUpsampleCS" => tr("pass-o3deSsaoUpsampleCS"),
+            "o3deMergeCS" => tr("pass-o3deMergeCS"),
             _ => return None,
         })
     }

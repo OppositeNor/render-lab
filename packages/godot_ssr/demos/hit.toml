@@ -1,9 +1,9 @@
 # Whether the ray's end is a reflection: the validity terms and the fades.
 
 key = "hit"
-title-text = "shot.hit_title"
-tab-text = "shot.hit"
-hint-text = "hints.hit_demo"
+title-text = "shot-hit_title"
+tab-text = "shot-hit"
+hint-text = "hints-hit_demo"
 scene = "render_lab.scene/study-room"
 listing = "validate"
 resets-camera = true

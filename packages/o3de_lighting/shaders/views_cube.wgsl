@@ -7,7 +7,7 @@
 /// from its sky at the sizes `ibl.rs` names. The picked pixel's lookup
 /// direction is ringed: its reflection vector in the specular cubemap, its
 /// normal in the diffuse one.
-/// {@ view=cubemap entry=o3deCubemapView size=384,288 text=views.cubemap reads=normal,specularF0,depth}
+/// {@ view=cubemap entry=o3deCubemapView size=384,288 text=views-cubemap reads=normal,specularF0,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct CubemapParams {

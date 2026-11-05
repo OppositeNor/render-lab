@@ -5,23 +5,23 @@
 
 [[section]]
 id = "PRE"
-title-text = "frame.prepass"
+title-text = "frame-prepass"
 passes = ["ssrBestFit", "ssrPrepassFS"]
 to = ["SSR"]
 
 [[section]]
 id = "SSR"
-title-text = "frame.ssr"
+title-text = "frame-ssr"
 passes = ["ssrDownsample", "ssrHiz", "ssrTrace", "ssrFilter", "ssrResolve"]
 to = ["OPAQUE"]
 
 [[section]]
 id = "OPAQUE"
-title-text = "frame.opaque"
+title-text = "frame-opaque"
 passes = ["ssrForwardFS"]
 to = ["HISTORY"]
 
 [[section]]
 id = "HISTORY"
-title-text = "frame.history"
+title-text = "frame-history"
 passes = ["ssrCopyLastFrame"]

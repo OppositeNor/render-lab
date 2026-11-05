@@ -27,13 +27,13 @@
 // from the shot, lab/src/shader_data.rs) and what demos.rs derives.
 struct SdfgiShading {
     /// How much of SDFGI's ambient and reflection the room shows (0: direct light only).
-    /// {@ key=sdfgiMix default=1 range=0,1 label=gi text=controls.sdfgi_mix help=help.sdfgiMix}
+    /// {@ key=sdfgiMix default=1 range=0,1 label=gi text=controls-sdfgi_mix help=help-sdfgiMix}
     sdfgiMix: f32,
     /// The environment's sdfgi_energy (SDFGIData.energy).
-    /// {@ key=sdfgiEnergy default=1 range=0,4 label=gi text=controls.sdfgi_energy engine=Environment.sdfgi_energy help=help.sdfgiEnergy}
+    /// {@ key=sdfgiEnergy default=1 range=0,4 label=gi text=controls-sdfgi_energy engine=Environment.sdfgi_energy help=help-sdfgiEnergy}
     energy: f32,
     /// The environment's sdfgi_normal_bias, in cells.
-    /// {@ key=normalBias default=1.1 range=0,4 label=gi text=controls.normal_bias engine=Environment.sdfgi_normal_bias help=help.normalBias}
+    /// {@ key=normalBias default=1.1 range=0,4 label=gi text=controls-normal_bias engine=Environment.sdfgi_normal_bias help=help-normalBias}
     normalBias: f32,
     /// y_mult (y_scale[sdfgi_y_scale]).
     /// {@ derived}

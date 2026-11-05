@@ -1,9 +1,9 @@
 # The dynamic demonstration (src/godot/voxelgi/demos.rs).
 
 key = "dynamic"
-title-text = "shot.dynamic_title"
-tab-text = "shot.dynamic"
-hint-text = "investigation.demo_hint"
+title-text = "shot-dynamic_title"
+tab-text = "shot-dynamic"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "dynamic-object"
 resets-camera = true

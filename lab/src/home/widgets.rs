@@ -5,7 +5,7 @@ use super::*;
 
 /// An option's value as the Config page names it.
 pub(super) fn on_off(on: bool) -> &'static str {
-    if on { tr("home.on") } else { tr("home.off") }
+    if on { tr("home-on") } else { tr("home-off") }
 }
 
 /// Translucent white: the glass the page's panels and buttons are made of.
@@ -64,9 +64,9 @@ pub(super) fn option_row(ui: &mut egui::Ui, widgets: &mut Vec<(String, Rect)>, n
         add(ui, widgets);
         if changed {
             ui.add_space(12.0);
-            ui.label(RichText::new(format!("{} {default}", tr("home.default"))).color(palette::accent()));
+            ui.label(RichText::new(format!("{} {default}", tr("home-default"))).color(palette::accent()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let r = glass_button(ui, vec2(190.0, 48.0), tr("home.restore"), 26.0, enabled);
+                let r = glass_button(ui, vec2(190.0, 48.0), tr("home-restore"), 26.0, enabled);
                 widgets.push((format!("restore:{name}"), r.rect));
                 restore = r.clicked();
             });
@@ -82,9 +82,9 @@ pub(super) fn option_row(ui: &mut egui::Ui, widgets: &mut Vec<(String, Rect)>, n
 /// A category's name on its tab.
 pub(super) fn category_name(category: Category) -> &'static str {
     match category {
-        Category::Interface => tr("home.interface"),
-        Category::Render => tr("home.render"),
-        Category::Audio => tr("home.audio"),
+        Category::Interface => tr("home-interface"),
+        Category::Render => tr("home-render"),
+        Category::Audio => tr("home-audio"),
     }
 }
 

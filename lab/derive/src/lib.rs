@@ -44,7 +44,7 @@ use syn::{parse_macro_input, Data, DeriveInput, Error, Expr, Fields, LitStr, Res
 /// #[derive(Clone, Copy, lab::Choice)]
 /// #[choice(package = "o3de_lighting", wgsl = "VIEW")]
 /// pub enum ViewMode {
-///     #[choice(text = "controls.final")]
+///     #[choice(text = "controls-final")]
 ///     Final,                       // "final", VIEW_FINAL = 0u
 ///     #[choice(label = "D (GGX)")]
 ///     D,                           // "d", VIEW_D = 1u

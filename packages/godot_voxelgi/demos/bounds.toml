@@ -1,9 +1,9 @@
 # The bounds demonstration (src/godot/voxelgi/demos.rs).
 
 key = "bounds"
-title-text = "shot.bounds_title"
-tab-text = "shot.bounds"
-hint-text = "investigation.demo_hint"
+title-text = "shot-bounds_title"
+tab-text = "shot-bounds"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "begin-bake"
 resets-camera = true

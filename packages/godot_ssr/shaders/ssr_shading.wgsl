@@ -16,32 +16,32 @@
 // their plan's parameters (gpu.rs), as Godot pushes the Environment's values.
 struct SsrShading {
     /// Environment.ssr_enabled: whether the opaque pass blends the reflections in.
-    /// {@ key=ssrEnabled default=1 range=0,1 label=ssr text=controls.ssr_enabled engine=Environment.ssr_enabled help=help.ssrEnabled}
+    /// {@ key=ssrEnabled default=1 range=0,1 label=ssr text=controls-ssr_enabled engine=Environment.ssr_enabled help=help-ssrEnabled}
     ssrEnabled: f32,
     /// Environment.ssr_max_steps: the trace's iterations.
-    /// {@ key=ssrMaxSteps default=64 range=32,512 label=ssr text=controls.ssr_max_steps engine=Environment.ssr_max_steps help=help.ssrMaxSteps}
+    /// {@ key=ssrMaxSteps default=64 range=32,512 label=ssr text=controls-ssr_max_steps engine=Environment.ssr_max_steps help=help-ssrMaxSteps}
     maxSteps: f32,
     /// Environment.ssr_fade_in: the exponent of the fade over the ray's screen length.
-    /// {@ key=ssrFadeIn default=0.15 range=0,1 label=ssr text=controls.ssr_fade_in engine=Environment.ssr_fade_in help=help.ssrFadeIn}
+    /// {@ key=ssrFadeIn default=0.15 range=0,1 label=ssr text=controls-ssr_fade_in engine=Environment.ssr_fade_in help=help-ssrFadeIn}
     fadeIn: f32,
     /// Environment.ssr_fade_out: the exponent of the fade toward the far end.
-    /// {@ key=ssrFadeOut default=2 range=0,8 label=ssr text=controls.ssr_fade_out engine=Environment.ssr_fade_out help=help.ssrFadeOut}
+    /// {@ key=ssrFadeOut default=2 range=0,8 label=ssr text=controls-ssr_fade_out engine=Environment.ssr_fade_out help=help-ssrFadeOut}
     fadeOut: f32,
     /// Environment.ssr_depth_tolerance, in view-space units.
-    /// {@ key=ssrDepthTolerance default=0.5 range=0.01,4 label=ssr text=controls.ssr_depth_tolerance engine=Environment.ssr_depth_tolerance help=help.ssrDepthTolerance}
+    /// {@ key=ssrDepthTolerance default=0.5 range=0.01,4 label=ssr text=controls-ssr_depth_tolerance engine=Environment.ssr_depth_tolerance help=help-ssrDepthTolerance}
     depthTolerance: f32,
     /// The floor material's metallic (BaseMaterial3D.metallic; the lab's other objects are dielectric).
-    /// {@ key=floorMetallic default=0 range=0,1 label=surface text=controls.floor_metallic engine=BaseMaterial3D.metallic help=help.floorMetallic}
+    /// {@ key=floorMetallic default=0 range=0,1 label=surface text=controls-floor_metallic engine=BaseMaterial3D.metallic help=help-floorMetallic}
     floorMetallic: f32,
     /// How much of the opaque pass's indirect specular is drawn: 0 none, 1 the sky's reflection after
     /// specular occlusion, 2 the SSR result alone, 3 SSR blended in (the frame).
-    /// {@ key=ssrComposeStep default=3 range=0,3 label=compose text=controls.compose_step help=help.ssrComposeStep}
+    /// {@ key=ssrComposeStep default=3 range=0,3 label=compose text=controls-compose_step help=help-ssrComposeStep}
     composeStep: f32,
     /// Environment.reflected_light_source: 1 the sky (Background with a sky background, or Sky), 0 Disabled.
-    /// {@ key=skyReflection default=1 range=0,1 label=surface text=controls.sky_reflection engine=Environment.reflected_light_source help=help.skyReflection}
+    /// {@ key=skyReflection default=1 range=0,1 label=surface text=controls-sky_reflection engine=Environment.reflected_light_source help=help-skyReflection}
     skyReflection: f32,
     /// rendering/anti_aliasing/screen_space_roughness_limiter/enabled (default on).
-    /// {@ key=roughnessLimiter default=1 range=0,1 label=surface text=controls.roughness_limiter engine=ProjectSettings.rendering/anti_aliasing/screen_space_roughness_limiter/enabled help=help.roughnessLimiter}
+    /// {@ key=roughnessLimiter default=1 range=0,1 label=surface text=controls-roughness_limiter engine=ProjectSettings.rendering/anti_aliasing/screen_space_roughness_limiter/enabled help=help-roughnessLimiter}
     roughnessLimiter: f32,
 }
 /// {@ shader_data}

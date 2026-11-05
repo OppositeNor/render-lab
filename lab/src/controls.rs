@@ -173,10 +173,10 @@ impl Dock<'_> {
         // The tabs wrap within the column.
         ui.horizontal_wrapped(|ui| {
             ui.set_max_width(BUTTONS);
-            let captions = self.timeline.then(|| (DockTab::Captions, tr("controls.captions")));
-            let prerequisites = crate::knowledge::current().map(|_| (DockTab::Prerequisites, tr("controls.prerequisites")));
-            let tabs = [(DockTab::Parameters, tr("controls.sliders")), (DockTab::Experiments, tr("controls.experiments")), (DockTab::Code, tr("controls.code")), (DockTab::Sources, tr("controls.source"))];
-            let graph = [(DockTab::Graph, tr("controls.frame_graph"))];
+            let captions = self.timeline.then(|| (DockTab::Captions, tr("controls-captions")));
+            let prerequisites = crate::knowledge::current().map(|_| (DockTab::Prerequisites, tr("controls-prerequisites")));
+            let tabs = [(DockTab::Parameters, tr("controls-sliders")), (DockTab::Experiments, tr("controls-experiments")), (DockTab::Code, tr("controls-code")), (DockTab::Sources, tr("controls-source"))];
+            let graph = [(DockTab::Graph, tr("controls-frame_graph"))];
             for (value, label) in tabs.into_iter().chain(prerequisites).chain(graph).chain(captions) {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
@@ -184,31 +184,31 @@ impl Dock<'_> {
             }
         });
         let full = vec2(BUTTONS, 0.0);
-        let label = if self.playing { tr("controls.stop_animation") } else { tr("controls.play_animation") };
+        let label = if self.playing { tr("controls-stop_animation") } else { tr("controls-play_animation") };
         let play = ui.add(egui::Button::new(label).min_size(full));
         if play.clicked() {
             self.actions.push(ViewerAction::TogglePlay);
         }
-        play.on_hover_text(tr("controls.play_animation_hint"));
-        let reset = ui.add(egui::Button::new(tr("controls.reset_parameters")).min_size(full));
-        if reset.on_hover_text(tr("controls.reset_parameters_hint")).clicked() {
+        play.on_hover_text(tr("controls-play_animation_hint"));
+        let reset = ui.add(egui::Button::new(tr("controls-reset_parameters")).min_size(full));
+        if reset.on_hover_text(tr("controls-reset_parameters_hint")).clicked() {
             self.actions.push(ViewerAction::ResetParameters);
         }
-        let free = ui.add(egui::Button::new(tr("controls.free_camera")).min_size(full).selected(self.state.free_camera.on));
+        let free = ui.add(egui::Button::new(tr("controls-free_camera")).min_size(full).selected(self.state.free_camera.on));
         self.widgets.push(("free-camera".into(), free.rect));
-        if free.on_hover_text(tr("controls.free_camera_hint")).clicked() {
+        if free.on_hover_text(tr("controls-free_camera_hint")).clicked() {
             self.actions.push(ViewerAction::ToggleFreeCamera);
         }
-        let layout = ui.add(egui::Button::new(tr("controls.reset_layout")).min_size(full));
+        let layout = ui.add(egui::Button::new(tr("controls-reset_layout")).min_size(full));
         self.widgets.push(("reset-layout".into(), layout.rect));
-        if layout.on_hover_text(tr("controls.reset_layout_hint")).clicked() {
+        if layout.on_hover_text(tr("controls-reset_layout_hint")).clicked() {
             self.actions.push(ViewerAction::ResetLayout);
         }
         // The narration's volume, playing or not; the timeline bar has it too.
         let mut narration = self.narration;
         let r = ui
             .horizontal(|ui| {
-                ui.label(RichText::new(tr("controls.narration")).color(palette::text_dim())).on_hover_text(tr("controls.narration_hint"));
+                ui.label(RichText::new(tr("controls-narration")).color(palette::text_dim())).on_hover_text(tr("controls-narration_hint"));
                 volume::slider(ui, &mut narration, 26.0, BUTTONS - 228.0)
             })
             .inner;
@@ -218,7 +218,7 @@ impl Dock<'_> {
         // The timeline's speed, the narration's too; the timeline bar has it too.
         let picked = ui
             .horizontal(|ui| {
-                ui.label(RichText::new(tr("controls.speed")).color(palette::text_dim())).on_hover_text(tr("controls.speed_hint"));
+                ui.label(RichText::new(tr("controls-speed")).color(palette::text_dim())).on_hover_text(tr("controls-speed_hint"));
                 let (picked, rect) = crate::ui::speed_menu(ui, "dock:speed", self.speed, 110.0);
                 self.widgets.push(("speed".into(), rect));
                 picked
@@ -243,10 +243,10 @@ impl Dock<'_> {
         });
         let focus = hovered.or(inspected).and_then(|name| view.nodes.iter().find(|n| n.name == name));
         const COLUMN: f32 = 640.0;
-        self.group(ui, &focus.map_or(tr("graph.pass").to_string(), |n| n.name.clone()), None, |d, ui| {
+        self.group(ui, &focus.map_or(tr("graph-pass").to_string(), |n| n.name.clone()), None, |d, ui| {
             ui.set_width(COLUMN);
             let Some(node) = focus else {
-                ui.add(egui::Label::new(RichText::new(tr("graph.pick_hint")).color(palette::text_dim())).wrap());
+                ui.add(egui::Label::new(RichText::new(tr("graph-pick_hint")).color(palette::text_dim())).wrap());
                 return;
             };
             if let Some((pass, at)) = &node.engine {
@@ -256,10 +256,10 @@ impl Dock<'_> {
                 ui.add(egui::Label::new(RichText::new(about).color(palette::text())).wrap());
             }
             if let Some(ms) = node.ms {
-                ui.label(RichText::new(tr_with("graph.gpu_time", args!(time = format!("{ms:.3}")))).color(palette::text_dim()));
+                ui.label(RichText::new(tr_with("graph-gpu_time", args!(time = format!("{ms:.3}")))).color(palette::text_dim()));
             }
             // What it reads and writes: a click shows that resource right after it.
-            for (label, names) in [(tr("graph.reads"), &node.reads), (tr("graph.writes"), &node.writes)] {
+            for (label, names) in [(tr("graph-reads"), &node.reads), (tr("graph-writes"), &node.writes)] {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(label).color(palette::text_dim()));
                     for name in names.iter().filter(|n| n.as_str() != "frame") {
@@ -270,7 +270,7 @@ impl Dock<'_> {
                 });
             }
         });
-        self.group(ui, tr("graph.passes"), Some(tr("graph.passes_hint")), |d, ui| {
+        self.group(ui, tr("graph-passes"), Some(tr("graph-passes_hint")), |d, ui| {
             ui.set_width(COLUMN * 0.6);
             for node in &view.nodes {
                 let selected = focus.is_some_and(|f| f.name == node.name);
@@ -289,7 +289,7 @@ impl Dock<'_> {
     /// on a topic selects it in the knowledge panel.
     fn prerequisites(&mut self, ui: &mut Ui) {
         let Some(graph) = crate::knowledge::current() else {
-            ui.label(RichText::new(tr("knowledge.none")).color(palette::text_dim()));
+            ui.label(RichText::new(tr("knowledge-none")).color(palette::text_dim()));
             return;
         };
         let chapters = crate::ui::knowledge_chapters(graph, &self.knowledge);
@@ -297,13 +297,13 @@ impl Dock<'_> {
         let context = graph.context(&chapters);
         let carried = p.carried();
         let ranks = graph.ranks();
-        let heading = if chapters.is_empty() { tr("knowledge.for_all").to_string() } else { tr_with("knowledge.for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+        let heading = if chapters.is_empty() { tr("knowledge-for_all").to_string() } else { tr_with("knowledge-for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
         // A topic: its title (a click selects it in the graph) and its summary under it.
         let topic = |d: &mut Self, ui: &mut Ui, i: usize, color: Color32| {
             let node = &graph.nodes[i];
             let mark = if carried.contains(&i) { " ↗" } else { "" };
             let r = ui.selectable_label(false, RichText::new(format!("{}{mark}", node.title)).color(color));
-            let r = if mark.is_empty() { r } else { r.on_hover_text(tr("prerequisites.carried_hint")) };
+            let r = if mark.is_empty() { r } else { r.on_hover_text(tr("prerequisites-carried_hint")) };
             if r.clicked() {
                 crate::ui::focus_topic(ui.ctx(), i);
                 if d.state.panel != PanelMode::Knowledge {
@@ -316,9 +316,9 @@ impl Dock<'_> {
         // Each group a column of this width, its summaries wrapped in it.
         const COLUMN: f32 = 360.0;
         let level: Vec<usize> = p.level.iter().copied().filter(|&i| context[i]).collect();
-        self.group(ui, tr("prerequisites.level"), Some(&format!("{heading}\n\n{}", tr("prerequisites.level_hint"))), |d, ui| {
+        self.group(ui, tr("prerequisites-level"), Some(&format!("{heading}\n\n{}", tr("prerequisites-level_hint"))), |d, ui| {
             ui.set_width(COLUMN);
-            let full = ui.button(tr("knowledge.full_screen")).on_hover_text(tr("prerequisites.full_screen_hint"));
+            let full = ui.button(tr("knowledge-full_screen")).on_hover_text(tr("prerequisites-full_screen_hint"));
             if full.clicked() {
                 d.actions.push(ViewerAction::SetKnowledgeOverlay(true));
             }
@@ -335,15 +335,15 @@ impl Dock<'_> {
             }
             known.sort_by_key(|&i| std::cmp::Reverse(ranks[i]));
             let title = match *area {
-                "gpu" => tr("knowledge.area.gpu"),
-                "rt" => tr("knowledge.area.rt"),
-                "geo" => tr("knowledge.area.geo"),
-                "cg" => tr("knowledge.area.cg"),
-                "light" => tr("knowledge.area.light"),
-                _ => tr("knowledge.area.gi"),
+                "gpu" => tr("knowledge-area-gpu"),
+                "rt" => tr("knowledge-area-rt"),
+                "geo" => tr("knowledge-area-geo"),
+                "cg" => tr("knowledge-area-cg"),
+                "light" => tr("knowledge-area-light"),
+                _ => tr("knowledge-area-gi"),
             };
-            let title = tr_with("prerequisites.known", args!(area = title));
-            self.group(ui, &title, Some(tr("prerequisites.known_hint")), |d, ui| {
+            let title = tr_with("prerequisites-known", args!(area = title));
+            self.group(ui, &title, Some(tr("prerequisites-known_hint")), |d, ui| {
                 ui.set_width(COLUMN);
                 for &i in &known {
                     topic(d, ui, i, palette::code_string());
@@ -352,7 +352,7 @@ impl Dock<'_> {
         }
         let teach: Vec<usize> = p.teach.iter().copied().filter(|&i| context[i]).collect();
         if !teach.is_empty() {
-            self.group(ui, tr("prerequisites.teach"), Some(tr("prerequisites.teach_hint")), |d, ui| {
+            self.group(ui, tr("prerequisites-teach"), Some(tr("prerequisites-teach_hint")), |d, ui| {
                 ui.set_width(COLUMN);
                 for &i in &teach {
                     topic(d, ui, i, palette::code_number());
@@ -367,12 +367,12 @@ impl Dock<'_> {
         let demo = self.state.demo;
         let listings: Vec<_> = investigation::current().listings().iter().filter(|l| l.demo.as_deref() == Some(demo.key())).collect();
         if listings.is_empty() {
-            ui.label(RichText::new(tr("controls.no_listing")).color(palette::text_dim()));
+            ui.label(RichText::new(tr("controls-no_listing")).color(palette::text_dim()));
             return;
         }
         let engine = investigation::current().wording().engine_short;
-        let hint = tr_with("controls.listing_hint", args!(engine = engine));
-        self.group(ui, tr("controls.listing"), Some(&hint), |d, ui| {
+        let hint = tr_with("controls-listing_hint", args!(engine = engine));
+        self.group(ui, tr("controls-listing"), Some(&hint), |d, ui| {
             for listing in &listings {
                 let selected = d.state.code.as_deref() == Some(listing.name);
                 if ui.selectable_label(selected, listing.title()).clicked() {
@@ -389,7 +389,7 @@ impl Dock<'_> {
                 }
             }
         }
-        self.group(ui, tr("controls.steps"), Some(tr("controls.steps_hint")), |d, ui| {
+        self.group(ui, tr("controls-steps"), Some(tr("controls-steps_hint")), |d, ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.set_max_width(520.0);
                 for tag in tags {
@@ -415,7 +415,7 @@ impl Dock<'_> {
             RecordRef::None => (0, 0),
         };
         let (name, count, make) = kinds[kind];
-        self.group(ui, tr("controls.record"), Some(tr("controls.record_hint")), |d, ui| {
+        self.group(ui, tr("controls-record"), Some(tr("controls-record_hint")), |d, ui| {
             egui::ComboBox::from_id_salt("struct").selected_text(name).width(250.0).show_ui(ui, |ui| {
                 for (other, _, make) in kinds {
                     if ui.selectable_label(other == name, other).clicked() && other != name {
@@ -427,16 +427,16 @@ impl Dock<'_> {
                 d.rows(ui, "record", |d, ui| d.index(ui, "index", Some(index), count, make));
             }
         });
-        self.group(ui, tr("controls.struct_panel"), Some(tr("controls.struct_panel_hint")), |d, ui| {
-            for (mode, label) in [(PanelMode::Declaration, tr("controls.declaration")), (PanelMode::Values, tr("controls.values")), (PanelMode::Memory, tr("controls.memory"))] {
+        self.group(ui, tr("controls-struct_panel"), Some(tr("controls-struct_panel_hint")), |d, ui| {
+            for (mode, label) in [(PanelMode::Declaration, tr("controls-declaration")), (PanelMode::Values, tr("controls-values")), (PanelMode::Memory, tr("controls-memory"))] {
                 if ui.selectable_label(d.state.panel == mode, label).clicked() {
                     d.actions.push(ViewerAction::SetPanel(mode));
                 }
             }
         });
         let fields: Vec<String> = statics.layouts.get(name).map(|s| s.fields.iter().map(|f| f.name.clone()).collect()).unwrap_or_default();
-        let none = tr("controls.none");
-        self.group(ui, tr("controls.highlight"), Some(tr("controls.highlight_hint")), |d, ui| {
+        let none = tr("controls-none");
+        self.group(ui, tr("controls-highlight"), Some(tr("controls-highlight_hint")), |d, ui| {
             let current = d.state.highlight.first().cloned();
             egui::ComboBox::from_id_salt("highlight").selected_text(current.clone().unwrap_or_else(|| none.to_string())).width(250.0).show_ui(ui, |ui| {
                 if ui.selectable_label(current.is_none(), none).clicked() {
@@ -454,7 +454,7 @@ impl Dock<'_> {
     /// The camera's values labelled `view` (src/camera.rs).
     pub fn camera(&mut self, ui: &mut Ui) {
         let entries = OrbitCamera::schema().iter().filter(|e| e.has_label("view")).collect();
-        self.entries(ui, tr("controls.camera"), Some(tr("controls.camera_hint")), "camera", entries);
+        self.entries(ui, tr("controls-camera"), Some(tr("controls-camera_hint")), "camera", entries);
     }
 
     /// A group of the values labelled `label` (src/values.rs), one row each
@@ -574,7 +574,7 @@ impl Dock<'_> {
 
     /// Checkboxes for overlay parameters (0 hidden, 1 shown), four per column.
     pub fn show(&mut self, ui: &mut Ui, toggles: &[(&'static str, &str)]) {
-        self.group(ui, tr("controls.show"), Some(tr("controls.show_hint")), |d, ui| {
+        self.group(ui, tr("controls-show"), Some(tr("controls-show_hint")), |d, ui| {
             ui.horizontal_top(|ui| {
                 for (i, column) in toggles.chunks(4).enumerate() {
                     if i > 0 {
@@ -722,7 +722,7 @@ impl Dock<'_> {
         match channel {
             Some(channel) if self.changed(key) => {
                 let default = defaults.try_get(key).map(|v| v.components().iter().map(|n| readout(*n as f64)).collect::<Vec<_>>().join(", ")).unwrap_or_default();
-                let reset = ui.add(egui::Button::new(RichText::new("↺").color(palette::accent())).small()).on_hover_text(tr_with("experiments.reset_value", args!(value = default)));
+                let reset = ui.add(egui::Button::new(RichText::new("↺").color(palette::accent())).small()).on_hover_text(tr_with("experiments-reset_value", args!(value = default)));
                 if reset.clicked() {
                     self.actions.push(ViewerAction::ResetParam(channel));
                 }
@@ -743,7 +743,7 @@ impl Dock<'_> {
         }
         let mut hint = text.to_string();
         if let Some(engine) = entry.engine {
-            hint.push_str(&format!("\n{}", tr_with("experiments.engine_property", args!(name = engine))));
+            hint.push_str(&format!("\n{}", tr_with("experiments-engine_property", args!(name = engine))));
         }
         hint_mark(ui, &hint);
     }
@@ -755,7 +755,7 @@ impl Dock<'_> {
         }
         let mut text = format!("{}\n{}", entry.key, entry.help_text());
         if let Some(engine) = entry.engine {
-            text.push_str(&format!("\n{}", tr_with("experiments.engine_property", args!(name = engine))));
+            text.push_str(&format!("\n{}", tr_with("experiments-engine_property", args!(name = engine))));
         }
         label.on_hover_text(text);
     }
@@ -769,11 +769,11 @@ impl Dock<'_> {
         let all = values::list();
         let changed: Vec<(&'static Entry, &'static str)> = all.iter().flat_map(|e| e.channels().into_iter().map(move |c| (*e, c))).filter(|(_, c)| self.changed(c)).collect();
 
-        self.group(ui, tr("experiments.experiment"), Some(tr("experiments.experiment_hint")), |d, ui| {
+        self.group(ui, tr("experiments-experiment"), Some(tr("experiments-experiment_hint")), |d, ui| {
             ui.set_max_width(330.0);
-            ui.label(RichText::new(tr_with("experiments.changed", args!(count = changed.len()))).color(palette::text_dim()));
+            ui.label(RichText::new(tr_with("experiments-changed", args!(count = changed.len()))).color(palette::text_dim()));
             if changed.is_empty() {
-                ui.label(RichText::new(tr("experiments.no_changes")).color(palette::text_faint()));
+                ui.label(RichText::new(tr("experiments-no_changes")).color(palette::text_faint()));
             }
             for (entry, channel) in changed.iter().take(8) {
                 ui.horizontal(|ui| {
@@ -786,24 +786,24 @@ impl Dock<'_> {
                 });
             }
             if changed.len() > 8 {
-                ui.label(RichText::new(tr_with("experiments.more", args!(count = changed.len() - 8))).color(palette::text_faint()));
+                ui.label(RichText::new(tr_with("experiments-more", args!(count = changed.len() - 8))).color(palette::text_faint()));
             }
-            if ui.add_enabled(!changed.is_empty(), egui::Button::new(tr("experiments.reset_all"))).clicked() {
+            if ui.add_enabled(!changed.is_empty(), egui::Button::new(tr("experiments-reset_all"))).clicked() {
                 d.actions.push(ViewerAction::ResetParameters);
             }
         });
 
         let view = self.experiment.clone();
-        self.group(ui, tr("experiments.compare"), Some(tr("experiments.compare_hint")), |d, ui| {
+        self.group(ui, tr("experiments-compare"), Some(tr("experiments-compare_hint")), |d, ui| {
             ui.set_max_width(360.0);
             ui.horizontal(|ui| {
-                if ui.button(tr("experiments.set_reference")).on_hover_text(tr("experiments.set_reference_hint")).clicked() {
+                if ui.button(tr("experiments-set_reference")).on_hover_text(tr("experiments-set_reference_hint")).clicked() {
                     d.actions.push(ViewerAction::SetReference);
                 }
-                if ui.add_enabled(view.reference, egui::Button::new(tr("experiments.swap"))).on_hover_text(tr("experiments.swap_hint")).clicked() {
+                if ui.add_enabled(view.reference, egui::Button::new(tr("experiments-swap"))).on_hover_text(tr("experiments-swap_hint")).clicked() {
                     d.actions.push(ViewerAction::SwapReference);
                 }
-                if ui.add_enabled(view.reference, egui::Button::new(tr("experiments.clear"))).clicked() {
+                if ui.add_enabled(view.reference, egui::Button::new(tr("experiments-clear"))).clicked() {
                     d.actions.push(ViewerAction::ClearReference);
                 }
             });
@@ -811,11 +811,11 @@ impl Dock<'_> {
                 ui.horizontal_wrapped(|ui| {
                     for mode in Compare::ALL {
                         let label = match mode {
-                            Compare::Off => tr("experiments.compare_off"),
-                            Compare::Wipe => tr("experiments.compare_wipe"),
-                            Compare::SideBySide => tr("experiments.compare_side"),
-                            Compare::Difference => tr("experiments.compare_difference"),
-                            Compare::Reference => tr("experiments.compare_reference"),
+                            Compare::Off => tr("experiments-compare_off"),
+                            Compare::Wipe => tr("experiments-compare_wipe"),
+                            Compare::SideBySide => tr("experiments-compare_side"),
+                            Compare::Difference => tr("experiments-compare_difference"),
+                            Compare::Reference => tr("experiments-compare_reference"),
                         };
                         if ui.selectable_label(view.compare == mode, label).clicked() {
                             d.actions.push(ViewerAction::SetCompare(mode));
@@ -823,14 +823,14 @@ impl Dock<'_> {
                     }
                 });
                 d.rows(ui, "experiment-compare", |d, ui| {
-                    if view.compare == Compare::Wipe && let Some(v) = d.number(ui, "experiment.split", tr("experiments.split"), palette::text(), view.split, 0.0..=1.0, Unit::Plain) {
+                    if view.compare == Compare::Wipe && let Some(v) = d.number(ui, "experiment.split", tr("experiments-split"), palette::text(), view.split, 0.0..=1.0, Unit::Plain) {
                         d.actions.push(ViewerAction::SetSplit(v));
                     }
-                    if view.compare == Compare::Difference && let Some(v) = d.number(ui, "experiment.gain", tr("experiments.gain"), palette::text(), view.gain, 1.0..=64.0, Unit::Factor) {
+                    if view.compare == Compare::Difference && let Some(v) = d.number(ui, "experiment.gain", tr("experiments-gain"), palette::text(), view.gain, 1.0..=64.0, Unit::Factor) {
                         d.actions.push(ViewerAction::SetGain(v));
                     }
                 });
-                if ui.button(tr("experiments.measure")).on_hover_text(tr("experiments.measure_hint")).clicked() {
+                if ui.button(tr("experiments-measure")).on_hover_text(tr("experiments-measure_hint")).clicked() {
                     d.actions.push(ViewerAction::Measure);
                 }
             });
@@ -845,20 +845,20 @@ impl Dock<'_> {
             }
         });
 
-        self.group(ui, tr("experiments.performance"), Some(tr("experiments.performance_hint")), |d, ui| {
+        self.group(ui, tr("experiments-performance"), Some(tr("experiments-performance_hint")), |d, ui| {
             // The performance panel on the right, or back to the demonstration's panel.
             let shown = d.state.panel == PanelMode::Performance;
-            let label = if shown { tr("experiments.hide_panel") } else { tr("experiments.show_panel") };
-            if ui.selectable_label(shown, label).on_hover_text(tr("experiments.show_panel_hint")).clicked() {
+            let label = if shown { tr("experiments-hide_panel") } else { tr("experiments-show_panel") };
+            if ui.selectable_label(shown, label).on_hover_text(tr("experiments-show_panel_hint")).clicked() {
                 let back = d.defaults.as_ref().map_or(PanelMode::Values, |s| s.panel);
                 d.actions.push(ViewerAction::SetPanel(if shown { back } else { PanelMode::Performance }));
             }
             // The frame graph (src/graph/) has a tab of its own.
-            if ui.selectable_label(false, tr("experiments.show_graph")).on_hover_text(tr("experiments.show_graph_hint")).clicked() {
+            if ui.selectable_label(false, tr("experiments-show_graph")).on_hover_text(tr("experiments-show_graph_hint")).clicked() {
                 d.actions.push(ViewerAction::SelectTab(DockTab::Graph));
             }
             egui::Grid::new("experiment-timings").num_columns(3).spacing(vec2(10.0, 2.0)).show(ui, |ui| {
-                ui.label(RichText::new(tr("experiments.frame")).color(palette::text_dim()));
+                ui.label(RichText::new(tr("experiments-frame")).color(palette::text_dim()));
                 ui.label(RichText::new(format!("{:.2} ms", view.frame_ms.0)).color(palette::text()));
                 ui.label(RichText::new(format!("p95 {:.2}", view.frame_ms.1)).color(palette::text_faint()));
                 ui.end_row();
@@ -870,29 +870,29 @@ impl Dock<'_> {
                 }
             });
             if view.timings.is_empty() {
-                ui.label(RichText::new(tr("experiments.no_timestamps")).color(palette::text_faint()));
+                ui.label(RichText::new(tr("experiments-no_timestamps")).color(palette::text_faint()));
             }
             if let Some(seconds) = view.rebuilding {
-                ui.label(RichText::new(tr_with("experiments.rebuilding", args!(seconds = format!("{seconds:.1}")))).color(palette::accent()));
+                ui.label(RichText::new(tr_with("experiments-rebuilding", args!(seconds = format!("{seconds:.1}")))).color(palette::accent()));
             }
         });
 
-        self.group(ui, tr("experiments.presets"), Some(tr("experiments.presets_hint")), |d, ui| {
+        self.group(ui, tr("experiments-presets"), Some(tr("experiments-presets_hint")), |d, ui| {
             ui.set_max_width(330.0);
             let name_id = egui::Id::unique("experiments-preset-name");
             let mut name = ui.data(|data| data.get_temp::<String>(name_id)).unwrap_or_default();
             ui.horizontal(|ui| {
-                if ui.add(egui::TextEdit::singleline(&mut name).hint_text(tr("experiments.preset_name")).desired_width(200.0)).changed() {
+                if ui.add(egui::TextEdit::singleline(&mut name).hint_text(tr("experiments-preset_name")).desired_width(200.0)).changed() {
                     ui.data_mut(|data| data.insert_temp(name_id, name.clone()));
                 }
-                if ui.add_enabled(!name.trim().is_empty(), egui::Button::new(tr("experiments.save"))).on_hover_text(tr("experiments.save_hint")).clicked() {
+                if ui.add_enabled(!name.trim().is_empty(), egui::Button::new(tr("experiments-save"))).on_hover_text(tr("experiments-save_hint")).clicked() {
                     d.actions.push(ViewerAction::SavePreset(name.trim().to_string()));
                 }
             });
             for (i, preset) in view.presets.iter().enumerate() {
                 let shipped = matches!(preset.source, crate::experiment::Source::Shipped(_));
-                let label = if shipped { format!("{} · {}", preset.name, tr("experiments.shipped")) } else { preset.name.clone() };
-                if ui.button(label).on_hover_text(tr("experiments.load_hint")).clicked() {
+                let label = if shipped { format!("{} · {}", preset.name, tr("experiments-shipped")) } else { preset.name.clone() };
+                if ui.button(label).on_hover_text(tr("experiments-load_hint")).clicked() {
                     d.actions.push(ViewerAction::LoadPreset(i));
                 }
             }
@@ -915,13 +915,13 @@ impl Dock<'_> {
         let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
         let mut toggle_presentation = false;
         let shown_before = ui.data(|d| d.get_temp::<bool>(shown_id)).unwrap_or(false);
-        self.group(ui, tr("controls.experiments"), Some(tr("experiments.experiment_hint")), |_, ui| {
+        self.group(ui, tr("controls-experiments"), Some(tr("experiments-experiment_hint")), |_, ui| {
             ui.set_max_width(260.0);
-            if ui.add(egui::TextEdit::singleline(&mut filter).hint_text(tr("experiments.filter")).desired_width(250.0)).changed() {
+            if ui.add(egui::TextEdit::singleline(&mut filter).hint_text(tr("experiments-filter")).desired_width(250.0)).changed() {
                 ui.data_mut(|data| data.insert_temp(filter_id, filter.clone()));
             }
-            let label = if shown_before { tr("experiments.hide_presentation").to_string() } else { tr("experiments.presentation").to_string() };
-            if ui.selectable_label(shown_before, label).on_hover_text(tr("experiments.presentation_hint")).clicked() {
+            let label = if shown_before { tr("experiments-hide_presentation").to_string() } else { tr("experiments-presentation").to_string() };
+            if ui.selectable_label(shown_before, label).on_hover_text(tr("experiments-presentation_hint")).clicked() {
                 toggle_presentation = true;
             }
         });
@@ -937,7 +937,7 @@ impl Dock<'_> {
         let scene: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_none() && !is_camera(e) && !e.labels.is_empty() && !e.toggle && matches(e)).collect();
         let presentation: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_none() && !is_camera(e) && (e.labels.is_empty() || e.toggle) && matches(e)).collect();
         if !engine.is_empty() {
-            self.group(ui, tr("experiments.engine_settings"), Some(tr("experiments.engine_settings_hint")), |d, ui| {
+            self.group(ui, tr("experiments-engine_settings"), Some(tr("experiments-engine_settings_hint")), |d, ui| {
                 let mut labels: Vec<&str> = Vec::new();
                 for e in &engine {
                     let label = e.labels.first().copied().unwrap_or("");
@@ -948,9 +948,9 @@ impl Dock<'_> {
                 ui.horizontal_top(|ui| for label in labels {
                     ui.vertical(|ui| {
                     if !label.is_empty() {
-                        // The package's name for the group (its dock's `controls.<label>`), else the label.
+                        // The package's name for the group (its dock's `controls-<label>`), else the label.
                         let package = engine.iter().find(|e| e.labels.first().copied() == Some(label)).map_or("render_lab", |e| e.package);
-                        let title = crate::i18n::try_package_text(package, &format!("controls.{label}")).unwrap_or(label);
+                        let title = crate::i18n::try_package_text(package, &format!("controls-{label}")).unwrap_or(label);
                         ui.label(RichText::new(title).color(palette::text_faint()));
                     }
                     d.rows(ui, &format!("experiment-engine-{label}"), |d, ui| {
@@ -980,12 +980,12 @@ impl Dock<'_> {
                 });
             });
         };
-        column(self, ui, tr("experiments.scene"), tr("experiments.scene_hint"), "experiment-scene", &scene);
+        column(self, ui, tr("experiments-scene"), tr("experiments-scene_hint"), "experiment-scene", &scene);
         let shown = shown_before || !needle.is_empty();
         if shown {
-            column(self, ui, tr("experiments.presentation"), tr("experiments.presentation_hint"), "experiment-presentation", &presentation);
+            column(self, ui, tr("experiments-presentation"), tr("experiments-presentation_hint"), "experiment-presentation", &presentation);
         }
         let cameras: Vec<&'static Entry> = camera.iter().filter(|e| e.has_label("view") && matches(e)).collect();
-        column(self, ui, tr("controls.camera"), tr("controls.camera_hint"), "experiment-camera", &cameras);
+        column(self, ui, tr("controls-camera"), tr("controls-camera_hint"), "experiment-camera", &cameras);
     }
 }

@@ -1,9 +1,9 @@
 # Looking down on the two decals; the point is where they overlap.
 
 key = "decals"
-title-text = "shot.decals"
-tab-text = "shot.decals"
-hint-text = "investigation.demo_hint"
+title-text = "shot-decals"
+tab-text = "shot-decals"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "decals"
 include = ["decal-camera"]

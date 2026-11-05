@@ -1,9 +1,9 @@
 # Two dozen small lights over the room, and how many each tile keeps.
 
 key = "culling"
-title-text = "common.tiled_light_culling"
-tab-text = "shot.culling"
-hint-text = "investigation.demo_hint"
+title-text = "common-tiled_light_culling"
+tab-text = "shot-culling"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "light-culling"
 include = ["render_lab.demo-preset/room-camera"]

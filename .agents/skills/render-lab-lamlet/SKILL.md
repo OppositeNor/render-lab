@@ -183,7 +183,7 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   computes nothing twice; `state`, `frame`, and `statics` read the call's context. A native works on a whole list
   (all of a lobe's directions in one call), and `lab::lamlet_record!` declares a record it returns. Its name must not
   be a value's key (the key would leave the values package).
-- **Text.** A label's or a row's text is a text key: `{labelText at {textKey "demos.observer"} color}`, or
+- **Text.** A label's or a row's text is a text key: `{labelText at {textKey "demos-observer"} color}`, or
   `{text {textKey "…"}}` for the string; the text check (`lab/check`) finds `textKey`.
 - **Errors.** A script that does not check fails when its package loads, with its line (`render-lab --investigation
   <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest

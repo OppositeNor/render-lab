@@ -1,9 +1,9 @@
 # The octree demonstration (src/godot/voxelgi/demos.rs).
 
 key = "octree"
-title-text = "shot.octree_title"
-tab-text = "shot.octree"
-hint-text = "investigation.demo_hint"
+title-text = "shot-octree_title"
+tab-text = "shot-octree"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "plot-face"
 resets-camera = true

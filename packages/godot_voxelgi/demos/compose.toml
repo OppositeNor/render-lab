@@ -1,9 +1,9 @@
 # The compose demonstration (src/godot/voxelgi/demos.rs).
 
 key = "compose"
-title-text = "shot.compose_title"
-tab-text = "shot.compose"
-hint-text = "investigation.demo_hint"
+title-text = "shot-compose_title"
+tab-text = "shot-compose"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "compose"
 resets-camera = true

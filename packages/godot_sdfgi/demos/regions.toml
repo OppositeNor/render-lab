@@ -1,9 +1,9 @@
 # The dirty slab, its geometry, and its lights.
 
 key = "regions"
-title-text = "shot.regions_title"
-tab-text = "shot.regions"
-hint-text = "investigation.demo_hint"
+title-text = "shot-regions_title"
+tab-text = "shot-regions"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room-grounds"
 listing = "regions"
 resets-camera = true

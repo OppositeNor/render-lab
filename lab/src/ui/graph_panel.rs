@@ -99,7 +99,7 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
     let mut y = rect.min.y + 16.0;
     let mean = |xs: &[f64]| if xs.is_empty() { f64::NAN } else { xs.iter().sum::<f64>() / xs.len() as f64 };
     let ms = |v: f64| if v.is_finite() { format!("{v:.2} ms") } else { "–".into() };
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.title"), 30.0, bold(), palette::text());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf-title"), 30.0, bold(), palette::text());
     y += 42.0;
     let gpu = ink.fit_right(&view.gpu, width, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, y), Align2::LEFT_TOP, gpu, 24.0, FontFamily::Proportional, palette::accent());
@@ -108,8 +108,8 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
     let recent = |xs: &[f64]| mean(&xs[xs.len().saturating_sub(30)..]);
     let (gpu_ms, frame_ms) = (recent(&view.totals), recent(&view.frames));
     let half = width / 2.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.gpu"), 24.0, FontFamily::Proportional, palette::text_dim());
-    ink.text(pos2(x + half, y), Align2::LEFT_TOP, tr("perf.frame"), 24.0, FontFamily::Proportional, palette::text_dim());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf-gpu"), 24.0, FontFamily::Proportional, palette::text_dim());
+    ink.text(pos2(x + half, y), Align2::LEFT_TOP, tr("perf-frame"), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 30.0;
     ink.text(pos2(x, y), Align2::LEFT_TOP, ms(gpu_ms), 28.0, mono_bold(), palette::text());
     let fps = if frame_ms > 0.0 { format!("{} · {:.0} fps", ms(frame_ms).replace(" ms", ""), 1000.0 / frame_ms) } else { ms(frame_ms) };
@@ -145,17 +145,17 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
         painter.add(egui::Shape::line(points, Stroke::new(thickness, color)));
     }
     y = graph.max.y + 8.0;
-    let caption = tr_with("perf.history", args!(frames = view.totals.len().max(view.frames.len())));
+    let caption = tr_with("perf-history", args!(frames = view.totals.len().max(view.frames.len())));
     ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&caption, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_faint());
     y += 34.0;
     painter.line_segment([pos2(x, y), pos2(right, y)], Stroke::new(1.0, palette::border()));
     y += 10.0;
     if !view.timestamps {
-        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("perf.no_timestamps"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("perf-no_timestamps"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
         return;
     }
     if view.passes.is_empty() {
-        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf.measuring"), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("perf-measuring"), 24.0, FontFamily::Proportional, palette::text_dim());
         return;
     }
     // One row per pass, the most expensive first, as many as fit: its name,
@@ -192,7 +192,7 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
     }
     if shown < order.len() {
         let rest: f64 = order[shown..].iter().map(|p| p.1).sum();
-        let more = tr_with("perf.more", args!(count = order.len() - shown, time = format!("{rest:.2}")));
+        let more = tr_with("perf-more", args!(count = order.len() - shown, time = format!("{rest:.2}")));
         ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&more, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_faint());
     }
 }
@@ -286,9 +286,9 @@ pub(super) fn draw_graph_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view:
         let (_, _, reads, writes) = *view.uses.iter().find(|u| u.0 == r && u.1 == c).expect("a use");
         let resource = &view.resources[c];
         let verb = match (reads, writes) {
-            (true, true) => tr("graph.reads_writes"),
-            (false, true) => tr("graph.writes"),
-            _ => tr("graph.reads"),
+            (true, true) => tr("graph-reads_writes"),
+            (false, true) => tr("graph-writes"),
+            _ => tr("graph-reads"),
         };
         let line = format!("{} {verb} {}", view.nodes[r].name, resource.name);
         ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(&line, width, 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, palette::text());
@@ -303,7 +303,7 @@ pub(super) fn draw_graph_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view:
         ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(&detail, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
         fy += 30.0;
     } else {
-        ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(tr("graph.hint"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(tr("graph-hint"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
         fy += 90.0;
     }
     // The legend: one swatch per kind of lifetime.
@@ -361,20 +361,20 @@ pub(super) fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &Gr
         let pointer = ctx.input(|i| i.pointer.hover_pos());
         let clicked = ctx.input(|i| i.pointer.primary_clicked());
         let mut buttons: Vec<(&str, bool, GraphPick)> = vec![
-            if full { (tr("graph.close"), false, GraphPick::Overlay(false)) } else { (tr("graph.full_screen"), false, GraphPick::Overlay(true)) },
-            (tr("graph.resources"), place == GraphPlace::Resources, GraphPick::Panel(PanelMode::Resources)),
-            (tr("graph.dag"), place == GraphPlace::Dag, GraphPick::Panel(PanelMode::Dag)),
+            if full { (tr("graph-close"), false, GraphPick::Overlay(false)) } else { (tr("graph-full_screen"), false, GraphPick::Overlay(true)) },
+            (tr("graph-resources"), place == GraphPlace::Resources, GraphPick::Panel(PanelMode::Resources)),
+            (tr("graph-dag"), place == GraphPlace::Dag, GraphPick::Panel(PanelMode::Dag)),
         ];
         if !full {
-            buttons.push((tr("graph.grid"), place == GraphPlace::Grid, GraphPick::Panel(PanelMode::Graph)));
+            buttons.push((tr("graph-grid"), place == GraphPlace::Grid, GraphPick::Panel(PanelMode::Graph)));
         }
         // The full-screen DAG, a pass selected: its WGSL beside the graph, or not.
         if let (Some(open), true) = (source, view.inspected.is_some() || source == Some(true)) {
-            buttons.push((if open { tr("graph.hide_source") } else { tr("graph.show_source") }, false, GraphPick::Source(!open)));
+            buttons.push((if open { tr("graph-hide_source") } else { tr("graph-show_source") }, false, GraphPick::Source(!open)));
         }
         // The views whose nodes move: a button to put them back.
         if place != GraphPlace::Grid {
-            buttons.push((tr("graph.reset"), false, GraphPick::Reset));
+            buttons.push((tr("graph-reset"), false, GraphPick::Reset));
         }
         for (label, active, action) in buttons {
             let size = ink.measure(label, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
@@ -390,9 +390,9 @@ pub(super) fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &Gr
             buttons_left = button.min.x - 8.0;
         }
     }
-    ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("graph.title"), (buttons_left - x).max(0.0), 30.0, bold()), 30.0, bold(), palette::text());
+    ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("graph-title"), (buttons_left - x).max(0.0), 30.0, bold()), 30.0, bold(), palette::text());
     y += 42.0;
-    let summary = tr_with("graph.summary", args!(nodes = view.nodes.len(), resources = view.resources.len()));
+    let summary = tr_with("graph-summary", args!(nodes = view.nodes.len(), resources = view.resources.len()));
     ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&summary, right - x, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
     (y + 36.0, pick)
 }
@@ -522,7 +522,7 @@ pub(super) fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &
                 picture: n.thumbnail.filter(|_| n.live),
                 tint: if any_lit && !is_lit { Color32::from_gray(140) } else { Color32::WHITE },
                 badge: n.ms.filter(|_| view.timestamps).map(|ms| format!("{ms:.2} ms")),
-                note: Some(if n.live { "–".to_string() } else { tr("graph.culled").to_string() }),
+                note: Some(if n.live { "–".to_string() } else { tr("graph-culled").to_string() }),
                 hidden: false,
                 alpha: 1.0,
             }
@@ -589,7 +589,7 @@ pub(super) fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &
             footer_text(ink, pos2(x, fy), width, about, 2);
         }
     } else {
-        footer_text(ink, pos2(x, fy), width, tr("graph.dag_hint"), 3);
+        footer_text(ink, pos2(x, fy), width, tr("graph-dag_hint"), 3);
     }
     // The dock's Frame graph tab describes the card under the pointer.
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("frame-graph-hovered"), hovered.map(|i| view.nodes[i].name.clone())));
@@ -609,7 +609,7 @@ pub(super) fn draw_source_pane(ctx: &egui::Context, ink: &Ink, rect: Rect, view:
     let mut y = rect.min.y + 16.0;
     let node = view.inspected.as_deref().and_then(|k| k.rsplit_once('.')).map(|(n, _)| n.to_string());
     let Some(node) = node else {
-        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("graph.source_pick"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(tr("graph-source_pick"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
         return;
     };
     let shading = investigation::current().scene_shading();
@@ -618,7 +618,7 @@ pub(super) fn draw_source_pane(ctx: &egui::Context, ink: &Ink, rect: Rect, view:
     let (module, entries) = crate::graph::source_of(shading, &graph.nodes[n]);
     ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&format!("WGSL · {node}"), width, 30.0, bold()), 30.0, bold(), palette::text());
     y += 42.0;
-    let from = tr_with("graph.source_module", args!(module = module, entries = entries.join(", ")));
+    let from = tr_with("graph-source_module", args!(module = module, entries = entries.join(", ")));
     ink.text(pos2(x, y), Align2::LEFT_TOP, ink.fit_right(&from, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
     y += 36.0;
     if let Some(error) = failed {
@@ -757,19 +757,19 @@ pub(super) fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, vi
     if let Some(k) = hovered.or(inspected) {
         let resource = &view.resources[shown[k]];
         let head = match &resource.key {
-            Some(key) => format!("{} · {}", resource.name, tr_with("graph.after", args!(node = key.rsplit_once('.').map_or("", |(n, _)| n)))),
+            Some(key) => format!("{} · {}", resource.name, tr_with("graph-after", args!(node = key.rsplit_once('.').map_or("", |(n, _)| n)))),
             None => resource.name.clone(),
         };
         ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(&head, width, 24.0, FontFamily::Monospace), 24.0, FontFamily::Monospace, palette::text());
         fy += 30.0;
-        for (label, names) in [(tr("graph.written_by"), &resource.writers), (tr("graph.read_by"), &resource.readers)] {
+        for (label, names) in [(tr("graph-written_by"), &resource.writers), (tr("graph-read_by"), &resource.readers)] {
             let list = if names.is_empty() { "–".to_string() } else { names.join(", ") };
             let text = format!("{label}: {list}");
             ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(&text, width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
             fy += 30.0;
         }
     } else {
-        ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(tr("graph.resources_hint"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, fy), Align2::LEFT_TOP, ink.fit_right(tr("graph-resources_hint"), width, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, palette::text_dim());
     }
     picks.clicked.and_then(|k| view.resources[shown[k]].key.clone()).map(GraphPick::Inspect)
 }
@@ -829,10 +829,10 @@ pub(super) fn graph_action(pick: GraphPick, view: &GraphView) -> ViewerAction {
 
 pub(super) fn graph_lifetime_label(lifetime: crate::graph::Lifetime) -> &'static str {
     match lifetime {
-        crate::graph::Lifetime::Imported => tr("graph.imported"),
-        crate::graph::Lifetime::Transient => tr("graph.transient"),
-        crate::graph::Lifetime::Persistent => tr("graph.persistent"),
-        crate::graph::Lifetime::History => tr("graph.history"),
+        crate::graph::Lifetime::Imported => tr("graph-imported"),
+        crate::graph::Lifetime::Transient => tr("graph-transient"),
+        crate::graph::Lifetime::Persistent => tr("graph-persistent"),
+        crate::graph::Lifetime::History => tr("graph-history"),
     }
 }
 
@@ -841,11 +841,11 @@ pub(super) fn graph_lifetime_label(lifetime: crate::graph::Lifetime) -> &'static
 /// A story's `highlight` names them by `name`, as measured.
 pub fn pass_label(name: &str) -> &str {
     match name {
-        "depth views" => tr("perf.pass_depth_views"),
-        "depth pre-pass" => tr("perf.pass_prepass"),
-        "scene pass" => tr("perf.pass_scene"),
-        "overlay" => tr("perf.pass_overlay"),
-        "composite" => tr("perf.pass_composite"),
+        "depth views" => tr("perf-pass_depth_views"),
+        "depth pre-pass" => tr("perf-pass_prepass"),
+        "scene pass" => tr("perf-pass_scene"),
+        "overlay" => tr("perf-pass_overlay"),
+        "composite" => tr("perf-pass_composite"),
         other => other,
     }
 }

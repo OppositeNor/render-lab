@@ -4,9 +4,9 @@
 # vertex normals.
 
 key = "terrain"
-title-text = "shot.terrain"
-tab-text = "shot.terrain"
-hint-text = "investigation.demo_hint"
+title-text = "shot-terrain"
+tab-text = "shot-terrain"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/terrain"
 listing = "forward-pass"
 

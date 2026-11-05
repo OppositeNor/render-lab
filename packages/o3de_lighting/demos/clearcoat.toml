@@ -1,9 +1,9 @@
 # A glossy coat over a rough metal: the coat's sharp highlight sits on the base's broad one.
 
 key = "clearcoat"
-title-text = "shot.clear_coat"
-tab-text = "shot.clear_coat"
-hint-text = "investigation.demo_hint"
+title-text = "shot-clear_coat"
+tab-text = "shot-clear_coat"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "clear-coat"
 include = ["close-up", "sphere-camera"]

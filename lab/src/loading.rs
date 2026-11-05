@@ -44,20 +44,20 @@ impl Loading {
         let ids = scene.resources();
         // Each resource, the scene's statics, then the renderer.
         let total = ids.len() + 2;
-        let progress = Arc::new(Mutex::new(Progress { step: tr("loading.waiting").to_string(), done: 0, total }));
+        let progress = Arc::new(Mutex::new(Progress { step: tr("loading-waiting").to_string(), done: 0, total }));
         let shared = progress.clone();
         let worker = std::thread::spawn(move || {
             investigation::scoped(investigation, || {
                 let step = |step: String, done: usize| *shared.lock().unwrap() = Progress { step, done, total };
                 for (i, id) in ids.iter().enumerate() {
-                    step(tr_with("loading.resource", args!(name = id)), i);
+                    step(tr_with("loading-resource", args!(name = id)), i);
                     resources::get(id).prepare()?;
                 }
-                step(tr("loading.scene").to_string(), ids.len());
+                step(tr("loading-scene").to_string(), ids.len());
                 let statics = Statics::prepare(scene)?;
-                step(tr("loading.renderer").to_string(), ids.len() + 1);
+                step(tr("loading-renderer").to_string(), ids.len() + 1);
                 let renderer = Renderer::new(gpu, statics, size[0].max(64), size[1].max(64))?;
-                step(tr("loading.done").to_string(), total);
+                step(tr("loading-done").to_string(), total);
                 Ok(renderer)
             })
         });

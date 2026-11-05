@@ -97,11 +97,11 @@ impl Investigation for VoxelGi {
     }
 
     fn title(&self) -> &'static str {
-        tr("investigation.title")
+        tr("investigation-title")
     }
 
     fn summary(&self) -> &'static str {
-        tr("investigation.summary")
+        tr("investigation-summary")
     }
 
     fn wording(&self) -> &'static Wording {
@@ -109,7 +109,7 @@ impl Investigation for VoxelGi {
     }
 
     fn footer(&self) -> &'static str {
-        tr("investigation.footer")
+        tr("investigation-footer")
     }
 
     fn sources(&self) -> &'static SourceIndex {
@@ -150,14 +150,14 @@ impl Investigation for VoxelGi {
 
     fn pass_about(&self, node: &str) -> Option<&'static str> {
         Some(match node {
-            "voxelgiLightCS" => tr("pass.voxelgiLightCS"),
-            "voxelgiBounceCS" => tr("pass.voxelgiBounceCS"),
-            "voxelgiMipmapsCS" => tr("pass.voxelgiMipmapsCS"),
-            "voxelgiWriteCS" => tr("pass.voxelgiWriteCS"),
-            "voxelgiPrepassFS" => tr("pass.voxelgiPrepassFS"),
-            "voxelgiForwardFS" => tr("pass.voxelgiForwardFS"),
-            "voxelgiGiCS" => tr("pass.voxelgiGiCS"),
-            "voxelgiComposeCS" => tr("pass.voxelgiComposeCS"),
+            "voxelgiLightCS" => tr("pass-voxelgiLightCS"),
+            "voxelgiBounceCS" => tr("pass-voxelgiBounceCS"),
+            "voxelgiMipmapsCS" => tr("pass-voxelgiMipmapsCS"),
+            "voxelgiWriteCS" => tr("pass-voxelgiWriteCS"),
+            "voxelgiPrepassFS" => tr("pass-voxelgiPrepassFS"),
+            "voxelgiForwardFS" => tr("pass-voxelgiForwardFS"),
+            "voxelgiGiCS" => tr("pass-voxelgiGiCS"),
+            "voxelgiComposeCS" => tr("pass-voxelgiComposeCS"),
             _ => return None,
         })
     }

@@ -115,7 +115,7 @@ ${cue "key" {'
 
 ${cue "key" {chainTarget "depth" 5.0 imageCornerTopLeft {'
     {imageFar 4.0}
-    {imageTitle "views.depth_prepass"}}}}
+    {imageTitle "views-depth_prepass"}}}}
 ${cue "key" {' {callout "depth-prepass"}}}
 The pre-pass stores only depth, as a thirty-two bit float, with an eight bit stencil beside it that we come back to.
 
@@ -129,13 +129,13 @@ $settle The view draws that distance as brightness, from bright at the camera to
 $settle ${cue "key" {'
     {inset "depth"}
     {mark 0.05 0.66 0.95 1.0}
-    {imageMarkText "views.mark_near"}
+    {imageMarkText "views-mark_near"}
     {blend 0.6}}} So the floor in front of us, a metre or two away, is bright.
 
 $settle ${cue "key" {'
     {inset "depth"}
     {mark 0.22 0.1 0.78 0.46}
-    {imageMarkText "views.mark_far"}
+    {imageMarkText "views-mark_far"}
     {blend 0.6}}} The back wall, several metres farther, is a darker blue.
 
 $settle Where two surfaces at different distances meet, the brightness jumps.
@@ -145,7 +145,7 @@ $settle That jump is why the outlines of the sphere and the boxes stand out agai
 $settle ${cue "key" {'
     {inset "depth"}
     {mark 0.0 0.0 1.0 0.1}
-    {imageMarkText "views.mark_nothing_drawn"}
+    {imageMarkText "views-mark_nothing_drawn"}
     {blend 0.6}}} Where no mesh was drawn, as in the sky, the depth keeps its clear value of zero.
 
 $settle Zero is the farthest depth, because depth is reversed, so the view shows it as black.
@@ -170,7 +170,7 @@ ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 10.0 14.0 5.4} {pose -6.0 10.0 5.8} {pose 8.0 16.0 5.2}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views-target_diffuse"}}}}
 ${cue "key" {' {callout "forward-targets"}}}
 The forward pass writes five targets at once.
 
@@ -181,7 +181,7 @@ Each view shows one target as the pass leaves it.
 $settle ${cue "key" {'
     {inset "t0"}
     {mark 0.41 0.37 0.57 0.57}
-    {imageMarkText "views.mark_p"}
+    {imageMarkText "views-mark_p"}
     {blend 0.6}}} In every view, this ring marks P's pixel.
 
 $settle Reading the same pixel across the five views is how we follow what the forward pass stored for P.
@@ -189,7 +189,7 @@ $settle Reading the same pixel across the five views is how we follow what the f
 ${cue "key" {' {inset "t0"} unmark}}
 ${cue "key" {chainTarget "t1" 1.0 imageCornerTopLeft {'
     {imageStops 2.0}
-    {imageTitle "views.target_specular"}}}}
+    {imageTitle "views-target_specular"}}}}
 ${cue "key" {' {callout "target-formats"}}}
 Diffuse light and specular light go to two separate half-float targets.
 
@@ -202,19 +202,19 @@ $settle The view tone maps that light, squeezing values above one into the scree
 $settle ${cue "key" {'
     {inset "t0"}
     {mark 0.5 0.62 0.98 0.98}
-    {imageMarkText "views.mark_lit"}
+    {imageMarkText "views-mark_lit"}
     {blend 0.6}}} So the floor is bright where the sun and the point light reach it.
 
 $settle ${cue "key" {'
     {inset "t0"}
     {mark 0.3 0.5 0.62 0.72}
-    {imageMarkText "views.mark_shadow"}
+    {imageMarkText "views-mark_shadow"}
     {blend 0.6}}} In the sun's shadow it is black, not dark grey, because the sky's light has not been added yet.
 
 $settle ${cue "key" {'
     {inset "t1"}
     {mark 0.68 0.05 0.97 0.62}
-    {imageMarkText "views.mark_sheen"}
+    {imageMarkText "views-mark_sheen"}
     {blend 0.6}}} The specular target is shown two stops brighter, because the light reflected toward us is much weaker.
 
 $settle It holds only that reflected light, such as the highlights, and the faint shine on the walls that face the sun.
@@ -225,7 +225,7 @@ $settle Later passes add these two together with the sky's light, and apply the 
 
 ${cue "key" {' {inset "t0"} unmark}}
 ${cue "key" {' {inset "t1"} unmark}}
-${cue "key" {chainTarget "t2" 2.0 imageCornerBottomLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {chainTarget "t2" 2.0 imageCornerBottomLeft {' {imageTitle "views-target_albedo"}}}}
 ${cue "key" {' {callout "forward-albedo-target"}}}
 The third target holds the albedo, the surface's own colour.
 
@@ -234,7 +234,7 @@ Its fourth channel holds the specular occlusion, how much of the reflections a c
 $settle ${cue "key" {'
     {inset "t2"}
     {mark 0.0 0.05 0.24 0.8}
-    {imageMarkText "views.mark_base_colour"}
+    {imageMarkText "views-mark_base_colour"}
     {blend 0.6}}} Read it as plain colours, with eight bits a channel, from zero to one.
 
 $settle These colours are a little darker than the base colours, because the diffuse response and the material's diffuse occlusion are already multiplied in.
@@ -247,7 +247,7 @@ $settle That pass needs no material data of its own.
 
 ${cue "key" {' {inset "t2"} unmark}}
 ${cue "key" {chainTarget "t3" 3.0 imageCornerBottomLeft {'
-    {imageTitle "views.target_specular_f0"}}}}
+    {imageTitle "views-target_specular_f0"}}}}
 ${cue "key" {' {callout "forward-f0-target"}}}
 The next target holds F zero, the colour a surface reflects when it is seen head on.
 
@@ -256,7 +256,7 @@ Its fourth channel holds the roughness.
 $settle ${cue "key" {'
     {inset "t3"}
     {mark 0.03 0.05 0.97 0.97}
-    {imageMarkText "views.mark_f0_grey"}
+    {imageMarkText "views-mark_f0_grey"}
     {blend 0.6}}} In this view, every surface is nearly black.
 
 $settle Each is a four percent grey, which is how much light a dielectric reflects head on.
@@ -272,7 +272,7 @@ $settle The values panel lists its value for P instead.
 ${cue "key" {' {inset "t3"} unmark}}
 ${cue "key" {chainTarget "t4" 4.0 imageCornerBottomLeft {'
     {imageChannel 5.0}
-    {imageTitle "views.target_normal"}}}}
+    {imageTitle "views-target_normal"}}}}
 ${cue "key" {' {callout "normal-encoding"}}}
 The last target holds the normal, packed into ten bits per channel.
 
@@ -285,7 +285,7 @@ $settle A component of minus one is drawn dark, zero at half brightness, and one
 $settle ${cue "key" {'
     {inset "t4"}
     {mark 0.05 0.62 0.95 1.0}
-    {imageMarkText "views.mark_up_green"}
+    {imageMarkText "views-mark_up_green"}
     {blend 0.6}}} The floor faces straight up, along y, so its green is full.
 
 $settle The floor's red and blue sit at half, which makes a light green.
@@ -293,13 +293,13 @@ $settle The floor's red and blue sit at half, which makes a light green.
 $settle ${cue "key" {'
     {inset "t4"}
     {mark 0.2 0.05 0.8 0.45}
-    {imageMarkText "views.mark_toward_blue"}
+    {imageMarkText "views-mark_toward_blue"}
     {blend 0.6}}} The back wall faces us, along z, so it is a lavender blue.
 
 $settle ${cue "key" {'
     {inset "t4"}
     {mark 0.0 0.05 0.2 0.8}
-    {imageMarkText "views.mark_x_red"}
+    {imageMarkText "views-mark_x_red"}
     {blend 0.6}}} The left wall faces along x, so its red is full, and it shows pink.
 
 $settle Curved surfaces, like the sphere, run through every colour, because their normal turns from pixel to pixel.
@@ -327,7 +327,7 @@ ${cue "key" {'
 
 ${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {'
     {imageChannel 0.0}
-    {imageTitle "views.target_normal"}}}}
+    {imageTitle "views-target_normal"}}}}
 ${cue "key" {' {callout "normal-encoding"}}}
 The normal target stores the normal in signed octahedral form.
 
@@ -365,7 +365,7 @@ ${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 22.0 18.0 6.0} {pose -8.0 14.0 6.4} {pose 14.0 20.0 5.8}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views-target_diffuse"}}}}
 ${cue "key" {' {callout "forward-opaque"}}}
 For an opaque surface, the forward pass adds only direct light, from the sun and the point light.
 
@@ -404,7 +404,7 @@ ${cue "key" {append baseLight {'
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 16.0 18.0 6.0} {pose 0.0 12.0 6.4} {pose 18.0 20.0 5.8}}}}}}}
 
-${cue "key" {chainTarget "st" 6.0 imageCornerTopLeft {' {imageTitle "views.stencil"}}}}
+${cue "key" {chainTarget "st" 6.0 imageCornerTopLeft {' {imageTitle "views-stencil"}}}}
 ${cue "key" {' {callout "stencil-refs"}}}
 Each mesh also writes a stencil value, a byte per pixel, and the full-screen passes test it to choose which pixels they shade.
 
@@ -416,7 +416,7 @@ Its two lowest bits are worth three together, and when they are set, the reflect
 $settle ${cue "key" {'
     {inset "st"}
     {mark 0.0 0.0 1.0 0.1}
-    {imageMarkText "views.mark_nothing_drawn"}
+    {imageMarkText "views-mark_nothing_drawn"}
     {blend 0.6}}} In the stencil view, black is a pixel that nothing drew, so its stencil stays zero.
 
 $settle Every mesh writes its own reference value, and the view gives each value a colour.
@@ -426,7 +426,7 @@ $settle Violet would mean the top bit alone, so the sky's diffuse light but no r
 $settle ${cue "key" {'
     {inset "st"}
     {mark 0.04 0.1 0.96 1.0}
-    {imageMarkText "views.mark_meshes"}
+    {imageMarkText "views-mark_meshes"}
     {blend 0.6}}} Teal means the top bit together with the two low bits, so the pixel gets both passes.
 
 $settle Every mesh here is teal.
@@ -493,14 +493,14 @@ ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 22.0 20.0 6.2} {pose 2.0 14.0 6.6} {pose -12.0 18.0 6.0}}}}}}}
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {chainTarget "t0" 0.0 imageCornerTopLeft {' {imageTitle "views-target_diffuse"}}}}
 So the forward pass does not finish a pixel.
 
 It leaves direct light in two targets, and the surface in three more.
 
 ${cue "key" {chainTarget "t4" 4.0 imageCornerTopLeft {'
     {imageChannel 5.0}
-    {imageTitle "views.target_normal"}}}}
+    {imageTitle "views-target_normal"}}}}
 The passes after it read those targets to add the sky, the reflections, and the occlusion.
 
 $settle Before any of that, the engine has to decide which lights reach each tile, and that is the next part.
@@ -554,7 +554,7 @@ $settle Each tile's list is split again by depth, into slabs called depth bins, 
 $settle ${cue "key" {'
     {label "few"}
     {labelAt {at 1.8 2.4 -2.95}}
-    {labelText "views.mark_few_lights"}
+    {labelText "views-mark_few_lights"}
     {blend 0.6}}} In this left view, dark blue means no lights at all.
 
 $settle High on the back wall, every light is out of reach.
@@ -564,7 +564,7 @@ $settle Teal is a few, and the ramp runs up to yellow at eight or more.
 $settle ${cue "key" {'
     {label "many"}
     {labelAt {at -1.05 1.3 -0.55}}
-    {labelText "views.mark_many_lights"}
+    {labelText "views-mark_many_lights"}
     {blend 0.6}}} Over the cluster of lights around the sphere, tiles keep eight or more.
 
 $settle So two pixels of one tile can show different counts, when they lie in different depth bins.
@@ -597,7 +597,7 @@ The tile keeps the nearest and the farthest of those distances, called z near an
 
 ${cue "key" {chainTarget "d" 5.0 imageCornerBottomLeft {'
     {imageFar 8.0}
-    {imageTitle "views.depth_prepass"}}}}
+    {imageTitle "views-depth_prepass"}}}}
 ${cue "key" {' {callout "tile-prepare"}}}
 The pass reads both multisampling samples of each pixel, so a thin edge still counts.
 
@@ -642,7 +642,7 @@ ${cue "key" {'
     imageFromTileGrid
     {imageMode 2.0}
     imageCornerTopLeft
-    {imageTitle "views.tile_bins"}}}
+    {imageTitle "views-tile_bins"}}}
 ${cue "key" {' {callout "tile-prepare"}}}
 The tile also chooses how many depth bins its lists are split into, either one, two, four, or ${spoken
     {maxBins}}.
@@ -656,7 +656,7 @@ $settle Most tiles cover one surface and keep a single bin.
 $settle ${cue "key" {'
     {inset "bins"}
     {mark 0.25 0.32 0.85 0.62}
-    {imageMarkText "views.mark_more_bins"}
+    {imageMarkText "views-mark_more_bins"}
     {blend 0.6}}} The bright ones run along edges, where one tile spans the sphere and the wall behind it.
 
 $settle There, more bins mean that a pixel at the front reads only the lights near the front.
@@ -726,7 +726,7 @@ ${cue "key" {'
     {inset "list"}
     imageFromLightList
     imageCornerBottomLeft
-    {imageTitle "views.light_list"}}}
+    {imageTitle "views-light_list"}}}
 ${cue "key" {' {callout "light-index-pack"}}}
 Each kept light becomes one entry in the tile's list.
 
@@ -735,7 +735,7 @@ The entry packs the light's index into its upper sixteen bits and the eight bin 
 $settle ${cue "key" {'
     {inset "list"}
     {mark 0.0 0.0 1.0 0.13}
-    {imageMarkText "views.mark_tile_list"}
+    {imageMarkText "views-mark_tile_list"}
     {blend 0.6}}} A new view shows the lists, and it reads from the top.
 
 $settle The first row is the tile's list as the culling wrote it, with one cell per light it kept.
@@ -747,7 +747,7 @@ $settle The lights of one type form a group, and a darker cell, a marker, closes
 $settle ${cue "key" {'
     {inset "list"}
     {mark 0.0 0.14 1.0 1.0}
-    {imageMarkText "views.mark_bin_rows"}
+    {imageMarkText "views-mark_bin_rows"}
     {blend 0.6}}} Below that first row are the lists for the depth bins, one row per bin.
 
 $settle Each row holds only the lights that overlap its bin, and it ends in a black end-of-list marker.
@@ -755,7 +755,7 @@ $settle Each row holds only the lights that overlap its bin, and it ends in a bl
 $settle ${cue "key" {'
     {inset "list"}
     {mark 0.0 0.14 0.1 0.3}
-    {imageMarkText "views.mark_p_bin"}
+    {imageMarkText "views-mark_p_bin"}
     {blend 0.6}}} The row marked on the left is P's bin, the one list the forward pass will read for P.
 
 ${cue "key" {' {inset "list"} unmark}}
@@ -794,14 +794,14 @@ ${cue "key" {'
     imageFromLightList
     {imageWalked 0.0}
     imageCornerBottomLeft
-    {imageTitle "views.light_list"}}}
+    {imageTitle "views-light_list"}}}
 ${cue "key" {' {callout "tile-iterator"}}}
 In the forward pass, P finds its tile, then the bin its own depth falls in.
 
 $settle ${cue "key" {'
     {inset "list"}
     {mark 0.0 0.14 0.45 0.3}
-    {imageMarkText "views.mark_read_so_far"}
+    {imageMarkText "views-mark_read_so_far"}
     {blend 0.6}}} In P's row, the lit cells are the entries the loop has read so far.
 
 $settle The dim cells are still ahead of the loop.
@@ -900,7 +900,7 @@ ${cue "key" {'
     {inset "list"}
     imageFromLightList
     imageCornerBottomLeft
-    {imageTitle "views.light_list"}}}
+    {imageTitle "views-light_list"}}}
 ${cue "key" {' {callout "polygon-not-culled"}}}
 The code shows that polygon lights, area lights shaped as polygons, have no group in the list.
 
@@ -963,7 +963,7 @@ For each pixel, the material first evaluates a surface, a small set of numbers t
 
 They are the base colour, metallic, the specular factor that scales F zero, roughness, the normal, and the occlusion.
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views-target_albedo"}}}}
 ${cue "key" {' {callout "base-colour-acescg"}}}
 A colour property is first converted from linear sRGB into ACEScg, the colour space the lighting works in.
 
@@ -974,8 +974,8 @@ The albedo view shows the colour after that conversion, as the lighting uses it.
 ${cue "key" {opening demoSurface panelValues 0.5 {' {labels 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
-${cue "key" {chainTarget "f" 3.0 imageCornerTopLeft {' {imageTitle "views.target_specular_f0"}}}}
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views-target_albedo"}}}}
+${cue "key" {chainTarget "f" 3.0 imageCornerTopLeft {' {imageTitle "views-target_specular_f0"}}}}
 ${cue "key" {' {callout "set-albedo-f0"}}}
 One base colour feeds two outputs.
 
@@ -989,7 +989,7 @@ ${overCallout
 $settle ${cue "key" {'
     {inset "a"}
     {mark 0.28 0.42 0.62 0.98}
-    {imageMarkText "views.mark_albedo"}
+    {imageMarkText "views-mark_albedo"}
     {blend 0.6}}} Watch the sphere in the albedo target, on the left.
 
 $settle As metallic rises, the sphere goes from its base colour to black.
@@ -997,7 +997,7 @@ $settle As metallic rises, the sphere goes from its base colour to black.
 $settle ${cue "key" {'
     {inset "f"}
     {mark 0.28 0.42 0.62 0.98}
-    {imageMarkText "views.mark_f0"}
+    {imageMarkText "views-mark_f0"}
     {blend 0.6}}} In F zero, beside it, the same sphere goes from four percent grey to its base colour.
 
 $settle The colour has moved from the diffuse light to the reflection, and that move is what metallic means here.
@@ -1126,7 +1126,7 @@ In O3DE twenty-six oh five, the forward pass first sets up its lighting data fro
 
 Only then does it apply the decals, to a copy of the surface that the lights read.
 
-${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {chainTarget "a" 2.0 imageCornerTopLeft {' {imageTitle "views-target_albedo"}}}}
 ${cue "key" {' {callout "forward-albedo-target"}}}
 The code shows that the direct lights see the decal.
 
@@ -1137,7 +1137,7 @@ So the sky's light, which a full-screen pass adds later from those targets, igno
 $settle ${cue "key" {'
     {inset "a"}
     {mark 0.08 0.6 0.92 1.0}
-    {imageMarkText "views.mark_no_decal"}
+    {imageMarkText "views-mark_no_decal"}
     {blend 0.6}}} In the albedo view, the floor under the decals is plain, with none of the decals' paint or grid lines.
 
 $settle So under a decal, the sky's diffuse light and the reflections still use the colour and the normal from before the decal.
@@ -1385,7 +1385,7 @@ ${cue "key" {opening demoMultiscatter panelValues 0.4 {' {sphereRoughness 0.5} v
 ${cue "key" {append teapotPoint {' {inspectObject 8.0} {pickShown 1.0}}}}
 ${cue "key" {' {motion {' {cameraPath brdfSweep}}}}}
 
-${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}}
+${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views-brdf_lut"}}}
 ${cue "key" {' {callout "brdf-execute-once"}}}
 At start-up, before the first frame, a compute pass fills the BRDF look-up texture, two hundred and fifty-six texels on a side.
 
@@ -1398,7 +1398,7 @@ Each texel averages the GGX reflection over the hemisphere, once for an F zero o
 $settle ${cue "key" {'
     {inset "lut"}
     {mark 0.0 0.0 0.5 1.0}
-    {imageMarkText "views.mark_scale_a"}
+    {imageMarkText "views-mark_scale_a"}
     {blend 0.6}}} The view shows the texture's two channels side by side.
 
 $settle On the left is the scale A, in red, the part of the reflection that grows with F zero.
@@ -1406,7 +1406,7 @@ $settle On the left is the scale A, in red, the part of the reflection that grow
 $settle ${cue "key" {'
     {inset "lut"}
     {mark 0.5 0.0 1.0 1.0}
-    {imageMarkText "views.mark_bias_b"}
+    {imageMarkText "views-mark_bias_b"}
     {blend 0.6}}} On the right is the bias B, in green, the part added whatever F zero is.
 
 $settle The bias matters most at grazing angles.
@@ -1416,7 +1416,7 @@ $settle Across each half, N dot V runs from zero at the left, which is grazing, 
 $settle ${cue "key" {'
     {inset "lut"}
     {mark 0.0 0.0 1.0 0.16}
-    {imageMarkText "views.mark_rough"}
+    {imageMarkText "views-mark_rough"}
     {blend 0.6}}} Down each half, roughness runs from one at the top to zero at the bottom.
 
 $settle The ring marks P's texel.
@@ -1550,7 +1550,7 @@ ${cue "key" {'
     {imageCascade 4.0}
     {imageParamFrom 0.9}
     imageCornerBottomLeft
-    {imageTitle "views.cascade_map"}}}
+    {imageTitle "views-cascade_map"}}}
 ${cue "key" {' {callout "cascade-image"}}}
 The map is one texture array of thirty-two bit float depth.
 
@@ -1561,7 +1561,7 @@ Each slice belongs to one cascade, a shadow map for one range of distances from 
 $settle ${cue "key" {'
     {inset "cm"}
     {mark 0.0 0.0 0.25 1.0}
-    {imageMarkText "views.mark_cascade_0"}
+    {imageMarkText "views-mark_cascade_0"}
     {blend 0.6}}} The view lays the four slices side by side, nearest cascade first, and tints each with its debug colour.
 
 $settle Each texel holds the depth, from the sun, of the first surface the sun meets there.
@@ -1571,7 +1571,7 @@ $settle Bright is near the sun and dark is far, over the depth range set for thi
 $settle ${cue "key" {'
     {inset "cm"}
     {mark 0.5 0.0 1.0 1.0}
-    {imageMarkText "views.mark_whole_room"}
+    {imageMarkText "views-mark_whole_room"}
     {blend 0.6}}} The far cascades cover much more ground.
 
 $settle So the whole room fills a sliver of their depth, and it reads as one flat bright patch.
@@ -1640,7 +1640,7 @@ ${cue "key" {'
     {imageCascade 4.0}
     {imageParamFrom 0.9}
     imageCornerBottomLeft
-    {imageTitle "views.cascade_map"}}}
+    {imageTitle "views-cascade_map"}}}
 ${cue "key" {' {cascadeColors 1.0}}}
 ${cue "key" {' {callout "cascade-select"}}}
 O3DE's debug colouring tints each pixel by its cascade, red, green, blue, and then yellow.
@@ -1717,7 +1717,7 @@ ${cue "key" {'
     {imageCascade 4.0}
     {imageParamFrom 0.9}
     imageCornerBottomLeft
-    {imageTitle "views.cascade_map"}}}
+    {imageTitle "views-cascade_map"}}}
 ${cue "key" {' {callout "cascade-select"}}}
 The pass takes the first cascade whose map holds P at least one and a half texels in from the edge.
 
@@ -1749,14 +1749,14 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 0.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 ${cue "key" {' {callout "shadow-caster-state"}}}
 Without a bias, a surface can shadow itself in a pattern of stripes, called acne.
 
 $settle ${cue "key" {'
     {inset "sb"}
     {mark 0.62 0.08 1.0 0.62}
-    {imageMarkText "views.mark_lit"}
+    {imageMarkText "views-mark_lit"}
     {blend 0.6}}} The shadow buffer is a screen-sized texture that holds each pixel's result in one byte.
 
 $settle It is white where the sun is seen.
@@ -1764,7 +1764,7 @@ $settle It is white where the sun is seen.
 $settle ${cue "key" {'
     {inset "sb"}
     {mark 0.0 0.0 0.5 0.42}
-    {imageMarkText "views.mark_shadow"}
+    {imageMarkText "views-mark_shadow"}
     {blend 0.6}}} It is black where the sun is hidden.
 
 $settle Each pixel holds one test against the cascade, before the blur that comes later, so the shadow's edges follow the shadow map's texels.
@@ -1800,7 +1800,7 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 0.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 ${cue "key" {' {callout "fullscreen-shadow"}}}
 All of this runs in a full-screen pass, once per pixel, before the forward pass.
 
@@ -1833,7 +1833,7 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 0.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 ${cue "key" {' {callout "shadow-filter-default"}}}
 The default filter is None, so the raw buffer holds hard zeros and ones, stepped at the cascade's texels.
 
@@ -1842,7 +1842,7 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 1.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 ${overCallout
     {' {shadowBlurRange 0.0 1.0}}
     "shadow-blur-settings"
@@ -1853,13 +1853,13 @@ It reaches eight pixels to each side, with a constant falloff setting of two thi
 $settle ${cue "key" {'
     {inset "raw"}
     {mark 0.3 0.2 0.72 0.62}
-    {imageMarkText "views.mark_stepped"}
+    {imageMarkText "views-mark_stepped"}
     {blend 0.6}}} The left view is the raw buffer, with hard zeros and ones and edges stepped at the cascade's texels.
 
 $settle ${cue "key" {'
     {inset "blur"}
     {mark 0.3 0.2 0.72 0.62}
-    {imageMarkText "views.mark_softened"}
+    {imageMarkText "views-mark_softened"}
     {blend 0.6}}} The right view shows the buffer after the blur, with the same edges softened into greys.
 
 $settle A grey pixel is now partly in shadow, and the forward pass multiplies the sun's light by that fraction.
@@ -1908,7 +1908,7 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 1.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 So the sun's shadow is computed once per pixel, from four cascades, before any light is shaded.
 
 The forward pass only reads one number per pixel, and the blur makes a hard compare look soft.
@@ -1936,7 +1936,7 @@ ${cue "key" {'
     imageFromCubemap
     {imageMip 0.0}
     imageCornerTopLeft
-    {imageTitle "views.cubemap_specular"}}}
+    {imageTitle "views-cubemap_specular"}}}
 ${cue "key" {' {inset "spec"} {imageMip 5.0} {blend 6.0}}}
 ${cue "key" {' {callout "specular-preset"}}}
 The specular cubemap has six mips, with two hundred and fifty-six texels a side at the top by default.
@@ -1948,7 +1948,7 @@ ${cue "key" {'
     imageFromCubemap
     {imageDiffuse 1.0}
     imageCornerTopRight
-    {imageTitle "views.cubemap_diffuse"}}}
+    {imageTitle "views-cubemap_diffuse"}}}
 ${cue "key" {' {callout "diffuse-preset"}}}
 The diffuse cubemap is the sky convolved with a cosine over the whole hemisphere.
 
@@ -1957,19 +1957,19 @@ Each of its texels holds the average light arriving at one normal, and it has on
 $settle ${cue "key" {'
     {inset "spec"}
     {mark 0.25 0.0 0.5 0.34}
-    {imageMarkText "views.mark_up_face"}
+    {imageMarkText "views-mark_up_face"}
     {blend 0.6}}} Each cube is unfolded into a cross, with the face that looks up on top.
 
 $settle ${cue "key" {'
     {inset "spec"}
     {mark 0.0 0.33 1.0 0.67}
-    {imageMarkText "views.mark_sides"}
+    {imageMarkText "views-mark_sides"}
     {blend 0.6}}} The four faces that look around the horizon sit in a row, and they show the trees and the field.
 
 $settle ${cue "key" {'
     {inset "spec"}
     {mark 0.25 0.66 0.5 1.0}
-    {imageMarkText "views.mark_down_face"}
+    {imageMarkText "views-mark_down_face"}
     {blend 0.6}}} The face looking down is below it.
 
 $settle A direction from the cube's centre picks a point on one face, and every lookup reads the cube that way.
@@ -2000,7 +2000,7 @@ ${cue "key" {'
     imageFromCubemap
     {imageDiffuse 1.0}
     imageCornerTopLeft
-    {imageTitle "views.cubemap_diffuse"}}}
+    {imageTitle "views-cubemap_diffuse"}}}
 ${cue "key" {' {callout "ibl-diffuse-lookup"}}}
 For P, diffuse image-based light is a single lookup of that cubemap along P's normal.
 
@@ -2013,7 +2013,7 @@ ${overCallout
 
 It adds the result to the diffuse target.
 
-${cue "key" {chainTarget "st" 6.0 imageCornerTopRight {' {imageTitle "views.stencil"}}}}
+${cue "key" {chainTarget "st" 6.0 imageCornerTopRight {' {imageTitle "views-stencil"}}}}
 ${cue "key" {' {callout "diffuse-global-stencil"}}}
 The pass runs only on pixels whose stencil has the top bit, one hundred and twenty-eight, from chapter one.
 
@@ -2044,7 +2044,7 @@ ${cue "key" {'
     imageFromCubemap
     {imageMip -1.0}
     imageCornerTopLeft
-    {imageTitle "views.cubemap_specular"}}}
+    {imageTitle "views-cubemap_specular"}}}
 ${cue "key" {' {callout "reflection-global"}}}
 For specular, the pass reflects the view about the normal, and looks up the specular cubemap along that direction.
 
@@ -2080,7 +2080,7 @@ ${cue "key" {'
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 20.0 10.0 3.6} {pose 6.0 8.0 3.8} {pose 18.0 12.0 3.5}}}}}}}
 
-${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views.brdf_lut"}}}
+${cue "key" {' {inset "lut"} imageFromBrdfLut imageCornerTopLeft {imageTitle "views-brdf_lut"}}}
 ${overCallout
     {' {sphereRoughnessRange 0.1 0.8}}
     "reflection-global"
@@ -2245,7 +2245,7 @@ ${cue "key" {'
     imageFromCubemap
     {imageMip -1.0}
     imageCornerTopLeft
-    {imageTitle "views.cubemap_specular"}}}
+    {imageTitle "views-cubemap_specular"}}}
 So the sky's light is prefiltered once, into cubes and a texture, and each pixel then pays for only two lookups and a multiply.
 
 Probes replace the sky where a room needs its own reflection.
@@ -2294,7 +2294,7 @@ ${cue "key" {'
     imageFromSsaoStage
     {imageStage 1.0}
     imageCornerTopLeft
-    {imageTitle "views.ssao_stage"}}}
+    {imageTitle "views-ssao_stage"}}}
 ${cue "key" {' {callout "ssao-order"}}}
 SSAO runs after the forward pass and the sky's light.
 
@@ -2303,13 +2303,13 @@ It reads a half-resolution copy of the linear depth, and writes an eight bit tar
 $settle ${cue "key" {'
     {inset "raw"}
     {mark 0.0 0.5 0.42 1.0}
-    {imageMarkText "views.mark_unoccluded"}
+    {imageMarkText "views-mark_unoccluded"}
     {blend 0.6}}} The view shows that target, one byte per pixel at half resolution, and it is white where nothing occludes.
 
 $settle ${cue "key" {'
     {inset "raw"}
     {mark 0.3 0.22 1.0 0.48}
-    {imageMarkText "views.mark_crease"}
+    {imageMarkText "views-mark_crease"}
     {blend 0.6}}} It is darker in the creases, like where the wall meets the floor.
 
 $settle There, many of the depth samples around a pixel land on the other surface, above the pixel's own surface.
@@ -2346,7 +2346,7 @@ For that point's half-resolution pixel, the shader rebuilds the position in view
 
 ${cue "key" {chainTarget "n" 4.0 imageCornerTopLeft {'
     {imageChannel 5.0}
-    {imageTitle "views.target_normal"}}}}
+    {imageTitle "views-target_normal"}}}}
 ${cue "key" {' {callout "ssao-normal"}}}
 Its normal is rebuilt from the neighbours' depths too.
 
@@ -2447,7 +2447,7 @@ ${cue "key" {'
     imageFromSsaoStage
     {imageStage 1.0}
     imageCornerTopLeft
-    {imageTitle "views.ssao_stage"}}}
+    {imageTitle "views-ssao_stage"}}}
 ${overCallout
     {' {ssaoStrengthRange 0.5 1.5}}
     "ssao-compute"
@@ -2461,7 +2461,7 @@ ${cue "key" {'
     imageFromSsaoStage
     {imageStage 2.0}
     imageCornerTopLeft
-    {imageTitle "views.ssao_stage"}}}
+    {imageTitle "views-ssao_stage"}}}
 ${overCallout
     {' {ssaoBlurRange 0.0 1.0}}
     "blur-step"
@@ -2474,7 +2474,7 @@ ${cue "key" {'
     imageFromSsaoStage
     {imageStage 3.0}
     imageCornerTopLeft
-    {imageTitle "views.ssao_stage"}}}
+    {imageTitle "views-ssao_stage"}}}
 ${cue "key" {' {callout "depth-upsample"}}}
 An upsample then brings the result back to full resolution.
 
@@ -2483,19 +2483,19 @@ It weighs the four nearest values by how close their depth is, so the dark does 
 $settle ${cue "key" {'
     {inset "raw"}
     {mark 0.0 0.0 1.0 1.0}
-    {imageMarkText "views.mark_raw"}
+    {imageMarkText "views-mark_raw"}
     {blend 0.6}}} The first view is the raw half-resolution result, with the fixed pattern's noise.
 
 $settle ${cue "key" {'
     {inset "blur"}
     {mark 0.0 0.0 1.0 1.0}
-    {imageMarkText "views.mark_blurred"}
+    {imageMarkText "views-mark_blurred"}
     {blend 0.6}}} The next view is after the depth-aware blur, smoother but with its edges still sharp.
 
 $settle ${cue "key" {'
     {inset "up"}
     {mark 0.0 0.0 1.0 1.0}
-    {imageMarkText "views.mark_upsampled"}
+    {imageMarkText "views-mark_upsampled"}
     {blend 0.6}}} The last view is the full-resolution upsample, which the diffuse light is multiplied by.
 
 ### Finding: SSAO multiplies all diffuse light, direct too {#c7-where kind=3d}
@@ -2563,7 +2563,7 @@ ${cue "key" {'
     imageFromSsaoStage
     {imageStage 3.0}
     imageCornerTopLeft
-    {imageTitle "views.ssao_stage"}}}
+    {imageTitle "views-ssao_stage"}}}
 So occlusion comes from the screen, every frame, and from the material's maps, both as multipliers.
 
 The screen's occlusion is cheap and needs no data.
@@ -2710,7 +2710,7 @@ ${cue "key" {'
     {imageCascade 4.0}
     {imageParamFrom 0.9}
     imageCornerBottomLeft
-    {imageTitle "views.cascade_map"}}}
+    {imageTitle "views-cascade_map"}}}
 ${cue "key" {' {callout "shadow-thickness"}}}
 The thickness comes from the sun's cascade.
 
@@ -2887,7 +2887,7 @@ ${cue "key" {'
 
 Terrain is drawn with a forward shader of its own.
 
-${cue "key" {chainTarget "ta" 2.0 imageCornerTopLeft {' {imageTitle "views.target_albedo"}}}}
+${cue "key" {chainTarget "ta" 2.0 imageCornerTopLeft {' {imageTitle "views-target_albedo"}}}}
 ${cue "key" {' {callout "terrain-forward-draw-list"}}}
 The Terrain gem's material type lists its own forward, depth, and shadow shaders.
 
@@ -2896,7 +2896,7 @@ They draw into the same forward pass, and into the same five targets.
 $settle ${cue "key" {'
     {inset "ta"}
     {mark 0.0 0.18 1.0 0.92}
-    {imageMarkText "views.mark_hills"}
+    {imageMarkText "views-mark_hills"}
     {blend 0.6}}} In the albedo view, the hills sit in the same target as everything else, in their macro colour, the coarse colour that covers the whole terrain.
 
 $settle So the later passes read a terrain pixel exactly as they read the room's.
@@ -3078,7 +3078,7 @@ ${cue "key" {'
 
 ${cue "key" {chainTarget "d" 5.0 imageCornerTopLeft {'
     {imageFar 6.0}
-    {imageTitle "views.depth_prepass"}}}}
+    {imageTitle "views-depth_prepass"}}}}
 ${cue "key" {' {callout "depth-prepass"}}}
 First the depth pre-pass wrote P's depth, and that depth chose P's depth bin inside its tile.
 
@@ -3087,11 +3087,11 @@ ${cue "key" {'
     imageFromShadowBuffer
     {imageBlurred 1.0}
     imageCornerTopLeft
-    {imageTitle "views.shadow_buffer"}}}
+    {imageTitle "views-shadow_buffer"}}}
 ${cue "key" {' {callout "fullscreen-shadow"}}}
 The shadow passes compared P against the sun's cascades and left one blurred number in the shadow buffer.
 
-${cue "key" {chainTarget "t0" 0.0 imageCornerBottomLeft {' {imageTitle "views.target_diffuse"}}}}
+${cue "key" {chainTarget "t0" 0.0 imageCornerBottomLeft {' {imageTitle "views-target_diffuse"}}}}
 ${cue "key" {' {callout "evaluate-lighting"}}}
 The forward pass built P's surface, and walked the lights of its bin and the sun.
 

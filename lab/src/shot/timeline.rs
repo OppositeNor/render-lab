@@ -40,7 +40,7 @@ impl Timeline {
     pub fn chapter_tag(&self, chapter: &TimelineChapter) -> String {
         let tag = format!("{:02} / {:02}   {}", chapter.number, self.chapters.len(), chapter.title.to_uppercase());
         match &self.part {
-            Some(p) => format!("{}   {tag}", crate::i18n::tr_with("ui.part_tag", crate::args!(number = p.number, count = p.count))),
+            Some(p) => format!("{}   {tag}", crate::i18n::tr_with("ui-part_tag", crate::args!(number = p.number, count = p.count))),
             None => tag,
         }
     }

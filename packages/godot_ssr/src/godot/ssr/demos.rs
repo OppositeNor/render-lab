@@ -484,8 +484,8 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u1, v1)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
     content.draw.segment(on(Vec2::new(u0, v1)), on(Vec2::new(u0, v0)), palette::text_dim(), alpha, 1.5, frame::FLAG_ARROW);
     // The axes' names where the axes end: pinned, so they never move.
-    content.draw.text(on(Vec2::new(u1, v1 + 0.015)), tr("demos.profile_t"), palette::text_dim(), [1.0, 0.0]);
-    content.draw.text(on(Vec2::new(u0, v0 - 0.012)), tr("demos.profile_depth"), palette::text_dim(), [0.0, 1.0]);
+    content.draw.text(on(Vec2::new(u1, v1 + 0.015)), tr("demos-profile_t"), palette::text_dim(), [1.0, 0.0]);
+    content.draw.text(on(Vec2::new(u0, v0 - 0.012)), tr("demos-profile_depth"), palette::text_dim(), [0.0, 1.0]);
     // The level's cells along the ray: between two levels, the lower fading into the upper.
     let level = stepper.level();
     let below = (level.floor() as usize).min(last_level);
@@ -525,7 +525,7 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
     let named = stepper.tested().map(|(k, _)| k);
     for &(k, s, a) in &stepper.fading() {
         // The leaving mark, then the depth mark, each in its own fifth (one thing at a time).
-        let marks = [(s.edge_t, palette::AXIS_Z, tr("demos.profile_leaves"), stepper.mark_of(k, 0, a)), (s.depth_t, palette::INCIDENT, tr("demos.profile_reaches"), stepper.mark_of(k, 1, a))];
+        let marks = [(s.edge_t, palette::AXIS_Z, tr("demos-profile_leaves"), stepper.mark_of(k, 0, a)), (s.depth_t, palette::INCIDENT, tr("demos-profile_reaches"), stepper.mark_of(k, 1, a))];
         for (j, (tt, color, text, a)) in marks.into_iter().enumerate() {
             if a <= 0.0 {
                 continue;
@@ -540,7 +540,7 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
                 if named == Some(k) {
                     let x = if right { back - 0.006 } else { back + 0.006 };
                     // Said to be off the chart, so the arrow does not read as pointing at nothing.
-                    let text = tr_with("demos.profile_off", lab::args!(mark = text));
+                    let text = tr_with("demos-profile_off", lab::args!(mark = text));
                     content.draw.text(on(Vec2::new(x, y - 0.015)), text, color, [if right { 1.0 } else { 0.0 }, 0.0]);
                 }
                 continue;
@@ -567,8 +567,8 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
     if !stepper.decided(k) {
         return;
     }
-    let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
-    let text = tr_with("demos.profile_level", lab::args!(from = s.level, to = s.next_level, result = result));
+    let result = if s.held { tr("demos-held") } else if s.hit { tr("demos-hit_down") } else { tr("demos-miss_up") };
+    let text = tr_with("demos-profile_level", lab::args!(from = s.level, to = s.next_level, result = result));
     content.draw.text(on(Vec2::new(0.5, v0 - 0.075)), text, if s.hit { palette::INCIDENT } else { palette::SELECTED }, [0.5, 1.0]);
 }
 
@@ -631,7 +631,7 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let size = Vec2::new(screen.size[0] as f32, screen.size[1] as f32);
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / size.x, (pixel[1] as f32 + 0.5) / size.y], color: palette::SELECTED, label: "P".into() };
     let link = (!outlines.is_empty()).then(|| Link { from: if path.len() > 1 { at(stepper.tip()) } else { start }, outline: outlines.len() - 1 });
-    let title = tr_with("demos.trace_inset", lab::args!(level = level, width = img.size[0], height = img.size[1]));
+    let title = tr_with("demos-trace_inset", lab::args!(level = level, width = img.size[0], height = img.size[1]));
     // The level as a picture; the height field, when shown, is that picture risen.
     if room > 0.5 {
         content.insets.push(PictureInset { marker: Some(marker), outlines, link, ..PictureInset::new(title, level_picture(img, format!("ssr-trace-level-{level}")), [420.0, 420.0 * img.size[1] as f32 / img.size[0] as f32]) });
@@ -640,29 +640,29 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let mut rows: Vec<(String, String, Color32)> = Vec::new();
     let row = |rows: &mut Vec<(String, String, Color32)>, name: &str, v: String, c: Color32| rows.push((name.to_string(), v, c));
     if let Some(s) = current {
-        row(&mut rows, tr("demos.step"), format!("{shown} / {}", t.steps.len()), palette::SELECTED);
-        row(&mut rows, tr("demos.level"), format!("{}", s.level), palette::SELECTED);
-        row(&mut rows, tr("demos.cell"), format!("({}, {})", s.cell[0], s.cell[1]), palette::SELECTED);
-        row(&mut rows, tr("demos.cell_depth"), format!("{:.5}", s.cell_depth), palette::THEME_ACCENT);
-        row(&mut rows, tr("demos.ray_depth"), format!("{:.5}", (t.screen_pos + t.screen_ray * s.t).z), palette::REFLECTED);
-        row(&mut rows, tr("demos.depth_t"), format!("{:.5}", s.depth_t), palette::INCIDENT);
-        row(&mut rows, tr("demos.edge_t"), format!("{:.5}", s.edge_t), palette::AXIS_Z);
-        let result = if s.held { tr("demos.held") } else if s.hit { tr("demos.hit_down") } else { tr("demos.miss_up") };
-        row(&mut rows, tr("demos.result"), result.to_string(), palette::SELECTED);
+        row(&mut rows, tr("demos-step"), format!("{shown} / {}", t.steps.len()), palette::SELECTED);
+        row(&mut rows, tr("demos-level"), format!("{}", s.level), palette::SELECTED);
+        row(&mut rows, tr("demos-cell"), format!("({}, {})", s.cell[0], s.cell[1]), palette::SELECTED);
+        row(&mut rows, tr("demos-cell_depth"), format!("{:.5}", s.cell_depth), palette::THEME_ACCENT);
+        row(&mut rows, tr("demos-ray_depth"), format!("{:.5}", (t.screen_pos + t.screen_ray * s.t).z), palette::REFLECTED);
+        row(&mut rows, tr("demos-depth_t"), format!("{:.5}", s.depth_t), palette::INCIDENT);
+        row(&mut rows, tr("demos-edge_t"), format!("{:.5}", s.edge_t), palette::AXIS_Z);
+        let result = if s.held { tr("demos-held") } else if s.hit { tr("demos-hit_down") } else { tr("demos-miss_up") };
+        row(&mut rows, tr("demos-result"), result.to_string(), palette::SELECTED);
     }
     if stepper.i == t.steps.len() {
         let exit = match t.exit {
-            Exit::Hit => tr("demos.exit_hit"),
-            Exit::Steps => tr("demos.exit_steps"),
-            Exit::Screen => tr("demos.exit_screen"),
-            Exit::NotTraced => tr("demos.exit_none"),
+            Exit::Hit => tr("demos-exit_hit"),
+            Exit::Steps => tr("demos-exit_steps"),
+            Exit::Screen => tr("demos-exit_screen"),
+            Exit::NotTraced => tr("demos-exit_none"),
         };
-        row(&mut rows, tr("demos.exit"), exit.to_string(), palette::REFLECTED);
-        row(&mut rows, tr("demos.validity"), format!("{:.3}", t.validity), palette::REFLECTED);
+        row(&mut rows, tr("demos-exit"), exit.to_string(), palette::REFLECTED);
+        row(&mut rows, tr("demos-validity"), format!("{:.3}", t.validity), palette::REFLECTED);
     }
     content.readout = Some(Readout {
-        title: tr_with("demos.trace_title", lab::args!(x = pixel[0], y = pixel[1])),
-        subtitle: tr("demos.trace_subtitle").into(),
+        title: tr_with("demos-trace_title", lab::args!(x = pixel[0], y = pixel[1])),
+        subtitle: tr("demos-trace_subtitle").into(),
         formula: None,
         formula_lit: None,
         rows,
@@ -696,15 +696,15 @@ fn inputs_demo(state: &ShotState, content: &mut FrameContent) {
     content.draw.segment(world, world + world_normal * 0.5, palette::AXIS_Y, 1.0, 3.0, 0);
     let view = screen.world_to_view.transform_point3(world);
     let rows = vec![
-        (tr("demos.ndc").to_string(), format!("({:.4}, {:.4})", uv.x, uv.y), palette::SELECTED),
-        (tr("demos.depth").to_string(), format!("{depth:.5}"), palette::THEME_ACCENT),
-        (tr("demos.view_pos").to_string(), v3(view), palette::SELECTED),
-        (tr("demos.world_pos").to_string(), v3(world), palette::SELECTED),
-        (tr("demos.view_normal").to_string(), v3(normal), palette::AXIS_Y),
-        (tr("demos.roughness_byte").to_string(), format!("{}", (nr.w * 255.0).round() as u32), palette::INCIDENT),
-        (tr("demos.roughness").to_string(), format!("{:.3}", trace::decode_roughness(nr.w)), palette::INCIDENT),
+        (tr("demos-ndc").to_string(), format!("({:.4}, {:.4})", uv.x, uv.y), palette::SELECTED),
+        (tr("demos-depth").to_string(), format!("{depth:.5}"), palette::THEME_ACCENT),
+        (tr("demos-view_pos").to_string(), v3(view), palette::SELECTED),
+        (tr("demos-world_pos").to_string(), v3(world), palette::SELECTED),
+        (tr("demos-view_normal").to_string(), v3(normal), palette::AXIS_Y),
+        (tr("demos-roughness_byte").to_string(), format!("{}", (nr.w * 255.0).round() as u32), palette::INCIDENT),
+        (tr("demos-roughness").to_string(), format!("{:.3}", trace::decode_roughness(nr.w)), palette::INCIDENT),
     ];
-    content.readout = Some(rows_readout(tr_with("demos.inputs_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos.inputs_subtitle"), rows));
+    content.readout = Some(rows_readout(tr_with("demos-inputs_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos-inputs_subtitle"), rows));
 }
 
 /// A level of the pyramid, P's cell on it, and that cell's footprint at level 0.
@@ -728,7 +728,7 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
     if room < 1.0 {
         cpu::screen(content);
     }
-    let title = tr_with("demos.pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1]));
+    let title = tr_with("demos-pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1]));
     let marker = Marker { at: [(pixel[0] as f32 + 0.5) / screen.size[0] as f32, (pixel[1] as f32 + 0.5) / screen.size[1] as f32], color: palette::SELECTED, label: "P".into() };
     if room > 0.5 {
         content.insets.push(PictureInset { marker: Some(marker), outlines: vec![outline], link: Some(Link { from: start, outline: 0 }), ..PictureInset::new(title, level_picture(img, format!("ssr-pyramid-{level}")), [480.0, 480.0 * h / w]) });
@@ -736,12 +736,12 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
     content.draw.point(start, 6.0, palette::SELECTED, room);
     let side = 1i32 << level;
     let rows = vec![
-        (tr("demos.p_cell").to_string(), format!("({}, {})", cell[0], cell[1]), palette::SELECTED),
-        (tr("demos.cell_depth").to_string(), format!("{:.5}", img.load(cell).x), palette::THEME_ACCENT),
-        (tr("demos.p_depth").to_string(), format!("{p_depth:.5}"), palette::SELECTED),
-        (tr("demos.footprint").to_string(), format!("{side} x {side}"), palette::THEME_ACCENT),
+        (tr("demos-p_cell").to_string(), format!("({}, {})", cell[0], cell[1]), palette::SELECTED),
+        (tr("demos-cell_depth").to_string(), format!("{:.5}", img.load(cell).x), palette::THEME_ACCENT),
+        (tr("demos-p_depth").to_string(), format!("{p_depth:.5}"), palette::SELECTED),
+        (tr("demos-footprint").to_string(), format!("{side} x {side}"), palette::THEME_ACCENT),
     ];
-    content.readout = Some(rows_readout(tr_with("demos.pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1])), tr("demos.pyramid_subtitle"), rows));
+    content.readout = Some(rows_readout(tr_with("demos-pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1])), tr("demos-pyramid_subtitle"), rows));
 }
 
 /// A chart as pixels: `w` x `h`, a dark ground.
@@ -774,11 +774,11 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
     let last = Image::new([1, 1], 4);
     let (fade_in, fade_out) = (state.p("ssrFadeIn"), state.p("ssrFadeOut"));
     let t = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, fade_in, fade_out, state.p("ssrDepthTolerance")).trace(pixel);
-    let names = [tr("demos.term_edge"), tr("demos.term_back"), tr("demos.term_confidence"), tr("demos.term_margin"), tr("demos.term_fade")];
+    let names = [tr("demos-term_edge"), tr("demos-term_back"), tr("demos-term_confidence"), tr("demos-term_margin"), tr("demos-term_fade")];
     let mut rows: Vec<(String, String, Color32)> = names.iter().zip(t.terms).map(|(n, v)| (n.to_string(), format!("{v:.3}"), palette::THEME_ACCENT)).collect();
-    rows.push((tr("demos.ray_len").to_string(), format!("{:.3}", t.ray_len), palette::REFLECTED));
-    rows.push((tr("demos.validity").to_string(), format!("{:.3}", t.validity), palette::SELECTED));
-    content.readout = Some(rows_readout(tr_with("demos.hit_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos.hit_subtitle"), rows));
+    rows.push((tr("demos-ray_len").to_string(), format!("{:.3}", t.ray_len), palette::REFLECTED));
+    rows.push((tr("demos-validity").to_string(), format!("{:.3}", t.validity), palette::SELECTED));
+    content.readout = Some(rows_readout(tr_with("demos-hit_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos-hit_subtitle"), rows));
     // The fade curve over the ray's screen length, 0 to 1, its peak and P's length marked.
     let (w, h) = (360usize, 130usize);
     let mut rgba = chart(w, h);
@@ -799,11 +799,11 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
     // The circle and the line told apart in the inset's own lines, in their colours (a marker's label would hide the curve).
     let marker = Marker { at: [at, peak], color: palette::SELECTED, label: String::new() };
     let lines = vec![
-        (tr_with("demos.fade_peak", lab::args!(peak = format!("{peak:.2}"), at = format!("{at:.2}"))), palette::SELECTED),
-        (tr_with("demos.fade_p", lab::args!(len = format!("{:.2}", t.ray_len), fade = format!("{:.2}", trace::fade(t.ray_len.clamp(0.0, 1.0), fade_in, fade_out)))), palette::REFLECTED),
+        (tr_with("demos-fade_peak", lab::args!(peak = format!("{peak:.2}"), at = format!("{at:.2}"))), palette::SELECTED),
+        (tr_with("demos-fade_p", lab::args!(len = format!("{:.2}", t.ray_len), fade = format!("{:.2}", trace::fade(t.ray_len.clamp(0.0, 1.0), fade_in, fade_out)))), palette::REFLECTED),
     ];
     let picture = Picture::Pixels { key: "ssr-fade-chart".into(), size: [w, h], rgba: Arc::new(rgba) };
-    content.insets.push(PictureInset { marker: Some(marker), x_axis: tr("demos.ray_len").to_string(), y_axis: tr("demos.fade_axis").to_string(), lines, ..PictureInset::new(tr("demos.fade_chart"), picture, [360.0, 130.0]) });
+    content.insets.push(PictureInset { marker: Some(marker), x_axis: tr("demos-ray_len").to_string(), y_axis: tr("demos-fade_axis").to_string(), lines, ..PictureInset::new(tr("demos-fade_chart"), picture, [360.0, 130.0]) });
 }
 
 /// P's roughness as a cone, the circle inside it where the ray ends, and the blur level.
@@ -819,13 +819,13 @@ fn blur_demo(state: &ShotState, content: &mut FrameContent) {
     let a = 2.0 * angle.tan() * t.ray_len;
     let radius = if t.ray_len > 0.0 { (a * ((a * a + 4.0 * t.ray_len * t.ray_len).sqrt() - a)) / (4.0 * t.ray_len) } else { 0.0 };
     let rows = vec![
-        (tr("demos.roughness").to_string(), format!("{:.3}", t.roughness), palette::INCIDENT),
-        (tr("demos.cone_angle").to_string(), format!("{:.1}°", angle.to_degrees()), palette::INCIDENT),
-        (tr("demos.ray_len").to_string(), format!("{:.3}", t.ray_len), palette::REFLECTED),
-        (tr("demos.blur_radius").to_string(), format!("{:.1} px", radius * largest), palette::THEME_ACCENT),
-        (tr("demos.mip_level").to_string(), format!("{:.2}", t.mip_level), palette::SELECTED),
+        (tr("demos-roughness").to_string(), format!("{:.3}", t.roughness), palette::INCIDENT),
+        (tr("demos-cone_angle").to_string(), format!("{:.1}°", angle.to_degrees()), palette::INCIDENT),
+        (tr("demos-ray_len").to_string(), format!("{:.3}", t.ray_len), palette::REFLECTED),
+        (tr("demos-blur_radius").to_string(), format!("{:.1} px", radius * largest), palette::THEME_ACCENT),
+        (tr("demos-mip_level").to_string(), format!("{:.2}", t.mip_level), palette::SELECTED),
     ];
-    content.readout = Some(rows_readout(tr_with("demos.blur_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos.blur_subtitle"), rows));
+    content.readout = Some(rows_readout(tr_with("demos-blur_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos-blur_subtitle"), rows));
     // The cone from its apex (left) along the ray (right), the circle inside it at its end.
     let (w, h) = (360usize, 220usize);
     let mut rgba = chart(w, h);
@@ -845,5 +845,5 @@ fn blur_demo(state: &ShotState, content: &mut FrameContent) {
         let a = k as f32 / 720.0 * std::f32::consts::TAU;
         plot(&mut rgba, w, h, (ax + len - r + r * a.cos()) as i32, (ay + r * a.sin()) as i32, palette::SELECTED);
     }
-    content.insets.push(PictureInset::new(tr("demos.cone_chart").to_string(), Picture::Pixels { key: "ssr-cone-chart".into(), size: [w, h], rgba: Arc::new(rgba) }, [360.0, 220.0]));
+    content.insets.push(PictureInset::new(tr("demos-cone_chart").to_string(), Picture::Pixels { key: "ssr-cone-chart".into(), size: [w, h], rgba: Arc::new(rgba) }, [360.0, 220.0]));
 }

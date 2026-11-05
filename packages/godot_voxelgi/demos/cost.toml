@@ -2,9 +2,9 @@
 # what its VoxelGI costs, an update's work and a frame's.
 
 key = "cost"
-title-text = "shot.cost_title"
-tab-text = "shot.cost"
-hint-text = "investigation.demo_hint"
+title-text = "shot-cost_title"
+tab-text = "shot-cost"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "frame"
 resets-camera = true

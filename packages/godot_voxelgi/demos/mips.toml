@@ -1,9 +1,9 @@
 # The mips demonstration (src/godot/voxelgi/demos.rs).
 
 key = "mips"
-title-text = "shot.mips_title"
-tab-text = "shot.mips"
-hint-text = "investigation.demo_hint"
+title-text = "shot-mips_title"
+tab-text = "shot-mips"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "update-mipmaps"
 resets-camera = true

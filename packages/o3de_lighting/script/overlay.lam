@@ -40,7 +40,7 @@ $[# {_vectors i alpha}
         {'
             {point seen 9.0 viewColor alpha}
             {dashed p seen viewColor {* alpha 0.5} 1.5}
-            {labelText seen {textKey "demos.observer"} viewColor}}
+            {labelText seen {textKey "demos-observer"} viewColor}}
         {'}}]
     {flatten {'
         {' {point p 8.0 selectedColor alpha}}
@@ -62,7 +62,7 @@ $[# {_lobes i alpha}
             0.8
             alpha
             3.0
-            {some {textKey "demos.specular_lobe"}}}
+            {some {textKey "demos-specular_lobe"}}}
         {lobeLine at dirs {.diffuse terms} _diffuse 0.4 alpha 3.0 none}
         {'
             {dashed at

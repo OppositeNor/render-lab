@@ -158,7 +158,7 @@ impl App {
                     self.experiment.compare = crate::experiment::Compare::Wipe;
                 }
                 self.experiment.measurement = None;
-                self.experiment.message = Some(crate::i18n::tr("experiments.reference_set").to_string());
+                self.experiment.message = Some(crate::i18n::tr("experiments-reference_set").to_string());
             }
             ViewerAction::ClearReference => {
                 self.experiment.reference = None;
@@ -181,7 +181,7 @@ impl App {
                 let defaults = self.default_state(self.state.demo);
                 let experiment = crate::experiment::Experiment::capture(&name, &self.state, &defaults, self.experiment.reference.as_ref());
                 self.experiment.message = Some(match crate::experiment::save_user(&experiment) {
-                    Ok(path) => crate::i18n::tr_with("experiments.saved", crate::i18n::args!(path = path.display().to_string())),
+                    Ok(path) => crate::i18n::tr_with("experiments-saved", crate::i18n::args!(path = path.display().to_string())),
                     Err(e) => format!("{e:#}"),
                 });
                 self.experiment.presets = crate::experiment::presets();
@@ -189,7 +189,7 @@ impl App {
             ViewerAction::LoadPreset(i) if interactive => {
                 if let Some(preset) = self.experiment.presets.get(i).cloned() {
                     self.experiment.message = Some(match self.load_experiment(&preset) {
-                        Ok(()) => crate::i18n::tr_with("experiments.loaded", crate::i18n::args!(name = preset.name.clone())),
+                        Ok(()) => crate::i18n::tr_with("experiments-loaded", crate::i18n::args!(name = preset.name.clone())),
                         Err(e) => format!("{e:#}"),
                     });
                 }
@@ -253,7 +253,7 @@ impl App {
         }
         let Some(path) = self.options.settings.clone() else { return };
         if let Err(e) = crate::config::Config::save_layout(&path, self.layout) {
-            self.popups.push(Popup::new(crate::i18n::tr("ui.layout_not_saved"), format!("{e:#}")).closing_after(8.0));
+            self.popups.push(Popup::new(crate::i18n::tr("ui-layout_not_saved"), format!("{e:#}")).closing_after(8.0));
         }
     }
 
@@ -266,7 +266,7 @@ impl App {
                 self.experiment.measurement = Some(crate::metrics::measure(&ref_display, &display, Some((&ref_linear, &linear))));
                 self.experiment.message = None;
             }
-            _ => self.experiment.message = Some(crate::i18n::tr("experiments.measure_needs_reference").to_string()),
+            _ => self.experiment.message = Some(crate::i18n::tr("experiments-measure_needs_reference").to_string()),
         }
     }
 

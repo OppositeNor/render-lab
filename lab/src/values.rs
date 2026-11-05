@@ -997,7 +997,7 @@ mod tests {
         use crate::utility::inset::{Corner, ImageSource};
         with_test(|| {
             let t = timeline(serde_json::json!([
-                {"frame": 10, "blend": 10, "image": "chart", "imageCorner": "bottom-left", "imageTitle": "ui.play"},
+                {"frame": 10, "blend": 10, "image": "chart", "imageCorner": "bottom-left", "imageTitle": "ui-play"},
                 {"frame": 30, "blend": 10, "image": "table"},
                 {"frame": 50, "blend": 10, "imageHide": ["chart"]},
                 {"frame": 80, "blend": 10, "image": ""}
@@ -1006,7 +1006,7 @@ mod tests {
             assert!(t.state_at(5).images.is_empty());
             let half = t.state_at(15);
             let image = &half.images[0];
-            assert_eq!((image.name.as_str(), &image.source, image.corner, image.title.as_deref()), ("chart", &ImageSource::Published("chart".into()), Corner::BottomLeft, Some("ui.play")));
+            assert_eq!((image.name.as_str(), &image.source, image.corner, image.title.as_deref()), ("chart", &ImageSource::Published("chart".into()), Corner::BottomLeft, Some("ui-play")));
             assert!(image.alpha > 0.0 && image.alpha < 1.0, "{}", image.alpha);
             assert!(half.shows_image("chart") && !half.shows_image("table"));
             // Two at once, then the first hidden, then all.
@@ -1074,7 +1074,7 @@ mod tests {
             let t = timeline(serde_json::json!([
                 {"frame": 10, "blend": 10, "arrow": "a", "arrowFrom": [0, 0, 0], "arrowTo": "probe.top", "arrowColor": "#50d7ff"},
                 {"frame": 30, "blend": 10, "arrow": "a", "arrowFrom": [2, 0, 0]},
-                {"frame": 30, "label": "l", "labelAt": [1, 2, 3], "labelText": "ui.play"},
+                {"frame": 30, "label": "l", "labelAt": [1, 2, 3], "labelText": "ui-play"},
                 {"frame": 40, "arrows": "rays"},
                 {"frame": 60, "blend": 10, "arrowHide": ["a"], "labelHide": ["l"]},
                 {"frame": 80, "arrow": ""}
@@ -1117,8 +1117,8 @@ mod tests {
                 cleanup,
                 {"frame": 10, "image": "view", "imageGraph": "scene.hdr"},
                 {"frame": 10, "arrow": "ray", "arrowFrom": [0, 0, 0], "arrowTo": [1, 1, 1]},
-                {"frame": 10, "label": "caption", "labelAt": [0, 0, 0], "labelText": "ui.play"},
-                {"frame": 20, "label": "ray", "labelAt": [0, 0, 0], "labelText": "ui.play"},
+                {"frame": 10, "label": "caption", "labelAt": [0, 0, 0], "labelText": "ui-play"},
+                {"frame": 20, "label": "ray", "labelAt": [0, 0, 0], "labelText": "ui-play"},
                 // ray is now a label; cleaning up its old arrow is harmless.
                 {"frame": 30, "arrowHide": ["ray"]},
                 {"frame": 40, "labelHide": ["ray"]}
@@ -1134,7 +1134,7 @@ mod tests {
             ])).validate().unwrap_err().to_string();
             assert!(error.contains("names both its ends"), "{error}");
             let error = timeline(serde_json::json!([
-                {"frame": 0, "arrow": "same", "arrowFrom": [0, 0, 0], "arrowTo": [1, 1, 1], "label": "same", "labelAt": [0, 0, 0], "labelText": "ui.play"}
+                {"frame": 0, "arrow": "same", "arrowFrom": [0, 0, 0], "arrowTo": [1, 1, 1], "label": "same", "labelAt": [0, 0, 0], "labelText": "ui-play"}
             ])).validate().unwrap_err().to_string();
             assert!(error.contains("defined more than once"), "{error}");
         });

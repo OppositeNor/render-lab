@@ -1,9 +1,9 @@
 # The upsampled AO over the room; the point is on the floor where it meets the back wall.
 
 key = "ssao"
-title-text = "shot.screen_space_ambient_occlusion"
+title-text = "shot-screen_space_ambient_occlusion"
 tab = "SSAO"
-hint-text = "investigation.demo_hint"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "ssao"
 include = ["render_lab.demo-preset/room-camera"]

@@ -1,9 +1,9 @@
 # SDFGI in the study room.
 
 key = "room"
-title-text = "shot.room_title"
-tab-text = "shot.room"
-hint-text = "investigation.demo_hint"
+title-text = "shot-room_title"
+tab-text = "shot-room"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "frame"
 resets-camera = true

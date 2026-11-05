@@ -2,7 +2,7 @@
 # ground (a chart, a field of columns; lab/src/view.rs): one dark panel far
 # below as its light (a scene names one), under the sky.
 
-title-text = "scene.canvas"
+title-text = "scene-canvas"
 # Any camera sees it (there is nothing to stand inside).
 camera-clear = { above = -1000.0 }
 

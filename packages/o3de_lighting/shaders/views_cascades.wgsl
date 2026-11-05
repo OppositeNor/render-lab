@@ -5,7 +5,7 @@
 /// shows one slice, or 4 all four side by side; a depth shows from bright
 /// (near the light) to dark, empty texels black. The picked pixel's point
 /// is ringed in the slices that hold it.
-/// {@ view=cascadeMap entry=o3deCascadeMapView size=512,128 text=views.cascade_map reads=cascades,depth}
+/// {@ view=cascadeMap entry=o3deCascadeMapView size=512,128 text=views-cascade_map reads=cascades,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct CascadeMapParams {

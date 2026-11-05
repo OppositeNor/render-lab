@@ -813,7 +813,7 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
         Err(e) => vec![e],
     };
     for e in errors {
-        content.notes.push((crate::i18n::tr_with("script.error", crate::args!(message = e.lines().next().unwrap_or_default())), crate::palette::MISMATCH));
+        content.notes.push((crate::i18n::tr_with("script-error", crate::args!(message = e.lines().next().unwrap_or_default())), crate::palette::MISMATCH));
     }
 }
 

@@ -1,9 +1,9 @@
 # Both probes and their boxes; a polished metal floor mirrors the walls the probes saw.
 
 key = "reflections"
-title-text = "common.reflection_probes"
-tab-text = "shot.probes"
-hint-text = "investigation.demo_hint"
+title-text = "common-reflection_probes"
+tab-text = "shot-probes"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "reflection-probes"
 include = ["render_lab.demo-preset/room-camera"]

@@ -110,8 +110,8 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;
     let mut y = rect.min.y + 16.0;
-    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.title"), 30.0, bold(), palette::text());
-    let label = if place == KnowledgePlace::Panel { tr("knowledge.full_screen") } else { tr("knowledge.close") };
+    ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge-title"), 30.0, bold(), palette::text());
+    let label = if place == KnowledgePlace::Panel { tr("knowledge-full_screen") } else { tr("knowledge-close") };
     let button_size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
     let mut pressed = false;
     let button_order = if place == KnowledgePlace::Panel { egui::Order::Middle } else { egui::Order::Tooltip };
@@ -120,7 +120,7 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     });
     // Beside it: hide the topics this context does not need, or show them all again.
     let compact = KNOWLEDGE_COMPACT.load(std::sync::atomic::Ordering::Relaxed);
-    let toggle = if compact { tr("knowledge.show_all") } else { tr("knowledge.hide_unused") };
+    let toggle = if compact { tr("knowledge-show_all") } else { tr("knowledge-hide_unused") };
     let toggle_size = vec2(ink.measure(toggle, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
     let mut toggled = false;
     egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-compact" } else { "knowledge-overlay-compact" })).fixed_pos(pos2(rect.max.x - 28.0 - button_size.x - toggle_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
@@ -130,7 +130,7 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
         set_knowledge_compact(!compact);
     }
     // Beside those: put the moved topics back.
-    let reset_label = tr("graph.reset");
+    let reset_label = tr("graph-reset");
     let reset_size = vec2(ink.measure(reset_label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
     egui::Area::new(egui::Id::unique(if place == KnowledgePlace::Panel { "knowledge-panel-reset" } else { "knowledge-overlay-reset" })).fixed_pos(pos2(rect.max.x - 40.0 - button_size.x - toggle_size.x - reset_size.x, rect.min.y + 12.0)).order(button_order).fade_in(false).show(ctx, |ui| {
         if ui.add(egui::Button::new(egui::RichText::new(reset_label).size(24.0)).min_size(reset_size)).clicked() {
@@ -140,7 +140,7 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     y += 42.0;
     // The legend: one swatch per role.
     let mut lx = x;
-    for (label, color) in [(tr("knowledge.known"), palette::code_string()), (tr("knowledge.level"), palette::accent()), (tr("knowledge.teach"), palette::code_number()), (tr("knowledge.outside"), palette::text_faint())] {
+    for (label, color) in [(tr("knowledge-known"), palette::code_string()), (tr("knowledge-level"), palette::accent()), (tr("knowledge-teach"), palette::code_number()), (tr("knowledge-outside"), palette::text_faint())] {
         painter.rect_filled(Rect::from_min_size(pos2(lx, y + 6.0), vec2(16.0, 16.0)), CornerRadius::same(3), color);
         let r = ink.text(pos2(lx + 24.0, y), Align2::LEFT_TOP, label, 24.0, FontFamily::Proportional, palette::text_dim());
         lx = r.max.x + 22.0;
@@ -148,7 +148,7 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     y += 34.0;
     let measure = |t: &str| ink.measure(t, 100.0, FontFamily::Proportional).x / 100.0;
     let Some(graph) = crate::knowledge::current() else {
-        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge.none"), 24.0, FontFamily::Proportional, palette::text_dim());
+        ink.text(pos2(x, y), Align2::LEFT_TOP, tr("knowledge-none"), 24.0, FontFamily::Proportional, palette::text_dim());
         return pressed;
     };
     let chapters = knowledge_chapters(graph, chrome);
@@ -163,7 +163,7 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     let selected = ctx.data(|d| d.get_temp::<KnowledgeView>(place.view_id())).and_then(|v| v.selected);
     let card_height = if selected.is_some() { 150.0 } else { 0.0 };
     let area = Rect::from_min_max(pos2(rect.min.x + 8.0, y), pos2(rect.max.x - 8.0, rect.max.y - card_height - 8.0));
-    let hint = ink.fit_right(tr("knowledge.hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
+    let hint = ink.fit_right(tr("knowledge-hint"), area.width() - 28.0, 24.0, FontFamily::Proportional);
     ink.text(pos2(x, area.max.y - 4.0), Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_faint());
     let graph_area = Rect::from_min_max(area.min, pos2(area.max.x, area.max.y - 34.0));
     let id = place.view_id();
@@ -286,12 +286,12 @@ pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, c
     let Some(s) = view.selected.filter(|_| card_height > 0.0) else { return pressed };
     painter.line_segment([pos2(card.min.x + 14.0, card.min.y), pos2(card.max.x - 14.0, card.min.y)], Stroke::new(1.0, palette::border()));
     let node = &graph.nodes[s];
-    let role = if p.is_known(s) { tr("knowledge.known") } else if p.level.contains(&s) { tr("knowledge.level") } else if p.teach.contains(&s) { tr("knowledge.teach") } else { tr("knowledge.outside") };
+    let role = if p.is_known(s) { tr("knowledge-known") } else if p.level.contains(&s) { tr("knowledge-level") } else if p.teach.contains(&s) { tr("knowledge-teach") } else { tr("knowledge-outside") };
     let title = ink.fit_right(&format!("{} · {role}", node.title), width, 24.0, bold());
     ink.text(pos2(cx, card.min.y + 8.0), Align2::LEFT_TOP, title, 24.0, bold(), topic_color(&p, s));
     let bottom = ink.wrapped(pos2(cx, card.min.y + 40.0), width, &node.summary, 24.0, FontFamily::Proportional, palette::text());
     let used = graph.chapters_using(s);
-    let used = if used.is_empty() { tr("knowledge.no_chapter").to_string() } else { tr_with("knowledge.used_by", args!(chapters = used.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+    let used = if used.is_empty() { tr("knowledge-no_chapter").to_string() } else { tr_with("knowledge-used_by", args!(chapters = used.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
     let used = ink.fit_right(&used, width, 24.0, FontFamily::Proportional);
     ink.text(pos2(cx, (bottom + 4.0).min(card.max.y - 30.0)), Align2::LEFT_TOP, used, 24.0, FontFamily::Proportional, palette::text_dim());
     pressed

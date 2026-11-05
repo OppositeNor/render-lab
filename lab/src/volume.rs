@@ -53,7 +53,7 @@ pub fn slider(ui: &mut Ui, volume: &mut Volume, size: f32, rail: f32) -> SliderR
     ui.horizontal(|ui| {
         crate::text::slider_row(ui);
         let (mute_rect, mute) = ui.allocate_exact_size(vec2(size, size), Sense::click());
-        let mute = mute.on_hover_text(if volume.muted { tr("volume.unmute") } else { tr("volume.mute") });
+        let mute = mute.on_hover_text(if volume.muted { tr("volume-unmute") } else { tr("volume-mute") });
         if mute.clicked() {
             volume.muted = !volume.muted;
         }

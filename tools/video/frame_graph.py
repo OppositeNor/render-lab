@@ -13,18 +13,18 @@ on the CPU, or not ported) is a dashed box, joined by the edges it declares.
 
     [[section]]
     id = "CULL"                  # what a beat's `focus:` names
-    title-text = "frame.cull"    # a key of the package's text
+    title-text = "frame-cull"    # a key of the package's text
     passes = ["o3deLightCullingTilePrepareCS", "o3deLightCullingCS"]
 
     [[section]]
     id = "TARGETS"
-    title-text = "frame.targets"
+    title-text = "frame-targets"
     resources = ["diffuse", "specular"]
 
     [[section]]
     id = "LUT"
-    title-text = "frame.lut"
-    note-text = "frame.lut_note" # a second line, for a box without members
+    title-text = "frame-lut"
+    note-text = "frame-lut_note" # a second line, for a box without members
     outside = true               # dashed: not a pass of the lab's frame
     to = ["FWD"]                 # its edges (also `from`)
 

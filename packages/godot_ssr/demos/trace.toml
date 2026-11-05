@@ -1,9 +1,9 @@
 # One pixel's ray, stepped through the depth pyramid (screen_space_reflection.glsl's loop).
 
 key = "trace"
-title-text = "shot.trace_title"
-tab-text = "shot.trace"
-hint-text = "hints.trace_demo"
+title-text = "shot-trace_title"
+tab-text = "shot-trace"
+hint-text = "hints-trace_demo"
 scene = "render_lab.scene/study-room"
 listing = "trace"
 resets-camera = true

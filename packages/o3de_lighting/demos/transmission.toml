@@ -3,9 +3,9 @@
 # is where the view's centre meets the teapot.
 
 key = "transmission"
-title-text = "shot.transmission_enhancedpbr"
-tab-text = "shot.transmission"
-hint-text = "investigation.demo_hint"
+title-text = "shot-transmission_enhancedpbr"
+tab-text = "shot-transmission"
+hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "transmission"
 
