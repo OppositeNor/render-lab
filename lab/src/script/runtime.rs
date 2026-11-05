@@ -399,6 +399,8 @@ fn resource_text(key: &str) -> Result<(String, String), String> {
 pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sources), String> {
     let package = investigation.package().unwrap_or("render_lab");
     let mut engine = Engine::new();
+    // A `Native` declaration with no registered implementation fails the check, not the first call.
+    engine.options_mut().require_linked = true;
     natives::register(&mut engine, Some(investigation)).map_err(|e| e.render())?;
     register(&mut engine).map_err(|e| e.render())?;
     register_frame_natives(&mut engine).map_err(|e| e.render())?;

@@ -86,6 +86,23 @@ states.
   and the map.
 - Both editions rebuilt, and a short change log.
 
+## Stages (2026-11-05)
+
+One commit each; every stage keeps the zh-CN storyboard one sentence per English sentence, passes `tools/video/check.py`
+for both languages, and is reviewed from `build.py --snapshots-only` stills of the beats it touches.
+
+1. **Accuracy audit and review table.** The audit above, by a fresh agent against the checkout; its report and the
+   review table in `packages/godot_sdfgi/story/reviews/`. Corrections it finds are fixed in the same commit.
+2. **The ending.** The last chapter ends on the whole room and the three takeaways (change 6).
+3. **Recaps.** A recap beat (what, why it matters, what is next) at each chapter's end, before its sources card
+   (change 7), English then zh-CN.
+4. **The map at each chapter.** Each chapter opens on the frame graph scene with its part lit (`graph=frame focus=…`),
+   using the sections of `graphs/frame.toml`.
+5. **Changes 2 to 4,** where the audit finds the current chapters fall short (why several scales, the cell-size
+   cost, one worked cell).
+6. **Both editions rebuilt** (`build.py --investigation godot/sdfgi`, then `--lang zh-CN`; GPU, one at a time) and the
+   change log.
+
 ## Open question
 
 The review asks for revised Mandarin narration, but the zh-CN edition keeps the English voice with Chinese

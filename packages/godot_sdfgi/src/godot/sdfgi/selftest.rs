@@ -437,7 +437,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check("every demonstration's file loads", states_ok, json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()));
 
-    // The story's actions (actions.rs): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
+    // The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
     {
         let mut timeline = still_timeline(64, 64);
         (timeline.total_frames, timeline.beats[0].frames, timeline.chapters[0].end_frame) = (400, 400, 400);

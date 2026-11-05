@@ -826,6 +826,34 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     }
     report.check("every demonstration renders its formula at full size, its readout, and its listing with text of at least 24 px", demos_ok, json!(demo_detail));
 
+    // ---- 7b. The free camera changes only what is seen ----------------------
+    // With the free camera on, the main camera's render (its image, the buffers its image kinds show) and the
+    // readout are what they are with it off; only the frame on screen, drawn from the free camera, differs.
+    {
+        let mut detail = Vec::new();
+        let mut ok = true;
+        for demo in [Demo::Room, Demo::Ssao, Demo::Specular] {
+            let off = shot::for_demo(demo);
+            let mut on = off.clone();
+            on.free_camera.on = true;
+            on.free_camera.yaw = off.camera.yaw + 70.0;
+            let mut seen = Vec::new();
+            for state in [&off, &off, &on] {
+                let result = renderer.render_frame(request(state, &still), None);
+                let rows: Vec<(String, String)> = result.content.as_ref().and_then(|c| c.readout.as_ref()).map(|r| r.rows.iter().map(|(n, v, _)| (n.clone(), v.clone())).collect()).unwrap_or_default();
+                let (_, linear) = renderer.read_view(renderer::ViewKind::Live).context("the main view")?;
+                let buffers: Vec<Vec<u32>> = ["ssaoFull", "tileData", "lightList"].iter().map(|b| renderer.read_chain_buffer(b).map(|(w, _)| w).unwrap_or_default()).collect();
+                seen.push((rows, linear, buffers, renderer.read_frame()));
+            }
+            let (rows, image, buffers) = (seen[2].0 == seen[1].0, seen[2].1 == seen[1].1, seen[2].2 == seen[1].2);
+            let stable = seen[0].1 == seen[1].1 && seen[0].2 == seen[1].2;
+            let screen_differs = seen[2].3 != seen[1].3;
+            ok &= rows && image && buffers && screen_differs && !seen[1].0.is_empty();
+            detail.push(json!({"demo": demo.key(), "readoutRowsEqual": rows, "readoutRows": seen[1].0.len(), "mainImageEqual": image, "buffersEqual": buffers, "offRendersRepeat": stable, "screenDiffers": screen_differs}));
+        }
+        report.check("the free camera: the main camera's image, its image kinds' buffers (SSAO, tiles, light lists), and the readout match those with it off; the screen differs", ok, json!(detail));
+    }
+
     // ---- 7a. Numbers the narration states, measured at the demonstrations' points ----
     {
         // Each demonstration's scene is loaded by a frame of it first (the last one rendered may be another scene).

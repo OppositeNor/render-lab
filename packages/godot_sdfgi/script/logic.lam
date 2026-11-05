@@ -1,0 +1,21 @@
+The SDFGI investigation's logic
+===============================
+
+The action its story can run (`{run "jumpFlood"}`), stepping the jump flood's demonstration.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_sdfgi_values]
+
+The jump flood's last step (`floodStep`: the full-size pass).
+$[# lastFloodStep 8]
+
+The arguments a story passes to `jumpFlood` (`run.seconds=…`); the optional one is an option.
+$[# JumpFlood [% {Struct {' {Field "seconds" Float} {Field "from" {Option Int}}}}]]
+
+Steps the jump flood (`floodStep`) from `from` (the half-size seeds, 0, by default) to its full-size pass, one step
+every `seconds`.
+$[# jumpFlood {: {^ {elapsed run}
+    [# seconds {.seconds run}]
+    [# from {withDefault {.from run} 0}]
+    {!if {<= seconds 0.0}
+        {error f"{a step takes $seconds s; it takes longer than 0}"}
+        {' {setFloodStep {float {min {+ from {steps seconds elapsed}} lastFloodStep}}}}}} {Action JumpFlood}}]

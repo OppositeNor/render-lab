@@ -25,13 +25,15 @@ pub fn content(main: &FrameContent, state: &ShotState, free: &FreeCamera) -> Fra
     let mut content = main.clone();
     content.uniforms.camera = free.orbit().camera_data_like(&main.uniforms.camera);
     investigation::current().view_from(&mut content);
-    mark_main_camera(&mut content, &main.uniforms.camera, state.camera.distance);
+    mark_camera(&mut content, &main.uniforms.camera, state.camera.distance, Some(tr("ui.main_camera")));
     content
 }
 
-/// The main camera drawn into a frame: a small body at its eye, its view cone
-/// out to `reach` metres (what it orbits, at most twelve metres), and its label.
-fn mark_main_camera(content: &mut FrameContent, camera: &CameraData, reach: f32) {
+/// A camera drawn into a frame: a small body at its eye, its view cone out to
+/// `reach` metres (at most twelve), and its label (if any). The free view draws the main
+/// camera with it; an investigation may draw a camera of its own (an engine's
+/// camera that its demonstration moves) the same way.
+pub fn mark_camera(content: &mut FrameContent, camera: &CameraData, reach: f32, label: Option<&str>) {
     let eye = Vec3::from(camera.position);
     let color = palette::VIEW;
     let draw = &mut content.draw;
@@ -55,5 +57,7 @@ fn mark_main_camera(content: &mut FrameContent, camera: &CameraData, reach: f32)
     // The line of sight, to the middle of the far rectangle.
     let centre = far.iter().copied().sum::<Vec3>() * 0.25;
     draw.segment(eye, centre, color, 0.5, 1.0, FLAG_DASHED);
-    content.labels.push(Label { anchor: eye + Vec3::Y * 0.25, text: tr("ui.main_camera").to_string(), color });
+    if let Some(text) = label {
+        content.labels.push(Label { anchor: eye + Vec3::Y * 0.25, text: text.to_string(), color });
+    }
 }

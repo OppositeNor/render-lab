@@ -1,5 +1,9 @@
 # Globalization backend (plan, not started)
 
+**Deferred to the future (2026-11-05):** it changes every package's text tables, the build checks of each, and how all
+on-screen text is formatted, for a third language nobody has asked for yet. The facts below were rechecked on
+2026-11-05 and still hold.
+
 The lab's on-screen text is keyed: each layer keeps its text in `text/en.json` and `text/zh-CN.json`, read with
 `tr("key")` or `tr_with("key", args!(name = value))` through `lab::i18n::Table`, and each package's build checks the
 tables. This plan turns that into a globalization backend: languages are data, messages handle plurals and number

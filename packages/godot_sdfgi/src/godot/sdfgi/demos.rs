@@ -224,7 +224,11 @@ fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
     let walk = state.p("cameraX");
     let camera = ORIGIN + Vec3::X * walk;
     ball(content, camera, 0.15, palette::VIEW, 1.0);
-    label(content, state, camera + Vec3::Y * 0.3, tr("demos.sdfgi_camera").into(), palette::VIEW);
+    // The camera SDFGI follows, drawn as the lab draws a camera: SDFGI reads only its position, so it is drawn
+    // looking along its walk (+X), with the main camera's field of view.
+    let walker = lab::camera::OrbitCamera { target: (camera + Vec3::X).to_array(), yaw: -90.0, pitch: 0.0, distance: 1.0, fov: state.camera.fov };
+    let walker = walker.camera_data(content.uniforms.camera.viewport_size);
+    lab::free_view::mark_camera(content, &walker, 6.0, (state.p("labels") > 0.5).then(|| tr("demos.sdfgi_camera")));
     let c0 = cascades.cascades[0];
     let y_mult = cascades.settings.y_mult();
     let cell = (Vec3::new(camera.x, camera.y * y_mult, camera.z) / c0.cell_size).as_ivec3();

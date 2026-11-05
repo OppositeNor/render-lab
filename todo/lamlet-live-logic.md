@@ -13,7 +13,7 @@ This plan lets the app run Lamlet scripts for all of it, the way a game engine r
 A script is package content, read through `lab::resources` like a shader or a text table. An edit shows on the
 next launch without rebuilding the package's library, and a package can have logic without Rust code.
 
-It builds on [lamlet-in-process.md](lamlet-in-process.md) and follows the runtime rules below ("Runtime inputs,
+It builds on the in-process plan (done and removed: the lab runs Lamlet in its own process, `lab/src/script/`) and follows the runtime rules below ("Runtime inputs,
 updates, and failure behavior"). It asks Lamlet for nothing specific to the lab.
 
 Status (rechecked 2026-11-05): milestones 0, 1, 3, 6, and 7 are done; 2, 4, and 5 in part (see "Implementation
@@ -248,7 +248,7 @@ For each investigation the lab writes a Lamlet package, `<package>.values`, from
 
 The names and types are then checked when the script is checked: a misspelled key or a wrong type is a
 diagnostic at its line, before anything runs. The command `render-lab --investigation <id> script stubs` from
-lamlet-in-process.md writes this package too.
+the in-process plan writes this package too.
 
 The types map as follows:
 
@@ -301,7 +301,7 @@ registry, with Lamlet's default `.runtime()` stage.
 
 ### Where scripts are declared
 
-A package's manifest provides a `script` collection, as in lamlet-in-process.md (module name → file). The lab
+A package's manifest provides a `script` collection, as in the in-process plan (module name → file). The lab
 reads hooks from its modules:
 
 - an exported function of the action type is an action, named by its binding;
@@ -397,7 +397,7 @@ The lab keeps no code that only one investigation uses: everything above serves 
 
 ## Dependency
 
-Done. The lab pins `lamlet` v0.4.0 (lamlet-in-process.md, "Dependency and distribution") and re-exports it as
+Done. The lab pins `lamlet` v0.4.0 (the in-process plan, "Dependency and distribution") and re-exports it as
 `lab::script::lamlet`; packages use it only through the lab. Lamlet has no dependencies. This plan needs no new
 crate and no new Lamlet release.
 
@@ -428,7 +428,7 @@ crate and no new Lamlet release.
    - the cascades.
 
    Each moves only if it is layout around native data.
-6. **Live readouts and labels.** lamlet-in-process.md's milestone 4, on the same main-thread engine.
+6. **Live readouts and labels.** the in-process plan's milestone 4, on the same main-thread engine.
 7. **Documentation.**
    - The `render-lab-lamlet` and `packages` skills: scripts, hooks, natives, and the split.
    - `tools/video/README.md`, where cues run script actions.
@@ -487,7 +487,7 @@ What was built, and how it differs from the sketches above:
 - **Milestone 5, in part**: O3DE's vectors, lobes, GGX samples, attenuation radius, and falloff curve are its
   overlay's; the culling tiles, cascades, decal boxes, and SSAO samples stay in its code (camera and tile geometry).
 - **Animations**: a demo's `animation` names a script animation, applied after `Investigation::animation`; O3DE's
-  surface and IBL demonstrations' moved. Story curves per frame (lamlet-in-process.md milestone 5) stay keys.
+  surface and IBL demonstrations' moved. Story curves per frame (the in-process plan milestone 5) stay keys.
 
 Validation, as run: viewer snapshots of O3DE's specular, diffuse, IBL, and point light demonstrations identical to
 the Rust drawing's; 93 of O3DE's 97 beat midpoints identical and four differing by one to six anti-aliased pixels
@@ -495,21 +495,28 @@ on a lobe or a curve (f64 against f32 endpoints), the same rendered alone; the s
 old pick at 336 points (the same), `pickSliceCell` at 6724 clicks, `marchCone` on every frame its story runs it, and
 the animations with their waves; unit tests of the library, shapes, and action arguments.
 
-## What is left (2026-11-05)
+## What is left, in stages (2026-11-05)
 
-- **Milestone 2, clicks:** `rl.project` does not exist (the runtime's natives are `rl_runtime/value-*`,
-  `rl_runtime/text`, `rl_runtime/demo`, and `rl_runtime/trace`). VoxelGI's slice-inset pick is a script
-  (`pickSliceCell`), but its scene click is still Rust (`Investigation::click`,
-  `packages/godot_voxelgi/src/godot/voxelgi/mod.rs`, with `trace_scene` and `leaf_of`), as is SSR's
-  (`packages/godot_ssr/src/godot/ssr/mod.rs`).
-- **Milestone 3, actions:** Godot SDFGI's `jump_flood` is still a Rust `#[action]`
-  (`packages/godot_sdfgi/src/godot/sdfgi/actions.rs`), shaped like `marchCone`: the next port.
-- **Milestone 4, animations:** only O3DE's surface and IBL animations are scripts. SDFGI, SSR, and VoxelGI keep
-  their Play animations in `Investigation::animation`.
-- **Milestone 5, overlays:** O3DE's culling tiles, cascades, decal boxes, and SSAO samples, and all of SDFGI's,
-  SSR's, and VoxelGI's `build_frame` drawing, are still Rust.
-- **Not built from Validation:** the selftest check that every native a stub package declares has an implementation
-  (`require_linked`).
+Done since the notes: milestone 3 (Godot SDFGI's `jumpFlood` is a script, `packages/godot_sdfgi/script/logic.lam`; no
+public package has a Rust `#[action]` left), and Validation's linked-natives check (`require_linked` on the lab's
+engines, `lab/src/script/mod.rs` and `runtime.rs`). Each stage below is one commit, validated as "Validation" says
+(the old Rust and the script compared in the selftest first, then the Rust removed; frame identity for its frames).
+
+1. **Scene clicks (milestone 2).** VoxelGI's surface click (`Investigation::click`,
+   `packages/godot_voxelgi/src/godot/voxelgi/mod.rs`: `trace_scene`, then `leaf_of`) and SSR's
+   (`packages/godot_ssr/src/godot/ssr/mod.rs`) become `scene` click handlers in their scripts. What they need from
+   native code is a package native each (VoxelGI's `traceCell` from the click's ray, SSR's pixel pick), not a
+   general `rl.project`: a handler gets the click's ray from `rl_runtime/trace` already. SDFGI's click returns
+   false and simply goes.
+2. **Play animations (milestone 4).** SSR's, VoxelGI's, and SDFGI's `Investigation::animation` (each a
+   `shot::demo_animation` table of waves) become `Animation` hooks in a `script/animations.lam` per package, as
+   O3DE's did; the selftests compare the values set at a grid of `t` with the Rust before it goes.
+3. **Overlays (milestone 5).** O3DE's culling tiles, cascades, decal boxes, and SSAO samples stay native: they are
+   camera and tile geometry, not layout around native data (the rule above). SSR's, VoxelGI's, and SDFGI's
+   `build_frame` drawing moves where it is layout (arrows, labels, markers around computed points), one package per
+   commit: (a) SSR, (b) VoxelGI, (c) SDFGI.
+
+Open question 5 (recording interactive sessions) stays for later.
 
 Names in the sketches above are the design's: the built ones are in "Implementation notes" (scripts are
 `script/<name>` resources, not a `script` collection; the natives are `rl_runtime/…`; a package's values are
