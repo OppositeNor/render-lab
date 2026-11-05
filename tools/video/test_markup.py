@@ -108,3 +108,15 @@ class RichText(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MotionData(unittest.TestCase):
+    def test_a_motion_as_data_is_the_timeline_motion(self) -> None:
+        wave = {'kind': 'wave', 'fields': [{'name': 'param', 'value': 'camera.yaw'}, {'name': 'amplitude', 'value': 6.0},
+                                           {'name': 'period', 'value': 24.0}, {'name': 'seconds', 'value': {'tag': 'sentence', 'value': None}}]}
+        path = {'kind': 'path', 'fields': [{'name': 'params', 'value': ['camera.pitch']}, {'name': 'through', 'value': [[7.0]]},
+                                           {'name': 'seconds', 'value': {'tag': 'seconds', 'value': 4.0}}, {'name': 'closed', 'value': True}]}
+        self.assertEqual(markup.motion_of(wave, 'w'), {'wave': {'param': 'camera.yaw', 'amplitude': 6.0, 'period': 24.0, 'seconds': 'sentence'}})
+        self.assertEqual(markup.motion_of(path, 'w'), {'path': {'params': ['camera.pitch'], 'through': [[7.0]], 'seconds': 4.0, 'closed': True}})
+        with self.assertRaises(markup.MarkupError):
+            markup.motion_of({'path': {}}, 'w')

@@ -61,13 +61,6 @@ $[# {_capital c} {fold {range 0 26} c {^ {out i} {!if {= {nth _lower i} c} {nth 
 $[# {capitalized s} [# cs {chars s}]
     {!if {isEmpty cs} s {++ {_capital {head cs}} {concat {tail cs}}}}]
 
-JSON, as the lab reads a motion
-
-$[# {_quoted s} {++ "\"" {++ s "\""}}]
-$[# {_array xs} {++ "[" {++ {join ", " xs} "]"}}]
-$[# {_floats xs} {_array {map {: xs {List Float}} str}}]
-$[# {_object fields} {++ "{" {++ {join ", " {map fields {^ {f} {++ {_quoted {.name f}} {++ ": " {.json f}}}}}} "}"}}]
-
 Motions
 
 A motion moves one or more channels of the shot over time (lab/src/animation.rs): a `path` through waypoints, an
@@ -80,16 +73,16 @@ $[# Length [% {Variant {' {Field "beat" Unit} {Field "sentence" Unit} {Field "se
 $[# beat [% {: {#beat unit} Length}]]
 $[# sentence [% {: {#sentence unit} Length}]]
 $[# {seconds s} {: {#seconds s} Length}]
-$[# {_length l} {!case {: l Length} {beat u {_quoted "beat"}} {sentence u {_quoted "sentence"}} {seconds s {str s}}}]
 
-A motion: its kind (`path`, `orbit`, or `wave`) and its fields as JSON, in order.
+A motion: its kind (`path`, `orbit`, or `wave`) and its fields in order, each a name and its value as Data, which
+the story reader turns into the timeline's motion (tools/video/markup.py `motion_of`).
 
-$[# _Field [% {Struct {' {Field "name" String} {Field "json" String}}}]]
+$[# _Field [% {Struct {' {Field "name" String} {Field "value" Data}}}]]
 $[# Motion [% {Struct {' {Field "kind" String} {Field "fields" {List _Field}}}}]]
 $[# {_motion kind fields} {: {. kind kind fields fields} Motion}]
-$[# {_field name json} {: {. name name json json} _Field}]
+$[# {_field name value} {: {. name name value {toData value}} _Field}]
 $[# {_channel f} {.key {: {f 0.0} Attr}}]
-$[# {_channels fs} {_array {map fs {^ {f} {_quoted {_channel f}}}}}]
+$[# {_channels fs} {map fs _channel}]
 $[# {_count what fs xs} {!if {= {length fs} {length xs}} unit
     {error {++ what {++ " has one value per channel: " {++ {str {length fs}} {++ ", not " {str {length xs}}}}}}}}]
 
@@ -98,8 +91,8 @@ Through `waypoints` after the start (one value per channel each), on a smooth cu
 $[# {path channels waypoints length}
     [# checked {map waypoints {^ {w} {_count "a waypoint" channels w}}}]
     {_motion "path" {' {_field "params" {_channels channels}}
-                       {_field "through" {_array {map waypoints _floats}}}
-                       {_field "seconds" {_length length}}}}]
+                       {_field "through" {: waypoints {List {List Float}}}}
+                       {_field "seconds" {: length Length}}}}]
 
 About `center` (one value per channel), by `degrees`: two channels turn in their plane, from the first towards
 the second; three about an axis (`around`; up by default).
@@ -107,17 +100,17 @@ the second; three about an axis (`around`; up by default).
 $[# {orbit channels center degrees length}
     [# checked {_count "an orbit's center" channels center}]
     {_motion "orbit" {' {_field "params" {_channels channels}}
-                        {_field "center" {_floats center}}
-                        {_field "degrees" {str {: degrees Float}}}
-                        {_field "seconds" {_length length}}}}]
+                        {_field "center" {: center {List Float}}}
+                        {_field "degrees" {: degrees Float}}
+                        {_field "seconds" {: length Length}}}}]
 
 A sine wave of `amplitude` and `period` (seconds) about the channel's value when it starts, for ever unless
 `lasting`.
 
 $[# {sway channel amplitude period}
-    {_motion "wave" {' {_field "param" {_quoted {_channel channel}}}
-                       {_field "amplitude" {str {: amplitude Float}}}
-                       {_field "period" {str {: period Float}}}}}]
+    {_motion "wave" {' {_field "param" {_channel channel}}
+                       {_field "amplitude" {: amplitude Float}}
+                       {_field "period" {: period Float}}}}]
 
 A motion's optional parts, each a wrapper (only the kinds it names take it): the pace along it (`eased`, with the
 vocabulary's easing, `easingSine`), going round again (`looping`, `pingPonging`), back to its start at the end (a
@@ -125,26 +118,26 @@ path, `closed`), the axis of a three-channel orbit (`around`), the point an orbi
 centre (`centered`), its phase in degrees (`phased`), how long it waves (`lasting`), and the seconds over which its
 amplitude grows and shrinks (`fading`).
 
-$[# {_part kinds name json m}
-    {!if {contains kinds {.kind m}} {.fields= m {append {.fields m} {' {_field name json}}}}
+$[# {_part kinds name value m}
+    {!if {contains kinds {.kind m}} {.fields= m {append {.fields m} {' {: {. name name value value} _Field}}}}
         {error {++ "a " {++ {.kind m} {++ " motion has no " name}}}}}]
 $[# _easings [% {' "smooth" "linear" "in" "out" "inOut" "sine"}]]
 $[# {_easeName easing} {fold _easings "" {^ {found n} {!if {= {.value {: easing Attr}} {toData n}} n found}}}]
-$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"} {_part {' "path" "orbit"} "ease" {_quoted {_easeName easing}} m}
+$[# {eased easing m} {!if {= {.key {: easing Attr}} "ease"} {_part {' "path" "orbit"} "ease" {toData {_easeName easing}} m}
     {error {++ "eased takes an easing (easingSine, …), not " {.key easing}}}}]
-$[# {looping m} {_part {' "path" "orbit"} "repeat" {_quoted "loop"} m}]
-$[# {pingPonging m} {_part {' "path" "orbit"} "repeat" {_quoted "pingPong"} m}]
-$[# {closed m} {_part {' "path"} "closed" "true" m}]
-$[# {around axis m} {_part {' "orbit"} "axis" {_floats axis} m}]
-$[# {from start m} {_part {' "orbit"} "start" {_floats start} m}]
-$[# {centered center m} {_part {' "wave"} "center" {str {: center Float}} m}]
-$[# {phased degrees m} {_part {' "wave"} "phase" {str {: degrees Float}} m}]
-$[# {lasting length m} {_part {' "wave"} "seconds" {_length length} m}]
-$[# {fading s m} {_part {' "wave"} "fade" {str {: s Float}} m}]
+$[# {looping m} {_part {' "path" "orbit"} "repeat" {toData "loop"} m}]
+$[# {pingPonging m} {_part {' "path" "orbit"} "repeat" {toData "pingPong"} m}]
+$[# {closed m} {_part {' "path"} "closed" {toData true} m}]
+$[# {around axis m} {_part {' "orbit"} "axis" {toData {: axis {List Float}}} m}]
+$[# {from start m} {_part {' "orbit"} "start" {toData {: start {List Float}}} m}]
+$[# {centered center m} {_part {' "wave"} "center" {toData {: center Float}} m}]
+$[# {phased degrees m} {_part {' "wave"} "phase" {toData {: degrees Float}} m}]
+$[# {lasting length m} {_part {' "wave"} "seconds" {toData {: length Length}} m}]
+$[# {fading s m} {_part {' "wave"} "fade" {toData {: s Float}} m}]
 
-The cue attribute: the motions a key starts (`animate`).
+The cue attribute: the motions a key starts (`animate`), as Data.
 
-$[# {motion motions} {attr "animate" {_array {map {: motions {List Motion}} {^ {m} {_object {' {_field {.kind m} {_object {.fields m}}}}}}}}}]
+$[# {motion motions} {attr "animate" {toData {: motions {List Motion}}}}]
 
 The camera's own paths, over the beat: `cameraPath` through yaw, pitch, and distance waypoints (`{' 18.0 16.0
 6.2}`), `cameraTurn` through yaw and pitch.

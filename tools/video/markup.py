@@ -267,6 +267,24 @@ def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
     return [{**prefix, member: item} for item in names]
 
 
+def _plain(data: Any) -> Any:
+    """Lamlet Data as the timeline's JSON: a `Length` (a variant, `{"tag": …, "value": …}`) is `"beat"`,
+    `"sentence"`, or its seconds; lists and numbers as they are."""
+    if isinstance(data, dict) and set(data) == {'tag', 'value'}:
+        return data['tag'] if data['value'] is None else _plain(data['value'])
+    if isinstance(data, list):
+        return [_plain(x) for x in data]
+    return data
+
+
+def motion_of(m: Any, where: str) -> Json:
+    """A motion as render_lab's `motion` writes it (Data: its kind and its fields, each a name and a value) as the
+    timeline's (`{"path": {"params": …, …}}`, src/lab/animation.rs)."""
+    if not isinstance(m, dict) or not isinstance(m.get('kind'), str) or not isinstance(m.get('fields'), list):
+        raise MarkupError(f'{where}: animate is a list of motions, each its kind and fields, not {m!r}')
+    return {m['kind']: {f['name']: _plain(f['value']) for f in m['fields']}}
+
+
 def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
     """The shot key a cue (a point cue, a range's start, a formula, or one of
     a beat's keys) sets, before timing: fields as the storyboard writes them
@@ -288,10 +306,13 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
                 raise MarkupError(f'{where}: unknown camera field {part!r}')
             key.setdefault('camera', {})[part] = [number(x, where) for x in v.split(',')] if part == 'target' else number(v, where)
         elif name == 'animate':
-            try:
-                key['animate'] = json.loads(v)
-            except ValueError as e:
-                raise MarkupError(f'{where}: animate is JSON: {e}') from None
+            if isinstance(v, str):
+                try:
+                    key['animate'] = json.loads(v)
+                except ValueError as e:
+                    raise MarkupError(f'{where}: animate is JSON: {e}') from None
+            else:
+                key['animate'] = [motion_of(m, where) for m in v]
         elif name in ('blend', 'delay'):
             key[name] = number(v.removesuffix('s'), where)
         elif name == 'ease':
