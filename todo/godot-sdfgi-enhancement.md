@@ -1,4 +1,16 @@
-# Godot SDFGI video: the enhancement (plan, not started)
+# Godot SDFGI video: the enhancement (plan, in part)
+
+Status (2026-11-05): the narration was rewritten on 2026-11-04 (commit 2808fa0, "improve narration": shorter
+sentences, plainer words, the same 11 chapters and 64 beats), but the changes below were not run as a revision.
+Checked against `packages/godot_sdfgi/video/storyboard.lam`:
+
+- Present: the opening's matched comparison (`sdfgiMix` 0 then `sdfgiMixRange 0.0 1.0` on one camera, the red wall
+  tinting the sphere); spherical harmonics said in plain words (chapter 9); the frame graph in chapter 1 and the
+  last chapter.
+- Not done: a recap after each chapter (each ends on a "where to read" sources beat); the ending's three takeaways
+  (it ends "That is SDFGI, as Godot's source builds it."); the architecture map opening each chapter with its part
+  lit; the review table (`packages/godot_sdfgi/story/` has no `reviews/`); the accuracy report; the change log.
+- Not checked line by line: changes 2 to 4 (why several cascade scales, the cell-size cost, one worked cell).
 
 A viewer's review of the zh-CN edition (about 18 min 20 s) asked for the story to explain, not only show, what
 SDFGI's structures are for. Its general lessons are now in the skills (`new-story`: "The shape of a story", Phase 5

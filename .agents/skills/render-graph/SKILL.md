@@ -57,7 +57,7 @@ A chain without `outputs` but with `prepass_outputs` (a depth and normal pre-pas
 is the pre-pass and compute nodes before an ordinary scene pass, which writes `hdr` and may read what they wrote
 (`scene_reads`); it has no compute nodes after the scene.
 
-**Programs** (`SceneShading::program`, `lab/src/program.rs`, todo/pass-programs.md) are an engine's own GPU work that
+**Programs** (`SceneShading::program`, `lab/src/program.rs`) are an engine's own GPU work that
 the chain cannot express: images (2D, 2D arrays, 3D; integer formats; `count` elements, bound one at a time or as a
 binding array) and buffers (indirect ones too), compute and raster passes, and a plan (CPU, with its own state) that
 returns each frame's commands in order: uploads, clears, copies, dispatches (direct or indirect, each with 16 words

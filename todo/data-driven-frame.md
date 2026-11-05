@@ -1,5 +1,8 @@
 # A data-driven frame: the scene shading read from a package's TOML (plan, 2026-11-03)
 
+Status (2026-11-05): stages 1 and 2 are done (every public package's frame is its `shading.toml`, read by
+`lab/src/shading_file.rs`); only "Next", the general `raster` node, is open (the parser still refuses `kind = "raster"`).
+
 ## Why
 
 An investigation's frame (`SceneShading`, lab/src/investigation.rs) is mostly a declaration — targets, buffers,

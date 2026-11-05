@@ -279,7 +279,7 @@ pub struct ShadingResolution {
 }
 
 /// An investigation's own GPU work, for what the pass chain cannot express
-/// (todo/pass-programs.md): its images (2D, 2D arrays, 3D; any format,
+/// (the `render-graph` agent skill): its images (2D, 2D arrays, 3D; any format,
 /// integer ones too; several images bound as one binding array) and buffers
 /// (indirect arguments too), its compute and raster passes, and a plan that
 /// returns, each frame, the commands to record in order: uploads, clears,

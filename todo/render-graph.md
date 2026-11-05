@@ -127,7 +127,7 @@ O3DE mismatches alone before calling them regressions).
    named after them and linked to the source index: O3DE's pass system maps one-to-one onto nodes; Godot's renderer
    steps onto nodes per feature. Their stories gain a chapter that walks the graph.
 
-## Status (2026-11-02)
+## Status (2026-11-02; rechecked 2026-11-05)
 
 Built, both builds clean, unit tests passing, frames identical to the HEAD baseline (333 beat-midpoint frames of
 the four timelines; the only differences are a measured CPU-time readout in VoxelGI's panel and viewport noise that
@@ -148,7 +148,7 @@ also differs between two runs of the baseline binary):
 5. **History.** `SceneShading::history`: chain targets and buffers read across frames; their writers stay live and a
    read before this frame's write is allowed only for them. The scene pass, pre-pass, and depth views are graph nodes.
 6. **Engine passes.** The source index's `passes` (`lab`, `engine`, `sources`), written by each package's
-   `source_index.py` beside `mappings` (o3de_lighting: 19 nodes, godot_voxelgi: 8); the panel names the pass and
+   `source_index.py` beside `mappings` (o3de_lighting: 19 nodes, godot_voxelgi: 8, godot_ssr: 9 since); the panel names the pass and
    its first source; `graph` checks them.
 
 Decisions made while building (open to change):
@@ -175,17 +175,21 @@ Not built, and why:
 - **General raster nodes as data** (a package's own fullscreen or mesh raster passes): no investigation has one
   beyond the scene pass, pre-pass, and depth views, and the lab keeps no code that no investigation uses. Build it with
   the first that needs one (its targets need RENDER_ATTACHMENT, its pipeline the chain's group-2 layout).
-- **Story chapters that walk each graph**: a chapter goes through the new-story skill's research, outline, and review,
-  and rebuilds both editions' narration; that is its own task. The story keys and the panel are ready for it.
-- **Godot SDFGI's pass mapping**: its frame is the scene pass alone.
+- **Godot SDFGI's pass mapping**: its frame now has 20 nodes (`packages/godot_sdfgi/shading.toml`, each with its
+  `pass.<entry>` text), but its `source-index.json` has no `passes` yet, so the panel names no engine pass for them.
+  Still to do: add them in its `source_index.py`.
+
+Built since: the story chapters that walk each graph (every public storyboard has `graph=frame` beats: the frame
+graph scene, below).
 
 ## Open decisions (from the design)
 
 - Whether the inspector captures "after node N" for a resource N later overwrites by copying the resource (exact) or
   by visualizing it in place (cheaper, no copy). The plan uses a capture dispatch, which covers both.
-- Whether `Investigation::frame_graph` replaces `scene_shading` once every public package has moved, or both stay.
+- Settled: no `Investigation::frame_graph`; `scene_shading` is read from each package's `shading.toml`
+  ([data-driven-frame.md](data-driven-frame.md)).
 - How a raster node names what it draws without the lab knowing the investigation (a mesh filter by scene tag, or an
-  instance buffer the node's resources provide).
+  instance buffer the node's resources provide): with data-driven-frame.md's `raster` node.
 
 ## Since (2026-11-02)
 

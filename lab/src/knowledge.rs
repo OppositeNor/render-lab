@@ -1,6 +1,6 @@
 //! The knowledge graph: what understanding an investigation's chapters needs,
 //! worked back to three bases, and the audience an investigation is aimed
-//! at (todo/knowledge-graph.md; the `knowledge-graph` agent skill).
+//! at (the `knowledge-graph` agent skill).
 //!
 //! A package's `knowledge` resource (a `kind = "file"` TOML file, conventionally
 //! `knowledge.toml`) has:
@@ -30,7 +30,7 @@
 //! beyond the level is a carry: a known topic used directly above the level.
 //! In the graph with every level-skipping edge subdivided, the level and the
 //! carries together are an antichain vertex separator between A and the rest
-//! (the proof is in todo/knowledge-graph.md). The rest is what the story teaches.
+//! (the proof is in the `knowledge-graph` agent skill). The rest is what the story teaches.
 
 use crate::packages::{self, Package};
 use std::collections::BTreeMap;

@@ -16,7 +16,8 @@ next launch without rebuilding the package's library, and a package can have log
 It builds on [lamlet-in-process.md](lamlet-in-process.md) and follows the runtime rules below ("Runtime inputs,
 updates, and failure behavior"). It asks Lamlet for nothing specific to the lab.
 
-Status: implemented 2026-11-03, milestones 0 to 7 (milestone 5 in part: see "Implementation notes"). The lab pins
+Status (rechecked 2026-11-05): milestones 0, 1, 3, 6, and 7 are done; 2, 4, and 5 in part (see "Implementation
+notes" and "What is left"). The lab pins
 Lamlet v0.4.0 and lamlet-present v0.1.4. The host is `lab/src/script/runtime.rs`, the runtime library
 `packages/render_lab/language/runtime.lam`, and the first scripts are O3DE's (`packages/o3de_lighting/script/`:
 overlay, readout, picks, animations) and VoxelGI's (`packages/godot_voxelgi/script/logic.lam`). The sketches below
@@ -494,7 +495,30 @@ on a lobe or a curve (f64 against f32 endpoints), the same rendered alone; the s
 old pick at 336 points (the same), `pickSliceCell` at 6724 clicks, `marchCone` on every frame its story runs it, and
 the animations with their waves; unit tests of the library, shapes, and action arguments.
 
+## What is left (2026-11-05)
+
+- **Milestone 2, clicks:** `rl.project` does not exist (the runtime's natives are `rl_runtime/value-*`,
+  `rl_runtime/text`, `rl_runtime/demo`, and `rl_runtime/trace`). VoxelGI's slice-inset pick is a script
+  (`pickSliceCell`), but its scene click is still Rust (`Investigation::click`,
+  `packages/godot_voxelgi/src/godot/voxelgi/mod.rs`, with `trace_scene` and `leaf_of`), as is SSR's
+  (`packages/godot_ssr/src/godot/ssr/mod.rs`).
+- **Milestone 3, actions:** Godot SDFGI's `jump_flood` is still a Rust `#[action]`
+  (`packages/godot_sdfgi/src/godot/sdfgi/actions.rs`), shaped like `marchCone`: the next port.
+- **Milestone 4, animations:** only O3DE's surface and IBL animations are scripts. SDFGI, SSR, and VoxelGI keep
+  their Play animations in `Investigation::animation`.
+- **Milestone 5, overlays:** O3DE's culling tiles, cascades, decal boxes, and SSAO samples, and all of SDFGI's,
+  SSR's, and VoxelGI's `build_frame` drawing, are still Rust.
+- **Not built from Validation:** the selftest check that every native a stub package declares has an implementation
+  (`require_linked`).
+
+Names in the sketches above are the design's: the built ones are in "Implementation notes" (scripts are
+`script/<name>` resources, not a `script` collection; the natives are `rl_runtime/…`; a package's values are
+imported as `<package>_values`).
+
 ## Open questions
+
+Questions 1 to 4 were settled as recommended (see "Implementation notes"); only 5 is open.
+
 
 1. **Readers as natives, or the shot passed in.** Natives per key keep the type of every read checked.
    Passing the whole shot as a record would make every script's type depend on every key. Recommended: natives.

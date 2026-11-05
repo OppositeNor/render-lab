@@ -7,7 +7,7 @@ description: Use and extend Render Lab's knowledge graph and choose an investiga
 
 The investigations explain high-level algorithms that assume a lot. The **knowledge graph** says what, all the way down;
 the **target audience** says where an investigation starts, so its story explains what is beyond that and nothing
-below it. The plan and the mathematics are in `todo/knowledge-graph.md`; the code is `lab/src/knowledge.rs`.
+below it. The code is `lab/src/knowledge.rs`.
 
 ## The graph
 
@@ -62,7 +62,7 @@ missing). A requirement already implied by another of the chapter's is rejected;
 chapters out (they require nothing new).
 
 Delegate the listing per investigation when your environment has subagents (a cheaper model is enough: AGENTS.md),
-with the outline, the storyboard, and the node table (the `knowledge.toml` files, or `todo/knowledge-graph-tree.md`);
+with the outline, the storyboard, and the node table (the `knowledge.toml` files);
 otherwise list it yourself, a chapter at a time. Check the result with the `knowledge` command either way.
 
 ## The target audience
@@ -79,7 +79,22 @@ chapters' ancestors:
   `references/outline.md`, "Teaching a topic").
 
 With every level-skipping edge subdivided, S and the carries form an antichain vertex separator between A (what
-you should know: the Prerequisites tab) and the rest (what you might not know). The proof is in the plan.
+you should know: the Prerequisites tab) and the rest (what you might not know).
+
+**Why the subdivision.** Let G_T be the chapters T (sinks) and their ancestors. The literal definition, a partition
+A ⊔ S ⊔ B with S an antichain, no edge between A and B, the bases in A and T in B, degenerates: a node whose
+requirements lie at different depths (a chapter that reads the depth buffer directly and also traces a distance field)
+cannot be in B while one requirement is in A and another is not, so the smallest valid A swallows nearly everything and
+S becomes the chapters. Such skip-level requirements are not mistakes. So every edge that skips levels is split into a
+chain of *carry* vertices, one per level crossed (a carry of u at level k: "u, still used directly at level k"), the
+standard step from layered graph drawing. In the subdivision the literal definition holds exactly, and it reduces to
+a test on G_T: for A a downset containing the bases and no chapter, S = the minimal nodes of G_T ∖ A plus the carries
+of the edges that leave A for nodes that are not minimal; S is an antichain separator of the subdivision, and every
+such separator arises this way. S is an antichain: two minimal elements are incomparable; a carry on a → b is below a
+real s only through b ≤ s, which minimality forbids, and above s only through s ≤ a, which A being a downset forbids;
+two carries are comparable only if one edge's head lies in A, which cannot happen. The separator is taken over the
+union of the chapters (one audience per investigation); the tab filters it to the current context, A ∩
+ancestors(context).
 
 The procedure:
 

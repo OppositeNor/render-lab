@@ -7,7 +7,9 @@ opening cue repeats the same reset in nearly every beat. This plan lists everyth
 types, functions, and bindings, in the storyboards, in the pipeline's policy, and in the lab's other content
 formats, and orders it. It also says what should not move, and why.
 
-Status (2026-11-03): phases 0, 1, 2, and 5 are done; 3, 4, and 6 in part (below, under each phase). Every step
+Status (2026-11-03; rechecked 2026-11-05, unchanged since): phases 0, 1, 2, and 5 are done; 3, 4, and 6 in part
+(below, under each phase). The survey's counts ("What there is to migrate") are of the three storyboards before the
+migration; Godot SSR's storyboard, added since, was written in the typed forms and has its own `video/story.lam`. Every step
 left every edition's prepared outputs equal to those before it (`tools/video/compare.py`: timelines by value,
 captions, documents, and narration unchanged, nothing synthesized anew). The plan was written from three surveys of
 the tracked files (the storyboards; the video pipeline and the lab's timeline code; the lab's other content formats). Runtime logic
@@ -177,6 +179,11 @@ captions and documents byte for byte, narration audio by hash. The migration use
    natives (lamlet-in-process.md milestone 2, with `rl.listingTag` and `rl.formula`); build.py's `validate` and
    `lab/check`'s textual harvest of cue attributes removed once the natives cover them. Check: a test storyboard
    with each kind of wrong name fails at its line, before speech; every edition unchanged.
+   Since (2026-11-04): `story check` and `tools/video/check.py` ([render-lab-storyboard-plan.md](render-lab-storyboard-plan.md),
+   PR 1 to 3) check a storyboard's names in Rust before speech (`lab/src/story_refs.rs`: highlights by
+   namespace, sources, text keys, actions, images); the typed fields grew to `highlightPasses`, `highlightCode`, and
+   `highlightFields` (`TYPED`, `lab/src/script/keys.rs`). Closed option sets, `rl.listingTag`, and the harvest are
+   still open.
 4. **Computed narration.** In part: `Investigation::script_natives` (ids `<package>/<name>`, the package
    `<package>_natives`); VoxelGI's chapter 8 numbers from cost.rs (leaves, dispatches, cone steps) and its cone
    counts bound once in its story library, each said and cued from the one value; SDFGI's cascade count and size from

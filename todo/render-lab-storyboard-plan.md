@@ -23,11 +23,11 @@
 - PR 3 验证：104 项 Rust 测试、60 项 Python 测试通过；正常、各本地包及公开文件副本构建无编译警告。公开 8 个版本的时间线、字幕、音频、文档和 IR 与修改前相同；当前管线使用父／新 host 的完整 consumer regression 也通过。公开调查各 12 个 beat 中点共 48 帧已比较解码像素并查看，差异帧单独重渲染后 46 帧完全相同，另 2 帧仅实测耗时读数／性能曲线变化，场景像素相同。另有新入口离屏预览：代码高亮像素完全等同旧写法，pass 入口仅图面板计时数字不同，高亮行相同。
 - 字段验证的边界：检查的是 WGSL schema／field 及请求的 `record` 上下文，不保证当前帧显示该 record。实际显示还需调查的 `build_frame` 提供 `panel_record`，当前公开 demo 没有该 producer；字段入口已验证真实 Lamlet 数据、引用规则、运行时名称与兼容输出，但没有可见字段高亮的公开视觉 fixture。预检不执行 `build_frame`；要精确预测显示能力，需后续增加纯 metadata 契约。二维 beat 也可能保留 panel 设置而实际显示 diagram／source card。
 
-下一阶段是 PR 4 的 motion、range、状态和时间契约；PR 4–7 尚未实施。下文的源码审计与复现记录保留为计划制定时的依据，不代表后续阶段已经完成。
+下一阶段是 PR 4 的 motion、range、状态和时间契约；PR 4–7 尚未实施（2026-11-05 复核：f6468d9 只清理代码，未涉及 PR 4–7）。文中引用的行号为制定计划时的位置，PR 1–3 之后多数已偏移，实施时以符号重新定位。下文的源码审计与复现记录保留为计划制定时的依据，不代表后续阶段已经完成。
 
 范围是本次反馈涉及的 Lamlet storyboard 写作、引用、校验、计时和预览链路；不是整个渲染器的缺陷清单。下列“已确认”来自当前源码和独立 Python 复现；“编辑负担”是从现有写法可直接观察到的成本；涉及产品取舍的地方单独标为“需决定”。没有把推测写成已发生的故障。
 
-文中的路径均相对于 Render Lab 仓库。建议接手后将本文放入 `todo/storyboard-authoring.md`。当前依赖为 Lamlet v0.4.0、lamlet-present v0.1.4；实施时重新核对 `lab/Cargo.toml` 和 `Cargo.lock`。
+文中的路径均相对于 Render Lab 仓库。当前依赖为 Lamlet v0.4.0、lamlet-present v0.1.4；实施时重新核对 `lab/Cargo.toml` 和 `Cargo.lock`。
 
 ## 目标与边界
 
@@ -39,8 +39,8 @@
 
 ## 已有能力，实施时需要保留
 
-- `focus` 已在 `tools/video/build.py:76` 的 `validate` 中按 graph／diagram 检查，发生在语音合成之前。
-- `cue "key"` 中的 `key` 是提示类型，不是某个 cue 的唯一 ID。`presentation.py:184` 拒绝错误的 point cue 类型；不需要给每个 `key` 建 ID 注册表。
+- `focus` 已在 `tools/video/storyboard.py:67` 的 `validate` 中按 graph／diagram 检查（`build.py` 导入并调用），发生在语音合成之前。
+- `cue "key"` 中的 `key` 是提示类型，不是某个 cue 的唯一 ID。`presentation.py:210` 拒绝错误的 point cue 类型；不需要给每个 `key` 建 ID 注册表。
 - source key、callout、text key、point 和 formula 已有不同层次的检查。`lab/src/script/natives.rs:28` 提供部分检查原语。
 - 缺失 chapter／beat ID、重复英文 beat ID、部分翻译对应关系和公式对应关系已检查。
 - `opening`、`baseRoom`、`lowCamera` 等复用已经存在于 `packages/godot_ssr/video/story.lam`，不是从零建立库。
@@ -118,7 +118,7 @@ P0：可能漏错、晚报错或静默改变结果。P1：高频编辑和诊断�
 
 覆盖 RL10、RL22、RL23，为其他 P0 工作提供共同入口。
 
-1. 从 `build.py` 提取或复用 `load_board` 和 board validate。建议新增 `tools/video/check.py`，不导入／初始化 TTS、phonemizer、FFmpeg 或 GPU。以下命令是建议接口，尚未实现：
+1. 从 `build.py` 提取或复用 `load_board` 和 board validate。建议新增 `tools/video/check.py`，不导入／初始化 TTS、phonemizer、FFmpeg 或 GPU。以下命令是建议接口（PR 1 已实现 `check.py` 的 `--investigation`、`--binary`、`--lang`、`--json`；`--explain` 等属 PR 6，尚未实现）：
 
    ```sh
    python3 tools/video/check.py --investigation godot/ssr --binary target/release/render-lab

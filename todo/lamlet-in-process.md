@@ -5,7 +5,7 @@ The lab runs Lamlet in its own process, from crates it pins, so that scripts can
 evaluate scripts live. The language-side work it relies on is general and lives in Lamlet (`lamlet::embed`, its
 `docs/embedding.md`); nothing here asks Lamlet for a feature only this lab needs.
 
-Status (2026-11-03): milestone 1 is done, and the storyboards are Lamlet presentations read through it
+Status (2026-11-03; rechecked 2026-11-05, unchanged since): milestone 1 is done, and the storyboards are Lamlet presentations read through it
 (`tools/video/presentation.py`; `tools/video/README.md` and the `render-lab-lamlet` skill describe the format).
 The lab pins Lamlet v0.4.0 and lamlet-present v0.1.4, `lab/src/script/` is its host, and `render-lab lamlet
 ir|deck|vocab|toml` and `render-lab story keys` are its commands. Milestone 3 is done and 2 in part
@@ -110,11 +110,15 @@ forged (an image handle) would be native opaque types, with the natives above.
    harvest of cue attributes. In part (2026-11-03, [lamlet-typed-content.md](lamlet-typed-content.md) phase 3):
    `rl::source`, `rl::text`, `rl::point`, `rl::formula`, called by render_lab's own attribute functions rather than
    the vocabulary, with `render-lab --investigation <id> lamlet …`; images and actions keep the vocabulary's options,
-   and `lab/check` keeps its harvest.
+   and `lab/check` keeps its harvest. Still to do (2026-11-05): natives for images, image kinds, actions, and
+   listing tags (`lab/src/script/natives.rs` registers only `rl/source`, `rl/text`, `rl/point`, and `rl/formula`),
+   the vocabulary's closed option sets, and `lab/check`'s harvest (`lab/check/src/lib.rs`, `text_keys_used`).
+   Since, the storyboard checks of [render-lab-storyboard-plan.md](render-lab-storyboard-plan.md) (`story check`,
+   `lab/src/story_refs.rs`) check highlights, sources, text keys, actions, and images by name, in Rust.
 3. **Package values.** `Investigation::script_natives`; VoxelGI's chapter 8 numbers from `cost.rs`, the story
    unchanged in what it says. Done (2026-11-03).
 4. **Threads and live use.** A per-thread engine in the viewer; one live readout row computed by a script, as the
-   first runtime use ([lamlet-live-logic.md](lamlet-live-logic.md)).
+   first runtime use ([lamlet-live-logic.md](lamlet-live-logic.md)). Done (2026-11-03).
 5. **Curves.** Story animations evaluated per frame where a path cannot express them (optional). Typed motions,
    and the rest of the storyboards' Strings and repetition, are [lamlet-typed-content.md](lamlet-typed-content.md).
 
@@ -127,6 +131,6 @@ forged (an image handle) would be native opaque types, with the natives above.
 - Both builds clean (the lab with Lamlet vendored; the public-only copy builds alone); a local package's
   workspace rebuilt after the lab.
 - Selftests of every investigation; a new selftest check that every native the stub package declares has an
-  implementation (`require_linked`).
+  implementation (`require_linked`). Not built yet.
 - A two-thread test of the lab's engine, and a malformed-storyboard test (bad syntax, unknown key, a native's
   error) that reports a diagnostic, never a panic.

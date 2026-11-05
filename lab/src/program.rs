@@ -1,4 +1,4 @@
-//! A scene shading's program (`ShadingProgram`, todo/pass-programs.md): the
+//! A scene shading's program (`ShadingProgram`; the `render-graph` agent skill): the
 //! investigation's own images, buffers, and passes, and the commands its plan
 //! returns each frame, recorded in order where their passes' nodes are in the
 //! frame (`SceneShading::program_runs`). Group 2 of

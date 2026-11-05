@@ -16,7 +16,7 @@ camera cues and the dock drive):
 
 ### State and input (`lab/src/shot.rs`, `lab/src/viewer.rs`, `lab/src/camera.rs`)
 
-- `ShotState.free_camera: Option<OrbitCamera>`. `None` means off (today's behaviour). It is not a timeline channel:
+- `ShotState.free_camera: FreeCamera` (`lab/src/camera.rs`), with an `on` field; off is the behaviour before it. It is not a timeline channel:
   a timeline keeps driving the main camera while the free camera stays put.
 - Toggle: a key (`C`) and a dock button "Free camera". Turning it on starts the free camera from the main one,
   pulled back and raised so the main camera's cone is in view.
@@ -41,7 +41,8 @@ free camera's screen, while CPU-built engine data in `shading_frame` (O3DE's cas
 
 ### A hook for render-camera data in packages (`lab/src/investigation.rs`)
 
-`Investigation::view_from(&self, content: &mut FrameContent, camera: &CameraData)`, default: nothing. A package
+`Investigation::view_from(&self, content: &mut FrameContent)` (`lab/src/investigation.rs`; the free camera is
+`content.uniforms.camera`), default: nothing. A package
 whose shading data holds the render camera rewrites it there. O3DE: `shading_frame[0..3]`, the inverse
 `world_to_clip` its depth reconstruction uses. SDFGI and VoxelGI read the camera only from `uniforms.camera`, so
 they need nothing. This is generic: any investigation with camera-derived shading data uses it.
@@ -71,8 +72,9 @@ Added to the free render's draw lists (`content.draw`):
 ### Story cues (`lab/src/shot.rs`, `lab/src/animation.rs`)
 
 The free camera is a second `OrbitCamera` value scope, `freeCamera`, with the same channels as `camera.*`
-(`freeCamera.x/y/z`, `.yaw`, `.pitch`, `.distance`, `.fov`) plus `freeCamera.on` to switch it on. A story places
-it as it places the main camera (`{@ freeCamera.on=1 freeCamera.yaw=40 freeCamera.distance=12}`), animates it with
+(channels `freeCamera.yaw`, `.pitch`, `.distance`, …, plus `freeCamera.on`; a storyboard's cues name them
+`freeCameraOn`, `freeCameraYaw`, `freeCameraPitch`, `freeCameraDistance`, `freeCameraTarget`). A story places
+it as it places the main camera (`packages/o3de_lighting/video/storyboard.lam`'s two cascade beats), animates it with
 `animate` paths, and blends it like any channel. Placed nowhere, it has a fixed overview pose. `cameraDrift` sways
 the free camera while it is on (the main camera then holds still unless cued). A `demo` switch turns it off, as it
 resets everything else. In the viewer, C (or the dock's button) toggles it, starting beside the main camera, and
@@ -112,14 +114,14 @@ Each story's cues are rewritten to match, then checked with `--snapshots-only` s
   `cameraX`, `cameraJump` and `ORIGIN` as the camera go; walk cues become main-camera moves. Readouts and selftest
   numbers change; the cost of re-walking when the eye crosses a cell is measured.
 
-## Status (2026-11-01)
+## Status (2026-11-01; rechecked 2026-11-05)
 
 Done and checked (both builds clean, home autotest, the three selftests, `viewer-free` snapshot, O3DE's two cascade
 beats rendered from the rebuilt timeline):
 
-- The free camera: `FreeCamera` (src/camera.rs), `ShotState::free_camera` and `view_camera`, the `freeCamera.*`
+- The free camera: `FreeCamera` (`lab/src/camera.rs`), `ShotState::free_camera` and `view_camera`, the `freeCamera.*`
   channels and cues, C and the dock's "Free camera" button, input routed to it, the snapshot page `viewer-free`.
-- The free render (src/free_view.rs, renderer `free_slot`), `Investigation::view_from` (O3DE rewrites its
+- The free render (`lab/src/free_view.rs`, renderer `free_slot`), `Investigation::view_from` (O3DE rewrites its
   clip-to-world matrix), the main camera's marker and cone, its own view framed in a corner.
 - O3DE's cascade observer unified: the cascades always fit the main camera; `cascadeCamera`, `observerYaw`,
   `cascade_observer` and their keys are gone; its two beats use `freeCamera` with the main camera at the old
@@ -128,9 +130,11 @@ beats rendered from the rebuilt timeline):
 Not done:
 
 - O3DE's `observer` (the BRDF's eye in the close-ups): kept, as above.
-- SDFGI's walk: blocked on a decision. Its whole simulation (voxels, light, probes over `CONVERGED_FRAMES`) is
+- SDFGI's walk: blocked on a decision (still undecided on 2026-11-05: `cameraX`, `cameraJump` and `ORIGIN` remain in
+  `packages/godot_sdfgi/src/godot/sdfgi/values.rs` and `demos.rs`, and the storyboard walks with `cameraX`). Its whole simulation (voxels, light, probes over `CONVERGED_FRAMES`) is
   converged once at `ORIGIN` and cached; following the main camera's eye means converging it again for each snapped
   cascade position the eye reaches, which orbiting reaches constantly. Options: converge per snapped position in the
   background with a cache (large); follow the main camera only in the cascades and regions demos, where the walk
   already re-runs; or keep `cameraX` and draw it with the lab's camera marker.
-- The check that image kinds and readouts match with the free camera on and off; the zh-CN stills of the beats.
+- The check that image kinds and readouts match with the free camera on and off (no autotest or selftest has it); the
+  zh-CN stills of the beats.

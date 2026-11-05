@@ -1,4 +1,4 @@
-# The knowledge graph's nodes (lab/src/knowledge.rs; the plan is todo/knowledge-graph.md).
+# The knowledge graph's nodes (lab/src/knowledge.rs; the `knowledge-graph` agent skill).
 # An edge is a `requires` entry: understanding the node needs it directly. The three
 # bases are the only nodes without requirements; the graph is acyclic and
 # transitively reduced (an edge another path implies is an error). Investigations
