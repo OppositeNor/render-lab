@@ -1149,8 +1149,8 @@
       "line": 1249,
       "symbol": "GI::SDFGI::update_light",
       "lineHash": "925be0b661ec6a6b",
-      "inspect": "The dynamic light pass: for every cascade, copy the solid-cell counters into the indirect-dispatch buffer, push bounce_feedback and use_occlusion, and dispatch one thread per solid cell. Every cascade dispatches even with no light, because the pass also adds emission and the stored static light and feeds the bounce back.",
-      "inspectZh": "动态光照渲染阶段：对每个级联，把 solid 单元格计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid 单元格一个线程进行 dispatch。即使没有光，每个级联也会 dispatch，因为该渲染阶段还要加上自发光和已存储的静态光，并回灌反弹。",
+      "inspect": "The dynamic light pass: for every cascade, copy the solid-cell counters into the indirect-dispatch buffer, push bounce_feedback and use_occlusion, and dispatch one thread per solid cell; unless all of the cascade's lights are dirty, a frame processes only every Nth cell (process_offset and process_increment, N from frames_to_update_light: 1, 2, 4, 8, or 16). Every cascade dispatches even with no light, because the pass also adds emission and the stored static light and feeds the bounce back.",
+      "inspectZh": "动态光照渲染阶段：对每个级联，把 solid 单元格计数拷贝到 indirect dispatch 缓冲，传入 bounce_feedback 与 use_occlusion，每个 solid 单元格一个线程进行 dispatch；除非该级联的光全部为脏，每帧只处理每第 N 个单元格（process_offset 与 process_increment，N 由 frames_to_update_light 决定：1、2、4、8 或 16）。即使没有光，每个级联也会 dispatch，因为该渲染阶段还要加上自发光和已存储的静态光，并回灌反弹。",
       "details": [
         {
           "line": 1268,
