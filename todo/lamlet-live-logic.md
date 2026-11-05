@@ -502,12 +502,11 @@ public package has a Rust `#[action]` left), and Validation's linked-natives che
 engines, `lab/src/script/mod.rs` and `runtime.rs`). Each stage below is one commit, validated as "Validation" says
 (the old Rust and the script compared in the selftest first, then the Rust removed; frame identity for its frames).
 
-1. **Scene clicks (milestone 2).** VoxelGI's surface click (`Investigation::click`,
-   `packages/godot_voxelgi/src/godot/voxelgi/mod.rs`: `trace_scene`, then `leaf_of`) and SSR's
-   (`packages/godot_ssr/src/godot/ssr/mod.rs`) become `scene` click handlers in their scripts. What they need from
-   native code is a package native each (VoxelGI's `traceCell` from the click's ray, SSR's pixel pick), not a
-   general `rl.project`: a handler gets the click's ray from `rl_runtime/trace` already. SDFGI's click returns
-   false and simply goes.
+1. **Scene clicks (milestone 2).** Done (2026-11-05): VoxelGI's and SSR's clicks on the scene are `scene` click
+   handlers in their `script/logic.lam` (VoxelGI's from `rt::trace` and its `leafOf`; SSR's from `rt::viewport`, a
+   new runtime native, the frame's viewport in pixels), checked in their selftests against the Rust they replace at
+   41 x 41 points; `Investigation::click` stays a stub returning false in each (the trait requires it), as in SDFGI.
+   No general `rl.project` was needed.
 2. **Play animations (milestone 4).** SSR's, VoxelGI's, and SDFGI's `Investigation::animation` (each a
    `shot::demo_animation` table of waves) become `Animation` hooks in a `script/animations.lam` per package, as
    O3DE's did; the selftests compare the values set at a grid of `t` with the Rust before it goes.

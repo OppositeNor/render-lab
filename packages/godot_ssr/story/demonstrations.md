@@ -54,7 +54,7 @@ image edge, its ray leaving the screen. Close-ups fade the walls that hide the f
 
 | View | Click or value | What it shows |
 |---|---|---|
-| The scene (3D) | click a floor point (`Investigation::click`) | picks the pixel: `pickX`, `pickY` (SSR-target pixel); its ray drawn in 3D (start, bias, reflected direction, hit), its texel outlined in every screen view, a link line from each view's outline to the 3D point |
+| The scene (3D) | click a floor point (`scene`, script/logic.lam) | picks the pixel: `pickX`, `pickY` (SSR-target pixel); its ray drawn in 3D (start, bias, reflected direction, hit), its texel outlined in every screen view, a link line from each view's outline to the 3D point |
 | Depth / normal-roughness | click a texel | picks it (same values); readout of the four bytes and their decode (normal, roughness, dynamic flag) |
 | Pyramid | `hizLevel` 0..N-1; click a texel | the level; the clicked texel's footprint outlined in level 0 and the nearest pixel inside it marked |
 | Trace stepper | `traceStep` 0..(the picked ray's iteration count); `ssrMaxSteps` | the ray at that step: its cell on its level (outlined on the screen grid and on the pyramid view), `t`, the cell's depth against the ray's, hit or miss, the level graph so far; the 3D ray up to `t` |

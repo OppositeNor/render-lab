@@ -141,15 +141,10 @@ impl Investigation for Ssr {
         if lab::view::name().is_some() { lab::scene::SceneId::CANVAS } else { self.demo_scene(state.demo) }
     }
 
-    fn click(&self, shown: &ShotState, state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, pixel: Vec2) -> bool {
-        if Demo::of(shown.demo) != Demo::Trace {
-            return false;
-        }
-        state.set("pickX", (pixel.x / 2.0).floor());
-        state.set("pickY", (pixel.y / 2.0).floor());
-        state.set("pickWidth", 0.0);
-        state.set("pickHeight", 0.0);
-        true
+    /// A click on the scene is its script's (script/logic.lam `scene`: in the trace demonstration, the
+    /// half-resolution pixel under it).
+    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+        false
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {

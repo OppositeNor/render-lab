@@ -927,12 +927,17 @@ fn trace(u: f64, v: f64, skip: &[String]) -> Result<Option<Hit>, String> {
     })
 }
 
-/// Registers the natives that read the frame (`rl_runtime/trace`).
+/// Registers the natives that read the frame (`rl_runtime/trace`, `rl_runtime/viewport`).
 fn register_frame_natives(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     engine
         .natives_mut()
         .function("rl_runtime/trace", |_, (u, v, skip): (f64, f64, Vec<String>)| trace(u, v, &skip))
         .doc("Fn([Float, Float, List(String)], Option(Hit)). Where the ray from the frame's camera through (u, v) (0 to 1 across and down) first hits the scene, past the objects named in `skip` (names the scene lacks are ignored).")
+        .register()?;
+    engine
+        .natives_mut()
+        .function("rl_runtime/viewport", |_, ()| frame(|content| V2(glam::Vec2::from(content.uniforms.camera.viewport_size))))
+        .doc("Fn([], Vec2). The frame's viewport in pixels: a click at (u, v) is at pixel (u x, v y).")
         .register()?;
     Ok(())
 }

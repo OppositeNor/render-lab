@@ -287,6 +287,33 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
                 }
             }
             report.check("the scripts: marchCone steps one sample every `seconds` on the story's frames; pickSliceCell picks the leaf under the click (41 x 41 points at 4 heights)", differ.is_empty() && checked > 0, json!({"actionFrames": checked, "clicks": clicks, "differ": differ.iter().take(20).collect::<Vec<_>>()}));
+            // The click on the scene (script/logic.lam `scene`): the leaf just behind the surface the ray hits, as the
+            // Rust click picked it, at 41 x 41 points of the room's view.
+            let mut differ = Vec::new();
+            let (mut hits, mut misses) = (0, 0);
+            let projector = lab::camera::Projector::new(&content.uniforms.camera);
+            let viewport = glam::Vec2::from(content.uniforms.camera.viewport_size);
+            for i in 0..=40 {
+                for j in 0..=40 {
+                    let uv = glam::Vec2::new(i as f32 / 40.0, j as f32 / 40.0);
+                    let mut state = shown0.clone();
+                    let mut frame = lab::actions::ClickFrame { shown: &shown0, state: &mut state, uv, content: &content, statics: &renderer.statics };
+                    let ran = lab::script::runtime::click("scene", &mut frame);
+                    let (ro, rd) = projector.ray(uv * viewport);
+                    let hit = lab::scene::trace_scene(&content.objects, ro, rd, 100.0, u32::MAX);
+                    let expected = hit.is_hit().then(|| super::demos::leaf_of(&w.probe, ro + rd * hit.t - hit.normal * 0.01));
+                    let got = [state.p("cellX"), state.p("cellY"), state.p("cellZ")];
+                    let same = match expected {
+                        Some(c) => ran == Some(true) && got == [c.x as f32, c.y as f32, c.z as f32],
+                        None => ran == Some(false) && got == [shown0.p("cellX"), shown0.p("cellY"), shown0.p("cellZ")],
+                    };
+                    if expected.is_some() { hits += 1 } else { misses += 1 }
+                    if !same {
+                        differ.push(json!({"uv": [uv.x, uv.y], "script": got, "rust": expected.map(|c| [c.x, c.y, c.z])}));
+                    }
+                }
+            }
+            report.check("the scene click (script/logic.lam `scene`) picks the leaf behind the surface hit, as the Rust click did (41 x 41 points)", differ.is_empty() && hits > 0, json!({"hits": hits, "misses": misses, "differ": differ.iter().take(20).collect::<Vec<_>>()}));
         }
         // The light passes on the GPU (update.rs) against light.rs: every texel of every mip.
         let mut gpu_texture = lit.texture.clone();
@@ -447,12 +474,13 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
             let target = Vec3::new(0.4, 0.0, 1.2);
             let cell = super::demos::leaf_of(probe, target - Vec3::Y * 0.01);
             let center = super::demos::cell_center(probe, probe.leaf_level(), cell) * Vec3::new(1.0, 0.0, 1.0);
-            let content = lab::frame::FrameContent::new(lab::scene::Scene::study_room().records(), lab::layout::FrameUniforms::default());
+            // The click is the script's (script/logic.lam `scene`), which traces from the frame's camera.
+            let content = lab::frame::FrameContent::new(lab::scene::Scene::study_room().records(), lab::layout::FrameUniforms { camera, ..Default::default() });
             let statics = lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?;
             let mut picked = state.clone();
-            let hit = projector.project(center).map(|(px, _)| {
-                use lab::investigation::Investigation;
-                super::VOXELGI.click(&state, &mut picked, &content, &statics, &projector, px)
+            let hit = projector.project(center).and_then(|(px, _)| {
+                let mut frame = lab::actions::ClickFrame { shown: &state, state: &mut picked, uv: px / glam::Vec2::new(640.0, 360.0), content: &content, statics: &statics };
+                lab::script::runtime::click("scene", &mut frame)
             });
             let got = IVec3::new(picked.p("cellX") as i32, picked.p("cellY") as i32, picked.p("cellZ") as i32);
             report.check("a click on a floor cell's centre picks that cell", hit == Some(true) && got == cell, json!({"cell": cell.to_array(), "picked": got.to_array()}));
