@@ -234,7 +234,8 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         true => std::fs::read_to_string(&options.experiment).with_context(|| format!("read {}", options.experiment))?,
         false => crate::resources::find(&options.experiment).map(|r| r.text().to_string()).with_context(|| format!("no experiment file or resource `{}`", options.experiment))?,
     };
-    let e = Experiment::parse(&source).with_context(|| options.experiment.clone())?;
+    // The source as written goes into the manifest; a `.lam` experiment is read as its binding's TOML.
+    let e = Experiment::parse(&crate::experiment::source_toml(&options.experiment)?).with_context(|| options.experiment.clone())?;
     e.check()?;
     let runs = e.runs();
     if options.dry_run {

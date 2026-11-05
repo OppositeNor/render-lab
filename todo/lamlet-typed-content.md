@@ -216,7 +216,9 @@ or the parsed structs equal to the TOML's).
    (c) SSR.
 2. **Experiments as Lamlet (phase 6).** An experiment file may be a `.lam` resource whose binding the lab reads
    through `lab/src/script/data.rs`, as the study room is; the TOML reader stays. One experiment converted, parsed
-   equal.
+   equal. Done (2026-11-05): `lab/src/experiment.rs` reads a `.lam` resource or file through `data.rs` (its values
+   tables take the kebab keys `data.rs` writes, back in camel case); O3DE's `ssao` experiment is `experiments/ssao.lam`,
+   parsed equal to the TOML it replaced (a unit test) and its dry run identical.
 3. **Shared demo presets (phase 6).** `demos/presets/room-camera.toml` is byte-identical in three public packages:
    it becomes one render_lab preset the packages import; every demo's parsed state unchanged.
 4. **knowledge.toml and diagrams (phase 6):** only if a stage above shows the data path pays for itself; otherwise

@@ -132,6 +132,12 @@ license = "MIT"
 
 The Experiments tab lists it, and `render-lab experiment <package>.experiment/<name>` runs it.
 
+An experiment may also be written in Lamlet, `experiments/<name>.lam`, a binding named after the resource's last
+segment in camel case (`experiment/ssao` is `ssao`, `packages/o3de_lighting/experiments/ssao.lam`): a record whose
+fields are the TOML's keys (`base {. values {. viewMode "final"}}`, lists of records for `sweep` and `variant`), read
+as that TOML (`lab/src/script/data.rs`; `render-lab lamlet toml <file> <name>` prints it). Use it where Lamlet saves
+repetition (a sweep's values computed, a base shared); a user's `.lam` file loads the same way, named after its file.
+
 ## 4. Exposing an engine's settings
 
 - **A value that is an engine setting** gets `engine = "<the engine's property>"`:

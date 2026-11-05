@@ -1,0 +1,28 @@
+O3DE: SSAO's sampling radius and blur
+=====================================
+
+SSAO's sampling radius swept, with and without its blur, measured against SSAO off, with the GPU time of each pass
+(lab/src/experiment.rs has the format; the lab reads the binding `ssao` as that TOML document, lab/src/script/data.rs).
+Run it with:
+
+    render-lab --investigation o3de/lighting experiment o3de_lighting.experiment/ssao --out <dir>
+
+$[Import* std]
+
+The radii swept, in metres.
+$[# _radii [% {' 0.02 0.05 0.1 0.2}]]
+
+$[# ssao {.
+    name "ssao"
+    description "O3DE's SSAO sampling radius swept, with and without its blur, against no SSAO."
+    investigation "o3de/lighting"
+    demo "ssao"
+    resolution {' 1280 720}
+    frames 2
+    warmup 30
+    repeats 30
+    metrics {' "gpu_ms" "mse" "psnr" "ssim" "flip" "luminance"}
+    base {. values {. viewMode "final"}}
+    reference {. values {. ssao false}}
+    sweep {' {. values {. ssaoRadius _radii}}}
+    variant {' {. name "no-blur" values {. ssaoBlur false}}}}]
