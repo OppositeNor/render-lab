@@ -171,6 +171,13 @@ P0：可能漏错、晚报错或静默改变结果。P1：高频编辑和诊断�
 
 验收：互不重叠的多 motion key 结果不变；重复 channel 给明确诊断；正常接管不误报；word onset、range 起止、sentence 的 gap、末句 tail／hold、预算分配有针对性测试。状态配方的迁移不改变代表性帧的 camera、params、panel、callout、formula、images 和 notes。
 
+PR 4 分为四个阶段，各自一个提交（2026-11-05）：
+
+- **4a 检查**：同 key 重复 motion channel 的语料审计与默认报错（第 1 项）；不依赖测量的 motion 形状、有限数和负时长检查前移（第 2 项）。
+- **4b 契约文档与配方**：`sentence` 区间与 reset／carry 表写入 `tools/video/README.md`（第 3、5 项）；可组合的显式 reset 配方加入 `render_lab.lam`，默认行为不变。
+- **4c 报告**：实测音频后、渲染前的预算报告（第 6 项）；翻译对齐错误显示两侧句段与行号（第 7 项）。
+- **4d channel 写入**：explain 中的写入顺序与接管（第 4 项），与 PR 6 的 explain 一起实现。
+
 ### PR 5 — 精简高频写法，并试改真实章节（P1）
 
 覆盖 RL01–RL04。

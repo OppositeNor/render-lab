@@ -726,6 +726,32 @@ MAPPINGS = [
 ]
 
 
+# The frame graph's nodes (lab/src/graph.rs; shading.toml) and the engine passes they mirror: the graph panel names each
+# node's pass and its sources. A pass with a RENDER_TIMESTAMP is named by it; the others by their function and mode.
+PASSES = [
+    {"lab": "sdfgiVoxelize", "engine": "Render SDFGI (RenderForwardClustered::_render_sdfgi, MODE_RENDER_SDF)", "sources": ["render-sdfgi", "sdf-fragment"]},
+    {"lab": "sdfgiScroll", "engine": "SDFGI Scroll SDF (sdfgi_preprocess.glsl MODE_SCROLL)", "sources": ["scroll-reinject", "render-region"]},
+    {"lab": "sdfgiScrollOcclusion", "engine": "SDFGI Scroll SDF (sdfgi_preprocess.glsl MODE_SCROLL_OCCLUSION)", "sources": ["render-region"]},
+    {"lab": "sdfgiProbeScroll", "engine": "GI::SDFGI::render_region (sdfgi_integrate.glsl MODE_SCROLL)", "sources": ["probe-scroll", "probe-scroll-dispatch", "parent-seed"]},
+    {"lab": "sdfgiProbeScrollStore", "engine": "GI::SDFGI::render_region (sdfgi_integrate.glsl MODE_SCROLL_STORE)", "sources": ["probe-scroll-dispatch"]},
+    {"lab": "sdfgiProbeStoreScroll", "engine": "GI::SDFGI::render_region (sdfgi_integrate.glsl MODE_STORE, after a scroll)", "sources": ["probe-scroll-dispatch", "oct-store"]},
+    {"lab": "sdfgiJumpFloodInit", "engine": "sdfgi_preprocess.glsl MODE_INITIALIZE_JUMP_FLOOD_HALF", "sources": ["jump-flood-init", "jump-flood-schedule"]},
+    {"lab": "sdfgiJumpFlood", "engine": "SDFGI Jump Flood (Half-Size) (sdfgi_preprocess.glsl MODE_JUMPFLOOD)", "sources": ["jump-flood", "jump-flood-schedule"]},
+    {"lab": "sdfgiJumpFloodShared", "engine": "SDFGI Jump Flood Optimized (Half-Size) (sdfgi_preprocess.glsl MODE_JUMPFLOOD_OPTIMIZED)", "sources": ["jump-flood", "jump-flood-schedule"]},
+    {"lab": "sdfgiUpscale", "engine": "sdfgi_preprocess.glsl MODE_UPSCALE_JUMP_FLOOD", "sources": ["jump-flood-upscale"]},
+    {"lab": "sdfgiJumpFloodFull", "engine": "sdfgi_preprocess.glsl MODE_JUMPFLOOD_OPTIMIZED (full size, step 1)", "sources": ["jump-flood-schedule"]},
+    {"lab": "sdfgiOcclusion", "engine": "SDFGI Occlusion (sdfgi_preprocess.glsl MODE_OCCLUSION)", "sources": ["occlusion-dispatch", "occlusion-shells"]},
+    {"lab": "sdfgiStore", "engine": "SDFGI Store (sdfgi_preprocess.glsl MODE_STORE)", "sources": ["sdf-store", "solid-cell-store", "occlusion-store"]},
+    {"lab": "sdfgiStaticLight", "engine": "GI::SDFGI::render_static_lights (sdfgi_direct_light.glsl MODE_PROCESS_STATIC)", "sources": ["static-pass", "static-write"]},
+    {"lab": "sdfgiDynamicLight", "engine": "GI::SDFGI::update_light (sdfgi_direct_light.glsl MODE_PROCESS_DYNAMIC)", "sources": ["update-light", "light-schedule", "bounce-feedback"]},
+    {"lab": "sdfgiPrepassFS", "engine": "Render Depth Pre-Pass", "sources": ["prepass-gate"]},
+    {"lab": "sdfgiProbeProcess", "engine": "GI::SDFGI::update_probes (sdfgi_integrate.glsl MODE_PROCESS)", "sources": ["update-probes", "sh-accum"]},
+    {"lab": "sdfgiProbeStore", "engine": "Average SDFGI Probes (GI::SDFGI::store_probes, sdfgi_integrate.glsl MODE_STORE)", "sources": ["store-probes", "oct-store"]},
+    {"lab": "sdfgiGatherCS", "engine": "Render GI (GI::process_gi, gi.glsl)", "sources": ["process-gi", "process-gi-dispatch"]},
+    {"lab": "sdfgiForwardFS", "engine": "Render Opaque Pass", "sources": ["frame-order", "forward-gi-scene"]},
+]
+
+
 def line_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode()).hexdigest()[:16]
 
@@ -774,6 +800,9 @@ def main() -> None:
     for m in MAPPINGS:
         for k in m["sources"]:
             assert k in entries, k
+    for p in PASSES:
+        for k in p["sources"]:
+            assert k in entries, k
     index = {
         "schema": 1,
         "engine": {
@@ -787,6 +816,7 @@ def main() -> None:
         "chapters": [{"number": n, "title": title, "titleZh": zh, "reading": keys} for n, title, zh, keys in CHAPTERS],
         "demos": DEMOS,
         "mappings": MAPPINGS,
+        "passes": PASSES,
     }
     out = LAB / "packages/godot_sdfgi/source-index.json"
     out.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

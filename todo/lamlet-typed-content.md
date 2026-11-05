@@ -1,6 +1,6 @@
 # Typed content in Lamlet (plan)
 
-The storyboards are Lamlet presentations ([lamlet-in-process.md](lamlet-in-process.md), milestone 1), but most of
+The storyboards are Lamlet presentations (the in-process plan's milestone 1; that plan is done and removed), but most of
 what they say is still Strings and repetition: motions are JSON inside a String, points and marks are
 comma-separated numbers, names the lab knows (source keys, text keys, listing tags) are free Strings, and a beat's
 opening cue repeats the same reset in nearly every beat. This plan lists everything that could move into Lamlet's
@@ -14,7 +14,7 @@ left every edition's prepared outputs equal to those before it (`tools/video/com
 captions, documents, and narration unchanged, nothing synthesized anew). The plan was written from three surveys of
 the tracked files (the storyboards; the video pipeline and the lab's timeline code; the lab's other content formats). Runtime logic
 (actions, click handlers, the Play animation, live readouts) is [lamlet-live-logic.md](lamlet-live-logic.md)'s, and
-the natives that check names against the lab are lamlet-in-process.md's milestone 2; this plan says where it needs
+the natives that check names against the lab are the in-process plan's milestone 2; this plan says where it needs
 them.
 
 ## What there is to migrate
@@ -130,7 +130,7 @@ attributes are a List, so a helper's list joins the beat's own with `flatten`:
   click handlers, actions): only the option constants, no free String function, so a wrong name is an unknown
   name. This needs a general lamlet-present change: a vocabulary key marked `"closed": true`.
 - **Natives**, for large sets that change with content (source-index keys, text keys, listing tags, published points
-  and images): lamlet-in-process.md's milestone 2 (`rl.source`, `rl.text`, `rl.point`, `rl.image`), plus
+  and images): the in-process plan's milestone 2 (`rl.source`, `rl.text`, `rl.point`, `rl.image`), plus
   `rl.listingTag` and `rl.formula` (a formula typesets within the lab's limits, today `render-lab formulas --check`,
   run only after the timeline is built).
 
@@ -176,7 +176,7 @@ captions and documents byte for byte, narration audio by hash. The migration use
    `rl.listingTag` is not done (a highlight names listing tags, passes, or struct fields, by panel); and
    `lab/check`'s textual harvest stays: the build script cannot evaluate a storyboard (its vocabulary comes from
    running the lab), and the text check needs the keys it uses at build time. Closed option sets (the lamlet-present change, released and pinned);
-   natives (lamlet-in-process.md milestone 2, with `rl.listingTag` and `rl.formula`); build.py's `validate` and
+   natives (the in-process plan milestone 2, with `rl.listingTag` and `rl.formula`); build.py's `validate` and
    `lab/check`'s textual harvest of cue attributes removed once the natives cover them. Check: a test storyboard
    with each kind of wrong name fails at its line, before speech; every edition unchanged.
    Since (2026-11-04): `story check` and `tools/video/check.py` ([render-lab-storyboard-plan.md](render-lab-storyboard-plan.md),
@@ -188,7 +188,7 @@ captions and documents byte for byte, narration audio by hash. The migration use
    `<package>_natives`); VoxelGI's chapter 8 numbers from cost.rs (leaves, dispatches, cone steps) and its cone
    counts bound once in its story library, each said and cued from the one value; SDFGI's cascade count and size from
    its code. Open: the other spelled numbers, sentence by sentence, and video.json's and the text tables' shared
-   numbers. Numbers from bindings and package values (lamlet-in-process.md milestone 3): the cell
+   numbers. Numbers from bindings and package values (the in-process plan milestone 3): the cell
    counts, cascade counts, sizes the narration spells by hand, said with render_lab's `spoken`, from the same values
    the cues use; shared numbers in video.json and the text tables from the same source. Check: the spoken text of
    every sentence unchanged (no new synthesis).
@@ -204,6 +204,27 @@ captions and documents byte for byte, narration audio by hash. The migration use
    scenes, demos and presets, knowledge.toml's key conventions, diagrams. Each needs the host's data path
    (`Document::binding` to `Data` to the struct) first. Check: the parsed structs equal to the TOML's, and every
    selftest and default frame unchanged.
+
+## What is left, in stages (2026-11-05)
+
+Each stage is one commit, checked as its phase says (every edition's prepared outputs equal, `tools/video/compare.py`,
+or the parsed structs equal to the TOML's).
+
+1. **Computed narration (phase 4), one package per commit.** The numbers a storyboard spells by hand that its
+   package's code computes (cell counts, sizes, steps), said with render_lab's `spoken` from a package native, as
+   VoxelGI's chapter 8 is; the spoken text of every sentence unchanged (no new synthesis): (a) SDFGI, (b) O3DE,
+   (c) SSR.
+2. **Experiments as Lamlet (phase 6).** An experiment file may be a `.lam` resource whose binding the lab reads
+   through `lab/src/script/data.rs`, as the study room is; the TOML reader stays. One experiment converted, parsed
+   equal.
+3. **Shared demo presets (phase 6).** `demos/presets/room-camera.toml` is byte-identical in three public packages:
+   it becomes one render_lab preset the packages import; every demo's parsed state unchanged.
+4. **knowledge.toml and diagrams (phase 6):** only if a stage above shows the data path pays for itself; otherwise
+   they stay TOML, and this plan ends.
+
+Not in this repository: the vocabulary's closed option sets (phase 3) need a lamlet-present release with
+`"closed": true`, released and pinned upstream (the user's call). Until then the story check
+(`lab/src/story_refs.rs`) checks those names before speech.
 
 ## Open questions
 

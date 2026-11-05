@@ -2,6 +2,10 @@
 
 Status (2026-11-05): stages 1 and 2 are done (every public package's frame is its `shading.toml`, read by
 `lab/src/shading_file.rs`); only "Next", the general `raster` node, is open (the parser still refuses `kind = "raster"`).
+**Deferred to the future (2026-11-05):** it rebuilds the renderer's core path, which every investigation's frame goes
+through, and no investigation needs it yet; take it up with the first engine pass that cannot be declared without it.
+Its open question, from the render-graph plan (done and removed): how a raster node names what it draws without the
+lab knowing the investigation (a mesh filter by scene tag, or an instance buffer the node's resources provide).
 
 ## Why
 

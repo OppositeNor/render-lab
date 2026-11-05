@@ -72,6 +72,8 @@ pub fn resolver(packages: &[Package]) -> Result<MemoryResolver, String> {
 /// investigation's own natives (`Investigation::script_natives`), the package `<package>_natives`.
 pub fn engine(packages: &[Package], investigation: Option<&'static dyn Investigation>) -> Result<Engine, String> {
     let mut engine = Engine::new();
+    // A `Native` declaration with no registered implementation fails the check, not the first call.
+    engine.options_mut().require_linked = true;
     natives::register(&mut engine, investigation).map_err(|e| e.render())?;
     let mut all = packages.to_vec();
     if let Some(i) = investigation {
@@ -175,6 +177,9 @@ mod tests {
         let e = ir(&file, &[], None).unwrap_err();
         assert!(e.contains("unknownName") && e.contains(":3:"), "{e}");
         let file = write(&dir, "bad.lam", "${{+ 1}\n");
+        assert!(ir(&file, &[], None).is_err());
+        // A native declared with no implementation fails the check, though nothing calls it.
+        let file = write(&dir, "unlinked.lam", "$[Import* std]$[Native ping [% {Fn {'} Int}] \"rl/ping\" Pure]\nText.\n");
         assert!(ir(&file, &[], None).is_err());
     }
 

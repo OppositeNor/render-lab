@@ -18,14 +18,14 @@ demonstration's file may also name a script animation (`animation = "playSurface
 
 ## Actions
 
-A story drives the package's code through actions (`lab/src/actions.rs`): `#[lab::actions]` on an `impl` block of the
-investigation's type, one `#[action]` function each, `fn jump_flood(frame: &mut ActionFrame, seconds: f32, from:
-Option<u32>)`. The parameters after the frame are its arguments, their kinds read from their types (`ActionArg`:
-numbers, indices, toggles, vectors, names; `Option` for optional ones); the function sets the shot's values from
-`frame.elapsed`, the seconds since the story started it, so any frame still renders on its own (required: no state
-between frames). Return `&Self::ACTIONS` from `Investigation::actions`, and test one through a timeline in the selftest
-(Godot's `actions.rs`). The story's cues write `{run "jumpFlood"} {runSeconds 0.5}` and `{stop "jumpFlood"}`
-(`render-lab actions` lists them).
+A story drives the package through actions. Write one as a script (`render-lab-lamlet`: a package's `script/<name>.lam`,
+a binding of type `{Action Args}`, `Args` a struct of its arguments, optional ones `Option`), as Godot SDFGI's
+`jumpFlood` (`packages/godot_sdfgi/script/logic.lam`) and VoxelGI's `marchCone` are: it sets the shot's values from
+`elapsed`, the seconds since the story started it, so any frame still renders on its own (required: no state between
+frames). Only work too heavy for a script stays native (`lab/src/actions.rs`: `#[lab::actions]` on an `impl` block of
+the investigation's type, one `#[action]` function each, its arguments' kinds read from their types, returned from
+`Investigation::actions`). Test either through a timeline in the selftest (SDFGI's `jumpFlood` check). The story's cues
+write `{run "jumpFlood"} {runSeconds 0.5}` and `{stop "jumpFlood"}` (`render-lab actions` lists them).
 
 ## Images and annotations
 
