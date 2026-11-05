@@ -70,6 +70,7 @@ pub mod shader_data;
 pub mod shading_file;
 pub mod shaders;
 pub mod shot;
+mod story;
 /// The knowledge graph and an investigation's audience (the Prerequisites tab, the knowledge panel).
 pub mod knowledge;
 pub mod sources;

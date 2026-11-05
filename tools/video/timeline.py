@@ -19,6 +19,7 @@ import presentation
 import zh
 from config import Config
 from narration import Durations, Narration
+from locations import DiagnosticError, describe
 
 NOTICES = 8.0    # the closing card of the package's legal notices
 KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
@@ -131,10 +132,12 @@ def motion_seconds(motion: Json, frame: int, ends: dict[str, int], fps: int, sou
 
 def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, int]) -> Json:
     """A timeline key; `ends` are the frames where the key's sentence and beat end."""
-    unknown = set(k) - KEY_FIELDS - {'delay', 'blend', 'ease'}
+    unknown = set(k) - KEY_FIELDS - {'delay', 'blend', 'ease', '_provenance'}
     if unknown:
         raise RuntimeError(f'{source}: unknown key fields {sorted(unknown)}')
     out: Json = {'frame': base_frame + int(round(k.get('delay', 0.0) * fps)), 'blend': int(round(k.get('blend', 0.0) * fps)), 'source': source}
+    if '_provenance' in k:
+        out['_provenance'] = k['_provenance']
     if 'ease' in k:
         # One of the lab's easings: the reader checked it against the vocabulary's (markup.cue_key).
         out['ease'] = k['ease']
@@ -142,7 +145,10 @@ def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, in
     for name in (n for n in k if n in KEY_FIELDS):
         out[name] = k[name]
     if 'animate' in k:
-        out['animate'] = [motion_seconds(m, out['frame'], ends, fps, source) for m in k['animate']]
+        try:
+            out['animate'] = [motion_seconds(m, out['frame'], ends, fps, source) for m in k['animate']]
+        except RuntimeError as error:
+            raise DiagnosticError('story.timing.motion', str(error), k.get('_provenance', {}).get('source'), beat=source, field='animate') from error
     return out
 
 
@@ -159,7 +165,7 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
             return 0
         if mark >= len(words):
             if tag.kind != 'close':
-                raise markup.MarkupError(f'{where}: a tag after the last word cues nothing; move it before a word')
+                raise DiagnosticError('story.timing.anchor', 'a tag after the last word cues nothing; move it before a word', tag.source, beat=beat['id'])
             return int(math.ceil(narration.seconds * fps))
         return int(round(words[mark] * fps))
 
@@ -170,29 +176,21 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
         if tag.kind == 'close':
             continue
         assert tag.key is not None
-        key = {**tag.key}
+        provenance = {'source': tag.source or s.get('source', {}), 'paragraph': s.get('paragraph'), 'piece': tag.piece}
+        key = {**tag.key, '_provenance': provenance}
         delay = frame / fps
         if tag.kind == 'open':
             length = closes[tag.name] - frame
             if length <= 0:
-                raise markup.MarkupError(f'{where}: the range {tag.name!r} closes where it opens')
-            jump: Json = {}
-            to: Json = {}
-            for name, value in key.pop('params', {}).items():
-                if isinstance(value, markup.Range):
-                    jump[name] = value.start
-                    to[name] = value.end
-                elif isinstance(value, float):
-                    to[name] = value
-                else:
-                    raise markup.MarkupError(f'{where}: {name} in the range {tag.name!r} blends to a number, not {value!r}')
+                raise DiagnosticError('story.timing.range', f'the range {tag.name!r} closes where it opens', tag.source, beat=beat['id'])
+            jump, key = markup.range_values(key, describe(tag.source) if tag.source else where)
             if jump:
-                keys.append({'params': jump, 'delay': delay})
-            keys.append({**key, 'params': to, 'blend': length / fps, 'delay': delay})
+                keys.append({'params': jump, 'delay': delay, '_provenance': provenance})
+            keys.append({**key, 'blend': length / fps, 'delay': delay})
             continue
         if 'term' in key and 'blend' not in key:
             key['blend'] = pacing.termFade
-        if key:
+        if tag.key:
             keys.append({**key, 'delay': delay + key.get('delay', 0.0)})
     return keys
 
@@ -291,10 +289,13 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
             for i, (sentence_keys, sentence_end) in enumerate(pending):
                 ends = {'sentence': beat_end if i == len(pending) - 1 else sentence_end, 'beat': beat_end}
                 keys_out.extend(make_key(k, base, fps, beat['id'], ends) for k, base in sentence_keys)
-            keys_out.extend(make_key(k, beat_start, fps, beat['id'], {'beat': beat_end}) for k in beat.get('keys', []))
+            for i, k in enumerate(beat.get('keys', [])):
+                sources = beat.get('keySources', [])
+                source = sources[i] if i < len(sources) else beat.get('source', {})
+                keys_out.append(make_key({**k, '_provenance': {'source': source, 'chapter': chapter['id']}}, beat_start, fps, beat['id'], {'beat': beat_end}))
             # A formula card closes with its beat.
             if any('formula' in k for k in keys_out if k.get('source') == beat['id']):
-                keys_out.append(make_key({'formula': '', 'term': 0}, beat_end, fps, beat['id'], {'beat': beat_end}))
+                keys_out.append(make_key({'formula': '', 'term': 0, '_provenance': {'source': {**beat.get('source', {}), 'fallback': 'generated formula close at the end of this beat'}, 'chapter': chapter['id']}}, beat_end, fps, beat['id'], {'beat': beat_end}))
             # Captions stay up through short gaps.
             for a, b in zip(captions, captions[1:]):
                 if b['start'] - a['end'] <= to_frames(pacing.captionBridge):

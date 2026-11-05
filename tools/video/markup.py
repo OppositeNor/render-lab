@@ -36,6 +36,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from locations import DiagnosticError
 
 Json = dict[str, Any]
 
@@ -45,8 +46,9 @@ TYPED = ('camera', 'animate', 'delay', 'blend', 'term', 'run', 'stop', 'ease', '
          'arrowFrom', 'arrowTo', 'labelAt', 'arrowWidth', 'highlight', 'record', *FORMULA_ATTRS)
 
 
-class MarkupError(RuntimeError):
-    pass
+class MarkupError(DiagnosticError):
+    def __init__(self, message: str):
+        super().__init__('story.markup', message)
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,7 @@ class Tag:
     attrs: list[tuple[str, str]]
     piece: int
     key: Json | None = None
+    source: Json | None = None
 
     def attr(self, name: str) -> str | None:
         return next((v for k, v in self.attrs if k == name), None)
@@ -268,6 +271,22 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
     if params:
         key['params'] = params
     return key
+
+
+def range_values(key: Json, where: str) -> tuple[Json, Json]:
+    """A range's initial jump and final values, shared by preflight and timing."""
+    jump: Json = {}
+    to: Json = {}
+    rest = dict(key)
+    for name, value in rest.pop('params', {}).items():
+        if isinstance(value, Range):
+            jump[name] = value.start
+            to[name] = value.end
+        elif isinstance(value, float):
+            to[name] = value
+        else:
+            raise MarkupError(f'{where}: {name} in a range blends to a number, not {value!r}')
+    return jump, {**rest, 'params': to}
 
 
 FORMULA_TAG = re.compile(r'\{@ formula="((?:[^"\\]|\\.)*)"[^}]*\}')

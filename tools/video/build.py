@@ -37,6 +37,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import LANGS, Config, Environment, log, parse_resolution, run  # noqa: E402
+from storyboard import load_board, validate  # noqa: E402
 
 Json = dict[str, Any]
 
@@ -50,63 +51,6 @@ def reexec_in_environment(env: Environment) -> None:
     os.environ['RENDER_LAB_VIDEO_REEXEC'] = '1'
     os.environ['PATH'] = f'{env.prefix / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
     os.execv(str(env.python), [str(env.python), '-I', __file__, *sys.argv[1:]])
-
-
-def load_board(cfg: Config) -> Json:
-    """The storyboard, a Lamlet presentation (`storyboard.lam`, presentation.py), with its translation merged
-    for a translated edition. It is read with the investigation's cue vocabulary, generated first (into the
-    package's build/<package>.lam), so the vocabulary always matches the investigation's values, and with the
-    package's story library (`video/story.lam`, the package `<package>_story`) when it has one."""
-    import lamlet
-    import markup
-    import presentation
-    import zh
-    name = cfg.package.name
-    vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
-    fields = markup.Fields.of(json.loads(vocabulary.with_suffix('.keys.json').read_text()))
-    packages = [(name, vocabulary)]
-    if cfg.story_library.exists():
-        packages.append((f'{name}_story', cfg.story_library))
-    board = presentation.load(cfg.storyboard, packages, fields, cfg.investigation)
-    if cfg.zh():
-        board = zh.localize(board, presentation.load_translation(cfg.translation))
-    return board
-
-
-def validate(cfg: Config, board: Json, index: Json) -> None:
-    import diagrams
-    import frame_graph
-    import presentation
-    from outputs import beat_listings, listing_path, read_listing
-    from timeline import sentences_of
-    keys = index['entries']
-    ids: set[str] = set()
-    for chapter in board['chapters']:
-        for key in chapter.get('sources', []):
-            assert key in keys, f'chapter {chapter["number"]}: unknown source key {key}'
-        for beat in chapter['beats']:
-            assert beat['id'] not in ids, f'duplicate beat {beat["id"]}'
-            ids.add(beat['id'])
-            assert beat['kind'] in ('3d', '2d'), beat['id']
-            if 'graph' in beat:
-                known = frame_graph.names(frame_graph.load(cfg, beat['graph']))
-                for node in beat.get('focus', []):
-                    if node not in known:
-                        raise RuntimeError(f'{beat["id"]}: unknown focus {node} in the frame graph {beat["graph"]}')
-            elif presentation.is_diagram(beat):
-                known = diagrams.names(diagrams.load(cfg, beat['diagram']))
-                for node in beat.get('focus', []):
-                    if node not in known:
-                        raise RuntimeError(f'{beat["id"]}: unknown focus node {node} in {beat["diagram"]}')
-            for key in beat.get('sources', []):
-                assert key in keys, f'{beat["id"]}: unknown source key {key}'
-            assert sentences_of(beat), f'{beat["id"]} has no narration'
-            for name in beat_listings(beat):
-                path = listing_path(cfg, name)
-                assert path.is_file(), f'{beat["id"]}: unknown pseudo-code listing {name}'
-                _, _, source, code = read_listing(cfg, name)
-                assert source in keys, f'{name}: unknown source key {source}'
-                compile(code, str(path), 'exec')
 
 
 def resolution_arg(value: str) -> tuple[int, int]:
@@ -210,6 +154,8 @@ def main() -> None:
     board = load_board(cfg)
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
+    import preflight
+    preflight.check(cfg, board)
     if args.verify_only:
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}
@@ -219,8 +165,10 @@ def main() -> None:
     log(f'Narration device: {device} ({reason}).')
     durations = narration.synthesize(cfg, env, device, timing.all_sentences(board), cached_only=args.cached_audio_only)
     tl, placements, cues, plans = timing.build_timeline(board, durations, cfg)
+    provenance = preflight.check_timeline(cfg, tl)
     cfg.timeline_dir().mkdir(parents=True, exist_ok=True)
     cfg.timeline().write_text(json.dumps(tl, indent=1, ensure_ascii=False) + '\n')
+    cfg.timeline().with_suffix('.provenance.json').write_text(json.dumps(provenance, indent=1, ensure_ascii=False) + '\n')
     (build / 'chapter-plans.json').write_text(json.dumps(plans, indent=1) + '\n')
     log(f'Timeline: {tl["totalFrames"]} frames, {tl["totalFrames"] / tl["fps"] / 60:.2f} min, {len(tl["beats"])} beats, {len(tl["keys"])} keys.')
     if '{@ formula=' in cfg.timeline().read_text():

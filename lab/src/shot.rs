@@ -524,6 +524,26 @@ pub struct Key {
     /// channels until a later key sets them.
     #[serde(default)]
     pub animate: Vec<Motion>,
+    /// Provenance for error messages (storyboard beat id).
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(flatten)]
+    pub cue: Cue,
+}
+
+impl std::ops::Deref for Key {
+    type Target = Cue;
+
+    fn deref(&self) -> &Cue {
+        &self.cue
+    }
+}
+
+/// What a cue sets, independent of measured speech and frame numbers.
+/// Both an untimed story and a runtime timeline check these same values.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Cue {
     #[serde(default)]
     pub demo: Option<DemoId>,
     #[serde(default)]
@@ -640,12 +660,9 @@ pub struct Key {
     /// The actions it stops.
     #[serde(default)]
     pub stop: Vec<String>,
-    /// Provenance for error messages (storyboard beat id).
-    #[serde(default)]
-    pub source: Option<String>,
 }
 
-impl Key {
+impl Cue {
     /// The numbers its values set, by channel (a vector by component, a flag
     /// as 1 or 0, an option as its index); why not, for a value the
     /// investigation does not declare or one that does not fit its type.
@@ -781,7 +798,7 @@ fn point_value(value: &serde_json::Value) -> Result<PointValue, String> {
 /// Why `key`'s arrows and labels cannot show: a point, a set, or a colour
 /// the investigation does not have, or a new one without its ends, point, or
 /// text. `made` are the notes the keys before it made.
-fn check_notes(key: &Key, made: &mut BTreeMap<String, &'static str>) -> Result<(), String> {
+fn check_notes(key: &Cue, made: &mut BTreeMap<String, &'static str>) -> Result<(), String> {
     for (field, value) in [("arrowFrom", &key.arrow_from), ("arrowTo", &key.arrow_to), ("labelAt", &key.label_at)] {
         if let Some(v) = value {
             point_value(v).map_err(|e| format!("{field}: {e}"))?;
@@ -914,7 +931,7 @@ fn finish_notes(state: &mut ShotState, segments: &BTreeMap<String, Channel>, fra
     state.notes.retain(|n| n.alpha > 0.0);
 }
 
-fn check_image(key: &Key, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>, graphs: &mut std::collections::BTreeSet<String>) -> Result<(), String> {
+fn check_image(key: &Cue, instances: &mut BTreeMap<String, &'static crate::views::ViewKind>, graphs: &mut std::collections::BTreeSet<String>) -> Result<(), String> {
     let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) else {
         return if key.image_from.is_some() || key.image_graph.is_some() || key.image_show.is_some() || !key.image_params.is_empty() || key.image_click.is_some() { Err("imageFrom, imageGraph, imageShow, imageClick, and image.<param> go with the image they make or set (`image=<name>`)".into()) } else { Ok(()) };
     };
@@ -980,6 +997,80 @@ fn free_camera_channels() -> Vec<&'static str> {
     FreeCamera::schema().iter().flat_map(|e| e.channels()).collect()
 }
 
+/// A semantic failure, before adding a story location or a runtime frame.
+#[derive(Debug)]
+pub(crate) struct CueProblem {
+    pub code: &'static str,
+    pub field: String,
+    pub message: String,
+}
+
+#[derive(Debug)]
+pub(crate) struct TimelineCueProblem {
+    pub index: usize,
+    pub frame: u64,
+    pub source: Option<String>,
+    pub problem: CueProblem,
+}
+
+impl std::fmt::Display for TimelineCueProblem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, in key at frame {} ({:?})", self.problem.message, self.frame, self.source)
+    }
+}
+
+impl std::error::Error for TimelineCueProblem {}
+
+impl CueProblem {
+    fn new(code: &'static str, field: &str, message: String) -> Self {
+        Self { code, field: field.to_string(), message }
+    }
+}
+
+/// The declarations made by earlier cues. Checking never executes actions
+/// or evaluates a frame; the same state is used by preflight and playback.
+#[derive(Default)]
+pub(crate) struct CueChecks {
+    instances: BTreeMap<String, &'static crate::views::ViewKind>,
+    graphs: std::collections::BTreeSet<String>,
+    notes: BTreeMap<String, &'static str>,
+}
+
+impl CueChecks {
+    pub fn check(&mut self, cue: &Cue) -> Result<(), CueProblem> {
+        cue.targets().map_err(|e| CueProblem::new("story.value", "params", e))?;
+        check_notes(cue, &mut self.notes).map_err(|e| CueProblem::new("story.note", "annotations", e))?;
+        check_image(cue, &mut self.instances, &mut self.graphs).map_err(|e| CueProblem::new("story.image", "image", e))?;
+        if let Some(call) = &cue.run {
+            let checked = crate::script::runtime::check_action(call).unwrap_or_else(|| investigation::current().actions().check(call));
+            checked.map_err(|e| CueProblem::new("story.action", "run", e))?;
+        }
+        if let Some(code) = cue.code.as_deref().filter(|c| !c.is_empty()) {
+            if investigation::current().listing(code).is_none() {
+                return Err(CueProblem::new("story.listing", "code", format!("unknown pseudo-code listing `{code}`")));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Cue {
+    pub(crate) fn check_motion<D>(&self, motion: &Motion<D>) -> Result<(), CueProblem> {
+        if let Some(problem) = motion.problem() {
+            return Err(CueProblem::new("story.motion", "animate", problem));
+        }
+        for name in motion.params() {
+            if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) && !free_camera_channels().contains(&name) {
+                return Err(CueProblem::new("story.motion.channel", "animate", format!("unknown channel `{name}` in a motion")));
+            }
+            if self.sets(name) {
+                return Err(CueProblem::new("story.motion.conflict", "animate", format!("`{name}` is both set and animated by the key")));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Timeline {
     pub fn load(path: &std::path::Path) -> Result<Timeline> {
         let text = std::fs::read_to_string(path).with_context(|| format!("read timeline {}", path.display()))?;
@@ -990,42 +1081,14 @@ impl Timeline {
     }
 
     pub fn validate(&self) -> Result<()> {
-        let mut instances = BTreeMap::new();
-        let mut graphs = std::collections::BTreeSet::new();
-        let mut notes = BTreeMap::new();
-        for key in &self.keys {
-            if let Err(e) = key.targets() {
-                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
-            }
+        let mut checks = CueChecks::default();
+        for (index, key) in self.keys.iter().enumerate() {
+            let at = |problem| TimelineCueProblem { index, frame: key.frame, source: key.source.clone(), problem };
+            checks.check(key).map_err(at)?;
             for motion in &key.animate {
-                if let Some(problem) = motion.problem() {
-                    bail!("{problem}, in key at frame {} ({:?})", key.frame, key.source);
-                }
-                for name in motion.params() {
-                    if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) && !free_camera_channels().contains(&name) {
-                        bail!("unknown channel `{name}` in a motion of the key at frame {} ({:?})", key.frame, key.source);
-                    }
-                    if key.sets(name) {
-                        bail!("`{name}` is both set and animated by the key at frame {} ({:?})", key.frame, key.source);
-                    }
-                }
-            }
-            if let Err(e) = check_notes(key, &mut notes) {
-                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
-            }
-            if let Err(e) = check_image(key, &mut instances, &mut graphs) {
-                bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
-            }
-            if let Some(call) = &key.run {
-                // A script's action, else the investigation's code's.
-                let checked = crate::script::runtime::check_action(call).unwrap_or_else(|| investigation::current().actions().check(call));
-                if let Err(e) = checked {
-                    bail!("{e}, in key at frame {} ({:?})", key.frame, key.source);
-                }
-            }
-            if let Some(code) = key.code.as_deref().filter(|c| !c.is_empty()) {
-                if investigation::current().listing(code).is_none() {
-                    bail!("unknown pseudo-code listing `{code}` in key at frame {} ({:?})", key.frame, key.source);
+                key.check_motion(motion).map_err(at)?;
+                if let Some(problem) = motion.seconds().and_then(|s| crate::animation::seconds_problem(*s)) {
+                    return Err(at(CueProblem::new("story.motion.length", "animate.seconds", problem.into())).into());
                 }
             }
         }

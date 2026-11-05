@@ -26,6 +26,49 @@ python3 tools/video/build.py --all                                  # every pack
 A full build of the 16-minute O3DE video takes about 15 minutes on an RTX 4050, almost all of it rendering. Run one GPU
 job at a time.
 
+## Checking without speech
+
+Use an already-built host and its matching package libraries to check a story
+with the system Python. This command needs no video environment, voice model,
+audio cache, FFmpeg, or GPU:
+
+```sh
+python3 tools/video/check.py --investigation godot/ssr --binary target/release/render-lab
+python3 tools/video/check.py --investigation godot/ssr --lang zh-CN --json
+```
+
+The check reads the real Lamlet document and vocabulary, checks its sources,
+listings and diagram focus, and asks the host to check values, actions, image
+references and motion shapes using the same rules as playback. The translated
+edition also checks its alignment with English. Motion lengths such as
+`sentence` and `beat` stay symbolic: this does not measure speech or establish
+exact word times, frame boundaries, or chapter budgets. Later work on heading
+schemas and highlight namespaces is tracked in the storyboard authoring plan.
+
+`--json` writes a versioned `renderLabStoryCheck: 1` report on stdout and exits
+nonzero on an error. Diagnostics include a stable code, severity, field and
+message, beat/paragraph/piece where known, and the complete available source
+range. A container without its own IR location reports an explicit fallback;
+missing columns are left unknown. The checker stops at the first failure.
+Older host compilation failures may supply only a rendered diagnostic; the
+report then preserves that message and identifies its location as a fallback.
+
+Every normal build runs semantic preflight before selecting a narration device
+or synthesizing speech. After timing, it runs the host's complete timeline
+validation before writing prepared outputs, including for `--prepare-only`.
+The timeline's existing `source` remains its beat ID; the separate, versioned
+`timeline.provenance.json` beside it maps keys to their source ranges without
+changing playback data. Validate a directly supplied timeline without rendering:
+
+```sh
+target/release/render-lab --investigation godot/ssr story check --timeline path/to/timeline.json
+```
+
+The machine interface `story check FILE` accepts `{renderLabStory: 1, cues: [...]}`
+from `preflight.normalized`, or `-` for JSON on stdin. With `--timeline` it accepts
+a raw timeline or `{timeline: ..., provenance: [...]}`; the latter supplies source
+locations for failures. Neither form executes script actions or playback effects.
+
 A change to a storyboard's form or to the pipeline should change nothing a video says or shows. `compare.py` checks it:
 save every edition's prepared outputs before the change, prepare them again after, and compare (timelines by value,
 captions and documents byte for byte, the narration track by hash, and no clip synthesized anew):
@@ -69,7 +112,7 @@ changes between captures; changing the host is expected. Comparison exits nonzer
 Run the gate in CI where its builds and narration cache are available. Test the gate itself with:
 
 ```sh
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py tools/video/test_preflight.py
 ```
 
 This gate proves real-document compilation and preparation compatibility, including script hook discovery. It

@@ -21,6 +21,7 @@ import diagrams
 import frame_graph
 import presentation
 from timeline import sentences_of
+from storyboard import beat_listings, listing_path, read_listing
 
 Json = dict[str, Any]
 
@@ -250,36 +251,6 @@ def script_text(cfg: Config, sentence: Json) -> str:
     """A sentence as the script shows it: its tags gone, its formulas as `$LaTeX$`."""
     import markup
     return markup.readable(markup.shown(sentence, cfg.zh()).caption)
-
-
-def beat_listings(beat: Json) -> list[str]:
-    """Pseudo-code listings a beat shows, in order of first use."""
-    import markup
-    names: list[str] = []
-    for k in beat.get('keys', []) + [k for s in sentences_of(beat) for k in markup.text_keys(beat, s)]:
-        if k.get('code') and k['code'] not in names:
-            names.append(k['code'])
-    return names
-
-
-def listing_path(cfg: Config, name: str) -> Path:
-    return cfg.pseudocode / (name.replace('-', '_') + '.py')
-
-
-def read_listing(cfg: Config, name: str) -> tuple[str, str, str | None, str]:
-    """(title, Chinese title, source key, code without tags or marks) of a listing."""
-    header: dict[str, str] = {}
-    code: list[str] = []
-    for line in listing_path(cfg, name).read_text().splitlines():
-        m = re.match(r'# (title|source|demo|dispatch): (.*)$', line)
-        if m and not code:
-            header[m.group(1)] = m.group(2).strip()
-            continue
-        code.append(re.sub(r'\s*# @[^\n]*$', '', line).rstrip())
-    while code and not code[-1]:
-        code.pop()
-    title, _, title_zh = header.get('title', name).partition(' | ')
-    return title, title_zh or title, header.get('source'), '\n'.join(code)
 
 
 def source_link(cfg: Config, doc_dir: Path, index: Json, key: str, text: str | None = None) -> str:

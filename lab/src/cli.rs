@@ -274,6 +274,13 @@ enum StoryCommand {
     /// The keys a storyboard's cues may set, as JSON (src/script/keys.rs): the vocabulary key list
     /// `render-lab lamlet vocab` turns into the investigation's cue package.
     Keys,
+    /// Check untimed cues as JSON, without speech or a GPU; `-` reads stdin.
+    /// With --timeline, check a complete measured timeline instead.
+    Check {
+        file: PathBuf,
+        #[arg(long)]
+        timeline: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -634,6 +641,19 @@ pub fn main(app: App) -> Result<()> {
         Command::Story(StoryCommand::Keys) => {
             let keys = crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
             println!("{}", serde_json::to_string_pretty(&keys)?);
+            Ok(())
+        }
+        Command::Story(StoryCommand::Check { file, timeline }) => {
+            let text = if file == std::path::Path::new("-") {
+                std::io::read_to_string(std::io::stdin())?
+            } else {
+                std::fs::read_to_string(&file).with_context(|| format!("read story check input {}", file.display()))?
+            };
+            let report = crate::story::check(&text, timeline);
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            if !report.ok {
+                std::process::exit(1);
+            }
             Ok(())
         }
         Command::Choices => {

@@ -82,10 +82,10 @@ impl Repeat {
 /// A motion of one or more channels.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum Motion {
-    Path(Path),
-    Orbit(Orbit),
-    Wave(Wave),
+pub enum Motion<D = f32> {
+    Path(Path<D>),
+    Orbit(Orbit<D>),
+    Wave(Wave<D>),
 }
 
 /// Through waypoints on a smooth curve (a Catmull-Rom spline timed by the
@@ -93,11 +93,11 @@ pub enum Motion {
 /// stopping. The curve starts at the channels' values when it starts.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Path {
+pub struct Path<D = f32> {
     pub params: Vec<String>,
     /// The waypoints after the start, one value per channel.
     pub through: Vec<Vec<f32>>,
-    pub seconds: f32,
+    pub seconds: D,
     /// The pace along the whole curve: `smooth` starts and ends at rest.
     #[serde(default)]
     pub ease: Ease,
@@ -112,7 +112,7 @@ pub struct Path {
 /// first towards the second), three about `axis` (right-handed).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Orbit {
+pub struct Orbit<D = f32> {
     pub params: Vec<String>,
     pub center: Vec<f32>,
     /// The axis of a three-channel orbit; up (+y) by default.
@@ -122,7 +122,7 @@ pub struct Orbit {
     #[serde(default)]
     pub start: Option<Vec<f32>>,
     pub degrees: f32,
-    pub seconds: f32,
+    pub seconds: D,
     #[serde(default)]
     pub ease: Ease,
     #[serde(default)]
@@ -132,7 +132,7 @@ pub struct Orbit {
 /// `center + amplitude · sin(360° · t / period + phase)`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Wave {
+pub struct Wave<D = f32> {
     pub param: String,
     /// By default, the channel's value when the wave starts.
     #[serde(default)]
@@ -143,8 +143,7 @@ pub struct Wave {
     #[serde(default)]
     pub phase: f32,
     /// How long it waves; it waves for ever without.
-    #[serde(default)]
-    pub seconds: Option<f32>,
+    pub seconds: Option<D>,
     /// Seconds over which the amplitude grows at the start and shrinks at the
     /// end (of `seconds`), so a wave that stops ends on its centre.
     #[serde(default)]
@@ -244,7 +243,16 @@ impl Orbit {
     }
 }
 
-impl Motion {
+impl<D> Motion<D> {
+    /// Its duration, which a story can leave symbolic until speech is measured.
+    pub fn seconds(&self) -> Option<&D> {
+        match self {
+            Motion::Path(m) => Some(&m.seconds),
+            Motion::Orbit(m) => Some(&m.seconds),
+            Motion::Wave(m) => m.seconds.as_ref(),
+        }
+    }
+
     /// The channels it drives, in the order of its values.
     pub fn params(&self) -> Vec<&str> {
         match self {
@@ -267,7 +275,14 @@ impl Motion {
             _ => None,
         }
     }
+}
 
+/// Zero seconds preserves the existing instantaneous completion semantics.
+pub(crate) fn seconds_problem(seconds: f32) -> Option<&'static str> {
+    (!seconds.is_finite() || seconds < 0.0).then_some("motion seconds must be finite and nonnegative")
+}
+
+impl Motion {
     /// Its values `t` seconds after it started from `start` (the channels'
     /// values then, in the order of `params`).
     pub fn sample(&self, t: f32, start: &[f32]) -> Vec<f32> {

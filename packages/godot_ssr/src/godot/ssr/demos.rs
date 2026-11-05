@@ -541,6 +541,8 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
                 content.draw.segment(on(Vec2::new(back, y)), on(Vec2::new(edge, y)), color, alpha * 0.9 * a, 2.0, frame::FLAG_ARROW);
                 if named == Some(k) {
                     let x = if right { back - 0.006 } else { back + 0.006 };
+                    // Said to be off the chart, so the arrow does not read as pointing at nothing.
+                    let text = tr_with("demos.profile_off", lab::args!(mark = text));
                     content.draw.text(on(Vec2::new(x, y - 0.015)), text, color, [if right { 1.0 } else { 0.0 }, 0.0]);
                 }
                 continue;

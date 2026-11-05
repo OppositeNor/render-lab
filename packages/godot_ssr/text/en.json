@@ -158,6 +158,7 @@
   "demos.profile_depth": "reversed depth (nearer is higher)",
   "demos.profile_leaves": "leaves the cell",
   "demos.profile_reaches": "reaches the cell's depth",
+  "demos.profile_off": "{mark} (off the chart)",
   "demos.profile_level": "level {from} → {to} · {result}",
   "controls.field_tilt": "Field tilt",
   "help.fieldTilt": "How far the risen field lies back, in degrees: 0 seen from straight above, 85 almost edge-on. Dragging the field turns and tilts it; the camera that renders the depth map stays where it is."

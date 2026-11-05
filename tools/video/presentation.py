@@ -46,6 +46,7 @@ from typing import Any
 
 import lamlet
 import markup
+from locations import DiagnosticError, describe, location
 
 Json = dict[str, Any]
 
@@ -53,8 +54,9 @@ Json = dict[str, Any]
 KEY, FORMULA = 'key', 'formula'
 
 
-class PresentationError(RuntimeError):
-    pass
+class PresentationError(DiagnosticError):
+    def __init__(self, message: str):
+        super().__init__('story.presentation', message)
 
 
 # ---------------------------------------------------------------------------
@@ -110,13 +112,7 @@ def is_card(beat: Json) -> bool:
 # The document
 
 def where(node: Json, path: Path) -> str:
-    at = node.get('at')
-    if at is None:
-        for child in node.get('inlines', []) + node.get('shown', []):
-            if (w := where(child, path)) != str(path):
-                return w
-        return str(path)
-    return f'{at["file"]}:{at["line"]}'
+    return describe(location(node, {'file': str(path)}))
 
 
 def pairs(attrs: list[list[str]]) -> list[tuple[str, str]]:
@@ -144,8 +140,9 @@ class Reader:
     """A paragraph's inlines as a parsed sentence: its caption, its spoken pieces cut at each cue,
     its tags, and its formulas."""
 
-    def __init__(self, at: str, translation: bool, fields: markup.Fields | None):
+    def __init__(self, at: str, translation: bool, fields: markup.Fields | None, source: Json | None = None):
         self.at = at
+        self.source = source or {'file': at, 'fallback': 'caller supplied no structured location'}
         self.translation = translation
         self.fields = fields
         self.caption: list[str] = []
@@ -153,16 +150,23 @@ class Reader:
         self.tags: list[markup.Tag] = []
         self.formulas: list[str] = []
         self.formula: list[tuple[str, str]] | None = None   # a formula cue's attributes, waiting for its `say`
+        self.formula_source: Json | None = None
 
-    def no_cues(self, what: str) -> None:
+    def fail(self, message: str, source: Json | None = None) -> None:
+        error = PresentationError(f'{describe(source or self.source)}: {message}')
+        error.diagnostic.update(source or self.source)
+        raise error
+
+    def no_cues(self, what: str, source: Json | None = None) -> None:
         if self.translation:
-            raise PresentationError(f'{self.at}: a translation carries no cues ({what})')
+            self.fail(f'a translation carries no cues ({what})', source)
 
     def inlines(self, xs: list[Json]) -> None:
         for x in xs:
             kind = x['type']
+            source = location(x, self.source)
             if self.formula is not None and kind != 'say':
-                raise PresentationError(f'{self.at}: a formula cue stands right before its `say {{math ...}} "..."`')
+                self.fail('a formula cue stands right before its `say {math ...} "..."`', self.formula_source)
             if kind == 'text':
                 self.caption.append(x['text'])
                 self.pieces[-1] += x['text']
@@ -175,46 +179,52 @@ class Reader:
                 self.pieces[-1] += x['text']
             elif kind == 'math':
                 if not self.translation:
-                    raise PresentationError(f'{self.at}: the formula {x["tex"]!r} has no say: the voice cannot read LaTeX')
+                    self.fail(f'the formula {x["tex"]!r} has no say: the voice cannot read LaTeX', source)
                 # A translation's formula is shown, never spoken.
                 self.formulas.append(x['tex'])
                 self.caption.append(markup.formula_tag(markup.Tag(FORMULA, None, [('formula', x['tex'])], 0)))
             elif kind == 'say':
                 self.say(x)
             elif kind == 'anchor':
-                self.no_cues(f'the cue {x["name"]!r}')
+                self.no_cues(f'the cue {x["name"]!r}', source)
                 attrs = pairs(x['attrs'])
                 if x['name'] == FORMULA:
                     if dict(attrs).get('formula') == 'off':
-                        self.tag(markup.Tag('formula', None, attrs, len(self.pieces)))
+                        self.tag(markup.Tag('formula', None, attrs, len(self.pieces), source=source))
                         self.pieces.append('')
                     else:
                         self.formula = attrs
+                        self.formula_source = source
                 elif x['name'] == KEY:
-                    self.tag(markup.Tag('cue', None, attrs, len(self.pieces)))
+                    self.tag(markup.Tag('cue', None, attrs, len(self.pieces), source=source))
                     self.pieces.append('')
                 else:
-                    raise PresentationError(f'{self.at}: a point cue is named "{KEY}" (or "{FORMULA}"), not {x["name"]!r}')
+                    self.fail(f'a point cue is named "{KEY}" (or "{FORMULA}"), not {x["name"]!r}', source)
             elif kind == 'span':
-                self.no_cues(f'the range {x["name"]!r}')
+                self.no_cues(f'the range {x["name"]!r}', source)
                 # A range written without a name (render_lab's `over`) is named by its place.
                 name = x['name'] or f'range-{sum(t.kind == "open" for t in self.tags) + 1}'
                 if any(t.kind == 'open' and t.name == name for t in self.tags):
-                    raise PresentationError(f'{self.at}: two ranges named {name!r} in one sentence')
-                self.tag(markup.Tag('open', name, pairs(x['attrs']), len(self.pieces)))
+                    self.fail(f'two ranges named {name!r} in one sentence', source)
+                self.tag(markup.Tag('open', name, pairs(x['attrs']), len(self.pieces), source=source))
                 self.pieces.append('')
                 self.inlines(x['inlines'])
-                self.tags.append(markup.Tag('close', name, [], len(self.pieces)))
+                self.tags.append(markup.Tag('close', name, [], len(self.pieces), source={**source, 'fallback': 'range close has no independent IR location; using its range'}))
                 self.pieces.append('')
             else:
                 raise PresentationError(f'{self.at}: a sentence holds text, cues, ranges, formulas, and code names, not {kind}')
         if self.formula is not None:
-            raise PresentationError(f'{self.at}: a formula cue stands right before its `say {{math ...}} "..."`')
+            self.fail('a formula cue stands right before its `say {math ...} "..."`', self.formula_source)
 
     def tag(self, tag: markup.Tag) -> None:
         """A cue, a range's start, or a formula, with the key it sets."""
         assert self.fields is not None
-        tag.key = markup.cue_key(tag, self.at, self.fields) if tag.kind == 'open' else point_key(tag, self.at, self.fields)
+        at = describe(tag.source) if tag.source else self.at
+        try:
+            tag.key = markup.cue_key(tag, at, self.fields) if tag.kind == 'open' else point_key(tag, at, self.fields)
+        except (markup.MarkupError, PresentationError) as error:
+            error.diagnostic.update(tag.source or {})
+            raise
         self.tags.append(tag)
 
     def say(self, x: Json) -> None:
@@ -230,7 +240,7 @@ class Reader:
             tex = shown[0]['tex']
             if attrs is None or dict(attrs).get('formula') != tex:
                 raise PresentationError(f'{self.at}: the formula {tex!r} follows its cue, ${{cue "formula" {{\' {{formula "..."}}}}}}, with the same LaTeX')
-            tag = markup.Tag('formula', None, [*attrs, ('say', spoken)], len(self.pieces))
+            tag = markup.Tag('formula', None, [*attrs, ('say', spoken)], len(self.pieces), source=self.formula_source)
             self.formulas.append(tex)
             self.caption.append(markup.formula_tag(tag))
             self.tag(tag)
@@ -245,8 +255,8 @@ class Reader:
                                [markup.tidy(p) for p in self.pieces], self.tags, self.formulas)
 
 
-def parsed(inlines: list[Json], at: str, fields: markup.Fields | None, translation: bool = False) -> markup.Sentence:
-    reader = Reader(at, translation, fields)
+def parsed(inlines: list[Json], at: str, fields: markup.Fields | None, translation: bool = False, source: Json | None = None) -> markup.Sentence:
+    reader = Reader(at, translation, fields, source)
     reader.inlines(inlines)
     return reader.sentence()
 
@@ -315,6 +325,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
         chapter: Json = {'id': chapter_id, 'number': int(number(attrs.get('number'), 'chapter `number`', at)), 'title': plain(chapter_heading['inlines'], at),
                          'targetSeconds': number(attrs.get('target'), 'chapter `target` (seconds)', at),
                          'summary': value_of(attrs['summary']) if 'summary' in attrs else '', 'sources': as_list(value_of(attrs.get('sources', '[]'))), 'beats': []}
+        chapter['source'] = location(chapter_heading, {'file': str(path)})
         for beat_heading, paragraphs in beats:
             at = where(beat_heading, path)
             beat_id = beat_heading.get('id') or ''
@@ -337,7 +348,9 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
             for name in ('focus', 'sources'):
                 if name in props:
                     beat[name] = as_list(value_of(props[name]))
+            beat['source'] = location(beat_heading, {'file': str(path)})
             keys: list[Json] = []
+            key_sources: list[Json] = []
             narration: list[Json] = []
             for paragraph in paragraphs:
                 at = where(paragraph, path)
@@ -346,13 +359,23 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                     for x in inlines:
                         if x['type'] != 'anchor':
                             continue
+                        source = location(x, location(paragraph, {'file': str(path)}))
                         if x['name'] != KEY:
-                            raise PresentationError(f'{at}: a beat\'s keys are point cues, ${{cue "{KEY}" ...}}')
-                        keys.append(point_key(markup.Tag('cue', None, pairs(x['attrs']), 0), f'{path}: {beat_id}', fields))
+                            error = PresentationError(f'{describe(source)}: a beat\'s keys are point cues, ${{cue "{KEY}" ...}}')
+                            error.diagnostic.update({**source, 'beat': beat_id})
+                            raise error
+                        try:
+                            keys.append(point_key(markup.Tag('cue', None, pairs(x['attrs']), 0, source=source), describe(source), fields))
+                        except (markup.MarkupError, PresentationError) as error:
+                            error.diagnostic.update({**source, 'beat': beat_id})
+                            raise
+                        key_sources.append(source)
                     continue
-                narration.append({'text': at, 'parsed': parsed(inlines, at, fields)})
+                source = location(paragraph, {'file': str(path)})
+                narration.append({'text': at, 'source': source, 'paragraph': len(narration) + 1, 'parsed': parsed(inlines, at, fields, source=source)})
             if keys:
                 beat['keys'] = keys
+                beat['keySources'] = key_sources
             beat['narration'] = narration
             chapter['beats'].append(beat)
         board['chapters'].append(chapter)
