@@ -213,6 +213,11 @@ explain 应包含：原文与 spoken text、cue 源位置、展开后属性、�
 
 ### PR 7 — schema、发现和回归整合（P2，部分可提前）
 
+进度（2026-11-05）：
+- **7a（已完成）**：`render-lab story schema`（`lab/src/script/keys.rs` `schema`）给出每个 key 的 attribute、函数名，值的类型、单位、范围、默认值与说明；`omitted` 列出被 vocabulary 省略的 option 与 key（不是合法 Lamlet 名、名字冲突、函数名被占用），并给出仍可使用的 `{attr "…" "…"}` 写法。`story keys` 输出不变。（第 1、2 项）
+- **7b（待做）**：motion 由 String 中的 JSON 改为结构化 Data（第 4 项）：`render_lab.lam` 的 `Motion` 改为按 kind 的 variant，各包装函数相应改写，`markup.py` 接受 Data；以 compare 验收。
+- 不做：第 3 项，Python `markup.TYPED`（Python 自行解析的字段）与 Rust `keys::TYPED`（render_lab 类型化的属性）含义不同，合并无益；第 5 项，仓库没有 CI，回归仍以 `compare.py` 和本地检查执行。
+
 覆盖 RL05、RL26，并固定前六项的验收基础。
 
 1. 扩充 `story keys` 的 schema：原 key、Lamlet 名、类型／维度、单位、选项或引用类别、默认值、检查方式、推荐入口和示例。尽量从已有注册信息生成。

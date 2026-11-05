@@ -37,10 +37,27 @@ fn key(name: &str, key: &str, kind: &str) -> Value {
     }
 }
 
+thread_local! {
+    /// The options `options` left out, while `schema` collects them: (attribute, option, why).
+    static DROPPED: std::cell::RefCell<Option<Vec<(String, String, &'static str)>>> = const { std::cell::RefCell::new(None) };
+}
+
 /// A text key with options: only those that make a Lamlet name, once each (the rest are still written as text).
 fn options(name: &str, key: &str, options: impl IntoIterator<Item = String>) -> Value {
     let mut names = std::collections::BTreeSet::new();
-    let kept: Vec<String> = options.into_iter().filter(|o| lamlet_present::vocab::camel(&[name, o]).is_ok_and(|n| names.insert(n))).collect();
+    let kept: Vec<String> = options
+        .into_iter()
+        .filter(|o| {
+            let why = match lamlet_present::vocab::camel(&[name, o]) {
+                Err(_) => Some("not a Lamlet name"),
+                Ok(n) => (!names.insert(n)).then_some("another option makes the same name"),
+            };
+            if let Some(why) = why {
+                DROPPED.with(|d| d.borrow_mut().as_mut().map(|d| d.push((key.to_string(), o.clone(), why))));
+            }
+            why.is_none()
+        })
+        .collect();
     let mut k = self::key(name, key, "text");
     k["options"] = json!(kept);
     k
@@ -160,8 +177,49 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     // One function per name: a component whose name another key has (`camera.x` beside the value `cameraX`)
     // is left out; it can still be written with `attr`.
     let mut seen = std::collections::BTreeSet::new();
-    out.retain(|k| seen.insert(k["name"].as_str().and_then(|n| lamlet_present::vocab::camel(&[n]).ok()).unwrap_or_default()));
+    out.retain(|k| {
+        let kept = seen.insert(k["name"].as_str().and_then(|n| lamlet_present::vocab::camel(&[n]).ok()).unwrap_or_default());
+        if !kept {
+            DROPPED.with(|d| d.borrow_mut().as_mut().map(|d| d.push((attribute(k).to_string(), String::new(), "another key has its function name"))));
+        }
+        kept
+    });
     Ok(out)
+}
+
+/// The key list with what a reader needs to write each key (`render-lab story schema`): a value's type, unit,
+/// range, default, and what it is; the attribute a function writes; and what the vocabulary leaves out (options
+/// that make no Lamlet name, keys whose function name another has), each with the `attr` that still writes it.
+pub fn schema(investigation: &dyn Investigation) -> Result<Value, String> {
+    DROPPED.with(|d| *d.borrow_mut() = Some(Vec::new()));
+    let keys = keys(investigation);
+    let dropped = DROPPED.with(|d| d.borrow_mut().take()).unwrap_or_default();
+    let mut keys = keys?;
+    let values: BTreeMap<&str, &crate::values::Entry> = crate::values::list().into_iter().map(|e| (e.key, e)).collect();
+    for k in &mut keys {
+        let attr = attribute(k).to_string();
+        let name = k["name"].as_str().unwrap_or_default().to_string();
+        k["attribute"] = json!(attr);
+        k["function"] = json!(lamlet_present::vocab::camel(&[&name]).ok());
+        if let Some(e) = values.get(attr.trim_start_matches("param.")) {
+            k["value"] = json!({
+                "type": format!("{:?}", e.ty),
+                "unit": format!("{:?}", e.unit),
+                "range": e.range.map(|(a, b)| [a, b]),
+                "default": e.default.map(|v| v.to_json()),
+                "components": e.components,
+                "doc": e.doc,
+            });
+        }
+    }
+    let omitted: Vec<Value> = dropped
+        .into_iter()
+        .map(|(key, option, why)| {
+            let write = if option.is_empty() { format!("{{attr \"{key}\" \"…\"}}") } else { format!("{{attr \"{key}\" \"{option}\"}}") };
+            json!({"attribute": key, "option": (!option.is_empty()).then_some(option), "why": why, "write": write})
+        })
+        .collect();
+    Ok(json!({"renderLabStorySchema": 1, "keys": keys, "omitted": omitted}))
 }
 
 #[cfg(test)]
