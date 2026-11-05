@@ -9,22 +9,22 @@ placeables: a formula is `{ FORMULA("…") }`, a code name `{ CODE("…") }`.
 A cue's attributes are pairs of Strings, as the investigation's vocabulary
 writes them (`render-lab story keys`; `Fields` reads its field list): any
 shot parameter, `callout`,
-`code`, `panel`, `demo`, `highlight=a,b`, `record=card:3`, `ease`,
-`blend=0.5` (seconds), `term=n` (render_lab's Lamlet package writes
-`highlight`, `record`, `animate`, `imageMark`, points, and the hide
-lists), and the package's actions
+`code`, `panel`, `demo`, `ease`, `blend=0.5` (seconds), `term=n`
+(render_lab's Lamlet package writes `highlight*`, `record`, `animate`,
+`imageMark`, points, and the hide lists as typed Data, which this reads
+without a grammar of its own), and the package's actions
 (src/lab/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
 arguments, `stop=a,b` stops them; and `image=name` (`imageTitle=text-key`,
 `imageCorner=top-left`), an image the investigation publishes, a PNG
 resource, or, with `imageFrom=kind` and `image.<param>=value`, an instance of
 an image kind its shaders define, or, with `imageGraph=node.resource`
 (`imageShow=kind`), a resource of the frame's graph as it stood right after
-a node (the inspector), in an inset (`imageHide=a,b` hides some, `image=""`
+a node (the inspector), in an inset (`imageHide` hides some, `image=""`
 all; `imageClick=handler` runs the package's click handler on a click on
-it); arrows and labels: `arrow=name arrowFrom=x,y,z arrowTo=point
-arrowColor=#rrggbb arrowWidth=3`, `arrows=set`, `label=name labelAt=x,y,z
+it); arrows and labels: `arrow=name arrowFrom arrowTo
+arrowColor=#rrggbb arrowWidth=3`, `arrows=set`, `label=name labelAt
 labelText=text-key labelColor=#rrggbb`, a point three numbers or one the
-package publishes, `arrowHide=a,b`, `labelHide=a,b` (`arrow=""`, `label=""`
+package publishes, `arrowHide`, `labelHide` (`arrow=""`, `label=""`
 hide all). A range's values `a..b` jump to `a` where it opens and blend to `b`
 exactly where it closes. A formula's cue (`formula`, `term=n` lighting term
 n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
@@ -201,35 +201,47 @@ def action_attr(key: Json, name: str, value: str, where: str) -> bool:
     return True
 
 
-def point_value(value: str, where: str) -> list[float] | str:
-    """An arrow's end or a label's point as a tag writes it: three numbers,
-    or the key of a point the package publishes (`probe.top`)."""
-    if ',' in value:
-        point = [number(x, where) for x in value.split(',')]
-        if len(point) != 3:
-            raise MarkupError(f'{where}: {value!r} is not a point (three numbers)')
-        return point
-    if value and all(c.isalnum() or c in '._-' for c in value):
-        return value
-    raise MarkupError(f'{where}: {value!r} is not a point (three numbers, or a point\'s key)')
+def variant(data: Any, where: str, name: str) -> tuple[str, Any]:
+    """A Lamlet variant as Data (`{"tag": …, "value": …}`): its tag and its value."""
+    if not isinstance(data, dict) or set(data) != {'tag', 'value'} or not isinstance(data['tag'], str):
+        raise MarkupError(f'{where}: {name} is the Data render_lab writes, not {data!r}')
+    return data['tag'], data['value']
 
 
-def image_attr(key: Json, name: str, value: str, where: str) -> bool:
+def point_value(data: Any, where: str, name: str) -> list[float] | str:
+    """An arrow's end or a label's point, render_lab's `Point` as Data (`{at x y z}` or `{point "key"}`):
+    three numbers, or the key of a point the package publishes (`probe.top`)."""
+    tag, v = variant(data, where, name)
+    if tag == 'at' and isinstance(v, dict) and set(v) == {'x', 'y', 'z'}:
+        return [number(v[c], where) for c in 'xyz']
+    if tag == 'named' and isinstance(v, str) and v:
+        return v
+    raise MarkupError(f'{where}: {name} is `{{at x y z}}` or `{{point "key"}}`, not {data!r}')
+
+
+def image_attr(key: Json, name: str, value: Any, where: str) -> bool:
     """Reads an image's attribute into `key`: `image.<param>=value` sets a
-    parameter of an image kind's instance, `imageMark=u0,v0,u1,v1` points out a
-    region of it, `imageHide=a,b` hides images. False for any other attribute."""
+    parameter of an image kind's instance; render_lab's typed attributes, as
+    Data: `imageMark` points out a region of it (`{mark u0 v0 u1 v1}`, or
+    `unmark`), `imageHide` hides images (a list of names), and the hide lists and
+    points of arrows and labels. False for any other attribute."""
     if name.startswith('image.'):
         key.setdefault('imageParams', {})[name[6:]] = param_value(value, where)
     elif name == 'imageMark':
-        # u0,v0,u1,v1 (fractions of the picture), or empty to fade the mark out.
-        mark = [number(v, where) for v in value.split(',') if v]
-        if len(mark) not in (0, 4):
-            raise MarkupError(f'{where}: imageMark is u0,v0,u1,v1 or "", not {value!r}')
-        key[name] = mark
+        # u0,v0,u1,v1 (fractions of the picture), or none to fade the mark out.
+        tag, v = variant(value, where, name)
+        if tag == 'region' and isinstance(v, dict) and set(v) == {'u0', 'v0', 'u1', 'v1'}:
+            key[name] = [number(v[c], where) for c in ('u0', 'v0', 'u1', 'v1')]
+        elif tag == 'none' and v is None:
+            key[name] = []
+        else:
+            raise MarkupError(f'{where}: imageMark is `{{mark u0 v0 u1 v1}}` or `unmark`, not {value!r}')
     elif name in ('imageHide', 'arrowHide', 'labelHide'):
-        key[name] = [v for v in value.split(',') if v]
+        if not isinstance(value, list) or any(not isinstance(v, str) or not v for v in value):
+            raise MarkupError(f'{where}: {name} is a list of names, not {value!r}')
+        key[name] = list(value)
     elif name in ('arrowFrom', 'arrowTo', 'labelAt'):
-        key[name] = point_value(value, where)
+        key[name] = point_value(value, where, name)
     elif name == 'arrowWidth':
         key[name] = number(value, where)
     else:
@@ -336,8 +348,13 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
                 data = json.loads(v) if isinstance(v, str) else v
                 key['code'] = data['listing']
         elif name == 'record':
-            kind, _, index = v.partition(':')
-            key['record'] = {'type': kind} if not index else {'type': kind, 'index': integer(index, where)}
+            kind, index = variant(v, where, name)
+            if kind in ('none', 'camera') and index is None:
+                key['record'] = {'type': kind}
+            elif kind == 'object' and isinstance(index, int) and not isinstance(index, bool):
+                key['record'] = {'type': kind, 'index': integer(index, where)}
+            else:
+                raise MarkupError(f'{where}: record is `recordNone`, `recordCamera`, or `{{recordObject n}}`, not {v!r}')
         elif name == 'term':
             key['term'] = integer(v, where)
         elif name == 'formula':

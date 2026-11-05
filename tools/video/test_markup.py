@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from typing import Any
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -21,7 +22,7 @@ KEYS = [{'name': 'camera.target', 'kind': 'vector'}, {'name': 'camera.yaw', 'kin
 FIELDS = markup.Fields.of(KEYS)
 
 
-def cue(*attrs: tuple[str, str]) -> markup.Tag:
+def cue(*attrs: tuple[str, Any]) -> markup.Tag:
     return markup.Tag('cue', None, list(attrs), 1)
 
 
@@ -73,20 +74,25 @@ class CueKey(unittest.TestCase):
         self.assertEqual(key(cue(('image', ''))), {'image': ''})
         self.assertEqual(key(cue(('image', 'floor'), ('imageFrom', 'probeMap'), ('image.probe', '7,7,8'), ('image.gain', '2'))),
                          {'image': 'floor', 'imageFrom': 'probeMap', 'imageParams': {'probe': [7.0, 7.0, 8.0], 'gain': 2.0}})
-        self.assertEqual(key(cue(('imageHide', 'floor,ceiling'))), {'imageHide': ['floor', 'ceiling']})
+        self.assertEqual(key(cue(('imageHide', ['floor', 'ceiling']))), {'imageHide': ['floor', 'ceiling']})
         # A resource of the frame's graph after a node, drawn as counts.
         self.assertEqual(key(cue(('panel', 'graph'), ('image', 'lights'), ('imageGraph', 'o3deLightCullingCS.tileData'), ('imageShow', 'count'), ('image.range', '0,16'))),
                          {'panel': 'graph', 'image': 'lights', 'imageGraph': 'o3deLightCullingCS.tileData', 'imageShow': 'count', 'imageParams': {'range': [0.0, 16.0]}})
-        self.assertEqual(key(cue(('arrow', 'a'), ('arrowFrom', '0,1,2'), ('arrowTo', 'probe.top'), ('arrowColor', '#50d7ff'), ('arrowWidth', '4'))),
+        self.assertEqual(key(cue(('arrow', 'a'), ('arrowFrom', {'tag': 'at', 'value': {'x': 0, 'y': 1, 'z': 2}}), ('arrowTo', {'tag': 'named', 'value': 'probe.top'}), ('arrowColor', '#50d7ff'), ('arrowWidth', '4'))),
                          {'arrow': 'a', 'arrowFrom': [0.0, 1.0, 2.0], 'arrowTo': 'probe.top', 'arrowColor': '#50d7ff', 'arrowWidth': 4.0})
-        self.assertEqual(key(cue(('label', 'l'), ('labelAt', 'probe.top'), ('labelText', 'demos-hit'))), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos-hit'})
-        self.assertEqual(key(cue(('arrows', 'rays'), ('arrowHide', 'a'), ('labelHide', 'l'))), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
+        self.assertEqual(key(cue(('label', 'l'), ('labelAt', {'tag': 'named', 'value': 'probe.top'}), ('labelText', 'demos-hit'))), {'label': 'l', 'labelAt': 'probe.top', 'labelText': 'demos-hit'})
+        self.assertEqual(key(cue(('arrows', 'rays'), ('arrowHide', ['a']), ('labelHide', ['l']))), {'arrows': 'rays', 'arrowHide': ['a'], 'labelHide': ['l']})
         self.assertEqual(key(cue(('image', 'map'), ('imageClick', 'pickCell'))), {'image': 'map', 'imageClick': 'pickCell'})
-        self.assertEqual(key(cue(('image', 'map'), ('imageMark', '0,0.5,0.25,1'), ('imageMarkText', 'demos.near'), ('blend', '1'))),
+        self.assertEqual(key(cue(('image', 'map'), ('imageMark', {'tag': 'region', 'value': {'u0': 0, 'v0': 0.5, 'u1': 0.25, 'v1': 1}}), ('imageMarkText', 'demos.near'), ('blend', '1'))),
                          {'image': 'map', 'imageMark': [0.0, 0.5, 0.25, 1.0], 'imageMarkText': 'demos.near', 'blend': 1.0})
-        self.assertEqual(key(cue(('image', 'map'), ('imageMark', ''), ('imageMarkText', ''))), {'image': 'map', 'imageMark': [], 'imageMarkText': ''})
-        with self.assertRaises(markup.MarkupError):
-            key(cue(('image', 'map'), ('imageMark', '0,1')))
+        self.assertEqual(key(cue(('image', 'map'), ('imageMark', {'tag': 'none', 'value': None}), ('imageMarkText', ''))), {'image': 'map', 'imageMark': [], 'imageMarkText': ''})
+        # Only the typed Data render_lab writes: no String grammar of points, marks, or names.
+        for name, bad in [('imageMark', '0,1'), ('imageMark', {'tag': 'region', 'value': {'u0': 0}}), ('labelAt', '0,1,2'),
+                          ('arrowTo', {'tag': 'at', 'value': [0, 1, 2]}), ('imageHide', 'a,b'), ('record', 'object:3')]:
+            with self.subTest(name=name, value=bad), self.assertRaises(markup.MarkupError):
+                key(cue(('image', 'map'), (name, bad)))
+        self.assertEqual(key(cue(('record', {'tag': 'object', 'value': 3}))), {'record': {'type': 'object', 'index': 3}})
+        self.assertEqual(key(cue(('record', {'tag': 'camera', 'value': None}))), {'record': {'type': 'camera'}})
 
     def test_parameter_values(self) -> None:
         where = 'test'

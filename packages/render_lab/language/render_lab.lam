@@ -206,25 +206,34 @@ $[# {view name attrs} {map
 Points, marks, and names
 
 A point in the scene, for an arrow's ends and a label: three coordinates, or a point the package publishes
-(`probe.top`).
+(`probe.top`). Each of these attributes is the point as Data (tools/video/markup.py, `point_value`).
 
-$[# Point [% {Variant {' {Field "at" {List Float}} {Field "named" String}}}]]
-$[# {at x y z} {: {#at {' x y z}} Point}]
+$[# Point [% {Variant {'
+    {Field "at" {Struct {' {Field "x" Float} {Field "y" Float} {Field "z" Float}}}}
+    {Field "named" String}}}]]
+$[# {at x y z} {: {#at {. x x y y z z}} Point}]
 $[# {point name} {: {#named {rl::point name}} Point}]
-$[# {_point p} {!case {: p Point} {at xs {join "," {map {: xs {List Float}} str}}} {named n n}}]
+$[# {_point p} {toData {: p Point}}]
 $[# {labelAt p} {attr "labelAt" {_point p}}]
 $[# {arrowFrom p} {attr "arrowFrom" {_point p}}]
 $[# {arrowTo p} {attr "arrowTo" {_point p}}]
 
-A region of an image to point out, in fractions of the picture (`u0 v0` to `u1 v1`), and its mark faded out.
+A region of an image to point out, in fractions of the picture (`u0 v0` to `u1 v1`), and its mark faded out,
+each as Data.
 
-$[# {mark u0 v0 u1 v1} {attr "imageMark" {join "," {map {: {' u0 v0 u1 v1} {List Float}} str}}}]
-$[# unmark [% {attr "imageMark" ""}]]
+$[# _Mark [% {Variant {'
+    {Field "region" {Struct {'
+        {Field "u0" Float}
+        {Field "v0" Float}
+        {Field "u1" Float}
+        {Field "v1" Float}}}}
+    {Field "none" Unit}}}]]
+$[# {mark u0 v0 u1 v1} {attr "imageMark" {toData {: {#region {. u0 u0 v0 v0 u1 u1 v1 v1}} _Mark}}}]
+$[# unmark [% {attr "imageMark" {toData {: {#none unit} _Mark}}}]]
 
-Names to hide: images, arrows, and labels.
+Names to hide: images, arrows, and labels, a list of Strings as Data.
 
-$[# {_name n} {!if {contains {chars n} ","} {error {++ "a name has no comma: " n}} n}]
-$[# {_names key names} {attr key {join "," {map {: names {List String}} _name}}}]
+$[# {_names key names} {attr key {toData {: names {List String}}}}]
 $[# {imageHide names} {_names "imageHide" names}]
 $[# {arrowHide names} {_names "arrowHide" names}]
 $[# {labelHide names} {_names "labelHide" names}]
@@ -243,11 +252,12 @@ $[# {highlightFields record fields} {attr "highlightFields" {.
     fields {: fields {List String}}}}]
 $[# unhighlight [% {highlightPasses {'}}]]
 
-What the frame records (`record`): nothing, the camera, or one object (by index).
+What the frame records (`record`): nothing, the camera, or one object (by index), as Data.
 
-$[# recordNone [% {attr "record" "none"}]]
-$[# recordCamera [% {attr "record" "camera"}]]
-$[# {recordObject index} {attr "record" {++ "object:" {str {: index Int}}}}]
+$[# _Record [% {Variant {' {Field "none" Unit} {Field "camera" Unit} {Field "object" Int}}}]]
+$[# recordNone [% {attr "record" {toData {: {#none unit} _Record}}}]]
+$[# recordCamera [% {attr "record" {toData {: {#camera unit} _Record}}}]]
+$[# {recordObject index} {attr "record" {toData {: {#object {: index Int}} _Record}}}]
 
 Names the lab checks
 
