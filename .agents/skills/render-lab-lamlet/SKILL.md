@@ -45,7 +45,13 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 
 - **Headings:** `#` the video (its text the title, its attributes the header), `##` a chapter (`number`, `target`
   seconds, `summary`, `sources`), `###` a beat (its id, `kind` `3d` or `2d`, `diagram`, `graph`, `focus`, `sources`,
-  `hold`). Quoted attribute values may hold spaces, not quotes or braces.
+  `hold`). Quoted attribute values may hold spaces, not quotes or braces. Which attributes each level takes, and
+  their kinds, are the lab's heading keys (`render-lab story headings [--translation]`, `keys::heading_keys`;
+  also in `story keys`). The builder applies them (`lamlet ir --keys`), so an unknown attribute (with the
+  nearest known one), a non-integer `number` or `fps` (`3.0` too), a number that is not finite, and a `kind` or
+  `locale` not among its options are refused at the heading's line. Lists (`sources`, `focus`, `glossary`) are
+  comma-separated names. tools/video/headings.py checks what a kind cannot say: a required key, a number's
+  limits, the even resolution.
 - **Paragraphs:** a paragraph of cues before a beat's first sentence sets its keys, one per cue; every other
   paragraph is one sentence. Prose is CommonMark: `$` is `$$`, and `* _ [ ] < \ `` ` `` are markup (escape them with
   `\`, or put the text in a region).
@@ -61,7 +67,8 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
   comma-separated, `captionWidth`), one paragraph per English sentence, formulas as `${math "TeX"}`, code names as
   `${code "Name"}`, no cues.
 - **Pacing** is the video heading's (`lead`, `gap`, `tail`, `maxExtraPause`, `taggedWeight`, `termFade`,
-  `captionBridge`, `captionWidth`; tools/video/README.md), each with its default when left out.
+  `captionBridge`, `captionWidth`; tools/video/README.md), each with its default when left out (the heading
+  keys give it).
 - **The story library** (`video/story.lam`, the package `<package>_story`, optional): what the storyboard repeats,
   bound once (a beat's `opening`, a baseline of values, camera waypoints, chapter numbers it shows and says). It
   imports what the storyboard does. Write a text key a helper sets at the call site (`{imageTitle "views.…"}` in the

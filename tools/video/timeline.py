@@ -20,7 +20,6 @@ import zh
 from config import Config
 from narration import Durations, Narration
 from locations import DiagnosticError, describe
-from headings import DEFAULT_CAPTION_WIDTH
 
 NOTICES = 8.0    # the closing card of the package's legal notices
 KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
@@ -31,22 +30,22 @@ Json = dict[str, Any]
 @dataclass(frozen=True)
 class Pacing:
     """How a video is paced and its captions wrapped: attributes of the storyboard's video heading
-    (`{#video lead=0.4 gap=0.32 …}`), each with this default when the heading leaves it out (seconds, and
-    characters per caption line). The zh-CN edition's caption width is its translation's heading's
-    `captionWidth` (zh.CAPTION_UNITS display units by default)."""
-    lead: float = 0.40           # silence before a beat's first sentence
-    gap: float = 0.32            # silence between sentences
-    tail: float = 0.70           # silence after a beat's last sentence
-    maxExtraPause: float = 2.2   # the most a chapter's budget lengthens one sentence's pause
-    taggedWeight: float = 2.0    # how much more of the budget's pauses a sentence with tags takes than one without
-    termFade: float = 0.4        # how long a lit term fades in when its cue names no blend
-    captionBridge: float = 0.6   # a caption stays up through a gap this short, to the next
-    captionWidth: int = DEFAULT_CAPTION_WIDTH  # characters per caption line (English)
+    (`{#video lead=0.4 gap=0.32 …}`; seconds, and characters per caption line), each with its default when the
+    heading leaves it out (the lab's heading keys, lab/src/script/keys.rs `heading_keys`, give it). The zh-CN
+    edition's caption width is its translation's heading's `captionWidth` (zh.CAPTION_UNITS display units by
+    default)."""
+    lead: float           # silence before a beat's first sentence
+    gap: float            # silence between sentences
+    tail: float           # silence after a beat's last sentence
+    maxExtraPause: float  # the most a chapter's budget lengthens one sentence's pause
+    taggedWeight: float   # how much more of the budget's pauses a sentence with tags takes than one without
+    termFade: float       # how long a lit term fades in when its cue names no blend
+    captionBridge: float  # a caption stays up through a gap this short, to the next
+    captionWidth: int     # characters per caption line (English)
 
     @staticmethod
     def of(board: Board) -> Pacing:
-        given = [f.name for f in fields(Pacing) if f.name in board]
-        return Pacing(**{name: int(board[name]) if name == 'captionWidth' else float(board[name]) for name in given})
+        return Pacing(**{f.name: int(board[f.name]) if f.name == 'captionWidth' else float(board[f.name]) for f in fields(Pacing)})
 
 
 def sentences_of(beat: Json) -> list[Json]:

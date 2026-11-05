@@ -6,8 +6,10 @@ IR, with render_lab's Lamlet library (packages/render_lab/language/render_lab.la
 """
 from __future__ import annotations
 
+import functools
 import json
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +46,15 @@ def ir(path: Path, packages: list[tuple[str, Path]], investigation: str | None =
     chosen = ['--investigation', investigation] if investigation else []
     checked = ['--keys', str(keys)] if keys else []
     return json.loads(lab(*chosen, 'lamlet', 'ir', str(path), *given, *checked))
+
+
+@functools.cache
+def heading_keys(translation: bool = False) -> Path:
+    """The key list of a storyboard's headings (`render-lab story headings`), or its translation's, in a file
+    for `ir`'s `keys`: what reads a presentation without an investigation's key list (a translation, a test)."""
+    path = Path(tempfile.mkdtemp(prefix='render-lab-headings-')) / ('translation.json' if translation else 'headings.json')
+    path.write_text(lab('story', 'headings', *(['--translation'] if translation else [])))
+    return path
 
 
 def vocabulary(investigation: str, name: str, out: Path) -> Path:

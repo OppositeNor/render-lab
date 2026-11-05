@@ -163,13 +163,16 @@ class Presentation(unittest.TestCase):
         # The video heading's pacing attributes, each with its default when left out.
         board = self.load(STORY.replace('fps=30', 'fps=30 gap=0.5 captionWidth=60'))
         pacing = timeline.Pacing.of(board)
-        self.assertEqual((pacing.gap, pacing.captionWidth, pacing.lead), (0.5, 60, timeline.Pacing().lead))
+        # `lead`'s default is the heading keys' (lab/src/script/keys.rs `heading_keys`).
+        self.assertEqual((pacing.gap, pacing.captionWidth, pacing.lead), (0.5, 60, 0.4))
 
     def test_errors(self) -> None:
         for kind in ('scene', 'sources'):
             with self.subTest(kind=kind):
-                with self.assertRaisesRegex(presentation.PresentationError, 'the scene type is 3d or 2d'):
+                with self.assertRaisesRegex(lamlet.LamletError, f'`kind`: `{kind}` is not one of 3d, 2d'):
                     self.load(STORY.replace('kind=3d', f'kind={kind}'))
+        with self.assertRaisesRegex(presentation.PresentationError, 'needs its scene type'):
+            self.load(STORY.replace(' kind=3d', ''))
         # A 2d beat shows a diagram, the frame graph, or a sources card.
         with self.assertRaisesRegex(presentation.PresentationError, 'a 2d beat shows'):
             self.load(STORY.replace(' diagram=frame focus="A, B"', ''))

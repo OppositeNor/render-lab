@@ -5,6 +5,12 @@ use crate::shot::{Cue, CueProblem, Highlight, PanelMode, RecordRef, ShotState};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A stable spelling hint, without mixing different reference namespaces.
+/// The known name nearest to `name`, when it is near enough to suggest.
+pub(crate) fn nearest(name: &str, known: impl IntoIterator<Item = String>) -> Option<String> {
+    let known: BTreeSet<String> = known.into_iter().collect();
+    known.into_iter().filter(|candidate| distance(name, candidate) <= 2.max(name.len() / 3)).min_by_key(|candidate| (distance(name, candidate), candidate.clone()))
+}
+
 pub(crate) fn unknown(category: &str, name: &str, known: impl IntoIterator<Item = String>, context: &str) -> String {
     let known: BTreeSet<String> = known.into_iter().collect();
     let nearest = known.iter().min_by_key(|candidate| (distance(name, candidate), candidate.as_str()));
@@ -49,7 +55,8 @@ pub(crate) fn value_problem(cue: &Cue, original: String) -> CueProblem {
         }
         if crate::values::entry(name).is_none() && crate::investigation::current().param_default(name).is_none() && crate::shot::view_key(name).is_none() {
             let keys = crate::script::keys::keys(crate::investigation::current()).unwrap_or_default();
-            let known = keys.iter().filter_map(|k| k.get("key").or_else(|| k.get("name")).and_then(serde_json::Value::as_str)).map(str::to_string);
+            let cue = keys.iter().filter(|k| k.get("on").is_none());
+            let known = cue.filter_map(|k| k.get("key").or_else(|| k.get("name")).and_then(serde_json::Value::as_str)).map(str::to_string);
             return CueProblem::new("story.value", &field, format!("{original}; {}", unknown("cue attribute or value", name, known, "")));
         }
         return CueProblem::new("story.value", &field, original);

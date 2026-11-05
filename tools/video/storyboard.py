@@ -9,7 +9,6 @@ from typing import Any
 import config
 from config import Config
 from locations import DiagnosticError
-from headings import DEFAULT_CAPTION_WIDTH
 
 Json = dict[str, Any]
 
@@ -86,8 +85,6 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
             if beat['id'] in ids:
                 fail('story.beat.duplicate', f'duplicate beat {beat["id"]}', 'id')
             ids.add(beat['id'])
-            if beat['kind'] not in ('3d', '2d'):
-                fail('story.beat.kind', f'unknown scene type {beat["kind"]}', 'kind')
             if 'graph' in beat:
                 known = frame_graph.names(frame_graph.load(cfg, beat['graph']))
                 for node in beat.get('focus', []):
@@ -103,7 +100,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                     fail('story.source', f'unknown source key {key}', 'sources')
             if not beat.get('narration', []):
                 fail('story.narration', f'{beat["id"]} has no narration', 'narration')
-            width = board.get('captionWidthZh', zh.CAPTION_UNITS) if cfg.zh() else board.get('captionWidth', DEFAULT_CAPTION_WIDTH)
+            width = board.get('captionWidthZh', zh.CAPTION_UNITS) if cfg.zh() else board['captionWidth']
             for sentence in beat.get('narration', []):
                 shown = markup.shown(sentence, cfg.zh()).caption
                 held, _ = markup.protect(shown)

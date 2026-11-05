@@ -62,6 +62,17 @@ class Structure(unittest.TestCase):
             self.assertEqual(diagnostic['field'], field)
         return diagnostic
 
+    def refused(self, text: str, translation: bool = False, *parts: str) -> str:
+        """A heading the lab's key check refuses (`lamlet ir --keys`, the heading keys): every part in its message,
+        which names the story's line."""
+        with self.assertRaises(lamlet.LamletError) as caught:
+            self.load(text, translation)
+        message = str(caught.exception)
+        self.assertRegex(message, r'story\.lam:\d+:\d+: the heading')
+        for part in parts:
+            self.assertIn(part, message)
+        return message
+
     def test_duplicate_ids_and_numbers_name_both_declarations(self) -> None:
         cases = [
             (STORY + SECOND.replace('#c2 ', '#c1 '), 'story.chapter.duplicate', False),
@@ -100,18 +111,18 @@ class Structure(unittest.TestCase):
                 self.assertEqual(diagnostic['related'][0]['line'], diagnostic['line'])
 
     def test_unknown_heading_attributes_offer_a_candidate(self) -> None:
+        # The heading keys refuse them (`hold` is lamlet-present's own, so not offered).
         cases = [
             (STORY.replace('fps=30', 'fps=30 gaap=0.5'), False, 'gaap', 'gap'),
             (STORY.replace('target=10', 'target=10 targte=2'), False, 'targte', 'target'),
-            (STORY.replace('kind=3d', 'kind=3d holdd=1'), False, 'holdd', 'hold'),
+            (STORY.replace('kind=3d', 'kind=3d focuss=a'), False, 'focuss', 'focus'),
             (TRANSLATION.replace('locale=zh-CN', 'locale=zh-CN captionWidh=64'), True, 'captionWidh', 'captionWidth'),
             (TRANSLATION.replace('number=1', 'number=1 summry=内容'), True, 'summry', 'summary'),
         ]
         for text, translation, field, candidate in cases:
             with self.subTest(field=field):
-                diagnostic = self.failure(text, 'story.heading.unknown', translation, field)
-                self.assertIn(f'did you mean {candidate!r}', diagnostic['message'])
-        self.failure(TRANSLATION.replace('#b}', '#b kind=3d}'), 'story.heading.unknown', True, 'kind')
+                self.refused(text, translation, f'`{field}` is not an attribute', f'did you mean `{candidate}`?')
+        self.refused(TRANSLATION.replace('#b}', '#b kind=3d}'), True, '`kind` is not an attribute of a level-3 heading')
 
     def test_archival_and_namespaced_metadata_are_allowed(self) -> None:
         text = STORY.replace('fps=30', 'engineVersion="4.7.2-stable" commit=abcdef date=2026-11-04 meta.review=approved fps=30')
@@ -123,30 +134,44 @@ class Structure(unittest.TestCase):
         self.assertEqual(board['chapters'][0]['beats'][0]['meta.note'], 'example')
 
     def test_integer_fields_do_not_truncate_or_accept_booleans(self) -> None:
-        for value in ('1.7', '1.00000000000000001', '0', '-1', 'true', 'null', 'NaN', 'Infinity', '4294967296'):
-            for text, translation in [(STORY, False), (TRANSLATION, True)]:
+        # An integer is written as one (the heading keys): no fraction, exponent, or other value.
+        for text, translation in [(STORY, False), (TRANSLATION, True)]:
+            for value in ('1.7', '1.00000000000000001', '3.0', 'true', 'null', 'NaN', 'Infinity'):
+                with self.subTest(number=value, translation=translation):
+                    self.refused(text.replace('number=1', f'number={value}'), translation, f'`number={value}` is not an integer')
+            # Its limits are the reader's.
+            for value in ('0', '-1', '4294967296'):
                 with self.subTest(number=value, translation=translation):
                     self.failure(text.replace('number=1', f'number={value}'), 'story.heading.number', translation, 'number')
-        board = self.load(STORY.replace('number=1', 'number=3.0') + SECOND.replace('number=2', 'number=7'))
-        self.assertEqual([chapter['number'] for chapter in board['chapters']], [3, 7])
-        board = self.load(STORY.replace('fps=30', 'fps=3e1').replace('width=1920', 'width=1920.0'))
+        self.refused(STORY.replace('fps=30', 'fps=3e1'), False, '`fps=3e1` is not an integer')
+        board = self.load(STORY + SECOND.replace('number=2', 'number=7'))
+        self.assertEqual([chapter['number'] for chapter in board['chapters']], [1, 7])
         self.assertIs(type(board['fps']), int)
         self.assertIs(type(board['width']), int)
 
     def test_nonfinite_and_negative_heading_numbers_are_rejected(self) -> None:
+        # Not a finite number of the key's kind: the heading keys refuse it. Negative: the reader. `hold` is
+        # lamlet-present's own attribute, which the reader reads.
         for field, token in [('fps', 'fps=30'), ('target', 'target=10'), ('hold', 'kind=3d'),
                              *[(name, 'fps=30') for name in ('lead', 'gap', 'tail', 'maxExtraPause', 'taggedWeight', 'termFade', 'captionBridge')]]:
             for value in ('NaN', 'Infinity', '-Infinity', '1e999', '-0.01', 'true', '[]'):
                 addition = f'{field}={value}' if field in ('fps', 'target') else f'{token} {field}={value}'
                 with self.subTest(field=field, value=value):
-                    self.failure(STORY.replace(token, addition), 'story.heading.number', field=field)
+                    if field == 'hold' or (value == '-0.01' and field != 'fps'):
+                        self.failure(STORY.replace(token, addition), 'story.heading.number', field=field)
+                    else:
+                        self.refused(STORY.replace(token, addition), False, f'`{field}={value}` is not')
 
     def test_fps_dimensions_and_caption_width_have_valid_domains(self) -> None:
         for field, value in [('fps', '0'), ('fps', '30.1'), ('fps', '30.00000000000000001'),
                              ('width', '0'), ('width', '8193'), ('width', '1920.5'), ('height', 'NaN')]:
             old = {'fps': 30, 'width': 1920, 'height': 1080}[field]
             with self.subTest(field=field, value=value):
-                self.failure(STORY.replace(f'{field}={old}', f'{field}={value}'), 'story.heading.number', field=field)
+                text = STORY.replace(f'{field}={old}', f'{field}={value}')
+                if value.isdigit():
+                    self.failure(text, 'story.heading.number', field=field)
+                else:
+                    self.refused(text, False, f'`{field}={value}` is not an integer')
         self.failure(STORY.replace('width=1920', 'width=1919'), 'story.heading.resolution', field='width/height')
         self.failure(STORY.replace('height=1080', 'height=1079'), 'story.heading.resolution', field='width/height')
         self.failure(STORY.replace('width=1920 ', ''), 'story.heading.missing', field='width')
@@ -154,12 +179,16 @@ class Structure(unittest.TestCase):
                                            (TRANSLATION, True, ('0', '1', '2', '3.5', 'NaN'))]:
             for value in invalid:
                 with self.subTest(captionWidth=value, translation=translation):
-                    self.failure(text.replace('{#video ', f'{{#video captionWidth={value} '), 'story.heading.number', translation, 'captionWidth')
-        self.failure(STORY.replace('fps=30', f'fps=30 captionWidth={sys.maxsize + 1}'), 'story.heading.number', field='captionWidth')
+                    given = text.replace('{#video ', f'{{#video captionWidth={value} ')
+                    if value.isdigit():
+                        self.failure(given, 'story.heading.number', translation, 'captionWidth')
+                    else:
+                        self.refused(given, translation, f'`captionWidth={value}` is not an integer')
+        self.refused(STORY.replace('fps=30', f'fps=30 captionWidth={sys.maxsize + 1}'), False, 'is not an integer')
 
     def test_locale_uses_a_supported_language(self) -> None:
-        self.failure(STORY.replace('fps=30', 'fps=30 locale=typo'), 'story.heading.option', field='locale')
-        self.failure(TRANSLATION.replace('locale=zh-CN', 'locale=typo'), 'story.heading.option', True, 'locale')
+        self.refused(STORY.replace('fps=30', 'fps=30 locale=typo'), False, '`typo` is not one of en, zh-CN')
+        self.refused(TRANSLATION.replace('locale=zh-CN', 'locale=typo'), True, '`typo` is not one of en, zh-CN')
 
     def test_time_values_must_fit_the_actual_frame_representation(self) -> None:
         for field, token in [('lead', 'fps=30'), ('target', 'target=10'), ('hold', 'kind=3d')]:
@@ -168,10 +197,9 @@ class Structure(unittest.TestCase):
                 self.failure(STORY.replace(token, addition), 'story.heading.number', field=field)
         self.failure(STORY.replace('fps=30', 'fps=30 taggedWeight=1e308'), 'story.heading.number', field='taggedWeight')
 
-    def test_name_lists_reject_nonstring_elements(self) -> None:
-        for field, token in [('sources', 'target=10'), ('focus', 'kind=3d')]:
-            with self.subTest(field=field):
-                self.failure(STORY.replace(token, f'{token} {field}=[1]'), 'story.heading.type', field=field)
+    def test_name_lists_are_comma_separated(self) -> None:
+        board = self.load(STORY.replace('target=10', 'target=10 sources="a, b"').replace('kind=3d', 'kind=3d focus=A'))
+        self.assertEqual((board['chapters'][0]['sources'], board['chapters'][0]['beats'][0]['focus']), (['a', 'b'], ['A']))
 
     def test_caption_width_checks_the_text_before_audio(self) -> None:
         board = self.load(STORY.replace('fps=30', 'fps=30 captionWidth=4'))
@@ -270,17 +298,13 @@ class Structure(unittest.TestCase):
                         mock.patch.object(build.Config, 'load', return_value=cfg), \
                         mock.patch.object(narration, 'select_device') as device, \
                         mock.patch.object(narration, 'synthesize') as synthesize:
-                    with self.assertRaises(DiagnosticError):
+                    with self.assertRaises((DiagnosticError, lamlet.LamletError)):
                         build.main()
                     device.assert_not_called()
                     synthesize.assert_not_called()
 
 
 class Numbers(unittest.TestCase):
-    def test_name_lists_keep_csv_and_json_forms(self) -> None:
-        self.assertEqual(presentation.as_list('GI, SSR'), ['GI', 'SSR'])
-        self.assertEqual(presentation.as_list('["GI", "SSR"]'), ['GI', 'SSR'])
-
     def test_numeric_cue_values_are_finite_without_slider_clamping(self) -> None:
         for value in (math.nan, math.inf, -math.inf, [0.0, math.nan, 1.0]):
             with self.subTest(value=value), self.assertRaises(markup.MarkupError):
