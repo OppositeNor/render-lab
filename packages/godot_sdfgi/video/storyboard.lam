@@ -53,9 +53,9 @@ ${cue "key" {' {callout "mobile-stub"}}} Only the Forward+ renderer has SDFGI.
 
 In the other two renderers, Mobile and Compatibility, SDFGI's functions are empty, so it does nothing there.
 
-The defaults are four cascades, each a grid of one hundred twenty-eight cells a side.
+The defaults are ${spoken {cascades}} cascades, each a grid of ${spoken {cascadeCells}} cells a side.
 
-${cue "key" {' {focusRow 2.0}}}In the finest cascade, the cells are twenty centimetres across.
+${cue "key" {' {focusRow 2.0}}}In the finest cascade, the cells are ${spoken {cellCentimetres}} centimetres across.
 
 ${cue "key" {' {callout "project-settings"} {focusRow 7.0}}} Three project settings also shape SDFGI.
 
@@ -112,7 +112,7 @@ ${cue "key" {' {callout "cascade-create"}}} Around the camera sit ${overText {' 
 
 A cell is one box of a cascade's grid, the space that one voxel fills.
 
-${cue "key" {' {callout "cell-size-double"}}} The first cascade has cells of twenty centimetres, so it spans twenty-five point six metres.
+${cue "key" {' {callout "cell-size-double"}}} The first cascade has cells of ${spoken {cellCentimetres}} centimetres, so it spans ${spokenFloat {firstSpan}} metres.
 
 Each cascade after the first has cells twice the size of the one before, so it spans twice as far.
 
@@ -147,11 +147,11 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 30.0 28.0} {aim -10.0 24.0} {aim 2
 
 ${cue "key" {' {callout "probe-axis-count"}}} Inside each cascade sits a lattice of probes, one every eight cells.
 
-Sixteen gaps of eight cells span the one hundred twenty-eight cells.
+${capitalized {spoken {probeGaps}}} gaps of ${spoken {probeCells}} cells span the ${spoken {cascadeCells}} cells.
 
-Counting both ends, that gives seventeen probes along each axis.
+Counting both ends, that gives ${spoken {probeAxisCount}} probes along each axis.
 
-${cue "key" {' {callout "probe-position"}}} In the first cascade, the probes are one point six metres apart.
+${cue "key" {' {callout "probe-position"}}} In the first cascade, the probes are ${spokenFloat {probeSpacing}} metres apart.
 
 So only a handful of probes fall inside the room, and this view draws those probes brighter.
 
@@ -163,9 +163,9 @@ ${cue "key" {' {callout "scroll-update"} panelCode listingCascadeUpdate {highlig
 
 Each cascade compares the camera's cell with its own centre cell.
 
-${cue "key" {' {highlight {' "jump"}}}}${overText {' {cameraXRange 0.0 1.0}} "When the camera strays more than four cells away, the cascade jumps eight cells to follow it"}.
+${cue "key" {' {highlight {' "jump"}}}}${overText {' {cameraXRange 0.0 1.0}} f"{When the camera strays more than ${spoken {dragMargin}} cells away, the cascade jumps ${spoken {probeCells}} cells to follow it}"}.
 
-Eight cells is one probe spacing, so after the jump, every probe lands where a probe stood before.
+${capitalized {spoken {probeCells}}} cells is one probe spacing, so after the jump, every probe lands where a probe stood before.
 
 ${cue "key" {' {regions 1.0} {highlight {' "dirty"}} {cameraDistance 40.0} {cameraTarget {' 10.0 0.0 0.0}}}} The jump carries the cascade's leading edge into new space, an eight-cell slab that holds nothing yet.
 

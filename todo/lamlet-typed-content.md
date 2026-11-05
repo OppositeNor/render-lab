@@ -210,7 +210,7 @@ captions and documents byte for byte, narration audio by hash. The migration use
 Each stage is one commit, checked as its phase says (every edition's prepared outputs equal, `tools/video/compare.py`,
 or the parsed structs equal to the TOML's).
 
-1. **Computed narration (phase 4), one package per commit.** The numbers a storyboard spells by hand that its
+1. **Computed narration (phase 4), one package per commit.** (a) SDFGI done (2026-11-05): chapter 2's cell size, spans, probe gaps, spacing, and counts, and the scroll's drag margin and jump, from natives (`godot_sdfgi/cell-centimetres`, `first-span`, `probe-gaps`, `probe-cells`, `probe-axis-count`, `probe-spacing`, `drag-margin`); "two hundred and five metres" stays written, since `spoken` says no "and". The numbers a storyboard spells by hand that its
    package's code computes (cell counts, sizes, steps), said with render_lab's `spoken` from a package native, as
    VoxelGI's chapter 8 is; the spoken text of every sentence unchanged (no new synthesis): (a) SDFGI, (b) O3DE,
    (c) SSR.
