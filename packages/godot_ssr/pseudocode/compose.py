@@ -1,7 +1,7 @@
-# title: The opaque pass's indirect specular | 不透明渲染的间接镜面光
+# title-text: listing-compose-title
 # source: ssr-blend
 # demo: compose
-# dispatch: per fragment, in the opaque pass | 不透明渲染中每个片元
+# dispatch-text: listing-compose-dispatch
 def indirect_specular(n, v, roughness):
     spec = sky(bent(reflect(-v, n), roughness)) * horizon ** 2  # @sky
     spec *= specular_occlusion(ambient)                  # @occlusion

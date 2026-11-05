@@ -53,7 +53,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   (`packages/render_lab/scenes/`), demonstrations (a package's `params.toml` and `demos/`, lab/src/demo.rs), and
   narrated timelines (a package's demos) are such content: an edit shows on the next launch, without a rebuild. Nothing
   a scene needs is read before it plays (lab/src/loading.rs).
-- On-screen text is a key in the package's `text/en.json` and `text/zh-CN.json` (loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for text with values, named `{name}` in both languages). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, an unknown key, or an unused one.
+- On-screen text is a key (`group-name`: Fluent ids have no dots) in the package's `text/en.ftl` and `text/zh-CN.ftl` (Project Fluent, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for a message with variables, `{ $name }` in both languages). Formulas and code names in text are Fluent function calls, `{ FORMULA("LaTeX") }` and `{ CODE("Name") }` (lab/src/rich_text.rs). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, variables that differ between languages, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents when
   your environment has them, on a cheaper model when you can choose one (Sonnet; Haiku for simple lookups). Keep
@@ -109,7 +109,8 @@ python3 tools/lamlet_fmt.py --check                                           # 
 cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
 cargo run --release -- --investigation godot/sdfgi story schema              # the same keys with type, unit, range, default, doc; and what the vocabulary leaves out, with the `attr` that writes it
 cargo run --release -- --investigation o3de/lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)
-cargo run --release -- formulas --check packages/o3de_lighting/text/en.json   # typeset a file's formula tags against the lab's limits
+cargo run --release -- formulas --check packages/o3de_lighting/text/en.ftl    # typeset a file's formulas against the lab's limits
+cargo run --release -- i18n --check                                           # every text table per language: missing keys, fallbacks, texts left in English, characters the fonts lack
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{run "…"}` with `run.<arg>`, `{stop "…"}`) and their arguments

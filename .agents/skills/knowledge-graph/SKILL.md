@@ -12,7 +12,7 @@ below it. The code is `lab/src/knowledge.rs`.
 ## The graph
 
 - **Nodes** are `[[topic]]` tables in `packages/render_lab/knowledge.toml`: `key`, `title-text` and `summary-text` (keys of
-  render_lab's `text/en.json` and `text/zh-CN.json`, `topic.<key>.title` and `topic.<key>.summary`), `area` (`gpu`,
+  render_lab's `text/en.ftl` and `text/zh-CN.ftl`, `topic-<key>-title` and `topic-<key>-summary`), `area` (`gpu`,
   `rt`, `geo`, `cg`, `light`, `gi`: the panel's and the tab's grouping), `requires`, and optional `reading`
   (published references: papers, books, talks, cited by their publication; a book by chapter and section, as
   `Akenine-Möller et al. 2018, Real-Time Rendering, 4th edition, chapter 7 (Shadows), §7.5`, naming the edition).

@@ -1,4 +1,4 @@
-# title: The forward pass, one pixel | 前向渲染阶段：单个像素
+# title-text: listing-forward_pass-title
 # source: forward-pixel
 # demo: room
 def pixel_shader(material, pixel, views):

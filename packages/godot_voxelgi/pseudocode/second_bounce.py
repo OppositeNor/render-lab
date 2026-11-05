@@ -1,4 +1,4 @@
-# title: The second bounce | 第二次反弹
+# title-text: listing-second_bounce-title
 # source: second-bounce
 # demo: bounce
 def second_bounce(cell, texture):

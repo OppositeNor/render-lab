@@ -44,7 +44,7 @@ pub fn register(engine: &mut Engine, investigation: Option<&'static dyn Investig
         if crate::i18n::try_package_text(package, &key).is_some() || crate::i18n::try_package_text("render_lab", &key).is_some() {
             Ok(key)
         } else {
-            Err(format!("no text `{key}` in {package}'s text table (text/en.json) or the lab's"))
+            Err(format!("no text `{key}` in {package}'s text table (text/en.ftl) or the lab's"))
         }
     })
     .pure()

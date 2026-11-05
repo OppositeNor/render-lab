@@ -1,0 +1,19 @@
+# The languages of the on-screen text (lab/src/i18n.rs `Locale`), in order; the first is English, which every other
+# falls back to last. Each package has a text table per language, `text/<code>.ftl`, declared as the resource
+# `text/<code in lower case>`.
+#
+# code      the language's tag (BCP 47), as timelines and the settings file name it
+# name      its name in itself, as the language picker shows it
+# fallback  the languages a key missing from it is looked up in, before English
+# status    complete: every table has every key (the build checks it); draft: tables may miss keys, which fall back,
+#           and the homepage does not offer it (a settings file may still choose it)
+
+[[locale]]
+code = "en"
+name = "English"
+status = "complete"
+
+[[locale]]
+code = "zh-CN"
+name = "中文"
+status = "complete"

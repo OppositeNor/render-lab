@@ -10,7 +10,8 @@ description = "Render Lab's build-time checks of a package: its shaders and its 
 license = "MIT"
 
 [dependencies]
-# The same naga release wgpu 30.0.1 uses, for the WGSL; the text tables; the manifests.
+# The same naga release wgpu 30.0.1 uses, for the WGSL; the manifests.
 naga = { version = "=30.0.1", features = ["wgsl-in"] }
-serde_json = "1"
+# The text tables, Fluent files (lab/src/i18n.rs).
+fluent-syntax = "=0.12.0"
 toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }

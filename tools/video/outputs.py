@@ -265,8 +265,7 @@ def repo_link(doc_dir: Path, path: Path, text: str) -> str:
 
 def listing_markdown(cfg: Config, name: str, doc_dir: Path, index: Json, shown: set[str]) -> list[str]:
     """The listing as a Python code block the first time; later, a pointer back to it."""
-    title, title_zh, source, code = read_listing(cfg, name)
-    title = title_zh if cfg.zh() else title
+    title, source, code = read_listing(cfg, name)
     if name in shown:
         return [WORDS[cfg.lang]['seeAbove'].format(title=title), '']
     shown.add(name)

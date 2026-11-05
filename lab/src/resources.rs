@@ -141,7 +141,7 @@ fn mount() -> Result<Registry> {
                 let i = resources.binary_search_by(|r| r.decl.id.as_str().cmp(key)).map_err(|_| anyhow!("packages: {}: demo `{}`: no resource `{key}`", package.manifest, demo.key))?;
                 Ok(resources[i].decl.file.to_string_lossy().into_owned())
             };
-            list.push(TimelineInfo { id: demo.key.clone(), title: demo.title.clone(), edition: demo.edition.clone(), path: source(&demo.timeline)?, narration: source(&demo.audio)? });
+            list.push(TimelineInfo { id: demo.key.clone(), title: demo.title.clone(), path: source(&demo.timeline)?, narration: source(&demo.audio)? });
         }
         timelines.insert(package.name.clone(), list);
     }
@@ -166,17 +166,17 @@ pub fn packages() -> &'static [Package] {
 }
 
 /// The legal notices of package `name` (`[[notice]]`, src/packages.rs):
-/// each one's text in the current language (its symbol tags written out), and the file of its terms in
+/// each one's text in the current language, and the file of its terms in
 /// the built package.
 pub fn notices(name: &str) -> Vec<(String, Option<PathBuf>)> {
-    packages().iter().find(|p| p.name == name).map_or_else(Vec::new, |p| p.notices.iter().map(|n| (crate::rich_text::symbols(crate::i18n::package_text(name, &n.text)), n.license.as_ref().map(|f| p.dir.join(f)))).collect())
+    packages().iter().find(|p| p.name == name).map_or_else(Vec::new, |p| p.notices.iter().map(|n| (crate::i18n::package_text(name, &n.text).to_string(), n.license.as_ref().map(|f| p.dir.join(f)))).collect())
 }
 
 /// The copyright and license line of package `name` (`credit-text`), in the
-/// current language, `{year}` the current year.
+/// current language, `{ $year }` the current year.
 pub fn credit(name: &str) -> Option<String> {
     let key = packages().iter().find(|p| p.name == name)?.credit.as_ref()?;
-    Some(crate::rich_text::symbols(crate::i18n::package_text(name, key)).replace("{year}", &crate::readback::local_year().to_string()))
+    Some(crate::i18n::package_text_with(name, key, crate::args!(year = crate::readback::local_year())))
 }
 
 /// Every series the packages provide, with the package that provides it.

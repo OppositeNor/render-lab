@@ -80,8 +80,9 @@ pub fn check(latex: &str, display: bool) -> Result<Arc<Formula>, String> {
     Ok(f)
 }
 
-/// Every formula tag in the strings of these JSON files, checked: one entry
-/// per distinct formula, with its file, size, smallest glyph, and any error.
+/// Every formula in these files, checked: the strings of a JSON file (a
+/// timeline), the lines of any other (a Fluent text table). One entry per
+/// distinct formula, with its file, size, smallest glyph, and any error.
 pub fn check_files(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<serde_json::Value>> {
     fn strings<'a>(v: &'a serde_json::Value, out: &mut Vec<&'a str>) {
         match v {
@@ -95,10 +96,15 @@ pub fn check_files(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<serde_jso
     let mut report = Vec::new();
     for path in paths {
         let text = std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
-        let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
         let mut all = Vec::new();
-        strings(&json, &mut all);
-        for s in all.into_iter().filter(|s| s.contains("{@")) {
+        let json: serde_json::Value;
+        if path.extension().is_some_and(|e| e == "json") {
+            json = serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            strings(&json, &mut all);
+        } else {
+            all.extend(text.lines());
+        }
+        for s in all.into_iter().filter(|s| crate::rich_text::is_rich(s)) {
             let runs = match crate::rich_text::parse(s) {
                 Ok(runs) => runs,
                 Err(e) => {

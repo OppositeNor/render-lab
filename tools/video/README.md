@@ -382,8 +382,8 @@ LaTeX, as many times) and no cues. The build typesets every formula of the timel
 --check` (glyphs of at least 24 px, display formulas at most 546 px wide).
 
 The lab draws formulas itself (lab/src/formula.rs: MiTeX translates the LaTeX into Typst math, and Typst typesets it),
-in the captions and the formula card, and in its text tables, as the rich-text tag `{@ formula="…" display=yes
-colors="…"}`, as O3DE's readout formulas do.
+in the captions and the formula card, and in its text tables, as the Fluent function call `{ FORMULA("…", display:
+"yes", colors: "…") }`, as O3DE's readout formulas do; a code name is `{ CODE("…") }`.
 
 ## Outputs
 

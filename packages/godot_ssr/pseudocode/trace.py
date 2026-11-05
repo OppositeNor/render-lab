@@ -1,7 +1,7 @@
-# title: The trace through the pyramid | 穿过金字塔的追踪
+# title-text: listing-trace-title
 # source: loop
 # demo: trace
-# dispatch: one thread per SSR pixel | 每个 SSR 像素一个线程
+# dispatch-text: listing-trace-dispatch
 def trace(p):
     pos = view_pos(p) + geom_normal * bias               # @bias
     ray = reflect(view_dir, normal)                      # @reflect

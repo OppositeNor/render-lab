@@ -60,7 +60,6 @@ pub struct Notice {
 pub struct Demo {
     pub key: String,
     pub title: String,
-    pub edition: String,
     pub timeline: String,
     pub audio: String,
 }
@@ -234,7 +233,7 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
                 return Err(fail(format!("demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package")));
             }
             references.push((field("timeline")?, field("audio")?));
-            demos.push(Demo { key, title: field("title")?, edition: field("edition")?, timeline: String::new(), audio: String::new() });
+            demos.push(Demo { key, title: field("title")?, timeline: String::new(), audio: String::new() });
         }
     }
     let mut notices = Vec::new();

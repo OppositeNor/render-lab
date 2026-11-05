@@ -1,4 +1,4 @@
-# title: Filling the coarser levels | 填充更粗的层级
+# title-text: listing-update_mipmaps-title
 # source: update-mipmaps
 # demo: mips
 def update_mipmaps(cell):

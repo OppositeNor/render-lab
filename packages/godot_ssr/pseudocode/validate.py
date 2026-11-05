@@ -1,7 +1,7 @@
-# title: Validity and colour | 有效度与颜色
+# title-text: listing-validate-title
 # source: validity
 # demo: hit
-# dispatch: after the loop, the same thread | 循环之后，同一线程
+# dispatch-text: listing-validate-dispatch
 def validate(t, ray_len):
     v = 0.0 if left_screen(t) or sky_at(t) else 1.0      # @edge
     if within_two_pixels(t) and facing_away(t):          # @back

@@ -4,13 +4,28 @@
 //! keys. A failure fails the build; nothing is generated. They read only the
 //! package's directory, its code, and the packages beside it it imports.
 
+use fluent_syntax::ast;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
-use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const LOCALES: &[&str] = &["en", "zh-CN"];
+/// The registered locales (render_lab's `locales.toml`, lab/src/i18n.rs `Locale`), beside `module_dir`: each
+/// one's code and whether it is complete.
+fn locales(module_dir: &Path) -> Vec<(String, bool)> {
+    let path = module_dir.parent().expect("a package is in a packages directory").join("render_lab/locales.toml");
+    println!("cargo:rerun-if-changed={}", path.display());
+    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let document = toml_edit::Document::parse(text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let tables = document.get("locale").and_then(|i| i.as_array_of_tables()).unwrap_or_else(|| panic!("{}: no [[locale]]", path.display()));
+    let field = |t: &toml_edit::Table, k: &str| t.get(k).and_then(|v| v.as_str()).map(str::to_string).unwrap_or_else(|| panic!("{}: a locale without `{k}`", path.display()));
+    let out: Vec<(String, bool)> = tables.iter().map(|t| (field(t, "code"), field(t, "status") == "complete")).collect();
+    assert!(out.first().is_some_and(|(code, complete)| code == "en" && *complete), "{}: the first locale is en, complete", path.display());
+    out
+}
+
+/// The functions a text may call: the rich text's (lab/src/rich_text.rs).
+const FUNCTIONS: &[&str] = &["FORMULA", "CODE"];
 
 /// What the collections declare that the shader check needs: each
 /// resource's source file (with the overrides applied), and each shader's
@@ -174,63 +189,81 @@ fn check_shaders(packages: &[Package], package: &str) {
     }
 }
 
-/// The length of the tag at the start of `tail` (`{@ …}`, src/rich_text.rs):
-/// up to its closing brace, outside quoted values (where `\"` is a quote).
-fn tag_len(tail: &str) -> Option<usize> {
-    let bytes = tail.as_bytes();
-    let (mut i, mut quoted) = (2, false);
-    while let Some(&b) = bytes.get(i) {
-        match b {
-            b'\\' if quoted && bytes.get(i + 1) == Some(&b'"') => i += 1,
-            b'"' => quoted = !quoted,
-            b'}' if !quoted => return Some(i + 1),
-            _ => {}
-        }
-        i += 1;
-    }
-    None
+/// What the check reads of a Fluent message: the variables it names, the
+/// functions it calls, and the LaTeX of its formulas (`{ FORMULA("…") }`, lab/src/rich_text.rs), in order.
+#[derive(Default)]
+struct Message {
+    variables: Vec<String>,
+    functions: Vec<String>,
+    formulas: Vec<String>,
 }
 
-/// The LaTeX of every formula tag in a text, in order.
-fn formulas(text: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while let Some(i) = rest.find("{@") {
-        let len = tag_len(&rest[i..]).unwrap_or_else(|| panic!("unclosed tag in text {text:?}"));
-        let tag = &rest[i..i + len];
-        if let Some(start) = tag.find("formula=\"") {
-            let body = &tag[start + 9..];
-            let end = body.char_indices().find(|&(j, c)| c == '"' && !body[..j].ends_with('\\')).map(|(j, _)| j).unwrap_or(body.len());
-            out.push(&body[..end]);
+fn read_pattern(pattern: &ast::Pattern<&str>, out: &mut Message) {
+    for element in &pattern.elements {
+        if let ast::PatternElement::Placeable { expression } = element {
+            read_expression(expression, out);
         }
-        rest = &rest[i + len..];
+    }
+}
+
+fn read_expression(expression: &ast::Expression<&str>, out: &mut Message) {
+    match expression {
+        ast::Expression::Select { selector, variants } => {
+            read_inline(selector, out);
+            variants.iter().for_each(|v| read_pattern(&v.value, out));
+        }
+        ast::Expression::Inline(e) => read_inline(e, out),
+    }
+}
+
+fn read_inline(e: &ast::InlineExpression<&str>, out: &mut Message) {
+    match e {
+        ast::InlineExpression::VariableReference { id } => out.variables.push(id.name.to_string()),
+        ast::InlineExpression::FunctionReference { id, arguments } => {
+            out.functions.push(id.name.to_string());
+            if id.name == "FORMULA"
+                && let Some(ast::InlineExpression::StringLiteral { value }) = arguments.positional.first()
+            {
+                out.formulas.push(value.to_string());
+            }
+            arguments.positional.iter().for_each(|a| read_inline(a, out));
+            arguments.named.iter().for_each(|a| read_inline(&a.value, out));
+        }
+        ast::InlineExpression::Placeable { expression } => read_expression(expression, out),
+        _ => {}
+    }
+}
+
+/// A Fluent table's messages by key, in order, each read; anything else in the file fails.
+fn read_table(path: &Path) -> Vec<(String, Message)> {
+    println!("cargo:rerun-if-changed={}", path.display());
+    let text = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let resource = fluent_syntax::parser::parse(text.as_str()).unwrap_or_else(|(_, errors)| {
+        let e = &errors[0];
+        let line = text[..e.pos.start].lines().count().max(1);
+        panic!("{}:{line}: not Fluent: {:?}", path.display(), e.kind)
+    });
+    let mut out: Vec<(String, Message)> = Vec::new();
+    for entry in resource.body {
+        match entry {
+            ast::Entry::Message(m) => {
+                let key = m.id.name.to_string();
+                assert!(m.attributes.is_empty(), "{}: {key}: a text is one message, without attributes", path.display());
+                let mut message = Message::default();
+                read_pattern(m.value.as_ref().unwrap_or_else(|| panic!("{}: {key} has no text", path.display())), &mut message);
+                for f in &message.functions {
+                    assert!(FUNCTIONS.contains(&f.as_str()), "{}: {key} calls {f}, not one of {FUNCTIONS:?}", path.display());
+                }
+                message.variables.sort();
+                message.variables.dedup();
+                assert!(!out.iter().any(|(k, _)| *k == key), "{}: {key} twice", path.display());
+                out.push((key, message));
+            }
+            ast::Entry::Comment(_) | ast::Entry::GroupComment(_) | ast::Entry::ResourceComment(_) => {}
+            other => panic!("{}: only messages and comments, not {other:?}", path.display()),
+        }
     }
     out
-}
-
-/// A text's placeholder names (`{seconds}`; `{{` and `}}` are literal braces;
-/// tags, `{@ …}`, are skipped).
-fn placeholders(text: &str) -> Vec<&str> {
-    let mut names = Vec::new();
-    let mut rest = text;
-    while let Some(i) = rest.find(['{', '}']) {
-        let tail = &rest[i..];
-        if tail.starts_with("{{") || tail.starts_with("}}") {
-            rest = &tail[2..];
-            continue;
-        }
-        // A tag (a formula's LaTeX has braces of its own) is not a placeholder.
-        if tail.starts_with("{@") {
-            rest = &tail[tag_len(tail).unwrap_or_else(|| panic!("unclosed tag in text {text:?}"))..];
-            continue;
-        }
-        let end = tail.find('}').filter(|_| tail.starts_with('{')).unwrap_or_else(|| panic!("unbalanced brace in text {text:?}"));
-        names.push(&tail[1..end]);
-        rest = &tail[end + 1..];
-    }
-    names.sort();
-    names.dedup();
-    names
 }
 
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
@@ -238,7 +271,8 @@ fn placeholders(text: &str) -> Vec<&str> {
 /// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
 /// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle`, `imageMarkText`, and
 /// `labelText` attributes of the cues in its storyboards (`.lam`), the `titleText` of its Lamlet data files,
-/// and the `{textKey "…"}` its scripts name (lab/src/script/runtime.rs),
+/// the `{textKey "…"}` its scripts name (lab/src/script/runtime.rs), the
+/// `# title-text:` and `# dispatch-text:` of its pseudo-code listings (`.py`),
 /// and the `-text` fields of its
 /// `.toml` files (not under links, nor in what a build writes: `build/`,
 /// `target/`).
@@ -288,6 +322,18 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
                         if !key.is_empty() {
                             keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
                         }
+                    }
+                }
+            }
+            continue;
+        }
+        // A pseudo-code listing's title and dispatch line (lab/src/pseudocode.rs): `# title-text: key`.
+        if path.extension().is_some_and(|e| e == "py") {
+            println!("cargo:rerun-if-changed={}", path.display());
+            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
+                for field in ["# title-text: ", "# dispatch-text: "] {
+                    if let Some(key) = line.strip_prefix(field) {
+                        keys.push((key.trim().to_string(), format!("{}:{}", path.display(), n + 1)));
                     }
                 }
             }
@@ -343,34 +389,33 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
     }
 }
 
-/// Every locale of a text table has the same keys; English names every
-/// placeholder of a key and the other locales a subset (English may need a
-/// value another language does not, such as a plural's "s"); every key the
-/// package's code and data name exists, and every key is named somewhere.
-fn check_text(tables: &[(PathBuf, Vec<PathBuf>)]) {
+/// Every complete locale of a text table has every key of English's, and a
+/// draft one only English's keys; each key names the same variables and the
+/// same formulas in every locale (formulas stay English: the same LaTeX in
+/// every language); every key the package's code and data name exists, and
+/// every key is named somewhere.
+fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
     for (dir, code) in tables {
-        let dir = dir.display();
-        let tables: Vec<(&str, serde_json::Map<String, Value>)> = LOCALES
+        let tables: Vec<(&str, bool, Vec<(String, Message)>)> = locales
             .iter()
-            .map(|locale| {
-                let path = PathBuf::from(dir.to_string()).join(format!("{locale}.json"));
-                println!("cargo:rerun-if-changed={}", path.display());
-                let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-                (*locale, serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
+            .filter_map(|(locale, complete)| {
+                let path = dir.join(format!("{locale}.ftl"));
+                assert!(path.is_file() || !complete, "{}: no table for {locale}, a complete locale", dir.display());
+                path.is_file().then(|| (locale.as_str(), *complete, read_table(&path)))
             })
             .collect();
-        let (first, reference) = &tables[0];
-        for (locale, table) in &tables {
-            for (key, text) in table {
-                let text = text.as_str().unwrap_or_else(|| panic!("{dir}/{locale}.json: {key} is not a string"));
-                let Some(other) = reference.get(key) else { panic!("{dir}/{locale}.json has {key}, {first}.json does not") };
-                let english = placeholders(other.as_str().unwrap_or_default());
-                assert!(placeholders(text).iter().all(|p| english.contains(p)), "{dir}/{locale}.json: {key} has a placeholder {first}.json does not");
-                // Formulas stay English: the same LaTeX in every language.
-                assert!(formulas(text) == formulas(other.as_str().unwrap_or_default()), "{dir}/{locale}.json: {key}'s formulas differ from {first}.json's");
+        let dir = dir.display();
+        let (first, _, reference) = &tables[0];
+        for (locale, complete, table) in &tables {
+            for (key, message) in table {
+                let Some((_, other)) = reference.iter().find(|(k, _)| k == key) else { panic!("{dir}/{locale}.ftl has {key}, {first}.ftl does not") };
+                assert!(message.variables == other.variables, "{dir}/{locale}.ftl: {key} names {:?}, {first}.ftl {:?}", message.variables, other.variables);
+                assert!(message.formulas == other.formulas, "{dir}/{locale}.ftl: {key}'s formulas differ from {first}.ftl's");
             }
-            for key in reference.keys() {
-                assert!(table.contains_key(key), "{dir}/{locale}.json has no {key}");
+            if *complete {
+                for (key, _) in reference {
+                    assert!(table.iter().any(|(k, _)| k == key), "{dir}/{locale}.ftl has no {key}");
+                }
             }
         }
         let mut used = Vec::new();
@@ -378,9 +423,9 @@ fn check_text(tables: &[(PathBuf, Vec<PathBuf>)]) {
             text_keys_used(code, &mut used);
         }
         for (key, at) in &used {
-            assert!(reference.contains_key(key), "{at}: no text {key:?} in {dir}");
+            assert!(reference.iter().any(|(k, _)| k == key), "{at}: no text {key:?} in {dir}");
         }
-        for key in reference.keys() {
+        for (key, _) in reference {
             assert!(used.iter().any(|(k, _)| k == key), "{dir}: no code uses the text {key:?}");
         }
     }
@@ -393,8 +438,8 @@ fn check_text(tables: &[(PathBuf, Vec<PathBuf>)]) {
 pub fn check_package(module_dir: &Path, code: &Path) {
     let packages = find_packages(module_dir);
     let name = packages[0].name.clone();
-    if module_dir.join("text/en.json").is_file() {
-        check_text(&[(module_dir.join("text"), vec![code.to_path_buf(), module_dir.to_path_buf()])]);
+    if module_dir.join("text/en.ftl").is_file() {
+        check_text(&locales(module_dir), &[(module_dir.join("text"), vec![code.to_path_buf(), module_dir.to_path_buf()])]);
     }
     check_shaders(&packages, &name);
 }

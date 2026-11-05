@@ -1,7 +1,7 @@
-# title: SSR in one frame | 一帧中的 SSR
+# title-text: listing-frame-title
 # source: process-ssr
 # demo: room
-# dispatch: once per frame, before the opaque pass | 每帧一次，在不透明渲染之前
+# dispatch-text: listing-frame-dispatch
 def render_scene(env, camera):
     render_depth_pre_pass(normal_roughness=True)        # @prepass
     if env.ssr_enabled:                                  # @gate

@@ -1,6 +1,6 @@
 //! A package's on-screen text: `lab::text_table!("<package>.text");` in its
 //! text module defines `tr`, `tr_with`, and `tr_key` over the package's
-//! `text/en.json` and `text/zh-CN.json` (see `lab::i18n::Table`).
+//! `text/en.ftl` and `text/zh-CN.ftl` (see `lab::i18n::Table`).
 
 /// The text functions of the text table `$key` (a package's `text`
 /// resource): `tr(key)`, its text in the current locale; `tr_with(key, args!(…))`,

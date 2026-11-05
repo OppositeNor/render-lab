@@ -41,8 +41,6 @@ pub struct Engine {
 pub struct TimelineInfo {
     pub id: String,
     pub title: String,
-    /// The edition's name on the homepage's picker (`English`, `中文`).
-    pub edition: String,
     /// The timeline JSON in its built package. Images its beats name are
     /// relative to its directory.
     pub path: String,

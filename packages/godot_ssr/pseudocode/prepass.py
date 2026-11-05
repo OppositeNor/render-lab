@@ -1,7 +1,7 @@
-# title: The pre-pass's normal-roughness texel | 预渲染的法线-粗糙度纹素
+# title-text: listing-prepass-title
 # source: nr-write
 # demo: inputs
-# dispatch: per fragment, in the depth pre-pass | 深度预渲染中每个片元
+# dispatch-text: listing-prepass-dispatch
 def encode24(v):                                         # @encode
     m = max(abs(v.x), abs(v.y), abs(v.z))                # @cube
     scale = best_fit_table(collapsed_cube_uv(v))         # @table

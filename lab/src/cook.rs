@@ -234,7 +234,7 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
     }
     writeln!(manifest, "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"", quote(&source)).unwrap();
     for demo in &package.demos {
-        writeln!(manifest, "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\nedition = {}\ntimeline = {}\naudio = {}", quote(&demo.key), quote(&demo.title), quote(&demo.edition), quote(&demo.timeline), quote(&demo.audio)).unwrap();
+        writeln!(manifest, "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\ntimeline = {}\naudio = {}", quote(&demo.key), quote(&demo.title), quote(&demo.timeline), quote(&demo.audio)).unwrap();
     }
     for series in &package.series {
         let by_language = |m: &std::collections::BTreeMap<String, String>| format!("{{ {} }}", m.iter().map(|(k, v)| format!("{} = {}", quote(k), quote(v))).collect::<Vec<_>>().join(", "));

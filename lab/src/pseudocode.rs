@@ -2,11 +2,11 @@
 //! place (PanelMode::Code) and listed in the script and the source guide.
 //!
 //! An investigation embeds its listings and parses them with `Listing::parse`. Each listing starts with header
-//! comments, `# title: English | 中文`, `# source: <source-index key>`
+//! comments, `# title-text: <text key>`, `# source: <source-index key>`
 //! (the engine function it follows), `# demo: <demo key>`, and optionally
-//! `# dispatch: English | 中文` (how its first function runs, e.g. "for each
+//! `# dispatch-text: <text key>` (how its first function runs, e.g. "for each
 //! probe, in parallel", which the block style's first hat shows in place of
-//! the `def`). A line may end in tags,
+//! the `def`); the keys are of the investigation's text table. A line may end in tags,
 //! `# @name ...`; a shot's `highlight` names the tags whose lines are lit. A
 //! line may also carry a mark of what it does, `# @@read`, `@@write`, or
 //! `@@math` (or `@@control`, `@@statement`), which colours its block. Tags
@@ -137,34 +137,29 @@ impl Line {
 
 pub struct Listing {
     pub name: &'static str,
-    title: String,
-    title_zh: Option<String>,
-    dispatch: Option<(String, Option<String>)>,
+    /// The text keys of its title and of how the GPU runs it.
+    title: Option<String>,
+    dispatch: Option<String>,
     pub source: String,
     pub demo: Option<String>,
     pub lines: Vec<Line>,
 }
 
-/// `English | 中文` as its two parts.
-fn bilingual(value: &str) -> (String, Option<String>) {
-    let (en, zh) = value.split_once(" | ").map_or((value, None), |(a, b)| (a, Some(b)));
-    (en.trim().to_string(), zh.map(|z| z.trim().to_string()))
+/// A listing's text: `key` of the current investigation's table (or the lab's).
+fn text(key: &str) -> &'static str {
+    let package = crate::investigation::current().package().unwrap_or("render_lab");
+    crate::i18n::try_package_text(package, key).or_else(|| crate::i18n::try_package_text("render_lab", key)).unwrap_or_else(|| panic!("no text `{key}` in {package}'s text table or the lab's"))
 }
 
 impl Listing {
+    /// Its title, in the language shown (its name without a `title-text`).
     pub fn title(&self) -> &str {
-        match (&self.title_zh, crate::i18n::zh()) {
-            (Some(zh), true) => zh,
-            _ => &self.title,
-        }
+        self.title.as_deref().map_or(self.name, text)
     }
 
-    /// How the GPU runs it (`# dispatch:`), in the language shown.
+    /// How the GPU runs it (`# dispatch-text:`), in the language shown.
     pub fn dispatch(&self) -> Option<&str> {
-        self.dispatch.as_ref().map(|(en, zh)| match (zh, crate::i18n::zh()) {
-            (Some(zh), true) => zh.as_str(),
-            _ => en.as_str(),
-        })
+        self.dispatch.as_deref().map(text)
     }
 
     pub fn lit(&self, line: &Line, highlight: &[String]) -> bool {
@@ -172,14 +167,14 @@ impl Listing {
     }
 
     pub fn parse(name: &'static str, text: &str) -> Listing {
-        let mut listing = Listing { name, title: name.to_string(), title_zh: None, dispatch: None, source: String::new(), demo: None, lines: Vec::new() };
+        let mut listing = Listing { name, title: None, dispatch: None, source: String::new(), demo: None, lines: Vec::new() };
         let mut header = true;
         for raw in text.lines() {
             if header {
                 if let Some((key, value)) = raw.strip_prefix("# ").and_then(|r| r.split_once(": ")) {
                     match key {
-                        "title" => {
-                            (listing.title, listing.title_zh) = bilingual(value);
+                        "title-text" => {
+                            listing.title = Some(value.trim().to_string());
                             continue;
                         }
                         "source" => {
@@ -190,8 +185,8 @@ impl Listing {
                             listing.demo = Some(value.trim().to_string());
                             continue;
                         }
-                        "dispatch" => {
-                            listing.dispatch = Some(bilingual(value));
+                        "dispatch-text" => {
+                            listing.dispatch = Some(value.trim().to_string());
                             continue;
                         }
                         _ => {}
@@ -431,12 +426,12 @@ pub fn tokens(line: &str) -> Vec<(Token, &str)> {
 mod tests {
     use super::*;
 
-    const LISTING: &str = "# title: Update | 更新\n# source: a\n# demo: b\n# dispatch: for each cascade | 每个级联\ndef update(cascades):\n    for c in cascades:  # @all\n        x = load(c)  # 64^3  # @read @@read\n        if x > 0 and \\\n           x < 1:  # @test\n            store(c, x)  # @@write\n        elif x == 0:\n            continue\n        else:\n            # nothing\n            y = f(x,\n                  2)\n\n    return c\n";
+    const LISTING: &str = "# title-text: listing-update\n# source: a\n# demo: b\n# dispatch-text: listing-update-dispatch\ndef update(cascades):\n    for c in cascades:  # @all\n        x = load(c)  # 64^3  # @read @@read\n        if x > 0 and \\\n           x < 1:  # @test\n            store(c, x)  # @@write\n        elif x == 0:\n            continue\n        else:\n            # nothing\n            y = f(x,\n                  2)\n\n    return c\n";
 
     #[test]
     fn parses_tags_marks_and_dispatch() {
         let listing = Listing::parse("t", LISTING);
-        assert_eq!(listing.dispatch.as_ref().map(|d| d.0.as_str()), Some("for each cascade"));
+        assert_eq!(listing.dispatch.as_deref(), Some("listing-update-dispatch"));
         assert_eq!(listing.lines[0].text, "def update(cascades):");
         let load = &listing.lines[2];
         assert_eq!(load.text, "        x = load(c)  # 64^3");

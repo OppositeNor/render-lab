@@ -116,13 +116,13 @@ parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-ssao"]
 [[resource]]
 id = "text/en"
 kind = "file"
-source = "text/en.json"
+source = "text/en.ftl"
 license = "MIT"
 
 [[resource]]
 id = "text/zh-cn"
 kind = "file"
-source = "text/zh-CN.json"
+source = "text/zh-CN.ftl"
 license = "MIT"
 
 [[resource]]

@@ -1,4 +1,4 @@
-# title: Clear coat: its specular | 清漆层的镜面反射
+# title-text: listing-clear_coat_specular-title
 # source: clear-coat-specular
 # demo: clearcoat
 def clear_coat_specular(l, v, coat, base):              # @specular

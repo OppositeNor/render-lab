@@ -33,7 +33,7 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                  src/…/values.rs    every value: a #[derive(lab::Values)] struct (or params.toml: name, default, doc)
                  demos/             index.toml (the order), <key>.toml per demonstration, presets/
                  script/*.lam       (optional) Lamlet the lab runs live: overlays, readouts, clicks, actions, animations
-                 text/              en.json, zh-CN.json
+                 text/              en.ftl, zh-CN.ftl
                  pseudocode/*.py, source-index.json
                  shaders/*.wgsl     (optional own scene shading)
                  video/             the narrated video's inputs

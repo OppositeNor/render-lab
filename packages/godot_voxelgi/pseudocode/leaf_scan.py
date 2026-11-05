@@ -1,4 +1,4 @@
-# title: A leaf samples its triangle | 叶子对三角形采样
+# title-text: listing-leaf_scan-title
 # source: leaf-scan
 # demo: octree
 def sample_leaf(cell, tri, box):

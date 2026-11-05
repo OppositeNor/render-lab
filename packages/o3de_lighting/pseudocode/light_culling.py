@@ -1,4 +1,4 @@
-# title: Tiled light culling | 分块光源剔除
+# title-text: listing-light_culling-title
 # source: cull-point-light
 # demo: culling
 def tile_prepare(tile):   # one group per 16 x 16 tile   # @prepare

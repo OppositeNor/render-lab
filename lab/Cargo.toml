@@ -47,6 +47,10 @@ naga = { version = "=30.0.1", features = ["wgsl-in"] }
 # MiTeX's spec generator regenerates its spec with a `typst` on PATH, from sources the crate does not ship;
 # `prebuilt` makes it use the spec it does ship.
 mitex-spec-gen = { version = "=0.2.4", features = ["prebuilt"] }
+# The on-screen text: Project Fluent's tables (src/i18n.rs) and its syntax for the rich text's formulas and code
+# names (src/rich_text.rs). MIT or Apache-2.0, taken as MIT (THIRD_PARTY.md).
+fluent-bundle = "=0.16.0"
+fluent-syntax = "=0.12.0"
 # Lamlet, the storyboards' language (src/script/), and lamlet-present, its presentations. Lamlet is not stable,
 # so it is pinned by git tag (the commits are in Cargo.lock); setup.sh vendors them with the crates.io crates.
 lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.4.0" }

@@ -1,7 +1,7 @@
-# title: Regions, geometry, and static lights | 区域、几何体与静态光源
+# title-text: listing-regions-title
 # source: static-light-cull
 # demo: regions
-# dispatch: on the CPU, for each instance | 在 CPU 上，逐个实例
+# dispatch-text: listing-regions-dispatch
 def cull_for_sdfgi(scenario, regions):
     for inst in scenario.instances:   # no frustum test        # @all
         for j, region in enumerate(regions):

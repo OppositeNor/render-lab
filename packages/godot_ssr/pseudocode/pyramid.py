@@ -1,7 +1,7 @@
-# title: Downsample and the depth pyramid | 下采样与深度金字塔
+# title-text: listing-pyramid-title
 # source: hiz-max
 # demo: pyramid
-# dispatch: one thread per texel, a dispatch per level | 每个纹素一个线程，每级一次调度
+# dispatch-text: listing-pyramid-dispatch
 def downsample(depth, normal_roughness, p):
     winner = nearest_of_2x2(depth, 2 * p)                # @winner
     hiz[0][p] = depth[winner]                            # @level0

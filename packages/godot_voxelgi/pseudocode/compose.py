@@ -1,4 +1,4 @@
-# title: Into the opaque pass | 进入不透明物体渲染阶段
+# title-text: listing-compose-title
 # source: gi-buffer-mix
 # demo: compose
 def shade(pixel, material):

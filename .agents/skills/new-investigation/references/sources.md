@@ -23,9 +23,9 @@ HEAD`): the same commit with a different line means the index was wrong; a diffe
 
 ## Pseudo-code (`pseudocode/*.py`)
 
-- A header `# title: English | 中文`, `# source: <index key>`, `# demo: <demo>`, and optionally `# dispatch: English |
-  中文`, how its first function runs ("for each probe, in parallel", "on the CPU, each frame"; check it in the engine's
-  dispatch code).
+- A header `# title-text: listing-<name>-title`, `# source: <index key>`, `# demo: <demo>`, and optionally
+  `# dispatch-text: listing-<name>-dispatch`, how its first function runs ("for each probe, in parallel", "on the CPU,
+  each frame"; check it in the engine's dispatch code); both texts are keys of the package's text tables.
 - A line ending in `# @tag` lights when a shot highlights `tag` with the code panel. A line may also end in a mark of
   what it does, `@@read` or `@@write` (memory: a texture, a buffer) or `@@math`, in the same trailer (`# @tag @@read`)
   or its own (`# @@read`).
@@ -38,9 +38,10 @@ HEAD`): the same commit with a different line means the index was wrong; a diffe
 
 ## Formulas (optional)
 
-- A formula tag in the text tables, `{@ formula="LaTeX" display=yes colors="#rrggbb,…"}`, with `\lit{n}{…}` marking term
+- A formula in the text tables, `{ FORMULA("LaTeX", display: "yes", colors: "#rrggbb,…") }` (a Fluent string literal:
+  backslashes doubled), with `\lit{n}{…}` marking term
   n and `colors` giving each term its readout row's colour (the same LaTeX in every language; `build.rs` checks it).
-- Name the tag's text in `Readout::formula` and the lit term in `Readout::formula_lit`; the lab typesets it
+- Name the formula's text in `Readout::formula` and the lit term in `Readout::formula_lit`; the lab typesets it
   (`lab/src/formula.rs`; glyphs at least 24 px, at most 546 px wide, which `render-lab formulas --check` and the
   selftest enforce). A `formula` parameter can pick the lit term.
 - Narration can show formulas too, with a formula cue (`formulaSaid`; the `render-lab-lamlet` skill).

@@ -253,7 +253,7 @@ pub(super) fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::frame::Readou
 /// One line of 24 px text cut to `width`, or, holding a formula, drawn whole
 /// (src/rich_text.rs).
 pub(super) fn fitted_line(ink: &Ink, pos: Pos2, text: &str, width: f32, color: Color32) {
-    if rich_text::has_tags(text) {
+    if rich_text::is_rich(text) {
         rich_text::text(ink, pos, Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, color);
     } else {
         let text = ink.fit_right(text, width, 24.0, FontFamily::Proportional);

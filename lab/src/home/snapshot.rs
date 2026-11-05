@@ -208,6 +208,7 @@ pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<
 pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     // A settings file of its own beside the report, so the user's is never touched.
     let config_path = report.with_file_name("home-autotest-config.toml");
+    let zh_cn = Locale::from_code("zh-CN").expect("the registry has zh-CN");
     let _ = std::fs::remove_file(&config_path);
     let mut home = Home::new(options.manifest_dir.clone(), Some(config_path.clone()));
     let mut offscreen = Offscreen::new(options, true)?;
@@ -267,16 +268,16 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "language");
     check("the title's globe opens the Config page with the Language option outlined", home.page == Page::Config && home.settings.flash.is_some() && has(&home, "option:language:zh-CN"), format!("{:?}", home.page));
     offscreen.click(&mut home, "option:language:zh-CN");
-    check("picking a language changes nothing until it is saved", home.settings.pending.language == Locale::ZhCn && i18n::current() == Locale::En && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
+    check("picking a language changes nothing until it is saved", home.settings.pending.language == zh_cn && i18n::current() == Locale::EN && has(&home, "restore:language"), format!("pending {:?}, text {:?}", home.settings.pending.language, i18n::current()));
     offscreen.click(&mut home, "save");
-    check("a saved language applies and is written at once, without the popup", home.settings.trial.is_none() && i18n::current() == Locale::ZhCn && tr("home-config") != "Config" && stored().is_some_and(|c| c.language == Locale::ZhCn && c.fullscreen), format!("text {:?}: {}, file {:?}", i18n::current(), tr("home-config"), stored()));
+    check("a saved language applies and is written at once, without the popup", home.settings.trial.is_none() && i18n::current() == zh_cn && tr("home-config") != "Config" && stored().is_some_and(|c| c.language == zh_cn && c.fullscreen), format!("text {:?}: {}, file {:?}", i18n::current(), tr("home-config"), stored()));
     check("a new language shows the photosensitivity warning again, in that language", home.pse && has(&home, "pse:continue") && tr("home-pse_title") != "Photosensitivity warning", tr("home-pse_title").to_string());
     offscreen.click(&mut home, "pse:continue");
     // The edition offered first is in the language, else English.
     for i in investigations::all().iter().copied().filter(|i| !i.timelines().is_empty()) {
         let rows = home.timeline_rows(i);
-        let offered = &rows[preferred_edition(&rows, Locale::ZhCn)];
-        let wanted = rows.iter().find(|r| r.locale == Some(Locale::ZhCn)).or_else(|| rows.iter().find(|r| r.locale == Some(Locale::En))).unwrap_or(&rows[0]);
+        let offered = &rows[preferred_edition(&rows, zh_cn)];
+        let wanted = rows.iter().find(|r| r.locale == Some(zh_cn)).or_else(|| rows.iter().find(|r| r.locale == Some(Locale::EN))).unwrap_or(&rows[0]);
         check(&format!("{}: in Chinese, the edition offered first is the Chinese one, else the English one", i.path()), offered.info.id == wanted.info.id, format!("{} ({:?})", offered.info.id, offered.locale));
     }
 
@@ -315,14 +316,14 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     offscreen.click(&mut home, "save");
     check("saved volumes are in use and written at once, without the popup", home.settings.trial.is_none() && home.applied.music.muted && home.applied.narration == narration && stored().is_some_and(|c| c.music.muted && c.narration == narration), format!("music {:?}, file {:?}", home.applied.music, stored()));
     home.keep_narration(Volume::new(80));
-    check("the narration's volume as the viewer leaves it is kept and written", home.applied.narration == Volume::new(80) && stored().is_some_and(|c| c.narration == Volume::new(80) && c.language == Locale::ZhCn), format!("file {:?}", stored()));
+    check("the narration's volume as the viewer leaves it is kept and written", home.applied.narration == Volume::new(80) && stored().is_some_and(|c| c.narration == Volume::new(80) && c.language == zh_cn), format!("file {:?}", stored()));
     offscreen.click(&mut home, "config");
     offscreen.click(&mut home, "defaults");
     offscreen.click(&mut home, "save");
     offscreen.click(&mut home, "trial:apply");
     check("back in English, the photosensitivity warning shows again, in English", home.pse && tr("home-pse_title") == "Photosensitivity warning", tr("home-pse_title").to_string());
     offscreen.click(&mut home, "pse:continue");
-    check("Restore Defaults, applied, puts English, the default theme, and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::En && colors(theme::DEFAULT) == Some(palette::theme()) && stored() == Some(Config::default()), format!("file {:?}", stored()));
+    check("Restore Defaults, applied, puts English, the default theme, and the default volumes back", home.applied == Config::default() && i18n::current() == Locale::EN && colors(theme::DEFAULT) == Some(palette::theme()) && stored() == Some(Config::default()), format!("file {:?}", stored()));
     offscreen.click(&mut home, "return");
     let _ = std::fs::remove_file(&config_path);
 

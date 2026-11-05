@@ -246,9 +246,7 @@ impl References {
         let package = current.package().unwrap_or("render_lab");
         for (field, key) in [("imageTitle", &cue.image_title), ("imageMarkText", &cue.image_mark_text), ("labelText", &cue.label_text)] {
             if let Some(key) = key.as_deref().filter(|k| !k.is_empty()) && crate::i18n::try_package_text(package, key).is_none() && crate::i18n::try_package_text("render_lab", key).is_none() {
-                let known = [package, "render_lab"].into_iter().flat_map(|p| {
-                    crate::resources::find(&format!("{p}.text/en")).and_then(|r| serde_json::from_str::<BTreeMap<String, String>>(r.text()).ok()).unwrap_or_default().into_keys()
-                });
+                let known = [package, "render_lab"].into_iter().flat_map(|p| crate::i18n::package_keys(p).into_iter().map(str::to_string));
                 return Err(CueProblem::new("story.text", field, unknown("text key", key, known, "")));
             }
         }

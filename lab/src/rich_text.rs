@@ -1,30 +1,34 @@
-//! Text with formulas and code in it. A string may hold tags, `{@ name=value …}`;
-//! the lab draws the formula tags, `{@ formula="LaTeX"}`, typeset by
-//! src/formula.rs, and the code spans, `{@ codespan="LightCullingTilePrepare"}`,
-//! in the monospace font on a soft chip, both on the text's baseline and in
-//! the text's colour, and writes a symbol tag, `{@ symbol=copyright}`, as its
-//! character (`SYMBOLS`: ©, ®, ™), so a text table needs no hard-to-type
-//! characters. Other tags (a storyboard's cues) are the video builder's and
-//! are not drawn.
+//! Text with formulas and code in it: plain text with Project Fluent's
+//! function placeables, as the text tables (src/i18n.rs) and the video
+//! builder's captions (tools/video/markup.py) write them. The lab draws
+//! `{ FORMULA("LaTeX", display: "yes", colors: "#rrggbb,…") }`, typeset by
+//! src/formula.rs, and `{ CODE("LightCullingTilePrepare") }`, a code name in
+//! the monospace font on a soft chip, both on the text's baseline and in the
+//! text's colour. Any other text, braces included, is drawn as it is.
 //!
-//! Inside a quoted value only `\"` is an escape, so LaTeX keeps its
-//! backslashes as written (`\\` is a line break). egui cannot place images in
-//! a text layout, so a line is laid out run by run here.
+//! A string literal's escapes are Fluent's (`\\`, `\"`, `\u…`), so LaTeX's
+//! backslashes are doubled (`\\` is a line break: `\\\\`). egui cannot place
+//! images in a text layout, so a line is laid out run by run here.
 
 use crate::formula::{self, Formula, FORMULA_PX, PAD};
 use crate::text::Ink;
 use egui::{pos2, vec2, Align2, Color32, FontFamily, FontId, Pos2, Rect, Vec2};
+use fluent_bundle::{FluentArgs, FluentValue};
+use fluent_syntax::ast;
 use std::sync::Arc;
 
 /// A piece of rich text.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Run {
     Text(String),
-    /// `colors`: the term colours a readout lights its terms in (`colors="#rrggbb,…"`).
+    /// `colors`: the term colours a readout lights its terms in (`colors: "#rrggbb,…"`).
     Formula { latex: String, display: bool, colors: Vec<Color32> },
-    /// A code name (`{@ codespan="…"}`).
+    /// A code name (`{ CODE("…") }`).
     Code(String),
 }
+
+/// The functions rich text calls; a text table's bundle gives each back as written.
+pub const FUNCTIONS: [&str; 2] = ["FORMULA", "CODE"];
 
 /// A code span's chip: its padding either side of the text, and its fill.
 const CODE_PAD: f32 = 5.0;
@@ -32,130 +36,122 @@ fn code_fill(color: Color32) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), (color.a() as f32 * 0.14) as u8)
 }
 
-/// Whether a string holds any tag (strings without one keep the plain text path).
-pub fn has_tags(text: &str) -> bool {
-    text.contains("{@")
+/// A Fluent string literal of `text`.
+pub fn literal(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// A tag's attributes, in order, from just after `{@` to its closing `}`.
-/// Returns the attributes and the byte index past the tag.
-pub fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize), String> {
-    let bytes = text.as_bytes();
-    let mut i = start;
-    let mut attrs = Vec::new();
-    loop {
-        while bytes.get(i).is_some_and(|b| b.is_ascii_whitespace()) {
-            i += 1;
+/// `{ FORMULA(…) }`: a formula as rich text writes it.
+pub fn formula_text(latex: &str, display: bool, colors: &str) -> String {
+    let mut args = vec![literal(latex)];
+    if display {
+        args.push("display: \"yes\"".into());
+    }
+    if !colors.is_empty() {
+        args.push(format!("colors: {}", literal(colors)));
+    }
+    format!("{{ FORMULA({}) }}", args.join(", "))
+}
+
+/// A rich-text function called from a text table's message: the call as rich
+/// text writes it, so the resolved message keeps its formulas and code names.
+pub fn call(name: &str, positional: &[FluentValue], named: &FluentArgs) -> String {
+    let text = |v: &FluentValue| match v {
+        FluentValue::String(s) => s.to_string(),
+        other => format!("{other:?}"),
+    };
+    let first = positional.first().map(text).unwrap_or_default();
+    match name {
+        "CODE" => format!("{{ CODE({}) }}", literal(&first)),
+        _ => {
+            let named: Vec<(&str, String)> = named.iter().map(|(k, v)| (k, text(v))).collect();
+            let get = |key: &str| named.iter().find(|(k, _)| *k == key).map(|(_, v)| v.as_str());
+            formula_text(&first, get("display") == Some("yes"), get("colors").unwrap_or(""))
         }
-        match bytes.get(i) {
-            None => return Err(format!("unclosed tag: {}", &text[start.saturating_sub(2)..])),
-            Some(b'}') => return Ok((attrs, i + 1)),
-            _ => {}
-        }
-        let name_start = i;
-        while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'=' && *b != b'}') {
-            i += 1;
-        }
-        let name = text[name_start..i].to_string();
-        if bytes.get(i) != Some(&b'=') {
-            // A bare word: a flag (`{@ derived}`, `toggle`), kept with an empty value.
-            attrs.push((name, String::new()));
+    }
+}
+
+/// Where each rich-text call of `text` starts and ends (byte ranges), whether or not it parses.
+fn calls(text: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while let Some(at) = text[i..].find('{').map(|k| i + k) {
+        let rest = text[at + 1..].trim_start();
+        if !FUNCTIONS.iter().any(|f| rest.strip_prefix(f).is_some_and(|r| r.trim_start().starts_with('('))) {
+            i = at + 1;
             continue;
         }
-        i += 1;
-        let value = if bytes.get(i) == Some(&b'"') {
-            i += 1;
-            let mut value = String::new();
-            loop {
-                match bytes.get(i) {
-                    None => return Err(format!("unclosed quote in tag: {}", &text[start.saturating_sub(2)..])),
-                    Some(b'"') => {
-                        i += 1;
-                        break;
-                    }
-                    Some(b'\\') if bytes.get(i + 1) == Some(&b'"') => {
-                        value.push('"');
-                        i += 2;
-                    }
-                    Some(_) => {
-                        let c = text[i..].chars().next().unwrap();
-                        value.push(c);
-                        i += c.len_utf8();
-                    }
+        // The placeable's end: its closing brace outside a string literal.
+        let mut quoted = false;
+        let mut chars = text[at + 1..].char_indices();
+        let mut end = text.len();
+        while let Some((k, c)) = chars.next() {
+            match c {
+                '\\' if quoted => {
+                    chars.next();
                 }
-            }
-            value
-        } else {
-            let value_start = i;
-            while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'}') {
-                i += 1;
-            }
-            text[value_start..i].to_string()
-        };
-        attrs.push((name, value));
-    }
-}
-
-/// The symbols a `{@ symbol=name}` tag writes.
-pub const SYMBOLS: &[(&str, char)] = &[("copyright", '©'), ("registered", '®'), ("trademark", '™')];
-
-/// `text` with its symbol tags written as their characters, every other tag kept
-/// (for text drawn as plain text: a label, a notice, a file).
-pub fn symbols(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = 0;
-    while let Some(at) = text[rest..].find("{@").map(|i| rest + i) {
-        out.push_str(&text[rest..at]);
-        match parse_tag(text, at + 2) {
-            Ok((attrs, end)) => {
-                match attrs.as_slice() {
-                    [(k, v)] if k == "symbol" => match SYMBOLS.iter().find(|(name, _)| name == v) {
-                        Some((_, c)) => out.push(*c),
-                        None => out.push_str(&format!("({v}: no such symbol)")),
-                    },
-                    _ => out.push_str(&text[at..end]),
+                '"' => quoted = !quoted,
+                '}' if !quoted => {
+                    end = at + 1 + k + 1;
+                    break;
                 }
-                rest = end;
-            }
-            Err(_) => {
-                out.push_str(&text[at..]);
-                return out;
+                _ => {}
             }
         }
+        out.push((at, end));
+        i = end;
     }
-    out.push_str(&text[rest..]);
     out
 }
 
-/// The runs of a string: its text, its formula tags, and its code spans. Other tags are dropped.
+/// Whether a string holds any formula or code name (strings without one keep the plain text path).
+pub fn is_rich(text: &str) -> bool {
+    !calls(text).is_empty()
+}
+
+/// One call's run, parsed as Fluent parses the placeable.
+fn run(placeable: &str) -> Result<Run, String> {
+    let fail = |why: &str| format!("{why}: {placeable}");
+    let source = format!("x = {placeable}\n");
+    let resource = fluent_syntax::parser::parse(source.as_str()).map_err(|(_, e)| fail(&format!("not a Fluent placeable ({:?})", e.first().map(|e| &e.kind))))?;
+    let Some(ast::Entry::Message(ast::Message { value: Some(pattern), .. })) = resource.body.first() else { return Err(fail("not a Fluent placeable")) };
+    let [ast::PatternElement::Placeable { expression: ast::Expression::Inline(ast::InlineExpression::FunctionReference { id, arguments }) }] = pattern.elements.as_slice() else {
+        return Err(fail("not one function call"));
+    };
+    let string = |e: &ast::InlineExpression<&str>| match e {
+        ast::InlineExpression::StringLiteral { value } => Ok(fluent_syntax::unicode::unescape_unicode_to_string(value).into_owned()),
+        _ => Err(fail("an argument is not a string")),
+    };
+    let [first] = arguments.positional.as_slice() else { return Err(fail("one positional argument")) };
+    let first = string(first)?;
+    let mut named = Vec::new();
+    for a in &arguments.named {
+        named.push((a.name.name, string(&a.value)?));
+    }
+    let get = |key: &str| named.iter().find(|(k, _)| *k == key).map(|(_, v)| v.as_str());
+    match id.name {
+        "CODE" if named.is_empty() => Ok(Run::Code(first)),
+        "FORMULA" if named.iter().all(|(k, _)| matches!(*k, "display" | "colors")) => {
+            let colors = get("colors").map(|v| v.split(',').map(hex_color).collect::<Result<Vec<_>, _>>()).transpose()?.unwrap_or_default();
+            Ok(Run::Formula { latex: first, display: get("display") == Some("yes"), colors })
+        }
+        _ => Err(fail("unknown arguments")),
+    }
+}
+
+/// The runs of a string: its text, its formulas, and its code names.
 pub fn parse(text: &str) -> Result<Vec<Run>, String> {
     let mut runs = Vec::new();
-    let mut plain = String::new();
     let mut rest = 0;
-    while let Some(at) = text[rest..].find("{@").map(|i| rest + i) {
-        plain.push_str(&text[rest..at]);
-        let (attrs, end) = parse_tag(text, at + 2)?;
-        if let Some((_, name)) = attrs.iter().find(|(k, _)| k == "symbol") {
-            let c = SYMBOLS.iter().find(|(s, _)| s == name).map(|(_, c)| *c).ok_or_else(|| format!("no symbol `{name}` (the symbols: copyright, registered, trademark)"))?;
-            plain.push(c);
-        } else if let Some((_, code)) = attrs.iter().find(|(k, _)| k == "codespan") {
-            if !plain.is_empty() {
-                runs.push(Run::Text(std::mem::take(&mut plain)));
-            }
-            runs.push(Run::Code(code.clone()));
-        } else if let Some((_, latex)) = attrs.iter().find(|(k, _)| k == "formula") && latex != "off" {
-            if !plain.is_empty() {
-                runs.push(Run::Text(std::mem::take(&mut plain)));
-            }
-            let display = attrs.iter().any(|(k, v)| k == "display" && v == "yes");
-            let colors = attrs.iter().find(|(k, _)| k == "colors").map(|(_, v)| v.split(',').map(hex_color).collect::<Result<Vec<_>, _>>()).transpose()?.unwrap_or_default();
-            runs.push(Run::Formula { latex: latex.clone(), display, colors });
+    for (start, end) in calls(text) {
+        if start > rest {
+            runs.push(Run::Text(text[rest..start].to_string()));
         }
+        runs.push(run(&text[start..end])?);
         rest = end;
     }
-    plain.push_str(&text[rest..]);
-    if !plain.is_empty() {
-        runs.push(Run::Text(plain));
+    if rest < text.len() {
+        runs.push(Run::Text(text[rest..].to_string()));
     }
     Ok(runs)
 }
@@ -287,7 +283,7 @@ impl Piece {
 
 /// The size of one line of rich text.
 pub fn measure(ink: &Ink, text: &str, size: f32, family: FontFamily) -> Vec2 {
-    if !has_tags(text) {
+    if !is_rich(text) {
         return ink.measure(text, size, family);
     }
     let (w, a, d) = pieces(ink, text, size, &family).iter().map(Piece::extent).fold((0.0f32, 0.0f32, 0.0f32), |(w, a, d), (pw, pa, pd)| (w + pw, a.max(pa), d.max(pd)));
@@ -296,7 +292,7 @@ pub fn measure(ink: &Ink, text: &str, size: f32, family: FontFamily) -> Vec2 {
 
 /// Draws one line of rich text at `pos`, aligned like `Ink::text`; returns its rect.
 pub fn text(ink: &Ink, pos: Pos2, align: Align2, text: &str, size: f32, family: FontFamily, color: Color32) -> Rect {
-    if !has_tags(text) {
+    if !is_rich(text) {
         return ink.text(pos, align, text, size, family, color);
     }
     let pieces = pieces(ink, text, size, &family);
@@ -330,32 +326,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_formula_tags_and_drops_cues() {
-        let runs = parse(r#"blend {@ hfRay=1 callout=x}with {@ formula="\alpha = \frac{1}{1+n}" say="alpha"}, done"#).unwrap();
+    fn parses_formulas() {
+        let runs = parse(r#"blend with { FORMULA("\\alpha = \\frac{1}{1+n}") }, done"#).unwrap();
         assert_eq!(
             runs,
             vec![Run::Text("blend with ".into()), Run::Formula { latex: r"\alpha = \frac{1}{1+n}".into(), display: false, colors: vec![] }, Run::Text(", done".into())]
         );
+        let runs = parse(r##"{ FORMULA("a \\\\ \"b\"", display: "yes", colors: "#ff0000,#00ff00") }"##).unwrap();
+        assert_eq!(runs, vec![Run::Formula { latex: r#"a \\ "b""#.into(), display: true, colors: vec![Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0)] }]);
     }
 
     #[test]
-    fn parses_code_spans() {
-        assert_eq!(parse("{@ symbol=copyright} 2026 x").unwrap(), vec![Run::Text("© 2026 x".into())]);
-        assert_eq!(symbols("Unreal{@ symbol=registered} Engine {@ codespan=\"A\"}"), "Unreal® Engine {@ codespan=\"A\"}");
-        let runs = parse(r#"then {@ codespan="LightCullingTilePrepare"} adds it"#).unwrap();
-        assert_eq!(runs, vec![Run::Text("then ".into()), Run::Code("LightCullingTilePrepare".into()), Run::Text(" adds it".into())]);
+    fn parses_code_names_and_keeps_other_braces() {
+        let runs = parse(r#"then { CODE("LightCullingTilePrepare") } adds {x} and { $y }"#).unwrap();
+        assert_eq!(runs, vec![Run::Text("then ".into()), Run::Code("LightCullingTilePrepare".into()), Run::Text(" adds {x} and { $y }".into())]);
+        assert!(!is_rich("a {b} c"));
     }
 
     #[test]
-    fn quoted_values_keep_backslashes() {
-        let (attrs, end) = parse_tag(r#"{@ formula="a \\ \"b\"" display=yes}x"#, 2).unwrap();
-        assert_eq!(attrs, vec![("formula".into(), r#"a \\ "b""#.into()), ("display".into(), "yes".into())]);
-        assert_eq!(end, r#"{@ formula="a \\ \"b\"" display=yes}"#.len());
+    fn writes_what_it_reads() {
+        let text = formula_text(r#"a \\ "b""#, true, "#ff0000");
+        assert_eq!(text, r##"{ FORMULA("a \\\\ \"b\"", display: "yes", colors: "#ff0000") }"##);
+        assert_eq!(parse(&text).unwrap(), vec![Run::Formula { latex: r#"a \\ "b""#.into(), display: true, colors: vec![Color32::from_rgb(255, 0, 0)] }]);
     }
 
     #[test]
-    fn unclosed_tags_fail() {
-        assert!(parse(r#"x {@ formula="a"#).is_err());
-        assert!(parse("x {@ a=1").is_err());
+    fn malformed_calls_fail() {
+        assert!(parse(r#"x { FORMULA("a) }"#).is_err());
+        assert!(parse(r#"x { FORMULA("a", size: "2") }"#).is_err());
+        assert!(parse(r#"x { CODE(1) }"#).is_err());
     }
 }

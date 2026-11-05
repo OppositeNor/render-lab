@@ -270,7 +270,9 @@ impl Home {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(tr("home-edition")).color(palette::text_dim()));
                             for (i, row) in rows.iter().enumerate() {
-                                let r = ui.selectable_label(i == edition, RichText::new(&row.info.edition).font(FontId::new(24.0, ui::bold())));
+                                // An edition is named by its language (the registry's name), once its timeline is read.
+                                let name = row.locale.map_or(row.info.id.as_str(), Locale::name);
+                                let r = ui.selectable_label(i == edition, RichText::new(name).font(FontId::new(24.0, ui::bold())));
                                 home.widgets.push((format!("edition:{}", row.info.id), r.rect));
                                 if r.clicked() {
                                     new_edition = Some(i);
@@ -411,7 +413,7 @@ impl Home {
                                 heading(ui, tr("home-language"));
                                 let (row, restore) = option_row(ui, widgets, "language", pending.language != defaults.language, defaults.language.name(), !trying, |ui, widgets| {
                                     ui.spacing_mut().item_spacing.x = 12.0;
-                                    for locale in Locale::ALL {
+                                    for locale in Locale::offered() {
                                         let r = ui.add(egui::Button::selectable(pending.language == locale, RichText::new(locale.name()).font(FontId::new(30.0, ui::bold()))).min_size(vec2(180.0, 48.0)));
                                         widgets.push((format!("option:language:{}", locale.code()), r.rect));
                                         if r.clicked() {

@@ -27,9 +27,9 @@ cargo run --release -- --investigation godot/sdfgi knowledge         # checked, 
 
 ## Formulas
 
-On-screen text can hold formulas, as tags: `{@ formula="\\frac{1}{1+n}"}` in a text table, a caption, or a readout
+On-screen text can hold formulas, as Fluent function calls: `{ FORMULA("\\frac{1}{1+n}") }` in a text table, a caption, or a readout
 (`Readout::formula`). The lab typesets them itself at run time (`lab/src/formula.rs`: MiTeX translates the LaTeX into
 Typst math, and Typst typesets it), so no Node or committed images are needed; `render-lab formulas --check FILE…` checks
-a file's formulas against the lab's limits. A storyboard uses the same tags, with shot cues timed to the narration's
+a file's formulas against the lab's limits. A storyboard's formulas become the same calls in its captions, with shot cues timed to the narration's
 words (see [`tools/video`](../tools/video/README.md#text-driven-shots-cues-in-a-sentence)), and a timeline key's `formula`
 opens a formula card in the viewport.

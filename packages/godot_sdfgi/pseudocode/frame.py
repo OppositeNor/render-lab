@@ -1,7 +1,7 @@
-# title: One frame of SDFGI | SDFGI 的一帧
+# title-text: listing-frame-title
 # source: frame-order
 # demo: room
-# dispatch: on the CPU, each frame | 每帧在 CPU 上运行
+# dispatch-text: listing-frame-dispatch
 def render_scene(env, camera):
     sdfgi.update(env, camera.origin)                  # @update
     regions = sdfgi.pending_regions()                 # @cull

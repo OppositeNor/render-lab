@@ -41,11 +41,11 @@ and the passes and resources, when it loads the timeline.
 """
 from __future__ import annotations
 
-import json
 import tomllib
 from pathlib import Path
 from typing import Any
 
+import config
 from config import Config
 
 Json = dict[str, Any]
@@ -60,7 +60,7 @@ def load(cfg: Config, name: str) -> Json:
     """The scene as the timeline carries it (lab/src/graph/scene.rs `GraphScene`):
     its sections, their titles and notes in the edition's language."""
     spec = tomllib.loads(path(cfg, name).read_text(encoding='utf-8'))
-    text = json.loads((cfg.package / 'text' / f'{cfg.lang}.json').read_text(encoding='utf-8'))
+    text = config.text_table(cfg.package.name, cfg.lang)
 
     def say(key: str, where: str) -> str:
         if key not in text:

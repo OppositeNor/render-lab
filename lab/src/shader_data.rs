@@ -1,9 +1,8 @@
 //! Shader values: the members of a shader's uniform struct that tags in its
 //! `///` comments declare, which the lab reflects (naga, src/shaders.rs)
 //! into values by key (src/values.rs) and packs into the shader's buffer.
-//! A tag is written as a rich-text tag is, `{@ name=value …}`, and read by
-//! the same parser (src/rich_text.rs); a value of several numbers or names
-//! is comma-separated (`components=lightX,lightY,lightZ`).
+//! A tag is written `{@ name=value …}` (read by `parse_tag`); a value of
+//! several numbers or names is comma-separated (`components=lightX,lightY,lightZ`).
 //!
 //! ```wgsl
 //! struct Shading {
@@ -102,9 +101,67 @@ pub(crate) struct Tag {
     pub(crate) args: Vec<String>,
 }
 
+/// A tag's attributes, in order, from just after `{@` to its closing `}`.
+/// Returns the attributes and the byte index past the tag.
+fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize), String> {
+    let bytes = text.as_bytes();
+    let mut i = start;
+    let mut attrs = Vec::new();
+    loop {
+        while bytes.get(i).is_some_and(|b| b.is_ascii_whitespace()) {
+            i += 1;
+        }
+        match bytes.get(i) {
+            None => return Err(format!("unclosed tag: {}", &text[start.saturating_sub(2)..])),
+            Some(b'}') => return Ok((attrs, i + 1)),
+            _ => {}
+        }
+        let name_start = i;
+        while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'=' && *b != b'}') {
+            i += 1;
+        }
+        let name = text[name_start..i].to_string();
+        if bytes.get(i) != Some(&b'=') {
+            // A bare word: a flag (`{@ derived}`, `toggle`), kept with an empty value.
+            attrs.push((name, String::new()));
+            continue;
+        }
+        i += 1;
+        let value = if bytes.get(i) == Some(&b'"') {
+            i += 1;
+            let mut value = String::new();
+            loop {
+                match bytes.get(i) {
+                    None => return Err(format!("unclosed quote in tag: {}", &text[start.saturating_sub(2)..])),
+                    Some(b'"') => {
+                        i += 1;
+                        break;
+                    }
+                    Some(b'\\') if bytes.get(i + 1) == Some(&b'"') => {
+                        value.push('"');
+                        i += 2;
+                    }
+                    Some(_) => {
+                        let c = text[i..].chars().next().unwrap();
+                        value.push(c);
+                        i += c.len_utf8();
+                    }
+                }
+            }
+            value
+        } else {
+            let value_start = i;
+            while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'}') {
+                i += 1;
+            }
+            text[value_start..i].to_string()
+        };
+        attrs.push((name, value));
+    }
+}
+
 /// The tags of a comment's lines (each with its `///`): every `{@ …}` in
-/// them, read as a story's tags are (src/rich_text.rs), and the rest of the
-/// text, its doc.
+/// them ([`parse_tag`]), and the rest of the text, its doc.
 pub(crate) fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
     let mut tags = Vec::new();
     let mut doc = Vec::new();
@@ -113,7 +170,7 @@ pub(crate) fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
         let mut text = String::new();
         while let Some(at) = rest.find("{@") {
             text.push_str(&rest[..at]);
-            let (attrs, end) = crate::rich_text::parse_tag(rest, at + 2).map_err(|e| anyhow!(e))?;
+            let (attrs, end) = parse_tag(rest, at + 2).map_err(|e| anyhow!(e))?;
             for (name, value) in attrs {
                 let args = if value.is_empty() { Vec::new() } else { value.split(',').map(|a| a.trim().to_string()).collect() };
                 tags.push(Tag { name, args });

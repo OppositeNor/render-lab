@@ -79,7 +79,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config { language: Locale::En, theme: theme::DEFAULT.into(), listing_style: Style::Blocks, fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
+        Config { language: Locale::EN, theme: theme::DEFAULT.into(), listing_style: Style::Blocks, fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
     }
 }
 
@@ -119,7 +119,7 @@ impl Config {
         }
         if let Some(item) = document.get("language") {
             let code = item.as_str().with_context(|| format!("{}: `language` must be a string", path.display()))?;
-            let codes = Locale::ALL.map(Locale::code).join(", ");
+            let codes = Locale::all().into_iter().map(Locale::code).collect::<Vec<_>>().join(", ");
             config.language = Locale::from_code(code).with_context(|| format!("{}: unknown `language` \"{code}\" (one of {codes})", path.display()))?;
         }
         if let Some(item) = document.get("theme") {
@@ -153,7 +153,7 @@ impl Config {
     pub fn to_toml(&self) -> String {
         let mut text = format!(
             "# Render Lab settings, written by the homepage's Config page.\n\n# Interface: the homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n\n# Interface: the theme, a file's stem in a themes/ folder beside the binary or beside this file.\ntheme = \"{}\"\n\n# Interface: how the code panel draws pseudo-code listings: blocks, or text.\nlisting_style = \"{}\"\n\n# Render: open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n",
-            Locale::ALL.map(Locale::code).join(", "),
+            Locale::all().into_iter().map(Locale::code).collect::<Vec<_>>().join(", "),
             self.language.code(),
             self.theme.replace('\\', "\\\\").replace('"', "\\\""),
             self.listing_style.key(),
@@ -195,7 +195,7 @@ mod tests {
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::ZhCn, theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
+        let config = Config { fullscreen: true, language: Locale::from_code("zh-CN").unwrap(), theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.

@@ -1,7 +1,7 @@
-# title: SDFGI::update: following the camera | SDFGI::update：跟随相机
+# title-text: listing-cascade_update-title
 # source: scroll-update
 # demo: cascades
-# dispatch: on the CPU, each frame | 每帧在 CPU 上运行
+# dispatch-text: listing-cascade_update-dispatch
 def update(cascades, camera):
     drag_margin = (CASCADE_SIZE // PROBE_DIVISOR) // 2  # @margin @@math
     for c in cascades:

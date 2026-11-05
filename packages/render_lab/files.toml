@@ -57,16 +57,23 @@ kind = "file"
 source = "assets/mitex/specs/latex/standard.typ"
 license = "Apache-2.0"
 
+# The languages of the on-screen text (lab/src/i18n.rs `Locale`), read by the lab and by every package's build.
+[[resource]]
+id = "locales"
+kind = "file"
+source = "locales.toml"
+license = "MIT"
+
 [[resource]]
 id = "text/en"
 kind = "file"
-source = "text/en.json"
+source = "text/en.ftl"
 license = "MIT"
 
 [[resource]]
 id = "text/zh-cn"
 kind = "file"
-source = "text/zh-CN.json"
+source = "text/zh-CN.ftl"
 license = "MIT"
 
 # The knowledge graph: the three bases and the engine-neutral topics the

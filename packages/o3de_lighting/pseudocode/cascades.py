@@ -1,4 +1,4 @@
-# title: The directional light's cascades | 方向光的级联阴影
+# title-text: listing-cascades-title
 # source: cascade-splits
 # demo: cascades
 def update_cascades(cam, light, r=0.9, n=4):

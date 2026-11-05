@@ -185,7 +185,7 @@ def main() -> None:
     cfg.timeline().with_suffix('.provenance.json').write_text(json.dumps(provenance, indent=1, ensure_ascii=False) + '\n')
     (build / 'chapter-plans.json').write_text(json.dumps(plans, indent=1) + '\n')
     log(f'Timeline: {tl["totalFrames"]} frames, {tl["totalFrames"] / tl["fps"] / 60:.2f} min, {len(tl["beats"])} beats, {len(tl["keys"])} keys.')
-    if '{@ formula=' in cfg.timeline().read_text():
+    if '{ FORMULA(' in cfg.timeline().read_text():
         # The lab typesets them; check each against its limits before anything is rendered.
         run([binary, 'formulas', '--check', cfg.timeline()], build / 'logs' / 'formulas.log')
         log('Formulas: each typesets within the lab\'s limits.')

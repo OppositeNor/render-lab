@@ -1,4 +1,4 @@
-# title: Decals: ApplyDecal | 贴花：ApplyDecal 函数
+# title-text: listing-decals-title
 # source: decal-apply
 # demo: decals
 def apply_decal(d, s):    # before InitializeLightingData   # @box

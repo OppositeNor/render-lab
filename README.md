@@ -67,7 +67,7 @@ See [Using Render Lab](docs/usage.md) for the controls.
 | [Build](BUILD.md) | Requirements, dependencies, local caches, verification, assets, and sound |
 | [Using Render Lab](docs/usage.md) | Homepage, settings, viewer layout, commands, and narrated videos |
 | [Experiments and measurements](docs/experiments.md) | A/B comparison, quality metrics, GPU timings, frame graph, and headless runs |
-| [Prerequisites and formulas](docs/learning-content.md) | Knowledge graph, target audience, and formula tags |
+| [Prerequisites and formulas](docs/learning-content.md) | Knowledge graph, target audience, and formulas |
 | [Architecture and code map](docs/architecture.md) | Shared lab, packages, resources, shaders, and value declarations |
 | [Adding an investigation](docs/adding-investigations.md) | Investigation libraries, negotiation, shading, and pass chains |
 | [Video builder](tools/video/README.md) | Storyboards, checks, narration, timelines, captions, and recording |
