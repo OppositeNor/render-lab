@@ -44,6 +44,21 @@ edition also checks its alignment with English. Motion lengths such as
 `sentence` and `beat` stay symbolic: this does not measure speech or establish
 exact word times, frame boundaries, or chapter budgets.
 
+One beat at a time:
+
+```sh
+python3 tools/video/check.py --investigation godot/ssr --explain c1-adds [--json]
+python3 tools/video/build.py --investigation godot/ssr --preview c1-adds --cached-audio-only
+```
+
+`--explain` (tools/video/explain.py) lists the beat's sentences, as shown and as spoken, then its cues in source
+order: where each is, the attributes it lowers to, the names it refers to, and the channels it writes (a value, or a
+motion and its length), each marked with the cue it takes the channel over from. It warns where two cues set one
+channel on the same word, so the first never shows. Once the edition is prepared it adds each cue's frames and
+seconds; before that it says the timing is not measured, and synthesizes nothing. `--preview` prepares the edition
+and renders that beat's stills into `build/video/<lang>/preview/<beat>/`: its start and end, each cue and the frame
+before it, where each motion and blend ends, and the midpoint, with `index.json` saying why each was taken.
+
 Highlights are checked in the inherited demo, panel, listing and record context.
 Use an explicit namespace for new cues:
 

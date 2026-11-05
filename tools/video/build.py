@@ -102,6 +102,7 @@ def main() -> None:
     parser.add_argument('--cached-audio-only', action='store_true', help='fail if narration or word timings are missing from the cache')
     parser.add_argument('--prepare-dir', type=Path, help='write this investigation\'s timelines and video outputs under this directory')
     parser.add_argument('--snapshots-only', action='store_true', help='prepare, then render beat-midpoint stills for review')
+    parser.add_argument('--preview', metavar='BEAT', help='prepare, then render one beat\'s stills (its start and end, each cue and the frame before it, each motion\'s end, the midpoint) into build/preview/BEAT, with index.json saying why each was taken (explain.py)')
     parser.add_argument('--skip-render', action='store_true', help='reuse the rendered video.mp4')
     parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--frames', help='render only START:END (testing; the result is not a complete video)')
@@ -196,6 +197,19 @@ def main() -> None:
     outputs.write_preview(cfg, board, tl)
     outputs.write_notice(cfg)
     if args.prepare_only:
+        return
+    if args.preview:
+        import explain
+        if not any(beat['id'] == args.preview for beat in tl['beats']):
+            raise SystemExit(f'no beat {args.preview!r} in {cfg.investigation} ({cfg.lang})')
+        frames = explain.preview_frames(tl, provenance['keys'], args.preview)
+        directory = build / 'preview' / args.preview
+        if directory.exists():
+            shutil.rmtree(directory)
+        explain.write_preview_index(directory, frames)
+        run(outputs.lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{args.resolution[0]}x{args.resolution[1]}', '--snapshot', ','.join(str(f) for f, _ in frames),
+                        '--snapshot-dir', directory, '--ffmpeg', env.ffmpeg), build / 'logs' / 'preview.log')
+        log(f'Preview of {args.preview}: {len(frames)} stills in {directory} (index.json says why each)')
         return
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl, args.resolution)
