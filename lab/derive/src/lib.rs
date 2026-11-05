@@ -488,8 +488,8 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
 }
 
 /// `#[lab::actions]` on an `impl` block: its `#[action]` functions are the
-/// package's actions, which a story starts (`{@ run=key run.arg=…}`) and stops
-/// (the lab's src/actions.rs). It gives the type `ACTIONS: lab::actions::Actions`.
+/// package's actions, which a story starts (`{run "key"}`, its arguments `run.<arg>`) and
+/// stops (`{stop "key"}`; the lab's src/actions.rs). It gives the type `ACTIONS: lab::actions::Actions`.
 ///
 /// ```ignore
 /// #[lab::actions]

@@ -77,7 +77,7 @@ Bridge: "The rasterizer left four images of one slab; a chain of compute dispatc
 
 | Beat | Claim, source | On screen |
 |---|---|---|
-| c13-chain: one list, eighteen dispatches, ten barriers | 14 table | the chain as a strip of dispatches, each its group count; barrier lines between; a run (`run=preprocess`) steps through, the target texture of each flashing |
+| c13-chain: one list, eighteen dispatches, ten barriers | 14 table | the chain as a strip of dispatches, each its group count; barrier lines between; a run (`{run "preprocess"}`) steps through, the target texture of each flashing |
 | c13-pingpong: each step reads the last one's texture | 14.04 | half[0] and half[1] as two slices; the arrow alternates; the barrier as the step's wait |
 | c13-half: the expensive steps run on an eighth of the cells | 14.01 | 128^3 vs 64^3 cell counts; init picks one solid voxel per 2^3 block (one block worked) |
 | c13-lattice: a workgroup of the shared-memory step is a lattice, not a block | 14.03 | worked example: one 8^3 group at step 4 (one slice: 8 x 8 lattice points 4 cells apart); its 10 x 10 halo patch loaded by 125 threads into shared memory; then one cell reads its 26 neighbours from shared memory instead of the texture; sweep `jfStep` 8 -> 1: the lattice tightens into a block |

@@ -1,6 +1,6 @@
 //! Image kinds: GPU images a package's shaders define, which a story creates
-//! instances of and drives (`{@ image=floor from=probeMap image.probe=7,7,8}`,
-//! src/shot.rs). The shader defines what is computed; the story says how
+//! instances of and drives (`{inset "floor"} {imageFrom "probeMap"} {imageProbe
+//! {' 7.0 7.0 8.0}}`, src/shot.rs). The shader defines what is computed; the story says how
 //! many, with what parameters, when, and where. Every frame the renderer runs
 //! each live instance's compute entry point into the instance's own texture
 //! and shows it live in an inset (src/renderer.rs, packages/render_lab/src/inset.rs).

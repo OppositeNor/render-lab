@@ -59,7 +59,7 @@ fn gi_divisor(state: &ShotState) -> u32 {
     if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
 }
 
-/// The images its story can show (`{@ image=key}`).
+/// The images its story can show (`{inset "key"}`).
 pub static IMAGES: &[ImageSpec] = &[
     ImageSpec { key: "fieldSlice", doc: "An x-z slice of the baked distance field at sliceHeight after edtPass passes, the worked cell marked." },
     ImageSpec { key: "mipSlice", doc: "An x-z slice of the light texture's mip mipLevel at sliceHeight (RGB x dynamic range; empty texels checkered)." },

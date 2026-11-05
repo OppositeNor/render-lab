@@ -216,8 +216,9 @@ enum Command {
     /// which a story gives an image (`imageClick=<key>`).
     Actions,
     /// List the images the current investigation publishes for a story to
-    /// show (`{@ image=<key>}`), and the image kinds its package's shaders
-    /// define (`{@ image=<name> imageFrom=<kind> image.<param>=…}`, GPU
+    /// show (`{inset "<key>"}`), and the image kinds its package's shaders
+    /// define (`{inset "<name>"} {imageFrom "<kind>"}`, their parameters
+    /// `image.<param>`, GPU
     /// images), and the points and arrow sets its story's arrows and labels
     /// can name; a story can also show a PNG resource by its key.
     Images,

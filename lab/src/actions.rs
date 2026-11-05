@@ -1,6 +1,6 @@
 //! Actions: named pieces of a package's work that a story starts and stops,
-//! the way a page's script calls its functions. A story writes
-//! `{@ run=floodStep run.seconds=0.5}` and `{@ stop=floodStep}`; the
+//! the way a page's script calls its functions. A story's cues write
+//! `{run "floodStep"} {runSeconds 0.5}` and `{stop "floodStep"}`; the
 //! timeline (src/shot.rs) keeps each running action with the frame it
 //! started, and evaluating a frame calls it with its arguments and the
 //! seconds since then (`ActionFrame::elapsed`). An action sets the shot's
@@ -27,7 +27,7 @@
 //!
 //! The same block declares the package's click handlers, `#[click]`
 //! functions of a `&mut ClickFrame`: what a click on an image's picture does
-//! when a story names it (`{@ image=map imageClick=pickCell}`) or an
+//! when a story names it (`{inset "map"} {imageClick "pickCell"}`) or an
 //! inset the package draws does (`PictureInset::click`). A click happens in
 //! the viewer, on what is on screen, while no timeline drives the state (a
 //! demonstration, or a timeline paused); a handler sets that state.

@@ -54,7 +54,7 @@ fn gi_divisor(state: &lab::shot::ShotState) -> u32 {
     if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
 }
 
-/// The images its story can show (`{@ image=key}`), which `demos::field_demo` publishes.
+/// The images its story can show (`{inset "key"}`), which `demos::field_demo` publishes.
 pub static IMAGES: &[ImageSpec] = &[
     ImageSpec { key: "distanceField", doc: "A slice of cascade 0's distance field at sliceHeight, the worked cell marked." },
     ImageSpec { key: "floodSeeds", doc: "The same slice's jump-flood seeds at floodStep, the cells the step changed in orange." },

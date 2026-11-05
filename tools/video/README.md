@@ -339,7 +339,7 @@ A key sets only what it names. A `demo` key first starts the demonstration's sta
 | Callout | **carried** | `{callout ""}` |
 | Images (insets) and their marks | **carried** | `{inset ""}` (all), `imageHide` (one) |
 | Arrows and labels | **carried** | `arrowHide`, `labelHide` (by name) |
-| Formula card | **carried**; closed at the end of the beat that showed it | a formula cue with `formula=off` |
+| Formula card | **carried**; closed at the end of the beat that showed it | a formula cue with `{formulaOff}` |
 
 A story's `opening` (its `video/story.lam`) is its own recipe on top of this; render_lab's `narrationCleared` clears
 the three carried items that can be cleared at once (callout, insets, formula card), to append where a beat should
