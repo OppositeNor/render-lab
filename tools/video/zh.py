@@ -55,6 +55,8 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
                 if sorted(english) != sorted(chinese):
                     raise RuntimeError(f'translation: beat {beat["id"]}: the sentence {shown.caption!r} has formulas {chinese}, the English {english}')
                 s['text'], s['shown'] = text, shown
+                if 'source' in translated:
+                    s['shownSource'] = translated['source']
                 narration.append(s)
             beat['narration'] = narration
     extra = set(translation['beats']) - {b['id'] for c in out['chapters'] for b in c['beats']}

@@ -8,6 +8,7 @@ from typing import Any
 
 from config import Config
 from locations import DiagnosticError
+from headings import DEFAULT_CAPTION_WIDTH
 
 Json = dict[str, Any]
 
@@ -67,6 +68,8 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
     import diagrams
     import frame_graph
     import presentation
+    import markup
+    import zh
     keys = index['entries']
     ids: set[str] = set()
     for chapter in board['chapters']:
@@ -97,6 +100,18 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                     fail('story.source', f'unknown source key {key}', 'sources')
             if not beat.get('narration', []):
                 fail('story.narration', f'{beat["id"]} has no narration', 'narration')
+            width = board.get('captionWidthZh', zh.CAPTION_UNITS) if cfg.zh() else board.get('captionWidth', DEFAULT_CAPTION_WIDTH)
+            for sentence in beat.get('narration', []):
+                shown = markup.shown(sentence, cfg.zh()).caption
+                held, _ = markup.protect(shown)
+                # No partition into two-line cues can fit a token larger
+                # than this. Diagnose it before the English splitter loops
+                # forever, or the Chinese splitter exhausts its candidates.
+                needed = max((zh.display_width(token) for token, _, _ in zh.tokens(held)), default=0) if cfg.zh() else max(((len(word) + 1) // 2 for word in held.split()), default=0)
+                if needed > width:
+                    source = sentence.get('shownSource') if cfg.zh() else sentence.get('source')
+                    raise DiagnosticError('story.caption.width', f'captionWidth {width} cannot fit this caption; its longest token needs at least {needed}',
+                                          source or beat.get('source'), beat=beat['id'], field='captionWidth')
             for name in beat_listings(beat):
                 path = listing_path(cfg, name)
                 if not path.is_file():

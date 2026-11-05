@@ -27,8 +27,11 @@ def describe(source: Json) -> str:
 
 
 class DiagnosticError(RuntimeError):
-    def __init__(self, code: str, message: str, source: Json | None = None, *, beat: str | None = None, field: str | None = None):
+    def __init__(self, code: str, message: str, source: Json | None = None, *, beat: str | None = None, field: str | None = None,
+                 related: list[Json] | None = None):
         self.diagnostic: Json = {'code': code, 'severity': 'error', 'file': None, 'line': None, 'column': None,
                                  'endLine': None, 'endColumn': None, 'beat': beat, 'field': field, 'message': message,
                                  **(source or {})}
+        if related:
+            self.diagnostic['related'] = related
         super().__init__(f'{describe(source)}: {message}' if source else message)

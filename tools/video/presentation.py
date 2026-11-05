@@ -46,6 +46,7 @@ from typing import Any
 
 import lamlet
 import markup
+import headings
 from locations import DiagnosticError, describe, location
 
 Json = dict[str, Any]
@@ -72,7 +73,14 @@ def value_of(text: str) -> Any:
 
 
 def as_list(value: Any) -> list[str]:
+    if isinstance(value, str) and value.lstrip().startswith('['):
+        value = json.loads(value)
     return value if isinstance(value, list) else [v.strip() for v in str(value).split(',') if v.strip()]
+
+
+def metadata(attrs: dict[str, str]) -> Json:
+    """Keep registered annotations on their heading, independently of timing."""
+    return {name: value_of(value) for name, value in attrs.items() if name in headings.METADATA or headings.META_NAME.fullmatch(name)}
 
 
 def point_key(tag: markup.Tag, where: str, fields: markup.Fields) -> Json:
@@ -218,7 +226,8 @@ class Reader:
 
     def tag(self, tag: markup.Tag) -> None:
         """A cue, a range's start, or a formula, with the key it sets."""
-        assert self.fields is not None
+        if self.fields is None:
+            self.fail('a cue needs the investigation vocabulary', tag.source)
         at = describe(tag.source) if tag.source else self.at
         try:
             tag.key = markup.cue_key(tag, at, self.fields) if tag.kind == 'open' else point_key(tag, at, self.fields)
@@ -261,7 +270,7 @@ def parsed(inlines: list[Json], at: str, fields: markup.Fields | None, translati
     return reader.sentence()
 
 
-def sections(doc: Json, path: Path) -> tuple[Json, list[tuple[Json, list[tuple[Json, list[Json]]]]]]:
+def sections(doc: Json, path: Path, translation: bool = False) -> tuple[Json, headings.Sections]:
     """The video's heading, and each chapter: its heading and its beats (heading, paragraphs)."""
     video: Json | None = None
     chapters: list[tuple[Json, list[tuple[Json, list[Json]]]]] = []
@@ -289,6 +298,7 @@ def sections(doc: Json, path: Path) -> tuple[Json, list[tuple[Json, list[tuple[J
             raise PresentationError(f'{at}: a storyboard holds headings and paragraphs, not {block["type"]}')
     if video is None:
         raise PresentationError(f'{path}: no level-1 heading (the video)')
+    headings.check(video, chapters, path, translation)
     return video, chapters
 
 
@@ -299,7 +309,9 @@ def header(video: Json, path: Path, lists: tuple[str, ...] = ()) -> Json:
     if 'title' not in dict(attrs):
         out['title'] = plain(video['inlines'], where(video, path))
     for name, value in attrs:
-        out[name] = as_list(value) if name in lists else value_of(value)
+        out[name] = as_list(value) if name in lists else value if name in ('title', 'subtitle', 'locale') else value_of(value)
+        if name in ('fps', 'width', 'height', 'captionWidth'):
+            out[name] = markup.integer(value, where(video, path))
     return out
 
 
@@ -322,10 +334,11 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
         chapter_id = chapter_heading.get('id') or ''
         if not chapter_id:
             raise PresentationError(f'{at}: a chapter heading names its id, {{#c1 number=1 …}}')
-        chapter: Json = {'id': chapter_id, 'number': int(number(attrs.get('number'), 'chapter `number`', at)), 'title': plain(chapter_heading['inlines'], at),
+        chapter: Json = {'id': chapter_id, 'number': markup.integer(attrs['number'], at, 1), 'title': plain(chapter_heading['inlines'], at),
                          'targetSeconds': number(attrs.get('target'), 'chapter `target` (seconds)', at),
-                         'summary': value_of(attrs['summary']) if 'summary' in attrs else '', 'sources': as_list(value_of(attrs.get('sources', '[]'))), 'beats': []}
+                         'summary': attrs.get('summary', ''), 'sources': as_list(value_of(attrs.get('sources', '[]'))), 'beats': []}
         chapter['source'] = location(chapter_heading, {'file': str(path)})
+        chapter.update(metadata(attrs))
         for beat_heading, paragraphs in beats:
             at = where(beat_heading, path)
             beat_id = beat_heading.get('id') or ''
@@ -335,16 +348,14 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
             kind = props.get('kind', '')
             check_scene_type(kind, f'{path}: {beat_id}')
             beat: Json = {'id': beat_id, 'kind': kind, 'headline': plain(beat_heading['inlines'], at)}
+            beat.update(metadata(props))
             if kind == '2d' and not {'diagram', 'graph', 'sources'} & set(props):
                 raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), or a sources card (sources=)')
             if 'diagram' in props and 'graph' in props:
                 raise PresentationError(f'{path}: {beat_id}: a beat shows a diagram or the frame graph, not both')
-            unknown = set(props) - {'kind', 'diagram', 'graph', 'focus', 'sources', 'hold'}
-            if unknown:
-                raise PresentationError(f'{path}: {beat_id}: unknown beat attributes {sorted(unknown)}')
             for name in ('diagram', 'graph', 'hold'):
                 if name in props:
-                    beat[name] = value_of(props[name])
+                    beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
             for name in ('focus', 'sources'):
                 if name in props:
                     beat[name] = as_list(value_of(props[name]))
@@ -372,11 +383,16 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                         key_sources.append(source)
                     continue
                 source = location(paragraph, {'file': str(path)})
-                narration.append({'text': at, 'source': source, 'paragraph': len(narration) + 1, 'parsed': parsed(inlines, at, fields, source=source)})
+                sentence = parsed(inlines, at, fields, source=source)
+                if not any(char.isalnum() for char in sentence.spoken):
+                    raise DiagnosticError('story.narration.empty', 'a narration paragraph needs spoken text', source, beat=beat_id, field='narration')
+                narration.append({'text': at, 'source': source, 'paragraph': len(narration) + 1, 'parsed': sentence})
             if keys:
                 beat['keys'] = keys
                 beat['keySources'] = key_sources
             beat['narration'] = narration
+            if not narration:
+                raise DiagnosticError('story.narration.empty', 'a beat needs narration', beat['source'], beat=beat_id, field='narration')
             chapter['beats'].append(beat)
         board['chapters'].append(chapter)
     return board
@@ -384,7 +400,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
 
 def load_translation(path: Path) -> Json:
     """A translation presentation as the translation the builder reads (zh.localize)."""
-    video, chapters = sections(lamlet.ir(path, []), path)
+    video, chapters = sections(lamlet.ir(path, []), path, translation=True)
     translation = header(video, path, lists=('glossary',))
     translation['chapters'] = []
     translation['beats'] = {}
@@ -393,12 +409,22 @@ def load_translation(path: Path) -> Json:
         attrs = dict(pairs(chapter_heading['attrs']))
         # A chapter is the English one of the same id; its number is the English's (a `number` given must agree).
         chapter: Json = {'id': chapter_heading.get('id') or '', 'title': plain(chapter_heading['inlines'], at),
-                         'summary': value_of(attrs['summary']) if 'summary' in attrs else ''}
+                         'summary': attrs.get('summary', '')}
         if 'number' in attrs:
-            chapter['number'] = int(number(attrs['number'], 'chapter `number`', at))
+            chapter['number'] = markup.integer(attrs['number'], at, 1)
+        chapter.update(metadata(attrs))
         translation['chapters'].append(chapter)
         for beat_heading, paragraphs in beats:
             at = where(beat_heading, path)
-            narration = [{'text': where(p, path), 'shown': parsed(p['inlines'], where(p, path), None, translation=True)} for p in paragraphs]
-            translation['beats'][beat_heading.get('id') or ''] = {'headline': plain(beat_heading['inlines'], at), 'narration': narration}
+            narration = []
+            for paragraph in paragraphs:
+                source = location(paragraph, {'file': str(path)})
+                sentence = parsed(paragraph['inlines'], where(paragraph, path), None, translation=True, source=source)
+                if not sentence.caption.strip():
+                    raise DiagnosticError('story.narration.empty', 'a translation paragraph needs displayed text', source, beat=beat_heading['id'], field='narration')
+                narration.append({'text': where(paragraph, path), 'shown': sentence, 'source': source})
+            if not narration:
+                raise DiagnosticError('story.narration.empty', 'a translated beat needs narration', location(beat_heading, {'file': str(path)}), beat=beat_heading['id'], field='narration')
+            translation['beats'][beat_heading.get('id') or ''] = {'headline': plain(beat_heading['inlines'], at), 'narration': narration,
+                                                              **metadata(dict(pairs(beat_heading['attrs'])))}
     return translation

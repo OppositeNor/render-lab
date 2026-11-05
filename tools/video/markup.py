@@ -33,7 +33,9 @@ n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
 from __future__ import annotations
 
 import json
+import math
 import re
+from decimal import Decimal
 from dataclasses import dataclass, field
 from typing import Any
 from locations import DiagnosticError
@@ -129,11 +131,30 @@ def tidy(text: str) -> str:
     return re.sub(r' ([,.;:!?)])', r'\1', text)
 
 
-def number(value: str, where: str) -> float:
+def number(value: str | int | float, where: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise MarkupError(f'{where}: {value!r} is not a number')
     try:
-        return float(value)
-    except ValueError:
+        out = float(value)
+    except (ValueError, OverflowError):
         raise MarkupError(f'{where}: {value!r} is not a number') from None
+    if not math.isfinite(out):
+        raise MarkupError(f'{where}: {value!r} must be a finite number')
+    return out
+
+
+def integer(value: str | int | float, where: str, minimum: int = 0, maximum: int | None = None) -> int:
+    n = number(value, where)
+    # Check the written decimal as well: float rounding must not turn a
+    # fractional chapter number or index into an integer.
+    exact = Decimal(str(value))
+    if not n.is_integer() or exact != exact.to_integral_value():
+        raise MarkupError(f'{where}: {value!r} must be a whole number')
+    result = int(exact)
+    if result < minimum or (maximum is not None and result > maximum):
+        limit = f'{minimum} to {maximum}' if maximum is not None else f'at least {minimum}'
+        raise MarkupError(f'{where}: {value!r} must be {limit}')
+    return result
 
 
 def param_value(value: str, where: str) -> float | bool | str | list[float]:
@@ -146,9 +167,11 @@ def param_value(value: str, where: str) -> float | bool | str | list[float]:
     if ',' in value:
         return [number(x, where) for x in value.split(',')]
     try:
-        return float(value)
+        float(value)
     except ValueError:
         pass
+    else:
+        return number(value, where)
     if value[:1].isalpha() and all(c.isalnum() or c == '_' for c in value):
         return value
     raise MarkupError(f'{where}: {value!r} is not a number, true or false, a list of numbers, or a name')
@@ -256,9 +279,9 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             key['highlight'] = [h for h in v.split(',') if h]
         elif name == 'record':
             kind, _, index = v.partition(':')
-            key['record'] = {'type': kind} if not index else {'type': kind, 'index': int(number(index, where))}
+            key['record'] = {'type': kind} if not index else {'type': kind, 'index': integer(index, where)}
         elif name == 'term':
-            key['term'] = int(number(v, where))
+            key['term'] = integer(v, where)
         elif name == 'formula':
             key['formula'] = '' if v == 'off' else formula_tag(tag)
         elif name in FORMULA_ATTRS:

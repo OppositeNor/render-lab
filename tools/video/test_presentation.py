@@ -21,7 +21,7 @@ FORMULA = r'\frac{1}{1+\lit{1}{n}}'
 # writes them with it (`{cameraYaw 30.0}` for `{attr "camera.yaw" "30"}`).
 STORY = r'''$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]
 $[# leaves 42289]
-# A test {#video fps=30 subtitle="A short one"}
+# A test {#video fps=30 width=1920 height=1080 subtitle="A short one"}
 
 ## First chapter {#c1 number=1 target=60 summary="What it covers." sources="key-a, key-b"}
 

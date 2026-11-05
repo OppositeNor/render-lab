@@ -20,6 +20,7 @@ import zh
 from config import Config
 from narration import Durations, Narration
 from locations import DiagnosticError, describe
+from headings import DEFAULT_CAPTION_WIDTH
 
 NOTICES = 8.0    # the closing card of the package's legal notices
 KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
@@ -40,7 +41,7 @@ class Pacing:
     taggedWeight: float = 2.0    # how much more of the budget's pauses a sentence with tags takes than one without
     termFade: float = 0.4        # how long a lit term fades in when its cue names no blend
     captionBridge: float = 0.6   # a caption stays up through a gap this short, to the next
-    captionWidth: int = 58       # characters per caption line (English)
+    captionWidth: int = DEFAULT_CAPTION_WIDTH  # characters per caption line (English)
 
     @staticmethod
     def of(board: Board) -> Pacing:
@@ -175,7 +176,8 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
     for tag, frame in zip(parsed.tags, frames):
         if tag.kind == 'close':
             continue
-        assert tag.key is not None
+        if tag.key is None:
+            raise DiagnosticError('story.timing.key', 'a cue needs a parsed key', tag.source, beat=beat['id'])
         provenance = {'source': tag.source or s.get('source', {}), 'paragraph': s.get('paragraph'), 'piece': tag.piece}
         key = {**tag.key, '_provenance': provenance}
         delay = frame / fps

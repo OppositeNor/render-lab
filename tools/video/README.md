@@ -42,14 +42,52 @@ listings and diagram focus, and asks the host to check values, actions, image
 references and motion shapes using the same rules as playback. The translated
 edition also checks its alignment with English. Motion lengths such as
 `sentence` and `beat` stay symbolic: this does not measure speech or establish
-exact word times, frame boundaries, or chapter budgets. Later work on heading
-schemas and highlight namespaces is tracked in the storyboard authoring plan.
+exact word times, frame boundaries, or chapter budgets. Later work on highlight
+namespaces is tracked in the storyboard authoring plan.
+
+Heading contracts are checked before converting attributes or translated IDs
+to dictionaries. Chapter IDs and beat IDs must each be unique throughout an
+edition. Chapter numbers are unique positive whole numbers; they need not be
+consecutive. A translation may omit chapter numbers, or repeat the English
+number. Empty stories, chapters and beats, and English paragraphs without any
+spoken letters or digits, fail before speech preparation.
+
+| Heading | Functional attributes |
+|---|---|
+| English video | `title`, `subtitle`, `fps`, `width`, `height`, `locale`, `captionWidth`, and the pacing attributes below |
+| English chapter | `number`, `target`, `summary`, `sources` |
+| English beat | `kind`, `diagram`, `graph`, `focus`, `sources`, `hold` |
+| Translated video | `title`, `subtitle`, `locale`, `glossary`, `captionWidth` |
+| Translated chapter | `number`, `summary` |
+| Translated beat | Text and ID; visual settings come from English |
+
+The English video declares `fps`, `width` and `height`. FPS is a positive whole
+number; dimensions use the CLI's even-size limits, 2 through 8192. All numeric
+input must be finite; `locale` is `en` or `zh-CN`. `target`, `hold` and pacing values are nonnegative; zero
+target adds no budget pauses, and zero hold adds no extra hold. Seconds must fit
+the timeline's 64-bit frame representation at its FPS. Cue term numbers and
+record indices are nonnegative whole numbers, without fractional truncation.
+These checks do not clamp investigation values to dock slider ranges.
+
+`captionWidth` is a whole number, at least 4 English characters or 3 Chinese
+display units, within the platform's integer index range. The checker also
+rejects widths that cannot fit an indivisible token from the actual captions,
+before caption splitting or audio preparation can fail or stall.
+
+Repeated heading attributes are errors, including metadata. Unknown names get
+a spelling suggestion where available. The archival fields `engineVersion`,
+`commit` and `date` remain registered metadata; custom annotations use `meta.*`
+(for example `meta.review=approved`). They are retained on the parsed heading
+record and do not affect timing. Cue attributes keep their existing source
+order: a later baseline override still replaces an earlier value.
 
 `--json` writes a versioned `renderLabStoryCheck: 1` report on stdout and exits
 nonzero on an error. Diagnostics include a stable code, severity, field and
 message, beat/paragraph/piece where known, and the complete available source
 range. A container without its own IR location reports an explicit fallback;
 missing columns are left unknown. The checker stops at the first failure.
+Duplicate declarations also include the first location in `related`; heading
+locations refer to the positioned heading text because IR has no attribute spans.
 Older host compilation failures may supply only a rendered diagnostic; the
 report then preserves that message and identifies its location as a fallback.
 
@@ -112,7 +150,7 @@ changes between captures; changing the host is expected. Comparison exits nonzer
 Run the gate in CI where its builds and narration cache are available. Test the gate itself with:
 
 ```sh
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py tools/video/test_preflight.py
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py tools/video/test_preflight.py tools/video/test_structure.py
 ```
 
 This gate proves real-document compilation and preparation compatibility, including script hook discovery. It
