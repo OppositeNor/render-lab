@@ -1,0 +1,28 @@
+The SSR investigation's animations
+==================================
+
+The viewer's Play animation of each demonstration (its file's `animation`): the values at the demonstration's
+time `t`, in seconds, each a sine wave about its centre (`wave center amplitude period t`).
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_ssr_values]
+
+The floor from a mirror to the roughness where SSR stops.
+$[# playRoom {: {^ {t} {' {setFloorRoughness {wave 0.35 0.35 14.0 t}}}} Animation}]
+
+The ray's iterations, one after another.
+$[# playTrace {: {^ {t} {' {setTraceStep {wave 16.0 16.0 16.0 t}}}} Animation}]
+
+The picked pixel moves across the floor.
+$[# playInputs {: {^ {t} {' {setPickX {wave 255.0 120.0 16.0 t}}}} Animation}]
+
+The Hi-Z pyramid's levels, one after another.
+$[# playPyramid {: {^ {t} {' {setHizLevel {wave 4.5 4.5 16.0 t}}}} Animation}]
+
+The fade out at the screen's edge widens and narrows.
+$[# playHit {: {^ {t} {' {setSsrFadeOut {wave 2.5 1.5 14.0 t}}}} Animation}]
+
+The floor's roughness, so the reflection blurs and sharpens.
+$[# playBlur {: {^ {t} {' {setFloorRoughness {wave 0.35 0.33 14.0 t}}}} Animation}]
+
+The composition's steps, one after another.
+$[# playCompose {: {^ {t} {' {setSsrComposeStep {wave 1.5 1.5 12.0 t}}}} Animation}]

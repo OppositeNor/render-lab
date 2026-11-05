@@ -7,6 +7,8 @@ hint-text = "hints.hit_demo"
 scene = "render_lab.scene/study-room"
 listing = "validate"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playHit"
 include = ["room-camera"]
 
 [params]

@@ -507,9 +507,11 @@ engines, `lab/src/script/mod.rs` and `runtime.rs`). Each stage below is one comm
    new runtime native, the frame's viewport in pixels), checked in their selftests against the Rust they replace at
    41 x 41 points; `Investigation::click` stays a stub returning false in each (the trait requires it), as in SDFGI.
    No general `rl.project` was needed.
-2. **Play animations (milestone 4).** SSR's, VoxelGI's, and SDFGI's `Investigation::animation` (each a
-   `shot::demo_animation` table of waves) become `Animation` hooks in a `script/animations.lam` per package, as
-   O3DE's did; the selftests compare the values set at a grid of `t` with the Rust before it goes.
+2. **Play animations (milestone 4).** Done (2026-11-05): SSR's, VoxelGI's, and SDFGI's Play animations are
+   `Animation` hooks in their `script/animations.lam`, named by each demonstration's file; `Investigation::animation`
+   is the trait's default in each. Their selftests compare the scripts with the old Rust waves (kept there as the
+   reference) at 81 times of every demonstration, within 1e-4. SDFGI's walk writes its `cameraX` by key: its values
+   package names `setCameraX` after the orbit camera's `camera.x`.
 3. **Overlays (milestone 5).** O3DE's culling tiles, cascades, decal boxes, and SSAO samples stay native: they are
    camera and tile geometry, not layout around native data (the rule above). SSR's, VoxelGI's, and SDFGI's
    `build_frame` drawing moves where it is layout (arrows, labels, markers around computed points), one package per

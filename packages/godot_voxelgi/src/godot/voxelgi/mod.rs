@@ -39,7 +39,7 @@ use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
 use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
-use lab::shot::{DemoId, PanelMode, ShotState};
+use lab::shot::{PanelMode, ShotState};
 use lab::sources::SourceIndex;
 use lab::utility::inset::ImageSpec;
 use glam::Vec2;
@@ -138,10 +138,6 @@ impl Investigation for VoxelGi {
         state.camera.yaw += 3.0 * t;
         state.camera = lab::shot::camera_drift(state.camera, 0.0, t, 1.0);
         Some(state)
-    }
-
-    fn animation(&self, demo: DemoId, t: f32) -> Vec<(&'static str, f32)> {
-        shot::demo_animation(Demo::of(demo), t)
     }
 
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {

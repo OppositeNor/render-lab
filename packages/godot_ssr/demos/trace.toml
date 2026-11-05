@@ -7,6 +7,8 @@ hint-text = "hints.trace_demo"
 scene = "render_lab.scene/study-room"
 listing = "trace"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playTrace"
 include = ["room-camera"]
 
 [params]

@@ -14,7 +14,7 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                  src/lib.rs         `mod <engine>;`, investigations(), and lab::negotiate!(<package>_negotiate, …)
                  src/<engine>/mod.rs              pub static ENGINE: Engine { id, name, summary }; pub mod <feature>;
                  src/<engine>/<feature>/mod.rs    the Investigation impl, Wording, `package()` → "<package>"
-                       shot.rs      Demo enum, demos() (Demos::load("<package>")), for_demo, play_clip, demo_animation
+                       shot.rs      Demo enum, demos() (Demos::load("<package>")), for_demo (Play animations: script/animations.lam)
                        demos.rs     build_frame: what each shot shows
                        controls.rs  the dock's sliders and toggles
                        selftest.rs  the verification suite (lab::utility::selftest: Report, still_timeline,

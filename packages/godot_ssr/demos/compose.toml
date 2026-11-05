@@ -7,6 +7,8 @@ hint-text = "hints.compose_demo"
 scene = "render_lab.scene/study-room"
 listing = "compose"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playCompose"
 include = ["room-camera"]
 
 [params]

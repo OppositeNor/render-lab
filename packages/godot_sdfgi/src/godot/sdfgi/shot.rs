@@ -1,8 +1,7 @@
 //! The demonstrations of the SDFGI investigation: their files (what each shows
 //! by default, in demos/, and every value the dock may set, in values.rs;
-//! lab/src/demo.rs reads them), and the viewer's Play animations.
+//! lab/src/demo.rs reads them); the viewer's Play animations are script/animations.lam.
 
-use lab::animation::{Clip, Motion, Wave};
 use lab::demo::Demos;
 use lab::shot::{DemoId, ShotState};
 
@@ -59,25 +58,3 @@ pub fn for_demo(demo: Demo) -> ShotState {
     demos().shot_state(demo.id())
 }
 
-/// The viewer's Play animation of a demonstration: looping motions that sweep
-/// what it is about.
-pub fn play_clip(demo: Demo) -> Clip {
-    let wave = |param: &str, center: f32, amplitude: f32, period: f32| Motion::Wave(Wave::new(param, center, amplitude, period));
-    Clip(match demo {
-        Demo::Room => vec![wave("sdfgiMix", 0.5, 0.5, 10.0)],
-        // The camera walks along x, so cascade 0 jumps one probe each 1.6 m.
-        Demo::Cascades | Demo::Regions => vec![wave("cameraX", 0.0, 4.0, 20.0)],
-        Demo::Voxels => vec![wave("cutHeight", 2.0, 2.0, 12.0)],
-        Demo::Field => vec![wave("sliceHeight", 1.2, 1.0, 14.0)],
-        Demo::Occlusion => vec![wave("occlusionShell", 11.0, 11.0, 12.0)],
-        Demo::Light => vec![wave("lightX", 0.0, 2.6, 14.0)],
-        Demo::Probes => vec![wave("rayFrames", 15.0, 15.0, 16.0)],
-        Demo::Maps => vec![wave("frames", 30.0, 30.0, 16.0)],
-        Demo::Pixel => vec![wave("pixelZ", 0.0, 2.6, 16.0)],
-    })
-}
-
-/// The viewer's Play animation: parameter values `t` seconds after it started.
-pub fn demo_animation(demo: Demo, t: f32) -> Vec<(&'static str, f32)> {
-    lab::utility::demo::animation(demos(), &play_clip(demo), t)
-}

@@ -319,3 +319,10 @@ id = "script/logic"
 kind = "file"
 source = "script/logic.lam"
 license = "MIT"
+
+# Its Play animations (script/animations.lam, lab/src/script/runtime.rs), named by the demonstrations' files.
+[[resource]]
+id = "script/animations"
+kind = "file"
+source = "script/animations.lam"
+license = "MIT"

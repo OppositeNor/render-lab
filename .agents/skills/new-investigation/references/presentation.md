@@ -7,14 +7,14 @@ hooks written as Lamlet scripts instead of Rust).
 
 ## The Play animation
 
-A demonstration's Play animation is a `Clip` (`lab/src/animation.rs`) of looping motions: a `Wave` (a sine about a
-centre), an `Orbit` (a point turned about a centre; a `pingPong` of `Ease::Sine` swings it back and forth), or a `Path`
-through waypoints (`closed` with `Repeat::Loop` goes round). `play_clip(demo)` builds it, and
-`demo_animation(demo, t) -> Vec<(param, value)>` samples it `t` seconds after Play for the trait's `animation`
-(`lab::utility::demo::animation(demos(), &play_clip(demo), t)`). The viewer adds the camera's slow sway, the sliders
-follow, and stopping leaves the values in them. Sweep the parameter the demonstration is about (O3DE: the light circles
-the room; roughness sweeps through the cubemap's mips). `backdrop(t)` can reuse it for the homepage's scene. A
-demonstration's file may also name a script animation (`animation = "playSurface"`), applied after the code's.
+A demonstration's Play animation is a script's `Animation` hook (`render-lab-lamlet`), named by the demonstration's
+file (`animation = "playRoom"`): the values `t` seconds after Play, as Writes, usually a sine about a centre each
+(`{setFloorRoughness {wave 0.35 0.35 14.0 t}}`, `packages/godot_ssr/script/animations.lam`); every public package's
+are in its `script/animations.lam`. The viewer adds the camera's slow sway, the sliders follow, and stopping leaves the
+values in them. Sweep the parameter the demonstration is about (O3DE: the light circles the room; roughness sweeps
+through the cubemap's mips). A motion a script cannot express stays in the code: a `Clip` (`lab/src/animation.rs`) of
+looping motions (a `Wave`, an `Orbit`, a `Path`) sampled for the trait's `animation`
+(`lab::utility::demo::animation(demos(), &clip, t)`), to which the script's is applied after.
 
 ## Actions
 

@@ -7,6 +7,8 @@ hint-text = "investigation.demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "screen-pass"
 resets-camera = true
+# Its Play animation (script/animations.lam).
+animation = "playPixel"
 include = ["wall-camera"]
 
 [params]
