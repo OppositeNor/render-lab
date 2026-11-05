@@ -15,7 +15,7 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from config import LAB, Config, Environment, log, run
+from config import LAB, Config, Environment, log, run, source_key, source_text
 import diagrams
 import frame_graph
 import presentation
@@ -313,7 +313,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             if presentation.is_card(beat):
                 for key in beat.get('sources', []):
                     entry = index['entries'][key]
-                    inspect = entry.get('inspectZh', entry['inspect']) if cfg.zh() else entry['inspect']
+                    inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
                     lines.append(f'- {source_link(cfg, doc_dir, index, key)} — `{entry["path"].rsplit("/", 1)[-1]}` {w["line"].format(line=entry["line"])}: {inspect}')
                 lines.append('')
         lines += [w['sources'] + w['sep'].join(source_link(cfg, doc_dir, index, k) for k in chapter['sources']) + '.', '']
@@ -348,12 +348,12 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
         lines.append(f'{i}. {source_link(cfg, doc_dir, index, key)} · `{entry["path"].rsplit("/", 1)[-1]}`')
     lines.append('')
     for chapter in index['chapters']:
-        title = chapter.get('titleZh', chapter['title']) if cfg.zh() else chapter['title']
+        title = source_text(cfg, f'chapter-{chapter["number"]}-title', chapter['title'])
         lines += [f'## {chapter["number"]}. {title}', '', w['table'], '|---|---|---:|---|']
         for key in chapter['reading']:
             entry = index['entries'][key]
-            inspect = entry.get('inspectZh', entry['inspect']) if cfg.zh() else entry['inspect']
-            notes = [(d['line'], d.get('noteZh', d['note']) if cfg.zh() else d['note']) for d in entry.get('details', [])]
+            inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
+            notes = [(d['line'], source_text(cfg, f'entry-{key}-detail-{n}', d['note'])) for n, d in enumerate(entry.get('details', []), 1)]
             if notes:
                 inspect += ' (' + '; '.join(w['line'].format(line=line) + ': ' + note for line, note in notes) + ')'
             file_link = f'`{entry["path"]}`'
@@ -362,7 +362,7 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     if index.get('mappings'):
         lines += [f'## {w["mappings"]}', '', w['mappingTable'], '|---|---|---|---|---|']
         for m in index['mappings']:
-            name, exact, lab = (m.get('engineNameZh', m['engineName']), m.get('exactZh', m['exact']), m.get('labLayoutZh', m['labLayout'])) if cfg.zh() else (m['engineName'], m['exact'], m['labLayout'])
+            name, exact, lab = (source_text(cfg, f'mapping-{source_key(m["lab"])}-{field}', m[english]) for field, english in (('engine-name', 'engineName'), ('exact', 'exact'), ('lab-layout', 'labLayout')))
             cited = ', '.join(source_link(cfg, doc_dir, index, key) for key in m['sources'])
             lines.append(f'| `{m["lab"]}` | {name} ({cited}) | {m["relationship"]} | {exact} | {lab} |')
         lines.append('')

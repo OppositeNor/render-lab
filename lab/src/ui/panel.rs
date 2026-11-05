@@ -355,7 +355,7 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
         let path = ink.fit_left(&format!("{}:{}", entry.path, entry.line), width, 24.0, FontFamily::Monospace);
         ink.text(pos2(x, y), Align2::LEFT_TOP, path, 24.0, FontFamily::Monospace, palette::text());
         y += 32.0;
-        y = ink.wrapped(pos2(x, y), width, entry.inspect_text(), 24.0, FontFamily::Proportional, palette::text_dim()) + 22.0;
+        y = ink.wrapped(pos2(x, y), width, entry.inspect_text(key), 24.0, FontFamily::Proportional, palette::text_dim()) + 22.0;
     }
 }
 

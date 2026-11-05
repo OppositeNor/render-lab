@@ -135,12 +135,6 @@ pub fn current() -> Locale {
     Locale(CURRENT.load(Ordering::Relaxed))
 }
 
-/// Whether the current locale is Chinese: what a source index's own `…Zh`
-/// translations (src/sources.rs, written by each investigation's
-/// source_index.py) are shown for.
-pub fn zh() -> bool {
-    current().code() == "zh-CN"
-}
 
 /// One layer's on-screen text: a Fluent file for each registered locale
 /// (`text/en.ftl`, `text/zh-CN.ftl`, … of the layer's package, the resources
@@ -333,8 +327,10 @@ pub fn report() -> Vec<serde_json::Value> {
             let missing: Vec<&str> = keys.iter().copied().filter(|k| !table.has_own(locale, k)).collect();
             let same: Vec<&str> = if locale == Locale::EN { Vec::new() } else { keys.iter().zip(&english).filter(|(k, en)| table.has_own(locale, k) && table.get(k) == **en).map(|(k, _)| *k).collect() };
             let mut unglyphed: Vec<(char, &str)> = Vec::new();
-            for key in &keys {
-                let text = table.get(key);
+            // The package's own texts, then its source table's (src/sources.rs), in this locale.
+            let sources: Vec<(&'static str, &'static str)> = if locale == Locale::EN { Vec::new() } else { source_table(package, locale).map_or_else(Vec::new, |t| t.plain.iter().map(|(k, v)| (k.as_str(), *v)).collect()) };
+            let texts: Vec<(&str, &str)> = keys.iter().map(|k| (*k, table.get(k))).chain(sources.iter().copied()).collect();
+            for (key, text) in texts {
                 let plain: String = crate::rich_text::parse(text).unwrap_or_default().into_iter().filter_map(|r| match r {
                     crate::rich_text::Run::Text(t) | crate::rich_text::Run::Code(t) => Some(t),
                     crate::rich_text::Run::Formula { .. } => None,
@@ -355,6 +351,7 @@ pub fn report() -> Vec<serde_json::Value> {
                 "missing": missing,
                 "sameAsEnglish": same.len(),
                 "sameAsEnglishKeys": same,
+                "sourceTexts": sources.len(),
                 "unglyphed": unglyphed.iter().map(|(c, k)| serde_json::json!({"char": c.to_string(), "codepoint": format!("U+{:04X}", *c as u32), "key": k})).collect::<Vec<_>>(),
                 "problems": problems,
             }));
@@ -362,6 +359,41 @@ pub fn report() -> Vec<serde_json::Value> {
     }
     set(saved);
     out
+}
+
+/// The current locale's translation of a text of `package`'s source index
+/// (src/sources.rs): its `text/sources/<code>.ftl`, the resource
+/// `<package>.sources/<code in lower case>`, along the locale's fallback chain;
+/// None in English, which is the index's own, or when no table has the key.
+pub fn source_text(package: &str, key: &str) -> Option<&'static str> {
+    current().chain().filter(|&i| i != 0).find_map(|i| source_table(package, Locale(i as u8)).and_then(|t| t.plain.get(key).copied()))
+}
+
+/// Every source text of `package` in the current locale's chain (first found
+/// wins), sorted by key; empty in English.
+pub fn source_texts(package: &str) -> Vec<(&'static str, &'static str)> {
+    let mut out: std::collections::BTreeMap<&'static str, &'static str> = std::collections::BTreeMap::new();
+    for i in current().chain().filter(|&i| i != 0) {
+        if let Some(t) = source_table(package, Locale(i as u8)) {
+            for (k, v) in &t.plain {
+                out.entry(k.as_str()).or_insert(v);
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// A package's source table in `locale`, read once (None without one).
+fn source_table(package: &str, locale: Locale) -> Option<&'static Texts> {
+    static TABLES: std::sync::Mutex<Vec<((String, Locale), Option<&'static Texts>)>> = std::sync::Mutex::new(Vec::new());
+    let mut tables = TABLES.lock().unwrap();
+    if let Some((_, t)) = tables.iter().find(|(k, _)| k.0 == package && k.1 == locale) {
+        return *t;
+    }
+    let id = format!("{package}.sources/{}", locale.code().to_lowercase());
+    let table = resources::find(&id).map(|r| &*Box::leak(Box::new(load(&id, r.text(), locale.code()))));
+    tables.push(((package.to_string(), locale), table));
+    table
 }
 
 /// `package_text`, or None when the package's table has no such key.

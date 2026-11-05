@@ -12,6 +12,7 @@ from __future__ import annotations
 import functools
 import json
 import os
+import re
 import subprocess
 import tomllib
 from dataclasses import dataclass, field
@@ -207,6 +208,26 @@ class Config:
 
 # The engines' sources, once given (Config.checkout).
 CHECKOUTS: dict[str, Path] = {}
+
+
+@functools.cache
+def source_texts(package: str, lang: str) -> dict[str, str]:
+    """A package's source index's text in one language (its `text/sources/<lang>.ftl`, `render-lab text
+    --sources`): key → text; empty in English, which is the index's own."""
+    import lamlet
+    return json.loads(lamlet.lab('text', package, '--locale', lang, '--sources'))
+
+
+def source_key(name: str) -> str:
+    """A mapping's lab name as a source table key (lab/check `source_key`): what is not a letter, a digit, `_`, or
+    `-` becomes `-`, once per run, none at the ends."""
+    return re.sub(r'-+', '-', re.sub(r'[^A-Za-z0-9_-]', '-', name)).strip('-')
+
+
+def source_text(cfg: 'Config', key: str, english: str) -> str:
+    """A text of the edition's source index (`entry-<key>-inspect`, `chapter-<n>-title`, …) in its language,
+    else the index's English."""
+    return source_texts(cfg.package.name, cfg.lang).get(key, english)
 
 
 @functools.cache

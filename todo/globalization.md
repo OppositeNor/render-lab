@@ -1,4 +1,4 @@
-# Globalization backend (2026-11-05: stages 1–5, 7, 8 and part of 6 done)
+# Globalization backend (done 2026-11-05)
 
 The lab's on-screen text moves to Project Fluent: each package's text tables become `text/<locale>.ftl`, read through
 `fluent-bundle`, and the lab's rich text (formulas and code names inside a string) becomes Fluent function
@@ -65,9 +65,14 @@ numbers); every edition's prepared outputs equal to cb757d1's after the key rena
 of cb757d1 and the change equal, or different only where two runs of cb757d1 differ too (GPU and CPU timings, viewport
 noise, the config page's checkout path).
 
-Left: the source indexes' own translations (`inspectZh`, `noteZh`, `engineNameZh`, `exactZh`, `labLayoutZh`, written
-by each investigation's `source_index.py` from the engine's checkout). Moving them into the tables changes those
-generators and needs each engine's source to regenerate the indexes; `i18n::zh()` remains for them alone.
+Source indexes (done later the same day): the index stays English, written by each `source_index.py` from the
+engine's checkout; its other languages are the package's `text/sources/<locale>.ftl` (resource `sources/<locale>`),
+keyed `entry-<key>-inspect`, `entry-<key>-detail-<n>`, `chapter-<n>-title`, `mapping-<lab>-engine-name|exact|lab-layout`.
+The generators no longer hold Chinese; regenerated from the checkouts, each index equals the old one without its
+`…Zh` fields, and every translation reads back unchanged. `lab/check` requires a complete language's source table to
+cover the index exactly; `render-lab text --sources` and `render-lab i18n` read them; `i18n::zh()` is gone.
+
+Kept as decided: a narration's translation stays in its own storyboard (`video/storyboard.<locale>.lam`).
 
 ## Stages (each a local commit; never pushed)
 

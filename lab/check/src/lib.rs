@@ -431,6 +431,68 @@ fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
     }
 }
 
+/// A mapping's lab name as a key: what is not a letter, a digit, `_`, or `-`
+/// becomes `-`, once per run, none at the ends (`PointLight / PointLightSample`
+/// is `PointLight-PointLightSample`). tools/video/config.py writes it the same way.
+fn source_key(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.chars() {
+        let c = if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '-' };
+        if !(c == '-' && out.ends_with('-')) {
+            out.push(c);
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
+/// What a source index's other languages translate (lab/src/sources.rs): each
+/// entry's `inspect` and details, each chapter's title, and each mapping's
+/// engine name, exact layout, and lab layout, as their keys.
+fn source_keys(index: &serde_json::Value) -> Vec<String> {
+    let mut keys = Vec::new();
+    for (key, entry) in index["entries"].as_object().into_iter().flatten() {
+        keys.push(format!("entry-{key}-inspect"));
+        for n in 1..=entry["details"].as_array().map_or(0, Vec::len) {
+            keys.push(format!("entry-{key}-detail-{n}"));
+        }
+    }
+    for chapter in index["chapters"].as_array().into_iter().flatten() {
+        keys.push(format!("chapter-{}-title", chapter["number"]));
+    }
+    for mapping in index["mappings"].as_array().into_iter().flatten() {
+        let lab = source_key(mapping["lab"].as_str().unwrap_or_default());
+        keys.extend(["engine-name", "exact", "lab-layout"].map(|f| format!("mapping-{lab}-{f}")));
+    }
+    keys
+}
+
+/// Every source table (`text/sources/<locale>.ftl`) translates only what the
+/// source index has, without variables, and a complete locale's all of it.
+fn check_source_tables(locales: &[(String, bool)], module_dir: &Path) {
+    let index_path = module_dir.join("source-index.json");
+    println!("cargo:rerun-if-changed={}", index_path.display());
+    let Ok(text) = fs::read_to_string(&index_path) else { return };
+    let index: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", index_path.display()));
+    let expected = source_keys(&index);
+    for (locale, complete) in locales.iter().skip(1) {
+        let path = module_dir.join(format!("text/sources/{locale}.ftl"));
+        if !path.is_file() {
+            assert!(!complete, "{}: no source table for {locale}, a complete locale", path.display());
+            continue;
+        }
+        let table = read_table(&path);
+        for (key, message) in &table {
+            assert!(expected.contains(key), "{}: {key} translates nothing in source-index.json", path.display());
+            assert!(message.variables.is_empty(), "{}: {key} names variables; a source text has none", path.display());
+        }
+        if *complete {
+            for key in &expected {
+                assert!(table.iter().any(|(k, _)| k == key), "{}: no {key}", path.display());
+            }
+        }
+    }
+}
+
 /// Checks the package in `module_dir` (a directory of a packages directory):
 /// its shaders, and, if it has text tables, them against the keys its code
 /// (the `.rs` files under `code`) and its data (`-text` fields of the TOML
@@ -439,7 +501,9 @@ pub fn check_package(module_dir: &Path, code: &Path) {
     let packages = find_packages(module_dir);
     let name = packages[0].name.clone();
     if module_dir.join("text/en.ftl").is_file() {
-        check_text(&locales(module_dir), &[(module_dir.join("text"), vec![code.to_path_buf(), module_dir.to_path_buf()])]);
+        let locales = locales(module_dir);
+        check_text(&locales, &[(module_dir.join("text"), vec![code.to_path_buf(), module_dir.to_path_buf()])]);
+        check_source_tables(&locales, module_dir);
     }
     check_shaders(&packages, &name);
 }
