@@ -168,6 +168,16 @@ def main() -> None:
     log(f'Narration device: {device} ({reason}).')
     durations = narration.synthesize(cfg, env, device, timing.all_sentences(board), cached_only=args.cached_audio_only)
     tl, placements, cues, plans = timing.build_timeline(board, durations, cfg)
+    # The budgets, now that speech is measured and before anything is written or rendered: a chapter more than
+    # BUDGET_TOLERANCE from its budget would fail the video's verification after the render.
+    budget = timing.budget_rows(tl, board, plans)
+    for r in budget:
+        over = f', narration alone over by {r["over"]:.1f} s' if r['over'] > 0 else ''
+        log(f'  {r["chapter"]:02d} {r["title"]}: {r["seconds"]:.1f} s (budget {r["target"]}, natural {r["natural"]:.1f}{over})')
+    outside = [r for r in budget if not r['within']]
+    if outside:
+        raise SystemExit('chapters outside their budget by more than {:.0%}: {}'.format(timing.BUDGET_TOLERANCE, '; '.join(
+            f'{r["chapter"]:02d} {r["seconds"]:.1f} s for {r["target"]} s ({r["deviation"]:+.1%}, natural {r["natural"]:.1f} s)' for r in outside)))
     provenance = preflight.check_timeline(cfg, tl)
     cfg.timeline_dir().mkdir(parents=True, exist_ok=True)
     cfg.timeline().write_text(json.dumps(tl, indent=1, ensure_ascii=False) + '\n')
@@ -178,9 +188,6 @@ def main() -> None:
         # The lab typesets them; check each against its limits before anything is rendered.
         run([binary, 'formulas', '--check', cfg.timeline()], build / 'logs' / 'formulas.log')
         log('Formulas: each typesets within the lab\'s limits.')
-    for c, b in zip(tl['chapters'], board['chapters']):
-        notices = tl.get('noticeFrames', 0) if c is tl['chapters'][-1] else 0
-        log(f'  {c["number"]:02d} {c["title"]}: {(c["endFrame"] - c["startFrame"] - notices) / tl["fps"]:.1f} s (budget {b["targetSeconds"]}, natural {plans[c["number"]]["natural"]:.1f})')
     outputs.write_audio(cfg, placements, tl['totalFrames'], tl['fps'])
     outputs.write_captions(cfg, cues)
     outputs.write_chapters(cfg, board, tl)

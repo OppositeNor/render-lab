@@ -187,6 +187,17 @@ class Structure(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostic['code'], 'story.caption.width')
         self.assertEqual(caught.exception.diagnostic['line'], translated['beats']['b']['narration'][0]['source']['line'])
 
+    def test_a_sentence_count_mismatch_shows_both_sides_with_their_lines(self) -> None:
+        translated = self.load(TRANSLATION.replace('正文。', '正文。\n\n多出的一句。'), True)
+        with self.assertRaises(RuntimeError) as caught:
+            zh.localize(self.load(STORY), translated)
+        message = str(caught.exception)
+        self.assertIn('has 2 sentences, the storyboard 1', message)
+        self.assertIn('en ', message)
+        self.assertIn('多出的一句', message)
+        self.assertIn('(none)', message)
+        self.assertRegex(message, r'story\.lam:6: A sentence')
+
     def test_zero_budget_hold_and_pacing_preserve_existing_meanings(self) -> None:
         zeros = 'lead=0 gap=0 tail=0 maxExtraPause=0 taggedWeight=0 termFade=0 captionBridge=0'
         board = self.load(STORY.replace('target=10', 'target=0').replace('kind=3d', 'kind=3d hold=0').replace('fps=30', f'fps=30 {zeros}'))
@@ -288,3 +299,19 @@ class Numbers(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Budget(unittest.TestCase):
+    def test_budget_rows_report_the_narration_over_budget_and_the_tolerance(self) -> None:
+        import timeline
+        tl: Json = {'fps': 10, 'noticeFrames': 20, 'chapters': [
+            {'number': 1, 'title': 'A', 'startFrame': 0, 'endFrame': 1000},
+            {'number': 2, 'title': 'B', 'startFrame': 1000, 'endFrame': 2420}]}
+        board: Json = {'chapters': [{'targetSeconds': 100.0}, {'targetSeconds': 100.0}]}
+        plans = {1: {'natural': 80.0, 'extraPauses': 20.0}, 2: {'natural': 121.0, 'extraPauses': 0.0}}
+        a, b = timeline.budget_rows(tl, board, plans)
+        self.assertEqual((a['seconds'], a['over'], a['within']), (100.0, 0.0, True))
+        # The notices card is left out of the last chapter: 140 s of 142.
+        self.assertEqual(b['seconds'], 140.0)
+        self.assertAlmostEqual(b['over'], 21.0)
+        self.assertFalse(b['within'])

@@ -115,6 +115,30 @@ def plan_chapter(chapter: Json, durations: Durations, pacing: Pacing) -> tuple[f
     return natural, extras, deficit - sum(extras)
 
 
+BUDGET_TOLERANCE = 0.10   # how far a chapter's length may be from its budget, as a fraction of it
+
+
+def budget_rows(timeline: Json, board: Board, plans: dict[int, Json]) -> list[Json]:
+    """Each chapter's length against its budget, once its speech is measured: the
+    budget, the natural length (speech and pacing alone), the extra pauses the
+    budget added, how far the narration alone runs over the budget, and whether
+    the chapter is within `BUDGET_TOLERANCE` of it (as verify.py requires of the
+    video). The closing notices card is not the last chapter's."""
+    rows: list[Json] = []
+    fps = timeline['fps']
+    for c, b in zip(timeline['chapters'], board['chapters']):
+        notices = timeline.get('noticeFrames', 0) if c is timeline['chapters'][-1] else 0
+        seconds = (c['endFrame'] - c['startFrame'] - notices) / fps
+        target = b['targetSeconds']
+        plan = plans.get(c['number'], {})
+        natural = plan.get('natural', 0.0)
+        deviation = (seconds - target) / target
+        rows.append({'chapter': c['number'], 'title': c['title'], 'seconds': seconds, 'target': target, 'natural': natural,
+                     'extraPauses': plan.get('extraPauses', 0.0), 'over': max(0.0, natural - target),
+                     'deviation': deviation, 'within': abs(deviation) <= BUDGET_TOLERANCE})
+    return rows
+
+
 def motion_seconds(motion: Json, frame: int, ends: dict[str, int], fps: int, source: str) -> Json:
     """A motion (src/lab/animation.rs) with its `seconds` in seconds: `"sentence"`
     or `"beat"` runs it from its key to the end of the sentence or the beat."""

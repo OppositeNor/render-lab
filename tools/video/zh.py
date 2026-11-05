@@ -18,6 +18,24 @@ CAPTION_UNITS = 64          # display units per caption line (a Chinese characte
 Board = dict[str, Any]
 
 
+def _at(sentence: dict[str, Any]) -> str:
+    source = sentence.get('source') or {}
+    return f'{source.get("file", "?")}:{source.get("line", "?")}'
+
+
+def alignment(english: list[dict[str, Any]], translated: list[dict[str, Any]]) -> str:
+    """Both sides of a beat, sentence by sentence, with where each is, so a
+    sentence split or merged on one side is found by reading down the rows."""
+    rows = []
+    for i in range(max(len(english), len(translated))):
+        en = english[i] if i < len(english) else None
+        zh = translated[i] if i < len(translated) else None
+        en_text = markup.readable(markup.sentence(en).caption) if en else '(none)'
+        zh_text = markup.readable(zh['shown'].caption) if zh else '(none)'
+        rows.append(f'  {i + 1:>2}. en {_at(en) if en else "-"}: {en_text[:90]}\n      zh {_at(zh) if zh else "-"}: {zh_text[:90]}')
+    return '\n'.join(rows)
+
+
 def localize(board: Board, translation: dict[str, Any]) -> Board:
     """The storyboard with Chinese text in place of the English. Sentences
     are matched one to one, so every shot key stays on its sentence; each
@@ -44,7 +62,8 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
                 raise RuntimeError(f'translation: no entry for beat {beat["id"]}')
             sentences = beat['narration']
             if len(t['narration']) != len(sentences):
-                raise RuntimeError(f'translation: beat {beat["id"]} has {len(t["narration"])} sentences, the storyboard {len(sentences)}')
+                raise RuntimeError(f'translation: beat {beat["id"]} has {len(t["narration"])} sentences, the storyboard {len(sentences)}\n'
+                                   + alignment(sentences, t['narration']))
             beat['headlineEn'], beat['headline'] = beat['headline'], t['headline']
             narration = []
             for s, translated in zip(sentences, t['narration']):
