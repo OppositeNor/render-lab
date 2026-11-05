@@ -9,7 +9,7 @@ listing = "voxelize"
 resets-camera = true
 # Its Play animation (script/animations.lam).
 animation = "playVoxels"
-include = ["room-camera"]
+include = ["render_lab.demo-preset/room-camera"]
 
 [params]
 voxels = 1.0

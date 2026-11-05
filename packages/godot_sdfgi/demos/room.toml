@@ -9,4 +9,4 @@ listing = "frame"
 resets-camera = true
 # Its Play animation (script/animations.lam).
 animation = "playMix"
-include = ["room-camera"]
+include = ["render_lab.demo-preset/room-camera"]

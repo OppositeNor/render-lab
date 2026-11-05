@@ -17,7 +17,9 @@
 //! not translated); `hint-text` for the status line; the `scene` it shows (a
 //! scene the lab's package exports, `render_lab.scene/study-room`); the
 //! `listing` its Code tab opens; `resets-camera` (Reset parameters also
-//! resets the camera); `include`, presets applied in order; a `[camera]`
+//! resets the camera); `include`, presets applied in order (the package's by
+//! name, or one an imported package exports by full key,
+//! `render_lab.demo-preset/room-camera`); a `[camera]`
 //! (`target`, `yaw`, `pitch`, `distance`, `fov`); and `[params]`, the values
 //! it changes from the defaults, applied after its presets. A parameter may
 //! name an object of its scene (`inspectObject = "teapot"`) for its index.
@@ -107,7 +109,14 @@ fn apply(prefix: &str, table: &toml_edit::Table, scene: &Scene, defaults: &[Para
         let list = include.as_array().context("`include` is a list of preset names")?;
         for name in list {
             let name = name.as_str().context("`include` is a list of preset names")?;
-            let id = format!("{prefix}.demo-preset/{name}");
+            // A preset of the package by name, or one an imported package exports by full key
+            // (`render_lab.demo-preset/room-camera`).
+            let id = if name.contains('.') {
+                let package = resources::packages().iter().find(|m| m.name == prefix).ok_or_else(|| anyhow!("no package `{prefix}`"))?;
+                packages::resolve(package, resources::packages(), name).map_err(|e| anyhow!("preset {e}"))?
+            } else {
+                format!("{prefix}.demo-preset/{name}")
+            };
             let preset = document(&id)?;
             apply(prefix, preset.as_table(), scene, defaults, camera_out, params).with_context(|| format!("preset `{name}`"))?;
         }

@@ -9,7 +9,7 @@ listing = "direct-light"
 resets-camera = true
 # Its Play animation (script/animations.lam).
 animation = "playLight"
-include = ["room-camera"]
+include = ["render_lab.demo-preset/room-camera"]
 
 [params]
 cellLight = 1.0

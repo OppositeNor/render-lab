@@ -10,7 +10,7 @@ license = "MIT"
 import = []
 # The scenes demonstrations show, the shader modules investigations build on, and the
 # knowledge graph investigations name the nodes of (`render_lab.knowledge#<key>`, lab/src/knowledge.rs).
-export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "knowledge"]
+export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "knowledge", "demo-preset/room-camera"]
 
 # The sky, the teapot, the scenes, and the homepage's sounds and icon.
 [[provides]]

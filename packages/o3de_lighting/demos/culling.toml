@@ -6,7 +6,7 @@ tab-text = "shot.culling"
 hint-text = "investigation.demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "light-culling"
-include = ["room-camera"]
+include = ["render_lab.demo-preset/room-camera"]
 
 [params]
 extraLights = 24.0

@@ -383,11 +383,6 @@ kind = "file"
 source = "demos/presets/close-up.toml"
 license = "MIT"
 
-[[resource]]
-id = "demo-preset/room-camera"
-kind = "file"
-source = "demos/presets/room-camera.toml"
-license = "MIT"
 
 [[resource]]
 id = "demo-preset/sphere-camera"
