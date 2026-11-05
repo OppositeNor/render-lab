@@ -29,6 +29,8 @@ pub struct RecordOptions {
     pub crf: u32,
     pub preset: String,
     pub frames: Option<(u64, u64)>,
+    /// Frames rendered before the range's first and not written (`--warmup`): the history a whole render has there.
+    pub warmup: u64,
     /// Width and height of the frames; None for the timeline's.
     pub resolution: Option<[u32; 2]>,
     pub snapshots: Vec<u64>,
@@ -156,6 +158,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         let buffer = &buffers[slot];
         let data = buffer.slice(..).get_mapped_range().context("mapped readback")?.to_vec();
         buffer.unmap();
+        if frame_index < first {
+            return Ok(());
+        }
         let frame = renderer::unpad_rows(&data, width, height);
         if options.snapshots.contains(&frame_index) {
             if let Some(dir) = &options.snapshot_dir {
@@ -177,7 +182,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         v.dedup();
         v
     } else {
-        (first..last).collect()
+        (first.saturating_sub(options.warmup)..last).collect()
     };
     // The rate so far, from the first frame on, for the progress line's estimate.
     let rendering = std::time::Instant::now();
@@ -209,13 +214,19 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             history: false,
         };
         let result = renderer.render_frame(request, Some(&buffers[slot]));
-        track(&mut summary, f, &result.report, beat.kind);
+        let warming = f < first;
+        if !warming {
+            track(&mut summary, f, &result.report, beat.kind);
+        }
         let (done_tx, done_rx) = mpsc::channel();
         buffers[slot].slice(..).map_async(wgpu::MapMode::Read, move |r| {
             let _ = done_tx.send(r);
         });
         pending.push_back((f, slot, done_rx));
         device.poll(wgpu::PollType::Poll).ok();
+        if warming {
+            continue;
+        }
         summary.frames += 1;
         if options.output.is_some() && (f - first) % progress_every == 0 {
             let done = f - first;

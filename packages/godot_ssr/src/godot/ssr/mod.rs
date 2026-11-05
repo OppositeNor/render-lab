@@ -147,6 +147,8 @@ impl Investigation for Ssr {
         }
         state.set("pickX", (pixel.x / 2.0).floor());
         state.set("pickY", (pixel.y / 2.0).floor());
+        state.set("pickWidth", 0.0);
+        state.set("pickHeight", 0.0);
         true
     }
 

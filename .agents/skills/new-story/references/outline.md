@@ -19,6 +19,10 @@ Write `story/outline.md`:
 - **The tools it needs**: overlays, insets, readouts, step parameters.
 - **The knowledge level** (below): the level the story requires, and for every topic it teaches, the chapter and beats
   that teach it and their seconds.
+- **The listener card**, a few lines every writer and reviewer reads: who listens (the audience's `profile`, and that
+  they hear each sentence once, at speaking speed, and cannot scroll back); the terms they do not know, which the
+  story defines where it first says them (from the knowledge level); and, per chapter, the one question it answers.
+  The narration is written for this listener, clear and in-depth (`references/storyboard.md`, "Written for the ear").
 
 Done when every key claim has its source and its visual, every chapter its budget, and the knowledge level is
 recorded and checked. Then the gate (SKILL.md, "Gates"): the chapters and budgets, before anything is built.

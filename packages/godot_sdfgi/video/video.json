@@ -13,10 +13,7 @@
   },
   "engineLabel": "Godot 4.7.2-stable · ed1daf0b",
   "checkoutEnv": "GODOT_SOURCE_DIR",
-  "durationMinutes": [
-    14,
-    32
-  ],
+  "durationMinutes": [27, 36],
   "readingPath": [
     "frame-order",
     "sdfgi-update",

@@ -1724,7 +1724,16 @@ impl Renderer {
             }
             // The fonts are there from the first pass on.
             if self.egui_ctx.cumulative_pass_nr() == 0 {
-                let _ = self.egui_ctx.run_pass(egui::RawInput::default(), |_| {});
+                let mut warm = self.egui_ctx.run_pass(egui::RawInput::default(), |_| {});
+                // Its texture changes (the font atlas) are uploaded like any pass's.
+                for (id, deltas) in warm.textures_delta.set.drain() {
+                    for delta in &deltas {
+                        self.egui_renderer.update_texture(&self.gpu.device, &self.gpu.queue, id, delta);
+                    }
+                }
+                for id in warm.textures_delta.free.drain() {
+                    self.egui_renderer.free_texture(&id);
+                }
             }
             let width = ui::code_panel_fit(&self.egui_ctx, listing);
             self.code_fit.insert(key, width);

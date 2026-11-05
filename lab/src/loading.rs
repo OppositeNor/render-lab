@@ -111,13 +111,15 @@ impl Screen {
         let mut raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, canvas)), ..Default::default() };
         raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
         text::restyle(&self.ctx);
-        let output = self.ctx.run_pass(raw, |ctx| page(ctx, canvas, title, progress));
+        let mut output = self.ctx.run_pass(raw, |ctx| page(ctx, canvas, title, progress));
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
         let (device, queue) = (&gpu.device, &gpu.queue);
-        for (id, deltas) in &output.textures_delta.set {
-            for delta in deltas {
-                self.renderer.update_texture(device, queue, *id, delta);
+        // Drain the deltas: epaint asserts (in debug builds) that a
+        // TexturesDelta is empty when it is dropped.
+        for (id, deltas) in output.textures_delta.set.drain() {
+            for delta in &deltas {
+                self.renderer.update_texture(device, queue, id, delta);
             }
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("loading") });
@@ -143,8 +145,8 @@ impl Screen {
         }
         commands.push(encoder.finish());
         queue.submit(commands);
-        for id in &output.textures_delta.free {
-            self.renderer.free_texture(id);
+        for id in output.textures_delta.free.drain() {
+            self.renderer.free_texture(&id);
         }
     }
 }

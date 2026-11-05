@@ -105,6 +105,10 @@ enum Command {
         /// Frame range START:END (END exclusive).
         #[arg(long)]
         frames: Option<String>,
+        /// Render this many frames before START without writing them, so a range rendered on its own starts with the
+        /// same history (last frame's image, landed read-backs) as a whole render (a video split into parallel chunks).
+        #[arg(long, default_value_t = 0)]
+        warmup: u64,
         /// Frame size: WIDTHxHEIGHT, or 720p, 1080p, 1440p, 2160p (4k)
         /// (default: the timeline's, 1080p for the storyboards' videos).
         #[arg(long, value_parser = parse_resolution)]
@@ -519,7 +523,7 @@ pub fn main(app: App) -> Result<()> {
             // Silent: the test plays the timeline without its narration.
             viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None, next: false, autoplay: false })
         }
-        Command::Render { timeline, output, frames, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
+        Command::Render { timeline, output, frames, warmup, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             // A frame a script did not draw must not reach a video.
             crate::script::runtime::set_strict(true);
             let frames = frames
@@ -539,6 +543,7 @@ pub fn main(app: App) -> Result<()> {
                 crf,
                 preset,
                 frames,
+                warmup,
                 resolution,
                 snapshots: snapshot,
                 snapshot_dir,

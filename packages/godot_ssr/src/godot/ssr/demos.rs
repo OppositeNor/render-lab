@@ -191,6 +191,15 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
 pub fn picked(state: &ShotState, screen: &cpu::View, objects: &[lab::layout::ObjectData]) -> [i32; 2] {
     let (x, y) = (state.p("pickX"), state.p("pickY"));
     if x >= 0.0 && y >= 0.0 {
+        let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
+        let (rw, rh) = (state.p("pickWidth"), state.p("pickHeight"));
+        // Chosen at another size: the same direction, at this one (the same pixel at that size).
+        let (x, y) = if rw > 0.0 && rh > 0.0 && (rw != w || rh != h) {
+            let ndc = ((x + 0.5) / rw * 2.0 - 1.0) * (rw / rh) / (w / h);
+            (((ndc + 1.0) * 0.5 * w).floor().max(0.0), ((y + 0.5) / rh * h).floor())
+        } else {
+            (x, y)
+        };
         return [(x as i32).min(screen.size[0] as i32 - 1), (y as i32).min(screen.size[1] as i32 - 1)];
     }
     let t = Vec3::from(objects[ids::TEAPOT].world_center);
@@ -771,7 +780,7 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
     rows.push((tr("demos.validity").to_string(), format!("{:.3}", t.validity), palette::SELECTED));
     content.readout = Some(rows_readout(tr_with("demos.hit_title", lab::args!(x = pixel[0], y = pixel[1])), tr("demos.hit_subtitle"), rows));
     // The fade curve over the ray's screen length, 0 to 1, its peak and P's length marked.
-    let (w, h) = (360usize, 180usize);
+    let (w, h) = (360usize, 130usize);
     let mut rgba = chart(w, h);
     let (mut peak, mut at) = (0.0f32, 0.0f32);
     for x in 0..w {
@@ -794,7 +803,7 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
         (tr_with("demos.fade_p", lab::args!(len = format!("{:.2}", t.ray_len), fade = format!("{:.2}", trace::fade(t.ray_len.clamp(0.0, 1.0), fade_in, fade_out)))), palette::REFLECTED),
     ];
     let picture = Picture::Pixels { key: "ssr-fade-chart".into(), size: [w, h], rgba: Arc::new(rgba) };
-    content.insets.push(PictureInset { marker: Some(marker), x_axis: tr("demos.ray_len").to_string(), y_axis: tr("demos.fade_axis").to_string(), lines, ..PictureInset::new(tr("demos.fade_chart"), picture, [360.0, 180.0]) });
+    content.insets.push(PictureInset { marker: Some(marker), x_axis: tr("demos.ray_len").to_string(), y_axis: tr("demos.fade_axis").to_string(), lines, ..PictureInset::new(tr("demos.fade_chart"), picture, [360.0, 130.0]) });
 }
 
 /// P's roughness as a cone, the circle inside it where the ray ends, and the blur level.

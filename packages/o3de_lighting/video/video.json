@@ -13,7 +13,7 @@
   },
   "engineLabel": "O3DE 26.05 · 3db69432",
   "checkoutEnv": "O3DE_SOURCE_DIR",
-  "durationMinutes": [50, 62],
+  "durationMinutes": [62, 78],
   "readingPath": [
     "render-pipeline-path",
     "opaque-pass-order",

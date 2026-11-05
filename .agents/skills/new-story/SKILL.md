@@ -36,6 +36,9 @@ These do not relax for a small change:
 - Every factual sentence is backed by a callout or its chapter's `sources`; numbers about the lab's scene come from the
   lab's code, never typed in.
 - Each sentence has a visual that shows it; a listing highlight changes the scene; a view is explained when it appears.
+- The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), and
+  each changed chapter passes the cold-listener review and the native-language review, one reviewer per language,
+  briefed in its own language (`references/review.md`).
 - The translation keeps one paragraph per English sentence, the same headings and formulas.
 - What is published respects the engine's license and the optional module's boundary (AGENTS.md): research, outlines,
   and reviews of a local package's story stay in that package.
@@ -113,7 +116,8 @@ parameter.
 ### Phase 8: Translate and build
 
 - Write `storyboard.zh-CN.lam`: the same headings, one paragraph per English sentence, the same formulas, no cues
-  (`render-lab-lamlet`, "The translation"). Technical terms stay English; keep its `glossary` of the terms'
+  (`render-lab-lamlet`, "The translation"), each paragraph written as Chinese rather than mirrored from the English
+  (`references/storyboard.md`, "Written for the ear"). Technical terms stay English; keep its `glossary` of the terms'
   translations consistent. The Chinese edition keeps the English narration, timed by the English sentences.
 - Check (one build or GPU job at a time):
   - `cargo build --release --locked --offline`, and each local package's workspace, with no warnings;

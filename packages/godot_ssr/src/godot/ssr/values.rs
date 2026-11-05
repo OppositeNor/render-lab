@@ -24,6 +24,13 @@ pub struct SsrValues {
     pub pick_x: f32,
     #[value(default = -1.0, range = -1.0..=1024.0, unit = index, text = "controls.pick_y", color = palette::SELECTED, label(pick), help = "help.pickY")]
     pub pick_y: f32,
+    /// The SSR buffer's size (half size) that pickX and pickY were chosen at; 0, the current one. Another size
+    /// moves the pick to the same direction from the camera (its vertical field of view is fixed), so a story's
+    /// pick lands on the same spot in the viewer as in its video.
+    #[value(default = 0.0, range = 0.0..=2048.0, unit = index, text = "controls.pick_width", color = palette::SELECTED, label(pick), help = "help.pickWidth")]
+    pub pick_width: f32,
+    #[value(default = 0.0, range = 0.0..=2048.0, unit = index, text = "controls.pick_height", color = palette::SELECTED, label(pick), help = "help.pickHeight")]
+    pub pick_height: f32,
     /// The trace's iterations shown, from the first (0: none yet; at the end, every one).
     #[value(default = 64.0, range = 0.0..=64.0, unit = index, text = "controls.trace_step", color = palette::SELECTED, label(pick), help = "help.traceStep")]
     pub trace_step: f32,

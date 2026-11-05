@@ -42,6 +42,54 @@ often names something nothing can show.
 - Every factual sentence is backed by a `callout` on it or by its chapter's `sources` (required); a `callout` on about
   half the sentences, the rest covered by the chapter's `sources`.
 
+### Written for the ear: clear and in-depth
+
+The narration is heard once, at speaking speed, by the story's listener (its card, `references/outline.md`). It must be
+**clear**: every sentence followed on one hearing. It must be **in-depth**: every mechanism explained, each fact saying
+why it is so or what it changes. Clarity is never bought by cutting depth: a dense passage becomes more sentences, not
+fewer facts. Write the draft for accuracy, then edit it for the ear under these rules (required), then check its facts
+again, since rewording can change a claim.
+
+- **Subject and verb first.** At most one short phrase before them. Never open with a participle ("Averaged in as
+  black, …") or with a formula.
+- **One appended phrase at most.** A second fact hung on a sentence with a comma becomes its own sentence.
+- **No colons or semicolons** in narration. Two sentences, or "so", "because", "but".
+- **A formula is said in words first**, then shown: `The level is ${formulaSaid f"…" "the log, base two, of …" {'}}.`
+- **Every pronoun has one referent**: "it", "its", "the result", "the level" can each point at only one thing in the
+  sentence before; when they could point at two, repeat the noun.
+- **Define a term where it is first said, with what it is for**, and recall one from an earlier chapter where it is
+  used again ("the validity, the alpha from chapter five").
+- **Every fact says why, or what it changes.** A fact with neither is cut from the narration (the listing and the
+  sources card still show it). A constant the engine gives no reason for is stated as the engine's choice, with no
+  invented reason.
+- **Say where a fact comes from at the start**, in one fixed form ("The code shows that …"), or leave it to the
+  callout. Never append it ("…, read from the code").
+- **Consequences, not motives.** Say what a step does and what follows from it. Say why an engine does it only when its
+  source or its authors say so.
+- **Re-check every edited sentence** against this list, not only the one a review flagged: a fix often breaks a rule
+  elsewhere.
+
+Before and after, from the stories:
+
+| Before | After |
+|---|---|
+| Invalid texels still count, a fifth as much as a valid one at level one, as much at level five. | Some texels hold no colour, because their trace found no valid hit. / Each of them is averaged in as black, which darkens the blur around it. / On level one, such a texel counts only a fifth as much as a valid one, so it darkens the blur less. / That share grows with each level, and from level five up such a texel counts fully. |
+| A hit facing away is rejected only within two SSR pixels of the start; farther hits are not tested for facing. | A hit on a surface that faces away from the ray is rejected, but only within two SSR pixels of the start. / Farther away, the trace never checks which way the surface faces. |
+| One last pass with a step of one fixes the cells whose seed was a cell off, the error searching at half size leaves, shown here in orange. | Searching at half size leaves some cells with a seed one cell off. / They are shown here in orange. / One last pass, with a step of one, fixes them. |
+| $\frac{c}{1 + L(c)}$: before any blur, each colour is divided by one plus its luminance, so one bright texel cannot dominate an average. | Before any blur, each colour is divided by ${formulaSaid …"one plus its luminance"…}. / That way, one bright texel cannot dominate an average. |
+
+A slash separates the sentences, each its own paragraph.
+
+**The translation is written as Chinese**, not mirrored from the English: still one paragraph per English sentence,
+but restructured freely inside it. Put the verb early. A noun takes at most one 的-modifier before it; a longer one
+becomes its own clause. Split with 。 rather than chaining with ，. Keep each term the same across the edition (one word
+for "the level before", not 上一级 here and 下一级 there). Avoid the constructions that read as translated: 对于……,
+取而代之的是, 依据是……, 在……下 stacked on another preposition, and passives like 被完整计入; prefer a clause of time or
+condition (……时), the active voice, and a pass as the subject. Say quantities plainly (边长是上一份的一半, not 小一半).
+
+In English, read a formula in its true grouping ("the log, base two, of one plus the radius over sixteen", not "… over
+sixteen, plus one"), and keep its words in one stretch rather than split around the formula's card.
+
 ### Cues
 
 - The beat's first paragraph of cues sets its starting keys, and resets the step parameters of the beat before it

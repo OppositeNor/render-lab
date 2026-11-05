@@ -16,6 +16,7 @@ python3 tools/video/build.py --all                                  # every pack
 | `--prepare-only` | Narration, timeline, captions, and documents (about 15 s once the narration is cached) |
 | `--snapshots-only` | Also the diagrams and one still per beat in the package's `build/video/<lang>/snapshots/` |
 | `--frames A:B` | Renders only those frames (testing; no mux or verification) |
+| `--jobs N` | Renders the video in N parallel frame ranges, each after a second of warm-up frames it does not write, and joins them without re-encoding: the same frames as one render, faster where one render leaves the GPU idle. Each range takes about 1.1 GB of RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory; 2 suits a 6 GB GPU |
 | `--skip-render` | Reuses the rendered `video.mp4` |
 | `--verify-only` | Only the checks of an existing build |
 | `--tts-device auto/cuda/cpu` | Where new narration is synthesised (`auto`: the GPU when the CUDA packages are installed) |

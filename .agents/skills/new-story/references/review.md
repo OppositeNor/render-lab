@@ -52,6 +52,66 @@ Each review returns a table, `| Beat (or timestamp) | Issue | Severity | Why it 
 specific enough to act on ("add a sweep of `rayCount` 1 → 16 while the second sentence is said", never "improve
 clarity").
 
+## The cold-listener review (required)
+
+The reviewers above see the source, the outline, and the stills, which fill in what the words leave out. This one
+does not. It checks that the narration is clear on one hearing.
+
+It is a fresh agent (a cheaper model will do) given:
+- the chapter as it is heard: its sentences, one per line, with `[brackets]` for what is on screen while each is said
+  (headings, a formula as shown, what an inset or the scene shows);
+- the narration of the chapters before it, as "already heard";
+- the listener card.
+
+It gets no source, no outline, and no storyboard markup. Its prompt:
+
+> Play this listener, and stay in that role: you know only what is below. For each sentence, in order, say honestly
+> what you get on one hearing. Flag every sentence where you: (1) lost what a word or phrase refers to; (2) met a term
+> not defined, or defined too long ago to remember; (3) had to re-parse: the structure resolved only at the end, a
+> clause attached to the wrong thing, facts listed with no verbs, a colon or semicolon joining two ideas; (4) heard a
+> fact with no reason: you could not tell why it matters or what it changes; (5) heard two or more new ideas at once.
+> Do not flag an engine constant the narration states as the engine's choice. Do not judge correctness, and do not
+> suggest rewrites. For each flagged sentence: its first five words, the problem numbers, and one line on what you
+> lost. Then what you understood the chapter to say, and what you would still ask.
+
+Fix the flagged sentences under "Written for the ear" (`references/storyboard.md`), re-check every edited sentence
+against those rules, and run it again. Judge by the flags, not by a score: the chapter passes when no flag of kinds 1,
+2, or 3 is left, and each flag of kinds 4 and 5 is either fixed or answered by the picture. Its summary of the chapter
+should match the outline's claims. The same review runs for the translation, with a listener who hears Chinese.
+
+## The native-language review (required)
+
+One reviewer per language checks that the edition reads the way a native speaker writes and speaks it: idiom, word
+choice, word order, rhythm, register, and collocations, not grammar alone. It proposes polishing suggestions; it does
+not rewrite the chapter. **Each reviewer is briefed, and talked to, in its own language**: the English reviewer in
+English, the Chinese reviewer in Chinese, so that the brief itself sets the language it judges.
+
+It is a fresh agent given only its edition's chapter as heard (sentences one per line, `[brackets]` for what is on
+screen) and the listener card, translated into its language; no source, no other edition. For the translation, it does
+not see the English, so it judges the Chinese on its own rather than against the original.
+
+The English brief:
+
+> You are reviewing the narration of a technical explainer video, read aloud to a graphics programmer. Judge it as a
+> native English speaker who writes technical narration well. For each sentence that a native speaker would not say
+> this way (an unidiomatic phrase, an odd word order, a word that is close but not right, a stiff or translated-
+> sounding construction, a rhythm that trips when spoken), give: its first five words, what sounds wrong, and one
+> polished version that keeps its exact meaning and its technical terms. Keep each suggestion one sentence, with no
+> colon or semicolon. Do not judge the facts, do not add content, and leave sentences that already sound natural
+> alone. End with the habits you saw repeated across the chapter.
+
+The Chinese brief:
+
+> 你在审阅一段技术讲解视频的中文字幕旁白，读者是图形程序员。请以一位擅长写技术文章的中文母语者的标准来判断。
+> 对每一句母语者不会这样说的句子（不地道的搭配、别扭的语序、意思接近但用词不准、生硬或带翻译腔的结构、“的”字连用过多、
+> 读起来拗口的节奏），给出：该句的前几个字、哪里不自然、以及一个润色后的版本，要求意思完全不变、技术术语保持原样。
+> 每条建议仍是一句话，不要用冒号或分号连接两个意思。不要评判事实，不要增加内容，已经自然的句子不要改动。
+> 最后总结你在本章中反复看到的习惯问题。
+
+Apply a suggestion only when it keeps the sentence's claim, its cue words (the words a cue is placed on), and the rules
+of "Written for the ear"; a polished English sentence changes its zh-CN paragraph only if the meaning moved. Re-check
+every applied sentence against those rules.
+
 ## The fact check (required)
 
 A check not anchored on the drafts verifies the facts (`new-investigation`, procedure step 8, "Audit"): every factual

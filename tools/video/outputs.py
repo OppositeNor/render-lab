@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import time
+import threading
 import wave
 from pathlib import Path
 from typing import Any
@@ -124,26 +125,79 @@ def lab(binary: Path, cfg: Config, *args: Any) -> list[Any]:
     return [binary, '--investigation', cfg.investigation, '--listing-style', cfg.listing_style, *args]
 
 
-def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int]) -> None:
+def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int], jobs: int = 1) -> None:
+    """Render the timeline to build/video.mp4. With `jobs` above one, the frames are split into that many ranges,
+    rendered by as many render-lab processes at once (each range after `WARMUP` frames it does not write, so it starts
+    with a whole render's history), and the segments joined without re-encoding."""
     build = cfg.build()
-    args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--output', build / 'video.mp4',
-               '--report', build / 'render-report.json', '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
-    if frames:
-        args += ['--frames', frames]
-    log('Rendering the timeline with render-lab (every frame streams to FFmpeg).')
+    if jobs > 1 and frames:
+        raise SystemExit('--jobs renders the whole timeline; it does not go with --frames')
+    total = int(json.loads(cfg.timeline().read_text(encoding='utf-8'))['totalFrames'])
+    jobs = max(1, min(jobs, total // (10 * WARMUP) or 1))
+    bounds = [total * k // jobs for k in range(jobs + 1)]
+    log('Rendering the timeline with render-lab (every frame streams to FFmpeg)' + (f', in {jobs} parallel ranges.' if jobs > 1 else '.'))
     started = time.time()
-    proc = subprocess.Popen([str(a) for a in args], cwd=LAB, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    lines: list[str] = []
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        lines.append(line)
-        if line.startswith(('frame', 'rendered', 'GPU')):
-            log('  ' + line.rstrip())
-    proc.wait()
-    (build / 'logs' / 'render.log').write_text(''.join(lines))
-    if proc.returncode:
-        raise RuntimeError('render-lab render failed:\n' + ''.join(lines[-40:]))
+    parts: list[tuple[Path, Path, subprocess.Popen[str], list[str]]] = []
+    for k in range(jobs):
+        video = build / 'video.mp4' if jobs == 1 else build / f'video.part{k}.mp4'
+        report = build / 'render-report.json' if jobs == 1 else build / f'render-report.part{k}.json'
+        args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--output', video,
+                   '--report', report, '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
+        if frames:
+            args += ['--frames', frames]
+        elif jobs > 1:
+            args += ['--frames', f'{bounds[k]}:{bounds[k + 1]}', '--warmup', str(WARMUP if k else 0)]
+        proc = subprocess.Popen([str(a) for a in args], cwd=LAB, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        parts.append((video, report, proc, []))
+    # Read every process's output as it comes, so none blocks on a full pipe.
+    def drain(k: int, proc: subprocess.Popen[str], lines: list[str]) -> None:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            lines.append(line)
+            if line.startswith(('frame', 'rendered', 'GPU')):
+                log('  ' + (f'[{k + 1}/{jobs}] ' if jobs > 1 else '') + line.rstrip())
+    readers = [threading.Thread(target=drain, args=(k, p, lines)) for k, (_, _, p, lines) in enumerate(parts)]
+    for r in readers:
+        r.start()
+    for r in readers:
+        r.join()
+    failed = []
+    for k, (_, _, proc, lines) in enumerate(parts):
+        proc.wait()
+        (build / 'logs' / ('render.log' if jobs == 1 else f'render.part{k}.log')).write_text(''.join(lines))
+        if proc.returncode:
+            failed.append(f'range {k + 1}:\n' + ''.join(lines[-40:]))
+    if failed:
+        raise RuntimeError('render-lab render failed:\n' + '\n'.join(failed))
+    if jobs > 1:
+        # One report for the whole video, as a single render writes it.
+        reports = [json.loads(r.read_text()) for _, r, _, _ in parts]
+        merged = dict(reports[0])
+        merged['frames'] = sum(r['frames'] for r in reports)
+        merged['first_frame'] = reports[0]['first_frame']
+        merged['min_text_pt'] = min(r['min_text_pt'] for r in reports)
+        for key in ('max_label_overlaps', 'max_labels_outside'):
+            merged[key] = max(r[key] for r in reports)
+        for key in ('frames_with_label_issues', 'frame_sha256'):
+            merged[key] = [x for r in reports for x in r[key]]
+        merged['seconds'] = time.time() - started
+        merged['output'] = str(build / 'video.mp4')
+        merged['jobs'] = jobs
+        (build / 'render-report.json').write_text(json.dumps(merged, indent=2))
+        listing = build / 'video.parts.txt'
+        listing.write_text(''.join(f"file '{v.name}'\n" for v, _, _, _ in parts))
+        run([env.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'concat', '-safe', '0', '-i', listing, '-c', 'copy', build / 'video.mp4'],
+            build / 'logs' / 'concat.log')
+        for v, r, _, _ in parts:
+            v.unlink()
+            r.unlink()
+        listing.unlink()
     log(f'  render finished in {time.time() - started:.0f} s')
+
+
+# Frames a parallel range renders before its first, unwritten (`render --warmup`): a second of the timeline, enough
+# for the read-backs and the last frame's image a frame depends on to be its whole render's.
+WARMUP = 30
 
 
 def mux(cfg: Config, env: Environment) -> Path:
