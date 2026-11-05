@@ -155,6 +155,19 @@ $[# {_cameraDistance x} {attr "camera.distance" {str {: x Float}}}]
 $[# {cameraPath waypoints} {path {' _cameraYaw _cameraPitch _cameraDistance} waypoints beat}]
 $[# {cameraTurn waypoints} {path {' _cameraYaw _cameraPitch} waypoints beat}]
 
+The same over another length (`sentence`, `{seconds 4.0}`), and their waypoints named, one per line if need be:
+`{pose yaw pitch distance}` for `cameraPath`, `{aim yaw pitch}` for `cameraTurn`.
+
+$[# {cameraPathOver length waypoints} {path {' _cameraYaw _cameraPitch _cameraDistance} waypoints length}]
+$[# {cameraTurnOver length waypoints} {path {' _cameraYaw _cameraPitch} waypoints length}]
+$[# {pose yaw pitch distance} {: {' yaw pitch distance} {List Float}}]
+$[# {aim yaw pitch} {: {' yaw pitch} {List Float}}]
+
+One channel to one value over `length`, the commonest motion, as a whole cue attribute: `{glide cameraYaw 24.0
+sentence}` is `{motion {' {path {' cameraYaw} {' {' 24.0}} sentence}}}`.
+
+$[# {glide channel value length} {motion {' {path {' channel} {' {' {: value Float}}} length}}}]
+
 Ranges
 
 A range needs a name only to be told from another: `over` and `overText` are `present`'s `during` and

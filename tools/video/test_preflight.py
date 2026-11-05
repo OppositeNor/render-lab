@@ -78,6 +78,25 @@ class Preflight(unittest.TestCase):
         self.assertNotIn('frame', data['cues'][0]['key'])
         self.assertTrue(preflight.host_check(self.cfg, data)['ok'])
 
+    def test_short_motion_forms_equal_their_long_forms(self) -> None:
+        pairs = [
+            ('{glide cameraYaw 24.0 sentence}', "{motion {' {path {' cameraYaw} {' {' 24.0}} sentence}}}"),
+            ("{motion {' {cameraPath {' {pose 14.0 6.0 4.6} {pose 22.0 7.0 4.3}}}}}", "{motion {' {cameraPath {' {' 14.0 6.0 4.6} {' 22.0 7.0 4.3}}}}}"),
+            ("{motion {' {cameraTurnOver sentence {' {aim 18.0 10.0}}}}}", "{motion {' {path {' cameraYaw cameraPitch} {' {' 18.0 10.0}} sentence}}}"),
+        ]
+        name = self.cfg.package.name
+        vocabulary = lamlet.vocabulary(self.cfg.investigation, name, self.cfg.package / 'build' / f'{name}.lam')
+        story = STORY.replace('$[Import* render_lab]', f'$[Import* render_lab]$[Import* {name}]')
+
+        def key(attrs: str) -> Json:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'storyboard.lam'
+                path.write_text(story.replace('ATTRS', attrs))
+                return preflight.normalized(presentation.load(path, [(name, vocabulary)], self.fields))['cues'][0]['key']
+        for short, long in pairs:
+            with self.subTest(short=short):
+                self.assertEqual(key(short), key(long))
+
     def test_narration_cleared_passes_and_clears_the_carried_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'storyboard.lam'
