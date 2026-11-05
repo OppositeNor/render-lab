@@ -2034,8 +2034,8 @@ dependencies = [
 
 [[package]]
 name = "lamlet-present"
-version = "0.2.0"
-source = "git+https://github.com/lamlet/lamlet-present?tag=v0.1.4#01a8c48f93deaa8d08cc297bd2a2fa4e03bff0b7"
+version = "0.3.0"
+source = "git+https://github.com/lamlet/lamlet-present?tag=v0.3.0#5b303f989f3d637347c2379c1202dfad8f25c1aa"
 dependencies = [
  "lamlet",
  "lamlet-doc",

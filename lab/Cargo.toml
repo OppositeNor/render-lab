@@ -55,7 +55,7 @@ fluent-syntax = "=0.12.0"
 # so it is pinned by git tag (the commits are in Cargo.lock); setup.sh vendors them with the crates.io crates.
 lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.4.0" }
 lamlet-doc = { git = "https://github.com/lamlet/lamlet", tag = "v0.4.0" }
-lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.1.4" }
+lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.3.0" }
 
 [target.'cfg(unix)'.dependencies]
 # The local time, for screenshots' names (src/readback.rs). Already vendored.

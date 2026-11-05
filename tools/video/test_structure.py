@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 import tempfile
@@ -281,10 +282,10 @@ class Numbers(unittest.TestCase):
         self.assertEqual(presentation.as_list('["GI", "SSR"]'), ['GI', 'SSR'])
 
     def test_numeric_cue_values_are_finite_without_slider_clamping(self) -> None:
-        for value in ('NaN', 'Infinity', '-Infinity', '1e999', '0,NaN,1'):
+        for value in (math.nan, math.inf, -math.inf, [0.0, math.nan, 1.0]):
             with self.subTest(value=value), self.assertRaises(markup.MarkupError):
                 markup.param_value(value, 'cue')
-        self.assertEqual(markup.param_value('-10000', 'cue'), -10000.0)
+        self.assertEqual(markup.param_value(-10000.0, 'cue'), -10000.0)
         self.assertEqual(markup.integer(str(sys.maxsize), 'caption', maximum=sys.maxsize), sys.maxsize)
         for value in ('1.7', '1.00000000000000001', '-1'):
             with self.subTest(value=value), self.assertRaises(markup.MarkupError):
