@@ -379,15 +379,15 @@ impl Voxelizer {
                 continue;
             }
             let po2 = self.po2_bounds;
-            self.plot_face(0, 0, [0, 0, 0], tri, mesh.albedo, mesh.emission, po2, &mut None);
+            self.plot_face(0, 0, [0, 0, 0], &Face { tri, albedo: mesh.albedo, emission: mesh.emission }, po2, &mut None);
         }
     }
 
     /// `_plot_face`, with an optional record of the descent.
-    #[allow(clippy::too_many_arguments)]
-    pub fn plot_face(&mut self, idx: u32, level: i32, p: [i32; 3], tri: &Triangle, albedo: Vec3, emission: Vec3, aabb: Aabb, trace: &mut Option<&mut Vec<Descent>>) {
+    pub fn plot_face(&mut self, idx: u32, level: i32, p: [i32; 3], face: &Face, aabb: Aabb, trace: &mut Option<&mut Vec<Descent>>) {
+        let tri = face.tri;
         if level == self.cell_subdiv {
-            let s = leaf_sample(tri, albedo, emission, aabb);
+            let s = leaf_sample(face, aabb);
             let c = &mut self.cells[idx as usize];
             for k in 0..3 {
                 c.albedo[k] += s.albedo[k];
@@ -434,7 +434,7 @@ impl Voxelizer {
             if let Some(t) = trace.as_deref_mut() {
                 t.push(Descent { level: level + 1, aabb: child, overlaps: true });
             }
-            self.plot_face(next, level + 1, n, tri, albedo, emission, child, trace);
+            self.plot_face(next, level + 1, n, face, child, trace);
         }
     }
 
@@ -532,11 +532,21 @@ pub fn longest_axis(size: Vec3) -> usize {
     axis
 }
 
+/// A face `_plot_face` plots: its triangle, with its mesh's albedo and
+/// emission (`_plot_face`'s `p_vtx`, and its material).
+#[derive(Clone, Copy)]
+pub struct Face<'a> {
+    pub tri: &'a Triangle,
+    pub albedo: Vec3,
+    pub emission: Vec3,
+}
+
 /// The leaf branch of `_plot_face`: the dominant axis of the triangle's
 /// plane, 4 x 4 columns of the cell along it, a sample where the triangle
 /// crosses each, and the sums scaled by 1/16 (or the closest point to the
 /// cell's centre at 1/16 when no column is crossed).
-pub fn leaf_sample(tri: &Triangle, albedo: Vec3, emission: Vec3, aabb: Aabb) -> LeafSample {
+pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
+    let Face { tri, albedo, emission } = *face;
     let vtx = &tri.vtx;
     let (normal, d) = plane_of(vtx);
     let mut closest_axis = 0;

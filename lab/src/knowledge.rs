@@ -687,7 +687,9 @@ pub fn load(package: &str) -> Option<Result<Graph, String>> {
 /// The current investigation's graph, read once per language (its titles
 /// are translated). An error is printed once and leaves no graph.
 pub fn current() -> Option<&'static Graph> {
-    static CACHE: OnceLock<Mutex<BTreeMap<(String, crate::i18n::Locale), Option<&'static Graph>>>> = OnceLock::new();
+    /// By package and language.
+    type Cache = BTreeMap<(String, crate::i18n::Locale), Option<&'static Graph>>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
     let package = crate::investigation::current().package()?;
     let key = (package.to_string(), crate::i18n::current());
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();

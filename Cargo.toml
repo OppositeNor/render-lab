@@ -9,15 +9,13 @@ default-members = [".", "packages/o3de_lighting", "packages/godot_sdfgi", "packa
 resolver = "3"
 
 # The CPU mirrors keep the shape of the engine and shader code they port: its
-# functions' parameters, its index loops, its nested tuples and closures.
+# index loops.
 [workspace.lints.clippy]
-too_many_arguments = "allow"
-type_complexity = "allow"
 needless_range_loop = "allow"
 
 [package]
 name = "render-lab"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
 publish = false

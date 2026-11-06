@@ -366,7 +366,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut worst = 0.0f32;
         for (k, &(p, n, object)) in points.iter().enumerate() {
             // The kernel has no screen, so no normal derivatives.
-            let cpu = brdf::pixel(&shading, &content.objects, p, n, eye, object, state.p("exposure"), map, [Vec3::ZERO; 2]);
+            let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
             let gpu = f3(&words, 8 * k);
             let d = (gpu - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05);
             worst = worst.max(d);
@@ -431,7 +431,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
             let mut worst = 0.0f32;
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, p, n, eye, object, state.p("exposure"), map, [Vec3::ZERO; 2]);
+                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
                 worst = worst.max((f3(&words, 8 * k) - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05));
             }
             ok &= worst < 3e-3 && points.len() > 100;
@@ -484,7 +484,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
             let mut worst = 0.0f32;
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, p, n, eye, object, state.p("exposure"), map, [Vec3::ZERO; 2]);
+                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
                 lit += usize::from(cpu.lighting.translucent_back_lighting.max_element() > 1e-3);
                 worst = worst.max((f3(&words, 8 * k) - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05));
             }
@@ -543,7 +543,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
             let (mut worst, mut inner, mut blended) = (0.0f32, 0usize, 0usize);
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, p, n, eye, object, state.p("exposure"), map, [Vec3::ZERO; 2]);
+                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
                 let r = cpu.ibl.reflection;
                 let masked = r.stencil & super::reflections::STENCIL_REFLECTION_MASK;
                 inner += usize::from(masked > 3);
@@ -643,7 +643,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
                 let p = o + d * hit.t;
                 let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
                 // Flat surfaces: the normal does not change from pixel to pixel.
-                let px = brdf::pixel(&shading, &content.objects, p, n, eye, hit.object, state.p("exposure"), map, [Vec3::ZERO; 2]);
+                let px = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(hit.object, p, n), eye, state.p("exposure"), map);
                 let ao = f32::from_bits(ao_words[(pixel.y as u32 * ao_size[0] + pixel.x as u32) as usize]);
                 let diffuse = px.diffuse() + px.ibl.diffuse * if shading.ibl { 1.0 } else { 0.0 };
                 let expected = scene::display_rgb(px.color - diffuse + diffuse * ao, state.p("exposure"));

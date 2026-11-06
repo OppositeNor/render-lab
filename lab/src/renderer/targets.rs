@@ -130,7 +130,7 @@ pub(super) struct ViewSlot {
     pub(super) still: (Option<u64>, u32),
     pub(super) still_scene: (Option<u64>, u32),
     /// Each program's runtime and handles, by its shading's source.
-    pub(super) programs: Vec<(usize, std::cell::RefCell<crate::program::ProgramRuntime>, std::cell::RefCell<Vec<(&'static str, crate::program::ProgramHandle)>>)>,
+    pub(super) programs: Vec<(usize, std::cell::RefCell<crate::program::ProgramRuntime>, std::cell::RefCell<crate::program::ProgramHandles>)>,
 }
 
 /// The targets of an investigation's pass chain at one viewport size, with

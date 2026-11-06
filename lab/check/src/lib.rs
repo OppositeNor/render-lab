@@ -396,7 +396,9 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
 /// every key is named somewhere.
 fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
     for (dir, code) in tables {
-        let tables: Vec<(&str, bool, Vec<(String, Message)>)> = locales
+        /// A table's messages by key.
+        type Messages = Vec<(String, Message)>;
+        let tables: Vec<(&str, bool, Messages)> = locales
             .iter()
             .filter_map(|(locale, complete)| {
                 let path = dir.join(format!("{locale}.ftl"));

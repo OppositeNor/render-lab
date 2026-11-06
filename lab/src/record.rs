@@ -73,7 +73,10 @@ pub fn beat_fade(timeline: &Timeline, frame: u64) -> f32 {
     fade
 }
 
-pub fn spawn_ffmpeg(ffmpeg: &Path, width: u32, height: u32, fps: u32, codec: &str, crf: u32, preset: &str, output: &Path) -> Result<Child> {
+/// Starts FFmpeg encoding RGBA frames `width` x `height` at `fps` into `output`, with
+/// the encoder `options` name (its binary, codec, CRF, and preset).
+pub fn spawn_ffmpeg(options: &RecordOptions, [width, height]: [u32; 2], fps: u32, output: &Path) -> Result<Child> {
+    let (ffmpeg, codec, crf, preset) = (&options.ffmpeg, options.codec.as_str(), options.crf, options.preset.as_str());
     let mut cmd = Command::new(ffmpeg);
     cmd.args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba"]);
     cmd.args(["-s", &format!("{width}x{height}"), "-r", &fps.to_string(), "-i", "-", "-an"]);
@@ -132,7 +135,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         bail!("empty frame range {first}..{last}");
     }
     let mut child = match &options.output {
-        Some(path) => Some(spawn_ffmpeg(&options.ffmpeg, width, height, timeline.fps, &options.codec, options.crf, &options.preset, path)?),
+        Some(path) => Some(spawn_ffmpeg(options, [width, height], timeline.fps, path)?),
         None => None,
     };
     let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(RING);
@@ -149,7 +152,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     });
     let device = renderer.device().clone();
     let buffers: Vec<wgpu::Buffer> = (0..RING).map(|_| renderer::readback_buffer(&device, width, height)).collect();
-    let mut pending: VecDeque<(u64, usize, mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>)> = VecDeque::new();
+    // A frame, its buffer, and the buffer's mapping.
+    type Mapping = mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>;
+    let mut pending: VecDeque<(u64, usize, Mapping)> = VecDeque::new();
     let mut summary = RecordSummary { first_frame: first, width, height, fps: timeline.fps, ring_buffers: RING, min_text_pt: f32::INFINITY, gpu: gpu_info, output: options.output.as_ref().map(|p| p.display().to_string()), ..Default::default() };
     if let Some(dir) = &options.snapshot_dir {
         std::fs::create_dir_all(dir)?;

@@ -6,6 +6,9 @@
 
 use std::collections::BTreeMap;
 
+/// An edge (from, to) and the points between them.
+pub type Bend = (usize, usize, Vec<(f32, f32)>);
+
 /// Where each node is (its centre), and the edges' bends (layout units; x
 /// grows from the first column on the left, y downward).
 #[derive(Clone, Debug, Default)]
@@ -13,8 +16,8 @@ pub struct Layout {
     pub positions: Vec<(f32, f32)>,
     pub widths: Vec<f32>,
     pub heights: Vec<f32>,
-    /// Per edge (from, to), in the order given: the points between them.
-    pub bends: Vec<(usize, usize, Vec<(f32, f32)>)>,
+    /// Per edge, in the order given.
+    pub bends: Vec<Bend>,
     pub size: (f32, f32),
 }
 

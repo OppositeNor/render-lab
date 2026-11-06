@@ -94,20 +94,19 @@ impl Renderer {
         pass.draw(0..3, 0..1);
     }
 
-    /// Records the program's commands of run `run` (`runs`, each pass's:
-    /// `SceneShading::program_runs`), the inspector drawing what each pass
-    /// wrote right after it.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn record_program(&self, encoder: &mut wgpu::CommandEncoder, runs: &[u32], run: u32, graph: &crate::graph::FrameGraph, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets, timing: Option<&mut crate::timing::Timing>) {
-        let Some(s) = shading else { return };
+    /// Records the program's commands of a run, the inspector drawing what
+    /// each pass wrote (in `frame`'s targets) right after it.
+    pub(super) fn record_program(&self, encoder: &mut wgpu::CommandEncoder, run: crate::program::ProgramRun, graph: &crate::graph::FrameGraph, frame: &FrameTargets, timing: Option<&mut crate::timing::Timing>) {
+        let Some(s) = frame.shading else { return };
         let (Some(program), Some(pipelines)) = (&s.program, s.pipelines.program.as_ref()) else { return };
         let meshes = crate::program::Meshes { vertices: &self.mesh_vertices, objects: &self.object_ids, indices: &self.mesh_indices, ranges: &self.statics.meshes.ranges };
         let mut after = |encoder: &mut wgpu::CommandEncoder, pass: &'static str| {
             if let Some(n) = graph.nodes.iter().position(|n| n.name == pass && matches!(n.step, Step::Program(_))) && self.inspections.values().any(|x| x.node == n) {
-                self.capture(encoder, n, chain, shading, targets);
+                self.capture(encoder, n, frame);
             }
         };
-        program.borrow_mut().record(&self.gpu.device, encoder, pipelines, runs, run, &self.frame_bind_group, &s.group, &meshes, timing, &mut after);
+        let bindings = crate::program::ProgramBindings { pipelines, frame: &self.frame_bind_group, shading: &s.group, meshes };
+        program.borrow_mut().record(&self.gpu.device, encoder, run, &bindings, timing, &mut after);
     }
 
     /// Encode a frame's scene in its graph's order (src/graph.rs): the
@@ -177,7 +176,7 @@ impl Renderer {
                     if let (Some(s), Some(c)) = (chained, chain) {
                         c.dispatch(encoder, &self.frame_bind_group, s, &std::mem::take(&mut pending), timing.as_mut());
                     }
-                    self.capture(encoder, n, chain, shading, targets);
+                    self.capture(encoder, n, &FrameTargets { chain, shading, targets });
                 }
                 continue;
             }
@@ -191,7 +190,7 @@ impl Renderer {
                     let run = runs[i];
                     if !recorded.contains(&run) {
                         recorded.push(run);
-                        self.record_program(encoder, &runs, run, &graph, chain, program_shading, targets, timing.as_mut());
+                        self.record_program(encoder, crate::program::ProgramRun { runs: &runs, run }, &graph, &FrameTargets { chain, shading: program_shading, targets }, timing.as_mut());
                     }
                 }
                 Step::DepthViews => {
@@ -263,7 +262,7 @@ impl Renderer {
                     }
                 }
                 Step::Scene => {
-                    self.record_program(encoder, &runs, crate::program::BEFORE_SCENE, &graph, chain, program_shading, targets, timing.as_mut());
+                    self.record_program(encoder, crate::program::ProgramRun { runs: &runs, run: crate::program::BEFORE_SCENE }, &graph, &FrameTargets { chain, shading: program_shading, targets }, timing.as_mut());
                     let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("scene"),
@@ -351,7 +350,7 @@ impl Renderer {
                 }
             }
             if inspected {
-                self.capture(encoder, n, chain, shading, targets);
+                self.capture(encoder, n, &FrameTargets { chain, shading, targets });
             }
         }
         if let (Some(s), Some(c)) = (chained, chain) {

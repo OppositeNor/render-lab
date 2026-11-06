@@ -177,7 +177,18 @@ pub fn formula_size(size: f32) -> f32 {
 
 /// An egui texture of one of a formula's masks (`mask` 0: the whole formula;
 /// `n`: term `n`), white with the mask as alpha, so drawing tints it.
-fn texture(ctx: &egui::Context, latex: &str, size: f32, display: bool, f: &Formula, mask: usize) -> egui::TextureHandle {
+/// A typeset formula: its LaTeX, its size in pixels, whether it is set as a
+/// display (or inline), and what Typst made of it.
+#[derive(Clone, Copy)]
+pub struct Typeset<'a> {
+    pub latex: &'a str,
+    pub size: f32,
+    pub display: bool,
+    pub formula: &'a Formula,
+}
+
+fn texture(ctx: &egui::Context, typeset: &Typeset, mask: usize) -> egui::TextureHandle {
+    let Typeset { latex, size, display, formula: f } = *typeset;
     let id = egui::Id::unique(("formula", latex, size.to_bits(), display, mask));
     if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return t;
@@ -201,15 +212,16 @@ pub struct Lit {
 /// Draws a typeset formula with its top-left corner (padding included) at
 /// `at`, `scale` canvas units per pixel: in `color`, or dimmed to `dim` with
 /// one term lit.
-pub fn draw_formula(ink: &Ink, at: Pos2, latex: &str, size: f32, display: bool, f: &Formula, scale: f32, color: Color32, lit: Option<(Lit, Color32)>) -> Rect {
+pub fn draw_formula(ink: &Ink, at: Pos2, typeset: &Typeset, scale: f32, color: Color32, lit: Option<(Lit, Color32)>) -> Rect {
+    let f = typeset.formula;
     let ctx = ink.painter.ctx();
     let rect = Rect::from_min_size(at, vec2(f.width as f32, f.height as f32) * scale);
     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-    let base = texture(ctx, latex, size, display, f, 0);
+    let base = texture(ctx, typeset, 0);
     match lit.filter(|(l, _)| l.term >= 1 && l.term <= f.terms.len() && l.weight > 0.0) {
         Some((l, dim)) => {
             ink.painter.image(base.id(), rect, uv, crate::graph_view::lerp_color(color, dim, l.weight));
-            let term = texture(ctx, latex, size, display, f, l.term);
+            let term = texture(ctx, typeset, l.term);
             ink.painter.image(term.id(), rect, uv, l.color.gamma_multiply(l.weight));
         }
         None => {
@@ -308,7 +320,7 @@ pub fn text(ink: &Ink, pos: Pos2, align: Align2, text: &str, size: f32, family: 
             }
             Piece::Formula { latex, display, formula, size: fsize } => {
                 let pad = PAD as f32;
-                draw_formula(ink, pos2(x - pad, baseline - formula.baseline), latex, *fsize, *display, formula, 1.0, color, None);
+                draw_formula(ink, pos2(x - pad, baseline - formula.baseline), &Typeset { latex, size: *fsize, display: *display, formula }, 1.0, color, None);
             }
             Piece::Code { text, ascent, height, .. } => {
                 let chip = Rect::from_min_size(pos2(x + 1.0, baseline - ascent - 1.0), vec2(w - 2.0, height + 2.0));

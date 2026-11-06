@@ -205,7 +205,9 @@ pub fn lit_with(s: &LightSettings) -> Arc<Lit> {
 /// The leaves' direct light with the extra omni light at `at` (to the
 /// centimetre) beside the panel: `MODE_COMPUTE_LIGHT` alone, computed on first use.
 pub fn direct_with_omni(at: Vec3) -> Arc<Vec<Vec3>> {
-    static CACHE: OnceLock<Mutex<HashMap<[i32; 3], Arc<Vec<Vec3>>>>> = OnceLock::new();
+    /// By the light's position in centimetres.
+    type Cache = HashMap<[i32; 3], Arc<Vec<Vec3>>>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
     let key = (at * 100.0).round().as_ivec3().to_array();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(l) = cache.lock().unwrap().get(&key) {

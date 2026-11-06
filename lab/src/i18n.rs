@@ -385,7 +385,9 @@ pub fn source_texts(package: &str) -> Vec<(&'static str, &'static str)> {
 
 /// A package's source table in `locale`, read once (None without one).
 fn source_table(package: &str, locale: Locale) -> Option<&'static Texts> {
-    static TABLES: std::sync::Mutex<Vec<((String, Locale), Option<&'static Texts>)>> = std::sync::Mutex::new(Vec::new());
+    /// By package and language.
+    type Cache = Vec<((String, Locale), Option<&'static Texts>)>;
+    static TABLES: std::sync::Mutex<Cache> = std::sync::Mutex::new(Vec::new());
     let mut tables = TABLES.lock().unwrap();
     if let Some((_, t)) = tables.iter().find(|(k, _)| k.0 == package && k.1 == locale) {
         return *t;

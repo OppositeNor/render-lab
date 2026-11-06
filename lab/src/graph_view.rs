@@ -748,14 +748,15 @@ pub fn take_reset(ctx: &egui::Context, id: egui::Id) -> bool {
     ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reset"))).unwrap_or(false)
 }
 
-/// A view of `laid` in `area` for this frame: in the viewer (`interactive`)
-/// kept in egui's memory under `id`, else made afresh. When `key` changes (a
+/// A view of `laid` in `area` for this frame: in the viewer kept in egui's
+/// memory under the id `kept` names (the pointer works then), else made
+/// afresh (None). When `key` changes (a
 /// new graph, new call-outs) `setup` sets it up again (told whether it is
 /// still the same layout: the nodes moved by hand stay then); then the
 /// pointer is read (`interact`), and a double click on the background sets
 /// it up afresh, its nodes back in place (as `ask_reset` does).
-pub fn view(ctx: &egui::Context, id: egui::Id, area: Rect, laid: &Laid, interactive: bool, key: u64, controls: &Controls, setup: &dyn Fn(&mut ViewState, bool)) -> (ViewState, Picks) {
-    let mut state: ViewState = if interactive { ctx.data(|d| d.get_temp(id)).unwrap_or_default() } else { ViewState::default() };
+pub fn view(ctx: &egui::Context, kept: Option<egui::Id>, area: Rect, laid: &Laid, key: u64, controls: &Controls, setup: &dyn Fn(&mut ViewState, bool)) -> (ViewState, Picks) {
+    let mut state: ViewState = kept.and_then(|id| ctx.data(|d| d.get_temp(id))).unwrap_or_default();
     let this = laid as *const Laid as usize;
     if state.key != Some(key) || state.scale <= 0.0 {
         let same = state.scale > 0.0 && state.laid == this;
@@ -766,13 +767,13 @@ pub fn view(ctx: &egui::Context, id: egui::Id, area: Rect, laid: &Laid, interact
         state.key = Some(key);
         state.laid = this;
     }
-    let mut picks = if interactive { interact(ctx, area, laid, &mut state, controls, &|_| true) } else { Picks::default() };
-    picks.reset |= interactive && take_reset(ctx, id);
+    let mut picks = if kept.is_some() { interact(ctx, area, laid, &mut state, controls, &|_| true) } else { Picks::default() };
+    picks.reset |= kept.is_some_and(|id| take_reset(ctx, id));
     if picks.reset {
         state.moved.clear();
         setup(&mut state, false);
     }
-    if interactive {
+    if let Some(id) = kept {
         ctx.data_mut(|d| d.insert_temp(id, state.clone()));
     }
     (state, picks)
@@ -957,7 +958,7 @@ mod tests {
         let frame = |events: Vec<egui::Event>| -> ViewState {
             let mut out = None;
             let _ = ctx.run_ui(egui::RawInput { events, screen_rect: Some(area), ..Default::default() }, |ui| {
-                out = Some(view(ui.ctx(), id, area, &laid, true, 1, &controls, &setup).0);
+                out = Some(view(ui.ctx(), Some(id), area, &laid, 1, &controls, &setup).0);
             });
             out.expect("a frame")
         };
@@ -992,7 +993,7 @@ mod tests {
         let frame = |events: Vec<egui::Event>| -> ViewState {
             let mut out = None;
             let _ = ctx.run_ui(egui::RawInput { events, screen_rect: Some(area), ..Default::default() }, |ui| {
-                out = Some(view(ui.ctx(), id, area, &laid, true, 1, &controls, &setup).0);
+                out = Some(view(ui.ctx(), Some(id), area, &laid, 1, &controls, &setup).0);
             });
             out.expect("a frame")
         };

@@ -66,6 +66,10 @@ pub struct StoryImage {
     pub mark_text: Option<String>,
 }
 
+/// An image's parameters by name, as a story or the inspector sets them
+/// (each one to four numbers).
+pub type ImageParams = std::collections::BTreeMap<String, Vec<f32>>;
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub enum ImageSource {
     /// One the investigation publishes (`ImageSpec`), by its key.
@@ -75,11 +79,11 @@ pub enum ImageSource {
     /// An instance of the investigation's package's image kind `kind`
     /// (src/views.rs), with the parameters the story set (the others at
     /// their defaults).
-    View { kind: String, params: std::collections::BTreeMap<String, Vec<f32>> },
+    View { kind: String, params: ImageParams },
     /// A resource of the frame's graph as it stood right after a node
     /// (`<node>.<resource>`, src/graph/), drawn by the inspector `show`
     /// (its format's default when none) with the parameters the story set.
-    Graph { key: String, show: Option<String>, params: std::collections::BTreeMap<String, Vec<f32>> },
+    Graph { key: String, show: Option<String>, params: ImageParams },
 }
 
 /// The key of the texture of the story's image instance `name` (`Textures`).

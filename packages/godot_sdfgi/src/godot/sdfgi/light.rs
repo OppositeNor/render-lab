@@ -408,9 +408,19 @@ pub struct CellLight {
     pub stored: [Vec3; 6],
 }
 
+/// What lights a cell in the light pass: `lights`, and the probes' light
+/// bounced back (`bounce_feedback` of it; none without `probes`).
+#[derive(Clone, Copy)]
+pub struct Lighting<'a> {
+    pub lights: &'a [Light],
+    pub bounce_feedback: f32,
+    pub probes: Option<&'a dyn ProbeLookup>,
+}
+
 /// The light pass for one solid cell (`main` of sdfgi_direct_light.glsl),
 /// up to the per-face sums.
-pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lights: &[Light], bounce_feedback: f32, probes: Option<&dyn ProbeLookup>) -> CellLight {
+pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lighting: &Lighting) -> CellLight {
+    let Lighting { lights, bounce_feedback, probes } = *lighting;
     let positioni = cell.cell();
     let position = (positioni.as_vec3() + Vec3::splat(0.5)) / field.to_cell(cascade) + field.offset(cascade);
     let albedo = cell.albedo_rgb();
@@ -498,7 +508,7 @@ pub fn octahedron_encode(n: Vec3) -> glam::Vec2 {
 /// `MODE_PROCESS_DYNAMIC` over the cells this frame updates (every
 /// `increment`-th, from `offset`), writing the cascade's light textures and
 /// each cell's neighbours.
-pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lights: &[Light], bounce_feedback: f32, probes: Option<&dyn ProbeLookup>, offset: usize, increment: usize, textures: &mut LightTextures) {
+pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lighting: &Lighting, offset: usize, increment: usize, textures: &mut LightTextures) {
     const NEIGHBOURS: [IVec3; 26] = {
         let mut v = [IVec3::ZERO; 26];
         let mut k = 0;
@@ -523,7 +533,7 @@ pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lights: 
     let mut i = offset;
     while i < cells.len() {
         let cell = &cells[i];
-        let result = cell_light(field, cascade, cell, lights, bounce_feedback, probes);
+        let result = cell_light(field, cascade, cell, lighting);
         let (total, lumas, luma_total) = pack(&result.accum);
         let word = encode_e5b9g9r9(total);
         let a0 = [unorm8(lumas[0] / luma_total), unorm8(lumas[1] / luma_total), unorm8(lumas[2] / luma_total), unorm8(lumas[3] / luma_total)];
@@ -551,7 +561,7 @@ pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lights: 
 /// cell's stored light and writes the sum back into the cell (RGBE8985).
 pub fn static_pass(field: &Field, cascade: usize, cells: &mut [SolidCell], lights: &[Light]) {
     for i in 0..cells.len() {
-        let result = cell_light(field, cascade, &cells[i], lights, 0.0, None);
+        let result = cell_light(field, cascade, &cells[i], &Lighting { lights, bounce_feedback: 0.0, probes: None });
         let (total, lumas, luma_total) = pack(&result.accum);
         let (s, exps) = shared_exponent(total);
         let rgbe = ((s[0] & 0x1FF) >> 1) | ((s[1] & 0x1FF) << 8) | (((s[2] & 0x1FF) >> 1) << 17) | ((exps & 0x1F) << 25);

@@ -116,7 +116,7 @@ fn field_view(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_sc
         let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
         let ends = [t.screen_pos, t.screen_pos + t.screen_ray * t.steps.last().map_or(0.0, |s| s.next_t)];
         let focus = [ends[0].x.min(ends[1].x) * w, ends[0].y.min(ends[1].y) * h, ends[0].x.max(ends[1].x) * w, ends[0].y.max(ends[1].y) * h];
-        let f = field(&own, &mut content, &rest, &screen, pixel, focus, level, &lit);
+        let f = field(&own, &mut content, &rest, &screen, &FieldView { pixel, focus, level, lit: &lit });
         let top = field_top(&screen, pixel);
         let over = |tt: f32| {
             let s = t.screen_pos + t.screen_ray * tt;
@@ -133,7 +133,7 @@ fn field_view(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_sc
         let at = (shown.round().max(0.0) as usize).min(screen.hiz.len() - 1);
         let cell = [pixel[0] >> at, pixel[1] >> at];
         let focus = [pixel[0] as f32 - 16.0, pixel[1] as f32 - 16.0, pixel[0] as f32 + 16.0, pixel[1] as f32 + 16.0];
-        field(&own, &mut content, &rest, &screen, pixel, focus, shown, &[(cell, palette::SELECTED)]);
+        field(&own, &mut content, &rest, &screen, &FieldView { pixel, focus, level: shown, lit: &[(cell, palette::SELECTED)] });
     }
     content
 }
@@ -347,16 +347,26 @@ fn field_cells(s: &trace::Step, level: f32) -> Vec<[i32; 2]> {
     (0..n * n).map(|j| [(s.cell[0] << k) + j % n, (s.cell[1] << k) + j / n]).collect()
 }
 
+/// What the depth map's height field shows: P (`pixel`), around which it
+/// zooms (`fieldZoom`: a window framing `focus`, a texel box x0, y0, x1, y1);
+/// its columns, of pyramid level `level` (between two levels, each 2 x 2
+/// rises to the tallest of its parent and merges); and `lit`, cells of that
+/// level coloured (texel coordinates of the level, a colour).
+#[derive(Clone, Copy)]
+struct FieldView<'a> {
+    pixel: [i32; 2],
+    focus: [f32; 4],
+    level: f32,
+    lit: &'a [([i32; 2], Color32)],
+}
+
 /// The depth map drawn as a height field (lab::utility::height_field), over a
 /// dark ground that hides the room: each SSR texel a column as tall as its
 /// reversed depth (near is tall), fading in flat, as the screen shows it
 /// (`fieldShow`), then tilting back as the columns rise (`fieldMorph`).
-/// Its columns are of pyramid level `level` (between two levels, each 2 x 2
-/// rises to the tallest of its parent and merges), around P when zoomed
-/// (`fieldZoom`: a window framing `focus`, a texel box x0, y0, x1, y1).
-/// `lit` colours cells of that level (texel coordinates of the level, a
-/// colour). None while it is not shown.
-fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &cpu::Screen, pixel: [i32; 2], focus: [f32; 4], level: f32, lit: &[([i32; 2], Color32)]) -> HeightField {
+/// What it shows is `shown`'s (`FieldView`).
+fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &cpu::Screen, shown: &FieldView) -> HeightField {
+    let FieldView { pixel, focus, level, lit } = *shown;
     let show = 1.0;
     let morph = smooth(state.p("fieldMorph"));
     // On the plane the view's camera faces at rest; a little height even when flat, so the
@@ -387,8 +397,8 @@ fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::Came
     let (sx, sy) = (w / img.size[0] as f32, h / img.size[1] as f32);
     for y in 0..img.size[1] as i32 {
         for x in 0..img.size[0] as i32 {
-            let (x0, y0, x1, y1) = (x as f32 * sx, y as f32 * sy, (x + 1) as f32 * sx, (y + 1) as f32 * sy);
-            if !field.shows(x0, y0, x1, y1) {
+            let texels = [x as f32 * sx, y as f32 * sy, (x + 1) as f32 * sx, (y + 1) as f32 * sy];
+            if !field.shows(texels) {
                 continue;
             }
             let d = img.load([x, y]).x;
@@ -398,7 +408,7 @@ fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::Came
                 continue;
             }
             let color = lit.iter().find(|(c, _)| *c == [x, y]).map_or_else(|| height_field::grey(d, ramp), |(_, c)| *c);
-            field.column(&mut content.draw, x0, y0, x1, y1, (d / top).min(1.0), color, show);
+            field.column(&mut content.draw, texels, (d / top).min(1.0), color, show);
         }
     }
     // P, on its column.
@@ -407,12 +417,15 @@ fn field(state: &ShotState, content: &mut FrameContent, rest: &lab::layout::Came
     field
 }
 
-/// The cells of `level` the ray crosses from t = 0 to `end`, in order: each
-/// cell, the t where the ray enters and leaves it, and its depth.
-fn cells_along(screen: &cpu::Screen, t: &trace::Trace, level: usize, end: f32) -> Vec<([i32; 2], f32, f32, f32)> {
+/// A cell the ray crosses: the cell, the t where the ray enters and leaves
+/// it, and its depth.
+type Crossing = ([i32; 2], f32, f32, f32);
+
+/// The cells of `level` the ray crosses from t = 0 to `end`, in order.
+fn cells_along(screen: &cpu::Screen, t: &trace::Trace, level: usize, end: f32) -> Vec<Crossing> {
     let img = &screen.hiz[level];
     let size = Vec2::new(img.size[0] as f32, img.size[1] as f32);
-    let mut out: Vec<([i32; 2], f32, f32, f32)> = Vec::new();
+    let mut out: Vec<Crossing> = Vec::new();
     const SAMPLES: usize = 3000;
     for k in 0..=SAMPLES {
         let tt = end * k as f32 / SAMPLES as f32;
@@ -455,7 +468,7 @@ fn profile(content: &mut FrameContent, rest: &lab::layout::CameraData, screen: &
     let mut levels: Vec<usize> = t.steps.iter().map(|s| (s.level.max(0) as usize).min(last_level)).collect();
     levels.sort_unstable();
     levels.dedup();
-    let bars_of: Vec<(usize, Vec<([i32; 2], f32, f32, f32)>)> = levels.iter().map(|&l| (l, cells_along(screen, t, l, end))).collect();
+    let bars_of: Vec<(usize, Vec<Crossing>)> = levels.iter().map(|&l| (l, cells_along(screen, t, l, end))).collect();
     let bars_at = |l: usize| bars_of.iter().find(|(k, _)| *k == l).map(|(_, b)| b.as_slice()).unwrap_or(&[]);
     let surface = cells_along(screen, t, 0, end);
     let ray = |tt: f32| (t.screen_pos + t.screen_ray * tt).z;

@@ -1,6 +1,6 @@
 [package]
 name = "render-lab-core"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
 publish = false
@@ -68,6 +68,4 @@ render-lab-check = { path = "check" }
 # The root workspace's lints, here rather than inherited: another workspace
 # (a local package's) also builds the lab.
 [lints.clippy]
-too_many_arguments = "allow"
-type_complexity = "allow"
 needless_range_loop = "allow"

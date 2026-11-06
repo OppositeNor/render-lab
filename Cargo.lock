@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "godot_sdfgi"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "egui",
@@ -1355,7 +1355,7 @@ dependencies = [
 
 [[package]]
 name = "godot_ssr"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "egui",
@@ -1369,7 +1369,7 @@ dependencies = [
 
 [[package]]
 name = "godot_voxelgi"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "egui",
@@ -2434,7 +2434,7 @@ dependencies = [
 
 [[package]]
 name = "o3de_lighting"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "egui",
@@ -3335,14 +3335,14 @@ dependencies = [
 
 [[package]]
 name = "render-lab"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "render-lab-core",
 ]
 
 [[package]]
 name = "render-lab-check"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "fluent-syntax",
  "naga",
@@ -3352,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "render-lab-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3388,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "render-lab-derive"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "proc-macro2",
  "quote",

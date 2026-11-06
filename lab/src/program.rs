@@ -193,6 +193,23 @@ pub fn pipelines(device: &wgpu::Device, module: &wgpu::ShaderModule, source: &Sc
     ProgramPipelines { passes, params, scene }
 }
 
+/// Which of a program's runs to record: `run`, among `runs` (each pass's
+/// run: `SceneShading::program_runs`).
+#[derive(Clone, Copy)]
+pub struct ProgramRun<'a> {
+    pub runs: &'a [u32],
+    pub run: u32,
+}
+
+/// What a program's passes draw with: its pipelines, the frame's and the
+/// shading's bind groups, and the scene's meshes.
+pub struct ProgramBindings<'a> {
+    pub pipelines: &'a ProgramPipelines,
+    pub frame: &'a wgpu::BindGroup,
+    pub shading: &'a wgpu::BindGroup,
+    pub meshes: Meshes<'a>,
+}
+
 /// The scene's meshes, as the renderer draws them.
 pub struct Meshes<'a> {
     pub vertices: &'a wgpu::Buffer,
@@ -200,6 +217,9 @@ pub struct Meshes<'a> {
     pub indices: &'a wgpu::Buffer,
     pub ranges: &'a [std::ops::Range<u32>],
 }
+
+/// A program's resources by name, for the inspector.
+pub type ProgramHandles = Vec<(&'static str, ProgramHandle)>;
 
 /// A program's resource, for the inspector (cheap handles, cloned).
 #[derive(Clone)]
@@ -436,7 +456,7 @@ impl ProgramRuntime {
     }
 
     /// Every resource by name, for the inspector and the selftests' readbacks.
-    pub fn handles(&self) -> Vec<(&'static str, ProgramHandle)> {
+    pub fn handles(&self) -> ProgramHandles {
         let images = self.source.images.iter().zip(&self.images).map(|(i, t)| (i.name, ProgramHandle::Image { kind: i.kind, textures: t.clone() }));
         let buffers = self.source.buffers.iter().zip(&self.buffers).map(|(b, x)| (b.name, ProgramHandle::Buffer(x.clone())));
         images.chain(buffers).collect()
@@ -449,24 +469,21 @@ impl ProgramRuntime {
         self.images[k].get(index as usize)
     }
 
-    /// Records the commands of run `run` (`runs`, each pass's run; each
-    /// upload, clear, and copy in the run of the next pass command after it,
-    /// those after the last in `BEFORE_SCENE`), calling `after` with each
-    /// pass's name once its consecutive commands are recorded (the inspector).
-    #[allow(clippy::too_many_arguments)]
+    /// Records the commands of a run (`ProgramRun`; each upload, clear, and
+    /// copy in the run of the next pass command after it, those after the
+    /// last in `BEFORE_SCENE`), calling `after` with each pass's name once its
+    /// consecutive commands are recorded (the inspector).
     pub fn record(
         &mut self,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
-        pipelines: &ProgramPipelines,
-        runs: &[u32],
-        run: u32,
-        frame: &wgpu::BindGroup,
-        shading: &wgpu::BindGroup,
-        meshes: &Meshes,
+        run: ProgramRun,
+        bindings: &ProgramBindings,
         mut timing: Option<&mut crate::timing::Timing>,
         after: &mut dyn FnMut(&mut wgpu::CommandEncoder, &'static str),
     ) {
+        let ProgramRun { runs, run } = run;
+        let (pipelines, frame, shading, meshes) = (bindings.pipelines, bindings.frame, bindings.shading, &bindings.meshes);
         if self.commands.is_empty() {
             return;
         }

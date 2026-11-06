@@ -181,7 +181,8 @@ pub fn excerpt(id: &str, entries: &[&str]) -> Result<Vec<Item>, String> {
 /// live reload makes them again).
 pub fn cached(id: &str, entries: &[&str]) -> Result<std::sync::Arc<Vec<Item>>, String> {
     type Key = (String, Vec<String>, u64);
-    static CACHE: std::sync::Mutex<Vec<(Key, Result<std::sync::Arc<Vec<Item>>, String>)>> = std::sync::Mutex::new(Vec::new());
+    type Cache = Vec<(Key, Result<std::sync::Arc<Vec<Item>>, String>)>;
+    static CACHE: std::sync::Mutex<Cache> = std::sync::Mutex::new(Vec::new());
     let key: Key = (id.to_string(), entries.iter().map(|e| e.to_string()).collect(), resources::generation());
     let mut cache = CACHE.lock().unwrap();
     if let Some((_, v)) = cache.iter().find(|(k, _)| *k == key) {

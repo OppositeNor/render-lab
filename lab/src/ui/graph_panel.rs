@@ -203,13 +203,14 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
 /// lifetime as a line from its first use to its last; each node's GPU time
 /// on the right. Hovering a cell names it; a click on one returns its
 /// `<node>.<resource>` (the inspector shows it).
-pub(super) fn draw_graph_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], interactive: bool) -> Option<GraphPick> {
+pub(super) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
+    let GraphPanel { ctx, ink, rect, view, highlight, .. } = *panel;
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
     let width = right - x;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Grid, false, interactive, None);
+    let (y, switched) = graph_header(&GraphPanel { full: false, source: None, ..*panel }, GraphPlace::Grid);
     if view.nodes.is_empty() || switched.is_some() {
         return switched;
     }
@@ -339,6 +340,23 @@ pub enum GraphPick {
     Source(bool),
 }
 
+/// A frame graph panel to draw: the context and ink it draws with, its
+/// rect, the graph, the story's highlight, whether it is full screen
+/// (`full`), whether the pointer works (`interactive`: the viewer), and, for
+/// the full-screen DAG, whether the source pane beside it is open (`source`;
+/// None: no source button).
+#[derive(Clone, Copy)]
+pub(super) struct GraphPanel<'a> {
+    pub ctx: &'a egui::Context,
+    pub ink: &'a Ink<'a>,
+    pub rect: Rect,
+    pub view: &'a GraphView,
+    pub highlight: &'a [String],
+    pub full: bool,
+    pub interactive: bool,
+    pub source: Option<bool>,
+}
+
 /// Which view of the frame graph a panel draws.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum GraphPlace {
@@ -351,7 +369,8 @@ pub(super) enum GraphPlace {
 /// the buttons that switch between the grid, the DAG, and the resources, and
 /// the full-screen view (`full`: drawn there). Returns where the content
 /// starts, and a button's pick.
-pub(super) fn graph_header(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, place: GraphPlace, full: bool, interactive: bool, source: Option<bool>) -> (f32, Option<GraphPick>) {
+pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Option<GraphPick>) {
+    let GraphPanel { ctx, ink, rect, view, full, interactive, source, .. } = *panel;
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
     let mut y = rect.min.y + 16.0;
@@ -415,13 +434,14 @@ pub(super) fn frame_aspect(view: &GraphView) -> f32 {
 /// and a double click puts both back; a story's `highlight` centres the
 /// nodes it names. Hovering a card names its arrows' resources; a click on
 /// one inspects its result.
-pub(super) fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], full: bool, interactive: bool, source: Option<bool>) -> Option<GraphPick> {
+pub(super) fn draw_dag_panel(panel: &GraphPanel) -> Option<GraphPick> {
+    let GraphPanel { ctx, ink, rect, view, highlight, full, interactive, .. } = *panel;
     use crate::graph_view::{self, Flow};
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Dag, full, interactive, source);
+    let (y, switched) = graph_header(panel, GraphPlace::Dag);
     let id = egui::Id::unique(if full { "frame-graph-dag-overlay" } else { "frame-graph-dag-panel" });
     if switched == Some(GraphPick::Reset) {
         crate::graph_view::ask_reset(ctx, id);
@@ -490,7 +510,7 @@ pub(super) fn draw_dag_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &
         v.centre = graph_view::centre_on(laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(laid, area, scale) });
     };
     // The wheel zooms (out to the whole graph, in to four times the readable scale); a drag on the background pans.
-    let (mut state, picks) = graph_view::view(ctx, id, area, laid, interactive, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(laid, area, scale)), move_nodes: true }, &setup);
+    let (mut state, picks) = graph_view::view(ctx, interactive.then_some(id), area, laid, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(laid, area, scale)), move_nodes: true }, &setup);
     graph_view::keep(&mut state, laid, area);
     if interactive {
         ctx.data_mut(|d| d.insert_temp(id, state.clone()));
@@ -666,12 +686,13 @@ pub(super) fn footer_text(ink: &Ink, at: Pos2, width: f32, text: &str, lines: us
 /// `highlight` lights the resources its nodes read and write. Hovering a
 /// card names its writers and readers; a click inspects it. The view pans
 /// like the DAG's.
-pub(super) fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, highlight: &[String], full: bool, interactive: bool) -> Option<GraphPick> {
+pub(super) fn draw_resource_panel(panel: &GraphPanel) -> Option<GraphPick> {
+    let GraphPanel { ctx, ink, rect, view, highlight, full, interactive, .. } = *panel;
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
-    let (y, switched) = graph_header(ctx, ink, rect, view, GraphPlace::Resources, full, interactive, None);
+    let (y, switched) = graph_header(&GraphPanel { source: None, ..*panel }, GraphPlace::Resources);
     let shown: Vec<usize> = (0..view.resources.len()).filter(|&r| view.resources[r].name != "frame").collect();
     let id = egui::Id::unique(if full { "frame-graph-resources-overlay" } else { "frame-graph-resources-panel" });
     if switched == Some(GraphPick::Reset) {
@@ -714,7 +735,7 @@ pub(super) fn draw_resource_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, vi
         v.scale = scale;
         v.centre = graph_view::centre_on(&laid, area, scale, &lit).unwrap_or(if same { v.centre } else { graph_view::start(&laid, area, scale) });
     };
-    let (mut state, picks) = graph_view::view(ctx, id, area, &laid, interactive, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(&laid, area, scale)), move_nodes: true }, &setup);
+    let (mut state, picks) = graph_view::view(ctx, interactive.then_some(id), area, &laid, key, &graph_view::Controls { zoom: Some(graph_view::zoom_range(&laid, area, scale)), move_nodes: true }, &setup);
     graph_view::keep(&mut state, &laid, area);
     if interactive {
         ctx.data_mut(|d| d.insert_temp(id, state.clone()));

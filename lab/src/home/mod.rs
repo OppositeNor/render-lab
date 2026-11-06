@@ -33,7 +33,7 @@
 
 use crate::investigations;
 use crate::config::{Category, Config};
-use crate::egui_pass::PagePainter;
+use crate::egui_pass::{PagePainter, PageTarget};
 use crate::frost::Frost;
 use crate::gpu::{self, Gpu, FRAME_FORMAT};
 use crate::i18n::{self, args, tr, tr_with, Locale};
@@ -171,8 +171,7 @@ struct TimelineSummary {
     title: String,
     fps: u32,
     total_frames: u64,
-    /// Number, title, and first frame of each chapter.
-    chapters: Vec<(u32, String, u64)>,
+    chapters: Vec<Chapter>,
     narrated: bool,
     locale: Locale,
 }
@@ -202,12 +201,16 @@ impl TimelineSummary {
     }
 }
 
+/// A chapter as a timeline lists it: its number, its title (on the
+/// selection page, its clock and title), and its first frame.
+type Chapter = (u32, String, u64);
+
 /// A timeline as the selection page lists it.
 struct TimelineRow {
     info: &'static TimelineInfo,
     /// Title, length, chapters (number, "clock  title", first frame), and
     /// whether the narration is built; or why the timeline cannot be read.
-    summary: Result<(String, String, Vec<(u32, String, u64)>, bool), String>,
+    summary: Result<(String, String, Vec<Chapter>, bool), String>,
     /// Its language, once it has been read.
     locale: Option<Locale>,
 }

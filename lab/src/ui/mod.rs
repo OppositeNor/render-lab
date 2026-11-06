@@ -557,10 +557,11 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 } else if matches!(input.state.panel, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources) && l.panel_shown {
                     let view = input.graph.cloned().unwrap_or_default();
                     let interactive = matches!(&chrome, Chrome::Viewer(_));
+                    let panel = GraphPanel { ctx, ink: &ink, rect: l.panel, view: &view, highlight: &input.state.highlight, full: false, interactive, source: None };
                     let pick = match input.state.panel {
-                        PanelMode::Graph => draw_graph_panel(ctx, &ink, l.panel, &view, &input.state.highlight, interactive),
-                        PanelMode::Dag => draw_dag_panel(ctx, &ink, l.panel, &view, &input.state.highlight, false, interactive, None),
-                        _ => draw_resource_panel(ctx, &ink, l.panel, &view, &input.state.highlight, false, interactive),
+                        PanelMode::Graph => draw_graph_panel(&panel),
+                        PanelMode::Dag => draw_dag_panel(&panel),
+                        _ => draw_resource_panel(&panel),
                     };
                     if let Chrome::Viewer(v) = &mut chrome {
                         // Its input is read by hand in the background layer: the wheel scrolls it, not the camera.
@@ -660,14 +661,14 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                     let pick = if input.state.panel == PanelMode::Dag {
                         // With the source: the graph on the left, the selected pass's WGSL on the right.
                         let graph_area = if source { Rect::from_min_max(area.min, pos2(area.min.x + area.width() * 0.5 - 8.0, area.max.y)) } else { area };
-                        let pick = draw_dag_panel(ctx, &overlay_ink, graph_area, &view, &input.state.highlight, true, true, Some(source));
+                        let pick = draw_dag_panel(&GraphPanel { ctx, ink: &overlay_ink, rect: graph_area, view: &view, highlight: &input.state.highlight, full: true, interactive: true, source: Some(source) });
                         if source {
                             let pane = Rect::from_min_max(pos2(graph_area.max.x + 16.0, area.min.y), area.max);
                             draw_source_pane(ctx, &overlay_ink, pane, &view, viewer.shader_reload.as_ref().filter(|r| r.1).map(|r| r.0.as_str()));
                         }
                         pick
                     } else {
-                        draw_resource_panel(ctx, &overlay_ink, area, &view, &input.state.highlight, true, true)
+                        draw_resource_panel(&GraphPanel { ctx, ink: &overlay_ink, rect: area, view: &view, highlight: &input.state.highlight, full: true, interactive: true, source: None })
                     };
                     if let Some(pick) = pick {
                         viewer.actions.push(graph_action(pick, &view));

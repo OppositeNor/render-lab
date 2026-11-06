@@ -57,11 +57,23 @@ pub const HIGH_CONE_TAN: f32 = 0.577;
 #[allow(clippy::approx_constant)] // the engine's literal
 pub const M_PI: f32 = 3.141592;
 
+/// A cone the cone traces follow (`voxel_cone_trace`'s and
+/// `voxel_cone_trace_45_degrees`'s `pos`, `direction`, `max_distance`, and
+/// `p_bias`): from `pos` along `direction` (cells), from `bias` out to
+/// `max_distance`.
+#[derive(Clone, Copy, Debug)]
+pub struct Cone {
+    pub pos: Vec3,
+    pub direction: Vec3,
+    pub max_distance: f32,
+    pub bias: f32,
+}
+
 /// `voxel_cone_trace`: from `bias`, the diameter `2 tan dist` (at least a
 /// cell), its mip `log2(diameter)`, front to back until the alpha reaches 1,
 /// the distance the box's diagonal, or the cone leaves the box.
-#[allow(clippy::too_many_arguments)]
-pub fn cone_trace(tex: &LightTexture, cell_size: Vec3, pos: Vec3, direction: Vec3, tan_half_angle: f32, max_distance: f32, bias: f32, mut steps: Option<&mut Vec<ConeStep>>) -> Vec4 {
+pub fn cone_trace(tex: &LightTexture, cell_size: Vec3, cone: Cone, tan_half_angle: f32, mut steps: Option<&mut Vec<ConeStep>>) -> Vec4 {
+    let Cone { pos, direction, max_distance, bias } = cone;
     let mut dist = bias;
     let mut color = Vec4::ZERO;
     while dist < max_distance && color.w < 1.0 {
@@ -85,7 +97,8 @@ pub fn cone_trace(tex: &LightTexture, cell_size: Vec3, pos: Vec3, direction: Vec
 
 /// `voxel_cone_trace_45_degrees`: the radius is the distance (at least half a
 /// cell), so each step doubles the distance and climbs one mip.
-pub fn cone_trace_45(tex: &LightTexture, cell_size: Vec3, pos: Vec3, direction: Vec3, max_distance: f32, bias: f32, mut steps: Option<&mut Vec<ConeStep>>) -> Vec4 {
+pub fn cone_trace_45(tex: &LightTexture, cell_size: Vec3, cone: Cone, mut steps: Option<&mut Vec<ConeStep>>) -> Vec4 {
+    let Cone { pos, direction, max_distance, bias } = cone;
     let mut dist = bias;
     let mut color = Vec4::ZERO;
     let mut radius = dist.max(0.5);
@@ -126,10 +139,30 @@ pub struct Cones {
     pub reflection: Vec4,
 }
 
+/// A pixel's surface in the world, as `voxel_gi_compute` takes it: its
+/// position, normal, reflection vector, and roughness.
+#[derive(Clone, Copy, Debug)]
+pub struct Sample {
+    pub position: Vec3,
+    pub normal: Vec3,
+    pub reflection: Vec3,
+    pub roughness: f32,
+}
+
+/// The sums `voxel_gi_compute` adds to (its `out_spec`, `out_diff`, and
+/// `out_blend`).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GiSums {
+    pub spec: Vec4,
+    pub diff: Vec4,
+    pub blend: f32,
+}
+
 /// `voxel_gi_compute` for one instance: adds its diffuse and specular light,
-/// weighted by the edge fade, and the fade itself.
-#[allow(clippy::too_many_arguments)]
-pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, position_world: Vec3, normal_world: Vec3, ref_world: Vec3, roughness: f32, high_quality: bool, out_spec: &mut Vec4, out_diff: &mut Vec4, out_blend: &mut f32, mut trace: Option<&mut Cones>) {
+/// weighted by the edge fade, and the fade itself, to `sums`.
+pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, sample: &Sample, high_quality: bool, sums: &mut GiSums, mut trace: Option<&mut Cones>) {
+    let Sample { position: position_world, normal: normal_world, reflection: ref_world, roughness } = *sample;
+    let GiSums { spec: out_spec, diff: out_diff, blend: out_blend } = sums;
     let mut position = inst.to_cell(position_world);
     // mat3(xform) is a uniform scale here, so normalize() takes it out.
     let ref_vec = ref_world.normalize();
@@ -154,7 +187,7 @@ pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, position_world: Vec
         for (i, d) in HIGH_CONE_DIRS.iter().enumerate() {
             let dir = frame(*d);
             let mut steps = Vec::new();
-            let c = cone_trace(tex, cell_size, position, dir, HIGH_CONE_TAN, max_distance, inst.bias, trace.is_some().then_some(&mut steps));
+            let c = cone_trace(tex, cell_size, Cone { pos: position, direction: dir, max_distance, bias: inst.bias }, HIGH_CONE_TAN, trace.is_some().then_some(&mut steps));
             light += HIGH_CONE_WEIGHTS[i] * c;
             if let Some(t) = trace.as_deref_mut() {
                 t.diffuse.push((dir, HIGH_CONE_WEIGHTS[i], steps, c));
@@ -164,7 +197,7 @@ pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, position_world: Vec
         for d in LOW_CONE_DIRS {
             let dir = frame(d);
             let mut steps = Vec::new();
-            let c = cone_trace_45(tex, cell_size, position, dir, max_distance, inst.bias, trace.is_some().then_some(&mut steps));
+            let c = cone_trace_45(tex, cell_size, Cone { pos: position, direction: dir, max_distance, bias: inst.bias }, trace.is_some().then_some(&mut steps));
             light += 0.25 * c;
             if let Some(t) = trace.as_deref_mut() {
                 t.diffuse.push((dir, 0.25, steps, c));
@@ -176,7 +209,7 @@ pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, position_world: Vec
     *out_diff += light * blend;
     let tan = (roughness * 0.5 * M_PI * 0.99).tan();
     let mut steps = Vec::new();
-    let irr = cone_trace(tex, cell_size, position, ref_vec, tan, max_distance, inst.bias, trace.is_some().then_some(&mut steps));
+    let irr = cone_trace(tex, cell_size, Cone { pos: position, direction: ref_vec, max_distance, bias: inst.bias }, tan, trace.is_some().then_some(&mut steps));
     let irr = (irr.truncate() * scale).extend(if inst.blend_ambient { irr.w } else { 1.0 });
     *out_spec += irr * blend;
     *out_blend += blend;
@@ -190,12 +223,11 @@ pub fn voxel_gi_compute(inst: &Instance, tex: &LightTexture, position_world: Vec
 
 /// The ambient and reflection `process_gi` stores for a pixel covered by
 /// one VoxelGI (roughness squared first, the sums divided by the blend).
-pub fn process(inst: &Instance, tex: &LightTexture, position: Vec3, normal: Vec3, reflection: Vec3, roughness: f32, high_quality: bool, trace: Option<&mut Cones>) -> (Vec4, Vec4) {
-    let roughness = roughness * roughness;
-    let mut amb = Vec4::ZERO;
-    let mut spec = Vec4::ZERO;
-    let mut blend = 0.0;
-    voxel_gi_compute(inst, tex, position, normal, reflection, roughness, high_quality, &mut spec, &mut amb, &mut blend, trace);
+pub fn process(inst: &Instance, tex: &LightTexture, sample: &Sample, high_quality: bool, trace: Option<&mut Cones>) -> (Vec4, Vec4) {
+    let sample = Sample { roughness: sample.roughness * sample.roughness, ..*sample };
+    let mut sums = GiSums::default();
+    voxel_gi_compute(inst, tex, &sample, high_quality, &mut sums, trace);
+    let GiSums { mut spec, diff: mut amb, blend } = sums;
     if blend > 0.0 {
         amb /= blend;
         spec /= blend;

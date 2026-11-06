@@ -37,9 +37,12 @@ fn key(name: &str, key: &str, kind: &str) -> Value {
     }
 }
 
+/// An option `options` left out: its attribute, the option, and why.
+type Dropped = (String, String, &'static str);
+
 thread_local! {
-    /// The options `options` left out, while `schema` collects them: (attribute, option, why).
-    static DROPPED: std::cell::RefCell<Option<Vec<(String, String, &'static str)>>> = const { std::cell::RefCell::new(None) };
+    /// The options `options` left out, while `schema` collects them.
+    static DROPPED: std::cell::RefCell<Option<Vec<Dropped>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// A text key with options: only those that make a Lamlet name, once each (the rest are still written as text).

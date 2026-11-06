@@ -64,7 +64,7 @@ impl App {
         };
         let view = frame.texture.create_view(&Default::default());
         let title = investigation::current().title();
-        pending.screen.draw(&pending.gpu, &view, [pending.config.width, pending.config.height], self.options.ui_scale, title, &pending.loading.progress());
+        pending.screen.draw(&pending.gpu, crate::egui_pass::PageTarget { view: &view, size: [pending.config.width, pending.config.height] }, self.options.ui_scale, title, &pending.loading.progress());
         pending.window.pre_present_notify();
         pending.gpu.queue.present(frame);
         Ok(())

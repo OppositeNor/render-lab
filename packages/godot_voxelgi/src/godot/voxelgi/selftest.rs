@@ -192,17 +192,17 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let inst = world::instance(probe, &LightSettings::default(), false);
     let mut steps = Vec::new();
     #[allow(clippy::approx_constant)] // the sample's direction as written
-    cone::cone_trace_45(&lit.texture, Vec3::ONE / inst.bounds, Vec3::new(64.0, 10.0, 64.0), Vec3::new(0.0, 0.7071, 0.7071), inst.bounds.length(), inst.bias, Some(&mut steps));
+    cone::cone_trace_45(&lit.texture, Vec3::ONE / inst.bounds, cone::Cone { pos: Vec3::new(64.0, 10.0, 64.0), direction: Vec3::new(0.0, 0.7071, 0.7071), max_distance: inst.bounds.length(), bias: inst.bias }, Some(&mut steps));
     let doubles = steps.windows(2).all(|p| (p[1].dist - 2.0 * p[0].dist).abs() < 1e-4 && (p[1].lod - p[0].lod - 1.0).abs() < 1e-5) && steps.first().is_some_and(|s| (s.lod - 3f32.log2()).abs() < 1e-5);
     report.check("voxel_cone_trace_45_degrees: from bias 1.5 each step doubles the distance and climbs one mip, from log2(3)", doubles, json!(steps.iter().map(|s| [s.dist, s.lod]).collect::<Vec<_>>()));
     // The edge fade cancels for one instance: the ambient is the cones' light, not light x blend.
     let p = Vec3::new(2.6, 0.5, 1.0);
     let n = Vec3::NEG_X;
     let mut cones = cone::Cones::default();
-    let (amb, _) = cone::process(&inst, &lit.texture, p, n, n, 0.5, false, Some(&mut cones));
+    let (amb, _) = cone::process(&inst, &lit.texture, &cone::Sample { position: p, normal: n, reflection: n, roughness: 0.5 }, false, Some(&mut cones));
     let cancels = cones.blend > 0.0 && cones.blend < 0.3 && (amb - cones.light).abs().max_element() < 1e-5;
     let face = inst.from_cell(Vec3::new(64.0, 0.0, 64.0));
-    let (at_face, _) = cone::process(&inst, &lit.texture, face, Vec3::Y, Vec3::Y, 0.5, false, None);
+    let (at_face, _) = cone::process(&inst, &lit.texture, &cone::Sample { position: face, normal: Vec3::Y, reflection: Vec3::Y, roughness: 0.5 }, false, None);
     report.check("the edge fade: one VoxelGI's sums are divided by its own blend, so near a face (blend < 0.3) the ambient is the cones' full light; only on a face (blend 0) does it vanish", cancels && at_face == Vec4::ZERO, json!({"blend": cones.blend, "ambient": amb.to_array(), "cones": cones.light.to_array(), "atFace": at_face.to_array()}));
 
     // ---- 8. The dynamic pass --------------------------------------------------------
@@ -394,7 +394,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         let mut worst_at = json!(null);
         for (k, &(p, n, r, rough, high, blend)) in cases.iter().enumerate() {
             let inst = world::instance(probe, &LightSettings::default(), !blend);
-            let (a, s) = cone::process(&inst, &gpu_texture, p, n, r, rough, high, None);
+            let (a, s) = cone::process(&inst, &gpu_texture, &cone::Sample { position: p, normal: n, reflection: r, roughness: rough }, high, None);
             let cpu = [a.x, a.y, a.z, a.w, s.x, s.y, s.z, s.w];
             for (i, c) in cpu.iter().enumerate() {
                 let g = f32::from_bits(words[k * 8 + i]);

@@ -50,13 +50,13 @@ impl Offscreen {
     pub(super) fn frame(&mut self, home: &mut Home, events: Vec<egui::Event>) -> Option<Choice> {
         self.frames += 1;
         let time = self.time();
-        self.painter.paint(&mut self.backdrop, &self.view, self.size, self.ui_scale, events, time, home, None)
+        self.painter.paint(&mut self.backdrop, PageTarget { view: &self.view, size: self.size }, PageInput { ui_scale: self.ui_scale, events, time }, home, None)
     }
 
     pub(super) fn capture(&mut self, home: &mut Home) -> Vec<u8> {
         self.frames += 1;
         let time = self.time();
-        self.painter.paint(&mut self.backdrop, &self.view, self.size, self.ui_scale, Vec::new(), time, home, Some((&self.texture, &self.buffer)));
+        self.painter.paint(&mut self.backdrop, PageTarget { view: &self.view, size: self.size }, PageInput { ui_scale: self.ui_scale, events: Vec::new(), time }, home, Some((&self.texture, &self.buffer)));
         let gpu = self.backdrop.gpu();
         read_rgba(&gpu.device, &gpu.queue, &self.buffer, self.size)
     }

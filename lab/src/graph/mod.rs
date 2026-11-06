@@ -495,7 +495,7 @@ impl FrameGraph {
 
     /// How resource `r` is shown unless told otherwise: the investigation's
     /// choice (`SceneShading::shows`), or what its format suggests.
-    pub fn view_of(&self, r: usize) -> (Show, std::collections::BTreeMap<String, Vec<f32>>) {
+    pub fn view_of(&self, r: usize) -> (Show, crate::utility::inset::ImageParams) {
         let resource = &self.resources[r];
         self.shows
             .iter()
