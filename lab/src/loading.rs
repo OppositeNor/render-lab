@@ -4,7 +4,7 @@
 //! `Statics`, and a `Renderer` on a clone of the window's device, while the
 //! window draws `Screen`, the progress so far.
 
-use crate::egui_pass::PagePainter;
+use crate::egui_pass::{PagePainter, PageTarget};
 use crate::frame::Statics;
 use crate::gpu::Gpu;
 use crate::i18n::{args, tr, tr_with};
@@ -101,11 +101,11 @@ impl Screen {
         Screen { painter: PagePainter::new(device, format) }
     }
 
-    /// Draws the page into `view` (`size` pixels): `title` over the progress.
-    pub fn draw(&mut self, gpu: &Gpu, view: &wgpu::TextureView, size: [u32; 2], ui_scale: f32, title: &str, progress: &Progress) {
-        let (raw, canvas) = PagePainter::input(size, ui_scale, egui::RawInput::default());
+    /// Draws the page into `target`: `title` over the progress.
+    pub fn draw(&mut self, gpu: &Gpu, target: PageTarget, ui_scale: f32, title: &str, progress: &Progress) {
+        let (raw, canvas) = PagePainter::input(target.size, ui_scale, egui::RawInput::default());
         let output = self.painter.run(raw, |ctx| page(ctx, canvas, title, progress));
-        self.painter.draw(gpu, "loading", view, size, palette::background_clear(), output, &mut ());
+        self.painter.draw(gpu, "loading", target, palette::background_clear(), output, &mut ());
     }
 }
 
@@ -144,7 +144,7 @@ pub fn snapshot(png: &std::path::Path, size: [u32; 2], ui_scale: f32) -> Result<
     let loading = Loading::start(current, gpu.clone(), current.first_scene(), size);
     let mut screen = Screen::new(&gpu.device, format);
     let progress = loading.progress();
-    screen.draw(&gpu, &view, size, ui_scale, current.title(), &progress);
+    screen.draw(&gpu, PageTarget { view: &view, size }, ui_scale, current.title(), &progress);
     write_png(png, size[0], size[1], &read_texture_rgba(&gpu.device, &gpu.queue, &texture, size))?;
     let started = std::time::Instant::now();
     let renderer = loading.wait()?;

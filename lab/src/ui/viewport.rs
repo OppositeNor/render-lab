@@ -242,7 +242,7 @@ pub(super) fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, l
     }
     crate::paint::overlay_card(ink.painter, rect, 10, palette::border());
     let lit = (term > 0 && lit > 0.0).then(|| (rich_text::Lit { term, weight: lit, color: colors.get(term - 1).copied().unwrap_or(palette::accent()) }, palette::text_dim()));
-    rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &latex, formula::FORMULA_PX, display, &f, 1.0, palette::text(), lit);
+    rich_text::draw_formula(ink, rect.min + vec2(18.0 - pad, 14.0 - pad), &rich_text::Typeset { latex: &latex, size: formula::FORMULA_PX, display, formula: &f }, 1.0, palette::text(), lit);
     Some(rect.expand(4.0))
 }
 

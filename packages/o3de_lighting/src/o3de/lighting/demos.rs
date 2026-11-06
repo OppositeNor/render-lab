@@ -357,7 +357,7 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     let object = inspected_object(state);
     let seen_from = observer(state, eye);
     let derivatives = normal_derivatives(&content.objects, &camera, p, object);
-    let px = brdf::pixel(&shading, &content.objects, p, n, seen_from, object, exposure, map, derivatives);
+    let px = brdf::pixel(&shading, &content.objects, &brdf::Fragment { object, p, n, derivatives }, seen_from, exposure, map);
     // SSAO's occluders for the inspected point's half-res pixel (ssao::samples_at):
     // the first `ssaoSamples` of its 52, each coloured by saturate(cos) against
     // the normal rebuilt from depth (dark green unoccluding, bright occluding)
@@ -794,7 +794,7 @@ fn readout(demo: Demo, state: &ShotState, shading: &Shading, px: &brdf::Pixel, s
             // The surface before its decals, then each decal in SortDecals' order.
             let (p, n) = inspected_point(state);
             let plain = Shading { decals: Vec::new(), ..shading.clone() };
-            let before = brdf::pixel(&plain, objects, p, n, p + n, shading.inspected, 1.0, BrdfMap::get(), [Vec3::ZERO; 2]).surface;
+            let before = brdf::pixel(&plain, objects, &brdf::Fragment::at(shading.inspected, p, n), p + n, 1.0, BrdfMap::get()).surface;
             row(tr("demos-albedo_surface"), f3(before.albedo), DIFFUSE);
             if shading.decals.is_empty() {
                 row("decals", tr("demos-off").into(), palette::text_dim());
@@ -1077,10 +1077,13 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
     notes
 }
 
+/// An SSAO occluder in world space: its position, saturate(cos), and weight.
+type Occluder = (Vec3, f32, f32);
+
 /// The inspected point's SSAO occluders in world space: its position and
 /// depth-rebuilt normal, and each occluder with its saturate(cos) and weight
 /// (ssao::samples_at, on the lab's ray-traced linear depth); None off screen.
-fn ssao_samples(state: &ShotState, objects: &[ObjectData], camera: &lab::layout::CameraData) -> Option<(Vec3, Vec3, Vec<(Vec3, f32, f32)>)> {
+fn ssao_samples(state: &ShotState, objects: &[ObjectData], camera: &lab::layout::CameraData) -> Option<(Vec3, Vec3, Vec<Occluder>)> {
     let (p, _) = inspected_point(state);
     let projector = lab::camera::Projector::new(camera);
     let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);

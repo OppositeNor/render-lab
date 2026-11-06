@@ -55,7 +55,9 @@ pub struct Formula {
 /// `display` lays it out on its own (fractions and sums full size, `aligned`
 /// rows); otherwise it is laid out inline, on a text line.
 pub fn get(latex: &str, size_px: f32, display: bool) -> Result<Arc<Formula>, String> {
-    static CACHE: OnceLock<Mutex<HashMap<(String, u32, bool), Arc<Formula>>>> = OnceLock::new();
+    /// By LaTeX, size (its bits), and display.
+    type Cache = HashMap<(String, u32, bool), Arc<Formula>>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
     let key = (latex.to_string(), size_px.to_bits(), display);
     let cache = CACHE.get_or_init(Default::default);
     if let Some(f) = cache.lock().unwrap().get(&key) {

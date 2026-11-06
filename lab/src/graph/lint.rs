@@ -14,6 +14,9 @@ pub fn is_group3(shading: &SceneShading, name: &str) -> bool {
     is_volume(shading, name) || (shading.volumes.is_empty() && shading.program.is_some_and(|p| p.scene_uses.iter().any(|u| u.resource == name)))
 }
 
+/// The bindings an entry point uses: group, binding, and how.
+type Uses = Vec<(u32, u32, GlobalUse)>;
+
 /// Checks `shading`'s declarations against its WGSL: every resource an
 /// entry point reads is in its pass's `reads`, every one it writes in its
 /// `writes`, and every one listed is used so. A buffer is bound
@@ -22,7 +25,7 @@ pub fn is_group3(shading: &SceneShading, name: &str) -> bool {
 pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     let (module, info) = crate::shaders::analyse(shading.module)?;
     let mut problems = Vec::new();
-    let uses = |entry: &str| -> Option<Vec<(u32, u32, GlobalUse)>> {
+    let uses = |entry: &str| -> Option<Uses> {
         let index = module.entry_points.iter().position(|e| e.name == entry)?;
         let function = info.get_entry_point(index);
         Some(
@@ -213,7 +216,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
 /// A program's passes against their WGSL: every group-3 binding an entry
 /// point uses is one of its `uses`, used as declared (a write where it
 /// writes, atomics where `Atomic`), and every use is used.
-pub(super) fn lint_program(shading: &SceneShading, program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&str) -> Option<Vec<(u32, u32, GlobalUse)>>, problems: &mut Vec<String>, module: &str, fragment: &str, chain_entries: &[&str]) {
+pub(super) fn lint_program(shading: &SceneShading, program: &crate::investigation::ShadingProgram, uses: &dyn Fn(&str) -> Option<Uses>, problems: &mut Vec<String>, module: &str, fragment: &str, chain_entries: &[&str]) {
     use crate::investigation::{Access, PassKind};
     let own = |name: &str| program.images.iter().any(|i| i.name == name) || program.buffers.iter().any(|b| b.name == name) || matches!(name, "linearSampler" | "nearestSampler" | "trilinearSampler");
     let frame = |name: &str| crate::program::external(shading, name).is_some();

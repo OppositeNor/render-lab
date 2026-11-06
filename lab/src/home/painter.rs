@@ -108,16 +108,25 @@ impl crate::egui_pass::Extra for Frosted<'_> {
     }
 }
 
+/// One frame's input to the page: its UI scale, the events since the last
+/// frame, and the page's clock.
+pub(super) struct PageInput {
+    pub ui_scale: f32,
+    pub events: Vec<egui::Event>,
+    pub time: f32,
+}
+
 impl Painter {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Painter {
         Painter { page: PagePainter::new(device, format) }
     }
 
-    /// One frame of the page into `view` (`size` pixels): the backdrop at
-    /// `time`, frosted, then the page; the loading page while the backdrop
+    /// One frame of the page into `target`: the backdrop at the input's
+    /// time, frosted, then the page; the loading page while the backdrop
     /// loads. Returns the choice made.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn paint(&mut self, backdrop: &mut Backdrop, view: &wgpu::TextureView, size: [u32; 2], ui_scale: f32, events: Vec<egui::Event>, time: f32, home: &mut Home, readback: Option<(&wgpu::Texture, &wgpu::Buffer)>) -> Option<Choice> {
+    pub(super) fn paint(&mut self, backdrop: &mut Backdrop, target: PageTarget, input: PageInput, home: &mut Home, readback: Option<(&wgpu::Texture, &wgpu::Buffer)>) -> Option<Choice> {
+        let PageInput { ui_scale, events, time } = input;
+        let size = target.size;
         let (raw, canvas) = PagePainter::input(size, ui_scale, egui::RawInput { time: Some(time as f64), events, ..Default::default() });
         let mut choice = None;
         let loading = backdrop.poll();
@@ -129,7 +138,7 @@ impl Painter {
         let (gpu, frame, frost) = backdrop.parts();
         // Before the backdrop has loaded, the page is on the plain background.
         let clear = if frame.is_some() { wgpu::Color::BLACK } else { palette::background_clear() };
-        self.page.draw(gpu, "home", view, size, clear, output, &mut Frosted { device: &gpu.device, frost, frame, readback, size });
+        self.page.draw(gpu, "home", target, clear, output, &mut Frosted { device: &gpu.device, frost, frame, readback, size });
         choice
     }
 }

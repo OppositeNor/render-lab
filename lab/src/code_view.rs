@@ -76,10 +76,14 @@ fn wgsl_tokens(line: &str) -> Vec<(Token, &str)> {
     out
 }
 
+/// A row of a wrapped line: its characters `start..stop`, and its indent
+/// (in characters).
+pub type Row = (usize, usize, usize);
+
 /// A code line's rows within `columns`: each row's character range and the
 /// column it starts at. A long line breaks after its last space or comma that
 /// fits, and continues four columns deeper than its indentation.
-pub fn wrap(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
+pub fn wrap(text: &str, columns: usize) -> Vec<Row> {
     let chars: Vec<char> = text.chars().collect();
     let deeper = chars.iter().take_while(|c| **c == ' ').count() + 4;
     let mut rows = Vec::new();
@@ -98,10 +102,9 @@ pub fn wrap(text: &str, columns: usize) -> Vec<(usize, usize, usize)> {
     rows
 }
 
-/// A code line in syntax colours, on its rows (`wrap`) from `at`: `column`
-/// and `line` a character's width and a row's height; `dim`, fainter.
-#[allow(clippy::too_many_arguments)]
-pub fn draw_text(ink: &Ink, language: Language, text: &str, rows: &[(usize, usize, usize)], at: Pos2, column: f32, line: f32, dim: bool) {
+/// A code line in syntax colours, on its rows (`wrap`) from `at`: `cell` a
+/// character's width and a row's height; `dim`, fainter.
+pub fn draw_text(ink: &Ink, language: Language, text: &str, rows: &[Row], at: Pos2, cell: Vec2, dim: bool) {
     let mut col = 0usize;
     for (kind, token) in tokens(language, text) {
         let color = match kind {
@@ -122,7 +125,7 @@ pub fn draw_text(ink: &Ink, language: Language, text: &str, rows: &[(usize, usiz
             }
             let part: String = token.chars().skip(from - col).take(to - from).collect();
             if !part.trim().is_empty() {
-                let pos = pos2(at.x + (indent + from - start) as f32 * column, at.y + row as f32 * line);
+                let pos = pos2(at.x + (indent + from - start) as f32 * cell.x, at.y + row as f32 * cell.y);
                 ink.text(pos, Align2::LEFT_TOP, part, 24.0, FontFamily::Monospace, color);
             }
         }
@@ -152,7 +155,7 @@ pub fn draw(ink: &Ink, rect: Rect, language: Language, sections: &[Section], wra
     let columns = if wrap_lines { ((rect.width() / column).floor() as usize).max(8) } else { usize::MAX / 2 };
     let any_lit = sections.iter().any(|s| s.lines.iter().any(|l| l.lit));
     // Each section's rows, and the content's size.
-    let laid: Vec<(Option<&String>, Vec<Vec<(usize, usize, usize)>>)> = sections.iter().map(|s| (s.header.as_ref(), s.lines.iter().map(|l| wrap(&l.text, columns)).collect())).collect();
+    let laid: Vec<(Option<&String>, Vec<Vec<Row>>)> = sections.iter().map(|s| (s.header.as_ref(), s.lines.iter().map(|l| wrap(&l.text, columns)).collect())).collect();
     let header_height = 32.0;
     let gap = 14.0;
     let height: f32 = laid.iter().map(|(h, rows)| h.map_or(0.0, |_| header_height) + rows.iter().map(|r| r.len() as f32 * LINE).sum::<f32>() + gap).sum();
@@ -222,7 +225,7 @@ pub fn draw(ink: &Ink, rect: Rect, language: Language, sections: &[Section], wra
                     clipped.rect_filled(Rect::from_min_size(pos2(rect.min.x - 10.0, y + 1.0), vec2(4.0, h - 6.0)), CornerRadius::same(2), palette::accent());
                 }
                 let dim = (any_lit && !line.lit) || !section.strong;
-                draw_text(&cink, language, &line.text, rows, pos2(x, y), column, LINE, dim);
+                draw_text(&cink, language, &line.text, rows, pos2(x, y), vec2(column, LINE), dim);
             }
             y += h;
         }

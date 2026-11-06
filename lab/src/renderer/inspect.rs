@@ -4,6 +4,16 @@
 
 use super::*;
 
+/// The targets a frame's passes write and the inspector reads: the
+/// chain's (a chained shading's), the shading's own (its program's
+/// resources), and the viewport's.
+#[derive(Clone, Copy)]
+pub(super) struct FrameTargets<'a> {
+    pub chain: Option<&'a ChainTargets>,
+    pub shading: Option<&'a Shading>,
+    pub targets: &'a ViewportTargets,
+}
+
 /// A story's (or the graph panel's) image of a resource of the frame's
 /// graph (src/graph.rs, `ImageSource::Graph`): its texture, written right
 /// after the node it names by the inspector (packages/render_lab/shaders/inspect.wgsl).
@@ -143,7 +153,7 @@ impl Renderer {
     pub(super) fn prepare_inspections(&mut self, state: &ShotState, boxes: &[(String, String)]) {
         use crate::graph::{inspect_entry, FrameGraph, Shape, Show};
         use crate::utility::inset::{view_texture, ImageSource};
-        let shown: Vec<(String, String, Option<String>, std::collections::BTreeMap<String, Vec<f32>>)> = state
+        let shown: Vec<(String, String, Option<String>, crate::utility::inset::ImageParams)> = state
             .images
             .iter()
             .filter_map(|i| match &i.source {
@@ -350,9 +360,11 @@ impl Renderer {
         }
     }
 
-    /// Draws each graph image that names node `node` from its resource as it
+    /// Draws each graph image that names node `node` from its resource (in
+    /// `frame`'s targets) as it
     /// stands now (right after the node): packages/render_lab/shaders/inspect.wgsl.
-    pub(super) fn capture(&self, encoder: &mut wgpu::CommandEncoder, node: usize, chain: Option<&ChainTargets>, shading: Option<&Shading>, targets: &ViewportTargets) {
+    pub(super) fn capture(&self, encoder: &mut wgpu::CommandEncoder, node: usize, frame: &FrameTargets) {
+        let FrameTargets { chain, shading, targets } = *frame;
         for x in self.inspections.values().filter(|x| x.node == node) {
             let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else { continue };
             let volume_view;

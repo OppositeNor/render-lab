@@ -3,7 +3,7 @@
 
 use super::demos;
 use super::shot::Demo;
-use lab::controls::{Dock, Unit};
+use lab::controls::{Dock, SliderRow, Unit};
 use crate::o3de::lighting::text::tr;
 use lab::palette;
 use lab::scene::ids;
@@ -76,7 +76,7 @@ fn view(dock: &mut Dock, ui: &mut Ui) {
         let terms = super::formulas::terms(Demo::of(d.state.demo)) as f32;
         d.rows(ui, "o3de-exposure", |d, ui| {
             d.value(ui, "exposure");
-            d.slider(ui, "formula", tr("controls-formula_term"), palette::text(), -1.0..=terms, Unit::Index);
+            d.slider(ui, "formula", SliderRow { label: tr("controls-formula_term"), color: palette::text(), range: -1.0..=terms, unit: Unit::Index });
         });
     });
 }

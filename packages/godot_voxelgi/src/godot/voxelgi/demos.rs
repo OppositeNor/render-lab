@@ -153,7 +153,7 @@ pub fn descent(w: &World) -> &'static [bake::Descent] {
         let mut trace = Vec::new();
         let tri = worked_triangle(w);
         let po2 = v.po2_bounds;
-        v.plot_face(0, 0, [0, 0, 0], &tri, Vec3::ONE, Vec3::ZERO, po2, &mut Some(&mut trace));
+        v.plot_face(0, 0, [0, 0, 0], &bake::Face { tri: &tri, albedo: Vec3::ONE, emission: Vec3::ZERO }, po2, &mut Some(&mut trace));
         trace
     })
 }
@@ -500,7 +500,7 @@ fn octree_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         let (aabb, cell) = worked_leaf(w);
         let tri = worked_triangle(w);
         wire_box(content, aabb.position + NODE, aabb.size, palette::SELECTED, 1.0, 2.0);
-        let s = bake::leaf_sample(&tri, Vec3::ONE, Vec3::ZERO, aabb);
+        let s = bake::leaf_sample(&bake::Face { tri: &tri, albedo: Vec3::ONE, emission: Vec3::ZERO }, aabb);
         let n = state.p("leafColumns").round().clamp(0.0, 16.0) as usize;
         let mut hits = 0;
         for c in s.columns.iter().take(n) {
@@ -679,7 +679,6 @@ fn slices(state: &ShotState, w: &World, content: &mut FrameContent, mark: Option
 }
 
 /// An x-z slice of `nx` x `nz` texels, each a block of pixels, +z at the bottom.
-#[allow(clippy::too_many_arguments)]
 fn slice_inset(title: String, key: String, nx: usize, nz: usize, pixel: impl Fn(i32, i32) -> [u8; 4], mark: Option<[i32; 2]>, legend: String) -> PictureInset {
     let k = (256 / nx.max(nz)).max(1);
     let (wpx, hpx) = (nx * k, nz * k);
@@ -854,8 +853,18 @@ fn step_rows(rows: &mut Vec<(String, String, Color32)>, s: &ConeStep) {
     rows.push(row(tr("demos-step_mip"), format!("{:.2}", s.lod), palette::VIEW));
 }
 
+/// A traced cone to draw: its start and direction (cells), the steps it
+/// took, and how many of them are shown.
+struct TracedCone<'a> {
+    start: Vec3,
+    dir_cells: Vec3,
+    steps: &'a [ConeStep],
+    shown: usize,
+}
+
 /// A cone drawn as its axis and a circle per sample, coloured by what it read.
-fn draw_cone(content: &mut FrameContent, probe: &Probe, start: Vec3, dir_cells: Vec3, steps: &[ConeStep], shown: usize, dynamic_range: f32, alpha: f32) {
+fn draw_cone(content: &mut FrameContent, probe: &Probe, cone: &TracedCone, dynamic_range: f32, alpha: f32) {
+    let TracedCone { start, dir_cells, steps, shown } = *cone;
     let end_dist = steps.last().map_or(2.0, |s| s.dist + s.diameter * 0.5);
     let shown_steps = &steps[..shown.min(steps.len())];
     let to_world = |dist: f32| probe.from_cell(start + dir_cells * dist) + NODE;
@@ -906,7 +915,7 @@ fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
             let add = (c * light::BOUNCE_CONE_WEIGHTS[i] * Vec4::new(albedo.x, albedo.y, albedo.z, 1.0) * params.dynamic_range).truncate();
             bounce += add;
             if i < shown {
-                draw_cone(content, probe, cpos, direction, &steps, steps_shown, params.dynamic_range, 0.9);
+                draw_cone(content, probe, &TracedCone { start: cpos, dir_cells: direction, steps: &steps, shown: steps_shown }, params.dynamic_range, 0.9);
                 if i + 1 == shown {
                     rows.push(row(tr_with("demos-cone_n", lab::args!(n = i + 1)), tr_with("demos-cone_value", lab::args!(steps = steps.len(), alpha = format!("{:.2}", c.w), weight = light::BOUNCE_CONE_WEIGHTS[i])), palette::VIEW));
                     if let Some(s) = steps.get(steps_shown.min(steps.len()).saturating_sub(1)) {
@@ -1040,7 +1049,7 @@ pub fn pixel_cones(state: &ShotState, w: &World, eye_pos: Vec3) -> (Vec3, Vec3, 
     let r = lab::scene::reflect(-v, n);
     let inst = world::instance(&w.probe, &LightSettings::default(), state.p("interior") > 0.5);
     let mut cones = Cones::default();
-    let (amb, spec) = cone::process(&inst, &w.lit.texture, p, n, r, state.p("sphereRoughness"), state.p("quality") > 0.5, Some(&mut cones));
+    let (amb, spec) = cone::process(&inst, &w.lit.texture, &cone::Sample { position: p, normal: n, reflection: r, roughness: state.p("sphereRoughness") }, state.p("quality") > 0.5, Some(&mut cones));
     (p, n, cones, amb, spec)
 }
 

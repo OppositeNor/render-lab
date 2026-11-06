@@ -14,7 +14,7 @@ pub(super) struct Shading {
     /// (key None), and `Investigation::scene_data`'s by key, each with its group.
     pub(super) data: Vec<(Option<u64>, wgpu::Buffer, wgpu::BindGroup)>,
     /// A `scene_data` build on a worker thread: its key, its result, and when it started.
-    pub(super) pending: Option<(u64, std::sync::mpsc::Receiver<Vec<[f32; 4]>>, std::time::Instant)>,
+    pub(super) pending: Option<(u64, DataBuild, std::time::Instant)>,
     /// `FrameContent::shading_frame`.
     pub(super) frame_data: wgpu::Buffer,
     /// The volumes (`SceneShading::volumes`), one set per update key kept.
@@ -39,7 +39,7 @@ pub(super) struct Shading {
     /// The program's resources by name (handles, for the inspector, which
     /// draws while the program records): made again when `bind` makes its
     /// images the size of the view again.
-    pub(super) program_handles: std::cell::RefCell<Vec<(&'static str, crate::program::ProgramHandle)>>,
+    pub(super) program_handles: std::cell::RefCell<crate::program::ProgramHandles>,
 }
 
 impl Shading {
@@ -399,3 +399,6 @@ impl Renderer {
         read_buffer(device, &self.gpu.queue, &out, 0, (words * 4) as u64).as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect()
     }
 }
+
+/// A `scene_data` build's result, from its worker thread.
+pub(super) type DataBuild = std::sync::mpsc::Receiver<Vec<[f32; 4]>>;

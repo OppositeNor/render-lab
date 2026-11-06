@@ -125,7 +125,7 @@ impl ViewKind {
 
     /// Its parameters' uniform: each parameter's value in `values`, or its
     /// default, clamped to its range.
-    pub fn pack(&self, values: &BTreeMap<String, Vec<f32>>) -> Vec<u8> {
+    pub fn pack(&self, values: &crate::utility::inset::ImageParams) -> Vec<u8> {
         let mut bytes = vec![0u8; self.params_size.max(16) as usize];
         for p in &self.params {
             let value = values.get(&p.key).unwrap_or(&p.default);

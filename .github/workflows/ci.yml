@@ -1,0 +1,154 @@
+# Render Lab's CI: on every push to main and every pull request, build the public tree without warnings, run
+# the unit tests, clippy, the content checks and the Python tests; on a `v*` tag, also build the Linux release
+# and publish it as a GitHub Release. The runners have no GPU, so the checks that draw a frame (offscreen
+# snapshots, autotest, selftest) run on Mesa's software Vulkan (lavapipe) in a job of their own, and the
+# frame identity check and the videos stay local (BUILD.md, AGENTS.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  check:
+    name: Build, test, check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: cargo build --release --locked
+      # The commands below need no GPU. They and the Python checks run before `cargo test`, whose build of
+      # the lab's dylib can replace the one the binary links.
+      - name: Content checks
+        run: |
+          lab=target/release/render-lab
+          $lab cook
+          $lab packages
+          $lab i18n --check
+          for ftl in packages/*/text/*.ftl; do $lab formulas --check "$ftl"; done
+          for investigation in $($lab --list | awk '{print $1}'); do
+            echo "::group::$investigation"
+            $lab --investigation "$investigation" script check
+            $lab --investigation "$investigation" knowledge
+            $lab --investigation "$investigation" graph
+            echo "::endgroup::"
+          done
+      # Some read the storyboards through the built lab.
+      - name: Python checks
+        run: |
+          pip install numpy matplotlib
+          python3 tools/check_skills.py
+          python3 tools/lamlet_fmt.py --check
+          for test in tools/video/test_*.py tools/experiments/test_report.py tools/test_lamlet_fmt.py; do
+            python3 -m unittest "$test"
+          done
+      - name: Clippy
+        run: cargo clippy --release --locked --workspace
+      - name: Unit tests
+        run: cargo test --release --locked --workspace
+
+  # macOS (Apple Silicon): not supported yet, so this job is expected to fail. The lab builds wgpu with Vulkan
+  # alone (lab/Cargo.toml), build.rs links with Linux's rpath ($ORIGIN) and the libraries are .so; macOS needs
+  # Metal (or MoltenVK), @executable_path and .dylib. The release does not wait for it.
+  macos:
+    name: Build, test, check (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked
+      - name: Content checks
+        run: |
+          lab=target/release/render-lab
+          $lab cook
+          $lab packages
+          $lab i18n --check
+          for investigation in $($lab --list | awk '{print $1}'); do
+            $lab --investigation "$investigation" script check
+            $lab --investigation "$investigation" graph
+          done
+      - name: Unit tests
+        run: cargo test --release --locked --workspace
+
+  render:
+    name: Offscreen renders (software Vulkan)
+    runs-on: ubuntu-24.04
+    # Not yet proven on lavapipe: it reports, but does not block, until a run shows it is reliable.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install software Vulkan
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+      - name: Build
+        run: cargo build --release --locked
+      - name: Render
+        run: |
+          lab=target/release/render-lab
+          mkdir -p out
+          $lab home --snapshot out/home.png
+          $lab home --snapshot out/viewer.png --page viewer
+          $lab home --autotest out/home.json
+          $lab --investigation o3de/lighting selftest --report out/o3de.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renders
+          path: out/
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: |
+          cargo build --release --locked
+          target/release/render-lab cook
+      # The binary finds the lab and the standard library beside it (build.rs: rpath $ORIGIN) and the built
+      # packages in packages/ beside it (lab/src/resources.rs); the cook links resources to their sources, so
+      # the copy follows links.
+      - name: Package
+        run: |
+          dist="render-lab-${GITHUB_REF_NAME}-x86_64-linux"
+          mkdir "$dist"
+          cp target/release/render-lab target/release/liblab.so "$dist/"
+          cp "$(rustc --print sysroot)"/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-*.so "$dist/"
+          cp -rL target/release/packages target/release/themes "$dist/"
+          cp -r LICENSE LICENSES THIRD_PARTY.md README.md README.zh-CN.md "$dist/"
+          tar czf "$dist.tar.gz" "$dist"
+          echo "DIST=$dist.tar.gz" >> "$GITHUB_ENV"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$DIST" --title "Render Lab $GITHUB_REF_NAME" --generate-notes

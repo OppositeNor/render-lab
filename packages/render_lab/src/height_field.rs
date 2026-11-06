@@ -106,15 +106,17 @@ impl HeightField {
         self.point(uv * Vec2::new(self.size[0] as f32, self.size[1] as f32), h)
     }
 
-    /// Whether texels `x0..x1`, `y0..y1` overlap the window.
-    pub fn shows(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> bool {
+    /// Whether a texel box (`[x0, y0, x1, y1]`, as `window`) overlaps the window.
+    pub fn shows(&self, texels: [f32; 4]) -> bool {
+        let [x0, y0, x1, y1] = texels;
         let [wx0, wy0, wx1, wy1] = self.window;
         x1 > wx0 && x0 < wx1 && y1 > wy0 && y0 < wy1
     }
 
-    /// A column over texels `x0..x1`, `y0..y1` (clipped to the window), `h`
-    /// high (a flat tile when `h` is 0).
-    pub fn column(&self, draw: &mut DrawLists, x0: f32, y0: f32, x1: f32, y1: f32, h: f32, color: Color32, alpha: f32) {
+    /// A column over a texel box (`[x0, y0, x1, y1]`, clipped to the window),
+    /// `h` high (a flat tile when `h` is 0).
+    pub fn column(&self, draw: &mut DrawLists, texels: [f32; 4], h: f32, color: Color32, alpha: f32) {
+        let [x0, y0, x1, y1] = texels;
         let [wx0, wy0, wx1, wy1] = self.window;
         let (x0, y0, x1, y1) = (x0.max(wx0), y0.max(wy0), x1.min(wx1), y1.min(wy1));
         if x1 <= x0 || y1 <= y0 {

@@ -32,7 +32,7 @@ impl Renderer {
     pub(super) fn prepare_views(&mut self, state: &ShotState) {
         use crate::utility::inset::{view_texture, ImageSource};
         let package = investigation::current().package().unwrap_or("render_lab");
-        let shown: Vec<(&str, &str, &std::collections::BTreeMap<String, Vec<f32>>)> = state.images.iter().filter_map(|i| match &i.source {
+        let shown: Vec<(&str, &str, &crate::utility::inset::ImageParams)> = state.images.iter().filter_map(|i| match &i.source {
             ImageSource::View { kind, params } => Some((i.name.as_str(), kind.as_str(), params)),
             _ => None,
         }).collect();

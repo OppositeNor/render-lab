@@ -560,7 +560,7 @@ impl Dock<'_> {
             let (label, color) = if channels.len() > 1 { (["x", "y", "z", "w"][i], AXES.get(i).map_or(palette::text(), |a| a.1)) } else { (entry.label_text(), entry.color.map_or(palette::text(), palette::themed)) };
             // An angle shows wrapped into its range (a yaw of 400° as 40°).
             let shown = if entry.wrap { (current - range.0).rem_euclid(range.1 - range.0) + range.0 } else { current };
-            if let Some(v) = self.number(ui, channel, label, color, shown, range.0..=range.1, entry.unit) {
+            if let Some(v) = self.number(ui, channel, SliderRow { label, color, range: range.0..=range.1, unit: entry.unit }, shown) {
                 if camera {
                     let mut c = self.state.camera;
                     c.set(channel, Value::F32(v));
@@ -634,10 +634,10 @@ impl Dock<'_> {
         }
     }
 
-    /// One grid row: a label and a slider. Returns the new value when the
-    /// user changed it.
-    #[allow(clippy::too_many_arguments)]
-    pub fn number(&mut self, ui: &mut Ui, key: &str, label: &str, color: Color32, value: f32, range: RangeInclusive<f32>, unit: Unit) -> Option<f32> {
+    /// One grid row: a label and a slider, `key`'s, at `value`. Returns the
+    /// new value when the user changed it.
+    pub fn number(&mut self, ui: &mut Ui, key: &str, row: SliderRow, value: f32) -> Option<f32> {
+        let SliderRow { label, color, range, unit } = row;
         let color = self.color(key, color);
         let name = ui.horizontal(|ui| {
             let name = ui.label(RichText::new(label).color(color));
@@ -667,9 +667,9 @@ impl Dock<'_> {
         r.changed().then_some(v)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn slider(&mut self, ui: &mut Ui, param: &'static str, label: &str, color: Color32, range: RangeInclusive<f32>, unit: Unit) {
-        if let Some(v) = self.number(ui, param, label, color, self.state.p(param), range, unit) {
+    /// A grid row with a slider for the parameter `param`.
+    pub fn slider(&mut self, ui: &mut Ui, param: &'static str, row: SliderRow) {
+        if let Some(v) = self.number(ui, param, row, self.state.p(param)) {
             self.actions.push(ViewerAction::SetParam(param, v));
         }
     }
@@ -680,10 +680,19 @@ impl Dock<'_> {
             return;
         }
         let value = current.unwrap_or(0).min(count as u32 - 1) as f32;
-        if let Some(v) = self.number(ui, label, label, palette::SELECTED, value, 0.0..=(count - 1) as f32, Unit::Index) {
+        if let Some(v) = self.number(ui, label, SliderRow { label, color: palette::SELECTED, range: 0.0..=(count - 1) as f32, unit: Unit::Index }, value) {
             self.actions.push(ViewerAction::SetRecord(make(v.round() as u32)));
         }
     }
+}
+
+/// How a slider row looks: its label and colour, and the slider's range
+/// and unit.
+pub struct SliderRow<'a> {
+    pub label: &'a str,
+    pub color: Color32,
+    pub range: RangeInclusive<f32>,
+    pub unit: Unit,
 }
 
 /// A "?" that shows `text` when hovered.
@@ -823,10 +832,10 @@ impl Dock<'_> {
                     }
                 });
                 d.rows(ui, "experiment-compare", |d, ui| {
-                    if view.compare == Compare::Wipe && let Some(v) = d.number(ui, "experiment.split", tr("experiments-split"), palette::text(), view.split, 0.0..=1.0, Unit::Plain) {
+                    if view.compare == Compare::Wipe && let Some(v) = d.number(ui, "experiment.split", SliderRow { label: tr("experiments-split"), color: palette::text(), range: 0.0..=1.0, unit: Unit::Plain }, view.split) {
                         d.actions.push(ViewerAction::SetSplit(v));
                     }
-                    if view.compare == Compare::Difference && let Some(v) = d.number(ui, "experiment.gain", tr("experiments-gain"), palette::text(), view.gain, 1.0..=64.0, Unit::Factor) {
+                    if view.compare == Compare::Difference && let Some(v) = d.number(ui, "experiment.gain", SliderRow { label: tr("experiments-gain"), color: palette::text(), range: 1.0..=64.0, unit: Unit::Factor }, view.gain) {
                         d.actions.push(ViewerAction::SetGain(v));
                     }
                 });

@@ -6,14 +6,14 @@ use super::*;
 /// A view of a resource as text, `<show>[?<param>=<value>[,<value>]&…]`
 /// (`SceneShading::shows`, the inspector's page): its visualizer, if named,
 /// and its parameters, checked.
-pub fn parse_view(spec: &str) -> Result<(Option<Show>, std::collections::BTreeMap<String, Vec<f32>>), String> {
+pub fn parse_view(spec: &str) -> Result<(Option<Show>, crate::utility::inset::ImageParams), String> {
     let (show, query) = spec.split_once('?').unwrap_or((spec, ""));
     let show = if show.is_empty() { None } else { Some(Show::from_key(show)?) };
     Ok((show, parse_params(query)?))
 }
 
 /// The inspector's parameters as text, `<param>=<value>[,<value>]&…`, checked.
-pub fn parse_params(query: &str) -> Result<std::collections::BTreeMap<String, Vec<f32>>, String> {
+pub fn parse_params(query: &str) -> Result<crate::utility::inset::ImageParams, String> {
     let mut params = std::collections::BTreeMap::new();
     for pair in query.split('&').filter(|p| !p.is_empty()) {
         let (name, value) = pair.split_once('=').ok_or_else(|| format!("`{pair}`: expected name=value"))?;

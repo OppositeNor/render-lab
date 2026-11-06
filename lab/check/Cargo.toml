@@ -2,7 +2,7 @@
 # lab (for its own package, render_lab) and of every package's library.
 [package]
 name = "render-lab-check"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
 publish = false
@@ -16,3 +16,8 @@ naga = { version = "=30.0.1", features = ["wgsl-in"] }
 fluent-syntax = "=0.12.0"
 serde_json = "1"
 toml_edit = { version = "=0.25.17", default-features = false, features = ["parse"] }
+
+# The root workspace's lints, here rather than inherited: another workspace
+# (a local package's) also builds it, as the lab's build-dependency.
+[lints.clippy]
+needless_range_loop = "allow"

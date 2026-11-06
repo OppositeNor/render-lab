@@ -489,12 +489,13 @@ pub fn specular_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_lig
 /// ApplyIBL's specular in the forward pass, which clear coat switches on:
 /// the global cubemap through the BRDF texture and the compensation, then the
 /// coat's own IBL and the base layer through (1 - Fc)^2, times the exposure.
-pub fn forward_ibl_specular(s: &Surface, l: &LightingData, exposure_stops: f32, map: &BrdfMap, cubes: &super::ibl::Ibl, probe: Option<&super::reflections::Probe>) -> Vec3 {
-    let mut specular = ibl_specular(s.position, s.normal, s.specular_f0, s.roughness_linear, l.dir_to_camera, l.brdf, cubes, probe) * l.multi_scatter_compensation;
+pub fn forward_ibl_specular(s: &Surface, l: &LightingData, exposure_stops: f32, map: &BrdfMap, reflections: &Reflections) -> Vec3 {
+    let probe = reflections.probe;
+    let mut specular = ibl_specular(s.position, s.normal, s.specular_f0, s.roughness_linear, l.dir_to_camera, l.brdf, reflections) * l.multi_scatter_compensation;
     if let Some(c) = s.clear_coat.filter(|c| c.factor > 0.0) {
         let n_dot_v = saturate(c.normal.dot(l.dir_to_camera)).max(0.01);
         let brdf = map.sample(Vec2::new(n_dot_v, 1.0 - c.roughness));
-        let coat = ibl_specular(s.position, c.normal, Vec3::splat(0.04), c.roughness, l.dir_to_camera, brdf, cubes, probe) * c.factor;
+        let coat = ibl_specular(s.position, c.normal, Vec3::splat(0.04), c.roughness, l.dir_to_camera, brdf, reflections) * c.factor;
         let response = fresnel_schlick_with_roughness(n_dot_v, Vec3::splat(0.04), c.roughness) * c.factor;
         specular = specular * (Vec3::ONE - response) * (Vec3::ONE - response) + coat;
     }
@@ -502,10 +503,18 @@ pub fn forward_ibl_specular(s: &Surface, l: &LightingData, exposure_stops: f32, 
     specular * 2.0f32.powf(probe.map_or(exposure_stops, |p| p.exposure))
 }
 
+/// Where image-based light comes from: the global cubemaps (the
+/// skylight's), and the mesh's reflection probe if it has one.
+#[derive(Clone, Copy)]
+pub struct Reflections<'a> {
+    pub cubes: &'a super::ibl::Ibl,
+    pub probe: Option<&'a super::reflections::Probe>,
+}
+
 /// GetIblSpecular: the global cubemap, blended toward the mesh's probe by its
 /// inner/outer weight, with parallax correction when the probe has it.
-#[allow(clippy::too_many_arguments)]
-pub fn ibl_specular(position: Vec3, normal: Vec3, specular_f0: Vec3, roughness: f32, dir_to_camera: Vec3, brdf: Vec2, cubes: &super::ibl::Ibl, probe: Option<&super::reflections::Probe>) -> Vec3 {
+pub fn ibl_specular(position: Vec3, normal: Vec3, specular_f0: Vec3, roughness: f32, dir_to_camera: Vec3, brdf: Vec2, reflections: &Reflections) -> Vec3 {
+    let Reflections { cubes, probe } = *reflections;
     let reflect_dir = lab::scene::reflect(-dir_to_camera, normal);
     let split = specular_f0 * brdf.x + Vec3::splat(brdf.y);
     let global = cubes.sample_specular(reflect_dir, roughness * 5.0) * split;
@@ -731,10 +740,27 @@ pub fn heat(v: f32) -> Vec3 {
     if t < 0.5 { mix(c0, c1, t * 2.0) } else { mix(c1, c2, (t - 0.5) * 2.0) }
 }
 
-/// o3dePixel: the forward pass for one pixel of `objects[object]` at `p`,
-/// whose normal changes by `derivatives` (ddx_fine, ddy_fine) to the next
-/// pixel across and down.
-pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: Vec3, object: u32, exposure: f32, map: &BrdfMap, derivatives: [Vec3; 2]) -> Pixel {
+/// A pixel to shade: on `objects[object]` at `p` with normal `n`, which
+/// changes by `derivatives` (ddx_fine, ddy_fine) to the next pixel across
+/// and down.
+#[derive(Clone, Copy, Debug)]
+pub struct Fragment {
+    pub object: u32,
+    pub p: Vec3,
+    pub n: Vec3,
+    pub derivatives: [Vec3; 2],
+}
+
+impl Fragment {
+    /// A pixel whose normal does not change to its neighbours' (no specular AA).
+    pub fn at(object: u32, p: Vec3, n: Vec3) -> Fragment {
+        Fragment { object, p, n, derivatives: [Vec3::ZERO; 2] }
+    }
+}
+
+/// o3dePixel: the forward pass for one pixel (`fragment`), seen from `eye`.
+pub fn pixel(shading: &Shading, objects: &[ObjectData], fragment: &Fragment, eye: Vec3, exposure: f32, map: &BrdfMap) -> Pixel {
+    let Fragment { object, p, n, derivatives } = *fragment;
     let o = &objects[object as usize];
     let material = shading.material(object);
     let [r, g, b, roughness] = o.albedo_roughness;
@@ -785,7 +811,7 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], p: Vec3, n: Vec3, eye: V
     // Image-based lighting in the forward pass, for clear coat.
     if s.clear_coat.is_some() && shading.ibl {
         let probe = material.forward_probe.map(|i| &shading.probes[i]);
-        l.specular_lighting += forward_ibl_specular(&s, &l, shading.ibl_exposure, map, super::ibl::Ibl::get(), probe);
+        l.specular_lighting += forward_ibl_specular(&s, &l, shading.ibl_exposure, map, &Reflections { cubes: super::ibl::Ibl::get(), probe });
     }
     // LightingData_BasePBR::FinalizeLighting.
     l.specular_lighting *= s.specular_occlusion;

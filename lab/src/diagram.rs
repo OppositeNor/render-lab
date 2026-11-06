@@ -160,7 +160,7 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
                 }
             };
             let controls = graph_view::Controls { zoom: Some((base.scale, base.scale * MAX_ZOOM)), move_nodes: true };
-            let (mut state, _) = graph_view::view(p.ctx, id, area, &laid, true, p.key, &controls, &setup);
+            let (mut state, _) = graph_view::view(p.ctx, Some(id), area, &laid, p.key, &controls, &setup);
             graph_view::keep(&mut state, &laid, area);
             p.ctx.data_mut(|d| d.insert_temp(id, state.clone()));
             (state.transform(area), state.moved)

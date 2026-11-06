@@ -104,7 +104,7 @@ pub(super) fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, rep
     let rust = rust_fields(record.struct_name);
     let highlighted = |name: &str| state.highlight.iter().any(|h| h == name);
     if state.panel == PanelMode::Memory {
-        draw_memory(ink, input, record, layout, &rust, x, width, y, rect.max.y - 16.0);
+        draw_memory(ink, input, record, layout, &rust, Rect::from_min_max(pos2(x, y), pos2(x + width, rect.max.y - 16.0)));
         return;
     }
     // Declaration rows with byte offsets and padding.
@@ -215,7 +215,7 @@ pub(super) fn draw_readout(ink: &Ink, rect: Rect, readout: &crate::frame::Readou
                 let room = bottom - y - 12.0 - 6.0 - rows * line;
                 let scale = (width / size.x).min(room / size.y).clamp(0.5, 1.0);
                 let lit = readout.formula_lit.map(|(term, weight)| (rich_text::Lit { term, weight, color: colors.get(term.wrapping_sub(1)).copied().unwrap_or(palette::accent()) }, palette::text_dim()));
-                rich_text::draw_formula(ink, pos2(x, y) - Vec2::splat(pad * scale), &latex, formula::FORMULA_PX, display, &f, scale, palette::text(), lit);
+                rich_text::draw_formula(ink, pos2(x, y) - Vec2::splat(pad * scale), &rich_text::Typeset { latex: &latex, size: formula::FORMULA_PX, display, formula: &f }, scale, palette::text(), lit);
                 report.formula_scale = Some(scale);
                 y += size.y * scale + 12.0;
             }
@@ -261,7 +261,9 @@ pub(super) fn fitted_line(ink: &Ink, pos: Pos2, text: &str, width: f32, color: C
     }
 }
 
-pub(super) fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, layout: &crate::layout::ShaderStruct, rust: &[RustField], x: f32, width: f32, mut y: f32, bottom: f32) {
+pub(super) fn draw_memory(ink: &Ink, input: &UiInput, record: &crate::frame::PanelRecord, layout: &crate::layout::ShaderStruct, rust: &[RustField], area: Rect) {
+    let (x, width, bottom) = (area.min.x, area.width(), area.max.y);
+    let mut y = area.min.y;
     let painter = ink.painter;
     let state = input.state;
     let rows = layout.size / 16;

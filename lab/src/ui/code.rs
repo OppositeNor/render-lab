@@ -35,7 +35,7 @@ pub(super) fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::List
     y += 12.0;
     let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
     if crate::pseudocode::style() == crate::pseudocode::Style::Blocks {
-        draw_blocks(ink, x - 10.0, y, width + 20.0, rect.max.y - 12.0, listing, highlight, column, report);
+        draw_blocks(ink, Rect::from_min_max(pos2(x - 10.0, y), pos2(x - 10.0 + width + 20.0, rect.max.y - 12.0)), listing, highlight, column, report);
         return;
     }
     // The text style: the code view (src/code_view.rs), its lines wrapped, the highlighted ones lit.
@@ -156,7 +156,7 @@ impl BlockPainter<'_, '_> {
     }
 
     /// Each line's text, indented from the first's, and its rows within `width`.
-    pub(super) fn rows(&self, lines: &std::ops::Range<usize>, width: f32) -> Vec<(String, Vec<(usize, usize, usize)>)> {
+    pub(super) fn rows(&self, lines: &std::ops::Range<usize>, width: f32) -> Vec<(String, Vec<crate::code_view::Row>)> {
         let indent = |t: &str| t.chars().take_while(|c| *c == ' ').count();
         let base = indent(&self.listing.lines[lines.start].text);
         let columns = (((width - BLOCK_EDGE - BLOCK_TEXT - 4.0) / self.column).floor() as usize).max(8);
@@ -230,7 +230,7 @@ impl BlockPainter<'_, '_> {
             return height;
         }
         for (text, rows) in &rows {
-            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, text, rows, pos2(x, y), self.column, BLOCK_ROW, dim);
+            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, text, rows, pos2(x, y), vec2(self.column, BLOCK_ROW), dim);
             y += BLOCK_ROW * rows.len() as f32;
         }
         height
@@ -274,7 +274,7 @@ impl BlockPainter<'_, '_> {
                         } else {
                             let text = self.listing.lines[*line].text.trim_start().to_string();
                             let rows = crate::code_view::wrap(&text, usize::MAX / 2);
-                            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, &text, &rows, pos2(at.x + BLOCK_EDGE + BLOCK_TEXT, y), self.column, BLOCK_ROW, self.any_lit);
+                            crate::code_view::draw_text(self.ink, crate::code_view::Language::Python, &text, &rows, pos2(at.x + BLOCK_EDGE + BLOCK_TEXT, y), vec2(self.column, BLOCK_ROW), self.any_lit);
                         }
                     }
                     BLOCK_ROW
@@ -312,10 +312,10 @@ pub(super) enum BarShape<'a> {
     Cap,
 }
 
-/// The listing as blocks from (`x`, `y`), `width` wide, down to `bottom`;
-/// with the roomiest spacing that fits; lines below `bottom` are counted in `report.code_overflow`.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn draw_blocks(ink: &Ink, x: f32, y: f32, width: f32, bottom: f32, listing: &crate::pseudocode::Listing, highlight: &[String], column: f32, report: &mut UiReport) {
+/// The listing as blocks in `area`, with the roomiest spacing that fits;
+/// lines below its bottom are counted in `report.code_overflow`.
+pub(super) fn draw_blocks(ink: &Ink, area: Rect, listing: &crate::pseudocode::Listing, highlight: &[String], column: f32, report: &mut UiReport) {
+    let (x, y, width, bottom) = (area.min.x, area.min.y, area.width(), area.max.y);
     let blocks = crate::pseudocode::blocks(listing);
     let any_lit = listing.lines.iter().any(|l| listing.lit(l, highlight));
     let mut painter = BlockPainter { ink, listing, highlight, any_lit, column, spacing: BLOCK_SPACINGS[0], bottom, draw: false, overflow: 0, hatted: false };

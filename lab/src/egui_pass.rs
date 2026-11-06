@@ -6,6 +6,13 @@ use crate::gpu::Gpu;
 use crate::text;
 use egui::{Pos2, Rect, Vec2};
 
+/// Where a page is drawn: a texture's `view`, `size` pixels.
+#[derive(Clone, Copy)]
+pub struct PageTarget<'a> {
+    pub view: &'a wgpu::TextureView,
+    pub size: [u32; 2],
+}
+
 pub struct PagePainter {
     pub ctx: egui::Context,
     renderer: egui_wgpu::Renderer,
@@ -34,9 +41,10 @@ impl PagePainter {
         self.ctx.run_pass(raw, page)
     }
 
-    /// Draw `output` into `view` (`size` pixels), cleared to `clear`, with
-    /// `extra`'s encoding around the page, and submit it.
-    pub fn draw(&mut self, gpu: &Gpu, label: &str, view: &wgpu::TextureView, size: [u32; 2], clear: wgpu::Color, mut output: egui::FullOutput, extra: &mut impl Extra) {
+    /// Draw `output` into `target`, cleared to `clear`, with `extra`'s
+    /// encoding around the page, and submit it.
+    pub fn draw(&mut self, gpu: &Gpu, label: &str, target: PageTarget, clear: wgpu::Color, mut output: egui::FullOutput, extra: &mut impl Extra) {
+        let PageTarget { view, size } = target;
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
         let (device, queue) = (&gpu.device, &gpu.queue);

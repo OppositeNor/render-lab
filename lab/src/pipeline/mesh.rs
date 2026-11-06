@@ -54,8 +54,10 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// Triangles as (positions, vertex normals).
-fn parse_obj(text: &str, scale: f32) -> Result<Vec<([Vec3; 3], [Vec3; 3])>, String> {
+/// A triangle's positions and vertex normals.
+type Triangle = ([Vec3; 3], [Vec3; 3]);
+
+fn parse_obj(text: &str, scale: f32) -> Result<Vec<Triangle>, String> {
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut triangles = Vec::new();
@@ -96,7 +98,7 @@ fn parse_obj(text: &str, scale: f32) -> Result<Vec<([Vec3; 3], [Vec3; 3])>, Stri
 /// Median split on the longest axis of the centroid bounds. Ties keep the
 /// file order, so the tree (and every traversal) is the same on each build.
 /// Returns the nodes, the triangles' order, and the depth.
-fn build(triangles: &[([Vec3; 3], [Vec3; 3])], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
+fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
     let centroids: Vec<Vec3> = triangles.iter().map(|(p, _)| (p[0] + p[1] + p[2]) / 3.0).collect();
     let mut order: Vec<u32> = (0..triangles.len() as u32).collect();
     let mut nodes = vec![Node::default()];

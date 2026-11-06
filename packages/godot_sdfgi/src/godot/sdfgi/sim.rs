@@ -99,7 +99,7 @@ impl World {
                     let every = self.frames_to_update_light;
                     let (offset, increment) = if self.lights_dirty[i] { (0, 1) } else { (self.frame as usize % every, every) };
                     let bounce = self.bounce_feedback;
-                    s.spawn(move || light::dynamic_pass(field, i, cells, lights, bounce, Some(maps), offset, increment, textures));
+                    s.spawn(move || light::dynamic_pass(field, i, cells, &light::Lighting { lights, bounce_feedback: bounce, probes: Some(maps) }, offset, increment, textures));
                 }
             });
             self.light = new_light;

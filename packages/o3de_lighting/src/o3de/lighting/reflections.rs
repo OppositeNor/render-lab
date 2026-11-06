@@ -258,7 +258,7 @@ fn bake_radiance(objects: &[ObjectData], shading: &Shading, map: &BrdfMap, cente
     }
     let p = center + dir * hit.t;
     let n = if hit.normal.dot(dir) > 0.0 { -hit.normal } else { hit.normal };
-    super::brdf::pixel(shading, objects, p, n, center, hit.object, 0.0, map, [Vec3::ZERO; 2]).color
+    super::brdf::pixel(shading, objects, &super::brdf::Fragment::at(hit.object, p, n), center, 0.0, map).color
 }
 
 /// Each probe's specular cubemap: `bake_radiance` from the probe's centre,

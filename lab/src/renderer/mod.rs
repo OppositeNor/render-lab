@@ -85,7 +85,7 @@ pub struct Renderer {
     view_shading: Option<wgpu::BindGroup>,
     /// The frame's graph (src/graph/) and what it was compiled for: the
     /// shading (by address) and the resources image kinds read.
-    graph: Option<((usize, Vec<String>), std::sync::Arc<crate::graph::FrameGraph>)>,
+    graph: Option<(GraphKey, std::sync::Arc<crate::graph::FrameGraph>)>,
     /// The graph images shown (`ImageSource::Graph`) by name, and the
     /// inspector's pipeline and group layout for each kind of resource.
     inspections: HashMap<String, Inspection>,
@@ -550,8 +550,8 @@ impl Renderer {
     /// A view other than the main one, drawn in a submission of its own from
     /// its own slot: built (or `content` as given), planned, drawn, and, with
     /// `at`, composited there.
-    #[allow(clippy::too_many_arguments)]
-    fn draw_view(&mut self, view: ViewId, state: &ShotState, content: Option<FrameContent>, size: [u32; 2], scale: f32, time: f32, history: bool, at: Option<([u32; 4], bool)>) -> FrameContent {
+    fn draw_view(&mut self, view: ViewId, state: &ShotState, content: Option<FrameContent>, size: [u32; 2], frame: ViewFrame, at: Option<([u32; 4], bool)>) -> FrameContent {
+        let ViewFrame { scale, time, history } = frame;
         let main_scene = self.statics.scene.id;
         self.enter(view);
         // Its own scene (src/view.rs).
@@ -710,19 +710,20 @@ impl Renderer {
         self.last_layout = layout;
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
+        let frame = ViewFrame { scale: layout.scale, time: request.time, history: request.history };
         self.targets_at(viewport_size);
         let size = [vp[2] as f32, vp[3] as f32];
         self.reference_drawn = false;
         if let Some(c) = &compare {
             // The reference first, from its own slot (src/view.rs), so its history builds up as the live view's does.
-            self.draw_view(ViewId::REFERENCE, &c.reference, None, viewport_size, layout.scale, request.time, request.history, None);
+            self.draw_view(ViewId::REFERENCE, &c.reference, None, viewport_size, frame, None);
             self.reference_drawn = true;
         }
         // Each other view of a split area: from its own slot, composited into its rectangle.
         let mut drawn = Vec::new();
         for (n, (pane, rect)) in panes.iter().zip(&rects).enumerate() {
             let at = Layout { viewport: *rect, ..layout }.viewport_px();
-            let content = self.draw_view(ViewId::pane(n as u32), &pane.state, None, [at[2], at[3]], layout.scale, request.time, request.history, Some((at, drawn.is_empty())));
+            let content = self.draw_view(ViewId::pane(n as u32), &pane.state, None, [at[2], at[3]], frame, Some((at, drawn.is_empty())));
             drawn.push((*rect, content));
         }
         for n in panes.len() as u32..8 {
@@ -760,7 +761,7 @@ impl Renderer {
             let content = crate::free_view::content(main, request.state, &free);
             // The program plans for the camera this view is drawn from.
             let seen = ShotState { camera: free.orbit(), ..request.state.clone() };
-            self.draw_view(ViewId::FREE, &seen, Some(content), viewport_size, layout.scale, request.time, request.history, None)
+            self.draw_view(ViewId::FREE, &seen, Some(content), viewport_size, frame, None)
         });
         if free_content.is_none() {
             self.slots.remove(&ViewId::FREE);
@@ -775,7 +776,7 @@ impl Renderer {
             }
             let id = ViewId::over(n as u32);
             crate::view::set_name(Some(over.name));
-            let content = self.draw_view(id, &over.state, None, viewport_size, layout.scale, request.time, request.history, None);
+            let content = self.draw_view(id, &over.state, None, viewport_size, frame, None);
             crate::view::set_name(None);
             over_drawn.push((id, over.alpha.min(1.0), content));
         }
@@ -1052,3 +1053,16 @@ pub fn gpu_summary(gpu: &gpu::Gpu) -> serde_json::Value {
         "deviceType": format!("{:?}", gpu.info.device_type),
     })
 }
+
+/// What every view of one frame shares: the layout's scale, the frame's
+/// time, and whether its history carries on from the last frame.
+#[derive(Clone, Copy)]
+struct ViewFrame {
+    scale: f32,
+    time: f32,
+    history: bool,
+}
+
+/// What a frame's graph was compiled for: the shading (by address) and the
+/// resources image kinds read.
+type GraphKey = (usize, Vec<String>);

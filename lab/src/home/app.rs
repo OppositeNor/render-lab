@@ -81,7 +81,7 @@ impl HomeApp<'_> {
         let time = self.started.elapsed().as_secs_f32();
         // The frame a screenshot is taken of shows no popup.
         self.home.popups.hidden = self.screenshot;
-        let choice = s.painter.paint(&mut s.backdrop, &view, [s.config.width, s.config.height], self.options.ui_scale, events, time, self.home, None);
+        let choice = s.painter.paint(&mut s.backdrop, PageTarget { view: &view, size: [s.config.width, s.config.height] }, PageInput { ui_scale: self.options.ui_scale, events, time }, self.home, None);
         if std::mem::take(&mut self.home.clicked) && let Some(click) = self.click.as_mut() {
             click.play_from(0.0);
         }
