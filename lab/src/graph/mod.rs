@@ -679,7 +679,7 @@ mod tests {
                 instances: 1,
             },
         ];
-        static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new(), warmup: 0 };
+        static PROGRAM: ShadingProgram = ShadingProgram { images: IMAGES, buffers: BUFFERS, passes: PASSES, scene_uses: &[], init: || Box::new(()), plan: |_, _| Vec::new(), warmup: 0, record_history: false };
         let s = shading(&[], &[]);
         // No chain (the scene pass writes the frame), as a program's investigation may have.
         // Its pre-pass does not run without a chain.

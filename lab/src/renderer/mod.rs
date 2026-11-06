@@ -158,6 +158,10 @@ pub struct FrameRequest<'a> {
     /// a history (reprojected while only the camera moves). 0 otherwise, so
     /// each frame of a recording renders on its own.
     pub history: bool,
+    /// Whether the frame waits for its data and its read-backs, so it is the
+    /// same each time (a recording's): without history it reads its own
+    /// frame's, with history the frame before it's, waited for.
+    pub wait: bool,
     pub scene_type: SceneType,
     /// The diagram a 2D scene shows (src/diagram.rs).
     pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
@@ -551,13 +555,13 @@ impl Renderer {
     /// its own slot: built (or `content` as given), planned, drawn, and, with
     /// `at`, composited there.
     fn draw_view(&mut self, view: ViewId, state: &ShotState, content: Option<FrameContent>, size: [u32; 2], frame: ViewFrame, at: Option<([u32; 4], bool)>) -> FrameContent {
-        let ViewFrame { scale, time, history } = frame;
+        let ViewFrame { scale, time, history, wait } = frame;
         let main_scene = self.statics.scene.id;
         self.enter(view);
         // Its own scene (src/view.rs).
         self.view_scene(investigation::current().scene(state));
         self.targets_at(size);
-        self.select_data(state, !history);
+        self.select_data(state, wait || !history);
         let mut content = content.unwrap_or_else(|| crate::shader_data::build_frame(state, &self.statics, [size[0] as f32, size[1] as f32], scale, time));
         self.hold_still(&mut content, size, history);
         self.plan_program(state, history, size);
@@ -619,8 +623,9 @@ impl Renderer {
     pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
         self.enter(ViewId::MAIN);
         self.view_scene(investigation::current().scene(request.state));
-        // The reads earlier frames asked for that have landed (src/fetch.rs).
-        self.fetches.collect(&self.gpu.device, false);
+        // The reads earlier frames asked for that have landed (src/fetch.rs);
+        // a recording's frame with history waits for the last frame's.
+        self.fetches.collect(&self.gpu.device, request.wait && request.history);
         // The performance panel measures the frames it is shown with.
         if matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources) && request.scene_type == SceneType::ThreeD {
             self.set_timing(true);
@@ -675,7 +680,7 @@ impl Renderer {
             match request.state.panel {
                 PanelMode::Code if request.state.code.as_deref().and_then(|c| investigation::current().listing(c)).is_none() => layout = layout.for_panel(false),
                 PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
-                    self.select_data(request.state, !request.history);
+                    self.select_data(request.state, request.wait || !request.history);
                     let build = |layout: &Layout| {
                         let vp = layout.viewport_px();
                         crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)
@@ -710,7 +715,7 @@ impl Renderer {
         self.last_layout = layout;
         let vp = layout.viewport_px();
         let viewport_size = [vp[2], vp[3]];
-        let frame = ViewFrame { scale: layout.scale, time: request.time, history: request.history };
+        let frame = ViewFrame { scale: layout.scale, time: request.time, history: request.history, wait: request.wait };
         self.targets_at(viewport_size);
         let size = [vp[2] as f32, vp[3] as f32];
         self.reference_drawn = false;
@@ -733,9 +738,9 @@ impl Renderer {
         // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures.
         let boxes: Vec<(String, String)> = request.diagram.filter(|_| !scene_beat).map(|d| d.lit_groups()).unwrap_or_default();
         let renders = scene_beat || !boxes.is_empty();
-        // A recording (no history) waits for the data, so every frame is the same each time.
+        // A recording waits for the data, so every frame is the same each time.
         if renders {
-            self.select_data(scene_state, !request.history);
+            self.select_data(scene_state, request.wait || !request.history);
             self.plan_program(scene_state, request.history, viewport_size);
         }
         let settle_prepared = if request.history { None } else { prepared.clone() };
@@ -788,7 +793,7 @@ impl Renderer {
         self.last_overs = overs.iter().enumerate().filter(|(_, o)| o.alpha > 0.0).map(|(n, o)| (ViewId::over(n as u32), o.name, o.camera)).collect();
         // The shading's data is the main view's again (an over view selected its own).
         if renders && !over_drawn.is_empty() {
-            self.select_data(scene_state, !request.history);
+            self.select_data(scene_state, request.wait || !request.history);
         }
         // The main camera's own view, in the viewport's lower right corner, at its shape.
         let main_view = free_content.as_ref().map(|_| {
@@ -1061,6 +1066,7 @@ struct ViewFrame {
     scale: f32,
     time: f32,
     history: bool,
+    wait: bool,
 }
 
 /// What a frame's graph was compiled for: the shading (by address) and the

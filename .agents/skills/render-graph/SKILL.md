@@ -76,7 +76,10 @@ commands after the plan's last pass command are recorded right before the scene 
 (`SceneShading::program_runs`, `ProgramRuntime::record`). A program that reads what an earlier frame left (a copy of
 `hdr` by a program node after the scene node)
 sets `warmup`: a frame drawn alone (a recording's, a snapshot) first draws the same shot that many times, the first
-told it has no history. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) and SSR (packages/godot_ssr, `gpu.rs`, mip
+told it has no history. A program whose result is its history (a temporal denoiser) also sets `record-history =
+true`: a recording's frame then builds on the one before it, as a live view's does, the warm-up running only where a
+beat starts (or after a gap); each such frame shows the read-backs of the frame before it, waited for, so a recording
+stays the same each time. Godot's SDFGI (packages/godot_sdfgi, `gpu.rs`) and SSR (packages/godot_ssr, `gpu.rs`, mip
 chains, the frame's textures, a copy after the scene pass) are programs.
 
 ## 2. Declaring reads and writes
@@ -190,9 +193,24 @@ The dock's **Frame graph** tab (or the Experiments tab's **Open the frame graph*
 DAG first; its header switches between **Grid**, **DAG**, **Resources**, and **Full screen**. The tab describes the
 pass under the pointer in the panel, else the selected one (the inspected result's): the engine pass, what it does,
 its GPU time, and what it reads and writes (a click inspects that resource right after it), beside every pass in
-order. What a pass does is the investigation's text: `Investigation::pass_about` returns a key of its package's table
-per entry point (`pass.<entry>`, both languages), the lab's own nodes have theirs (`graph::about`); give every new
-pass one, accurate to its WGSL.
+order. What a pass does is the investigation's text: `Investigation::pass_about` returns, per node name (the program
+pass's `name`, or the pre-pass's and scene pass's entry), a key of its package's text table, `pass-<node>` in both
+languages; the lab's own nodes have theirs (`graph::about`).
+
+**Required:** every node the investigation adds has a description, written when the node is, and changed with its
+WGSL. A name and its reads and writes are not a description: the panel already shows those. Write one to three
+sentences, for a viewer who knows rendering but not this engine:
+
+- what the pass computes, in the feature's terms (which lights a cell keeps, which rays it traces, what it blends),
+  and from what into what (its inputs and outputs by what they hold, not by their resource names);
+- why it is there, where that is not obvious: a pass that clears, compacts, or writes indirect arguments says what
+  it spares the passes after it;
+- the numbers that define it (tile size, step count, frames accumulated), from the port's constants;
+- where the lab's pass differs from the engine's (a linear march for a pyramid walk, a list for a linked list).
+
+Leave the engine pass's name out of it: the panel shows it on the line above, from the source index's `passes`
+(below), and every node also gets an entry there. Check every node in the panel offscreen (`--page viewer-graph`,
+then each node by `viewer-inspect:<node>.<resource>`), in both languages.
 
 `PanelMode::Graph` (the **Grid**; a story's `panel=graph`): nodes top to bottom in
 execution order, resources as columns, ■ where a node writes, ○ where it reads, each resource's lifetime a line
@@ -249,7 +267,9 @@ cargo run --release -- home --snapshot dag.png --page "viewer-dag-full[:<demo>][
 
 The engine pass a node mirrors comes from the package's source index: `passes` (`lab` the node's name, `engine` the
 pass, `sources` its entries), written by the package's `source_index.py` beside `mappings`. Add a node's pass there
-when you add the node; the `graph` command checks that each names a node and cites entries that exist.
+when you add the node, with the engine's own name for it, checked in the checkout (a lab-only node, such as a
+reference for comparison, says which engine path it stands for); the `graph` command checks that each names a node
+and cites entries that exist.
 
 ## 6. In a story
 
