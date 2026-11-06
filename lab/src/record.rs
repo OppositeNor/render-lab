@@ -4,6 +4,7 @@
 
 use crate::frame::Statics;
 use crate::gpu::{self, Gpu};
+use crate::investigation;
 use crate::renderer::{self, FrameRequest, Renderer};
 use crate::shot::{SceneType, Timeline};
 use crate::ui::{Chrome, UiReport};
@@ -189,6 +190,11 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     } else {
         (first.saturating_sub(options.warmup)..last).collect()
     };
+    // A program that records with history (`ShadingProgram::record_history`):
+    // each frame of a beat builds on the one before it, rendered just before;
+    // a beat's first frame, and a frame after a gap, stand alone.
+    let record_history = options.output.is_some() && investigation::current().scene_shading().and_then(|s| s.program).is_some_and(|p| p.record_history);
+    let mut last_drawn: Option<(u64, usize)> = None;
     // The rate so far, from the first frame on, for the progress line's estimate.
     let rendering = std::time::Instant::now();
     for (n, f) in frame_list.into_iter().enumerate() {
@@ -202,7 +208,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             finish(index, s, &mut summary)?;
         }
         let state = timeline.state_at(f);
-        let (_, beat) = timeline.beat_at(f);
+        let (beat_index, beat) = timeline.beat_at(f);
+        let history = record_history && last_drawn == Some((f.wrapping_sub(1), beat_index));
+        last_drawn = Some((f, beat_index));
         let request = FrameRequest {
             state: &state,
             scene_type: beat.kind,
@@ -216,7 +224,8 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             chrome: Chrome::Recording { timeline: &timeline, frame: f },
             stamp: options.frame_stamp.then_some(f),
             focus: None,
-            history: false,
+            history,
+            wait: true,
         };
         let result = renderer.render_frame(request, Some(&buffers[slot]));
         let warming = f < first;

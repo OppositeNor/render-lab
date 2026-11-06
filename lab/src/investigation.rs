@@ -306,6 +306,12 @@ pub struct ShadingProgram {
     /// the first told it has no history (so it starts from zero), the rest
     /// that they do. 0: a standalone frame is drawn once.
     pub warmup: u32,
+    /// Whether a recording's frame builds on the one before it, as a live
+    /// view's does (the warm-up then runs only where a beat starts, and the
+    /// frame shows the read-backs of the frame before it, waited for): for a
+    /// program whose result is its history, so a video shows it accumulate.
+    /// false: every recorded frame stands alone.
+    pub record_history: bool,
 }
 
 /// A function of an investigation that its package's shading file names

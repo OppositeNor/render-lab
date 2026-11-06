@@ -33,7 +33,8 @@
 //! - `[update]` `plan` (an `UpdatePlan` hook); `[[update.buffer]]` `name`,
 //!   `words` (a `Words` hook);
 //! - `[shows]`: a resource's default view, `name = "<show>[?<param>=…]"`;
-//! - `[program]` `plan` (a `Program` hook), `warmup` (0), `scene-uses`;
+//! - `[program]` `plan` (a `Program` hook), `warmup` (0), `record-history`
+//!   (false), `scene-uses`;
 //!   `[[program.image]]` `name`, `kind` (`2d`, `2d-array`, `3d`), `size`,
 //!   `format`, `count` (1), `mips` (1; `"all"`), `viewport` (0);
 //!   `[[program.buffer]]` `name`, `bytes`, `indirect` (false), `count` (1).
@@ -253,7 +254,7 @@ fn program_pass(t: &dyn TableLike, what: &str) -> Result<ProgramPass, String> {
 }
 
 fn program(t: &dyn TableLike, hooks: &Hooks, passes: Vec<ProgramPass>) -> Result<ShadingProgram, String> {
-    known(t, "[program]", &["plan", "warmup", "scene-uses", "image", "buffer"])?;
+    known(t, "[program]", &["plan", "warmup", "record-history", "scene-uses", "image", "buffer"])?;
     let plan_name = required(t, "plan", "[program]")?;
     let ShadingHook::Program { init, plan } = hook(hooks, plan_name, "[program] plan")? else { return Err(format!("[program]: hook `{plan_name}` is not a Program")) };
     let mut images = Vec::new();
@@ -292,6 +293,7 @@ fn program(t: &dyn TableLike, hooks: &Hooks, passes: Vec<ProgramPass>) -> Result
         init,
         plan,
         warmup: u32_or(t, "warmup", "[program]", Some(0))?,
+        record_history: t.get("record-history").map(|v| v.as_bool().ok_or_else(|| "[program]: `record-history` is true or false".to_string())).transpose()?.unwrap_or(false),
     })
 }
 
@@ -540,6 +542,7 @@ half = "ramp?range=0,1"
 [program]
 plan = "plan"
 warmup = 2
+record-history = true
 scene-uses = [{ binding = 1, resource = "img", access = "load" }]
 
 [[program.image]]
@@ -564,7 +567,7 @@ mips = "all"
         assert_eq!((d.name, d.size, d.bias), ("shadow", 512, (-2, -1.5)));
         assert_eq!(s.shows, &[("half", "ramp?range=0,1")]);
         let p = s.program.unwrap();
-        assert_eq!(p.warmup, 2);
+        assert_eq!((p.warmup, p.record_history), (2, true));
         assert_eq!((p.images[0].kind, p.images[0].count, p.images[0].mips, p.images[0].viewport), (ImageKind::D2Array, 2, u32::MAX, 0));
         assert_eq!((p.passes[0].name, p.passes[0].instances), ("fill", 2));
         assert_eq!(p.passes[0].uses.iter().map(|u| u.which).collect::<Vec<_>>(), vec![Which::Mip(0), Which::Pick(&[1, 0]), Which::All]);

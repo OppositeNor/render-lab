@@ -62,6 +62,7 @@ pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) 
         stamp: None,
         focus: None,
         history: false,
+        wait: true,
     }
 }
 

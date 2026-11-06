@@ -226,7 +226,7 @@ impl App {
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
         let result = renderer.render_frame(
-            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(graph, focus, scene, (from, seconds, built))| crate::diagram::BeatDiagram { graph, focus, scene: scene.as_ref(), transition: crate::diagram::Transition { from: from.as_deref(), seconds: *seconds, built: *built } }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true, focus: focus.as_ref() },
+            FrameRequest { state: &state, scene_type: kind, diagram: diagram.as_ref().map(|(graph, focus, scene, (from, seconds, built))| crate::diagram::BeatDiagram { graph, focus, scene: scene.as_ref(), transition: crate::diagram::Transition { from: from.as_deref(), seconds: *seconds, built: *built } }), beat_sources: &sources, notices, chapter_number: chapter, fade, time: self.demo_time, raw_input, chrome: Chrome::Viewer(&mut chrome), stamp: None, history: true, wait: false, focus: focus.as_ref() },
             readback,
         );
         self.ui_has_pointer = chrome.ui_has_pointer;
