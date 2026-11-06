@@ -50,7 +50,67 @@ explore it. Write it to `story/demonstrations.md`. How a demonstration is coded 
 8. **Build and check them** before the base: the views, the clicks, their values, and a selftest check that a pick
    round-trips (a click on what an element stands for picks it). Render stills of each view offscreen, and look at
    them.
-9. **Gate**: the views, the subjects, and the interactions (SKILL.md, "Gates").
+9. **The interaction review** (required; below): a dedicated agent looks for the interactions the views still lack,
+   and the main agent decides on and builds what it finds.
+10. **Gate**: the views, the subjects, and the interactions (SKILL.md, "Gates").
 
 Done when every structure in the outline has its storage recorded and mirrored, every view its interaction, every
-taught topic its demonstration, and the pick round-trip passes in the selftest.
+taught topic its demonstration, the interaction review answered row by row, and the pick round-trip passes in the
+selftest.
+
+## The interaction review (required)
+
+The agent that builds a view judges its interactions by what it meant the view to show; a fresh one, given only what
+the viewer will get, finds what a viewer would want to try and cannot. Its job is to find interactions that build
+understanding by letting the viewer change something and see the consequence at once, and that are easy to reach:
+one click, one drag, one slider in the dock.
+
+**When.** In Phase 3, once the views are built and their stills rendered, before the gate. Again in Phase 7, one
+review per chapter of the storyboard as built (`references/review.md`), and in "Revising a finished story" when a
+view is added or changed.
+
+**The agent.** With subagents, a fresh agent on a cheaper model (AGENTS.md), never the one that built the views;
+without them, a separate pass of your own that reads only the materials below and answers every question before
+looking at the code that draws the views. Brief it with:
+
+- what each view shows and of which resource (`story/demonstrations.md`), and the outline's claim each one supports;
+- the investigation's values (`render-lab --investigation <id> values`), its click handlers and actions (`render-lab
+  --investigation <id> actions`), and its images (`render-lab --investigation <id> images`): what a viewer can
+  already change;
+- offscreen stills of every view (`home --snapshot … --page viewer:<demo>`, and the free camera's,
+  `viewer-free:<demo>`), rendered by the main agent one at a time;
+- the lab's interaction kinds it may propose: a click on the scene (`Investigation::click`), a click or drag on an
+  inset (`#[click]` handlers), an outline in an inset linked to a point of the scene (`Link`), a selection drawn in
+  the scene (an outline, a frustum, a highlighted object), a dock value (a slider, a toggle, a choice), a value the
+  demonstration's animation sweeps (Play), a comparison (`classic`-style reference demonstrations, the Experiments
+  tab's A/B wipe), the free camera.
+
+**Its questions**, for every view:
+
+- **Picking.** Does every element a view shows as a grid, a list, or a picture (a tile, a cell, a texel, a sample, a
+  light, a probe) pick that element when clicked? Is the picked element then shown everywhere it lives at once: in
+  the scene (projected onto the viewport, or drawn as the volume it covers), in every other view of the same layout,
+  and in the readout?
+- **Linking.** When an inset points out an element, does a line or an outline tie it to the place in the scene it
+  stands for, and does a click in the scene select the same element in the inset?
+- **Tweaking.** For every quantity the narration names (a count, a radius, a threshold, a weight, a frame count), is
+  there a value in the dock that changes it, with a range wide enough to see its effect, and does the view respond at
+  once and visibly? Which parameter would a curious viewer reach for that the dock lacks?
+- **Cause and effect.** For every "because", "so", or "only when" in the outline, can the viewer switch the cause off
+  or move it and see the effect change (a toggle of a step, the engine's path against the lab's reference, a sweep)?
+- **Live data.** Does every view that shows state accumulating over frames keep updating while the camera holds still,
+  and does it show its own frame's data (`lab::fetch` tags, `render-graph`)?
+- **Reach.** Is each interaction found without reading code: a hint in the dock group, a cursor change, a label in
+  the inset? Is any key interaction buried behind several steps?
+- **Restraint.** Which proposed interaction would add controls without adding understanding? Leave it out.
+
+**It returns** a table, `| View | Interaction | What the viewer does | What it shows (the claim it makes tangible) |
+Value or handler it needs | Cost |`, ranked by how much each would help a viewer understand the algorithm, and
+specific enough to build ("a click on the light-grid inset picks the cell's centre pixel as P; P's cell drawn as its
+frustum in the scene, linked to the inset's outline", never "make it more interactive").
+
+**Acting on it.** Save it as `story/reviews/interactions.md` (or `interactions-c<n>.md` per chapter). Build what
+helps, as any demonstration is built (`new-investigation`'s `references/code.md` and `references/presentation.md`):
+its values, its handlers, a selftest round trip for each new pick, stills looked at. Answer every row you do not
+build with a reason. Record the interactions in `story/demonstrations.md`, so the storyboard can show the same picks
+with the values they set.

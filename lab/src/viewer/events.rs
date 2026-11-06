@@ -50,9 +50,6 @@ impl App {
             if let Some((_, started)) = self.intro.as_mut() {
                 *started = now;
             }
-            if self.options.autoplay && self.timeline_mode {
-                self.play();
-            }
             return Ok(());
         }
         let frame = match pending.surface.get_current_texture() {

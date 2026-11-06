@@ -110,12 +110,8 @@ impl App {
                     };
                     self.timeline_frame = frame.min(t.total_frames - 1);
                     if self.timeline_frame + 1 >= t.total_frames {
-                        // The end: pause on the last frame, or on to the next part.
+                        // The end: pause on the last frame.
                         self.stop();
-                        if self.options.next && self.autotest.is_none() {
-                            self.exit = ViewerExit::Next;
-                            self.leaving = true;
-                        }
                     }
                 }
             } else {
@@ -124,6 +120,10 @@ impl App {
         }
         if let Some(t) = &self.timeline {
             self.timeline_frame = self.timeline_frame.min(t.total_frames - 1);
+        }
+        // Opened on the Quiz tab (the homepage's Quiz button): the quiz opens once the scene can set up its views.
+        if self.tab == DockTab::Quiz && self.quiz.quiz.is_none() && self.quiz.view.error.is_none() && self.renderer.is_some() && !self.timeline_mode {
+            self.open_quiz();
         }
         let state = self.render_state();
         let state = self.with_intro(state, now);
@@ -163,6 +163,7 @@ impl App {
             speed: self.speed,
             diagram: None,
             experiment: crate::ui::ExperimentView::default(),
+            quiz: self.quiz.view.clone(),
             knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
             dag_overlay: self.dag_overlay && matches!(self.state.panel, PanelMode::Dag | PanelMode::Resources),
             graph_source: self.graph_source,

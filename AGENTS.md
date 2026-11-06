@@ -128,6 +128,7 @@ cargo run --release -- home --snapshot /path/to/res.png --page "viewer-resources
 cargo run --release -- home --snapshot /path/to/src.png --page viewer-source:<node>   # the full-screen DAG, that pass selected, the WGSL it is compiled from beside it
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
+cargo run --release -- home --snapshot /path/to/quiz.png --page viewer-quiz:<n>@<letter>   # the Quiz button's viewer: question n answered with that choice (none: unanswered; past the last: the score)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)
 python3 tools/experiments/report.py /path/to/dir                              # its report: tables, plots, image grid
 python3 -m unittest tools/experiments/test_report.py                          # the report's tests

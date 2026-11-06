@@ -227,9 +227,10 @@ pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions,
     let (investigation, timeline, audio, start_frame, locale) = match choice {
         Choice::Quit => return None,
         Choice::Watch { investigation, timeline, start_frame, .. } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
-        Choice::Explore { investigation } | Choice::Experiment { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
+        Choice::Explore { investigation } | Choice::Experiment { investigation } | Choice::Quiz { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
     };
     let experiments = matches!(choice, Choice::Experiment { .. });
+    let quiz = matches!(choice, Choice::Quiz { .. });
     investigation::set(investigation);
     Some(ViewerOptions {
         timeline,
@@ -244,51 +245,17 @@ pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions,
         fullscreen: home.applied.fullscreen,
         narration: home.applied.narration,
         experiments,
+        quiz,
         layout: home.applied.layout,
         settings: home.settings.path.clone(),
-        next: false,
-        autoplay: false,
     })
 }
 
-/// The part after the one `choice` watches, in its language (else its first
-/// built timeline), when the choice goes on to the next parts and there is one.
-pub(super) fn next_part(choice: Choice, home: &mut Home) -> Option<Choice> {
-    let Choice::Watch { investigation, timeline, continue_parts: true, .. } = choice else { return None };
-    let (series, index) = crate::resources::part_of(investigation.package()?)?;
-    let package = series.parts.get(index + 1)?;
-    let next = investigations::all().iter().copied().find(|i| i.package() == Some(package.as_str()))?;
-    let locale = TimelineSummary::load(&home.manifest_dir, timeline).ok().map(|s| s.locale);
-    let rows = home.timeline_rows(next);
-    let pick = rows.iter().position(|r| r.summary.is_ok() && r.locale.is_some() && r.locale == locale).or_else(|| rows.iter().position(|r| r.summary.is_ok()))?;
-    Some(Choice::Watch { investigation: next, timeline: rows[pick].info, start_frame: 0, continue_parts: true })
-}
-
-/// Run the viewer on what the homepage chose (and, for a part of a series
-/// watched to its end, on the parts after it); false to quit.
-pub(super) fn open(mut choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
-    let mut autoplay = false;
-    loop {
-        let next = next_part(choice, home);
-        let Some(mut viewer_options) = viewer_options(choice, home, options, size) else { return false };
-        viewer_options.next = next.is_some();
-        viewer_options.autoplay = autoplay;
-        let exit = viewer::run_on(event_loop, viewer_options);
-        if let (Ok((ViewerExit::Next, _, _)), Some(next)) = (&exit, next) {
-            if let Ok((_, narration, layout)) = exit {
-                home.keep_narration(narration);
-                home.keep_layout(layout);
-            }
-            // The homepage, when it comes back, is on the part last watched.
-            if let Choice::Watch { investigation, .. } = next {
-                home.select(investigation);
-            }
-            choice = next;
-            autoplay = true;
-            continue;
-        }
-        return finish(exit, home);
-    }
+/// Run the viewer on what the homepage chose; false to quit.
+pub(super) fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
+    let Some(viewer_options) = viewer_options(choice, home, options, size) else { return false };
+    let exit = viewer::run_on(event_loop, viewer_options);
+    finish(exit, home)
 }
 
 /// After the viewer: the settings it changed kept, and whether to go on (false to quit).
@@ -301,7 +268,7 @@ pub(super) fn finish(exit: Result<(ViewerExit, Volume, crate::config::ViewerLayo
         exit
     });
     match exit {
-        Ok(ViewerExit::Back | ViewerExit::Next) => {}
+        Ok(ViewerExit::Back) => {}
         Ok(ViewerExit::Closed) => return false,
         // Show what went wrong on the selection page instead of quitting.
         Err(e) => home.error = Some(format!("{e:#}")),

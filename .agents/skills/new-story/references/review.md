@@ -52,6 +52,12 @@ Each review returns a table, `| Beat (or timestamp) | Issue | Severity | Why it 
 specific enough to act on ("add a sweep of `rayCount` 1 → 16 while the second sentence is said", never "improve
 clarity").
 
+## The interaction review (required)
+
+Per chapter, the dedicated interaction review of `references/demonstrations.md` ("The interaction review"), on the
+chapter as built: its views, their stills, and its values and handlers. A fresh agent, not one of the reviewers above,
+so its eye is on what the viewer can try, not on what the narration says.
+
 ## The cold-listener review (required)
 
 The reviewers above see the source, the outline, and the stills, which fill in what the words leave out. This one
@@ -127,7 +133,7 @@ Save the reviews in `story/reviews/`. Then revise: more animation where the revi
 explanation where they found a gap, and every fact that is not verified (or a stated simplification) fixed in the
 narration, the index, the README, and the translation. Report the corrections to the user with their evidence.
 
-Done when every row of every review is fixed or answered with a reason, the fact check has no claim left that is
+Done when every row of every review (the interaction review's included) is fixed or answered with a reason, the fact check has no claim left that is
 neither verified nor a stated simplification, and the revised chapters pass Phase 5's checks again.
 
 ## Revising a finished story

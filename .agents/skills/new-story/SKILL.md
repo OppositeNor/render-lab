@@ -25,6 +25,7 @@ AGENTS.md, "How deep a task goes", sets the levels; for a story they are:
 | **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks | the references of those phases |
 | **Story**: a new story, or a redesign of an existing one | Every phase, in order | each phase's reference as you reach it |
 | **Feedback** on a built story | `references/review.md`, "Revising a finished story" | it, then what the corrections need |
+| **Quiz**: writing or revising a story's quiz | `references/quiz.md`: the quiz agent, then the quiz file and its checks | `references/quiz.md` |
 
 ## What is required at every depth
 
@@ -93,11 +94,11 @@ recorded calls at the end. Never skip the work a gate reviews.
 |---|---|---|---|
 | 1. Research | `story/research.md` | `references/research.md` | every subtopic cited, open questions answered or listed, lab differences noted; gate |
 | 2. Outline | `story/outline.md`, `[audience]` in `knowledge.toml` | `references/outline.md` | every key claim has a source and a visual, every chapter a budget, the level checked; gate |
-| 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md` | storage mirrored, every view interactive, every taught topic demonstrated, pick round-trip in the selftest; gate |
+| 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md` | storage mirrored, every view interactive, the interaction review answered, every taught topic demonstrated, pick round-trip in the selftest; gate |
 | 4. The base | index entries, port, mirror, selftest, listings, formulas, step parameters | `new-investigation` (procedure steps 3 to 6) | below |
 | 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md` | each chapter prepared and its stills looked at |
 | 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's animations counted (at least 32, each demonstrating something), its per-beat checks passed |
-| 7. Review | `story/reviews/`, revisions | `references/review.md` | every review row fixed or answered, every fact verified or a stated simplification |
+| 7. Review | `story/reviews/`, revisions | `references/review.md` | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
 | 8. Translate and build | `storyboard.zh-CN.lam`, both editions | below | the checks below pass, the user asked to watch |
 
 ### Phase 4: The base
@@ -128,6 +129,13 @@ parameter.
     (`tools/video/compare.py`);
   - the full build in the background, English first, then `--lang zh-CN`.
 - Report the checks and the corrections, and ask the user to watch the result.
+
+### The quiz
+
+A story can end with a quiz: multiple-choice questions on how its algorithm works, each asked over a live view of a
+demonstration (the homepage's Quiz button). Write one when the story is delivered, or when the user asks:
+`references/quiz.md` (a dedicated quiz agent proposes the questions; every question about the algorithm, never the
+engine's configuration).
 
 A local change runs `--prepare-only` (both languages when a sentence changed) and the stills of the beats it changed;
 the build too if code changed. A chapter change adds the selftest with `--timeline` (labels, text sizes, fit) and

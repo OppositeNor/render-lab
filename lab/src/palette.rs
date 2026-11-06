@@ -193,6 +193,9 @@ pub const PROBE: Color32 = rgb(0xf4f1de);
 pub const PROBE_SELECTED: Color32 = rgb(0xffd166);
 pub const HISTORY_REJECT: Color32 = rgb(0xff6b6b);
 pub const MISMATCH: Color32 = rgb(0xff6b6b);
+/// A quiz's right and wrong answers (src/ui/quiz_panel.rs).
+pub const RIGHT: Color32 = rgb(0x6be37a);
+pub const WRONG: Color32 = rgb(0xff6b6b);
 
 /// Swatch colours for a highlighted struct field (several for matrices).
 pub fn field_colors(record: &str, field: &str) -> Vec<Color32> {

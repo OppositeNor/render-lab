@@ -472,8 +472,10 @@ fn source_keys(index: &serde_json::Value) -> Vec<String> {
 /// source index has, without variables, and a complete locale's all of it.
 fn check_source_tables(locales: &[(String, bool)], module_dir: &Path) {
     let index_path = module_dir.join("source-index.json");
-    println!("cargo:rerun-if-changed={}", index_path.display());
+    // Watched only when it exists: cargo counts a watched file that is missing as changed, so a package without a
+    // source index (render_lab) would rebuild on every build.
     let Ok(text) = fs::read_to_string(&index_path) else { return };
+    println!("cargo:rerun-if-changed={}", index_path.display());
     let index: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", index_path.display()));
     let expected = source_keys(&index);
     for (locale, complete) in locales.iter().skip(1) {

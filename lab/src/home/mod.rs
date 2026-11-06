@@ -144,13 +144,14 @@ impl Page {
 /// What the homepage opens.
 #[derive(Clone, Copy)]
 pub enum Choice {
-    /// Play a narrated timeline, from `start_frame`; with `continue_parts`, a
-    /// part of a series goes on to the parts after it as each one ends.
-    Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64, continue_parts: bool },
+    /// Play a narrated timeline, from `start_frame`.
+    Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64 },
     /// The free demonstrations.
     Explore { investigation: &'static dyn Investigation },
     /// The demonstrations with the Experiments tools: every value, A/B, metrics, presets.
     Experiment { investigation: &'static dyn Investigation },
+    /// The investigation's quiz (src/quiz.rs): its questions beside their live views.
+    Quiz { investigation: &'static dyn Investigation },
     Quit,
 }
 
@@ -158,9 +159,10 @@ impl Choice {
     /// For reports: `watch engine/feature timeline @ 1234`, `explore engine/feature`, `quit`.
     pub fn describe(&self) -> String {
         match self {
-            Choice::Watch { investigation, timeline, start_frame, continue_parts } => format!("watch {} {} @ {start_frame}{}", investigation.path(), timeline.id, if *continue_parts { " then the next parts" } else { "" }),
+            Choice::Watch { investigation, timeline, start_frame } => format!("watch {} {} @ {start_frame}", investigation.path(), timeline.id),
             Choice::Explore { investigation } => format!("explore {}", investigation.path()),
             Choice::Experiment { investigation } => format!("experiment {}", investigation.path()),
+            Choice::Quiz { investigation } => format!("quiz {}", investigation.path()),
             Choice::Quit => "quit".into(),
         }
     }
@@ -269,8 +271,6 @@ pub struct Home {
     pub pse: bool,
     /// The chosen feature's knowledge graph is up, full screen (src/knowledge.rs).
     pub knowledge: bool,
-    /// Watching a part of a series goes on to the parts after it.
-    pub continue_parts: bool,
 }
 
 impl Home {
@@ -303,7 +303,6 @@ impl Home {
             popups: Popups::default(),
             pse: true,
             knowledge: false,
-            continue_parts: true,
         };
         if message.is_some() {
             home.settings.message = message;

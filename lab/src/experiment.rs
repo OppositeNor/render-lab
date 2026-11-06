@@ -150,7 +150,7 @@ impl Default for Experiment {
 }
 
 /// A TOML item as JSON (a datetime as its text).
-fn json_of(item: &toml_edit::Item) -> Json {
+pub(crate) fn json_of(item: &toml_edit::Item) -> Json {
     match item {
         toml_edit::Item::None => Json::Null,
         toml_edit::Item::Value(v) => json_of_value(v),
@@ -213,7 +213,7 @@ fn key(k: &str) -> String {
 /// A table of values (`values = {…}` or `[x.values]`) as keys and JSON. A key in kebab case is the value in camel
 /// case (`view-mode` is `viewMode`), as an experiment written in Lamlet writes it (lab/src/script/data.rs); no value's
 /// key has a hyphen.
-fn values_of(json: Option<&Json>, at: &str) -> Result<Map<String, Json>> {
+pub(crate) fn values_of(json: Option<&Json>, at: &str) -> Result<Map<String, Json>> {
     let camel = |k: &str| {
         let mut parts = k.split('-');
         let first = parts.next().unwrap_or_default().to_string();
@@ -612,7 +612,7 @@ pub fn apply(state: &mut ShotState, values: &Map<String, Json>) -> Result<()> {
     Ok(())
 }
 
-fn demo_named(key: &str) -> Result<crate::shot::DemoId> {
+pub(crate) fn demo_named(key: &str) -> Result<crate::shot::DemoId> {
     let demos = investigation::current().demos();
     demos.iter().copied().find(|d| d.key() == key).ok_or_else(|| anyhow!("no demonstration `{key}` (the demonstrations: {})", demos.iter().map(|d| d.key()).collect::<Vec<_>>().join(", ")))
 }

@@ -26,6 +26,7 @@ mod knowledge_panel;
 mod panel;
 mod code;
 mod timeline_bar;
+mod quiz_panel;
 use viewport::*;
 pub use graph_panel::*;
 pub use knowledge_panel::*;
@@ -266,6 +267,12 @@ pub enum ViewerAction {
     SavePreset(String),
     /// Load one of the experiments the tab lists (`ExperimentView::presets`).
     LoadPreset(usize),
+    /// Answer the quiz's question with this choice (src/quiz.rs).
+    QuizAnswer(usize),
+    /// Go to this question of the quiz, its view set up again (the number of questions: the score).
+    QuizGo(usize),
+    /// Take the quiz again from its first question.
+    QuizRestart,
     /// A layout edge dragged to this size in points, or (None) back to its default.
     ResizeLayout(LayoutPart, Option<f32>),
     /// A drag of a layout edge ended: the layout is written to the settings.
@@ -303,6 +310,8 @@ pub enum DockTab {
     /// The frame graph (src/graph/) in the panel (its DAG, grid, or
     /// resources); the dock describes the hovered or selected pass.
     Graph,
+    /// The investigation's quiz (src/quiz.rs) in the panel; the viewport shows each question's view.
+    Quiz,
 }
 
 /// The knowledge graph's context in the viewer (src/knowledge.rs): the chapters the
@@ -387,6 +396,8 @@ pub struct ViewerChrome {
     pub diagram: Option<DiagramPage>,
     /// The Experiments tab's view of the experiment.
     pub experiment: ExperimentView,
+    /// The Quiz tab's quiz, as far as it has been taken.
+    pub quiz: crate::quiz::QuizView,
     /// The Prerequisites tab's and the knowledge panel's chapters.
     pub knowledge: KnowledgeChrome,
     /// The frame graph's DAG is shown full screen (`ViewerAction::SetDagOverlay`).
@@ -462,6 +473,8 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
     // The Experiments tab puts its values in the panel's place.
     // The performance panel, when asked for, takes the panel's place over the values.
     let value_panel = scene_beat && !matches!(input.state.panel, PanelMode::Performance | PanelMode::Knowledge | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources) && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
+    // The Quiz tab puts its question in the panel's place.
+    let quiz_panel = scene_beat && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Quiz && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -570,7 +583,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                             v.actions.push(graph_action(pick, &view));
                         }
                     }
-                } else if !value_panel {
+                } else if !value_panel && !quiz_panel {
                     draw_panel(&ink, input, content, &mut report);
                 }
             } else if let Some(key) = &input.state.callout {
@@ -633,6 +646,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 crate::controls::draw_dock(ctx, &ink, input, viewer);
                 if value_panel {
                     crate::controls::draw_experiment_panel(ctx, &ink, input, viewer);
+                }
+                if quiz_panel {
+                    quiz_panel::draw(ctx, &ink, input, viewer);
                 }
             }
             if let Some((seconds, opacity)) = viewer.skip {

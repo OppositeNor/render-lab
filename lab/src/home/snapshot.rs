@@ -175,6 +175,21 @@ pub fn snapshot_experiments(options: &HomeOptions, demo: Option<&str>, compare: 
     viewer::snapshot_experiments(viewer_options, demo, compare, png)
 }
 
+/// The viewer offscreen as the homepage's Quiz button opens it (src/quiz.rs), at question `spec`
+/// (`<question>[@<choice>]`: 1 first, A first; past the last: the score).
+pub fn snapshot_quiz(options: &HomeOptions, spec: Option<&str>, png: &Path) -> Result<()> {
+    let viewer_options = opened_by(options, |investigation| Choice::Quiz { investigation });
+    let (question, choice) = spec.map_or((None, None), |s| s.split_once('@').map_or((Some(s), None), |(q, c)| (Some(q), Some(c))));
+    let question = question.map(|q| q.parse::<usize>().ok().filter(|n| *n >= 1).ok_or_else(|| anyhow::anyhow!("a quiz page's question is a number from 1: `{q}`"))).transpose()?;
+    let choice = choice
+        .map(|c| {
+            let c = c.trim().to_ascii_uppercase();
+            c.chars().next().filter(|l| c.len() == 1 && l.is_ascii_uppercase()).map(|l| (l as u8 - b'A') as usize).ok_or_else(|| anyhow::anyhow!("a quiz page's choice is a letter: `{c}`"))
+        })
+        .transpose()?;
+    viewer::snapshot_quiz(viewer_options, question.map_or(0, |q| q - 1), choice, png)
+}
+
 /// The viewer offscreen on its Code tab, showing `listing` (`viewer::snapshot_code`).
 pub fn snapshot_code(options: &HomeOptions, listing: &str, tag: Option<&str>, png: &Path) -> Result<()> {
     let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
@@ -195,7 +210,7 @@ pub fn snapshot_viewer_page(options: &HomeOptions, timeline: bool, demo: Option<
     let choice = if timeline {
         let rows = home.timeline_rows(current);
         let row = rows.get(preferred_edition(&rows, home.applied.language)).with_context(|| format!("{} has no timeline", current.path()))?;
-        Choice::Watch { investigation: current, timeline: row.info, start_frame: 0, continue_parts: false }
+        Choice::Watch { investigation: current, timeline: row.info, start_frame: 0 }
     } else {
         Choice::Explore { investigation: current }
     };
@@ -354,26 +369,20 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         let experiment = offscreen.click(&mut home, "experiment").flatten();
         let ok = matches!(experiment, Some(Choice::Experiment { investigation }) if investigation.path() == i.path());
         check(&format!("{}: Experiment opens the experiments", i.path()), ok, describe(experiment));
+        // Its quiz, when its package has one (src/quiz.rs); the button does nothing without.
+        let quiz = offscreen.click(&mut home, "quiz").flatten();
+        let has_quiz = !crate::quiz::ids(*i).is_empty();
+        let ok = if has_quiz { matches!(quiz, Some(Choice::Quiz { investigation }) if investigation.path() == i.path()) } else { quiz.is_none() };
+        check(&format!("{}: Quiz opens its quiz (has one: {has_quiz})", i.path()), ok, describe(quiz));
         let Some(timeline) = i.timelines().first() else { continue };
         let watch = offscreen.click(&mut home, "watch").flatten();
         let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0, .. }) if investigation.path() == i.path() && t.id == timeline.id);
         check(&format!("{}: Watch opens the timeline from its start", i.path()), ok, describe(watch));
-        // A part of a series: its parts can be picked, and watching it goes on to the next part.
+        // A part of a series: its parts can be picked.
         if let Some((series, index)) = i.package().and_then(crate::resources::part_of) {
             let parts: Vec<&'static dyn Investigation> = series.parts.iter().filter_map(|p| investigations::all().iter().copied().find(|x| x.package() == Some(p.as_str()))).collect();
             let listed = parts.iter().all(|p| home.widgets.iter().any(|w| w.0 == format!("part:{}", p.path())));
             check(&format!("{}: part {} of {} of {}, every part listed", i.path(), index + 1, series.parts.len(), series.key), listed && parts.len() == series.parts.len(), parts.iter().map(|p| p.path()).collect::<Vec<_>>().join(" -> "));
-            if let Some(next) = parts.get(index + 1) {
-                let following = watch.and_then(|w| next_part(w, &mut home));
-                let ok = matches!(following, Some(Choice::Watch { investigation, start_frame: 0, continue_parts: true, .. }) if investigation.path() == next.path());
-                check(&format!("{}: watched to its end, it goes on to part {} ({})", i.path(), index + 2, next.path()), ok, describe(following));
-                // Off, it stops at its end.
-                offscreen.click(&mut home, "continue-parts");
-                let alone = offscreen.click(&mut home, "watch").flatten();
-                let ok = matches!(alone, Some(Choice::Watch { continue_parts: false, .. })) && alone.and_then(|w| next_part(w, &mut home)).is_none();
-                check(&format!("{}: with going on unticked, it stops at its end", i.path()), ok, describe(alone));
-                offscreen.click(&mut home, "continue-parts");
-            }
             // Picking another part selects its investigation; then back to this one.
             if let Some(other) = parts.iter().find(|p| p.path() != i.path()) {
                 let picked = offscreen.click(&mut home, &format!("part:{}", other.path())).is_some() && home.selected().path() == other.path();
