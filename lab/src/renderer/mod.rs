@@ -635,7 +635,7 @@ impl Renderer {
             self.frame_starts.pop_front();
         }
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if v.tab == ui::DockTab::Experiments);
+        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if matches!(v.tab, ui::DockTab::Experiments | ui::DockTab::Quiz));
         // A recording's code panel is as wide as its listing needs.
         let listing = match &request.chrome {
             Chrome::Recording { .. } if request.state.panel == crate::shot::PanelMode::Code => request.state.code.as_deref().and_then(|c| investigation::current().listing(c)),

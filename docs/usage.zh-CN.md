@@ -8,7 +8,7 @@
 右上角是地球图标和当前语言（点击后打开设置页面的语言选项），左下角显示版权、许可证和版本。启动时先以设置的语言显示光敏性癫痫警告，点击**继续**后关闭；
 保存的设置改变语言时，会再以新语言显示一次。
 
-- **开始**打开选择页面：已安装研究中的引擎与功能。
+- **开始**打开选择页面：已安装研究中的引擎与功能。每个功能都可以观看讲解视频、探索演示、做实验；它的包带有测验时，还可以**参加测验**：关于它的故事的选择题，每道题显示在它所问的演示的实时画面右边，可以转动、点击并调整这个画面来找到答案，最后给出得分。
 - **设置**编辑 `~/.config/render-lab/config.toml`（或 `$XDG_CONFIG_HOME/render-lab/config.toml`）中的设置，每个类别一个标签页：
   - **界面**：**语言**（English 或中文：主页的文字，以及选择页面首先提供的旁白视频版本，某个特性没有这种语言的版本时使用英文版；演示也使用该语言）
     和**主题**，即主页和查看器的配色（见下）。
@@ -37,7 +37,7 @@
 ```bash
 cargo run --release                                   # 主页
 cargo run --release -- --list                         # 已安装的研究（--investigation 可用的取值）
-cargo run --release -- home --snapshot home.png       # 离屏渲染标题画面（--page select、config、starting、viewer、viewer-timeline、viewer-experiments 或 viewer-compare 渲染其他页面）
+cargo run --release -- home --snapshot home.png       # 离屏渲染标题画面（--page select、config、starting、viewer、viewer-timeline、viewer-experiments、viewer-compare 或 viewer-quiz 渲染其他页面）
 cargo run --release -- home --autotest home.json      # 离屏点击测试主页（使用自己的设置文件）
 ```
 

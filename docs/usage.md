@@ -10,7 +10,10 @@ in the top-right corner (it opens Config at the Language option), and the copyri
 bottom-left corner. A photosensitivity warning covers it first, in the configured language, until **Continue**, and
 again, in the new language, whenever a saved setting changes the language.
 
-- **Play** opens the selection page: the engines and features of the installed investigations.
+- **Play** opens the selection page: the engines and features of the installed investigations. Each feature can be
+  watched as its narrated video, explored in its demonstrations, experimented with, and, when its package has one,
+  taken as a quiz (**Take the quiz**): multiple-choice questions on its story, each at the right of a live view of the
+  demonstration it asks about, which can be turned, clicked, and changed to find the answer; the score at the end.
 - **Config** edits the settings in `~/.config/render-lab/config.toml` (or `$XDG_CONFIG_HOME/render-lab/config.toml`),
   a tab per category:
   - **Interface**: the **Language** (English or 中文: the homepage's text, and the narrated edition the selection page
@@ -50,7 +53,7 @@ Run these commands from the repository root:
 ```bash
 cargo run --release                                   # the homepage
 cargo run --release -- --list                         # the installed investigations (the values --investigation takes)
-cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, viewer-timeline, viewer-experiments, or viewer-compare for the others)
+cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, viewer-timeline, viewer-experiments, viewer-compare, or viewer-quiz for the others)
 cargo run --release -- home --autotest home.json      # click through the homepage offscreen (it uses its own settings file)
 ```
 

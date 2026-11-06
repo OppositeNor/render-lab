@@ -128,6 +128,20 @@ impl App {
                     self.experiment.presets = crate::experiment::presets();
                 }
                 self.show_tab();
+                if tab == DockTab::Quiz && self.quiz.quiz.is_none() {
+                    self.open_quiz();
+                }
+            }
+            ViewerAction::QuizAnswer(choice) if interactive => {
+                let i = self.quiz.view.index;
+                if let Some(answer) = self.quiz.view.answers.get_mut(i).filter(|a| a.is_none()) {
+                    *answer = Some(choice);
+                }
+            }
+            ViewerAction::QuizGo(i) if interactive => self.quiz_go(i),
+            ViewerAction::QuizRestart if interactive => {
+                self.quiz.view.answers.iter_mut().for_each(|a| *a = None);
+                self.quiz_go(0);
             }
             ViewerAction::SetCode(name) if interactive => {
                 self.state.code = Some(name.to_string());
@@ -267,6 +281,46 @@ impl App {
                 self.experiment.message = None;
             }
             _ => self.experiment.message = Some(crate::i18n::tr("experiments-measure_needs_reference").to_string()),
+        }
+    }
+
+    /// Open the investigation's first quiz at its first question (the Quiz tab); a quiz that does not read is
+    /// said in the panel.
+    pub(super) fn open_quiz(&mut self) {
+        let current = investigation::current();
+        let package = current.package().unwrap_or("render_lab");
+        let opened = crate::quiz::ids(current).first().cloned().ok_or_else(|| anyhow::anyhow!("{}", crate::i18n::tr("quiz-none"))).and_then(|id| crate::quiz::load(&id));
+        match opened {
+            Ok(quiz) => {
+                self.quiz.view = crate::quiz::QuizView::of(&quiz, package);
+                self.quiz.quiz = Some(quiz);
+                self.quiz_go(0);
+            }
+            Err(e) => self.quiz.view = crate::quiz::QuizView { title: current.title().to_string(), error: Some(format!("{e:#}")), ..Default::default() },
+        }
+    }
+
+    /// Show question `i` of the quiz: its demonstration at its defaults, then its camera and values (the score
+    /// past the last question keeps the view).
+    pub(super) fn quiz_go(&mut self, i: usize) {
+        let Some(quiz) = self.quiz.quiz.clone() else { return };
+        self.quiz.view.index = i.min(quiz.questions.len());
+        let Some(question) = quiz.questions.get(i) else { return };
+        self.stop();
+        self.intro = None;
+        let shown = question.start_demo().and_then(|demo| {
+            let mut state = self.default_state(demo);
+            question.apply(&mut state)?;
+            Ok(state)
+        });
+        match shown {
+            Ok(state) => {
+                self.state = state;
+                self.demo_time = 0.0;
+                self.drift_from = 0.0;
+                self.show_tab();
+            }
+            Err(e) => self.quiz.view.error = Some(format!("{e:#}")),
         }
     }
 

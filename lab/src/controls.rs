@@ -177,7 +177,8 @@ impl Dock<'_> {
             let prerequisites = crate::knowledge::current().map(|_| (DockTab::Prerequisites, tr("controls-prerequisites")));
             let tabs = [(DockTab::Parameters, tr("controls-sliders")), (DockTab::Experiments, tr("controls-experiments")), (DockTab::Code, tr("controls-code")), (DockTab::Sources, tr("controls-source"))];
             let graph = [(DockTab::Graph, tr("controls-frame_graph"))];
-            for (value, label) in tabs.into_iter().chain(prerequisites).chain(graph).chain(captions) {
+            let quiz = (!crate::quiz::ids(investigation::current()).is_empty()).then(|| (DockTab::Quiz, tr("controls-quiz")));
+            for (value, label) in tabs.into_iter().chain(prerequisites).chain(graph).chain(quiz).chain(captions) {
                 if ui.selectable_label(tab == value, label).clicked() {
                     self.actions.push(ViewerAction::SelectTab(value));
                 }

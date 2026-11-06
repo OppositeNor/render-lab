@@ -30,6 +30,7 @@ pub mod environment;
 /// A page drawn with egui into a texture: the loading page, the homepage.
 pub mod egui_pass;
 pub mod experiment;
+pub mod quiz;
 pub mod formats;
 pub mod formula;
 pub mod fetch;

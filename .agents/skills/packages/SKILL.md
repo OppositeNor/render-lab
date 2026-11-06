@@ -88,9 +88,8 @@ license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the p
 - A **series** orders investigations as the parts of one story (`packages/godot_indirect`, a package with a manifest
   only). Each part is a package with an investigation and its own chapters (numbered from 1) and narrated timelines.
   The homepage's Feature column lists the series (its title, "A story in n parts") in place of its parts; the detail
-  panel shows "Part n of m" with the parts one under another on darker glass, to pick, and, with
-  "Continue with the next parts" ticked, Watch goes on to the next part's timeline (in the same language) when one
-  ends. The video builder writes `part` into each part's timeline, and its chapter tag reads `PART 1 / 3   01 / 08`.
+  panel shows "Part n of m" with the parts one under another on darker glass, to pick; each part is watched on its
+  own (a timeline pauses on its last frame). The video builder writes `part` into each part's timeline, and its chapter tag reads `PART 1 / 3   01 / 08`.
   `render-lab series` lists the series and checks that a part's audience (knowledge.toml `known`) knows what the
   parts before it teach.
 - A package that holds an engine's code, or names it, gives its **notices**: the copyright and license of code ported
@@ -148,6 +147,9 @@ parts = ["render_lab.shader/scene", "wgsl/my-shading"]
 - **Experiments.** An experiment file (`lab/src/experiment.rs`) declared as `experiment/<name>`
   (`kind = "file"`, `source = "experiments/<name>.toml"`) is offered by the viewer's Experiments tab and run by
   `render-lab experiment <package>.experiment/<name>` (the `experiments` skill).
+- **Quizzes.** A quiz file (`lab/src/quiz.rs`, its format in the module's comment) declared as `quiz/<name>`
+  (`kind = "file"`, `source = "quiz/<name>.toml"`) gives the homepage's part its Quiz button and the viewer its Quiz
+  tab; its text is the package's keys, in `-text` fields (the `new-story` skill, "The quiz").
 - **Text.** A package's on-screen text is a Project Fluent file per language that render_lab's `locales.toml` registers
   (`text/en.ftl`, `text/zh-CN.ftl`), declared as `text/<code in lower case>` (`text/en`, `text/zh-cn`), read by the code
   with `tr("key")`, which `lab::text_table!("<package>.text")` defines in its text module. A complete language's table

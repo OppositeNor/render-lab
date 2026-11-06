@@ -59,6 +59,8 @@ enum Command {
         /// scene with an image, the image's panel zoomed in), viewer-sources (paused on its first sources card),
         /// viewer-experiments[:<demo>] (the Experiment button's viewer: the Experiments tab), or
         /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
+        /// viewer-quiz[:<question>[@<choice>]] (the Quiz button's viewer on that question, 1 first, with that
+        /// choice picked, A first; none: unanswered; past the last question: the score), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
         /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
         /// viewer-graph[:<demo>] (the frame graph in the panel, the inspector on what its most expensive pass writes), or
@@ -544,6 +546,7 @@ pub fn main(app: App) -> Result<()> {
                     home::snapshot_graph(&options, demo, None, crate::viewer::GraphSnapshot { dag: true, resources, full_screen, highlight, source: false }, &png)
                 }
                 (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
+                (Some(png), _) if page == "viewer-quiz" || page.starts_with("viewer-quiz:") => home::snapshot_quiz(&options, page.strip_prefix("viewer-quiz:"), &png),
                 (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),
                 (Some(png), _) if page == "viewer-prerequisites" || page.starts_with("viewer-prerequisites:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-prerequisites:"), false, false, &png),
                 (Some(png), _) if page == "viewer-knowledge" || page.starts_with("viewer-knowledge:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge:"), true, false, &png),
@@ -564,7 +567,7 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, layout: Default::default(), settings: None, next: false, autoplay: false })
+            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, quiz: false, layout: Default::default(), settings: None })
         }
         Command::Render { timeline, output, frames, warmup, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             // A frame a script did not draw must not reach a video.

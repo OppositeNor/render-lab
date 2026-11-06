@@ -190,11 +190,6 @@ impl Home {
                                 new_part = Some(investigation);
                             }
                         }
-                        if index + 1 < series.parts.len() {
-                            ui.add_space(4.0);
-                            let r = ui.checkbox(&mut home.continue_parts, RichText::new(tr("home-continue_parts")).size(24.0));
-                            home.widgets.push(("continue-parts".into(), r.rect));
-                        }
                     }));
                     ui.add_space(12.0);
                 }
@@ -213,24 +208,35 @@ impl Home {
                 ui.add(egui::Label::new(RichText::new(e).color(palette::HISTORY_REJECT)).wrap());
                 ui.add_space(10.0);
             }
+            // Two rows of two: watch and explore, then experiment and the quiz.
+            let first = rows.get(edition).filter(|r| r.summary.is_ok());
+            // Short rows, so the chapter list below keeps its room.
+            let button = vec2((ui.available_width() - 24.0) / 2.0, 46.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 16.0;
-                let first = rows.get(edition).filter(|r| r.summary.is_ok());
-                let button = vec2((ui.available_width() - 32.0) / 3.0, 64.0);
-                let watch = glass_button(ui, button, tr("home-watch_the_narrated_video"), 28.0, first.is_some());
+                let watch = glass_button(ui, button, tr("home-watch_the_narrated_video"), 26.0, first.is_some());
                 home.widgets.push(("watch".into(), watch.rect));
                 if let (true, Some(row)) = (watch.clicked(), first) {
-                    choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0, continue_parts: home.continue_parts });
+                    choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: 0 });
                 }
-                let explore = glass_button(ui, button, tr("home-explore_the_demonstrations"), 28.0, true);
+                let explore = glass_button(ui, button, tr("home-explore_the_demonstrations"), 26.0, true);
                 home.widgets.push(("explore".into(), explore.rect));
                 if explore.clicked() {
                     choice = Some(Choice::Explore { investigation: chosen });
                 }
-                let experiment = glass_button(ui, button, tr("home-experiment_with_the_algorithm"), 28.0, true);
+            });
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                let experiment = glass_button(ui, button, tr("home-experiment_with_the_algorithm"), 26.0, true);
                 home.widgets.push(("experiment".into(), experiment.rect));
                 if experiment.clicked() {
                     choice = Some(Choice::Experiment { investigation: chosen });
+                }
+                let quiz = glass_button(ui, button, tr("home-take_the_quiz"), 26.0, !crate::quiz::ids(chosen).is_empty());
+                home.widgets.push(("quiz".into(), quiz.rect));
+                if quiz.clicked() {
+                    choice = Some(Choice::Quiz { investigation: chosen });
                 }
             });
             // What the story assumes (src/knowledge.rs): the level it starts from, the known
@@ -293,7 +299,7 @@ impl Home {
                                     let r = ui.add(egui::Button::new(RichText::new(format!("{number:02}  {label}"))).frame(false).truncate());
                                     home.widgets.push((format!("chapter:{number}"), r.rect));
                                     if r.clicked() {
-                                        choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: *frame, continue_parts: home.continue_parts });
+                                        choice = Some(Choice::Watch { investigation: chosen, timeline: row.info, start_frame: *frame });
                                     }
                                 }
                             }

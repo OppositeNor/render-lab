@@ -91,15 +91,12 @@ pub struct ViewerOptions {
     /// Opened by the homepage's Experiment button: the Experiments tab, the
     /// changed values kept from one demonstration to the next (src/experiment.rs).
     pub experiments: bool,
+    /// Opened by the homepage's Quiz button: the Quiz tab, at the quiz's first question (src/quiz.rs).
+    pub quiz: bool,
     /// The layout's dragged sizes (the settings'), and the settings file a
     /// drag writes them to (None: kept for this run only).
     pub layout: crate::config::ViewerLayout,
     pub settings: Option<PathBuf>,
-    /// The timeline is a part of a series with a part after it, to play next:
-    /// at its end the viewer leaves with `ViewerExit::Next`.
-    pub next: bool,
-    /// Play the timeline as soon as its scene is ready (the part after one that ended).
-    pub autoplay: bool,
 }
 
 use crate::window::fullscreen_mode;
@@ -112,8 +109,6 @@ pub enum ViewerExit {
     Back,
     /// The window was closed (or the autotest finished).
     Closed,
-    /// A part of a series played to its end: on to the next part.
-    Next,
 }
 
 /// A scripted test of the viewer, driven once per redraw (`viewer-autotest`).
@@ -226,6 +221,8 @@ pub struct App {
     intro: Option<(IntroMove, Instant)>,
     /// The experiment: its reference, comparison, and measurement (src/experiment.rs).
     pub experiment: crate::experiment::Session,
+    /// The quiz being taken (the Quiz tab, src/quiz.rs).
+    pub quiz: crate::quiz::Session,
     /// Recent frame times in milliseconds (the Experiments tab's readout).
     frame_times: std::collections::VecDeque<f64>,
     /// The layout's dragged sizes; the viewer hands them back when it closes.
@@ -265,7 +262,11 @@ impl App {
         };
         let camera = state.camera;
         let scene = investigation::current().demo_scene(state.demo);
-        let tab = if options.experiments { DockTab::Experiments } else { DockTab::default() };
+        let tab = match (options.experiments, options.quiz) {
+            (_, true) => DockTab::Quiz,
+            (true, _) => DockTab::Experiments,
+            _ => DockTab::default(),
+        };
         let layout = options.layout;
         Ok(App {
             options,
@@ -311,6 +312,7 @@ impl App {
             // The autotest checks the camera, so it opens straight on the shot.
             intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
             experiment: crate::experiment::Session { presets: crate::experiment::presets(), ..Default::default() },
+            quiz: crate::quiz::Session::default(),
             frame_times: std::collections::VecDeque::new(),
             layout,
             cursor_icon: egui::CursorIcon::Default,

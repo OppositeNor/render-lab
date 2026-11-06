@@ -91,6 +91,35 @@ pub fn snapshot_experiments(options: ViewerOptions, demo: Option<&str>, compare:
     Ok(())
 }
 
+/// The viewer offscreen on the Quiz tab (`home --snapshot … --page viewer-quiz[:<question>[@<choice>]]`): the quiz
+/// opened, at `question` (from 0; past the last: the score, every question answered with its first choice), with
+/// `choice` picked when given.
+pub fn snapshot_quiz(options: ViewerOptions, question: usize, choice: Option<usize>, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{read_rgba, readback_buffer, write_png};
+    let (mut app, gpu, size) = offscreen_app(ViewerOptions { quiz: true, ..options }, None)?;
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    app.render(Some(&buffer))?;
+    if let Some(e) = &app.quiz.view.error {
+        anyhow::bail!("the quiz did not open: {e}");
+    }
+    let count = app.quiz.view.questions.len();
+    if question >= count {
+        for i in 0..count {
+            app.apply(ViewerAction::QuizGo(i));
+            app.apply(ViewerAction::QuizAnswer(0));
+        }
+    }
+    app.apply(ViewerAction::QuizGo(question.min(count)));
+    if let Some(c) = choice {
+        app.apply(ViewerAction::QuizAnswer(c));
+    }
+    settle(&mut app, &buffer, 12)?;
+    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
+    let at = if question >= count { "the score".to_string() } else { format!("question {} of {count}", question + 1) };
+    eprintln!("viewer quiz: {} ({}x{}); {at}{}", png.display(), size[0], size[1], app.quiz.view.error.as_ref().map(|e| format!("; {e}")).unwrap_or_default());
+    Ok(())
+}
+
 /// The viewer offscreen with the performance panel (`home --snapshot X.png
 /// --page viewer-performance[:<demo>]`): measured over 60 frames, then the
 /// most expensive pass called out, as a story's `highlight` would.
