@@ -4,7 +4,7 @@
 
 [audience]
 profile = "Has written a PBR forward renderer with shadow maps and compute passes: knows the GPU pipeline, depth, sampling, microfacet BRDFs, and punctual lights."
-known = ["render_lab.knowledge#gpu-formats", "render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-sync", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-sampling", "render_lab.knowledge#rt-cubemaps", "render_lab.knowledge#rt-blend", "render_lab.knowledge#cg-visibility", "render_lab.knowledge#cg-lights", "render_lab.knowledge#cg-brdf", "render_lab.knowledge#cg-fresnel", "render_lab.knowledge#cg-microfacet", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#cg-pbr-materials"]
+known = ["render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-sync", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#cg-brdf", "render_lab.knowledge#cg-fresnel"]
 
 [[chapter]]
 number = 1
