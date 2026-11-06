@@ -94,6 +94,39 @@ jobs:
       - name: Unit tests
         run: cargo test --release --locked --workspace
 
+  # Windows (x64, MSVC): not supported yet, so this job is expected to fail. build.rs passes the linker
+  # Linux's rpath (`-Wl,-rpath,$ORIGIN:<sysroot>`), which MSVC's link.exe does not take; Windows finds a DLL
+  # beside the executable or on PATH instead, and the libraries are .dll (the standard library's in the
+  # toolchain's bin/). The release does not wait for it.
+  windows:
+    name: Build, test, check (Windows)
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Check out the files as committed: Git for Windows otherwise turns LF into CRLF, and the lab hashes and
+      # checks its sources byte for byte.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked
+      - name: Content checks
+        run: |
+          lab=target/release/render-lab
+          $lab cook
+          $lab packages
+          $lab i18n --check
+          for investigation in $($lab --list | awk '{print $1}'); do
+            $lab --investigation "$investigation" script check
+            $lab --investigation "$investigation" knowledge
+            $lab --investigation "$investigation" graph
+          done
+      - name: Unit tests
+        run: cargo test --release --locked --workspace
+
   render:
     name: Offscreen renders (software Vulkan)
     runs-on: ubuntu-24.04
