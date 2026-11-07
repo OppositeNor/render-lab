@@ -51,6 +51,22 @@ cargo run --release
 
 主页的**开始**打开已安装的研究，**设置**调整语言、主题、音量和显示选项。详细操作见[使用 Render Lab](docs/usage.zh-CN.md)。
 
+## 与 AI 智能体协作
+
+仓库包含为 AI 编程智能体编写的技能（skills），位于 [`.agents/skills/`](.agents/skills)（Agent Skills 布局，Claude Code
+通过 `.claude/skills/` 中的链接使用），所有智能体遵循的规则见 [`AGENTS.md`](AGENTS.md)。每个技能指导一类任务：
+`new-investigation`、`new-story`、`packages`、`render-graph`、`knowledge-graph`、`experiments` 和 `render-lab-lamlet`。
+
+开始一项新研究时，可以这样告诉智能体：
+
+```text
+Please investigate on <investigation-topic>, for <engine-name>. The source of the engine is at <engine-source-path>.
+Please utilize <source-index-utility-name> for indexing code.   (optional)
+```
+
+智能体会加载 `new-investigation`（制作讲解视频时还有 `new-story`）并按其流程进行：研究引擎源码、创建包并将着色器移植到
+WGSL、审查和验证。只有许可证允许发布衍生代码的引擎才能放入公开仓库，详见 `AGENTS.md`。
+
 ## 文档
 
 | 文档 | 内容 |
