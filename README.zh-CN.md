@@ -11,6 +11,10 @@
 一个用于渲染演示与实验的实验室，按**游戏引擎功能的研究**（investigation）组织。每项研究在预先准备的数据上重建某个引擎功能的一部分，
 并逐步展示其中涉及的数据：既在交互式查看器中，也在实验室逐帧录制的旁白视频中。
 
+> [!WARNING]
+> Render Lab 仍处于非常早期的开发阶段。它的 API 与格式（`Investigation` trait、包清单、故事板与脚本的词汇、命令行）
+> 可能会有很大变化，且不会事先通知或提供迁移方式。
+
 它使用 Vulkan（或 wgpu 选用的 Windows 上的 Direct3D 12、macOS 上的 Metal）上的 **wgpu 30.0.1**、**winit 0.30.13**、**egui 0.37** 和 **WGSL** 着色器。
 
 <p align="center">
