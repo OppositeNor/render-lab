@@ -264,7 +264,7 @@ fn measures(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, ins
     let axes = !inset.y_axis.is_empty();
     // Room on the left for the vertical axis' name.
     let (left, right) = if axes { (62.0, 30.0) } else { (10.0, 10.0) };
-    let room = l.viewport.width() * 0.5;
+    let room = l.safe().width() * 0.5;
     let (id, own) = texture(ctx, textures, &inset.picture).unzip();
     let mut size = match (inset.size, own.flatten()) {
         ([0.0, 0.0], Some(own)) => own * (360.0 / own.max_elem()).min(1.0),
@@ -309,8 +309,9 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
     let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
     let Measures { id, size, left, title, width, top, under, frame_size } = measures(ctx, ink, l, textures, inset);
     let above: Vec<(&String, Color32)> = title.iter().map(|t| (t, palette::text())).chain(inset.status.iter().map(|s| (s, palette::text_dim()))).collect();
-    let x = if inset.corner.right() { l.viewport.max.x - 16.0 - width - offset.x } else { l.viewport.min.x + 16.0 + offset.x };
-    let y = if inset.corner.top() { l.viewport.min.y + 16.0 + offset.y } else { l.viewport.max.y - 16.0 - frame_size.y - offset.y };
+    let safe = l.safe();
+    let x = if inset.corner.right() { safe.max.x - 16.0 - width - offset.x } else { safe.min.x + 16.0 + offset.x };
+    let y = if inset.corner.top() { safe.min.y + 16.0 + offset.y } else { safe.max.y - 16.0 - frame_size.y - offset.y };
     let frame = Rect::from_min_size(pos2(x, y), frame_size);
     painter.rect_filled(frame, CornerRadius::same(10), fade(crate::paint::overlay_fill(238)));
     painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);

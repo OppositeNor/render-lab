@@ -20,4 +20,10 @@ shading's `outputs` (multisampled targets), its `passes` run as compute passes o
 `[[shader]]` whose parts start with `render_lab.shader/scene`, and name that shader in the file's `module`; build.rs validates it, and so
 does the lab when it loads it. A frame without a struct-panel record can show a `Readout` (names and values) in its place.
 
+What the viewer's Scene window lists and its gizmo moves ([`lab/src/entity.rs`](../lab/src/entity.rs)): the scene's
+objects, and the lights and points the investigation's values place, which it declares with `Investigation::entities`
+(a name from its text, a kind, and the three values of a position). A scene's objects marked `movable` move too when
+the investigation's frame follows them (`Investigation::movable_objects`: its records come from the scene's, which the
+lab then poses); one that draws the scene from data it baked leaves it false, and they stay.
+
 See the [architecture and code map](architecture.md) for the shared lab and loader.

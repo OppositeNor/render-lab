@@ -116,6 +116,18 @@ impl Investigation for Lighting {
         shot::demo_animation(Demo::of(demo), t)
     }
 
+    fn movable_objects(&self) -> bool {
+        true
+    }
+
+    fn entities(&self, _demo: DemoId) -> Vec<lab::entity::EntitySpec> {
+        use lab::entity::{EntityKind, EntitySpec};
+        vec![
+            EntitySpec { text: "entity-light", kind: EntityKind::Light, position: ["lightX", "lightY", "lightZ"], shown: None },
+            EntitySpec { text: "entity-sphere_light", kind: EntityKind::Light, position: ["sphereLightX", "sphereLightY", "sphereLightZ"], shown: Some("sphereLight") },
+        ]
+    }
+
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }

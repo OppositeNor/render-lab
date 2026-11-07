@@ -98,6 +98,10 @@ impl Investigation for Ssr {
         Some(state)
     }
 
+    fn movable_objects(&self) -> bool {
+        true
+    }
+
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }

@@ -234,7 +234,7 @@ impl FeatureState for Experiments {
 
     fn panel(&mut self, panel: &mut PanelUi) {
         let rect = panel.input.layout.panel;
-        crate::paint::panel_card(panel.ink.painter, rect, 10);
+        crate::paint::panel_card(panel.ink.painter, rect, 12);
         let inner = rect.shrink2(vec2(16.0, 12.0));
         let mut asked = Vec::new();
         let view = self.view();
@@ -519,7 +519,8 @@ fn values(dock: &mut Dock, ui: &mut Ui) {
     let needle = filter.trim().to_lowercase();
     let matches = |e: &Entry| needle.is_empty() || [e.key, e.label_text(), e.doc, e.engine.unwrap_or("")].iter().any(|t| t.to_lowercase().contains(&needle));
     let engine: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_some() && matches(e)).collect();
-    let scene: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_none() && !is_camera(e) && !e.labels.is_empty() && !e.toggle && matches(e)).collect();
+    // A movable object's place is the Scene window's (src/entity.rs); its changes still show above.
+    let scene: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_none() && !is_camera(e) && !e.labels.is_empty() && !e.toggle && !crate::entity::is_key(e.key) && matches(e)).collect();
     let presentation: Vec<&'static Entry> = all.iter().copied().filter(|e| e.engine.is_none() && !is_camera(e) && (e.labels.is_empty() || e.toggle) && matches(e)).collect();
     if !engine.is_empty() {
         dock.group(ui, tr("experiments-engine_settings"), Some(tr("experiments-engine_settings_hint")), |d, ui| {

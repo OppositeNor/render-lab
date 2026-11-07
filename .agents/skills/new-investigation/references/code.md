@@ -155,6 +155,13 @@ Optional ones include `backdrop` (its homepage scene), `animation` (Play), `shad
   `{view "<name>" {' …}}` cue, and the dock does when the view is focused. The pointer goes to the view under it (a drag
   orbits an over view's own camera; the main camera keeps its place), and a click focuses a view: the dock then shows
   and sets that view's camera and values. SSR's height field and cross-section are over views (its demos.rs).
+- **Entities** (`lab/src/entity.rs`): what the viewer's Scene window lists and its gizmo moves. Declare the lights and
+  points the values place with `Investigation::entities` (`EntitySpec { text, kind, position: [x, y, z keys], shown }`,
+  the name a key of the package's text); a light whose position is a slider pair is then also dragged in the viewport.
+  Return true from `Investigation::movable_objects` when the frame's records come from the scene's (`statics.scene.records()`,
+  patched), so the lab can pose the scene's `movable` objects (`object.<name>.x`, `.yaw`, `.scale`) and the light
+  with its object; leave it false when the frame or a CPU mirror draws from data baked from the scene, which would not
+  follow. `--page viewer-scene[:<entity>][@move|rotate|scale]` checks it offscreen.
 - **Step parameters** show an algorithm's intermediate steps, so the video can animate them rather than cut from the
   input to the result: how many vectors are drawn, how many samples or rays, how many readout rows (O3DE:
   `vectorsShown`, `ggxSamples`, `readoutRows`).

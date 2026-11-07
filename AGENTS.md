@@ -92,7 +92,7 @@ cargo run --release -- home --autotest /path/to/home.json   # the homepage's con
 cargo run --release -- home --snapshot /path/to/home.png    # the title screen as a PNG, offscreen; look at it
 cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads
 cargo run --release -- home --snapshot /path/to/starting.png --page starting # the homepage's loading page, while the title's scene loads
-cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # the viewer offscreen: the dock (viewer:<demo> for one demonstration; viewer-timeline: a timeline playing, its bar)
+cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # the viewer offscreen: its windows (viewer:<demo> for one demonstration; viewer-timeline: a timeline playing, its bar)
 cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a 2d scene with an image: its panel, zoomed
 cargo run --release -- home --snapshot /path/to/sources.png --page viewer-sources   # a timeline paused on a 2d scene's sources card
 cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
@@ -126,7 +126,9 @@ cargo run --release -- home --snapshot /path/to/inspect.png --page "viewer-inspe
 cargo run --release -- home --snapshot /path/to/dag.png --page "viewer-dag[:<demo>][@<node>,…]"   # the frame graph as a DAG, each pass's result on its card (viewer-dag-full: full screen)
 cargo run --release -- home --snapshot /path/to/res.png --page "viewer-resources[:<demo>][@<node>,…]"   # every resource of the frame as a card, as the frame leaves it (viewer-resources-full)
 cargo run --release -- home --snapshot /path/to/src.png --page viewer-source:<node>   # the full-screen DAG, that pass selected, the WGSL it is compiled from beside it
-cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's panel and dock edges dragged by the pointer; the layout written to layout.toml beside it
+cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's windows moved, docked, and resized by the pointer; the layout written to layout.toml beside it
+cargo run --release -- home --snapshot /path/to/camera.png --page viewer-camera   # the camera's modes driven through the viewer's input and checked: drag orbits, Shift-drag pans, right-held flies (WASD, Q/E on world Y, wheel speed)
+cargo run --release -- home --snapshot /path/to/scene.png --page "viewer-scene[:<entity>][@move|rotate|scale]"   # the Scene window open, an entity selected (object.teapot, value.lightX), its gizmo dragged
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- home --snapshot /path/to/quiz.png --page viewer-quiz:<n>@<letter>   # the Quiz button's viewer: question n answered with that choice (none: unanswered; past the last: the score)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)

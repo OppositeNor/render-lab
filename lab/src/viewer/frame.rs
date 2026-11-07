@@ -85,6 +85,7 @@ impl App {
         let now = Instant::now();
         let dt = (now - self.last_tick).as_secs_f32().min(0.1);
         self.last_tick = now;
+        self.fly_step(dt);
         // Live reload: about twice a second, the checkout's WGSL files changed since are read
         // again and every pipeline made from them (a broken edit keeps the last good ones).
         if self.frames.is_multiple_of(30) && let Some(renderer) = self.renderer.as_mut() {
@@ -155,6 +156,8 @@ impl App {
             diagram: None,
             features: std::mem::take(&mut self.features),
             shader_reload: self.shader_reload.as_ref().filter(|(_, failed, at)| *failed || at.elapsed().as_secs_f32() < 4.0).map(|(t, f, _)| (t.clone(), *f)),
+            selected: self.selected.clone(),
+            gizmo: crate::ui::GizmoView { mode: self.gizmo_mode, hover: self.gizmo_hover, active: self.gizmo_drag.as_ref().map(|(d, _)| d.handle) },
             focus_rect: self.renderer.as_ref().map(|r| r.frame_views()).filter(|v| v.len() > 1).and_then(|v| v.iter().find(|(id, _)| *id == self.focus).map(|(_, r)| *r)),
         };
         self.frame_times.push_back(dt as f64 * 1000.0);

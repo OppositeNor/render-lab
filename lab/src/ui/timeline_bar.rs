@@ -3,10 +3,24 @@
 
 use super::*;
 
-pub(super) fn draw_captions(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) {
+/// A recording's caption: a subtitle over the bottom of the picture (`Layout::for_video`), each line on a
+/// dark card, the last line's foot at the band's foot. Returns where it is.
+pub(super) fn draw_captions(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) -> Option<Rect> {
     let (_, beat) = timeline.beat_at(frame);
-    let Some(caption) = beat.caption_at(frame) else { return };
-    draw_caption_lines(ink, l, &caption.text);
+    let caption = beat.caption_at(frame)?;
+    let lines: Vec<&str> = caption.text.lines().collect();
+    let sizes: Vec<Vec2> = lines.iter().map(|line| rich_text::measure(ink, line, 34.0, FontFamily::Proportional)).collect();
+    let mut y = l.captions.max.y - sizes.iter().map(|s| s.y.max(40.0) + 16.0).sum::<f32>();
+    let mut area = Rect::NOTHING;
+    for (line, size) in lines.iter().zip(&sizes) {
+        let height = size.y.max(40.0) + 12.0;
+        let card = Rect::from_center_size(pos2(l.captions.center().x, y + height / 2.0), vec2(size.x + 36.0, height));
+        ink.painter.rect_filled(card, CornerRadius::same(8), crate::paint::overlay_fill(190));
+        rich_text::text(ink, pos2(card.center().x, card.center().y), Align2::CENTER_CENTER, line, 34.0, FontFamily::Proportional, palette::text());
+        area = area.union(card);
+        y += height + 4.0;
+    }
+    Some(area)
 }
 
 /// A caption's lines with a shadow, 48 px apart, or more where a line holds a taller formula.

@@ -376,7 +376,9 @@ the sample (`narration.py`; each wav has a `<digest>.json` with its word starts)
 | `${formulaSaid "\\frac{1}{1+\\lit{1}{n}}" "one over one plus n" {'}}` | A formula: the cue opens the formula card in the viewport on it (it closes with the beat, or at `{formulaOff}`); the caption shows what `say` shows, typeset, and the voice says its words. `{display "yes"}` sets it in display style on the card, `{colors "#rrggbb,…"}` colours its `\lit{n}{…}` terms, `{card "no"}` keeps it to the caption (each in the last argument's list); in a String, LaTeX's backslashes are doubled. It is `${cue "formula" {' {formula "…"} …}}${say {math "…"} "…"}`, the LaTeX written once |
 | `{term 1}` | Lights term `n` of the card (it fades in over `blend`, 0.4 s by default; `{term 0}` unlights it) |
 
-Captions are cut at word boundaries, never inside a formula, and each one shows from its first word; the `.srt` and
+Captions are cut into one-line cues (the video shows each as a subtitle over the bottom of the picture, under a small
+tag naming the chapter and the beat, beside the engine's credit as a watermark in the lower left), at word boundaries,
+never inside a formula, and each one shows from its first word; the `.srt` and
 `.vtt` files and the script write formulas as `$LaTeX$`. A translation's sentence carries the same formulas (the same
 LaTeX, as many times) and no cues. The build typesets every formula of the timeline with `render-lab formulas
 --check` (glyphs of at least 24 px, display formulas at most 546 px wide).

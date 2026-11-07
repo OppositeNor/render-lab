@@ -2,11 +2,13 @@
 //! as the recorder, then blits the target to the window.
 //!
 //! Controls: left-drag orbit (on a clickable inset: pick, and keep picking
-//! under the cursor while dragging), right/middle-drag pan, wheel zoom, click pick,
+//! under the cursor while dragging), Shift-drag or middle-drag pan, wheel zoom, click pick;
+//! the right button held flies (WASD along the view, Q and E down and up the world's Y, Shift faster, the wheel
+//! its speed),
 //! 1–9, 0, −, = the investigation's demonstrations in order, Space
 //! play/pause, Right or . step (on a timeline, Left and Right skip 10 s
 //! back and forward), R reset, T switch between the timeline and
-//! the free demonstrations (with a timeline), F11 a screenshot, Esc or the
+//! the free demonstrations (with a timeline), F the camera to the Scene window's selection, F11 a screenshot, Esc or the
 //! header's Home button back to the homepage. The dock's sliders
 //! (`controls.rs`) edit the demonstration's parameters.
 //!
@@ -69,6 +71,14 @@ const AUDIO_START_DELAY: std::time::Duration = std::time::Duration::from_millis(
 /// How far Left and Right skip on a timeline, and how long the viewport says so.
 const SKIP_SECONDS: i64 = 10;
 const SKIP_NOTICE: std::time::Duration = std::time::Duration::from_millis(900);
+
+/// The fly camera (the right button held): the keys that move it, its speed in metres a second at first and
+/// its range (the wheel changes it while flying), and how much faster Shift moves it.
+const FLY_KEYS: [KeyCode; 6] = [KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD, KeyCode::KeyQ, KeyCode::KeyE];
+const FLY_SPEED: f32 = 2.5;
+const FLY_SPEED_MIN: f32 = 0.1;
+const FLY_SPEED_MAX: f32 = 50.0;
+const FLY_SHIFT: f32 = 3.0;
 
 pub struct ViewerOptions {
     pub timeline: Option<PathBuf>,
@@ -186,6 +196,16 @@ pub struct App {
     diagram_preset: Option<(f32, egui::Vec2)>,
     cursor: Vec2,
     drag: Option<Drag>,
+    /// The keys held down (the fly camera's movement).
+    held: Vec<KeyCode>,
+    /// The fly camera's speed in metres a second.
+    fly_speed: f32,
+    /// The entity selected in the Scene window (src/entity.rs `Entity::id`), and what its gizmo does.
+    selected: Option<String>,
+    gizmo_mode: crate::gizmo::Mode,
+    /// The gizmo's handle under the pointer, and the drag of one (src/gizmo.rs) with the entity it moves.
+    gizmo_hover: Option<crate::gizmo::Handle>,
+    gizmo_drag: Option<(crate::gizmo::Drag, crate::entity::Entity)>,
     pub ui_has_pointer: bool,
     egui_events: Vec<egui::Event>,
     modifiers: egui::Modifiers,
@@ -280,6 +300,12 @@ impl App {
             diagram_preset: None,
             cursor: Vec2::ZERO,
             drag: None,
+            held: Vec::new(),
+            fly_speed: FLY_SPEED,
+            selected: None,
+            gizmo_mode: crate::gizmo::Mode::Move,
+            gizmo_hover: None,
+            gizmo_drag: None,
             ui_has_pointer: false,
             egui_events: Vec::new(),
             modifiers: egui::Modifiers::default(),

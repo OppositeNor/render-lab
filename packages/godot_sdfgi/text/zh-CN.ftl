@@ -328,3 +328,6 @@ listing-store-title = STORE：距离场与实心单元格
 listing-store-dispatch = 级联的每个单元格并行
 listing-voxelize-title = SDF 渲染阶段：一个片元变成一个体素
 listing-voxelize-dispatch = 每个片元，沿 X、Y、Z 绘制
+
+# The Scene window's entities (Investigation::entities).
+entity-light = 光源

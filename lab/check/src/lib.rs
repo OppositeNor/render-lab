@@ -268,7 +268,8 @@ fn read_table(path: &Path) -> Vec<(String, Message)> {
 
 /// The keys `tr("…")` and `tr_with("…"` name in the `.rs` files under `dir`,
 /// with the `text = "…"` and `help = "…"` of their `#[value(…)]` attributes (the lab's
-/// values, lab/src/values.rs), the `text=` and `help=` of the `{@ …}` tags in its
+/// values, lab/src/values.rs), the `text: Some("…")` and `help: Some("…")` of the entries written out
+/// (lab/src/entity.rs) and the `text: "…"` of an `EntitySpec`, the `text=` and `help=` of the `{@ …}` tags in its
 /// `.wgsl` files' `///` comments (lab/src/shader_data.rs), the `imageTitle`, `imageMarkText`, and
 /// `labelText` attributes of the cues in its storyboards (`.lam`), the `titleText` of its Lamlet data files,
 /// the `{textKey "…"}` its scripts name (lab/src/script/runtime.rs), the
@@ -368,6 +369,20 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
             if line.trim_start().starts_with("#[value(") || line.trim_start().starts_with("#[choice(") {
                 for (i, _) in line.match_indices("text = \"").chain(line.match_indices("help = \"")) {
                     let rest = &line[i + 8..];
+                    let at = format!("{}:{}", path.display(), n + 1);
+                    let key = &rest[..rest.find('"').unwrap_or_else(|| panic!("{at}: unterminated text key"))];
+                    keys.push((key.to_string(), at));
+                }
+            }
+            // A value entry's name and help written out (`text: Some("key")`, `help: Some("key")`), and an
+            // entity's name (`EntitySpec { text: "key", … }`, src/entity.rs).
+            let mut fields = vec!["text: Some(\"", "help: Some(\""];
+            if line.contains("EntitySpec {") {
+                fields.push("text: \"");
+            }
+            for field in fields {
+                for (i, _) in line.match_indices(field) {
+                    let rest = &line[i + field.len()..];
                     let at = format!("{}:{}", path.display(), n + 1);
                     let key = &rest[..rest.find('"').unwrap_or_else(|| panic!("{at}: unterminated text key"))];
                     keys.push((key.to_string(), at));

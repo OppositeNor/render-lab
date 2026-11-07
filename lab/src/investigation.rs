@@ -705,6 +705,17 @@ pub trait Investigation: Sync {
     fn linked_params(&self, _name: &str, _value: f32) -> Vec<(&'static str, f32)> {
         Vec::new()
     }
+    /// Its frames follow the scene's movable objects where the viewer moves them (src/entity.rs): the lab
+    /// poses the records `build_frame` returns, and the scene's light with its object. False (the default)
+    /// for a frame drawn from data of its own baked from the scene, which would not follow them.
+    fn movable_objects(&self) -> bool {
+        false
+    }
+    /// What the viewer's Scene window lists besides the scene's objects in `demo`: the lights and points
+    /// its values place (src/entity.rs), which the gizmo then moves.
+    fn entities(&self, _demo: DemoId) -> Vec<crate::entity::EntitySpec> {
+        Vec::new()
+    }
 
     /// The scene shading's data for `state` when its values differ from the
     /// ones `SceneShading::data` was built with (an engine setting baked into

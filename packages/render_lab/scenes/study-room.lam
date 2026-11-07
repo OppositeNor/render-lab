@@ -20,8 +20,9 @@ $[# Rotation [% {Variant {'
 $[# Vec [% {List Float}]]
 
 An object: its name and shape (plane, box, sphere, panel, mesh, or terrain), its half extent (a mesh's and the
-terrain's are their own), where it stands and how it is turned and scaled, its surface, and its light. The parts
-an object leaves out are `none`.
+terrain's are their own), where it stands and how it is turned and scaled, its surface, its light, and whether the
+viewer may move it (`movable`: its place, its turn about +Y, and its size become values the Scene window's gizmo and
+sliders set, lab/src/entity.rs). The parts an object leaves out are `none`.
 
 $[# Object [% {Struct {'
     {Field "name" String}
@@ -33,7 +34,8 @@ $[# Object [% {Struct {'
     {Field "albedo" Vec}
     {Field "roughness" Float}
     {Field "emissive" {Option Vec}}
-    {Field "emissiveStrength" {Option Float}}}}]]
+    {Field "emissiveStrength" {Option Float}}
+    {Field "movable" {Option Bool}}}}]]
 $[# {_object name shape extent albedo roughness} {: {.
     name name
     shape shape
@@ -44,9 +46,11 @@ $[# {_object name shape extent albedo roughness} {: {.
     albedo albedo
     roughness roughness
     emissive none
-    emissiveStrength none} Object}]
+    emissiveStrength none
+    movable none} Object}]
 $[# {_at translation o} {.translation= o {some translation}}]
 $[# {_turned rotation o} {.rotation= o {some {: rotation Rotation}}}]
+$[# {_movable o} {.movable= o {some true}}]
 
 The room's walls, from its half width and its height: each a plane through the room's edge, turned to face in.
 
@@ -72,9 +76,9 @@ $[# _walls [% {'
         {' 0.16 0.55 0.50}}}]]
 
 A ceiling light: the panel's local +Y normal turned to face down; the scene's light is its rectangle, colour, and
-radiance.
+radiance. It is movable: the light moves with it.
 
-$[# _panel [% {.emissiveStrength=
+$[# _panel [% {_movable {.emissiveStrength=
     {.emissive=
         {_turned
             {#x 180.0}
@@ -82,30 +86,34 @@ $[# _panel [% {.emissiveStrength=
                 {' 0.0 2.95 -0.2}
                 {_object "emissive panel" "panel" {' 1.2 0.0 0.6} {' 0.8 0.8 0.8} 1.0}}}
         {some {' 1.0 0.88 0.72}}}
-    {some 6.0}}]]
+    {some 6.0}}}]]
 
-The objects on the floor. The teapot is the bounds demonstration's object: the spout reaches farther than the
+The objects on the floor, each movable. The teapot is the bounds demonstration's object: the spout reaches farther than the
 handle, so the local bounds' centre is off the pivot. Its bounds are the mesh's.
 
-$[# _objects [% {'
-    {_at {' -1.05 0.62 -0.55} {_object "sphere" "sphere" {' 0.62 0.62 0.62} {' 0.86 0.82 0.74} 0.5}}
-    {_turned
-        {#y 30.0}
+$[# _objects [% {map
+    {'
         {_at
-            {' 1.05 0.45 0.15}
-            {_object "rotated box" "box" {' 0.5 0.45 0.38} {' 0.22 0.42 0.85} 0.6}}}
-    {_turned
-        {#y 20.0}
-        {_at
-            {' 1.95 0.24 1.45}
-            {_object "small box" "box" {' 0.24 0.24 0.24} {' 0.92 0.55 0.22} 0.6}}}
-    {_turned
-        {#y 30.0}
-        {_at
-            {' -0.25 0.0 -1.75}
-            {.extent=
-                {.mesh= {_object "teapot" "mesh" {'} {' 0.50 0.66 0.56} 0.35} {some "teapot"}}
-                none}}}}]]
+            {' -1.05 0.62 -0.55}
+            {_object "sphere" "sphere" {' 0.62 0.62 0.62} {' 0.86 0.82 0.74} 0.5}}
+        {_turned
+            {#y 30.0}
+            {_at
+                {' 1.05 0.45 0.15}
+                {_object "rotated box" "box" {' 0.5 0.45 0.38} {' 0.22 0.42 0.85} 0.6}}}
+        {_turned
+            {#y 20.0}
+            {_at
+                {' 1.95 0.24 1.45}
+                {_object "small box" "box" {' 0.24 0.24 0.24} {' 0.92 0.55 0.22} 0.6}}}
+        {_turned
+            {#y 30.0}
+            {_at
+                {' -0.25 0.0 -1.75}
+                {.extent=
+                    {.mesh= {_object "teapot" "mesh" {'} {' 0.50 0.66 0.56} 0.35} {some "teapot"}}
+                    none}}}}
+    _movable}]]
 
 The room: its title (a text key), how far a camera keeps clear (`roomMargin` inside the walls, or `above` the
 ground), and its floor's half extent. The objects are in the order of `scene::ids`.

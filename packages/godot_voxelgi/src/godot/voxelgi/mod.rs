@@ -140,6 +140,10 @@ impl Investigation for VoxelGi {
         Some(state)
     }
 
+    fn entities(&self, _demo: lab::shot::DemoId) -> Vec<lab::entity::EntitySpec> {
+        vec![lab::entity::EntitySpec { text: "entity-light", kind: lab::entity::EntityKind::Light, position: ["lightX", "lightHeight", "lightZ"], shown: None }]
+    }
+
     fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }

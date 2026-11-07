@@ -1,6 +1,6 @@
-//! The interactive viewer's dock: sliders for what the current demonstration
-//! shows, "Play animation" and "Reset parameters" buttons, the narration's
-//! volume, and tabs with the demonstration's pseudo-code and engine source.
+//! The interactive viewer's dock, the Controls window (src/ui/windows.rs): the tabs (the viewer's
+//! features', src/feature/), the "Reset parameters" and "Free camera" buttons, and the shown tab's
+//! groups: the sliders for what the current demonstration shows, its pseudo-code, its engine source.
 //! Every control sends a `ViewerAction`; the viewer applies it to its
 //! `ShotState`, so the sliders always show the state that is rendered. The recorder never draws the dock.
 //!
@@ -15,12 +15,9 @@ use crate::palette;
 use crate::shot::{PanelMode, RecordRef, ShotState};
 use crate::ui::{self, DockTab, Ink, UiInput, ViewerAction, ViewerChrome};
 use crate::values::{self, Entry, Reflect, Type, Value};
-use crate::volume::{self, Volume};
 use egui::{pos2, vec2, Color32, FontId, Rect, RichText, Stroke, Ui};
 use std::ops::RangeInclusive;
 
-/// Width of the dock's button column.
-const BUTTONS: f32 = 300.0;
 /// Width of a slider's rail (the value box follows it).
 pub const SLIDER_WIDTH: f32 = 120.0;
 pub const AXES: [(&str, Color32); 3] = [("X", palette::AXIS_X), ("Y", palette::AXIS_Y), ("Z", palette::AXIS_Z)];
@@ -37,10 +34,6 @@ pub struct Dock<'a> {
     playing: bool,
     /// Parameters the demonstration's animation drives.
     animated: Vec<String>,
-    /// The narration's volume (src/volume.rs).
-    narration: Volume,
-    /// The timeline's speed.
-    speed: f32,
     pub actions: Vec<ViewerAction>,
     /// Named widget rectangles, for the autotests.
     pub widgets: Vec<(String, Rect)>,
@@ -51,18 +44,18 @@ pub struct Dock<'a> {
     tabs: Vec<(DockTab, String)>,
 }
 
+/// The Controls window (src/ui/windows.rs): the tabs, with the buttons that act on the demonstration at
+/// the row's end, then the tab's groups, scrolled once they overflow the window.
 pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
-    let rect = input.layout.captions;
-    let painter = ink.painter;
-    crate::paint::panel_card(painter, rect, 10);
-    let inner = rect.shrink2(vec2(16.0, 10.0));
-    let divider = inner.min.x + BUTTONS + 16.0;
-    painter.vline(divider, rect.y_range().shrink(12.0), Stroke::new(1.0, palette::border()));
+    let Some(window) = input.layout.window(ui::windows::WindowId::Controls).filter(|w| !w.collapsed) else { return };
+    let inner = window.body.shrink2(vec2(16.0, 10.0));
     let mut dock = Dock::new(input, viewer);
     let tab = viewer.tab;
     let features = &mut viewer.features;
-    // Not constrained to the screen: a column taller than the dock would move the whole
-    // dock up (its top clipped); the clip rect cuts its overflow at the bottom instead.
+    let side = features.feature(tab.0).is_some_and(|f| f.layout().side);
+    let mut groups_top = inner.min.y;
+    // Not constrained to the screen: a column taller than the window would move the whole
+    // window's content up (its top clipped); the clip rect cuts its overflow at the bottom instead.
     egui::Area::new(egui::Id::unique("viewer-dock")).fixed_pos(inner.min).constrain(false).fade_in(false).show(ctx, |ui| {
         ui.set_width(inner.width());
         ui.set_clip_rect(inner);
@@ -75,34 +68,33 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
         spacing.icon_width = 22.0;
         spacing.icon_width_inner = 12.0;
         spacing.icon_spacing = 8.0;
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(BUTTONS);
-                dock.buttons(ui, tab);
-            });
-            ui.add_space((divider + 16.0 - ui.cursor().min.x).max(0.0));
-            let side = features.feature(tab.0).is_some_and(|f| f.layout().side);
-            if !side {
-                // Each direction scrolls once the groups overflow it (as of last frame), so a
-                // tall group's lower rows stay reachable; with one direction, the wheel drives it.
-                let room = vec2(inner.max.x - ui.cursor().min.x, inner.max.y - ui.cursor().min.y);
-                let overflow_id = egui::Id::unique("viewer-dock-overflow");
-                let overflow = ctx.data(|d| d.get_temp::<[bool; 2]>(overflow_id)).unwrap_or([true, false]);
-                let output = egui::ScrollArea::new(overflow).id_salt("viewer-dock-scroll").max_width(room.x).max_height(room.y).show(ui, |ui| {
-                    ui.horizontal_top(|ui| {
-                        // A feature's tab (src/feature/) has its own dock, or the investigation's.
-                        if !features.state_mut(tab.0).is_some_and(|state| state.dock(&mut dock, ui)) {
-                            investigation::current().dock(&mut dock, ui);
-                        }
-                    });
-                });
-                ctx.data_mut(|d| d.insert_temp(overflow_id, [output.content_size.x > room.x + 0.5, output.content_size.y > room.y + 0.5]));
-            }
+        ui.horizontal(|ui| {
+            dock.tab_row(ui, tab);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| dock.buttons(ui));
         });
+        let rule = ui.cursor().min.y + 2.0;
+        ui.painter().hline(inner.x_range(), rule, Stroke::new(1.0, palette::border()));
+        ui.add_space(12.0);
+        groups_top = ui.cursor().min.y;
+        if !side {
+            // Each direction scrolls once the groups overflow it (as of last frame), so a
+            // tall group's lower rows stay reachable; with one direction, the wheel drives it.
+            let room = vec2(inner.max.x - ui.cursor().min.x, inner.max.y - ui.cursor().min.y);
+            let overflow_id = egui::Id::unique("viewer-dock-overflow");
+            let overflow = ctx.data(|d| d.get_temp::<[bool; 2]>(overflow_id)).unwrap_or([true, false]);
+            let output = egui::ScrollArea::new(overflow).id_salt("viewer-dock-scroll").max_width(room.x).max_height(room.y).show(ui, |ui| {
+                ui.horizontal_top(|ui| {
+                    // A feature's tab (src/feature/) has its own dock, or the investigation's.
+                    if !features.state_mut(tab.0).is_some_and(|state| state.dock(&mut dock, ui)) {
+                        investigation::current().dock(&mut dock, ui);
+                    }
+                });
+            });
+            ctx.data_mut(|d| d.insert_temp(overflow_id, [output.content_size.x > room.x + 0.5, output.content_size.y > room.y + 0.5]));
+        }
     });
-    let side = Rect::from_min_max(pos2(divider, rect.min.y), rect.max);
-    if viewer.features.feature(tab.0).is_some_and(|f| f.layout().side) && let Some(state) = viewer.features.state_mut(tab.0) {
-        state.side(ink, side, input);
+    if side && let Some(state) = viewer.features.state_mut(tab.0) {
+        state.side(ink, Rect::from_min_max(pos2(window.body.min.x, groups_top - 10.0), window.body.max), input);
     }
     viewer.actions.extend(dock.actions);
     viewer.widgets = dock.widgets;
@@ -121,8 +113,6 @@ impl<'a> Dock<'a> {
                 keys.extend(crate::script::runtime::animate(input.state.demo, 0.0, &mut input.state.clone()).unwrap_or_default());
                 keys
             },
-            narration: viewer.narration,
-            speed: viewer.speed,
             actions: Vec::new(),
             widgets: Vec::new(),
             defaults: None,
@@ -132,59 +122,25 @@ impl<'a> Dock<'a> {
 }
 
 impl Dock<'_> {
-    fn buttons(&mut self, ui: &mut Ui, tab: DockTab) {
-        // The tabs wrap within the column.
-        ui.horizontal_wrapped(|ui| {
-            ui.set_max_width(BUTTONS);
-            for (value, label) in std::mem::take(&mut self.tabs) {
-                if ui.selectable_label(tab == value, label).clicked() {
-                    self.actions.push(ViewerAction::SelectTab(value));
-                }
+    /// The tabs, one selectable label each.
+    fn tab_row(&mut self, ui: &mut Ui, tab: DockTab) {
+        for (value, label) in std::mem::take(&mut self.tabs) {
+            if ui.selectable_label(tab == value, RichText::new(label).strong()).clicked() {
+                self.actions.push(ViewerAction::SelectTab(value));
             }
-        });
-        let full = vec2(BUTTONS, 0.0);
-        let label = if self.playing { tr("controls-stop_animation") } else { tr("controls-play_animation") };
-        let play = ui.add(egui::Button::new(label).min_size(full));
-        if play.clicked() {
-            self.actions.push(ViewerAction::TogglePlay);
         }
-        play.on_hover_text(tr("controls-play_animation_hint"));
-        let reset = ui.add(egui::Button::new(tr("controls-reset_parameters")).min_size(full));
-        if reset.on_hover_text(tr("controls-reset_parameters_hint")).clicked() {
-            self.actions.push(ViewerAction::ResetParameters);
-        }
-        let free = ui.add(egui::Button::new(tr("controls-free_camera")).min_size(full).selected(self.state.free_camera.on));
+    }
+
+    /// What acts on the demonstration, right to left: the free camera, and its values back to their defaults.
+    fn buttons(&mut self, ui: &mut Ui) {
+        let free = ui.add(egui::Button::new(tr("controls-free_camera")).selected(self.state.free_camera.on));
         self.widgets.push(("free-camera".into(), free.rect));
         if free.on_hover_text(tr("controls-free_camera_hint")).clicked() {
             self.actions.push(ViewerAction::ToggleFreeCamera);
         }
-        let layout = ui.add(egui::Button::new(tr("controls-reset_layout")).min_size(full));
-        self.widgets.push(("reset-layout".into(), layout.rect));
-        if layout.on_hover_text(tr("controls-reset_layout_hint")).clicked() {
-            self.actions.push(ViewerAction::ResetLayout);
-        }
-        // The narration's volume, playing or not; the timeline bar has it too.
-        let mut narration = self.narration;
-        let r = ui
-            .horizontal(|ui| {
-                ui.label(RichText::new(tr("controls-narration")).color(palette::text_dim())).on_hover_text(tr("controls-narration_hint"));
-                volume::slider(ui, &mut narration, 26.0, BUTTONS - 228.0)
-            })
-            .inner;
-        if r.changed || r.committed {
-            self.actions.push(ViewerAction::SetNarration(narration, r.committed));
-        }
-        // The timeline's speed, the narration's too; the timeline bar has it too.
-        let picked = ui
-            .horizontal(|ui| {
-                ui.label(RichText::new(tr("controls-speed")).color(palette::text_dim())).on_hover_text(tr("controls-speed_hint"));
-                let (picked, rect) = crate::ui::speed_menu(ui, "dock:speed", self.speed, 110.0);
-                self.widgets.push(("speed".into(), rect));
-                picked
-            })
-            .inner;
-        if let Some(s) = picked {
-            self.actions.push(ViewerAction::SetSpeed(s));
+        let reset = ui.add(egui::Button::new(tr("controls-reset_parameters")));
+        if reset.on_hover_text(tr("controls-reset_parameters_hint")).clicked() {
+            self.actions.push(ViewerAction::ResetParameters);
         }
     }
 

@@ -155,6 +155,18 @@ pub fn snapshot_layout(options: &HomeOptions, png: &Path) -> Result<()> {
     viewer::snapshot_layout(viewer_options, png)
 }
 
+/// The viewer's camera modes driven and checked offscreen (`viewer::snapshot_camera`).
+pub fn snapshot_camera(options: &HomeOptions, png: &Path) -> Result<()> {
+    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
+    viewer::snapshot_camera(viewer_options, png)
+}
+
+/// The viewer offscreen with its Scene window open and an entity's gizmo dragged (`viewer::snapshot_scene`).
+pub fn snapshot_scene(options: &HomeOptions, entity: Option<&str>, mode: crate::gizmo::Mode, png: &Path) -> Result<()> {
+    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
+    viewer::snapshot_scene(viewer_options, entity, mode, png)
+}
+
 /// The viewer offscreen as a feature's homepage button opens it (src/feature/), at its snapshot page `page`
 /// (`viewer::snapshot_feature`).
 pub fn snapshot_feature(options: &HomeOptions, feature: &'static dyn crate::feature::Feature, page: &str, args: Option<&str>, png: &Path) -> Result<()> {
