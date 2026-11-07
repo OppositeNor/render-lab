@@ -222,6 +222,11 @@ pub(super) fn free_camera_channels() -> Vec<&'static str> {
     FreeCamera::schema().iter().flat_map(|e| e.channels()).collect()
 }
 
+/// The scene's size's channels (`frame.width`, `frame.height`).
+pub(super) fn frame_channels() -> Vec<&'static str> {
+    super::FrameSize::schema().iter().flat_map(|e| e.channels()).collect()
+}
+
 impl Timeline {
     pub fn load(path: &std::path::Path) -> Result<Timeline> {
         let text = std::fs::read_to_string(path).with_context(|| format!("read timeline {}", path.display()))?;
@@ -461,6 +466,9 @@ impl Timeline {
         }
         for name in free_camera_channels() {
             state.free_camera.set(name, Value::F32(value(name)));
+        }
+        for name in frame_channels() {
+            state.frame.set(name, Value::F32(value(name)));
         }
         // The sway moves the camera the viewport shows: the free one while it is on
         // (so the main camera's cone holds still unless a cue moves it).

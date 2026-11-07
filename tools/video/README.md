@@ -255,6 +255,10 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   1.0}`: the scene seen from the free camera, while the demonstration keeps following the main camera, drawn with its
   view cone and with its own view in a corner) placed by `freeCamera.target`, `freeCamera.yaw` (`pitch`, `distance`,
   `fov`; `cameraDrift` sways it instead of the main camera while it is on, and a `demo` switch turns it off),
+  `frame.width` and `frame.height` (`{frameWidth 1100.0} {frameHeight 1080.0}`: the scene rendered at that size
+  and fitted into the viewport, so what depends on its pixels, a half-size pass or a pyramid's cells, is the same at
+  any resolution and beside any panel; 0, the default, follows the viewport; set it at a cut, as a blend renders
+  every size between),
   `record` (`"object:3"` or `"camera"`), `highlight` (`"a,b"`), `panel` (`declaration`, `values`, `memory`, `code`,
   `performance`: the GPU time per pass, measured as the frame renders, with `highlight` naming the passes to call
   out, `hidden`), `code` (`listing`), `callout`, `run` with `run.<arg>` and `stop` (the package's actions,
@@ -336,6 +340,7 @@ A key sets only what it names. A `demo` key first starts the demonstration's sta
 | Camera | reset to the demonstration's, unless the key moves the camera: then it blends from where it was | a camera cue |
 | Panel, listing, record, highlight | reset to the demonstration's | `panel…`, `code`, `record…`, `highlight…` |
 | Free camera, running actions | off, stopped | `freeCameraOn`, `{stop "…"}` |
+| Scene size | the demonstration's (`frame`), else the viewport's | `frameWidth`, `frameHeight` |
 | Callout | **carried** | `{callout ""}` |
 | Images (insets) and their marks | **carried** | `{inset ""}` (all), `imageHide` (one) |
 | Arrows and labels | **carried** | `arrowHide`, `labelHide` (by name) |

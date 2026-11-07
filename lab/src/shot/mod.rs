@@ -150,6 +150,9 @@ pub struct ShotState {
     /// (src/camera.rs `FreeCamera`); the main camera otherwise.
     #[serde(skip_serializing_if = "FreeCamera::is_off")]
     pub free_camera: FreeCamera,
+    /// The scene's own size, when it does not follow the viewport's (`FrameSize`).
+    #[serde(skip_serializing_if = "FrameSize::follows_viewport")]
+    pub frame: FrameSize,
     pub record: RecordRef,
     pub highlight: Vec<String>,
     pub panel: PanelMode,
@@ -189,6 +192,35 @@ fn is_zero(n: &usize) -> bool {
 
 fn is_zero_f32(x: &f32) -> bool {
     *x == 0.0
+}
+
+/// The scene's own size in pixels (`frame.width`, `frame.height`). At 0, the default, the scene renders at the
+/// viewport's size; at a size, it renders at that size and is shown fitted into the viewport (src/ui/mod.rs
+/// `Layout::with_frame`), so what depends on its pixels (a pass at half its size, a depth pyramid's cells) is the
+/// same in every window and beside every panel. A demonstration may name one (`frame = [w, h]`, src/demo.rs); a
+/// story sets it at a cut, as a blend would render every size between.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, crate::Values)]
+#[values(scope = "frame", package = "render_lab")]
+pub struct FrameSize {
+    /// Its width in pixels; 0, the viewport's.
+    #[value(range = 0.0..=4096.0, unit = plain, text = "values-frame-width", help = "help-frame-width")]
+    pub width: f32,
+    /// Its height in pixels; 0, the viewport's.
+    #[value(range = 0.0..=4096.0, unit = plain, text = "values-frame-height", help = "help-frame-height")]
+    pub height: f32,
+}
+
+impl FrameSize {
+    /// The size, when both sides name one.
+    pub fn size(&self) -> Option<[u32; 2]> {
+        let (w, h) = (self.width.round().min(4096.0), self.height.round().min(4096.0));
+        (w >= 1.0 && h >= 1.0).then_some([w as u32, h as u32])
+    }
+
+    /// Whether the scene follows the viewport's size (a state then serializes without it).
+    pub fn follows_viewport(&self) -> bool {
+        self.size().is_none()
+    }
 }
 
 /// A value of view `name` (src/view.rs): `view.<name>.<key>`, its view and key.
@@ -258,7 +290,7 @@ impl ShotState {
     /// Sets a number by name: a value (in its type: a flag on above 0.5, an
     /// index the nearest whole number), a component, a parameter, or the camera's.
     pub fn set(&mut self, name: &str, value: f32) {
-        if self.camera.set(name, Value::F32(value)) || self.free_camera.set(name, Value::F32(value)) {
+        if self.camera.set(name, Value::F32(value)) || self.free_camera.set(name, Value::F32(value)) || self.frame.set(name, Value::F32(value)) {
             return;
         }
         // A value of another view (src/view.rs): kept by its full name, a known key.
@@ -327,7 +359,8 @@ impl ShotState {
     fn channels(&self) -> Vec<(String, f32)> {
         let camera = camera_channels().into_iter().map(|c| (c.to_string(), self.camera.get(c).expect("a camera channel").f32()));
         let free = free_camera_channels().into_iter().map(|c| (c.to_string(), self.free_camera.get(c).expect("a free camera channel").f32()));
-        camera.chain(free).chain(self.value_channels()).collect()
+        let frame = frame_channels().into_iter().map(|c| (c.to_string(), self.frame.get(c).expect("a frame channel").f32()));
+        camera.chain(free).chain(frame).chain(self.value_channels()).collect()
     }
 
     /// The camera the viewport shows the scene from: the free camera while
@@ -339,7 +372,7 @@ impl ShotState {
     /// The value of `key` (src/values.rs): the camera's, a stored one, a
     /// vector's component (an `F32`), or None for no such key.
     pub fn try_get(&self, key: &str) -> Option<Value> {
-        if let Some(v) = self.camera.get(key).or_else(|| self.free_camera.get(key)) {
+        if let Some(v) = self.camera.get(key).or_else(|| self.free_camera.get(key)).or_else(|| self.frame.get(key)) {
             return Some(v);
         }
         if let Some(v) = self.values.get(key) {
@@ -368,7 +401,7 @@ impl ShotState {
     /// stored value (a vector whole), a component, or a parameter.
     pub fn set_value(&mut self, key: &str, value: impl Into<Value>) {
         let value = value.into();
-        if self.camera.set(key, value) || self.free_camera.set(key, value) {
+        if self.camera.set(key, value) || self.free_camera.set(key, value) || self.frame.set(key, value) {
             return;
         }
         match values::entry(key).filter(|e| e.key == key) {

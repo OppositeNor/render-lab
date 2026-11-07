@@ -642,7 +642,8 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
         outlines.push(Outline { rect, color: if lit { palette::SELECTED } else { palette::REFLECTED }, width: if lit { 3.0 } else { 1.5 }, outside: false });
     }
     let size = Vec2::new(screen.size[0] as f32, screen.size[1] as f32);
-    let marker = Marker { at: [(pixel[0] as f32 + 0.5) / size.x, (pixel[1] as f32 + 0.5) / size.y], color: palette::SELECTED, label: "P".into() };
+    // The marker is y up (inset.rs); SSR pixel rows run down.
+    let marker = Marker { at: [(pixel[0] as f32 + 0.5) / size.x, 1.0 - (pixel[1] as f32 + 0.5) / size.y], color: palette::SELECTED, label: "P".into() };
     let link = (!outlines.is_empty()).then(|| Link { from: if path.len() > 1 { at(stepper.tip()) } else { start }, outline: outlines.len() - 1 });
     let title = tr_with("demos-trace_inset", lab::args!(level = level, width = img.size[0], height = img.size[1]));
     // The level as a picture; the height field, when shown, is that picture risen.
@@ -742,7 +743,8 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
         cpu::screen(content);
     }
     let title = tr_with("demos-pyramid_title", lab::args!(level = level, width = img.size[0], height = img.size[1]));
-    let marker = Marker { at: [(pixel[0] as f32 + 0.5) / screen.size[0] as f32, (pixel[1] as f32 + 0.5) / screen.size[1] as f32], color: palette::SELECTED, label: "P".into() };
+    // The marker is y up (inset.rs); SSR pixel rows run down.
+    let marker = Marker { at: [(pixel[0] as f32 + 0.5) / screen.size[0] as f32, 1.0 - (pixel[1] as f32 + 0.5) / screen.size[1] as f32], color: palette::SELECTED, label: "P".into() };
     if room > 0.5 {
         content.insets.push(PictureInset { marker: Some(marker), outlines: vec![outline], link: Some(Link { from: start, outline: 0 }), ..PictureInset::new(title, level_picture(img, format!("ssr-pyramid-{level}")), [480.0, 480.0 * h / w]) });
     }

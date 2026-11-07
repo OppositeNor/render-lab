@@ -17,7 +17,8 @@
 //! not translated); `hint-text` for the status line; the `scene` it shows (a
 //! scene the lab's package exports, `render_lab.scene/study-room`); the
 //! `listing` its Code tab opens; `resets-camera` (Reset parameters also
-//! resets the camera); `include`, presets applied in order (the package's by
+//! resets the camera); `frame = [w, h]`, a scene size in pixels it renders at
+//! whatever the viewport's (src/shot/mod.rs `FrameSize`); `include`, presets applied in order (the package's by
 //! name, or one an imported package exports by full key,
 //! `render_lab.demo-preset/room-camera`); a `[camera]`
 //! (`target`, `yaw`, `pitch`, `distance`, `fov`); and `[params]`, the values
@@ -29,7 +30,7 @@ use crate::camera::OrbitCamera;
 use crate::packages::{self, Package};
 use crate::resources;
 use crate::scene::{self, Scene, SceneId};
-use crate::shot::{DemoId, PanelMode, RecordRef, ShotState};
+use crate::shot::{DemoId, FrameSize, PanelMode, RecordRef, ShotState};
 use crate::values::{self, Entry, Reflect, Value, ValueMap};
 use anyhow::{anyhow, bail, Context, Result};
 
@@ -62,6 +63,8 @@ pub struct DemoSpec {
     pub camera: OrbitCamera,
     /// The parameters it changes, in the order they apply.
     pub params: Vec<(&'static str, f32)>,
+    /// The scene's own size, when it does not follow the viewport's (`frame = [w, h]`, src/shot/mod.rs `FrameSize`).
+    pub frame: FrameSize,
     /// Its Play animation in the package's scripts (`animation = "playSurface"`, src/script/runtime.rs), applied
     /// after the investigation's own (`Investigation::animation`).
     pub animation: Option<&'static str>,
@@ -100,6 +103,18 @@ fn camera(table: &toml_edit::Table) -> Result<OrbitCamera> {
     let target = value("target")?.as_array().filter(|a| a.len() == 3).context("`target` is [x, y, z]")?;
     let t: Vec<f32> = target.iter().map(scene::number).collect::<Result<_>>()?;
     Ok(OrbitCamera { target: [t[0], t[1], t[2]], yaw: scene::number(value("yaw")?)?, pitch: scene::number(value("pitch")?)?, distance: scene::number(value("distance")?)?, fov: scene::number(value("fov")?)? })
+}
+
+/// A demonstration's own scene size, `frame = [w, h]` in pixels (none: the viewport's).
+fn frame_size(table: &toml_edit::Table) -> Result<FrameSize> {
+    let Some(item) = table.get("frame") else {
+        return Ok(FrameSize::default());
+    };
+    let sides: Vec<i64> = item.as_array().map(|a| a.iter().filter_map(|v| v.as_integer()).collect()).unwrap_or_default();
+    match sides[..] {
+        [w, h] if (1..=4096).contains(&w) && (1..=4096).contains(&h) => Ok(FrameSize { width: w as f32, height: h as f32 }),
+        _ => bail!("`frame` is [width, height], whole pixels from 1 to 4096"),
+    }
 }
 
 /// A file's `include`d presets, then its own camera and parameters, into
@@ -246,6 +261,7 @@ impl Demos {
                     scene,
                     listing: string(table, "listing")?.map(leak),
                     animation: string(table, "animation")?.map(leak),
+                    frame: frame_size(table)?,
                     resets_camera: table.get("resets-camera").map(|r| r.as_bool().context("`resets-camera` is true or false")).transpose()?.unwrap_or(false),
                     camera: camera.context("no `[camera]`, in the file or a preset")?,
                     params: overrides,
@@ -342,6 +358,7 @@ impl Demos {
             demo,
             camera: spec.camera,
             free_camera: Default::default(),
+            frame: spec.frame,
             record: RecordRef::None,
             highlight: Vec::new(),
             panel: PanelMode::Values,
