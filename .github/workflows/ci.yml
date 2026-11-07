@@ -69,9 +69,9 @@ jobs:
       - name: Unit tests
         run: cargo test --release --locked --workspace
 
-  # macOS (Apple Silicon): not supported yet, so this job is expected to fail. The lab builds wgpu with Vulkan
-  # alone (lab/Cargo.toml), build.rs links with Linux's rpath ($ORIGIN) and the libraries are .so; macOS needs
-  # Metal (or MoltenVK), @executable_path and .dylib. The release does not wait for it.
+  # macOS (Apple Silicon): not supported yet, so this job may fail. The lab builds wgpu with Vulkan alone
+  # (lab/Cargo.toml), so nothing that draws a frame runs; macOS needs Metal (or MoltenVK). build.rs gives the
+  # binary macOS's rpath (@executable_path). The release does not wait for it.
   macos:
     name: Build, test, check (macOS)
     runs-on: macos-15
@@ -94,10 +94,9 @@ jobs:
       - name: Unit tests
         run: cargo test --release --locked --workspace
 
-  # Windows (x64, MSVC): not supported yet, so this job is expected to fail. build.rs passes the linker
-  # Linux's rpath (`-Wl,-rpath,$ORIGIN:<sysroot>`), which MSVC's link.exe does not take; Windows finds a DLL
-  # beside the executable or on PATH instead, and the libraries are .dll (the standard library's in the
-  # toolchain's bin/). The release does not wait for it.
+  # Windows (x64, MSVC): not supported yet, so this job may fail. Windows has no rpath: it finds a DLL beside
+  # the executable, so build.rs copies the standard library's DLL from the toolchain beside the binary, where
+  # the lab's (lab.dll) already is. The release does not wait for it.
   windows:
     name: Build, test, check (Windows)
     runs-on: windows-2025
