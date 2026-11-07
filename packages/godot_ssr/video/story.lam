@@ -50,13 +50,17 @@ $[# spoutCamera {'
     {cameraPitch 12.0}
     {cameraDistance 1.8}}]
 
-P is an SSR pixel, and the panel beside the scene sets the scene's width, so the same spot of the spout is a pixel of
-its own for each panel: beside the values panel (613 by 364 SSR pixels) and beside the trace listing's code panel (522
-by 364: a recording fits the code panel to its listing, ui::code_panel_fit, so a change to that listing moves it). The
-two pyramids' cells fall differently, so the two walks differ after the first iterations; the story narrates the code
-panel's.
-Each pick names the size it was chosen at (pickWidth, pickHeight), so in the viewer, whose scene has a size of its
-own, it moves to the same direction from the camera and still lands on the spout.
+P is an SSR pixel, and its walk is a property of the pixels: a pyramid of other cells walks otherwise. So the spout's
+beats render the scene at a size of their own (`frameWidth`, `frameHeight`: SSR at half of it, 550 by 540), fitted
+beside whichever panel and at any resolution; the trace demonstration has the same `frame` (demos/trace.toml), so the
+viewer walks the same pixels. At that size, P (366, 294) walks 0m 1m 2m 3m 4h 3h 2m 3h 2h 1m 2h 1h 0h (level, miss or
+hit: thirteen iterations, a hit on the body near the lid), and (398, 277), at the spout's tip, heads away from the
+camera and climbs off the top of the screen in five misses, into the sky. The narration states those walks: a change to the scene, the camera, the size, or the
+trace changes them, so check them again (the SSR selftest's walk check).
 
-$[# spoutValues {' {pickX 368.0} {pickY 198.0} {pickWidth 613.0} {pickHeight 364.0}}]
-$[# spoutCode {' {pickX 297.0} {pickY 198.0} {pickWidth 522.0} {pickHeight 364.0}}]
+$[# depthFrame {' {frameWidth 1100.0} {frameHeight 1080.0}}]
+$[# spoutPick {append depthFrame {'
+    {pickX 366.0}
+    {pickY 294.0}
+    {pickWidth 550.0}
+    {pickHeight 540.0}}}]

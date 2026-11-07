@@ -683,6 +683,12 @@ impl Renderer {
         // frame has neither a record nor a readout. That is known once the
         // frame is built, at the viewport's size: it is built at the last
         // frame's layout, and again at the other if that was wrong.
+        // A scene with a size of its own (src/shot/mod.rs `FrameSize`), fitted into the viewport: not split, nor compared.
+        let fixed = request.state.frame.size().filter(|_| scene_beat && prepared.is_none() && main.is_none() && self.compare.is_none());
+        let fit = |layout: Layout| match fixed {
+            Some(size) => layout.with_frame(size),
+            None => layout,
+        };
         let mut built = None;
         if layout.panel_shown && scene_beat && prepared.is_none() && main.is_none() && !values && self.compare.is_none() {
             use crate::shot::PanelMode;
@@ -691,8 +697,8 @@ impl Renderer {
                 PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
                     self.select_data(request.state, request.wait || !request.history);
                     let build = |layout: &Layout| {
-                        let vp = layout.viewport_px();
-                        crate::shader_data::build_frame(request.state, &self.statics, [vp[2] as f32, vp[3] as f32], layout.scale, request.time)
+                        let size = fit(*layout).render_size_px();
+                        crate::shader_data::build_frame(request.state, &self.statics, [size[0] as f32, size[1] as f32], layout.scale, request.time)
                     };
                     let shown = layout;
                     let hidden = layout.for_panel(false);
@@ -708,6 +714,7 @@ impl Renderer {
                 _ => {}
             }
         }
+        layout = fit(layout);
         let rects = if main.is_some() { layout.split(panes.len() + 1) } else { Vec::new() };
         if let Some(rect) = rects.last() {
             layout.viewport = *rect;
@@ -723,10 +730,10 @@ impl Renderer {
         }
         self.last_layout = layout;
         let vp = layout.viewport_px();
-        let viewport_size = [vp[2], vp[3]];
+        let viewport_size = layout.render_size_px();
         let frame = ViewFrame { scale: layout.scale, time: request.time, history: request.history, wait: request.wait };
         self.targets_at(viewport_size);
-        let size = [vp[2] as f32, vp[3] as f32];
+        let size = [viewport_size[0] as f32, viewport_size[1] as f32];
         self.reference_drawn = false;
         if let Some(c) = &compare {
             // The reference first, from its own slot (src/view.rs), so its history builds up as the live view's does.

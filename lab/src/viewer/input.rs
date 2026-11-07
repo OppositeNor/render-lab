@@ -198,8 +198,7 @@ impl App {
         }
         let entity = crate::entity::list(&self.state, &renderer.statics).into_iter().find(|e| Some(&e.id) == self.selected.as_ref() && e.movable() && e.visible)?;
         let layout = renderer.frame_layout();
-        let vp = layout.viewport_px();
-        let pixel = at - Vec2::new(vp[0] as f32, vp[1] as f32);
+        let pixel = layout.target_to_viewport_pixel(at);
         let projector = Projector::new(&content.uniforms.camera);
         let mode = if entity.yaw.is_some() { self.gizmo_mode } else { crate::gizmo::Mode::Move };
         let shape = crate::gizmo::shape(&projector, entity.at, mode, crate::gizmo::ARM * layout.scale)?;
@@ -219,8 +218,7 @@ impl App {
     fn drag_gizmo(&mut self, drag: &crate::gizmo::Drag, entity: &crate::entity::Entity, at: Vec2) {
         let Some(content) = self.last_content.as_ref() else { return };
         let projector = Projector::new(&content.uniforms.camera);
-        let vp = self.renderer().frame_layout().viewport_px();
-        let pixel = at - Vec2::new(vp[0] as f32, vp[1] as f32);
+        let pixel = self.renderer().frame_layout().target_to_viewport_pixel(at);
         let (to, yaw, scale) = crate::gizmo::dragged(&projector, drag, pixel);
         let mut set: Vec<(&'static str, f32)> = Vec::new();
         if let Some(keys) = entity.position {

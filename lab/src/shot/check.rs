@@ -174,7 +174,7 @@ impl Cue {
             return Err(CueProblem::new("story.motion", "animate", problem));
         }
         for name in motion.params() {
-            if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) && !free_camera_channels().contains(&name) {
+            if investigation::current().param_default(name).is_none() && !camera_channels().contains(&name) && !free_camera_channels().contains(&name) && !frame_channels().contains(&name) {
                 return Err(CueProblem::new("story.motion.channel", "animate", format!("unknown channel `{name}` in a motion")));
             }
             if self.sets(name) {

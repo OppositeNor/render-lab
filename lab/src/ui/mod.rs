@@ -86,6 +86,8 @@ pub struct Layout {
     /// A recording's layout (`for_video`): the viewport to the frame's edges, the tag, the subtitles, and the
     /// watermark over it.
     pub video: bool,
+    /// The scene's own size in pixels, when it does not follow the viewport's (`with_frame`).
+    pub render: Option<[u32; 2]>,
 }
 
 impl Layout {
@@ -107,7 +109,7 @@ impl Layout {
         let content = Rect::from_min_max(viewport.min, panel.max);
         let captions = Rect::from_min_max(pos2(margin, canvas.y - 228.0), pos2(canvas.x - margin, canvas.y - 66.0));
         let footer = Rect::from_min_max(pos2(margin, canvas.y - 58.0), pos2(canvas.x - margin, canvas.y - 8.0));
-        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true, windows: [None; 3], area: content, windowed: None, video: false }
+        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true, windows: [None; 3], area: content, windowed: None, video: false, render: None }
     }
 
     /// A recording's layout: the viewport reaches the frame's edges (beside the panel, a card at the right
@@ -243,10 +245,42 @@ impl Layout {
         [v[2], v[3]]
     }
 
-    /// Canvas point of a viewport pixel.
+    /// The scene rendered at `size` pixels whatever the viewport's size (src/shot/mod.rs `FrameSize`): the
+    /// viewport becomes the largest rectangle of its shape centred in it, in whole target pixels, and the
+    /// picture is scaled into it. Apply it last: the other layouts place the viewport anew.
+    pub fn with_frame(mut self, size: [u32; 2]) -> Layout {
+        let v = self.viewport_px();
+        let fit = (v[2] as f32 / size[0] as f32).min(v[3] as f32 / size[1] as f32);
+        let w = ((size[0] as f32 * fit).round() as u32).clamp(1, v[2]);
+        let h = ((size[1] as f32 * fit).round() as u32).clamp(1, v[3]);
+        let (x, y) = (v[0] + (v[2] - w) / 2, v[1] + (v[3] - h) / 2);
+        let point = |px: u32| px as f32 / self.scale;
+        self.viewport = Rect::from_min_max(pos2(point(x), point(y)), pos2(point(x + w), point(y + h)));
+        self.render = Some(size);
+        self
+    }
+
+    /// The scene's size in pixels: its own (`with_frame`), else the viewport's.
+    pub fn render_size_px(&self) -> [u32; 2] {
+        self.render.unwrap_or_else(|| self.viewport_size_px())
+    }
+
+    /// Target pixels per scene pixel: 1 unless the scene has a size of its own (`with_frame`).
+    pub fn render_scale(&self) -> f32 {
+        self.render.map_or(1.0, |r| self.viewport_size_px()[0] as f32 / r[0] as f32)
+    }
+
+    /// Canvas point of a scene pixel.
     pub fn viewport_pixel_to_canvas(&self, px: glam::Vec2) -> Pos2 {
         let v = self.viewport_px();
-        pos2((v[0] as f32 + px.x) / self.scale, (v[1] as f32 + px.y) / self.scale)
+        let s = self.render_scale();
+        pos2((v[0] as f32 + px.x * s) / self.scale, (v[1] as f32 + px.y * s) / self.scale)
+    }
+
+    /// The scene pixel at target pixel `at` (the inverse of `viewport_pixel_to_canvas`, before the canvas's scale).
+    pub fn target_to_viewport_pixel(&self, at: glam::Vec2) -> glam::Vec2 {
+        let v = self.viewport_px();
+        (at - glam::Vec2::new(v[0] as f32, v[1] as f32)) / self.render_scale()
     }
 
 }

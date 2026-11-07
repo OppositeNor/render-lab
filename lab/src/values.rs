@@ -515,11 +515,11 @@ impl Value {
 }
 
 /// Every value of the current investigation: the cameras' (the main one's,
-/// then the free one's), then its own
+/// then the free one's), the scene's size (src/shot/mod.rs `FrameSize`), then its own
 /// parameters that declare their metadata (its shaders' tagged values), then
 /// its scenes' movable objects' (src/entity.rs).
 pub fn list() -> Vec<&'static Entry> {
-    let mut entries: Vec<&'static Entry> = crate::camera::OrbitCamera::schema().iter().chain(crate::camera::FreeCamera::schema()).collect();
+    let mut entries: Vec<&'static Entry> = crate::camera::OrbitCamera::schema().iter().chain(crate::camera::FreeCamera::schema()).chain(crate::shot::FrameSize::schema()).collect();
     if let Some(demos) = investigation::current().demo_specs() {
         entries.extend(demos.entries.iter().copied());
     }
@@ -538,6 +538,7 @@ pub fn entry(key: &str) -> Option<&'static Entry> {
     crate::camera::OrbitCamera::schema()
         .iter()
         .chain(crate::camera::FreeCamera::schema())
+        .chain(crate::shot::FrameSize::schema())
         .find(|e| e.key == key || e.components.contains(&key))
         .or_else(|| investigation::current().demo_specs().and_then(|d| d.entry(key)))
         .or_else(|| key.starts_with("object.").then(|| crate::entity::entries().into_iter().find(|e| e.key == key)).flatten())
@@ -736,6 +737,7 @@ mod tests {
             demo: crate::shot::DemoId::new("test"),
             camera: crate::camera::OrbitCamera::default(),
             free_camera: Default::default(),
+            frame: Default::default(),
             record: crate::shot::RecordRef::None,
             highlight: Vec::new(),
             panel: crate::shot::PanelMode::Values,

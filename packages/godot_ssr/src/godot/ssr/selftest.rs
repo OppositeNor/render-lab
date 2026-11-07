@@ -180,8 +180,9 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
                     let mut state = shown.clone();
                     let mut frame = lab::actions::ClickFrame { shown: &shown, state: &mut state, uv, content: &content, statics: &renderer.statics };
                     let ran = lab::script::runtime::click("scene", &mut frame);
-                    let pixel = uv * size;
-                    let expected = (demo == Demo::Trace).then(|| [(pixel.x / 2.0).floor(), (pixel.y / 2.0).floor(), 0.0, 0.0]);
+                    // In f64, as the script computes: at a pixel's edge an f32 product can round across it.
+                    let pixel = uv.as_dvec2() * size.as_dvec2();
+                    let expected = (demo == Demo::Trace).then(|| [(pixel.x / 2.0).floor() as f32, (pixel.y / 2.0).floor() as f32, 0.0, 0.0]);
                     let got = ["pickX", "pickY", "pickWidth", "pickHeight"].map(|k| state.p(k));
                     let before = ["pickX", "pickY", "pickWidth", "pickHeight"].map(|k| shown.p(k));
                     clicks += 1;
@@ -196,6 +197,46 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
             }
         }
         report.check("the scene click (script/logic.lam `scene`) picks the trace's half-resolution pixel, as the Rust click did, and nothing in another demonstration (41 x 41 points in each)", differ.is_empty(), json!({"clicks": clicks, "differ": differ.iter().take(20).collect::<Vec<_>>()}));
+    }
+
+    // The story's worked example (video/story.lam `spoutPick`): at the trace demonstration's own size, P on the
+    // spout walks as the narration says, and the pixel the exits beat moves it to leaves through the top.
+    {
+        let frame = shot::demos().spec(Demo::Trace.id()).frame;
+        let size = frame.size().unwrap_or([0, 0]);
+        let gpu = lab::gpu::Gpu::new(lab::gpu::instance(None), None)?;
+        let mut renderer = lab::renderer::Renderer::new(gpu, lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?, 1920, 1080)?;
+        let still = still_timeline(1920, 1080);
+        let mut state = shot::for_demo(Demo::Trace);
+        for (k, x) in [("floorMetallic", 1.0), ("skyReflection", 0.0), ("ssrEnabled", 1.0), ("ssrComposeStep", 3.0), ("floorRoughness", 0.15)] {
+            state.set(k, x);
+        }
+        state.panel = lab::shot::PanelMode::Code;
+        state.code = Some("trace".into());
+        state.camera.target = [-0.15, 0.38, -1.7];
+        state.camera.yaw = 35.0;
+        state.camera.pitch = 12.0;
+        state.camera.distance = 1.8;
+        let mut content = renderer.render_frame(request(&state, &still), None).content.ok_or_else(|| anyhow!("no frame content"))?;
+        let walks = super::cpu::screen(&mut content).map(|screen| {
+            let last = Image::new([1, 1], 4);
+            let inputs = screen.inputs(&last, state.p("ssrMaxSteps").round() as i32, state.p("ssrFadeIn"), state.p("ssrFadeOut"), state.p("ssrDepthTolerance"));
+            let walk = |p: [i32; 2]| {
+                let t = inputs.trace(p);
+                let steps: Vec<String> = t.steps.iter().map(|s| format!("{}{}", s.level, if s.held { "t" } else if s.hit { "h" } else { "m" })).collect();
+                (steps.join(" "), t.exit, t.hit_screen.y, t.screen_ray.z)
+            };
+            (screen.size, walk([366, 294]), walk([398, 277]))
+        });
+        // The sky's ray: misses all the way, away from the camera (its reversed depth falling), out through the top.
+        let ok = walks.as_ref().is_some_and(|(ssr, (p, p_exit, _, _), (up, up_exit, up_y, up_dz))| {
+            *ssr == [size[0] / 2, size[1] / 2] && p == "0m 1m 2m 3m 4h 3h 2m 3h 2h 1m 2h 1h 0h" && *p_exit == trace::Exit::Hit && up.split(' ').all(|s| s.ends_with('m')) && *up_exit == trace::Exit::Screen && *up_y <= 0.01 && *up_dz < 0.0
+        });
+        report.check(
+            "the story's worked example at the trace demonstration's size (1100 x 1080): P (366, 294) walks as narrated to a hit, and (398, 277) leaves through the top of the screen in misses, heading away",
+            size == [1100, 1080] && ok,
+            json!({"frame": size, "walks": walks.map(|(ssr, p, up)| json!({"ssr": ssr, "p": p.0, "pExit": format!("{:?}", p.1), "up": up.0, "upExit": format!("{:?}", up.1), "upY": up.2, "upDepthStep": up.3}))}),
+        );
     }
 
     // The field and the cross-section are views of their own over the main one (lab/src/view.rs): shown by

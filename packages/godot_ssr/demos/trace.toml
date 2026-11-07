@@ -7,6 +7,9 @@ hint-text = "hints-trace_demo"
 scene = "render_lab.scene/study-room"
 listing = "trace"
 resets-camera = true
+# The pixels the trace walks are its own, whatever the window or panel: the scene renders at this size (SSR at
+# half of it), so a pixel's walk is the one the story narrates (video/story.lam `depthFrame`).
+frame = [1100, 1080]
 # Its Play animation (script/animations.lam).
 animation = "playTrace"
 include = ["room-camera"]

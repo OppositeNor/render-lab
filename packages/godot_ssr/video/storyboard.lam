@@ -505,7 +505,7 @@ ${over
 
 ### A cell can be skipped when the ray stays in front {#c3-skip kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {append spoutCamera {append spoutValues
+${cue "key" {opening demoTrace panelValues {append baseRoom {append spoutCamera {append spoutPick
     {' {traceStep 0.0}}}}}}}
 
 For this example, P moves from the floor to a pixel on the inside of the teapot's spout.
@@ -638,7 +638,7 @@ ${cue "key" {'
 
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
+${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutPick
     {' {traceStep 0.0} listingTrace {highlightCode "trace" {' "loop"}}}}}}}}
 
 ${overText
@@ -689,7 +689,7 @@ ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
 
 ### At level zero the hit is final {#c4-hit kind=3d}
 
-${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutCode
+${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {append spoutPick
     {append
         {' {traceStep 5.0} listingTrace {highlightCode "trace" {' "level"}}}
         {view "profile" {' {profileShow 1.0}}}}}}}}}
@@ -698,11 +698,15 @@ ${cue "key" {' {highlightCode "trace" {' "hit"}}}}Above level zero, a hit only s
 
 ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 5.0 7.0}}
-    "On levels three and two, the cells may hold hits too, so the ray comes down to level one"}.
+    "Level three may hold a hit, but the cell on level two is empty, so the ray climbs back to level three"}.
 
 ${overText
-    {' {traceStepRange 7.0 11.0}}
-    "Twice, the ray climbs to level two over an empty cell, and each time a hit sends it back down to level one"}.
+    {' {traceStepRange 7.0 9.0}}
+    "Hits on levels three and two then bring it down to level one"}.
+
+${overText
+    {' {traceStepRange 9.0 11.0}}
+    "Once more, the ray climbs to level two over an empty cell, and a hit sends it back down to level one"}.
 
 ${overText {' {traceStepRange 11.0 12.0}} "A hit on level one takes the ray to level zero"}.
 
@@ -720,17 +724,13 @@ ${overText
     {' {ssrDepthToleranceRange 0.3 0.5}}
     "It stays at level zero, so it does not climb and descend over the same spot again"}.
 
-${cue "key" {' {highlightCode "trace" {' "loop"}}}}${overText
-    {' {traceStepRange 12.0 14.0}}
-    "Near the body, the ray steps one cell at a time"}.
-
 ${cue "key" {' {callout "level-step"} {highlightCode "trace" {' "level"}}}}${overText
-    {' {traceStepRange 14.0 15.0}}
+    {' {traceStepRange 12.0 13.0}}
     "A hit at level zero lowers the level to minus one, and a level below zero ends the loop, on the teapot's body"}.
 
 ### Three ways out {#c4-exits kind=3d}
 
-${cue "key" {opening demoTrace panelValues {append baseRoom {append spoutCamera {append spoutValues
+${cue "key" {opening demoTrace panelValues {append baseRoom {append spoutCamera {append spoutPick
     {' {traceStep 17.0}}}}}}}
 ${cue "key" {append {view "profile" {' {profileShow 1.0}}} {' {blend 0.3}}}}
 
@@ -743,7 +743,7 @@ ${overText {' {ssrMaxStepsRange 24.0 8.0}} "Then the ray stops at whatever point
 ${over
     {' {ssrMaxStepsRange 8.0 64.0}}
     {overText
-        {' {pickXRange 368.0 374.0}}
+        {' {pickXRange 366.0 398.0} {pickYRange 294.0 277.0}}
         "Or the loop ends when the ray leaves the screen, at the t the trace found at the start"}}.
 
 ### The slowest lane sets the time {#c4-lanes kind=3d}
