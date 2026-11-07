@@ -61,6 +61,19 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   explicitly scoped question at a time, and write each finding (with file, symbol, and line) into the task's
   working notes before the next. Either way, verify a delegated finding before building on it.
 
+## Coordinate system
+
+The lab's conventions (`lab/src/camera.rs`); a port converts an engine's own where it reads them.
+
+- **World:** right-handed, **+Y up**, in metres. The orbit camera's yaw turns about +Y; at yaw 0 it looks down -Z.
+- **View space:** right-handed, the camera looking down -Z (glam's `rh::view::look_at_mat4`).
+- **Clip space:** wgpu's, depth in [0, 1] and NDC +Y up (glam's `rh::proj::directx::perspective`).
+- **Reversed Z:** the near plane (0.03 m) is at depth 1, the far plane (1000 m) at 0, so nearer is greater. Depth
+  targets clear to 0 and test with `Greater` / `GreaterEqual` (`lab/src/pipelines.rs`, `lab/src/renderer/encode.rs`).
+  Check which way a depth conversion runs before blaming lighting or shadows.
+- **Pixels and textures:** origin at the top left, y down (wgpu). NDC y runs the other way, so mapping between them
+  flips y; so do overlays placed in y-up units (an inset's `Marker.at`, `packages/render_lab/src/inset.rs`).
+
 ## How deep a task goes
 
 Match the workflow to what the change can break, not to how many files it touches. The skills' full pipelines are

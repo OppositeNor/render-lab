@@ -694,7 +694,8 @@ fn slice_inset(title: String, key: String, nx: usize, nz: usize, pixel: impl Fn(
             }
         }
     }
-    let marker = mark.map(|m| Marker { at: [(m[0] as f32 + 0.5) / nx as f32, (m[1] as f32 + 0.5) / nz as f32], color: palette::SELECTED, label: String::new() });
+    // The marker is y up (inset.rs); the rows run down in z.
+    let marker = mark.map(|m| Marker { at: [(m[0] as f32 + 0.5) / nx as f32, 1.0 - (m[1] as f32 + 0.5) / nz as f32], color: palette::SELECTED, label: String::new() });
     let mut inset = PictureInset::new(title, Picture::Pixels { key, size: [wpx, hpx], rgba: Arc::new(rgba) }, [240.0, 240.0 * hpx as f32 / wpx as f32]);
     inset.corner = Corner::TopRight;
     inset.x_axis = "x".into();

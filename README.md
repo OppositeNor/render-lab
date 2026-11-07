@@ -12,6 +12,11 @@ A lab for rendering demonstrations and experiments, organised as **investigation
 investigation rebuilds parts of one engine feature on prepared data and shows the data involved, step by step, in an
 interactive viewer and in narrated videos that the lab records frame by frame.
 
+> [!WARNING]
+> Render Lab is at a very early stage of development. Its APIs and formats (the `Investigation` trait, the package
+> manifest, the storyboard and script vocabulary, the command line) may change a lot, without notice or migration
+> paths.
+
 It uses **wgpu 30.0.1** on Vulkan (or, where wgpu picks them, Direct3D 12 on Windows and Metal on macOS), **winit 0.30.13**, **egui 0.37**, and **WGSL** shaders.
 
 <p align="center">
