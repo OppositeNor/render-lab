@@ -345,9 +345,15 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
             check(&format!("{}: its {} button opens its tab (has it: {has})", i.path(), feature.id()), ok, describe(opened));
         }
         let Some(timeline) = i.timelines().first() else { continue };
+        // A timeline the video builder has not written (a fresh checkout, CI): its Watch does nothing.
+        let built = |t: &TimelineInfo| options.manifest_dir.join(&t.path).is_file();
         let watch = offscreen.click(&mut home, "watch").flatten();
-        let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0, .. }) if investigation.path() == i.path() && t.id == timeline.id);
-        check(&format!("{}: Watch opens the timeline from its start", i.path()), ok, describe(watch));
+        if built(timeline) {
+            let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0, .. }) if investigation.path() == i.path() && t.id == timeline.id);
+            check(&format!("{}: Watch opens the timeline from its start", i.path()), ok, describe(watch));
+        } else {
+            check(&format!("{}: Watch does nothing while its timeline is not built", i.path()), watch.is_none(), describe(watch));
+        }
         // A part of a series: its parts can be picked.
         if let Some((series, index)) = i.package().and_then(crate::resources::part_of) {
             let parts: Vec<&'static dyn Investigation> = series.parts.iter().filter_map(|p| investigations::all().iter().copied().find(|x| x.package() == Some(p.as_str()))).collect();
@@ -361,6 +367,7 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
             }
         }
         match TimelineSummary::load(&options.manifest_dir, timeline) {
+            _ if !built(timeline) => {}
             Ok(summary) => {
                 if let Some((number, _, frame)) = summary.chapters.last().cloned() {
                     let chosen = offscreen.click(&mut home, &format!("chapter:{number}")).flatten();
@@ -374,8 +381,12 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         for other in i.timelines().iter().skip(1) {
             let picked = offscreen.click(&mut home, &format!("edition:{}", other.id)).is_some();
             let watch = offscreen.click(&mut home, "watch").flatten();
-            let ok = picked && matches!(watch, Some(Choice::Watch { timeline: t, start_frame: 0, .. }) if t.id == other.id);
-            check(&format!("{}: the {} edition can be picked and watched", i.path(), other.id), ok, describe(watch));
+            if built(other) {
+                let ok = picked && matches!(watch, Some(Choice::Watch { timeline: t, start_frame: 0, .. }) if t.id == other.id);
+                check(&format!("{}: the {} edition can be picked and watched", i.path(), other.id), ok, describe(watch));
+            } else {
+                check(&format!("{}: the {} edition, not built, can be picked but not watched", i.path(), other.id), picked && watch.is_none(), describe(watch));
+            }
         }
         if let Some(first) = i.timelines().first() {
             offscreen.click(&mut home, &format!("edition:{}", first.id));
