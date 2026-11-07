@@ -216,13 +216,6 @@ pub fn load(id: &str) -> Result<Quiz> {
     Ok(quiz)
 }
 
-/// The viewer's quiz: the one opened, and how far it has been taken.
-#[derive(Clone, Debug, Default)]
-pub struct Session {
-    pub quiz: Option<Quiz>,
-    pub view: QuizView,
-}
-
 /// What the Quiz tab shows (the viewer's state of a quiz being taken), its text in the viewer's language.
 #[derive(Clone, Debug, Default)]
 pub struct QuizView {

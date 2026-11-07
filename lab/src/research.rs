@@ -138,7 +138,7 @@ fn read_image(renderer: &mut Renderer, e: &Experiment) -> Result<(Image, Image)>
     if e.inspect.is_none() {
         return renderer.read_view(ViewKind::Live).context("the live view");
     }
-    let (rgba, size) = renderer.read_inspection(crate::viewer::INSPECTOR).context("the inspected resource")?;
+    let (rgba, size) = renderer.read_inspection(crate::feature::graph::INSPECTOR).context("the inspected resource")?;
     let image = Image::from_rgba8(size[0] as usize, size[1] as usize, &rgba);
     Ok((image.clone(), image))
 }
@@ -150,9 +150,9 @@ fn measure_run(renderer: &mut Renderer, gpu: &Gpu, e: &Experiment, values: &Map<
     e.apply(&mut state, values)?;
     // A resource of the frame's graph measured in place of the frame (`Experiment::inspect`).
     if let Some(i) = &e.inspect {
-        crate::viewer::inspect(&mut state, Some(i.of.clone()));
+        crate::feature::graph::inspect(&mut state, Some(i.of.clone()));
         state.highlight.clear();
-        if let Some(crate::utility::inset::ImageSource::Graph { show, params, .. }) = state.images.iter_mut().find(|x| x.name == crate::viewer::INSPECTOR).map(|x| &mut x.source) {
+        if let Some(crate::utility::inset::ImageSource::Graph { show, params, .. }) = state.images.iter_mut().find(|x| x.name == crate::feature::graph::INSPECTOR).map(|x| &mut x.source) {
             *show = i.show.clone();
             *params = i.values.clone();
         }

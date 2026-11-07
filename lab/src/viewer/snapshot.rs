@@ -1,6 +1,5 @@
-//! The viewer without a window, for `--snapshot` pages: the experiments,
-//! performance, free-camera, code, prerequisites, layout, paused, and graph
-//! pages, and the inspector's resource view.
+//! The viewer without a window, for `--snapshot` pages: a feature's (src/feature/: each step it takes), and
+//! the viewer's own (its first demonstration, the timeline playing or paused, the free camera, the layout).
 
 use super::*;
 
@@ -49,96 +48,34 @@ pub(super) fn offscreen_app(options: ViewerOptions, demo: Option<&str>) -> Resul
     Ok((app, gpu, size))
 }
 
-/// The viewer offscreen in experiments mode (`home --snapshot … --page
-/// viewer-experiments` or `viewer-compare`): the Experiments tab; with
-/// `compare`, the demonstration's state set as the reference, then one engine
-/// setting (else any ranged value) moved to its other end, compared with a
-/// wipe and measured.
-pub fn snapshot_experiments(options: ViewerOptions, demo: Option<&str>, compare: bool, png: &std::path::Path) -> Result<()> {
+/// The viewer offscreen on a feature's tab (src/feature/), as its homepage button opens it, at a snapshot page
+/// of it (`home --snapshot … --page <page>[:<args>]`): on the demonstration the page names, each step the
+/// feature takes rendered, until it is done.
+pub fn snapshot_feature(options: ViewerOptions, feature: &'static dyn crate::feature::Feature, page: &str, args: Option<&str>, png: &std::path::Path) -> Result<()> {
+    use crate::feature::Snapshot;
     use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { experiments: true, ..options }, demo)?;
-    app.state = app.default_state(app.state.demo);
+    // A feature with no tab (the performance panel's) opens on the viewer's first.
+    let tab = feature.label().map(|_| DockTab(feature.id()));
+    let (mut app, gpu, size) = offscreen_app(ViewerOptions { tab, ..options }, feature.snapshot_demo(page, args))?;
+    anyhow::ensure!(app.features.feature(feature.id()).is_some(), "{} has no {}", investigation::current().title(), feature.id());
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    let mut changed = None;
-    if compare {
-        app.apply(ViewerAction::SetReference);
-        let entries = crate::values::list();
-        let camera = crate::camera::OrbitCamera::schema();
-        let ranged = |e: &&crate::values::Entry| e.range.is_some() && e.components.is_empty() && e.choices.is_none() && !camera.iter().any(|c| std::ptr::eq(c, *e));
-        let entry = entries.iter().find(|e| e.engine.is_some() && ranged(e)).or_else(|| entries.iter().find(|e| ranged(e) && !e.labels.is_empty()));
-        if let Some(e) = entry {
-            let (lo, hi) = e.range.expect("ranged");
-            let now = app.state.p(e.key);
-            let to = if (now - lo).abs() > (now - hi).abs() { lo } else { hi };
-            app.apply(ViewerAction::SetParam(e.key, to));
-            changed = Some(format!("{} {now} → {to}", e.key));
+    let mut step = 0;
+    let shown = loop {
+        let mut next = Ok(Snapshot::Done(String::new()));
+        app.with_features(|features, host| {
+            if let Some(state) = features.state_mut(feature.id()) {
+                next = state.snapshot(page, args, step, host);
+            }
+        });
+        match next? {
+            Snapshot::Render => app.render(Some(&buffer))?,
+            Snapshot::Settle => settle(&mut app, &buffer, 1)?,
+            Snapshot::Done(shown) => break shown,
         }
-        app.apply(ViewerAction::SetCompare(crate::experiment::Compare::Wipe));
-        // A setting baked into the scene data: its build waited for, so the snapshot shows it.
-        let state = app.state.clone();
-        app.renderer.as_mut().expect("renderer").prepare_scene_data(&state);
-    }
-    for i in 0..18 {
-        if compare && i == 15 {
-            app.apply(ViewerAction::Measure);
-        }
-        app.render(Some(&buffer))?;
-        app.frames += 30;
-    }
+        step += 1;
+    };
     write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    let measured = app.experiment.measurement.map(|m| format!("; PSNR {:.2} dB, SSIM {:.4}, FLIP {:.4}", m.psnr, m.ssim, m.flip)).unwrap_or_default();
-    eprintln!("viewer experiments: {} ({}x{}){}{measured}", png.display(), size[0], size[1], changed.map(|c| format!("; reference compared with {c}")).unwrap_or_default());
-    Ok(())
-}
-
-/// The viewer offscreen on the Quiz tab (`home --snapshot … --page viewer-quiz[:<question>[@<choice>]]`): the quiz
-/// opened, at `question` (from 0; past the last: the score, every question answered with its first choice), with
-/// `choice` picked when given.
-pub fn snapshot_quiz(options: ViewerOptions, question: usize, choice: Option<usize>, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { quiz: true, ..options }, None)?;
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    app.render(Some(&buffer))?;
-    if let Some(e) = &app.quiz.view.error {
-        anyhow::bail!("the quiz did not open: {e}");
-    }
-    let count = app.quiz.view.questions.len();
-    if question >= count {
-        for i in 0..count {
-            app.apply(ViewerAction::QuizGo(i));
-            app.apply(ViewerAction::QuizAnswer(0));
-        }
-    }
-    app.apply(ViewerAction::QuizGo(question.min(count)));
-    if let Some(c) = choice {
-        app.apply(ViewerAction::QuizAnswer(c));
-    }
-    settle(&mut app, &buffer, 12)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    let at = if question >= count { "the score".to_string() } else { format!("question {} of {count}", question + 1) };
-    eprintln!("viewer quiz: {} ({}x{}); {at}{}", png.display(), size[0], size[1], app.quiz.view.error.as_ref().map(|e| format!("; {e}")).unwrap_or_default());
-    Ok(())
-}
-
-/// The viewer offscreen with the performance panel (`home --snapshot X.png
-/// --page viewer-performance[:<demo>]`): measured over 60 frames, then the
-/// most expensive pass called out, as a story's `highlight` would.
-pub fn snapshot_performance(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(options, demo)?;
-    app.state = app.default_state(app.state.demo);
-    app.state.panel = PanelMode::Performance;
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    settle(&mut app, &buffer, 60)?;
-    let passes = app.renderer().timing.as_ref().map(|t| t.summary()).unwrap_or_default();
-    let top = passes.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map(|p| p.0.clone());
-    if let Some(name) = &top {
-        app.state.highlight = vec![name.clone()];
-    }
-    settle(&mut app, &buffer, 4)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    let list: Vec<String> = passes.iter().map(|(n, mean, _)| format!("{n} {mean:.2} ms")).collect();
-    eprintln!("viewer performance: {} ({}x{}); {}; called out: {}", png.display(), size[0], size[1], if list.is_empty() { "no GPU timestamps".into() } else { list.join(", ") }, top.unwrap_or_else(|| "none".into()));
+    eprintln!("viewer {}: {} ({}x{}){}", feature.id(), png.display(), size[0], size[1], if shown.is_empty() { String::new() } else { format!("; {shown}") });
     Ok(())
 }
 
@@ -155,58 +92,6 @@ pub fn snapshot_free(options: ViewerOptions, demo: Option<&str>, png: &std::path
     write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
     let free = app.render_state().free_camera;
     eprintln!("viewer free camera: {} ({}x{}); {:?}, free camera yaw {:.0} pitch {:.0} distance {:.1}, main view {:?}", png.display(), size[0], size[1], app.state.demo, free.yaw, free.pitch, free.distance, app.renderer().last_main_view);
-    Ok(())
-}
-
-/// The viewer offscreen on its Code tab (`home --snapshot … --page
-/// viewer-code:<listing>[@<tag>]`), showing `listing` (its name) on its
-/// demonstration, with the lines of `tag` lit (default: its first tag), in
-/// the listing style in use (`--listing-style`).
-pub fn snapshot_code(options: ViewerOptions, listing: &str, tag: Option<&str>, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{read_rgba, readback_buffer, write_png};
-    let current = investigation::current();
-    let found = current.listing(listing).ok_or_else(|| {
-        let names: Vec<&str> = current.listings().iter().map(|l| l.name).collect();
-        anyhow::anyhow!("no listing `{listing}`; known: {}", names.join(", "))
-    })?;
-    let (mut app, gpu, size) = offscreen_app(options, found.demo.as_deref())?;
-    app.state = app.default_state(app.state.demo);
-    app.tab = DockTab::Code;
-    app.show_tab();
-    app.state.code = Some(found.name.to_string());
-    let tag = tag.map(str::to_string).or_else(|| found.lines.iter().flat_map(|l| l.tags.iter()).next().cloned());
-    app.state.highlight = tag.iter().cloned().collect();
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    settle(&mut app, &buffer, 16)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer code: {} ({}x{}), listing {listing} as {}, lit: {}", png.display(), size[0], size[1], crate::pseudocode::style().key(), tag.unwrap_or_else(|| "nothing".into()));
-    Ok(())
-}
-
-/// The viewer offscreen on its Prerequisites tab (`home --snapshot … --page
-/// viewer-prerequisites[:<demo>]`), the knowledge graph in the panel fitted to
-/// the demonstration's chapters; with `focus` (`viewer-knowledge[:<demo>]`), the
-/// panel zoomed onto the first topic of the audience's level, selected; with
-/// `overlay` (`viewer-knowledge-graph[:<demo>]`), the graph full screen.
-pub fn snapshot_prerequisites(options: ViewerOptions, demo: Option<&str>, focus: bool, overlay: bool, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(options, demo)?;
-    app.state = app.default_state(app.state.demo);
-    let graph = crate::knowledge::current().ok_or_else(|| anyhow::anyhow!("{} has no knowledge graph (its package's knowledge.toml)", investigation::current().title()))?;
-    app.tab = DockTab::Prerequisites;
-    app.show_tab();
-    app.knowledge_overlay = overlay;
-    if focus {
-        let chapters = app.knowledge_chapters();
-        let context = graph.context(&chapters);
-        let p = graph.audience();
-        app.knowledge_focus = p.level.iter().find(|&&i| context[i]).or(p.level.first()).map(|&i| graph.nodes[i].id.clone());
-    }
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    settle(&mut app, &buffer, 16)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    let chapters = app.knowledge_chapters();
-    eprintln!("viewer prerequisites: {} ({}x{}); demonstration {}, chapters {:?}{}", png.display(), size[0], size[1], app.state.demo.key(), chapters, app.knowledge_focus.as_ref().map(|f| format!(", focused on {f}")).unwrap_or_default());
     Ok(())
 }
 
@@ -283,92 +168,5 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
     settle(&mut app, &buffer, 16)?;
     write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
     eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], match (playing, paused) { (true, _) => "the timeline playing", (_, Some(PausedPage::Diagram)) => "paused on a diagram", (_, Some(PausedPage::Sources)) => "paused on a sources card", _ => "the first demonstration" });
-    Ok(())
-}
-
-/// The graph panel's inspector (`ViewerAction::Inspect`): the resource
-/// `<node>.<resource>` in the top-right inset (the image `graph`), its node
-/// called out; none hides it.
-pub fn inspect(state: &mut ShotState, key: Option<String>) {
-    use crate::utility::inset::{Corner, ImageSource, StoryImage};
-    state.images.retain(|i| i.name != INSPECTOR);
-    state.highlight.clear();
-    let Some(key) = key else { return };
-    if let Some((node, _)) = key.rsplit_once('.') {
-        state.highlight = vec![node.to_string()];
-    }
-    state.images.push(StoryImage { name: INSPECTOR.to_string(), source: ImageSource::Graph { key, show: None, params: Default::default() }, title: None, corner: Corner::TopRight, alpha: 1.0, click: None, mark: [0.0; 4], mark_alpha: 0.0, mark_text: None });
-}
-
-/// The name of the graph panel's inspector image.
-pub const INSPECTOR: &str = "graph";
-
-/// How a graph snapshot shows the frame graph: the grid in the panel, the
-/// DAG in the panel, or the DAG full screen; the DAG's called-out nodes.
-#[derive(Clone, Debug, Default)]
-pub struct GraphSnapshot {
-    pub dag: bool,
-    /// The resources' cards instead of the DAG.
-    pub resources: bool,
-    /// The selected pass's WGSL beside the full-screen DAG (`viewer-source:<node>`).
-    pub source: bool,
-    pub full_screen: bool,
-    pub highlight: Vec<String>,
-}
-
-/// The viewer offscreen with the frame graph in the panel (`home --snapshot …
-/// --page viewer-graph[:<demo>]`, or `viewer-inspect:<node>.<resource>[/<show>]`;
-/// `viewer-dag[:<demo>][@<node>,…]` and `viewer-dag-full[:<demo>][@<node>,…]`: the DAG):
-/// the inspector showing `inspect`, or the first resource the most expensive
-/// pass writes.
-pub fn snapshot_graph(options: ViewerOptions, demo: Option<&str>, inspect_key: Option<&str>, how: GraphSnapshot, png: &std::path::Path) -> Result<()> {
-    use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(options, demo)?;
-    app.state = app.default_state(app.state.demo);
-    app.state.panel = if how.resources { PanelMode::Resources } else if how.dag { PanelMode::Dag } else { PanelMode::Graph };
-    app.dag_overlay = how.full_screen;
-    app.graph_source = how.source;
-    app.tab = DockTab::Graph;
-    let graph = crate::graph::FrameGraph::current(&[]);
-    if let Some(unknown) = how.highlight.iter().find(|h| graph.node(h).is_none()) {
-        anyhow::bail!("no node `{unknown}` (nodes: {})", graph.nodes.iter().map(|n| n.name).collect::<Vec<_>>().join(", "));
-    }
-    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
-    settle(&mut app, &buffer, 30)?;
-    // `?name=v,v&…`: the inspector's parameters (`graph::INSPECT_PARAMS`).
-    let (inspect_key, query) = match inspect_key.and_then(|k| k.split_once('?')) {
-        Some((k, q)) => (Some(k), q),
-        None => (inspect_key, ""),
-    };
-    let params = crate::graph::parse_params(query).map_err(|e| anyhow::anyhow!(e))?;
-    let (key, show) = match inspect_key {
-        Some(k) => match k.split_once('/') {
-            Some((key, show)) => (key.to_string(), Some(show.to_string())),
-            None => (k.to_string(), None),
-        },
-        None => {
-            // The most expensive live pass that writes something of its own.
-            let passes = app.renderer().timing.as_ref().map(|t| t.summary()).unwrap_or_default();
-            let cost = |n: &crate::graph::Node| passes.iter().find(|p| p.0 == n.timing).map_or(0.0, |p| p.1);
-            let node = graph.order.iter().map(|&i| &graph.nodes[i]).filter(|n| !n.writes.is_empty() && n.writes[0] != "frame").max_by(|a, b| cost(a).total_cmp(&cost(b))).ok_or_else(|| anyhow::anyhow!("no node writes anything"))?;
-            (format!("{}.{}", node.name, node.writes[0]), None)
-        }
-    };
-    graph.inspected(&key).map_err(|e| anyhow::anyhow!(e))?;
-    if let Some(show) = &show {
-        crate::graph::Show::from_key(show).map_err(|e| anyhow::anyhow!(e))?;
-    }
-    inspect(&mut app.state, Some(key.clone()));
-    // The page's call-outs over the inspector's.
-    if !how.highlight.is_empty() {
-        app.state.highlight = how.highlight.clone();
-    }
-    if let Some(crate::utility::inset::ImageSource::Graph { show: s, params: p, .. }) = app.state.images.iter_mut().find(|i| i.name == INSPECTOR).map(|i| &mut i.source) {
-        *s = show;
-        *p = params;
-    }
-    settle(&mut app, &buffer, 4)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer graph: {} ({}x{}); {} nodes, {} resources; inspecting {key}", png.display(), size[0], size[1], graph.nodes.len(), graph.resources.len());
     Ok(())
 }

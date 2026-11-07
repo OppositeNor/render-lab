@@ -14,7 +14,7 @@ pub(super) struct KnowledgeView {
     pub(super) view: crate::graph_view::ViewState,
     pub(super) selected: Option<usize>,
     pub(super) fitted: Option<Vec<u32>>,
-    /// The chrome's focus last applied (`KnowledgeChrome::focus`).
+    /// The chrome's focus last applied (`KnowledgeContext::focus`).
     pub(super) focused: Option<String>,
     /// A topic to centre on the next frame (`focus_topic`).
     pub(super) centre_on: Option<usize>,
@@ -53,7 +53,7 @@ pub fn focus_topic(ctx: &egui::Context, node: usize) {
 /// The knowledge graph full screen, over the viewer or the homepage, for
 /// `chrome`'s chapters (none: the whole story). Returns true when it is
 /// closed (its button; Esc is the caller's).
-pub fn draw_knowledge_overlay(ctx: &egui::Context, canvas: Vec2, chrome: &KnowledgeChrome) -> bool {
+pub fn draw_knowledge_overlay(ctx: &egui::Context, canvas: Vec2, chrome: &KnowledgeContext) -> bool {
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("knowledge-overlay")));
     let ink = Ink::new(&painter);
     let screen = Rect::from_min_size(Pos2::ZERO, canvas);
@@ -79,13 +79,13 @@ pub(super) fn topic_color(p: &crate::knowledge::Partition, i: usize) -> Color32 
 }
 
 /// The chapters the viewer's context names that the graph declares (none: every chapter).
-pub fn knowledge_chapters(graph: &crate::knowledge::Graph, chrome: &KnowledgeChrome) -> Vec<u32> {
+pub fn knowledge_chapters(graph: &crate::knowledge::Graph, chrome: &KnowledgeContext) -> Vec<u32> {
     chrome.chapters.iter().copied().filter(|c| graph.chapters.iter().any(|g| g.number == *c)).collect()
 }
 
 /// The knowledge graph in the panel (`PanelMode::Knowledge`). Returns true when
 /// its full-screen button is pressed.
-pub(super) fn draw_knowledge_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeChrome) -> bool {
+pub(crate) fn draw_knowledge_panel(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeContext) -> bool {
     draw_knowledge_graph(ctx, ink, rect, chrome, KnowledgePlace::Panel)
 }
 
@@ -105,7 +105,7 @@ pub fn set_knowledge_compact(on: bool) {
     KNOWLEDGE_COMPACT.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
-pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeChrome, place: KnowledgePlace) -> bool {
+pub(super) fn draw_knowledge_graph(ctx: &egui::Context, ink: &Ink, rect: Rect, chrome: &KnowledgeContext, place: KnowledgePlace) -> bool {
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;

@@ -148,10 +148,8 @@ pub enum Choice {
     Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64 },
     /// The free demonstrations.
     Explore { investigation: &'static dyn Investigation },
-    /// The demonstrations with the Experiments tools: every value, A/B, metrics, presets.
-    Experiment { investigation: &'static dyn Investigation },
-    /// The investigation's quiz (src/quiz.rs): its questions beside their live views.
-    Quiz { investigation: &'static dyn Investigation },
+    /// The demonstrations on a feature's tab (src/feature/), as its homepage button opens them.
+    Feature { investigation: &'static dyn Investigation, feature: &'static dyn crate::feature::Feature },
     Quit,
 }
 
@@ -161,8 +159,7 @@ impl Choice {
         match self {
             Choice::Watch { investigation, timeline, start_frame } => format!("watch {} {} @ {start_frame}", investigation.path(), timeline.id),
             Choice::Explore { investigation } => format!("explore {}", investigation.path()),
-            Choice::Experiment { investigation } => format!("experiment {}", investigation.path()),
-            Choice::Quiz { investigation } => format!("quiz {}", investigation.path()),
+            Choice::Feature { investigation, feature } => format!("{} {}", feature.id(), investigation.path()),
             Choice::Quit => "quit".into(),
         }
     }

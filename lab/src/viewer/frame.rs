@@ -121,24 +121,16 @@ impl App {
         if let Some(t) = &self.timeline {
             self.timeline_frame = self.timeline_frame.min(t.total_frames - 1);
         }
-        // Opened on the Quiz tab (the homepage's Quiz button): the quiz opens once the scene can set up its views.
-        if self.tab == DockTab::Quiz && self.quiz.quiz.is_none() && self.quiz.view.error.is_none() && self.renderer.is_some() && !self.timeline_mode {
-            self.open_quiz();
+        // Opened on a feature's tab (a homepage button): it is selected once the scene can set up its views.
+        if self.tab_opening && self.renderer.is_some() && !self.timeline_mode {
+            self.tab_opening = false;
+            self.select_feature();
         }
+        self.update_features();
         let state = self.render_state();
         let state = self.with_intro(state, now);
-        // Playing, the caption on screen; paused, the one at or last before
-        // the frame, and the one before that.
-        let captions = self.timeline.as_ref().filter(|_| self.timeline_mode).map_or((None, None), |t| {
-            let (_, beat) = t.beat_at(self.timeline_frame);
-            let frame = self.timeline_frame;
-            if self.playing {
-                (None, beat.caption_at(frame).map(|c| c.text.clone()))
-            } else {
-                let at = beat.captions.iter().rposition(|c| c.start <= frame);
-                (at.and_then(|i| i.checked_sub(1)).map(|i| beat.captions[i].text.clone()), at.map(|i| beat.captions[i].text.clone()))
-            }
-        });
+        // Playing, the caption on screen (paused, the Captions tab has them, src/feature/captions.rs).
+        let caption = self.timeline.as_ref().filter(|_| self.timeline_mode && self.playing).and_then(|t| t.beat_at(self.timeline_frame).1.caption_at(self.timeline_frame).map(|c| c.text.clone()));
         let mut chrome = ViewerChrome {
             playing: self.playing,
             timeline: self.timeline.as_ref().map(|t| (self.timeline_frame, t.total_frames)),
@@ -147,8 +139,7 @@ impl App {
             sections: self.bar_sections.clone(),
             fps: self.timeline.as_ref().map_or(30, |t| t.fps),
             hover: None,
-            caption: captions.1,
-            previous_caption: captions.0,
+            caption,
             skip: self.skip.filter(|_| self.timeline_mode).and_then(|(s, at)| {
                 let left = 1.0 - (now - at).as_secs_f32() / SKIP_NOTICE.as_secs_f32();
                 (left > 0.0).then(|| (s, (left * 3.0).min(1.0)))
@@ -162,39 +153,27 @@ impl App {
             narration: self.narration,
             speed: self.speed,
             diagram: None,
-            experiment: crate::ui::ExperimentView::default(),
-            quiz: self.quiz.view.clone(),
-            knowledge: crate::ui::KnowledgeChrome { chapters: self.knowledge_chapters(), focus: self.knowledge_focus.clone(), overlay: self.knowledge_overlay },
-            dag_overlay: self.dag_overlay && matches!(self.state.panel, PanelMode::Dag | PanelMode::Resources),
-            graph_source: self.graph_source,
+            features: std::mem::take(&mut self.features),
             shader_reload: self.shader_reload.as_ref().filter(|(_, failed, at)| *failed || at.elapsed().as_secs_f32() < 4.0).map(|(t, f, _)| (t.clone(), *f)),
             focus_rect: self.renderer.as_ref().map(|r| r.frame_views()).filter(|v| v.len() > 1).and_then(|v| v.iter().find(|(id, _)| *id == self.focus).map(|(_, r)| *r)),
         };
-        // The experiment: the reference drawn while the live state is (not on a timeline), and timings while its tab shows.
-        let experimenting = !self.timeline_mode && (self.options.experiments || self.tab == DockTab::Experiments);
         self.frame_times.push_back(dt as f64 * 1000.0);
         if self.frame_times.len() > 120 {
             self.frame_times.pop_front();
         }
         if let Some(renderer) = self.renderer.as_mut() {
-            let compare = self.experiment.reference_state(&state).filter(|_| !self.timeline_mode).map(|reference| crate::renderer::CompareRequest { reference, mode: self.experiment.compare, split: self.experiment.split, gain: self.experiment.gain });
-            renderer.set_compare(compare);
-            // The performance panel measures as it shows, here or on a timeline.
-            renderer.set_timing(experimenting || matches!(state.panel, PanelMode::Performance | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources));
             let times: Vec<f64> = self.frame_times.iter().copied().collect();
             let (mean, _, p95) = crate::metrics::summary(&times);
-            chrome.experiment = crate::ui::ExperimentView {
-                reference: self.experiment.reference.is_some(),
-                compare: self.experiment.compare,
-                split: self.experiment.split,
-                gain: self.experiment.gain,
-                measurement: self.experiment.measurement,
-                message: self.experiment.message.clone(),
-                presets: self.experiment.presets.clone(),
-                timings: renderer.timing.as_ref().map(|t| t.summary()).unwrap_or_default(),
-                frame_ms: (mean, p95),
-                rebuilding: renderer.rebuilding(),
-            };
+            // What the features ask of the frame (src/feature/): the experiment's reference drawn with the live
+            // state, and timings while its tab is in use; then what they read of the renderer.
+            let frame = crate::feature::FrameInfo { tab: self.tab, opened: self.options.tab, timeline_mode: self.timeline_mode, frame_ms: (mean, p95) };
+            let ask = chrome.features.frame_request(&state, &frame);
+            renderer.set_compare(ask.compare);
+            // The performance panel measures as it shows, here or on a timeline.
+            renderer.set_timing(ask.timing || state.panel.shows_passes());
+            for feature in chrome.features.states_mut() {
+                feature.frame_readout(renderer, &frame);
+            }
         }
         // The frame a screenshot is taken of shows no popup.
         chrome.popups.hidden = self.screenshot;
@@ -221,8 +200,8 @@ impl App {
         // The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it.
         let focus = match self.focus {
             ViewId::FREE => state.free_camera.on.then(|| ShotState { camera: state.free_camera.orbit(), ..state.clone() }),
-            ViewId::REFERENCE => self.experiment.reference_state(&state),
-            view => self.over_camera(view).map(|(name, camera)| ShotState { camera, ..state.view_state(name) }),
+            // A view a feature adds (the experiment's reference), else a view stacked over the main one.
+            view => chrome.features.view_state(view, &state).or_else(|| self.over_camera(view).map(|(name, camera)| ShotState { camera, ..state.view_state(name) })),
         };
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
@@ -240,6 +219,7 @@ impl App {
             }
         }
         self.dock_widgets = std::mem::take(&mut chrome.widgets);
+        self.features = std::mem::take(&mut chrome.features);
         self.popups = std::mem::take(&mut chrome.popups);
         for action in self.popups.take_actions() {
             popup::perform(action);
@@ -256,6 +236,7 @@ impl App {
         for action in chrome.actions {
             self.apply(action);
         }
+        self.update_features();
         Ok(())
     }
 

@@ -26,7 +26,6 @@ mod knowledge_panel;
 mod panel;
 mod code;
 mod timeline_bar;
-mod quiz_panel;
 use viewport::*;
 pub use graph_panel::*;
 pub use knowledge_panel::*;
@@ -239,8 +238,6 @@ pub enum ViewerAction {
     /// The dock's values back to the demonstration's defaults.
     ResetParameters,
     SelectTab(DockTab),
-    /// Show a pseudo-code listing (the Code tab).
-    SetCode(&'static str),
     /// Move the timeline to this share of its length.
     Seek(f32),
     /// Close the viewer and return to the homepage.
@@ -249,30 +246,6 @@ pub enum ViewerAction {
     SetNarration(crate::volume::Volume, bool),
     /// The timeline's and the narration's speed (one of `SPEEDS`).
     SetSpeed(f32),
-    /// One value (a channel) back to the demonstration's default (the Experiments tab).
-    ResetParam(&'static str),
-    /// The live state becomes the reference the experiment compares against (src/experiment.rs).
-    SetReference,
-    ClearReference,
-    /// The reference and the live state trade places.
-    SwapReference,
-    SetCompare(crate::experiment::Compare),
-    /// The wipe's line, as a share of the scene area's width.
-    SetSplit(f32),
-    /// The difference view's gain.
-    SetGain(f32),
-    /// Measure the live image against the reference's (src/metrics.rs).
-    Measure,
-    /// Save the experiment under this name among the user's.
-    SavePreset(String),
-    /// Load one of the experiments the tab lists (`ExperimentView::presets`).
-    LoadPreset(usize),
-    /// Answer the quiz's question with this choice (src/quiz.rs).
-    QuizAnswer(usize),
-    /// Go to this question of the quiz, its view set up again (the number of questions: the score).
-    QuizGo(usize),
-    /// Take the quiz again from its first question.
-    QuizRestart,
     /// A layout edge dragged to this size in points, or (None) back to its default.
     ResizeLayout(LayoutPart, Option<f32>),
     /// A drag of a layout edge ended: the layout is written to the settings.
@@ -281,67 +254,26 @@ pub enum ViewerAction {
     ResetLayout,
     /// Look through the free camera, or the main camera again (src/camera.rs `FreeCamera`).
     ToggleFreeCamera,
-    /// Open or close the knowledge graph full screen (src/knowledge.rs).
-    SetKnowledgeOverlay(bool),
-    /// Open or close the frame graph's DAG full screen.
-    SetDagOverlay(bool),
-    /// Show (or hide) the selected pass's WGSL beside the full-screen DAG.
-    ShowSource(bool),
-    /// Show a resource of the frame's graph as it stood after a node
-    /// (`<node>.<resource>`, the inspector), or none.
-    Inspect(Option<String>),
 }
 
-/// What the viewer's dock shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum DockTab {
-    #[default]
-    Parameters,
-    /// The demonstration's pseudo-code in the panel; the dock picks a listing and lights its steps.
-    Code,
-    Sources,
-    /// A paused timeline's caption, to read again (only with a timeline).
-    Captions,
-    /// Every value of the investigation, and the experiment's tools (src/experiment.rs).
-    Experiments,
-    /// What the audience should know before the chapter, from the knowledge
-    /// graph (src/knowledge.rs); the panel shows the graph.
-    Prerequisites,
-    /// The frame graph (src/graph/) in the panel (its DAG, grid, or
-    /// resources); the dock describes the hovered or selected pass.
-    Graph,
-    /// The investigation's quiz (src/quiz.rs) in the panel; the viewport shows each question's view.
-    Quiz,
+/// What the viewer's dock shows: a tab, by its feature's id (src/feature/).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DockTab(pub &'static str);
+
+impl Default for DockTab {
+    /// The Parameters tab, which the viewer opens on.
+    fn default() -> DockTab {
+        crate::feature::parameters::TAB
+    }
 }
 
-/// The knowledge graph's context in the viewer (src/knowledge.rs): the chapters the
+/// The knowledge graph's context (src/knowledge.rs): the chapters the
 /// Prerequisites tab and the knowledge panel are about (none, or none the graph
 /// declares: the whole investigation), and a topic to focus once (a snapshot's).
 #[derive(Clone, Debug, Default)]
-pub struct KnowledgeChrome {
+pub struct KnowledgeContext {
     pub chapters: Vec<u32>,
     pub focus: Option<String>,
-    /// The knowledge graph full screen, over the viewer.
-    pub overlay: bool,
-}
-
-/// What the Experiments tab shows of the viewer's experiment (src/experiment.rs).
-#[derive(Clone, Debug, Default)]
-pub struct ExperimentView {
-    /// A reference is set.
-    pub reference: bool,
-    pub compare: crate::experiment::Compare,
-    pub split: f32,
-    pub gain: f32,
-    pub measurement: Option<crate::metrics::Measurement>,
-    pub message: Option<String>,
-    pub presets: Vec<crate::experiment::Preset>,
-    /// GPU time per pass (src/timing.rs): name, mean and 95th percentile in milliseconds.
-    pub timings: Vec<(String, f64, f64)>,
-    /// The viewer's frame time: mean and 95th percentile in milliseconds.
-    pub frame_ms: (f64, f64),
-    /// Seconds the scene data has been rebuilding (`Investigation::scene_data`).
-    pub rebuilding: Option<f32>,
 }
 
 /// One beat of the timeline, as the bar's hover preview names it.
@@ -373,10 +305,8 @@ pub struct ViewerChrome {
     pub fps: u32,
     /// Output: the preview shown under the pointer this frame, if any.
     pub hover: Option<String>,
-    /// The caption on screen while the timeline plays; paused, the one at or
-    /// last before the frame (the Captions tab), with the one before it.
+    /// The caption on screen while the timeline plays.
     pub caption: Option<String>,
-    pub previous_caption: Option<String>,
     /// The seconds the timeline just skipped (Left and Right), and the notice's opacity.
     pub skip: Option<(i64, f32)>,
     pub status: String,
@@ -394,20 +324,20 @@ pub struct ViewerChrome {
     pub speed: f32,
     /// Paused on a diagram beat: the diagram panel's zoom and pan.
     pub diagram: Option<DiagramPage>,
-    /// The Experiments tab's view of the experiment.
-    pub experiment: ExperimentView,
-    /// The Quiz tab's quiz, as far as it has been taken.
-    pub quiz: crate::quiz::QuizView,
-    /// The Prerequisites tab's and the knowledge panel's chapters.
-    pub knowledge: KnowledgeChrome,
-    /// The frame graph's DAG is shown full screen (`ViewerAction::SetDagOverlay`).
-    pub dag_overlay: bool,
-    /// The full-screen DAG shares the screen with the selected pass's WGSL (`ViewerAction::ShowSource`).
-    pub graph_source: bool,
+    /// The viewer's features (src/feature/), lent for the frame: the current tab's draws its dock and its
+    /// panel, each its story panels and what it shows full screen.
+    pub features: crate::feature::Features,
     /// The last live reload of the shaders: what it says, and whether it failed (src/resources.rs `reload_changed`).
     pub shader_reload: Option<(String, bool)>,
     /// The focused view's place, when several views are on screen (src/view.rs): drawn with a lit border.
     pub focus_rect: Option<Rect>,
+}
+
+impl ViewerChrome {
+    /// The tab is a feature's that draws its own panel (`FeatureLayout::panel`): its layout.
+    pub fn feature_panel(&self) -> Option<crate::feature::FeatureLayout> {
+        self.features.feature(self.tab.0).map(|f| f.layout()).filter(|l| l.panel)
+    }
 }
 
 pub enum Chrome<'a> {
@@ -462,7 +392,9 @@ pub struct PaneView<'a> {
     pub title: Option<&'a str>,
 }
 
-pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiReport {
+/// The frame's UI. `recording`: the features a recording's story panels are drawn by (src/feature/; the
+/// viewer's are its chrome's).
+pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording: &mut crate::feature::Features) -> UiReport {
     let painter = ctx.layer_painter(egui::LayerId::background());
     let ink = Ink::new(&painter);
     let l = &input.layout;
@@ -470,11 +402,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
 
     draw_header(&ink, input, &mut chrome, ctx);
     let scene_beat = input.scene_type == SceneType::ThreeD;
-    // The Experiments tab puts its values in the panel's place.
-    // The performance panel, when asked for, takes the panel's place over the values.
-    let value_panel = scene_beat && !matches!(input.state.panel, PanelMode::Performance | PanelMode::Knowledge | PanelMode::Graph | PanelMode::Dag | PanelMode::Resources) && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Experiments && !(v.timeline_mode && v.playing));
-    // The Quiz tab puts its question in the panel's place.
-    let quiz_panel = scene_beat && matches!(&chrome, Chrome::Viewer(v) if v.tab == DockTab::Quiz && !(v.timeline_mode && v.playing));
+    // A feature's tab may put its own panel in the panel's place (the Experiments tab its tools, the Quiz tab its
+    // question); one that yields gives way to the panels that show the frame, when asked for.
+    let frame_panel = input.state.panel.analysis();
+    let feature_panel = scene_beat && matches!(&chrome, Chrome::Viewer(v) if v.feature_panel().is_some_and(|l| !(l.yields && frame_panel)) && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -553,38 +484,28 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 if !covered {
                     draw_labels(&ink, input, content, &obstacles, &mut report);
                 }
-                if input.state.panel == PanelMode::Knowledge {
-                    let topics = match &chrome {
-                        Chrome::Viewer(v) => v.knowledge.clone(),
-                        Chrome::Recording { .. } => KnowledgeChrome::default(),
-                    };
-                    let pressed = draw_knowledge_panel(ctx, &ink, l.panel, &topics);
-                    if let Chrome::Viewer(v) = &mut chrome {
-                        if pressed {
-                            v.actions.push(ViewerAction::SetKnowledgeOverlay(true));
-                        }
-                        // Its input area is in the background layer, which egui does not
-                        // count as over the UI: the wheel zooms the graph, not the camera.
-                        v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| l.panel.contains(p));
-                    }
-                } else if matches!(input.state.panel, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources) && l.panel_shown {
-                    let view = input.graph.cloned().unwrap_or_default();
+                if !feature_panel {
+                    // A story panel a feature draws (src/feature/: the knowledge graph, the frame graph, the
+                    // code, the performance), else the demonstration's.
                     let interactive = matches!(&chrome, Chrome::Viewer(_));
-                    let panel = GraphPanel { ctx, ink: &ink, rect: l.panel, view: &view, highlight: &input.state.highlight, full: false, interactive, source: None };
-                    let pick = match input.state.panel {
-                        PanelMode::Graph => draw_graph_panel(&panel),
-                        PanelMode::Dag => draw_dag_panel(&panel),
-                        _ => draw_resource_panel(&panel),
+                    let shader_error = match &chrome {
+                        Chrome::Viewer(v) => v.shader_reload.clone().filter(|r| r.1).map(|r| r.0),
+                        Chrome::Recording { .. } => None,
                     };
-                    if let Chrome::Viewer(v) = &mut chrome {
-                        // Its input is read by hand in the background layer: the wheel scrolls it, not the camera.
-                        v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| l.panel.contains(p));
-                        if let Some(pick) = pick {
-                            v.actions.push(graph_action(pick, &view));
-                        }
+                    let mut panel = crate::feature::StoryPanel { ctx, ink: &ink, input, interactive, shader_error: shader_error.as_deref(), report: &mut report, actions: Vec::new(), pointer: false };
+                    let features = match &mut chrome {
+                        Chrome::Viewer(v) => &mut v.features,
+                        Chrome::Recording { .. } => &mut *recording,
+                    };
+                    match features.panel_mut(input.state.panel) {
+                        Some(owner) => owner.story_panel(&mut panel),
+                        None => draw_panel(&ink, input, content, panel.report),
                     }
-                } else if !value_panel && !quiz_panel {
-                    draw_panel(&ink, input, content, &mut report);
+                    let (actions, pointer) = (panel.actions, panel.pointer);
+                    if let Chrome::Viewer(v) = &mut chrome {
+                        v.actions.extend(actions);
+                        v.ui_has_pointer |= pointer;
+                    }
                 }
             } else if let Some(key) = &input.state.callout {
                 draw_callout(&ink, l, key, &[]);
@@ -644,11 +565,13 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
                 draw_caption_text(&ink, l, viewer.caption.as_deref());
             } else {
                 crate::controls::draw_dock(ctx, &ink, input, viewer);
-                if value_panel {
-                    crate::controls::draw_experiment_panel(ctx, &ink, input, viewer);
-                }
-                if quiz_panel {
-                    quiz_panel::draw(ctx, &ink, input, viewer);
+                if feature_panel {
+                    let mut dock = crate::controls::Dock::new(input, viewer);
+                    if let Some(state) = viewer.features.state_mut(viewer.tab.0) {
+                        state.panel(&mut crate::feature::PanelUi { ctx, ink: &ink, input, dock: &mut dock });
+                    }
+                    viewer.actions.extend(dock.actions);
+                    viewer.widgets.extend(dock.widgets);
                 }
             }
             if let Some((seconds, opacity)) = viewer.skip {
@@ -662,42 +585,16 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome) -> UiRepor
             } else {
                 draw_footer(&ink, l, None);
             }
-            // The knowledge graph full screen, over everything but the popups.
-            // The DAG full screen, over everything (Esc closes it).
-            if viewer.dag_overlay && matches!(input.state.panel, PanelMode::Dag | PanelMode::Resources) && scene_beat {
-                let view = input.graph.cloned().unwrap_or_default();
-                let canvas = Rect::from_min_size(Pos2::ZERO, l.canvas);
-                egui::Area::new(egui::Id::unique("frame-graph-overlay")).order(egui::Order::Foreground).fixed_pos(Pos2::ZERO).constrain(false).show(ctx, |ui| {
-                    // Covers the viewer, so nothing under it takes the pointer.
-                    ui.allocate_rect(canvas, egui::Sense::click_and_drag());
-                    let overlay_ink = Ink::new(ui.painter());
-                    ui.painter().rect_filled(canvas, CornerRadius::ZERO, palette::background().gamma_multiply(0.92));
-                    let area = canvas.shrink(24.0);
-                    let source = viewer.graph_source && input.state.panel == PanelMode::Dag;
-                    let pick = if input.state.panel == PanelMode::Dag {
-                        // With the source: the graph on the left, the selected pass's WGSL on the right.
-                        let graph_area = if source { Rect::from_min_max(area.min, pos2(area.min.x + area.width() * 0.5 - 8.0, area.max.y)) } else { area };
-                        let pick = draw_dag_panel(&GraphPanel { ctx, ink: &overlay_ink, rect: graph_area, view: &view, highlight: &input.state.highlight, full: true, interactive: true, source: Some(source) });
-                        if source {
-                            let pane = Rect::from_min_max(pos2(graph_area.max.x + 16.0, area.min.y), area.max);
-                            draw_source_pane(ctx, &overlay_ink, pane, &view, viewer.shader_reload.as_ref().filter(|r| r.1).map(|r| r.0.as_str()));
-                        }
-                        pick
-                    } else {
-                        draw_resource_panel(&GraphPanel { ctx, ink: &overlay_ink, rect: area, view: &view, highlight: &input.state.highlight, full: true, interactive: true, source: None })
-                    };
-                    if let Some(pick) = pick {
-                        viewer.actions.push(graph_action(pick, &view));
-                    }
-                    ink.min_size.set(ink.min_size.get().min(overlay_ink.min_size.get()));
-                });
-                viewer.ui_has_pointer = true;
+            // What the features show full screen (the knowledge graph, the DAG), over everything but the popups.
+            let shader_error = viewer.shader_reload.clone().filter(|r| r.1).map(|r| r.0);
+            let mut overlay = crate::feature::StoryPanel { ctx, ink: &ink, input, interactive: true, shader_error: shader_error.as_deref(), report: &mut report, actions: Vec::new(), pointer: false };
+            for state in viewer.features.states_mut() {
+                state.overlay(&mut overlay);
             }
-            if viewer.knowledge.overlay && draw_knowledge_overlay(ctx, l.canvas, &viewer.knowledge.clone()) {
-                viewer.actions.push(ViewerAction::SetKnowledgeOverlay(false));
-            }
+            viewer.actions.extend(overlay.actions);
+            viewer.ui_has_pointer |= overlay.pointer;
             viewer.popups.draw(ctx, l.canvas);
-            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input() || viewer.knowledge.overlay;
+            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
         }
     }
     let _ = scene_beat;

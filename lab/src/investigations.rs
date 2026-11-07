@@ -46,6 +46,11 @@ pub fn all() -> &'static [&'static dyn Investigation] {
     })
 }
 
+/// The viewer features the packages' libraries add (src/feature/), in the packages' order.
+pub fn features() -> Vec<(&'static str, &'static dyn crate::feature::Feature)> {
+    libraries().iter().filter_map(|l| Some((l.package, l.loaded.as_ref().ok()?.features()?))).flat_map(|(package, f)| f().iter().map(move |f| (package, *f))).collect()
+}
+
 /// The investigation whose backdrop the homepage shows behind every page:
 /// the one the binary names, or the first.
 pub fn title() -> &'static dyn Investigation {

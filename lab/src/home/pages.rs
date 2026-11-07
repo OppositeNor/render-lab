@@ -21,7 +21,7 @@ impl Home {
                 None
             }
         };
-        if self.knowledge && self.page == Page::Select && crate::ui::draw_knowledge_overlay(ctx, canvas, &crate::ui::KnowledgeChrome::default()) {
+        if self.knowledge && self.page == Page::Select && crate::ui::draw_knowledge_overlay(ctx, canvas, &crate::ui::KnowledgeContext::default()) {
             self.knowledge = false;
         }
         let choice = if self.pse { self.draw_pse(ctx, canvas).or(choice) } else { choice };
@@ -208,7 +208,7 @@ impl Home {
                 ui.add(egui::Label::new(RichText::new(e).color(palette::HISTORY_REJECT)).wrap());
                 ui.add_space(10.0);
             }
-            // Two rows of two: watch and explore, then experiment and the quiz.
+            // Rows of two: watch and explore, then the features' buttons (src/feature/: experiment, the quiz).
             let first = rows.get(edition).filter(|r| r.summary.is_ok());
             // Short rows, so the chapter list below keeps its room.
             let button = vec2((ui.available_width() - 24.0) / 2.0, 46.0);
@@ -225,20 +225,20 @@ impl Home {
                     choice = Some(Choice::Explore { investigation: chosen });
                 }
             });
-            ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 16.0;
-                let experiment = glass_button(ui, button, tr("home-experiment_with_the_algorithm"), 26.0, true);
-                home.widgets.push(("experiment".into(), experiment.rect));
-                if experiment.clicked() {
-                    choice = Some(Choice::Experiment { investigation: chosen });
-                }
-                let quiz = glass_button(ui, button, tr("home-take_the_quiz"), 26.0, !crate::quiz::ids(chosen).is_empty());
-                home.widgets.push(("quiz".into(), quiz.rect));
-                if quiz.clicked() {
-                    choice = Some(Choice::Quiz { investigation: chosen });
-                }
-            });
+            let buttons: Vec<(&'static dyn crate::feature::Feature, String)> = crate::feature::all().into_iter().filter_map(|f| f.home().map(|label| (f, label))).collect();
+            for row in buttons.chunks(2) {
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    for (feature, label) in row {
+                        let pressed = glass_button(ui, button, label, 26.0, feature.available(chosen));
+                        home.widgets.push((feature.id().into(), pressed.rect));
+                        if pressed.clicked() {
+                            choice = Some(Choice::Feature { investigation: chosen, feature: *feature });
+                        }
+                    }
+                });
+            }
             // What the story assumes (src/knowledge.rs): the level it starts from, the known
             // topics it uses directly, and the graph full screen.
             if let Some(graph) = crate::knowledge::current() {

@@ -201,6 +201,17 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
   lab macro `#[macro_export]`.
 - Add a public package to the root `Cargo.toml`'s `[workspace] members` and `default-members`, so
   `cargo build --release --locked --offline` builds it.
+- **A tab of the viewer's dock** is a feature (`lab/src/feature/mod.rs`): a `Feature` (its id, its tab's label, or
+  none for a feature without a tab, its order, whom it is `available` to, its `layout`, the story panels it draws,
+  its homepage button, its snapshot pages with their `--page` help) and the `FeatureState` it makes per viewer and
+  per recording (`Send`; hooks for its dock, its panel, its story panels, what it shows full screen, the frame's
+  requests, views it adds, a change of demonstration, snapshot steps; each defaults to nothing). Every tab and panel
+  of the lab is a feature (`lab/src/feature/`: Parameters, Experiments, Code, Sources, Prerequisites, Frame graph,
+  Quiz, Captions, and the tab-less Performance): copy the nearest. A package adds its own with the optional
+  `features` handle, `"features" => features as lab::plugin::FeaturesFn` (`fn() -> &'static [&'static dyn Feature]`)
+  beside `investigations`; its label is its own text (`lab::i18n::package_text`), and `available` usually checks
+  `investigation.package()`. An id another feature has is left out, and the loader says so. Nothing else in the lab
+  changes for a new tab: no enum, action, field, or snapshot arm.
 - **Behaviour can be content instead of code:** a resource `script/<name>` (Lamlet) is a script the lab runs: overlays,
   readout rows, click handlers, actions, Play animations (the `render-lab-lamlet` skill, section 6). The library keeps
   what is heavy and exposes it to them through `Investigation::script_natives`; `render-lab --investigation <id>
@@ -213,7 +224,7 @@ and calls the function. `lab::negotiate!` expands in the library: it checks the 
 fingerprint is the one the library was compiled against (`lab::plugin::ABI`: the lab's version, the compiler, a hash of
 its sources), and only then registers each handle in the map through the loader's `register`. A library built against
 another lab refuses before it runs any lab code; the loader never unloads a library. Handles are looked up by name
-(`Handles::investigations`); a new kind of handle is a new name and type in `lab/src/plugin.rs`, both sides.
+(`Handles::investigations`, `Handles::features`; a library without one has none); a new kind of handle is a new name and type in `lab/src/plugin.rs`, both sides.
 
 ## 6. A local package
 

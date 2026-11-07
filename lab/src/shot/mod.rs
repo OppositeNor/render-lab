@@ -116,6 +116,29 @@ impl PanelMode {
         PanelMode::Resources,
         PanelMode::Hidden,
     ];
+
+    /// It takes the wider panel (the code panel's width, `ViewerLayout::code_panel_width`): the pseudo-code,
+    /// the knowledge graph, the DAG, the resources' cards.
+    pub fn wide(self) -> bool {
+        matches!(self, PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources)
+    }
+
+    /// It shows the frame graph (src/graph/): its passes, the DAG, or the resources' cards.
+    pub fn shows_graph(self) -> bool {
+        matches!(self, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources)
+    }
+
+    /// It shows the frame's passes with their GPU times: the frame is timed while it shows (src/timing.rs),
+    /// and `highlight` names passes.
+    pub fn shows_passes(self) -> bool {
+        self == PanelMode::Performance || self.shows_graph()
+    }
+
+    /// It analyses the frame or the story (the performance, the knowledge graph, the frame graph): a feature's
+    /// panel that yields (`FeatureLayout::yields`) gives way to it.
+    pub fn analysis(self) -> bool {
+        self == PanelMode::Knowledge || self.shows_passes()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

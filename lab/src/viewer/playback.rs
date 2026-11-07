@@ -8,25 +8,20 @@ impl App {
         let demo = demo.into();
         self.intro = None;
         self.stop_audio();
-        // Experimenting, the values changed so far carry over to the next demonstration.
-        // So does the reference's: its changes from the old demonstration's defaults, over the new one's.
-        let (carried, reference) = if self.options.experiments {
-            let defaults = self.default_state(self.state.demo);
-            (crate::experiment::changes(&self.state, &defaults), self.experiment.reference.as_ref().map(|r| crate::experiment::changes(r, &defaults)))
-        } else {
-            (Default::default(), None)
-        };
+        // Opened on a feature's tab, the feature sees the change (the experiment carries the changed values over).
+        let before = self.options.tab.map(|tab| {
+            let old = self.state.clone();
+            let old_defaults = self.default_state(old.demo);
+            (tab, old, old_defaults)
+        });
         self.state = self.default_state(demo);
-        if let Err(e) = crate::experiment::apply(&mut self.state, &carried) {
-            self.experiment.message = Some(format!("{e:#}"));
-        }
-        if let Some(changes) = reference {
-            let mut r = self.default_state(demo);
-            match crate::experiment::apply(&mut r, &changes) {
-                Ok(()) => self.experiment.reference = Some(r),
-                Err(e) => self.experiment.message = Some(format!("{e:#}")),
-            }
-            self.experiment.measurement = None;
+        if let Some((tab, old, old_defaults)) = before {
+            let defaults = self.state.clone();
+            self.with_features(|features, host| {
+                if let Some(state) = features.state_mut(tab.0) {
+                    state.demo_selected(&crate::feature::DemoChange { old: &old, old_defaults: &old_defaults, defaults: &defaults }, host);
+                }
+            });
         }
         self.demo_time = 0.0;
         self.drift_from = 0.0;
@@ -35,48 +30,21 @@ impl App {
         self.show_tab();
     }
 
-    /// The Code tab shows the demonstration's first listing in the panel;
-    /// the other tabs show its struct panel.
+    /// The tab shown puts its panel up (src/feature/: the Code tab the demonstration's first listing), and the
+    /// others give theirs back: the demonstration's panel. A timeline's tab (the Captions) is the timeline's only.
     pub(super) fn show_tab(&mut self) {
-        if self.tab == DockTab::Captions && !self.timeline_mode {
-            self.tab = DockTab::Parameters;
+        if !self.timeline_mode && crate::feature::find(self.tab.0).is_some_and(|f| f.timeline()) {
+            self.tab = DockTab::default();
         }
         let defaults = self.default_state(self.state.demo);
-        // The Prerequisites tab shows the knowledge graph in the panel.
-        if self.tab == DockTab::Prerequisites {
-            self.state.panel = PanelMode::Knowledge;
-        } else if self.state.panel == PanelMode::Knowledge {
-            self.state.panel = defaults.panel;
+        // The features' tabs put their panels up, and give them back when left (src/feature/: the
+        // Prerequisites tab its knowledge graph, the Frame graph tab its DAG, the Code tab its listing).
+        let mut actions = Vec::new();
+        for feature in crate::feature::all() {
+            feature.show(&mut crate::feature::ShowTab { state: &mut self.state, defaults: &defaults, shown: self.tab.0 == feature.id(), actions: &mut actions });
         }
-        // The Frame graph tab shows the frame graph (its DAG, unless a view of it shows).
-        let graph = matches!(self.state.panel, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources);
-        if self.tab == DockTab::Graph {
-            if !graph {
-                self.state.panel = PanelMode::Dag;
-            }
-        } else if graph {
-            self.state.panel = defaults.panel;
-            self.dag_overlay = false;
-        }
-        if self.tab == DockTab::Code {
-            if self.state.panel != PanelMode::Code {
-                self.state.panel = PanelMode::Code;
-                self.state.code = investigation::current().listing_for_demo(self.state.demo).map(|l| l.name.to_string());
-                self.state.highlight.clear();
-            }
-        } else if self.state.panel == PanelMode::Code {
-            self.state.panel = defaults.panel;
-            self.state.highlight = defaults.highlight;
-            self.state.code = None;
-        }
-    }
-
-    /// The chapters the Prerequisites tab is about: on a timeline, the
-    /// current one; else those whose demonstrations include this one.
-    pub(super) fn knowledge_chapters(&self) -> Vec<u32> {
-        match (&self.timeline, self.timeline_mode) {
-            (Some(t), true) => vec![t.chapter_at(self.timeline_frame).number],
-            _ => crate::knowledge::current().map(|g| g.chapters_of_demo(self.state.demo.key())).unwrap_or_default(),
+        for action in actions {
+            self.apply(action);
         }
     }
 
@@ -114,8 +82,10 @@ impl App {
         if self.playing && self.timeline_mode {
             self.stop_audio();
             self.take_timeline_shot();
-            // Paused, the dock shows the caption, to read again.
-            self.tab = DockTab::Captions;
+            // Paused, the dock shows the timeline's tab (the caption, to read again).
+            if let Some(tab) = crate::feature::all().into_iter().find(|f| f.timeline()) {
+                self.tab = DockTab(tab.id());
+            }
             self.show_tab();
         }
         self.playing = false;

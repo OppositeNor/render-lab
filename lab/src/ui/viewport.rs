@@ -103,7 +103,7 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
 /// writes the layout, and a double-click puts that size back to its default.
 pub(super) fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
     let l = &input.layout;
-    let code = matches!(input.state.panel, PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources);
+    let code = input.state.panel.wide();
     let mut handles: Vec<(LayoutPart, Rect, egui::CursorIcon)> = Vec::new();
     // The panel's edge, when the panel shows beside the viewport.
     if l.viewport.max.x + 1.0 < l.panel.min.x {

@@ -19,16 +19,10 @@ impl App {
             KeyCode::Minus,
             KeyCode::Equal,
         ];
-        // The full-screen DAG and knowledge graph take the keys; Esc closes them.
-        if self.dag_overlay {
+        // What a feature shows full screen (the DAG, the knowledge graph) takes the keys; Esc closes it.
+        if self.features.covered(&self.state) {
             if code == KeyCode::Escape {
-                self.dag_overlay = false;
-            }
-            return;
-        }
-        if self.knowledge_overlay {
-            if code == KeyCode::Escape {
-                self.knowledge_overlay = false;
+                self.features.uncover(&self.state);
             }
             return;
         }
