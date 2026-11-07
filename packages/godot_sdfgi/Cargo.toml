@@ -4,7 +4,7 @@
 # (lab/Cargo.toml), so the binary, the lab, and this library share one build.
 [package]
 name = "godot_sdfgi"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.88"
 publish = false
