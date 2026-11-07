@@ -6,7 +6,8 @@ Paths and commands are relative to the repository root.
 
 ## Requirements
 
-Rust 1.88 or newer and a Vulkan driver. The shaders are WGSL, so no shader SDK is needed.
+Rust 1.88 or newer and a GPU driver with Vulkan (on Windows, Direct3D 12 also works; on macOS, Metal). wgpu picks
+the API; `WGPU_BACKEND` (`vulkan`, `dx12`, `metal`) chooses one. The shaders are WGSL, so no shader SDK is needed.
 
 ## Build from a checkout
 
@@ -47,7 +48,7 @@ cargo run --release --locked --offline -- home --autotest /tmp/render-lab-home.j
 cargo run --release --locked --offline -- --investigation o3de/lighting selftest --report /tmp/render-lab-o3de.json
 ```
 
-The offscreen checks need a Vulkan driver. See [Using Render Lab](docs/usage.md#commands) for more commands and snapshots.
+The offscreen checks need such a driver. See [Using Render Lab](docs/usage.md#commands) for more commands and snapshots.
 The [video builder](tools/video/README.md) covers its environment and checks; [experiment reports](tools/experiments/README.md)
 cover the reporting tools.
 

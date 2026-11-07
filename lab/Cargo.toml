@@ -1,6 +1,6 @@
 [package]
 name = "render-lab-core"
-version = "0.0.1"
+version = "0.0.0"
 edition = "2024"
 rust-version = "1.88"
 publish = false
@@ -60,6 +60,14 @@ lamlet-present = { git = "https://github.com/lamlet/lamlet-present", tag = "v0.3
 [target.'cfg(unix)'.dependencies]
 # The local time, for screenshots' names (src/readback.rs). Already vendored.
 libc = "0.2"
+
+# The GPU APIs besides Vulkan that wgpu may choose on each platform (src/gpu.rs): Direct3D 12 on Windows, Metal on
+# macOS. Cargo adds these features to the wgpu above.
+[target.'cfg(windows)'.dependencies]
+wgpu = { version = "=30.0.1", default-features = false, features = ["dx12"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { version = "=30.0.1", default-features = false, features = ["metal"] }
 
 [build-dependencies]
 # build.rs's check of the lab's own package (render_lab).
