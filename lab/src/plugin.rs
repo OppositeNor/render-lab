@@ -62,6 +62,10 @@ pub type NegotiateFn = unsafe extern "C" fn(negotiation: *mut Negotiation) -> i3
 /// The handle `investigations`: the package's investigations, as the homepage lists them.
 pub type InvestigationsFn = fn() -> &'static [&'static dyn Investigation];
 
+/// The optional handle `features`: the viewer features the package adds (src/feature/), each a tab of the
+/// dock for the investigations it is available to.
+pub type FeaturesFn = fn() -> &'static [&'static dyn crate::feature::Feature];
+
 /// Defines a package's negotiation function, `$symbol` (its manifest's
 /// `negotiate`), which hands the loader `handles`: each a name and a function
 /// of that handle's type (`"investigations" => f as InvestigationsFn`).
@@ -124,6 +128,12 @@ impl Handles {
         // SAFETY: `negotiate!` registers this name with a function of this type.
         self.0.get("investigations").map(|h| unsafe { std::mem::transmute::<*const c_void, InvestigationsFn>(h.0) })
     }
+
+    /// The `features` handle, if the library registered it.
+    pub fn features(&self) -> Option<FeaturesFn> {
+        // SAFETY: `negotiate!` registers this name with a function of this type.
+        self.0.get("features").map(|h| unsafe { std::mem::transmute::<*const c_void, FeaturesFn>(h.0) })
+    }
 }
 
 unsafe extern "C" fn register(map: *mut c_void, name: *const c_char, handle: *const c_void) -> i32 {
@@ -172,7 +182,12 @@ mod tests {
         &[]
     }
 
+    fn no_features() -> &'static [&'static dyn crate::feature::Feature] {
+        &[]
+    }
+
     crate::negotiate!(good, ["investigations" => none as InvestigationsFn]);
+    crate::negotiate!(with_features, ["investigations" => none as InvestigationsFn, "features" => no_features as FeaturesFn]);
     crate::negotiate!(twice, ["investigations" => none as InvestigationsFn, "investigations" => none as InvestigationsFn]);
 
     /// A library of another build: it checks against a fingerprint of its own.
@@ -186,6 +201,11 @@ mod tests {
         let handles = unsafe { negotiate(good) }.unwrap();
         assert_eq!(handles.names().collect::<Vec<_>>(), ["investigations"]);
         assert!(handles.investigations().unwrap()().is_empty());
+        // `features` is optional: a library without it has none.
+        assert!(handles.features().is_none());
+        let handles = unsafe { negotiate(with_features) }.unwrap();
+        assert_eq!(handles.names().collect::<Vec<_>>(), ["features", "investigations"]);
+        assert!(handles.features().unwrap()().is_empty());
         assert!(unsafe { negotiate(twice) }.err().unwrap().contains("twice"));
         assert!(unsafe { negotiate(other_build) }.err().unwrap().contains("another build"));
     }

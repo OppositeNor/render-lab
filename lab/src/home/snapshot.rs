@@ -143,18 +143,6 @@ pub(super) fn opened_by(options: &HomeOptions, choose: impl FnOnce(&'static dyn 
     viewer_options(choose(investigation::current()), &home, options, size).expect("a choice that opens the viewer")
 }
 
-/// The viewer offscreen as Explore opens it, with the performance panel (`viewer::snapshot_performance`).
-pub fn snapshot_performance(options: &HomeOptions, demo: Option<&str>, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
-    viewer::snapshot_performance(viewer_options, demo, png)
-}
-
-/// The viewer offscreen with the frame graph in the panel (`viewer::snapshot_graph`).
-pub fn snapshot_graph(options: &HomeOptions, demo: Option<&str>, inspect: Option<&str>, how: viewer::GraphSnapshot, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
-    viewer::snapshot_graph(viewer_options, demo, inspect, how, png)
-}
-
 /// The viewer offscreen with the free camera on (`viewer::snapshot_free`).
 pub fn snapshot_free(options: &HomeOptions, demo: Option<&str>, png: &Path) -> Result<()> {
     let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
@@ -167,40 +155,11 @@ pub fn snapshot_layout(options: &HomeOptions, png: &Path) -> Result<()> {
     viewer::snapshot_layout(viewer_options, png)
 }
 
-/// The viewer offscreen as the homepage's Experiment button opens it, on
-/// `demo` or the first demonstration: the Experiments tab, and with
-/// `compare`, a reference set and compared (src/experiment.rs).
-pub fn snapshot_experiments(options: &HomeOptions, demo: Option<&str>, compare: bool, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Experiment { investigation });
-    viewer::snapshot_experiments(viewer_options, demo, compare, png)
-}
-
-/// The viewer offscreen as the homepage's Quiz button opens it (src/quiz.rs), at question `spec`
-/// (`<question>[@<choice>]`: 1 first, A first; past the last: the score).
-pub fn snapshot_quiz(options: &HomeOptions, spec: Option<&str>, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Quiz { investigation });
-    let (question, choice) = spec.map_or((None, None), |s| s.split_once('@').map_or((Some(s), None), |(q, c)| (Some(q), Some(c))));
-    let question = question.map(|q| q.parse::<usize>().ok().filter(|n| *n >= 1).ok_or_else(|| anyhow::anyhow!("a quiz page's question is a number from 1: `{q}`"))).transpose()?;
-    let choice = choice
-        .map(|c| {
-            let c = c.trim().to_ascii_uppercase();
-            c.chars().next().filter(|l| c.len() == 1 && l.is_ascii_uppercase()).map(|l| (l as u8 - b'A') as usize).ok_or_else(|| anyhow::anyhow!("a quiz page's choice is a letter: `{c}`"))
-        })
-        .transpose()?;
-    viewer::snapshot_quiz(viewer_options, question.map_or(0, |q| q - 1), choice, png)
-}
-
-/// The viewer offscreen on its Code tab, showing `listing` (`viewer::snapshot_code`).
-pub fn snapshot_code(options: &HomeOptions, listing: &str, tag: Option<&str>, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
-    viewer::snapshot_code(viewer_options, listing, tag, png)
-}
-
-/// The viewer offscreen on its Prerequisites tab, the knowledge graph in the
-/// panel, on `demo` or the first demonstration (`viewer::snapshot_prerequisites`).
-pub fn snapshot_prerequisites(options: &HomeOptions, demo: Option<&str>, focus: bool, overlay: bool, png: &Path) -> Result<()> {
-    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
-    viewer::snapshot_prerequisites(viewer_options, demo, focus, overlay, png)
+/// The viewer offscreen as a feature's homepage button opens it (src/feature/), at its snapshot page `page`
+/// (`viewer::snapshot_feature`).
+pub fn snapshot_feature(options: &HomeOptions, feature: &'static dyn crate::feature::Feature, page: &str, args: Option<&str>, png: &Path) -> Result<()> {
+    let viewer_options = opened_by(options, |investigation| Choice::Feature { investigation, feature });
+    viewer::snapshot_feature(viewer_options, feature, page, args, png)
 }
 
 /// `snapshot_viewer`, or with `paused`, its timeline paused on a 2D scene.
@@ -366,14 +325,13 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
         let explore = offscreen.click(&mut home, "explore").flatten();
         let ok = matches!(explore, Some(Choice::Explore { investigation }) if investigation.path() == i.path());
         check(&format!("{}: Explore opens the demonstrations", i.path()), ok, describe(explore));
-        let experiment = offscreen.click(&mut home, "experiment").flatten();
-        let ok = matches!(experiment, Some(Choice::Experiment { investigation }) if investigation.path() == i.path());
-        check(&format!("{}: Experiment opens the experiments", i.path()), ok, describe(experiment));
-        // Its quiz, when its package has one (src/quiz.rs); the button does nothing without.
-        let quiz = offscreen.click(&mut home, "quiz").flatten();
-        let has_quiz = !crate::quiz::ids(*i).is_empty();
-        let ok = if has_quiz { matches!(quiz, Some(Choice::Quiz { investigation }) if investigation.path() == i.path()) } else { quiz.is_none() };
-        check(&format!("{}: Quiz opens its quiz (has one: {has_quiz})", i.path()), ok, describe(quiz));
+        // Each feature's button (src/feature/: experiment, the quiz) opens its tab when the investigation has it, else does nothing.
+        for feature in crate::feature::all().into_iter().filter(|f| f.home().is_some()) {
+            let opened = offscreen.click(&mut home, feature.id()).flatten();
+            let has = feature.available(*i);
+            let ok = if has { matches!(opened, Some(Choice::Feature { investigation, feature: f }) if investigation.path() == i.path() && f.id() == feature.id()) } else { opened.is_none() };
+            check(&format!("{}: its {} button opens its tab (has it: {has})", i.path(), feature.id()), ok, describe(opened));
+        }
         let Some(timeline) = i.timelines().first() else { continue };
         let watch = offscreen.click(&mut home, "watch").flatten();
         let ok = matches!(watch, Some(Choice::Watch { investigation, timeline: t, start_frame: 0, .. }) if investigation.path() == i.path() && t.id == timeline.id);

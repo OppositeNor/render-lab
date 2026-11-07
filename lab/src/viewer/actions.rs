@@ -62,13 +62,16 @@ impl App {
                 let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
                 self.seek((fraction.clamp(0.0, 1.0) as f64 * total as f64) as u64);
             }
-            // The experiment's reference focused: the slider sets the reference's value (its camera is the live one's).
-            ViewerAction::SetParam(name, value) if interactive && self.focus == ViewId::REFERENCE && self.experiment.reference.is_some() => {
-                let reference = self.experiment.reference.as_mut().expect("a reference");
-                reference.set(name, value);
-                for (k, v) in investigation::current().linked_params(name, value) {
-                    reference.set(k, v);
-                }
+            // A view a feature adds focused (the experiment's reference): the slider sets that view's value.
+            ViewerAction::SetParam(name, value) if interactive && self.focus != ViewId::MAIN && self.features.view_state(self.focus, &self.state).is_some() => {
+                let focus = self.focus;
+                self.with_features(|features, _| {
+                    for state in features.states_mut() {
+                        if state.set_value(focus, name, value) {
+                            break;
+                        }
+                    }
+                });
             }
             // A view stacked over the main one focused: the slider sets that view's value (src/view.rs).
             ViewerAction::SetParam(name, value) if interactive && self.over_camera(self.focus).is_some() => {
@@ -78,16 +81,7 @@ impl App {
                     self.state.set(&format!("view.{view}.{k}"), v);
                 }
             }
-            ViewerAction::SetParam(name, value) if interactive => {
-                // Taking hold of an animated value stops the animation where it is.
-                if self.playing && self.animated(name) {
-                    self.stop();
-                }
-                self.state.set(name, value);
-                for (k, v) in investigation::current().linked_params(name, value) {
-                    self.state.set(k, v);
-                }
-            }
+            ViewerAction::SetParam(name, value) if interactive => self.set_live_value(name, value),
             // The free camera's view focused: the camera sliders move the free camera.
             ViewerAction::SetCamera(camera) if self.focus == ViewId::FREE && self.free_camera_on() => {
                 self.free_view().place(&camera);
@@ -110,7 +104,6 @@ impl App {
             }
             ViewerAction::SetHighlight(fields) if interactive => self.state.highlight = fields,
             ViewerAction::SetPanel(mode) if interactive => self.state.panel = mode,
-            ViewerAction::Inspect(key) if interactive => inspect(&mut self.state, key),
             ViewerAction::ResetParameters if interactive => {
                 // The camera stays unless the dock shows it (the overview's camera sliders).
                 self.stop();
@@ -124,89 +117,13 @@ impl App {
             }
             ViewerAction::SelectTab(tab) => {
                 self.tab = tab;
-                if tab == DockTab::Experiments {
-                    self.experiment.presets = crate::experiment::presets();
-                }
                 self.show_tab();
-                if tab == DockTab::Quiz && self.quiz.quiz.is_none() {
-                    self.open_quiz();
-                }
-            }
-            ViewerAction::QuizAnswer(choice) if interactive => {
-                let i = self.quiz.view.index;
-                if let Some(answer) = self.quiz.view.answers.get_mut(i).filter(|a| a.is_none()) {
-                    *answer = Some(choice);
-                }
-            }
-            ViewerAction::QuizGo(i) if interactive => self.quiz_go(i),
-            ViewerAction::QuizRestart if interactive => {
-                self.quiz.view.answers.iter_mut().for_each(|a| *a = None);
-                self.quiz_go(0);
-            }
-            ViewerAction::SetCode(name) if interactive => {
-                self.state.code = Some(name.to_string());
-                self.state.highlight.clear();
+                self.select_feature();
             }
             ViewerAction::Home => {
                 self.stop_audio();
                 self.exit = ViewerExit::Back;
                 self.leaving = true;
-            }
-            ViewerAction::ResetParam(key) if interactive => {
-                let defaults = self.default_state(self.state.demo);
-                if let Some(value) = defaults.try_get(key) {
-                    if crate::camera::OrbitCamera::schema().iter().any(|e| e.key == key || e.components.contains(&key)) {
-                        self.end_intro();
-                        self.state.camera.set(key, value);
-                    } else {
-                        self.state.set(key, value.f32());
-                        for (k, v) in investigation::current().linked_params(key, value.f32()) {
-                            self.state.set(k, v);
-                        }
-                    }
-                }
-            }
-            ViewerAction::SetReference => {
-                self.experiment.reference = Some(self.state.clone());
-                if self.experiment.compare == crate::experiment::Compare::Off {
-                    self.experiment.compare = crate::experiment::Compare::Wipe;
-                }
-                self.experiment.measurement = None;
-                self.experiment.message = Some(crate::i18n::tr("experiments-reference_set").to_string());
-            }
-            ViewerAction::ClearReference => {
-                self.experiment.reference = None;
-                self.experiment.compare = crate::experiment::Compare::Off;
-                self.experiment.measurement = None;
-            }
-            ViewerAction::SwapReference if interactive => {
-                if let Some(reference) = self.experiment.reference.take() {
-                    let camera = self.state.camera;
-                    let live = std::mem::replace(&mut self.state, ShotState { camera, ..reference });
-                    self.experiment.reference = Some(live);
-                    self.experiment.measurement = None;
-                }
-            }
-            ViewerAction::SetCompare(mode) => self.experiment.compare = mode,
-            ViewerAction::SetSplit(split) => self.experiment.split = split.clamp(0.0, 1.0),
-            ViewerAction::SetGain(gain) => self.experiment.gain = gain.clamp(1.0, 64.0),
-            ViewerAction::Measure => self.measure(),
-            ViewerAction::SavePreset(name) => {
-                let defaults = self.default_state(self.state.demo);
-                let experiment = crate::experiment::Experiment::capture(&name, &self.state, &defaults, self.experiment.reference.as_ref());
-                self.experiment.message = Some(match crate::experiment::save_user(&experiment) {
-                    Ok(path) => crate::i18n::tr_with("experiments-saved", crate::i18n::args!(path = path.display().to_string())),
-                    Err(e) => format!("{e:#}"),
-                });
-                self.experiment.presets = crate::experiment::presets();
-            }
-            ViewerAction::LoadPreset(i) if interactive => {
-                if let Some(preset) = self.experiment.presets.get(i).cloned() {
-                    self.experiment.message = Some(match self.load_experiment(&preset) {
-                        Ok(()) => crate::i18n::tr_with("experiments-loaded", crate::i18n::args!(name = preset.name.clone())),
-                        Err(e) => format!("{e:#}"),
-                    });
-                }
             }
             ViewerAction::ResizeLayout(part, size) => {
                 let size = size.map(|s| s.round().max(1.0) as u32);
@@ -217,9 +134,6 @@ impl App {
                 }
             }
             ViewerAction::SaveLayout => self.save_layout(),
-            ViewerAction::SetKnowledgeOverlay(on) => self.knowledge_overlay = on,
-            ViewerAction::SetDagOverlay(on) => self.dag_overlay = on,
-            ViewerAction::ShowSource(on) => self.graph_source = on,
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
                 self.save_layout();
@@ -259,7 +173,7 @@ impl App {
             if self.layout.dock_height.is_some() {
                 self.layout.dock_height = Some(dock);
             }
-            let code = matches!(self.state.panel, PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources);
+            let code = self.state.panel.wide();
             let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
             if width.is_some() && l.viewport.max.x < l.panel.min.x {
                 *width = Some(panel);
@@ -271,82 +185,103 @@ impl App {
         }
     }
 
-    /// Measure the live view against the reference's, as the last frame drew them (src/metrics.rs).
-    pub(super) fn measure(&mut self) {
-        let Some(renderer) = self.renderer.as_mut() else { return };
-        let views = renderer.read_view(crate::renderer::ViewKind::Reference).zip(renderer.read_view(crate::renderer::ViewKind::Live));
-        match views {
-            Some(((ref_display, ref_linear), (display, linear))) if ref_display.width == display.width && ref_display.height == display.height => {
-                self.experiment.measurement = Some(crate::metrics::measure(&ref_display, &display, Some((&ref_linear, &linear))));
-                self.experiment.message = None;
+    /// Tell the current tab's feature (src/feature/) it was selected.
+    pub(super) fn select_feature(&mut self) {
+        let tab = self.tab;
+        self.with_features(|features, host| {
+            if let Some(state) = features.state_mut(tab.0) {
+                state.selected(host);
             }
-            _ => self.experiment.message = Some(crate::i18n::tr("experiments-measure_needs_reference").to_string()),
-        }
-    }
-
-    /// Open the investigation's first quiz at its first question (the Quiz tab); a quiz that does not read is
-    /// said in the panel.
-    pub(super) fn open_quiz(&mut self) {
-        let current = investigation::current();
-        let package = current.package().unwrap_or("render_lab");
-        let opened = crate::quiz::ids(current).first().cloned().ok_or_else(|| anyhow::anyhow!("{}", crate::i18n::tr("quiz-none"))).and_then(|id| crate::quiz::load(&id));
-        match opened {
-            Ok(quiz) => {
-                self.quiz.view = crate::quiz::QuizView::of(&quiz, package);
-                self.quiz.quiz = Some(quiz);
-                self.quiz_go(0);
-            }
-            Err(e) => self.quiz.view = crate::quiz::QuizView { title: current.title().to_string(), error: Some(format!("{e:#}")), ..Default::default() },
-        }
-    }
-
-    /// Show question `i` of the quiz: its demonstration at its defaults, then its camera and values (the score
-    /// past the last question keeps the view).
-    pub(super) fn quiz_go(&mut self, i: usize) {
-        let Some(quiz) = self.quiz.quiz.clone() else { return };
-        self.quiz.view.index = i.min(quiz.questions.len());
-        let Some(question) = quiz.questions.get(i) else { return };
-        self.stop();
-        self.intro = None;
-        let shown = question.start_demo().and_then(|demo| {
-            let mut state = self.default_state(demo);
-            question.apply(&mut state)?;
-            Ok(state)
         });
-        match shown {
-            Ok(state) => {
-                self.state = state;
-                self.demo_time = 0.0;
-                self.drift_from = 0.0;
-                self.show_tab();
-            }
-            Err(e) => self.quiz.view.error = Some(format!("{e:#}")),
+    }
+
+    /// Update every feature: what its UI asked, done with the viewer.
+    pub(super) fn update_features(&mut self) {
+        self.with_features(|features, host| features.states_mut().for_each(|state| state.update(host)));
+    }
+
+    /// Run `f` on the features with the viewer as their host, then apply what they asked of it.
+    pub(super) fn with_features(&mut self, f: impl FnOnce(&mut crate::feature::Features, &mut dyn crate::feature::Host)) {
+        let mut features = std::mem::take(&mut self.features);
+        f(&mut features, self);
+        self.features = features;
+        for action in std::mem::take(&mut self.feature_actions) {
+            self.apply(action);
         }
     }
 
-    /// Open an experiment file: its demonstration, camera, and base values,
-    /// and its reference (with a comparison) when it has one.
-    pub(super) fn load_experiment(&mut self, preset: &crate::experiment::Preset) -> Result<()> {
-        let experiment = preset.load()?;
-        experiment.check()?;
+    /// Set a value of the live state, as its dock slider does: taking hold of an animated value stops the
+    /// animation where it is; the values linked to it follow.
+    pub(super) fn set_live_value(&mut self, name: &'static str, value: f32) {
+        if self.playing && self.animated(name) {
+            self.stop();
+        }
+        self.state.set(name, value);
+        for (k, v) in investigation::current().linked_params(name, value) {
+            self.state.set(k, v);
+        }
+    }
+}
+
+impl crate::feature::Host for App {
+    fn state(&self) -> &ShotState {
+        &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut ShotState {
+        &mut self.state
+    }
+
+    fn interactive(&self) -> bool {
+        !self.timeline_playing()
+    }
+
+    fn ready(&self) -> bool {
+        self.renderer.is_some() && !self.timeline_mode
+    }
+
+    fn default_state(&mut self, demo: DemoId) -> ShotState {
+        App::default_state(self, demo)
+    }
+
+    fn set_state(&mut self, state: ShotState) {
         self.stop();
         self.intro = None;
-        let demo = experiment.start_demo()?;
-        let mut state = self.default_state(demo);
-        experiment.apply(&mut state, &experiment.base)?;
-        self.experiment.reference = match experiment.reference_values() {
-            Some(values) => {
-                let mut reference = state.clone();
-                experiment.apply(&mut reference, &values)?;
-                Some(reference)
-            }
-            None => None,
-        };
-        if self.experiment.reference.is_some() && self.experiment.compare == crate::experiment::Compare::Off {
-            self.experiment.compare = crate::experiment::Compare::Wipe;
-        }
-        self.experiment.measurement = None;
         self.state = state;
-        Ok(())
+    }
+
+    fn show(&mut self, state: ShotState) {
+        self.set_state(state);
+        self.demo_time = 0.0;
+        self.drift_from = 0.0;
+        self.show_tab();
+    }
+
+    fn set_value(&mut self, key: &'static str, value: f32) {
+        self.set_live_value(key, value);
+    }
+
+    fn renderer(&mut self) -> Option<&mut Renderer> {
+        self.renderer.as_mut()
+    }
+
+    fn act(&mut self, action: ViewerAction) {
+        self.feature_actions.push(action);
+    }
+
+    fn tab(&self) -> DockTab {
+        self.tab
+    }
+
+    fn timeline_chapter(&self) -> Option<u32> {
+        self.timeline.as_ref().filter(|_| self.timeline_mode).map(|t| t.chapter_at(self.timeline_frame).number)
+    }
+
+    /// Paused: the caption at or last before the frame, and the one before that.
+    fn captions(&self) -> (Option<String>, Option<String>) {
+        let Some(t) = self.timeline.as_ref().filter(|_| self.timeline_mode && !self.playing) else { return (None, None) };
+        let (_, beat) = t.beat_at(self.timeline_frame);
+        let at = beat.captions.iter().rposition(|c| c.start <= self.timeline_frame);
+        (at.and_then(|i| i.checked_sub(1)).map(|i| beat.captions[i].text.clone()), at.map(|i| beat.captions[i].text.clone()))
     }
 }

@@ -115,6 +115,8 @@ pub struct Renderer {
     pub user_layout: crate::config::ViewerLayout,
     /// A recording's code panel width for each listing and language (ui::code_panel_fit).
     code_fit: HashMap<(&'static str, crate::i18n::Locale, crate::pseudocode::Style), f32>,
+    /// The features a recording's story panels are drawn by (src/feature/), made for its first frame.
+    recording_features: Option<crate::feature::Features>,
     /// The pointer's cursor the last frame's interface asked for (egui's).
     pub cursor: egui::CursorIcon,
     /// When each recent frame started rendering, for the performance panel's frame times.
@@ -123,8 +125,8 @@ pub struct Renderer {
     fetches: crate::fetch::Queue,
     /// How deep the redraws of a frame drawn alone, waiting for its reads, are.
     settling: u8,
-    /// GPU timestamps around the frame's passes (src/timing.rs), while an
-    /// experiment asks for them (`set_timing`) and the device has them.
+    /// GPU timestamps around the frame's passes (src/timing.rs), while a panel
+    /// or a feature asks for them (`set_timing`) and the device has them.
     pub timing: Option<crate::timing::Timing>,
 }
 
@@ -308,6 +310,7 @@ impl Renderer {
             reference_drawn: false,
             user_layout: Default::default(),
             code_fit: HashMap::new(),
+            recording_features: None,
             cursor: egui::CursorIcon::Default,
             frame_starts: std::collections::VecDeque::new(),
             fetches: crate::fetch::Queue::default(),
@@ -425,7 +428,7 @@ impl Renderer {
     }
 
     /// `dock`: the interactive viewer's layout with the slider dock.
-    /// With `values`, the panel shows (the Experiments tab's values) whatever the state's panel mode.
+    /// With `values`, the panel shows (a feature's own, `FeatureLayout::panel`) whatever the state's panel mode.
     /// `code_width`: the code panel's width when a listing shows (a recording's, fit to it).
     pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool, values: bool, code_width: Option<f32>) -> Layout {
         let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden || values;
@@ -434,7 +437,7 @@ impl Renderer {
             layout = layout.with_dock();
         }
         // The pseudo-code and the knowledge graph take the wider panel.
-        let code = scene_type == SceneType::ThreeD && matches!(state.panel, crate::shot::PanelMode::Code | crate::shot::PanelMode::Knowledge | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
+        let code = scene_type == SceneType::ThreeD && state.panel.wide();
         layout = match code_width {
             Some(width) if code && state.panel == crate::shot::PanelMode::Code => layout.with_panel_width(width),
             _ => layout.with_user(&self.user_layout, dock, code),
@@ -627,7 +630,7 @@ impl Renderer {
         // a recording's frame with history waits for the last frame's.
         self.fetches.collect(&self.gpu.device, request.wait && request.history);
         // The performance panel measures the frames it is shown with.
-        if matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources) && request.scene_type == SceneType::ThreeD {
+        if request.state.panel.shows_passes() && request.scene_type == SceneType::ThreeD {
             self.set_timing(true);
         }
         self.frame_starts.push_back(std::time::Instant::now());
@@ -635,7 +638,7 @@ impl Renderer {
             self.frame_starts.pop_front();
         }
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if matches!(v.tab, ui::DockTab::Experiments | ui::DockTab::Quiz));
+        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if v.feature_panel().is_some());
         // A recording's code panel is as wide as its listing needs.
         let listing = match &request.chrome {
             Chrome::Recording { .. } if request.state.panel == crate::shot::PanelMode::Code => request.state.code.as_deref().and_then(|c| investigation::current().listing(c)),
@@ -881,7 +884,7 @@ impl Renderer {
             }
         }
         let diagram_pictures: Vec<crate::diagram::Picture> = boxes.iter().filter_map(|(group, _)| self.inspections.get(&format!("{BOX_IMAGE}{group}")).map(|x| (group.clone(), x.id, x.size))).collect();
-        let shows_performance = matches!(request.state.panel, crate::shot::PanelMode::Performance | crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources);
+        let shows_performance = request.state.panel.shows_passes();
         // A recording (no live frames before it, or a single snapshot) times a
         // few renders of the same shot first, so its panel shows measurements.
         const PERFORMANCE_WARMUP: usize = 12;
@@ -906,7 +909,7 @@ impl Renderer {
             }
         }
         let performance = shows_performance.then(|| self.performance_view());
-        let graph_view = matches!(request.state.panel, crate::shot::PanelMode::Graph | crate::shot::PanelMode::Dag | crate::shot::PanelMode::Resources).then(|| self.graph_view());
+        let graph_view = request.state.panel.shows_graph().then(|| self.graph_view());
         let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
         let over_views: Vec<ui::PaneView> = over_drawn.iter().filter(|(_, a, _)| *a > 0.5).map(|(_, _, content)| ui::PaneView { rect: layout.viewport, content, title: None }).collect();
         // egui pass content.
@@ -944,12 +947,16 @@ impl Renderer {
         // frame would depend on the frames rendered before it.
         self.egui_ctx.set_glyph_rasterizers(Vec::new());
         ui::restyle(&self.egui_ctx);
+        let recording = match &chrome {
+            Chrome::Recording { .. } => self.recording_features.get_or_insert_with(|| crate::feature::Features::new(investigation::current())),
+            Chrome::Viewer(_) => self.recording_features.get_or_insert_with(Default::default),
+        };
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
             let chrome = match &mut chrome {
                 Chrome::Recording { timeline, frame } => Chrome::Recording { timeline, frame: *frame },
                 Chrome::Viewer(v) => Chrome::Viewer(v),
             };
-            report = ui::draw(ctx, &ui_input, chrome);
+            report = ui::draw(ctx, &ui_input, chrome, recording);
         });
         self.cursor = output.platform_output.cursor_icon;
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, output.pixels_per_point);

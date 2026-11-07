@@ -227,10 +227,12 @@ pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions,
     let (investigation, timeline, audio, start_frame, locale) = match choice {
         Choice::Quit => return None,
         Choice::Watch { investigation, timeline, start_frame, .. } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
-        Choice::Explore { investigation } | Choice::Experiment { investigation } | Choice::Quiz { investigation } => (investigation, None, None, 0, Some(home.applied.language)),
+        Choice::Explore { investigation } | Choice::Feature { investigation, .. } => (investigation, None, None, 0, Some(home.applied.language)),
     };
-    let experiments = matches!(choice, Choice::Experiment { .. });
-    let quiz = matches!(choice, Choice::Quiz { .. });
+    let tab = match choice {
+        Choice::Feature { feature, .. } => feature.label().map(|_| crate::ui::DockTab(feature.id())),
+        _ => None,
+    };
     investigation::set(investigation);
     Some(ViewerOptions {
         timeline,
@@ -244,8 +246,7 @@ pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions,
         start_frame,
         fullscreen: home.applied.fullscreen,
         narration: home.applied.narration,
-        experiments,
-        quiz,
+        tab,
         layout: home.applied.layout,
         settings: home.settings.path.clone(),
     })

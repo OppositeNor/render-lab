@@ -7,7 +7,7 @@
 //! (src/investigations.rs).
 
 use anyhow::{bail, Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use crate::home;
 use crate::investigations;
 use crate::text::DEFAULT_UI_SCALE;
@@ -57,25 +57,10 @@ enum Command {
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
         /// the investigation's first timeline, with its bar), viewer-diagram (that timeline paused on its first 2D
         /// scene with an image, the image's panel zoomed in), viewer-sources (paused on its first sources card),
-        /// viewer-experiments[:<demo>] (the Experiment button's viewer: the Experiments tab), or
-        /// viewer-compare[:<demo>] (that viewer with a reference set and compared, a wipe), or
-        /// viewer-quiz[:<question>[@<choice>]] (the Quiz button's viewer on that question, 1 first, with that
-        /// choice picked, A first; none: unanswered; past the last question: the score), or
         /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
-        /// viewer-performance[:<demo>] (the performance panel, its most expensive pass called out), or
-        /// viewer-graph[:<demo>] (the frame graph in the panel, the inspector on what its most expensive pass writes), or
-        /// viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…] (the frame graph, the inspector on that resource after that node), or
-        /// viewer-dag[:<demo>][@<node>,…] (the frame graph as a DAG in the panel, each pass's result on its card, those nodes called out), or
-        /// viewer-dag-full[:<demo>][@<node>,…] (that DAG full screen), or
-        /// viewer-resources[-full][:<demo>][@<node>,…] (every resource as a card, its state at the end of the frame), or
-        /// viewer-source:<node> (the full-screen DAG, that node selected, the WGSL it is compiled from beside it), or
         /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
-        /// viewer-code:<listing>[@<tag>] (the Code tab on that listing, the tag's lines lit; see --listing-style), or
-        /// viewer-prerequisites[:<demo>] (the Prerequisites tab, the knowledge graph in the panel), or
-        /// viewer-knowledge[:<demo>] (that panel zoomed onto a topic of the audience's level, selected), or
-        /// viewer-knowledge-graph[:<demo>] (the knowledge graph full screen over the viewer; viewer-knowledge-compact: only
-        /// the topics its context needs), or select-knowledge
-        /// (the selection page with the chosen feature's knowledge graph full screen).
+        /// select-knowledge (the selection page with the chosen feature's knowledge graph full screen),
+        /// or a page of a viewer feature's (src/feature/; --help lists them).
         #[arg(long, default_value = "title")]
         page: String,
         /// Check the homepage's controls offscreen and write a JSON report.
@@ -465,7 +450,10 @@ pub struct App {
 
 /// Runs the command line; the binary's `main`.
 pub fn main(app: App) -> Result<()> {
-    let cli = Cli::parse();
+    // `--page`'s help lists the lab's features' pages too (src/feature/).
+    let pages = format!("{}\n\nThe viewer's features' pages: {}; and the pages of the packages' features.", Cli::command().find_subcommand("home").and_then(|c| c.get_arguments().find(|a| a.get_id() == "page")).and_then(|a| a.get_long_help().or(a.get_help())).map(|h| h.to_string()).unwrap_or_default(), crate::feature::page_help());
+    let command = Cli::command().mut_subcommand("home", |c| c.mut_arg("page", |a| a.long_help(pages)));
+    let cli = Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit());
     if let Some(root) = &cli.root {
         crate::resources::set_root(root.clone());
     }
@@ -514,46 +502,11 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Diagram), &png),
                 (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Sources), &png),
                 (Some(png), _) if page == "viewer-layout" => home::snapshot_layout(&options, &png),
-                (Some(png), _) if page.starts_with("viewer-code:") => {
-                    let (listing, tag) = page["viewer-code:".len()..].split_once('@').map_or((&page["viewer-code:".len()..], None), |(l, t)| (l, Some(t)));
-                    home::snapshot_code(&options, listing, tag, &png)
-                }
                 (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png),
-                (Some(png), _) if page == "viewer-performance" || page.starts_with("viewer-performance:") => home::snapshot_performance(&options, page.strip_prefix("viewer-performance:"), &png),
-                (Some(png), _) if page == "viewer-graph" || page.starts_with("viewer-graph:") => home::snapshot_graph(&options, page.strip_prefix("viewer-graph:"), None, Default::default(), &png),
-                (Some(png), _) if page.starts_with("viewer-inspect:") => home::snapshot_graph(&options, None, page.strip_prefix("viewer-inspect:"), Default::default(), &png),
-                // viewer-source:<node>: the full-screen DAG, that node selected, its WGSL beside it.
-                (Some(png), _) if page.starts_with("viewer-source:") => {
-                    let node = page.strip_prefix("viewer-source:").unwrap_or_default();
-                    let graph = crate::graph::FrameGraph::current(&[]);
-                    let i = graph.node(node).ok_or_else(|| anyhow::anyhow!("no node `{node}`"))?;
-                    let key = format!("{node}.{}", graph.result_of(i).ok_or_else(|| anyhow::anyhow!("`{node}` has no result to select"))?);
-                    home::snapshot_graph(&options, None, Some(&key), crate::viewer::GraphSnapshot { dag: true, full_screen: true, source: true, ..Default::default() }, &png)
-                }
-                (Some(png), _) if page.starts_with("viewer-dag") || page.starts_with("viewer-resources") => {
-                    // viewer-dag[-full][:<demo>][@<node>,…], viewer-resources[-full]…
-                    let resources = page.starts_with("viewer-resources");
-                    let page = page.strip_prefix(if resources { "viewer-resources" } else { "viewer-dag" }).unwrap_or_default();
-                    let (rest, full_screen) = match page.strip_prefix("-full") {
-                        Some(rest) => (rest, true),
-                        None => (page, false),
-                    };
-                    let (rest, highlight) = match rest.split_once('@') {
-                        Some((rest, nodes)) => (rest, nodes.split(',').map(str::to_string).collect()),
-                        None => (rest, Vec::new()),
-                    };
-                    let demo = rest.strip_prefix(':').filter(|d| !d.is_empty());
-                    home::snapshot_graph(&options, demo, None, crate::viewer::GraphSnapshot { dag: true, resources, full_screen, highlight, source: false }, &png)
-                }
-                (Some(png), _) if page == "viewer-experiments" || page.starts_with("viewer-experiments:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-experiments:"), false, &png),
-                (Some(png), _) if page == "viewer-quiz" || page.starts_with("viewer-quiz:") => home::snapshot_quiz(&options, page.strip_prefix("viewer-quiz:"), &png),
-                (Some(png), _) if page == "viewer-compare" || page.starts_with("viewer-compare:") => home::snapshot_experiments(&options, page.strip_prefix("viewer-compare:"), true, &png),
-                (Some(png), _) if page == "viewer-prerequisites" || page.starts_with("viewer-prerequisites:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-prerequisites:"), false, false, &png),
-                (Some(png), _) if page == "viewer-knowledge" || page.starts_with("viewer-knowledge:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge:"), true, false, &png),
-                (Some(png), _) if page == "viewer-knowledge-graph" || page.starts_with("viewer-knowledge-graph:") => home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge-graph:"), false, true, &png),
-                (Some(png), _) if page == "viewer-knowledge-compact" || page.starts_with("viewer-knowledge-compact:") => {
-                    crate::ui::set_knowledge_compact(true);
-                    home::snapshot_prerequisites(&options, page.strip_prefix("viewer-knowledge-compact:"), false, true, &png)
+                // A feature's page (src/feature/: viewer-experiments, viewer-quiz, viewer-prerequisites…): the viewer on its tab, set up as the page says.
+                (Some(png), _) if crate::feature::page(&page).is_some() => {
+                    let (feature, name, args) = crate::feature::page(&page).expect("a feature's page");
+                    home::snapshot_feature(&options, feature, name, args, &png)
                 }
                 (Some(png), _) if page == "select-knowledge" => home::snapshot_knowledge(&options, &png),
                 (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
@@ -567,7 +520,7 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, experiments: false, quiz: false, layout: Default::default(), settings: None })
+            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, tab: None, layout: Default::default(), settings: None })
         }
         Command::Render { timeline, output, frames, warmup, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
             // A frame a script did not draw must not reach a video.

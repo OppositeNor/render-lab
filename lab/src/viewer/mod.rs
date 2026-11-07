@@ -36,10 +36,9 @@ use crate::investigation;
 use crate::loading::{self, Loading};
 use crate::record::beat_fade;
 use crate::renderer::{FrameRequest, Renderer};
-use crate::shot::{self, SceneType, DemoId, PanelMode, ShotState, Timeline};
+use crate::shot::{self, SceneType, DemoId, ShotState, Timeline};
 use crate::view::ViewId;
 use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
-use crate::values::Reflect;
 use crate::volume::Volume;
 use anyhow::Result;
 use glam::Vec2;
@@ -88,11 +87,9 @@ pub struct ViewerOptions {
     pub fullscreen: bool,
     /// The narration's volume (the Config page's setting); the dock changes it.
     pub narration: Volume,
-    /// Opened by the homepage's Experiment button: the Experiments tab, the
-    /// changed values kept from one demonstration to the next (src/experiment.rs).
-    pub experiments: bool,
-    /// Opened by the homepage's Quiz button: the Quiz tab, at the quiz's first question (src/quiz.rs).
-    pub quiz: bool,
+    /// Opened on this tab by a homepage button: the Experiment button's (the changed values kept from one
+    /// demonstration to the next, src/experiment.rs), or a feature's (src/feature/), set up once the scene is.
+    pub tab: Option<DockTab>,
     /// The layout's dragged sizes (the settings'), and the settings file a
     /// drag writes them to (None: kept for this run only).
     pub layout: crate::config::ViewerLayout,
@@ -219,24 +216,18 @@ pub struct App {
     error: Option<anyhow::Error>,
     /// The camera's move into the first shot, and when it started (src/animation.rs).
     intro: Option<(IntroMove, Instant)>,
-    /// The experiment: its reference, comparison, and measurement (src/experiment.rs).
-    pub experiment: crate::experiment::Session,
-    /// The quiz being taken (the Quiz tab, src/quiz.rs).
-    pub quiz: crate::quiz::Session,
+    /// The viewer's features (src/feature/): each one's state.
+    pub features: crate::feature::Features,
+    /// What the features asked of the viewer (`Host::act`), applied once they are updated.
+    feature_actions: Vec<ViewerAction>,
+    /// Opened on a tab (`ViewerOptions::tab`): its feature is told so once the scene can set up a view.
+    tab_opening: bool,
     /// Recent frame times in milliseconds (the Experiments tab's readout).
     frame_times: std::collections::VecDeque<f64>,
     /// The layout's dragged sizes; the viewer hands them back when it closes.
     pub layout: crate::config::ViewerLayout,
     /// The window's cursor as last set (egui's request, src/renderer/ `cursor`).
     cursor_icon: egui::CursorIcon,
-    /// A topic the knowledge panel selects and centres once (a snapshot's).
-    knowledge_focus: Option<String>,
-    /// The knowledge graph is shown full screen (Esc closes it).
-    knowledge_overlay: bool,
-    /// The frame graph's DAG is shown full screen (Esc closes it).
-    dag_overlay: bool,
-    /// The full-screen DAG shares the screen with the selected pass's WGSL.
-    graph_source: bool,
 }
 
 impl App {
@@ -262,11 +253,8 @@ impl App {
         };
         let camera = state.camera;
         let scene = investigation::current().demo_scene(state.demo);
-        let tab = match (options.experiments, options.quiz) {
-            (_, true) => DockTab::Quiz,
-            (true, _) => DockTab::Experiments,
-            _ => DockTab::default(),
-        };
+        let tab = options.tab.unwrap_or_default();
+        let tab_opening = options.tab.is_some();
         let layout = options.layout;
         Ok(App {
             options,
@@ -311,15 +299,12 @@ impl App {
             error: None,
             // The autotest checks the camera, so it opens straight on the shot.
             intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
-            experiment: crate::experiment::Session { presets: crate::experiment::presets(), ..Default::default() },
-            quiz: crate::quiz::Session::default(),
+            features: crate::feature::Features::new(investigation::current()),
+            feature_actions: Vec::new(),
+            tab_opening,
             frame_times: std::collections::VecDeque::new(),
             layout,
             cursor_icon: egui::CursorIcon::Default,
-            knowledge_focus: None,
-            knowledge_overlay: false,
-            dag_overlay: false,
-            graph_source: false,
         })
     }
 

@@ -91,7 +91,7 @@ pub struct CompareOverlay {
 /// (its share of the GPU time as a bar, its mean time), the most expensive
 /// first. Passes named in `highlight` are called out (always shown), the
 /// others dimmed.
-pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, highlight: &[String]) {
+pub(crate) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, highlight: &[String]) {
     let painter = ink.painter;
     let x = rect.min.x + 22.0;
     let right = rect.max.x - 22.0;
@@ -203,7 +203,7 @@ pub(super) fn draw_performance(ink: &Ink, rect: Rect, view: &PerformanceView, hi
 /// lifetime as a line from its first use to its last; each node's GPU time
 /// on the right. Hovering a cell names it; a click on one returns its
 /// `<node>.<resource>` (the inspector shows it).
-pub(super) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
+pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let GraphPanel { ctx, ink, rect, view, highlight, .. } = *panel;
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
@@ -346,7 +346,7 @@ pub enum GraphPick {
 /// the full-screen DAG, whether the source pane beside it is open (`source`;
 /// None: no source button).
 #[derive(Clone, Copy)]
-pub(super) struct GraphPanel<'a> {
+pub(crate) struct GraphPanel<'a> {
     pub ctx: &'a egui::Context,
     pub ink: &'a Ink<'a>,
     pub rect: Rect,
@@ -434,7 +434,7 @@ pub(super) fn frame_aspect(view: &GraphView) -> f32 {
 /// and a double click puts both back; a story's `highlight` centres the
 /// nodes it names. Hovering a card names its arrows' resources; a click on
 /// one inspects its result.
-pub(super) fn draw_dag_panel(panel: &GraphPanel) -> Option<GraphPick> {
+pub(crate) fn draw_dag_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let GraphPanel { ctx, ink, rect, view, highlight, full, interactive, .. } = *panel;
     use crate::graph_view::{self, Flow};
     let painter = ink.painter;
@@ -621,7 +621,7 @@ pub(super) fn draw_dag_panel(panel: &GraphPanel) -> Option<GraphPick> {
 /// shows here at once), cut to the pass's entry points and what they use,
 /// each piece under the file and line it comes from; `failed`, why the last
 /// live reload did not compile. Read-only; it scrolls both ways.
-pub(super) fn draw_source_pane(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, failed: Option<&str>) {
+pub(crate) fn draw_source_pane(ctx: &egui::Context, ink: &Ink, rect: Rect, view: &GraphView, failed: Option<&str>) {
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
     let x = rect.min.x + 22.0;
@@ -686,7 +686,7 @@ pub(super) fn footer_text(ink: &Ink, at: Pos2, width: f32, text: &str, lines: us
 /// `highlight` lights the resources its nodes read and write. Hovering a
 /// card names its writers and readers; a click inspects it. The view pans
 /// like the DAG's.
-pub(super) fn draw_resource_panel(panel: &GraphPanel) -> Option<GraphPick> {
+pub(crate) fn draw_resource_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let GraphPanel { ctx, ink, rect, view, highlight, full, interactive, .. } = *panel;
     let painter = ink.painter;
     crate::paint::panel_card(painter, rect, 12);
@@ -830,22 +830,6 @@ pub(crate) fn graph_prefix<'a>(names: impl Iterator<Item = &'a str>) -> &'a str 
         }
     }
     prefix.unwrap_or("")
-}
-
-/// The viewer's action for a pick in a graph panel: a click on what is
-/// inspected hides the inspector.
-pub(super) fn graph_action(pick: GraphPick, view: &GraphView) -> ViewerAction {
-    match pick {
-        GraphPick::Inspect(key) => {
-            let same = view.inspected.as_deref() == Some(key.as_str());
-            ViewerAction::Inspect((!same).then_some(key))
-        }
-        GraphPick::Panel(mode) => ViewerAction::SetPanel(mode),
-        GraphPick::Overlay(on) => ViewerAction::SetDagOverlay(on),
-        // A view's own: its panel asks it (`graph_view::ask_reset`) and never returns it.
-        GraphPick::Reset => unreachable!("a panel resets its own view"),
-        GraphPick::Source(on) => ViewerAction::ShowSource(on),
-    }
 }
 
 pub(super) fn graph_lifetime_label(lifetime: crate::graph::Lifetime) -> &'static str {

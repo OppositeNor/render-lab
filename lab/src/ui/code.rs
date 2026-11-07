@@ -5,7 +5,7 @@ use super::*;
 
 /// A Python pseudo-code listing: the engine function it follows, then the
 /// code with the highlighted tags' lines lit.
-pub(super) fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highlight: &[String], report: &mut UiReport) {
+pub(crate) fn draw_code(ink: &Ink, rect: Rect, listing: &crate::pseudocode::Listing, highlight: &[String], report: &mut UiReport) {
     let painter = ink.painter;
     let x = rect.min.x + 22.0;
     let width = rect.width() - 44.0;

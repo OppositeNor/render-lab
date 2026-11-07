@@ -55,6 +55,8 @@ pub fn format_field(bytes: &[u8], field: &RustField) -> Vec<String> {
     }
 }
 
+/// The demonstration's panel: its record (declaration, values, memory) or its readout. The panels a feature
+/// owns (`Feature::panels`: the code, the performance, the knowledge graph, the frame graph) are its own.
 pub(super) fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, report: &mut UiReport) {
     let l = &input.layout;
     let state = input.state;
@@ -64,18 +66,6 @@ pub(super) fn draw_panel(ink: &Ink, input: &UiInput, content: &FrameContent, rep
     let painter = ink.painter;
     let rect = l.panel;
     crate::paint::panel_card(painter, rect, 12);
-    if state.panel == PanelMode::Code {
-        if let Some(listing) = state.code.as_deref().and_then(|c| investigation::current().listing(c)) {
-            draw_code(ink, rect, listing, &state.highlight, report);
-        }
-        return;
-    }
-    if state.panel == PanelMode::Performance {
-        if let Some(view) = input.performance {
-            draw_performance(ink, rect, view, &state.highlight);
-        }
-        return;
-    }
     let Some(record) = &content.panel_record else {
         if let Some(readout) = &content.readout {
             draw_readout(ink, rect, readout, &content.notes, report);

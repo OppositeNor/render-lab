@@ -16,7 +16,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   publish) may know only that an optional module, not provided in this repo, can add local packages to `packages/`.
   They must not name, describe, or mirror its contents: no engine or feature names, no code, records, shaders,
   parameters, text keys, comments, or file names that exist for it. What it needs from the lab goes through generic
-  extension points (the `Investigation` trait, a package's library and negotiation, its imports and overrides) that any
+  extension points (the `Investigation` trait, the viewer's `Feature`s, a package's library and negotiation, its imports and overrides) that any
   investigation could use. Its investigations are packages of their own in `packages/` (code, content, and a Cargo
   workspace of their own, so the published `Cargo.lock` never names them), ignored with a pattern in
   `.git/info/exclude`; lab code only they use stays in those packages. Local-only ignore patterns go in

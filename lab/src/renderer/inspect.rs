@@ -123,7 +123,7 @@ impl Renderer {
                 }
             }
         }
-        let inspected = self.inspections.get(crate::viewer::INSPECTOR).map(|x| x.key.clone());
+        let inspected = self.inspections.get(crate::feature::graph::INSPECTOR).map(|x| x.key.clone());
         ui::GraphView { nodes, resources, uses, edges, inspected, timestamps: self.timing.is_some() }
     }
 
