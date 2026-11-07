@@ -14,4 +14,8 @@
 即画面所显示的内容。在研究的包中把它的 WGSL 声明为一个 `[[shader]]`，其 parts 以 `render_lab.shader/scene` 开头，并在文件的 `module` 中写上该 shader；build.rs 会验证它，实验室加载时也会验证。没有结构体面板记录的画面可以在原处显示一个
 `Readout`（名称与数值）。
 
+查看器的场景窗口列出、操纵器移动的内容（[`lab/src/entity.rs`](../lab/src/entity.rs)）：场景中的对象，以及研究的数值放置的光源和点，
+研究用 `Investigation::entities` 声明它们（取自其文字的名称、种类，以及位置的三个数值）。当研究的画面跟随场景中标为 `movable` 的对象时
+（`Investigation::movable_objects`：它的记录取自场景，实验室随后摆放它们），这些对象也可以移动；用烘焙数据绘制场景的研究让它保持为 false，对象保持原位。
+
 相关代码的位置见[架构与代码导览](architecture.zh-CN.md)。

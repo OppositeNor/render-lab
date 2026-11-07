@@ -125,14 +125,12 @@ impl App {
                 self.exit = ViewerExit::Back;
                 self.leaving = true;
             }
-            ViewerAction::ResizeLayout(part, size) => {
-                let size = size.map(|s| s.round().max(1.0) as u32);
-                match part {
-                    crate::ui::LayoutPart::Panel => self.layout.panel_width = size,
-                    crate::ui::LayoutPart::CodePanel => self.layout.code_panel_width = size,
-                    crate::ui::LayoutPart::Dock => self.layout.dock_height = size,
-                }
+            ViewerAction::Window(id, change) => self.change_window(id, change),
+            ViewerAction::Select(id) => {
+                self.selected = id;
+                self.gizmo_hover = None;
             }
+            ViewerAction::SetGizmo(mode) => self.gizmo_mode = mode,
             ViewerAction::SaveLayout => self.save_layout(),
             ViewerAction::ResetLayout => {
                 self.layout = Default::default();
@@ -163,20 +161,71 @@ impl App {
         }
     }
 
-    /// Write the layout's sizes to the settings file, the other settings as it has them.
+    /// Move, dock, resize, collapse, open, or close window `id` (src/ui/windows.rs), from where the last
+    /// frame drew it.
+    fn change_window(&mut self, id: crate::ui::windows::WindowId, change: crate::ui::WindowChange) {
+        use crate::ui::windows::{Dock, MIN_FLOAT};
+        use crate::ui::WindowChange;
+        let drawn = self.renderer.as_ref().and_then(|r| r.frame_layout().window(id));
+        let area = self.renderer.as_ref().map(|r| r.frame_layout().area);
+        let place = self.layout.window_mut(id);
+        match change {
+            WindowChange::Move(delta) => {
+                let Some(drawn) = drawn else { return };
+                // A docked window floats from where it is drawn, its size kept (a collapsed one its float size).
+                if place.dock != Dock::Float {
+                    let size = if drawn.collapsed { egui::vec2(place.float[2], place.float[3]) } else { drawn.frame.size() };
+                    place.float = [drawn.frame.min.x, drawn.frame.min.y, size.x, size.y];
+                    place.dock = Dock::Float;
+                }
+                place.float[0] += delta.x;
+                place.float[1] += delta.y;
+            }
+            WindowChange::Drop(dock) => place.dock = dock,
+            WindowChange::Resize(to) => {
+                let Some(drawn) = drawn else { return };
+                let f = drawn.frame;
+                let size = match place.dock {
+                    Dock::Left => to.x - f.min.x,
+                    Dock::Right => f.max.x - to.x,
+                    Dock::Bottom => f.max.y - to.y,
+                    Dock::Float => {
+                        let most = area.map_or(egui::Vec2::INFINITY, |a| a.max - f.min);
+                        let size = (to - f.min).max(MIN_FLOAT).min(most);
+                        place.float[2] = size.x;
+                        place.float[3] = size.y;
+                        return;
+                    }
+                };
+                // The Panel window keeps a width of its own for wide content (the pseudo-code).
+                if drawn.wide {
+                    place.wide = size.max(1.0);
+                } else {
+                    place.size = size.max(1.0);
+                }
+            }
+            WindowChange::Collapse(collapsed) => place.collapsed = collapsed,
+            WindowChange::Open(open) => place.open = open,
+            WindowChange::Default => *place = id.default_place(),
+        }
+    }
+
+    /// Write the windows' places to the settings file, the other settings as it has them; docked sizes as
+    /// the layout kept them (within the window).
     pub(super) fn save_layout(&mut self) {
-        // What the user sees: the sizes as the layout kept them (clamped to the window).
         if let Some(r) = self.renderer.as_ref() {
             let l = r.frame_layout();
-            let dock = (l.captions.max.y - l.captions.min.y).round() as u32;
-            let panel = (l.panel.max.x - l.panel.min.x).round() as u32;
-            if self.layout.dock_height.is_some() {
-                self.layout.dock_height = Some(dock);
+            for w in l.windows.iter().flatten().filter(|w| !w.collapsed) {
+                let place = self.layout.window_mut(w.id);
+                let size = match w.dock {
+                    crate::ui::windows::Dock::Bottom => w.frame.height(),
+                    crate::ui::windows::Dock::Float => continue,
+                    _ => w.frame.width(),
+                };
+                *(if w.wide { &mut place.wide } else { &mut place.size }) = size.round();
             }
-            let code = self.state.panel.wide();
-            let width = if code { &mut self.layout.code_panel_width } else { &mut self.layout.panel_width };
-            if width.is_some() && l.viewport.max.x < l.panel.min.x {
-                *width = Some(panel);
+            for place in &mut self.layout.windows {
+                place.float = place.float.map(f32::round);
             }
         }
         let Some(path) = self.options.settings.clone() else { return };

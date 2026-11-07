@@ -21,8 +21,8 @@ again, in the new language, whenever a saved setting changes the language.
     of the homepage and the viewer (below).
   - **Render**: **Full Screen**.
   - **Audio**: the volumes of the **Music** and the **Narration**, each a slider with a mute button that keeps its
-    level. The viewer's dock, and the timeline bar while a video plays, also set the narration's volume; the viewer
-    keeps it in the file when it closes.
+    level. The viewer's timeline bar also sets the narration's volume; the viewer keeps it in the file when it
+    closes.
 
   **Save and Apply** applies the Interface and Audio settings and writes the file at once. A change to the Render
   settings is tried behind a ten-second countdown instead: **Apply** keeps it and writes the file, while **Restore**,
@@ -39,11 +39,26 @@ again, in the new language, whenever a saved setting changes the language.
   on the settings.
 - **Every slider, checkbox, and choice** has a **?** after its name: hovering it says what the value does, in the
   interface's language.
-- **The viewer's layout** can be resized by dragging the edge between the viewport and the panel (the struct panel and
-  the Code tab's listing each keep their own width) and the edge above the dock. The sizes are written to the settings
-  file as each drag ends, so the viewer opens with them next time. Double-clicking an edge puts that size back, the
-  dock's **Reset layout** puts them all back, and Config's **Restore Defaults** does too. Recordings always use the
-  default layout.
+- **The viewer's windows**: the header holds what acts on the viewer (the demonstrations, Play, Step, Reset, the
+  timeline, the **Windows** menu, Home), and the footer the timeline bar; everything else is in a window, each with
+  the same title bar. **Controls** has the tabs (Sliders, Experiments, Code, Sources, …) with **Reset parameters** and
+  **Free camera** at their end, and the shown tab's values; **Data** (the panel) shows the frame's record, readout,
+  listing, or graph; **Scene** lists what the scene holds (below). A window is docked to the left, the right, or the
+  bottom, the viewport taking the rest, or floats over the viewport: drag its title bar to move it, and drop it near
+  an edge to dock it there (the edge lights up first); drag a docked window's inner edge, or a floating one's corner,
+  to resize it; the chevron collapses it to its title bar, and double-clicking the title bar puts it back in its
+  place. The **Windows** menu shows or hides each one, and its **Reset layout** puts them all back, as Config's
+  **Restore Defaults** does. Where each window is gets written to the settings file as each change ends, so the
+  viewer opens with it next time. Recordings always use the fixed layout.
+- **The camera** in the viewport: drag to orbit, **Shift**-drag (or the middle button) to pan, the wheel to zoom.
+  Holding the **right button** flies: the pointer turns the view about the eye, **W A S D** move along it, **Q** and
+  **E** down and up the world's vertical, **Shift** faster, and the wheel sets the speed while flying.
+- **The Scene window** lists the scene's objects and the lights and points the demonstration places. Selecting one
+  puts a gizmo on it in the viewport and its values below the list: **Move** drags it along an arrow or in a square's
+  plane, **Rotate** turns it about the vertical with the ring, **Scale** sizes it with the handle, and the sliders
+  set the same values exactly (as do timelines and stories: `object.teapot.x`, `object.teapot.yaw`, …). **Focus**
+  (**F**) turns the camera to it; **Reset** puts it back. An investigation that draws the scene from data it baked keeps its
+  objects fixed, and the walls and the floor always stay.
 - **F11** saves a screenshot of the window (the homepage or the viewer) to `build/screenshots/`.
 
 ## Commands

@@ -185,7 +185,7 @@ fn letter(i: usize) -> char {
 /// The panel; what it asks of the quiz (a choice picked, a button pressed), if anything.
 fn draw(panel: &mut PanelUi, quiz: &QuizView) -> Option<Asked> {
     let rect = panel.input.layout.panel;
-    crate::paint::panel_card(panel.ink.painter, rect, 10);
+    crate::paint::panel_card(panel.ink.painter, rect, 12);
     let inner = rect.shrink2(vec2(20.0, 16.0));
     let mut asked = None;
     let mut widgets = Vec::new();

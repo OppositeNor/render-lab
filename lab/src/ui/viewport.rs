@@ -4,15 +4,66 @@
 
 use super::*;
 
+/// The engine's version and commit, then its package's copyright and license line (`credit-text`): the
+/// viewer's header's right end, a recording's watermark.
+pub(super) fn credit_line() -> String {
+    let engine = sources::index();
+    let mut line = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
+    if let Some(credit) = crate::resources::credit(investigation::current().package().unwrap_or("render_lab")) {
+        line = format!("{line} · {credit}");
+    }
+    line
+}
+
+/// A recording's tag over the top of the viewport (`Layout::for_video`): the chapter (its number and title)
+/// and the beat's headline, in one small card. Returns where it is.
+pub(super) fn draw_video_tag(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) -> Rect {
+    let chapter = timeline.chapter_at(frame);
+    let (_, beat) = timeline.beat_at(frame);
+    let tag = timeline.chapter_tag(chapter);
+    let at = l.viewport.min + vec2(VIDEO_MARGIN, 20.0);
+    let room = (if l.panel_shown { l.viewport.width() } else { l.canvas.x }) - 2.0 * VIDEO_MARGIN - 32.0;
+    let tag_width = rich_text::measure(ink, &tag, 24.0, bold()).x.min(room);
+    let headline = ink.fit_right(&format!("·  {}", beat.headline), (room - tag_width - 16.0).max(0.0), 24.0, FontFamily::Proportional);
+    let headline_width = if beat.headline.is_empty() { 0.0 } else { ink.measure(&headline, 24.0, FontFamily::Proportional).x + 16.0 };
+    let card = Rect::from_min_size(at, vec2(tag_width + headline_width + 32.0, 40.0));
+    ink.painter.rect_filled(card, CornerRadius::same(8), crate::paint::overlay_fill(200));
+    let tag = ink.fit_right(&tag, tag_width, 24.0, bold());
+    ink.text(pos2(card.min.x + 16.0, card.center().y), Align2::LEFT_CENTER, tag, 24.0, bold(), palette::accent());
+    if headline_width > 0.0 {
+        ink.text(pos2(card.min.x + 16.0 + tag_width + 16.0, card.center().y), Align2::LEFT_CENTER, headline, 24.0, FontFamily::Proportional, palette::text());
+    }
+    card
+}
+
+/// A recording's foot (`Layout::for_video`): the engine's credit as a watermark in the lower left, and the
+/// progress as a thin line along the frame's bottom edge, its chapters marked.
+pub(super) fn draw_video_foot(ink: &Ink, l: &Layout, timeline: &Timeline, frame: u64) {
+    let painter = ink.painter;
+    let line = ink.fit_right(&credit_line(), l.canvas.x * 0.6, 24.0, FontFamily::Proportional);
+    let shadow = palette::theme().shadow;
+    let at = pos2(VIDEO_MARGIN, l.canvas.y - 14.0);
+    ink.text(at + vec2(1.0, 1.0), Align2::LEFT_BOTTOM, &line, 24.0, FontFamily::Proportional, Color32::from_rgba_unmultiplied(shadow.r(), shadow.g(), shadow.b(), 160));
+    let faint = palette::text();
+    ink.text(at, Align2::LEFT_BOTTOM, &line, 24.0, FontFamily::Proportional, Color32::from_rgba_unmultiplied(faint.r(), faint.g(), faint.b(), 150));
+    let bar = l.footer;
+    painter.rect_filled(bar, CornerRadius::ZERO, palette::theme().track.gamma_multiply(0.8));
+    let total = timeline.total_frames.max(1) as f32;
+    for c in timeline.chapters.iter().skip(1) {
+        let x = bar.min.x + bar.width() * c.start_frame as f32 / total;
+        painter.rect_filled(Rect::from_min_size(pos2(x - 1.0, bar.min.y), vec2(2.0, bar.height())), CornerRadius::ZERO, palette::background());
+    }
+    let x = bar.min.x + bar.width() * frame as f32 / total;
+    painter.rect_filled(Rect::from_min_max(bar.min, pos2(x, bar.max.y)), CornerRadius::ZERO, palette::accent());
+}
+
 pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: &egui::Context) {
     let l = &input.layout;
-    let engine = sources::index();
-    // The engine's version and commit, then its package's copyright and license
-    // line (`credit-text`), fitted beside what the left of the header holds.
-    let mut right = format!("{} {} · {}", investigation::current().wording().engine_tag, engine.engine.version, &engine.engine.commit[..8]);
-    if let Some(credit) = crate::resources::credit(investigation::current().package().unwrap_or("render_lab")) {
-        right = format!("{right} · {credit}");
+    // A recording has its tag instead (`draw_video_tag`).
+    if matches!(chrome, Chrome::Recording { .. }) {
+        return;
     }
+    let right = credit_line();
     let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
     let left = match chrome {
         // The chapter's tag, in bold as it is drawn below.
@@ -66,7 +117,7 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
                         }
                     }
                     ui.separator();
-                    if ui.button(if viewer.playing { tr("ui-pause") } else { tr("ui-play") }).clicked() {
+                    if ui.button(if viewer.playing { tr("ui-pause") } else { tr("ui-play") }).on_hover_text(tr("controls-play_animation_hint")).clicked() {
                         viewer.actions.push(ViewerAction::TogglePlay);
                     }
                     if ui.button(tr("ui-step")).clicked() {
@@ -79,14 +130,12 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
                         viewer.actions.push(ViewerAction::ToggleTimeline);
                     }
                     ui.separator();
+                    windows_menu(ui, l, viewer);
                     if ui.button(tr("ui-home")).on_hover_text(tr("ui-home_hint")).clicked() {
                         viewer.actions.push(ViewerAction::Home);
                     }
                 });
             });
-            if input.scene_type == SceneType::ThreeD && !(viewer.timeline_mode && viewer.playing) {
-                draw_layout_handles(ctx, ink, input, viewer);
-            }
             viewer.ui_has_pointer = ctx.egui_wants_pointer_input() || response.response.hovered();
             // The status fills what the controls leave of the row.
             let room = l.canvas.x - 40.0 - response.response.rect.max.x - 24.0;
@@ -98,51 +147,27 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
     }
 }
 
-/// The viewer's draggable edges: between the viewport and the panel (its
-/// width), and above the dock (its height). A drag sets the size, its end
-/// writes the layout, and a double-click puts that size back to its default.
-pub(super) fn draw_layout_handles(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut ViewerChrome) {
-    let l = &input.layout;
-    let code = input.state.panel.wide();
-    let mut handles: Vec<(LayoutPart, Rect, egui::CursorIcon)> = Vec::new();
-    // The panel's edge, when the panel shows beside the viewport.
-    if l.viewport.max.x + 1.0 < l.panel.min.x {
-        let part = if code { LayoutPart::CodePanel } else { LayoutPart::Panel };
-        handles.push((part, Rect::from_min_max(pos2(l.viewport.max.x, l.content.min.y), pos2(l.panel.min.x, l.content.max.y)), egui::CursorIcon::ResizeHorizontal));
-    }
-    handles.push((LayoutPart::Dock, Rect::from_min_max(pos2(l.captions.min.x, l.content.max.y - 2.0), pos2(l.captions.max.x, l.captions.min.y + 2.0)), egui::CursorIcon::ResizeVertical));
-    for (part, rect, cursor) in handles {
-        let id = egui::Id::unique(match part {
-            LayoutPart::Panel => "layout-panel-edge",
-            LayoutPart::CodePanel => "layout-code-edge",
-            LayoutPart::Dock => "layout-dock-edge",
-        });
-        egui::Area::new(id).fixed_pos(rect.min).order(egui::Order::Background).show(ctx, |ui| {
-            let (_, response) = ui.allocate_exact_size(rect.size(), egui::Sense::click_and_drag());
-            let response = response.on_hover_text(tr("ui-resize_hint"));
-            if response.hovered() || response.dragged() {
-                ctx.set_cursor_icon(cursor);
-                let stroke = Stroke::new(3.0, if response.dragged() { palette::accent() } else { palette::border() });
-                match part {
-                    LayoutPart::Dock => ink.painter.hline(rect.x_range().shrink(24.0), rect.center().y, stroke),
-                    _ => ink.painter.vline(rect.center().x, rect.y_range().shrink(24.0), stroke),
-                };
-            }
-            if response.double_clicked() {
-                viewer.actions.push(ViewerAction::ResizeLayout(part, None));
-                viewer.actions.push(ViewerAction::SaveLayout);
-            } else if response.dragged() && let Some(p) = response.interact_pointer_pos() {
-                let size = match part {
-                    LayoutPart::Dock => l.captions.max.y - p.y - 6.0,
-                    _ => l.panel.max.x - p.x - 12.0,
-                };
-                viewer.actions.push(ViewerAction::ResizeLayout(part, Some(size)));
-            }
-            if response.drag_stopped() {
+/// The header's Windows menu: each window shown or not (src/ui/windows.rs), and the layout back to its
+/// defaults.
+fn windows_menu(ui: &mut egui::Ui, l: &Layout, viewer: &mut ViewerChrome) {
+    use windows::WindowId;
+    let Some(user) = l.user_windows().copied() else { return };
+    ui.menu_button(tr("ui-windows"), |ui| {
+        for (id, label) in [(WindowId::Scene, tr("window-scene")), (WindowId::Controls, tr("window-controls")), (WindowId::Panel, tr("window-data"))] {
+            let mut open = user.window(id).open;
+            if ui.checkbox(&mut open, label).changed() {
+                viewer.actions.push(ViewerAction::Window(id, WindowChange::Open(open)));
                 viewer.actions.push(ViewerAction::SaveLayout);
             }
-        });
-    }
+        }
+        ui.separator();
+        let reset = ui.button(tr("controls-reset_layout"));
+        viewer.widgets.push(("reset-layout".into(), reset.rect));
+        if reset.on_hover_text(tr("controls-reset_layout_hint")).clicked() {
+            viewer.actions.push(ViewerAction::ResetLayout);
+            ui.close();
+        }
+    });
 }
 
 pub(super) fn draw_labels(ink: &Ink, input: &UiInput, content: &FrameContent, obstacles: &[Rect], report: &mut UiReport) {
@@ -235,7 +260,7 @@ pub(super) fn draw_formula_card(ink: &Ink, l: &Layout, tag: &str, term: usize, l
     let pad = formula::PAD as f32;
     let ink_size = vec2(f.width as f32, f.height as f32) - Vec2::splat(2.0 * pad);
     let size = ink_size + vec2(36.0, 28.0);
-    let mut rect = Rect::from_min_size(pos2(l.viewport.max.x - 16.0 - size.x, l.viewport.min.y + 16.0), size);
+    let mut rect = Rect::from_min_size(pos2(l.safe().max.x - 16.0 - size.x, l.safe().min.y + 16.0), size);
     // Below whatever already sits in that corner (an inset, the callout).
     while let Some(inset) = insets.iter().find(|i| i.intersects(rect)) {
         rect = rect.translate(vec2(0.0, inset.max.y + 8.0 - rect.min.y));
@@ -297,13 +322,13 @@ pub(super) fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) ->
     let index = sources::index();
     let entry = index.entries.get(key)?;
     // Within the viewport: the symbol alone when the file name does not fit beside it.
-    let room = l.viewport.width() - 32.0 - 28.0;
+    let room = l.safe().width() - 32.0 - 28.0;
     let mut text = format!("{} · {}", entry.file_name(), entry.short_symbol());
     if ink.measure(&text, 24.0, FontFamily::Monospace).x > room {
         text = ink.fit_right(&entry.short_symbol(), room, 24.0, FontFamily::Monospace);
     }
     let size = ink.measure(&text, 24.0, FontFamily::Monospace) + vec2(28.0, 14.0);
-    let mut rect = Rect::from_min_size(pos2(l.viewport.min.x + 16.0, l.viewport.max.y - 16.0 - size.y), size);
+    let mut rect = Rect::from_min_size(pos2(l.safe().min.x + 16.0, l.safe().max.y - 16.0 - size.y), size);
     for inset in insets {
         if rect.intersects(*inset) {
             rect = rect.translate(vec2(0.0, inset.min.y - 8.0 - rect.max.y));

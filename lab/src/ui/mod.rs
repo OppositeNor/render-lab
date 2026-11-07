@@ -26,27 +26,42 @@ mod knowledge_panel;
 mod panel;
 mod code;
 mod timeline_bar;
+pub mod windows;
+mod window_frame;
+mod scene_window;
+use scene_window::*;
 use viewport::*;
+use window_frame::*;
 pub use graph_panel::*;
 pub use knowledge_panel::*;
 pub use panel::*;
 pub use code::*;
 pub use timeline_bar::*;
 
+/// A recording's layout (`Layout::for_video`): the margin of its panel card and 2D page, and the bands its
+/// tag (above) and its subtitles and watermark (below) keep over the viewport, in points.
+pub const VIDEO_MARGIN: f32 = 24.0;
+pub const VIDEO_TOP: f32 = 76.0;
+pub const VIDEO_BOTTOM: f32 = 132.0;
+
 /// The least a dragged panel, dock, and viewport keep, in points.
 pub const MIN_PANEL: f32 = 320.0;
 pub const MIN_DOCK: f32 = 150.0;
 pub const MIN_VIEWPORT: Vec2 = vec2(480.0, 300.0);
 
-/// The edges of the viewer's layout a drag moves (`ViewerAction::ResizeLayout`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LayoutPart {
-    /// The struct panel's width.
-    Panel,
-    /// The pseudo-code panel's width.
-    CodePanel,
-    /// The dock's height.
-    Dock,
+/// What a window's title bar, edge, chevron, or the Windows menu does to it (`ViewerAction::Window`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindowChange {
+    /// Moved by this many points (a docked one floats from where it is).
+    Move(Vec2),
+    /// Its title bar let go: docked to this edge, or (`Dock::Float`) left floating.
+    Drop(windows::Dock),
+    /// Its edge or corner dragged to here (canvas points): a docked one's inner edge, a floating one's corner.
+    Resize(Pos2),
+    Collapse(bool),
+    Open(bool),
+    /// Back to its default place.
+    Default,
 }
 
 /// Screen layout in logical points: a 1920 x 1080 canvas scaled uniformly to
@@ -62,6 +77,15 @@ pub struct Layout {
     pub footer: Rect,
     /// The panel is drawn; when not, the viewport has its room (`for_panel`).
     pub panel_shown: bool,
+    /// The interactive viewer's windows (src/ui/windows.rs), by `WindowId::index`; none in a recording.
+    pub windows: [Option<windows::WindowFrame>; 3],
+    /// The room the windows dock in, between the header and the footer.
+    pub area: Rect,
+    /// The places and the windows the viewer laid out (`with_windows`), for `for_panel`.
+    pub windowed: Option<(ViewerLayout, windows::Shown)>,
+    /// A recording's layout (`for_video`): the viewport to the frame's edges, the tag, the subtitles, and the
+    /// watermark over it.
+    pub video: bool,
 }
 
 impl Layout {
@@ -83,18 +107,78 @@ impl Layout {
         let content = Rect::from_min_max(viewport.min, panel.max);
         let captions = Rect::from_min_max(pos2(margin, canvas.y - 228.0), pos2(canvas.x - margin, canvas.y - 66.0));
         let footer = Rect::from_min_max(pos2(margin, canvas.y - 58.0), pos2(canvas.x - margin, canvas.y - 8.0));
-        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true }
+        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true, windows: [None; 3], area: content, windowed: None, video: false }
     }
 
-    /// The interactive viewer's layout: the viewport and the struct panel
-    /// end higher, and the captions band becomes the taller slider dock.
-    pub fn with_dock(mut self) -> Layout {
-        let bottom = self.canvas.y - 290.0;
-        self.viewport.max.y = bottom;
-        self.panel.max.y = bottom;
-        self.content.max.y = bottom;
-        self.captions.min.y = bottom + 12.0;
+    /// A recording's layout: the viewport reaches the frame's edges (beside the panel, a card at the right
+    /// edge, when the panel shows), and what the video says lies over it: a small tag at the top (the
+    /// chapter and the beat), the caption as a one-line subtitle near the bottom, the engine's credit as a
+    /// watermark in the lower left, and the progress as a thin line along the bottom edge.
+    pub fn for_video(mut self) -> Layout {
+        let c = self.canvas;
+        self.video = true;
+        self.panel = Rect::from_min_max(pos2(c.x - VIDEO_MARGIN - 590.0, VIDEO_MARGIN), pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_MARGIN));
+        self.viewport = Rect::from_min_max(Pos2::ZERO, pos2(self.panel.min.x - VIDEO_MARGIN, c.y));
+        // A 2D page: the frame between the tag and the subtitles.
+        self.content = Rect::from_min_max(pos2(VIDEO_MARGIN, VIDEO_TOP), pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_BOTTOM));
+        self.footer = Rect::from_min_max(pos2(0.0, c.y - 4.0), c.to_pos2());
+        self.video_captions()
+    }
+
+    /// The subtitles' band: under the viewport's picture (the frame's, on a 2D page).
+    fn video_captions(mut self) -> Layout {
+        let c = self.canvas;
+        let (left, right) = if self.panel_shown { (self.viewport.min.x, self.viewport.max.x) } else { (0.0, c.x) };
+        self.captions = Rect::from_min_max(pos2(left, c.y - VIDEO_BOTTOM), pos2(right, c.y - 52.0));
         self
+    }
+
+    /// Where the viewport's own cards go (insets, the callout, the formula card): in a recording, clear of the
+    /// tag above and the subtitles and the watermark below.
+    pub fn safe(&self) -> Rect {
+        if self.video { Rect::from_min_max(self.viewport.min + vec2(0.0, VIDEO_TOP - 16.0), self.viewport.max - vec2(0.0, VIDEO_BOTTOM - 8.0)) } else { self.viewport }
+    }
+
+    /// The interactive viewer's layout: its windows (src/ui/windows.rs) where the user left them, the
+    /// viewport in what the docked ones leave, the panel the Panel window's body and the captions band the
+    /// Controls window's. Without the Controls window (a playing timeline) the captions keep their band
+    /// below, as in a recording.
+    pub fn with_windows(self, user: &ViewerLayout, shown: windows::Shown) -> Layout {
+        let bottom = if shown.controls { self.footer.min.y - 8.0 } else { self.content.max.y };
+        let area = Rect::from_min_max(self.content.min, pos2(self.content.max.x, bottom));
+        self.place_windows(area, user, shown)
+    }
+
+    /// The windows placed in `area` (`with_windows`).
+    fn place_windows(mut self, area: Rect, user: &ViewerLayout, shown: windows::Shown) -> Layout {
+        use windows::WindowId;
+        let (frames, viewport) = windows::arrange(area, &user.windows, shown);
+        self.area = area;
+        self.windows = frames;
+        self.windowed = Some((*user, shown));
+        self.viewport = viewport;
+        let panel = frames[WindowId::Panel.index()];
+        self.panel_shown = panel.is_some_and(|f| !f.collapsed);
+        self.panel = panel.map_or(Rect::from_min_size(viewport.right_top(), Vec2::ZERO), |f| f.body);
+        // A 2D page takes the viewport and a panel docked beside it.
+        self.content = match panel {
+            Some(f) if f.dock == windows::Dock::Right && !f.collapsed => viewport.union(f.frame),
+            _ => viewport,
+        };
+        if let Some(controls) = frames[WindowId::Controls.index()] {
+            self.captions = controls.body;
+        }
+        self
+    }
+
+    /// The places of the viewer's windows, as the user left them (none in a recording).
+    pub fn user_windows(&self) -> Option<&ViewerLayout> {
+        self.windowed.as_ref().map(|(user, _)| user)
+    }
+
+    /// The viewer's window `id` as this layout draws it.
+    pub fn window(&self, id: windows::WindowId) -> Option<windows::WindowFrame> {
+        self.windows[id.index()]
     }
 
     /// A wider panel for pseudo-code listings; the viewport gives up the width.
@@ -108,42 +192,24 @@ impl Layout {
         let most = (self.panel.max.x - self.content.min.x - 24.0 - MIN_VIEWPORT.x).max(MIN_PANEL);
         self.panel.min.x = self.panel.max.x - width.clamp(MIN_PANEL, most);
         self.viewport.max.x = self.panel.min.x - 24.0;
-        self
-    }
-
-    /// The dock `height` points tall (kept between `MIN_DOCK` and what leaves
-    /// the viewport `MIN_VIEWPORT` tall); the viewport and the panel end above it.
-    pub fn with_dock_height(mut self, height: f32) -> Layout {
-        let most = (self.captions.max.y - 12.0 - self.content.min.y - MIN_VIEWPORT.y).max(MIN_DOCK);
-        let bottom = self.captions.max.y - height.clamp(MIN_DOCK, most) - 12.0;
-        self.viewport.max.y = bottom;
-        self.panel.max.y = bottom;
-        self.content.max.y = bottom;
-        self.captions.min.y = bottom + 12.0;
-        self
-    }
-
-    /// The viewer's layout with the sizes the user dragged (`ViewerLayout`):
-    /// the dock's height (with `dock`), and the panel's or (`code`) the
-    /// pseudo-code panel's width.
-    pub fn with_user(self, user: &ViewerLayout, dock: bool, code: bool) -> Layout {
-        let mut layout = self;
-        if let (true, Some(h)) = (dock, user.dock_height) {
-            layout = layout.with_dock_height(h as f32);
+        if self.video {
+            return self.video_captions();
         }
-        match (code, if code { user.code_panel_width } else { user.panel_width }) {
-            (_, Some(w)) => layout.with_panel_width(w as f32),
-            (true, None) => layout.with_code_panel(),
-            (false, None) => layout,
-        }
+        self
     }
 
     /// The same layout with the 3D viewport widened over the panel's area
     /// when the struct panel is hidden, or has nothing to show.
     pub fn for_panel(mut self, panel_visible: bool) -> Layout {
+        if let (false, Some((user, shown))) = (panel_visible, self.windowed) {
+            return self.place_windows(self.area, &user, windows::Shown { panel: false, ..shown });
+        }
         if !panel_visible {
-            self.viewport = self.content;
+            self.viewport = if self.video { Rect::from_min_size(Pos2::ZERO, self.canvas) } else { self.content };
             self.panel_shown = false;
+            if self.video {
+                return self.video_captions();
+            }
         }
         self
     }
@@ -246,14 +312,27 @@ pub enum ViewerAction {
     SetNarration(crate::volume::Volume, bool),
     /// The timeline's and the narration's speed (one of `SPEEDS`).
     SetSpeed(f32),
-    /// A layout edge dragged to this size in points, or (None) back to its default.
-    ResizeLayout(LayoutPart, Option<f32>),
-    /// A drag of a layout edge ended: the layout is written to the settings.
+    /// A window moved, docked, resized, collapsed, opened or closed (src/ui/windows.rs).
+    Window(windows::WindowId, WindowChange),
+    /// A window's drag ended: the layout is written to the settings.
     SaveLayout,
     /// The whole layout back to its defaults (and written).
     ResetLayout,
     /// Look through the free camera, or the main camera again (src/camera.rs `FreeCamera`).
     ToggleFreeCamera,
+    /// Select an entity in the Scene window (src/entity.rs `Entity::id`), or nothing.
+    Select(Option<String>),
+    /// What the selected entity's gizmo does (src/gizmo.rs).
+    SetGizmo(crate::gizmo::Mode),
+}
+
+/// The selected entity's gizmo, as the UI draws it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GizmoView {
+    pub mode: crate::gizmo::Mode,
+    /// The handle under the pointer, and the one being dragged.
+    pub hover: Option<crate::gizmo::Handle>,
+    pub active: Option<crate::gizmo::Handle>,
 }
 
 /// What the viewer's dock shows: a tab, by its feature's id (src/feature/).
@@ -331,6 +410,9 @@ pub struct ViewerChrome {
     pub shader_reload: Option<(String, bool)>,
     /// The focused view's place, when several views are on screen (src/view.rs): drawn with a lit border.
     pub focus_rect: Option<Rect>,
+    /// The entity selected in the Scene window (src/entity.rs `Entity::id`), and its gizmo.
+    pub selected: Option<String>,
+    pub gizmo: GizmoView,
 }
 
 impl ViewerChrome {
@@ -408,7 +490,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
     let feature_panel = scene_beat && matches!(&chrome, Chrome::Viewer(v) if v.feature_panel().is_some_and(|l| !(l.yields && frame_panel)) && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
-            painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+            // A recording's picture reaches the frame's edges: no border.
+            if !l.video {
+                painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+            }
             // The other views: each its border, its title, and its labels.
             for pane in input.panes {
                 painter.rect_stroke(pane.rect.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
@@ -429,8 +514,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                 // A view stacked over the main one (src/view.rs) covers it: the main view's tags (its insets, its
                 // callout, its labels) belong to it, so they are not drawn over the other view's picture.
                 let covered = !input.overs.is_empty();
-                // Insets and the callout first; labels then avoid them.
+                // Insets and the callout first; labels then avoid them, and a recording's tag and subtitles.
                 let mut obstacles = Vec::new();
+                if l.video {
+                    obstacles.push(Rect::from_min_max(l.viewport.min, pos2(l.viewport.max.x, l.safe().min.y)));
+                    obstacles.push(Rect::from_min_max(pos2(l.viewport.min.x, l.safe().max.y), l.viewport.max));
+                }
                 // The investigation's insets, then the image the story shows.
                 let package = investigation::current().package().unwrap_or("render_lab");
                 let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
@@ -445,7 +534,7 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                             Vec2::ZERO
                         }
                         Some((_, at, tallest)) => {
-                            if at.x + size.x > l.viewport.width() - 32.0 {
+                            if at.x + size.x > l.safe().width() - 32.0 {
                                 *at = vec2(0.0, at.y + *tallest + 12.0);
                                 *tallest = 0.0;
                             }
@@ -484,7 +573,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                 if !covered {
                     draw_labels(&ink, input, content, &obstacles, &mut report);
                 }
+                // The selected entity's gizmo (src/gizmo.rs), over the labels, under the windows.
+                if let Chrome::Viewer(v) = &chrome {
+                    draw_gizmo(&ink, input, content, v);
+                }
                 if !feature_panel {
+                    draw_window_card(&ink, l, windows::WindowId::Panel);
                     // A story panel a feature draws (src/feature/: the knowledge graph, the frame graph, the
                     // code, the performance), else the demonstration's.
                     let interactive = matches!(&chrome, Chrome::Viewer(_));
@@ -553,19 +647,23 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
     if input.fade > 0.0 {
         let a = (input.fade.clamp(0.0, 1.0) * 255.0) as u8;
         let bg = palette::background();
-        painter.rect_filled(l.content.expand(4.0), CornerRadius::ZERO, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), a));
+        let faded = if l.video { Rect::from_min_size(Pos2::ZERO, l.canvas) } else { l.content.expand(4.0) };
+        painter.rect_filled(faded, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), a));
     }
     match &mut chrome {
         Chrome::Recording { timeline, frame } => {
+            draw_video_tag(&ink, l, timeline, *frame);
             draw_captions(&ink, l, timeline, *frame);
-            draw_footer(&ink, l, Some((timeline, *frame)));
+            draw_video_foot(&ink, l, timeline, *frame);
         }
         Chrome::Viewer(viewer) => {
             if viewer.timeline_mode && viewer.playing {
                 draw_caption_text(&ink, l, viewer.caption.as_deref());
             } else {
+                draw_window_card(&ink, l, windows::WindowId::Controls);
                 crate::controls::draw_dock(ctx, &ink, input, viewer);
-                if feature_panel {
+                if feature_panel && l.panel_shown {
+                    draw_window_card(&ink, l, windows::WindowId::Panel);
                     let mut dock = crate::controls::Dock::new(input, viewer);
                     if let Some(state) = viewer.features.state_mut(viewer.tab.0) {
                         state.panel(&mut crate::feature::PanelUi { ctx, ink: &ink, input, dock: &mut dock });
@@ -574,6 +672,10 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                     viewer.widgets.extend(dock.widgets);
                 }
             }
+            if !(viewer.timeline_mode && viewer.playing) && input.scene_type == SceneType::ThreeD {
+                draw_scene_window(ctx, &ink, input, viewer);
+            }
+            draw_window_titles(ctx, &ink, input, viewer);
             if let Some((seconds, opacity)) = viewer.skip {
                 draw_skip_notice(&ink, l, seconds, opacity);
             }
@@ -616,25 +718,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dragged_sizes_apply_within_limits() {
-        let base = Layout::new(1920, 1080).with_dock();
-        // No dragged sizes: the default layout.
-        let same = base.with_user(&ViewerLayout::default(), true, false);
-        assert_eq!((same.panel, same.viewport, same.captions), (base.panel, base.viewport, base.captions));
-        // A wider panel and a taller dock; the viewport gives up the room.
-        let user = ViewerLayout { panel_width: Some(800), code_panel_width: None, dock_height: Some(330) };
-        let l = base.with_user(&user, true, false);
-        assert_eq!(l.panel.width(), 800.0);
-        assert_eq!(l.viewport.max.x, l.panel.min.x - 24.0);
-        assert_eq!(l.captions.height(), 330.0);
-        assert_eq!((l.viewport.max.y, l.panel.max.y), (l.captions.min.y - 12.0, l.captions.min.y - 12.0));
-        // Too small or too large: kept to the limits.
-        let extreme = base.with_user(&ViewerLayout { panel_width: Some(1), code_panel_width: None, dock_height: Some(100_000) }, true, false);
-        assert_eq!(extreme.panel.width(), MIN_PANEL);
-        assert!(extreme.viewport.height() >= MIN_VIEWPORT.y - 0.01);
-        // The code panel has its own width, its default the wider one.
-        assert_eq!(base.with_user(&user, true, true).panel.width(), CODE_PANEL_WIDTH);
-        // Without the dock (a playing timeline), its height is not applied.
-        assert_eq!(base.with_user(&user, false, false).captions, base.captions);
+    fn windows_lay_out_the_viewer() {
+        use windows::{Dock, Shown, WindowId};
+        let base = Layout::new(1920, 1080);
+        let all = Shown { scene: false, controls: true, panel: true, wide: false };
+        // The default: the controls docked below, the panel on the right, the viewport between.
+        let l = base.with_windows(&ViewerLayout::default(), all);
+        let (panel, controls) = (l.window(WindowId::Panel).unwrap(), l.window(WindowId::Controls).unwrap());
+        assert_eq!((l.panel, l.captions), (panel.body, controls.body));
+        assert_eq!(l.viewport.max.x, panel.frame.min.x - windows::GAP);
+        assert_eq!(l.viewport.max.y, controls.frame.min.y - windows::GAP);
+        assert!(l.panel_shown && l.content.contains_rect(panel.frame) && !l.content.intersects(controls.frame));
+        // Without the panel (nothing to show), the viewport takes its room; a floating panel takes none.
+        let hidden = l.for_panel(false);
+        assert!(!hidden.panel_shown && hidden.window(WindowId::Panel).is_none() && hidden.viewport.max.x == l.area.max.x);
+        let mut user = ViewerLayout::default();
+        user.window_mut(WindowId::Panel).dock = Dock::Float;
+        let floating = base.with_windows(&user, all);
+        assert_eq!(floating.viewport.max.x, floating.area.max.x);
+        assert!(floating.viewport.contains_rect(floating.window(WindowId::Panel).unwrap().frame));
+        // A playing timeline: no controls; the captions keep their band, as in a recording.
+        let playing = base.with_windows(&ViewerLayout::default(), Shown { controls: false, ..all });
+        assert_eq!(playing.captions, base.captions);
+        assert!(playing.viewport.max.y <= base.captions.min.y);
     }
 }

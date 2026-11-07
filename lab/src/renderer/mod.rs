@@ -427,20 +427,25 @@ impl Renderer {
         &self.last_views
     }
 
-    /// `dock`: the interactive viewer's layout with the slider dock.
+    /// `viewer`: the interactive viewer's layout, its windows where the user left them (`user_layout`,
+    /// src/ui/windows.rs); `dock`: with its Controls and Scene windows (not while a timeline plays).
     /// With `values`, the panel shows (a feature's own, `FeatureLayout::panel`) whatever the state's panel mode.
     /// `code_width`: the code panel's width when a listing shows (a recording's, fit to it).
-    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, dock: bool, values: bool, code_width: Option<f32>) -> Layout {
+    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, viewer: bool, dock: bool, values: bool, code_width: Option<f32>) -> Layout {
         let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden || values;
-        let mut layout = self.layout();
-        if dock {
-            layout = layout.with_dock();
-        }
         // The pseudo-code and the knowledge graph take the wider panel.
-        let code = scene_type == SceneType::ThreeD && state.panel.wide();
-        layout = match code_width {
-            Some(width) if code && state.panel == crate::shot::PanelMode::Code => layout.with_panel_width(width),
-            _ => layout.with_user(&self.user_layout, dock, code),
+        let wide = scene_type == SceneType::ThreeD && state.panel.wide();
+        if viewer {
+            // A 2D page (a diagram, a sources card) takes the room of the panel too.
+            let three_d = scene_type == SceneType::ThreeD;
+            let shown = crate::ui::windows::Shown { scene: dock && three_d && crate::entity::any(state, &self.statics), controls: dock, panel: panel && three_d, wide };
+            return self.layout().with_windows(&self.user_layout, shown);
+        }
+        let video = self.layout().for_video();
+        let layout = match code_width {
+            Some(width) if wide && state.panel == crate::shot::PanelMode::Code => video.with_panel_width(width),
+            _ if wide => video.with_code_panel(),
+            _ => video,
         };
         layout.for_panel(panel)
     }
@@ -666,7 +671,8 @@ impl Renderer {
             self.code_fit.insert(key, width);
             width
         });
-        let mut layout = self.layout_for(request.state, request.scene_type, dock, values, code_width);
+        let viewer = matches!(&request.chrome, Chrome::Viewer(_));
+        let mut layout = self.layout_for(request.state, request.scene_type, viewer, dock, values, code_width);
         let scene_beat = request.scene_type == SceneType::ThreeD;
         // A split scene area: the views beside the main one, each in its own
         // rectangle; the main view takes the last (Investigation::panes).

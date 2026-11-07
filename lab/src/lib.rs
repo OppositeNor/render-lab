@@ -26,6 +26,7 @@ pub mod controls;
 pub mod cook;
 pub mod demo;
 pub mod diagram;
+pub mod entity;
 pub mod environment;
 /// A page drawn with egui into a texture: the loading page, the homepage.
 pub mod egui_pass;
@@ -38,6 +39,7 @@ pub mod fetch;
 pub mod frame;
 pub mod free_view;
 pub mod frost;
+pub mod gizmo;
 pub mod gpu;
 pub mod graph;
 pub mod graph_view;

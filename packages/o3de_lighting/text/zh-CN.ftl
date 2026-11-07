@@ -595,3 +595,7 @@ listing-specular_ggx-title = SpecularGGX：D、G 与 F
 listing-ssao-title = 屏幕空间环境光遮蔽
 listing-surface_setup-title = 表面：金属度工作流
 listing-transmission-title = 透射：GetBackLighting 函数
+
+# The Scene window's entities (Investigation::entities).
+entity-light = 光源
+entity-sphere_light = 球形光源

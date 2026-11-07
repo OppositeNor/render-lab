@@ -33,6 +33,10 @@ impl App {
             self.apply(ViewerAction::SelectDemo(*d));
             return;
         }
+        // Flying (the right button held), the movement keys are the camera's.
+        if self.flying().is_some() && FLY_KEYS.contains(&code) {
+            return;
+        }
         match code {
             KeyCode::Space => self.apply(ViewerAction::TogglePlay),
             KeyCode::ArrowLeft if self.timeline_mode => self.skip(-SKIP_SECONDS),
@@ -41,6 +45,7 @@ impl App {
             KeyCode::KeyR => self.apply(ViewerAction::Reset),
             KeyCode::KeyT => self.apply(ViewerAction::ToggleTimeline),
             KeyCode::KeyC => self.apply(ViewerAction::ToggleFreeCamera),
+            KeyCode::KeyF => self.focus_selected(),
             KeyCode::Escape => {
                 if let Some(el) = event_loop {
                     self.exit = ViewerExit::Back;
@@ -75,6 +80,11 @@ impl App {
             return;
         }
         let Some((view, _)) = self.view_at(at) else { return };
+        // A press on the selected entity's gizmo drags its handle (src/gizmo.rs).
+        if button == MouseButton::Left && let Some(drag) = self.gizmo_at(at) {
+            self.gizmo_drag = Some(drag);
+            return;
+        }
         // A left press on a picture with a click handler picks there at once,
         // and dragging keeps picking under the cursor.
         let point = self.to_egui(at);
@@ -103,7 +113,14 @@ impl App {
 
     pub fn pointer_move(&mut self, at: Vec2) {
         self.cursor = at;
-        let Some(mut drag) = self.drag.clone() else { return };
+        if let Some((drag, entity)) = self.gizmo_drag.clone() {
+            self.drag_gizmo(&drag, &entity, at);
+            return;
+        }
+        let Some(mut drag) = self.drag.clone() else {
+            self.gizmo_hover = if self.ui_has_pointer { None } else { self.gizmo_shape(at).and_then(|(shape, _, pixel)| shape.hit(pixel, self.gizmo_reach())) };
+            return;
+        };
         let delta = at - drag.last;
         drag.moved += delta.length();
         drag.last = at;
@@ -122,37 +139,130 @@ impl App {
             return;
         }
         let height = self.viewport_height();
-        // On the free camera's view, the pointer moves the free camera; on the main view (in its corner) the main one.
-        if drag.view == ViewId::FREE {
+        // Left orbits (Shift: pans), middle pans; held right flies: the pointer turns the view about the eye.
+        let shift = self.modifiers.shift;
+        self.move_camera(drag.view, |camera| match drag.button {
+            MouseButton::Left if shift => camera.pan(delta, height),
+            MouseButton::Left => camera.orbit(delta),
+            MouseButton::Right => camera.look(delta),
+            MouseButton::Middle => camera.pan(delta, height),
+            _ => {}
+        });
+    }
+
+    /// Change the camera of `view`: the free camera on its view, a view stacked over the main one its own
+    /// (src/view.rs; the main camera keeps its place), else the main camera.
+    pub(super) fn move_camera(&mut self, view: ViewId, change: impl FnOnce(&mut crate::camera::OrbitCamera)) {
+        if view == ViewId::FREE {
             let free = self.free_view();
             let mut orbit = free.orbit();
-            match drag.button {
-                MouseButton::Left => orbit.orbit(delta),
-                MouseButton::Right | MouseButton::Middle => orbit.pan(delta, height),
-                _ => {}
-            }
+            change(&mut orbit);
             free.place(&orbit);
             return;
         }
         self.end_intro();
-        // A view stacked over the main one moves its own camera (src/view.rs); the main camera keeps its place.
-        if let Some((name, mut camera)) = self.over_camera(drag.view) {
-            match drag.button {
-                MouseButton::Left => camera.orbit(delta),
-                MouseButton::Right | MouseButton::Middle => camera.pan(delta, height),
-                _ => {}
-            }
+        if let Some((name, mut camera)) = self.over_camera(view) {
+            change(&mut camera);
             self.state.set_own_camera(name, &camera);
             return;
         }
-        match drag.button {
-            MouseButton::Left => self.state.camera.orbit(delta),
-            MouseButton::Right | MouseButton::Middle => self.state.camera.pan(delta, height),
-            _ => {}
+        change(&mut self.state.camera);
+    }
+
+    /// F: the camera turned to the selected entity (the Scene window's Focus), its distance kept.
+    fn focus_selected(&mut self) {
+        let Some(renderer) = self.renderer.as_ref() else { return };
+        let Some(entity) = crate::entity::list(&self.state, &renderer.statics).into_iter().find(|e| Some(&e.id) == self.selected.as_ref()) else { return };
+        let mut camera = self.state.camera;
+        camera.target = entity.at.to_array();
+        self.apply(ViewerAction::SetCamera(camera));
+    }
+
+    /// How near a gizmo's handle the pointer takes it, in viewport pixels.
+    fn gizmo_reach(&self) -> f32 {
+        crate::gizmo::REACH * self.renderer().frame_layout().scale
+    }
+
+    /// The selected entity's gizmo as the view under `at` shows it (src/gizmo.rs), the entity, and the
+    /// viewport pixel at `at`: in the view on screen (the free camera's while it is on), outside a playing
+    /// timeline, for an entity that shows and may move.
+    pub(super) fn gizmo_shape(&self, at: Vec2) -> Option<(crate::gizmo::Shape, crate::entity::Entity, Vec2)> {
+        if self.timeline_playing() || self.paused_page() {
+            return None;
+        }
+        let renderer = self.renderer.as_ref()?;
+        let content = self.last_content.as_ref()?;
+        let shown = if self.free_camera_on() { ViewId::FREE } else { ViewId::MAIN };
+        if self.view_at(at)?.0 != shown || renderer.frame_views().len() > 2 {
+            return None;
+        }
+        let entity = crate::entity::list(&self.state, &renderer.statics).into_iter().find(|e| Some(&e.id) == self.selected.as_ref() && e.movable() && e.visible)?;
+        let layout = renderer.frame_layout();
+        let vp = layout.viewport_px();
+        let pixel = at - Vec2::new(vp[0] as f32, vp[1] as f32);
+        let projector = Projector::new(&content.uniforms.camera);
+        let mode = if entity.yaw.is_some() { self.gizmo_mode } else { crate::gizmo::Mode::Move };
+        let shape = crate::gizmo::shape(&projector, entity.at, mode, crate::gizmo::ARM * layout.scale)?;
+        Some((shape, entity, pixel))
+    }
+
+    /// A drag of the gizmo's handle under `at`, if there is one.
+    fn gizmo_at(&mut self, at: Vec2) -> Option<(crate::gizmo::Drag, crate::entity::Entity)> {
+        let (shape, entity, pixel) = self.gizmo_shape(at)?;
+        let handle = shape.hit(pixel, self.gizmo_reach())?;
+        self.end_intro();
+        Some((crate::gizmo::Drag { handle, at: entity.at, yaw: entity.yaw_degrees, scale: entity.scale_factor, start: pixel, center: shape.center }, entity))
+    }
+
+    /// The gizmo's drag with the pointer at `at`: the entity's values set where it puts them, each within
+    /// its range.
+    fn drag_gizmo(&mut self, drag: &crate::gizmo::Drag, entity: &crate::entity::Entity, at: Vec2) {
+        let Some(content) = self.last_content.as_ref() else { return };
+        let projector = Projector::new(&content.uniforms.camera);
+        let vp = self.renderer().frame_layout().viewport_px();
+        let pixel = at - Vec2::new(vp[0] as f32, vp[1] as f32);
+        let (to, yaw, scale) = crate::gizmo::dragged(&projector, drag, pixel);
+        let mut set: Vec<(&'static str, f32)> = Vec::new();
+        if let Some(keys) = entity.position {
+            set.extend(keys.iter().zip(to.to_array()).map(|(k, v)| (*k, v)));
+        }
+        if let Some(key) = entity.yaw {
+            set.push((key, (yaw + 180.0).rem_euclid(360.0) - 180.0));
+        }
+        if let Some(key) = entity.scale {
+            set.push((key, scale));
+        }
+        for (key, value) in set {
+            let value = crate::values::entry(key).and_then(|e| e.range_of(crate::values::component(e, key))).map_or(value, |(lo, hi)| value.clamp(lo, hi));
+            if self.state.try_get(key).is_none_or(|v| v.f32() != value) {
+                self.set_live_value(key, value);
+            }
         }
     }
 
+    /// The view a held right button flies (src/camera.rs `OrbitCamera::fly`), if any: WASD move along the view,
+    /// Q and E down and up the world's Y; Shift faster.
+    pub(super) fn flying(&self) -> Option<ViewId> {
+        self.drag.as_ref().filter(|d| d.button == MouseButton::Right && d.inset.is_none()).map(|d| d.view).filter(|v| *v == ViewId::FREE || !self.timeline_playing())
+    }
+
+    /// One frame of the fly camera: `dt` seconds of the held keys' motion.
+    pub(super) fn fly_step(&mut self, dt: f32) {
+        let Some(view) = self.flying() else { return };
+        let held = |codes: &[KeyCode]| self.held.iter().any(|k| codes.contains(k)) as i32 as f32;
+        let axis = glam::Vec3::new(held(&[KeyCode::KeyD]) - held(&[KeyCode::KeyA]), held(&[KeyCode::KeyE]) - held(&[KeyCode::KeyQ]), held(&[KeyCode::KeyW]) - held(&[KeyCode::KeyS]));
+        if axis == glam::Vec3::ZERO {
+            return;
+        }
+        let speed = self.fly_speed * if self.modifiers.shift { FLY_SHIFT } else { 1.0 };
+        let step = axis.normalize() * speed * dt;
+        self.move_camera(view, |camera| camera.fly(step));
+    }
+
     pub fn pointer_up(&mut self, button: MouseButton, at: Vec2) {
+        if button == MouseButton::Left && self.gizmo_drag.take().is_some() {
+            return;
+        }
         let Some(drag) = self.drag.take() else { return };
         // A press on a picture already picked, and its drag kept picking.
         if drag.inset.is_some() {
@@ -216,6 +326,11 @@ impl App {
     }
 
     pub fn wheel(&mut self, steps: f32) {
+        // Flying, the wheel sets the fly speed.
+        if self.flying().is_some() {
+            self.fly_speed = (self.fly_speed * 1.2f32.powf(steps)).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX);
+            return;
+        }
         // A paused diagram zooms itself (src/diagram.rs).
         if self.paused_diagram() {
             return;

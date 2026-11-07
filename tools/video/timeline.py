@@ -56,6 +56,10 @@ def all_sentences(board: Board) -> list[Json]:
     return [s for chapter in board['chapters'] for beat in chapter['beats'] for s in sentences_of(beat)]
 
 
+# A cue's lines: the video shows its caption as a one-line subtitle over the picture (lab/src/ui/ `for_video`).
+CAPTION_LINES = 1
+
+
 def balanced_lines(text: str, width: int) -> list[str]:
     """One line if it fits, otherwise two lines split near the middle."""
     if len(text) <= width:
@@ -72,10 +76,10 @@ def balanced_lines(text: str, width: int) -> list[str]:
 
 
 def caption_chunks(text: str, width: int) -> list[str]:
-    """The fewest cues of at most two balanced lines, cut at word boundaries
-    near equal character positions."""
+    """The fewest cues of at most `CAPTION_LINES` balanced lines, cut at word
+    boundaries near equal character positions."""
     words = text.split()
-    n = max(1, math.ceil(len(text) / (2 * width - 6)))
+    n = max(1, math.ceil(len(text) / (CAPTION_LINES * width - 6)))
     while True:
         total = len(text)
         bounds: list[int] = []
@@ -94,7 +98,7 @@ def caption_chunks(text: str, width: int) -> list[str]:
         cuts = [0] + bounds + [len(words)]
         chunks = [' '.join(words[a:b]) for a, b in zip(cuts, cuts[1:]) if b > a]
         lines = [balanced_lines(c, width) for c in chunks]
-        if all(len(group) <= 2 and all(len(x) <= width for x in group) for group in lines):
+        if all(len(group) <= CAPTION_LINES and all(len(x) <= width for x in group) for group in lines):
             return ['\n'.join(group) for group in lines]
         n += 1
 

@@ -595,3 +595,7 @@ listing-specular_ggx-title = SpecularGGX: D, G, and F
 listing-ssao-title = SSAO
 listing-surface_setup-title = Surface: the metallic workflow
 listing-transmission-title = Transmission: GetBackLighting
+
+# The Scene window's entities (Investigation::entities).
+entity-light = Light
+entity-sphere_light = Sphere light

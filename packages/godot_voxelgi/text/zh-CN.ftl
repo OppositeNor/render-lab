@@ -367,3 +367,6 @@ listing-second_bounce-title = 第二次反弹
 listing-sort_cells-title = 按层级排序单元格
 listing-update_mipmaps-title = 填充更粗的层级
 listing-voxel_gi_compute-title = 一个像素的锥体
+
+# The Scene window's entities (Investigation::entities).
+entity-light = 光源

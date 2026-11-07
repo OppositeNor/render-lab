@@ -12,6 +12,7 @@ use crate::i18n::Locale;
 use crate::pseudocode::Style;
 use crate::theme;
 use crate::volume::Volume;
+use crate::ui::windows::{Dock, WindowId, WindowPlace};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
@@ -38,23 +39,67 @@ impl Category {
     }
 }
 
-/// The viewer's layout as the user dragged it (src/ui/ `Layout`): sizes in
-/// canvas points, None for the default. The viewer writes it when a drag ends;
-/// recordings never use it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// The viewer's layout as the user left it: where each of its windows is (src/ui/windows.rs), in canvas
+/// points. The viewer writes it when a window is moved, docked, resized, collapsed, or closed; recordings
+/// never use it.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ViewerLayout {
-    /// The struct panel's width, right of the viewport.
-    pub panel_width: Option<u32>,
-    /// The pseudo-code panel's width (the Code tab).
-    pub code_panel_width: Option<u32>,
-    /// The dock's height, below the viewport.
-    pub dock_height: Option<u32>,
+    /// By `WindowId::index`.
+    pub windows: [WindowPlace; 3],
+}
+
+// Its numbers are whole points, never NaN: it is equal to itself.
+impl Eq for ViewerLayout {}
+
+impl Default for ViewerLayout {
+    fn default() -> Self {
+        ViewerLayout { windows: WindowId::ALL.map(WindowId::default_place) }
+    }
 }
 
 impl ViewerLayout {
-    /// The keys it is written under, with their values.
-    fn entries(&self) -> [(&'static str, Option<u32>); 3] {
-        [("viewer_panel_width", self.panel_width), ("viewer_code_panel_width", self.code_panel_width), ("viewer_dock_height", self.dock_height)]
+    pub fn window(&self, id: WindowId) -> &WindowPlace {
+        &self.windows[id.index()]
+    }
+
+    pub fn window_mut(&mut self, id: WindowId) -> &mut WindowPlace {
+        &mut self.windows[id.index()]
+    }
+
+    /// The key a window is written under.
+    fn key(id: WindowId) -> String {
+        format!("viewer_window_{}", id.key())
+    }
+
+    /// A window's line in the settings file, an inline table.
+    fn entry(id: WindowId, p: &WindowPlace) -> String {
+        let [x, y, w, h] = p.float.map(|v| v.round() as i32);
+        format!("{} = {{ dock = \"{}\", size = {}, wide = {}, x = {x}, y = {y}, width = {w}, height = {h}, collapsed = {}, open = {} }}", Self::key(id), p.dock.key(), p.size.round() as i32, p.wide.round() as i32, p.collapsed, p.open)
+    }
+
+    /// A window's place as `document` has it (its default for what it leaves out).
+    fn read(id: WindowId, document: &toml_edit::Document<String>, path: &Path) -> Result<WindowPlace> {
+        let key = Self::key(id);
+        let mut place = id.default_place();
+        let Some(item) = document.get(&key) else { return Ok(place) };
+        let table = item.as_inline_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<Vec<_>>()).or_else(|| item.as_table().map(|t| t.iter().filter_map(|(k, v)| v.as_value().map(|v| (k.to_string(), v.clone()))).collect())).with_context(|| format!("{}: `{key}` must be a table", path.display()))?;
+        let bad = |field: &str| anyhow::anyhow!("{}: `{key}.{field}` is not valid", path.display());
+        for (field, value) in table {
+            let number = || value.as_integer().filter(|n| (-100_000..=100_000).contains(n)).map(|n| n as f32).ok_or_else(|| bad(&field));
+            match field.as_str() {
+                "dock" => place.dock = value.as_str().and_then(Dock::parse).ok_or_else(|| bad(&field))?,
+                "size" => place.size = number()?,
+                "wide" => place.wide = number()?,
+                "x" => place.float[0] = number()?,
+                "y" => place.float[1] = number()?,
+                "width" => place.float[2] = number()?,
+                "height" => place.float[3] = number()?,
+                "collapsed" => place.collapsed = value.as_bool().ok_or_else(|| bad(&field))?,
+                "open" => place.open = value.as_bool().ok_or_else(|| bad(&field))?,
+                _ => {}
+            }
+        }
+        Ok(place)
     }
 }
 
@@ -141,10 +186,8 @@ impl Config {
             }
         }
         let mut layout = ViewerLayout::default();
-        for (key, slot) in [("viewer_panel_width", &mut layout.panel_width), ("viewer_code_panel_width", &mut layout.code_panel_width), ("viewer_dock_height", &mut layout.dock_height)] {
-            if let Some(item) = document.get(key) {
-                *slot = Some(item.as_integer().filter(|n| (1..=100_000).contains(n)).with_context(|| format!("{}: `{key}` must be a whole number of points", path.display()))? as u32);
-            }
+        for id in WindowId::ALL {
+            layout.windows[id.index()] = ViewerLayout::read(id, &document, path)?;
         }
         config.layout = layout;
         Ok(config)
@@ -162,9 +205,9 @@ impl Config {
         for (name, what, volume) in [("music", "Audio: the homepage's music", self.music), ("narration", "Audio: the narration", self.narration)] {
             text.push_str(&format!("\n# {what}: its volume (0 to 100) and whether it is muted.\n{name}_volume = {}\n{name}_muted = {}\n", volume.percent, volume.muted));
         }
-        let sizes: Vec<String> = self.layout.entries().iter().filter_map(|(key, value)| value.map(|v| format!("{key} = {v}"))).collect();
-        if !sizes.is_empty() {
-            text.push_str(&format!("\n# The viewer's layout as its edges were dragged, in points of the 1920 x 1080 canvas (absent: the default).\n{}\n", sizes.join("\n")));
+        let windows: Vec<String> = WindowId::ALL.into_iter().filter(|id| self.layout.window(*id) != &id.default_place()).map(|id| ViewerLayout::entry(id, self.layout.window(id))).collect();
+        if !windows.is_empty() {
+            text.push_str(&format!("\n# The viewer's windows as they were left: docked to an edge (left, right, bottom; its size) or floating (x, y, width, height), in points of the 1920 x 1080 canvas (absent: the default).\n{}\n", windows.join("\n")));
         }
         text
     }
@@ -195,7 +238,12 @@ mod tests {
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::from_code("zh-CN").unwrap(), theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: ViewerLayout { panel_width: Some(700), code_panel_width: None, dock_height: Some(300) } };
+        let config = Config { fullscreen: true, language: Locale::from_code("zh-CN").unwrap(), theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: {
+            let mut layout = ViewerLayout::default();
+            *layout.window_mut(WindowId::Panel) = WindowPlace { dock: Dock::Float, float: [300.0, 200.0, 700.0, 500.0], collapsed: true, ..WindowId::Panel.default_place() };
+            layout.window_mut(WindowId::Controls).size = 300.0;
+            layout
+        } };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.
@@ -204,6 +252,8 @@ mod tests {
         std::fs::write(&path, "music_volume = 101\n").unwrap();
         assert!(Config::load(&path).is_err());
         std::fs::write(&path, "language = \"fr\"\n").unwrap();
+        assert!(Config::load(&path).is_err());
+        std::fs::write(&path, "viewer_window_panel = { dock = \"top\" }\n").unwrap();
         assert!(Config::load(&path).is_err());
         std::fs::write(&path, "listing_style = \"scratch\"\n").unwrap();
         assert!(Config::load(&path).is_err());

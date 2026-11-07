@@ -371,3 +371,6 @@ listing-second_bounce-title = The second bounce
 listing-sort_cells-title = Sorting the cells by level
 listing-update_mipmaps-title = Filling the coarser levels
 listing-voxel_gi_compute-title = A pixel's cones
+
+# The Scene window's entities (Investigation::entities).
+entity-light = Light

@@ -107,6 +107,27 @@ impl OrbitCamera {
     pub fn zoom(&mut self, steps: f32) {
         self.distance = (self.distance * 0.9f32.powf(steps)).clamp(0.4, 30.0);
     }
+
+    /// Turn the view about the eye by a pointer drag in viewport pixels (the
+    /// fly camera's look): the eye stays, the target swings around it.
+    pub fn look(&mut self, delta: Vec2) {
+        let eye = self.eye();
+        self.orbit(delta);
+        self.target = (eye - (self.eye() - Vec3::from(self.target))).to_array();
+    }
+
+    /// The direction it looks in, and its right, in the world.
+    pub fn forward_right(&self) -> (Vec3, Vec3) {
+        let forward = (Vec3::from(self.target) - self.eye()).normalize_or(Vec3::NEG_Z);
+        (forward, forward.cross(Vec3::Y).normalize_or(Vec3::X))
+    }
+
+    /// Move the eye and the target together by `step` metres: x along its
+    /// right, y along the world's up (not the view's), z along its view.
+    pub fn fly(&mut self, step: Vec3) {
+        let (forward, right) = self.forward_right();
+        self.target = (Vec3::from(self.target) + right * step.x + Vec3::Y * step.y + forward * step.z).to_array();
+    }
 }
 
 /// The free camera: a second orbit camera the viewer may look through

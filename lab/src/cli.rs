@@ -57,7 +57,9 @@ enum Command {
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
         /// the investigation's first timeline, with its bar), viewer-diagram (that timeline paused on its first 2D
         /// scene with an image, the image's panel zoomed in), viewer-sources (paused on its first sources card),
-        /// viewer-layout (the viewer's panel and dock edges dragged; the layout written beside the PNG as .toml), or
+        /// viewer-layout (the viewer's windows moved, docked, and resized; the layout written beside the PNG as .toml), or
+        /// viewer-scene[:<entity>][@move|rotate|scale] (the Scene window open, an entity selected, its gizmo dragged), or
+        /// viewer-camera (the camera's modes driven through the input handlers and checked: orbit, pan, fly), or
         /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
         /// select-knowledge (the selection page with the chosen feature's knowledge graph full screen),
         /// or a page of a viewer feature's (src/feature/; --help lists them).
@@ -502,6 +504,18 @@ pub fn main(app: App) -> Result<()> {
                 (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Diagram), &png),
                 (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Sources), &png),
                 (Some(png), _) if page == "viewer-layout" => home::snapshot_layout(&options, &png),
+                (Some(png), _) if page == "viewer-camera" => home::snapshot_camera(&options, &png),
+                (Some(png), _) if page == "viewer-scene" || page.starts_with("viewer-scene:") || page.starts_with("viewer-scene@") => {
+                    let rest = page.strip_prefix("viewer-scene").unwrap_or_default();
+                    let (entity, mode) = rest.split_once('@').map_or((rest, ""), |(e, m)| (e, m));
+                    let mode = match mode {
+                        "" | "move" => crate::gizmo::Mode::Move,
+                        "rotate" => crate::gizmo::Mode::Rotate,
+                        "scale" => crate::gizmo::Mode::Scale,
+                        other => anyhow::bail!("viewer-scene@{other}: the gizmo's modes are move, rotate, scale"),
+                    };
+                    home::snapshot_scene(&options, entity.strip_prefix(':').filter(|e| !e.is_empty()), mode, &png)
+                }
                 (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png),
                 // A feature's page (src/feature/: viewer-experiments, viewer-quiz, viewer-prerequisites…): the viewer on its tab, set up as the page says.
                 (Some(png), _) if crate::feature::page(&page).is_some() => {

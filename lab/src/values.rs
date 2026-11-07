@@ -516,12 +516,14 @@ impl Value {
 
 /// Every value of the current investigation: the cameras' (the main one's,
 /// then the free one's), then its own
-/// parameters that declare their metadata (its shaders' tagged values).
+/// parameters that declare their metadata (its shaders' tagged values), then
+/// its scenes' movable objects' (src/entity.rs).
 pub fn list() -> Vec<&'static Entry> {
     let mut entries: Vec<&'static Entry> = crate::camera::OrbitCamera::schema().iter().chain(crate::camera::FreeCamera::schema()).collect();
     if let Some(demos) = investigation::current().demo_specs() {
         entries.extend(demos.entries.iter().copied());
     }
+    entries.extend(crate::entity::entries());
     entries
 }
 
@@ -538,6 +540,7 @@ pub fn entry(key: &str) -> Option<&'static Entry> {
         .chain(crate::camera::FreeCamera::schema())
         .find(|e| e.key == key || e.components.contains(&key))
         .or_else(|| investigation::current().demo_specs().and_then(|d| d.entry(key)))
+        .or_else(|| key.starts_with("object.").then(|| crate::entity::entries().into_iter().find(|e| e.key == key)).flatten())
 }
 
 /// Which component of `entry` the key `key` is (0 for its own key).

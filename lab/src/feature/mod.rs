@@ -355,6 +355,11 @@ impl Features {
         self.held.iter_mut().find(|h| h.feature.id() == id).map(|h| h.state.as_mut())
     }
 
+    /// The feature that draws the story panel `panel` (`Feature::panels`).
+    pub fn panel_feature(&self, panel: PanelMode) -> Option<&'static dyn Feature> {
+        self.held.iter().map(|h| h.feature).find(|f| f.panels().contains(&panel))
+    }
+
     /// The state of the feature that draws the story panel `panel` (`Feature::panels`).
     pub fn panel_mut(&mut self, panel: PanelMode) -> Option<&mut (dyn FeatureState + 'static)> {
         self.held.iter_mut().find(|h| h.feature.panels().contains(&panel)).map(|h| h.state.as_mut())

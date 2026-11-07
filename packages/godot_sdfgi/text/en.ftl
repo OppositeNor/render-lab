@@ -328,3 +328,6 @@ listing-store-title = STORE: the distance field and the solid cells
 listing-store-dispatch = for each cell of the cascade, in parallel
 listing-voxelize-title = The SDF pass: a fragment becomes a voxel
 listing-voxelize-dispatch = for each fragment, drawn along X, Y, and Z
+
+# The Scene window's entities (Investigation::entities).
+entity-light = Light

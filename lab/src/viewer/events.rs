@@ -129,6 +129,8 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CursorMoved { position, .. } => self.cursor_moved(Vec2::new(position.x as f32, position.y as f32)),
             WindowEvent::CursorLeft { .. } => self.egui_events.push(egui::Event::PointerGone),
+            // Keys released while the window was not focused would stay held.
+            WindowEvent::Focused(false) => self.held.clear(),
             WindowEvent::MouseInput { state, button, .. } => self.mouse_button(button, state == ElementState::Pressed),
             WindowEvent::MouseWheel { delta, .. } => {
                 let (wheel, steps) = crate::window::wheel_event(delta, self.renderer().layout().scale, self.modifiers);
@@ -143,6 +145,12 @@ impl ApplicationHandler for App {
                 self.screenshot = true;
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    self.held.retain(|k| *k != code);
+                    if event.state == ElementState::Pressed {
+                        self.held.push(code);
+                    }
+                }
                 if self.renderer().egui_ctx.egui_wants_keyboard_input() {
                     // A slider's value is being typed: the keys belong to it.
                     self.egui_key(&event);

@@ -267,6 +267,11 @@ impl ShotState {
             self.values.insert(name.to_string(), Value::F32(value));
             return;
         }
+        // A movable object's value (src/entity.rs).
+        if crate::entity::is_key(name) {
+            self.values.insert(name.to_string(), Value::F32(value));
+            return;
+        }
         let investigation = investigation::current();
         if let Some(demos) = investigation.demo_specs() {
             assert!(demos.set(&mut self.values, name, value), "unknown shot parameter {name}");
@@ -345,7 +350,12 @@ impl ShotState {
             return self.try_get(inner);
         }
         let entry = values::entry(key)?;
-        let stored = self.values.get(entry.key)?;
+        // A value no state has set yet (a movable object's, src/entity.rs): its default.
+        let stored = match self.values.get(entry.key) {
+            Some(v) => *v,
+            None if entry.key.starts_with("object.") => entry.default?,
+            None => return None,
+        };
         Some(Value::F32(stored.components()[values::component(entry, key)]))
     }
 

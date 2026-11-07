@@ -134,6 +134,9 @@ pub struct SceneObject {
     pub emissive_strength: f32,
     /// Words an investigation reads for its own flags of the object (`tags = ["…"]`).
     pub tags: Vec<&'static str>,
+    /// The viewer may move it (`movable = true`): its place, its turn about +Y, and its size are values
+    /// (src/entity.rs), in a frame of an investigation that follows them (`Investigation::movable_objects`).
+    pub movable: bool,
 }
 
 impl SceneObject {
@@ -304,6 +307,10 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
                 None => Vec::new(),
                 Some(v) => v.as_array().context("`tags` is a list of words").map_err(at)?.iter().map(|t| t.as_str().map(leak).context("a tag is a word")).collect::<anyhow::Result<_>>().map_err(at)?,
             },
+            movable: match table.get("movable").and_then(|i| i.as_value()) {
+                None => false,
+                Some(v) => v.as_bool().context("`movable` is true or false").map_err(at)?,
+            },
         });
     }
     let lighting = root.get("lighting").and_then(|l| l.as_table()).context("a scene has `[lighting]`")?;
@@ -372,6 +379,16 @@ impl Scene {
 
     pub fn study_room() -> Scene {
         Scene::build(SceneId::STUDY_ROOM)
+    }
+
+    /// The index of the object named `name` (its `ObjectData::object_index`).
+    pub fn index(&self, name: &str) -> Option<usize> {
+        self.objects.iter().position(|o| o.name == name)
+    }
+
+    /// The object named `name`.
+    pub fn object(&self, name: &str) -> Option<&SceneObject> {
+        self.objects.iter().find(|o| o.name == name)
     }
 
     pub fn records(&self) -> Vec<ObjectData> {

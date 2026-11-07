@@ -566,6 +566,8 @@ impl Block {
 pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
     let current = investigation::current();
     let mut content = current.build_frame(state, statics, viewport, pixel_scale, time);
+    // The scene's movable objects where the state has them (src/entity.rs).
+    crate::entity::pose(state, statics, &mut content);
     // The package's scripts' overlays (src/script/runtime.rs), over what its code drew.
     crate::script::runtime::overlay(state, statics, &mut content, time);
     // The story's arrows and labels, over what the investigation drew.
