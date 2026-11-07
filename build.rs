@@ -1,7 +1,8 @@
 //! Lets the binary find the libraries it links at run time: the lab
 //! (`liblab.so`, `liblab.dylib` on macOS, `lab.dll` on Windows, beside it in
 //! the target directory) and the standard library the lab and the packages'
-//! libraries share (in the toolchain; on Windows, copied beside it); and puts the
+//! libraries share (in the toolchain; on Windows, copied beside it, with the
+//! MinGW runtime for the GNU target); and puts the
 //! themes it offers (`themes/*.toml`) in `themes/` beside it, where the lab
 //! reads them at run time (lab/src/theme.rs).
 
@@ -22,10 +23,40 @@ fn main() {
             println!("cargo:rustc-link-arg-bins=-Wl,-rpath,{}", std_dir.display());
         }
         // Windows has no rpath: it finds a DLL beside the executable.
-        "windows" => install_std_dll(&std_dir),
+        "windows" => {
+            install_std_dll(&std_dir);
+            if env::var("CARGO_CFG_TARGET_ENV").unwrap() == "gnu" {
+                install_mingw_runtime();
+            }
+        }
         _ => println!("cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN:{}", std_dir.display()),
     }
     install_themes();
+}
+
+/// The MinGW runtime the GNU target's DLLs import (the standard library's
+/// too): copied beside the binary from the linker's library directories, or
+/// beside them in `bin/` (Arch, MSYS2).
+fn install_mingw_runtime() {
+    let Some(bin_dir) = bin_dir() else { return };
+    let linker = env::var("RUSTC_LINKER").unwrap_or_else(|_| "x86_64-w64-mingw32-gcc".into());
+    let dirs: Vec<PathBuf> = Command::new(&linker)
+        .arg("-print-search-dirs")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|text| text.lines().find_map(|l| l.strip_prefix("libraries: =").map(str::to_owned)))
+        .map(|list| env::split_paths(&list).flat_map(|d| [d.join("../bin"), d]).collect())
+        .unwrap_or_default();
+    for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
+        match dirs.iter().map(|d| d.join(name)).find(|p| p.is_file()) {
+            Some(path) => {
+                let to = bin_dir.join(name);
+                std::fs::copy(&path, &to).unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
+            }
+            None => println!("cargo:warning={name} not found in {linker}'s library directories: put it beside the binary or on PATH"),
+        }
+    }
 }
 
 /// The binary's directory (`target/<profile>/`, three folders above `OUT_DIR`).

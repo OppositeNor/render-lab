@@ -1,5 +1,7 @@
 # Render Lab
 
+[![CI](https://github.com/OppositeNor/render-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/OppositeNor/render-lab/actions/workflows/ci.yml)
+
 [English](README.md) | 简体中文
 
 <p align="center">
@@ -9,7 +11,7 @@
 一个用于渲染演示与实验的实验室，按**游戏引擎功能的研究**（investigation）组织。每项研究在预先准备的数据上重建某个引擎功能的一部分，
 并逐步展示其中涉及的数据：既在交互式查看器中，也在实验室逐帧录制的旁白视频中。
 
-它使用 Vulkan 上的 **wgpu 30.0.1**、**winit 0.30.13**、**egui 0.37** 和 **WGSL** 着色器。
+它使用 Vulkan（或 wgpu 选用的 Windows 上的 Direct3D 12、macOS 上的 Metal）上的 **wgpu 30.0.1**、**winit 0.30.13**、**egui 0.37** 和 **WGSL** 着色器。
 
 <p align="center">
   <img src="media/title-screen.jpg" alt="标题画面：书房之上的磨砂玻璃卡片，上有开始、设置和退出" width="49%">

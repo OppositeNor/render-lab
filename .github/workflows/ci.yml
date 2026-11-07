@@ -1,6 +1,6 @@
 # Render Lab's CI: on every push to main and every pull request, build the public tree without warnings, run
-# the unit tests, clippy, the content checks and the Python tests; on a `v*` tag, also build the Linux release
-# and publish it as a GitHub Release. The runners have no GPU, so the checks that draw a frame (offscreen
+# the unit tests, clippy, the content checks and the Python tests; on a `v*` tag, also package Linux, Windows,
+# and macOS and publish them as one GitHub Release. The runners have no GPU, so the checks that draw a frame (offscreen
 # snapshots, autotest, selftest) run on Mesa's software Vulkan (lavapipe) in a job of their own, and the
 # frame identity check and the videos stay local (BUILD.md, AGENTS.md).
 name: CI
@@ -69,9 +69,9 @@ jobs:
       - name: Unit tests
         run: cargo test --release --locked --workspace
 
-  # macOS (Apple Silicon): not supported yet, so this job may fail. The lab builds wgpu with Vulkan alone
-  # (lab/Cargo.toml), so nothing that draws a frame runs; macOS needs Metal (or MoltenVK). build.rs gives the
-  # binary macOS's rpath (@executable_path). The release does not wait for it.
+  # macOS (Apple Silicon): not supported yet, so this job may fail. The lab builds wgpu with Metal there
+  # (lab/Cargo.toml), but the runner has no GPU, so nothing that draws a frame runs. build.rs gives the binary
+  # macOS's rpath (@executable_path). The release does not wait for it.
   macos:
     name: Build, test, check (macOS)
     runs-on: macos-15
@@ -123,6 +123,23 @@ jobs:
             $lab --investigation "$investigation" knowledge
             $lab --investigation "$investigation" graph
           done
+      # Direct3D 12 on Microsoft's software renderer (WARP): the runner has no GPU. Before `cargo test`, whose build
+      # of the lab's dylib can replace the one the binary links. Not yet proven: it reports, but does not block.
+      - name: Offscreen renders (Direct3D 12, WARP)
+        continue-on-error: true
+        env:
+          WGPU_BACKEND: dx12
+        run: |
+          lab=target/release/render-lab
+          mkdir -p out
+          $lab home --snapshot out/home.png
+          $lab home --snapshot out/viewer.png --page viewer
+          $lab --investigation o3de/lighting selftest --report out/o3de.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renders-windows
+          path: out/
       - name: Unit tests
         run: cargo test --release --locked --workspace
 
@@ -153,34 +170,78 @@ jobs:
           name: renders
           path: out/
 
-  release:
-    name: Release
+  # A `v*` tag: each platform's package, then one GitHub Release with all of them. A package is the binary, the
+  # libraries it links (the lab and the standard library, which it finds beside it: build.rs), the built packages
+  # and themes beside it (lab/src/resources.rs, src/theme.rs), and the licenses. The cook hard-links the built
+  # packages' files to their sources (or copies them), so they copy as files. No videos: the CI builds none.
+  package:
+    name: Package (${{ matrix.name }})
     if: startsWith(github.ref, 'refs/tags/v')
     needs: check
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-linux
+            os: ubuntu-24.04
+            libraries: target/release/liblab.so
+            std: libstd-*.so
+          - name: x86_64-windows
+            os: windows-2025
+            # build.rs puts the standard library's DLL beside the binary.
+            libraries: target/release/lab.dll target/release/std-*.dll
+            std: ""
+          - name: aarch64-macos
+            os: macos-15
+            libraries: target/release/liblab.dylib
+            std: libstd-*.dylib
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
+      # Windows: the files as committed (Git for Windows otherwise turns LF into CRLF; the lab hashes its sources).
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: |
           cargo build --release --locked
           target/release/render-lab cook
-      # The binary finds the lab and the standard library beside it (build.rs: rpath $ORIGIN) and the built
-      # packages in packages/ beside it (lab/src/resources.rs); the cook links resources to their sources, so
-      # the copy follows links.
       - name: Package
         run: |
-          dist="render-lab-${GITHUB_REF_NAME}-x86_64-linux"
+          dist="render-lab-${GITHUB_REF_NAME}-${{ matrix.name }}"
           mkdir "$dist"
-          cp target/release/render-lab target/release/liblab.so "$dist/"
-          cp "$(rustc --print sysroot)"/lib/rustlib/x86_64-unknown-linux-gnu/lib/libstd-*.so "$dist/"
+          cp target/release/render-lab${{ runner.os == 'Windows' && '.exe' || '' }} ${{ matrix.libraries }} "$dist/"
+          if [ -n "${{ matrix.std }}" ]; then cp "$(rustc --print target-libdir)"/${{ matrix.std }} "$dist/"; fi
           cp -rL target/release/packages target/release/themes "$dist/"
           cp -r LICENSE LICENSES THIRD_PARTY.md README.md README.zh-CN.md "$dist/"
-          tar czf "$dist.tar.gz" "$dist"
-          echo "DIST=$dist.tar.gz" >> "$GITHUB_ENV"
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a -tzip "$dist.zip" "$dist" > /dev/null
+            echo "DIST=$dist.zip" >> "$GITHUB_ENV"
+          else
+            tar czf "$dist.tar.gz" "$dist"
+            echo "DIST=$dist.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.DIST }}
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$DIST" --title "Render Lab $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Render Lab $GITHUB_REF_NAME" --generate-notes

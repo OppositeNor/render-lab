@@ -616,7 +616,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let rgba = renderer.read_frame();
         // ModulateWithSsao: the GPU's upsampled AO, which section 6c checks against the CPU mirror.
         let (ao_words, ao_size) = renderer.read_chain_buffer("ssaoFull").context("ssao")?;
-        let vp = renderer.frame_layout().viewport_px();
+        let layout = renderer.frame_layout();
+        let vp = layout.viewport_px();
+        // A recording draws its tag, watermark, and progress over the viewport: compare only where they are not.
+        let safe = layout.safe();
         let projector = Projector::new(&content.uniforms.camera);
         let eye = Vec3::from(content.uniforms.camera.position);
         let light_px = projector.project(shading.light.position).map(|(p, _)| p);
@@ -626,6 +629,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             for i in 0..32 {
                 let pixel = Vec2::new(((i as f32 + 0.5) / 32.0 * vp[2] as f32).floor() + 0.5, ((j as f32 + 0.5) / 24.0 * vp[3] as f32).floor() + 0.5);
                 if light_px.is_some_and(|l| l.distance(pixel) < 40.0) {
+                    continue;
+                }
+                let (sx, sy) = ((vp[0] as f32 + pixel.x) / layout.scale, (vp[1] as f32 + pixel.y) / layout.scale);
+                if sx < safe.min.x || sx > safe.max.x || sy < safe.min.y || sy > safe.max.y {
                     continue;
                 }
                 // Flat surfaces only (the sphere and teapot are tessellated), away from edges.
@@ -860,7 +867,8 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut row = |demo: Demo, prefix: &str| -> Option<f32> {
             let state = shot::for_demo(demo);
             renderer.render_frame(request(&state, &still), None);
-            let content = demos::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+            // The lab's frame: the demonstration's readout rows include its readout script's (script/readout.lam).
+            let content = lab::shader_data::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
             let (_, value, _) = content.readout?.rows.into_iter().find(|(name, _, _)| name.starts_with(prefix))?;
             value.trim_start_matches('(').split([',', ' ']).find(|v| !v.is_empty())?.parse().ok()
         };

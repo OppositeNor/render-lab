@@ -33,14 +33,16 @@ pub struct Gpu {
     pub info: wgpu::AdapterInfo,
 }
 
-/// A Vulkan instance. The viewer passes winit's display handle so the
-/// instance can present to Wayland or X11 surfaces.
+/// An instance over the GPU APIs this build has (Vulkan; Direct3D 12 on
+/// Windows, Metal on macOS: lab/Cargo.toml), of which wgpu picks the adapter;
+/// `WGPU_BACKEND` (e.g. `vulkan`, `dx12`, `metal`) narrows them. The viewer
+/// passes winit's display handle so the instance can present to its surfaces.
 pub fn instance(display: Option<Box<dyn wgpu::wgt::WgpuHasDisplayHandle>>) -> wgpu::Instance {
     let mut desc = match display {
         Some(d) => wgpu::InstanceDescriptor::new_with_display_handle(d),
         None => wgpu::InstanceDescriptor::new_without_display_handle(),
     };
-    desc.backends = wgpu::Backends::VULKAN;
+    desc.backends = wgpu::Backends::PRIMARY.with_env();
     wgpu::Instance::new(desc)
 }
 
@@ -52,7 +54,7 @@ impl Gpu {
             compatible_surface: surface,
             apply_limit_buckets: false,
         }))
-        .context("no Vulkan adapter found")?;
+        .context("no GPU adapter found (WGPU_BACKEND narrows the APIs tried)")?;
         let info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("render-lab"),
@@ -67,7 +69,7 @@ impl Gpu {
             memory_hints: wgpu::MemoryHints::Performance,
             trace: wgpu::Trace::Off,
         }))
-        .context("request Vulkan device")?;
+        .context("request GPU device")?;
         Ok(Gpu { _instance: instance, adapter, device, queue, info })
     }
 }

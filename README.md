@@ -1,5 +1,7 @@
 # Render Lab
 
+[![CI](https://github.com/OppositeNor/render-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/OppositeNor/render-lab/actions/workflows/ci.yml)
+
 English | [简体中文](README.zh-CN.md)
 
 <p align="center">
@@ -10,7 +12,7 @@ A lab for rendering demonstrations and experiments, organised as **investigation
 investigation rebuilds parts of one engine feature on prepared data and shows the data involved, step by step, in an
 interactive viewer and in narrated videos that the lab records frame by frame.
 
-It uses **wgpu 30.0.1** on Vulkan, **winit 0.30.13**, **egui 0.37**, and **WGSL** shaders.
+It uses **wgpu 30.0.1** on Vulkan (or, where wgpu picks them, Direct3D 12 on Windows and Metal on macOS), **winit 0.30.13**, **egui 0.37**, and **WGSL** shaders.
 
 <p align="center">
   <img src="media/title-screen.jpg" alt="The title screen: Play, Config, and Quit on frosted glass over the study room" width="49%">

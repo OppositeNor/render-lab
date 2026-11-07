@@ -6,7 +6,7 @@
 
 ## 要求
 
-Rust 1.88 或更新版本，以及 Vulkan 驱动。着色器是 WGSL，因此不需要着色器 SDK。
+Rust 1.88 或更新版本，以及支持 Vulkan 的 GPU 驱动（Windows 上也可用 Direct3D 12，macOS 上用 Metal）。由 wgpu 选择图形 API；`WGPU_BACKEND`（`vulkan`、`dx12`、`metal`）可指定其一。着色器是 WGSL，因此不需要着色器 SDK。
 
 ## 从源码构建
 
@@ -46,7 +46,7 @@ cargo run --release --locked --offline -- home --autotest /tmp/render-lab-home.j
 cargo run --release --locked --offline -- --investigation o3de/lighting selftest --report /tmp/render-lab-o3de.json
 ```
 
-离屏检查需要 Vulkan 驱动。更多命令与快照入口见[使用 Render Lab](docs/usage.zh-CN.md#命令)。
+离屏检查需要这样的驱动。更多命令与快照入口见[使用 Render Lab](docs/usage.zh-CN.md#命令)。
 视频的环境与检查见[视频构建器](tools/video/README.md)，报告工具见[实验报告](tools/experiments/README.md)。
 
 ## 运行时资源与声音
