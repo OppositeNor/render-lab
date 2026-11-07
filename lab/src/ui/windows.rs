@@ -229,7 +229,7 @@ pub fn dock_at(area: Rect, pointer: Pos2) -> Option<Dock> {
     }
     let (left, right, bottom) = (pointer.x - area.min.x, area.max.x - pointer.x, area.max.y - pointer.y);
     let nearest = left.min(right).min(bottom);
-    (nearest < DOCK_REACH).then(|| if nearest == bottom { Dock::Bottom } else if nearest == left { Dock::Left } else { Dock::Right })
+    (nearest < DOCK_REACH).then_some(if nearest == bottom { Dock::Bottom } else if nearest == left { Dock::Left } else { Dock::Right })
 }
 
 /// Where a window docked to `dock` would be, for the hint a drag shows before the drop.

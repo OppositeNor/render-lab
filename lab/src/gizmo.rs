@@ -94,7 +94,7 @@ pub fn shape(projector: &Projector, at: Vec3, mode: Mode, pixels: f32) -> Option
         let a = k as f32 / 48.0 * std::f32::consts::TAU;
         point(at + Vec3::new(a.cos(), 0.0, a.sin()) * arm * 0.9)
     }).collect();
-    let scale = tips[0].map_or(center + Vec2::new(pixels, 0.0), |t| t);
+    let scale = tips[0].unwrap_or(center + Vec2::new(pixels, 0.0));
     Some(Shape { mode, center, tips, squares, ring, scale, arm })
 }
 
