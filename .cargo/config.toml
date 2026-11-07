@@ -4,3 +4,12 @@
 # offline whenever CARGO_HOME=$PWD/.cache/cargo (see BUILD.md).
 [build]
 target-dir = "target"
+
+# macOS: without `-C rpath`, rustc gives a dylib (the lab's, liblab.dylib) its
+# build path as its install name, which the binary and the packages' libraries
+# record, so a copy elsewhere (a release) cannot find it. With it, the name is
+# `@rpath/liblab.dylib`, found through the binary's rpath (build.rs:
+# @executable_path). A RUSTFLAGS variable replaces these flags: the CI passes
+# `-C rpath` in it on macOS (.github/workflows/ci.yml).
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "rpath"]
