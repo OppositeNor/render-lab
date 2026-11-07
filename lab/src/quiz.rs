@@ -154,10 +154,10 @@ impl Quiz {
         }
         for (i, q) in self.questions.iter().enumerate() {
             let at = format!("question {}", i + 1);
-            if let Some(d) = &q.demo {
-                if let Err(e) = crate::experiment::demo_named(d) {
-                    problems.push(format!("{at}: {e}"));
-                }
+            if let Some(d) = &q.demo
+                && let Err(e) = crate::experiment::demo_named(d)
+            {
+                problems.push(format!("{at}: {e}"));
             }
             for (k, v) in q.camera.iter().chain(&q.values) {
                 if let Err(e) = crate::values::resolve(k, v) {
