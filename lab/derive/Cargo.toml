@@ -3,7 +3,7 @@
 # `lab::Values`, so a package needs no dependency of its own.
 [package]
 name = "render-lab-derive"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 rust-version = "1.88"
 publish = false
