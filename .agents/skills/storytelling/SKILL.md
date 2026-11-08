@@ -22,6 +22,7 @@ reader's own pace (descriptions, inspect text, quiz explanations) follows this s
 | **A sentence** reworded or added | Its map row (below): its known part comes from the sentence before or the screen, its new part is last and single, its job is clear. Map the sentences on each side of it too: a new sentence moves the chain. | this file |
 | **A passage or chapter** written or rewritten | Write it with "Building a passage"; then map every sentence, fix every fault, and re-map what you edited | this file, `references/examples.md` |
 | **A review** flagged a passage, or the user says it is unclear | "Finding and fixing": map it, name each fault, fix by the table, re-check against the ear rules | this file, `references/examples.md` |
+| **A whole story** reviewed or revised, or many sentences that carry cues edited | The narration as heard, reviewers per story with every flag verified, cue-safe edits, the translation in step, only facts a rewrite may add, then the checks | this file, `references/examples.md`, `references/revision.md` |
 | **The translation** | "In Chinese" below, with `new-story`'s rules for the translation | this file |
 
 ## The sentence
@@ -122,6 +123,16 @@ prose.
 After fixing, map the edited sentences again and check them against the ear rules. A split often breaks a pronoun, and
 a reordering can change a claim: re-check its fact (`new-story`, "What is required at every depth").
 
+**A fix changes how a fact is said, never which facts are said.** It may add a bridge, a landing, the standard gloss
+of a general term, a consequence that follows by arithmetic from what is narrated, or a lab difference read from the
+lab's code. A reason or purpose for the engine's choice comes only from the engine's source (or the package's
+research that cites it); without one, restructure the sentence, or state the value as the engine's choice. When two
+sentences contradict each other, or a title disagrees with its beat, settle the fact before rewording.
+
+`references/examples.md`, section 3, has the faults a revision finds most, with their fixes;
+`references/revision.md` is the whole-story procedure: reading the narration as heard, reviewing at scale, editing
+around cues and ranges, and keeping the translation in step.
+
 ## In Chinese
 
 The same structure holds, written as Chinese, not mirrored from the English (`new-story`, `references/storyboard.md`,
@@ -138,5 +149,6 @@ that paragraph, never across two.
 |---|---|
 | A sentence | Its map row and its neighbours' rows; the ear rules; `--prepare-only` and the beat's stills (`new-story`) |
 | A passage or chapter | The map of every sentence, no fault left; the cold-listener review (`new-story`, `references/review.md`) with no flag left of the kinds it requires fixed |
+| A whole story | `references/revision.md`, "Check": layout, `tools/video/check.py` in both languages (paragraph counts), `--prepare-only` for both (a chapter over its budget gets a larger budget, never less explanation), the changed beats' stills |
 | Explanatory on-screen text | Its map; both languages' keys (AGENTS.md); `render-lab i18n --check` |
 | This skill | `python3 tools/check_skills.py` |

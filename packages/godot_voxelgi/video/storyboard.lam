@@ -47,9 +47,9 @@ ${overText
     {' {voxelgiMixRange 0.3 0.5}}
     "So VoxelGI cuts the room into a grid of small boxes, called cells, ahead of time"}.
 
-${overText
-    {' {voxelgiMixRange 0.5 0.8}}
-    "It then lights those cells, and every pixel reads their light back through a few wide cones"}.
+${overText {' {voxelgiMixRange 0.5 0.8}} "It then lights those cells"}.
+
+Every pixel reads their light back through a few wide cones, shapes that widen as they go.
 
 ${overText
     {' {voxelgiMixRange 0.8 1.0}}
@@ -144,7 +144,9 @@ ${cue "key" {' {callout "voxelgi-gate"}}}Instead, its work runs in any frame whe
 
 ${cue "key" {' {callout "node-defaults"}}}${overText
     {' {focusRowRange 1.0 4.0}}
-    "A VoxelGI is a node placed in the scene, and by default it is a box twenty metres on each side"}.
+    "A VoxelGI is a node placed in the scene"}.
+
+By default it is a box twenty metres on each side.
 
 ${overText
     {' {voxelgiMixRange 0.0 1.0}}
@@ -154,7 +156,7 @@ ${cue "key" {' {callout "quality-setting"}}}${over
     {' {focusRowRange 4.0 12.0}}
     {overText
         {' {qualityRange 0.0 1.0}}
-        "One project setting picks how many cones each pixel traces, four by default, or six for a finer result"}}.
+        "Besides the cells, one project setting picks how many cones each pixel traces, four by default, or six for a finer result"}}.
 
 ${overText {' {qualityRange 1.0 0.0}} "The other settings arrive in the chapters that use them"}.
 
@@ -279,7 +281,9 @@ ${cue "key" {' {callout "begin-bake"}}}${over
 
 ${cue "key" {' panelCode listingBeginBake {highlightCode "begin-bake" {' "shrink"}}}}${overText
     {' {boundsStepRange 0.0 1.0}}
-    "For a shorter axis, that count is halved again and again, as long as half the longest side still covers the axis"}.
+    "A shorter axis gets fewer cells"}.
+
+Its count is halved, and halved again, while half the longest side still covers the axis.
 
 ${overText
     {' {octreeLevelRange 1.0 2.0}}
@@ -289,9 +293,9 @@ ${cue "key" {' {highlightCode "begin-bake" {' "cube"}}}}${overText
     {' {boundsStepRange 1.0 2.0}}
     "Then every side is stretched to the longest one, so the octree covers a cube"}.
 
-${overText
-    {' {octreeLevelRange 2.0 4.0}}
-    "The octree's cells are then cubes of one size, five centimetres wide seven levels below the whole cube"}.
+${overText {' {octreeLevelRange 2.0 4.0}} "So the octree's cells are cubes of one size"}.
+
+The smallest are five centimetres wide, seven levels below the whole cube.
 
 ${cue "key" {' {highlightCode "begin-bake" {' "cell"}}}}The height's sixty-four cells stop at three point two metres.
 
@@ -462,6 +466,8 @@ ${cue "key" {opening demoOctree panelHidden 1.0 {'
     {cameraDistance 6.8}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 14.0 24.0 6.4} {pose 28.0 30.0 6.9}}}}}}}
 
+The colours the leaves receive come from the materials.
+
 ${cue "key" {' {callout "material-cache"}}}${overText
     {' {cellViewRange 1.0 0.0}}
     "Each material is read once into two tables, each one hundred twenty-eight texels a side"}.
@@ -613,7 +619,7 @@ ${cue "key" {' {highlightCode "sort-cells" {' "root"}}}}${overText
 
 ${cue "key" {' {highlightCode "sort-cells" {' "remap"}}}}${overText
     {' {octreeLevelRange 3.0 5.0}}
-    "Each child's index is rewritten to point at its new place"}.
+    "Because the cells moved, each parent's list of child indices is rewritten to point at their new places"}.
 
 ${cue "key" {' {highlightCode "sort-cells" {' "runs"}}}}${overText
     {' {octreeLevelRange 5.0 7.0}}
@@ -645,7 +651,9 @@ ${cue "key" {' {callout "export-octree"}}}Each cell is stored as two records.
 
 ${overText
     {' {focusRowRange 0.0 1.0}}
-    "The first record holds its eight children's indices, thirty-two bytes, and an index of all ones means that child is empty"}.
+    "The first record holds its eight children's indices, thirty-two bytes"}.
+
+An index of all ones means that child is empty.
 
 ${cue "key" {' {callout "export-data"}}}${overText
     {' {focusRowRange 1.0 2.0}}
@@ -653,7 +661,9 @@ ${cue "key" {' {callout "export-data"}}}${overText
 
 ${overText
     {' {focusRowRange 2.0 3.0}}
-    "It starts with the cell's position, counted in that level's own cells and packed into eleven, ten, and eleven bits"}.
+    "It starts with the cell's position, counted in that level's own cells"}.
+
+The three coordinates are packed into eleven, ten, and eleven bits.
 
 ${overText
     {' {focusRowRange 4.0 5.0}}
@@ -687,7 +697,7 @@ ${cue "key" {' panelCode listingDistanceField {highlightCode "distance-field" {'
 
 ${cue "key" {' {highlightCode "distance-field" {' "z"}}}}${overText
     {' {edtPassRange 0.0 1.0}}
-    "Then an exact distance transform runs along every column of cells in the z direction"}.
+    "Then a pass runs along every column of cells in the z direction, and finds each place's distance within its column"}.
 
 ${over
     {' {edtPassRange 1.0 3.0}}
@@ -695,7 +705,9 @@ ${over
         {cue "key" {' {highlightCode "distance-field" {' "y"}}}}
         {text "It runs again along y, "}
         {cue "key" {' {highlightCode "distance-field" {' "x"}}}}
-        {text "and then along x, and together the three passes give the exact distance"}}}}.
+        {text "and then along x"}}}}.
+
+Together, these three passes are called an exact distance transform, because they give each place its exact distance.
 
 ${cue "key" {' {callout "sdf-encode"} panelValues}}${overText
     {' {focusRowRange 2.0 3.0}}
@@ -729,11 +741,13 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 0.0 70.0} {aim 16.0 58.0}}}}}}}
 
 ${cue "key" {' {callout "allocate-data"}}}${overText
     {' {sliceRange 2.0 1.0}}
-    "The upload turns the two records into two storage buffers, and the field into a three-dimensional texture with one byte per texel"}.
+    "The upload turns the two records into two storage buffers"}.
+
+It turns the field into a three-dimensional texture, with one byte per texel.
 
 ${cue "key" {' {callout "sdf-gpu-disabled"}}}${overText
     {' {sliceRange 1.0 2.0}}
-    "The source also holds a graphics-card version of the field, but it is compiled out"}.
+    "Godot's source also holds a graphics-card version of the field, but it is compiled out"}.
 
 ${cue "key" {' {glide cameraDistance 7.0 sentence}}}So the field the bake made on the processor is the one used.
 
@@ -751,7 +765,9 @@ ${overText
 
 ${overText {' {mipLevelRange 3.0 1.0}} "In the lab, the texture's finest mip takes four megabytes"}.
 
-${overText {' {mipLevelRange 1.0 0.0}} "The cells take under four, and the distance field one"}.
+${overText
+    {' {mipLevelRange 1.0 0.0}}
+    "The cells take under four megabytes, and the distance field one megabyte"}.
 
 ### Next: light {#c3-recap kind=3d}
 
@@ -810,7 +826,7 @@ ${overText
 
 ${cue "key" {' {callout "light-cache"}}}${overText
     {' {lightXRange 0.9 0.4}}
-    "The culler, the code that decides what is in view, compares every light each frame with a copy of its settings saved earlier"}.
+    "The culler, the code that decides what is in view, compares every light each frame with a copy of that light's settings, saved earlier"}.
 
 ${overText
     {' {lightXRange 0.4 -0.6}}
@@ -882,7 +898,9 @@ ${cue "key" {' {highlightCode "raymarch" {' "read"}}}}${overText
 
 ${cue "key" {' {highlightCode "raymarch" {' "step"}}}}${overText
     {' {marchStepsRange 2.0 4.0}}
-    "Then it jumps that far, rounded down to whole cells along the axis it mostly follows"}.
+    "Then it jumps that far"}.
+
+The jump is rounded down to whole cells, along the axis the ray mostly follows.
 
 ${cue "key" {' {highlightCode "raymarch" {' "solid"}}}}${overText
     {' {marchStepsRange 4.0 20.0}}
@@ -894,7 +912,7 @@ ${overText
 
 ${cue "key" {' {highlightCode "raymarch" {' "partial"}}}}${overText
     {' {lightZRange -0.4 -0.25}}
-    "Close to a surface, the field reads less than one cell, and the light is only dimmed"}.
+    "But close to a surface, the field reads less than one cell, and then the cell's light is only dimmed"}.
 
 ${overText {' {lightZRange -0.25 -0.1}} "That gives the shadow a slightly soft edge"}.
 
@@ -916,13 +934,13 @@ ${overText
     {' {lightStepRange 2.0 3.0}}
     "Its light on a cell is an integral over the whole rectangle"}.
 
-${overText
-    {' {lightStepRange 3.0 4.0}}
-    "VoxelGI evaluates that integral in closed form, with a standard fit called linearly transformed cosines"}.
+${overText {' {lightStepRange 3.0 4.0}} "VoxelGI does not sum the rectangle point by point"}.
+
+It evaluates the integral in closed form, with a standard fit called linearly transformed cosines.
 
 ${overText
     {' {cutHeightRange 0.2 0.7}}
-    "The area light's path never marches through the distance field"}.
+    "The area light never marches a ray through the distance field"}.
 
 ${overText
     {' {cutHeightRange 0.7 1.2}}
@@ -930,7 +948,9 @@ ${overText
 
 ${cue "key" {' {callout "ltc"}}}${overText
     {' {cutHeightRange 1.2 0.2}}
-    "Direct lighting divides this integral by two pi, but the code shows that VoxelGI does not"}.
+    "Godot's direct lighting divides this integral by two pi"}.
+
+The code shows that VoxelGI leaves that division out, so the panel lights the cells two pi times as brightly as direct lighting would.
 
 ### Every leaf, lit {#c4-all kind=3d}
 
@@ -1001,11 +1021,11 @@ ${overText
 
 ${cue "key" {' {callout "unused-push"}}}${overText
     {' {cutHeightRange 0.6 0.8}}
-    "The code shows that the pass still receives an anisotropy value, but no line reads it"}.
+    "Godot's VoxelGI stores no direction with its light"}.
 
 ${overText
     {' {cutHeightRange 0.8 1.0}}
-    "This version stores no direction with its light, so that value changes nothing"}.
+    "The code shows that the pass still receives an anisotropy value, but no line reads it, so that value changes nothing"}.
 
 ### Next: the bounce {#c4-recap kind=3d}
 
@@ -1025,7 +1045,7 @@ ${overText {' {cutHeightRange 3.2 1.8}} "So every leaf now holds the direct ligh
 
 ${overText
     {' {cutHeightRange 1.8 0.4}}
-    "For punctual lights, that light is shadowed through the distance field"}.
+    "Every shadow in that light comes from marching the distance field, and the area light casts none"}.
 
 ${overText
     {' {cutHeightRange 0.4 1.8}}
@@ -1147,7 +1167,7 @@ ${cue "key" {' {callout "bounce-march"}}}${overText
     {' {coneStepsRange 0.0 1.0}}
     "A cone starts one and a half cells from the cell's centre, clear of the cell itself"}.
 
-${cue "key" {' runMarchCone {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}On each step, the cone advances by half its width, so it widens as it goes.
+${cue "key" {' runMarchCone {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}The cone widens as it goes, and on each step it advances by half its current width.
 
 ${cue "key" {' {highlightCode "second-bounce" {' "lod"}}}}At each step, it reads the mip whose texels match that width.
 
@@ -1259,9 +1279,9 @@ ${overText
     {' {dynamicXRange 0.0 0.3}}
     "That happens whether the object moved or not, so it costs work even when the object stands still"}.
 
-${overText
-    {' {dynamicXRange 0.3 0.6}}
-    "The points on screen are the texels the teapot wrote, drawn brighter than stored, in the light they received"}.
+${overText {' {dynamicXRange 0.3 0.6}} "The points on screen are the texels the teapot wrote"}.
+
+Each is shown in the light it received, drawn brighter than the light stored.
 
 ${overText
     {' {dynamicXRange 0.6 0.0}}
@@ -1282,7 +1302,7 @@ ${cue "key" {' {callout "dynamic-oversample"}}}${overText
 
 ${overText
     {' {dynamicXRange 0.15 0.0}}
-    "That is fine enough that shrinking the image later measures how much of each cell the object covers"}.
+    "That is fine enough to measure, later, how much of each cell the object covers"}.
 
 ${cue "key" {' {callout "dynamic-views"}}}${overText
     {' {dynamicViewRange 0.0 5.0}}
@@ -1316,7 +1336,7 @@ ${cue "key" {' {callout "shrink"}}}${overText
 
 ${overText
     {' {shrinkLevelRange 1.0 3.0}}
-    "It goes from sixteen texels a cell to eight, then four, then two"}.
+    "It goes from sixteen texels a cell to eight, then four, then two, then one"}.
 
 ${cue "key" {' {highlightCode "dynamic-object" {' "plot"}}}}${overText
     {' {shrinkLevelRange 3.0 4.0}}
@@ -1328,7 +1348,9 @@ ${cue "key" {' {callout "plot-blend"}}}${overText
 
 ${overText
     {' {dynamicVoxelsRange 0.5 1.0}}
-    "So the texel is split between those two cells by distance, and blended over what is already there"}.
+    "So the texel is split between those two cells, by distance"}.
+
+Each share is blended over what is already there.
 
 ${overText {' {shrinkLevelRange 4.0 11.0}} "Each further halving plots into the next, coarser mip"}.
 
@@ -1394,7 +1416,9 @@ ${overText
 
 ${cue "key" {' {callout "dynamic-light-count"}}}${overText
     {' {dynamicXRange 0.5 0.0}}
-    "The code shows that this pass does not limit its light count to the thirty-two entries of the light buffer"}.
+    "In chapter four, at most thirty-two lights took part"}.
+
+The code shows that this pass has no such limit, so past thirty-two lights it reads beyond the end of the light buffer.
 
 ### Next: reading the texture {#c6-recap kind=3d}
 
@@ -1443,11 +1467,13 @@ ${cue "key" {' {callout "pairing-two"}}}${overText
 
 ${cue "key" {' {callout "tag-write"}}}${overText
     {' {focusRowRange -1.0 0.0}}
-    "The depth pre-pass, which draws depth before the main shading, writes those two VoxelGIs' indices into every pixel it draws"}.
+    "A pass called the depth pre-pass draws depth before the main shading"}.
 
-${overText
-    {' {pixelAzimuthRange 60.0 90.0}}
-    "That takes two bytes per pixel, and an index of two hundred fifty-five means none"}.
+It writes those two VoxelGIs' indices into every pixel it draws.
+
+${overText {' {pixelAzimuthRange 60.0 90.0}} "That takes two bytes per pixel"}.
+
+An index of two hundred fifty-five means none.
 
 ${overText
     {' {pixelElevationRange 30.0 20.0}}
@@ -1455,7 +1481,7 @@ ${overText
 
 ${cue "key" {' {callout "instance-ubo"}}}${overText
     {' {pixelAzimuthRange 90.0 60.0}}
-    "Up to eight VoxelGIs in view share one buffer that holds their settings"}.
+    "Their settings are kept in one buffer, shared by up to eight VoxelGIs in view"}.
 
 ${overText {' {pixelElevationRange 20.0 10.0}} "This sphere's pixels name the room's only VoxelGI"}.
 
@@ -1492,7 +1518,7 @@ ${overText {' {pixelElevationRange 10.0 20.0}} "The fade exists to blend two box
 
 ${overText
     {' {pixelElevationRange 20.0 30.0}}
-    "With one box, the weighted light is then divided by that same fade, so the fade cancels out"}.
+    "But with one box, the weighted light is then divided by that same fade, so the fade cancels out"}.
 
 ${overText
     {' {pixelElevationRange 30.0 40.0}}
@@ -1517,7 +1543,7 @@ ${cue "key" {' {callout "cone-trace-45"}}}${overText
 
 ${overText
     {' {coneStepsRange 1.0 2.0}}
-    "So each step doubles the distance and reads one mip coarser, where a texel is twice as wide"}.
+    "Each step advances by that radius, so it doubles the distance and reads one mip coarser, where a texel is twice as wide"}.
 
 ${overText
     {' {coneStepsRange 2.0 6.0}}
@@ -1572,9 +1598,9 @@ ${cue "key" {' {callout "spec-cone"}}}${overText
     {' {pixelAzimuthRange 60.0 80.0}}
     "The reflection gets one more cone, along the mirror direction"}.
 
-${overText
-    {' {sphereRoughnessRange 0.5 0.3}}
-    "That cone's width follows the surface's roughness, which the pass squares first"}.
+${overText {' {sphereRoughnessRange 0.5 0.3}} "That cone's width follows the surface's roughness"}.
+
+The pass squares the roughness first.
 
 ${overText
     {' {sphereRoughnessRange 0.3 0.15}}
@@ -1609,9 +1635,9 @@ ${overText
 
 ${cue "key" {' panelCode listingVoxelGiCompute {highlightCode "voxel-gi-compute" {' "interior"}}}}The cones' alpha says how much of their view they found filled.
 
-${overText
-    {' {interiorRange 0.0 1.0}}
-    "With the interior setting on, that alpha is forced to one, so the environment's light never mixes in"}.
+${overText {' {interiorRange 0.0 1.0}} "With the interior setting on, that alpha is forced to one"}.
+
+So the environment's light never mixes in.
 
 ${cue "key" {' panelValues}}${overText
     {' {interiorRange 1.0 0.0}}
@@ -1700,7 +1726,9 @@ A row shows the pass's name, a bar for its share of the frame, and its average t
 
 ${cue "key" {' {highlightPasses {' "scene pass" "voxelgiGiCS"}}}}The row called scene pass is the room's own shading, and it takes most of the frame.
 
-The screen pass is the row named ${code "voxelgiGiCS"}, after its compute shader, and this chapter shrinks it.
+The screen pass is the row named ${code "voxelgiGiCS"}, after its compute shader.
+
+This chapter shows how Godot keeps that row small.
 
 ${cue "key" {' unhighlight}}These times are this machine's.
 
@@ -1739,13 +1767,17 @@ ${cue "key" {opening demoCost panelValues 0.5 {'
     {giRelightEachFrame 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 18.0 24.0 6.6} {pose 28.0 30.0 6.0}}}}}}}
 
-${cue "key" {' {focusRow 1.0}}}The readout on the right counts what one update of the light passes and one frame cost, and this chapter's numbers come from it.
+${cue "key" {' {focusRow 1.0}}}The readout on the right counts what one update of the light passes costs, and what one frame costs.
+
+This chapter's numbers come from it.
 
 ${cue "key" {' {callout "sort-cells"}}}${overText
     {' {octreeLevelRange -1.0 7.0}}
     "When the light passes do run, they visit only the cells the bake made"}.
 
-${overText {' {focusRowRange 1.0 3.0}} "That means these leaves, not the empty grid around them"}.
+${overText
+    {' {focusRowRange 1.0 3.0}}
+    "These are the cells shown here, not the empty grid around them"}.
 
 ${over
     {' {cutHeightRange 3.2 1.2}}
@@ -1774,11 +1806,11 @@ ${overText
 
 ${cue "key" {' {callout "local-size"}}}${overText
     {' {focusRowRange 1.0 2.0}}
-    "Each run is one dispatch, with sixty-four cells to a workgroup"}.
+    "Each run is one dispatch, one call to the graphics card, with sixty-four cells to a workgroup"}.
 
 ${cue "key" {' {callout "level-dispatch"}}}${overText
     {' {octreeLevelRange 7.0 5.0}}
-    "The light pass lights the leaves first"}.
+    "The first light pass begins with the leaves"}.
 
 ${overText
     {' {octreeLevelRange 5.0 3.0}}
@@ -1944,7 +1976,9 @@ ${cue "key" {' {callout "half-res-dispatch"}}}So only a quarter of the pixels ar
 
 ${overText {' {viewModeRange 0.0 1.0}} "Here are the ambient buffers at full and half size"}.
 
-${cue "key" {' {callout "gi-buffer-fetch"}}}Without multisampling, the opaque pass reads the half-size one with a plain bilinear blend, with no weighting by depth.
+${cue "key" {' {callout "gi-buffer-fetch"}}}Without multisampling, the opaque pass reads the half-size one with a plain bilinear blend.
+
+That blend does not weight by depth.
 
 So along the sphere's edge, texels traced on the wall and on the sphere are blended together.
 
@@ -2033,7 +2067,7 @@ ${over
     {' {focusRowRange 3.0 7.0}}
     {overText
         {' {pixelAzimuthRange 75.0 60.0}}
-        "Ambient occlusion, the albedo, screen-space effects, and the environment's reflectance are applied to it in turn"}}.
+        "In turn, the opaque pass applies ambient occlusion, the albedo, screen-space effects, and the environment's reflectance to it"}}.
 
 ### Transparent surfaces and fog read it too {#c9-others kind=3d}
 

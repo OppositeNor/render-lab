@@ -62,7 +62,9 @@ ${cue "key" {' {glide cameraYaw 22.0 sentence}}}${overText
 
 ${cue "key" {' {ssrComposeStep 3.0} {skyReflection 0.0} {blend 1.0}}}${overText
     {' {floorRoughnessRange 0.04 0.02}}
-    "By the end, you will know how a ray from each floor pixel finds what it reflects, with the help of a pyramid of depths"}.
+    "By the end, you will know how a ray from each floor pixel finds what it reflects"}.
+
+A pyramid of depths guides that ray, and you will see how the pyramid is built.
 
 ${overText
     {' {floorRoughnessRange 0.02 0.3}}
@@ -72,7 +74,7 @@ ${overText
 
 ${cue "key" {' {callout "process-ssr"}}} By default, Godot builds the reflections in five passes.
 
-In order, they are a downsample of the depth, a depth pyramid, the trace of the rays, a blur, and a resolve back to full size.
+In order, they shrink the depth, build a pyramid from it, trace the rays, blur the result, and resolve it back to full size.
 
 All five run before the opaque pass, which shades the room's solid surfaces.
 
@@ -123,23 +125,27 @@ ${cue "key" {' {callout "env-defaults"}}}${overText
 
 ${overText {' {ssrEnabledRange 0.0 1.0}} "Godot's Environment resource turns it on"}.
 
+The Environment also holds the settings that shape each ray.
+
 ${overText
     {' {ssrMaxStepsRange 32.0 64.0}}
-    "By default, the Environment also limits each ray to sixty-four steps"}.
+    "By default, each ray may take at most sixty-four steps"}.
 
 ${overText
     {' {ssrFadeInRange 0.15 0.6}}
-    "Its fade-in, which defaults to fifteen hundredths, weakens a reflection whose ray is short on screen"}.
+    "The fade-in, which defaults to fifteen hundredths, weakens a reflection whose ray is short on screen"}.
 
 ${over
     {' {ssrFadeInRange 0.6 0.15}}
     {overText
         {' {ssrFadeOutRange 2.0 5.0}}
-        "Its fade-out, which defaults to two, weakens a reflection whose ray is long on screen"}}.
+        "The fade-out, which defaults to two, weakens a reflection whose ray is long on screen"}}.
 
-${overText {' {ssrDepthToleranceRange 0.5 0.1}} "Its depth tolerance is half a unit"}, ${overText
+${overText {' {ssrDepthToleranceRange 0.5 0.1}} "The depth tolerance is half a unit"}.
+
+${overText
     {' {ssrDepthToleranceRange 0.1 0.5}}
-    "and chapter four uses it to tell a hit from a ray passing behind a surface"}.
+    "Chapter four uses it to tell a hit from a ray passing behind a surface"}.
 
 ${cue "key" {' {callout "half-size-setting"} {ssrFadeOut 2.0}}}Separately from the Environment, a project setting runs SSR at half resolution by default.
 
@@ -199,7 +205,7 @@ ${overText
 
 ${overText
     {' {pickXRange 450.0 300.0}}
-    "The first image is the depth that the depth pre-pass already writes"}.
+    "The first image is the depth, which the depth pre-pass writes before anything is shaded"}.
 
 ${cue "key" {' {callout "ssr-normal-roughness"}}}${overText
     {' {pickYRange 200.0 240.0}}
@@ -246,7 +252,9 @@ ${cue "key" {' {highlightCode "prepass" {' "cube"}}}}${overText
 
 ${cue "key" {' {highlightCode "prepass" {' "fit"}}}}${overText
     {' {pickXRange 380.0 250.0}}
-    "Then it shortens the normal to the length that, once rounded to bytes, points closest to the true direction"}.
+    "Then it shortens the normal, keeping its direction"}.
+
+The length it picks is the one that, once rounded to bytes, points closest to the true direction.
 
 ${cue "key" {' {callout "best-fit-table"} {highlightCode "prepass" {' "table"}}}}${overText
     {' {pickYRange 120.0 170.0}}
@@ -264,13 +272,17 @@ ${overText
     {' {floorRoughnessRange 0.4 0.6}}
     "The roughness is scaled by one hundred twenty-seven over two hundred fifty-five, so it fills only the lower half of the byte"}.
 
-${cue "key" {' {highlightCode "prepass" {' "dynamic"}}}}${overText
+${cue "key" {' {highlightCode "prepass" {' "dynamic"}}}}The alpha byte also has to mark moving objects.
+
+${overText
     {' {floorRoughnessRange 0.6 0.4}}
     "A moving object stores one minus the scaled roughness, so its alpha lands in the upper half"}.
 
 ${overText {' {floorRoughnessRange 0.4 0.25}} "So a value above one half marks a moving object"}.
 
 ${overText {' {floorRoughnessRange 0.25 0.15}} "Undoing the one minus gives its roughness back"}.
+
+So the alpha byte holds the roughness, and says whether the object moves.
 
 ### One thread per pixel, at half size {#c2-threads kind=3d}
 
@@ -339,10 +351,6 @@ ${overText
     "So the trace also rebuilds the surface's own normal, from the depths around the pixel"}.
 
 ${overText
-    {' {pickYRange 205.0 200.0}}
-    "Chapter four uses that normal to start each ray off the real surface"}.
-
-${overText
     {' {pickXRange 230.0 275.0}}
     "Along each screen axis, the trace looks at two pixels on each side of the centre pixel"}.
 
@@ -351,7 +359,7 @@ ${overText
     "From each side's two depths, it predicts what the centre's depth would be if the surface continued in a straight line"}.
 
 ${overText
-    {' {pickYRange 200.0 197.5}}
+    {' {pickYRange 205.0 197.5}}
     "It keeps the side whose prediction is closer to the centre's real depth"}.
 
 ${overText
@@ -360,9 +368,11 @@ ${overText
 
 ${overText
     {' {pickYRange 195.0 192.5}}
-    "On each axis, the kept side gives a tangent along the surface"}.
+    "On each axis, the kept side sets a direction along the surface, called a tangent"}.
 
 ${overText {' {pickYRange 192.5 190.0}} "The cross product of the two tangents is the normal"}.
+
+Chapter four uses that normal to start each ray off the real surface.
 
 ### Next: a pyramid of depths {#c2-recap kind=3d}
 
@@ -485,7 +495,9 @@ ${cue "key" {'
 
 ${cue "key" {' {callout "mip-count"}}}${overText
     {append {' {hizLevelRange 0.0 5.0}} {view "field" {' {fieldLevelRange 0.0 5.0}}}}
-    "Godot makes the levels one after another, with one compute dispatch per level, because each level reads the one below it"}.
+    "Godot makes the levels one after another, because each level reads the one below it"}.
+
+Each level takes one compute dispatch.
 
 ${cue "key" {' {inset "hizGpu"} {attr "image.level" 7.0}}}${overText
     {append {' {hizLevelRange 5.0 9.0}} {view "field" {' {fieldLevelRange 5.0 9.0}}}}
@@ -512,7 +524,9 @@ For this example, P moves from the floor to a pixel on the inside of the teapot'
 
 ${overText
     {' {traceStepRange 0.0 17.0}}
-    "This new P sends its ray across the gap between the spout and the teapot's body, and the ray lands on the body"}.
+    "This new P sends its ray across the gap between the spout and the teapot's body"}.
+
+The ray lands on the body.
 
 ${cue "key" {' {traceStep 0.0}}}${overText
     {view "profile" {' {profileShowRange 0.0 0.4}}}
@@ -526,7 +540,7 @@ ${overText
     {view "profile" {' {profileShowRange 0.7 1.0}}}
     "Up is reversed depth, so nearer surfaces stand taller"}.
 
-The wall behind the gap is far away, so it stands low, far below the ray.
+In the gap, the depths are those of the far wall, so they stand low, far below the ray.
 
 ${overText
     {' {traceStepRange 0.0 0.2}}
@@ -634,7 +648,9 @@ ${cue "key" {'
     {pickX -1.0}
     {traceStep 0.0}}}${overText
         {view "field" {' {fieldShowRange 1.0 0.0}}}
-        "The first step starts in the next cell on level zero, so the ray never hits its own pixel"}.
+        "The ray is now ready to walk"}.
+
+Its first step starts in the next cell on level zero, so the ray never hits its own pixel.
 
 ### A miss climbs a level, a hit descends {#c4-climb kind=3d}
 
@@ -677,11 +693,13 @@ ${overText
 
 ${cue "key" {' {highlightCode "trace" {' "hit"}}}}${overText
     {' {traceStepRange 4.0 4.6}}
-    "On level four, the ray is already below the top of the cell"}.
+    "On level four, the ray is already below the top of the cell's column, the opposite of a miss"}.
 
 ${cue "key" {' {highlightCode "trace" {' "advance"}}}}${overText
     {' {traceStepRange 4.6 4.8}}
-    "So that cell may hold a hit, and the ray stays where it is, without jumping"}.
+    "So that cell may hold a hit"}.
+
+The ray stays where it is, without jumping.
 
 ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 4.8 5.0}}
@@ -696,9 +714,11 @@ ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {a
 
 ${cue "key" {' {highlightCode "trace" {' "hit"}}}}Above level zero, a hit only says that the cell may hold a surface.
 
+So a hit lowers the level by one, and a miss raises it by one.
+
 ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 5.0 6.0}}
-    "On level three, the cell may hold a hit"}.
+    "On level three, the cell may hold a hit, so the ray descends to level two"}.
 
 ${overText
     {' {traceStepRange 6.0 7.0}}
@@ -710,7 +730,9 @@ ${overText
 
 ${overText
     {' {traceStepRange 9.0 11.0}}
-    "Once more, the ray climbs to level two over an empty cell, and a hit sends it back down to level one"}.
+    "Once more, the cell on level one is empty, so the ray climbs to level two"}.
+
+A hit there sends it back down to level one.
 
 ${overText {' {traceStepRange 11.0 12.0}} "A hit on level one takes the ray to level zero"}.
 
@@ -786,6 +808,10 @@ ${over
 ${cue "key" {opening demoTrace panelHidden {append baseRoom {' {traceStep 0.0}}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 18.0 10.0 5.6} {pose 28.0 12.0 5.0}}}}}}}
 
+So the ray climbs over cells that hold nothing, descends where a cell may hold a surface, and stops at the first hit on level zero.
+
+This walk is called the march.
+
 ${overText
     {' {traceStepRange 0.0 64.0}}
     "For P on the floor, the same march takes the ray to the teapot"}.
@@ -813,7 +839,9 @@ ${cue "key" {' {callout "validity"}}}${overText
 
 ${overText
     {' {pickYRange 200.0 210.0}}
-    "So instead of a yes or no, the trace works out how valid the hit is, from zero to one, and a doubtful hit can still count a little"}.
+    "So instead of a yes or no, the trace works out how valid the hit is, from zero to one"}.
+
+A doubtful hit can still count a little.
 
 ${over
     {' {pickXRange 295.0 330.0}}
@@ -833,9 +861,11 @@ ${cue "key" {'
     {callout "backface"}
     {highlightCode "validate" {' "back"}}
     {pickX -1.0}
-    {pickY -1.0}}}${cue "key" {' {glide cameraDistance 4.8 sentence}}}Godot rejects a hit on a surface that faces away from the ray, but only within two SSR pixels of the start.
+    {pickY -1.0}}}${cue "key" {' {glide cameraDistance 4.8 sentence}}}A hit on a surface that faces away from the ray also gets zero, but only within two SSR pixels of the start.
 
-${cue "key" {' {glide cameraDistance 5.6 sentence}}}That limit is Godot's choice, and farther away the trace never checks which way the surface faces.
+${cue "key" {' {glide cameraDistance 5.6 sentence}}}Farther away, the trace never checks which way the surface faces.
+
+The two-pixel limit is Godot's choice.
 
 ### How far the ray ended from the surface {#c5-confidence kind=3d}
 
@@ -844,17 +874,21 @@ ${cue "key" {opening demoHit panelCode {append baseRoom {'
     {highlightCode "validate" {' "confidence"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 12.0}}}}}}}
 
-${cue "key" {' {callout "confidence"}}}${overText
+${cue "key" {' {callout "confidence"}}}Next, the trace asks how close the ray's end came to the surface.
+
+${overText
     {' {ssrDepthToleranceRange 0.5 0.2}}
-    "Next, the trace measures the distance in view space between the ray's end and the surface that the depth image shows at that pixel"}.
+    "It measures the distance in view space between the ray's end and the surface that the depth image shows at that pixel"}.
 
 ${overText
     {' {ssrDepthToleranceRange 0.2 0.05}}
     "A factor called the confidence falls from one to zero as that distance grows from zero to the depth tolerance"}.
 
-${overText
-    {' {ssrDepthToleranceRange 0.05 0.5}}
-    "Squaring the confidence makes it fall faster, and the squared confidence multiplies the validity"}.
+${overText {' {ssrDepthToleranceRange 0.05 0.5}} "Squaring the confidence makes it fall faster"}.
+
+The squared confidence multiplies the validity.
+
+One more factor guards the edge of the image.
 
 ${cue "key" {' {callout "margin"} {highlightCode "validate" {' "margin"}}}}${cue "key" {'
     {glide cameraYaw 30.0 sentence}}}A hit whose colour would come from near the edge of last frame's image is faded out, over a margin along that edge.
@@ -870,7 +904,9 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
 ${cue "key" {' {callout "fades"}}}${overText
     {' {ssrFadeInRange 0.15 0.6}}
-    "The two fades from chapter one also multiply into the validity, and both depend on how long the ray is on the screen"}.
+    "The two fades from chapter one also multiply into the validity"}.
+
+Both depend on how long the ray is on the screen.
 
 ${overText
     {' {ssrFadeInRange 0.6 0.15}}
@@ -888,7 +924,9 @@ ${cue "key" {' {glide cameraDistance 5.0 sentence}}}Their product peaks at ${spo
     {fadePeakLength}} hundredths of the screen long.
 
 ${cue "key" {' {glide cameraDistance 5.4 sentence}}}So SSR never covers more than ${spoken
-    {fadePeak}} percent of the sky's reflection under it, as chapter seven shows.
+    {fadePeak}} hundredths of the sky's reflection under it.
+
+Chapter seven shows that blend.
 
 ### The colour is last frame's {#c5-where kind=3d}
 
@@ -914,11 +952,13 @@ ${cue "key" {' {glide cameraDistance 5.0 sentence}}}Godot follows only the camer
 
 ${cue "key" {' {glide cameraDistance 5.3 sentence}}}So a moving object's reflection lags a frame behind.
 
-${cue "key" {' {glide cameraDistance 5.6 sentence}}}And a surface that just came into view reads the wrong colour, the one last frame's image held at that spot.
+${cue "key" {' {glide cameraDistance 5.6 sentence}}}A surface that just came into view fails too, because it reads the wrong colour, the one last frame's image held at that spot.
+
+The copy has one more effect.
 
 ${cue "key" {' {callout "last-frame-color"}}}${cue "key" {' {glide cameraPitch 6.0 sentence}}}${overText
     {' {floorRoughnessRange 0.15 0.1}}
-    "Last frame's image was copied after its own reflections were drawn, so it already holds them"}.
+    "Last frame's image was copied after that frame's reflections were drawn, so it already holds them"}.
 
 ${overText
     {' {floorRoughnessRange 0.1 0.04}}
@@ -933,7 +973,7 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 14.0 11.0}}}}}}}
 
 ${cue "key" {' {glide cameraDistance 5.2 sentence}}}The trace multiplies the colour it read by the validity.
 
-${cue "key" {' {callout "compress"}}}Before the blur of the next chapter, it replaces each colour with ${formulaSaid f"{\frac{c}{1 + L(c)}}" "the colour over one plus its luminance"
+${cue "key" {' {callout "compress"}}}Before the blur of the next chapter, it divides each colour by ${formulaSaid f"{\frac{c}{1 + L(c)}}" "one plus its luminance"
     {'}}.
 
 ${cue "key" {' {glide cameraDistance 5.6 sentence}}}That way, one bright texel cannot dominate an average.
@@ -987,7 +1027,7 @@ ${overText
 
 ${cue "key" {' {callout "blur-radius"} {highlightCode "blur" {' "base" "circle"}}}}${overText
     {' {floorRoughnessRange 0.3 0.6}}
-    "Where the cone reaches the hit, the largest circle that fits inside it gives the blur radius"}.
+    "Where the cone reaches the hit, the largest circle that fits inside the cone gives the blur radius"}.
 
 ### A blur level instead of a blur per pixel {#c6-chain kind=3d}
 
@@ -1004,8 +1044,10 @@ ${cue "key" {'
     {imageGraph "ssrFilter.ssrColor"}
     {imageTitle "views-ssr_color"}
     {attr "image.level" 1.0}
-    imageCornerBottomRight}}Instead, SSR keeps mip levels, a chain of copies of the reflection, ${cue "key"
+    imageCornerBottomRight}}Instead, SSR keeps a chain of copies of the reflection, ${cue "key"
         {' {inset "mips"} {attr "image.level" 3.0}}}each half the size of the one before and blurrier than it.
+
+These copies are called mip levels.
 
 ${overText
     {' {pickXRange 260.0 340.0}}
@@ -1076,9 +1118,11 @@ ${cue "key" {' {callout "filter-weights"} {inset "mips"} {attr "image.level" 2.0
     {' {floorRoughnessRange 0.4 0.3}}
     "Then it blurs seven texels across and seven down, with Gaussian weights"}.
 
+But not every texel has a colour to average.
+
 ${cue "key" {' {callout "filter-weight"} {inset "mips"} {attr "image.level" 3.0}}}${overText
     {' {floorRoughnessRange 0.3 0.5}}
-    "Some texels hold no colour, because their trace found no valid hit"}.
+    "Some hold none, because their trace found no valid hit"}.
 
 ${overText
     {' {floorRoughnessRange 0.5 0.3}}
@@ -1114,9 +1158,11 @@ ${overText
 
 ${cue "key" {' {glide cameraDistance 4.4 sentence}}}Along the teapot's edge, some of those four lie on the teapot, and some on the floor.
 
+So each texel gets a weight, which shrinks when the texel differs from the pixel.
+
 ${cue "key" {' {callout "resolve-weights"}}}${overText
     {' {floorRoughnessRange 0.3 0.5}}
-    "So each texel's weight is the product of"} ${formulaSaid f"{e^{-2048\,\Delta d}\; e^{-32\,(1 - n \cdot n')}\; e^{-16\,\Delta r}}" "three falling exponentials"
+    "That weight is the product of"} ${formulaSaid f"{e^{-2048\,\Delta d}\; e^{-32\,(1 - n \cdot n')}\; e^{-16\,\Delta r}}" "three falling exponentials"
         {'}}, one each for depth, normal, and roughness.
 
 ${overText
@@ -1127,9 +1173,11 @@ ${overText
     {' {floorRoughnessRange 0.35 0.3}}
     "That keeps the floor's reflection off the teapot, and the teapot's edge stays sharp"}.
 
+The resolve has one more job.
+
 ${cue "key" {' {callout "resolve-uncompress"}}}${overText
     {' {floorRoughnessRange 0.3 0.45}}
-    "Before averaging, the resolve undoes the last chapter's division by one plus luminance"}.
+    "Before averaging, it undoes the last chapter's division by one plus luminance"}.
 
 ${cue "key" {' {callout "resolve-flag"}}}${cue "key" {' {glide cameraDistance 5.6 sentence}}}SSR can also run at full size, and then there is no resolve pass.
 
@@ -1165,9 +1213,11 @@ ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     {highlightCode "compose" {' "sky"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0} {aim 16.0 10.0}}}}}}}
 
+To see what SSR adds, start from the floor without it.
+
 ${cue "key" {' {callout "reflection-source"}}}${overText
     {' {ssrComposeStepRange 0.0 0.5}}
-    "Before SSR is added, the floor's indirect specular light comes from the sky's reflection"}.
+    "Before SSR is added, the floor's indirect specular light, the light it reflects from its surroundings, comes from the sky's reflection"}.
 
 ${overText
     {' {ssrComposeStepRange 0.5 1.0}}
@@ -1206,7 +1256,9 @@ ${cue "key" {' {glide cameraDistance 5.4 sentence}}}So the more valid SSR's hit 
 
 ${cue "key" {' {callout "ssr-fade"} {highlightCode "compose" {' "ssr"}}}}${overText
     {' {floorRoughnessRange 0.15 0.7}}
-    "Between a roughness of six tenths and seven tenths, the opaque pass fades the SSR result out, with a fade separate from chapter five's"}.
+    "Between a roughness of six tenths and seven tenths, the opaque pass also fades the SSR colour out"}.
+
+This fade is separate from chapter five's.
 
 ${overText
     {' {floorRoughnessRange 0.7 0.15}}
@@ -1220,11 +1272,11 @@ ${cue "key" {opening demoCompose panelCode {append baseRoom {'
     listingCompose
     {highlightCode "compose" {' "brdf"}}}}}}
 
-${cue "key" {' {callout "env-brdf"}}}${cue "key" {' {glide cameraDistance 5.0 sentence}}}After the blend, Godot scales the floor's whole indirect specular light by the environment BRDF.
+${cue "key" {' {callout "env-brdf"}}}${cue "key" {' {glide cameraDistance 5.0 sentence}}}After the blend, Godot scales the floor's whole indirect specular light by a share.
 
-${cue "key" {' {glide cameraPitch 6.0 sentence}}}The environment BRDF is the share of incoming light that a surface reflects toward the eye, for its roughness and the viewing angle.
+${cue "key" {' {glide cameraPitch 6.0 sentence}}}That share is called the environment BRDF, the part of incoming light that a surface reflects toward the eye, for its roughness and the viewing angle.
 
-${cue "key" {' {glide cameraPitch 4.0 sentence}}}So SSR's colour counts as light arriving at the floor, the same as a reflection probe's.
+${cue "key" {' {glide cameraPitch 4.0 sentence}}}Because the scaling comes after the blend, SSR's colour counts as light arriving at the floor, the same as a reflection probe's.
 
 ${cue "key" {' {callout "f0"}}}${cue "key" {' {glide cameraPitch 8.0 sentence}}}The environment BRDF starts from the surface's reflectance seen head on, called f zero.
 
@@ -1242,8 +1294,10 @@ ${cue "key" {opening demoRoom panelPerformance {append baseRoom {'
     {highlightPasses {' "ssrTrace" "ssrResolve"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
-${cue "key" {' {highlightPasses {' "ssrTrace"}}}}When the lab times its port of Godot's passes on the GPU, the trace ${cue "key"
-    {' {highlightPasses {' "ssrTrace" "ssrResolve"}}}}and the resolve are the costliest of the SSR passes.
+The lab times its port of Godot's passes on the GPU.
+
+${cue "key" {' {highlightPasses {' "ssrTrace"}}}}The trace ${cue "key" {'
+    {highlightPasses {' "ssrTrace" "ssrResolve"}}}}and the resolve are the costliest of the SSR passes.
 
 ${cue "key" {' {highlightPasses {' "ssrTrace"}}}}By default, the trace runs at a quarter of the screen's pixels, but each of its rays may take many steps.
 
@@ -1299,24 +1353,27 @@ ${cue "key" {opening demoRoom panelHidden {append baseRoom lowCamera}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 18.0 10.0 5.6} {pose 30.0 12.0 5.0} {pose 22.0 10.0 5.4}}}}}}}
 
-${overText {' {floorRoughnessRange 0.15 0.05}} "SSR knows only depths, normals"} ${cue "key" {'
-    {glide cameraYaw 24.0 sentence}}}and last frame's colour.
-
-${cue "key" {' {glide cameraYaw 20.0 sentence}}}So it can reflect only what was on screen.
-
-${cue "key" {' {glide cameraDistance 5.0 sentence}}}It traces one ray per half-size pixel, through a pyramid of depths.
+${cue "key" {' {glide cameraDistance 5.0 sentence}}}${overText
+    {' {floorRoughnessRange 0.15 0.05}}
+    "SSR traces one ray per half-size pixel, through a pyramid of depths"}.
 
 ${overText
     {' {floorRoughnessRange 0.05 0.03}}
-    "It reuses last frame's light, so reflections of reflections build up, one bounce a frame"}.
+    "It reuses last frame's colour, so reflections of reflections build up, one bounce a frame"}.
 
 ${overText
     {' {floorRoughnessRange 0.03 0.3}}
     "And it blurs by roughness with a chain of mip levels, not with a blur per pixel"}.
 
+${cue "key" {' {glide cameraYaw 24.0 sentence}}}But SSR knows only depths, normals, and last frame's colour.
+
+${cue "key" {' {glide cameraYaw 20.0 sentence}}}So it can reflect only what was on screen.
+
 ${cue "key" {' {glide cameraDistance 5.6 sentence}}}${overText
     {' {ssrEnabledRange 1.0 0.0}}
-    "What is off screen is lost, and what has moved lags a frame"}.
+    "What is off screen is lost"}.
+
+What has moved lags a frame.
 
 ${over
     {' {ssrEnabledRange 0.0 1.0}}
@@ -1324,8 +1381,10 @@ ${over
         {' {floorRoughnessRange 0.3 0.04}}
         f"{And the fades keep every pixel's validity at ${spoken {fadePeak}} hundredths or less, so SSR only ever covers part of the sky's reflection}"}}.
 
+So SSR reflects only what the frame can see, and only part of what the sky would show.
+
 ### Where to read {#c8-sources kind=2d sources="process-ssr, copy-last-frame"}
 
 These are the lines of Godot's source that this chapter returned to.
 
-They are the passes, and the copy of last frame's image that closes the loop.
+They are the passes, and the copy of last frame's image that links one frame to the next.
