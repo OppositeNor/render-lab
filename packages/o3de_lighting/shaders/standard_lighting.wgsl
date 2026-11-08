@@ -1865,11 +1865,9 @@ const STENCIL_REFLECTION_MASK: u32 = 0x3Fu;
 // normal with the full-screen IBL and multiscatter flags.
 @fragment
 fn o3deForwardFS(input: SceneVaryings) -> O3deForwardOutput {
-    var n = normalize(input.worldNormal);
     let eye = gFrame.camera.position;
-    if (dot(n, eye - input.worldPosition) < 0.0) {
-        n = -n;
-    }
+    // A back face flips its normal (AdjustBackFaceNormal, NormalInput.azsli: by isFrontFace).
+    var n = eyeSideNormal(input.worldNormal, input.worldPosition, eye);
     // CalculateSpecularAA's ddx_fine and ddy_fine of the normal.
     let dndx = dpdxFine(n);
     let dndy = dpdyFine(n);

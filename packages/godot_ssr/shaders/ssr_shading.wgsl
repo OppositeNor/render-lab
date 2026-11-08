@@ -68,10 +68,7 @@ struct SsrPrepassOutput {
 // The fragment's view-space normal, turned toward the eye (DO_SIDE_CHECK,
 // scene_forward_clustered.glsl:1264-1266), as Godot's lighting uses it.
 fn ssrViewNormal(input: SceneVaryings) -> vec3<f32> {
-    var n = normalize(input.worldNormal);
-    if (dot(n, gFrame.camera.position - input.worldPosition) < 0.0) {
-        n = -n;
-    }
+    let n = eyeSideNormal(input.worldNormal, input.worldPosition, gFrame.camera.position);
     return normalize((gFrame.camera.worldToView * vec4<f32>(n, 0.0)).xyz);
 }
 
@@ -204,12 +201,9 @@ fn ssrKarisAB(roughness: f32, nv: f32) -> vec2<f32> {
 // Godot's indirect specular with SSR blended in.
 @fragment
 fn ssrForwardFS(input: SceneVaryings) -> SceneOutput {
-    var n = normalize(input.worldNormal);
     let eye = gFrame.camera.position;
     let v = normalize(eye - input.worldPosition);
-    if (dot(n, v) < 0.0) {
-        n = -n;
-    }
+    let n = eyeSideNormal(input.worldNormal, input.worldPosition, eye);
     let o = gObjects[input.objectIndex];
     let albedo = o.albedoRoughness.rgb;
     let viewNormal = normalize((gFrame.camera.worldToView * vec4<f32>(n, 0.0)).xyz);

@@ -240,11 +240,8 @@ struct VoxelgiForwardOutput {
 // roughness is the object's).
 @fragment
 fn voxelgiForwardFS(input: SceneVaryings) -> VoxelgiForwardOutput {
-    var n = normalize(input.worldNormal);
     let v = normalize(gFrame.camera.position - input.worldPosition);
-    if (dot(n, v) < 0.0) {
-        n = -n;
-    }
+    let n = eyeSideNormal(input.worldNormal, input.worldPosition, gFrame.camera.position);
     let o = gObjects[input.objectIndex];
     let direct = o.albedoRoughness.rgb * directIrradiance(input.worldPosition, n, input.objectIndex) / PI + o.emissive.rgb * o.emissive.w;
     return VoxelgiForwardOutput(vec4<f32>(direct, f32(input.objectIndex) + 1.0), vec4<f32>(n, 0.0), voxelgiCoverage(input.objectIndex, input.clip.xy));

@@ -369,10 +369,7 @@ struct SdfgiPrepassOutput {
 // space in gi.glsl).
 @fragment
 fn sdfgiPrepassFS(input: SceneVaryings) -> SdfgiPrepassOutput {
-    var n = normalize(input.worldNormal);
-    if (dot(n, gFrame.camera.position - input.worldPosition) < 0.0) {
-        n = -n;
-    }
+    let n = eyeSideNormal(input.worldNormal, input.worldPosition, gFrame.camera.position);
     let roughness = gObjects[input.objectIndex].albedoRoughness.w;
     return SdfgiPrepassOutput(vec4<f32>(n * 0.5 + vec3<f32>(0.5), roughness * (127.0 / 255.0)), sdfgiCoverage(input.objectIndex, input.clip.xy));
 }
@@ -446,12 +443,9 @@ fn sdfgiGiBuffer(t: texture_2d<f32>, pixel: vec2<u32>, size: vec2<u32>) -> vec4<
 // albedo) and its reflection times the environment BRDF, each by its alpha.
 @fragment
 fn sdfgiForwardFS(input: SceneVaryings) -> SceneOutput {
-    var n = normalize(input.worldNormal);
     let eye = gFrame.camera.position;
     let v = normalize(eye - input.worldPosition);
-    if (dot(n, v) < 0.0) {
-        n = -n;
-    }
+    let n = eyeSideNormal(input.worldNormal, input.worldPosition, eye);
     let o = gObjects[input.objectIndex];
     let albedo = o.albedoRoughness.rgb;
     let roughness = o.albedoRoughness.w;

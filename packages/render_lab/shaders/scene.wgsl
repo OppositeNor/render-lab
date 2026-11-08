@@ -36,19 +36,36 @@ struct SceneOutput {
     @builtin(sample_mask) coverage: u32,
 }
 
+// The shading normal turned to the side of its triangle the eye sees: flipped
+// only where the triangle is seen from behind (a plane's back face), as an
+// engine's two-sided shading tests the rasterizer's front face. The triangle's
+// own normal comes from the position's screen derivatives, so it holds for
+// either winding and a mirroring scale. A smooth normal that only leans away
+// from the eye at a silhouette keeps its side: flipping it would turn it into
+// the object, where lights it should hide reach it. Call it from a fragment
+// shader's uniform control flow (it takes derivatives).
+fn eyeSideNormal(normal: vec3<f32>, worldPosition: vec3<f32>, eye: vec3<f32>) -> vec3<f32> {
+    let n = normalize(normal);
+    let toEye = eye - worldPosition;
+    var face = cross(dpdx(worldPosition), dpdy(worldPosition));
+    if (dot(face, face) < 1e-24) {
+        // A triangle seen edge on: no face to test, so fall back to the eye.
+        face = toEye;
+    } else if (dot(face, toEye) < 0.0) {
+        face = -face;
+    }
+    return select(n, -n, dot(n, face) < 0.0);
+}
+
 @fragment
 fn sceneFS(input: SceneVaryings) -> SceneOutput {
-    var n = normalize(input.worldNormal);
     let eye = gFrame.camera.position;
     let v = normalize(eye - input.worldPosition);
-    if (dot(n, v) < 0.0) {
-        if (gObjects[input.objectIndex].shapeKind == SHAPE_TERRAIN) {
-            // The terrain is seen from above: past a ridge its smooth normal
-            // leans away from the eye, so turn it back to grazing instead.
-            n = normalize(n - v * (dot(n, v) - 1e-3));
-        } else {
-            n = -n;
-        }
+    var n = eyeSideNormal(input.worldNormal, input.worldPosition, eye);
+    if (dot(n, v) < 0.0 && gObjects[input.objectIndex].shapeKind == SHAPE_TERRAIN) {
+        // The terrain is seen from above: past a ridge its smooth normal
+        // leans away from the eye, so turn it back to grazing.
+        n = normalize(n - v * (dot(n, v) - 1e-3));
     }
     var color: vec3<f32>;
     if (input.objectIndex == gFrame.counts.y) {
