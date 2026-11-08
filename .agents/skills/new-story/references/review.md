@@ -75,14 +75,18 @@ It gets no source, no outline, and no storyboard markup. Its prompt:
 > what you get on one hearing. Flag every sentence where you: (1) lost what a word or phrase refers to; (2) met a term
 > not defined, or defined too long ago to remember; (3) had to re-parse: the structure resolved only at the end, a
 > clause attached to the wrong thing, facts listed with no verbs, a colon or semicolon joining two ideas; (4) heard a
-> fact with no reason: you could not tell why it matters or what it changes; (5) heard two or more new ideas at once.
+> fact with no reason: you could not tell why it matters or what it changes; (5) heard two or more new ideas at once;
+> (6) lost the thread: you could not tell how this sentence follows from the one before, or heard a name before what
+> it names.
 > Do not flag an engine constant the narration states as the engine's choice. Do not judge correctness, and do not
 > suggest rewrites. For each flagged sentence: its first five words, the problem numbers, and one line on what you
 > lost. Then what you understood the chapter to say, and what you would still ask.
 
-Fix the flagged sentences under "Written for the ear" (`references/storyboard.md`), re-check every edited sentence
-against those rules, and run it again. Judge by the flags, not by a score: the chapter passes when no flag of kinds 1,
-2, or 3 is left, and each flag of kinds 4 and 5 is either fixed or answered by the picture. Its summary of the chapter
+Fix the flagged sentences under "Written for the ear" (`references/storyboard.md`) and the `storytelling` skill's
+"Finding and fixing" (map the flagged sentence with its neighbours: a flag is often caused by the sentence before),
+re-check every edited sentence against those rules, and run it again. Judge by the flags, not by a score: the chapter
+passes when no flag of kinds 1, 2, 3, or 6 is left, and each flag of kinds 4 and 5 is either fixed or answered by the
+picture. Its summary of the chapter
 should match the outline's claims. The same review runs for the translation, with a listener who hears Chinese.
 
 ## The native-language review (required)

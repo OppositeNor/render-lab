@@ -226,7 +226,7 @@ ${cue "key" {'
     panelCode
     listingCascadeUpdate
     {highlightCode "cascade-update" {' "cell"}}}}
-The code turns the camera's position into a cell of the grid.
+To follow the camera, the code turns the camera's position into a cell of the grid.
 
 Each cascade compares the camera's cell with its own centre cell.
 
@@ -404,6 +404,8 @@ Back-face culling is turned off for every material drawn here, so a surface is d
 
 Alpha-blended materials are not drawn at all, so they leave no voxels.
 
+Each view draws the surfaces it sees as fragments, pieces of surface one pixel in size.
+
 The lab finds the same fragments a different way, by tracing a ray from each pixel into the scene.
 
 ### A solid bit and five bits per colour {#c4-albedo kind=3d}
@@ -447,7 +449,7 @@ ${cue "key" {'
     panelCode
     listingVoxelize
     {highlightCode "voxelize" {' "facing"}}}}
-A second 3D texture keeps six more bits per voxel, one for each axis direction.
+Each voxel also keeps six more bits in a 3D texture of their own, one bit for each axis direction.
 
 ${cue "key" {' {voxelFacing 1.0}}}Each fragment sets the one bit whose direction is nearest its normal.
 
@@ -794,7 +796,7 @@ ${cue "key" {'
     panelCode
     listingShadowMarch
     {highlightCode "shadow-march" {' "march"}}}}
-A shadow ray starts at the cell and steps toward the light.
+To find out whether a wall blocks the light, a shadow ray starts at the cell and steps toward the light.
 
 Each step is as long as the distance the field stores there.
 
@@ -1084,7 +1086,7 @@ ${cue "key" {'
     panelCode
     listingProbeStore
     {highlightCode "probe-store" {' "gain"}}}}
-To turn the rays into the light over the whole sphere, their sum should be multiplied by four pi over the ray count.
+The sum of the rays should be multiplied by four pi over the ray count, to give the light over the whole sphere.
 
 Four pi is the solid angle of the whole sphere.
 
@@ -1225,7 +1227,7 @@ ${cue "key" {opening demoPixel 0.5 {'
     {cameraDistance 3.2}}}}
 
 ${cue "key" {' {callout "specular-probes"}}}
-A reflection looks up the radiance map along the mirror direction.
+The probes light reflections too, by looking up the radiance map along the mirror direction.
 
 ${overText
     {' {sphereRoughnessRange 1.0 0.25}}

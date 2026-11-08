@@ -178,7 +178,8 @@ Code. All are published. Load the skill that owns the task; load another only wh
 | Task | Skill | Also required | Useful |
 |---|---|---|---|
 | A new investigation; porting an engine's shader; a source index, listing, formula, demonstration, value, or Play animation; verifying an investigation's claims against the engine | `new-investigation` | `packages` (a new package) | `render-graph`, `experiments` |
-| Researching, outlining, writing, reviewing, or revising an investigation's narrated story | `new-story` | `new-investigation` (its precision standard), `render-lab-lamlet` (when writing cues) | `knowledge-graph` |
+| Researching, outlining, writing, reviewing, or revising an investigation's narrated story | `new-story` | `new-investigation` (its precision standard), `storytelling` (when writing or revising narration), `render-lab-lamlet` (when writing cues) | `knowledge-graph` |
+| How an explanation is written: a sentence's known and new parts, the chain between sentences, a passage's shape; finding and fixing a passage that is hard to follow (narration, explanatory on-screen text) | `storytelling` | | `new-story` (what a story says and shows) |
 | A storyboard's syntax or cues, a package's live scripts (`script/*.lam`), the runtime library, `render_lab.lam`, the lab's Lamlet code | `render-lab-lamlet` | the pinned `lamlet` / `lamlet-present` skills it names | `new-story` (what a story should say and show) |
 | A pass, target, buffer, volume, history, or program of a frame; the lint's refusals; the inspector, graph panel, DAG | `render-graph` | | `experiments` (`[inspect]`) |
 | Topics, chapter requirements, an investigation's audience, the Prerequisites tab | `knowledge-graph` | | `new-story` (costing a story's level) |

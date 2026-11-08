@@ -332,7 +332,7 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 10.0 14.0} {aim 16
 
 ${cue "key" {' {callout "geom-normal"}}}${overText
     {' {pickXRange 280.0 255.0}}
-    "A normal map can tilt the stored normal away from the real surface"}.
+    "The stored normal is not always the real one, because a normal map can tilt it away from the real surface"}.
 
 ${overText
     {' {pickXRange 255.0 230.0}}
@@ -344,7 +344,7 @@ ${overText
 
 ${overText
     {' {pickXRange 230.0 275.0}}
-    "Along each screen axis, the trace looks at two pixels on each side of the centre"}.
+    "Along each screen axis, the trace looks at two pixels on each side of the centre pixel"}.
 
 ${overText
     {' {pickXRange 275.0 320.0}}
@@ -411,7 +411,7 @@ ${cue "key" {opening demoPyramid panelHidden {append baseRoom {' {hizLevel 0.0}}
 
 ${overText
     {view "field" {' {fieldShowRange 0.0 0.5}}}
-    "Here is the half-size depth that the downsample keeps"}.
+    "To skip those steps, look again at the half-size depth that the downsample keeps"}.
 
 ${overText
     {view "field" {' {fieldShowRange 0.5 1.0}}}
@@ -626,7 +626,7 @@ ${cue "key" {' {callout "camera-clip"}}}If the point one unit along the ray lies
 
 ${cue "key" {' {callout "t-max"}}}${overText
     {' {pickXRange 280.0 120.0}}
-    "It also finds the t where the ray leaves the screen, because the trace must stop there"}.
+    "The trace also finds the t where the ray leaves the screen, because it must stop there"}.
 
 ${cue "key" {'
     {callout "start-advance"}
@@ -697,8 +697,12 @@ ${cue "key" {opening demoTrace panelCode {append baseRoom {append spoutCamera {a
 ${cue "key" {' {highlightCode "trace" {' "hit"}}}}Above level zero, a hit only says that the cell may hold a surface.
 
 ${cue "key" {' {highlightCode "trace" {' "level"}}}}${overText
-    {' {traceStepRange 5.0 7.0}}
-    "Level three may hold a hit, but the cell on level two is empty, so the ray climbs back to level three"}.
+    {' {traceStepRange 5.0 6.0}}
+    "On level three, the cell may hold a hit"}.
+
+${overText
+    {' {traceStepRange 6.0 7.0}}
+    "But the cell on level two is empty, so the ray climbs back to level three"}.
 
 ${overText
     {' {traceStepRange 7.0 9.0}}
@@ -726,7 +730,9 @@ ${overText
 
 ${cue "key" {' {callout "level-step"} {highlightCode "trace" {' "level"}}}}${overText
     {' {traceStepRange 12.0 13.0}}
-    "A hit at level zero lowers the level to minus one, and a level below zero ends the loop, on the teapot's body"}.
+    "A hit at level zero lowers the level to minus one"}.
+
+A level below zero ends the loop, on the teapot's body.
 
 ### Three ways out {#c4-exits kind=3d}
 
@@ -1236,7 +1242,7 @@ ${cue "key" {opening demoRoom panelPerformance {append baseRoom {'
     {highlightPasses {' "ssrTrace" "ssrResolve"}}}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 10.0} {aim 22.0 12.0}}}}}}}
 
-${cue "key" {' {highlightPasses {' "ssrTrace"}}}}In the lab's port of Godot's passes, timed on the GPU, the trace ${cue "key"
+${cue "key" {' {highlightPasses {' "ssrTrace"}}}}When the lab times its port of Godot's passes on the GPU, the trace ${cue "key"
     {' {highlightPasses {' "ssrTrace" "ssrResolve"}}}}and the resolve are the costliest of the SSR passes.
 
 ${cue "key" {' {highlightPasses {' "ssrTrace"}}}}By default, the trace runs at a quarter of the screen's pixels, but each of its rays may take many steps.

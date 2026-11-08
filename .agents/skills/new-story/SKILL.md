@@ -11,6 +11,9 @@ and the standard of what a story says and shows. Other skills own the rest:
 
 - `new-investigation` (**required**): its "Precision" section is the standard every sentence meets; its references hold
   the package, the port, the source index, and the video's inputs, for Phase 4 and when a demonstration needs code.
+- `storytelling` (**required when writing or revising narration**, from one sentence to a chapter, and when a review
+  flags one): how each sentence is built (its known and new parts, its job), how sentences chain, how a passage
+  develops an idea, and the sentence map that finds and fixes what is hard to follow.
 - `render-lab-lamlet` (**required when writing cues**): the storyboard's syntax, its vocabulary, the translation's
   form.
 - `knowledge-graph` (**useful**): the graph, the audience's commands, and the Prerequisites tab.
@@ -21,8 +24,8 @@ AGENTS.md, "How deep a task goes", sets the levels; for a story they are:
 
 | Task | Do | Load |
 |---|---|---|
-| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only`; render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against the checkout before it is narrated (the fact check, for that sentence). | `references/storyboard.md` |
-| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks | the references of those phases |
+| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only`; render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against the checkout before it is narrated (the fact check, for that sentence). A changed sentence is mapped with its neighbours (`storytelling`). | `references/storyboard.md`, `storytelling` |
+| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks | the references of those phases, `storytelling` |
 | **Story**: a new story, or a redesign of an existing one | Every phase, in order | each phase's reference as you reach it |
 | **Feedback** on a built story | `references/review.md`, "Revising a finished story" | it, then what the corrections need |
 | **Quiz**: writing or revising a story's quiz | `references/quiz.md`: the quiz agent, then the quiz file and its checks | `references/quiz.md` |
@@ -37,7 +40,8 @@ These do not relax for a small change:
 - Every factual sentence is backed by a callout or its chapter's `sources`; numbers about the lab's scene come from the
   lab's code, never typed in.
 - Each sentence has a visual that shows it; a listing highlight changes the scene; a view is explained when it appears.
-- The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), and
+- The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), built
+  and checked sentence by sentence with the `storytelling` skill's map, and
   each changed chapter passes the cold-listener review and the native-language review, one reviewer per language,
   briefed in its own language (`references/review.md`).
 - The translation keeps one paragraph per English sentence, the same headings and formulas.
@@ -96,9 +100,9 @@ recorded calls at the end. Never skip the work a gate reviews.
 | 2. Outline | `story/outline.md`, `[audience]` in `knowledge.toml` | `references/outline.md` | every key claim has a source and a visual, every chapter a budget, the level checked; gate |
 | 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md` | storage mirrored, every view interactive, the interaction review answered, every taught topic demonstrated, pick round-trip in the selftest; gate |
 | 4. The base | index entries, port, mirror, selftest, listings, formulas, step parameters | `new-investigation` (procedure steps 3 to 6) | below |
-| 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md` | each chapter prepared and its stills looked at |
+| 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md`, `storytelling` | each chapter's sentences mapped with no fault left, the chapter prepared, its stills looked at |
 | 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's animations counted (at least 32, each demonstrating something), its per-beat checks passed |
-| 7. Review | `story/reviews/`, revisions | `references/review.md` | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
+| 7. Review | `story/reviews/`, revisions | `references/review.md`, `storytelling` | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
 | 8. Translate and build | `storyboard.zh-CN.lam`, both editions | below | the checks below pass, the user asked to watch |
 
 ### Phase 4: The base
