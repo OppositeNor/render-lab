@@ -17,7 +17,15 @@ pub const SCENE_WORDS: usize = 16 * 3 + 4;
 /// The functions shading.toml names.
 pub static HOOKS: &[(&str, lab::investigation::ShadingHook)] = &[(
     "plan",
-    lab::investigation::ShadingHook::Program { init: || Box::new(Plan::default()), plan: |state, frame| state.downcast_mut::<Plan>().expect("the SSR plan").frame(frame) },
+    lab::investigation::ShadingHook::Program {
+        init: || Box::new(Plan::default()),
+        plan: |state, frame| {
+            state
+                .downcast_mut::<Plan>()
+                .expect("the SSR plan")
+                .frame(frame)
+        },
+    },
 )];
 
 /// What the plan keeps from frame to frame: the camera of the frame before
@@ -40,7 +48,12 @@ fn threads(size: [u32; 2]) -> [u32; 3] {
 }
 
 fn dispatch(pass: &'static str, instance: u32, size: [u32; 2], words: &[u32]) -> ProgramCommand {
-    ProgramCommand::Dispatch { pass, instance, groups: threads(size), params: params(words) }
+    ProgramCommand::Dispatch {
+        pass,
+        instance,
+        groups: threads(size),
+        params: params(words),
+    }
 }
 
 /// The SSR size for a view (`internal_size / 2`, at least one texel).
@@ -73,8 +86,13 @@ pub fn godot_projection(view_to_clip: Mat4) -> Mat4 {
 
 /// The camera a frame of `state` is drawn with, at `viewport`.
 pub fn camera(state: &lab::shot::ShotState, viewport: [u32; 2]) -> (Mat4, Mat4) {
-    let c = state.camera.camera_data([viewport[0] as f32, viewport[1] as f32]);
-    (godot_projection(Mat4::from_cols_array_2d(&c.view_to_clip)), Mat4::from_cols_array_2d(&c.world_to_view))
+    let c = state
+        .camera
+        .camera_data([viewport[0] as f32, viewport[1] as f32]);
+    (
+        godot_projection(Mat4::from_cols_array_2d(&c.view_to_clip)),
+        Mat4::from_cols_array_2d(&c.world_to_view),
+    )
 }
 
 /// The reprojection matrix (rfc.cpp:1498-1504): this frame's screen to view
@@ -89,7 +107,12 @@ impl Plan {
         // Made once in Godot; here also on every frame without history, as a plan may be
         // replaced before it is recorded (a frame drawn alone is planned again for its warm-up).
         if !self.best_fit || !f.history {
-            out.push(dispatch("ssrBestFit", 0, [BEST_FIT_SIZE, BEST_FIT_SIZE], &[]));
+            out.push(dispatch(
+                "ssrBestFit",
+                0,
+                [BEST_FIT_SIZE, BEST_FIT_SIZE],
+                &[],
+            ));
             self.best_fit = true;
         }
         let state = f.state;
@@ -109,28 +132,62 @@ impl Plan {
             words.extend(m.to_cols_array().iter().map(|x| x.to_bits()));
         }
         words.extend([0u32; 4]);
-        out.push(ProgramCommand::Upload { buffer: Element::of("ssrScene", 0), offset: 0, words });
+        out.push(ProgramCommand::Upload {
+            buffer: Element::of("ssrScene", 0),
+            offset: 0,
+            words,
+        });
         let viewport = f.viewport;
         let size = ssr_size(viewport);
         let mips = mipmaps(size);
         // "SSR Downsample": odd when the full size is (the source depth's size).
-        out.push(dispatch("ssrDownsample", 0, size, &[size[0], size[1], viewport[0] & 1, viewport[1] & 1]));
+        out.push(dispatch(
+            "ssrDownsample",
+            0,
+            size,
+            &[size[0], size[1], viewport[0] & 1, viewport[1] & 1],
+        ));
         // "SSR HI-Z": level m from m - 1, odd when level m - 1 is.
         for m in 1..mips {
             let dest = level_size(size, m);
             let parent = level_size(size, m - 1);
-            out.push(dispatch("ssrHiz", m, dest, &[dest[0], dest[1], parent[0] & 1, parent[1] & 1]));
+            out.push(dispatch(
+                "ssrHiz",
+                m,
+                dest,
+                &[dest[0], dest[1], parent[0] & 1, parent[1] & 1],
+            ));
         }
         // "SSR Main".
         let steps = state.p("ssrMaxSteps").round().clamp(1.0, 512.0) as u32;
-        out.push(dispatch("ssrTrace", 0, size, &[size[0], size[1], mips, steps, state.p("ssrFadeOut").max(0.0).to_bits(), state.p("ssrFadeIn").max(0.0).to_bits(), state.p("ssrDepthTolerance").to_bits(), 0, 0]));
+        out.push(dispatch(
+            "ssrTrace",
+            0,
+            size,
+            &[
+                size[0],
+                size[1],
+                mips,
+                steps,
+                state.p("ssrFadeOut").max(0.0).to_bits(),
+                state.p("ssrFadeIn").max(0.0).to_bits(),
+                state.p("ssrDepthTolerance").to_bits(),
+                0,
+                0,
+            ],
+        ));
         // "SSR Roughness Filter".
         for m in 1..mips {
             let dest = level_size(size, m);
             out.push(dispatch("ssrFilter", m, dest, &[dest[0], dest[1], m]));
         }
         // "SSR Resolve", at the internal size.
-        out.push(dispatch("ssrResolve", 0, viewport, &[viewport[0], viewport[1]]));
+        out.push(dispatch(
+            "ssrResolve",
+            0,
+            viewport,
+            &[viewport[0], viewport[1]],
+        ));
         // "Copy Framebuffer for SSIL/SSR", after the scene pass.
         out.push(dispatch("ssrCopyLastFrame", 0, size, &[size[0], size[1]]));
         out

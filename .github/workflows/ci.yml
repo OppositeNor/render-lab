@@ -1,6 +1,6 @@
-# Render Lab's CI: on every push to main and every pull request, build the public tree without warnings, run
-# the unit tests, clippy, the content checks and the Python tests; on a `v*` tag, also package Linux, Windows,
-# and macOS and publish them as one GitHub Release. The runners have no GPU, so the checks that draw a frame (offscreen
+# Render Lab's CI: on every push to main and every pull request, check the Rust formatting (rustfmt), build the
+# public tree without warnings, run the unit tests, clippy, the content checks and the Python tests; on a `v*` tag,
+# also package Linux, Windows, and macOS and publish them as one GitHub Release. The runners have no GPU, so the checks that draw a frame (offscreen
 # snapshots, autotest, selftest) run on Mesa's software Vulkan (lavapipe) in a job of their own, and the
 # frame identity check and the videos stay local (BUILD.md, AGENTS.md).
 name: CI
@@ -31,12 +31,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Format
+        run: cargo fmt --all --check
       - name: Build
         run: cargo build --release --locked
       # The commands below need no GPU. They and the Python checks run before `cargo test`, whose build of

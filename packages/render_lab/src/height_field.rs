@@ -28,7 +28,14 @@ impl Placement {
     /// columns rise toward the camera; `tilt` (degrees) lays it back about its
     /// centre's horizontal axis, `turn` (degrees) then turns it about its own
     /// up, and `scale` shrinks it about its centre.
-    pub fn facing(camera: &CameraData, distance: f32, height: f32, tilt: f32, turn: f32, scale: f32) -> Placement {
+    pub fn facing(
+        camera: &CameraData,
+        distance: f32,
+        height: f32,
+        tilt: f32,
+        turn: f32,
+        scale: f32,
+    ) -> Placement {
         let view = Mat4::from_cols_array_2d(&camera.world_to_view);
         let to_world = view.inverse();
         let right = to_world.transform_vector3(Vec3::X).normalize();
@@ -44,7 +51,12 @@ impl Placement {
         let rotate = turn * tilt;
         let across = rotate * (right * 2.0 * half_w) * scale;
         let down = rotate * (-up * 2.0 * half_h) * scale;
-        Placement { origin: center - across * 0.5 - down * 0.5, across, down, up: normal * height * scale }
+        Placement {
+            origin: center - across * 0.5 - down * 0.5,
+            across,
+            down,
+            up: normal * height * scale,
+        }
     }
 
     /// The point at window position `uv` and height `h` (in the field's units).
@@ -65,13 +77,30 @@ impl Placement {
 
     /// A flat rectangle on the plane over window positions `a` to `b` (a chart's bar or panel), `lift` off it
     /// toward the camera: rectangles that overlap need different lifts (a panel behind its bars), or they fight.
-    pub fn rect(&self, draw: &mut DrawLists, a: Vec2, b: Vec2, lift: f32, color: Color32, alpha: f32) {
+    pub fn rect(
+        &self,
+        draw: &mut DrawLists,
+        a: Vec2,
+        b: Vec2,
+        lift: f32,
+        color: Color32,
+        alpha: f32,
+    ) {
         let (lo, hi) = (a.min(b), a.max(b));
         if hi.x - lo.x <= 0.0 || hi.y - lo.y <= 0.0 {
             return;
         }
         let center = self.on((lo + hi) * 0.5, lift);
-        draw.cuboid(center, [self.across * (hi.x - lo.x) * 0.5, self.down * (hi.y - lo.y) * 0.5, self.toward() * 2e-4], color, alpha);
+        draw.cuboid(
+            center,
+            [
+                self.across * (hi.x - lo.x) * 0.5,
+                self.down * (hi.y - lo.y) * 0.5,
+                self.toward() * 2e-4,
+            ],
+            color,
+            alpha,
+        );
     }
 }
 
@@ -87,13 +116,20 @@ pub struct HeightField {
 impl HeightField {
     /// The whole of an image of `size`.
     pub fn whole(size: [u32; 2], placement: Placement) -> HeightField {
-        HeightField { size, window: [0.0, 0.0, size[0] as f32, size[1] as f32], placement }
+        HeightField {
+            size,
+            window: [0.0, 0.0, size[0] as f32, size[1] as f32],
+            placement,
+        }
     }
 
     /// The window position of texel coordinates `p` (texels of the full image).
     pub fn uv(&self, p: Vec2) -> Vec2 {
         let [x0, y0, x1, y1] = self.window;
-        Vec2::new((p.x - x0) / (x1 - x0).max(1e-6), (p.y - y0) / (y1 - y0).max(1e-6))
+        Vec2::new(
+            (p.x - x0) / (x1 - x0).max(1e-6),
+            (p.y - y0) / (y1 - y0).max(1e-6),
+        )
     }
 
     /// The world point over texel coordinates `p` (texels of the full image) at height `h`.
@@ -115,7 +151,14 @@ impl HeightField {
 
     /// A column over a texel box (`[x0, y0, x1, y1]`, clipped to the window),
     /// `h` high (a flat tile when `h` is 0).
-    pub fn column(&self, draw: &mut DrawLists, texels: [f32; 4], h: f32, color: Color32, alpha: f32) {
+    pub fn column(
+        &self,
+        draw: &mut DrawLists,
+        texels: [f32; 4],
+        h: f32,
+        color: Color32,
+        alpha: f32,
+    ) {
         let [x0, y0, x1, y1] = texels;
         let [wx0, wy0, wx1, wy1] = self.window;
         let (x0, y0, x1, y1) = (x0.max(wx0), y0.max(wy0), x1.min(wx1), y1.min(wy1));
@@ -127,13 +170,27 @@ impl HeightField {
         let (a, b) = (self.uv(Vec2::new(x0, y0)), self.uv(Vec2::new(x1, y1)));
         let p = &self.placement;
         let center = p.at((a + b) * 0.5, h * 0.5);
-        draw.cuboid(center, [p.across * (b.x - a.x) * 0.5, p.down * (b.y - a.y) * 0.5, p.up * h * 0.5], color, alpha);
+        draw.cuboid(
+            center,
+            [
+                p.across * (b.x - a.x) * 0.5,
+                p.down * (b.y - a.y) * 0.5,
+                p.up * h * 0.5,
+            ],
+            color,
+            alpha,
+        );
     }
 
     /// The slab under the window, a little below its zero height.
     pub fn base(&self, draw: &mut DrawLists, color: Color32, alpha: f32) {
         let p = &self.placement;
-        draw.cuboid(p.at(Vec2::splat(0.5), -0.006), [p.across * 0.5, p.down * 0.5, p.up * 0.004], color, alpha);
+        draw.cuboid(
+            p.at(Vec2::splat(0.5), -0.006),
+            [p.across * 0.5, p.down * 0.5, p.up * 0.004],
+            color,
+            alpha,
+        );
     }
 }
 
@@ -162,6 +219,8 @@ mod tests {
         assert!((ndc(p.at(Vec2::new(1.0, 1.0), 0.0)) - Vec2::new(1.0, -1.0)).length() < 1e-3);
         // Heights rise toward the camera.
         let eye = Vec3::from(camera.position);
-        assert!(p.at(Vec2::splat(0.5), 1.0).distance(eye) < p.at(Vec2::splat(0.5), 0.0).distance(eye));
+        assert!(
+            p.at(Vec2::splat(0.5), 1.0).distance(eye) < p.at(Vec2::splat(0.5), 0.0).distance(eye)
+        );
     }
 }

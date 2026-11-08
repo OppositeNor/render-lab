@@ -36,13 +36,30 @@ impl TriangleMesh {
     /// A `mesh` resource: its header (node count, triangle count, depth), then
     /// the nodes and the triangles.
     fn load(r: &Loaded) -> TriangleMesh {
-        let (node_count, triangle_count, depth) = (r.word(0) as usize, r.word(1) as usize, r.word(2) as usize);
-        assert!(depth <= MAX_DEPTH, "{}: the BVH is {depth} levels deep (stack holds {MAX_DEPTH})", r.id());
+        let (node_count, triangle_count, depth) =
+            (r.word(0) as usize, r.word(1) as usize, r.word(2) as usize);
+        assert!(
+            depth <= MAX_DEPTH,
+            "{}: the BVH is {depth} levels deep (stack holds {MAX_DEPTH})",
+            r.id()
+        );
         let nodes: Vec<MeshNode> = r.array(12, node_count);
-        let triangles: Vec<MeshTriangle> = r.array(12 + node_count * size_of::<MeshNode>(), triangle_count);
-        assert_eq!(r.bytes.len(), 12 + node_count * size_of::<MeshNode>() + triangle_count * size_of::<MeshTriangle>(), "{}: size", r.id());
+        let triangles: Vec<MeshTriangle> =
+            r.array(12 + node_count * size_of::<MeshNode>(), triangle_count);
+        assert_eq!(
+            r.bytes.len(),
+            12 + node_count * size_of::<MeshNode>() + triangle_count * size_of::<MeshTriangle>(),
+            "{}: size",
+            r.id()
+        );
         let root = nodes[0];
-        TriangleMesh { nodes, triangles, bounds_min: v3(root.bounds_min), bounds_max: v3(root.bounds_max), depth }
+        TriangleMesh {
+            nodes,
+            triangles,
+            bounds_min: v3(root.bounds_min),
+            bounds_max: v3(root.bounds_max),
+            depth,
+        }
     }
 
     pub fn local_center(&self) -> Vec3 {
@@ -78,7 +95,9 @@ impl TriangleMesh {
             }
             if node.triangle_count > 0 {
                 for i in node.first_or_left..node.first_or_left + node.triangle_count {
-                    if let Some((t, u, v)) = intersect_triangle(&self.triangles[i as usize], ro, rd, t_best) {
+                    if let Some((t, u, v)) =
+                        intersect_triangle(&self.triangles[i as usize], ro, rd, t_best)
+                    {
                         t_best = t;
                         best = Some((t, i, u, v));
                         if any_hit {
@@ -92,7 +111,12 @@ impl TriangleMesh {
             let (a, b) = (node.first_or_left, node.first_or_left + 1);
             let ta = box_entry(&self.nodes[a as usize], ro, inv, t_best);
             let tb = box_entry(&self.nodes[b as usize], ro, inv, t_best);
-            let (near, far, t_near, t_far) = if tb.unwrap_or(f32::INFINITY) < ta.unwrap_or(f32::INFINITY) { (b, a, tb, ta) } else { (a, b, ta, tb) };
+            let (near, far, t_near, t_far) =
+                if tb.unwrap_or(f32::INFINITY) < ta.unwrap_or(f32::INFINITY) {
+                    (b, a, tb, ta)
+                } else {
+                    (a, b, ta, tb)
+                };
             if t_far.is_some() {
                 stack[sp] = far;
                 sp += 1;
@@ -115,7 +139,9 @@ impl TriangleMesh {
         while sp > 0 {
             sp -= 1;
             let node = &self.nodes[stack[sp] as usize];
-            let outside = (v3(node.bounds_min) - p).max(p - v3(node.bounds_max)).max(Vec3::ZERO);
+            let outside = (v3(node.bounds_min) - p)
+                .max(p - v3(node.bounds_max))
+                .max(Vec3::ZERO);
             if outside.length_squared() >= best.0 * best.0 {
                 continue;
             }
@@ -141,7 +167,13 @@ impl TriangleMesh {
     fn triangle_normal(&self, i: usize, u: f32, v: f32) -> Vec3 {
         let tri = &self.triangles[i];
         let n = v3(tri.n0) * (1.0 - u - v) + v3(tri.n1) * u + v3(tri.n2) * v;
-        if n.length_squared() > 1e-12 { n.normalize() } else { (v3(tri.p1) - v3(tri.p0)).cross(v3(tri.p2) - v3(tri.p0)).normalize_or_zero() }
+        if n.length_squared() > 1e-12 {
+            n.normalize()
+        } else {
+            (v3(tri.p1) - v3(tri.p0))
+                .cross(v3(tri.p2) - v3(tri.p0))
+                .normalize_or_zero()
+        }
     }
 }
 
@@ -193,7 +225,12 @@ fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 }
 
 /// Möller–Trumbore, both faces: `(t, u, v)` for hits with 1e-4 < t < t_max.
-fn intersect_triangle(tri: &MeshTriangle, ro: Vec3, rd: Vec3, t_max: f32) -> Option<(f32, f32, f32)> {
+fn intersect_triangle(
+    tri: &MeshTriangle,
+    ro: Vec3,
+    rd: Vec3,
+    t_max: f32,
+) -> Option<(f32, f32, f32)> {
     let p0 = v3(tri.p0);
     let e1 = v3(tri.p1) - p0;
     let e2 = v3(tri.p2) - p0;
@@ -229,7 +266,9 @@ mod tests {
         let h = m.bounds_max.y - m.bounds_min.y;
         assert!((h - 0.441).abs() < 1e-3, "height {h}");
         // A ray straight down onto the lid hits the top of the teapot.
-        let hit = m.intersect(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), 10.0).expect("hit");
+        let hit = m
+            .intersect(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), 10.0)
+            .expect("hit");
         assert!((1.0 - hit.0 - m.bounds_max.y).abs() < 0.01);
     }
 }

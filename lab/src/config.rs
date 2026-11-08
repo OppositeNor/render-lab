@@ -11,8 +11,8 @@
 use crate::i18n::Locale;
 use crate::pseudocode::Style;
 use crate::theme;
-use crate::volume::Volume;
 use crate::ui::windows::{Dock, WindowId, WindowPlace};
+use crate::volume::Volume;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
@@ -53,7 +53,9 @@ impl Eq for ViewerLayout {}
 
 impl Default for ViewerLayout {
     fn default() -> Self {
-        ViewerLayout { windows: WindowId::ALL.map(WindowId::default_place) }
+        ViewerLayout {
+            windows: WindowId::ALL.map(WindowId::default_place),
+        }
     }
 }
 
@@ -74,20 +76,59 @@ impl ViewerLayout {
     /// A window's line in the settings file, an inline table.
     fn entry(id: WindowId, p: &WindowPlace) -> String {
         let [x, y, w, h] = p.float.map(|v| v.round() as i32);
-        format!("{} = {{ dock = \"{}\", size = {}, wide = {}, x = {x}, y = {y}, width = {w}, height = {h}, collapsed = {}, open = {} }}", Self::key(id), p.dock.key(), p.size.round() as i32, p.wide.round() as i32, p.collapsed, p.open)
+        format!(
+            "{} = {{ dock = \"{}\", size = {}, wide = {}, x = {x}, y = {y}, width = {w}, height = {h}, collapsed = {}, open = {} }}",
+            Self::key(id),
+            p.dock.key(),
+            p.size.round() as i32,
+            p.wide.round() as i32,
+            p.collapsed,
+            p.open
+        )
     }
 
     /// A window's place as `document` has it (its default for what it leaves out).
-    fn read(id: WindowId, document: &toml_edit::Document<String>, path: &Path) -> Result<WindowPlace> {
+    fn read(
+        id: WindowId,
+        document: &toml_edit::Document<String>,
+        path: &Path,
+    ) -> Result<WindowPlace> {
         let key = Self::key(id);
         let mut place = id.default_place();
-        let Some(item) = document.get(&key) else { return Ok(place) };
-        let table = item.as_inline_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<Vec<_>>()).or_else(|| item.as_table().map(|t| t.iter().filter_map(|(k, v)| v.as_value().map(|v| (k.to_string(), v.clone()))).collect())).with_context(|| format!("{}: `{key}` must be a table", path.display()))?;
+        let Some(item) = document.get(&key) else {
+            return Ok(place);
+        };
+        let table = item
+            .as_inline_table()
+            .map(|t| {
+                t.iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .or_else(|| {
+                item.as_table().map(|t| {
+                    t.iter()
+                        .filter_map(|(k, v)| v.as_value().map(|v| (k.to_string(), v.clone())))
+                        .collect()
+                })
+            })
+            .with_context(|| format!("{}: `{key}` must be a table", path.display()))?;
         let bad = |field: &str| anyhow::anyhow!("{}: `{key}.{field}` is not valid", path.display());
         for (field, value) in table {
-            let number = || value.as_integer().filter(|n| (-100_000..=100_000).contains(n)).map(|n| n as f32).ok_or_else(|| bad(&field));
+            let number = || {
+                value
+                    .as_integer()
+                    .filter(|n| (-100_000..=100_000).contains(n))
+                    .map(|n| n as f32)
+                    .ok_or_else(|| bad(&field))
+            };
             match field.as_str() {
-                "dock" => place.dock = value.as_str().and_then(Dock::parse).ok_or_else(|| bad(&field))?,
+                "dock" => {
+                    place.dock = value
+                        .as_str()
+                        .and_then(Dock::parse)
+                        .ok_or_else(|| bad(&field))?
+                }
                 "size" => place.size = number()?,
                 "wide" => place.wide = number()?,
                 "x" => place.float[0] = number()?,
@@ -124,7 +165,15 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Config {
-        Config { language: Locale::EN, theme: theme::DEFAULT.into(), listing_style: Style::Blocks, fullscreen: false, music: Volume::new(50), narration: Volume::new(100), layout: ViewerLayout::default() }
+        Config {
+            language: Locale::EN,
+            theme: theme::DEFAULT.into(),
+            listing_style: Style::Blocks,
+            fullscreen: false,
+            music: Volume::new(50),
+            narration: Volume::new(100),
+            layout: ViewerLayout::default(),
+        }
     }
 }
 
@@ -132,7 +181,11 @@ impl Config {
     /// Whether `self` and `other` differ in `category`'s settings.
     pub fn differs_in(&self, other: &Config, category: Category) -> bool {
         match category {
-            Category::Interface => self.language != other.language || self.theme != other.theme || self.listing_style != other.listing_style,
+            Category::Interface => {
+                self.language != other.language
+                    || self.theme != other.theme
+                    || self.listing_style != other.listing_style
+            }
             Category::Render => self.fullscreen != other.fullscreen,
             Category::Audio => self.music != other.music || self.narration != other.narration,
         }
@@ -140,12 +193,18 @@ impl Config {
 
     /// These settings with `other`'s render settings.
     pub fn with_render_of(&self, other: &Config) -> Config {
-        Config { fullscreen: other.fullscreen, ..self.clone() }
+        Config {
+            fullscreen: other.fullscreen,
+            ..self.clone()
+        }
     }
 
     /// `$XDG_CONFIG_HOME/render-lab/config.toml`, else `~/.config/render-lab/config.toml`.
     pub fn default_path() -> Option<PathBuf> {
-        let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
         Some(base.join("render-lab").join("config.toml"))
     }
 
@@ -157,32 +216,69 @@ impl Config {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
             Err(e) => return Err(e).with_context(|| format!("read {}", path.display())),
         };
-        let document = toml_edit::Document::parse(text).with_context(|| format!("parse {}", path.display()))?;
+        let document = toml_edit::Document::parse(text)
+            .with_context(|| format!("parse {}", path.display()))?;
         let mut config = Config::default();
         if let Some(item) = document.get("fullscreen") {
-            config.fullscreen = item.as_bool().with_context(|| format!("{}: `fullscreen` must be true or false", path.display()))?;
+            config.fullscreen = item.as_bool().with_context(|| {
+                format!("{}: `fullscreen` must be true or false", path.display())
+            })?;
         }
         if let Some(item) = document.get("language") {
-            let code = item.as_str().with_context(|| format!("{}: `language` must be a string", path.display()))?;
-            let codes = Locale::all().into_iter().map(Locale::code).collect::<Vec<_>>().join(", ");
-            config.language = Locale::from_code(code).with_context(|| format!("{}: unknown `language` \"{code}\" (one of {codes})", path.display()))?;
+            let code = item
+                .as_str()
+                .with_context(|| format!("{}: `language` must be a string", path.display()))?;
+            let codes = Locale::all()
+                .into_iter()
+                .map(Locale::code)
+                .collect::<Vec<_>>()
+                .join(", ");
+            config.language = Locale::from_code(code).with_context(|| {
+                format!(
+                    "{}: unknown `language` \"{code}\" (one of {codes})",
+                    path.display()
+                )
+            })?;
         }
         if let Some(item) = document.get("theme") {
-            config.theme = item.as_str().with_context(|| format!("{}: `theme` must be a string", path.display()))?.to_string();
+            config.theme = item
+                .as_str()
+                .with_context(|| format!("{}: `theme` must be a string", path.display()))?
+                .to_string();
         }
         if let Some(item) = document.get("listing_style") {
-            let key = item.as_str().with_context(|| format!("{}: `listing_style` must be a string", path.display()))?;
-            config.listing_style = Style::from_key(key).with_context(|| format!("{}: unknown `listing_style` \"{key}\" (text or blocks)", path.display()))?;
+            let key = item
+                .as_str()
+                .with_context(|| format!("{}: `listing_style` must be a string", path.display()))?;
+            config.listing_style = Style::from_key(key).with_context(|| {
+                format!(
+                    "{}: unknown `listing_style` \"{key}\" (text or blocks)",
+                    path.display()
+                )
+            })?;
         }
-        for (name, volume) in [("music", &mut config.music), ("narration", &mut config.narration)] {
+        for (name, volume) in [
+            ("music", &mut config.music),
+            ("narration", &mut config.narration),
+        ] {
             let key = format!("{name}_volume");
             if let Some(item) = document.get(&key) {
-                let percent = item.as_integer().filter(|p| (0..=100).contains(p)).with_context(|| format!("{}: `{key}` must be a whole number from 0 to 100", path.display()))?;
+                let percent = item
+                    .as_integer()
+                    .filter(|p| (0..=100).contains(p))
+                    .with_context(|| {
+                        format!(
+                            "{}: `{key}` must be a whole number from 0 to 100",
+                            path.display()
+                        )
+                    })?;
                 volume.percent = percent as u8;
             }
             let key = format!("{name}_muted");
             if let Some(item) = document.get(&key) {
-                volume.muted = item.as_bool().with_context(|| format!("{}: `{key}` must be true or false", path.display()))?;
+                volume.muted = item.as_bool().with_context(|| {
+                    format!("{}: `{key}` must be true or false", path.display())
+                })?;
             }
         }
         let mut layout = ViewerLayout::default();
@@ -196,16 +292,27 @@ impl Config {
     pub fn to_toml(&self) -> String {
         let mut text = format!(
             "# Render Lab settings, written by the homepage's Config page.\n\n# Interface: the homepage's language and the narrated edition it offers first ({}).\nlanguage = \"{}\"\n\n# Interface: the theme, a file's stem in a themes/ folder beside the binary or beside this file.\ntheme = \"{}\"\n\n# Interface: how the code panel draws pseudo-code listings: blocks, or text.\nlisting_style = \"{}\"\n\n# Render: open the homepage and the viewer in borderless fullscreen.\nfullscreen = {}\n",
-            Locale::all().into_iter().map(Locale::code).collect::<Vec<_>>().join(", "),
+            Locale::all()
+                .into_iter()
+                .map(Locale::code)
+                .collect::<Vec<_>>()
+                .join(", "),
             self.language.code(),
             self.theme.replace('\\', "\\\\").replace('"', "\\\""),
             self.listing_style.key(),
             self.fullscreen
         );
-        for (name, what, volume) in [("music", "Audio: the homepage's music", self.music), ("narration", "Audio: the narration", self.narration)] {
+        for (name, what, volume) in [
+            ("music", "Audio: the homepage's music", self.music),
+            ("narration", "Audio: the narration", self.narration),
+        ] {
             text.push_str(&format!("\n# {what}: its volume (0 to 100) and whether it is muted.\n{name}_volume = {}\n{name}_muted = {}\n", volume.percent, volume.muted));
         }
-        let windows: Vec<String> = WindowId::ALL.into_iter().filter(|id| self.layout.window(*id) != &id.default_place()).map(|id| ViewerLayout::entry(id, self.layout.window(id))).collect();
+        let windows: Vec<String> = WindowId::ALL
+            .into_iter()
+            .filter(|id| self.layout.window(*id) != &id.default_place())
+            .map(|id| ViewerLayout::entry(id, self.layout.window(id)))
+            .collect();
         if !windows.is_empty() {
             text.push_str(&format!("\n# The viewer's windows as they were left: docked to an edge (left, right, bottom; its size) or floating (x, y, width, height), in points of the 1920 x 1080 canvas (absent: the default).\n{}\n", windows.join("\n")));
         }
@@ -214,7 +321,11 @@ impl Config {
 
     /// Write `layout` into the settings in `path`, keeping the others as the file has them.
     pub fn save_layout(path: &Path, layout: ViewerLayout) -> Result<()> {
-        Config { layout, ..Config::load(path)? }.save(path)
+        Config {
+            layout,
+            ..Config::load(path)?
+        }
+        .save(path)
     }
 
     /// Write the file, through a temporary file renamed over it, so a failed
@@ -224,7 +335,8 @@ impl Config {
             std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
         }
         let temporary = path.with_extension("toml.tmp");
-        std::fs::write(&temporary, self.to_toml()).with_context(|| format!("write {}", temporary.display()))?;
+        std::fs::write(&temporary, self.to_toml())
+            .with_context(|| format!("write {}", temporary.display()))?;
         std::fs::rename(&temporary, path).with_context(|| format!("replace {}", path.display()))?;
         Ok(())
     }
@@ -236,19 +348,42 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let dir = std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("render-lab-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
-        let config = Config { fullscreen: true, language: Locale::from_code("zh-CN").unwrap(), theme: "tokyo-night".into(), listing_style: Style::Text, music: Volume { percent: 30, muted: true }, narration: Volume::new(75), layout: {
-            let mut layout = ViewerLayout::default();
-            *layout.window_mut(WindowId::Panel) = WindowPlace { dock: Dock::Float, float: [300.0, 200.0, 700.0, 500.0], collapsed: true, ..WindowId::Panel.default_place() };
-            layout.window_mut(WindowId::Controls).size = 300.0;
-            layout
-        } };
+        let config = Config {
+            fullscreen: true,
+            language: Locale::from_code("zh-CN").unwrap(),
+            theme: "tokyo-night".into(),
+            listing_style: Style::Text,
+            music: Volume {
+                percent: 30,
+                muted: true,
+            },
+            narration: Volume::new(75),
+            layout: {
+                let mut layout = ViewerLayout::default();
+                *layout.window_mut(WindowId::Panel) = WindowPlace {
+                    dock: Dock::Float,
+                    float: [300.0, 200.0, 700.0, 500.0],
+                    collapsed: true,
+                    ..WindowId::Panel.default_place()
+                };
+                layout.window_mut(WindowId::Controls).size = 300.0;
+                layout
+            },
+        };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
         // A file of an older lab: what it does not name keeps its default.
         std::fs::write(&path, "fullscreen = true\n").unwrap();
-        assert_eq!(Config::load(&path).unwrap(), Config { fullscreen: true, ..Config::default() });
+        assert_eq!(
+            Config::load(&path).unwrap(),
+            Config {
+                fullscreen: true,
+                ..Config::default()
+            }
+        );
         std::fs::write(&path, "music_volume = 101\n").unwrap();
         assert!(Config::load(&path).is_err());
         std::fs::write(&path, "language = \"fr\"\n").unwrap();

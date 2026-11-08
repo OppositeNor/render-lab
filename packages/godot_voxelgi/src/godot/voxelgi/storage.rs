@@ -27,7 +27,11 @@ pub struct CellData {
 impl CellData {
     /// The shader's decode: `posu = (p & 0x7FF, (p >> 11) & 0x3FF, p >> 21)`.
     pub fn pos(&self) -> IVec3 {
-        IVec3::new((self.position & 0x7FF) as i32, ((self.position >> 11) & 0x3FF) as i32, (self.position >> 21) as i32)
+        IVec3::new(
+            (self.position & 0x7FF) as i32,
+            ((self.position >> 11) & 0x3FF) as i32,
+            (self.position >> 21) as i32,
+        )
     }
     pub fn albedo(&self) -> Vec4 {
         unpack_unorm4x8(self.albedo)
@@ -65,11 +69,20 @@ pub fn to_rgbe9995(c: Vec3) -> u32 {
 /// The shaders' decode: three 9-bit mantissas times `2^(e - 15 - 9)`.
 pub fn decode_rgbe9995(e: u32) -> Vec3 {
     let m = 2f32.powf((e >> 27) as f32 - 15.0 - 9.0);
-    Vec3::new((e & 0x1FF) as f32, ((e >> 9) & 0x1FF) as f32, ((e >> 18) & 0x1FF) as f32) * m
+    Vec3::new(
+        (e & 0x1FF) as f32,
+        ((e >> 9) & 0x1FF) as f32,
+        ((e >> 18) & 0x1FF) as f32,
+    ) * m
 }
 
 pub fn unpack_unorm4x8(v: u32) -> Vec4 {
-    Vec4::new((v & 0xFF) as f32, ((v >> 8) & 0xFF) as f32, ((v >> 16) & 0xFF) as f32, (v >> 24) as f32) / 255.0
+    Vec4::new(
+        (v & 0xFF) as f32,
+        ((v >> 8) & 0xFF) as f32,
+        ((v >> 16) & 0xFF) as f32,
+        (v >> 24) as f32,
+    ) / 255.0
 }
 
 pub fn unpack_snorm4x8(v: u32) -> Vec4 {
@@ -90,12 +103,18 @@ pub fn data_cells(cells: &[Cell]) -> Vec<CellData> {
 pub fn data_cell(c: &Cell) -> CellData {
     let q = |v: f32| (v * 255.0).clamp(0.0, 255.0) as u32;
     let position = c.x as u32 | ((c.y as u32) << 11) | ((c.z as u32) << 21);
-    let albedo = (q(c.alpha) << 24) | (q(c.albedo[2]) << 16) | (q(c.albedo[1]) << 8) | q(c.albedo[0]);
+    let albedo =
+        (q(c.alpha) << 24) | (q(c.albedo[2]) << 16) | (q(c.albedo[1]) << 8) | q(c.albedo[0]);
     let emission = to_rgbe9995(Vec3::from(c.emission));
     let n = super::bake::normalized(Vec3::from(c.normal));
     let s = |v: f32| (v * 127.0).clamp(-128.0, 127.0) as i8 as u8 as u32;
     let normal = s(n.x) | (s(n.y) << 8) | (s(n.z) << 16);
-    CellData { position, albedo, emission, normal }
+    CellData {
+        position,
+        albedo,
+        emission,
+        normal,
+    }
 }
 
 /// The uploaded VoxelGI data (`GI::VoxelGI`): the records, the level counts,
@@ -153,7 +172,12 @@ impl Probe {
 
     /// A mip's size: the octree's halved `mip` times, at least 1.
     pub fn mip_size(&self, mip: usize) -> IVec3 {
-        IVec3::new(self.octree_size.x >> mip, self.octree_size.y >> mip, self.octree_size.z >> mip).max(IVec3::ONE)
+        IVec3::new(
+            self.octree_size.x >> mip,
+            self.octree_size.y >> mip,
+            self.octree_size.z >> mip,
+        )
+        .max(IVec3::ONE)
     }
 
     pub fn to_cell(&self, local: Vec3) -> Vec3 {
@@ -229,7 +253,13 @@ impl LightTexture {
     /// Cleared to (0, 0, 0, 0) over all mips (`texture_clear`).
     pub fn cleared(probe: &Probe) -> LightTexture {
         let sizes: Vec<IVec3> = (0..probe.mip_count()).map(|m| probe.mip_size(m)).collect();
-        LightTexture { mips: sizes.iter().map(|s| vec![[0u8; 4]; (s.x * s.y * s.z) as usize]).collect(), sizes }
+        LightTexture {
+            mips: sizes
+                .iter()
+                .map(|s| vec![[0u8; 4]; (s.x * s.y * s.z) as usize])
+                .collect(),
+            sizes,
+        }
     }
 
     pub fn index(&self, mip: usize, p: IVec3) -> usize {

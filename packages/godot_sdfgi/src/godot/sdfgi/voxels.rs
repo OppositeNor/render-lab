@@ -15,7 +15,7 @@
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
-use super::model::{Cascades, Region, CASCADE_SIZE};
+use super::model::{CASCADE_SIZE, Cascades, Region};
 use glam::{IVec3, Vec3};
 use lab::layout::ObjectData;
 
@@ -32,7 +32,14 @@ pub fn inside(p: IVec3) -> bool {
 }
 
 /// `aniso_dir[6]`: +X, +Y, +Z, -X, -Y, -Z.
-pub const ANISO_DIR: [Vec3; 6] = [Vec3::X, Vec3::Y, Vec3::Z, Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
+pub const ANISO_DIR: [Vec3; 6] = [
+    Vec3::X,
+    Vec3::Y,
+    Vec3::Z,
+    Vec3::NEG_X,
+    Vec3::NEG_Y,
+    Vec3::NEG_Z,
+];
 
 /// The render images one cascade's regions are voxelized into
 /// (`render_albedo` R16_UINT, `render_geom_facing` R32_UINT,
@@ -48,7 +55,12 @@ pub struct RenderVoxels {
 impl RenderVoxels {
     /// `render_region` clears the four images before a cascade's first region.
     pub fn cleared() -> RenderVoxels {
-        RenderVoxels { albedo: vec![0; CELLS], facing: vec![0; CELLS], emission: vec![0; CELLS], emission_aniso: vec![0; CELLS] }
+        RenderVoxels {
+            albedo: vec![0; CELLS],
+            facing: vec![0; CELLS],
+            emission: vec![0; CELLS],
+            emission_aniso: vec![0; CELLS],
+        }
     }
 
     pub fn solid(&self, p: IVec3) -> bool {
@@ -62,7 +74,10 @@ impl RenderVoxels {
 /// stored as R's top 8 bits, G's 9, B's top 8, and E's 5.
 pub fn encode_rgbe8985(light: Vec3) -> u32 {
     let (s, exps) = shared_exponent(light);
-    ((s[0] & 0x1FF) >> 1) | ((s[1] & 0x1FF) << 8) | (((s[2] & 0x1FF) >> 1) << 17) | ((exps & 0x1F) << 25)
+    ((s[0] & 0x1FF) >> 1)
+        | ((s[1] & 0x1FF) << 8)
+        | (((s[2] & 0x1FF) >> 1) << 17)
+        | ((exps & 0x1F) << 25)
 }
 
 /// The mantissas and exponent the shaders' RGBE encode computes (float math
@@ -77,9 +92,17 @@ pub fn shared_exponent(light: Vec3) -> ([u32; 3], u32) {
     let c_max = c.max_element();
     let expp = (-B - 1.0).max((c_max.ln() / LN2).floor()) + 1.0 + B;
     let s_max = (c_max / 2f32.powf(expp - B - NB) + 0.5).floor();
-    let exps = if (0.0..POW2TO9).contains(&s_max) { expp } else { expp + 1.0 };
+    let exps = if (0.0..POW2TO9).contains(&s_max) {
+        expp
+    } else {
+        expp + 1.0
+    };
     let scale = 2f32.powf(exps - B - NB);
-    let s = [(c.x / scale + 0.5).floor() as u32, (c.y / scale + 0.5).floor() as u32, (c.z / scale + 0.5).floor() as u32];
+    let s = [
+        (c.x / scale + 0.5).floor() as u32,
+        (c.y / scale + 0.5).floor() as u32,
+        (c.z / scale + 0.5).floor() as u32,
+    ];
     (s, exps as u32)
 }
 
@@ -94,7 +117,13 @@ pub fn decode_rgbe8985(rgbe: u32) -> Vec3 {
 
 /// One fragment of the SDF pass: what the fragment shader writes at the voxel
 /// its interpolated position falls in.
-fn write_fragment(voxels: &mut RenderVoxels, grid_pos: IVec3, albedo: Vec3, normal: Vec3, emission: Vec3) {
+fn write_fragment(
+    voxels: &mut RenderVoxels,
+    grid_pos: IVec3,
+    albedo: Vec3,
+    normal: Vec3,
+    emission: Vec3,
+) {
     // The shader does not clamp grid_pos; an image store outside the image is discarded.
     if !inside(grid_pos) {
         return;
@@ -158,7 +187,12 @@ pub fn voxelize(objects: &[ObjectData], region: &Region, voxels: &mut RenderVoxe
 }
 
 /// The first `passes` of `voxelize`'s three views (x, then y, then z).
-pub fn voxelize_axes(objects: &[ObjectData], region: &Region, voxels: &mut RenderVoxels, passes: usize) {
+pub fn voxelize_axes(
+    objects: &[ObjectData],
+    region: &Region,
+    voxels: &mut RenderVoxels,
+    passes: usize,
+) {
     let size = region.local_size;
     let min = region.bounds_min;
     let extent = region.bounds_size;
@@ -180,8 +214,13 @@ pub fn voxelize_axes(objects: &[ObjectData], region: &Region, voxels: &mut Rende
                     let p = ro + rd * t;
                     let local = (p - min) / extent;
                     let grid_pos = region.local_offset + (local * size.as_vec3()).as_ivec3();
-                    let albedo = Vec3::new(o.albedo_roughness[0], o.albedo_roughness[1], o.albedo_roughness[2]);
-                    let emission = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
+                    let albedo = Vec3::new(
+                        o.albedo_roughness[0],
+                        o.albedo_roughness[1],
+                        o.albedo_roughness[2],
+                    );
+                    let emission =
+                        Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
                     write_fragment(voxels, grid_pos, albedo, n.normalize(), emission);
                 }
             }
@@ -245,7 +284,13 @@ fn dist(a: Vec3, seed: Seed) -> f32 {
 /// search starts (the regular pass from the cell's own seed, which a
 /// full-size solid cell keeps outright; the optimized one from the first
 /// valid of 27, the cell included), which decides ties.
-pub fn jump_flood_pass(src: &[Seed], n: i32, step: i32, half_size: bool, optimized: bool) -> Vec<Seed> {
+pub fn jump_flood_pass(
+    src: &[Seed],
+    n: i32,
+    step: i32,
+    half_size: bool,
+    optimized: bool,
+) -> Vec<Seed> {
     let off26 = offsets26();
     let off27 = offsets27();
     let mut dst = vec![UNUSED; src.len()];
@@ -257,7 +302,13 @@ pub fn jump_flood_pass(src: &[Seed], n: i32, step: i32, half_size: bool, optimiz
                 if half_size {
                     posf = posf * 2.0 + 0.5;
                 }
-                let load = |q: IVec3| if q.cmpge(IVec3::ZERO).all() && q.cmplt(IVec3::splat(n)).all() { Some(src[idx(q, n)]) } else { None };
+                let load = |q: IVec3| {
+                    if q.cmpge(IVec3::ZERO).all() && q.cmplt(IVec3::splat(n)).all() {
+                        Some(src[idx(q, n)])
+                    } else {
+                        None
+                    }
+                };
                 let out = if optimized {
                     let mut closest = UNUSED;
                     let mut closest_dist = 0.0;
@@ -278,9 +329,15 @@ pub fn jump_flood_pass(src: &[Seed], n: i32, step: i32, half_size: bool, optimiz
                     if !half_size && p == seed_at(pos) {
                         p
                     } else {
-                        let mut p_dist = if p[3] != 0 { dist(posf, p) } else { 0.0 };
+                        let mut p_dist = if p[3] != 0 {
+                            dist(posf, p)
+                        } else {
+                            0.0
+                        };
                         for o in &off26 {
-                            let Some(q) = load(pos + *o * step) else { continue };
+                            let Some(q) = load(pos + *o * step) else {
+                                continue;
+                            };
                             if q[3] == 0 {
                                 continue;
                             }
@@ -405,7 +462,12 @@ pub fn jump_flood(voxels: &RenderVoxels) -> JumpFlood {
     }
     let upscaled = upscale(voxels, &current);
     let seeds = jump_flood_pass(&upscaled, N as i32, 1, false, true);
-    JumpFlood { half_init, half_passes, upscaled, seeds }
+    JumpFlood {
+        half_init,
+        half_passes,
+        upscaled,
+        seeds,
+    }
 }
 
 /// One entry of the solid-cell list (`ProcessVoxel`, 16 bytes): position
@@ -422,12 +484,19 @@ pub struct SolidCell {
 
 impl SolidCell {
     pub fn cell(&self) -> IVec3 {
-        IVec3::new((self.position & 0x7F) as i32, ((self.position >> 7) & 0x7F) as i32, ((self.position >> 14) & 0x7F) as i32)
+        IVec3::new(
+            (self.position & 0x7F) as i32,
+            ((self.position >> 7) & 0x7F) as i32,
+            ((self.position >> 14) & 0x7F) as i32,
+        )
     }
 
     /// The 26 neighbour bits, reassembled.
     pub fn neighbours(&self) -> u32 {
-        (self.albedo >> 21) | ((self.position >> 21) << 11) | ((self.light >> 30) << 22) | ((self.light_aniso >> 30) << 24)
+        (self.albedo >> 21)
+            | ((self.position >> 21) << 11)
+            | ((self.light >> 30) << 22)
+            | ((self.light_aniso >> 30) << 24)
     }
 
     pub fn facing(&self) -> u32 {
@@ -436,7 +505,11 @@ impl SolidCell {
 
     /// Albedo as the light pass decodes it (5-5-5 over 31).
     pub fn albedo_rgb(&self) -> Vec3 {
-        Vec3::new(((self.albedo >> 10) & 0x1F) as f32, ((self.albedo >> 5) & 0x1F) as f32, (self.albedo & 0x1F) as f32) / 31.0
+        Vec3::new(
+            ((self.albedo >> 10) & 0x1F) as f32,
+            ((self.albedo >> 5) & 0x1F) as f32,
+            (self.albedo & 0x1F) as f32,
+        ) / 31.0
     }
 }
 
@@ -448,7 +521,6 @@ pub struct Stored {
     pub sdf: Vec<u8>,
     pub cells: Vec<SolidCell>,
 }
-
 
 /// `MODE_STORE` over the whole cascade, in the dispatch's 4 x 4 x 4 groups
 /// (the list's order follows the groups; the GPU's depends on scheduling).
@@ -467,7 +539,11 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                             let pos = IVec3::new(gx * 4 + lx, gy * 4 + ly, gz * 4 + lz);
                             let seed = seed_cell(seeds[index(pos)]);
                             let solid = seed == pos;
-                            let d = if solid { 0.0 } else { 1.0 + (seed - pos).as_vec3().length() };
+                            let d = if solid {
+                                0.0
+                            } else {
+                                1.0 + (seed - pos).as_vec3().length()
+                            };
                             // UNORM: d / 255 stored, rounded to the nearest of 256 levels.
                             sdf[index(pos)] = ((d / 255.0).clamp(0.0, 1.0) * 255.0).round() as u8;
                             if !solid {
@@ -490,7 +566,10 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                                 }
                             }
                             let i = index(pos);
-                            let mut cell = SolidCell { position: (pos.x | (pos.y << 7) | (pos.z << 14)) as u32, ..SolidCell::default() };
+                            let mut cell = SolidCell {
+                                position: (pos.x | (pos.y << 7) | (pos.z << 14)) as u32,
+                                ..SolidCell::default()
+                            };
                             cell.albedo = (voxels.albedo[i] as u32) >> 1;
                             cell.albedo |= (voxels.facing[i] & 0x3F) << 15;
                             cell.albedo |= neighbours << 21;
@@ -521,14 +600,23 @@ pub struct CascadeData {
 
 pub fn build_cascade(objects: &[ObjectData], cascades: &Cascades, cascade: usize) -> CascadeData {
     let mut voxels = RenderVoxels::cleared();
-    for region in cascades.pending_regions().iter().filter(|r| r.cascade == cascade) {
+    for region in cascades
+        .pending_regions()
+        .iter()
+        .filter(|r| r.cascade == cascade)
+    {
         voxelize(objects, region, &mut voxels);
     }
     let flood = jump_flood(&voxels);
     let images = super::occlusion::occlusion(&voxels, cascades.cascades[cascade].position);
     let occlusion = super::occlusion::pack(&images);
     let stored = store(&voxels, &flood.seeds);
-    CascadeData { voxels, flood, stored, occlusion }
+    CascadeData {
+        voxels,
+        flood,
+        stored,
+        occlusion,
+    }
 }
 
 /// `PRE_PROCESS_SCROLL`: a cascade that moved by `scroll` cells
@@ -555,15 +643,30 @@ pub fn scroll_into(previous: &[SolidCell], scroll: IVec3, voxels: &mut RenderVox
 /// the whole cascade. (The engine recomputes occlusion only in the probe
 /// windows a new slab touches and scrolls the rest; the lab recomputes all of
 /// it, from the same voxels.)
-pub fn scroll_cascade(objects: &[ObjectData], cascades: &Cascades, cascade: usize, previous: &[SolidCell], scroll: IVec3) -> CascadeData {
+pub fn scroll_cascade(
+    objects: &[ObjectData],
+    cascades: &Cascades,
+    cascade: usize,
+    previous: &[SolidCell],
+    scroll: IVec3,
+) -> CascadeData {
     let mut voxels = RenderVoxels::cleared();
     scroll_into(previous, scroll, &mut voxels);
-    for region in cascades.pending_regions().iter().filter(|r| r.cascade == cascade) {
+    for region in cascades
+        .pending_regions()
+        .iter()
+        .filter(|r| r.cascade == cascade)
+    {
         voxelize(objects, region, &mut voxels);
     }
     let flood = jump_flood(&voxels);
     let images = super::occlusion::occlusion(&voxels, cascades.cascades[cascade].position);
     let occlusion = super::occlusion::pack(&images);
     let stored = store(&voxels, &flood.seeds);
-    CascadeData { voxels, flood, stored, occlusion }
+    CascadeData {
+        voxels,
+        flood,
+        stored,
+        occlusion,
+    }
 }

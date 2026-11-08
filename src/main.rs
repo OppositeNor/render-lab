@@ -4,7 +4,9 @@
 //! packages/, whose libraries the lab opens at run time.
 
 fn main() {
-    if let Err(e) = lab::cli::main(lab::cli::App { title: "o3de/lighting" }) {
+    if let Err(e) = lab::cli::main(lab::cli::App {
+        title: "o3de/lighting",
+    }) {
         // As a `main` that returns anyhow's Result prints it.
         eprintln!("Error: {e:?}");
         std::process::exit(1);

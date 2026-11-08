@@ -19,7 +19,7 @@ use super::light::{self, Light, Lit, Params};
 use super::sdf;
 use super::storage::Probe;
 use glam::{Mat4, Vec3};
-use lab::scene::{ids, Scene};
+use lab::scene::{Scene, ids};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -45,7 +45,11 @@ pub struct LightSettings {
 
 impl Default for LightSettings {
     fn default() -> LightSettings {
-        LightSettings { dynamic_range: DYNAMIC_RANGE, propagation: PROPAGATION, two_bounces: true }
+        LightSettings {
+            dynamic_range: DYNAMIC_RANGE,
+            propagation: PROPAGATION,
+            two_bounces: true,
+        }
     }
 }
 
@@ -65,7 +69,10 @@ pub struct World {
 
 /// The box as `VoxelGI::bake` passes it: `AABB(-size / 2, size)` in the node's space.
 pub fn bounds() -> Aabb {
-    Aabb { position: -SIZE * 0.5, size: SIZE }
+    Aabb {
+        position: -SIZE * 0.5,
+        size: SIZE,
+    }
 }
 
 /// The node's transform (no rotation or scale: `VoxelGI` disables scale).
@@ -93,7 +100,12 @@ pub fn bake(scene: &Scene, extra: &[usize]) -> (Voxelizer, Vec<Cell>, Vec<BakeMe
 /// `ps = octree_size / bounds.size`, `cell_size = 1 / max(ps)`: metres per cell.
 pub fn params(probe: &Probe, s: &LightSettings) -> Params {
     let ps = probe.octree_size.as_vec3() / SIZE;
-    Params { limits: probe.octree_size, propagation: s.propagation, dynamic_range: s.dynamic_range, cell_size: 1.0 / ps.max_element() }
+    Params {
+        limits: probe.octree_size,
+        propagation: s.propagation,
+        dynamic_range: s.dynamic_range,
+        cell_size: 1.0 / ps.max_element(),
+    }
 }
 
 /// The ceiling panel as an AreaLight3D (the SDFGI investigation's choice):
@@ -117,7 +129,8 @@ pub fn panel_light(scene: &Scene, probe: &Probe) -> Light {
         color: l.color,
         cos_spot_angle: 0.0,
         position: probe.to_cell(l.center - NODE),
-        inv_spot_attenuation: 1.0 / (radius + glam::Vec2::new(width.length(), height.length()).length() / 2.0),
+        inv_spot_attenuation: 1.0
+            / (radius + glam::Vec2::new(width.length(), height.length()).length() / 2.0),
         direction: l.normal(),
         has_shadow: false,
         area_width: width * s,
@@ -168,9 +181,24 @@ fn build() -> World {
     let bake_seconds = started.elapsed().as_secs_f32();
     let lights = vec![panel_light(&scene, &probe)];
     let started = std::time::Instant::now();
-    let lit = light::update(&probe, &params(&probe, &LightSettings::default()), &lights, true);
+    let lit = light::update(
+        &probe,
+        &params(&probe, &LightSettings::default()),
+        &lights,
+        true,
+    );
     let light_seconds = started.elapsed().as_secs_f32();
-    World { scene, meshes, voxelizer, sums, probe, lights, lit, bake_seconds, light_seconds }
+    World {
+        scene,
+        meshes,
+        voxelizer,
+        sums,
+        probe,
+        lights,
+        lit,
+        bake_seconds,
+        light_seconds,
+    }
 }
 
 /// The lab's VoxelGI at the defaults, built once.
@@ -191,13 +219,26 @@ struct VariantKey {
 pub fn lit_with(s: &LightSettings) -> Arc<Lit> {
     static CACHE: OnceLock<Mutex<HashMap<VariantKey, Arc<Lit>>>> = OnceLock::new();
     let w = world();
-    let key = VariantKey { dynamic_range: (s.dynamic_range * 100.0).round() as i32, propagation: (s.propagation * 100.0).round() as i32, two_bounces: s.two_bounces };
+    let key = VariantKey {
+        dynamic_range: (s.dynamic_range * 100.0).round() as i32,
+        propagation: (s.propagation * 100.0).round() as i32,
+        two_bounces: s.two_bounces,
+    };
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(l) = cache.lock().unwrap().get(&key) {
         return l.clone();
     }
-    let settings = LightSettings { dynamic_range: key.dynamic_range as f32 / 100.0, propagation: key.propagation as f32 / 100.0, two_bounces: key.two_bounces };
-    let lit = Arc::new(light::update(&w.probe, &params(&w.probe, &settings), &w.lights, settings.two_bounces));
+    let settings = LightSettings {
+        dynamic_range: key.dynamic_range as f32 / 100.0,
+        propagation: key.propagation as f32 / 100.0,
+        two_bounces: key.two_bounces,
+    };
+    let lit = Arc::new(light::update(
+        &w.probe,
+        &params(&w.probe, &settings),
+        &w.lights,
+        settings.two_bounces,
+    ));
     cache.lock().unwrap().insert(key, lit.clone());
     lit
 }
@@ -219,7 +260,9 @@ pub fn direct_with_omni(at: Vec3) -> Arc<Vec<Vec3>> {
     let params = params(&w.probe, &LightSettings::default());
     let leaves = w.probe.level_range(w.probe.leaf_level());
     let start = leaves.start;
-    let direct = light::par_map(leaves, |c| light::compute_light(&w.probe, &params, &lights, c));
+    let direct = light::par_map(leaves, |c| {
+        light::compute_light(&w.probe, &params, &lights, c)
+    });
     let mut all = vec![Vec3::ZERO; start];
     all.extend(direct);
     let all = Arc::new(all);
@@ -242,7 +285,12 @@ pub fn data_layout() -> DataLayout {
     let w = world();
     let sdf = (w.probe.sdf.len() as u32).div_ceil(16);
     let cells = w.probe.data.len() as u32;
-    DataLayout { cells: sdf, children: sdf + cells, lights: sdf + 3 * cells, light_count: w.lights.len().min(light::MAX_LIGHTS) as u32 }
+    DataLayout {
+        cells: sdf,
+        children: sdf + cells,
+        lights: sdf + 3 * cells,
+        light_count: w.lights.len().min(light::MAX_LIGHTS) as u32,
+    }
 }
 
 /// The scene shading's data buffer (gShadingData), what the light passes
@@ -252,11 +300,16 @@ pub fn data_layout() -> DataLayout {
 /// passes write (`SceneShading::volumes`).
 pub fn shading_data() -> Vec<[f32; 4]> {
     let w = world();
-    let mut words: Vec<u32> = w.probe.sdf.chunks(4).map(|b| {
-        let mut q = [0u8; 4];
-        q[..b.len()].copy_from_slice(b);
-        u32::from_le_bytes(q)
-    }).collect();
+    let mut words: Vec<u32> = w
+        .probe
+        .sdf
+        .chunks(4)
+        .map(|b| {
+            let mut q = [0u8; 4];
+            q[..b.len()].copy_from_slice(b);
+            u32::from_le_bytes(q)
+        })
+        .collect();
     while !words.len().is_multiple_of(4) {
         words.push(0);
     }
@@ -268,7 +321,17 @@ pub fn shading_data() -> Vec<[f32; 4]> {
     for c in &w.probe.octree {
         words.extend(c);
     }
-    let mut out: Vec<[f32; 4]> = words.chunks(4).map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2]), f32::from_bits(c[3])]).collect();
+    let mut out: Vec<[f32; 4]> = words
+        .chunks(4)
+        .map(|c| {
+            [
+                f32::from_bits(c[0]),
+                f32::from_bits(c[1]),
+                f32::from_bits(c[2]),
+                f32::from_bits(c[3]),
+            ]
+        })
+        .collect();
     debug_assert_eq!(out.len() as u32, layout.lights);
     for l in w.lights.iter().take(light::MAX_LIGHTS) {
         out.extend([
@@ -285,14 +348,20 @@ pub fn shading_data() -> Vec<[f32; 4]> {
 
 /// The scene node's light settings in a shot (giDynamicRange, giPropagation, giTwoBounces).
 pub fn scene_settings(state: &lab::shot::ShotState) -> LightSettings {
-    LightSettings { dynamic_range: state.p("giDynamicRange"), propagation: state.p("giPropagation"), two_bounces: state.p("giTwoBounces") > 0.5 }
+    LightSettings {
+        dynamic_range: state.p("giDynamicRange"),
+        propagation: state.p("giPropagation"),
+        two_bounces: state.p("giTwoBounces") > 0.5,
+    }
 }
 
 /// The lit texture for `s`: the world's own at the defaults, else `lit_with`.
 pub fn lit_for(s: &LightSettings) -> Arc<Lit> {
     if *s == LightSettings::default() {
         static DEFAULT: OnceLock<Arc<Lit>> = OnceLock::new();
-        return DEFAULT.get_or_init(|| Arc::new(world().lit.clone())).clone();
+        return DEFAULT
+            .get_or_init(|| Arc::new(world().lit.clone()))
+            .clone();
     }
     lit_with(s)
 }
@@ -312,7 +381,12 @@ pub fn dynamic_world() -> &'static DynamicWorld {
         let (voxelizer, _, _) = bake(&scene, &[ids::TEAPOT]);
         let probe = Probe::from_bake(&voxelizer, sdf::sdf_image(&voxelizer));
         let lights = vec![panel_light(&scene, &probe)];
-        let lit = light::update(&probe, &params(&probe, &LightSettings::default()), &lights, true);
+        let lit = light::update(
+            &probe,
+            &params(&probe, &LightSettings::default()),
+            &lights,
+            true,
+        );
         DynamicWorld { probe, lit }
     })
 }
@@ -336,7 +410,14 @@ pub fn dynamic_plot(dx: f32) -> Arc<super::dynamic::Plot> {
     let w = dynamic_world();
     let scene = Scene::study_room();
     let lights = [panel_light(&scene, &w.probe)];
-    let plot = Arc::new(super::dynamic::plot(&w.probe, &params(&w.probe, &LightSettings::default()), &lights, &teapot_at(key as f32 / 100.0), &w.lit.texture, NODE));
+    let plot = Arc::new(super::dynamic::plot(
+        &w.probe,
+        &params(&w.probe, &LightSettings::default()),
+        &lights,
+        &teapot_at(key as f32 / 100.0),
+        &w.lit.texture,
+        NODE,
+    ));
     cache.lock().unwrap().insert(key, plot.clone());
     plot
 }

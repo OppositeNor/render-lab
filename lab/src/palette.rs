@@ -11,7 +11,12 @@ pub const fn rgb(hex: u32) -> Color32 {
 }
 
 pub fn to_f32(c: Color32, alpha: f32) -> [f32; 4] {
-    [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, alpha]
+    [
+        c.r() as f32 / 255.0,
+        c.g() as f32 / 255.0,
+        c.b() as f32 / 255.0,
+        alpha,
+    ]
 }
 
 // Interface: the theme's colours (src/theme.rs), read with these functions.
@@ -113,7 +118,11 @@ pub const THEME_ACCENT: Color32 = Theme::CLASSIC.accent;
 /// `color` as the theme shows it: `THEME_ACCENT` is the theme's accent;
 /// any other colour is itself.
 pub fn themed(color: Color32) -> Color32 {
-    if color == THEME_ACCENT { accent() } else { color }
+    if color == THEME_ACCENT {
+        accent()
+    } else {
+        color
+    }
 }
 
 pub fn background() -> Color32 {
@@ -123,7 +132,12 @@ pub fn background() -> Color32 {
 /// sRGB-encoded bytes, so it is the encoded colour itself.
 pub fn background_clear() -> wgpu::Color {
     let bg = background();
-    wgpu::Color { r: bg.r() as f64 / 255.0, g: bg.g() as f64 / 255.0, b: bg.b() as f64 / 255.0, a: 1.0 }
+    wgpu::Color {
+        r: bg.r() as f64 / 255.0,
+        g: bg.g() as f64 / 255.0,
+        b: bg.b() as f64 / 255.0,
+        a: 1.0,
+    }
 }
 pub fn panel() -> Color32 {
     theme().panel
@@ -200,7 +214,9 @@ pub const WRONG: Color32 = rgb(0xff6b6b);
 /// Swatch colours for a highlighted struct field (several for matrices).
 pub fn field_colors(record: &str, field: &str) -> Vec<Color32> {
     match (record, field) {
-        ("ObjectData", "localToWorld") | ("ObjectData", "worldToLocal") => vec![AXIS_X, AXIS_Y, AXIS_Z],
+        ("ObjectData", "localToWorld") | ("ObjectData", "worldToLocal") => {
+            vec![AXIS_X, AXIS_Y, AXIS_Z]
+        }
         ("ObjectData", "localCenter") | ("ObjectData", "localExtent") => vec![OBB],
         ("ObjectData", "worldCenter") | ("ObjectData", "worldExtent") => vec![AABB],
         ("ObjectData", "boundingRadius") => vec![POINT],

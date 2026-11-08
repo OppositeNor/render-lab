@@ -20,12 +20,18 @@ use lamlet::embed::{Engine, Error};
 pub const PACKAGE: &str = "rl";
 
 /// The investigation the natives check against, or an error naming the native that needs it.
-fn chosen(investigation: Option<&'static dyn Investigation>, native: &str) -> Result<&'static dyn Investigation, String> {
+fn chosen(
+    investigation: Option<&'static dyn Investigation>,
+    native: &str,
+) -> Result<&'static dyn Investigation, String> {
     investigation.ok_or_else(|| format!("rl::{native} checks against an investigation: run `render-lab --investigation <id> lamlet …`"))
 }
 
 /// Registers the natives on `engine`, checking against `investigation`.
-pub fn register(engine: &mut Engine, investigation: Option<&'static dyn Investigation>) -> Result<(), Error> {
+pub fn register(
+    engine: &mut Engine,
+    investigation: Option<&'static dyn Investigation>,
+) -> Result<(), Error> {
     let r = engine.natives_mut();
     r.function("rl/source", move |_, (key,): (String,)| {
         let i = chosen(investigation, "source")?;
@@ -65,7 +71,9 @@ pub fn register(engine: &mut Engine, investigation: Option<&'static dyn Investig
     .register()?;
     r.function("rl/formula", move |_, (tex,): (String,)| {
         chosen(investigation, "formula")?;
-        crate::formula::check(&tex, false).map(|_| tex.clone()).map_err(|e| format!("the formula {tex:?}: {e}"))
+        crate::formula::check(&tex, false)
+            .map(|_| tex.clone())
+            .map_err(|e| format!("the formula {tex:?}: {e}"))
     })
     .pure()
     .doc("Fn([String], String). `tex`, LaTeX that typesets within the lab's limits, or an error.")
@@ -77,5 +85,8 @@ pub fn register(engine: &mut Engine, investigation: Option<&'static dyn Investig
 pub fn declarations() -> Result<String, String> {
     let mut engine = Engine::new();
     register(&mut engine, None).map_err(|e| e.render())?;
-    engine.natives_mut().declarations(PACKAGE).map_err(|e| e.render())
+    engine
+        .natives_mut()
+        .declarations(PACKAGE)
+        .map_err(|e| e.render())
 }

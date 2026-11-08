@@ -42,12 +42,12 @@
 //! line. The package's parameters (src/demo.rs) include its shaders' values,
 //! so its demonstrations, timelines, and stories set them by key.
 
-use crate::frame::{FrameContent, Statics, SHADING_UNIFORMS};
+use crate::frame::{FrameContent, SHADING_UNIFORMS, Statics};
 use crate::investigation;
 use crate::shaders::{self, Reflected};
 use crate::shot::ShotState;
 use crate::values::{Choices, Entry, Type, Unit, Value};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use naga::{ScalarKind, TypeInner};
 
 /// How a member is stored.
@@ -90,7 +90,10 @@ impl Schema {
     }
 
     pub fn member(&self, name: &str) -> &Member {
-        self.members.iter().find(|m| m.name == name).unwrap_or_else(|| panic!("{} has no member `{name}` in {}", self.global, self.shader))
+        self.members
+            .iter()
+            .find(|m| m.name == name)
+            .unwrap_or_else(|| panic!("{} has no member `{name}` in {}", self.global, self.shader))
     }
 }
 
@@ -112,12 +115,20 @@ fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize),
             i += 1;
         }
         match bytes.get(i) {
-            None => return Err(format!("unclosed tag: {}", &text[start.saturating_sub(2)..])),
+            None => {
+                return Err(format!(
+                    "unclosed tag: {}",
+                    &text[start.saturating_sub(2)..]
+                ));
+            }
             Some(b'}') => return Ok((attrs, i + 1)),
             _ => {}
         }
         let name_start = i;
-        while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'=' && *b != b'}') {
+        while bytes
+            .get(i)
+            .is_some_and(|b| !b.is_ascii_whitespace() && *b != b'=' && *b != b'}')
+        {
             i += 1;
         }
         let name = text[name_start..i].to_string();
@@ -132,7 +143,12 @@ fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize),
             let mut value = String::new();
             loop {
                 match bytes.get(i) {
-                    None => return Err(format!("unclosed quote in tag: {}", &text[start.saturating_sub(2)..])),
+                    None => {
+                        return Err(format!(
+                            "unclosed quote in tag: {}",
+                            &text[start.saturating_sub(2)..]
+                        ));
+                    }
                     Some(b'"') => {
                         i += 1;
                         break;
@@ -151,7 +167,10 @@ fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize),
             value
         } else {
             let value_start = i;
-            while bytes.get(i).is_some_and(|b| !b.is_ascii_whitespace() && *b != b'}') {
+            while bytes
+                .get(i)
+                .is_some_and(|b| !b.is_ascii_whitespace() && *b != b'}')
+            {
                 i += 1;
             }
             text[value_start..i].to_string()
@@ -172,7 +191,11 @@ pub(crate) fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
             text.push_str(&rest[..at]);
             let (attrs, end) = parse_tag(rest, at + 2).map_err(|e| anyhow!(e))?;
             for (name, value) in attrs {
-                let args = if value.is_empty() { Vec::new() } else { value.split(',').map(|a| a.trim().to_string()).collect() };
+                let args = if value.is_empty() {
+                    Vec::new()
+                } else {
+                    value.split(',').map(|a| a.trim().to_string()).collect()
+                };
                 tags.push(Tag { name, args });
             }
             rest = &rest[end..];
@@ -193,7 +216,9 @@ pub(crate) fn number(text: &str) -> Result<f32> {
     match text {
         "true" => Ok(1.0),
         "false" => Ok(0.0),
-        _ => text.parse::<f32>().map_err(|_| anyhow!("`{text}` is not a number")),
+        _ => text
+            .parse::<f32>()
+            .map_err(|_| anyhow!("`{text}` is not a number")),
     }
 }
 
@@ -207,7 +232,11 @@ pub(crate) fn wgsl_value_type(inner: &TypeInner) -> Option<(Storage, usize)> {
     };
     match inner {
         TypeInner::Scalar(s) => Some((storage(s.kind, s.width)?, 1)),
-        TypeInner::Vector { size, scalar } if scalar.kind == ScalarKind::Float && scalar.width == 4 => Some((Storage::F32, *size as usize)),
+        TypeInner::Vector { size, scalar }
+            if scalar.kind == ScalarKind::Float && scalar.width == 4 =>
+        {
+            Some((Storage::F32, *size as usize))
+        }
         _ => None,
     }
 }
@@ -221,7 +250,9 @@ fn scalar_storage(module: &naga::Module, inner: &TypeInner) -> Option<Storage> {
         _ => None,
     };
     match inner {
-        TypeInner::Scalar(s) | TypeInner::Vector { scalar: s, .. } | TypeInner::Matrix { scalar: s, .. } => of(*s),
+        TypeInner::Scalar(s)
+        | TypeInner::Vector { scalar: s, .. }
+        | TypeInner::Matrix { scalar: s, .. } => of(*s),
         TypeInner::Array { base, .. } => scalar_storage(module, &module.types[*base].inner),
         _ => None,
     }
@@ -230,11 +261,31 @@ fn scalar_storage(module: &naga::Module, inner: &TypeInner) -> Option<Storage> {
 /// A member's value, from its tags.
 /// The choice `name` of the package `package` (an investigation's `choices`).
 fn find_choices(package: &str, name: &str) -> Result<&'static Choices> {
-    let known: Vec<&'static Choices> = crate::investigations::all().iter().filter(|i| i.package() == Some(package)).flat_map(|i| i.choices().iter().copied()).collect();
-    known.iter().copied().find(|c| c.name == name).ok_or_else(|| anyhow!("no choice `{name}` (the package's investigations declare: {})", known.iter().map(|c| c.name).collect::<Vec<_>>().join(", ")))
+    let known: Vec<&'static Choices> = crate::investigations::all()
+        .iter()
+        .filter(|i| i.package() == Some(package))
+        .flat_map(|i| i.choices().iter().copied())
+        .collect();
+    known
+        .iter()
+        .copied()
+        .find(|c| c.name == name)
+        .ok_or_else(|| {
+            anyhow!(
+                "no choice `{name}` (the package's investigations declare: {})",
+                known.iter().map(|c| c.name).collect::<Vec<_>>().join(", ")
+            )
+        })
 }
 
-fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage: Storage, components: usize) -> Result<Entry> {
+fn entry(
+    r: &Reflected,
+    scope: Option<&str>,
+    tags: &[Tag],
+    doc: String,
+    storage: Storage,
+    components: usize,
+) -> Result<Entry> {
     let one = |name: &str| -> Result<Option<&Tag>> {
         let found: Vec<&Tag> = tags.iter().filter(|t| t.name == name).collect();
         if found.len() > 1 {
@@ -248,7 +299,15 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
     };
     let arg = |tag: &Tag, n: usize| -> Result<()> {
         if tag.args.len() != n {
-            bail!("`{}=` takes {n} value{}", tag.name, if n == 1 { "" } else { "s" });
+            bail!(
+                "`{}=` takes {n} value{}",
+                tag.name,
+                if n == 1 {
+                    ""
+                } else {
+                    "s"
+                }
+            );
         }
         Ok(())
     };
@@ -265,8 +324,14 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
             }
             let c = find_choices(package, &t.args[0])?;
             // The constants the shader compares against must be the enum's current ones.
-            if let Some(source) = c.wgsl_source() && !r.source.contains(&source) {
-                bail!("the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)", c.name, c.wgsl_file());
+            if let Some(source) = c.wgsl_source()
+                && !r.source.contains(&source)
+            {
+                bail!(
+                    "the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)",
+                    c.name,
+                    c.wgsl_file()
+                );
             }
             Some(c)
         }
@@ -276,14 +341,21 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
         _ if choices.is_some() => Unit::Index,
         Some(t) => {
             arg(t, 1)?;
-            Unit::parse(&t.args[0]).ok_or_else(|| anyhow!("unknown unit `{}` (m, deg, factor, plain, index)", t.args[0]))?
+            Unit::parse(&t.args[0]).ok_or_else(|| {
+                anyhow!(
+                    "unknown unit `{}` (m, deg, factor, plain, index)",
+                    t.args[0]
+                )
+            })?
         }
         None => Unit::Plain,
     };
     let ty = match (components, storage, toggle, unit) {
         _ if choices.is_some() => Type::U32,
         (1, _, true, _) => Type::Bool,
-        (1, Storage::F32 | Storage::U32, false, Unit::Index) | (1, Storage::U32, false, _) => Type::U32,
+        (1, Storage::F32 | Storage::U32, false, Unit::Index) | (1, Storage::U32, false, _) => {
+            Type::U32
+        }
         (1, Storage::I32, false, _) => Type::I32,
         (1, Storage::F32, false, _) => Type::F32,
         (2, Storage::F32, false, _) => Type::Vec2,
@@ -293,18 +365,43 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
     };
     let default = one("default")?.ok_or_else(|| anyhow!("a value needs `default=`"))?;
     if default.args.len() != ty.components() {
-        bail!("`default=` of a {} has {} number{}", ty.name(), ty.components(), if ty.components() == 1 { "" } else { "s" });
+        bail!(
+            "`default=` of a {} has {} number{}",
+            ty.name(),
+            ty.components(),
+            if ty.components() == 1 {
+                ""
+            } else {
+                "s"
+            }
+        );
     }
     let numbers: Vec<f32> = match choices {
         // A choice's default is an option's name.
-        Some(c) => vec![c.index(&default.args[0]).ok_or_else(|| anyhow!("`default={}`: {} has no such option ({})", default.args[0], c.name, c.names()))? as f32],
-        None => default.args.iter().map(|a| number(a)).collect::<Result<_>>()?,
+        Some(c) => vec![c.index(&default.args[0]).ok_or_else(|| {
+            anyhow!(
+                "`default={}`: {} has no such option ({})",
+                default.args[0],
+                c.name,
+                c.names()
+            )
+        })? as f32],
+        None => default
+            .args
+            .iter()
+            .map(|a| number(a))
+            .collect::<Result<_>>()?,
     };
     // One low, high pair, or one per component; a choice's is its options'.
     let (range, component_ranges) = match one("range")? {
         Some(_) if choices.is_some() => bail!("a choice's range is its options"),
-        None if choices.is_some() => (choices.map(|c| (0.0, c.options.len() as f32 - 1.0)), Vec::new()),
-        Some(t) if t.args.len() == 2 => (Some((number(&t.args[0])?, number(&t.args[1])?)), Vec::new()),
+        None if choices.is_some() => (
+            choices.map(|c| (0.0, c.options.len() as f32 - 1.0)),
+            Vec::new(),
+        ),
+        Some(t) if t.args.len() == 2 => {
+            (Some((number(&t.args[0])?, number(&t.args[1])?)), Vec::new())
+        }
         Some(t) if ty.components() > 1 && t.args.len() == 2 * ty.components() => {
             let n: Vec<f32> = t.args.iter().map(|a| number(a)).collect::<Result<_>>()?;
             (None, n.chunks(2).map(|c| (c[0], c[1])).collect())
@@ -319,7 +416,11 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
         }
         None => None,
     };
-    let labels: Vec<&'static str> = tags.iter().filter(|t| t.name == "label").flat_map(|t| t.args.iter().map(|a| leak(a.clone()))).collect();
+    let labels: Vec<&'static str> = tags
+        .iter()
+        .filter(|t| t.name == "label")
+        .flat_map(|t| t.args.iter().map(|a| leak(a.clone())))
+        .collect();
     let text = match one("text")? {
         Some(t) => {
             arg(t, 1)?;
@@ -333,7 +434,10 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
             t.args.iter().map(|c| leak(scoped(c))).collect()
         }
         Some(_) => bail!("only a vector has `components=`"),
-        None if ty.components() > 1 => ["x", "y", "z", "w"][..ty.components()].iter().map(|c| leak(format!("{key}.{c}"))).collect(),
+        None if ty.components() > 1 => ["x", "y", "z", "w"][..ty.components()]
+            .iter()
+            .map(|c| leak(format!("{key}.{c}")))
+            .collect(),
         None => Vec::new(),
     };
     let engine = match one("engine")? {
@@ -374,11 +478,28 @@ fn entry(r: &Reflected, scope: Option<&str>, tags: &[Tag], doc: String, storage:
 }
 
 /// The tags a member may carry.
-const MEMBER_TAGS: &[&str] = &["key", "derived", "default", "range", "step", "unit", "wrap", "label", "text", "toggle", "components", "choice", "engine", "help"];
+const MEMBER_TAGS: &[&str] = &[
+    "key",
+    "derived",
+    "default",
+    "range",
+    "step",
+    "unit",
+    "wrap",
+    "label",
+    "text",
+    "toggle",
+    "components",
+    "choice",
+    "engine",
+    "help",
+];
 
 fn build(r: &'static Reflected) -> Result<Option<Schema>> {
     let module = &r.module;
-    let Some(docs) = module.doc_comments.as_deref() else { return Ok(None) };
+    let Some(docs) = module.doc_comments.as_deref() else {
+        return Ok(None);
+    };
     let mut found = None;
     for (handle, lines) in &docs.global_variables {
         let (tags, _) = parse_tags(lines)?;
@@ -388,11 +509,21 @@ fn build(r: &'static Reflected) -> Result<Option<Schema>> {
         let var = &module.global_variables[*handle];
         let name = var.name.clone().unwrap_or_default();
         let at = r.locate(&lines[0]);
-        if let Some(other) = tags.iter().find(|t| t.name != "shader_data" && t.name != "scope") {
-            bail!("{}: `{name}`: unknown attribute `{}` of a global's tag (shader_data, scope){at}", r.id, other.name);
+        if let Some(other) = tags
+            .iter()
+            .find(|t| t.name != "shader_data" && t.name != "scope")
+        {
+            bail!(
+                "{}: `{name}`: unknown attribute `{}` of a global's tag (shader_data, scope){at}",
+                r.id,
+                other.name
+            );
         }
         if found.is_some() {
-            bail!("{}: more than one `shader_data` global (`{name}`){at}", r.id);
+            bail!(
+                "{}: more than one `shader_data` global (`{name}`){at}",
+                r.id
+            );
         }
         let scope = match tags.iter().find(|t| t.name == "scope") {
             Some(t) if t.args.len() == 1 => Some(t.args[0].clone()),
@@ -401,21 +532,47 @@ fn build(r: &'static Reflected) -> Result<Option<Schema>> {
         };
         found = Some((*handle, scope, at));
     }
-    let Some((handle, scope, at)) = found else { return Ok(None) };
+    let Some((handle, scope, at)) = found else {
+        return Ok(None);
+    };
     let var = &module.global_variables[handle];
     let global = var.name.clone().unwrap_or_default();
-    let binding = var.binding.as_ref().map(|b| (b.group, b.binding)).ok_or_else(|| anyhow!("{}: `{global}` has no binding{at}", r.id))?;
+    let binding = var
+        .binding
+        .as_ref()
+        .map(|b| (b.group, b.binding))
+        .ok_or_else(|| anyhow!("{}: `{global}` has no binding{at}", r.id))?;
     let ty = &module.types[var.ty];
-    let TypeInner::Struct { members, span } = &ty.inner else { bail!("{}: `{global}` is not a struct, so its members cannot carry values{at}", r.id) };
+    let TypeInner::Struct { members, span } = &ty.inner else {
+        bail!(
+            "{}: `{global}` is not a struct, so its members cannot carry values{at}",
+            r.id
+        )
+    };
     let mut out = Vec::new();
     for (index, m) in members.iter().enumerate() {
         let name = m.name.clone().unwrap_or_default();
-        let lines = docs.struct_members.get(&(var.ty, index)).cloned().unwrap_or_default();
-        let at = lines.first().map(|l| r.locate(l)).unwrap_or_else(|| r.locate(&format!("{name}:")));
+        let lines = docs
+            .struct_members
+            .get(&(var.ty, index))
+            .cloned()
+            .unwrap_or_default();
+        let at = lines
+            .first()
+            .map(|l| r.locate(l))
+            .unwrap_or_else(|| r.locate(&format!("{name}:")));
         let context = || format!("{}: `{global}.{name}`{at}", r.id);
         let (tags, doc) = parse_tags(&lines).with_context(context)?;
-        if let Some(t) = tags.iter().find(|t| !MEMBER_TAGS.contains(&t.name.as_str())) {
-            return Err(anyhow!("unknown attribute `{}` ({})", t.name, MEMBER_TAGS.join(", "))).with_context(context);
+        if let Some(t) = tags
+            .iter()
+            .find(|t| !MEMBER_TAGS.contains(&t.name.as_str()))
+        {
+            return Err(anyhow!(
+                "unknown attribute `{}` ({})",
+                t.name,
+                MEMBER_TAGS.join(", ")
+            ))
+            .with_context(context);
         }
         let inner = &module.types[m.ty].inner;
         let size = inner.size(module.to_ctx());
@@ -435,20 +592,41 @@ fn build(r: &'static Reflected) -> Result<Option<Schema>> {
                 Some(&*Box::leak(Box::new(entry(r, scope.as_deref(), &tags, doc, storage, components).with_context(context)?)))
             }
         };
-        out.push(Member { name: leak(name), offset: m.offset, size, storage: scalar_storage(module, inner), entry });
+        out.push(Member {
+            name: leak(name),
+            offset: m.offset,
+            size,
+            storage: scalar_storage(module, inner),
+            entry,
+        });
     }
-    let mut keys: Vec<&str> = out.iter().filter_map(|m| m.entry).flat_map(|e| std::iter::once(e.key).chain(e.components.iter().copied())).collect();
+    let mut keys: Vec<&str> = out
+        .iter()
+        .filter_map(|m| m.entry)
+        .flat_map(|e| std::iter::once(e.key).chain(e.components.iter().copied()))
+        .collect();
     keys.sort();
     if let Some(w) = keys.windows(2).find(|w| w[0] == w[1]) {
-        bail!("{}: `{global}`: the key `{}` is given twice{at}", r.id, w[0]);
+        bail!(
+            "{}: `{global}`: the key `{}` is given twice{at}",
+            r.id,
+            w[0]
+        );
     }
-    Ok(Some(Schema { shader: r.id, global: leak(global), binding, size: *span, members: out }))
+    Ok(Some(Schema {
+        shader: r.id,
+        global: leak(global),
+        binding,
+        size: *span,
+        members: out,
+    }))
 }
 
 /// The values the shader `id` declares, or None when it has no
 /// `@shader_data` global; read once per run.
 pub fn schema(id: &str) -> Result<Option<&'static Schema>> {
-    static CACHE: std::sync::Mutex<Vec<(&'static str, Option<&'static Schema>)>> = std::sync::Mutex::new(Vec::new());
+    static CACHE: std::sync::Mutex<Vec<(&'static str, Option<&'static Schema>)>> =
+        std::sync::Mutex::new(Vec::new());
     if let Some((_, s)) = CACHE.lock().unwrap().iter().find(|(i, _)| *i == id) {
         return Ok(*s);
     }
@@ -470,16 +648,28 @@ pub fn schema(id: &str) -> Result<Option<&'static Schema>> {
 /// composed; a file already up to date is left alone.
 pub fn write_choices(investigations: &[&'static dyn crate::investigation::Investigation]) {
     for investigation in investigations {
-        let Some(package) = investigation.package() else { continue };
+        let Some(package) = investigation.package() else {
+            continue;
+        };
         for choices in investigation.choices() {
-            let Some(text) = choices.wgsl_source() else { continue };
-            let file = choices.wgsl_file();
-            let resource = crate::resources::all().iter().find(|r| r.id().starts_with(&format!("{package}.")) && r.source().ends_with(&file));
-            let Some(resource) = resource else {
-                eprintln!("{package}: no resource declares {file}, so its shaders cannot compose {}'s constants (declare it `built = true`)", choices.name);
+            let Some(text) = choices.wgsl_source() else {
                 continue;
             };
-            for path in [resource.path(), crate::resources::root().join(resource.source())] {
+            let file = choices.wgsl_file();
+            let resource = crate::resources::all().iter().find(|r| {
+                r.id().starts_with(&format!("{package}.")) && r.source().ends_with(&file)
+            });
+            let Some(resource) = resource else {
+                eprintln!(
+                    "{package}: no resource declares {file}, so its shaders cannot compose {}'s constants (declare it `built = true`)",
+                    choices.name
+                );
+                continue;
+            };
+            for path in [
+                resource.path(),
+                crate::resources::root().join(resource.source()),
+            ] {
                 if std::fs::read_to_string(&path).ok().as_deref() == Some(text.as_str()) {
                     continue;
                 }
@@ -506,7 +696,10 @@ pub struct Block {
 
 impl Block {
     pub fn new(schema: &'static Schema) -> Block {
-        Block { schema, bytes: vec![0; schema.size as usize] }
+        Block {
+            schema,
+            bytes: vec![0; schema.size as usize],
+        }
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -530,11 +723,16 @@ impl Block {
             let Some(entry) = member.entry else { continue };
             let value = state.get(entry.key);
             let clamped = match (value, entry.range) {
-                (Value::U32(x), Some((low, high))) => Value::U32(x.clamp(low.max(0.0) as u32, high.max(0.0) as u32)),
+                (Value::U32(x), Some((low, high))) => {
+                    Value::U32(x.clamp(low.max(0.0) as u32, high.max(0.0) as u32))
+                }
                 (Value::I32(x), Some((low, high))) => Value::I32(x.clamp(low as i32, high as i32)),
                 _ => value,
             };
-            let (offset, storage) = (member.offset, member.storage.expect("a value member has scalars"));
+            let (offset, storage) = (
+                member.offset,
+                member.storage.expect("a value member has scalars"),
+            );
             for (k, number) in clamped.components().into_iter().enumerate() {
                 self.put(offset + 4 * k as u32, storage, number);
             }
@@ -551,8 +749,19 @@ impl Block {
     /// they overrun it.
     pub fn write(&mut self, name: &str, numbers: &[f32]) {
         let member = self.schema.member(name);
-        let (offset, size, storage) = (member.offset, member.size, member.storage.unwrap_or_else(|| panic!("`{name}` has no scalars")));
-        assert!(numbers.len() as u32 * 4 <= size, "{} numbers overrun `{name}` ({size} bytes) in {}", numbers.len(), self.schema.shader);
+        let (offset, size, storage) = (
+            member.offset,
+            member.size,
+            member
+                .storage
+                .unwrap_or_else(|| panic!("`{name}` has no scalars")),
+        );
+        assert!(
+            numbers.len() as u32 * 4 <= size,
+            "{} numbers overrun `{name}` ({size} bytes) in {}",
+            numbers.len(),
+            self.schema.shader
+        );
         for (k, n) in numbers.iter().enumerate() {
             self.put(offset + 4 * k as u32, storage, *n);
         }
@@ -563,7 +772,13 @@ impl Block {
 /// shading's `@shader_data` uniform packed from the state when its shader
 /// declares one (the investigation fills the derived members,
 /// `Investigation::shader_data`).
-pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+pub fn build_frame(
+    state: &ShotState,
+    statics: &Statics,
+    viewport: [f32; 2],
+    pixel_scale: f32,
+    time: f32,
+) -> FrameContent {
     let current = investigation::current();
     let mut content = current.build_frame(state, statics, viewport, pixel_scale, time);
     // The scene's movable objects where the state has them (src/entity.rs).
@@ -571,7 +786,11 @@ pub fn build_frame(state: &ShotState, statics: &Statics, viewport: [f32; 2], pix
     // The package's scripts' overlays (src/script/runtime.rs), over what its code drew.
     crate::script::runtime::overlay(state, statics, &mut content, time);
     // The story's arrows and labels, over what the investigation drew.
-    crate::utility::annotations::draw(&state.notes, &mut content, current.package().unwrap_or("render_lab"));
+    crate::utility::annotations::draw(
+        &state.notes,
+        &mut content,
+        current.package().unwrap_or("render_lab"),
+    );
     if let Some(block) = scene_block(state) {
         let floats: &[f32] = bytemuck::cast_slice(block.bytes());
         for (i, f) in floats.iter().enumerate() {
@@ -587,8 +806,21 @@ pub fn scene_block(state: &ShotState) -> Option<Block> {
     let current = investigation::current();
     let module = current.scene_shading()?.module;
     let schema = schema(module).unwrap_or_else(|e| panic!("{e:#}"))?;
-    assert!(schema.binding == (1, 0), "{}: the lab fills `@shader_data` for the scene shading's `@group(1) @binding(0)` uniform; `{}` is at {:?}", schema.shader, schema.global, schema.binding);
-    assert!(schema.size as usize <= SHADING_UNIFORMS * 16, "{}: `{}` is {} bytes; the scene shading's uniform holds {}", schema.shader, schema.global, schema.size, SHADING_UNIFORMS * 16);
+    assert!(
+        schema.binding == (1, 0),
+        "{}: the lab fills `@shader_data` for the scene shading's `@group(1) @binding(0)` uniform; `{}` is at {:?}",
+        schema.shader,
+        schema.global,
+        schema.binding
+    );
+    assert!(
+        schema.size as usize <= SHADING_UNIFORMS * 16,
+        "{}: `{}` is {} bytes; the scene shading's uniform holds {}",
+        schema.shader,
+        schema.global,
+        schema.size,
+        SHADING_UNIFORMS * 16
+    );
     let mut block = Block::new(schema);
     block.fill(state);
     current.shader_data(&mut block, state);
@@ -605,7 +837,11 @@ mod tests {
 
     #[test]
     fn tags_and_doc() {
-        let (tags, doc) = parse_tags(&lines(&["/// The light's intensity.", r#"/// {@ key=lightIntensity default=6 range=0,30 text="a b" toggle}"#])).unwrap();
+        let (tags, doc) = parse_tags(&lines(&[
+            "/// The light's intensity.",
+            r#"/// {@ key=lightIntensity default=6 range=0,30 text="a b" toggle}"#,
+        ]))
+        .unwrap();
         assert_eq!(doc, "The light's intensity.");
         let names: Vec<&str> = tags.iter().map(|t| t.name.as_str()).collect();
         assert_eq!(names, ["key", "default", "range", "text", "toggle"]);
@@ -647,18 +883,43 @@ mod tests {
             binding: (1, 0),
             size: 32,
             members: vec![
-                Member { name: "position", offset: 0, size: 12, storage: Some(Storage::F32), entry: Some(entry) },
-                Member { name: "count", offset: 12, size: 4, storage: Some(Storage::U32), entry: None },
-                Member { name: "more", offset: 16, size: 16, storage: Some(Storage::F32), entry: None },
+                Member {
+                    name: "position",
+                    offset: 0,
+                    size: 12,
+                    storage: Some(Storage::F32),
+                    entry: Some(entry),
+                },
+                Member {
+                    name: "count",
+                    offset: 12,
+                    size: 4,
+                    storage: Some(Storage::U32),
+                    entry: None,
+                },
+                Member {
+                    name: "more",
+                    offset: 16,
+                    size: 16,
+                    storage: Some(Storage::F32),
+                    entry: None,
+                },
             ],
         }));
         let mut block = Block::new(schema);
         block.set("count", 7u32);
         block.write("more", &[1.0, 2.0]);
-        let words: Vec<u32> = block.bytes().chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect();
+        let words: Vec<u32> = block
+            .bytes()
+            .chunks(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
         assert_eq!(words[3], 7);
         assert_eq!(f32::from_bits(words[4]), 1.0);
         assert_eq!(f32::from_bits(words[5]), 2.0);
-        assert!(std::panic::catch_unwind(move || Block::new(schema).write("count", &[1.0, 2.0])).is_err());
+        assert!(
+            std::panic::catch_unwind(move || Block::new(schema).write("count", &[1.0, 2.0]))
+                .is_err()
+        );
     }
 }

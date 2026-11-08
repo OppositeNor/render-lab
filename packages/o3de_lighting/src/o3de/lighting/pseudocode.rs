@@ -35,5 +35,15 @@ const NAMES: &[&str] = &[
 
 pub fn all() -> &'static [Listing] {
     static LISTINGS: OnceLock<Vec<Listing>> = OnceLock::new();
-    LISTINGS.get_or_init(|| NAMES.iter().map(|name| Listing::parse(name, resources::get(&format!("o3de_lighting.listing/{name}")).text())).collect())
+    LISTINGS.get_or_init(|| {
+        NAMES
+            .iter()
+            .map(|name| {
+                Listing::parse(
+                    name,
+                    resources::get(&format!("o3de_lighting.listing/{name}")).text(),
+                )
+            })
+            .collect()
+    })
 }

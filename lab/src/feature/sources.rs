@@ -20,7 +20,10 @@ impl Feature for SourcesFeature {
     }
 
     fn layout(&self) -> FeatureLayout {
-        FeatureLayout { side: true, ..Default::default() }
+        FeatureLayout {
+            side: true,
+            ..Default::default()
+        }
     }
 
     fn state(&self) -> Box<dyn FeatureState> {

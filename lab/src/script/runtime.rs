@@ -20,22 +20,24 @@
 //! Lamlet's engine, documents, and instances are not `Send`, and every hook runs on the thread that draws or
 //! records, so each thread has its own runtime (a `thread_local!`), checked once per investigation.
 
-use super::{natives, Package};
-use crate::frame::{DrawMark, FrameContent, Label, Statics, FLAG_ARROW, FLAG_DASHED};
+use super::{Package, natives};
+use crate::frame::{DrawMark, FLAG_ARROW, FLAG_DASHED, FrameContent, Label, Statics};
 use crate::investigation::{self, Investigation};
 use crate::shot::ShotState;
 use crate::values::{self, Type, Value as LabValue};
 use egui::Color32;
 use glam::Vec3;
-use lamlet::embed::{Binding, Data, Document, Engine, Instance, IntoLamlet, LamletType, SourceFile};
+use lamlet::embed::{
+    Binding, Data, Document, Engine, Instance, IntoLamlet, LamletType, SourceFile,
+};
 use lamlet::types::TypeDesc;
 use lamlet::{Limits, Value};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The resource that holds the runtime library.
 pub const LIBRARY: &str = "render_lab.script/runtime";
@@ -59,20 +61,31 @@ thread_local! {
 }
 
 /// Runs `f` (a hook's call) with the context its natives read.
-fn with_context<R>(state: &ShotState, frame: Option<&FrameContent>, statics: Option<&Statics>, f: impl FnOnce() -> R) -> R {
+fn with_context<R>(
+    state: &ShotState,
+    frame: Option<&FrameContent>,
+    statics: Option<&Statics>,
+    f: impl FnOnce() -> R,
+) -> R {
     struct Restore(Option<Context>);
     impl Drop for Restore {
         fn drop(&mut self) {
             CONTEXT.with(|c| c.set(self.0));
         }
     }
-    let context = Context { state, frame: frame.map(|f| f as *const FrameContent), statics: statics.map(|s| s as *const Statics) };
+    let context = Context {
+        state,
+        frame: frame.map(|f| f as *const FrameContent),
+        statics: statics.map(|s| s as *const Statics),
+    };
     let _restore = Restore(CONTEXT.with(|c| c.replace(Some(context))));
     f()
 }
 
 fn context() -> Result<Context, String> {
-    CONTEXT.with(Cell::get).ok_or_else(|| "this native reads the call's context: it runs only inside a hook".to_string())
+    CONTEXT.with(Cell::get).ok_or_else(|| {
+        "this native reads the call's context: it runs only inside a hook".to_string()
+    })
 }
 
 /// The shot the running hook reads: for an overlay, the state it draws; for a click, the state on screen; for an
@@ -87,7 +100,9 @@ pub fn state<R>(f: impl FnOnce(&ShotState) -> R) -> Result<R, String> {
 /// The frame the running hook draws or was clicked on (an overlay's, a click's).
 pub fn frame<R>(f: impl FnOnce(&FrameContent) -> R) -> Result<R, String> {
     let c = context()?;
-    let frame = c.frame.ok_or_else(|| "this native reads the frame: it runs only in an overlay or a click handler".to_string())?;
+    let frame = c.frame.ok_or_else(|| {
+        "this native reads the frame: it runs only in an overlay or a click handler".to_string()
+    })?;
     // SAFETY: as in `state`.
     Ok(f(unsafe { &*frame }))
 }
@@ -95,15 +110,24 @@ pub fn frame<R>(f: impl FnOnce(&FrameContent) -> R) -> Result<R, String> {
 /// The scene's statics, where the running hook has them (an overlay, a click).
 pub fn statics<R>(f: impl FnOnce(&Statics) -> R) -> Result<R, String> {
     let c = context()?;
-    let statics = c.statics.ok_or_else(|| "this native reads the scene: it runs only in an overlay or a click handler".to_string())?;
+    let statics = c.statics.ok_or_else(|| {
+        "this native reads the scene: it runs only in an overlay or a click handler".to_string()
+    })?;
     // SAFETY: as in `state`.
     Ok(f(unsafe { &*statics }))
 }
 
 /// What the investigation's `build_frame` left for its natives in this frame (`FrameContent::script`), as `T`.
 pub fn frame_data<T: Any + Send + Sync>() -> Result<Arc<T>, String> {
-    let data = frame(|f| f.script.clone())?.ok_or_else(|| "the frame has no data for the scripts (`FrameContent::script`)".to_string())?;
-    data.downcast::<T>().map_err(|_| format!("the frame's data for the scripts is not a {}", std::any::type_name::<T>()))
+    let data = frame(|f| f.script.clone())?.ok_or_else(|| {
+        "the frame has no data for the scripts (`FrameContent::script`)".to_string()
+    })?;
+    data.downcast::<T>().map_err(|_| {
+        format!(
+            "the frame's data for the scripts is not a {}",
+            std::any::type_name::<T>()
+        )
+    })
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -111,7 +135,10 @@ pub fn frame_data<T: Any + Send + Sync>() -> Result<Arc<T>, String> {
 
 /// A record type of Float fields, sorted by label as Lamlet keeps them.
 fn floats(labels: &[&str]) -> TypeDesc {
-    let mut fields: Vec<(Rc<str>, TypeDesc)> = labels.iter().map(|l| (Rc::from(*l), TypeDesc::Float)).collect();
+    let mut fields: Vec<(Rc<str>, TypeDesc)> = labels
+        .iter()
+        .map(|l| (Rc::from(*l), TypeDesc::Float))
+        .collect();
     fields.sort_by(|a, b| a.0.cmp(&b.0));
     TypeDesc::Record(fields)
 }
@@ -119,7 +146,10 @@ fn floats(labels: &[&str]) -> TypeDesc {
 fn float_field(v: &Value, label: &str) -> Result<f32, String> {
     match v.field(label) {
         Some(Value::Float(x)) => Ok(*x as f32),
-        Some(other) => Err(format!("field `{label}` is a {}, not a Float", other.type_name())),
+        Some(other) => Err(format!(
+            "field `{label}` is a {}, not a Float",
+            other.type_name()
+        )),
         None => Err(format!("no field `{label}`")),
     }
 }
@@ -201,31 +231,48 @@ fn register(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     })
     .doc("Fn([String], Int). The shot's whole-number value `key`.")
     .register()?;
-    r.function("rl_runtime/value-bool", |_, (key,): (String,)| Ok(value_of(&key)?.f32() > 0.5))
-        .doc("Fn([String], Bool). The shot's value `key`, on above 0.5.")
-        .register()?;
-    r.function("rl_runtime/value-vec2", |_, (key,): (String,)| match value_of(&key)? {
-        LabValue::Vec2(v) => Ok(V2(glam::Vec2::from(v))),
-        other => Err(format!("`{key}` is a {}, not a vec2", other.ty().name())),
+    r.function("rl_runtime/value-bool", |_, (key,): (String,)| {
+        Ok(value_of(&key)?.f32() > 0.5)
     })
+    .doc("Fn([String], Bool). The shot's value `key`, on above 0.5.")
+    .register()?;
+    r.function(
+        "rl_runtime/value-vec2",
+        |_, (key,): (String,)| match value_of(&key)? {
+            LabValue::Vec2(v) => Ok(V2(glam::Vec2::from(v))),
+            other => Err(format!("`{key}` is a {}, not a vec2", other.ty().name())),
+        },
+    )
     .doc("Fn([String], Vec2). The shot's vec2 value `key`.")
     .register()?;
-    r.function("rl_runtime/value-vec3", |_, (key,): (String,)| match value_of(&key)? {
-        LabValue::Vec3(v) => Ok(V3(Vec3::from(v))),
-        other => Err(format!("`{key}` is a {}, not a vec3", other.ty().name())),
-    })
+    r.function(
+        "rl_runtime/value-vec3",
+        |_, (key,): (String,)| match value_of(&key)? {
+            LabValue::Vec3(v) => Ok(V3(Vec3::from(v))),
+            other => Err(format!("`{key}` is a {}, not a vec3", other.ty().name())),
+        },
+    )
     .doc("Fn([String], Vec3). The shot's vec3 value `key`.")
     .register()?;
-    r.function("rl_runtime/value-vec4", |_, (key,): (String,)| match value_of(&key)? {
-        LabValue::Vec4(v) => Ok(V4(glam::Vec4::from(v))),
-        other => Err(format!("`{key}` is a {}, not a vec4", other.ty().name())),
-    })
+    r.function(
+        "rl_runtime/value-vec4",
+        |_, (key,): (String,)| match value_of(&key)? {
+            LabValue::Vec4(v) => Ok(V4(glam::Vec4::from(v))),
+            other => Err(format!("`{key}` is a {}, not a vec4", other.ty().name())),
+        },
+    )
     .doc("Fn([String], Vec4). The shot's vec4 value `key`.")
     .register()?;
     r.function("rl_runtime/value-choice", |_, (key,): (String,)| {
-        let choices = values::entry(&key).and_then(|e| e.choices).ok_or_else(|| format!("`{key}` is not a choice"))?;
+        let choices = values::entry(&key)
+            .and_then(|e| e.choices)
+            .ok_or_else(|| format!("`{key}` is not a choice"))?;
         let index = value_of(&key)?.u32() as usize;
-        choices.options.get(index).map(|o| o.name.to_string()).ok_or_else(|| format!("`{key}` is {index}, past its options ({})", choices.names()))
+        choices
+            .options
+            .get(index)
+            .map(|o| o.name.to_string())
+            .ok_or_else(|| format!("`{key}` is {index}, past its options ({})", choices.names()))
     })
     .doc("Fn([String], String). The name of the option the shot's choice `key` holds.")
     .register()?;
@@ -235,9 +282,11 @@ fn register(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     })
     .doc("Fn([String], String). The investigation's package's text `key` in the viewer's language, or the lab's.")
     .register()?;
-    r.function("rl_runtime/demo", |_, ()| state(|s| s.demo.key().to_string()))
-        .doc("Fn([], String). The key of the demonstration the shot shows.")
-        .register()?;
+    r.function("rl_runtime/demo", |_, ()| {
+        state(|s| s.demo.key().to_string())
+    })
+    .doc("Fn([], String). The key of the demonstration the shot shows.")
+    .register()?;
     Ok(())
 }
 
@@ -250,7 +299,10 @@ fn declared(source: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for head in ["$[# {", "$[# ", "$[Native ", "$[Macro !"] {
         for (i, _) in source.match_indices(head) {
-            let name: String = source[i + head.len()..].chars().take_while(|c| !c.is_whitespace() && !"{}[]".contains(*c)).collect();
+            let name: String = source[i + head.len()..]
+                .chars()
+                .take_while(|c| !c.is_whitespace() && !"{}[]".contains(*c))
+                .collect();
             if !name.is_empty() && !name.starts_with('_') {
                 out.insert(name);
             }
@@ -262,7 +314,10 @@ fn declared(source: &str) -> BTreeSet<String> {
 /// `name` with its first letter upper-cased (`setVectorsShown` from `vectorsShown`).
 fn capitalized(name: &str) -> String {
     let mut chars = name.chars();
-    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 fn quoted(s: &str) -> String {
@@ -284,7 +339,10 @@ pub fn values_source(package: &str, reserved: &BTreeSet<String>) -> (String, Vec
     let mut skipped = Vec::new();
     let mut names = BTreeSet::new();
     let mut types = BTreeSet::new();
-    let mut emit = |key: &str, ty: Type, choices: Option<&'static values::Choices>, out: &mut String| {
+    let mut emit = |key: &str,
+                    ty: Type,
+                    choices: Option<&'static values::Choices>,
+                    out: &mut String| {
         let Ok(name) = lamlet_present::vocab::camel(&[key]) else {
             skipped.push(key.to_string());
             return;
@@ -296,21 +354,47 @@ pub fn values_source(package: &str, reserved: &BTreeSet<String>) -> (String, Vec
         }
         let k = quoted(key);
         // A choice whose options are all Lamlet labels is a variant; its type is named after the enum.
-        if let Some(c) = choices.filter(|c| c.options.iter().all(|o| lamlet_present::vocab::camel(&[o.name]).is_ok_and(|n| n == o.name))) {
+        if let Some(c) = choices.filter(|c| {
+            c.options
+                .iter()
+                .all(|o| lamlet_present::vocab::camel(&[o.name]).is_ok_and(|n| n == o.name))
+        }) {
             let t = c.name;
             if types.insert(t) {
-                let fields: Vec<String> = c.options.iter().map(|o| format!("{{std::Field {} std::Unit}}", quoted(o.name))).collect();
-                out.push_str(&format!("\nThe options of `{t}`.\n$[# {t} [% {{std::Variant {{' {}}}}}]]\n", fields.join(" ")));
+                let fields: Vec<String> = c
+                    .options
+                    .iter()
+                    .map(|o| format!("{{std::Field {} std::Unit}}", quoted(o.name)))
+                    .collect();
+                out.push_str(&format!(
+                    "\nThe options of `{t}`.\n$[# {t} [% {{std::Variant {{' {}}}}}]]\n",
+                    fields.join(" ")
+                ));
                 let mut of = format!("{{std::error {{std::++ \"no option of {t} is named \" s}}}}");
                 for o in c.options.iter().rev() {
-                    of = format!("{{std::caseBool {{std::= s {}}} {{^ {{}} {{: {{#{} std::unit}} {t}}}}} {{^ {{}} {of}}}}}", quoted(o.name), o.name);
+                    of = format!(
+                        "{{std::caseBool {{std::= s {}}} {{^ {{}} {{: {{#{} std::unit}} {t}}}}} {{^ {{}} {of}}}}}",
+                        quoted(o.name),
+                        o.name
+                    );
                 }
                 out.push_str(&format!("$[# {{_of{t} s}} {of}]\n"));
-                let handlers: Vec<String> = c.options.iter().map(|o| format!("{} {{^ {{u}} {}}}", o.name, quoted(o.name))).collect();
-                out.push_str(&format!("$[# {{_name{t} o}} {{std::match {{: o {t}}} {{. {}}}}}]\n", handlers.join(" ")));
+                let handlers: Vec<String> = c
+                    .options
+                    .iter()
+                    .map(|o| format!("{} {{^ {{u}} {}}}", o.name, quoted(o.name)))
+                    .collect();
+                out.push_str(&format!(
+                    "$[# {{_name{t} o}} {{std::match {{: o {t}}} {{. {}}}}}]\n",
+                    handlers.join(" ")
+                ));
             }
-            out.push_str(&format!("\nThe shot's `{key}`.\n$[# {{{name}}} {{_of{t} {{rt::valueChoice {k}}}}}]\n"));
-            out.push_str(&format!("Sets `{key}`.\n$[# {{{setter} o}} {{_write {k} {{std::toData {{_name{t} o}}}}}}]\n"));
+            out.push_str(&format!(
+                "\nThe shot's `{key}`.\n$[# {{{name}}} {{_of{t} {{rt::valueChoice {k}}}}}]\n"
+            ));
+            out.push_str(&format!(
+                "Sets `{key}`.\n$[# {{{setter} o}} {{_write {k} {{std::toData {{_name{t} o}}}}}}]\n"
+            ));
             return;
         }
         let (reader, ty) = match ty {
@@ -327,8 +411,12 @@ pub fn values_source(package: &str, reserved: &BTreeSet<String>) -> (String, Vec
             Type::Vec3 => ("valueVec3", "lib::Vec3"),
             Type::Vec4 => ("valueVec4", "lib::Vec4"),
         };
-        out.push_str(&format!("\nThe shot's `{key}`.\n$[# {{{name}}} {{rt::{reader} {k}}}]\n"));
-        out.push_str(&format!("Sets `{key}`.\n$[# {{{setter} x}} {{_write {k} {{std::toData {{: x {ty}}}}}}}]\n"));
+        out.push_str(&format!(
+            "\nThe shot's `{key}`.\n$[# {{{name}}} {{rt::{reader} {k}}}]\n"
+        ));
+        out.push_str(&format!(
+            "Sets `{key}`.\n$[# {{{setter} x}} {{_write {k} {{std::toData {{: x {ty}}}}}}}]\n"
+        ));
     };
     for e in values::list() {
         emit(e.key, e.ty, e.choices, &mut out);
@@ -376,7 +464,14 @@ pub struct Runtime {
 
 /// The budgets of one call: a broken script fails the call instead of freezing a frame.
 fn limits() -> Limits {
-    Limits { max_instructions: 2_000_000, max_frames: 10_000, max_stack: 1_000_000, max_alloc_bytes: 64 << 20, max_native_calls: 100_000, ..Limits::default() }
+    Limits {
+        max_instructions: 2_000_000,
+        max_frames: 10_000,
+        max_stack: 1_000_000,
+        max_alloc_bytes: 64 << 20,
+        max_native_calls: 100_000,
+        ..Limits::default()
+    }
 }
 
 /// The packages a script may import (besides `std`): the lab's storyboard package and runtime library, the
@@ -390,7 +485,8 @@ pub struct Sources {
 }
 
 fn resource_text(key: &str) -> Result<(String, String), String> {
-    let r = crate::resources::find(key).ok_or_else(|| format!("no resource {key} (render-lab cook)"))?;
+    let r = crate::resources::find(key)
+        .ok_or_else(|| format!("no resource {key} (render-lab cook)"))?;
     let text = std::str::from_utf8(r.bytes()).map_err(|e| format!("{key}: {e}"))?;
     Ok((r.path().display().to_string(), text.to_string()))
 }
@@ -404,9 +500,17 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
     natives::register(&mut engine, Some(investigation)).map_err(|e| e.render())?;
     register(&mut engine).map_err(|e| e.render())?;
     register_frame_natives(&mut engine).map_err(|e| e.render())?;
-    investigation.script_natives(engine.natives_mut()).map_err(|e| format!("{}'s natives: {}", investigation.path(), e.render()))?;
-    let runtime_stubs = engine.natives_mut().declarations(NATIVES).map_err(|e| e.render())?;
-    let package_stubs = engine.natives_mut().declarations(package).map_err(|e| e.render())?;
+    investigation
+        .script_natives(engine.natives_mut())
+        .map_err(|e| format!("{}'s natives: {}", investigation.path(), e.render()))?;
+    let runtime_stubs = engine
+        .natives_mut()
+        .declarations(NATIVES)
+        .map_err(|e| e.render())?;
+    let package_stubs = engine
+        .natives_mut()
+        .declarations(package)
+        .map_err(|e| e.render())?;
     let (library_file, library) = resource_text(LIBRARY)?;
     let mut reserved = declared(lamlet::package::STD_SOURCE);
     reserved.extend(declared(&library));
@@ -414,28 +518,61 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
     let (values, skipped) = values_source(package, &reserved);
     let mut packages = vec![
         Package::render_lab()?,
-        Package { name: LIBRARY_PACKAGE.into(), file: library_file, source: library },
-        Package { name: NATIVES.into(), file: format!("<{NATIVES} natives>"), source: runtime_stubs },
-        Package { name: format!("{package}_natives"), file: format!("<{package} natives>"), source: package_stubs },
-        Package { name: format!("{package}_values"), file: format!("<{package} values>"), source: values },
+        Package {
+            name: LIBRARY_PACKAGE.into(),
+            file: library_file,
+            source: library,
+        },
+        Package {
+            name: NATIVES.into(),
+            file: format!("<{NATIVES} natives>"),
+            source: runtime_stubs,
+        },
+        Package {
+            name: format!("{package}_natives"),
+            file: format!("<{package} natives>"),
+            source: package_stubs,
+        },
+        Package {
+            name: format!("{package}_values"),
+            file: format!("<{package} values>"),
+            source: values,
+        },
     ];
     let prefix = format!("{package}.script/");
     let mut scripts = Vec::new();
-    for r in crate::resources::all().iter().filter(|r| r.id().starts_with(&prefix)) {
+    for r in crate::resources::all()
+        .iter()
+        .filter(|r| r.id().starts_with(&prefix))
+    {
         let name = format!("{package}_{}", r.id()[prefix.len()..].replace('-', "_"));
         let (file, source) = resource_text(r.id())?;
-        packages.push(Package { name: name.clone(), file, source });
+        packages.push(Package {
+            name: name.clone(),
+            file,
+            source,
+        });
         scripts.push((r.id().to_string(), name));
     }
     engine.set_resolver(super::resolver(&packages)?);
-    Ok((engine, Sources { packages, scripts, skipped }))
+    Ok((
+        engine,
+        Sources {
+            packages,
+            scripts,
+            skipped,
+        },
+    ))
 }
 
 /// A Type a runtime library binding holds (`Shape`, `Write`, `Click`).
 fn library_type(library: &Document, name: &str) -> Result<TypeDesc, String> {
     match library.binding(name).map_err(|e| e.render())?.value {
         Value::Type(t) => Ok((*t).clone()),
-        other => Err(format!("{LIBRARY}: `{name}` is a {}, not a Type", other.type_name())),
+        other => Err(format!(
+            "{LIBRARY}: `{name}` is a {}, not a Type",
+            other.type_name()
+        )),
     }
 }
 
@@ -444,12 +581,25 @@ impl Runtime {
     fn load(investigation: &'static dyn Investigation) -> Result<Option<Runtime>, String> {
         let package = investigation.package().unwrap_or("render_lab");
         let prefix = format!("{package}.script/");
-        if package == "render_lab" || !crate::resources::all().iter().any(|r| r.id().starts_with(&prefix)) {
+        if package == "render_lab"
+            || !crate::resources::all()
+                .iter()
+                .any(|r| r.id().starts_with(&prefix))
+        {
             return Ok(None);
         }
         let (engine, sources) = engine(investigation)?;
-        let library = sources.packages.iter().find(|p| p.name == LIBRARY_PACKAGE).expect("the runtime library");
-        let library = engine.check(SourceFile::new(library.file.clone(), library.source.clone())).map_err(|e| e.render())?;
+        let library = sources
+            .packages
+            .iter()
+            .find(|p| p.name == LIBRARY_PACKAGE)
+            .expect("the runtime library");
+        let library = engine
+            .check(SourceFile::new(
+                library.file.clone(),
+                library.source.clone(),
+            ))
+            .map_err(|e| e.render())?;
         let shape = library_type(&library, "Shape")?;
         let write = library_type(&library, "Write")?;
         let click = library_type(&library, "Click")?;
@@ -470,8 +620,15 @@ impl Runtime {
             engine,
         };
         for (key, name) in &sources.scripts {
-            let source = sources.packages.iter().find(|p| &p.name == name).expect("a script's source");
-            let document = runtime.engine.check(SourceFile::new(source.file.clone(), source.source.clone())).map_err(|e| e.render())?;
+            let source = sources
+                .packages
+                .iter()
+                .find(|p| &p.name == name)
+                .expect("a script's source");
+            let document = runtime
+                .engine
+                .check(SourceFile::new(source.file.clone(), source.source.clone()))
+                .map_err(|e| e.render())?;
             let mut instance = runtime.engine.instance(&document).map_err(|e| e.render())?;
             instance.set_limits(limits());
             let module = runtime.modules.len();
@@ -479,12 +636,18 @@ impl Runtime {
                 if binding.name.starts_with('_') {
                     continue;
                 }
-                let Some(TypeDesc::Func(params, ret)) = &binding.ty else { continue };
+                let Some(TypeDesc::Func(params, ret)) = &binding.ty else {
+                    continue;
+                };
                 let named = binding.name.clone();
                 let taken = |m: &BTreeMap<String, Hook>| m.contains_key(&named);
                 match params.as_slice() {
-                    [TypeDesc::Float] if **ret == shapes => runtime.overlays.push(Hook { module, binding }),
-                    [TypeDesc::Float] if **ret == rows => runtime.readouts.push(Hook { module, binding }),
+                    [TypeDesc::Float] if **ret == shapes => {
+                        runtime.overlays.push(Hook { module, binding })
+                    }
+                    [TypeDesc::Float] if **ret == rows => {
+                        runtime.readouts.push(Hook { module, binding })
+                    }
                     [p] if **ret == writes && *p == click => {
                         if taken(&runtime.clicks) {
                             return Err(format!("{key}: a second click handler `{named}`"));
@@ -501,28 +664,59 @@ impl Runtime {
                         if runtime.actions.contains_key(&named) {
                             return Err(format!("{key}: a second action `{named}`"));
                         }
-                        let args = fields.iter().map(|(l, t)| ScriptArg::of(l, t)).collect::<Result<Vec<_>, _>>().map_err(|e| format!("{key}: the action `{named}`: {e}"))?;
-                        runtime.actions.insert(named, (Hook { module, binding }, args));
+                        let args = fields
+                            .iter()
+                            .map(|(l, t)| ScriptArg::of(l, t))
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|e| format!("{key}: the action `{named}`: {e}"))?;
+                        runtime
+                            .actions
+                            .insert(named, (Hook { module, binding }, args));
                     }
                     _ => {}
                 }
             }
-            runtime.modules.push(Module { name: key.clone(), instance, _document: document });
+            runtime.modules.push(Module {
+                name: key.clone(),
+                instance,
+                _document: document,
+            });
         }
         // A name is the scripts' or the code's, not both.
         let code = investigation.actions();
-        if let Some(c) = code.clicks.iter().find(|c| runtime.clicks.contains_key(c.key)) {
-            return Err(format!("the click handler `{}` is both a script's and the investigation's code's (`#[click]`)", c.key));
+        if let Some(c) = code
+            .clicks
+            .iter()
+            .find(|c| runtime.clicks.contains_key(c.key))
+        {
+            return Err(format!(
+                "the click handler `{}` is both a script's and the investigation's code's (`#[click]`)",
+                c.key
+            ));
         }
-        if let Some(a) = code.specs.iter().find(|a| runtime.actions.contains_key(a.key)) {
-            return Err(format!("the action `{}` is both a script's and the investigation's code's (`#[action]`)", a.key));
+        if let Some(a) = code
+            .specs
+            .iter()
+            .find(|a| runtime.actions.contains_key(a.key))
+        {
+            return Err(format!(
+                "the action `{}` is both a script's and the investigation's code's (`#[action]`)",
+                a.key
+            ));
         }
         // A demonstration's animation is one of the scripts'.
         if let Some(demos) = investigation.demo_specs() {
             for spec in &demos.specs {
-                if let Some(name) = spec.animation.filter(|n| !runtime.animations.contains_key(*n)) {
+                if let Some(name) = spec
+                    .animation
+                    .filter(|n| !runtime.animations.contains_key(*n))
+                {
                     let known: Vec<&str> = runtime.animations.keys().map(String::as_str).collect();
-                    return Err(format!("demonstration `{}`: no animation `{name}` in the scripts (theirs: {})", spec.id.key(), crate::story_refs::names_or_none(&known)));
+                    return Err(format!(
+                        "demonstration `{}`: no animation `{name}` in the scripts (theirs: {})",
+                        spec.id.key(),
+                        crate::story_refs::names_or_none(&known)
+                    ));
                 }
             }
         }
@@ -541,20 +735,39 @@ impl Runtime {
     }
 
     /// Calls the hook `kind` with `args` in the context given.
-    fn call(&mut self, kind: &Kind, args: Vec<Value>, state: &ShotState, frame: Option<&FrameContent>, statics: Option<&Statics>) -> Result<Data, String> {
+    fn call(
+        &mut self,
+        kind: &Kind,
+        args: Vec<Value>,
+        state: &ShotState,
+        frame: Option<&FrameContent>,
+        statics: Option<&Statics>,
+    ) -> Result<Data, String> {
         let h = self.hook(kind).ok_or_else(|| format!("no {kind}"))?;
         let (module, binding) = (h.module, h.binding.clone());
         let instance = &mut self.modules[module].instance;
-        let value = with_context(state, frame, statics, || instance.call(&binding, args)).map_err(|e| e.render())?;
+        let value = with_context(state, frame, statics, || instance.call(&binding, args))
+            .map_err(|e| e.render())?;
         Data::from_value(&value).map_err(|e| format!("`{}` returned {e}", binding.name))
     }
 
     /// Calls a hook that returns writes and applies them to `target` (all or none): whether it set anything; None
     /// when the scripts have no such hook. A failure is reported (`failed`) and sets nothing.
-    fn run(&mut self, kind: Kind, args: Vec<Value>, state: &ShotState, frame: Option<&FrameContent>, statics: Option<&Statics>, target: &mut ShotState) -> Option<bool> {
+    fn run(
+        &mut self,
+        kind: Kind,
+        args: Vec<Value>,
+        state: &ShotState,
+        frame: Option<&FrameContent>,
+        statics: Option<&Statics>,
+        target: &mut ShotState,
+    ) -> Option<bool> {
         self.hook(&kind)?;
         let name = kind.to_string();
-        let applied = self.call(&kind, args, state, frame, statics).and_then(|d| writes(&d)).map(|w| apply(&w, target));
+        let applied = self
+            .call(&kind, args, state, frame, statics)
+            .and_then(|d| writes(&d))
+            .map(|w| apply(&w, target));
         match applied {
             Ok(set) => {
                 self.succeeded(&name);
@@ -652,12 +865,39 @@ fn with_runtime<R>(f: impl FnOnce(&mut Runtime) -> R) -> Result<Option<R>, Strin
 pub fn check() -> Result<Vec<String>, String> {
     let investigation = investigation::current();
     let runtime = Runtime::load(investigation)?;
-    let Some(r) = runtime else { return Ok(Vec::new()) };
-    let mut hooks: Vec<String> = r.overlays.iter().map(|h| format!("overlay {} ({})", h.binding.name, r.modules[h.module].name)).collect();
-    hooks.extend(r.readouts.iter().map(|h| format!("readout {} ({})", h.binding.name, r.modules[h.module].name)));
-    hooks.extend(r.clicks.iter().map(|(n, h)| format!("click {n} ({})", r.modules[h.module].name)));
-    hooks.extend(r.actions.iter().map(|(n, (h, args))| format!("action {n}({}) ({})", args.iter().map(ScriptArg::describe).collect::<Vec<_>>().join(", "), r.modules[h.module].name)));
-    hooks.extend(r.animations.iter().map(|(n, h)| format!("animation {n} ({})", r.modules[h.module].name)));
+    let Some(r) = runtime else {
+        return Ok(Vec::new());
+    };
+    let mut hooks: Vec<String> = r
+        .overlays
+        .iter()
+        .map(|h| format!("overlay {} ({})", h.binding.name, r.modules[h.module].name))
+        .collect();
+    hooks.extend(
+        r.readouts
+            .iter()
+            .map(|h| format!("readout {} ({})", h.binding.name, r.modules[h.module].name)),
+    );
+    hooks.extend(
+        r.clicks
+            .iter()
+            .map(|(n, h)| format!("click {n} ({})", r.modules[h.module].name)),
+    );
+    hooks.extend(r.actions.iter().map(|(n, (h, args))| {
+        format!(
+            "action {n}({}) ({})",
+            args.iter()
+                .map(ScriptArg::describe)
+                .collect::<Vec<_>>()
+                .join(", "),
+            r.modules[h.module].name
+        )
+    }));
+    hooks.extend(
+        r.animations
+            .iter()
+            .map(|(n, h)| format!("animation {n} ({})", r.modules[h.module].name)),
+    );
     Ok(hooks)
 }
 
@@ -667,14 +907,32 @@ pub fn check() -> Result<Vec<String>, String> {
 /// A shape an overlay drew, decoded before any is drawn.
 #[derive(Clone, Debug)]
 enum Shape {
-    Segment { from: Vec3, to: Vec3, color: Color32, alpha: f32, width: f32, flags: u32 },
-    Point { at: Vec3, radius: f32, color: Color32, alpha: f32 },
-    Label { at: Vec3, text: String, color: Color32 },
+    Segment {
+        from: Vec3,
+        to: Vec3,
+        color: Color32,
+        alpha: f32,
+        width: f32,
+        flags: u32,
+    },
+    Point {
+        at: Vec3,
+        radius: f32,
+        color: Color32,
+        alpha: f32,
+    },
+    Label {
+        at: Vec3,
+        text: String,
+        color: Color32,
+    },
 }
 
 fn field<'a>(d: &'a Data, label: &str) -> Result<&'a Data, String> {
     match d {
-        Data::Record(fields) => fields.get(label).ok_or_else(|| format!("no field `{label}`")),
+        Data::Record(fields) => fields
+            .get(label)
+            .ok_or_else(|| format!("no field `{label}`")),
         _ => Err(format!("not a record (reading `{label}`)")),
     }
 }
@@ -716,28 +974,68 @@ fn color(d: &Data) -> Result<Color32, String> {
         "accent" => return Ok(palette::accent()),
         _ => {}
     }
-    let hex = s.strip_prefix('#').filter(|h| h.len() == 6).and_then(|h| u32::from_str_radix(h, 16).ok()).ok_or_else(|| format!("the colour {s:?} is not #rrggbb"))?;
+    let hex = s
+        .strip_prefix('#')
+        .filter(|h| h.len() == 6)
+        .and_then(|h| u32::from_str_radix(h, 16).ok())
+        .ok_or_else(|| format!("the colour {s:?} is not #rrggbb"))?;
     Ok(crate::palette::rgb(hex))
 }
 
 /// The overlay's shapes, each checked; a label's text key looked up in `package`'s text, then the lab's.
 fn shapes(list: &Data, package: &str) -> Result<Vec<Shape>, String> {
-    let Data::List(items) = list else { return Err("an overlay returns a list".into()) };
+    let Data::List(items) = list else {
+        return Err("an overlay returns a list".into());
+    };
     items
         .iter()
         .map(|item| {
-            let Data::Variant(tag, d) = item else { return Err(format!("{item:?} is not a Shape")) };
+            let Data::Variant(tag, d) = item else {
+                return Err(format!("{item:?} is not a Shape"));
+            };
             Ok(match tag.as_str() {
                 "segment" => {
-                    let flags = if flag(d, "arrow")? { FLAG_ARROW } else { 0 } | if flag(d, "dashed")? { FLAG_DASHED } else { 0 };
-                    Shape::Segment { from: point(d, "from")?, to: point(d, "to")?, color: color(d)?, alpha: number(d, "alpha")?, width: number(d, "width")?, flags }
+                    let flags = if flag(d, "arrow")? {
+                        FLAG_ARROW
+                    } else {
+                        0
+                    } | if flag(d, "dashed")? {
+                        FLAG_DASHED
+                    } else {
+                        0
+                    };
+                    Shape::Segment {
+                        from: point(d, "from")?,
+                        to: point(d, "to")?,
+                        color: color(d)?,
+                        alpha: number(d, "alpha")?,
+                        width: number(d, "width")?,
+                        flags,
+                    }
                 }
-                "point" => Shape::Point { at: point(d, "at")?, radius: number(d, "radius")?, color: color(d)?, alpha: number(d, "alpha")? },
-                "label" => Shape::Label { at: point(d, "at")?, text: text(d, "text")?.to_string(), color: color(d)? },
+                "point" => Shape::Point {
+                    at: point(d, "at")?,
+                    radius: number(d, "radius")?,
+                    color: color(d)?,
+                    alpha: number(d, "alpha")?,
+                },
+                "label" => Shape::Label {
+                    at: point(d, "at")?,
+                    text: text(d, "text")?.to_string(),
+                    color: color(d)?,
+                },
                 "labelText" => {
                     let key = text(d, "text")?;
-                    let text = crate::i18n::try_package_text(package, key).or_else(|| crate::i18n::try_package_text("render_lab", key)).ok_or_else(|| format!("no text `{key}` in {package}'s text table or the lab's"))?;
-                    Shape::Label { at: point(d, "at")?, text: text.to_string(), color: color(d)? }
+                    let text = crate::i18n::try_package_text(package, key)
+                        .or_else(|| crate::i18n::try_package_text("render_lab", key))
+                        .ok_or_else(|| {
+                            format!("no text `{key}` in {package}'s text table or the lab's")
+                        })?;
+                    Shape::Label {
+                        at: point(d, "at")?,
+                        text: text.to_string(),
+                        color: color(d)?,
+                    }
                 }
                 other => return Err(format!("no shape `{other}`")),
             })
@@ -747,8 +1045,19 @@ fn shapes(list: &Data, package: &str) -> Result<Vec<Shape>, String> {
 
 /// A readout hook's rows, each checked.
 fn readout_rows(list: &Data) -> Result<Vec<(String, String, Color32)>, String> {
-    let Data::List(items) = list else { return Err("a readout returns a list of Rows".into()) };
-    items.iter().map(|r| Ok((text(r, "name")?.to_string(), text(r, "value")?.to_string(), color(r)?))).collect()
+    let Data::List(items) = list else {
+        return Err("a readout returns a list of Rows".into());
+    };
+    items
+        .iter()
+        .map(|r| {
+            Ok((
+                text(r, "name")?.to_string(),
+                text(r, "value")?.to_string(),
+                color(r)?,
+            ))
+        })
+        .collect()
 }
 
 /// Draws `shapes` at `at` in the frame's lists (`FrameContent::overlay_at`), or after everything; returns where they
@@ -757,9 +1066,27 @@ fn draw(shapes: &[Shape], content: &mut FrameContent, at: Option<DrawMark>) -> O
     let mut drawn = FrameContent::new(Vec::new(), content.uniforms);
     for s in shapes {
         match s {
-            Shape::Segment { from, to, color, alpha, width, flags } => drawn.draw.segment(*from, *to, *color, *alpha, *width, *flags),
-            Shape::Point { at, radius, color, alpha } => drawn.draw.point(*at, *radius, *color, *alpha),
-            Shape::Label { at, text, color } => drawn.labels.push(Label { anchor: *at, text: text.clone(), color: *color }),
+            Shape::Segment {
+                from,
+                to,
+                color,
+                alpha,
+                width,
+                flags,
+            } => drawn
+                .draw
+                .segment(*from, *to, *color, *alpha, *width, *flags),
+            Shape::Point {
+                at,
+                radius,
+                color,
+                alpha,
+            } => drawn.draw.point(*at, *radius, *color, *alpha),
+            Shape::Label { at, text, color } => drawn.labels.push(Label {
+                anchor: *at,
+                text: text.clone(),
+                color: *color,
+            }),
         }
     }
     let Some(at) = at else {
@@ -768,9 +1095,19 @@ fn draw(shapes: &[Shape], content: &mut FrameContent, at: Option<DrawMark>) -> O
         content.labels.extend(drawn.labels);
         return None;
     };
-    let end = DrawMark { segments: at.segments + drawn.draw.segments.len(), points: at.points + drawn.draw.points.len(), labels: at.labels + drawn.labels.len() };
-    content.draw.segments.splice(at.segments..at.segments, drawn.draw.segments);
-    content.draw.points.splice(at.points..at.points, drawn.draw.points);
+    let end = DrawMark {
+        segments: at.segments + drawn.draw.segments.len(),
+        points: at.points + drawn.draw.points.len(),
+        labels: at.labels + drawn.labels.len(),
+    };
+    content
+        .draw
+        .segments
+        .splice(at.segments..at.segments, drawn.draw.segments);
+    content
+        .draw
+        .points
+        .splice(at.points..at.points, drawn.draw.points);
     content.labels.splice(at.labels..at.labels, drawn.labels);
     Some(end)
 }
@@ -779,11 +1116,23 @@ fn draw(shapes: &[Shape], content: &mut FrameContent, at: Option<DrawMark>) -> O
 /// at `time` seconds, and shows the message of a failing hook. Nothing without scripts.
 pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent, time: f32) {
     let view = crate::view::name();
-    let mut at = content.overlay_at.filter(|m| m.segments <= content.draw.segments.len() && m.points <= content.draw.points.len() && m.labels <= content.labels.len());
+    let mut at = content.overlay_at.filter(|m| {
+        m.segments <= content.draw.segments.len()
+            && m.points <= content.draw.points.len()
+            && m.labels <= content.labels.len()
+    });
     let result = with_runtime(|rt| {
         for i in 0..rt.overlays.len() {
             let name = Kind::Overlay(i).to_string();
-            let drawn = rt.call(&Kind::Overlay(i), vec![Value::Float(time as f64)], state, Some(content), Some(statics)).and_then(|d| shapes(&d, &rt.package));
+            let drawn = rt
+                .call(
+                    &Kind::Overlay(i),
+                    vec![Value::Float(time as f64)],
+                    state,
+                    Some(content),
+                    Some(statics),
+                )
+                .and_then(|d| shapes(&d, &rt.package));
             match drawn {
                 Ok(s) => {
                     rt.succeeded(&name);
@@ -797,11 +1146,23 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
         }
         for i in 0..rt.readouts.len() {
             let name = Kind::Readout(i).to_string();
-            let rows = rt.call(&Kind::Readout(i), vec![Value::Float(time as f64)], state, Some(content), Some(statics)).and_then(|d| readout_rows(&d));
+            let rows = rt
+                .call(
+                    &Kind::Readout(i),
+                    vec![Value::Float(time as f64)],
+                    state,
+                    Some(content),
+                    Some(statics),
+                )
+                .and_then(|d| readout_rows(&d));
             match rows {
                 Ok(rows) => {
                     rt.succeeded(&name);
-                    content.readout.get_or_insert_with(Default::default).rows.extend(rows);
+                    content
+                        .readout
+                        .get_or_insert_with(Default::default)
+                        .rows
+                        .extend(rows);
                 }
                 Err(e) => rt.failed(&name, e),
             }
@@ -813,7 +1174,13 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
         Err(e) => vec![e],
     };
     for e in errors {
-        content.notes.push((crate::i18n::tr_with("script-error", crate::args!(message = e.lines().next().unwrap_or_default())), crate::palette::MISMATCH));
+        content.notes.push((
+            crate::i18n::tr_with(
+                "script-error",
+                crate::args!(message = e.lines().next().unwrap_or_default()),
+            ),
+            crate::palette::MISMATCH,
+        ));
     }
 }
 
@@ -823,13 +1190,16 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
 /// A hook's writes, each checked against the key's declaration (its type, a whole number's range, a choice's
 /// options) before any is applied: the key and its value, or a component's number.
 fn writes(list: &Data) -> Result<Vec<(String, Written)>, String> {
-    let Data::List(items) = list else { return Err("a hook returns a list of Writes".into()) };
+    let Data::List(items) = list else {
+        return Err("a hook returns a list of Writes".into());
+    };
     items
         .iter()
         .map(|w| {
             let key = text(w, "key")?.to_string();
             let value = field(w, "value")?;
-            let entry = values::entry(&key).ok_or_else(|| format!("the shot has no value `{key}`"))?;
+            let entry =
+                values::entry(&key).ok_or_else(|| format!("the shot has no value `{key}`"))?;
             let written = if entry.key != key {
                 // A vector's component.
                 Written::Number(match value {
@@ -854,10 +1224,24 @@ enum Written {
 /// `value` as `entry`'s type.
 fn typed(key: &str, entry: &values::Entry, value: &Data) -> Result<LabValue, String> {
     let wrong = || format!("`{key}` is a {}, not {value:?}", entry.ty.name());
-    let whole = |n: i64, lo: i64, hi: i64| if (lo..=hi).contains(&n) { Ok(n) } else { Err(format!("`{key}` is a {}: {n} is out of its range", entry.ty.name())) };
+    let whole = |n: i64, lo: i64, hi: i64| {
+        if (lo..=hi).contains(&n) {
+            Ok(n)
+        } else {
+            Err(format!(
+                "`{key}` is a {}: {n} is out of its range",
+                entry.ty.name()
+            ))
+        }
+    };
     if let Some(c) = entry.choices {
         let index = match value {
-            Data::String(name) => c.index(name).ok_or_else(|| format!("`{key}` has no option `{name}` (its options: {})", c.names()))? as i64,
+            Data::String(name) => c.index(name).ok_or_else(|| {
+                format!(
+                    "`{key}` has no option `{name}` (its options: {})",
+                    c.names()
+                )
+            })? as i64,
             _ => return Err(wrong()),
         };
         return Ok(match entry.ty {
@@ -865,15 +1249,28 @@ fn typed(key: &str, entry: &values::Entry, value: &Data) -> Result<LabValue, Str
             _ => LabValue::U32(index as u32),
         });
     }
-    let vector = |n: usize| -> Result<Vec<f32>, String> { ["x", "y", "z", "w"][..n].iter().map(|c| number(value, c)).collect() };
+    let vector = |n: usize| -> Result<Vec<f32>, String> {
+        ["x", "y", "z", "w"][..n]
+            .iter()
+            .map(|c| number(value, c))
+            .collect()
+    };
     Ok(match (entry.ty, value) {
         (Type::F32, Data::Float(x)) => LabValue::F32(*x as f32),
-        (Type::I32, Data::Int(n)) => LabValue::I32(whole(*n, i32::MIN as i64, i32::MAX as i64)? as i32),
+        (Type::I32, Data::Int(n)) => {
+            LabValue::I32(whole(*n, i32::MIN as i64, i32::MAX as i64)? as i32)
+        }
         (Type::U32, Data::Int(n)) => LabValue::U32(whole(*n, 0, u32::MAX as i64)? as u32),
         (Type::Bool, Data::Bool(b)) => LabValue::Bool(*b),
-        (Type::Vec2, Data::Record(_)) => LabValue::Vec2(vector(2)?.try_into().expect("two numbers")),
-        (Type::Vec3, Data::Record(_)) => LabValue::Vec3(vector(3)?.try_into().expect("three numbers")),
-        (Type::Vec4, Data::Record(_)) => LabValue::Vec4(vector(4)?.try_into().expect("four numbers")),
+        (Type::Vec2, Data::Record(_)) => {
+            LabValue::Vec2(vector(2)?.try_into().expect("two numbers"))
+        }
+        (Type::Vec3, Data::Record(_)) => {
+            LabValue::Vec3(vector(3)?.try_into().expect("three numbers"))
+        }
+        (Type::Vec4, Data::Record(_)) => {
+            LabValue::Vec4(vector(4)?.try_into().expect("four numbers"))
+        }
         _ => return Err(wrong()),
     })
 }
@@ -913,17 +1310,26 @@ fn trace(u: f64, v: f64, skip: &[String]) -> Result<Option<Hit>, String> {
     let names: Vec<&'static str> = statics(|s| s.scene.objects.iter().map(|o| o.name).collect())?;
     frame(|content| {
         let camera = &content.uniforms.camera;
-        let (origin, dir) = crate::camera::Projector::new(camera).ray(glam::Vec2::new(u as f32, v as f32) * glam::Vec2::from(camera.viewport_size));
+        let (origin, dir) = crate::camera::Projector::new(camera)
+            .ray(glam::Vec2::new(u as f32, v as f32) * glam::Vec2::from(camera.viewport_size));
         let mut best: Option<(f32, Vec3, usize)> = None;
         for (i, o) in content.objects.iter().enumerate() {
             if names.get(i).is_some_and(|n| skip.iter().any(|s| s == n)) {
                 continue;
             }
-            if let Some((t, n)) = crate::scene::intersect_object(o, origin, dir, best.map_or(100.0, |b| b.0)) {
+            if let Some((t, n)) =
+                crate::scene::intersect_object(o, origin, dir, best.map_or(100.0, |b| b.0))
+            {
                 best = Some((t, n, i));
             }
         }
-        best.map(|(t, n, i)| Hit { point: V3(origin + dir * t), normal: V3(n), dir: V3(dir), object: i as i64, name: names.get(i).copied().unwrap_or_default().to_string() })
+        best.map(|(t, n, i)| Hit {
+            point: V3(origin + dir * t),
+            normal: V3(n),
+            dir: V3(dir),
+            object: i as i64,
+            name: names.get(i).copied().unwrap_or_default().to_string(),
+        })
     })
 }
 
@@ -944,16 +1350,35 @@ fn register_frame_natives(engine: &mut Engine) -> Result<(), lamlet::embed::Erro
 
 /// The scripts' click handlers, by name (a story gives one to an image: `imageClick`).
 pub fn click_handlers() -> Vec<String> {
-    with_runtime(|rt| rt.clicks.keys().cloned().collect()).ok().flatten().unwrap_or_default()
+    with_runtime(|rt| rt.clicks.keys().cloned().collect())
+        .ok()
+        .flatten()
+        .unwrap_or_default()
 }
 
 /// Runs the scripts' click handler `key` on `frame` (a click at `frame.uv` on the picture of `frame.content`):
 /// whether it set anything; None when the scripts have no such handler. The handler named `scene` takes a click
 /// on the scene itself, before `Investigation::click`.
 pub fn click(key: &str, frame: &mut crate::actions::ClickFrame) -> Option<bool> {
-    let click = lamlet::embed::record().field("u", frame.uv.x as f64).field("v", frame.uv.y as f64).build().ok()?;
+    let click = lamlet::embed::record()
+        .field("u", frame.uv.x as f64)
+        .field("v", frame.uv.y as f64)
+        .build()
+        .ok()?;
     let (shown, content, statics) = (frame.shown, frame.content, frame.statics);
-    with_runtime(|rt| rt.run(Kind::Click(key.to_string()), vec![click], shown, Some(content), Some(statics), frame.state)).ok().flatten().flatten()
+    with_runtime(|rt| {
+        rt.run(
+            Kind::Click(key.to_string()),
+            vec![click],
+            shown,
+            Some(content),
+            Some(statics),
+            frame.state,
+        )
+    })
+    .ok()
+    .flatten()
+    .flatten()
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -974,7 +1399,14 @@ impl ScriptArg {
     fn of(key: &str, ty: &TypeDesc) -> Result<ScriptArg, String> {
         use crate::actions::ArgKind;
         let (inner, required) = match ty {
-            TypeDesc::Variant(alts) if alts.len() == 2 && &*alts[0].0 == "none" && alts[0].1 == TypeDesc::Unit && &*alts[1].0 == "some" => (&alts[1].1, false),
+            TypeDesc::Variant(alts)
+                if alts.len() == 2
+                    && &*alts[0].0 == "none"
+                    && alts[0].1 == TypeDesc::Unit
+                    && &*alts[1].0 == "some" =>
+            {
+                (&alts[1].1, false)
+            }
             other => (other, true),
         };
         let kind = match inner {
@@ -982,23 +1414,53 @@ impl ScriptArg {
             TypeDesc::Int => ArgKind::Integer,
             TypeDesc::Bool => ArgKind::Toggle,
             TypeDesc::String => ArgKind::Name,
-            TypeDesc::Record(fields) if *inner == floats(&["x", "y"]) || *inner == floats(&["x", "y", "z"]) => ArgKind::Vector(fields.len()),
-            other => return Err(format!("the argument `{key}` is a {other}; an argument is a Float, an Int, a Bool, a String, a Vec2 or Vec3, or an Option of one")),
+            TypeDesc::Record(fields)
+                if *inner == floats(&["x", "y"]) || *inner == floats(&["x", "y", "z"]) =>
+            {
+                ArgKind::Vector(fields.len())
+            }
+            other => {
+                return Err(format!(
+                    "the argument `{key}` is a {other}; an argument is a Float, an Int, a Bool, a String, a Vec2 or Vec3, or an Option of one"
+                ));
+            }
         };
-        Ok(ScriptArg { key: key.to_string(), kind, required, ty: inner.clone() })
+        Ok(ScriptArg {
+            key: key.to_string(),
+            kind,
+            required,
+            ty: inner.clone(),
+        })
     }
 
     pub fn describe(&self) -> String {
-        format!("{}: {}{}", self.key, self.kind.describe(), if self.required { "" } else { " (optional)" })
+        format!(
+            "{}: {}{}",
+            self.key,
+            self.kind.describe(),
+            if self.required {
+                ""
+            } else {
+                " (optional)"
+            }
+        )
     }
 
     /// The story's value for it (JSON), as Lamlet.
     fn value(&self, given: Option<&serde_json::Value>) -> Result<Value, String> {
         let Some(v) = given.filter(|v| !v.is_null()) else {
-            return if self.required { Err("missing".into()) } else { Ok(Value::variant("none", Value::Unit)) };
+            return if self.required {
+                Err("missing".into())
+            } else {
+                Ok(Value::variant("none", Value::Unit))
+            };
         };
         // A number at the lab's precision (f32), as the investigation's code reads it.
-        let number = |v: &serde_json::Value| v.as_f64().map(|n| n as f32 as f64).ok_or_else(|| format!("{v} is not a number"));
+        let number = |v: &serde_json::Value| {
+            v.as_f64()
+                .map(|n| n as f32 as f64)
+                .ok_or_else(|| format!("{v} is not a number"))
+        };
         let value = match &self.ty {
             TypeDesc::Float => Value::Float(number(v)?),
             TypeDesc::Int => {
@@ -1008,16 +1470,33 @@ impl ScriptArg {
                 }
                 Value::Int(n as i64)
             }
-            TypeDesc::Bool => Value::Bool(v.as_bool().ok_or_else(|| format!("{v} is not true or false"))?),
-            TypeDesc::String => Value::Str(Rc::from(v.as_str().ok_or_else(|| format!("{v} is not a name"))?)),
+            TypeDesc::Bool => Value::Bool(
+                v.as_bool()
+                    .ok_or_else(|| format!("{v} is not true or false"))?,
+            ),
+            TypeDesc::String => Value::Str(Rc::from(
+                v.as_str().ok_or_else(|| format!("{v} is not a name"))?,
+            )),
             TypeDesc::Record(fields) => {
-                let list = v.as_array().filter(|a| a.len() == fields.len()).ok_or_else(|| format!("{v} is not {} numbers", fields.len()))?;
+                let list = v
+                    .as_array()
+                    .filter(|a| a.len() == fields.len())
+                    .ok_or_else(|| format!("{v} is not {} numbers", fields.len()))?;
                 let labels = ["x", "y", "z"];
-                Value::record(list.iter().zip(labels).map(|(n, l)| Ok((Rc::from(l), Value::Float(number(n)?)))).collect::<Result<Vec<_>, String>>()?)
+                Value::record(
+                    list.iter()
+                        .zip(labels)
+                        .map(|(n, l)| Ok((Rc::from(l), Value::Float(number(n)?))))
+                        .collect::<Result<Vec<_>, String>>()?,
+                )
             }
             other => return Err(format!("an argument of type {other}")),
         };
-        Ok(if self.required { value } else { Value::variant("some", value) })
+        Ok(if self.required {
+            value
+        } else {
+            Value::variant("some", value)
+        })
     }
 }
 
@@ -1030,22 +1509,55 @@ pub struct ScriptAction {
 
 /// The scripts' actions.
 pub fn actions() -> Vec<ScriptAction> {
-    with_runtime(|rt| rt.actions.iter().map(|(n, (_, args))| ScriptAction { name: n.clone(), args: args.clone() }).collect()).ok().flatten().unwrap_or_default()
+    with_runtime(|rt| {
+        rt.actions
+            .iter()
+            .map(|(n, (_, args))| ScriptAction {
+                name: n.clone(),
+                args: args.clone(),
+            })
+            .collect()
+    })
+    .ok()
+    .flatten()
+    .unwrap_or_default()
 }
 
 /// The argument record a story's call gives the action `args` takes.
-fn arguments(name: &str, args: &[ScriptArg], given: &BTreeMap<String, serde_json::Value>) -> Result<Value, String> {
+fn arguments(
+    name: &str,
+    args: &[ScriptArg],
+    given: &BTreeMap<String, serde_json::Value>,
+) -> Result<Value, String> {
     if let Some(extra) = given.keys().find(|k| !args.iter().any(|a| &a.key == *k)) {
         return Err(format!("the action `{name}` takes no argument `{extra}`"));
     }
-    let fields = args.iter().map(|a| Ok((Rc::from(a.key.as_str()), a.value(given.get(&a.key)).map_err(|e| format!("the action `{name}`'s argument `{}` ({}): {e}", a.key, a.kind.describe()))?)));
+    let fields = args.iter().map(|a| {
+        Ok((
+            Rc::from(a.key.as_str()),
+            a.value(given.get(&a.key)).map_err(|e| {
+                format!(
+                    "the action `{name}`'s argument `{}` ({}): {e}",
+                    a.key,
+                    a.kind.describe()
+                )
+            })?,
+        ))
+    });
     Ok(Value::record(fields.collect::<Result<Vec<_>, String>>()?))
 }
 
 /// Why a story's call of a script action cannot run (an argument it does not take, one missing or of the wrong
 /// kind); None when the scripts have no such action.
 pub fn check_action(call: &crate::actions::ActionCall) -> Option<Result<(), String>> {
-    with_runtime(|rt| rt.actions.get(&call.name).map(|(_, args)| arguments(&call.name, args, &call.args).map(|_| ()))).ok().flatten().flatten()
+    with_runtime(|rt| {
+        rt.actions
+            .get(&call.name)
+            .map(|(_, args)| arguments(&call.name, args, &call.args).map(|_| ()))
+    })
+    .ok()
+    .flatten()
+    .flatten()
 }
 
 /// Runs the script action `action` on `state` (the state so far in `Timeline::state_at`): None when the scripts have
@@ -1057,7 +1569,14 @@ pub fn run_action(action: &crate::actions::RunningAction, state: &mut ShotState)
         let kind = Kind::Action(action.key.clone());
         match arguments(&action.key, args, &action.args) {
             Ok(record) => {
-                rt.run(kind, vec![Value::Float(action.elapsed as f64), record], &snapshot, None, None, state);
+                rt.run(
+                    kind,
+                    vec![Value::Float(action.elapsed as f64), record],
+                    &snapshot,
+                    None,
+                    None,
+                    state,
+                );
             }
             Err(e) => rt.failed(&kind.to_string(), e),
         }
@@ -1073,7 +1592,12 @@ pub fn run_action(action: &crate::actions::RunningAction, state: &mut ShotState)
 
 /// The script animation of `demo` (its `animation`), if it has one.
 fn animation_of(demo: crate::shot::DemoId) -> Option<&'static str> {
-    investigation::current().demo_specs()?.specs.iter().find(|s| s.id == demo)?.animation
+    investigation::current()
+        .demo_specs()?
+        .specs
+        .iter()
+        .find(|s| s.id == demo)?
+        .animation
 }
 
 /// Applies `demo`'s script animation at `t` seconds to `state` (after the investigation's own animation): the keys
@@ -1083,7 +1607,9 @@ pub fn animate(demo: crate::shot::DemoId, t: f32, state: &mut ShotState) -> Opti
     let snapshot = state.clone();
     with_runtime(|rt| {
         let kind = Kind::Animation(name.to_string());
-        let written = rt.call(&kind, vec![Value::Float(t as f64)], &snapshot, None, None).and_then(|d| writes(&d));
+        let written = rt
+            .call(&kind, vec![Value::Float(t as f64)], &snapshot, None, None)
+            .and_then(|d| writes(&d));
         match written {
             Ok(w) => {
                 rt.succeeded(&kind.to_string());
@@ -1111,9 +1637,17 @@ mod tests {
         register(&mut engine).unwrap();
         register_frame_natives(&mut engine).unwrap();
         let stubs = engine.natives_mut().declarations(NATIVES).unwrap();
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../packages/render_lab/language/runtime.lam");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../packages/render_lab/language/runtime.lam");
         let library = Package::read(LIBRARY_PACKAGE, &path).unwrap();
-        let packages = [library, Package { name: NATIVES.into(), file: "<stubs>".into(), source: stubs }];
+        let packages = [
+            library,
+            Package {
+                name: NATIVES.into(),
+                file: "<stubs>".into(),
+                source: stubs,
+            },
+        ];
         engine.set_resolver(super::super::resolver(&packages).unwrap());
         engine
     }
@@ -1122,9 +1656,19 @@ mod tests {
     fn values(regions: &[&str]) -> Vec<Data> {
         let engine = engine();
         let body: String = regions.iter().map(|r| format!("${{{r}}}\n")).collect();
-        let document = engine.check(SourceFile::new("test.lam", format!("$[Import* std]$[Import* {LIBRARY_PACKAGE}]\n{body}"))).unwrap_or_else(|e| panic!("{}", e.render()));
+        let document = engine
+            .check(SourceFile::new(
+                "test.lam",
+                format!("$[Import* std]$[Import* {LIBRARY_PACKAGE}]\n{body}"),
+            ))
+            .unwrap_or_else(|e| panic!("{}", e.render()));
         let mut instance = engine.instance(&document).unwrap();
-        instance.evaluate().unwrap_or_else(|e| panic!("{}", e.render())).iter().map(|(_, v)| Data::from_value(v).unwrap()).collect()
+        instance
+            .evaluate()
+            .unwrap_or_else(|e| panic!("{}", e.render()))
+            .iter()
+            .map(|(_, v)| Data::from_value(v).unwrap())
+            .collect()
     }
 
     #[test]
@@ -1154,7 +1698,10 @@ mod tests {
         assert_eq!(v[6], Data::String("1F".into()));
         assert_eq!(v[7], Data::String("05".into()));
         assert_eq!(v[8], Data::String("(1.000, -0.250, 0.123)".into()));
-        assert_eq!(v[9], Data::Float(crate::animation::Ease::InOut.apply(0.25) as f64));
+        assert_eq!(
+            v[9],
+            Data::Float(crate::animation::Ease::InOut.apply(0.25) as f64)
+        );
         // N whole with its label; L half grown, its label not yet out.
         assert_eq!(v[10], Data::Int(3));
         // Two values through the point: three segments.
@@ -1165,32 +1712,52 @@ mod tests {
 
     #[test]
     fn shapes_are_checked_before_use() {
-        let v = values(&["' {arrow {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"#ff0000\" 1.0 4.0} {point {vec3 0.0 1.0 0.0} 8.0 \"accent\" 0.5}"]);
+        let v = values(&[
+            "' {arrow {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"#ff0000\" 1.0 4.0} {point {vec3 0.0 1.0 0.0} 8.0 \"accent\" 0.5}",
+        ]);
         let s = shapes(&v[0], "render_lab").unwrap();
-        assert!(matches!(&s[0], Shape::Segment { flags, width, color, .. } if *flags == FLAG_ARROW && *width == 4.0 && *color == crate::palette::rgb(0xff0000)));
+        assert!(
+            matches!(&s[0], Shape::Segment { flags, width, color, .. } if *flags == FLAG_ARROW && *width == 4.0 && *color == crate::palette::rgb(0xff0000))
+        );
         assert!(matches!(&s[1], Shape::Point { alpha, .. } if *alpha == 0.5));
         let bad = values(&["' {segment {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"red\" 1.0 4.0}"]);
-        assert!(shapes(&bad[0], "render_lab").unwrap_err().contains("#rrggbb"));
+        assert!(
+            shapes(&bad[0], "render_lab")
+                .unwrap_err()
+                .contains("#rrggbb")
+        );
     }
 
     #[test]
     fn action_arguments_take_their_kinds_from_their_types() {
         use crate::actions::ArgKind;
-        let int = TypeDesc::Variant(vec![(Rc::from("none"), TypeDesc::Unit), (Rc::from("some"), TypeDesc::Int)]);
+        let int = TypeDesc::Variant(vec![
+            (Rc::from("none"), TypeDesc::Unit),
+            (Rc::from("some"), TypeDesc::Int),
+        ]);
         let from = ScriptArg::of("from", &int).unwrap();
         assert!(!from.required && from.kind == ArgKind::Integer);
         let at = ScriptArg::of("at", &floats(&["x", "y", "z"])).unwrap();
         assert!(at.required && at.kind == ArgKind::Vector(3));
         assert!(ScriptArg::of("list", &TypeDesc::List(Rc::new(TypeDesc::Int))).is_err());
         // A story's numbers: a whole number for an Int, the lab's precision for a Float, none for an option left out.
-        assert!(matches!(from.value(Some(&serde_json::json!(3.0))).unwrap(), Value::Variant(v) if v.0.as_ref() == "some" && matches!(v.1, Value::Int(3))));
+        assert!(
+            matches!(from.value(Some(&serde_json::json!(3.0))).unwrap(), Value::Variant(v) if v.0.as_ref() == "some" && matches!(v.1, Value::Int(3)))
+        );
         assert!(from.value(Some(&serde_json::json!(2.5))).is_err());
         assert!(matches!(from.value(None).unwrap(), Value::Variant(v) if v.0.as_ref() == "none"));
         let seconds = ScriptArg::of("seconds", &TypeDesc::Float).unwrap();
-        assert!(matches!(seconds.value(Some(&serde_json::json!(0.7))).unwrap(), Value::Float(x) if x == 0.7f32 as f64));
+        assert!(
+            matches!(seconds.value(Some(&serde_json::json!(0.7))).unwrap(), Value::Float(x) if x == 0.7f32 as f64)
+        );
         assert!(seconds.value(None).is_err());
         let args = [seconds, from];
-        let given: BTreeMap<String, serde_json::Value> = [("secs".to_string(), serde_json::json!(1.0))].into();
-        assert!(arguments("marchCone", &args, &given).unwrap_err().contains("no argument `secs`"));
+        let given: BTreeMap<String, serde_json::Value> =
+            [("secs".to_string(), serde_json::json!(1.0))].into();
+        assert!(
+            arguments("marchCone", &args, &given)
+                .unwrap_err()
+                .contains("no argument `secs`")
+        );
     }
 }

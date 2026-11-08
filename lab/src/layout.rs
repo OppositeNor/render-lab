@@ -244,7 +244,12 @@ pub fn parse_layouts(json: &str) -> anyhow::Result<BTreeMap<String, ShaderStruct
                 size: m["size"].as_u64().unwrap_or(0) as usize,
                 alignment: m["alignment"].as_u64().unwrap_or(0) as usize,
                 type_name: m["type"].as_str().unwrap_or("?").to_string(),
-                matrix: m["matrix"].as_array().map(|a| (a[0].as_u64().unwrap_or(0) as u32, a[1].as_u64().unwrap_or(0) as u32)),
+                matrix: m["matrix"].as_array().map(|a| {
+                    (
+                        a[0].as_u64().unwrap_or(0) as u32,
+                        a[1].as_u64().unwrap_or(0) as u32,
+                    )
+                }),
             })
             .collect();
         out.insert(

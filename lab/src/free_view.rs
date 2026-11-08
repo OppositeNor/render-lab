@@ -11,8 +11,8 @@
 //! drawn into it: a body at its eye, its view cone out to what it looks at,
 //! and a label.
 
-use crate::camera::{frustum_corners, FreeCamera};
-use crate::frame::{FrameContent, Label, FLAG_DASHED};
+use crate::camera::{FreeCamera, frustum_corners};
+use crate::frame::{FLAG_DASHED, FrameContent, Label};
 use crate::i18n::tr;
 use crate::investigation;
 use crate::layout::CameraData;
@@ -25,7 +25,12 @@ pub fn content(main: &FrameContent, state: &ShotState, free: &FreeCamera) -> Fra
     let mut content = main.clone();
     content.uniforms.camera = free.orbit().camera_data_like(&main.uniforms.camera);
     investigation::current().view_from(&mut content);
-    mark_camera(&mut content, &main.uniforms.camera, state.camera.distance, Some(tr("ui-main_camera")));
+    mark_camera(
+        &mut content,
+        &main.uniforms.camera,
+        state.camera.distance,
+        Some(tr("ui-main_camera")),
+    );
     content
 }
 
@@ -33,7 +38,12 @@ pub fn content(main: &FrameContent, state: &ShotState, free: &FreeCamera) -> Fra
 /// `reach` metres (at most twelve), and its label (if any). The free view draws the main
 /// camera with it; an investigation may draw a camera of its own (an engine's
 /// camera that its demonstration moves) the same way.
-pub fn mark_camera(content: &mut FrameContent, camera: &CameraData, reach: f32, label: Option<&str>) {
+pub fn mark_camera(
+    content: &mut FrameContent,
+    camera: &CameraData,
+    reach: f32,
+    label: Option<&str>,
+) {
     let eye = Vec3::from(camera.position);
     let color = palette::VIEW;
     let draw = &mut content.draw;
@@ -58,6 +68,10 @@ pub fn mark_camera(content: &mut FrameContent, camera: &CameraData, reach: f32, 
     let centre = far.iter().copied().sum::<Vec3>() * 0.25;
     draw.segment(eye, centre, color, 0.5, 1.0, FLAG_DASHED);
     if let Some(text) = label {
-        content.labels.push(Label { anchor: eye + Vec3::Y * 0.25, text: text.to_string(), color });
+        content.labels.push(Label {
+            anchor: eye + Vec3::Y * 0.25,
+            text: text.to_string(),
+            color,
+        });
     }
 }

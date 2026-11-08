@@ -20,7 +20,7 @@
 use crate::config::Config;
 use crate::packages;
 use crate::palette::{self, Theme};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use egui::Color32;
 use std::path::{Path, PathBuf};
 
@@ -53,11 +53,18 @@ pub fn dirs() -> Vec<PathBuf> {
 pub fn list() -> (Vec<Entry>, Vec<String>) {
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     for dir in dirs() {
-        let Ok(read) = std::fs::read_dir(&dir) else { continue };
-        let mut paths: Vec<PathBuf> = read.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|e| e == "toml")).collect();
+        let Ok(read) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        let mut paths: Vec<PathBuf> = read
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|e| e == "toml"))
+            .collect();
         paths.sort();
         for path in paths {
-            let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(String::from) else { continue };
+            let Some(id) = path.file_stem().and_then(|s| s.to_str()).map(String::from) else {
+                continue;
+            };
             if id == BUILT_IN {
                 continue;
             }
@@ -78,7 +85,11 @@ pub fn list() -> (Vec<Entry>, Vec<String>) {
 }
 
 fn built_in() -> Entry {
-    Entry { id: BUILT_IN.into(), name: "Render Lab".into(), theme: Theme::CLASSIC }
+    Entry {
+        id: BUILT_IN.into(),
+        name: "Render Lab".into(),
+        theme: Theme::CLASSIC,
+    }
 }
 
 /// The theme named `id`, from the last folder that has it.
@@ -86,13 +97,25 @@ pub fn find(id: &str) -> Result<Entry> {
     if id == BUILT_IN {
         return Ok(built_in());
     }
-    let path = dirs().into_iter().rev().map(|d| d.join(format!("{id}.toml"))).find(|p| p.is_file());
+    let path = dirs()
+        .into_iter()
+        .rev()
+        .map(|d| d.join(format!("{id}.toml")))
+        .find(|p| p.is_file());
     let Some(path) = path else {
-        let looked = dirs().iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ");
+        let looked = dirs()
+            .iter()
+            .map(|d| d.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
         bail!("there is no theme `{id}` (looked in {looked})");
     };
     let (name, theme) = read(&path)?;
-    Ok(Entry { id: id.into(), name, theme })
+    Ok(Entry {
+        id: id.into(),
+        name,
+        theme,
+    })
 }
 
 /// Use the theme named `id`; when it cannot be read, the built-in one, and why.
@@ -117,18 +140,31 @@ fn read(path: &Path) -> Result<(String, Theme)> {
 /// A theme file's name and colours.
 pub fn parse(text: &str) -> Result<(String, Theme)> {
     let document = toml_edit::Document::parse(text).context("parse")?;
-    let name = document.get("name").and_then(|n| n.as_str()).context("`name` must be a string")?.to_string();
-    let colors = document.get("colors").and_then(|c| c.as_table_like()).context("no `[colors]` table")?;
+    let name = document
+        .get("name")
+        .and_then(|n| n.as_str())
+        .context("`name` must be a string")?
+        .to_string();
+    let colors = document
+        .get("colors")
+        .and_then(|c| c.as_table_like())
+        .context("no `[colors]` table")?;
     let mut theme = Theme::CLASSIC;
     let mut fields = fields(&mut theme);
     for (key, item) in colors.iter() {
         let Some((_, field)) = fields.iter_mut().find(|(k, _)| *k == key) else {
             bail!("unknown colour `{key}`");
         };
-        let value = item.as_str().with_context(|| format!("`{key}` must be a string"))?;
+        let value = item
+            .as_str()
+            .with_context(|| format!("`{key}` must be a string"))?;
         **field = color(value).with_context(|| format!("`{key}`"))?;
     }
-    let missing: Vec<&str> = fields.iter().map(|(k, _)| *k).filter(|k| !colors.contains_key(k)).collect();
+    let missing: Vec<&str> = fields
+        .iter()
+        .map(|(k, _)| *k)
+        .filter(|k| !colors.contains_key(k))
+        .collect();
     if !missing.is_empty() {
         bail!("no colour for {}", missing.join(", "));
     }
@@ -137,11 +173,24 @@ pub fn parse(text: &str) -> Result<(String, Theme)> {
 
 /// `#rrggbb` or `#rrggbbaa` (alpha not premultiplied).
 fn color(value: &str) -> Result<Color32> {
-    let hex = value.strip_prefix('#').filter(|h| (h.len() == 6 || h.len() == 8) && h.chars().all(|c| c.is_ascii_hexdigit()));
-    let Some(hex) = hex else { bail!("\"{value}\" is not #rrggbb or #rrggbbaa") };
+    let hex = value
+        .strip_prefix('#')
+        .filter(|h| (h.len() == 6 || h.len() == 8) && h.chars().all(|c| c.is_ascii_hexdigit()));
+    let Some(hex) = hex else {
+        bail!("\"{value}\" is not #rrggbb or #rrggbbaa")
+    };
     let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap();
-    let alpha = if hex.len() == 8 { byte(6) } else { 255 };
-    Ok(Color32::from_rgba_unmultiplied(byte(0), byte(2), byte(4), alpha))
+    let alpha = if hex.len() == 8 {
+        byte(6)
+    } else {
+        255
+    };
+    Ok(Color32::from_rgba_unmultiplied(
+        byte(0),
+        byte(2),
+        byte(4),
+        alpha,
+    ))
 }
 
 /// Every colour of a theme, by its key in a theme file.
@@ -187,14 +236,20 @@ mod tests {
             read(&path).unwrap();
             found.push(path.file_stem().unwrap().to_string_lossy().into_owned());
         }
-        assert!(found.len() >= 3 && !found.iter().any(|f| f == BUILT_IN), "{found:?}");
+        assert!(
+            found.len() >= 3 && !found.iter().any(|f| f == BUILT_IN),
+            "{found:?}"
+        );
     }
 
     #[test]
     fn rejects_bad_files() {
         assert!(parse("name = \"x\"\n[colors]\nbackground = \"#000000\"\n").is_err());
         assert!(parse("name = \"x\"\n[colors]\nnope = \"#000000\"\n").is_err());
-        assert_eq!(color("#ff800080").unwrap(), Color32::from_rgba_unmultiplied(255, 128, 0, 128));
+        assert_eq!(
+            color("#ff800080").unwrap(),
+            Color32::from_rgba_unmultiplied(255, 128, 0, 128)
+        );
         assert!(color("ff8000").is_err());
     }
 }

@@ -53,15 +53,42 @@
 use crate::investigation::{self, Investigation};
 use crate::shot::ShotState;
 use crate::values::{self, Reflect, Value};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use serde_json::{Map, Value as Json};
 use std::path::{Path, PathBuf};
 
 /// The metrics a research run can take (src/metrics.rs, src/timing.rs), in report order.
-pub const METRICS: &[&str] = &["gpu_ms", "cpu_ms", "mse", "rmse", "psnr", "ssim", "flip", "relmse", "luminance"];
+pub const METRICS: &[&str] = &[
+    "gpu_ms",
+    "cpu_ms",
+    "mse",
+    "rmse",
+    "psnr",
+    "ssim",
+    "flip",
+    "relmse",
+    "luminance",
+];
 
 /// The fields an experiment file may have.
-const FIELDS: &[&str] = &["name", "description", "investigation", "demo", "resolution", "frames", "warmup", "repeats", "convergence", "metrics", "camera", "base", "reference", "sweep", "variant", "inspect"];
+const FIELDS: &[&str] = &[
+    "name",
+    "description",
+    "investigation",
+    "demo",
+    "resolution",
+    "frames",
+    "warmup",
+    "repeats",
+    "convergence",
+    "metrics",
+    "camera",
+    "base",
+    "reference",
+    "sweep",
+    "variant",
+    "inspect",
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Experiment {
@@ -154,8 +181,14 @@ pub(crate) fn json_of(item: &toml_edit::Item) -> Json {
     match item {
         toml_edit::Item::None => Json::Null,
         toml_edit::Item::Value(v) => json_of_value(v),
-        toml_edit::Item::Table(t) => Json::Object(t.iter().map(|(k, v)| (k.to_string(), json_of(v))).collect()),
-        toml_edit::Item::ArrayOfTables(a) => Json::Array(a.iter().map(|t| Json::Object(t.iter().map(|(k, v)| (k.to_string(), json_of(v))).collect())).collect()),
+        toml_edit::Item::Table(t) => {
+            Json::Object(t.iter().map(|(k, v)| (k.to_string(), json_of(v))).collect())
+        }
+        toml_edit::Item::ArrayOfTables(a) => Json::Array(
+            a.iter()
+                .map(|t| Json::Object(t.iter().map(|(k, v)| (k.to_string(), json_of(v))).collect()))
+                .collect(),
+        ),
     }
 }
 
@@ -163,11 +196,17 @@ fn json_of_value(value: &toml_edit::Value) -> Json {
     match value {
         toml_edit::Value::String(s) => Json::String(s.value().clone()),
         toml_edit::Value::Integer(i) => Json::from(*i.value()),
-        toml_edit::Value::Float(f) => serde_json::Number::from_f64(*f.value()).map_or(Json::Null, Json::Number),
+        toml_edit::Value::Float(f) => {
+            serde_json::Number::from_f64(*f.value()).map_or(Json::Null, Json::Number)
+        }
         toml_edit::Value::Boolean(b) => Json::Bool(*b.value()),
         toml_edit::Value::Datetime(d) => Json::String(d.value().to_string()),
         toml_edit::Value::Array(a) => Json::Array(a.iter().map(json_of_value).collect()),
-        toml_edit::Value::InlineTable(t) => Json::Object(t.iter().map(|(k, v)| (k.to_string(), json_of_value(v))).collect()),
+        toml_edit::Value::InlineTable(t) => Json::Object(
+            t.iter()
+                .map(|(k, v)| (k.to_string(), json_of_value(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -184,7 +223,13 @@ fn toml_of(json: &Json) -> String {
         },
         Json::String(s) => quote(s),
         Json::Array(a) => format!("[{}]", a.iter().map(toml_of).collect::<Vec<_>>().join(", ")),
-        Json::Object(o) => format!("{{ {} }}", o.iter().map(|(k, v)| format!("{} = {}", key(k), toml_of(v))).collect::<Vec<_>>().join(", ")),
+        Json::Object(o) => format!(
+            "{{ {} }}",
+            o.iter()
+                .map(|(k, v)| format!("{} = {}", key(k), toml_of(v)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 
@@ -207,7 +252,14 @@ fn quote(s: &str) -> String {
 
 /// A TOML key: bare when it can be, else quoted (`"camera.yaw"`).
 fn key(k: &str) -> String {
-    if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') { k.to_string() } else { quote(k) }
+    if !k.is_empty()
+        && k.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        k.to_string()
+    } else {
+        quote(k)
+    }
 }
 
 /// A table of values (`values = {…}` or `[x.values]`) as keys and JSON. A key in kebab case is the value in camel
@@ -219,7 +271,10 @@ pub(crate) fn values_of(json: Option<&Json>, at: &str) -> Result<Map<String, Jso
         let first = parts.next().unwrap_or_default().to_string();
         parts.fold(first, |out, p| {
             let mut c = p.chars();
-            out + &c.next().map(|f| f.to_ascii_uppercase().to_string() + c.as_str()).unwrap_or_default()
+            out + &c
+                .next()
+                .map(|f| f.to_ascii_uppercase().to_string() + c.as_str())
+                .unwrap_or_default()
         })
     };
     match json {
@@ -232,7 +287,10 @@ pub(crate) fn values_of(json: Option<&Json>, at: &str) -> Result<Map<String, Jso
 fn count(json: Option<&Json>, at: &str, default: u32) -> Result<u32> {
     match json {
         None => Ok(default),
-        Some(j) => j.as_u64().and_then(|n| u32::try_from(n).ok()).ok_or_else(|| anyhow!("`{at}` is a whole number, not {j}")),
+        Some(j) => j
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or_else(|| anyhow!("`{at}` is a whole number, not {j}")),
     }
 }
 
@@ -248,15 +306,25 @@ impl Experiment {
     /// Parse an experiment file.
     pub fn parse(source: &str) -> Result<Experiment> {
         let document = toml_edit::Document::parse(source).context("parse the experiment (TOML)")?;
-        let Json::Object(top) = json_of(document.as_item()) else { bail!("an experiment is a table") };
+        let Json::Object(top) = json_of(document.as_item()) else {
+            bail!("an experiment is a table")
+        };
         if let Some(unknown) = top.keys().find(|k| !FIELDS.contains(&k.as_str())) {
-            bail!("unknown field `{unknown}` (an experiment has {})", FIELDS.join(", "));
+            bail!(
+                "unknown field `{unknown}` (an experiment has {})",
+                FIELDS.join(", ")
+            );
         }
         let defaults = Experiment::default();
         let resolution = match top.get("resolution") {
             None => defaults.resolution,
             Some(Json::Array(a)) if a.len() == 2 => {
-                let n = |j: &Json| j.as_u64().filter(|n| (16..=8192).contains(n)).map(|n| n as u32).ok_or_else(|| anyhow!("`resolution` is two whole numbers from 16 to 8192"));
+                let n = |j: &Json| {
+                    j.as_u64()
+                        .filter(|n| (16..=8192).contains(n))
+                        .map(|n| n as u32)
+                        .ok_or_else(|| anyhow!("`resolution` is two whole numbers from 16 to 8192"))
+                };
                 [n(&a[0])?, n(&a[1])?]
             }
             Some(other) => bail!("`resolution` is [width, height], not {other}"),
@@ -264,9 +332,19 @@ impl Experiment {
         let metrics = match top.get("metrics") {
             None => defaults.metrics,
             Some(Json::Array(a)) => {
-                let names = a.iter().map(|m| m.as_str().map(str::to_string).ok_or_else(|| anyhow!("`metrics` is a list of names"))).collect::<Result<Vec<_>>>()?;
+                let names = a
+                    .iter()
+                    .map(|m| {
+                        m.as_str()
+                            .map(str::to_string)
+                            .ok_or_else(|| anyhow!("`metrics` is a list of names"))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
                 if let Some(unknown) = names.iter().find(|m| !METRICS.contains(&m.as_str())) {
-                    bail!("unknown metric `{unknown}` (the metrics: {})", METRICS.join(", "));
+                    bail!(
+                        "unknown metric `{unknown}` (the metrics: {})",
+                        METRICS.join(", ")
+                    );
                 }
                 names
             }
@@ -274,7 +352,14 @@ impl Experiment {
         };
         let mut camera = Map::new();
         for (k, v) in values_of(top.get("camera"), "camera")? {
-            camera.insert(if k.starts_with("camera.") { k } else { format!("camera.{k}") }, v);
+            camera.insert(
+                if k.starts_with("camera.") {
+                    k
+                } else {
+                    format!("camera.{k}")
+                },
+                v,
+            );
         }
         let base = match top.get("base") {
             None => Map::new(),
@@ -292,21 +377,37 @@ impl Experiment {
                 if let Some(unknown) = r.keys().find(|k| *k != "values" && *k != "frames") {
                     bail!("unknown field `reference.{unknown}` (reference has values and frames)");
                 }
-                Some(Reference { values: values_of(r.get("values"), "reference.values")?, frames: r.get("frames").map(|f| count(Some(f), "reference.frames", 0)).transpose()? })
+                Some(Reference {
+                    values: values_of(r.get("values"), "reference.values")?,
+                    frames: r
+                        .get("frames")
+                        .map(|f| count(Some(f), "reference.frames", 0))
+                        .transpose()?,
+                })
             }
             Some(other) => bail!("`reference` is a table, not {other}"),
         };
         let tables = |name: &str| -> Result<Vec<Map<String, Json>>> {
             match top.get(name) {
                 None => Ok(Vec::new()),
-                Some(Json::Array(a)) => a.iter().map(|t| t.as_object().cloned().ok_or_else(|| anyhow!("`[[{name}]]` entries are tables"))).collect(),
+                Some(Json::Array(a)) => a
+                    .iter()
+                    .map(|t| {
+                        t.as_object()
+                            .cloned()
+                            .ok_or_else(|| anyhow!("`[[{name}]]` entries are tables"))
+                    })
+                    .collect(),
                 Some(other) => bail!("`{name}` is a list of tables (`[[{name}]]`), not {other}"),
             }
         };
         let mut sweeps = Vec::new();
         for (i, t) in tables("sweep")?.into_iter().enumerate() {
             if let Some(unknown) = t.keys().find(|k| *k != "values" && *k != "zip") {
-                bail!("unknown field `{unknown}` in sweep {} (a sweep has values and zip)", i + 1);
+                bail!(
+                    "unknown field `{unknown}` in sweep {} (a sweep has values and zip)",
+                    i + 1
+                );
             }
             let zip = match t.get("zip") {
                 None => false,
@@ -317,7 +418,10 @@ impl Experiment {
             for (k, v) in values_of(t.get("values"), "sweep.values")? {
                 match v {
                     Json::Array(list) if !list.is_empty() => axes.push((k, list)),
-                    other => bail!("sweep {}: `{k}` is a non-empty list of values, not {other}", i + 1),
+                    other => bail!(
+                        "sweep {}: `{k}` is a non-empty list of values, not {other}",
+                        i + 1
+                    ),
                 }
             }
             if axes.is_empty() {
@@ -331,21 +435,32 @@ impl Experiment {
         let mut variants: Vec<Variant> = Vec::new();
         for (i, t) in tables("variant")?.into_iter().enumerate() {
             if let Some(unknown) = t.keys().find(|k| *k != "values" && *k != "name") {
-                bail!("unknown field `{unknown}` in variant {} (a variant has name and values)", i + 1);
+                bail!(
+                    "unknown field `{unknown}` in variant {} (a variant has name and values)",
+                    i + 1
+                );
             }
-            let name = text(t.get("name"), "variant.name")?.with_context(|| format!("variant {} needs a name", i + 1))?;
+            let name = text(t.get("name"), "variant.name")?
+                .with_context(|| format!("variant {} needs a name", i + 1))?;
             if name == "base" || name == "reference" || variants.iter().any(|v| v.name == name) {
                 bail!("variant `{name}`: a variant's name is its own (not base or reference)");
             }
-            variants.push(Variant { name, values: values_of(t.get("values"), "variant.values")? });
+            variants.push(Variant {
+                name,
+                values: values_of(t.get("values"), "variant.values")?,
+            });
         }
         let inspect = match top.get("inspect") {
             None => None,
             Some(Json::Object(t)) => {
-                if let Some(unknown) = t.keys().find(|k| !["of", "show", "values"].contains(&k.as_str())) {
+                if let Some(unknown) = t
+                    .keys()
+                    .find(|k| !["of", "show", "values"].contains(&k.as_str()))
+                {
                     bail!("unknown field `inspect.{unknown}` (inspect has of, show, and values)");
                 }
-                let of = text(t.get("of"), "inspect.of")?.context("inspect needs `of`, a <node>.<resource> (render-lab graph)")?;
+                let of = text(t.get("of"), "inspect.of")?
+                    .context("inspect needs `of`, a <node>.<resource> (render-lab graph)")?;
                 if of.rsplit_once('.').is_none() {
                     bail!("inspect.of `{of}`: expected <node>.<resource>");
                 }
@@ -357,13 +472,24 @@ impl Experiment {
                 for (k, v) in values_of(t.get("values"), "inspect.values")? {
                     let numbers: Vec<f32> = match &v {
                         Json::Number(n) => vec![n.as_f64().unwrap_or(0.0) as f32],
-                        Json::Array(a) => a.iter().map(|x| x.as_f64().map(|f| f as f32).ok_or_else(|| anyhow!("inspect.values.{k}: numbers"))).collect::<Result<_>>()?,
+                        Json::Array(a) => a
+                            .iter()
+                            .map(|x| {
+                                x.as_f64()
+                                    .map(|f| f as f32)
+                                    .ok_or_else(|| anyhow!("inspect.values.{k}: numbers"))
+                            })
+                            .collect::<Result<_>>()?,
                         other => bail!("inspect.values.{k}: a number or numbers, not {other}"),
                     };
                     crate::graph::check_inspect_param(&k, &numbers).map_err(|e| anyhow!(e))?;
                     parsed.insert(k, numbers);
                 }
-                Some(Inspect { of, show, values: parsed })
+                Some(Inspect {
+                    of,
+                    show,
+                    values: parsed,
+                })
             }
             Some(other) => bail!("`inspect` is a table (of, show, values), not {other}"),
         };
@@ -394,7 +520,8 @@ impl Experiment {
     /// The experiment as a file that `parse` reads back.
     pub fn to_toml(&self) -> String {
         let mut out = String::new();
-        let line = |out: &mut String, k: &str, v: String| out.push_str(&format!("{} = {v}\n", key(k)));
+        let line =
+            |out: &mut String, k: &str, v: String| out.push_str(&format!("{} = {v}\n", key(k)));
         line(&mut out, "name", quote(&self.name));
         if !self.description.is_empty() {
             line(&mut out, "description", quote(&self.description));
@@ -405,14 +532,27 @@ impl Experiment {
         if let Some(d) = &self.demo {
             line(&mut out, "demo", quote(d));
         }
-        line(&mut out, "resolution", format!("[{}, {}]", self.resolution[0], self.resolution[1]));
+        line(
+            &mut out,
+            "resolution",
+            format!("[{}, {}]", self.resolution[0], self.resolution[1]),
+        );
         line(&mut out, "frames", self.frames.to_string());
         line(&mut out, "warmup", self.warmup.to_string());
         line(&mut out, "repeats", self.repeats.to_string());
         if self.convergence {
             line(&mut out, "convergence", "true".into());
         }
-        line(&mut out, "metrics", toml_of(&Json::Array(self.metrics.iter().map(|m| Json::String(m.clone())).collect())));
+        line(
+            &mut out,
+            "metrics",
+            toml_of(&Json::Array(
+                self.metrics
+                    .iter()
+                    .map(|m| Json::String(m.clone()))
+                    .collect(),
+            )),
+        );
         let table = |out: &mut String, header: &str, values: &Map<String, Json>| {
             out.push_str(&format!("\n[{header}]\n"));
             for (k, v) in values {
@@ -420,7 +560,16 @@ impl Experiment {
             }
         };
         if !self.camera.is_empty() {
-            let camera: Map<String, Json> = self.camera.iter().map(|(k, v)| (k.strip_prefix("camera.").unwrap_or(k).to_string(), v.clone())).collect();
+            let camera: Map<String, Json> = self
+                .camera
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.strip_prefix("camera.").unwrap_or(k).to_string(),
+                        v.clone(),
+                    )
+                })
+                .collect();
             table(&mut out, "camera", &camera);
         }
         if !self.base.is_empty() {
@@ -440,11 +589,19 @@ impl Experiment {
             if s.zip {
                 out.push_str("zip = true\n");
             }
-            let values: Map<String, Json> = s.values.iter().map(|(k, v)| (k.clone(), Json::Array(v.clone()))).collect();
+            let values: Map<String, Json> = s
+                .values
+                .iter()
+                .map(|(k, v)| (k.clone(), Json::Array(v.clone())))
+                .collect();
             out.push_str(&format!("values = {}\n", toml_of(&Json::Object(values))));
         }
         for v in &self.variants {
-            out.push_str(&format!("\n[[variant]]\nname = {}\nvalues = {}\n", quote(&v.name), toml_of(&Json::Object(v.values.clone()))));
+            out.push_str(&format!(
+                "\n[[variant]]\nname = {}\nvalues = {}\n",
+                quote(&v.name),
+                toml_of(&Json::Object(v.values.clone()))
+            ));
         }
         if let Some(i) = &self.inspect {
             out.push_str(&format!("\n[inspect]\nof = {}\n", quote(&i.of)));
@@ -452,7 +609,20 @@ impl Experiment {
                 out.push_str(&format!("show = {}\n", quote(show)));
             }
             if !i.values.is_empty() {
-                let values: Map<String, Json> = i.values.iter().map(|(k, v)| (k.clone(), if v.len() == 1 { Json::from(v[0] as f64) } else { Json::Array(v.iter().map(|x| Json::from(*x as f64)).collect()) })).collect();
+                let values: Map<String, Json> = i
+                    .values
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            if v.len() == 1 {
+                                Json::from(v[0] as f64)
+                            } else {
+                                Json::Array(v.iter().map(|x| Json::from(*x as f64)).collect())
+                            },
+                        )
+                    })
+                    .collect();
                 out.push_str(&format!("values = {}\n", toml_of(&Json::Object(values))));
             }
         }
@@ -468,28 +638,62 @@ impl Experiment {
             }
             values
         };
-        let mut runs = vec![Run { name: "base".into(), varied: Vec::new(), values: self.base.clone() }];
+        let mut runs = vec![Run {
+            name: "base".into(),
+            varied: Vec::new(),
+            values: self.base.clone(),
+        }];
         for sweep in &self.sweeps {
             let points: Vec<Vec<(String, Json)>> = if sweep.zip {
-                (0..sweep.values[0].1.len()).map(|i| sweep.values.iter().map(|(k, list)| (k.clone(), list[i].clone())).collect()).collect()
+                (0..sweep.values[0].1.len())
+                    .map(|i| {
+                        sweep
+                            .values
+                            .iter()
+                            .map(|(k, list)| (k.clone(), list[i].clone()))
+                            .collect()
+                    })
+                    .collect()
             } else {
                 let mut points: Vec<Vec<(String, Json)>> = vec![Vec::new()];
                 for (k, list) in &sweep.values {
-                    points = points.into_iter().flat_map(|p| list.iter().map(move |v| [p.clone(), vec![(k.clone(), v.clone())]].concat())).collect();
+                    points = points
+                        .into_iter()
+                        .flat_map(|p| {
+                            list.iter()
+                                .map(move |v| [p.clone(), vec![(k.clone(), v.clone())]].concat())
+                        })
+                        .collect();
                 }
                 points
             };
             for varied in points {
-                let name = varied.iter().map(|(k, v)| format!("{k}={}", short(v))).collect::<Vec<_>>().join(",");
+                let name = varied
+                    .iter()
+                    .map(|(k, v)| format!("{k}={}", short(v)))
+                    .collect::<Vec<_>>()
+                    .join(",");
                 if runs.iter().any(|r| r.name == name) {
                     continue;
                 }
-                runs.push(Run { name, values: with(varied.clone()), varied });
+                runs.push(Run {
+                    name,
+                    values: with(varied.clone()),
+                    varied,
+                });
             }
         }
         for v in &self.variants {
-            let varied: Vec<(String, Json)> = v.values.iter().map(|(k, j)| (k.clone(), j.clone())).collect();
-            runs.push(Run { name: v.name.clone(), values: with(varied.clone()), varied });
+            let varied: Vec<(String, Json)> = v
+                .values
+                .iter()
+                .map(|(k, j)| (k.clone(), j.clone()))
+                .collect();
+            runs.push(Run {
+                name: v.name.clone(),
+                values: with(varied.clone()),
+                varied,
+            });
         }
         runs
     }
@@ -513,7 +717,9 @@ impl Experiment {
             }
         }
         if let Some(i) = &self.inspect {
-            crate::graph::FrameGraph::current(&[]).inspected(&i.of).map_err(|e| anyhow!("inspect.of: {e}"))?;
+            crate::graph::FrameGraph::current(&[])
+                .inspected(&i.of)
+                .map_err(|e| anyhow!("inspect.of: {e}"))?;
         }
         if let Some(demo) = &self.demo {
             demo_named(demo)?;
@@ -549,7 +755,12 @@ impl Experiment {
         }
         problems.dedup();
         let keys: Vec<&str> = values::list().iter().map(|e| e.key).collect();
-        bail!("{}\n(the values of {}: {}; `render-lab values` describes them)", problems.join("\n"), investigation::current().path(), keys.join(", "))
+        bail!(
+            "{}\n(the values of {}: {}; `render-lab values` describes them)",
+            problems.join("\n"),
+            investigation::current().path(),
+            keys.join(", ")
+        )
     }
 
     /// The starting demonstration.
@@ -569,14 +780,26 @@ impl Experiment {
     /// An experiment of the viewer's states: the live state's changes from
     /// the demonstration's defaults as the base, its camera, and the
     /// reference's changes (if one is set) as the reference.
-    pub fn capture(name: &str, live: &ShotState, defaults: &ShotState, reference: Option<&ShotState>) -> Experiment {
+    pub fn capture(
+        name: &str,
+        live: &ShotState,
+        defaults: &ShotState,
+        reference: Option<&ShotState>,
+    ) -> Experiment {
         let camera = crate::camera::OrbitCamera::schema()
             .iter()
-            .filter_map(|e| live.camera.get(e.key).map(|v| (e.key.to_string(), json_value(e.key, v))))
+            .filter_map(|e| {
+                live.camera
+                    .get(e.key)
+                    .map(|v| (e.key.to_string(), json_value(e.key, v)))
+            })
             .collect();
         let base = changes(live, defaults);
         // The reference holds what it sets over the base: where it differs from the live state.
-        let reference = reference.map(|r| Reference { values: changes(r, live), frames: None });
+        let reference = reference.map(|r| Reference {
+            values: changes(r, live),
+            frames: None,
+        });
         Experiment {
             name: name.to_string(),
             investigation: Some(investigation::current().path()),
@@ -592,14 +815,23 @@ impl Experiment {
 /// A value as JSON for a file: a choice by its option's name.
 pub fn json_value(key: &str, value: Value) -> Json {
     match values::entry(key).and_then(|e| e.choices) {
-        Some(c) => Json::String(c.options.get(value.u32() as usize).map_or_else(String::new, |o| o.name.to_string())),
+        Some(c) => Json::String(
+            c.options
+                .get(value.u32() as usize)
+                .map_or_else(String::new, |o| o.name.to_string()),
+        ),
         None => value.to_json(),
     }
 }
 
 /// The values of `state` that differ from `defaults`, as JSON by key.
 pub fn changes(state: &ShotState, defaults: &ShotState) -> Map<String, Json> {
-    state.values.iter().filter(|(k, v)| defaults.values.get(*k) != Some(*v)).map(|(k, v)| (k.clone(), json_value(k, *v))).collect()
+    state
+        .values
+        .iter()
+        .filter(|(k, v)| defaults.values.get(*k) != Some(*v))
+        .map(|(k, v)| (k.clone(), json_value(k, *v)))
+        .collect()
 }
 
 /// Set each value of `values` on `state` (`values::resolve`).
@@ -614,7 +846,16 @@ pub fn apply(state: &mut ShotState, values: &Map<String, Json>) -> Result<()> {
 
 pub(crate) fn demo_named(key: &str) -> Result<crate::shot::DemoId> {
     let demos = investigation::current().demos();
-    demos.iter().copied().find(|d| d.key() == key).ok_or_else(|| anyhow!("no demonstration `{key}` (the demonstrations: {})", demos.iter().map(|d| d.key()).collect::<Vec<_>>().join(", ")))
+    demos
+        .iter()
+        .copied()
+        .find(|d| d.key() == key)
+        .ok_or_else(|| {
+            anyhow!(
+                "no demonstration `{key}` (the demonstrations: {})",
+                demos.iter().map(|d| d.key()).collect::<Vec<_>>().join(", ")
+            )
+        })
 }
 
 /// A value in a run's name.
@@ -628,9 +869,23 @@ fn short(v: &Json) -> String {
 
 /// A name usable as a file name.
 pub fn file_name(name: &str) -> String {
-    let cleaned: String = name.trim().chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '-' }).collect();
+    let cleaned: String = name
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
     let cleaned = cleaned.trim_matches(['-', '.']).to_string();
-    if cleaned.is_empty() { "experiment".into() } else { cleaned }
+    if cleaned.is_empty() {
+        "experiment".into()
+    } else {
+        cleaned
+    }
 }
 
 /// Where an experiment file comes from.
@@ -652,7 +907,10 @@ pub struct Preset {
 impl Preset {
     pub fn load(&self) -> Result<Experiment> {
         let (text, at) = match &self.source {
-            Source::Shipped(id) => (crate::script::data::resource_toml(id).map_err(anyhow::Error::msg)?, id.clone()),
+            Source::Shipped(id) => (
+                crate::script::data::resource_toml(id).map_err(anyhow::Error::msg)?,
+                id.clone(),
+            ),
             Source::User(path) => (file_toml(path)?, path.display().to_string()),
         };
         Experiment::parse(&text).with_context(|| at)
@@ -663,7 +921,12 @@ impl Preset {
 /// `$XDG_CONFIG_HOME/render-lab/experiments/<engine>/<feature>`.
 pub fn user_dir(investigation: &'static dyn Investigation) -> Option<PathBuf> {
     let config = crate::config::Config::default_path()?;
-    Some(config.parent()?.join("experiments").join(investigation.path()))
+    Some(
+        config
+            .parent()?
+            .join("experiments")
+            .join(investigation.path()),
+    )
 }
 
 /// The experiments for the current investigation: its package's
@@ -675,16 +938,31 @@ pub fn presets() -> Vec<Preset> {
         let prefix = format!("{package}.experiment/");
         for resource in crate::resources::all() {
             if let Some(name) = resource.id().strip_prefix(&prefix) {
-                out.push(Preset { name: name.to_string(), source: Source::Shipped(resource.id().to_string()) });
+                out.push(Preset {
+                    name: name.to_string(),
+                    source: Source::Shipped(resource.id().to_string()),
+                });
             }
         }
     }
     if let Some(dir) = user_dir(current) {
-        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir).map(|d| d.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|x| x == "toml")).collect()).unwrap_or_default();
+        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .map(|d| {
+                d.filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| p.extension().is_some_and(|x| x == "toml"))
+                    .collect()
+            })
+            .unwrap_or_default();
         files.sort();
         for path in files {
-            let name = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-            out.push(Preset { name, source: Source::User(path) });
+            let name = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            out.push(Preset {
+                name,
+                source: Source::User(path),
+            });
         }
     }
     out
@@ -692,8 +970,12 @@ pub fn presets() -> Vec<Preset> {
 
 /// Save `experiment` among the user's experiments; the path written.
 pub fn save_user(experiment: &Experiment) -> Result<PathBuf> {
-    let dir = user_dir(investigation::current()).context("no settings folder (XDG_CONFIG_HOME or HOME)")?;
-    write(&dir.join(format!("{}.toml", file_name(&experiment.name))), experiment)
+    let dir = user_dir(investigation::current())
+        .context("no settings folder (XDG_CONFIG_HOME or HOME)")?;
+    write(
+        &dir.join(format!("{}.toml", file_name(&experiment.name))),
+        experiment,
+    )
 }
 
 /// Write `experiment` to `path` (its folder made), through a temporary file.
@@ -702,7 +984,8 @@ pub fn write(path: &Path, experiment: &Experiment) -> Result<PathBuf> {
         std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
     }
     let tmp = path.with_extension("toml.tmp");
-    std::fs::write(&tmp, experiment.to_toml()).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::write(&tmp, experiment.to_toml())
+        .with_context(|| format!("write {}", tmp.display()))?;
     std::fs::rename(&tmp, path).with_context(|| format!("rename to {}", path.display()))?;
     Ok(path.to_path_buf())
 }
@@ -730,9 +1013,13 @@ pub fn source_toml(at: &str) -> Result<String> {
 fn file_toml(path: &Path) -> Result<String> {
     let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     if path.extension().is_some_and(|e| e == "lam") {
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
         let name = lamlet_present::vocab::camel(&[stem]).map_err(anyhow::Error::msg)?;
-        return crate::script::data::toml(&path.display().to_string(), &text, &name).map_err(anyhow::Error::msg);
+        return crate::script::data::toml(&path.display().to_string(), &text, &name)
+            .map_err(anyhow::Error::msg);
     }
     Ok(text)
 }
@@ -754,7 +1041,13 @@ pub enum Compare {
 }
 
 impl Compare {
-    pub const ALL: [Compare; 5] = [Compare::Off, Compare::Wipe, Compare::SideBySide, Compare::Difference, Compare::Reference];
+    pub const ALL: [Compare; 5] = [
+        Compare::Off,
+        Compare::Wipe,
+        Compare::SideBySide,
+        Compare::Difference,
+        Compare::Reference,
+    ];
 }
 
 /// The viewer's experiment: the reference it compares against, how, and what it measured.
@@ -776,7 +1069,15 @@ pub struct Session {
 
 impl Default for Session {
     fn default() -> Self {
-        Session { reference: None, compare: Compare::Off, split: 0.5, gain: 4.0, measurement: None, message: None, presets: Vec::new() }
+        Session {
+            reference: None,
+            compare: Compare::Off,
+            split: 0.5,
+            gain: 4.0,
+            measurement: None,
+            message: None,
+            presets: Vec::new(),
+        }
     }
 }
 
@@ -784,7 +1085,11 @@ impl Session {
     /// The reference as it is rendered: its values, with the live state's camera and demonstration.
     pub fn reference_state(&self, live: &ShotState) -> Option<ShotState> {
         let reference = self.reference.as_ref()?;
-        Some(ShotState { camera: live.camera, values: reference.values.clone(), ..live.clone() })
+        Some(ShotState {
+            camera: live.camera,
+            values: reference.values.clone(),
+            ..live.clone()
+        })
     }
 }
 
@@ -792,7 +1097,8 @@ impl Session {
 mod tests {
     #[test]
     fn an_experiment_in_lamlet_reads_as_its_toml() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../packages/o3de_lighting/experiments");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../packages/o3de_lighting/experiments");
         let lam = super::file_toml(&dir.join("ssao.lam")).unwrap();
         let toml = r#"name = "ssao"
 description = "O3DE's SSAO sampling radius swept, with and without its blur, against no SSAO."
@@ -813,7 +1119,10 @@ values = { ssaoRadius = [0.02, 0.05, 0.1, 0.2] }
 name = "no-blur"
 values = { ssaoBlur = false }
 "#;
-        assert_eq!(Experiment::parse(&lam).unwrap(), Experiment::parse(toml).unwrap());
+        assert_eq!(
+            Experiment::parse(&lam).unwrap(),
+            Experiment::parse(toml).unwrap()
+        );
     }
 
     use super::*;
@@ -845,18 +1154,39 @@ values = { energy = 0.0 }
     #[test]
     fn parse_and_expand() {
         let e = Experiment::parse(FILE).unwrap();
-        assert_eq!((e.name.as_str(), e.resolution, e.frames, e.repeats), ("rays", [320, 180], 4, 3));
+        assert_eq!(
+            (e.name.as_str(), e.resolution, e.frames, e.repeats),
+            ("rays", [320, 180], 4, 3)
+        );
         assert_eq!(e.metrics, ["psnr", "gpu_ms"]);
         assert_eq!(e.camera.get("camera.yaw"), Some(&serde_json::json!(30.0)));
         assert_eq!(e.reference.as_ref().unwrap().frames, Some(32));
         let runs = e.runs();
         let names: Vec<&str> = runs.iter().map(|r| r.name.as_str()).collect();
         // base, the 2 × 2 grid (keys in order), the zipped pair, the variant.
-        assert_eq!(names, ["base", "bias=0.5,rays=4", "bias=0.5,rays=8", "bias=1.0,rays=4", "bias=1.0,rays=8", "a=1,b=3", "a=2,b=4", "off"]);
+        assert_eq!(
+            names,
+            [
+                "base",
+                "bias=0.5,rays=4",
+                "bias=0.5,rays=8",
+                "bias=1.0,rays=4",
+                "bias=1.0,rays=8",
+                "a=1,b=3",
+                "a=2,b=4",
+                "off"
+            ]
+        );
         assert_eq!(runs[1].values.get("energy"), Some(&serde_json::json!(1.0)));
         assert_eq!(runs[7].values.get("energy"), Some(&serde_json::json!(0.0)));
         let reference = e.reference_values().unwrap();
-        assert_eq!((reference.get("rays"), reference.get("energy")), (Some(&serde_json::json!("128")), Some(&serde_json::json!(1.0))));
+        assert_eq!(
+            (reference.get("rays"), reference.get("energy")),
+            (
+                Some(&serde_json::json!("128")),
+                Some(&serde_json::json!(1.0))
+            )
+        );
     }
 
     #[test]
@@ -868,17 +1198,32 @@ values = { energy = 0.0 }
 
     #[test]
     fn errors() {
-        assert!(Experiment::parse("nme = 1").unwrap_err().to_string().contains("unknown field `nme`"));
-        assert!(Experiment::parse("metrics = [\"psnrr\"]").unwrap_err().to_string().contains("unknown metric"));
+        assert!(
+            Experiment::parse("nme = 1")
+                .unwrap_err()
+                .to_string()
+                .contains("unknown field `nme`")
+        );
+        assert!(
+            Experiment::parse("metrics = [\"psnrr\"]")
+                .unwrap_err()
+                .to_string()
+                .contains("unknown metric")
+        );
         // A resource of the frame's graph in place of the frame, read back as written.
         let e = Experiment::parse("[inspect]\nof = \"blurCS.blur\"\nshow = \"ramp\"\nvalues = { range = [0.0, 4.0], channel = 2 }\n").unwrap();
         let i = e.inspect.as_ref().unwrap();
-        assert_eq!((i.of.as_str(), i.show.as_deref(), i.values["range"].clone()), ("blurCS.blur", Some("ramp"), vec![0.0, 4.0]));
+        assert_eq!(
+            (i.of.as_str(), i.show.as_deref(), i.values["range"].clone()),
+            ("blurCS.blur", Some("ramp"), vec![0.0, 4.0])
+        );
         assert_eq!(Experiment::parse(&e.to_toml()).unwrap(), e);
         assert!(Experiment::parse("[inspect]\nof = \"a.b\"\nshow = \"rainbow\"\n").is_err());
         assert!(Experiment::parse("[inspect]\nof = \"a.b\"\nvalues = { gain = 1 }\n").is_err());
         assert!(Experiment::parse("[[sweep]]\nvalues = { a = [] }").is_err());
-        assert!(Experiment::parse("[[sweep]]\nzip = true\nvalues = { a = [1], b = [1, 2] }").is_err());
+        assert!(
+            Experiment::parse("[[sweep]]\nzip = true\nvalues = { a = [1], b = [1, 2] }").is_err()
+        );
         assert!(Experiment::parse("[[variant]]\nname = \"base\"").is_err());
         assert_eq!(file_name(" my test/1 "), "my-test-1");
     }

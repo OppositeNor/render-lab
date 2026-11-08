@@ -137,7 +137,13 @@ pub trait FeatureState: Send {
     fn demo_selected(&mut self, _change: &DemoChange, _host: &mut dyn Host) {}
     /// One step of a snapshot page (`Feature::pages`): `page` its name, `args` what follows its `:`, `step`
     /// the step's number (0 first). The viewer does what the step returns, then asks for the next.
-    fn snapshot(&mut self, _page: &str, _args: Option<&str>, _step: usize, _host: &mut dyn Host) -> Result<Snapshot> {
+    fn snapshot(
+        &mut self,
+        _page: &str,
+        _args: Option<&str>,
+        _step: usize,
+        _host: &mut dyn Host,
+    ) -> Result<Snapshot> {
         Ok(Snapshot::Done(String::new()))
     }
 }
@@ -262,7 +268,12 @@ static BUILT_IN: &[&dyn Feature] = &[
 
 /// The lines `--page`'s help has for the lab's features' pages (the packages' are known once they load).
 pub fn page_help() -> String {
-    BUILT_IN.iter().flat_map(|f| f.pages()).map(|p| format!("{}{}", p.name, p.help)).collect::<Vec<_>>().join(", or\n")
+    BUILT_IN
+        .iter()
+        .flat_map(|f| f.pages())
+        .map(|p| format!("{}{}", p.name, p.help))
+        .collect::<Vec<_>>()
+        .join(", or\n")
 }
 
 /// Every feature, in the order of their tabs: the lab's, then the packages' (their libraries' `features`
@@ -281,13 +292,18 @@ pub fn all() -> Vec<&'static dyn Feature> {
 
 /// The lab's features and the packages' (each with its package), in the order of their tabs; and why any
 /// was left out: an id another feature has.
-fn merge(built_in: &[&'static dyn Feature], packages: &[(&str, &'static dyn Feature)]) -> (Vec<&'static dyn Feature>, Vec<String>) {
+fn merge(
+    built_in: &[&'static dyn Feature],
+    packages: &[(&str, &'static dyn Feature)],
+) -> (Vec<&'static dyn Feature>, Vec<String>) {
     let mut all: Vec<&'static dyn Feature> = built_in.to_vec();
     let mut refused = Vec::new();
     for (package, feature) in packages {
         let id = feature.id();
         if all.iter().any(|f| f.id() == id) {
-            refused.push(format!("package {package}: its feature `{id}` is left out: another feature has that id"));
+            refused.push(format!(
+                "package {package}: its feature `{id}` is left out: another feature has that id"
+            ));
         } else {
             all.push(*feature);
         }
@@ -306,12 +322,14 @@ pub fn find(id: &str) -> Option<&'static dyn Feature> {
 /// everything after its name from an `@` (`viewer-dag@<node>`).
 pub fn page(page: &str) -> Option<(&'static dyn Feature, &'static str, Option<&str>)> {
     all().into_iter().find_map(|f| {
-        f.pages().iter().find_map(|p| match page.strip_prefix(p.name) {
-            Some("") => Some((f, p.name, None)),
-            Some(rest) if rest.starts_with('@') => Some((f, p.name, Some(rest))),
-            Some(rest) => rest.strip_prefix(':').map(|args| (f, p.name, Some(args))),
-            None => None,
-        })
+        f.pages()
+            .iter()
+            .find_map(|p| match page.strip_prefix(p.name) {
+                Some("") => Some((f, p.name, None)),
+                Some(rest) if rest.starts_with('@') => Some((f, p.name, Some(rest))),
+                Some(rest) => rest.strip_prefix(':').map(|args| (f, p.name, Some(args))),
+                None => None,
+            })
     })
 }
 
@@ -332,7 +350,16 @@ pub struct Features {
 impl Features {
     /// The features, each with a new state, for `investigation`.
     pub fn new(investigation: &dyn Investigation) -> Features {
-        Features { held: all().into_iter().map(|feature| Held { feature, available: feature.available(investigation), state: feature.state() }).collect() }
+        Features {
+            held: all()
+                .into_iter()
+                .map(|feature| Held {
+                    feature,
+                    available: feature.available(investigation),
+                    state: feature.state(),
+                })
+                .collect(),
+        }
     }
 
     /// The features the investigation has, in the order of their tabs.
@@ -347,22 +374,34 @@ impl Features {
 
     /// The dock's tabs, in their order: the features' that have one, a timeline's only while it is shown.
     pub fn tabs(&self, timeline: bool) -> Vec<(DockTab, String)> {
-        self.features().filter(|f| timeline || !f.timeline()).filter_map(|f| Some((DockTab(f.id()), f.label()?))).collect()
+        self.features()
+            .filter(|f| timeline || !f.timeline())
+            .filter_map(|f| Some((DockTab(f.id()), f.label()?)))
+            .collect()
     }
 
     /// The state of the feature whose id is `id`.
     pub fn state_mut(&mut self, id: &str) -> Option<&mut (dyn FeatureState + 'static)> {
-        self.held.iter_mut().find(|h| h.feature.id() == id).map(|h| h.state.as_mut())
+        self.held
+            .iter_mut()
+            .find(|h| h.feature.id() == id)
+            .map(|h| h.state.as_mut())
     }
 
     /// The feature that draws the story panel `panel` (`Feature::panels`).
     pub fn panel_feature(&self, panel: PanelMode) -> Option<&'static dyn Feature> {
-        self.held.iter().map(|h| h.feature).find(|f| f.panels().contains(&panel))
+        self.held
+            .iter()
+            .map(|h| h.feature)
+            .find(|f| f.panels().contains(&panel))
     }
 
     /// The state of the feature that draws the story panel `panel` (`Feature::panels`).
     pub fn panel_mut(&mut self, panel: PanelMode) -> Option<&mut (dyn FeatureState + 'static)> {
-        self.held.iter_mut().find(|h| h.feature.panels().contains(&panel)).map(|h| h.state.as_mut())
+        self.held
+            .iter_mut()
+            .find(|h| h.feature.panels().contains(&panel))
+            .map(|h| h.state.as_mut())
     }
 
     pub fn states(&self) -> impl Iterator<Item = &(dyn FeatureState + 'static)> + '_ {
@@ -392,7 +431,12 @@ impl Features {
 
     /// What the features ask of the frame about to render: the first comparison asked for, and timing if any asks.
     pub fn frame_request(&self, state: &ShotState, frame: &FrameInfo) -> FrameAsk {
-        self.states().map(|s| s.frame_request(state, frame)).fold(FrameAsk::default(), |a, b| FrameAsk { compare: a.compare.or(b.compare), timing: a.timing || b.timing })
+        self.states()
+            .map(|s| s.frame_request(state, frame))
+            .fold(FrameAsk::default(), |a, b| FrameAsk {
+                compare: a.compare.or(b.compare),
+                timing: a.timing || b.timing,
+            })
     }
 }
 
@@ -427,8 +471,14 @@ mod tests {
 
     #[test]
     fn packages_features_join_the_lab_s_in_tab_order() {
-        let (all, refused) = merge(&[&A, &B, &PARAMETERS], &[("p", &C), ("p", &TWIN), ("q", &PARAMETERS)]);
-        assert_eq!(all.iter().map(|f| f.id()).collect::<Vec<_>>(), ["parameters", "b", "a", "c"]);
+        let (all, refused) = merge(
+            &[&A, &B, &PARAMETERS],
+            &[("p", &C), ("p", &TWIN), ("q", &PARAMETERS)],
+        );
+        assert_eq!(
+            all.iter().map(|f| f.id()).collect::<Vec<_>>(),
+            ["parameters", "b", "a", "c"]
+        );
         assert_eq!(refused.len(), 2);
         assert!(refused[0].contains("package p") && refused[0].contains("`a`"));
         assert!(refused[1].contains("package q") && refused[1].contains("`parameters`"));
@@ -439,11 +489,20 @@ mod tests {
         let (f, name, args) = page("viewer-quiz:2@B").unwrap();
         assert_eq!((f.id(), name, args), ("quiz", "viewer-quiz", Some("2@B")));
         let (f, name, args) = page("viewer-dag-full@ssrTrace").unwrap();
-        assert_eq!((f.id(), name, args), ("graph", "viewer-dag-full", Some("@ssrTrace")));
-        assert_eq!(page("viewer-knowledge-graph").map(|(f, n, a)| (f.id(), n, a)), Some(("prerequisites", "viewer-knowledge-graph", None)));
+        assert_eq!(
+            (f.id(), name, args),
+            ("graph", "viewer-dag-full", Some("@ssrTrace"))
+        );
+        assert_eq!(
+            page("viewer-knowledge-graph").map(|(f, n, a)| (f.id(), n, a)),
+            Some(("prerequisites", "viewer-knowledge-graph", None))
+        );
         assert!(page("viewer-quizzes").is_none());
         assert!(page("viewer-layout").is_none());
         let (f, name, args) = page("viewer-performance:room").unwrap();
-        assert_eq!((f.id(), name, args), ("performance", "viewer-performance", Some("room")));
+        assert_eq!(
+            (f.id(), name, args),
+            ("performance", "viewer-performance", Some("room"))
+        );
     }
 }

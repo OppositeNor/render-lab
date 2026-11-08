@@ -8,9 +8,21 @@ use std::sync::OnceLock;
 
 /// In the order the viewer lists them; each is the resource
 /// `godot_ssr.listing/<name>`.
-const NAMES: &[&str] = &["frame", "prepass", "pyramid", "trace", "validate", "blur", "compose"];
+const NAMES: &[&str] = &[
+    "frame", "prepass", "pyramid", "trace", "validate", "blur", "compose",
+];
 
 pub fn all() -> &'static [Listing] {
     static LISTINGS: OnceLock<Vec<Listing>> = OnceLock::new();
-    LISTINGS.get_or_init(|| NAMES.iter().map(|name| Listing::parse(name, resources::get(&format!("godot_ssr.listing/{name}")).text())).collect())
+    LISTINGS.get_or_init(|| {
+        NAMES
+            .iter()
+            .map(|name| {
+                Listing::parse(
+                    name,
+                    resources::get(&format!("godot_ssr.listing/{name}")).text(),
+                )
+            })
+            .collect()
+    })
 }

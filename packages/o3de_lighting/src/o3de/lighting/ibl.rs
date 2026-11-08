@@ -31,12 +31,36 @@ const PI: f32 = 3.14159265;
 /// CubeMapGen's face table (sgFace2DMapping): the u direction, the v
 /// direction, and the face axis of +X, -X, +Y, -Y, +Z, -Z.
 const FACES: [[Vec3; 3]; 6] = [
-    [Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)],
-    [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(-1.0, 0.0, 0.0)],
-    [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0)],
-    [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, -1.0, 0.0)],
-    [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)],
-    [Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
+    [
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    ],
+    [
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(-1.0, 0.0, 0.0),
+    ],
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ],
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, -1.0, 0.0),
+    ],
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ],
+    [
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+    ],
 ];
 
 /// The skylight's level: the mean radiance of the lab's environment
@@ -76,18 +100,49 @@ pub fn texel_solid_angle(face: usize, u: f32, v: f32, size: usize) -> f32 {
 fn face_of(dir: Vec3) -> (usize, Vec3) {
     let a = dir.abs();
     let (face, max) = if a.x >= a.y && a.x >= a.z {
-        (if dir.x >= 0.0 { 0 } else { 1 }, a.x)
+        (
+            if dir.x >= 0.0 {
+                0
+            } else {
+                1
+            },
+            a.x,
+        )
     } else if a.y >= a.x && a.y >= a.z {
-        (if dir.y >= 0.0 { 2 } else { 3 }, a.y)
+        (
+            if dir.y >= 0.0 {
+                2
+            } else {
+                3
+            },
+            a.y,
+        )
     } else {
-        (if dir.z >= 0.0 { 4 } else { 5 }, a.z)
+        (
+            if dir.z >= 0.0 {
+                4
+            } else {
+                5
+            },
+            a.z,
+        )
     };
     (face, dir / max)
 }
 
 impl Cubemap {
     pub fn from_fn(size: usize, f: impl Fn(Vec3) -> Vec3 + Sync) -> Cubemap {
-        Cubemap { size, texels: parallel(6 * size * size, |i| f(texel_dir(i / (size * size), (i % size) as f32, ((i / size) % size) as f32, size))) }
+        Cubemap {
+            size,
+            texels: parallel(6 * size * size, |i| {
+                f(texel_dir(
+                    i / (size * size),
+                    (i % size) as f32,
+                    ((i / size) % size) as f32,
+                    size,
+                ))
+            }),
+        }
     }
 
     pub fn texel(&self, face: usize, u: usize, v: usize) -> Vec3 {
@@ -133,7 +188,9 @@ impl Cubemap {
     pub fn sample(&self, dir: Vec3) -> Vec3 {
         let (face, on_face) = face_of(dir);
         let s = self.size as f32;
-        let p = (Vec2::new(FACES[face][0].dot(on_face), FACES[face][1].dot(on_face)) + 1.0) * 0.5 * s - 0.5;
+        let p =
+            (Vec2::new(FACES[face][0].dot(on_face), FACES[face][1].dot(on_face)) + 1.0) * 0.5 * s
+                - 0.5;
         let p = p.clamp(Vec2::ZERO, Vec2::splat(s - 1.0));
         let (u0, v0) = (p.x.floor() as usize, p.y.floor() as usize);
         let (u1, v1) = ((u0 + 1).min(self.size - 1), (v0 + 1).min(self.size - 1));
@@ -168,7 +225,11 @@ fn importance_sample_ggx(xi: Vec2, alpha_roughness_sqr: f32, n: Vec3) -> Vec3 {
     let cos_theta = ((1.0 - xi.y) / (1.0 + (alpha_roughness_sqr - 1.0) * xi.y)).sqrt();
     let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
     let h = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta);
-    let up = if n.z.abs() < 0.999 { Vec3::Z } else { Vec3::X };
+    let up = if n.z.abs() < 0.999 {
+        Vec3::Z
+    } else {
+        Vec3::X
+    };
     let tangent_x = up.cross(n).normalize();
     let tangent_y = n.cross(tangent_x);
     tangent_x * h.x + tangent_y * h.y + n * h.z
@@ -188,18 +249,42 @@ pub fn mip_roughness(mip: usize) -> f32 {
 }
 
 impl Ibl {
-    pub fn build(env: impl Fn(Vec3) -> Vec3 + Sync, size: usize, diffuse_size: usize, samples: u32) -> Ibl {
+    pub fn build(
+        env: impl Fn(Vec3) -> Vec3 + Sync,
+        size: usize,
+        diffuse_size: usize,
+        samples: u32,
+    ) -> Ibl {
         let specular = Ibl::build_specular(env, size, samples);
         let top = &specular[0];
-        let small = if diffuse_size == size { top.clone() } else { top.box_down(diffuse_size) };
-        Ibl { diffuse: cosine_filter(&small), specular }
+        let small = if diffuse_size == size {
+            top.clone()
+        } else {
+            top.box_down(diffuse_size)
+        };
+        Ibl {
+            diffuse: cosine_filter(&small),
+            specular,
+        }
     }
 
     /// The specular cubemap alone: mip 0 copied, the others GGX-filtered.
-    pub fn build_specular(env: impl Fn(Vec3) -> Vec3 + Sync, size: usize, samples: u32) -> Vec<Cubemap> {
+    pub fn build_specular(
+        env: impl Fn(Vec3) -> Vec3 + Sync,
+        size: usize,
+        samples: u32,
+    ) -> Vec<Cubemap> {
         let top = Cubemap::from_fn(size, env);
         // The box-filtered mips of the source, which the GGX filter reads.
-        let source: Vec<Cubemap> = (0..SPECULAR_MIPS).map(|m| if m == 0 { top.clone() } else { top.box_down(size >> m) }).collect();
+        let source: Vec<Cubemap> = (0..SPECULAR_MIPS)
+            .map(|m| {
+                if m == 0 {
+                    top.clone()
+                } else {
+                    top.box_down(size >> m)
+                }
+            })
+            .collect();
         let mut specular = vec![top];
         for mip in 1..SPECULAR_MIPS {
             specular.push(prefilter_ggx(&source, mip, samples));
@@ -218,7 +303,9 @@ impl Ibl {
         let m = mip.clamp(0.0, (SPECULAR_MIPS - 1) as f32);
         let m0 = m.floor() as usize;
         let m1 = (m0 + 1).min(SPECULAR_MIPS - 1);
-        self.specular[m0].sample(dir).lerp(self.specular[m1].sample(dir), m - m0 as f32)
+        self.specular[m0]
+            .sample(dir)
+            .lerp(self.specular[m1].sample(dir), m - m0 as f32)
     }
 
     pub fn sample_diffuse(&self, dir: Vec3) -> Vec3 {
@@ -282,8 +369,15 @@ fn cosine_filter(source: &Cubemap) -> Cubemap {
     let size = source.size;
     let taps: Vec<(Vec3, f32)> = (0..6 * size * size)
         .map(|i| {
-            let (face, u, v) = (i / (size * size), (i % size) as f32, ((i / size) % size) as f32);
-            (texel_dir(face, u, v, size), texel_solid_angle(face, u, v, size))
+            let (face, u, v) = (
+                i / (size * size),
+                (i % size) as f32,
+                ((i / size) % size) as f32,
+            );
+            (
+                texel_dir(face, u, v, size),
+                texel_solid_angle(face, u, v, size),
+            )
         })
         .collect();
     let texels = parallel(6 * size * size, |i| {
@@ -306,7 +400,9 @@ fn cosine_filter(source: &Cubemap) -> Cubemap {
 /// Where each cubemap starts in gShadingData, after the BRDF texture.
 pub fn specular_offset(mip: usize) -> usize {
     let lut = super::brdf::BRDF_MAP_SIZE * super::brdf::BRDF_MAP_SIZE;
-    lut + (0..mip).map(|m| 6 * (SPECULAR_SIZE >> m).pow(2)).sum::<usize>()
+    lut + (0..mip)
+        .map(|m| 6 * (SPECULAR_SIZE >> m).pow(2))
+        .sum::<usize>()
 }
 
 pub fn diffuse_offset() -> usize {
@@ -320,7 +416,10 @@ pub fn shading_data() -> Vec<[f32; 4]> {
     for cube in ibl.specular.iter().chain(std::iter::once(&ibl.diffuse)) {
         data.extend(cube.texels.iter().map(|t| [t.x, t.y, t.z, 0.0]));
     }
-    debug_assert_eq!(data.len(), diffuse_offset() + 6 * DIFFUSE_SIZE * DIFFUSE_SIZE);
+    debug_assert_eq!(
+        data.len(),
+        diffuse_offset() + 6 * DIFFUSE_SIZE * DIFFUSE_SIZE
+    );
     // Then the material textures (maps.rs).
     data.extend(super::maps::occlusion().iter().map(|&v| [v, 0.0, 0.0, 0.0]));
     data.extend_from_slice(super::maps::decals());

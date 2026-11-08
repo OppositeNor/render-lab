@@ -20,14 +20,20 @@ lab::lamlet_record! {
 
 impl Cell {
     fn of(c: [i32; 3]) -> Cell {
-        Cell { x: c[0] as i64, y: c[1] as i64, z: c[2] as i64 }
+        Cell {
+            x: c[0] as i64,
+            y: c[1] as i64,
+            z: c[2] as i64,
+        }
     }
 }
 
 /// Registers the natives (`Investigation::script_natives`).
 pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
     natives
-        .function("godot_voxelgi/octree-size", |_, ()| Ok(Cell::of(super::world::world().probe.octree_size.to_array())))
+        .function("godot_voxelgi/octree-size", |_, ()| {
+            Ok(Cell::of(super::world::world().probe.octree_size.to_array()))
+        })
         .pure()
         .doc("Fn([], {x: Int, y: Int, z: Int}). The probe's octree size, in leaves.")
         .register()?;

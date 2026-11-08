@@ -25,7 +25,10 @@ impl Feature for CaptionsFeature {
     }
 
     fn layout(&self) -> FeatureLayout {
-        FeatureLayout { side: true, ..Default::default() }
+        FeatureLayout {
+            side: true,
+            ..Default::default()
+        }
     }
 
     fn state(&self) -> Box<dyn FeatureState> {
@@ -46,6 +49,11 @@ impl FeatureState for Captions {
     }
 
     fn side(&mut self, ink: &Ink, rect: egui::Rect, _input: &UiInput) {
-        crate::ui::draw_caption_tab(ink, rect.shrink2(egui::vec2(16.0, 0.0)), self.previous.as_deref(), self.current.as_deref());
+        crate::ui::draw_caption_tab(
+            ink,
+            rect.shrink2(egui::vec2(16.0, 0.0)),
+            self.previous.as_deref(),
+            self.current.as_deref(),
+        );
     }
 }

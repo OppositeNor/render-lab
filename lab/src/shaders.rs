@@ -8,17 +8,20 @@
 //! layout.rs checks.
 
 use crate::resources;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
 /// What the lab's shaders may use beyond the defaults: what the device turns
 /// on where the adapter has it (src/gpu.rs `OPTIONAL_FEATURES`); wgpu checks
 /// each pipeline against the device's own features.
 fn capabilities() -> Capabilities {
-    Capabilities::default() | Capabilities::TEXTURE_ATOMIC | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING
+    Capabilities::default()
+        | Capabilities::TEXTURE_ATOMIC
+        | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY
+        | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING
 }
 use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// The lab's pass modules.
 pub const SCENE: &str = "render_lab.shader/scene";
@@ -54,7 +57,12 @@ pub fn files(id: &str) -> Result<Vec<&'static str>> {
 
 /// The module's WGSL: its files joined, unvalidated.
 pub fn compose(id: &str) -> Result<String> {
-    Ok(hoist_enables(&files(id)?.iter().map(|f| resources::get(f).text()).collect::<String>()))
+    Ok(hoist_enables(
+        &files(id)?
+            .iter()
+            .map(|f| resources::get(f).text())
+            .collect::<String>(),
+    ))
 }
 
 /// WGSL's `enable` directives must come before every other item: a part's
@@ -85,18 +93,33 @@ pub fn hoist_enables(source: &str) -> String {
 
 /// Checks a module's WGSL with naga; the error names the file and line.
 pub fn validate(id: &str, source: &str) -> Result<naga::Module> {
-    let module = naga::front::wgsl::parse_str(source)
-        .map_err(|e| anyhow!("WGSL parse error in {}{}:\n{}", describe(id), locate(id, e.location(source).map(|l| l.line_number)), e.emit_to_string(source)))?;
+    let module = naga::front::wgsl::parse_str(source).map_err(|e| {
+        anyhow!(
+            "WGSL parse error in {}{}:\n{}",
+            describe(id),
+            locate(id, e.location(source).map(|l| l.line_number)),
+            e.emit_to_string(source)
+        )
+    })?;
     Validator::new(ValidationFlags::all(), capabilities())
         .validate(&module)
-        .map_err(|e| anyhow!("WGSL validation error in {}{}:\n{}", describe(id), locate(id, e.location(source).map(|l| l.line_number)), e.emit_to_string(source)))?;
+        .map_err(|e| {
+            anyhow!(
+                "WGSL validation error in {}{}:\n{}",
+                describe(id),
+                locate(id, e.location(source).map(|l| l.line_number)),
+                e.emit_to_string(source)
+            )
+        })?;
     Ok(module)
 }
 
 /// ", at file:line" for a line of the composed module (each file ends with
 /// a newline, so the composed lines are the files' lines in order).
 pub(crate) fn locate(id: &str, line: Option<u32>) -> String {
-    let Some(mut line) = line else { return String::new() };
+    let Some(mut line) = line else {
+        return String::new();
+    };
     for file in files(id).unwrap_or_default() {
         let resource = resources::get(file);
         let lines = resource.text().lines().count() as u32;
@@ -120,7 +143,11 @@ pub struct Reflected {
 impl Reflected {
     /// ", at file:line" for the first line of the composed module that holds `text`.
     pub fn locate(&self, text: &str) -> String {
-        let line = self.source.lines().position(|l| l.contains(text)).map(|i| i as u32 + 1);
+        let line = self
+            .source
+            .lines()
+            .position(|l| l.contains(text))
+            .map(|i| i as u32 + 1);
         locate(self.id, line)
     }
 }
@@ -129,9 +156,15 @@ impl Reflected {
 /// once per run (the packages do not change while the lab runs).
 pub fn reflect(id: &str) -> Result<&'static Reflected> {
     // Once per run, and again after a live reload (src/resources.rs `generation`).
-    static CACHE: std::sync::Mutex<Vec<(u64, &'static Reflected)>> = std::sync::Mutex::new(Vec::new());
+    static CACHE: std::sync::Mutex<Vec<(u64, &'static Reflected)>> =
+        std::sync::Mutex::new(Vec::new());
     let generation = resources::generation();
-    if let Some((_, r)) = CACHE.lock().unwrap().iter().find(|(g, r)| *g == generation && r.id == id) {
+    if let Some((_, r)) = CACHE
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(g, r)| *g == generation && r.id == id)
+    {
         return Ok(r);
     }
     let source = module(id)?;
@@ -139,8 +172,19 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
     options.parse_doc_comments = true;
     let module = naga::front::wgsl::Frontend::new_with_options(options)
         .parse(&source)
-        .map_err(|e| anyhow!("WGSL parse error (with doc comments) in {}{}:\n{}", describe(id), locate(id, e.location(&source).map(|l| l.line_number)), e.emit_to_string(&source)))?;
-    let reflected: &'static Reflected = Box::leak(Box::new(Reflected { id: Box::leak(id.to_string().into_boxed_str()), source, module }));
+        .map_err(|e| {
+            anyhow!(
+                "WGSL parse error (with doc comments) in {}{}:\n{}",
+                describe(id),
+                locate(id, e.location(&source).map(|l| l.line_number)),
+                e.emit_to_string(&source)
+            )
+        })?;
+    let reflected: &'static Reflected = Box::leak(Box::new(Reflected {
+        id: Box::leak(id.to_string().into_boxed_str()),
+        source,
+        module,
+    }));
     let mut cache = CACHE.lock().unwrap();
     // Another thread may have read it meanwhile; keep one.
     if let Some((_, r)) = cache.iter().find(|(g, r)| *g == generation && r.id == id) {
@@ -156,7 +200,9 @@ pub fn reflect(id: &str) -> Result<&'static Reflected> {
 pub fn analyse(id: &str) -> Result<(naga::Module, naga::valid::ModuleInfo)> {
     let source = compose(id)?;
     let module = validate(id, &source)?;
-    let info = Validator::new(ValidationFlags::all(), capabilities()).validate(&module).map_err(|e| anyhow!("WGSL validation error in {}: {e}", describe(id)))?;
+    let info = Validator::new(ValidationFlags::all(), capabilities())
+        .validate(&module)
+        .map_err(|e| anyhow!("WGSL validation error in {}: {e}", describe(id)))?;
     Ok((module, info))
 }
 
@@ -169,7 +215,11 @@ pub fn module(id: &str) -> Result<String> {
 
 /// A module and the source files it is made of, for messages.
 fn describe(id: &str) -> String {
-    let files: Vec<&str> = files(id).unwrap_or_default().iter().map(|f| resources::get(f).source()).collect();
+    let files: Vec<&str> = files(id)
+        .unwrap_or_default()
+        .iter()
+        .map(|f| resources::get(f).source())
+        .collect();
     format!("shader `{id}` ({})", files.join(" + "))
 }
 
@@ -198,7 +248,11 @@ fn type_name(module: &naga::Module, ty: naga::Handle<naga::Type>) -> String {
     match &t.inner {
         TypeInner::Scalar(s) => scalar(*s),
         TypeInner::Vector { size: n, scalar: s } => format!("vec{}<{}>", size(*n), scalar(*s)),
-        TypeInner::Matrix { columns, rows, scalar: s } => format!("mat{}x{}<{}>", size(*columns), size(*rows), scalar(*s)),
+        TypeInner::Matrix {
+            columns,
+            rows,
+            scalar: s,
+        } => format!("mat{}x{}<{}>", size(*columns), size(*rows), scalar(*s)),
         TypeInner::Struct { .. } => t.name.clone().unwrap_or_else(|| "struct".into()),
         _ => "?".into(),
     }
@@ -208,9 +262,12 @@ fn type_name(module: &naga::Module, ty: naga::Handle<naga::Type>) -> String {
 /// naga lays them out (layout.rs parses it).
 pub fn layout_json() -> Result<String> {
     let source = types_source();
-    let types = naga::front::wgsl::parse_str(source).map_err(|e| anyhow!("WGSL parse error in {TYPES}:\n{}", e.emit_to_string(source)))?;
+    let types = naga::front::wgsl::parse_str(source)
+        .map_err(|e| anyhow!("WGSL parse error in {TYPES}:\n{}", e.emit_to_string(source)))?;
     let mut layouter = naga::proc::Layouter::default();
-    layouter.update(types.to_ctx()).map_err(|e| anyhow!("layout of {TYPES}: {e}"))?;
+    layouter
+        .update(types.to_ctx())
+        .map_err(|e| anyhow!("layout of {TYPES}: {e}"))?;
     let mut structs = serde_json::Map::new();
     for (handle, ty) in types.types.iter() {
         if let TypeInner::Struct { members, span } = &ty.inner {
@@ -219,7 +276,9 @@ pub fn layout_json() -> Result<String> {
                 .iter()
                 .map(|m| {
                     let matrix = match &types.types[m.ty].inner {
-                        TypeInner::Matrix { columns, rows, .. } => json!([size(*columns), size(*rows)]),
+                        TypeInner::Matrix { columns, rows, .. } => {
+                            json!([size(*columns), size(*rows)])
+                        }
                         _ => Value::Null,
                     };
                     json!({
@@ -235,7 +294,9 @@ pub fn layout_json() -> Result<String> {
             structs.insert(name, json!({"size": span, "alignment": layouter[handle].alignment.round_up(1), "members": members}));
         }
     }
-    Ok(serde_json::to_string_pretty(&json!({"source": resources::get(TYPES).source(), "generator": "naga proc::Layouter", "structs": structs}))?)
+    Ok(serde_json::to_string_pretty(
+        &json!({"source": resources::get(TYPES).source(), "generator": "naga proc::Layouter", "structs": structs}),
+    )?)
 }
 
 /// Every shader module the packages declare, validated by naga: its files, size,

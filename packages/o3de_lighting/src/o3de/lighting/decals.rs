@@ -6,8 +6,8 @@
 
 use super::brdf::Surface;
 use super::maps;
-use lab::shot::ShotState;
 use glam::{Quat, Vec2, Vec3};
+use lab::shot::ShotState;
 
 /// Decal (DecalStructures.azsli), with the decal feature processor's defaults
 /// for what the lab does not set.
@@ -32,7 +32,11 @@ pub struct Decal {
 impl Decal {
     /// The decal's local axes in the world: x and y span the texture, z is the projection axis.
     pub fn axes(&self) -> [Vec3; 3] {
-        [self.rotation * Vec3::X, self.rotation * Vec3::Y, self.rotation * Vec3::Z]
+        [
+            self.rotation * Vec3::X,
+            self.rotation * Vec3::Y,
+            self.rotation * Vec3::Z,
+        ]
     }
 }
 
@@ -63,8 +67,20 @@ pub fn scene_decals(state: &ShotState) -> Vec<Decal> {
         max_draw_distance: 0.0,
     };
     vec![
-        Decal { position: Vec3::new(-0.35, 0.0, 0.45), rotation: tilt * down, sort_key: state.p("decalSplatSortKey").round().clamp(0.0, 255.0) as u32, texture: 0, ..base },
-        Decal { position: Vec3::new(-0.95, 0.0, 0.7), rotation: turn * down, half_size: Vec3::new(0.55, 0.55, 0.25), texture: 1, ..base },
+        Decal {
+            position: Vec3::new(-0.35, 0.0, 0.45),
+            rotation: tilt * down,
+            sort_key: state.p("decalSplatSortKey").round().clamp(0.0, 255.0) as u32,
+            texture: 0,
+            ..base
+        },
+        Decal {
+            position: Vec3::new(-0.95, 0.0, 0.7),
+            rotation: turn * down,
+            half_size: Vec3::new(0.55, 0.55, 0.25),
+            texture: 1,
+            ..base
+        },
     ]
 }
 
@@ -84,12 +100,21 @@ pub fn frame_records(decals: &[Decal]) -> Vec<[f32; 4]> {
     assert!(decals.len() <= MAX_DECALS);
     let order = sorted(decals);
     let at = |k: usize| order.get(k).map_or(0.0, |&i| i as f32);
-    let mut out = vec![[decals.len() as f32, 0.0, 0.0, 0.0], [at(0), at(1), at(2), at(3)], [at(4), at(5), at(6), at(7)]];
+    let mut out = vec![
+        [decals.len() as f32, 0.0, 0.0, 0.0],
+        [at(0), at(1), at(2), at(3)],
+        [at(4), at(5), at(6), at(7)],
+    ];
     for d in decals {
         out.push(d.position.extend(d.opacity).to_array());
         out.push(d.rotation.to_array());
         out.push(d.half_size.extend(d.angle_attenuation).to_array());
-        out.push([d.normal_map_opacity, d.sort_key as f32, d.texture as f32, d.max_draw_distance]);
+        out.push([
+            d.normal_map_opacity,
+            d.sort_key as f32,
+            d.texture as f32,
+            d.max_draw_distance,
+        ]);
         out.push(d.color.extend(d.color_factor).to_array());
     }
     out
@@ -133,7 +158,14 @@ pub fn sample(d: &Decal, position: Vec3, vertex_normal: Vec3) -> Option<DecalSam
     // BlendBaseColor, TextureBlendMode::Multiply.
     let blended = d.color_factor * d.color * Vec3::new(base[0], base[1], base[2]);
     // GetTangentSpaceNormal_Unnormalized swaps the channels and rebuilds z.
-    let ts = Vec3::new(normal[1], normal[0], (1.0 - normal[0] * normal[0] - normal[1] * normal[1]).max(0.0).sqrt().max(0.01));
+    let ts = Vec3::new(
+        normal[1],
+        normal[0],
+        (1.0 - normal[0] * normal[0] - normal[1] * normal[1])
+            .max(0.0)
+            .sqrt()
+            .max(0.01),
+    );
     Some(DecalSample {
         uvw,
         base,
@@ -149,7 +181,9 @@ pub fn sample(d: &Decal, position: Vec3, vertex_normal: Vec3) -> Option<DecalSam
 /// colour replaces the albedo by its opacity (26.05 leaves F0 as it is), and
 /// the normal map bends the normal.
 pub fn apply_decal(d: &Decal, s: &mut Surface, vertex_normal: Vec3) {
-    let Some(k) = sample(d, s.position, vertex_normal) else { return };
+    let Some(k) = sample(d, s.position, vertex_normal) else {
+        return;
+    };
     s.albedo = s.albedo.lerp(k.blended, k.albedo_opacity);
     s.normal = s.normal.lerp(k.normal, k.normal_opacity).normalize();
 }
@@ -162,8 +196,20 @@ pub fn apply_decal(d: &Decal, s: &mut Surface, vertex_normal: Vec3) {
 #[allow(clippy::excessive_precision)] // the engine's literals
 pub fn linear_srgb_to_acescg(c: Vec3) -> Vec3 {
     let rows = |r: [[f32; 3]; 3]| glam::Mat3::from_cols_array_2d(&r).transpose();
-    let xyz_to_acescg = rows([[1.6410233797, -0.3248032942, -0.2364246952], [-0.6636628587, 1.6153315917, 0.0167563477], [0.0117218943, -0.0082844420, 0.9883948585]]);
-    let d65_to_d60 = rows([[1.01303, 0.00610531, -0.014971], [0.00769823, 0.998165, -0.00503203], [-0.00284131, 0.00468516, 0.924507]]);
-    let srgb_to_xyz = rows([[0.41239089, 0.35758430, 0.18048084], [0.21263906, 0.71516860, 0.07219233], [0.01933082, 0.11919472, 0.95053232]]);
+    let xyz_to_acescg = rows([
+        [1.6410233797, -0.3248032942, -0.2364246952],
+        [-0.6636628587, 1.6153315917, 0.0167563477],
+        [0.0117218943, -0.0082844420, 0.9883948585],
+    ]);
+    let d65_to_d60 = rows([
+        [1.01303, 0.00610531, -0.014971],
+        [0.00769823, 0.998165, -0.00503203],
+        [-0.00284131, 0.00468516, 0.924507],
+    ]);
+    let srgb_to_xyz = rows([
+        [0.41239089, 0.35758430, 0.18048084],
+        [0.21263906, 0.71516860, 0.07219233],
+        [0.01933082, 0.11919472, 0.95053232],
+    ]);
     xyz_to_acescg * d65_to_d60 * srgb_to_xyz * c
 }

@@ -7,8 +7,8 @@
 //! Ported from the Open 3D Engine, Copyright Contributors to the Open 3D Engine
 //! Project, used under the MIT License (THIRD_PARTY.md).
 
-use lab::layout::ObjectData;
 use glam::{Vec2, Vec3};
+use lab::layout::ObjectData;
 use std::sync::OnceLock;
 
 /// Atom/RPI/Math.azsli.
@@ -131,14 +131,20 @@ pub fn clear_coat_ggx(n_dot_h: f32, h_dot_l: f32, n_dot_l: f32, roughness_a: f32
 }
 
 /// ClearCoatSpecular (Brdf.azsli): the base specular through (1 - Fc), plus the coat's.
-pub fn clear_coat_specular(dir_to_light: Vec3, dir_to_camera: Vec3, coat: &ClearCoat, specular: Vec3) -> Vec3 {
+pub fn clear_coat_specular(
+    dir_to_light: Vec3,
+    dir_to_camera: Vec3,
+    coat: &ClearCoat,
+    specular: Vec3,
+) -> Vec3 {
     let half_vector = (dir_to_light + dir_to_camera).normalize();
     let n_dot_h = saturate(coat.normal.dot(half_vector));
     let n_dot_l = saturate(coat.normal.dot(dir_to_light));
     let h_dot_l = saturate(half_vector.dot(dir_to_light));
     let clear_coat_f = fresnel_schlick(h_dot_l, Vec3::splat(0.04)) * coat.factor;
     let roughness = (coat.roughness * coat.roughness).max(0.0005);
-    specular * (Vec3::ONE - clear_coat_f) + clear_coat_ggx(n_dot_h, h_dot_l, n_dot_l, roughness, clear_coat_f)
+    specular * (Vec3::ONE - clear_coat_f)
+        + clear_coat_ggx(n_dot_h, h_dot_l, n_dot_l, roughness, clear_coat_f)
 }
 
 /// CalculateSpecularAA (SpecularAA.azsli; Tokuyoshi and Kaplanyan 2019):
@@ -162,7 +168,14 @@ impl Surface {
         self
     }
 
-    pub fn new(position: Vec3, normal: Vec3, base_color: Vec3, metallic: f32, specular_f0_factor: f32, roughness: f32) -> Surface {
+    pub fn new(
+        position: Vec3,
+        normal: Vec3,
+        base_color: Vec3,
+        metallic: f32,
+        specular_f0_factor: f32,
+        roughness: f32,
+    ) -> Surface {
         let roughness_linear = roughness.max(MIN_ROUGHNESS_LINEAR);
         let roughness_a = roughness_linear * roughness_linear;
         let dielectric_specular_f0 = Vec3::splat(MAX_DIELECTRIC_SPECULAR_F0 * specular_f0_factor);
@@ -195,7 +208,9 @@ pub fn fresnel_schlick(h_dot_v: f32, f0: Vec3) -> Vec3 {
 
 pub fn fresnel_schlick_with_roughness(n_dot_v: f32, specular_f0: Vec3, roughness: f32) -> Vec3 {
     let smoothness = 1.0 - roughness;
-    specular_f0 + (Vec3::splat(smoothness).max(specular_f0) - specular_f0) * (1.0 - saturate(n_dot_v)).powf(5.0)
+    specular_f0
+        + (Vec3::splat(smoothness).max(specular_f0) - specular_f0)
+            * (1.0 - saturate(n_dot_v)).powf(5.0)
 }
 
 pub fn normal_distribution_ggx(n_dot_h: f32, roughness_a2: f32) -> f32 {
@@ -203,7 +218,11 @@ pub fn normal_distribution_ggx(n_dot_h: f32, roughness_a2: f32) -> f32 {
     roughness_a2 / (PI * b * b)
 }
 
-pub fn geometric_shadowing_masking_ggx_correlated(n_dot_v: f32, n_dot_l: f32, roughness_a2: f32) -> f32 {
+pub fn geometric_shadowing_masking_ggx_correlated(
+    n_dot_v: f32,
+    n_dot_l: f32,
+    roughness_a2: f32,
+) -> f32 {
     let ggx_v = n_dot_l * ((-n_dot_v * roughness_a2 + n_dot_v) * n_dot_v + roughness_a2).sqrt();
     let ggx_l = n_dot_v * ((-n_dot_l * roughness_a2 + n_dot_l) * n_dot_l + roughness_a2).sqrt();
     0.5 / (ggx_v + ggx_l).max(GGX_EPSILON)
@@ -215,7 +234,11 @@ pub fn importance_sample_ggx(xi: Vec2, roughness_a: f32, normal_ws: Vec3) -> Vec
     let cos_theta = ((1.0 - xi.y) / (1.0 + (roughness_a2 - 1.0) * xi.y)).sqrt();
     let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
     let micronormal_ts = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta);
-    let up_vector = if normal_ws.z.abs() < 0.999 { Vec3::Z } else { Vec3::X };
+    let up_vector = if normal_ws.z.abs() < 0.999 {
+        Vec3::Z
+    } else {
+        Vec3::X
+    };
     let tangent_ws = up_vector.cross(normal_ws).normalize();
     let bitangent_ws = normal_ws.cross(tangent_ws);
     tangent_ws * micronormal_ts.x + bitangent_ws * micronormal_ts.y + normal_ws * micronormal_ts.z
@@ -223,15 +246,29 @@ pub fn importance_sample_ggx(xi: Vec2, roughness_a: f32, normal_ws: Vec3) -> Vec
 
 /// GetHammersleyPoint.
 pub fn hammersley(point_index: u32, total_point_count: u32) -> Vec2 {
-    Vec2::new(point_index as f32 / total_point_count as f32, point_index.reverse_bits() as f32 * 2.328_306_4e-10)
+    Vec2::new(
+        point_index as f32 / total_point_count as f32,
+        point_index.reverse_bits() as f32 * 2.328_306_4e-10,
+    )
 }
 
-pub fn diffuse_lambertian(albedo: Vec3, normal: Vec3, dir_to_light: Vec3, diffuse_response: Vec3) -> Vec3 {
+pub fn diffuse_lambertian(
+    albedo: Vec3,
+    normal: Vec3,
+    dir_to_light: Vec3,
+    diffuse_response: Vec3,
+) -> Vec3 {
     let n_dot_l = saturate(normal.dot(dir_to_light));
     albedo * n_dot_l * INV_PI * diffuse_response
 }
 
-pub fn normalized_disney_diffuse(albedo: Vec3, normal: Vec3, dir_to_camera: Vec3, dir_to_light: Vec3, roughness_linear: f32) -> Vec3 {
+pub fn normalized_disney_diffuse(
+    albedo: Vec3,
+    normal: Vec3,
+    dir_to_camera: Vec3,
+    dir_to_light: Vec3,
+    roughness_linear: f32,
+) -> Vec3 {
     let half_vector = (dir_to_light + dir_to_camera).normalize();
     let n_dot_v = saturate(normal.dot(dir_to_camera));
     let n_dot_l = saturate(normal.dot(dir_to_light));
@@ -257,18 +294,48 @@ pub struct GgxTerms {
     pub half_vector: Vec3,
 }
 
-pub fn ggx_terms(dir_to_camera: Vec3, dir_to_light: Vec3, normal: Vec3, specular_f0: Vec3, n_dot_v: f32, roughness_a2: f32) -> GgxTerms {
+pub fn ggx_terms(
+    dir_to_camera: Vec3,
+    dir_to_light: Vec3,
+    normal: Vec3,
+    specular_f0: Vec3,
+    n_dot_v: f32,
+    roughness_a2: f32,
+) -> GgxTerms {
     let half_vector = (dir_to_light + dir_to_camera).normalize();
     let n_dot_h = saturate(normal.dot(half_vector));
     let n_dot_l = saturate(normal.dot(dir_to_light));
     let h_dot_v = saturate(half_vector.dot(dir_to_camera));
     let d = normal_distribution_ggx(n_dot_h, roughness_a2).max(0.0);
     let g = geometric_shadowing_masking_ggx_correlated(n_dot_v, n_dot_l, roughness_a2).max(0.0);
-    GgxTerms { d, g, f: fresnel_schlick(h_dot_v, specular_f0), n_dot_l, n_dot_h, h_dot_v, half_vector }
+    GgxTerms {
+        d,
+        g,
+        f: fresnel_schlick(h_dot_v, specular_f0),
+        n_dot_l,
+        n_dot_h,
+        h_dot_v,
+        half_vector,
+    }
 }
 
-pub fn specular_ggx(dir_to_camera: Vec3, dir_to_light: Vec3, normal: Vec3, specular_f0: Vec3, n_dot_v: f32, roughness_a2: f32, multi_scatter_compensation: Vec3) -> Vec3 {
-    let t = ggx_terms(dir_to_camera, dir_to_light, normal, specular_f0, n_dot_v, roughness_a2);
+pub fn specular_ggx(
+    dir_to_camera: Vec3,
+    dir_to_light: Vec3,
+    normal: Vec3,
+    specular_f0: Vec3,
+    n_dot_v: f32,
+    roughness_a2: f32,
+    multi_scatter_compensation: Vec3,
+) -> Vec3 {
+    let t = ggx_terms(
+        dir_to_camera,
+        dir_to_light,
+        normal,
+        specular_f0,
+        n_dot_v,
+        roughness_a2,
+    );
     ((t.d * t.g) * t.n_dot_l * t.f) * multi_scatter_compensation
 }
 
@@ -342,15 +409,26 @@ impl BrdfMap {
         let size = BRDF_MAP_SIZE as f32;
         let p = (uv * size - 0.5).clamp(Vec2::ZERO, Vec2::splat(size - 1.0));
         let (x0, y0) = (p.x.floor() as usize, p.y.floor() as usize);
-        let (x1, y1) = ((x0 + 1).min(BRDF_MAP_SIZE - 1), (y0 + 1).min(BRDF_MAP_SIZE - 1));
+        let (x1, y1) = (
+            (x0 + 1).min(BRDF_MAP_SIZE - 1),
+            (y0 + 1).min(BRDF_MAP_SIZE - 1),
+        );
         let w = p - p.floor();
         let lerp = |a: Vec2, b: Vec2, t: f32| a + (b - a) * t;
-        lerp(lerp(self.texel(x0, y0), self.texel(x1, y0), w.x), lerp(self.texel(x0, y1), self.texel(x1, y1), w.x), w.y)
+        lerp(
+            lerp(self.texel(x0, y0), self.texel(x1, y0), w.x),
+            lerp(self.texel(x0, y1), self.texel(x1, y1), w.x),
+            w.y,
+        )
     }
 
     /// The shader's gShadingData.
     pub fn shading_data() -> Vec<[f32; 4]> {
-        BrdfMap::get().texels.iter().map(|t| [t.x, t.y, 0.0, 0.0]).collect()
+        BrdfMap::get()
+            .texels
+            .iter()
+            .map(|t| [t.x, t.y, 0.0, 0.0])
+            .collect()
     }
 }
 
@@ -377,20 +455,33 @@ pub struct LightingData {
 }
 
 impl LightingData {
-    pub fn new(s: &Surface, view_position: Vec3, multiscatter: bool, map: &BrdfMap) -> LightingData {
+    pub fn new(
+        s: &Surface,
+        view_position: Vec3,
+        multiscatter: bool,
+        map: &BrdfMap,
+    ) -> LightingData {
         let dir_to_camera = (view_position - s.position).normalize();
         let n_dot_v = saturate(s.normal.dot(dir_to_camera));
         let brdf = map.sample(Vec2::new(n_dot_v, 1.0 - s.roughness_linear));
-        let specular_response = fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
+        let specular_response =
+            fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
         // InitializeLightingData_StandardPBR: the coat (IOR 1.5, F0 0.04) takes its share.
-        let coat = s.clear_coat.map_or(Vec3::ONE, |c| Vec3::ONE - fresnel_schlick_with_roughness(n_dot_v, Vec3::splat(0.04), c.roughness) * c.factor);
+        let coat = s.clear_coat.map_or(Vec3::ONE, |c| {
+            Vec3::ONE
+                - fresnel_schlick_with_roughness(n_dot_v, Vec3::splat(0.04), c.roughness) * c.factor
+        });
         LightingData {
             dir_to_camera,
             n_dot_v,
             brdf,
             specular_response,
             diffuse_response: (Vec3::ONE - specular_response) * coat,
-            multi_scatter_compensation: multi_scatter_compensation(s.specular_f0, brdf, multiscatter),
+            multi_scatter_compensation: multi_scatter_compensation(
+                s.specular_f0,
+                brdf,
+                multiscatter,
+            ),
             diffuse_lighting: Vec3::ZERO,
             specular_lighting: Vec3::ZERO,
             translucent_back_lighting: Vec3::ZERO,
@@ -439,7 +530,8 @@ pub fn simple_point_light(light: &PointLight, surface_position: Vec3) -> PointLi
         distance_squared,
         falloff,
         radius_attenuation,
-        intensity: light.rgb_intensity_candelas / (0.001f32 * 0.001).max(distance_squared) * radius_attenuation,
+        intensity: light.rgb_intensity_candelas / (0.001f32 * 0.001).max(distance_squared)
+            * radius_attenuation,
     }
 }
 
@@ -458,20 +550,44 @@ pub enum DiffuseModel {
 }
 
 /// GetDiffuseLighting_StandardPBR and GetSpecularLighting_StandardPBR for one light.
-pub fn apply_light(s: &Surface, l: &mut LightingData, intensity: Vec3, dir_to_light: Vec3, model: DiffuseModel) {
+pub fn apply_light(
+    s: &Surface,
+    l: &mut LightingData,
+    intensity: Vec3,
+    dir_to_light: Vec3,
+    model: DiffuseModel,
+) {
     l.diffuse_lighting += diffuse_light(s, l, intensity, dir_to_light, model);
     l.specular_lighting += specular_light(s, l, intensity, dir_to_light);
 }
 
 /// GetDiffuseLighting_StandardPBR (and _EnhancedPBR without subsurface scattering).
-pub fn diffuse_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_light: Vec3, model: DiffuseModel) -> Vec3 {
+pub fn diffuse_light(
+    s: &Surface,
+    l: &LightingData,
+    intensity: Vec3,
+    dir_to_light: Vec3,
+    model: DiffuseModel,
+) -> Vec3 {
     let mut diffuse = match model {
-        DiffuseModel::Lambertian => diffuse_lambertian(s.albedo, s.normal, dir_to_light, l.diffuse_response),
-        DiffuseModel::NormalizedDisney => normalized_disney_diffuse(s.albedo, s.normal, l.dir_to_camera, dir_to_light, s.roughness_linear),
+        DiffuseModel::Lambertian => {
+            diffuse_lambertian(s.albedo, s.normal, dir_to_light, l.diffuse_response)
+        }
+        DiffuseModel::NormalizedDisney => normalized_disney_diffuse(
+            s.albedo,
+            s.normal,
+            l.dir_to_camera,
+            dir_to_light,
+            s.roughness_linear,
+        ),
     };
     if let (Some(c), DiffuseModel::Lambertian) = (s.clear_coat, model) {
         // The coat's Fresnel at the light's half vector, again.
-        let h_dot_v = saturate((dir_to_light + l.dir_to_camera).normalize().dot(l.dir_to_camera));
+        let h_dot_v = saturate(
+            (dir_to_light + l.dir_to_camera)
+                .normalize()
+                .dot(l.dir_to_camera),
+        );
         diffuse *= Vec3::ONE - fresnel_schlick(h_dot_v, Vec3::splat(0.04)) * c.factor;
     }
     diffuse * intensity
@@ -479,7 +595,15 @@ pub fn diffuse_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_ligh
 
 /// GetSpecularLighting_StandardPBR (and _EnhancedPBR without anisotropy).
 pub fn specular_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_light: Vec3) -> Vec3 {
-    let mut specular = specular_ggx(l.dir_to_camera, dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2, l.multi_scatter_compensation);
+    let mut specular = specular_ggx(
+        l.dir_to_camera,
+        dir_to_light,
+        s.normal,
+        s.specular_f0,
+        l.n_dot_v,
+        s.roughness_a2,
+        l.multi_scatter_compensation,
+    );
     if let Some(c) = &s.clear_coat {
         specular = clear_coat_specular(dir_to_light, l.dir_to_camera, c, specular);
     }
@@ -489,14 +613,37 @@ pub fn specular_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_lig
 /// ApplyIBL's specular in the forward pass, which clear coat switches on:
 /// the global cubemap through the BRDF texture and the compensation, then the
 /// coat's own IBL and the base layer through (1 - Fc)^2, times the exposure.
-pub fn forward_ibl_specular(s: &Surface, l: &LightingData, exposure_stops: f32, map: &BrdfMap, reflections: &Reflections) -> Vec3 {
+pub fn forward_ibl_specular(
+    s: &Surface,
+    l: &LightingData,
+    exposure_stops: f32,
+    map: &BrdfMap,
+    reflections: &Reflections,
+) -> Vec3 {
     let probe = reflections.probe;
-    let mut specular = ibl_specular(s.position, s.normal, s.specular_f0, s.roughness_linear, l.dir_to_camera, l.brdf, reflections) * l.multi_scatter_compensation;
+    let mut specular = ibl_specular(
+        s.position,
+        s.normal,
+        s.specular_f0,
+        s.roughness_linear,
+        l.dir_to_camera,
+        l.brdf,
+        reflections,
+    ) * l.multi_scatter_compensation;
     if let Some(c) = s.clear_coat.filter(|c| c.factor > 0.0) {
         let n_dot_v = saturate(c.normal.dot(l.dir_to_camera)).max(0.01);
         let brdf = map.sample(Vec2::new(n_dot_v, 1.0 - c.roughness));
-        let coat = ibl_specular(s.position, c.normal, Vec3::splat(0.04), c.roughness, l.dir_to_camera, brdf, reflections) * c.factor;
-        let response = fresnel_schlick_with_roughness(n_dot_v, Vec3::splat(0.04), c.roughness) * c.factor;
+        let coat = ibl_specular(
+            s.position,
+            c.normal,
+            Vec3::splat(0.04),
+            c.roughness,
+            l.dir_to_camera,
+            brdf,
+            reflections,
+        ) * c.factor;
+        let response =
+            fresnel_schlick_with_roughness(n_dot_v, Vec3::splat(0.04), c.roughness) * c.factor;
         specular = specular * (Vec3::ONE - response) * (Vec3::ONE - response) + coat;
     }
     // A probe's exposure replaces the skylight's.
@@ -513,15 +660,31 @@ pub struct Reflections<'a> {
 
 /// GetIblSpecular: the global cubemap, blended toward the mesh's probe by its
 /// inner/outer weight, with parallax correction when the probe has it.
-pub fn ibl_specular(position: Vec3, normal: Vec3, specular_f0: Vec3, roughness: f32, dir_to_camera: Vec3, brdf: Vec2, reflections: &Reflections) -> Vec3 {
+pub fn ibl_specular(
+    position: Vec3,
+    normal: Vec3,
+    specular_f0: Vec3,
+    roughness: f32,
+    dir_to_camera: Vec3,
+    brdf: Vec2,
+    reflections: &Reflections,
+) -> Vec3 {
     let Reflections { cubes, probe } = *reflections;
     let reflect_dir = lab::scene::reflect(-dir_to_camera, normal);
     let split = specular_f0 * brdf.x + Vec3::splat(brdf.y);
     let global = cubes.sample_specular(reflect_dir, roughness * 5.0) * split;
     let Some(p) = probe else { return global };
-    let dir = if p.parallax { p.parallax_correction(position, reflect_dir) } else { reflect_dir };
+    let dir = if p.parallax {
+        p.parallax_correction(position, reflect_dir)
+    } else {
+        reflect_dir
+    };
     let local = super::reflections::sample_probe(p, dir, roughness * 5.0) * split;
-    let blend = if p.contains(p.inner_half, position) { 1.0 } else { p.lerp_inner_outer(position) };
+    let blend = if p.contains(p.inner_half, position) {
+        1.0
+    } else {
+        p.lerp_inner_outer(position)
+    };
     global.lerp(local, blend)
 }
 
@@ -579,17 +742,35 @@ impl Shading {
     /// The per-object material records of gShadingFrame (from FRAME_MATERIALS):
     /// the clear coat's factor (-1 without it) and roughness.
     pub fn frame_materials(&self) -> Vec<[f32; 4]> {
-        self.materials.iter().map(|m| {
-            let (factor, roughness) = m.clear_coat.unwrap_or((-1.0, 0.0));
-            [factor, roughness, m.lighting_channels as f32, m.forward_probe.map_or(-1.0, |i| i as f32)]
-        }).collect()
+        self.materials
+            .iter()
+            .map(|m| {
+                let (factor, roughness) = m.clear_coat.unwrap_or((-1.0, 0.0));
+                [
+                    factor,
+                    roughness,
+                    m.lighting_channels as f32,
+                    m.forward_probe.map_or(-1.0, |i| i as f32),
+                ]
+            })
+            .collect()
     }
 
     /// Every simple point light, as the frame's list holds them: light 0 (off
     /// when `light_on` is false), then the extra ones.
     pub fn lights(&self) -> Vec<PointLight> {
-        let main = PointLight { rgb_intensity_candelas: self.light.rgb_intensity_candelas * if self.light_on { 1.0 } else { 0.0 }, ..self.light };
-        std::iter::once(main).chain(self.extra_lights.iter().copied()).collect()
+        let main = PointLight {
+            rgb_intensity_candelas: self.light.rgb_intensity_candelas
+                * if self.light_on {
+                    1.0
+                } else {
+                    0.0
+                },
+            ..self.light
+        };
+        std::iter::once(main)
+            .chain(self.extra_lights.iter().copied())
+            .collect()
     }
 
     /// The frame's simple point light records (gShadingFrame from FRAME_LIGHTS):
@@ -599,8 +780,16 @@ impl Shading {
         let lights = self.lights();
         let mut out = vec![[lights.len() as f32, 0.0, 0.0, 0.0]];
         for l in &lights {
-            out.push(l.position.extend(l.inv_attenuation_radius_squared).to_array());
-            out.push(l.rgb_intensity_candelas.extend(l.lighting_channel_mask as f32).to_array());
+            out.push(
+                l.position
+                    .extend(l.inv_attenuation_radius_squared)
+                    .to_array(),
+            );
+            out.push(
+                l.rgb_intensity_candelas
+                    .extend(l.lighting_channel_mask as f32)
+                    .to_array(),
+            );
         }
         out
     }
@@ -668,7 +857,15 @@ pub fn unorm8(x: f32) -> f32 {
 pub fn encode_normal_signed_octahedron(normal: Vec3) -> Vec3 {
     let n = normal / (normal.x.abs() + normal.y.abs() + normal.z.abs());
     let y = n.y * 0.5 + 0.5;
-    Vec3::new(n.x * 0.5 + y, n.x * -0.5 + y, if n.z > 0.0 { 1.0 } else { 0.0 })
+    Vec3::new(
+        n.x * 0.5 + y,
+        n.x * -0.5 + y,
+        if n.z > 0.0 {
+            1.0
+        } else {
+            0.0
+        },
+    )
 }
 
 /// Math.azsli EncodeUnorm2BitFlags: (flag1 + 2 flag2) / 3, two flags in
@@ -678,7 +875,14 @@ pub fn encode_unorm_2bit_flags(flag1: bool, flag2: bool) -> f32 {
 }
 
 /// DiffuseGlobalFullscreen and ReflectionGlobalFullscreen for one pixel.
-pub fn ibl(s: &Surface, l: &LightingData, eye: Vec3, shading: &Shading, map: &BrdfMap, cubes: &super::ibl::Ibl) -> Ibl {
+pub fn ibl(
+    s: &Surface,
+    l: &LightingData,
+    eye: Vec3,
+    shading: &Shading,
+    map: &BrdfMap,
+    cubes: &super::ibl::Ibl,
+) -> Ibl {
     // The forward pass's albedo target: albedo times the diffuse response and
     // diffuse AO, specular occlusion in alpha.
     let mut albedo = s.albedo * l.diffuse_response * s.diffuse_ao;
@@ -702,9 +906,28 @@ pub fn ibl(s: &Surface, l: &LightingData, eye: Vec3, shading: &Shading, map: &Br
     let compensation = multi_scatter_compensation(specular_f0, brdf, shading.multiscatter);
     // The reflection passes at this point; the forward pass's stencil keeps
     // forward-IBL (clear coat) materials out of them.
-    let stencil = if s.clear_coat.is_some() { 0 } else { super::reflections::STENCIL_USE_IBL_SPECULAR_PASS } | super::reflections::STENCIL_USE_DIFFUSE_GI_PASS;
-    let input = super::reflections::ReflectionInputs { position: s.position, normal: s.normal, enable_ibl: shading.ibl, multiscatter: shading.multiscatter, specular_f0, roughness, specular_occlusion, stencil };
-    let reflection = super::reflections::reflection_sample(&shading.probes, &input, eye, shading.ibl_exposure, map);
+    let stencil = if s.clear_coat.is_some() {
+        0
+    } else {
+        super::reflections::STENCIL_USE_IBL_SPECULAR_PASS
+    } | super::reflections::STENCIL_USE_DIFFUSE_GI_PASS;
+    let input = super::reflections::ReflectionInputs {
+        position: s.position,
+        normal: s.normal,
+        enable_ibl: shading.ibl,
+        multiscatter: shading.multiscatter,
+        specular_f0,
+        roughness,
+        specular_occlusion,
+        stencil,
+    };
+    let reflection = super::reflections::reflection_sample(
+        &shading.probes,
+        &input,
+        eye,
+        shading.ibl_exposure,
+        map,
+    );
     Ibl {
         albedo,
         specular_f0,
@@ -725,7 +948,11 @@ pub fn ibl(s: &Surface, l: &LightingData, eye: Vec3, shading: &Shading, map: &Br
 /// The inverse of the lab's tonemapper (untonemap in the shader).
 pub fn untonemap(display: Vec3, exposure: f32) -> Vec3 {
     let channel = |c: f32| {
-        let lin = if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) };
+        let lin = if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        };
         let y = lin.clamp(0.0, 0.98);
         let (a, b, cc) = (2.43 * y - 2.51, 0.59 * y - 0.03, 0.14 * y);
         (-b - (b * b - 4.0 * a * cc).max(0.0).sqrt()) / (2.0 * a)
@@ -736,8 +963,16 @@ pub fn untonemap(display: Vec3, exposure: f32) -> Vec3 {
 /// The shader's dark-blue to yellow ramp.
 pub fn heat(v: f32) -> Vec3 {
     let t = saturate(v);
-    let (c0, c1, c2) = (Vec3::new(0.05, 0.08, 0.30), Vec3::new(0.10, 0.55, 0.65), Vec3::new(0.98, 0.90, 0.35));
-    if t < 0.5 { mix(c0, c1, t * 2.0) } else { mix(c1, c2, (t - 0.5) * 2.0) }
+    let (c0, c1, c2) = (
+        Vec3::new(0.05, 0.08, 0.30),
+        Vec3::new(0.10, 0.55, 0.65),
+        Vec3::new(0.98, 0.90, 0.35),
+    );
+    if t < 0.5 {
+        mix(c0, c1, t * 2.0)
+    } else {
+        mix(c1, c2, (t - 0.5) * 2.0)
+    }
 }
 
 /// A pixel to shade: on `objects[object]` at `p` with normal `n`, which
@@ -754,30 +989,59 @@ pub struct Fragment {
 impl Fragment {
     /// A pixel whose normal does not change to its neighbours' (no specular AA).
     pub fn at(object: u32, p: Vec3, n: Vec3) -> Fragment {
-        Fragment { object, p, n, derivatives: [Vec3::ZERO; 2] }
+        Fragment {
+            object,
+            p,
+            n,
+            derivatives: [Vec3::ZERO; 2],
+        }
     }
 }
 
 /// o3dePixel: the forward pass for one pixel (`fragment`), seen from `eye`.
-pub fn pixel(shading: &Shading, objects: &[ObjectData], fragment: &Fragment, eye: Vec3, exposure: f32, map: &BrdfMap) -> Pixel {
-    let Fragment { object, p, n, derivatives } = *fragment;
+pub fn pixel(
+    shading: &Shading,
+    objects: &[ObjectData],
+    fragment: &Fragment,
+    eye: Vec3,
+    exposure: f32,
+    map: &BrdfMap,
+) -> Pixel {
+    let Fragment {
+        object,
+        p,
+        n,
+        derivatives,
+    } = *fragment;
     let o = &objects[object as usize];
     let material = shading.material(object);
     let [r, g, b, roughness] = o.albedo_roughness;
-    let mut s = Surface::new(p, n, Vec3::new(r, g, b), material.metallic, material.specular_f0_factor, roughness);
+    let mut s = Surface::new(
+        p,
+        n,
+        Vec3::new(r, g, b),
+        material.metallic,
+        material.specular_f0_factor,
+        roughness,
+    );
     if shading.specular_aa {
         s = s.with_specular_aa(derivatives[0], derivatives[1]);
     }
     // The occlusion maps, on the sphere's UVs.
     if material.diffuse_occlusion.is_some() || material.specular_occlusion.is_some() {
-        let local = glam::Mat4::from_cols_array_2d(&o.world_to_local).transform_point3(p) - Vec3::from(o.local_center);
+        let local = glam::Mat4::from_cols_array_2d(&o.world_to_local).transform_point3(p)
+            - Vec3::from(o.local_center);
         let uv = super::maps::sphere_uv(local);
         s.diffuse_ao = super::maps::occlusion_input(uv, material.diffuse_occlusion);
         s.specular_occlusion = super::maps::occlusion_input(uv, material.specular_occlusion);
     }
     // GetClearCoatInputs without maps, then ApplyClearCoatToSpecularF0.
     if let Some((factor, roughness)) = material.clear_coat {
-        s.clear_coat = Some(ClearCoat { factor, roughness: roughness.max(1e-3), normal: s.normal });
+        s.clear_coat = Some(ClearCoat {
+            factor,
+            roughness: roughness.max(1e-3),
+            normal: s.normal,
+        });
         s.specular_f0 = apply_clear_coat_to_specular_f0(s.specular_f0, factor);
     }
     s.transmission = material.transmission;
@@ -800,18 +1064,39 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], fragment: &Fragment, eye
         }
         let sample = simple_point_light(&light, p);
         if sample.falloff < 1.0 {
-            apply_light(&s, &mut l, sample.intensity, sample.dir_to_light, shading.diffuse_model);
+            apply_light(
+                &s,
+                &mut l,
+                sample.intensity,
+                sample.dir_to_light,
+                shading.diffuse_model,
+            );
         }
     }
     // ApplyPointLights, after the punctual lights.
     for light in &shading.sphere_lights {
-        super::transmission::apply_sphere_light(light, material.lighting_channels, &s, &mut l, shading.diffuse_model);
+        super::transmission::apply_sphere_light(
+            light,
+            material.lighting_channels,
+            &s,
+            &mut l,
+            shading.diffuse_model,
+        );
     }
     let sample = simple_point_light(&shading.lights()[0], p);
     // Image-based lighting in the forward pass, for clear coat.
     if s.clear_coat.is_some() && shading.ibl {
         let probe = material.forward_probe.map(|i| &shading.probes[i]);
-        l.specular_lighting += forward_ibl_specular(&s, &l, shading.ibl_exposure, map, &Reflections { cubes: super::ibl::Ibl::get(), probe });
+        l.specular_lighting += forward_ibl_specular(
+            &s,
+            &l,
+            shading.ibl_exposure,
+            map,
+            &Reflections {
+                cubes: super::ibl::Ibl::get(),
+                probe,
+            },
+        );
     }
     // LightingData_BasePBR::FinalizeLighting.
     l.specular_lighting *= s.specular_occlusion;
@@ -820,10 +1105,21 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], fragment: &Fragment, eye
     if let Some(t) = &s.transmission {
         l.diffuse_lighting += l.translucent_back_lighting * t.tint;
     }
-    let terms = ggx_terms(l.dir_to_camera, sample.dir_to_light, s.normal, s.specular_f0, l.n_dot_v, s.roughness_a2);
+    let terms = ggx_terms(
+        l.dir_to_camera,
+        sample.dir_to_light,
+        s.normal,
+        s.specular_f0,
+        l.n_dot_v,
+        s.roughness_a2,
+    );
     // The full-screen passes read the targets: the surface before its decals.
     let ibl = ibl(&written, &l, eye, shading, map, super::ibl::Ibl::get());
-    let ibl_on = if shading.ibl { 1.0 } else { 0.0 };
+    let ibl_on = if shading.ibl {
+        1.0
+    } else {
+        0.0
+    };
     let emissive = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
     let shown = |c: Vec3| untonemap(c.clamp(Vec3::ZERO, Vec3::ONE), exposure);
     let color = match shading.view {
@@ -832,22 +1128,49 @@ pub fn pixel(shading: &Shading, objects: &[ObjectData], fragment: &Fragment, eye
         ViewMode::D => untonemap(heat(terms.d / (terms.d + 1.0)), exposure),
         ViewMode::G => untonemap(heat(terms.g * 4.0 * terms.n_dot_l * l.n_dot_v), exposure),
         ViewMode::F => shown(terms.f),
-        ViewMode::Multiscatter => untonemap(heat((l.multi_scatter_compensation.y - 1.0) / 0.6), exposure),
+        ViewMode::Multiscatter => {
+            untonemap(heat((l.multi_scatter_compensation.y - 1.0) / 0.6), exposure)
+        }
         ViewMode::DiffuseResponse => shown(l.diffuse_response),
         ViewMode::Ndotl => untonemap(heat(terms.n_dot_l), exposure),
-        ViewMode::Attenuation => untonemap(heat(if sample.falloff < 1.0 { sample.radius_attenuation } else { 0.0 }), exposure),
+        ViewMode::Attenuation => untonemap(
+            heat(if sample.falloff < 1.0 {
+                sample.radius_attenuation
+            } else {
+                0.0
+            }),
+            exposure,
+        ),
         ViewMode::IblDiffuse => ibl.diffuse,
         ViewMode::IblSpecular => ibl.specular,
         // The CPU mirror has no tiles, like the verification kernels.
         ViewMode::LightCount => untonemap(heat(0.0), exposure),
-        ViewMode::ProbeStencil => untonemap(super::reflections::stencil_color(ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK), exposure),
+        ViewMode::ProbeStencil => untonemap(
+            super::reflections::stencil_color(
+                ibl.reflection.stencil & super::reflections::STENCIL_REFLECTION_MASK,
+            ),
+            exposure,
+        ),
         ViewMode::ProbeWeight => untonemap(heat(ibl.reflection.blend_weight / 2.0), exposure),
         // The reflection passes test the IBL flag themselves; SSAO and the resolve are screen space.
         // The terrain's normals are the GPU's alone (the kernels have no terrain): every other surface is dark.
         ViewMode::TerrainNormalError => untonemap(Vec3::new(0.02, 0.03, 0.08), exposure),
-        ViewMode::Final | ViewMode::Ssao | ViewMode::ResolveDifference => l.diffuse_lighting + l.specular_lighting + ibl.diffuse * ibl_on + ibl.specular + emissive,
+        ViewMode::Final | ViewMode::Ssao | ViewMode::ResolveDifference => {
+            l.diffuse_lighting
+                + l.specular_lighting
+                + ibl.diffuse * ibl_on
+                + ibl.specular
+                + emissive
+        }
     };
-    Pixel { color, surface: written, lighting: l, light: sample, terms, ibl }
+    Pixel {
+        color,
+        surface: written,
+        lighting: l,
+        light: sample,
+        terms,
+        ibl,
+    }
 }
 
 /// MSAAResolveCustom's luminance (CalcLuminance).

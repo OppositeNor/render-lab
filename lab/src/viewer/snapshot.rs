@@ -33,12 +33,22 @@ pub(super) fn settle(app: &mut App, buffer: &wgpu::Buffer, frames: usize) -> Res
 
 /// The viewer without a window, on `demo` (its key) or the first
 /// demonstration, its scene loaded: for a snapshot.
-pub(super) fn offscreen_app(options: ViewerOptions, demo: Option<&str>) -> Result<(App, Gpu, [u32; 2])> {
+pub(super) fn offscreen_app(
+    options: ViewerOptions,
+    demo: Option<&str>,
+) -> Result<(App, Gpu, [u32; 2])> {
     let size = [options.width.max(64), options.height.max(64)];
-    let mut app = App::new(ViewerOptions { audio: None, ..options })?;
+    let mut app = App::new(ViewerOptions {
+        audio: None,
+        ..options
+    })?;
     app.intro = None;
     if let Some(key) = demo {
-        app.state.demo = *investigation::current().demos().iter().find(|d| d.key() == key).ok_or_else(|| anyhow::anyhow!("no demonstration `{key}`"))?;
+        app.state.demo = *investigation::current()
+            .demos()
+            .iter()
+            .find(|d| d.key() == key)
+            .ok_or_else(|| anyhow::anyhow!("no demonstration `{key}`"))?;
     }
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let scene = investigation::current().demo_scene(app.state.demo);
@@ -51,13 +61,27 @@ pub(super) fn offscreen_app(options: ViewerOptions, demo: Option<&str>) -> Resul
 /// The viewer offscreen on a feature's tab (src/feature/), as its homepage button opens it, at a snapshot page
 /// of it (`home --snapshot … --page <page>[:<args>]`): on the demonstration the page names, each step the
 /// feature takes rendered, until it is done.
-pub fn snapshot_feature(options: ViewerOptions, feature: &'static dyn crate::feature::Feature, page: &str, args: Option<&str>, png: &std::path::Path) -> Result<()> {
+pub fn snapshot_feature(
+    options: ViewerOptions,
+    feature: &'static dyn crate::feature::Feature,
+    page: &str,
+    args: Option<&str>,
+    png: &std::path::Path,
+) -> Result<()> {
     use crate::feature::Snapshot;
     use crate::readback::{read_rgba, readback_buffer, write_png};
     // A feature with no tab (the performance panel's) opens on the viewer's first.
     let tab = feature.label().map(|_| DockTab(feature.id()));
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { tab, ..options }, feature.snapshot_demo(page, args))?;
-    anyhow::ensure!(app.features.feature(feature.id()).is_some(), "{} has no {}", investigation::current().title(), feature.id());
+    let (mut app, gpu, size) = offscreen_app(
+        ViewerOptions { tab, ..options },
+        feature.snapshot_demo(page, args),
+    )?;
+    anyhow::ensure!(
+        app.features.feature(feature.id()).is_some(),
+        "{} has no {}",
+        investigation::current().title(),
+        feature.id()
+    );
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     let mut step = 0;
     let shown = loop {
@@ -74,24 +98,59 @@ pub fn snapshot_feature(options: ViewerOptions, feature: &'static dyn crate::fea
         }
         step += 1;
     };
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer {}: {} ({}x{}){}", feature.id(), png.display(), size[0], size[1], if shown.is_empty() { String::new() } else { format!("; {shown}") });
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    eprintln!(
+        "viewer {}: {} ({}x{}){}",
+        feature.id(),
+        png.display(),
+        size[0],
+        size[1],
+        if shown.is_empty() {
+            String::new()
+        } else {
+            format!("; {shown}")
+        }
+    );
     Ok(())
 }
 
 /// The viewer offscreen with the free camera on (`home --snapshot … --page
 /// viewer-free[:<demo>]`): the scene from beside the main camera, which is
 /// drawn with its view cone, and the main camera's own view in a corner.
-pub fn snapshot_free(options: ViewerOptions, demo: Option<&str>, png: &std::path::Path) -> Result<()> {
+pub fn snapshot_free(
+    options: ViewerOptions,
+    demo: Option<&str>,
+    png: &std::path::Path,
+) -> Result<()> {
     use crate::readback::{read_rgba, readback_buffer, write_png};
     let (mut app, gpu, size) = offscreen_app(options, demo)?;
     app.state = app.default_state(app.state.demo);
     app.apply(ViewerAction::ToggleFreeCamera);
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 8)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
     let free = app.render_state().free_camera;
-    eprintln!("viewer free camera: {} ({}x{}); {:?}, free camera yaw {:.0} pitch {:.0} distance {:.1}, main view {:?}", png.display(), size[0], size[1], app.state.demo, free.yaw, free.pitch, free.distance, app.renderer().last_main_view);
+    eprintln!(
+        "viewer free camera: {} ({}x{}); {:?}, free camera yaw {:.0} pitch {:.0} distance {:.1}, main view {:?}",
+        png.display(),
+        size[0],
+        size[1],
+        app.state.demo,
+        free.yaw,
+        free.pitch,
+        free.distance,
+        app.renderer().last_main_view
+    );
     Ok(())
 }
 
@@ -105,11 +164,25 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
     use crate::ui::windows::WindowId;
     let settings = png.with_extension("toml");
     let _ = std::fs::remove_file(&settings);
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { settings: Some(settings.clone()), layout: Default::default(), ..options }, None)?;
+    let (mut app, gpu, size) = offscreen_app(
+        ViewerOptions {
+            settings: Some(settings.clone()),
+            layout: Default::default(),
+            ..options
+        },
+        None,
+    )?;
     app.state = app.default_state(app.state.demo);
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 3)?;
-    let press = |app: &mut App, at: egui::Pos2, pressed: bool| app.egui_events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() });
+    let press = |app: &mut App, at: egui::Pos2, pressed: bool| {
+        app.egui_events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        })
+    };
     // A drag from `from` to `to` in steps, a frame each, as egui sees a pointer.
     let drag = |app: &mut App, from: egui::Pos2, to: egui::Pos2| -> Result<()> {
         app.egui_events.push(egui::Event::PointerMoved(from));
@@ -117,7 +190,9 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         press(app, from, true);
         app.render(Some(&buffer))?;
         for k in 1..=6 {
-            app.egui_events.push(egui::Event::PointerMoved(from + (to - from) * (k as f32 / 6.0)));
+            app.egui_events.push(egui::Event::PointerMoved(
+                from + (to - from) * (k as f32 / 6.0),
+            ));
             app.render(Some(&buffer))?;
         }
         press(app, to, false);
@@ -127,7 +202,22 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         Ok(())
     };
     let describe = |l: &crate::ui::Layout| {
-        WindowId::ALL.iter().filter_map(|id| l.window(*id)).map(|w| format!("{} {:?} {:.0}×{:.0} at ({:.0}, {:.0})", w.id.key(), w.dock, w.frame.width(), w.frame.height(), w.frame.min.x, w.frame.min.y)).collect::<Vec<_>>().join(", ")
+        WindowId::ALL
+            .iter()
+            .filter_map(|id| l.window(*id))
+            .map(|w| {
+                format!(
+                    "{} {:?} {:.0}×{:.0} at ({:.0}, {:.0})",
+                    w.id.key(),
+                    w.dock,
+                    w.frame.width(),
+                    w.frame.height(),
+                    w.frame.min.x,
+                    w.frame.min.y
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     };
     let before = app.renderer().frame_layout();
     let mut steps = Vec::new();
@@ -136,20 +226,34 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
         drag(&mut app, grab, before.viewport.center())?;
         let l = app.renderer().frame_layout();
-        steps.push(format!("panel dropped in the viewport: {:?}, viewport {:.0} wide", l.window(WindowId::Panel).map(|w| w.dock), l.viewport.width()));
+        steps.push(format!(
+            "panel dropped in the viewport: {:?}, viewport {:.0} wide",
+            l.window(WindowId::Panel).map(|w| w.dock),
+            l.viewport.width()
+        ));
     }
     // The controls' top edge up.
     if let Some(controls) = app.renderer().frame_layout().window(WindowId::Controls) {
-        let edge = egui::pos2(controls.frame.center().x, controls.frame.min.y - crate::ui::windows::GAP / 2.0);
+        let edge = egui::pos2(
+            controls.frame.center().x,
+            controls.frame.min.y - crate::ui::windows::GAP / 2.0,
+        );
         drag(&mut app, edge, edge - egui::vec2(0.0, 120.0))?;
     }
     // The panel back to the right edge (docked), then into the viewport again for the picture.
     if let Some(panel) = app.renderer().frame_layout().window(WindowId::Panel) {
         let l = app.renderer().frame_layout();
         let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
-        drag(&mut app, grab, egui::pos2(l.area.max.x - 10.0, l.area.center().y))?;
+        drag(
+            &mut app,
+            grab,
+            egui::pos2(l.area.max.x - 10.0, l.area.center().y),
+        )?;
         let l = app.renderer().frame_layout();
-        steps.push(format!("panel dropped at the right edge: {:?}", l.window(WindowId::Panel).map(|w| w.dock)));
+        steps.push(format!(
+            "panel dropped at the right edge: {:?}",
+            l.window(WindowId::Panel).map(|w| w.dock)
+        ));
         if let Some(panel) = l.window(WindowId::Panel) {
             let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
             drag(&mut app, grab, grab - egui::vec2(500.0, -120.0))?;
@@ -157,9 +261,30 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
     }
     settle(&mut app, &buffer, 16)?;
     let after = app.renderer().frame_layout();
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    let saved = std::fs::read_to_string(&settings).map(|t| t.lines().filter(|l| l.starts_with("viewer_window_")).collect::<Vec<_>>().join("; ")).unwrap_or_else(|e| format!("{e:#}"));
-    eprintln!("viewer layout: {} ({}x{}); before: {}; {}; after: {}; saved to {}: {saved}", png.display(), size[0], size[1], describe(&before), steps.join("; "), describe(&after), settings.display());
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    let saved = std::fs::read_to_string(&settings)
+        .map(|t| {
+            t.lines()
+                .filter(|l| l.starts_with("viewer_window_"))
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .unwrap_or_else(|e| format!("{e:#}"));
+    eprintln!(
+        "viewer layout: {} ({}x{}); before: {}; {}; after: {}; saved to {}: {saved}",
+        png.display(),
+        size[0],
+        size[1],
+        describe(&before),
+        steps.join("; "),
+        describe(&after),
+        settings.display()
+    );
     Ok(())
 }
 
@@ -170,7 +295,13 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
 /// hold; the picture is the camera where the checks left it.
 pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<()> {
     use crate::readback::{read_rgba, readback_buffer, write_png};
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { settings: None, ..options }, None)?;
+    let (mut app, gpu, size) = offscreen_app(
+        ViewerOptions {
+            settings: None,
+            ..options
+        },
+        None,
+    )?;
     app.state = app.default_state(app.state.demo);
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 2)?;
@@ -198,13 +329,24 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
     let before = app.state.camera;
     drag(&mut app, MouseButton::Left, Vec2::new(120.0, 0.0))?;
     let orbit = app.state.camera;
-    check(orbit.target == before.target && (orbit.yaw - before.yaw).abs() > 10.0 && (orbit.distance - before.distance).abs() < 1e-4, format!("left drag orbits: yaw {:.1} → {:.1}, target kept", before.yaw, orbit.yaw))?;
+    check(
+        orbit.target == before.target
+            && (orbit.yaw - before.yaw).abs() > 10.0
+            && (orbit.distance - before.distance).abs() < 1e-4,
+        format!(
+            "left drag orbits: yaw {:.1} → {:.1}, target kept",
+            before.yaw, orbit.yaw
+        ),
+    )?;
     app.modifiers.shift = true;
     drag(&mut app, MouseButton::Left, Vec2::new(120.0, 60.0))?;
     app.modifiers.shift = false;
     let pan = app.state.camera;
     let moved = (glam::Vec3::from(pan.target) - glam::Vec3::from(orbit.target)).length();
-    check(pan.yaw == orbit.yaw && pan.pitch == orbit.pitch && moved > 0.1, format!("Shift-left drag pans: target moved {moved:.2} m, view kept"))?;
+    check(
+        pan.yaw == orbit.yaw && pan.pitch == orbit.pitch && moved > 0.1,
+        format!("Shift-left drag pans: target moved {moved:.2} m, view kept"),
+    )?;
     // Fly: the right button held over the viewport.
     app.cursor_moved(center);
     app.render(Some(&buffer))?;
@@ -215,7 +357,13 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
         app.render(Some(&buffer))?;
     }
     let look = app.state.camera;
-    check(look.eye().distance(eye) < 1e-3 && (look.yaw - pan.yaw).abs() > 5.0, format!("right drag turns the view about the eye: yaw {:.1} → {:.1}, eye kept", pan.yaw, look.yaw))?;
+    check(
+        look.eye().distance(eye) < 1e-3 && (look.yaw - pan.yaw).abs() > 5.0,
+        format!(
+            "right drag turns the view about the eye: yaw {:.1} → {:.1}, eye kept",
+            pan.yaw, look.yaw
+        ),
+    )?;
     // Each key held for a few frames, through the keyboard's handler too (a fly key is not a shortcut then).
     let hold = |app: &mut App, code: KeyCode| -> Result<crate::camera::OrbitCamera> {
         app.held.push(code);
@@ -232,25 +380,57 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
     let w = hold(&mut app, KeyCode::KeyW)?;
     let (forward, _) = a.forward_right();
     let step = w.eye() - a.eye();
-    check(step.length() > 1e-3 && step.normalize().dot(forward) > 0.999 && w.yaw == a.yaw, format!("W flies along the view: {:.3} m", step.length()))?;
+    check(
+        step.length() > 1e-3 && step.normalize().dot(forward) > 0.999 && w.yaw == a.yaw,
+        format!("W flies along the view: {:.3} m", step.length()),
+    )?;
     let e = hold(&mut app, KeyCode::KeyE)?;
     let up = e.eye() - w.eye();
-    check(up.y > 1e-3 && up.x.abs() < 1e-5 && up.z.abs() < 1e-5, format!("E flies up the world's Y: {:.3} m (pitch {:.1}°)", up.y, e.pitch))?;
+    check(
+        up.y > 1e-3 && up.x.abs() < 1e-5 && up.z.abs() < 1e-5,
+        format!(
+            "E flies up the world's Y: {:.3} m (pitch {:.1}°)",
+            up.y, e.pitch
+        ),
+    )?;
     let q = hold(&mut app, KeyCode::KeyQ)?;
     let down = q.eye() - e.eye();
-    check(down.y < -1e-3 && down.x.abs() < 1e-5 && down.z.abs() < 1e-5, format!("Q flies down the world's Y: {:.3} m", down.y))?;
+    check(
+        down.y < -1e-3 && down.x.abs() < 1e-5 && down.z.abs() < 1e-5,
+        format!("Q flies down the world's Y: {:.3} m", down.y),
+    )?;
     let speed = app.fly_speed;
     app.wheel(3.0);
-    check(app.fly_speed > speed && app.state.camera.distance == q.distance, format!("the wheel while flying sets the speed: {speed:.2} → {:.2} m/s, distance kept", app.fly_speed))?;
+    check(
+        app.fly_speed > speed && app.state.camera.distance == q.distance,
+        format!(
+            "the wheel while flying sets the speed: {speed:.2} → {:.2} m/s, distance kept",
+            app.fly_speed
+        ),
+    )?;
     app.mouse_button(MouseButton::Right, false);
     // Released, the keys and the wheel are the viewer's again.
     app.held.push(KeyCode::KeyW);
     app.render(Some(&buffer))?;
     app.held.clear();
-    check(app.state.camera.eye().distance(q.eye()) < 1e-4, "after the right button is let go, W no longer moves the camera".into())?;
+    check(
+        app.state.camera.eye().distance(q.eye()) < 1e-4,
+        "after the right button is let go, W no longer moves the camera".into(),
+    )?;
     settle(&mut app, &buffer, 4)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer camera: {} ({}x{}); every check held: {}", png.display(), size[0], size[1], checks.join("; "));
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    eprintln!(
+        "viewer camera: {} ({}x{}); every check held: {}",
+        png.display(),
+        size[0],
+        size[1],
+        checks.join("; ")
+    );
     Ok(())
 }
 
@@ -258,20 +438,44 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
 /// viewer-scene[:<entity>][@move|rotate|scale]`): the entity (its `Entity::id`, `object.teapot`; by default
 /// the first that moves) selected, and its gizmo's handle dragged by the pointer as a user drags it (the
 /// first arrow, the ring, or the scale handle), then the pointer left over the handle, lit.
-pub fn snapshot_scene(options: ViewerOptions, entity: Option<&str>, mode: crate::gizmo::Mode, png: &std::path::Path) -> Result<()> {
+pub fn snapshot_scene(
+    options: ViewerOptions,
+    entity: Option<&str>,
+    mode: crate::gizmo::Mode,
+    png: &std::path::Path,
+) -> Result<()> {
     use crate::gizmo::Mode;
     use crate::readback::{read_rgba, readback_buffer, write_png};
     use crate::ui::windows::WindowId;
     let mut layout = crate::config::ViewerLayout::default();
     layout.window_mut(WindowId::Scene).collapsed = false;
-    let (mut app, gpu, size) = offscreen_app(ViewerOptions { layout, settings: None, ..options }, None)?;
+    let (mut app, gpu, size) = offscreen_app(
+        ViewerOptions {
+            layout,
+            settings: None,
+            ..options
+        },
+        None,
+    )?;
     app.state = app.default_state(app.state.demo);
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 2)?;
     let entities = crate::entity::list(&app.state, &app.renderer().statics);
     let chosen = match entity {
-        Some(id) => entities.iter().find(|e| e.id == id).ok_or_else(|| anyhow::anyhow!("no entity `{id}` (the scene's: {})", entities.iter().map(|e| e.id.as_str()).collect::<Vec<_>>().join(", ")))?,
-        None => entities.iter().find(|e| e.movable() && e.visible).ok_or_else(|| anyhow::anyhow!("nothing in the scene moves"))?,
+        Some(id) => entities.iter().find(|e| e.id == id).ok_or_else(|| {
+            anyhow::anyhow!(
+                "no entity `{id}` (the scene's: {})",
+                entities
+                    .iter()
+                    .map(|e| e.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?,
+        None => entities
+            .iter()
+            .find(|e| e.movable() && e.visible)
+            .ok_or_else(|| anyhow::anyhow!("nothing in the scene moves"))?,
     }
     .clone();
     app.apply(ViewerAction::Select(Some(chosen.id.clone())));
@@ -280,14 +484,32 @@ pub fn snapshot_scene(options: ViewerOptions, entity: Option<&str>, mode: crate:
     // The handle's place on screen, in window pixels.
     let vp = app.renderer().frame_layout().viewport_px();
     let origin = Vec2::new(vp[0] as f32, vp[1] as f32);
-    let values = |app: &App| chosen.position.iter().flatten().chain(&chosen.yaw).chain(&chosen.scale).map(|k| format!("{k} {:.2}", app.state.try_get(k).map_or(f32::NAN, |v| v.f32()))).collect::<Vec<_>>().join(", ");
+    let values = |app: &App| {
+        chosen
+            .position
+            .iter()
+            .flatten()
+            .chain(&chosen.yaw)
+            .chain(&chosen.scale)
+            .map(|k| {
+                format!(
+                    "{k} {:.2}",
+                    app.state.try_get(k).map_or(f32::NAN, |v| v.f32())
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     let before = values(&app);
     let mut dragged = String::from("no gizmo (it does not move, or is off screen)");
     let probe = origin + Vec2::new(vp[2] as f32, vp[3] as f32) * 0.5;
     if let Some((shape, _, _)) = app.gizmo_shape(probe) {
         let (grab, to) = match (mode, chosen.yaw.is_some()) {
             (Mode::Rotate, true) => (shape.ring[0], shape.ring[6]),
-            (Mode::Scale, true) => (shape.scale, shape.center + (shape.scale - shape.center) * 1.5),
+            (Mode::Scale, true) => (
+                shape.scale,
+                shape.center + (shape.scale - shape.center) * 1.5,
+            ),
             _ => {
                 let tip = shape.tips[0].unwrap_or(shape.center + Vec2::X * 80.0);
                 let grab = shape.center.lerp(tip, 0.6);
@@ -310,24 +532,51 @@ pub fn snapshot_scene(options: ViewerOptions, entity: Option<&str>, mode: crate:
         dragged = format!("handle {hovered:?} dragged {:.0} px", (to - grab).length());
     }
     settle(&mut app, &buffer, 8)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer scene: {} ({}x{}); {} entities, {} selected ({mode:?}); {dragged}; before: {before}; after: {}", png.display(), size[0], size[1], entities.len(), chosen.id, values(&app));
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    eprintln!(
+        "viewer scene: {} ({}x{}); {} entities, {} selected ({mode:?}); {dragged}; before: {before}; after: {}",
+        png.display(),
+        size[0],
+        size[1],
+        entities.len(),
+        chosen.id,
+        values(&app)
+    );
     Ok(())
 }
 
 /// `snapshot`, or with `paused`, the timeline paused on its first 2D scene of
 /// that page (`home --snapshot … --page viewer-diagram` or `viewer-sources`).
-pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<PausedPage>, png: &std::path::Path) -> Result<()> {
+pub fn snapshot_page(
+    options: ViewerOptions,
+    demo: Option<&str>,
+    paused: Option<PausedPage>,
+    png: &std::path::Path,
+) -> Result<()> {
     use crate::readback::{read_rgba, readback_buffer, write_png};
     let playing = options.timeline.is_some() && paused.is_none();
     let (mut app, gpu, size) = offscreen_app(options, demo)?;
     if playing {
         app.playing = true;
         // The clock holds the frame: it starts counting an hour from now.
-        app.timeline_anchor = (Instant::now() + std::time::Duration::from_secs(3600), app.timeline_frame);
+        app.timeline_anchor = (
+            Instant::now() + std::time::Duration::from_secs(3600),
+            app.timeline_frame,
+        );
     } else if let Some(page) = paused {
-        let wanted = |b: &crate::shot::TimelineBeat| b.kind == SceneType::TwoD && b.shows_diagram() == (page == PausedPage::Diagram);
-        let beat = app.timeline.as_ref().and_then(|t| t.beats.iter().find(|b| wanted(b))).ok_or_else(|| anyhow::anyhow!("the timeline has no {page:?} 2D scene"))?;
+        let wanted = |b: &crate::shot::TimelineBeat| {
+            b.kind == SceneType::TwoD && b.shows_diagram() == (page == PausedPage::Diagram)
+        };
+        let beat = app
+            .timeline
+            .as_ref()
+            .and_then(|t| t.beats.iter().find(|b| wanted(b)))
+            .ok_or_else(|| anyhow::anyhow!("the timeline has no {page:?} 2D scene"))?;
         app.timeline_frame = beat.start_frame + beat.frames / 2;
         app.timeline_mode = true;
         app.playing = false;
@@ -342,7 +591,23 @@ pub fn snapshot_page(options: ViewerOptions, demo: Option<&str>, paused: Option<
     // egui sizes its areas on the first passes, and fades them in over its
     // clock; a still view's history (FrameRequest::history) fills over 16 frames.
     settle(&mut app, &buffer, 16)?;
-    write_png(png, size[0], size[1], &read_rgba(&gpu.device, &gpu.queue, &buffer, size))?;
-    eprintln!("viewer: {} ({}x{}, {})", png.display(), size[0], size[1], match (playing, paused) { (true, _) => "the timeline playing", (_, Some(PausedPage::Diagram)) => "paused on a diagram", (_, Some(PausedPage::Sources)) => "paused on a sources card", _ => "the first demonstration" });
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    eprintln!(
+        "viewer: {} ({}x{}, {})",
+        png.display(),
+        size[0],
+        size[1],
+        match (playing, paused) {
+            (true, _) => "the timeline playing",
+            (_, Some(PausedPage::Diagram)) => "paused on a diagram",
+            (_, Some(PausedPage::Sources)) => "paused on a sources card",
+            _ => "the first demonstration",
+        }
+    );
     Ok(())
 }

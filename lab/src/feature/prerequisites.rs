@@ -42,10 +42,22 @@ impl Feature for PrerequisitesFeature {
 
     fn pages(&self) -> &'static [Page] {
         &[
-            Page { name: "viewer-prerequisites", help: "[:<demo>] (the Prerequisites tab, the knowledge graph in the panel)" },
-            Page { name: "viewer-knowledge", help: "[:<demo>] (that panel zoomed onto a topic of the audience's level, selected)" },
-            Page { name: "viewer-knowledge-graph", help: "[:<demo>] (the knowledge graph full screen over the viewer)" },
-            Page { name: "viewer-knowledge-compact", help: "[:<demo>] (full screen, only the topics its context needs)" },
+            Page {
+                name: "viewer-prerequisites",
+                help: "[:<demo>] (the Prerequisites tab, the knowledge graph in the panel)",
+            },
+            Page {
+                name: "viewer-knowledge",
+                help: "[:<demo>] (that panel zoomed onto a topic of the audience's level, selected)",
+            },
+            Page {
+                name: "viewer-knowledge-graph",
+                help: "[:<demo>] (the knowledge graph full screen over the viewer)",
+            },
+            Page {
+                name: "viewer-knowledge-compact",
+                help: "[:<demo>] (full screen, only the topics its context needs)",
+            },
         ]
     }
 
@@ -82,7 +94,9 @@ impl FeatureState for Prerequisites {
     fn update(&mut self, host: &mut dyn Host) {
         self.context.chapters = match host.timeline_chapter() {
             Some(chapter) => vec![chapter],
-            None => crate::knowledge::current().map(|g| g.chapters_of_demo(host.state().demo.key())).unwrap_or_default(),
+            None => crate::knowledge::current()
+                .map(|g| g.chapters_of_demo(host.state().demo.key()))
+                .unwrap_or_default(),
         };
     }
 
@@ -98,14 +112,21 @@ impl FeatureState for Prerequisites {
         if panel.interactive {
             self.overlay |= pressed;
             // Its input area is in the background layer, which egui does not count as over the UI.
-            panel.pointer |= panel.ctx.pointer_hover_pos().is_some_and(|p| rect.contains(p));
+            panel.pointer |= panel
+                .ctx
+                .pointer_hover_pos()
+                .is_some_and(|p| rect.contains(p));
         }
     }
 
     fn overlay(&mut self, panel: &mut StoryPanel) {
         if self.overlay {
             panel.pointer = true;
-            if crate::ui::draw_knowledge_overlay(panel.ctx, panel.input.layout.canvas, &self.context) {
+            if crate::ui::draw_knowledge_overlay(
+                panel.ctx,
+                panel.input.layout.canvas,
+                &self.context,
+            ) {
                 self.overlay = false;
             }
         }
@@ -120,7 +141,13 @@ impl FeatureState for Prerequisites {
     }
 
     /// The demonstration at its defaults on the tab, settled over sixteen frames.
-    fn snapshot(&mut self, page: &str, _args: Option<&str>, step: usize, host: &mut dyn Host) -> Result<Snapshot> {
+    fn snapshot(
+        &mut self,
+        page: &str,
+        _args: Option<&str>,
+        step: usize,
+        host: &mut dyn Host,
+    ) -> Result<Snapshot> {
         match step {
             0 => {
                 if page == "viewer-knowledge-compact" {
@@ -128,17 +155,29 @@ impl FeatureState for Prerequisites {
                 }
                 let defaults = host.default_state(host.state().demo);
                 host.show(defaults);
-                self.overlay = matches!(page, "viewer-knowledge-graph" | "viewer-knowledge-compact");
+                self.overlay =
+                    matches!(page, "viewer-knowledge-graph" | "viewer-knowledge-compact");
                 // The chapters whose demonstrations include this one (no timeline is shown).
                 let graph = crate::knowledge::current().expect("the tab has a graph");
                 let chapters = graph.chapters_of_demo(host.state().demo.key());
                 let focus = (page == "viewer-knowledge").then(|| {
                     let context = graph.context(&chapters);
                     let p = graph.audience();
-                    p.level.iter().find(|&&i| context[i]).or(p.level.first()).map(|&i| graph.nodes[i].id.clone())
+                    p.level
+                        .iter()
+                        .find(|&&i| context[i])
+                        .or(p.level.first())
+                        .map(|&i| graph.nodes[i].id.clone())
                 });
                 let focus = focus.flatten();
-                self.report = format!("demonstration {}, chapters {chapters:?}{}", host.state().demo.key(), focus.as_ref().map(|f| format!(", focused on {f}")).unwrap_or_default());
+                self.report = format!(
+                    "demonstration {}, chapters {chapters:?}{}",
+                    host.state().demo.key(),
+                    focus
+                        .as_ref()
+                        .map(|f| format!(", focused on {f}"))
+                        .unwrap_or_default()
+                );
                 if focus.is_some() {
                     self.context.focus = focus;
                 }
@@ -166,38 +205,78 @@ impl Prerequisites {
         let context = graph.context(&chapters);
         let carried = p.carried();
         let ranks = graph.ranks();
-        let heading = if chapters.is_empty() { tr("knowledge-for_all").to_string() } else { tr_with("knowledge-for_chapters", args!(chapters = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "))) };
+        let heading = if chapters.is_empty() {
+            tr("knowledge-for_all").to_string()
+        } else {
+            tr_with(
+                "knowledge-for_chapters",
+                args!(
+                    chapters = chapters
+                        .iter()
+                        .map(|c| c.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            )
+        };
         // A topic: its title (a click selects it in the graph) and its summary under it.
         let topic = |d: &mut Dock, ui: &mut Ui, i: usize, color: Color32| {
             let node = &graph.nodes[i];
-            let mark = if carried.contains(&i) { " ↗" } else { "" };
-            let r = ui.selectable_label(false, RichText::new(format!("{}{mark}", node.title)).color(color));
-            let r = if mark.is_empty() { r } else { r.on_hover_text(tr("prerequisites-carried_hint")) };
+            let mark = if carried.contains(&i) {
+                " ↗"
+            } else {
+                ""
+            };
+            let r = ui.selectable_label(
+                false,
+                RichText::new(format!("{}{mark}", node.title)).color(color),
+            );
+            let r = if mark.is_empty() {
+                r
+            } else {
+                r.on_hover_text(tr("prerequisites-carried_hint"))
+            };
             if r.clicked() {
                 crate::ui::focus_topic(ui.ctx(), i);
                 if d.state.panel != PanelMode::Knowledge {
                     d.actions.push(ViewerAction::SetPanel(PanelMode::Knowledge));
                 }
             }
-            ui.add(egui::Label::new(RichText::new(&node.summary).size(20.0).color(palette::text_dim())).wrap());
+            ui.add(
+                egui::Label::new(
+                    RichText::new(&node.summary)
+                        .size(20.0)
+                        .color(palette::text_dim()),
+                )
+                .wrap(),
+            );
             ui.add_space(6.0);
         };
         // Each group a column of this width, its summaries wrapped in it.
         const COLUMN: f32 = 360.0;
         let level: Vec<usize> = p.level.iter().copied().filter(|&i| context[i]).collect();
         let mut full_screen = false;
-        dock.group(ui, tr("prerequisites-level"), Some(&format!("{heading}\n\n{}", tr("prerequisites-level_hint"))), |d, ui| {
-            ui.set_width(COLUMN);
-            let full = ui.button(tr("knowledge-full_screen")).on_hover_text(tr("prerequisites-full_screen_hint"));
-            full_screen = full.clicked();
-            ui.add_space(6.0);
-            for &i in &level {
-                topic(d, ui, i, palette::accent());
-            }
-        });
+        dock.group(
+            ui,
+            tr("prerequisites-level"),
+            Some(&format!("{heading}\n\n{}", tr("prerequisites-level_hint"))),
+            |d, ui| {
+                ui.set_width(COLUMN);
+                let full = ui
+                    .button(tr("knowledge-full_screen"))
+                    .on_hover_text(tr("prerequisites-full_screen_hint"));
+                full_screen = full.clicked();
+                ui.add_space(6.0);
+                for &i in &level {
+                    topic(d, ui, i, palette::accent());
+                }
+            },
+        );
         // What the audience should know, by area, the nearest the level first.
         for area in crate::knowledge::AREAS {
-            let mut known: Vec<usize> = (0..graph.nodes.len()).filter(|&i| p.is_known(i) && context[i] && graph.nodes[i].area == *area).collect();
+            let mut known: Vec<usize> = (0..graph.nodes.len())
+                .filter(|&i| p.is_known(i) && context[i] && graph.nodes[i].area == *area)
+                .collect();
             if known.is_empty() {
                 continue;
             }
@@ -220,12 +299,17 @@ impl Prerequisites {
         }
         let teach: Vec<usize> = p.teach.iter().copied().filter(|&i| context[i]).collect();
         if !teach.is_empty() {
-            dock.group(ui, tr("prerequisites-teach"), Some(tr("prerequisites-teach_hint")), |d, ui| {
-                ui.set_width(COLUMN);
-                for &i in &teach {
-                    topic(d, ui, i, palette::code_number());
-                }
-            });
+            dock.group(
+                ui,
+                tr("prerequisites-teach"),
+                Some(tr("prerequisites-teach_hint")),
+                |d, ui| {
+                    ui.set_width(COLUMN);
+                    for &i in &teach {
+                        topic(d, ui, i, palette::code_number());
+                    }
+                },
+            );
         }
         self.overlay |= full_screen;
     }

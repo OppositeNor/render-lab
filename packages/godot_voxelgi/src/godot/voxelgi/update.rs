@@ -26,7 +26,9 @@ pub fn outputs_words() -> u64 {
 
 /// The key of the light settings a texture was lit for.
 pub fn settings_key(s: &world::LightSettings) -> u64 {
-    ((s.dynamic_range * 100.0).round() as u64) << 32 | ((s.propagation * 100.0).round() as u64) << 1 | s.two_bounces as u64
+    ((s.dynamic_range * 100.0).round() as u64) << 32
+        | ((s.propagation * 100.0).round() as u64) << 1
+        | s.two_bounces as u64
 }
 
 /// The dispatches of one update for the scene node's settings in `state`:
@@ -62,14 +64,38 @@ pub fn plan(state: &ShotState) -> UpdatePlan {
     };
     let mut dispatches = Vec::new();
     let leaves = probe.level_range(probe.leaf_level());
-    for pass in 0..if settings.two_bounces { 2 } else { 1 } {
-        dispatches.push(dispatch(if pass == 0 { "voxelgiLightCS" } else { "voxelgiBounceCS" }, leaves.clone(), 0));
+    for pass in 0..if settings.two_bounces {
+        2
+    } else {
+        1
+    } {
+        dispatches.push(dispatch(
+            if pass == 0 {
+                "voxelgiLightCS"
+            } else {
+                "voxelgiBounceCS"
+            },
+            leaves.clone(),
+            0,
+        ));
         for mip in 1..probe.mip_count() {
-            dispatches.push(dispatch("voxelgiMipmapsCS", probe.level_range(probe.mip_level(mip)), mip));
+            dispatches.push(dispatch(
+                "voxelgiMipmapsCS",
+                probe.level_range(probe.mip_level(mip)),
+                mip,
+            ));
         }
         for mip in 0..probe.mip_count() {
-            dispatches.push(dispatch("voxelgiWriteCS", probe.level_range(probe.mip_level(mip)), mip));
+            dispatches.push(dispatch(
+                "voxelgiWriteCS",
+                probe.level_range(probe.mip_level(mip)),
+                mip,
+            ));
         }
     }
-    UpdatePlan { key: settings_key(&settings), always: state.p("giRelightEachFrame") > 0.5, dispatches }
+    UpdatePlan {
+        key: settings_key(&settings),
+        always: state.p("giRelightEachFrame") > 0.5,
+        dispatches,
+    }
 }

@@ -54,7 +54,11 @@ static FORCED: AtomicBool = AtomicBool::new(false);
 
 /// The style the code panel draws listings in.
 pub fn style() -> Style {
-    if STYLE.load(Ordering::Relaxed) == Style::Text as u8 { Style::Text } else { Style::Blocks }
+    if STYLE.load(Ordering::Relaxed) == Style::Text as u8 {
+        Style::Text
+    } else {
+        Style::Blocks
+    }
 }
 
 /// Use `style` from the next frame on, unless the command line fixed one.
@@ -107,7 +111,9 @@ impl Kind {
     }
 }
 
-const CONTROL_WORDS: &[&str] = &["for", "while", "if", "elif", "else", "return", "break", "continue", "raise", "pass"];
+const CONTROL_WORDS: &[&str] = &[
+    "for", "while", "if", "elif", "else", "return", "break", "continue", "raise", "pass",
+];
 
 pub struct Line {
     pub text: String,
@@ -120,14 +126,21 @@ impl Line {
     /// Its first word.
     fn word(&self) -> &str {
         let t = self.text.trim_start();
-        let end = t.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(t.len());
+        let end = t
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(t.len());
         &t[..end]
     }
 
     /// What it does: its mark, else control for a line that starts with a
     /// control word, else a statement.
     pub fn kind(&self) -> Kind {
-        self.mark.unwrap_or(if CONTROL_WORDS.contains(&self.word()) { Kind::Control } else { Kind::Statement })
+        self.mark
+            .unwrap_or(if CONTROL_WORDS.contains(&self.word()) {
+                Kind::Control
+            } else {
+                Kind::Statement
+            })
     }
 
     fn indent(&self) -> usize {
@@ -147,8 +160,12 @@ pub struct Listing {
 
 /// A listing's text: `key` of the current investigation's table (or the lab's).
 fn text(key: &str) -> &'static str {
-    let package = crate::investigation::current().package().unwrap_or("render_lab");
-    crate::i18n::try_package_text(package, key).or_else(|| crate::i18n::try_package_text("render_lab", key)).unwrap_or_else(|| panic!("no text `{key}` in {package}'s text table or the lab's"))
+    let package = crate::investigation::current()
+        .package()
+        .unwrap_or("render_lab");
+    crate::i18n::try_package_text(package, key)
+        .or_else(|| crate::i18n::try_package_text("render_lab", key))
+        .unwrap_or_else(|| panic!("no text `{key}` in {package}'s text table or the lab's"))
 }
 
 impl Listing {
@@ -167,11 +184,19 @@ impl Listing {
     }
 
     pub fn parse(name: &'static str, text: &str) -> Listing {
-        let mut listing = Listing { name, title: None, dispatch: None, source: String::new(), demo: None, lines: Vec::new() };
+        let mut listing = Listing {
+            name,
+            title: None,
+            dispatch: None,
+            source: String::new(),
+            demo: None,
+            lines: Vec::new(),
+        };
         let mut header = true;
         for raw in text.lines() {
             if header {
-                if let Some((key, value)) = raw.strip_prefix("# ").and_then(|r| r.split_once(": ")) {
+                if let Some((key, value)) = raw.strip_prefix("# ").and_then(|r| r.split_once(": "))
+                {
                     match key {
                         "title-text" => {
                             listing.title = Some(value.trim().to_string());
@@ -201,7 +226,9 @@ impl Listing {
                     if let Some(m) = word.strip_prefix("@@") {
                         match Kind::from_mark(m) {
                             Some(kind) => mark = Some(kind),
-                            None => eprintln!("listing {name}: unknown mark `@@{m}` (read, write, math, control, statement)"),
+                            None => eprintln!(
+                                "listing {name}: unknown mark `@@{m}` (read, write, math, control, statement)"
+                            ),
                         }
                     } else if let Some(tag) = word.strip_prefix('@') {
                         tags.insert(0, tag.to_string());
@@ -209,7 +236,11 @@ impl Listing {
                 }
                 code = code[..at].trim_end();
             }
-            listing.lines.push(Line { text: code.to_string(), tags, mark });
+            listing.lines.push(Line {
+                text: code.to_string(),
+                tags,
+                mark,
+            });
         }
         while listing.lines.last().is_some_and(|l| l.text.is_empty()) {
             listing.lines.pop();
@@ -272,14 +303,21 @@ fn logical_lines(listing: &Listing) -> Vec<Logical> {
         let code = code_part(&line.text).trim_end();
         // A line inside brackets, after a backslash, or indented off the
         // four-space grid continues the one before.
-        let joins = !blank && (open > 0 || continued || line.indent() % 4 != 0) && out.last().is_some_and(|l| !l.blank);
+        let joins = !blank
+            && (open > 0 || continued || line.indent() % 4 != 0)
+            && out.last().is_some_and(|l| !l.blank);
         if joins {
             let last = out.last_mut().unwrap();
             last.lines.end = i + 1;
             last.code.push(' ');
             last.code.push_str(code.trim());
         } else {
-            out.push(Logical { lines: i..i + 1, indent: line.indent(), code: code.trim().to_string(), blank });
+            out.push(Logical {
+                lines: i..i + 1,
+                indent: line.indent(),
+                code: code.trim().to_string(),
+                blank,
+            });
             open = 0;
         }
         for c in code.chars() {
@@ -330,10 +368,14 @@ fn build(listing: &Listing, logical: &[Logical], i: &mut usize, min: usize) -> V
         }
         let word = listing.lines[l.lines.start].word();
         if l.code.is_empty() {
-            out.push(Block::Note { line: l.lines.start });
+            out.push(Block::Note {
+                line: l.lines.start,
+            });
             *i += 1;
         } else if word == "def" || word == "class" {
-            out.push(Block::Hat { lines: l.lines.clone() });
+            out.push(Block::Hat {
+                lines: l.lines.clone(),
+            });
             *i += 1;
         } else if l.code.ends_with(':') && matches!(word, "for" | "while" | "if" | "with" | "try") {
             let indent = l.indent;
@@ -345,16 +387,30 @@ fn build(listing: &Listing, logical: &[Logical], i: &mut usize, min: usize) -> V
                 arms.push(Arm { head, body });
                 // Its next arm: `elif`, `else`, `except`, at its indentation.
                 match logical.get(*i) {
-                    Some(n) if !n.blank && n.indent == indent && n.code.ends_with(':') && matches!(listing.lines[n.lines.start].word(), "elif" | "else" | "except" | "finally") => head = n.lines.clone(),
+                    Some(n)
+                        if !n.blank
+                            && n.indent == indent
+                            && n.code.ends_with(':')
+                            && matches!(
+                                listing.lines[n.lines.start].word(),
+                                "elif" | "else" | "except" | "finally"
+                            ) =>
+                    {
+                        head = n.lines.clone()
+                    }
                     _ => break,
                 }
             }
             out.push(Block::C { arms });
         } else if matches!(word, "return" | "break" | "continue" | "raise") {
-            out.push(Block::Cap { lines: l.lines.clone() });
+            out.push(Block::Cap {
+                lines: l.lines.clone(),
+            });
             *i += 1;
         } else {
-            out.push(Block::Stmt { lines: l.lines.clone() });
+            out.push(Block::Stmt {
+                lines: l.lines.clone(),
+            });
             *i += 1;
         }
     }
@@ -373,7 +429,11 @@ pub enum Token {
 
 /// Python tokens of one line, for colouring.
 pub fn tokens(line: &str) -> Vec<(Token, &str)> {
-    const KEYWORDS: &[&str] = &["def", "return", "for", "in", "if", "elif", "else", "and", "or", "not", "while", "break", "continue", "None", "True", "False", "lambda", "import", "from", "with", "as", "pass", "is", "class"];
+    const KEYWORDS: &[&str] = &[
+        "def", "return", "for", "in", "if", "elif", "else", "and", "or", "not", "while", "break",
+        "continue", "None", "True", "False", "lambda", "import", "from", "with", "as", "pass",
+        "is", "class",
+    ];
     let mut out = Vec::new();
     let bytes = line.as_bytes();
     let mut i = 0;
@@ -393,7 +453,9 @@ pub fn tokens(line: &str) -> Vec<(Token, &str)> {
             i = (i + 1).min(bytes.len());
             Token::Text
         } else if c.is_ascii_digit() {
-            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_') {
+            while i < bytes.len()
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_')
+            {
                 i += 1;
             }
             Token::Number
@@ -447,16 +509,26 @@ mod tests {
     fn nests_blocks() {
         let listing = Listing::parse("t", LISTING);
         let blocks = blocks(&listing);
-        let Block::C { arms } = &blocks[1] else { panic!("{blocks:?}") };
+        let Block::C { arms } = &blocks[1] else {
+            panic!("{blocks:?}")
+        };
         assert_eq!(blocks[0], Block::Hat { lines: 0..1 });
         assert_eq!(arms.len(), 1);
         assert_eq!(arms[0].head, 1..2);
         assert_eq!(arms[0].body[0], Block::Stmt { lines: 2..3 });
-        let Block::C { arms: branch } = &arms[0].body[1] else { panic!("{:?}", arms[0].body) };
+        let Block::C { arms: branch } = &arms[0].body[1] else {
+            panic!("{:?}", arms[0].body)
+        };
         // The `if` continues on its second line; then `elif` and `else`.
-        assert_eq!(branch.iter().map(|a| a.head.clone()).collect::<Vec<_>>(), vec![3..5, 6..7, 8..9]);
+        assert_eq!(
+            branch.iter().map(|a| a.head.clone()).collect::<Vec<_>>(),
+            vec![3..5, 6..7, 8..9]
+        );
         assert_eq!(branch[1].body, vec![Block::Cap { lines: 7..8 }]);
-        assert_eq!(branch[2].body, vec![Block::Note { line: 9 }, Block::Stmt { lines: 10..12 }]);
+        assert_eq!(
+            branch[2].body,
+            vec![Block::Note { line: 9 }, Block::Stmt { lines: 10..12 }]
+        );
         // The blank line, then the `return` back at the function's level.
         assert_eq!(&blocks[2..], &[Block::Gap, Block::Cap { lines: 13..14 }]);
     }

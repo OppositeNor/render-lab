@@ -3,31 +3,33 @@
 //! layer, the composite into the viewport rectangle, then egui on top. The
 //! viewer blits that target to its window; the recorder reads it back.
 
-use crate::view::ViewId;
 use crate::frame::{self, FrameContent, Statics};
-use crate::investigation::{self, SceneShading};
-use crate::gpu::{self, Gpu, Pipelines, DEPTH_FORMAT, FRAME_FORMAT, HDR_FORMAT, MSAA, OVERLAY_FORMAT};
+use crate::gpu::{
+    self, DEPTH_FORMAT, FRAME_FORMAT, Gpu, HDR_FORMAT, MSAA, OVERLAY_FORMAT, Pipelines,
+};
 use crate::graph::Step;
+use crate::investigation::{self, SceneShading};
 use crate::layout::{FrameUniforms, ObjectData};
 use crate::scene::SceneId;
 use crate::shot::{SceneType, ShotState};
 use crate::ui::{self, Chrome, Layout, UiInput, UiReport};
 use crate::utility::inset::Textures;
+use crate::view::ViewId;
 use bytemuck::Pod;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 pub use crate::readback::{padded_row_bytes, read_buffer, readback_buffer, unpad_rows};
 
-mod targets;
-mod shading;
-mod inspect;
-mod views;
-mod reads;
 mod encode;
-pub use targets::*;
-use shading::*;
+mod inspect;
+mod reads;
+mod shading;
+mod targets;
+mod views;
 use inspect::*;
+use shading::*;
+pub use targets::*;
 use views::*;
 
 pub struct Renderer {
@@ -196,15 +198,27 @@ impl Renderer {
         let queue = &gpu.queue;
         let pipelines = Pipelines::new(device)?;
         let storage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC;
-        let mesh_nodes = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("teapot BVH nodes"), contents: bytemuck::cast_slice(&crate::mesh::teapot().nodes), usage: wgpu::BufferUsages::STORAGE });
-        let mesh_triangles = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("teapot triangles"), contents: bytemuck::cast_slice(&crate::mesh::teapot().triangles), usage: wgpu::BufferUsages::STORAGE });
+        let mesh_nodes = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("teapot BVH nodes"),
+            contents: bytemuck::cast_slice(&crate::mesh::teapot().nodes),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let mesh_triangles = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("teapot triangles"),
+            contents: bytemuck::cast_slice(&crate::mesh::teapot().triangles),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
         // The lab's environment (environment.rs), gEnvironment.
         let env = crate::environment::Environment::get();
         let environment = device.create_texture_with_data(
             queue,
             &wgpu::TextureDescriptor {
                 label: Some("environment (RGB9E5)"),
-                size: wgpu::Extent3d { width: env.sizes[0][0] as u32, height: env.sizes[0][1] as u32, depth_or_array_layers: 1 },
+                size: wgpu::Extent3d {
+                    width: env.sizes[0][0] as u32,
+                    height: env.sizes[0][1] as u32,
+                    depth_or_array_layers: 1,
+                },
                 mip_level_count: env.levels.len() as u32,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
@@ -213,11 +227,19 @@ impl Renderer {
                 view_formats: &[],
             },
             wgpu::util::TextureDataOrder::LayerMajor,
-            &env.levels.concat().iter().flat_map(|t| t.to_le_bytes()).collect::<Vec<u8>>(),
+            &env.levels
+                .concat()
+                .iter()
+                .flat_map(|t| t.to_le_bytes())
+                .collect::<Vec<u8>>(),
         );
         let environment_view = environment.create_view(&Default::default());
 
-        let terrain = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("terrain heights"), contents: bytemuck::cast_slice(&crate::terrain::terrain().gpu_words()), usage: wgpu::BufferUsages::STORAGE });
+        let terrain = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrain heights"),
+            contents: bytemuck::cast_slice(&crate::terrain::terrain().gpu_words()),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
         let records = RecordBuffers {
             uniforms: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("frame uniforms"),
@@ -225,7 +247,12 @@ impl Renderer {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            objects: GrowBuffer::new(device, "objects", storage, (statics.scene.objects.len() * std::mem::size_of::<ObjectData>()) as u64),
+            objects: GrowBuffer::new(
+                device,
+                "objects",
+                storage,
+                (statics.scene.objects.len() * std::mem::size_of::<ObjectData>()) as u64,
+            ),
             mesh_nodes,
             mesh_triangles,
             terrain,
@@ -240,7 +267,16 @@ impl Renderer {
         let vertex = wgpu::BufferUsages::VERTEX;
         let egui_ctx = egui::Context::default();
         ui::install_fonts(&egui_ctx);
-        let egui_renderer = egui_wgpu::Renderer::new(device, FRAME_FORMAT, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
+        let egui_renderer = egui_wgpu::Renderer::new(
+            device,
+            FRAME_FORMAT,
+            egui_wgpu::RendererOptions {
+                msaa_samples: 1,
+                depth_stencil_format: None,
+                dithering: false,
+                predictable_texture_filtering: true,
+            },
+        );
         let textures = Textures::new();
         let frame = Self::frame_texture(device, width, height);
         let frame_view = frame.create_view(&Default::default());
@@ -250,12 +286,23 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let compare_params = device.create_buffer(&wgpu::BufferDescriptor { label: Some("compare"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let compare_params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("compare"),
+            size: 16,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let pipelines_compare_layout = pipelines.compare_layout.clone();
         let mut renderer = Renderer {
             still: (None, 0),
             still_scene: (None, 0),
-            frame_bind_group: Self::frame_bind_group(device, &pipelines, &records, &environment_view, &sampler),
+            frame_bind_group: Self::frame_bind_group(
+                device,
+                &pipelines,
+                &records,
+                &environment_view,
+                &sampler,
+            ),
             shading_uniforms,
             shadings: Vec::new(),
             chain: None,
@@ -289,8 +336,26 @@ impl Renderer {
             view_layout: device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("image kind"),
                 entries: &[
-                    wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: wgpu::TextureFormat::Rgba8Unorm, view_dimension: wgpu::TextureViewDimension::D2 }, count: None },
-                    wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                            format: wgpu::TextureFormat::Rgba8Unorm,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             }),
             view_shading: None,
@@ -305,7 +370,14 @@ impl Renderer {
             last_views: Vec::new(),
             last_overs: Vec::new(),
             compare: None,
-            compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("compare"), layout: &pipelines_compare_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: compare_params.as_entire_binding() }] }),
+            compare_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("compare"),
+                layout: &pipelines_compare_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: compare_params.as_entire_binding(),
+                }],
+            }),
             compare_params,
             reference_drawn: false,
             user_layout: Default::default(),
@@ -328,10 +400,22 @@ impl Renderer {
     /// The GPU data of the scene `statics` prepares: its raster meshes.
     fn scene_resources(device: &wgpu::Device, statics: &Statics) -> SceneResources {
         let meshes = &statics.meshes;
-        let mesh_vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("mesh vertices"), contents: bytemuck::cast_slice(&meshes.vertices), usage: wgpu::BufferUsages::VERTEX });
-        let mesh_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("mesh indices"), contents: bytemuck::cast_slice(&meshes.indices), usage: wgpu::BufferUsages::INDEX });
+        let mesh_vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh vertices"),
+            contents: bytemuck::cast_slice(&meshes.vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let mesh_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh indices"),
+            contents: bytemuck::cast_slice(&meshes.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
         let ids: Vec<u32> = (0..statics.scene.objects.len() as u32).collect();
-        let object_ids = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("object ids"), contents: bytemuck::cast_slice(&ids), usage: wgpu::BufferUsages::VERTEX });
+        let object_ids = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("object ids"),
+            contents: bytemuck::cast_slice(&ids),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         SceneResources {
             mesh_vertices,
@@ -357,7 +441,8 @@ impl Renderer {
         let (next, scene) = match self.other_scenes.remove(&id) {
             Some(kept) => kept,
             None => {
-                let statics = Statics::prepare(id).unwrap_or_else(|e| panic!("preparing scene {}: {e:#}", id.key()));
+                let statics = Statics::prepare(id)
+                    .unwrap_or_else(|e| panic!("preparing scene {}: {e:#}", id.key()));
                 let scene = Self::scene_resources(&self.gpu.device, &statics);
                 (statics, scene)
             }
@@ -368,25 +453,48 @@ impl Renderer {
             mesh_indices: std::mem::replace(&mut self.mesh_indices, scene.mesh_indices),
             object_ids: std::mem::replace(&mut self.object_ids, scene.object_ids),
         };
-        self.other_scenes.insert(previous.scene.id, (previous, resources));
+        self.other_scenes
+            .insert(previous.scene.id, (previous, resources));
     }
 
     /// The view being drawn shows scene `id`: its own data is dropped when its scene changed.
     fn view_scene(&mut self, id: SceneId) {
         self.switch_scene(id);
         let view = self.active;
-        if self.view_scenes.insert(view, id).is_some_and(|last| last != id) {
+        if self
+            .view_scenes
+            .insert(view, id)
+            .is_some_and(|last| last != id)
+        {
             crate::fetch::clear_view(view);
         }
     }
 
     fn frame_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
-        target(device, "frame (RGBA8)", [width, height], FRAME_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING)
+        target(
+            device,
+            "frame (RGBA8)",
+            [width, height],
+            FRAME_FORMAT,
+            1,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+        )
     }
 
-    fn frame_bind_group(device: &wgpu::Device, pipelines: &Pipelines, r: &RecordBuffers, environment: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
+    fn frame_bind_group(
+        device: &wgpu::Device,
+        pipelines: &Pipelines,
+        r: &RecordBuffers,
+        environment: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) -> wgpu::BindGroup {
         fn buffer(binding: u32, b: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
-            wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }
+            wgpu::BindGroupEntry {
+                binding,
+                resource: b.as_entire_binding(),
+            }
         }
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
@@ -394,10 +502,16 @@ impl Renderer {
             entries: &[
                 buffer(0, &r.uniforms),
                 buffer(1, &r.objects.buffer),
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(sampler),
+                },
                 buffer(3, &r.mesh_nodes),
                 buffer(4, &r.mesh_triangles),
-                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(environment) },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(environment),
+                },
                 buffer(6, &r.terrain),
             ],
         })
@@ -431,19 +545,36 @@ impl Renderer {
     /// src/ui/windows.rs); `dock`: with its Controls and Scene windows (not while a timeline plays).
     /// With `values`, the panel shows (a feature's own, `FeatureLayout::panel`) whatever the state's panel mode.
     /// `code_width`: the code panel's width when a listing shows (a recording's, fit to it).
-    pub fn layout_for(&self, state: &ShotState, scene_type: SceneType, viewer: bool, dock: bool, values: bool, code_width: Option<f32>) -> Layout {
-        let panel = scene_type != SceneType::ThreeD || state.panel != crate::shot::PanelMode::Hidden || values;
+    pub fn layout_for(
+        &self,
+        state: &ShotState,
+        scene_type: SceneType,
+        viewer: bool,
+        dock: bool,
+        values: bool,
+        code_width: Option<f32>,
+    ) -> Layout {
+        let panel = scene_type != SceneType::ThreeD
+            || state.panel != crate::shot::PanelMode::Hidden
+            || values;
         // The pseudo-code and the knowledge graph take the wider panel.
         let wide = scene_type == SceneType::ThreeD && state.panel.wide();
         if viewer {
             // A 2D page (a diagram, a sources card) takes the room of the panel too.
             let three_d = scene_type == SceneType::ThreeD;
-            let shown = crate::ui::windows::Shown { scene: dock && three_d && crate::entity::any(state, &self.statics), controls: dock, panel: panel && three_d, wide };
+            let shown = crate::ui::windows::Shown {
+                scene: dock && three_d && crate::entity::any(state, &self.statics),
+                controls: dock,
+                panel: panel && three_d,
+                wide,
+            };
             return self.layout().with_windows(&self.user_layout, shown);
         }
         let video = self.layout().for_video();
         let layout = match code_width {
-            Some(width) if wide && state.panel == crate::shot::PanelMode::Code => video.with_panel_width(width),
+            Some(width) if wide && state.panel == crate::shot::PanelMode::Code => {
+                video.with_panel_width(width)
+            }
             _ if wide => video.with_code_panel(),
             _ => video,
         };
@@ -466,16 +597,39 @@ impl Renderer {
     /// Upload the frame's records and uniforms.
     pub fn upload(&mut self, content: &FrameContent) {
         if !content.shading_frame.is_empty() {
-            assert!(content.shading_frame.len() <= frame::SHADING_FRAME_CAPACITY, "shading_frame holds {} vectors (at most {})", content.shading_frame.len(), frame::SHADING_FRAME_CAPACITY);
+            assert!(
+                content.shading_frame.len() <= frame::SHADING_FRAME_CAPACITY,
+                "shading_frame holds {} vectors (at most {})",
+                content.shading_frame.len(),
+                frame::SHADING_FRAME_CAPACITY
+            );
             if let Some(buffer) = self.shading().map(|s| s.frame_data.clone()) {
-                self.gpu.queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&content.shading_frame));
+                self.gpu.queue.write_buffer(
+                    &buffer,
+                    0,
+                    bytemuck::cast_slice(&content.shading_frame),
+                );
             }
         }
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        queue.write_buffer(&self.records.uniforms, 0, bytemuck::bytes_of(&content.uniforms));
-        queue.write_buffer(&self.shading_uniforms, 0, bytemuck::cast_slice(&content.shading));
+        queue.write_buffer(
+            &self.records.uniforms,
+            0,
+            bytemuck::bytes_of(&content.uniforms),
+        );
+        queue.write_buffer(
+            &self.shading_uniforms,
+            0,
+            bytemuck::cast_slice(&content.shading),
+        );
         if self.records.objects.write(device, queue, &content.objects) {
-            self.frame_bind_group = Self::frame_bind_group(device, &self.pipelines, &self.records, &self.environment_view, &self.sampler);
+            self.frame_bind_group = Self::frame_bind_group(
+                device,
+                &self.pipelines,
+                &self.records,
+                &self.environment_view,
+                &self.sampler,
+            );
         }
     }
 
@@ -521,7 +675,10 @@ impl Renderer {
         let device = &self.gpu.device;
         let mut kept = Vec::new();
         for s in self.shadings.iter_mut() {
-            let (Some(program), Some(pipelines)) = (s.source.program, s.pipelines.program.as_ref()) else { continue };
+            let (Some(program), Some(pipelines)) = (s.source.program, s.pipelines.program.as_ref())
+            else {
+                continue;
+            };
             let id = s.source as *const SceneShading as usize;
             // The slot's runtime for this shading, or a new one (made for this view's size when it binds).
             let incoming = match slot.programs.iter().position(|(k, _, _)| *k == id) {
@@ -530,12 +687,17 @@ impl Renderer {
                     (runtime, handles)
                 }
                 None => {
-                    let runtime = std::cell::RefCell::new(crate::program::ProgramRuntime::new(device, s.source, program, pipelines));
+                    let runtime = std::cell::RefCell::new(crate::program::ProgramRuntime::new(
+                        device, s.source, program, pipelines,
+                    ));
                     let handles = std::cell::RefCell::new(runtime.borrow().handles());
                     (runtime, handles)
                 }
             };
-            let runtime = s.program.replace(incoming.0).expect("a shading with a program has its runtime");
+            let runtime = s
+                .program
+                .replace(incoming.0)
+                .expect("a shading with a program has its runtime");
             let handles = std::mem::replace(&mut s.program_handles, incoming.1);
             kept.push((id, runtime, handles));
         }
@@ -545,43 +707,90 @@ impl Renderer {
     /// Counts how long the view being drawn has held still and writes it into
     /// `content`'s `viewParams.w` (`FrameRequest::history`; 0 without history).
     fn hold_still(&mut self, content: &mut FrameContent, viewport: [u32; 2], history: bool) {
-        let count = |last: (Option<u64>, u32), key: u64| if last.0 == Some(key) { (Some(key), last.1.saturating_add(1)) } else { (Some(key), 0) };
+        let count = |last: (Option<u64>, u32), key: u64| {
+            if last.0 == Some(key) {
+                (Some(key), last.1.saturating_add(1))
+            } else {
+                (Some(key), 0)
+            }
+        };
         self.still = count(self.still, still_key(content, viewport, true));
         self.still_scene = count(self.still_scene, still_key(content, viewport, false));
-        content.uniforms.view_params[3] = if history { (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32 } else { 0.0 };
+        content.uniforms.view_params[3] = if history {
+            (1 + self.still.1.min(255) + 256 * self.still_scene.1.min(32767)) as f32
+        } else {
+            0.0
+        };
     }
 
     /// The view being drawn's targets at `size` (made again, its chain with them, when the size changed).
     fn targets_at(&mut self, size: [u32; 2]) {
         if self.viewport.as_ref().is_none_or(|v| v.size != size) {
             self.chain = None;
-            self.viewport = Some(ViewportTargets::new(&self.gpu.device, &self.pipelines, size));
+            self.viewport = Some(ViewportTargets::new(
+                &self.gpu.device,
+                &self.pipelines,
+                size,
+            ));
         }
     }
 
     /// A view other than the main one, drawn in a submission of its own from
     /// its own slot: built (or `content` as given), planned, drawn, and, with
     /// `at`, composited there.
-    fn draw_view(&mut self, view: ViewId, state: &ShotState, content: Option<FrameContent>, size: [u32; 2], frame: ViewFrame, at: Option<([u32; 4], bool)>) -> FrameContent {
-        let ViewFrame { scale, time, history, wait } = frame;
+    fn draw_view(
+        &mut self,
+        view: ViewId,
+        state: &ShotState,
+        content: Option<FrameContent>,
+        size: [u32; 2],
+        frame: ViewFrame,
+        at: Option<([u32; 4], bool)>,
+    ) -> FrameContent {
+        let ViewFrame {
+            scale,
+            time,
+            history,
+            wait,
+        } = frame;
         let main_scene = self.statics.scene.id;
         self.enter(view);
         // Its own scene (src/view.rs).
         self.view_scene(investigation::current().scene(state));
         self.targets_at(size);
         self.select_data(state, wait || !history);
-        let mut content = content.unwrap_or_else(|| crate::shader_data::build_frame(state, &self.statics, [size[0] as f32, size[1] as f32], scale, time));
+        let mut content = content.unwrap_or_else(|| {
+            crate::shader_data::build_frame(
+                state,
+                &self.statics,
+                [size[0] as f32, size[1] as f32],
+                scale,
+                time,
+            )
+        });
         self.hold_still(&mut content, size, history);
         self.plan_program(state, history, size);
         self.upload(&content);
         self.upload_draws(&content);
-        let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("view") });
+        let mut encoder = self
+            .gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("view"),
+            });
         self.encode_scene(&mut encoder, &content, false);
         // The reads it asks for, of what its own passes left (src/fetch.rs).
         if !content.fetches.is_empty() {
             let tag = still_key(&content, size, true);
             let mut queue = std::mem::take(&mut self.fetches);
-            queue.issue(&self.gpu.device, &mut encoder, &content.fetches, tag, crate::fetch::BUDGET, &|source| self.fetch_target(source));
+            queue.issue(
+                &self.gpu.device,
+                &mut encoder,
+                &content.fetches,
+                tag,
+                crate::fetch::BUDGET,
+                &|source| self.fetch_target(source),
+            );
             self.fetches = queue;
         }
         if let Some((at, clear)) = at {
@@ -599,18 +808,26 @@ impl Renderer {
         let d = &content.draw;
         // The x-ray copies draw occluded parts dimmed and dashed.
         let dim = |a: f32| a * 0.3;
-        let seg_xray: Vec<_> = d.segments.iter().map(|s| {
-            let mut s = *s;
-            s.color[3] = dim(s.color[3]);
-            s.flags |= frame::FLAG_DASHED;
-            s
-        }).collect();
-        let box_xray: Vec<_> = d.boxes.iter().map(|b| {
-            let mut b = *b;
-            b.color[3] = dim(b.color[3]);
-            b.rid[3] |= frame::FLAG_DASHED;
-            b
-        }).collect();
+        let seg_xray: Vec<_> = d
+            .segments
+            .iter()
+            .map(|s| {
+                let mut s = *s;
+                s.color[3] = dim(s.color[3]);
+                s.flags |= frame::FLAG_DASHED;
+                s
+            })
+            .collect();
+        let box_xray: Vec<_> = d
+            .boxes
+            .iter()
+            .map(|b| {
+                let mut b = *b;
+                b.color[3] = dim(b.color[3]);
+                b.rid[3] |= frame::FLAG_DASHED;
+                b
+            })
+            .collect();
         self.segments.write(device, queue, &d.segments);
         self.segments_xray.write(device, queue, &seg_xray);
         self.boxes.write(device, queue, &d.boxes);
@@ -622,18 +839,28 @@ impl Renderer {
 
     /// Render one frame into the RGBA target. When `readback` is given, the
     /// frame is copied into it (rows padded to 256 bytes) in the same submission.
-    pub fn render_frame(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>) -> FrameResult {
+    pub fn render_frame(
+        &mut self,
+        request: FrameRequest,
+        readback: Option<&wgpu::Buffer>,
+    ) -> FrameResult {
         self.render_frame_with(request, readback, None)
     }
 
     /// Like `render_frame`, but with prepared frame content (used by the
     /// selftest to draw known markers).
-    pub fn render_frame_with(&mut self, request: FrameRequest, readback: Option<&wgpu::Buffer>, prepared: Option<FrameContent>) -> FrameResult {
+    pub fn render_frame_with(
+        &mut self,
+        request: FrameRequest,
+        readback: Option<&wgpu::Buffer>,
+        prepared: Option<FrameContent>,
+    ) -> FrameResult {
         self.enter(ViewId::MAIN);
         self.view_scene(investigation::current().scene(request.state));
         // The reads earlier frames asked for that have landed (src/fetch.rs);
         // a recording's frame with history waits for the last frame's.
-        self.fetches.collect(&self.gpu.device, request.wait && request.history);
+        self.fetches
+            .collect(&self.gpu.device, request.wait && request.history);
         // The performance panel measures the frames it is shown with.
         if request.state.panel.shows_passes() && request.scene_type == SceneType::ThreeD {
             self.set_timing(true);
@@ -643,14 +870,25 @@ impl Renderer {
             self.frame_starts.pop_front();
         }
         let dock = matches!(&request.chrome, Chrome::Viewer(v) if !(v.timeline_mode && v.playing));
-        let values = dock && matches!(&request.chrome, Chrome::Viewer(v) if v.feature_panel().is_some());
+        let values =
+            dock && matches!(&request.chrome, Chrome::Viewer(v) if v.feature_panel().is_some());
         // A recording's code panel is as wide as its listing needs.
         let listing = match &request.chrome {
-            Chrome::Recording { .. } if request.state.panel == crate::shot::PanelMode::Code => request.state.code.as_deref().and_then(|c| investigation::current().listing(c)),
+            Chrome::Recording { .. } if request.state.panel == crate::shot::PanelMode::Code => {
+                request
+                    .state
+                    .code
+                    .as_deref()
+                    .and_then(|c| investigation::current().listing(c))
+            }
             _ => None,
         };
         let code_width = listing.map(|listing| {
-            let key = (listing.name, crate::i18n::current(), crate::pseudocode::style());
+            let key = (
+                listing.name,
+                crate::i18n::current(),
+                crate::pseudocode::style(),
+            );
             if let Some(width) = self.code_fit.get(&key) {
                 return *width;
             }
@@ -660,7 +898,12 @@ impl Renderer {
                 // Its texture changes (the font atlas) are uploaded like any pass's.
                 for (id, deltas) in warm.textures_delta.set.drain() {
                     for delta in &deltas {
-                        self.egui_renderer.update_texture(&self.gpu.device, &self.gpu.queue, id, delta);
+                        self.egui_renderer.update_texture(
+                            &self.gpu.device,
+                            &self.gpu.queue,
+                            id,
+                            delta,
+                        );
                     }
                 }
                 for id in warm.textures_delta.free.drain() {
@@ -672,11 +915,22 @@ impl Renderer {
             width
         });
         let viewer = matches!(&request.chrome, Chrome::Viewer(_));
-        let mut layout = self.layout_for(request.state, request.scene_type, viewer, dock, values, code_width);
+        let mut layout = self.layout_for(
+            request.state,
+            request.scene_type,
+            viewer,
+            dock,
+            values,
+            code_width,
+        );
         let scene_beat = request.scene_type == SceneType::ThreeD;
         // A split scene area: the views beside the main one, each in its own
         // rectangle; the main view takes the last (Investigation::panes).
-        let mut panes = if scene_beat && prepared.is_none() { investigation::current().panes(request.state) } else { Vec::new() };
+        let mut panes = if scene_beat && prepared.is_none() {
+            investigation::current().panes(request.state)
+        } else {
+            Vec::new()
+        };
         let main = panes.pop();
         // A panel with nothing to show gives its room to the viewport: a
         // listing the investigation does not have, or a struct panel whose
@@ -684,46 +938,91 @@ impl Renderer {
         // frame is built, at the viewport's size: it is built at the last
         // frame's layout, and again at the other if that was wrong.
         // A scene with a size of its own (src/shot/mod.rs `FrameSize`), fitted into the viewport: not split, nor compared.
-        let fixed = request.state.frame.size().filter(|_| scene_beat && prepared.is_none() && main.is_none() && self.compare.is_none());
+        let fixed = request.state.frame.size().filter(|_| {
+            scene_beat && prepared.is_none() && main.is_none() && self.compare.is_none()
+        });
         let fit = |layout: Layout| match fixed {
             Some(size) => layout.with_frame(size),
             None => layout,
         };
         let mut built = None;
-        if layout.panel_shown && scene_beat && prepared.is_none() && main.is_none() && !values && self.compare.is_none() {
+        if layout.panel_shown
+            && scene_beat
+            && prepared.is_none()
+            && main.is_none()
+            && !values
+            && self.compare.is_none()
+        {
             use crate::shot::PanelMode;
             match request.state.panel {
-                PanelMode::Code if request.state.code.as_deref().and_then(|c| investigation::current().listing(c)).is_none() => layout = layout.for_panel(false),
+                PanelMode::Code
+                    if request
+                        .state
+                        .code
+                        .as_deref()
+                        .and_then(|c| investigation::current().listing(c))
+                        .is_none() =>
+                {
+                    layout = layout.for_panel(false)
+                }
                 PanelMode::Declaration | PanelMode::Values | PanelMode::Memory => {
                     self.select_data(request.state, request.wait || !request.history);
                     let build = |layout: &Layout| {
                         let size = fit(*layout).render_size_px();
-                        crate::shader_data::build_frame(request.state, &self.statics, [size[0] as f32, size[1] as f32], layout.scale, request.time)
+                        crate::shader_data::build_frame(
+                            request.state,
+                            &self.statics,
+                            [size[0] as f32, size[1] as f32],
+                            layout.scale,
+                            request.time,
+                        )
                     };
                     let shown = layout;
                     let hidden = layout.for_panel(false);
-                    let mut content = build(if self.panel_empty { &hidden } else { &shown });
+                    let mut content = build(if self.panel_empty {
+                        &hidden
+                    } else {
+                        &shown
+                    });
                     let empty = content.panel_record.is_none() && content.readout.is_none();
                     if empty != self.panel_empty {
-                        content = build(if empty { &hidden } else { &shown });
+                        content = build(if empty {
+                            &hidden
+                        } else {
+                            &shown
+                        });
                     }
                     self.panel_empty = empty;
-                    layout = if empty { hidden } else { shown };
+                    layout = if empty {
+                        hidden
+                    } else {
+                        shown
+                    };
                     built = Some(content);
                 }
                 _ => {}
             }
         }
         layout = fit(layout);
-        let rects = if main.is_some() { layout.split(panes.len() + 1) } else { Vec::new() };
+        let rects = if main.is_some() {
+            layout.split(panes.len() + 1)
+        } else {
+            Vec::new()
+        };
         if let Some(rect) = rects.last() {
             layout.viewport = *rect;
         }
         // An experiment's reference (src/experiment.rs): in a view of its own,
         // beside the live one, or behind it (a wipe, a difference, alone).
-        let compare = self.compare.clone().filter(|_| scene_beat && prepared.is_none() && main.is_none());
+        let compare = self
+            .compare
+            .clone()
+            .filter(|_| scene_beat && prepared.is_none() && main.is_none());
         let mut reference_rect = layout.viewport;
-        if compare.as_ref().is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide) {
+        if compare
+            .as_ref()
+            .is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide)
+        {
             let halves = layout.split(2);
             reference_rect = halves[0];
             layout.viewport = halves[1];
@@ -731,20 +1030,43 @@ impl Renderer {
         self.last_layout = layout;
         let vp = layout.viewport_px();
         let viewport_size = layout.render_size_px();
-        let frame = ViewFrame { scale: layout.scale, time: request.time, history: request.history, wait: request.wait };
+        let frame = ViewFrame {
+            scale: layout.scale,
+            time: request.time,
+            history: request.history,
+            wait: request.wait,
+        };
         self.targets_at(viewport_size);
         let size = [viewport_size[0] as f32, viewport_size[1] as f32];
         self.reference_drawn = false;
         if let Some(c) = &compare {
             // The reference first, from its own slot (src/view.rs), so its history builds up as the live view's does.
-            self.draw_view(ViewId::REFERENCE, &c.reference, None, viewport_size, frame, None);
+            self.draw_view(
+                ViewId::REFERENCE,
+                &c.reference,
+                None,
+                viewport_size,
+                frame,
+                None,
+            );
             self.reference_drawn = true;
         }
         // Each other view of a split area: from its own slot, composited into its rectangle.
         let mut drawn = Vec::new();
         for (n, (pane, rect)) in panes.iter().zip(&rects).enumerate() {
-            let at = Layout { viewport: *rect, ..layout }.viewport_px();
-            let content = self.draw_view(ViewId::pane(n as u32), &pane.state, None, [at[2], at[3]], frame, Some((at, drawn.is_empty())));
+            let at = Layout {
+                viewport: *rect,
+                ..layout
+            }
+            .viewport_px();
+            let content = self.draw_view(
+                ViewId::pane(n as u32),
+                &pane.state,
+                None,
+                [at[2], at[3]],
+                frame,
+                Some((at, drawn.is_empty())),
+            );
             drawn.push((*rect, content));
         }
         for n in panes.len() as u32..8 {
@@ -752,19 +1074,35 @@ impl Renderer {
         }
         let scene_state = main.as_ref().map_or(request.state, |m| &m.state);
         // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures.
-        let boxes: Vec<(String, String)> = request.diagram.filter(|_| !scene_beat).map(|d| d.lit_groups()).unwrap_or_default();
+        let boxes: Vec<(String, String)> = request
+            .diagram
+            .filter(|_| !scene_beat)
+            .map(|d| d.lit_groups())
+            .unwrap_or_default();
         let renders = scene_beat || !boxes.is_empty();
         // A recording waits for the data, so every frame is the same each time.
         if renders {
             self.select_data(scene_state, request.wait || !request.history);
             self.plan_program(scene_state, request.history, viewport_size);
         }
-        let settle_prepared = if request.history { None } else { prepared.clone() };
+        let settle_prepared = if request.history {
+            None
+        } else {
+            prepared.clone()
+        };
         let given = prepared.is_some();
         let panel_built = built.is_some();
         let mut content = match prepared.or(built) {
             Some(c) => Some(c),
-            None => renders.then(|| crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time)),
+            None => renders.then(|| {
+                crate::shader_data::build_frame(
+                    scene_state,
+                    &self.statics,
+                    size,
+                    layout.scale,
+                    request.time,
+                )
+            }),
         };
         if let Some(content) = content.as_mut() {
             // The frames the view has held still: the same records, uniforms
@@ -778,18 +1116,35 @@ impl Renderer {
         // its buffers and what follows its camera are read from it, and it is
         // shown in a corner.
         let free = request.state.free_camera;
-        let free_content = content.as_ref().filter(|_| scene_beat && free.on && drawn.is_empty() && compare.is_none()).map(|main| {
-            let content = crate::free_view::content(main, request.state, &free);
-            // The program plans for the camera this view is drawn from.
-            let seen = ShotState { camera: free.orbit(), ..request.state.clone() };
-            self.draw_view(ViewId::FREE, &seen, Some(content), viewport_size, frame, None)
-        });
+        let free_content = content
+            .as_ref()
+            .filter(|_| scene_beat && free.on && drawn.is_empty() && compare.is_none())
+            .map(|main| {
+                let content = crate::free_view::content(main, request.state, &free);
+                // The program plans for the camera this view is drawn from.
+                let seen = ShotState {
+                    camera: free.orbit(),
+                    ..request.state.clone()
+                };
+                self.draw_view(
+                    ViewId::FREE,
+                    &seen,
+                    Some(content),
+                    viewport_size,
+                    frame,
+                    None,
+                )
+            });
         if free_content.is_none() {
             self.slots.remove(&ViewId::FREE);
         }
         // The views the investigation stacks over the main one (src/view.rs):
         // each from its own slot, in its own scene, laid over the main view below.
-        let overs = if scene_beat && !given && main.is_none() && free_content.is_none() { investigation::current().views(request.state) } else { Vec::new() };
+        let overs = if scene_beat && !given && main.is_none() && free_content.is_none() {
+            investigation::current().views(request.state)
+        } else {
+            Vec::new()
+        };
         let mut over_drawn: Vec<(ViewId, f32, FrameContent)> = Vec::new();
         for (n, over) in overs.iter().enumerate() {
             if over.alpha <= 0.0 {
@@ -806,7 +1161,12 @@ impl Renderer {
                 self.slots.remove(&ViewId::over(n));
             }
         }
-        self.last_overs = overs.iter().enumerate().filter(|(_, o)| o.alpha > 0.0).map(|(n, o)| (ViewId::over(n as u32), o.name, o.camera)).collect();
+        self.last_overs = overs
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.alpha > 0.0)
+            .map(|(n, o)| (ViewId::over(n as u32), o.name, o.camera))
+            .collect();
         // The shading's data is the main view's again (an over view selected its own).
         if renders && !over_drawn.is_empty() {
             self.select_data(scene_state, request.wait || !request.history);
@@ -820,10 +1180,19 @@ impl Renderer {
         self.last_main_view = main_view;
         // Where each view is, back to front, for the pointer (src/view.rs).
         self.last_views = match (&free_content, main_view) {
-            (Some(_), Some(corner)) => vec![(ViewId::FREE, layout.viewport), (ViewId::MAIN, corner)],
+            (Some(_), Some(corner)) => {
+                vec![(ViewId::FREE, layout.viewport), (ViewId::MAIN, corner)]
+            }
             _ => {
-                let mut views: Vec<(ViewId, egui::Rect)> = drawn.iter().enumerate().map(|(n, (rect, _))| (ViewId::pane(n as u32), *rect)).collect();
-                if compare.as_ref().is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide) {
+                let mut views: Vec<(ViewId, egui::Rect)> = drawn
+                    .iter()
+                    .enumerate()
+                    .map(|(n, (rect, _))| (ViewId::pane(n as u32), *rect))
+                    .collect();
+                if compare
+                    .as_ref()
+                    .is_some_and(|c| c.mode == crate::experiment::Compare::SideBySide)
+                {
                     views.push((ViewId::REFERENCE, reference_rect));
                 }
                 views.push((ViewId::MAIN, layout.viewport));
@@ -831,7 +1200,12 @@ impl Renderer {
             }
         };
         // The views over the main one take the pointer where they are mostly shown.
-        self.last_views.extend(over_drawn.iter().filter(|(_, a, _)| *a > 0.5).map(|(id, _, _)| (*id, layout.viewport)));
+        self.last_views.extend(
+            over_drawn
+                .iter()
+                .filter(|(_, a, _)| *a > 0.5)
+                .map(|(id, _, _)| (*id, layout.viewport)),
+        );
         if let Some(content) = &content {
             self.upload(content);
             self.upload_draws(content);
@@ -845,12 +1219,20 @@ impl Renderer {
         // frames left: the same shot drawn first, each from the one before,
         // the first from nothing (`ShadingProgram::warmup`), untimed.
         if let (false, Some(content)) = (request.history, content.as_ref()) {
-            let warmup = investigation::current().scene_shading().and_then(|s| s.program).map_or(0, |p| p.warmup);
+            let warmup = investigation::current()
+                .scene_shading()
+                .and_then(|s| s.program)
+                .map_or(0, |p| p.warmup);
             if warmup > 0 {
                 let timing = self.timing.take();
                 for k in 0..warmup {
                     self.plan_program(scene_state, k > 0, viewport_size);
-                    let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("program warm-up") });
+                    let mut encoder =
+                        self.gpu
+                            .device
+                            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                                label: Some("program warm-up"),
+                            });
                     self.encode_scene(&mut encoder, content, true);
                     self.gpu.queue.submit([encoder.finish()]);
                 }
@@ -864,16 +1246,31 @@ impl Renderer {
         if let (false, Some(c)) = (request.history, content.as_ref()) {
             let tag = still_key(c, viewport_size, true);
             if !c.fetches.is_empty() && !crate::fetch::Queue::answered(&c.fetches, tag) {
-                let warmup = investigation::current().scene_shading().and_then(|s| s.program).map_or(0, |p| p.warmup);
+                let warmup = investigation::current()
+                    .scene_shading()
+                    .and_then(|s| s.program)
+                    .map_or(0, |p| p.warmup);
                 let timing = self.timing.take();
-                let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("fetch") });
+                let mut encoder =
+                    self.gpu
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("fetch"),
+                        });
                 if warmup == 0 {
                     self.encode_scene(&mut encoder, c, true);
                 }
                 let requests = c.fetches.clone();
                 let mut queue = std::mem::take(&mut self.fetches);
                 queue.collect(&self.gpu.device, true);
-                queue.issue(&self.gpu.device, &mut encoder, &requests, tag, u64::MAX, &|source| self.fetch_target(source));
+                queue.issue(
+                    &self.gpu.device,
+                    &mut encoder,
+                    &requests,
+                    tag,
+                    u64::MAX,
+                    &|source| self.fetch_target(source),
+                );
                 self.gpu.queue.submit([encoder.finish()]);
                 queue.submitted();
                 queue.collect(&self.gpu.device, true);
@@ -883,7 +1280,13 @@ impl Renderer {
                 // when that changes whether its panel shows (and so the view's size).
                 let empty = |c: &FrameContent| c.panel_record.is_none() && c.readout.is_none();
                 let view_params = c.uniforms.view_params;
-                let mut rebuilt = crate::shader_data::build_frame(scene_state, &self.statics, size, layout.scale, request.time);
+                let mut rebuilt = crate::shader_data::build_frame(
+                    scene_state,
+                    &self.statics,
+                    size,
+                    layout.scale,
+                    request.time,
+                );
                 rebuilt.uniforms.view_params = view_params;
                 if panel_built && empty(&rebuilt) != empty(c) && self.settling < 2 {
                     self.settling += 1;
@@ -896,16 +1299,32 @@ impl Renderer {
                 content = Some(rebuilt);
             }
         }
-        let diagram_pictures: Vec<crate::diagram::Picture> = boxes.iter().filter_map(|(group, _)| self.inspections.get(&format!("{BOX_IMAGE}{group}")).map(|x| (group.clone(), x.id, x.size))).collect();
+        let diagram_pictures: Vec<crate::diagram::Picture> = boxes
+            .iter()
+            .filter_map(|(group, _)| {
+                self.inspections
+                    .get(&format!("{BOX_IMAGE}{group}"))
+                    .map(|x| (group.clone(), x.id, x.size))
+            })
+            .collect();
         let shows_performance = request.state.panel.shows_passes();
         // A recording (no live frames before it, or a single snapshot) times a
         // few renders of the same shot first, so its panel shows measurements.
         const PERFORMANCE_WARMUP: usize = 12;
-        if let (true, false, Some(content)) = (shows_performance, request.history, content.as_ref()) {
-            let measured = self.timing.as_ref().map_or(usize::MAX, |t| t.totals().len());
+        if let (true, false, Some(content)) = (shows_performance, request.history, content.as_ref())
+        {
+            let measured = self
+                .timing
+                .as_ref()
+                .map_or(usize::MAX, |t| t.totals().len());
             for _ in measured..PERFORMANCE_WARMUP {
                 self.frame_starts.push_back(std::time::Instant::now());
-                let mut encoder = self.gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("performance warm-up") });
+                let mut encoder =
+                    self.gpu
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("performance warm-up"),
+                        });
                 self.encode_scene(&mut encoder, content, true);
                 if let Some(t) = self.timing.as_mut() {
                     t.resolve(&mut encoder);
@@ -923,12 +1342,31 @@ impl Renderer {
         }
         let performance = shows_performance.then(|| self.performance_view());
         let graph_view = request.state.panel.shows_graph().then(|| self.graph_view());
-        let pane_views: Vec<ui::PaneView> = drawn.iter().zip(&panes).map(|((rect, content), pane)| ui::PaneView { rect: *rect, content, title: pane.title.as_deref() }).collect();
-        let over_views: Vec<ui::PaneView> = over_drawn.iter().filter(|(_, a, _)| *a > 0.5).map(|(_, _, content)| ui::PaneView { rect: layout.viewport, content, title: None }).collect();
+        let pane_views: Vec<ui::PaneView> = drawn
+            .iter()
+            .zip(&panes)
+            .map(|((rect, content), pane)| ui::PaneView {
+                rect: *rect,
+                content,
+                title: pane.title.as_deref(),
+            })
+            .collect();
+        let over_views: Vec<ui::PaneView> = over_drawn
+            .iter()
+            .filter(|(_, a, _)| *a > 0.5)
+            .map(|(_, _, content)| ui::PaneView {
+                rect: layout.viewport,
+                content,
+                title: None,
+            })
+            .collect();
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));
-        raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(layout.scale);
+        raw.viewports
+            .entry(egui::ViewportId::ROOT)
+            .or_default()
+            .native_pixels_per_point = Some(layout.scale);
         let ui_input = UiInput {
             layout,
             state: request.state,
@@ -948,7 +1386,14 @@ impl Renderer {
             panes: &pane_views,
             overs: &over_views,
             title: main.as_ref().and_then(|m| m.title.as_deref()),
-            compare: compare.as_ref().filter(|_| self.reference_drawn).map(|c| ui::CompareOverlay { mode: c.mode, reference: reference_rect, split: c.split, gain: c.gain }),
+            compare: compare.as_ref().filter(|_| self.reference_drawn).map(|c| {
+                ui::CompareOverlay {
+                    mode: c.mode,
+                    reference: reference_rect,
+                    split: c.split,
+                    gain: c.gain,
+                }
+            }),
             performance: performance.as_ref(),
             graph: graph_view.as_ref(),
         };
@@ -961,19 +1406,29 @@ impl Renderer {
         self.egui_ctx.set_glyph_rasterizers(Vec::new());
         ui::restyle(&self.egui_ctx);
         let recording = match &chrome {
-            Chrome::Recording { .. } => self.recording_features.get_or_insert_with(|| crate::feature::Features::new(investigation::current())),
+            Chrome::Recording { .. } => self
+                .recording_features
+                .get_or_insert_with(|| crate::feature::Features::new(investigation::current())),
             Chrome::Viewer(_) => self.recording_features.get_or_insert_with(Default::default),
         };
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
             let chrome = match &mut chrome {
-                Chrome::Recording { timeline, frame } => Chrome::Recording { timeline, frame: *frame },
+                Chrome::Recording { timeline, frame } => Chrome::Recording {
+                    timeline,
+                    frame: *frame,
+                },
                 Chrome::Viewer(v) => Chrome::Viewer(v),
             };
             report = ui::draw(ctx, &ui_input, chrome, recording);
         });
         self.cursor = output.platform_output.cursor_icon;
-        let paint_jobs = self.egui_ctx.tessellate(output.shapes, output.pixels_per_point);
-        let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: [self.width, self.height], pixels_per_point: output.pixels_per_point };
+        let paint_jobs = self
+            .egui_ctx
+            .tessellate(output.shapes, output.pixels_per_point);
+        let screen = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.width, self.height],
+            pixels_per_point: output.pixels_per_point,
+        };
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         // Drain the deltas: epaint asserts (in debug builds) that a
         // TexturesDelta is empty when it is dropped.
@@ -982,8 +1437,12 @@ impl Renderer {
                 self.egui_renderer.update_texture(device, queue, id, delta);
             }
         }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        let mut commands = self.egui_renderer.update_buffers(device, queue, &mut encoder, &paint_jobs, &screen);
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("frame"),
+        });
+        let mut commands =
+            self.egui_renderer
+                .update_buffers(device, queue, &mut encoder, &paint_jobs, &screen);
 
         if let Some(content) = &content {
             self.dispatch_views(&mut encoder, false);
@@ -993,19 +1452,54 @@ impl Renderer {
             if !content.fetches.is_empty() {
                 let tag = still_key(content, viewport_size, true);
                 let mut queue = std::mem::take(&mut self.fetches);
-                queue.issue(&self.gpu.device, &mut encoder, &content.fetches, tag, crate::fetch::BUDGET, &|source| self.fetch_target(source));
+                queue.issue(
+                    &self.gpu.device,
+                    &mut encoder,
+                    &content.fetches,
+                    tag,
+                    crate::fetch::BUDGET,
+                    &|source| self.fetch_target(source),
+                );
                 self.fetches = queue;
             }
         }
-        if let (Some(free), Some(rect)) = (self.slots.get(&ViewId::FREE).and_then(|s| s.viewport.as_ref()).filter(|_| free_content.is_some()), main_view) {
+        if let (Some(free), Some(rect)) = (
+            self.slots
+                .get(&ViewId::FREE)
+                .and_then(|s| s.viewport.as_ref())
+                .filter(|_| free_content.is_some()),
+            main_view,
+        ) {
             // The free view fills the viewport; the main view sits in its corner.
             self.composite_from(&mut encoder, free, vp, true, None);
-            let at = Layout { viewport: rect, ..layout }.viewport_px();
-            let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
-            self.composite_pass(&mut encoder, self.viewport.as_ref().unwrap(), at, false, None, timed.as_ref().map(|t| t.writes()));
+            let at = Layout {
+                viewport: rect,
+                ..layout
+            }
+            .viewport_px();
+            let timed = self
+                .timing
+                .as_mut()
+                .and_then(|t| t.render_writes("composite"));
+            self.composite_pass(
+                &mut encoder,
+                self.viewport.as_ref().unwrap(),
+                at,
+                false,
+                None,
+                timed.as_ref().map(|t| t.writes()),
+            );
         } else if scene_beat {
-            let timed = self.timing.as_mut().and_then(|t| t.render_writes("composite"));
-            self.composite_timed(&mut encoder, vp, drawn.is_empty(), timed.as_ref().map(|t| t.writes()));
+            let timed = self
+                .timing
+                .as_mut()
+                .and_then(|t| t.render_writes("composite"));
+            self.composite_timed(
+                &mut encoder,
+                vp,
+                drawn.is_empty(),
+                timed.as_ref().map(|t| t.writes()),
+            );
         }
         // The views stacked over the main one, each at its alpha.
         for (id, alpha, _) in &over_drawn {
@@ -1013,17 +1507,39 @@ impl Renderer {
                 self.composite_over(&mut encoder, targets, vp, *alpha);
             }
         }
-        if let (Some(c), true, Some(reference)) = (&compare, self.reference_drawn, self.slots.get(&ViewId::REFERENCE).and_then(|s| s.viewport.as_ref())) {
+        if let (Some(c), true, Some(reference)) = (
+            &compare,
+            self.reference_drawn,
+            self.slots
+                .get(&ViewId::REFERENCE)
+                .and_then(|s| s.viewport.as_ref()),
+        ) {
             use crate::experiment::Compare;
             match c.mode {
                 Compare::Off => {}
                 Compare::Wipe => {
                     let width = (vp[2] as f32 * c.split.clamp(0.0, 1.0)).round() as u32;
                     if width > 0 {
-                        self.composite_from(&mut encoder, reference, vp, false, Some([vp[0], vp[1], width, vp[3]]));
+                        self.composite_from(
+                            &mut encoder,
+                            reference,
+                            vp,
+                            false,
+                            Some([vp[0], vp[1], width, vp[3]]),
+                        );
                     }
                 }
-                Compare::SideBySide => self.composite_from(&mut encoder, reference, Layout { viewport: reference_rect, ..layout }.viewport_px(), false, None),
+                Compare::SideBySide => self.composite_from(
+                    &mut encoder,
+                    reference,
+                    Layout {
+                        viewport: reference_rect,
+                        ..layout
+                    }
+                    .viewport_px(),
+                    false,
+                    None,
+                ),
                 Compare::Reference => self.composite_from(&mut encoder, reference, vp, false, None),
                 Compare::Difference => self.composite_difference(&mut encoder, vp, c.gain),
             }
@@ -1036,7 +1552,14 @@ impl Renderer {
                         view: &self.frame_view,
                         depth_slice: None,
                         resolve_target: None,
-                        ops: wgpu::Operations { load: if scene_beat { wgpu::LoadOp::Load } else { self.background_clear() }, store: wgpu::StoreOp::Store },
+                        ops: wgpu::Operations {
+                            load: if scene_beat {
+                                wgpu::LoadOp::Load
+                            } else {
+                                self.background_clear()
+                            },
+                            store: wgpu::StoreOp::Store,
+                        },
                     })],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
@@ -1047,7 +1570,12 @@ impl Renderer {
             self.egui_renderer.render(&mut pass, &paint_jobs, &screen);
         }
         if let Some(buffer) = readback {
-            crate::readback::copy_to_readback(&mut encoder, &self.frame, buffer, [self.width, self.height]);
+            crate::readback::copy_to_readback(
+                &mut encoder,
+                &self.frame,
+                buffer,
+                [self.width, self.height],
+            );
         }
         if let Some(t) = self.timing.as_mut() {
             t.resolve(&mut encoder);
@@ -1062,11 +1590,18 @@ impl Renderer {
             self.egui_renderer.free_texture(&id);
         }
         match free_content {
-            Some(free) => FrameResult { report, content: Some(free), main_content: content },
-            None => FrameResult { report, content, main_content: None },
+            Some(free) => FrameResult {
+                report,
+                content: Some(free),
+                main_content: content,
+            },
+            None => FrameResult {
+                report,
+                content,
+                main_content: None,
+            },
         }
     }
-
 }
 
 pub fn gpu_summary(gpu: &gpu::Gpu) -> serde_json::Value {

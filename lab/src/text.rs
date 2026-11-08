@@ -2,7 +2,7 @@
 //! which draws text and records the smallest size it used.
 
 use crate::{palette, resources};
-use egui::{vec2, Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Vec2};
+use egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Vec2, vec2};
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -28,7 +28,10 @@ pub fn install_fonts(ctx: &egui::Context) {
         ("DejaVuSans", "render_lab.font/dejavu-sans"),
         ("DejaVuSans-Bold", "render_lab.font/dejavu-sans-bold"),
         ("DejaVuSansMono", "render_lab.font/dejavu-sans-mono"),
-        ("DejaVuSansMono-Bold", "render_lab.font/dejavu-sans-mono-bold"),
+        (
+            "DejaVuSansMono-Bold",
+            "render_lab.font/dejavu-sans-mono-bold",
+        ),
         ("SourceHanSans", "render_lab.font/source-han-sans"),
         ("SourceHanSans-Bold", "render_lab.font/source-han-sans-bold"),
     ] {
@@ -41,18 +44,43 @@ pub fn install_fonts(ctx: &egui::Context) {
         }
         fonts.font_data.insert(name.to_owned(), Arc::new(data));
     }
-    for (family, first) in [(FontFamily::Proportional, "DejaVuSans"), (FontFamily::Monospace, "DejaVuSansMono")] {
+    for (family, first) in [
+        (FontFamily::Proportional, "DejaVuSans"),
+        (FontFamily::Monospace, "DejaVuSansMono"),
+    ] {
         let list = fonts.families.entry(family).or_default();
         list.insert(0, first.into());
         list.insert(1, "SourceHanSans".into());
     }
-    fonts.families.insert(FontFamily::Name("Bold".into()), vec!["DejaVuSans-Bold".into(), "DejaVuSans".into(), "SourceHanSans-Bold".into()]);
-    fonts.families.insert(FontFamily::Name("MonoBold".into()), vec!["DejaVuSansMono-Bold".into(), "DejaVuSansMono".into(), "SourceHanSans-Bold".into()]);
+    fonts.families.insert(
+        FontFamily::Name("Bold".into()),
+        vec![
+            "DejaVuSans-Bold".into(),
+            "DejaVuSans".into(),
+            "SourceHanSans-Bold".into(),
+        ],
+    );
+    fonts.families.insert(
+        FontFamily::Name("MonoBold".into()),
+        vec![
+            "DejaVuSansMono-Bold".into(),
+            "DejaVuSansMono".into(),
+            "SourceHanSans-Bold".into(),
+        ],
+    );
     ctx.set_fonts(fonts);
     ctx.all_styles_mut(|style| {
         use egui::TextStyle::*;
-        for (text_style, size, family) in [(Small, 24.0, FontFamily::Proportional), (Body, 24.0, FontFamily::Proportional), (Button, 24.0, FontFamily::Proportional), (Monospace, 24.0, FontFamily::Monospace), (Heading, 30.0, FontFamily::Name("Bold".into()))] {
-            style.text_styles.insert(text_style, FontId::new(size, family));
+        for (text_style, size, family) in [
+            (Small, 24.0, FontFamily::Proportional),
+            (Body, 24.0, FontFamily::Proportional),
+            (Button, 24.0, FontFamily::Proportional),
+            (Monospace, 24.0, FontFamily::Monospace),
+            (Heading, 30.0, FontFamily::Name("Bold".into())),
+        ] {
+            style
+                .text_styles
+                .insert(text_style, FontId::new(size, family));
         }
         style.spacing.button_padding = vec2(12.0, 6.0);
         style.spacing.item_spacing = vec2(8.0, 6.0);
@@ -85,7 +113,8 @@ pub fn restyle(ctx: &egui::Context) {
 /// first, since the slider's handle grows with the rail.
 pub fn slider_row(ui: &mut egui::Ui) {
     ui.spacing_mut().button_padding.y = 3.0;
-    let height = ui.text_style_height(&egui::TextStyle::Button) + 2.0 * ui.spacing().button_padding.y;
+    let height =
+        ui.text_style_height(&egui::TextStyle::Button) + 2.0 * ui.spacing().button_padding.y;
     ui.spacing_mut().interact_size.y = height;
 }
 
@@ -104,7 +133,10 @@ pub struct Ink<'a> {
 
 impl<'a> Ink<'a> {
     pub fn new(painter: &'a Painter) -> Self {
-        Ink { painter, min_size: Cell::new(f32::INFINITY) }
+        Ink {
+            painter,
+            min_size: Cell::new(f32::INFINITY),
+        }
     }
 
     pub fn font(&self, size: f32, family: FontFamily) -> FontId {
@@ -112,17 +144,35 @@ impl<'a> Ink<'a> {
         FontId::new(size, family)
     }
 
-    pub fn text(&self, pos: Pos2, align: Align2, text: impl ToString, size: f32, family: FontFamily, color: Color32) -> Rect {
+    pub fn text(
+        &self,
+        pos: Pos2,
+        align: Align2,
+        text: impl ToString,
+        size: f32,
+        family: FontFamily,
+        color: Color32,
+    ) -> Rect {
         let font = self.font(size, family);
         self.painter.text(pos, align, text, font, color)
     }
 
     pub fn measure(&self, text: &str, size: f32, family: FontFamily) -> Vec2 {
-        self.painter.layout_no_wrap(text.to_string(), FontId::new(size, family), Color32::WHITE).size()
+        self.painter
+            .layout_no_wrap(text.to_string(), FontId::new(size, family), Color32::WHITE)
+            .size()
     }
 
     /// Wrapped text inside `width`; returns the bottom y.
-    pub fn wrapped(&self, pos: Pos2, width: f32, text: &str, size: f32, family: FontFamily, color: Color32) -> f32 {
+    pub fn wrapped(
+        &self,
+        pos: Pos2,
+        width: f32,
+        text: &str,
+        size: f32,
+        family: FontFamily,
+        color: Color32,
+    ) -> f32 {
         let font = self.font(size, family);
         let galley = self.painter.layout(text.to_string(), font, color, width);
         let h = galley.size().y;
@@ -137,7 +187,9 @@ impl<'a> Ink<'a> {
         }
         let chars: Vec<char> = text.chars().collect();
         for start in 1..chars.len() {
-            let candidate: String = std::iter::once('…').chain(chars[start..].iter().copied()).collect();
+            let candidate: String = std::iter::once('…')
+                .chain(chars[start..].iter().copied())
+                .collect();
             if self.measure(&candidate, size, family.clone()).x <= width {
                 return candidate;
             }
@@ -151,7 +203,11 @@ impl<'a> Ink<'a> {
         }
         let chars: Vec<char> = text.chars().collect();
         for end in (1..chars.len()).rev() {
-            let candidate: String = chars[..end].iter().copied().chain(std::iter::once('…')).collect();
+            let candidate: String = chars[..end]
+                .iter()
+                .copied()
+                .chain(std::iter::once('…'))
+                .collect();
             if self.measure(&candidate, size, family.clone()).x <= width {
                 return candidate;
             }

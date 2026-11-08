@@ -6,7 +6,7 @@
 
 use crate::i18n::tr;
 use crate::palette;
-use egui::{pos2, vec2, Color32, Rect, Sense, Shape, Stroke, Ui};
+use egui::{Color32, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Volume {
@@ -17,12 +17,23 @@ pub struct Volume {
 
 impl Volume {
     pub const fn new(percent: u8) -> Volume {
-        Volume { percent: if percent > 100 { 100 } else { percent }, muted: false }
+        Volume {
+            percent: if percent > 100 {
+                100
+            } else {
+                percent
+            },
+            muted: false,
+        }
     }
 
     /// The factor a player scales the sound by: 0 when muted.
     pub fn gain(self) -> f32 {
-        if self.muted { 0.0 } else { self.percent as f32 / 100.0 }
+        if self.muted {
+            0.0
+        } else {
+            self.percent as f32 / 100.0
+        }
     }
 
     /// Whether nothing is heard (muted, or at 0 %).
@@ -53,21 +64,41 @@ pub fn slider(ui: &mut Ui, volume: &mut Volume, size: f32, rail: f32) -> SliderR
     ui.horizontal(|ui| {
         crate::text::slider_row(ui);
         let (mute_rect, mute) = ui.allocate_exact_size(vec2(size, size), Sense::click());
-        let mute = mute.on_hover_text(if volume.muted { tr("volume-unmute") } else { tr("volume-mute") });
+        let mute = mute.on_hover_text(if volume.muted {
+            tr("volume-unmute")
+        } else {
+            tr("volume-mute")
+        });
         if mute.clicked() {
             volume.muted = !volume.muted;
         }
-        let color = if mute.hovered() { palette::accent() } else if volume.silent() { palette::text_faint() } else { palette::text() };
+        let color = if mute.hovered() {
+            palette::accent()
+        } else if volume.silent() {
+            palette::text_faint()
+        } else {
+            palette::text()
+        };
         speaker(ui.painter(), mute_rect, *volume, color);
         ui.spacing_mut().slider_width = rail;
         let mut percent = volume.percent;
-        let level = ui.add(egui::Slider::new(&mut percent, 0..=100).suffix(" %").trailing_fill(true));
+        let level = ui.add(
+            egui::Slider::new(&mut percent, 0..=100)
+                .suffix(" %")
+                .trailing_fill(true),
+        );
         if level.changed() {
             volume.percent = percent;
             volume.muted = false;
         }
-        let committed = mute.clicked() || (level.changed() && !level.dragged()) || level.drag_stopped();
-        SliderResponse { changed: *volume != before, committed, mute: mute_rect, rail: level.rect }
+        let committed =
+            mute.clicked() || (level.changed() && !level.dragged()) || level.drag_stopped();
+        SliderResponse {
+            changed: *volume != before,
+            committed,
+            mute: mute_rect,
+            rail: level.rect,
+        }
     })
     .inner
 }
@@ -76,7 +107,18 @@ pub fn slider(ui: &mut Ui, volume: &mut Volume, size: f32, rail: f32) -> SliderR
 fn speaker(painter: &egui::Painter, rect: Rect, volume: Volume, color: Color32) {
     let s = rect.height() / 24.0;
     let at = |x: f32, y: f32| pos2(rect.min.x + x * s, rect.min.y + y * s);
-    painter.add(Shape::convex_polygon(vec![at(3.0, 9.0), at(7.0, 9.0), at(12.0, 4.5), at(12.0, 19.5), at(7.0, 15.0), at(3.0, 15.0)], color, Stroke::NONE));
+    painter.add(Shape::convex_polygon(
+        vec![
+            at(3.0, 9.0),
+            at(7.0, 9.0),
+            at(12.0, 4.5),
+            at(12.0, 19.5),
+            at(7.0, 15.0),
+            at(3.0, 15.0),
+        ],
+        color,
+        Stroke::NONE,
+    ));
     let stroke = Stroke::new(2.0 * s, color);
     if volume.silent() {
         painter.line_segment([at(15.5, 9.0), at(21.5, 15.0)], stroke);

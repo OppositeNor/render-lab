@@ -27,11 +27,24 @@ impl AudioPlayer {
         if !track.is_file() {
             return None;
         }
-        let ffplay = std::env::var_os("FFPLAY").map(PathBuf::from).unwrap_or_else(|| {
-            let local = manifest_dir.join("video/.conda-env/bin/ffplay");
-            if local.is_file() { local } else { PathBuf::from("ffplay") }
-        });
-        Some(AudioPlayer { ffplay, track, looping: None, gain: 1.0, speed: 1.0, child: None })
+        let ffplay = std::env::var_os("FFPLAY")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                let local = manifest_dir.join("video/.conda-env/bin/ffplay");
+                if local.is_file() {
+                    local
+                } else {
+                    PathBuf::from("ffplay")
+                }
+            });
+        Some(AudioPlayer {
+            ffplay,
+            track,
+            looping: None,
+            gain: 1.0,
+            speed: 1.0,
+            child: None,
+        })
     }
 
     /// Loop the track for ever, fading in over `fade` seconds.
@@ -101,7 +114,11 @@ pub fn atempo(speed: f32) -> String {
     let mut out = String::new();
     let mut rest = speed.clamp(0.25, 4.0) as f64;
     while rest < 0.5 - 1e-6 || rest > 2.0 + 1e-6 {
-        let step = if rest < 1.0 { 0.5 } else { 2.0 };
+        let step = if rest < 1.0 {
+            0.5
+        } else {
+            2.0
+        };
         out.push_str(&format!(",atempo={step}"));
         rest /= step;
     }

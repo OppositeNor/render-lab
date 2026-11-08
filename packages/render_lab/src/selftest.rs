@@ -5,7 +5,7 @@ use crate::renderer::FrameRequest;
 use crate::shot::{SceneType, ShotState, Timeline};
 use crate::ui::Chrome;
 use glam::Vec3;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// The checks run so far, each printed as it is recorded (PASS or FAIL and its name).
 #[derive(Default)]
@@ -20,8 +20,16 @@ impl Report {
     }
 
     pub fn check(&mut self, name: &str, passed: bool, detail: Value) {
-        eprintln!("{} {name}", if passed { "PASS" } else { "FAIL" });
-        self.checks.push(json!({"name": name, "passed": passed, "detail": detail}));
+        eprintln!(
+            "{} {name}",
+            if passed {
+                "PASS"
+            } else {
+                "FAIL"
+            }
+        );
+        self.checks
+            .push(json!({"name": name, "passed": passed, "detail": detail}));
     }
 
     /// Every check passed.
@@ -47,7 +55,11 @@ pub fn request<'a>(state: &'a ShotState, timeline: &'a Timeline) -> FrameRequest
 }
 
 /// A recorder's request for `state` as a scene beat of `timeline`, at `frame`.
-pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) -> FrameRequest<'a> {
+pub fn request_at<'a>(
+    state: &'a ShotState,
+    timeline: &'a Timeline,
+    frame: u64,
+) -> FrameRequest<'a> {
     FrameRequest {
         state,
         scene_type: SceneType::ThreeD,
@@ -57,7 +69,10 @@ pub fn request_at<'a>(state: &'a ShotState, timeline: &'a Timeline, frame: u64) 
         chapter_number: 1,
         fade: 0.0,
         time: 0.0,
-        raw_input: egui::RawInput { time: Some(0.0), ..Default::default() },
+        raw_input: egui::RawInput {
+            time: Some(0.0),
+            ..Default::default()
+        },
         chrome: Chrome::Recording { timeline, frame },
         stamp: None,
         focus: None,
@@ -85,7 +100,11 @@ impl Rng {
     /// A direction, uniform over the sphere.
     pub fn unit(&mut self) -> Vec3 {
         loop {
-            let v = Vec3::new(self.range(-1.0, 1.0), self.range(-1.0, 1.0), self.range(-1.0, 1.0));
+            let v = Vec3::new(
+                self.range(-1.0, 1.0),
+                self.range(-1.0, 1.0),
+                self.range(-1.0, 1.0),
+            );
             if v.length_squared() > 0.01 && v.length_squared() <= 1.0 {
                 return v.normalize();
             }
@@ -95,6 +114,10 @@ impl Rng {
     /// A direction in the hemisphere around `n`.
     pub fn above(&mut self, n: Vec3) -> Vec3 {
         let v = self.unit();
-        if v.dot(n) < 0.05 { (v - n * (v.dot(n) - 0.05 - self.next())).normalize() } else { v }
+        if v.dot(n) < 0.05 {
+            (v - n * (v.dot(n) - 0.05 - self.next())).normalize()
+        } else {
+            v
+        }
     }
 }

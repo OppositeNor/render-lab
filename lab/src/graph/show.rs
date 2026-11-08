@@ -6,9 +6,15 @@ use super::*;
 /// A view of a resource as text, `<show>[?<param>=<value>[,<value>]&…]`
 /// (`SceneShading::shows`, the inspector's page): its visualizer, if named,
 /// and its parameters, checked.
-pub fn parse_view(spec: &str) -> Result<(Option<Show>, crate::utility::inset::ImageParams), String> {
+pub fn parse_view(
+    spec: &str,
+) -> Result<(Option<Show>, crate::utility::inset::ImageParams), String> {
     let (show, query) = spec.split_once('?').unwrap_or((spec, ""));
-    let show = if show.is_empty() { None } else { Some(Show::from_key(show)?) };
+    let show = if show.is_empty() {
+        None
+    } else {
+        Some(Show::from_key(show)?)
+    };
     Ok((show, parse_params(query)?))
 }
 
@@ -16,8 +22,14 @@ pub fn parse_view(spec: &str) -> Result<(Option<Show>, crate::utility::inset::Im
 pub fn parse_params(query: &str) -> Result<crate::utility::inset::ImageParams, String> {
     let mut params = std::collections::BTreeMap::new();
     for pair in query.split('&').filter(|p| !p.is_empty()) {
-        let (name, value) = pair.split_once('=').ok_or_else(|| format!("`{pair}`: expected name=value"))?;
-        let value: Vec<f32> = value.split(',').map(|v| v.trim().parse::<f32>()).collect::<Result<_, _>>().map_err(|e| format!("`{pair}`: {e}"))?;
+        let (name, value) = pair
+            .split_once('=')
+            .ok_or_else(|| format!("`{pair}`: expected name=value"))?;
+        let value: Vec<f32> = value
+            .split(',')
+            .map(|v| v.trim().parse::<f32>())
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("`{pair}`: {e}"))?;
         check_inspect_param(name, &value)?;
         params.insert(name.to_string(), value);
     }
@@ -49,7 +61,17 @@ pub enum Show {
 }
 
 impl Show {
-    pub const ALL: [Show; 9] = [Show::Color, Show::Unorm, Show::Normal, Show::Depth, Show::Ramp, Show::Signed, Show::Count, Show::Float, Show::Hash];
+    pub const ALL: [Show; 9] = [
+        Show::Color,
+        Show::Unorm,
+        Show::Normal,
+        Show::Depth,
+        Show::Ramp,
+        Show::Signed,
+        Show::Count,
+        Show::Float,
+        Show::Hash,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -66,7 +88,15 @@ impl Show {
     }
 
     pub fn from_key(key: &str) -> Result<Show, String> {
-        Show::ALL.into_iter().find(|s| s.key() == key).ok_or_else(|| format!("imageShow `{key}`: one of {}", Show::ALL.map(Show::key).join(", ")))
+        Show::ALL
+            .into_iter()
+            .find(|s| s.key() == key)
+            .ok_or_else(|| {
+                format!(
+                    "imageShow `{key}`: one of {}",
+                    Show::ALL.map(Show::key).join(", ")
+                )
+            })
     }
 
     /// Its index in the shader (`InspectParams::mode`).
@@ -106,10 +136,20 @@ pub const INSPECT_PARAMS: &[(&str, usize, f32, (f32, f32))] = &[
 /// Checks a graph image's parameter.
 pub fn check_inspect_param(key: &str, value: &[f32]) -> Result<(), String> {
     let Some(&(_, components, _, (lo, hi))) = INSPECT_PARAMS.iter().find(|p| p.0 == key) else {
-        return Err(format!("image.{key}: a graph image takes {}", INSPECT_PARAMS.iter().map(|p| p.0).collect::<Vec<_>>().join(", ")));
+        return Err(format!(
+            "image.{key}: a graph image takes {}",
+            INSPECT_PARAMS
+                .iter()
+                .map(|p| p.0)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     };
     if value.len() != components {
-        return Err(format!("image.{key} takes {components} number(s), not {}", value.len()));
+        return Err(format!(
+            "image.{key} takes {components} number(s), not {}",
+            value.len()
+        ));
     }
     if let Some(v) = value.iter().find(|v| !(lo..=hi).contains(*v)) {
         return Err(format!("image.{key} = {v}: outside {lo}..{hi}"));
@@ -120,7 +160,11 @@ pub fn check_inspect_param(key: &str, value: &[f32]) -> Result<(), String> {
 /// The inspector's entry point for a resource of this shape (inspect.wgsl), and its source's binding.
 pub fn inspect_entry(shape: &Shape) -> (&'static str, u32) {
     match shape {
-        Shape::Texture { format: wgpu::TextureFormat::Depth32Float, samples, .. } if *samples > 1 => ("inspectDepthMsCS", 4),
+        Shape::Texture {
+            format: wgpu::TextureFormat::Depth32Float,
+            samples,
+            ..
+        } if *samples > 1 => ("inspectDepthMsCS", 4),
         Shape::Texture { samples, .. } if *samples > 1 => ("inspectTextureMsCS", 3),
         Shape::Texture { .. } => ("inspectTextureCS", 2),
         Shape::Buffer { .. } | Shape::UpdateBuffer => ("inspectBufferCS", 6),
@@ -162,7 +206,10 @@ pub fn program_writes(uses: &[crate::investigation::ProgramUse]) -> Vec<&'static
 }
 
 /// The resources of the uses whose access `keep`s, each once, in order.
-pub(super) fn program_resources(uses: &[crate::investigation::ProgramUse], keep: impl Fn(crate::investigation::Access) -> bool) -> Vec<&'static str> {
+pub(super) fn program_resources(
+    uses: &[crate::investigation::ProgramUse],
+    keep: impl Fn(crate::investigation::Access) -> bool,
+) -> Vec<&'static str> {
     let mut out: Vec<&'static str> = Vec::new();
     for u in uses.iter().filter(|u| keep(u.access)) {
         if !out.contains(&u.resource) {
@@ -177,18 +224,28 @@ pub fn default_show(shape: &Shape) -> Show {
     match shape {
         Shape::Texture { format, .. } => match format {
             wgpu::TextureFormat::Depth32Float => Show::Depth,
-            wgpu::TextureFormat::Rgba16Float | wgpu::TextureFormat::Rgba32Float | wgpu::TextureFormat::Rg11b10Ufloat => Show::Color,
-            wgpu::TextureFormat::R8Unorm | wgpu::TextureFormat::R16Float | wgpu::TextureFormat::R32Float => Show::Ramp,
+            wgpu::TextureFormat::Rgba16Float
+            | wgpu::TextureFormat::Rgba32Float
+            | wgpu::TextureFormat::Rg11b10Ufloat => Show::Color,
+            wgpu::TextureFormat::R8Unorm
+            | wgpu::TextureFormat::R16Float
+            | wgpu::TextureFormat::R32Float => Show::Ramp,
             _ => Show::Unorm,
         },
         // One word a pixel holds a value (a depth, a factor), read as f32; more, counts and indices.
-        Shape::Buffer { words_per_tile: 1, .. } => Show::Float,
+        Shape::Buffer {
+            words_per_tile: 1, ..
+        } => Show::Float,
         Shape::Buffer { .. } | Shape::UpdateBuffer => Show::Count,
         Shape::DepthArray { .. } => Show::Depth,
         Shape::Volume { .. } => Show::Color,
         Shape::Bytes { .. } => Show::Count,
         Shape::Image { format, .. } => match image_class(*format) {
-            0 => default_show(&Shape::Texture { format: *format, divisor: 1, samples: 1 }),
+            0 => default_show(&Shape::Texture {
+                format: *format,
+                divisor: 1,
+                samples: 1,
+            }),
             1 => Show::Hash,
             _ => Show::Signed,
         },

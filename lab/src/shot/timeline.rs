@@ -38,9 +38,20 @@ pub struct TimelinePart {
 impl Timeline {
     /// The tag over a chapter of it: `01 / 08   TITLE`, after its part's (`PART 1 / 3 · `) when it is one.
     pub fn chapter_tag(&self, chapter: &TimelineChapter) -> String {
-        let tag = format!("{:02} / {:02}   {}", chapter.number, self.chapters.len(), chapter.title.to_uppercase());
+        let tag = format!(
+            "{:02} / {:02}   {}",
+            chapter.number,
+            self.chapters.len(),
+            chapter.title.to_uppercase()
+        );
         match &self.part {
-            Some(p) => format!("{}   {tag}", crate::i18n::tr_with("ui-part_tag", crate::args!(number = p.number, count = p.count))),
+            Some(p) => format!(
+                "{}   {tag}",
+                crate::i18n::tr_with(
+                    "ui-part_tag",
+                    crate::args!(number = p.number, count = p.count)
+                )
+            ),
             None => tag,
         }
     }
@@ -69,7 +80,9 @@ pub enum SceneType {
 impl TimelineBeat {
     /// The caption shown at `frame`, if any.
     pub fn caption_at(&self, frame: u64) -> Option<&Caption> {
-        self.captions.iter().find(|c| c.start <= frame && frame < c.end)
+        self.captions
+            .iter()
+            .find(|c| c.start <= frame && frame < c.end)
     }
 
     /// A 2D scene that shows a diagram, not its sources card.
@@ -82,11 +95,13 @@ impl TimelineBeat {
         if self.diagram.is_none() && self.graph.is_none() {
             return None;
         }
-        let made = self.diagram_graph.get_or_init(|| match (&self.graph, &self.diagram) {
-            (Some(scene), _) => crate::graph::FrameGraph::current(&[]).scene_graph(scene),
-            (None, Some(spec)) => spec.graph(),
-            (None, None) => unreachable!("a beat with a diagram"),
-        });
+        let made = self
+            .diagram_graph
+            .get_or_init(|| match (&self.graph, &self.diagram) {
+                (Some(scene), _) => crate::graph::FrameGraph::current(&[]).scene_graph(scene),
+                (None, Some(spec)) => spec.graph(),
+                (None, None) => unreachable!("a beat with a diagram"),
+            });
         Some(made.as_ref().map_err(|e| e.as_str()))
     }
 
@@ -95,12 +110,23 @@ impl TimelineBeat {
     /// settled (no transition).
     pub fn beat_diagram(&self) -> Option<crate::diagram::BeatDiagram<'_>> {
         let graph = self.diagram_graph()?.ok()?;
-        self.shows_diagram().then_some(crate::diagram::BeatDiagram { graph, focus: &self.focus, scene: self.graph.as_ref(), transition: crate::diagram::Transition::default() })
+        self.shows_diagram().then_some(crate::diagram::BeatDiagram {
+            graph,
+            focus: &self.focus,
+            scene: self.graph.as_ref(),
+            transition: crate::diagram::Transition::default(),
+        })
     }
 
     /// Both 2D beats show one diagram (or one frame graph scene) in one chapter.
     pub fn same_diagram(&self, other: &TimelineBeat) -> bool {
-        self.kind == SceneType::TwoD && other.kind == SceneType::TwoD && self.chapter == other.chapter && self.shows_diagram() && other.shows_diagram() && self.diagram == other.diagram && self.graph == other.graph
+        self.kind == SceneType::TwoD
+            && other.kind == SceneType::TwoD
+            && self.chapter == other.chapter
+            && self.shows_diagram()
+            && other.shows_diagram()
+            && self.diagram == other.diagram
+            && self.graph == other.graph
     }
 }
 
@@ -343,6 +369,7 @@ impl Cue {
 
     /// Whether it sets `channel` (by itself, or as a component of a value it sets).
     pub(super) fn sets(&self, channel: &str) -> bool {
-        self.targets().is_ok_and(|t| t.iter().any(|(c, _)| c == channel))
+        self.targets()
+            .is_ok_and(|t| t.iter().any(|(c, _)| c == channel))
     }
 }

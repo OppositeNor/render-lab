@@ -38,13 +38,27 @@ impl HomeApp<'_> {
         if self.surface.is_some() || self.error.is_some() {
             return;
         }
-        let attributes = Window::default_attributes().with_title("Render Lab").with_inner_size(self.size).with_fullscreen(fullscreen_mode(self.home.applied.fullscreen));
+        let attributes = Window::default_attributes()
+            .with_title("Render Lab")
+            .with_inner_size(self.size)
+            .with_fullscreen(fullscreen_mode(self.home.applied.fullscreen));
         let result = (|| -> Result<Surface> {
-            let crate::window::Opened { window, surface, gpu, config } = crate::window::open(event_loop, attributes)?;
+            let crate::window::Opened {
+                window,
+                surface,
+                gpu,
+                config,
+            } = crate::window::open(event_loop, attributes)?;
             let format = config.format;
             let painter = Painter::new(&gpu.device, format);
             let backdrop = Backdrop::new(gpu, [config.width, config.height], format, false)?;
-            Ok(Surface { window, surface, config, backdrop, painter })
+            Ok(Surface {
+                window,
+                surface,
+                config,
+                backdrop,
+                painter,
+            })
         })();
         match result {
             Ok(s) => {
@@ -62,14 +76,20 @@ impl HomeApp<'_> {
     }
 
     pub(super) fn scale(&self) -> f32 {
-        let size = self.surface.as_ref().map_or(self.size, |s| s.window.inner_size());
+        let size = self
+            .surface
+            .as_ref()
+            .map_or(self.size, |s| s.window.inner_size());
         canvas_for(size.width.max(1), size.height.max(1), self.options.ui_scale).0
     }
 
     pub(super) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(s) = self.surface.as_mut() else { return };
+        let Some(s) = self.surface.as_mut() else {
+            return;
+        };
         let frame = match s.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 s.surface.configure(&s.backdrop.gpu().device, &s.config);
                 return;
@@ -81,13 +101,33 @@ impl HomeApp<'_> {
         let time = self.started.elapsed().as_secs_f32();
         // The frame a screenshot is taken of shows no popup.
         self.home.popups.hidden = self.screenshot;
-        let choice = s.painter.paint(&mut s.backdrop, PageTarget { view: &view, size: [s.config.width, s.config.height] }, PageInput { ui_scale: self.options.ui_scale, events, time }, self.home, None);
-        if std::mem::take(&mut self.home.clicked) && let Some(click) = self.click.as_mut() {
+        let choice = s.painter.paint(
+            &mut s.backdrop,
+            PageTarget {
+                view: &view,
+                size: [s.config.width, s.config.height],
+            },
+            PageInput {
+                ui_scale: self.options.ui_scale,
+                events,
+                time,
+            },
+            self.home,
+            None,
+        );
+        if std::mem::take(&mut self.home.clicked)
+            && let Some(click) = self.click.as_mut()
+        {
             click.play_from(0.0);
         }
         if std::mem::take(&mut self.screenshot) {
             let gpu = s.backdrop.gpu();
-            let saved = crate::readback::screenshot(&gpu.device, &gpu.queue, &frame.texture, &self.options.manifest_dir);
+            let saved = crate::readback::screenshot(
+                &gpu.device,
+                &gpu.queue,
+                &frame.texture,
+                &self.options.manifest_dir,
+            );
             self.home.popups.push(Popup::screenshot(&saved));
         }
         for action in self.home.popups.take_actions() {
@@ -98,7 +138,8 @@ impl HomeApp<'_> {
         // Settings being tried or put back.
         if self.shown_fullscreen != self.home.applied.fullscreen {
             self.shown_fullscreen = self.home.applied.fullscreen;
-            s.window.set_fullscreen(fullscreen_mode(self.shown_fullscreen));
+            s.window
+                .set_fullscreen(fullscreen_mode(self.shown_fullscreen));
         }
         if self.heard_music != self.home.applied.music {
             self.heard_music = self.home.applied.music;
@@ -152,22 +193,32 @@ impl ApplicationHandler for HomeApp<'_> {
             WindowEvent::CursorLeft { .. } => self.events.push(egui::Event::PointerGone),
             WindowEvent::MouseInput { state, button, .. } => {
                 if let Some(button) = crate::window::pointer_button(button) {
-                    self.events.push(egui::Event::PointerButton { pos: self.cursor, button, pressed: state == ElementState::Pressed, modifiers: Default::default() });
+                    self.events.push(egui::Event::PointerButton {
+                        pos: self.cursor,
+                        button,
+                        pressed: state == ElementState::Pressed,
+                        modifiers: Default::default(),
+                    });
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                self.events.push(crate::window::wheel_event(delta, scale, Default::default()).0);
+                self.events
+                    .push(crate::window::wheel_event(delta, scale, Default::default()).0);
             }
-            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed && !event.repeat => match event.physical_key {
-                // Esc: from the selection page to the title; on the title, quit.
-                PhysicalKey::Code(KeyCode::Escape) if !self.home.back() => {
-                    self.choice = Some(Choice::Quit);
-                    event_loop.exit();
+            WindowEvent::KeyboardInput { event, .. }
+                if event.state == ElementState::Pressed && !event.repeat =>
+            {
+                match event.physical_key {
+                    // Esc: from the selection page to the title; on the title, quit.
+                    PhysicalKey::Code(KeyCode::Escape) if !self.home.back() => {
+                        self.choice = Some(Choice::Quit);
+                        event_loop.exit();
+                    }
+                    // Saved when the next frame is presented.
+                    PhysicalKey::Code(KeyCode::F11) => self.screenshot = true,
+                    _ => {}
                 }
-                // Saved when the next frame is presented.
-                PhysicalKey::Code(KeyCode::F11) => self.screenshot = true,
-                _ => {}
-            },
+            }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
         }
@@ -193,7 +244,8 @@ pub fn run(options: HomeOptions) -> Result<()> {
     let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
     let mut size = PhysicalSize::new(options.width, options.height);
     // The main theme's music plays while the homepage is shown, not in a demonstration or a video.
-    let mut music = AudioPlayer::new(resources::get(MUSIC).path(), &options.manifest_dir).map(|m| m.looping(2.0));
+    let mut music = AudioPlayer::new(resources::get(MUSIC).path(), &options.manifest_dir)
+        .map(|m| m.looping(2.0));
     // So are its clicks. The player outlives each page, so the click that opens the viewer is heard.
     let mut click = AudioPlayer::new(resources::get(CLICK).path(), &options.manifest_dir);
     loop {
@@ -203,7 +255,22 @@ pub fn run(options: HomeOptions) -> Result<()> {
             m.play_from(0.0);
         }
         event_loop.set_control_flow(ControlFlow::Poll);
-        let mut app = HomeApp { home: &mut home, options: &options, size, surface: None, events: Vec::new(), cursor: Pos2::ZERO, started: Instant::now(), shown_fullscreen: false, screenshot: false, choice: None, error: None, click: &mut click, music: &mut music, heard_music };
+        let mut app = HomeApp {
+            home: &mut home,
+            options: &options,
+            size,
+            surface: None,
+            events: Vec::new(),
+            cursor: Pos2::ZERO,
+            started: Instant::now(),
+            shown_fullscreen: false,
+            screenshot: false,
+            choice: None,
+            error: None,
+            click: &mut click,
+            music: &mut music,
+            heard_music,
+        };
         event_loop.run_app_on_demand(&mut app)?;
         if let Some(e) = app.error.take() {
             return Err(e);
@@ -223,14 +290,34 @@ pub fn run(options: HomeOptions) -> Result<()> {
 /// The viewer's options for what the homepage chose, with the settings in
 /// use (the investigation becomes the current one); None for Quit. A timeline
 /// is in its own language; the demonstrations are in the homepage's.
-pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions, size: PhysicalSize<u32>) -> Option<ViewerOptions> {
+pub(super) fn viewer_options(
+    choice: Choice,
+    home: &Home,
+    options: &HomeOptions,
+    size: PhysicalSize<u32>,
+) -> Option<ViewerOptions> {
     let (investigation, timeline, audio, start_frame, locale) = match choice {
         Choice::Quit => return None,
-        Choice::Watch { investigation, timeline, start_frame, .. } => (investigation, Some(options.manifest_dir.join(&timeline.path)), Some(options.manifest_dir.join(&timeline.narration)), start_frame, None),
-        Choice::Explore { investigation } | Choice::Feature { investigation, .. } => (investigation, None, None, 0, Some(home.applied.language)),
+        Choice::Watch {
+            investigation,
+            timeline,
+            start_frame,
+            ..
+        } => (
+            investigation,
+            Some(options.manifest_dir.join(&timeline.path)),
+            Some(options.manifest_dir.join(&timeline.narration)),
+            start_frame,
+            None,
+        ),
+        Choice::Explore { investigation } | Choice::Feature { investigation, .. } => {
+            (investigation, None, None, 0, Some(home.applied.language))
+        }
     };
     let tab = match choice {
-        Choice::Feature { feature, .. } => feature.label().map(|_| crate::ui::DockTab(feature.id())),
+        Choice::Feature { feature, .. } => {
+            feature.label().map(|_| crate::ui::DockTab(feature.id()))
+        }
         _ => None,
     };
     investigation::set(investigation);
@@ -253,14 +340,25 @@ pub(super) fn viewer_options(choice: Choice, home: &Home, options: &HomeOptions,
 }
 
 /// Run the viewer on what the homepage chose; false to quit.
-pub(super) fn open(choice: Choice, event_loop: &mut EventLoop<()>, home: &mut Home, options: &HomeOptions, size: PhysicalSize<u32>) -> bool {
-    let Some(viewer_options) = viewer_options(choice, home, options, size) else { return false };
+pub(super) fn open(
+    choice: Choice,
+    event_loop: &mut EventLoop<()>,
+    home: &mut Home,
+    options: &HomeOptions,
+    size: PhysicalSize<u32>,
+) -> bool {
+    let Some(viewer_options) = viewer_options(choice, home, options, size) else {
+        return false;
+    };
     let exit = viewer::run_on(event_loop, viewer_options);
     finish(exit, home)
 }
 
 /// After the viewer: the settings it changed kept, and whether to go on (false to quit).
-pub(super) fn finish(exit: Result<(ViewerExit, Volume, crate::config::ViewerLayout)>, home: &mut Home) -> bool {
+pub(super) fn finish(
+    exit: Result<(ViewerExit, Volume, crate::config::ViewerLayout)>,
+    home: &mut Home,
+) -> bool {
     // A timeline in another language switched the text; the homepage keeps its own.
     i18n::set(home.applied.language);
     let exit = exit.map(|(exit, narration, layout)| {

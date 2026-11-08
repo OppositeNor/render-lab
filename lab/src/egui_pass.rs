@@ -22,7 +22,16 @@ impl PagePainter {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> PagePainter {
         let ctx = egui::Context::default();
         text::install_fonts(&ctx);
-        let renderer = egui_wgpu::Renderer::new(device, format, egui_wgpu::RendererOptions { msaa_samples: 1, depth_stencil_format: None, dithering: false, predictable_texture_filtering: true });
+        let renderer = egui_wgpu::Renderer::new(
+            device,
+            format,
+            egui_wgpu::RendererOptions {
+                msaa_samples: 1,
+                depth_stencil_format: None,
+                dithering: false,
+                predictable_texture_filtering: true,
+            },
+        );
         PagePainter { ctx, renderer }
     }
 
@@ -30,23 +39,44 @@ impl PagePainter {
     /// size (`raw`'s time and events kept), and the canvas it lays out.
     pub fn input(size: [u32; 2], ui_scale: f32, raw: egui::RawInput) -> (egui::RawInput, Vec2) {
         let (scale, canvas) = text::canvas_for(size[0], size[1], ui_scale);
-        let mut raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, canvas)), ..raw };
-        raw.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
+        let mut raw = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, canvas)),
+            ..raw
+        };
+        raw.viewports
+            .entry(egui::ViewportId::ROOT)
+            .or_default()
+            .native_pixels_per_point = Some(scale);
         (raw, canvas)
     }
 
     /// Run `page` over `raw`, in the theme's current style.
-    pub fn run(&mut self, raw: egui::RawInput, page: impl FnMut(&egui::Context)) -> egui::FullOutput {
+    pub fn run(
+        &mut self,
+        raw: egui::RawInput,
+        page: impl FnMut(&egui::Context),
+    ) -> egui::FullOutput {
         text::restyle(&self.ctx);
         self.ctx.run_pass(raw, page)
     }
 
     /// Draw `output` into `target`, cleared to `clear`, with `extra`'s
     /// encoding around the page, and submit it.
-    pub fn draw(&mut self, gpu: &Gpu, label: &str, target: PageTarget, clear: wgpu::Color, mut output: egui::FullOutput, extra: &mut impl Extra) {
+    pub fn draw(
+        &mut self,
+        gpu: &Gpu,
+        label: &str,
+        target: PageTarget,
+        clear: wgpu::Color,
+        mut output: egui::FullOutput,
+        extra: &mut impl Extra,
+    ) {
         let PageTarget { view, size } = target;
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
-        let screen = egui_wgpu::ScreenDescriptor { size_in_pixels: size, pixels_per_point: output.pixels_per_point };
+        let screen = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: size,
+            pixels_per_point: output.pixels_per_point,
+        };
         let (device, queue) = (&gpu.device, &gpu.queue);
         // Drain the deltas: epaint asserts (in debug builds) that a
         // TexturesDelta is empty when it is dropped.
@@ -55,14 +85,25 @@ impl PagePainter {
                 self.renderer.update_texture(device, queue, id, delta);
             }
         }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
-        let mut commands = self.renderer.update_buffers(device, queue, &mut encoder, &jobs, &screen);
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
+        let mut commands =
+            self.renderer
+                .update_buffers(device, queue, &mut encoder, &jobs, &screen);
         extra.before(&mut encoder);
         {
             let mut pass = encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some(label),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment { view, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear), store: wgpu::StoreOp::Store } })],
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,

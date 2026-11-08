@@ -19,7 +19,14 @@ impl App {
             let defaults = self.state.clone();
             self.with_features(|features, host| {
                 if let Some(state) = features.state_mut(tab.0) {
-                    state.demo_selected(&crate::feature::DemoChange { old: &old, old_defaults: &old_defaults, defaults: &defaults }, host);
+                    state.demo_selected(
+                        &crate::feature::DemoChange {
+                            old: &old,
+                            old_defaults: &old_defaults,
+                            defaults: &defaults,
+                        },
+                        host,
+                    );
                 }
             });
         }
@@ -41,7 +48,12 @@ impl App {
         // Prerequisites tab its knowledge graph, the Frame graph tab its DAG, the Code tab its listing).
         let mut actions = Vec::new();
         for feature in crate::feature::all() {
-            feature.show(&mut crate::feature::ShowTab { state: &mut self.state, defaults: &defaults, shown: self.tab.0 == feature.id(), actions: &mut actions });
+            feature.show(&mut crate::feature::ShowTab {
+                state: &mut self.state,
+                defaults: &defaults,
+                shown: self.tab.0 == feature.id(),
+                actions: &mut actions,
+            });
         }
         for action in actions {
             self.apply(action);
@@ -50,8 +62,16 @@ impl App {
 
     /// Whether the demonstration's animation drives `param`.
     pub(super) fn animated(&self, param: &str) -> bool {
-        investigation::current().animation(self.state.demo, self.demo_time).iter().any(|p| p.0 == param)
-            || crate::script::runtime::animate(self.state.demo, self.demo_time, &mut self.state.clone()).is_some_and(|keys| keys.iter().any(|k| k == param))
+        investigation::current()
+            .animation(self.state.demo, self.demo_time)
+            .iter()
+            .any(|p| p.0 == param)
+            || crate::script::runtime::animate(
+                self.state.demo,
+                self.demo_time,
+                &mut self.state.clone(),
+            )
+            .is_some_and(|keys| keys.iter().any(|k| k == param))
     }
 
     /// Keep the animation's current values and the swayed camera, so that
@@ -61,7 +81,12 @@ impl App {
             self.state.set(k, v);
         }
         crate::script::runtime::animate(self.state.demo, self.demo_time, &mut self.state);
-        self.state.camera = shot::camera_drift(self.state.camera, self.drift_from, self.demo_time, drift(&self.state));
+        self.state.camera = shot::camera_drift(
+            self.state.camera,
+            self.drift_from,
+            self.demo_time,
+            drift(&self.state),
+        );
         self.drift_from = self.demo_time;
     }
 
@@ -104,7 +129,8 @@ impl App {
     /// The playing timeline's frame at `now`, from the wall clock since its anchor.
     pub fn anchored_frame(&self, now: Instant) -> u64 {
         let (at, from) = self.timeline_anchor;
-        from + (now.saturating_duration_since(at).as_secs_f64() * self.fps() * self.speed as f64) as u64
+        from + (now.saturating_duration_since(at).as_secs_f64() * self.fps() * self.speed as f64)
+            as u64
     }
 
     /// The instant the playing timeline's clock counts from.
@@ -126,7 +152,11 @@ impl App {
             a.set_speed(speed);
             a.play_from(seconds)
         });
-        let delay = if started { AUDIO_START_DELAY } else { std::time::Duration::ZERO };
+        let delay = if started {
+            AUDIO_START_DELAY
+        } else {
+            std::time::Duration::ZERO
+        };
         self.timeline_anchor = (Instant::now() + delay, self.timeline_frame);
     }
 
@@ -139,7 +169,9 @@ impl App {
     /// Move the timeline to `frame`: playing, the narration follows; paused,
     /// the new frame's shot is handed over.
     pub(super) fn seek(&mut self, frame: u64) {
-        let Some(total) = self.timeline.as_ref().map(|t| t.total_frames) else { return };
+        let Some(total) = self.timeline.as_ref().map(|t| t.total_frames) else {
+            return;
+        };
         self.timeline_frame = frame.min(total.saturating_sub(1));
         if self.timeline_playing() {
             self.start_audio();
@@ -151,11 +183,15 @@ impl App {
     /// Skip the timeline `seconds` back or forward; presses in the same
     /// direction while the notice shows add up in it.
     pub(super) fn skip(&mut self, seconds: i64) {
-        let Some(fps) = self.timeline.as_ref().map(|t| t.fps as i64) else { return };
+        let Some(fps) = self.timeline.as_ref().map(|t| t.fps as i64) else {
+            return;
+        };
         self.seek((self.timeline_frame as i64 + seconds * fps).max(0) as u64);
         let now = Instant::now();
         let total = match self.skip {
-            Some((s, at)) if now - at < SKIP_NOTICE && s.signum() == seconds.signum() => s + seconds,
+            Some((s, at)) if now - at < SKIP_NOTICE && s.signum() == seconds.signum() => {
+                s + seconds
+            }
             _ => seconds,
         };
         self.skip = Some((total, now));

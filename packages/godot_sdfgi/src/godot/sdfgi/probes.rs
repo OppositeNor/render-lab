@@ -13,7 +13,9 @@
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
-use super::light::{decode_e5b9g9r9, encode_e5b9g9r9, sample3, sample_sdf, Field, LightTextures, ProbeLookup};
+use super::light::{
+    Field, LightTextures, ProbeLookup, decode_e5b9g9r9, encode_e5b9g9r9, sample_sdf, sample3,
+};
 use super::model::{CASCADE_SIZE, PROBE_AXIS_COUNT};
 use glam::{IVec3, Vec2, Vec3};
 
@@ -37,7 +39,11 @@ pub fn vogel(p_index: u32, count: u32, offset: f32) -> Vec3 {
     let theta = p_index as f32 * golden_angle + offset;
     let y = (r * PI * 0.5).cos();
     let l = (r * PI * 0.5).sin();
-    Vec3::new(l * theta.cos(), l * theta.sin(), y * ((p_index & 1) as f32 * 2.0 - 1.0))
+    Vec3::new(
+        l * theta.cos(),
+        l * theta.sin(),
+        y * ((p_index & 1) as f32 * 2.0 - 1.0),
+    )
 }
 
 fn hash3(x: [u32; 3]) -> [u32; 3] {
@@ -57,8 +63,16 @@ fn hashf3(co: Vec3) -> f32 {
 /// The fixed rotation of a probe's spiral: `hashf3(hash3(world_offset +
 /// probe_cell) & 0xFFFFF)`.
 pub fn ray_offset(world_probe: IVec3) -> f32 {
-    let h = hash3([world_probe.x as u32, world_probe.y as u32, world_probe.z as u32]);
-    hashf3(Vec3::new((h[0] & 0xFFFFF) as f32, (h[1] & 0xFFFFF) as f32, (h[2] & 0xFFFFF) as f32))
+    let h = hash3([
+        world_probe.x as u32,
+        world_probe.y as u32,
+        world_probe.z as u32,
+    ]);
+    hashf3(Vec3::new(
+        (h[0] & 0xFFFFF) as f32,
+        (h[1] & 0xFFFFF) as f32,
+        (h[2] & 0xFFFFF) as f32,
+    ))
 }
 
 /// The 16 real spherical-harmonic basis values the shader uses, in its order.
@@ -86,7 +100,24 @@ pub fn sh_basis(d: Vec3) -> [f32; SH_SIZE] {
 
 /// `l_mult`: the clamped-cosine convolution per band over pi (1, 2/3, 1/4),
 /// and 0 for band 3 (the shader's comment calls it l4).
-pub const L_MULT: [f32; SH_SIZE] = [1.0, 2.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+pub const L_MULT: [f32; SH_SIZE] = [
+    1.0,
+    2.0 / 3.0,
+    2.0 / 3.0,
+    2.0 / 3.0,
+    0.25,
+    0.25,
+    0.25,
+    0.25,
+    0.25,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+];
 
 /// What a ray that escapes every cascade reads (`sky_flags`): the sky's
 /// radiance in a direction (the lab's environment), or a flat colour (black
@@ -119,14 +150,20 @@ pub struct Integrate {
 
 impl Default for Integrate {
     fn default() -> Integrate {
-        Integrate { history_size: 30, ray_count: 8, ray_bias: 1.1, y_mult: 1.5 }
+        Integrate {
+            history_size: 30,
+            ray_count: 8,
+            ray_bias: 1.1,
+            y_mult: 1.5,
+        }
     }
 }
 
 /// The world position of a probe (squashed space): `offset + probe_cell *
 /// probe_cell_size`.
 pub fn probe_position(field: &Field, cascade: usize, probe: IVec3) -> Vec3 {
-    let probe_cell_size = (CASCADE_SIZE as f32 / (PROBE_AXIS_COUNT - 1) as f32) / field.to_cell(cascade);
+    let probe_cell_size =
+        (CASCADE_SIZE as f32 / (PROBE_AXIS_COUNT - 1) as f32) / field.to_cell(cascade);
     field.offset(cascade) + probe.as_vec3() * probe_cell_size
 }
 
@@ -152,18 +189,37 @@ pub fn march_cascade(sdf: &[u8], pos: Vec3, dir: Vec3) -> March {
         let distance = sample_sdf(sdf, (pos + dir * advance) / grid) * 255.0 - 1.0;
         steps += 1;
         if distance < 0.05 {
-            return March { hit: true, steps, advance, max_advance };
+            return March {
+                hit: true,
+                steps,
+                advance,
+                max_advance,
+            };
         }
         advance += distance;
     }
-    March { hit: false, steps, advance, max_advance }
+    March {
+        hit: false,
+        steps,
+        advance,
+        max_advance,
+    }
 }
 
 /// The rays probe `probe` of `cascade` traces on history slot
 /// `history_index` (`MODE_PROCESS`).
-pub fn trace_rays(field: &Field, light: &[&LightTextures], cascade: usize, probe: IVec3, history_index: u32, settings: &Integrate, sky: &Sky) -> Vec<Ray> {
+pub fn trace_rays(
+    field: &Field,
+    light: &[&LightTextures],
+    cascade: usize,
+    probe: IVec3,
+    history_index: u32,
+    settings: &Integrate,
+    sky: &Sky,
+) -> Vec<Ray> {
     let grid = CASCADE_SIZE as f32;
-    let world_offset = field.cascades.cascades[cascade].position / (CASCADE_SIZE / (PROBE_AXIS_COUNT - 1));
+    let world_offset =
+        field.cascades.cascades[cascade].position / (CASCADE_SIZE / (PROBE_AXIS_COUNT - 1));
     let offset = ray_offset(world_offset + probe);
     let probe_pos = probe_position(field, cascade, probe);
     let ray_total = settings.history_size * settings.ray_count;
@@ -174,7 +230,8 @@ pub fn trace_rays(field: &Field, light: &[&LightTextures], cascade: usize, probe
         dir.y *= settings.y_mult;
         dir = dir.normalize();
         let abs = dir.abs();
-        let mut ray_pos = probe_pos + dir * 1.0 / abs.max_element() * settings.ray_bias / field.to_cell(cascade);
+        let mut ray_pos =
+            probe_pos + dir * 1.0 / abs.max_element() * settings.ray_bias / field.to_cell(cascade);
         let mut hit = None;
         let mut uvw = Vec3::ZERO;
         for j in cascade..field.cascades.cascades.len() {
@@ -198,7 +255,12 @@ pub fn trace_rays(field: &Field, light: &[&LightTextures], cascade: usize, probe
             Some((hc, _)) => {
                 const EPSILON: f32 = 0.001;
                 let s = |o: Vec3| sample_sdf(field.sdf[hc], uvw + o);
-                let n = Vec3::new(s(Vec3::X * EPSILON) - s(-Vec3::X * EPSILON), s(Vec3::Y * EPSILON) - s(-Vec3::Y * EPSILON), s(Vec3::Z * EPSILON) - s(-Vec3::Z * EPSILON)).normalize();
+                let n = Vec3::new(
+                    s(Vec3::X * EPSILON) - s(-Vec3::X * EPSILON),
+                    s(Vec3::Y * EPSILON) - s(-Vec3::Y * EPSILON),
+                    s(Vec3::Z * EPSILON) - s(-Vec3::Z * EPSILON),
+                )
+                .normalize();
                 let tex = light[hc];
                 let hit_light = Vec3::new(
                     sample3(uvw, |p| tex.light_at(p).x),
@@ -208,14 +270,20 @@ pub fn trace_rays(field: &Field, light: &[&LightTextures], cascade: usize, probe
                 let a = |k: usize| sample3(uvw, |p| tex.aniso_at(p)[k]);
                 let aniso0 = Vec3::new(a(0), a(1), a(2));
                 let aniso1 = Vec3::new(a(3), a(4), a(5));
-                hit_light * ((n * aniso0).max(Vec3::ZERO).dot(Vec3::ONE) + (-n * aniso1).max(Vec3::ZERO).dot(Vec3::ONE))
+                hit_light
+                    * ((n * aniso0).max(Vec3::ZERO).dot(Vec3::ONE)
+                        + (-n * aniso1).max(Vec3::ZERO).dot(Vec3::ONE))
             }
             None => match sky {
                 Sky::Radiance(f) => f(dir),
                 Sky::Color(c) => *c,
             },
         };
-        rays.push(Ray { direction: dir, hit, light: light_rgb });
+        rays.push(Ray {
+            direction: dir,
+            hit,
+            light: light_rgb,
+        });
     }
     rays
 }
@@ -260,7 +328,11 @@ pub fn probe_of(i: usize) -> IVec3 {
 impl History {
     /// Cleared at creation.
     pub fn new(history_size: u32) -> History {
-        History { history_size, layers: vec![vec![[[0; 4]; SH_SIZE]; PROBES]; history_size as usize], average: vec![[[0; 4]; SH_SIZE]; PROBES] }
+        History {
+            history_size,
+            layers: vec![vec![[[0; 4]; SH_SIZE]; PROBES]; history_size as usize],
+            average: vec![[[0; 4]; SH_SIZE]; PROBES],
+        }
     }
 
     /// The ring's update for one probe: subtract the slot's old value from
@@ -287,8 +359,16 @@ pub fn octahedron_decode(f: Vec2) -> Vec3 {
     let f = f * 2.0 - Vec2::ONE;
     let mut n = Vec3::new(f.x, f.y, 1.0 - f.x.abs() - f.y.abs());
     let t = (-n.z).clamp(0.0, 1.0);
-    n.x += if n.x >= 0.0 { -t } else { t };
-    n.y += if n.y >= 0.0 { -t } else { t };
+    n.x += if n.x >= 0.0 {
+        -t
+    } else {
+        t
+    };
+    n.y += if n.y >= 0.0 {
+        -t
+    } else {
+        t
+    };
     n.normalize()
 }
 
@@ -317,11 +397,16 @@ pub struct ProbeMaps {
 
 impl ProbeMaps {
     pub fn empty() -> ProbeMaps {
-        ProbeMaps { irradiance: vec![0; (MAP_WIDTH * MAP_HEIGHT) as usize], radiance: vec![0; (MAP_WIDTH * MAP_HEIGHT) as usize] }
+        ProbeMaps {
+            irradiance: vec![0; (MAP_WIDTH * MAP_HEIGHT) as usize],
+            radiance: vec![0; (MAP_WIDTH * MAP_HEIGHT) as usize],
+        }
     }
 
     pub fn texel(layer: &[u32], x: i32, y: i32) -> Vec3 {
-        decode_e5b9g9r9(layer[(x.clamp(0, MAP_WIDTH - 1) + y.clamp(0, MAP_HEIGHT - 1) * MAP_WIDTH) as usize])
+        decode_e5b9g9r9(
+            layer[(x.clamp(0, MAP_WIDTH - 1) + y.clamp(0, MAP_HEIGHT - 1) * MAP_WIDTH) as usize],
+        )
     }
 
     /// A bilinear read at a texel position (texel centres at k + 0.5), as
@@ -333,7 +418,8 @@ impl ProbeMaps {
         let (fx, fy) = (tx - x0, ty - y0);
         let (x0, y0) = (x0 as i32, y0 as i32);
         let a = ProbeMaps::texel(layer, x0, y0).lerp(ProbeMaps::texel(layer, x0 + 1, y0), fx);
-        let b = ProbeMaps::texel(layer, x0, y0 + 1).lerp(ProbeMaps::texel(layer, x0 + 1, y0 + 1), fx);
+        let b =
+            ProbeMaps::texel(layer, x0, y0 + 1).lerp(ProbeMaps::texel(layer, x0 + 1, y0 + 1), fx);
         a.lerp(b, fy)
     }
 }
@@ -344,7 +430,10 @@ pub fn store(history: &History) -> ProbeMaps {
     for p in 0..PROBES {
         let probe = probe_of(p);
         let mean = history.mean(p);
-        let oct_pos = glam::IVec2::new((probe.x + probe.z * PROBE_AXIS_COUNT) * (OCT_SIZE + 2) + 1, probe.y * (OCT_SIZE + 2) + 1);
+        let oct_pos = glam::IVec2::new(
+            (probe.x + probe.z * PROBE_AXIS_COUNT) * (OCT_SIZE + 2) + 1,
+            probe.y * (OCT_SIZE + 2) + 1,
+        );
         for ly in 0..OCT_SIZE {
             for lx in 0..OCT_SIZE {
                 let local = glam::IVec2::new(lx, ly);
@@ -353,13 +442,29 @@ pub fn store(history: &History) -> ProbeMaps {
                 let n = OCT_SIZE;
                 let mut copy_to = vec![local];
                 if local == glam::IVec2::new(0, 0) {
-                    copy_to.extend([glam::IVec2::new(n - 1, -1), glam::IVec2::new(-1, n - 1), glam::IVec2::new(n, n)]);
+                    copy_to.extend([
+                        glam::IVec2::new(n - 1, -1),
+                        glam::IVec2::new(-1, n - 1),
+                        glam::IVec2::new(n, n),
+                    ]);
                 } else if local == glam::IVec2::new(n - 1, 0) {
-                    copy_to.extend([glam::IVec2::new(0, -1), glam::IVec2::new(n, n - 1), glam::IVec2::new(-1, n)]);
+                    copy_to.extend([
+                        glam::IVec2::new(0, -1),
+                        glam::IVec2::new(n, n - 1),
+                        glam::IVec2::new(-1, n),
+                    ]);
                 } else if local == glam::IVec2::new(0, n - 1) {
-                    copy_to.extend([glam::IVec2::new(-1, 0), glam::IVec2::new(n - 1, n), glam::IVec2::new(n, -1)]);
+                    copy_to.extend([
+                        glam::IVec2::new(-1, 0),
+                        glam::IVec2::new(n - 1, n),
+                        glam::IVec2::new(n, -1),
+                    ]);
                 } else if local == glam::IVec2::new(n - 1, n - 1) {
-                    copy_to.extend([glam::IVec2::new(0, n), glam::IVec2::new(n, 0), glam::IVec2::new(-1, -1)]);
+                    copy_to.extend([
+                        glam::IVec2::new(0, n),
+                        glam::IVec2::new(n, 0),
+                        glam::IVec2::new(-1, -1),
+                    ]);
                 } else if ly == 0 {
                     copy_to.push(glam::IVec2::new(n - lx - 1, ly - 1));
                 } else if lx == 0 {
@@ -398,7 +503,13 @@ impl ProbeLookup for Maps<'_> {
 /// cascade's new probes keep what was there. `ubo` holds the cascades'
 /// offsets as the shader reads them: the UBO is rewritten only after the
 /// regions are processed (rfc.cpp), so these are the previous frame's.
-pub fn scroll_history(history: &History, parent: Option<&History>, scroll: IVec3, ubo: &[(Vec3, f32)], cascade: usize) -> History {
+pub fn scroll_history(
+    history: &History,
+    parent: Option<&History>,
+    scroll: IVec3,
+    ubo: &[(Vec3, f32)],
+    cascade: usize,
+) -> History {
     let mut out = history.clone();
     let axis = PROBE_AXIS_COUNT;
     let h = history.history_size as f32 * (1 << HISTORY_BITS) as f32;
@@ -426,10 +537,17 @@ pub fn scroll_history(history: &History, parent: Option<&History>, scroll: IVec3
                 let t = Vec3::ONE - (pos - offset.as_vec3()).abs();
                 let weight = t.x * t.y * t.z;
                 // An image load outside the texture reads zero.
-                let inside = offset.cmpge(IVec3::ZERO).all() && offset.cmplt(IVec3::splat(axis)).all();
+                let inside =
+                    offset.cmpge(IVec3::ZERO).all() && offset.cmplt(IVec3::splat(axis)).all();
                 for j in 0..SH_SIZE {
-                    let a = if inside { parent.average[probe_index(offset)][j] } else { [0; 4] };
-                    average[j] += glam::Vec4::new(a[0] as f32, a[1] as f32, a[2] as f32, a[3] as f32) / h * weight;
+                    let a = if inside {
+                        parent.average[probe_index(offset)][j]
+                    } else {
+                        [0; 4]
+                    };
+                    average[j] +=
+                        glam::Vec4::new(a[0] as f32, a[1] as f32, a[2] as f32, a[3] as f32) / h
+                            * weight;
                 }
                 total += weight;
             }

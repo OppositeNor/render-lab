@@ -17,13 +17,27 @@ pub(super) struct Backdrop {
 impl Backdrop {
     /// Starts loading the scene; `wait` loads it before returning (offscreen
     /// pages, so every frame shows it).
-    pub(super) fn new(gpu: Gpu, size: [u32; 2], output: wgpu::TextureFormat, wait: bool) -> Result<Backdrop> {
+    pub(super) fn new(
+        gpu: Gpu,
+        size: [u32; 2],
+        output: wgpu::TextureFormat,
+        wait: bool,
+    ) -> Result<Backdrop> {
         let frost = Frost::new(&gpu.device, output)?;
         let title = investigations::title();
         let scene = investigation::scoped(title, || title.first_scene());
         let loading = Loading::start(title, gpu.clone(), scene, size);
-        let (loading, renderer) = if wait { (None, Some(loading.wait()?)) } else { (Some(loading), None) };
-        Ok(Backdrop { gpu, loading, renderer, frost })
+        let (loading, renderer) = if wait {
+            (None, Some(loading.wait()?))
+        } else {
+            (Some(loading), None)
+        };
+        Ok(Backdrop {
+            gpu,
+            loading,
+            renderer,
+            frost,
+        })
     }
 
     pub(super) fn gpu(&self) -> &Gpu {
@@ -46,7 +60,9 @@ impl Backdrop {
     /// Render the scene at `time` seconds into the frame target, at `size`,
     /// once it has loaded.
     pub(super) fn render(&mut self, size: [u32; 2], time: f32) {
-        let Some(renderer) = self.renderer.as_mut() else { return };
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
         let size = [size[0].max(64), size[1].max(64)];
         if [renderer.width, renderer.height] != size {
             renderer.resize(size[0], size[1]);
@@ -60,7 +76,13 @@ impl Backdrop {
 
     /// The device, the rendered frame and its size (once loaded), and the frost.
     pub(super) fn parts(&mut self) -> (&Gpu, Option<(&wgpu::TextureView, [u32; 2])>, &mut Frost) {
-        (&self.gpu, self.renderer.as_ref().map(|r| (&r.frame_view, [r.width, r.height])), &mut self.frost)
+        (
+            &self.gpu,
+            self.renderer
+                .as_ref()
+                .map(|r| (&r.frame_view, [r.width, r.height])),
+            &mut self.frost,
+        )
     }
 }
 
@@ -118,16 +140,37 @@ pub(super) struct PageInput {
 
 impl Painter {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Painter {
-        Painter { page: PagePainter::new(device, format) }
+        Painter {
+            page: PagePainter::new(device, format),
+        }
     }
 
     /// One frame of the page into `target`: the backdrop at the input's
     /// time, frosted, then the page; the loading page while the backdrop
     /// loads. Returns the choice made.
-    pub(super) fn paint(&mut self, backdrop: &mut Backdrop, target: PageTarget, input: PageInput, home: &mut Home, readback: Option<(&wgpu::Texture, &wgpu::Buffer)>) -> Option<Choice> {
-        let PageInput { ui_scale, events, time } = input;
+    pub(super) fn paint(
+        &mut self,
+        backdrop: &mut Backdrop,
+        target: PageTarget,
+        input: PageInput,
+        home: &mut Home,
+        readback: Option<(&wgpu::Texture, &wgpu::Buffer)>,
+    ) -> Option<Choice> {
+        let PageInput {
+            ui_scale,
+            events,
+            time,
+        } = input;
         let size = target.size;
-        let (raw, canvas) = PagePainter::input(size, ui_scale, egui::RawInput { time: Some(time as f64), events, ..Default::default() });
+        let (raw, canvas) = PagePainter::input(
+            size,
+            ui_scale,
+            egui::RawInput {
+                time: Some(time as f64),
+                events,
+                ..Default::default()
+            },
+        );
         let mut choice = None;
         let loading = backdrop.poll();
         let output = self.page.run(raw, |ctx| match &loading {
@@ -137,8 +180,25 @@ impl Painter {
         backdrop.render(size, time);
         let (gpu, frame, frost) = backdrop.parts();
         // Before the backdrop has loaded, the page is on the plain background.
-        let clear = if frame.is_some() { wgpu::Color::BLACK } else { palette::background_clear() };
-        self.page.draw(gpu, "home", target, clear, output, &mut Frosted { device: &gpu.device, frost, frame, readback, size });
+        let clear = if frame.is_some() {
+            wgpu::Color::BLACK
+        } else {
+            palette::background_clear()
+        };
+        self.page.draw(
+            gpu,
+            "home",
+            target,
+            clear,
+            output,
+            &mut Frosted {
+                device: &gpu.device,
+                frost,
+                frame,
+                readback,
+                size,
+            },
+        );
         choice
     }
 }

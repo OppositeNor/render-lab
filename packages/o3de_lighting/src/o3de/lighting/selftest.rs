@@ -4,24 +4,24 @@
 //! against the O3DE checkout. Every check records what it compared and the
 //! worst difference.
 
-use super::brdf::{self, BrdfMap, BRDF_MAP_SIZE};
-use lab::values::Choice;
+use super::brdf::{self, BRDF_MAP_SIZE, BrdfMap};
 use super::demos;
 use super::shot::{self, Demo};
+use crate::o3de::lighting::text::tr;
+use anyhow::{Context, Result};
+use glam::{Vec2, Vec3};
 use lab::camera::Projector;
 use lab::frame::Statics;
 use lab::gpu::{self, Gpu};
-use crate::o3de::lighting::text::tr;
 use lab::investigation::SelftestOptions;
 use lab::layout;
 use lab::renderer::{self, Renderer};
-use lab::scene::{self, ids, SHAPE_BOX, SHAPE_PLANE};
+use lab::scene::{self, SHAPE_BOX, SHAPE_PLANE, ids};
 use lab::shot::{SceneType, Timeline};
 use lab::ui::{Chrome, MIN_TEXT_PT};
-use anyhow::{Context, Result};
-use glam::{Vec2, Vec3};
-use serde_json::{json, Value};
-use lab::utility::selftest::{request, still_timeline, Report, Rng};
+use lab::utility::selftest::{Report, Rng, request, still_timeline};
+use lab::values::Choice;
+use serde_json::{Value, json};
 
 /// The relative difference, against a floor so values near zero compare absolutely.
 fn rel(a: f32, b: f32) -> f32 {
@@ -41,18 +41,34 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let mut report = Report::new();
     let gpu = Gpu::new(gpu::instance(None), None)?;
     let gpu_info = renderer::gpu_summary(&gpu);
-    let mut renderer = Renderer::new(gpu, Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?, 1920, 1080)?;
+    let mut renderer = Renderer::new(
+        gpu,
+        Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?,
+        1920,
+        1080,
+    )?;
     let still = still_timeline(1920, 1080);
     let map = BrdfMap::get();
 
     // ---- 1. Layouts and shader validation ---------------------------------
     let checks = layout::check_all(&renderer.statics.layouts);
-    report.check("Rust struct layouts match the WGSL layouts computed by naga", checks.iter().all(|c| c.ok), serde_json::to_value(&checks)?);
+    report.check(
+        "Rust struct layouts match the WGSL layouts computed by naga",
+        checks.iter().all(|c| c.ok),
+        serde_json::to_value(&checks)?,
+    );
     let manifest: Value = lab::shaders::manifest();
     let modules = manifest["modules"].as_array().cloned().unwrap_or_default();
-    let module = lab::investigation::Investigation::scene_shading(&super::LIGHTING).map_or("", |s| s.module);
-    let ported = modules.iter().any(|m| m["module"] == module && m["validated"] == true);
-    report.check("the WGSL port (scene module + standard_lighting.wgsl) validated by naga", ported, json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()));
+    let module =
+        lab::investigation::Investigation::scene_shading(&super::LIGHTING).map_or("", |s| s.module);
+    let ported = modules
+        .iter()
+        .any(|m| m["module"] == module && m["validated"] == true);
+    report.check(
+        "the WGSL port (scene module + standard_lighting.wgsl) validated by naga",
+        ported,
+        json!(modules.iter().map(|m| &m["module"]).collect::<Vec<_>>()),
+    );
 
     // The values (values.rs): each demonstration's, read through the typed struct and stored back, are the same.
     {
@@ -63,7 +79,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let fields = serde_json::to_value(&typed)?;
             let mut stored = state.clone();
             stored.store(&typed);
-            let same = stored == state && fields.as_object().is_some_and(|f| f.iter().all(|(k, v)| v.as_f64() == Some(state.p(k) as f64)));
+            let same = stored == state
+                && fields
+                    .as_object()
+                    .is_some_and(|f| f.iter().all(|(k, v)| v.as_f64() == Some(state.p(k) as f64)));
             if !same {
                 detail.push(demo.key());
             }
@@ -77,18 +96,43 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     {
         let mut worst = 0.0f32;
         let mut picked = 0;
-        let content = demos::build_frame(&shot::for_demo(Demo::Room), &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+        let content = demos::build_frame(
+            &shot::for_demo(Demo::Room),
+            &renderer.statics,
+            [1280.0, 720.0],
+            1.0,
+            0.0,
+        );
         let projector = Projector::new(&content.uniforms.camera);
-        for (u, v) in [(0.30, 0.70), (0.42, 0.62), (0.55, 0.55), (0.70, 0.80), (0.50, 0.40)] {
+        for (u, v) in [
+            (0.30, 0.70),
+            (0.42, 0.62),
+            (0.55, 0.55),
+            (0.70, 0.80),
+            (0.50, 0.40),
+        ] {
             let shown = shot::for_demo(Demo::Room);
             let mut state = shot::for_demo(Demo::Room);
-            let mut frame = lab::actions::ClickFrame { shown: &shown, state: &mut state, uv: Vec2::new(u, v), content: &content, statics: &renderer.statics };
+            let mut frame = lab::actions::ClickFrame {
+                shown: &shown,
+                state: &mut state,
+                uv: Vec2::new(u, v),
+                content: &content,
+                statics: &renderer.statics,
+            };
             if lab::script::runtime::click("pickPixel", &mut frame) != Some(true) {
                 continue;
             }
             picked += 1;
-            let p = Vec3::new(state.p("inspectX"), state.p("inspectY"), state.p("inspectZ"));
-            let back = projector.project(p).map(|(px, _)| px).unwrap_or(Vec2::splat(f32::MAX));
+            let p = Vec3::new(
+                state.p("inspectX"),
+                state.p("inspectY"),
+                state.p("inspectZ"),
+            );
+            let back = projector
+                .project(p)
+                .map(|(px, _)| px)
+                .unwrap_or(Vec2::splat(f32::MAX));
             let at = Vec2::new(u, v) * Vec2::new(1280.0, 720.0);
             worst = worst.max(back.distance(at));
         }
@@ -101,15 +145,27 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut worst = 0.0f32;
         let mut samples = 0;
         let cases: [(Demo, Vec<Motion>); 2] = [
-            (Demo::Surface, vec![Motion::Wave(Wave::new("sphereMetallic", 0.5, 0.5, 8.0)), Motion::Wave(Wave::new("sphereRoughness", 0.45, 0.35, 13.0))]),
-            (Demo::Ibl, vec![Motion::Wave(Wave::new("sphereRoughness", 0.5, -0.5, 12.0).cosine())]),
+            (
+                Demo::Surface,
+                vec![
+                    Motion::Wave(Wave::new("sphereMetallic", 0.5, 0.5, 8.0)),
+                    Motion::Wave(Wave::new("sphereRoughness", 0.45, 0.35, 13.0)),
+                ],
+            ),
+            (
+                Demo::Ibl,
+                vec![Motion::Wave(
+                    Wave::new("sphereRoughness", 0.5, -0.5, 12.0).cosine(),
+                )],
+            ),
         ];
         for (demo, motions) in cases {
             let clip = Clip(motions);
             for k in 0..400 {
                 let t = k as f32 * 0.137;
                 let mut state = shot::for_demo(demo);
-                let keys = lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
+                let keys =
+                    lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
                 for (param, value) in clip.sample(t, |_| 0.0) {
                     samples += 1;
                     worst = worst.max((state.p(&param) - value).abs());
@@ -135,31 +191,99 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let v = rng.above(n);
         let l = rng.above(n);
         let base = Vec3::new(rng.next(), rng.next(), rng.next());
-        let metallic = if k % 3 == 0 { rng.next() } else { (k % 2) as f32 };
-        let roughness = if k % 8 == 0 { 0.0 } else { rng.next() };
+        let metallic = if k % 3 == 0 {
+            rng.next()
+        } else {
+            (k % 2) as f32
+        };
+        let roughness = if k % 8 == 0 {
+            0.0
+        } else {
+            rng.next()
+        };
         let factor = rng.next();
         let multiscatter = k % 5 != 0;
         // The normal's screen derivatives: zero, small, and large enough to reach the kernel's 0.18 cap.
         let spread = [0.0, 0.05, 0.6][k % 3];
-        let (dndx, dndy) = (rng.unit() * spread * rng.next(), rng.unit() * spread * rng.next());
-        tests.extend([base.extend(metallic).to_array(), n.extend(roughness).to_array(), v.extend(factor).to_array(), l.extend(if multiscatter { 1.0 } else { 0.0 }).to_array(), dndx.extend(0.0).to_array(), dndy.extend(0.0).to_array()]);
-        cases.push((n, v, l, base, metallic, roughness, factor, multiscatter, dndx, dndy));
+        let (dndx, dndy) = (
+            rng.unit() * spread * rng.next(),
+            rng.unit() * spread * rng.next(),
+        );
+        tests.extend([
+            base.extend(metallic).to_array(),
+            n.extend(roughness).to_array(),
+            v.extend(factor).to_array(),
+            l.extend(if multiscatter {
+                1.0
+            } else {
+                0.0
+            })
+            .to_array(),
+            dndx.extend(0.0).to_array(),
+            dndy.extend(0.0).to_array(),
+        ]);
+        cases.push((
+            n,
+            v,
+            l,
+            base,
+            metallic,
+            roughness,
+            factor,
+            multiscatter,
+            dndx,
+            dndy,
+        ));
     }
     // The kernels read gShading from the frame above, with specular AA on (the default).
     let specular_aa = shot::for_demo(Demo::Specular).p("specularAA") > 0.5;
     let words = renderer.run_shading_verify("o3deBrdfTests", count as u32, &tests, 32 * count);
-    let mut worst: Vec<(&str, f32)> = ["D", "G", "F", "SpecularGGX", "DiffuseLambertian", "NormalizedDisneyDiffuse", "diffuseResponse", "multiScatterCompensation", "brdf", "roughnessA2", "albedo", "specularF0"].iter().map(|n| (*n, 0.0f32)).collect();
-    for (k, &(n, v, l, base, metallic, roughness, factor, multiscatter, dndx, dndy)) in cases.iter().enumerate() {
+    let mut worst: Vec<(&str, f32)> = [
+        "D",
+        "G",
+        "F",
+        "SpecularGGX",
+        "DiffuseLambertian",
+        "NormalizedDisneyDiffuse",
+        "diffuseResponse",
+        "multiScatterCompensation",
+        "brdf",
+        "roughnessA2",
+        "albedo",
+        "specularF0",
+    ]
+    .iter()
+    .map(|n| (*n, 0.0f32))
+    .collect();
+    for (k, &(n, v, l, base, metallic, roughness, factor, multiscatter, dndx, dndy)) in
+        cases.iter().enumerate()
+    {
         let mut s = brdf::Surface::new(Vec3::ZERO, n, base, metallic, factor, roughness);
         if specular_aa {
             s = s.with_specular_aa(dndx, dndy);
         }
         // The kernel passes the direction to the camera as the camera's position from a surface at the origin.
         let ld = brdf::LightingData::new(&s, v, multiscatter, map);
-        let t = brdf::ggx_terms(ld.dir_to_camera, l, n, s.specular_f0, ld.n_dot_v, s.roughness_a2);
-        let spec = brdf::specular_ggx(ld.dir_to_camera, l, n, s.specular_f0, ld.n_dot_v, s.roughness_a2, ld.multi_scatter_compensation);
+        let t = brdf::ggx_terms(
+            ld.dir_to_camera,
+            l,
+            n,
+            s.specular_f0,
+            ld.n_dot_v,
+            s.roughness_a2,
+        );
+        let spec = brdf::specular_ggx(
+            ld.dir_to_camera,
+            l,
+            n,
+            s.specular_f0,
+            ld.n_dot_v,
+            s.roughness_a2,
+            ld.multi_scatter_compensation,
+        );
         let lambert = brdf::diffuse_lambertian(s.albedo, n, l, ld.diffuse_response);
-        let disney = brdf::normalized_disney_diffuse(s.albedo, n, ld.dir_to_camera, l, s.roughness_linear);
+        let disney =
+            brdf::normalized_disney_diffuse(s.albedo, n, ld.dir_to_camera, l, s.roughness_linear);
         let base_word = 32 * k;
         let cpu: [Vec<f32>; 12] = [
             vec![t.d],
@@ -192,14 +316,42 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     // guarded; with O3DE's unguarded root, the GPU drops the samples whose
     // cosTheta rounds above 1, which is reported, not tested.
     let size = BRDF_MAP_SIZE as u32;
-    let mut texels: Vec<(u32, u32)> = vec![(0, 0), (size - 1, 0), (0, size - 1), (size - 1, size - 1), (size / 2, size / 2)];
+    let mut texels: Vec<(u32, u32)> = vec![
+        (0, 0),
+        (size - 1, 0),
+        (0, size - 1),
+        (size - 1, size - 1),
+        (size / 2, size / 2),
+    ];
     texels.extend((0..8).map(|y| (size - 1, y)));
     while texels.len() < 64 {
-        texels.push(((rng.next() * size as f32) as u32 % size, (rng.next() * size as f32) as u32 % size));
+        texels.push((
+            (rng.next() * size as f32) as u32 % size,
+            (rng.next() * size as f32) as u32 % size,
+        ));
     }
     let run = |renderer: &mut Renderer, guarded: bool| {
-        let tests: Vec<[f32; 4]> = texels.iter().map(|&(x, y)| [x as f32, y as f32, size as f32, if guarded { 1.0 } else { 0.0 }]).collect();
-        renderer.run_shading_verify("o3deBrdfMapTests", tests.len() as u32, &tests, 2 * tests.len())
+        let tests: Vec<[f32; 4]> = texels
+            .iter()
+            .map(|&(x, y)| {
+                [
+                    x as f32,
+                    y as f32,
+                    size as f32,
+                    if guarded {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                ]
+            })
+            .collect();
+        renderer.run_shading_verify(
+            "o3deBrdfMapTests",
+            tests.len() as u32,
+            &tests,
+            2 * tests.len(),
+        )
     };
     let (guarded, unguarded) = (run(&mut renderer, true), run(&mut renderer, false));
     let mut worst_map = 0.0f32;
@@ -250,44 +402,96 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         }
         integrals.push((a2, sum * std::f64::consts::TAU / steps as f64));
     }
-    report.check("NormalDistributionGGX integrates to 1 over projected solid angle", integrals.iter().all(|(_, v)| (v - 1.0).abs() < 5e-3), json!(integrals));
+    report.check(
+        "NormalDistributionGGX integrates to 1 over projected solid angle",
+        integrals.iter().all(|(_, v)| (v - 1.0).abs() < 5e-3),
+        json!(integrals),
+    );
 
     // ---- 4b. Image-based lighting -----------------------------------------
     let cubes = super::ibl::Ibl::get();
     let mut tests = Vec::new();
     for k in 0..96 {
         // Face centres, edges, and corners, and random directions, at whole and fractional mips.
-        let dir = if k < 6 { [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z][k] } else if k < 12 { Vec3::new(1.0, 1.0, if k % 2 == 0 { 1.0 } else { -1.0 }).normalize() } else { rng.unit() };
-        tests.push(dir.extend(if k % 3 == 0 { (k % 6) as f32 } else { rng.range(0.0, 5.0) }).to_array());
+        let dir = if k < 6 {
+            [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z][k]
+        } else if k < 12 {
+            Vec3::new(
+                1.0,
+                1.0,
+                if k % 2 == 0 {
+                    1.0
+                } else {
+                    -1.0
+                },
+            )
+            .normalize()
+        } else {
+            rng.unit()
+        };
+        tests.push(
+            dir.extend(if k % 3 == 0 {
+                (k % 6) as f32
+            } else {
+                rng.range(0.0, 5.0)
+            })
+            .to_array(),
+        );
     }
-    let words = renderer.run_shading_verify("o3deIblTests", tests.len() as u32, &tests, 8 * tests.len());
+    let words =
+        renderer.run_shading_verify("o3deIblTests", tests.len() as u32, &tests, 8 * tests.len());
     let mut worst_ibl = 0.0f32;
     for (k, t) in tests.iter().enumerate() {
         let dir = Vec3::new(t[0], t[1], t[2]);
         let rel3 = |a: Vec3, b: Vec3| (a - b).abs().max_element() / b.max_element().max(0.05);
-        worst_ibl = worst_ibl.max(rel3(f3(&words, 8 * k), cubes.sample_specular(dir, t[3]))).max(rel3(f3(&words, 8 * k + 3), cubes.sample_diffuse(dir)));
+        worst_ibl = worst_ibl
+            .max(rel3(f3(&words, 8 * k), cubes.sample_specular(dir, t[3])))
+            .max(rel3(f3(&words, 8 * k + 3), cubes.sample_diffuse(dir)));
     }
-    report.check("the cubemap lookups on the GPU match the CPU (96 directions and mips)", worst_ibl < 1e-4, json!({"worstRelativeDifference": worst_ibl, "tolerance": 1e-4}));
+    report.check(
+        "the cubemap lookups on the GPU match the CPU (96 directions and mips)",
+        worst_ibl < 1e-4,
+        json!({"worstRelativeDifference": worst_ibl, "tolerance": 1e-4}),
+    );
     // MSAAResolveCustom: four samples clamped against the brightest
     // neighbour and averaged in the log domain, on the GPU and the CPU.
     let mut tests: Vec<[f32; 4]> = Vec::new();
     let mut cases = Vec::new();
     for k in 0..64 {
-        let samples: Vec<Vec3> = (0..4).map(|_| Vec3::new(rng.next(), rng.next(), rng.next()) * if k % 4 == 0 { 8.0 } else { 1.0 } + Vec3::splat(1e-3)).collect();
+        let samples: Vec<Vec3> = (0..4)
+            .map(|_| {
+                Vec3::new(rng.next(), rng.next(), rng.next())
+                    * if k % 4 == 0 {
+                        8.0
+                    } else {
+                        1.0
+                    }
+                    + Vec3::splat(1e-3)
+            })
+            .collect();
         let brightest = rng.next() * 2.0;
         let count = [2, 4][k % 2];
         tests.extend(samples.iter().map(|s| s.extend(0.0).to_array()));
         tests.push([brightest, 1.5, count as f32, 0.0]);
         cases.push((samples, brightest, count));
     }
-    let words = renderer.run_shading_verify("o3deResolveTests", cases.len() as u32, &tests, 4 * cases.len());
+    let words = renderer.run_shading_verify(
+        "o3deResolveTests",
+        cases.len() as u32,
+        &tests,
+        4 * cases.len(),
+    );
     let mut worst_resolve = 0.0f32;
     let mut clamped = 0;
     for (k, (samples, brightest, count)) in cases.iter().enumerate() {
         let cpu = brdf::msaa_resolve_custom(&samples[..*count], *brightest, 1.5);
         let gpu = f3(&words, 4 * k);
-        worst_resolve = worst_resolve.max((gpu - cpu).abs().max_element() / cpu.max_element().max(0.05));
-        clamped += samples[..*count].iter().filter(|s| brdf::resolve_luminance(**s) > 1.5 * brightest).count();
+        worst_resolve =
+            worst_resolve.max((gpu - cpu).abs().max_element() / cpu.max_element().max(0.05));
+        clamped += samples[..*count]
+            .iter()
+            .filter(|s| brdf::resolve_luminance(**s) > 1.5 * brightest)
+            .count();
     }
     report.check("MSAAResolveCustom (neighbour clamp, log-domain mean) on the GPU matches the CPU (64 pixels)", worst_resolve < 1e-4 && clamped > 0, json!({"worstRelativeDifference": worst_resolve, "clampedSamples": clamped, "tolerance": 1e-4}));
     // The directional light's cascades (cascades.rs): the split of research.md
@@ -296,13 +500,27 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     {
         use super::cascades;
         let splits = cascades::split_depths(0.1, 100.0, 0.9);
-        let splits_ok = splits.iter().zip([3.014, 7.851, 23.507, 100.0]).all(|(a, b)| (a - b).abs() < 2e-3);
-        let uniform_ok = cascades::split_depths(0.1, 100.0, 0.0).iter().zip([25.075, 50.05, 75.025, 100.0]).all(|(a, b)| (a - b).abs() < 1e-3);
-        let observer = cascades::Observer { position: Vec3::new(1.0, 1.5, 2.0), forward: Vec3::new(-0.4, -0.2, -1.0).normalize(), fov_y: 60f32.to_radians(), aspect: 16.0 / 9.0, near: 0.1, far: 12.0 };
+        let splits_ok = splits
+            .iter()
+            .zip([3.014, 7.851, 23.507, 100.0])
+            .all(|(a, b)| (a - b).abs() < 2e-3);
+        let uniform_ok = cascades::split_depths(0.1, 100.0, 0.0)
+            .iter()
+            .zip([25.075, 50.05, 75.025, 100.0])
+            .all(|(a, b)| (a - b).abs() < 1e-3);
+        let observer = cascades::Observer {
+            position: Vec3::new(1.0, 1.5, 2.0),
+            forward: Vec3::new(-0.4, -0.2, -1.0).normalize(),
+            fov_y: 60f32.to_radians(),
+            aspect: 16.0 / 9.0,
+            near: 0.1,
+            far: 12.0,
+        };
         let set = cascades::cascades(observer, Vec3::new(0.3, -1.0, 0.2), 0.9);
         let snapped = set.cascades.iter().all(|k| {
             let cells = k.snapped_min / k.snap;
-            (cells - cells.round()).abs().max_element() < 1e-3 && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
+            (cells - cells.round()).abs().max_element() < 1e-3
+                && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
         });
         let first = set.select(observer.position + observer.forward * 0.3, Vec3::Y);
         report.check(
@@ -315,11 +533,28 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     // environment comes out constant in every mip and in the diffuse cubemap.
     let constant = Vec3::new(0.7, 0.5, 0.3);
     let furnace = super::ibl::Ibl::build(|_| constant, 32, 8, 64);
-    let off = |c: &super::ibl::Cubemap| c.texels.iter().map(|t| (*t - constant).abs().max_element()).fold(0.0f32, f32::max);
-    let worst_furnace = furnace.specular.iter().map(off).fold(off(&furnace.diffuse), f32::max);
-    report.check("prefiltering keeps a constant environment constant (white furnace)", worst_furnace < 1e-5, json!({"worstDifference": worst_furnace, "mips": furnace.specular.len()}));
+    let off = |c: &super::ibl::Cubemap| {
+        c.texels
+            .iter()
+            .map(|t| (*t - constant).abs().max_element())
+            .fold(0.0f32, f32::max)
+    };
+    let worst_furnace = furnace
+        .specular
+        .iter()
+        .map(off)
+        .fold(off(&furnace.diffuse), f32::max);
+    report.check(
+        "prefiltering keeps a constant environment constant (white furnace)",
+        worst_furnace < 1e-5,
+        json!({"worstDifference": worst_furnace, "mips": furnace.specular.len()}),
+    );
     let stats: Vec<Value> = cubes.specular.iter().enumerate().map(|(m, c)| json!({"mip": m, "size": c.size, "roughness": super::ibl::mip_roughness(m), "peak": c.texels.iter().map(|t| t.max_element()).fold(0.0f32, f32::max)})).collect();
-    report.check("specular cubemap: six mips, the sky spreading as roughness grows", cubes.specular.len() == 6 && cubes.specular[5].size == 8, json!(stats));
+    report.check(
+        "specular cubemap: six mips, the sky spreading as roughness grows",
+        cubes.specular.len() == 6 && cubes.specular[5].size == 8,
+        json!(stats),
+    );
 
     // ---- 5. Whole pixels: o3dePixel on the GPU against brdf::pixel ---------
     let mut pixel_detail = Vec::new();
@@ -350,23 +585,43 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut points = Vec::new();
         for j in 0..12 {
             for i in 0..16 {
-                let pixel = Vec2::new((i as f32 + 0.5) / 16.0, (j as f32 + 0.5) / 12.0) * projector.viewport;
+                let pixel = Vec2::new((i as f32 + 0.5) / 16.0, (j as f32 + 0.5) / 12.0)
+                    * projector.viewport;
                 let (o, d) = projector.ray(pixel);
                 let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
                 if !hit.is_hit() {
                     continue;
                 }
                 let p = o + d * hit.t;
-                let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
-                tests.extend([p.extend(hit.object as f32).to_array(), n.extend(0.0).to_array()]);
+                let n = if hit.normal.dot(d) > 0.0 {
+                    -hit.normal
+                } else {
+                    hit.normal
+                };
+                tests.extend([
+                    p.extend(hit.object as f32).to_array(),
+                    n.extend(0.0).to_array(),
+                ]);
                 points.push((p, n, hit.object));
             }
         }
-        let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
+        let words = renderer.run_shading_verify(
+            "o3dePixelTests",
+            points.len() as u32,
+            &tests,
+            8 * points.len(),
+        );
         let mut worst = 0.0f32;
         for (k, &(p, n, object)) in points.iter().enumerate() {
             // The kernel has no screen, so no normal derivatives.
-            let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
+            let cpu = brdf::pixel(
+                &shading,
+                &content.objects,
+                &brdf::Fragment::at(object, p, n),
+                eye,
+                state.p("exposure"),
+                map,
+            );
             let gpu = f3(&words, 8 * k);
             let d = (gpu - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05);
             worst = worst.max(d);
@@ -385,15 +640,27 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let base = Vec3::new(rng.next(), rng.next(), rng.next());
             let s = brdf::Surface::new(Vec3::ZERO, n, base, rng.next(), rng.next(), rng.next());
             let mut coated = s;
-            coated.clear_coat = Some(brdf::ClearCoat { factor: 0.0, roughness: rng.next().max(1e-3), normal: n });
+            coated.clear_coat = Some(brdf::ClearCoat {
+                factor: 0.0,
+                roughness: rng.next().max(1e-3),
+                normal: n,
+            });
             coated.specular_f0 = brdf::apply_clear_coat_to_specular_f0(s.specular_f0, 0.0);
             let lit = |surface: &brdf::Surface| {
                 let mut ld = brdf::LightingData::new(surface, v, true, map);
-                brdf::apply_light(surface, &mut ld, Vec3::ONE, l, brdf::DiffuseModel::Lambertian);
+                brdf::apply_light(
+                    surface,
+                    &mut ld,
+                    Vec3::ONE,
+                    l,
+                    brdf::DiffuseModel::Lambertian,
+                );
                 (ld.diffuse_lighting, ld.specular_lighting)
             };
             let ((d0, s0), (d1, s1)) = (lit(&s), lit(&coated));
-            worst = worst.max((d0 - d1).abs().max_element()).max((s0 - s1).abs().max_element());
+            worst = worst
+                .max((d0 - d1).abs().max_element())
+                .max((s0 - s1).abs().max_element());
         }
         report.check("clear coat at factor 0 leaves the F0, the diffuse response, and every light's diffuse and specular unchanged", worst <= 1e-6, json!({"surfaces": 256, "worstDifference": worst}));
     }
@@ -403,7 +670,20 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut detail = Vec::new();
         let mut ok = true;
         // The demonstration's start, the splat tilted under the grid at partial opacity, and the grid turned with weak attenuation.
-        let configs: [&[(&str, f32)]; 3] = [&[], &[("decalTilt", 40.0), ("decalSplatSortKey", 15.0), ("decalOpacity", 0.6), ("decalNormalOpacity", 0.5)], &[("decalTurn", 70.0), ("decalAngleAttenuation", 0.3), ("decalTilt", -50.0)]];
+        let configs: [&[(&str, f32)]; 3] = [
+            &[],
+            &[
+                ("decalTilt", 40.0),
+                ("decalSplatSortKey", 15.0),
+                ("decalOpacity", 0.6),
+                ("decalNormalOpacity", 0.5),
+            ],
+            &[
+                ("decalTurn", 70.0),
+                ("decalAngleAttenuation", 0.3),
+                ("decalTilt", -50.0),
+            ],
+        ];
         for config in configs {
             let mut state = shot::for_demo(Demo::Decals);
             for &(name, value) in config {
@@ -417,33 +697,76 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let (mut tests, mut points) = (Vec::new(), Vec::new());
             for j in 0..24 {
                 for i in 0..32 {
-                    let (o, d) = projector.ray(Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0) * projector.viewport);
+                    let (o, d) = projector.ray(
+                        Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
+                            * projector.viewport,
+                    );
                     let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
                     let p = o + d * hit.t;
-                    if !hit.is_hit() || !shading.decals.iter().any(|dc| super::decals::sample(dc, p, hit.normal).is_some()) {
+                    if !hit.is_hit()
+                        || !shading
+                            .decals
+                            .iter()
+                            .any(|dc| super::decals::sample(dc, p, hit.normal).is_some())
+                    {
                         continue;
                     }
-                    let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
-                    tests.extend([p.extend(hit.object as f32).to_array(), n.extend(0.0).to_array()]);
+                    let n = if hit.normal.dot(d) > 0.0 {
+                        -hit.normal
+                    } else {
+                        hit.normal
+                    };
+                    tests.extend([
+                        p.extend(hit.object as f32).to_array(),
+                        n.extend(0.0).to_array(),
+                    ]);
                     points.push((p, n, hit.object));
                 }
             }
-            let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
+            let words = renderer.run_shading_verify(
+                "o3dePixelTests",
+                points.len() as u32,
+                &tests,
+                8 * points.len(),
+            );
             let mut worst = 0.0f32;
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
-                worst = worst.max((f3(&words, 8 * k) - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05));
+                let cpu = brdf::pixel(
+                    &shading,
+                    &content.objects,
+                    &brdf::Fragment::at(object, p, n),
+                    eye,
+                    state.p("exposure"),
+                    map,
+                );
+                worst = worst.max(
+                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
+                        / cpu.color.max_element().max(0.05),
+                );
             }
             ok &= worst < 3e-3 && points.len() > 100;
             detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "pointsInDecals": points.len(), "worstRelativeDifference": worst}));
         }
         // ApplyDecal on a metallic surface: O3DE 26.05 blends the albedo and leaves specularF0 as it was.
         let decal = super::decals::scene_decals(&shot::for_demo(Demo::Decals))[0];
-        let mut metal = brdf::Surface::new(decal.position, Vec3::Y, Vec3::new(0.9, 0.6, 0.3), 0.75, 0.5, 0.4);
+        let mut metal = brdf::Surface::new(
+            decal.position,
+            Vec3::Y,
+            Vec3::new(0.9, 0.6, 0.3),
+            0.75,
+            0.5,
+            0.4,
+        );
         let before = metal;
         super::decals::apply_decal(&decal, &mut metal, Vec3::Y);
-        let k = super::decals::sample(&decal, decal.position, Vec3::Y).context("the splat's centre")?;
-        let f0_ok = (metal.specular_f0 - before.specular_f0).abs().max_element() < 1e-6 && (metal.albedo - before.albedo.lerp(k.blended, k.albedo_opacity)).abs().max_element() < 1e-6 && k.albedo_opacity > 0.9;
+        let k =
+            super::decals::sample(&decal, decal.position, Vec3::Y).context("the splat's centre")?;
+        let f0_ok = (metal.specular_f0 - before.specular_f0).abs().max_element() < 1e-6
+            && (metal.albedo - before.albedo.lerp(k.blended, k.albedo_opacity))
+                .abs()
+                .max_element()
+                < 1e-6
+            && k.albedo_opacity > 0.9;
         report.check(
             "decals: o3dePixel on the GPU matches brdf::pixel at points inside the decals (three settings), and ApplyDecal blends a metal's albedo by its opacity and leaves its specularF0 (26.05)",
             ok && f0_ok,
@@ -455,7 +778,16 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     {
         let mut detail = Vec::new();
         let mut ok = true;
-        let configs: [&[(&str, f32)]; 3] = [&[], &[("transmissionPower", 2.0), ("transmissionDistortion", 0.5), ("transmissionThickness", 0.2), ("sphereLightBulb", 0.3)], &[("teapotTransmission", 2.0)]];
+        let configs: [&[(&str, f32)]; 3] = [
+            &[],
+            &[
+                ("transmissionPower", 2.0),
+                ("transmissionDistortion", 0.5),
+                ("transmissionThickness", 0.2),
+                ("sphereLightBulb", 0.3),
+            ],
+            &[("teapotTransmission", 2.0)],
+        ];
         for config in configs {
             let mut state = shot::for_demo(Demo::Transmission);
             for &(name, value) in config {
@@ -470,23 +802,48 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let mut lit = 0usize;
             for j in 0..24 {
                 for i in 0..32 {
-                    let (o, d) = projector.ray(Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0) * projector.viewport);
+                    let (o, d) = projector.ray(
+                        Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
+                            * projector.viewport,
+                    );
                     let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
                     if !hit.is_hit() {
                         continue;
                     }
                     let p = o + d * hit.t;
-                    let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
-                    tests.extend([p.extend(hit.object as f32).to_array(), n.extend(0.0).to_array()]);
+                    let n = if hit.normal.dot(d) > 0.0 {
+                        -hit.normal
+                    } else {
+                        hit.normal
+                    };
+                    tests.extend([
+                        p.extend(hit.object as f32).to_array(),
+                        n.extend(0.0).to_array(),
+                    ]);
                     points.push((p, n, hit.object));
                 }
             }
-            let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
+            let words = renderer.run_shading_verify(
+                "o3dePixelTests",
+                points.len() as u32,
+                &tests,
+                8 * points.len(),
+            );
             let mut worst = 0.0f32;
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
+                let cpu = brdf::pixel(
+                    &shading,
+                    &content.objects,
+                    &brdf::Fragment::at(object, p, n),
+                    eye,
+                    state.p("exposure"),
+                    map,
+                );
                 lit += usize::from(cpu.lighting.translucent_back_lighting.max_element() > 1e-3);
-                worst = worst.max((f3(&words, 8 * k) - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05));
+                worst = worst.max(
+                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
+                        / cpu.color.max_element().max(0.05),
+                );
             }
             ok &= worst < 3e-3 && lit > 20;
             detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "points": points.len(), "backLit": lit, "worstRelativeDifference": worst}));
@@ -501,7 +858,9 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     // ---- 5d. The probes' capture camera ------------------------------------
     {
         let probes = super::reflections::bake_check(4096);
-        let ok = probes.iter().all(|&(share, median)| share > 0.9 && median < 0.01);
+        let ok = probes
+            .iter()
+            .all(|&(share, median)| share > 0.9 && median < 0.01);
         report.check(
             "probe captures: each cubemap, read along 4096 directions, shows what the room traced from the probe's position shows along them (90% within 5%)",
             ok,
@@ -515,7 +874,13 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut ok = true;
         let mut grey = 0usize;
         // The last with a clear-coated sphere, whose forward-pass IBL blends in its own probe.
-        let configs: [&[(&str, f32)]; 5] = [&[], &[("probeParallax", 0.0)], &[("probeInnerScale", 0.5), ("probeExposure", 1.0)], &[("ibl", 0.0)], &[("sphereClearCoat", 1.0), ("probeExposure", 0.5)]];
+        let configs: [&[(&str, f32)]; 5] = [
+            &[],
+            &[("probeParallax", 0.0)],
+            &[("probeInnerScale", 0.5), ("probeExposure", 1.0)],
+            &[("ibl", 0.0)],
+            &[("sphereClearCoat", 1.0), ("probeExposure", 0.5)],
+        ];
         for config in configs {
             let mut state = shot::for_demo(Demo::Reflections);
             for &(name, value) in config {
@@ -529,30 +894,61 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let (mut tests, mut points) = (Vec::new(), Vec::new());
             for j in 0..36 {
                 for i in 0..48 {
-                    let (o, d) = projector.ray(Vec2::new((i as f32 + 0.5) / 48.0, (j as f32 + 0.5) / 36.0) * projector.viewport);
+                    let (o, d) = projector.ray(
+                        Vec2::new((i as f32 + 0.5) / 48.0, (j as f32 + 0.5) / 36.0)
+                            * projector.viewport,
+                    );
                     let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
                     if !hit.is_hit() {
                         continue;
                     }
                     let p = o + d * hit.t;
-                    let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
-                    tests.extend([p.extend(hit.object as f32).to_array(), n.extend(0.0).to_array()]);
+                    let n = if hit.normal.dot(d) > 0.0 {
+                        -hit.normal
+                    } else {
+                        hit.normal
+                    };
+                    tests.extend([
+                        p.extend(hit.object as f32).to_array(),
+                        n.extend(0.0).to_array(),
+                    ]);
                     points.push((p, n, hit.object));
                 }
             }
-            let words = renderer.run_shading_verify("o3dePixelTests", points.len() as u32, &tests, 8 * points.len());
+            let words = renderer.run_shading_verify(
+                "o3dePixelTests",
+                points.len() as u32,
+                &tests,
+                8 * points.len(),
+            );
             let (mut worst, mut inner, mut blended) = (0.0f32, 0usize, 0usize);
             for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(object, p, n), eye, state.p("exposure"), map);
+                let cpu = brdf::pixel(
+                    &shading,
+                    &content.objects,
+                    &brdf::Fragment::at(object, p, n),
+                    eye,
+                    state.p("exposure"),
+                    map,
+                );
                 let r = cpu.ibl.reflection;
                 let masked = r.stencil & super::reflections::STENCIL_REFLECTION_MASK;
                 inner += usize::from(masked > 3);
                 blended += usize::from(masked == 3 && r.blend_weight > 0.0 && r.blend_weight < 1.0);
                 // The IBL flag off: inside an inner volume the target's 0.4 grey reaches the composite.
-                if !shading.ibl && masked > 3 && (r.composited - super::reflections::REFLECTION_CLEAR).abs().max_element() < 1e-6 {
+                if !shading.ibl
+                    && masked > 3
+                    && (r.composited - super::reflections::REFLECTION_CLEAR)
+                        .abs()
+                        .max_element()
+                        < 1e-6
+                {
                     grey += 1;
                 }
-                worst = worst.max((f3(&words, 8 * k) - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05));
+                worst = worst.max(
+                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
+                        / cpu.color.max_element().max(0.05),
+                );
             }
             ok &= worst < 3e-3 && inner > 4 && blended > 10;
             detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "points": points.len(), "insideInner": inner, "blended": blended, "worstRelativeDifference": worst}));
@@ -578,7 +974,13 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     {
         // The room with the sun on, as the story's sun beats show it.
         let mut here = shot::for_demo(Demo::Room);
-        for (name, value) in [("labels", 0.0), ("sunLux", 40.0), ("exposure", 0.18), ("sunYaw", 40.0), ("sunPitch", 52.0)] {
+        for (name, value) in [
+            ("labels", 0.0),
+            ("sunLux", 40.0),
+            ("exposure", 0.18),
+            ("sunYaw", 40.0),
+            ("sunPitch", 52.0),
+        ] {
             here.set(name, value);
         }
         let mut there = here.clone();
@@ -594,7 +996,9 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let settled = frame_after(&mut renderer, &here);
         let after_move = frame_after(&mut renderer, &there);
         let pixels = settled.len() / 4;
-        let differing = (0..pixels).filter(|&i| (0..3).any(|c| settled[4 * i + c].abs_diff(after_move[4 * i + c]) > 8)).count();
+        let differing = (0..pixels)
+            .filter(|&i| (0..3).any(|c| settled[4 * i + c].abs_diff(after_move[4 * i + c]) > 8))
+            .count();
         let share = differing as f32 / pixels as f32;
         report.check("the sun's shadow maps follow the camera: a frame just after another camera's matches one after its own (pixels off by more than 8 of 255 under 0.5%)", share < 0.005, json!({"pixels": pixels, "differing": differing, "share": share, "yawMoved": -70.0}));
     }
@@ -627,36 +1031,75 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut compared = 0;
         for j in 0..24 {
             for i in 0..32 {
-                let pixel = Vec2::new(((i as f32 + 0.5) / 32.0 * vp[2] as f32).floor() + 0.5, ((j as f32 + 0.5) / 24.0 * vp[3] as f32).floor() + 0.5);
+                let pixel = Vec2::new(
+                    ((i as f32 + 0.5) / 32.0 * vp[2] as f32).floor() + 0.5,
+                    ((j as f32 + 0.5) / 24.0 * vp[3] as f32).floor() + 0.5,
+                );
                 if light_px.is_some_and(|l| l.distance(pixel) < 40.0) {
                     continue;
                 }
-                let (sx, sy) = ((vp[0] as f32 + pixel.x) / layout.scale, (vp[1] as f32 + pixel.y) / layout.scale);
+                let (sx, sy) = (
+                    (vp[0] as f32 + pixel.x) / layout.scale,
+                    (vp[1] as f32 + pixel.y) / layout.scale,
+                );
                 if sx < safe.min.x || sx > safe.max.x || sy < safe.min.y || sy > safe.max.y {
                     continue;
                 }
                 // Flat surfaces only (the sphere and teapot are tessellated), away from edges.
                 let hit_at = |px: Vec2| {
                     let (o, d) = projector.ray(px);
-                    (o, d, scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32))
+                    (
+                        o,
+                        d,
+                        scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32),
+                    )
                 };
                 let (o, d, hit) = hit_at(pixel);
-                if !hit.is_hit() || ![SHAPE_PLANE, SHAPE_BOX].contains(&content.objects[hit.object as usize].shape_kind) {
+                if !hit.is_hit()
+                    || ![SHAPE_PLANE, SHAPE_BOX]
+                        .contains(&content.objects[hit.object as usize].shape_kind)
+                {
                     continue;
                 }
-                if [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y].iter().any(|step| hit_at(pixel + *step * 3.0).2.object != hit.object) {
+                if [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y]
+                    .iter()
+                    .any(|step| hit_at(pixel + *step * 3.0).2.object != hit.object)
+                {
                     continue;
                 }
                 let p = o + d * hit.t;
-                let n = if hit.normal.dot(d) > 0.0 { -hit.normal } else { hit.normal };
+                let n = if hit.normal.dot(d) > 0.0 {
+                    -hit.normal
+                } else {
+                    hit.normal
+                };
                 // Flat surfaces: the normal does not change from pixel to pixel.
-                let px = brdf::pixel(&shading, &content.objects, &brdf::Fragment::at(hit.object, p, n), eye, state.p("exposure"), map);
-                let ao = f32::from_bits(ao_words[(pixel.y as u32 * ao_size[0] + pixel.x as u32) as usize]);
-                let diffuse = px.diffuse() + px.ibl.diffuse * if shading.ibl { 1.0 } else { 0.0 };
-                let expected = scene::display_rgb(px.color - diffuse + diffuse * ao, state.p("exposure"));
+                let px = brdf::pixel(
+                    &shading,
+                    &content.objects,
+                    &brdf::Fragment::at(hit.object, p, n),
+                    eye,
+                    state.p("exposure"),
+                    map,
+                );
+                let ao = f32::from_bits(
+                    ao_words[(pixel.y as u32 * ao_size[0] + pixel.x as u32) as usize],
+                );
+                let diffuse = px.diffuse()
+                    + px.ibl.diffuse
+                        * if shading.ibl {
+                            1.0
+                        } else {
+                            0.0
+                        };
+                let expected =
+                    scene::display_rgb(px.color - diffuse + diffuse * ao, state.p("exposure"));
                 let (x, y) = (vp[0] + pixel.x as u32, vp[1] + pixel.y as u32);
                 let at = ((y * renderer.width + x) * 4) as usize;
-                let diff = (0..3).map(|c| rgba[at + c].abs_diff(expected[c])).max().unwrap_or(0);
+                let diff = (0..3)
+                    .map(|c| rgba[at + c].abs_diff(expected[c]))
+                    .max()
+                    .unwrap_or(0);
                 worst = worst.max(diff);
                 compared += 1;
             }
@@ -682,34 +1125,92 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
             let read = |name: &str, half: bool| -> Result<Image> {
                 let (words, size) = renderer.read_chain_buffer(name).context("ssao buffer")?;
-                let size = if half { [size[0].div_ceil(2), size[1].div_ceil(2)] } else { size };
-                Ok(Image { size, data: words[..(size[0] * size[1]) as usize].iter().map(|w| f32::from_bits(*w)).collect() })
+                let size = if half {
+                    [size[0].div_ceil(2), size[1].div_ceil(2)]
+                } else {
+                    size
+                };
+                Ok(Image {
+                    size,
+                    data: words[..(size[0] * size[1]) as usize]
+                        .iter()
+                        .map(|w| f32::from_bits(*w))
+                        .collect(),
+                })
             };
-            let (linear, half, raw, blur_v, blur_h, full) = (read("linearDepth", false)?, read("halfDepth", true)?, read("ssao", true)?, read("ssaoBlurV", true)?, read("ssaoBlur", true)?, read("ssaoFull", false)?);
+            let (linear, half, raw, blur_v, blur_h, full) = (
+                read("linearDepth", false)?,
+                read("halfDepth", true)?,
+                read("ssao", true)?,
+                read("ssaoBlurV", true)?,
+                read("ssaoBlur", true)?,
+                read("ssaoFull", false)?,
+            );
             // Each stage from the GPU's previous one, so differences do not pile up.
-            let worst = |a: &Image, b: &Image| a.data.iter().zip(&b.data).map(|(x, y)| (x - y).abs()).fold(0.0f32, f32::max);
-            let off = |a: &Image, b: &Image| a.data.iter().zip(&b.data).filter(|(x, y)| (*x - *y).abs() > 1.5 / 255.0).count();
+            let worst = |a: &Image, b: &Image| {
+                a.data
+                    .iter()
+                    .zip(&b.data)
+                    .map(|(x, y)| (x - y).abs())
+                    .fold(0.0f32, f32::max)
+            };
+            let off = |a: &Image, b: &Image| {
+                a.data
+                    .iter()
+                    .zip(&b.data)
+                    .filter(|(x, y)| (*x - *y).abs() > 1.5 / 255.0)
+                    .count()
+            };
             let stages = [
-                ("DepthDownsample", worst(&half, &ssao::downsample(&linear)), 0usize),
-                ("SsaoCompute", worst(&raw, &ssao::compute(&half, &settings, tan)), off(&raw, &ssao::compute(&half, &settings, tan))),
-                ("blur, vertical", worst(&blur_v, &ssao::blur(&raw, &half, &settings, false)), off(&blur_v, &ssao::blur(&raw, &half, &settings, false))),
-                ("blur, horizontal", worst(&blur_h, &ssao::blur(&blur_v, &half, &settings, true)), off(&blur_h, &ssao::blur(&blur_v, &half, &settings, true))),
-                ("DepthUpsample", worst(&full, &ssao::upsample(&blur_h, &half, &linear)), off(&full, &ssao::upsample(&blur_h, &half, &linear))),
+                (
+                    "DepthDownsample",
+                    worst(&half, &ssao::downsample(&linear)),
+                    0usize,
+                ),
+                (
+                    "SsaoCompute",
+                    worst(&raw, &ssao::compute(&half, &settings, tan)),
+                    off(&raw, &ssao::compute(&half, &settings, tan)),
+                ),
+                (
+                    "blur, vertical",
+                    worst(&blur_v, &ssao::blur(&raw, &half, &settings, false)),
+                    off(&blur_v, &ssao::blur(&raw, &half, &settings, false)),
+                ),
+                (
+                    "blur, horizontal",
+                    worst(&blur_h, &ssao::blur(&blur_v, &half, &settings, true)),
+                    off(&blur_h, &ssao::blur(&blur_v, &half, &settings, true)),
+                ),
+                (
+                    "DepthUpsample",
+                    worst(&full, &ssao::upsample(&blur_h, &half, &linear)),
+                    off(&full, &ssao::upsample(&blur_h, &half, &linear)),
+                ),
             ];
             // Off by one 8-bit level where float rounding lands on the other side of a step; anything more in at most 0.1% of pixels.
-            let stage_ok = stages.iter().all(|(_, w, n)| *w <= 1.5 / 255.0 || *n * 1000 <= full.data.len());
+            let stage_ok = stages
+                .iter()
+                .all(|(_, w, n)| *w <= 1.5 / 255.0 || *n * 1000 <= full.data.len());
             // The readout's SSAO, from ray-cast depths around the pixel, against the GPU's on flat surfaces.
             let projector = Projector::new(&content.uniforms.camera);
             let view_m = glam::Mat4::from_cols_array_2d(&content.uniforms.camera.world_to_view);
             let linear_depth = |x: i32, y: i32| -> f32 {
                 let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
                 let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                if hit.is_hit() { -view_m.transform_point3(o + d * hit.t).z } else { content.uniforms.camera.far_plane }
+                if hit.is_hit() {
+                    -view_m.transform_point3(o + d * hit.t).z
+                } else {
+                    content.uniforms.camera.far_plane
+                }
             };
             let (mut probed, mut close) = (0usize, 0usize);
             for j in 0..4 {
                 for i in 0..6 {
-                    let (x, y) = ((full.size[0] as i32) * (2 * i + 1) / 12, (full.size[1] as i32) * (2 * j + 1) / 8);
+                    let (x, y) = (
+                        (full.size[0] as i32) * (2 * i + 1) / 12,
+                        (full.size[1] as i32) * (2 * j + 1) / 8,
+                    );
                     let k = ssao::at_pixel(&linear_depth, full.size, &settings, tan, x, y);
                     probed += 1;
                     close += usize::from((k.upsampled - full.at(x, y)).abs() <= 2.5 / 255.0);
@@ -735,16 +1236,33 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let shading = demos::shading(&state);
         let lights = shading.lights();
         let camera = content.uniforms.camera;
-        let (tile_words, size) = renderer.read_chain_buffer("tileData").context("tile data")?;
-        let (list_words, _) = renderer.read_chain_buffer("lightList").context("light list")?;
-        let (remap_words, _) = renderer.read_chain_buffer("lightListRemapped").context("remapped list")?;
-        let grid = [size[0].div_ceil(culling::TILE_DIM), size[1].div_ceil(culling::TILE_DIM)];
-        let (mut tiles, mut list_mismatch, mut remap_mismatch, mut listed) = (0usize, 0usize, 0usize, 0usize);
+        let (tile_words, size) = renderer
+            .read_chain_buffer("tileData")
+            .context("tile data")?;
+        let (list_words, _) = renderer
+            .read_chain_buffer("lightList")
+            .context("light list")?;
+        let (remap_words, _) = renderer
+            .read_chain_buffer("lightListRemapped")
+            .context("remapped list")?;
+        let grid = [
+            size[0].div_ceil(culling::TILE_DIM),
+            size[1].div_ceil(culling::TILE_DIM),
+        ];
+        let (mut tiles, mut list_mismatch, mut remap_mismatch, mut listed) =
+            (0usize, 0usize, 0usize, 0usize);
         for ty in 0..grid[1] {
             for tx in 0..grid[0] {
                 let t = (ty * grid[0] + tx) as usize;
                 let data = TileLightData::unpack(&tile_words[4 * t..4 * t + 4]);
-                let cpu = culling::cull_tile(&camera, &data, [tx, ty], &lights, &shading.decals, &shading.sphere_lights);
+                let cpu = culling::cull_tile(
+                    &camera,
+                    &data,
+                    [tx, ty],
+                    &lights,
+                    &shading.decals,
+                    &shading.sphere_lights,
+                );
                 let gpu = &list_words[t * 256..t * 256 + cpu.len()];
                 tiles += 1;
                 listed += cpu.len() - culling::LIGHT_GROUPS as usize;
@@ -752,7 +1270,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
                 // The remap from the GPU's own list is integer work: it must match exactly.
                 let base = t * 256 * 8;
                 for (bin, entries) in culling::remap(gpu).iter().enumerate() {
-                    remap_mismatch += usize::from(&remap_words[base + bin * 256..base + bin * 256 + entries.len()] != entries.as_slice());
+                    remap_mismatch += usize::from(
+                        &remap_words[base + bin * 256..base + bin * 256 + entries.len()]
+                            != entries.as_slice(),
+                    );
                 }
             }
         }
@@ -778,24 +1299,43 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
                     continue;
                 }
                 let base = (t * 8 + data.bin(distance) as usize) * 256;
-                let bin: Vec<u32> = remap_words[base..base + 256].iter().copied().take_while(|&v| v != culling::END_OF_LIST).collect();
-                let group = bin.split(|&v| v == culling::END_OF_GROUP).nth(culling::GROUP_SIMPLE_POINT as usize).unwrap_or(&[]);
+                let bin: Vec<u32> = remap_words[base..base + 256]
+                    .iter()
+                    .copied()
+                    .take_while(|&v| v != culling::END_OF_LIST)
+                    .collect();
+                let group = bin
+                    .split(|&v| v == culling::END_OF_GROUP)
+                    .nth(culling::GROUP_SIMPLE_POINT as usize)
+                    .unwrap_or(&[]);
                 points += 1;
-                let decal_group = bin.split(|&v| v == culling::END_OF_GROUP).next().unwrap_or(&[]);
+                let decal_group = bin
+                    .split(|&v| v == culling::END_OF_GROUP)
+                    .next()
+                    .unwrap_or(&[]);
                 for (i, decal) in shading.decals.iter().enumerate() {
-                    if super::decals::sample(decal, p, hit.normal).is_some() && !decal_group.contains(&(i as u32)) {
+                    if super::decals::sample(decal, p, hit.normal).is_some()
+                        && !decal_group.contains(&(i as u32))
+                    {
                         missing += 1;
                     }
                 }
                 for (i, light) in lights.iter().enumerate() {
-                    let reaches = (light.position - p).length_squared() * light.inv_attenuation_radius_squared < 1.0;
+                    let reaches = (light.position - p).length_squared()
+                        * light.inv_attenuation_radius_squared
+                        < 1.0;
                     if reaches && !group.contains(&(i as u32)) {
                         missing += 1;
                     }
                 }
             }
         }
-        let ok = tiles > 0 && list_mismatch * 200 <= tiles && remap_mismatch == 0 && missing == 0 && points > 100 && listed > 0;
+        let ok = tiles > 0
+            && list_mismatch * 200 <= tiles
+            && remap_mismatch == 0
+            && missing == 0
+            && points > 100
+            && listed > 0;
         report.check(
             "light culling: the GPU's tile lists match the CPU mirror (all but at most 0.5% of tiles, float rounding), the remap exactly, and every light that reaches a surface point (and every decal whose box holds it) is in its pixel's bin; with a sphere light",
             ok,
@@ -809,13 +1349,27 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     for demo in Demo::ALL {
         let mut state = shot::for_demo(demo);
         let result = renderer.render_frame(request(&state, &still), None);
-        let values = result.content.as_ref().and_then(|c| c.readout.as_ref()).map_or(0, |r| r.rows.len());
+        let values = result
+            .content
+            .as_ref()
+            .and_then(|c| c.readout.as_ref())
+            .map_or(0, |r| r.rows.len());
         // Its formula above the readout, at full size, with every row below it.
-        let formula = result.content.as_ref().and_then(|c| c.readout.as_ref()?.formula.clone());
-        let formula_ok = formula.as_deref() == Some(super::formulas::text(demo)) && result.report.formula_scale == Some(1.0) && result.report.readout_overflow == 0;
+        let formula = result
+            .content
+            .as_ref()
+            .and_then(|c| c.readout.as_ref()?.formula.clone());
+        let formula_ok = formula.as_deref() == Some(super::formulas::text(demo))
+            && result.report.formula_scale == Some(1.0)
+            && result.report.readout_overflow == 0;
         let ok = result.report.min_text_pt >= MIN_TEXT_PT && values > 0 && formula_ok;
         let png = options.work_dir.join(format!("o3de-{}.png", demo.key()));
-        lab::record::write_png(&png, renderer.width, renderer.height, &renderer.read_frame())?;
+        lab::record::write_png(
+            &png,
+            renderer.width,
+            renderer.height,
+            &renderer.read_frame(),
+        )?;
         // The Code tab's panel.
         state.panel = lab::shot::PanelMode::Code;
         let listing = shot::demos().spec(demo.id()).listing.unwrap_or_default();
@@ -824,7 +1378,9 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut listing_ok = true;
         let mut overflow = serde_json::Map::new();
         for style in lab::pseudocode::Style::ALL {
-            let code = lab::pseudocode::with_style(style, || renderer.render_frame(request(&state, &still), None).report);
+            let code = lab::pseudocode::with_style(style, || {
+                renderer.render_frame(request(&state, &still), None).report
+            });
             listing_ok &= code.panel_code.as_deref() == Some(listing) && code.code_overflow == 0;
             overflow.insert(style.key().into(), json!(code.code_overflow));
         }
@@ -847,12 +1403,36 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let mut seen = Vec::new();
             for state in [&off, &off, &on] {
                 let result = renderer.render_frame(request(state, &still), None);
-                let rows: Vec<(String, String)> = result.content.as_ref().and_then(|c| c.readout.as_ref()).map(|r| r.rows.iter().map(|(n, v, _)| (n.clone(), v.clone())).collect()).unwrap_or_default();
-                let (_, linear) = renderer.read_view(renderer::ViewKind::Live).context("the main view")?;
-                let buffers: Vec<Vec<u32>> = ["ssaoFull", "tileData", "lightList"].iter().map(|b| renderer.read_chain_buffer(b).map(|(w, _)| w).unwrap_or_default()).collect();
+                let rows: Vec<(String, String)> = result
+                    .content
+                    .as_ref()
+                    .and_then(|c| c.readout.as_ref())
+                    .map(|r| {
+                        r.rows
+                            .iter()
+                            .map(|(n, v, _)| (n.clone(), v.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let (_, linear) = renderer
+                    .read_view(renderer::ViewKind::Live)
+                    .context("the main view")?;
+                let buffers: Vec<Vec<u32>> = ["ssaoFull", "tileData", "lightList"]
+                    .iter()
+                    .map(|b| {
+                        renderer
+                            .read_chain_buffer(b)
+                            .map(|(w, _)| w)
+                            .unwrap_or_default()
+                    })
+                    .collect();
                 seen.push((rows, linear, buffers, renderer.read_frame()));
             }
-            let (rows, image, buffers) = (seen[2].0 == seen[1].0, seen[2].1 == seen[1].1, seen[2].2 == seen[1].2);
+            let (rows, image, buffers) = (
+                seen[2].0 == seen[1].0,
+                seen[2].1 == seen[1].1,
+                seen[2].2 == seen[1].2,
+            );
             let stable = seen[0].1 == seen[1].1 && seen[0].2 == seen[1].2;
             let screen_differs = seen[2].3 != seen[1].3;
             ok &= rows && image && buffers && screen_differs && !seen[1].0.is_empty();
@@ -868,16 +1448,28 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             let state = shot::for_demo(demo);
             renderer.render_frame(request(&state, &still), None);
             // The lab's frame: the demonstration's readout rows include its readout script's (script/readout.lam).
-            let content = lab::shader_data::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
-            let (_, value, _) = content.readout?.rows.into_iter().find(|(name, _, _)| name.starts_with(prefix))?;
-            value.trim_start_matches('(').split([',', ' ']).find(|v| !v.is_empty())?.parse().ok()
+            let content =
+                lab::shader_data::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+            let (_, value, _) = content
+                .readout?
+                .rows
+                .into_iter()
+                .find(|(name, _, _)| name.starts_with(prefix))?;
+            value
+                .trim_start_matches('(')
+                .split([',', ' '])
+                .find(|v| !v.is_empty())?
+                .parse()
+                .ok()
         };
         // "At roughness zero point eight and this view angle, that is only about fifty seven percent."
         let energy = row(Demo::Multiscatter, "A + B");
         // "Six candelas at just under two metres give about one point seven lux, before the window."
         let distance = row(Demo::PointLight, tr("common-distance_d"));
         let lux = row(Demo::PointLight, "I / max");
-        let ok = energy.is_some_and(|e| (0.565..0.575).contains(&e)) && distance.is_some_and(|d| (1.85..2.0).contains(&d)) && lux.is_some_and(|l| (1.65..1.75).contains(&l));
+        let ok = energy.is_some_and(|e| (0.565..0.575).contains(&e))
+            && distance.is_some_and(|d| (1.85..2.0).contains(&d))
+            && lux.is_some_and(|l| (1.65..1.75).contains(&l));
         report.check("the narration's measured numbers: A + B about 57% at the multiscatter point; about 1.7 lux from 6 cd just under 2 m", ok, json!({"singleScatteringEnergy": energy, "distanceMetres": distance, "luxBeforeWindow": lux}));
     }
 
@@ -887,14 +1479,23 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut detail = Vec::new();
         for demo in Demo::ALL {
             let tag = lab::rich_text::first_formula(super::formulas::text(demo));
-            let checked = tag.as_ref().ok_or_else(|| "no formula tag".to_string()).and_then(|(latex, display, _)| lab::formula::check(latex, *display));
+            let checked = tag
+                .as_ref()
+                .ok_or_else(|| "no formula tag".to_string())
+                .and_then(|(latex, display, _)| lab::formula::check(latex, *display));
             let terms = super::formulas::terms(demo);
             // One colour per \lit term, each term with some ink of its own.
             let (ok, size, glyph, lit) = match &checked {
-                Ok(f) => (f.terms.len() == terms && f.terms.iter().all(|t| t.iter().any(|&c| c > 128)), [f.width, f.height], f.min_glyph_px, f.terms.len()),
+                Ok(f) => (
+                    f.terms.len() == terms && f.terms.iter().all(|t| t.iter().any(|&c| c > 128)),
+                    [f.width, f.height],
+                    f.min_glyph_px,
+                    f.terms.len(),
+                ),
                 Err(_) => (false, [0, 0], 0.0, 0),
             };
-            let hidden = super::formulas::readout(demo, -1.0).0.is_none() && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
+            let hidden = super::formulas::readout(demo, -1.0).0.is_none()
+                && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
             formulas_ok &= ok && hidden && terms > 0;
             detail.push(json!({"demo": demo.key(), "size": size, "minGlyphPx": glyph, "terms": terms, "litMasks": lit, "error": checked.err(), "ok": ok}));
         }
@@ -906,10 +1507,24 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     let listings = super::pseudocode::all();
     let listing_problems: Vec<String> = listings
         .iter()
-        .filter(|l| !index.entries.contains_key(&l.source) || l.demo.as_deref().is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d)))
+        .filter(|l| {
+            !index.entries.contains_key(&l.source)
+                || l.demo
+                    .as_deref()
+                    .is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d))
+        })
         .map(|l| l.name.to_string())
         .collect();
-    let demo_problems: Vec<&str> = Demo::ALL.iter().filter(|d| !listings.iter().any(|l| Some(l.name) == shot::demos().spec(d.id()).listing) || !index.demos.contains_key(d.key())).map(|d| d.key()).collect();
+    let demo_problems: Vec<&str> = Demo::ALL
+        .iter()
+        .filter(|d| {
+            !listings
+                .iter()
+                .any(|l| Some(l.name) == shot::demos().spec(d.id()).listing)
+                || !index.demos.contains_key(d.key())
+        })
+        .map(|d| d.key())
+        .collect();
     report.check("every listing cites a source entry and a demonstration; every demonstration has a listing and sources", listing_problems.is_empty() && demo_problems.is_empty(), json!({"listings": listing_problems, "demos": demo_problems}));
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
 
@@ -918,22 +1533,41 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let timeline = Timeline::load(path)?;
         let mut problems = Vec::new();
         let mut beats = 0;
-        for beat in timeline.beats.iter().filter(|b| b.kind == SceneType::ThreeD) {
+        for beat in timeline
+            .beats
+            .iter()
+            .filter(|b| b.kind == SceneType::ThreeD)
+        {
             let frame = beat.start_frame + beat.frames / 2;
             let state = timeline.state_at(frame);
             let mut req = request(&state, &timeline);
-            req.chrome = Chrome::Recording { timeline: &timeline, frame };
+            req.chrome = Chrome::Recording {
+                timeline: &timeline,
+                frame,
+            };
             req.chapter_number = beat.chapter;
             let mut r = renderer.render_frame(req, None).report;
             // A listing fits in the block style too.
             if state.panel == lab::shot::PanelMode::Code {
                 let mut req = request(&state, &timeline);
-                req.chrome = Chrome::Recording { timeline: &timeline, frame };
+                req.chrome = Chrome::Recording {
+                    timeline: &timeline,
+                    frame,
+                };
                 req.chapter_number = beat.chapter;
-                r.code_overflow += lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || renderer.render_frame(req, None).report.code_overflow);
+                r.code_overflow +=
+                    lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || {
+                        renderer.render_frame(req, None).report.code_overflow
+                    });
             }
             beats += 1;
-            if r.min_text_pt < MIN_TEXT_PT || r.label_overlaps > 0 || r.labels_outside > 0 || r.code_overflow > 0 || r.readout_overflow > 0 || r.formula_scale.is_some_and(|s| s < 1.0) {
+            if r.min_text_pt < MIN_TEXT_PT
+                || r.label_overlaps > 0
+                || r.labels_outside > 0
+                || r.code_overflow > 0
+                || r.readout_overflow > 0
+                || r.formula_scale.is_some_and(|s| s < 1.0)
+            {
                 problems.push(json!({"beat": beat.id, "frame": frame, "minTextPt": r.min_text_pt, "labelOverlaps": r.label_overlaps, "labelsOutside": r.labels_outside, "codeOverflow": r.code_overflow, "readoutOverflow": r.readout_overflow, "formulaScale": r.formula_scale}));
             }
         }
@@ -941,6 +1575,11 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     }
 
     let passed = report.passed();
-    std::fs::write(&options.report, serde_json::to_string_pretty(&json!({"investigation": "o3de/lighting", "passed": passed, "gpu": gpu_info, "checks": report.checks}))?)?;
+    std::fs::write(
+        &options.report,
+        serde_json::to_string_pretty(
+            &json!({"investigation": "o3de/lighting", "passed": passed, "gpu": gpu_info, "checks": report.checks}),
+        )?,
+    )?;
     Ok(passed)
 }

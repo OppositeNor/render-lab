@@ -12,8 +12,15 @@ use std::process::Command;
 
 fn main() {
     let rustc = env::var("RUSTC").unwrap_or_else(|_| "rustc".into());
-    let sysroot = Command::new(&rustc).args(["--print", "sysroot"]).output().expect("run rustc --print sysroot");
-    let sysroot = PathBuf::from(String::from_utf8(sysroot.stdout).expect("sysroot is UTF-8").trim());
+    let sysroot = Command::new(&rustc)
+        .args(["--print", "sysroot"])
+        .output()
+        .expect("run rustc --print sysroot");
+    let sysroot = PathBuf::from(
+        String::from_utf8(sysroot.stdout)
+            .expect("sysroot is UTF-8")
+            .trim(),
+    );
     let target = env::var("TARGET").unwrap();
     let std_dir = sysroot.join("lib/rustlib").join(&target).join("lib");
     match env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
@@ -29,7 +36,10 @@ fn main() {
                 install_mingw_runtime();
             }
         }
-        _ => println!("cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN:{}", std_dir.display()),
+        _ => println!(
+            "cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN:{}",
+            std_dir.display()
+        ),
     }
     install_themes();
 }
@@ -45,35 +55,51 @@ fn install_mingw_runtime() {
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|text| text.lines().find_map(|l| l.strip_prefix("libraries: =").map(str::to_owned)))
-        .map(|list| env::split_paths(&list).flat_map(|d| [d.join("../bin"), d]).collect())
+        .and_then(|text| {
+            text.lines()
+                .find_map(|l| l.strip_prefix("libraries: =").map(str::to_owned))
+        })
+        .map(|list| {
+            env::split_paths(&list)
+                .flat_map(|d| [d.join("../bin"), d])
+                .collect()
+        })
         .unwrap_or_default();
     for name in ["libgcc_s_seh-1.dll", "libwinpthread-1.dll"] {
         match dirs.iter().map(|d| d.join(name)).find(|p| p.is_file()) {
             Some(path) => {
                 let to = bin_dir.join(name);
-                std::fs::copy(&path, &to).unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
+                std::fs::copy(&path, &to)
+                    .unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
             }
-            None => println!("cargo:warning={name} not found in {linker}'s library directories: put it beside the binary or on PATH"),
+            None => println!(
+                "cargo:warning={name} not found in {linker}'s library directories: put it beside the binary or on PATH"
+            ),
         }
     }
 }
 
 /// The binary's directory (`target/<profile>/`, three folders above `OUT_DIR`).
 fn bin_dir() -> Option<PathBuf> {
-    PathBuf::from(env::var("OUT_DIR").unwrap()).ancestors().nth(3).map(PathBuf::from)
+    PathBuf::from(env::var("OUT_DIR").unwrap())
+        .ancestors()
+        .nth(3)
+        .map(PathBuf::from)
 }
 
 /// Copies the standard library's DLL (`std-<hash>.dll`) from the toolchain
 /// to the binary's directory.
 fn install_std_dll(std_dir: &std::path::Path) {
     let Some(bin_dir) = bin_dir() else { return };
-    for entry in std::fs::read_dir(std_dir).unwrap_or_else(|e| panic!("read {}: {e}", std_dir.display())) {
+    for entry in
+        std::fs::read_dir(std_dir).unwrap_or_else(|e| panic!("read {}: {e}", std_dir.display()))
+    {
         let path = entry.unwrap().path();
         let name = path.file_name().unwrap().to_string_lossy();
         if name.starts_with("std-") && name.ends_with(".dll") {
             let to = bin_dir.join(path.file_name().unwrap());
-            std::fs::copy(&path, &to).unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
+            std::fs::copy(&path, &to)
+                .unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
         }
     }
 }
@@ -85,11 +111,14 @@ fn install_themes() {
     let Some(bin_dir) = bin_dir() else { return };
     let target = bin_dir.join("themes");
     std::fs::create_dir_all(&target).unwrap_or_else(|e| panic!("create {}: {e}", target.display()));
-    for entry in std::fs::read_dir(&source).unwrap_or_else(|e| panic!("read {}: {e}", source.display())) {
+    for entry in
+        std::fs::read_dir(&source).unwrap_or_else(|e| panic!("read {}: {e}", source.display()))
+    {
         let path = entry.unwrap().path();
         if path.extension().is_some_and(|e| e == "toml") {
             let to = target.join(path.file_name().unwrap());
-            std::fs::copy(&path, &to).unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
+            std::fs::copy(&path, &to)
+                .unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
         }
     }
 }

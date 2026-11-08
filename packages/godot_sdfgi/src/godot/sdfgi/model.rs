@@ -36,7 +36,11 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { cascades: 4, min_cell_size: 0.2, y_scale_mode: 1 }
+        Settings {
+            cascades: 4,
+            min_cell_size: 0.2,
+            y_scale_mode: 1,
+        }
     }
 }
 
@@ -97,10 +101,18 @@ impl Cascades {
         let mut cascades = Vec::with_capacity(settings.cascades);
         for _ in 0..settings.cascades {
             let cell_size = base_cell_size;
-            let world = Vec3::new(world_position.x, world_position.y * y_mult, world_position.z);
+            let world = Vec3::new(
+                world_position.x,
+                world_position.y * y_mult,
+                world_position.z,
+            );
             let probe_size = Vec3::splat(cell_size * PROBE_CELLS as f32);
             let probe_pos = (world / probe_size + Vec3::splat(0.5)).floor().as_ivec3();
-            cascades.push(Cascade { cell_size, position: probe_pos * PROBE_CELLS, dirty: Dirty::All });
+            cascades.push(Cascade {
+                cell_size,
+                position: probe_pos * PROBE_CELLS,
+                dirty: Dirty::All,
+            });
             base_cell_size *= 2.0;
         }
         Cascades { settings, cascades }
@@ -115,7 +127,11 @@ impl Cascades {
         for cascade in &mut self.cascades {
             let mut dirty = IVec3::ZERO;
             // probe_half_size is computed, then set to zero.
-            let world = Vec3::new(world_position.x, world_position.y * y_mult, world_position.z);
+            let world = Vec3::new(
+                world_position.x,
+                world_position.y * y_mult,
+                world_position.z,
+            );
             // Vector3i(Vector3) truncates toward zero.
             let pos_in_cascade = (world / cascade.cell_size).as_ivec3();
             let mut all = false;
@@ -139,7 +155,11 @@ impl Cascades {
                     break;
                 }
             }
-            cascade.dirty = if all { Dirty::All } else { Dirty::Regions(dirty) };
+            cascade.dirty = if all {
+                Dirty::All
+            } else {
+                Dirty::Regions(dirty)
+            };
             if let Dirty::Regions(d) = cascade.dirty
                 && d != IVec3::ZERO
             {
@@ -166,7 +186,13 @@ impl Cascades {
             match c.dirty {
                 Dirty::All => {
                     let size = IVec3::splat(CASCADE_SIZE);
-                    regions.push(Region { cascade: i, local_offset: IVec3::ZERO, local_size: size, bounds_min: (half + c.position).as_vec3() * c.cell_size * squash, bounds_size: size.as_vec3() * c.cell_size * squash });
+                    regions.push(Region {
+                        cascade: i,
+                        local_offset: IVec3::ZERO,
+                        local_size: size,
+                        bounds_min: (half + c.position).as_vec3() * c.cell_size * squash,
+                        bounds_size: size.as_vec3() * c.cell_size * squash,
+                    });
                 }
                 Dirty::Regions(d) => {
                     for j in 0..3 {
@@ -188,7 +214,13 @@ impl Cascades {
                             }
                         }
                         let size = to - from;
-                        regions.push(Region { cascade: i, local_offset: from, local_size: size, bounds_min: (from + half + c.position).as_vec3() * c.cell_size * squash, bounds_size: size.as_vec3() * c.cell_size * squash });
+                        regions.push(Region {
+                            cascade: i,
+                            local_offset: from,
+                            local_size: size,
+                            bounds_min: (from + half + c.position).as_vec3() * c.cell_size * squash,
+                            bounds_size: size.as_vec3() * c.cell_size * squash,
+                        });
                     }
                 }
             }
@@ -201,7 +233,8 @@ impl Cascades {
     pub fn bounds(&self, i: usize) -> (Vec3, Vec3) {
         let c = &self.cascades[i];
         let squash = Vec3::new(1.0, 1.0 / self.settings.y_mult(), 1.0);
-        let min = (IVec3::splat(-(CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size * squash;
+        let min =
+            (IVec3::splat(-(CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size * squash;
         (min, Vec3::splat(CASCADE_SIZE as f32 * c.cell_size) * squash)
     }
 

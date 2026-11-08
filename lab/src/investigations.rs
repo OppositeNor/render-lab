@@ -26,7 +26,14 @@ pub fn set_title(path: &'static str) {
 pub fn libraries() -> &'static [Library] {
     static LIBRARIES: OnceLock<Vec<Library>> = OnceLock::new();
     LIBRARIES.get_or_init(|| {
-        let libraries: Vec<Library> = resources::packages().iter().filter(|m| m.library.is_some()).map(|m| Library { package: &m.name, loaded: packages::load(m) }).collect();
+        let libraries: Vec<Library> = resources::packages()
+            .iter()
+            .filter(|m| m.library.is_some())
+            .map(|m| Library {
+                package: &m.name,
+                loaded: packages::load(m),
+            })
+            .collect();
         for library in &libraries {
             if let Err(e) = &library.loaded {
                 eprintln!("{e}");
@@ -39,7 +46,11 @@ pub fn libraries() -> &'static [Library] {
 pub fn all() -> &'static [&'static dyn Investigation] {
     static ALL: OnceLock<Vec<&'static dyn Investigation>> = OnceLock::new();
     ALL.get_or_init(|| {
-        let all: Vec<&'static dyn Investigation> = libraries().iter().filter_map(|l| l.loaded.as_ref().ok()?.investigations()).flat_map(|f| f().iter().copied()).collect();
+        let all: Vec<&'static dyn Investigation> = libraries()
+            .iter()
+            .filter_map(|l| l.loaded.as_ref().ok()?.investigations())
+            .flat_map(|f| f().iter().copied())
+            .collect();
         // Their choices' WGSL constants, before any shader composes them.
         crate::shader_data::write_choices(&all);
         all
@@ -48,13 +59,21 @@ pub fn all() -> &'static [&'static dyn Investigation] {
 
 /// The viewer features the packages' libraries add (src/feature/), in the packages' order.
 pub fn features() -> Vec<(&'static str, &'static dyn crate::feature::Feature)> {
-    libraries().iter().filter_map(|l| Some((l.package, l.loaded.as_ref().ok()?.features()?))).flat_map(|(package, f)| f().iter().map(move |f| (package, *f))).collect()
+    libraries()
+        .iter()
+        .filter_map(|l| Some((l.package, l.loaded.as_ref().ok()?.features()?)))
+        .flat_map(|(package, f)| f().iter().map(move |f| (package, *f)))
+        .collect()
 }
 
 /// The investigation whose backdrop the homepage shows behind every page:
 /// the one the binary names, or the first.
 pub fn title() -> &'static dyn Investigation {
-    TITLE.get().and_then(|path| find(path)).or_else(|| all().first().copied()).expect("no package provides an investigation")
+    TITLE
+        .get()
+        .and_then(|path| find(path))
+        .or_else(|| all().first().copied())
+        .expect("no package provides an investigation")
 }
 
 /// The engines, in the order their first investigation is listed.

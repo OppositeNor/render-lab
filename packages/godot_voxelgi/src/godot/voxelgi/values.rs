@@ -30,7 +30,12 @@ pub struct VoxelgiValues {
     #[value(default = 3.2, range = 0.0..=3.2, unit = m, text = "controls-cut_height", color = palette::AABB, label(bake), help = "help-cutHeight")]
     pub cut_height: f32,
     /// The worked triangle (one of the teapot's) and the boxes it went down through.
-    #[value(default = 0.0, toggle, text = "values-workedTriangle", help = "help-workedTriangle")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedTriangle",
+        help = "help-workedTriangle"
+    )]
     pub worked_triangle: f32,
     /// How deep the worked triangle's descent is drawn (0 the root to 7 the leaves).
     #[value(default = 7.0, range = 0.0..=7.0, unit = index, text = "controls-descent_level", color = palette::SELECTED, label(bake), help = "help-descentLevel")]
@@ -39,7 +44,12 @@ pub struct VoxelgiValues {
     #[value(default = 0.0, range = 0.0..=3.0, unit = index, text = "controls-sat_step", color = palette::SELECTED, label(bake), help = "help-satStep")]
     pub sat_step: f32,
     /// The worked leaf's 4 x 4 columns, drawn.
-    #[value(default = 0.0, toggle, text = "values-workedLeaf", help = "help-workedLeaf")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedLeaf",
+        help = "help-workedLeaf"
+    )]
     pub worked_leaf: f32,
     /// How many of its columns are drawn (0 to 16).
     #[value(default = 16.0, range = 0.0..=16.0, unit = index, text = "controls-leaf_columns", color = palette::SELECTED, label(bake), help = "help-leafColumns")]
@@ -58,7 +68,12 @@ pub struct VoxelgiValues {
     #[value(default = -1.0, range = -1.0..=127.0, unit = index, text = "controls-cell_z", color = palette::SELECTED, label(cells), help = "help-cellZ")]
     pub cell_z: f32,
     /// The sorted cell array, as a bar coloured by level (an inset).
-    #[value(default = 0.0, toggle, text = "values-cellArray", help = "help-cellArray")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-cellArray",
+        help = "help-cellArray"
+    )]
     pub cell_array: f32,
     /// The slice inset: 0 none, 1 the distance field, 2 the light texture's mip `mipLevel`.
     #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-slice", color = palette::OUTSIDE, label(field), help = "help-slice")]
@@ -73,7 +88,12 @@ pub struct VoxelgiValues {
     #[value(default = 0.0, range = 0.0..=7.0, unit = index, text = "controls-mip_level", color = palette::OUTSIDE, label(field), help = "help-mipLevel")]
     pub mip_level: f32,
     /// The extra omni light with shadows (OmniLight3D): on or off.
-    #[value(default = 0.0, toggle, text = "values-extraLight", help = "help-extraLight")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-extraLight",
+        help = "help-extraLight"
+    )]
     pub extra_light: f32,
     /// Its x, height, and z, metres.
     #[value(default = 0.9, range = -2.8..=2.8, unit = m, text = "controls-light_x", color = palette::INCIDENT, label(light), help = "help-lightX")]
@@ -86,7 +106,12 @@ pub struct VoxelgiValues {
     #[value(default = 4.0, range = 0.0..=4.0, unit = index, text = "controls-light_step", color = palette::INCIDENT, label(light), help = "help-lightStep")]
     pub light_step: f32,
     /// The worked light cell and its vectors, drawn.
-    #[value(default = 0.0, toggle, text = "values-workedLight", help = "help-workedLight")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedLight",
+        help = "help-workedLight"
+    )]
     pub worked_light: f32,
     /// How many steps of its shadow march are drawn (0 to 40).
     #[value(default = 40.0, range = 0.0..=40.0, unit = index, text = "controls-march_steps", color = palette::INCIDENT, label(light), help = "help-marchSteps")]
@@ -101,10 +126,20 @@ pub struct VoxelgiValues {
     #[value(default = 2.0, range = 1.0..=2.0, unit = index, text = "controls-bounces", color = palette::INCIDENT, label(bounce), help = "help-bounces")]
     pub bounces: f32,
     /// The bounce's worked cell and its cones, drawn.
-    #[value(default = 0.0, toggle, text = "values-workedBounce", help = "help-workedBounce")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedBounce",
+        help = "help-workedBounce"
+    )]
     pub worked_bounce: f32,
     /// The worked parent cell of the mip pass and its children, drawn.
-    #[value(default = 0.0, toggle, text = "values-workedParent", help = "help-workedParent")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedParent",
+        help = "help-workedParent"
+    )]
     pub worked_parent: f32,
     /// How many cones are drawn (0 to 6).
     #[value(default = 6.0, range = 0.0..=6.0, unit = index, text = "controls-cones_shown", color = palette::VIEW, label(cones), help = "help-conesShown")]
@@ -113,10 +148,20 @@ pub struct VoxelgiValues {
     #[value(default = 16.0, range = 0.0..=16.0, unit = index, text = "controls-cone_steps", color = palette::VIEW, label(cones), help = "help-coneSteps")]
     pub cone_steps: f32,
     /// The specular cone, drawn.
-    #[value(default = 0.0, toggle, text = "values-specCone", help = "help-specCone")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-specCone",
+        help = "help-specCone"
+    )]
     pub spec_cone: f32,
     /// The worked pixel (on the sphere) and its cones, drawn.
-    #[value(default = 0.0, toggle, text = "values-workedPixel", help = "help-workedPixel")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-workedPixel",
+        help = "help-workedPixel"
+    )]
     pub worked_pixel: f32,
     /// The worked pixel's place on the sphere: its azimuth from the red wall and its elevation, degrees.
     #[value(default = 60.0, range = -180.0..=180.0, unit = deg, text = "controls-pixel_azimuth", color = palette::VIEW, label(cones), help = "help-pixelAzimuth")]
@@ -127,7 +172,12 @@ pub struct VoxelgiValues {
     #[value(default = 0.5, range = 0.0..=1.0, text = "controls-roughness", color = palette::VIEW, label(cones), help = "help-sphereRoughness")]
     pub sphere_roughness: f32,
     /// The teapot as a dynamic object: its plotted voxels, drawn.
-    #[value(default = 0.0, toggle, text = "values-dynamicVoxels", help = "help-dynamicVoxels")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-dynamicVoxels",
+        help = "help-dynamicVoxels"
+    )]
     pub dynamic_voxels: f32,
     /// How far the dynamic teapot has moved along x, metres.
     #[value(default = 0.0, range = -1.0..=2.0, unit = m, text = "controls-dynamic_x", color = palette::SELECTED, label(dynamic), help = "help-dynamicX")]
@@ -167,15 +217,40 @@ pub struct VoxelgiValues {
     #[value(default = 0.5, range = 0.0..=1.0, step = 0.01, text = "controls-gi_propagation", label(gi), engine = "VoxelGIData.propagation", help = "help-giPropagation")]
     pub gi_propagation: f32,
     /// VoxelGIData.use_two_bounces of the scene's node (a change relights the texture).
-    #[value(default = 1.0, toggle, text = "controls-gi_two_bounces", label(gi), engine = "VoxelGIData.use_two_bounces", help = "help-giTwoBounces")]
+    #[value(
+        default = 1.0,
+        toggle,
+        text = "controls-gi_two_bounces",
+        label(gi),
+        engine = "VoxelGIData.use_two_bounces",
+        help = "help-giTwoBounces"
+    )]
     pub gi_two_bounces: f32,
     /// rendering/global_illumination/gi/use_half_resolution: the GI pass traces one pixel of each 2 × 2 block into half-size buffers, which the opaque pass reads bilinearly.
-    #[value(default = 0.0, toggle, text = "controls-gi_half_resolution", label(gi), engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution", help = "help-giHalfResolution")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "controls-gi_half_resolution",
+        label(gi),
+        engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution",
+        help = "help-giHalfResolution"
+    )]
     pub gi_half_resolution: f32,
     /// The lab's measurement, not a setting of Godot's: run the light passes every frame (Godot runs them only when the lights or the data change), so the performance panel times them.
-    #[value(default = 0.0, toggle, text = "controls-gi_relight_each_frame", label(gi), help = "help-giRelightEachFrame")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "controls-gi_relight_each_frame",
+        label(gi),
+        help = "help-giRelightEachFrame"
+    )]
     pub gi_relight_each_frame: f32,
     /// The cost demonstration's split: the frame at full resolution on the left, as the values set it on the right.
-    #[value(default = 0.0, toggle, text = "controls-cost_split", help = "help-costSplit")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "controls-cost_split",
+        help = "help-costSplit"
+    )]
     pub cost_split: f32,
 }

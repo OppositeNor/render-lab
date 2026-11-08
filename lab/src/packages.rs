@@ -79,12 +79,18 @@ pub struct Series {
 impl Series {
     /// Its title in `language`, else in English.
     pub fn title_in(&self, language: &str) -> &str {
-        self.title.get(language).or_else(|| self.title.get("en")).map_or("", String::as_str)
+        self.title
+            .get(language)
+            .or_else(|| self.title.get("en"))
+            .map_or("", String::as_str)
     }
 
     /// Its summary in `language`, else in English.
     pub fn summary_in(&self, language: &str) -> &str {
-        self.summary.get(language).or_else(|| self.summary.get("en")).map_or("", String::as_str)
+        self.summary
+            .get(language)
+            .or_else(|| self.summary.get("en"))
+            .map_or("", String::as_str)
     }
 }
 
@@ -114,27 +120,73 @@ pub struct Package {
     pub credit: Option<String>,
 }
 
-const FIELDS: &[&str] = &["name", "author", "contact", "license", "import", "export", "library", "negotiate", "cooked-from", "provides", "notice", "credit-text"];
+const FIELDS: &[&str] = &[
+    "name",
+    "author",
+    "contact",
+    "license",
+    "import",
+    "export",
+    "library",
+    "negotiate",
+    "cooked-from",
+    "provides",
+    "notice",
+    "credit-text",
+];
 
 /// A package's name: lower-case words joined by `_`.
 pub fn valid_name(name: &str) -> bool {
-    !name.is_empty() && name.split('_').all(|w| !w.is_empty() && w.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
+    !name.is_empty()
+        && name.split('_').all(|w| {
+            !w.is_empty()
+                && w.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        })
 }
 
 fn relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 /// A demonstration's key: letters, digits, `-` and `_` (`video-zh-CN`).
 fn valid_demo_key(key: &str) -> bool {
-    !key.is_empty() && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 /// A field of strings by language (`title = { en = "…", zh-CN = "…" }`), English required.
-fn by_language(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> String) -> Result<BTreeMap<String, String>, String> {
-    let wrong = || fail(format!("`{field}` is a table of strings by language, with `en` (`{field} = {{ en = \"…\", zh-CN = \"…\" }}`)"));
+fn by_language(
+    table: &toml_edit::Table,
+    field: &str,
+    fail: &dyn Fn(String) -> String,
+) -> Result<BTreeMap<String, String>, String> {
+    let wrong = || {
+        fail(format!(
+            "`{field}` is a table of strings by language, with `en` (`{field} = {{ en = \"…\", zh-CN = \"…\" }}`)"
+        ))
+    };
     let item = table.get(field).ok_or_else(wrong)?;
-    let entries = item.as_inline_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.as_str().map(String::from))).collect::<Vec<_>>()).or_else(|| item.as_table().map(|t| t.iter().map(|(k, v)| (k.to_string(), v.as_str().map(String::from))).collect())).ok_or_else(wrong)?;
+    let entries = item
+        .as_inline_table()
+        .map(|t| {
+            t.iter()
+                .map(|(k, v)| (k.to_string(), v.as_str().map(String::from)))
+                .collect::<Vec<_>>()
+        })
+        .or_else(|| {
+            item.as_table().map(|t| {
+                t.iter()
+                    .map(|(k, v)| (k.to_string(), v.as_str().map(String::from)))
+                    .collect()
+            })
+        })
+        .ok_or_else(wrong)?;
     let mut out = BTreeMap::new();
     for (language, text) in entries {
         out.insert(language, text.filter(|t| !t.is_empty()).ok_or_else(wrong)?);
@@ -146,17 +198,39 @@ fn by_language(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> S
 }
 
 /// One table's string field, or an error naming it.
-fn string(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> String) -> Result<Option<String>, String> {
+fn string(
+    table: &toml_edit::Table,
+    field: &str,
+    fail: &dyn Fn(String) -> String,
+) -> Result<Option<String>, String> {
     match table.get(field) {
         None => Ok(None),
-        Some(item) => item.as_str().filter(|s| !s.is_empty()).map(|s| Some(s.to_string())).ok_or_else(|| fail(format!("`{field}` is a string"))),
+        Some(item) => item
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| Some(s.to_string()))
+            .ok_or_else(|| fail(format!("`{field}` is a string"))),
     }
 }
 
-fn strings(table: &toml_edit::Table, field: &str, fail: &dyn Fn(String) -> String) -> Result<Vec<String>, String> {
-    let list = table.get(field).ok_or_else(|| fail(format!("`{field}` is missing (a list, which may be empty)")))?;
-    let list = list.as_array().ok_or_else(|| fail(format!("`{field}` is a list of strings")))?;
-    list.iter().map(|v| v.as_str().map(String::from).ok_or_else(|| fail(format!("`{field}` is a list of strings")))).collect()
+fn strings(
+    table: &toml_edit::Table,
+    field: &str,
+    fail: &dyn Fn(String) -> String,
+) -> Result<Vec<String>, String> {
+    let list = table
+        .get(field)
+        .ok_or_else(|| fail(format!("`{field}` is missing (a list, which may be empty)")))?;
+    let list = list
+        .as_array()
+        .ok_or_else(|| fail(format!("`{field}` is a list of strings")))?;
+    list.iter()
+        .map(|v| {
+            v.as_str()
+                .map(String::from)
+                .ok_or_else(|| fail(format!("`{field}` is a list of strings")))
+        })
+        .collect()
 }
 
 /// Reads one manifest. Demo references stay as written until `scan` resolves them.
@@ -168,20 +242,36 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     let document = toml_edit::Document::parse(text).map_err(|e| fail(format!("parse: {e}")))?;
     let table = document.as_table();
     if let Some((key, _)) = table.iter().find(|(key, _)| !FIELDS.contains(key)) {
-        return Err(fail(format!("unknown key `{key}` (a manifest has {})", FIELDS.join(", "))));
+        return Err(fail(format!(
+            "unknown key `{key}` (a manifest has {})",
+            FIELDS.join(", ")
+        )));
     }
-    let required = |field: &str| string(table, field, &fail)?.ok_or_else(|| fail(format!("`{field}` is missing")));
+    let required = |field: &str| {
+        string(table, field, &fail)?.ok_or_else(|| fail(format!("`{field}` is missing")))
+    };
     let name = required("name")?;
     if !valid_name(&name) {
-        return Err(fail(format!("`{name}`: a package's name is lower-case words joined by `_`")));
+        return Err(fail(format!(
+            "`{name}`: a package's name is lower-case words joined by `_`"
+        )));
     }
     if dir.file_name().and_then(|n| n.to_str()) != Some(name.as_str()) {
-        return Err(fail(format!("the package `{name}` is in a directory of another name")));
+        return Err(fail(format!(
+            "the package `{name}` is in a directory of another name"
+        )));
     }
-    let library = match (string(table, "library", &fail)?, string(table, "negotiate", &fail)?) {
+    let library = match (
+        string(table, "library", &fail)?,
+        string(table, "negotiate", &fail)?,
+    ) {
         (Some(library), Some(negotiate)) => Some((library, negotiate)),
         (None, None) => None,
-        _ => return Err(fail("a package with code names both its `library` and its `negotiate` symbol".into())),
+        _ => {
+            return Err(fail(
+                "a package with code names both its `library` and its `negotiate` symbol".into(),
+            ));
+        }
     };
     let imports = strings(table, "import", &fail)?;
     let exports = strings(table, "export", &fail)?;
@@ -191,75 +281,146 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     let mut references = Vec::new();
     let provides = match table.get("provides") {
         None => Vec::new(),
-        Some(item) => item.as_array_of_tables().ok_or_else(|| fail("`provides` is a list of `[[provides]]` tables".into()))?.iter().collect(),
+        Some(item) => item
+            .as_array_of_tables()
+            .ok_or_else(|| fail("`provides` is a list of `[[provides]]` tables".into()))?
+            .iter()
+            .collect(),
     };
     for entry in provides {
-        let kind = string(entry, "type", &fail)?.ok_or_else(|| fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into()))?;
+        let kind = string(entry, "type", &fail)?.ok_or_else(|| {
+            fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into())
+        })?;
         let fields: &[&str] = match kind.as_str() {
             "resource" => &["type", "path"],
             "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
             "series" => &["type", "key", "title", "summary", "parts"],
-            other => return Err(fail(format!("unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"))),
+            other => {
+                return Err(fail(format!(
+                    "unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"
+                )));
+            }
         };
         if let Some((key, _)) = entry.iter().find(|(key, _)| !fields.contains(key)) {
-            return Err(fail(format!("a {kind} has no field `{key}` (it has {})", fields.join(", "))));
+            return Err(fail(format!(
+                "a {kind} has no field `{key}` (it has {})",
+                fields.join(", ")
+            )));
         }
-        let field = |name: &str| string(entry, name, &fail)?.ok_or_else(|| fail(format!("a {kind} needs `{name}`, a string")));
+        let field = |name: &str| {
+            string(entry, name, &fail)?
+                .ok_or_else(|| fail(format!("a {kind} needs `{name}`, a string")))
+        };
         if kind == "resource" {
             let file = field("path")?;
             let target = dir.join(&file);
             if Path::new(&file).is_absolute() || !target.is_file() {
-                return Err(fail(format!("resource `{file}`: no such file (a path relative to the manifest)")));
+                return Err(fail(format!(
+                    "resource `{file}`: no such file (a path relative to the manifest)"
+                )));
             }
             collections.push(target);
         } else if kind == "series" {
             let key = field("key")?;
             if !valid_demo_key(&key) || series.iter().any(|s: &Series| s.key == key) {
-                return Err(fail(format!("series `{key}`: a key is letters, digits, `-` and `_`, unique in its package")));
+                return Err(fail(format!(
+                    "series `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
+                )));
             }
             let parts = strings(entry, "parts", &fail)?;
             if parts.is_empty() {
-                return Err(fail(format!("series `{key}`: `parts` lists its parts' packages, in order")));
+                return Err(fail(format!(
+                    "series `{key}`: `parts` lists its parts' packages, in order"
+                )));
             }
             for (i, part) in parts.iter().enumerate() {
                 if !imports.contains(part) || parts[..i].contains(part) {
-                    return Err(fail(format!("series `{key}`: part `{part}` is a package `import` lists, once")));
+                    return Err(fail(format!(
+                        "series `{key}`: part `{part}` is a package `import` lists, once"
+                    )));
                 }
             }
-            series.push(Series { key, title: by_language(entry, "title", &fail)?, summary: by_language(entry, "summary", &fail)?, parts });
+            series.push(Series {
+                key,
+                title: by_language(entry, "title", &fail)?,
+                summary: by_language(entry, "summary", &fail)?,
+                parts,
+            });
         } else {
             let key = field("key")?;
             if !valid_demo_key(&key) || demos.iter().any(|d: &Demo| d.key == key) {
-                return Err(fail(format!("demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package")));
+                return Err(fail(format!(
+                    "demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
+                )));
             }
             references.push((field("timeline")?, field("audio")?));
-            demos.push(Demo { key, title: field("title")?, timeline: String::new(), audio: String::new() });
+            demos.push(Demo {
+                key,
+                title: field("title")?,
+                timeline: String::new(),
+                audio: String::new(),
+            });
         }
     }
     let mut notices = Vec::new();
     let listed = match table.get("notice") {
         None => Vec::new(),
-        Some(item) => item.as_array_of_tables().ok_or_else(|| fail("`notice` is a list of `[[notice]]` tables".into()))?.iter().collect(),
+        Some(item) => item
+            .as_array_of_tables()
+            .ok_or_else(|| fail("`notice` is a list of `[[notice]]` tables".into()))?
+            .iter()
+            .collect(),
     };
     for entry in listed {
-        if let Some((key, _)) = entry.iter().find(|(key, _)| !["notice-text", "license"].contains(key)) {
-            return Err(fail(format!("a notice has no field `{key}` (it has notice-text, license)")));
+        if let Some((key, _)) = entry
+            .iter()
+            .find(|(key, _)| !["notice-text", "license"].contains(key))
+        {
+            return Err(fail(format!(
+                "a notice has no field `{key}` (it has notice-text, license)"
+            )));
         }
-        let text = string(entry, "notice-text", &fail)?.ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
+        let text = string(entry, "notice-text", &fail)?
+            .ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
         let license = string(entry, "license", &fail)?;
-        if let Some(file) = &license && (Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file()) {
-            return Err(fail(format!("notice license `{file}`: no such file (a path inside the package)")));
+        if let Some(file) = &license
+            && (Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file())
+        {
+            return Err(fail(format!(
+                "notice license `{file}`: no such file (a path inside the package)"
+            )));
         }
         notices.push(Notice { text, license });
     }
     let credit = string(table, "credit-text", &fail)?;
-    let package = Package { author: required("author")?, contact: string(table, "contact", &fail)?, license: required("license")?, cooked_from: string(table, "cooked-from", &fail)?, name, dir: dir.to_path_buf(), manifest, imports, exports, library, collections, demos, series, notices, credit };
+    let package = Package {
+        author: required("author")?,
+        contact: string(table, "contact", &fail)?,
+        license: required("license")?,
+        cooked_from: string(table, "cooked-from", &fail)?,
+        name,
+        dir: dir.to_path_buf(),
+        manifest,
+        imports,
+        exports,
+        library,
+        collections,
+        demos,
+        series,
+        notices,
+        credit,
+    };
     Ok((package, references))
 }
 
 /// Every package in `dir`, each after the packages it imports (and otherwise by name).
 pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
-    let mut entries: Vec<PathBuf> = fs::read_dir(dir).map_err(|e| format!("packages: read {}: {e}", dir.display()))?.flatten().map(|e| e.path()).filter(|p| p.join("manifest.toml").is_file()).collect();
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .map_err(|e| format!("packages: read {}: {e}", dir.display()))?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.join("manifest.toml").is_file())
+        .collect();
     entries.sort();
     let mut read_packages = BTreeMap::new();
     for entry in entries {
@@ -269,7 +430,11 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
     for (package, _) in read_packages.values() {
         for import in &package.imports {
             if import == &package.name || !read_packages.contains_key(import) {
-                return Err(format!("packages: {}: imports `{import}`, which is not a package of {}", package.manifest, relative(root, dir)));
+                return Err(format!(
+                    "packages: {}: imports `{import}`, which is not a package of {}",
+                    package.manifest,
+                    relative(root, dir)
+                ));
             }
         }
     }
@@ -277,14 +442,29 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
     let mut ordered: Vec<Package> = Vec::new();
     let mut pending: Vec<(Package, Vec<(String, String)>)> = read_packages.into_values().collect();
     while !pending.is_empty() {
-        let Some(i) = pending.iter().position(|(m, _)| m.imports.iter().all(|i| ordered.iter().any(|o| &o.name == i))) else {
+        let Some(i) = pending.iter().position(|(m, _)| {
+            m.imports
+                .iter()
+                .all(|i| ordered.iter().any(|o| &o.name == i))
+        }) else {
             let names: Vec<&str> = pending.iter().map(|(m, _)| m.name.as_str()).collect();
-            return Err(format!("packages: the imports of {} form a cycle", names.join(", ")));
+            return Err(format!(
+                "packages: the imports of {} form a cycle",
+                names.join(", ")
+            ));
         };
         let (mut package, references) = pending.remove(i);
         for (n, (timeline, audio)) in references.iter().enumerate() {
-            let fail = |e: String| format!("packages: {}: demo `{}`: {e}", package.manifest, package.demos[n].key);
-            let (timeline, audio) = (resolve(&package, &ordered, timeline).map_err(fail)?, resolve(&package, &ordered, audio).map_err(fail)?);
+            let fail = |e: String| {
+                format!(
+                    "packages: {}: demo `{}`: {e}",
+                    package.manifest, package.demos[n].key
+                )
+            };
+            let (timeline, audio) = (
+                resolve(&package, &ordered, timeline).map_err(fail)?,
+                resolve(&package, &ordered, audio).map_err(fail)?,
+            );
             (package.demos[n].timeline, package.demos[n].audio) = (timeline, audio);
         }
         ordered.push(package);
@@ -295,8 +475,15 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
 /// The directory of the running binary (for a test, of the binary it tests),
 /// where the Cargo build puts the packages' libraries.
 pub fn bin_dir() -> PathBuf {
-    let exe = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)).unwrap_or_default();
-    if exe.file_name().is_some_and(|n| n == "deps") { exe.parent().unwrap().to_path_buf() } else { exe }
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(Path::to_path_buf))
+        .unwrap_or_default();
+    if exe.file_name().is_some_and(|n| n == "deps") {
+        exe.parent().unwrap().to_path_buf()
+    } else {
+        exe
+    }
 }
 
 /// Where `package`'s library `name` is: in its `lib/` (a built package),
@@ -304,26 +491,41 @@ pub fn bin_dir() -> PathBuf {
 pub fn library_path(package: &Package, name: &str) -> PathBuf {
     let file = libloading::library_filename(name);
     let own = package.dir.join("lib").join(&file);
-    if own.is_file() { own } else { bin_dir().join(file) }
+    if own.is_file() {
+        own
+    } else {
+        bin_dir().join(file)
+    }
 }
 
 /// Opens `package`'s library and negotiates with it: the handles it
 /// registers, or why it cannot be used. The library stays loaded for the
 /// rest of the run (its handles are `'static`).
 pub fn load(package: &Package) -> Result<Handles, String> {
-    let Some((name, symbol)) = &package.library else { return Ok(Handles::default()) };
+    let Some((name, symbol)) = &package.library else {
+        return Ok(Handles::default());
+    };
     let path = library_path(package, name);
-    let fail = |message: String| format!("packages: {}: library {}: {message}", package.manifest, path.display());
+    let fail = |message: String| {
+        format!(
+            "packages: {}: library {}: {message}",
+            package.manifest,
+            path.display()
+        )
+    };
     if !path.is_file() {
         return Err(fail("not built (`cargo build --release` builds the repository's packages, and the next launch puts them in their built packages; a local package's Cargo.toml says how to build it)".into()));
     }
     // SAFETY: a package's library is Render Lab code that links this lab; its
     // initialisers do nothing else.
-    let library = unsafe { libloading::Library::new(&path) }.map_err(|e| fail(format!("{e} (rebuild it against this lab)")))?;
+    let library = unsafe { libloading::Library::new(&path) }
+        .map_err(|e| fail(format!("{e} (rebuild it against this lab)")))?;
     // SAFETY: the manifest names the function's symbol; its type is the negotiation's.
-    let negotiate: NegotiateFn = *unsafe { library.get::<NegotiateFn>(symbol.as_bytes()) }.map_err(|e| fail(format!("no negotiation function `{symbol}`: {e}")))?;
+    let negotiate: NegotiateFn = *unsafe { library.get::<NegotiateFn>(symbol.as_bytes()) }
+        .map_err(|e| fail(format!("no negotiation function `{symbol}`: {e}")))?;
     // SAFETY: as above.
-    let handles = unsafe { plugin::negotiate(negotiate) }.map_err(|e| fail(format!("negotiation `{symbol}`: {e}")))?;
+    let handles = unsafe { plugin::negotiate(negotiate) }
+        .map_err(|e| fail(format!("negotiation `{symbol}`: {e}")))?;
     std::mem::forget(library);
     Ok(handles)
 }
@@ -331,16 +533,26 @@ pub fn load(package: &Package) -> Result<Handles, String> {
 /// The full key a reference in `package`'s content names: its own key, or a
 /// key an imported package (one of `imported`) exports.
 pub fn resolve(package: &Package, imported: &[Package], reference: &str) -> Result<String, String> {
-    let Some((name, key)) = reference.split_once('.') else { return Ok(format!("{}.{reference}", package.name)) };
+    let Some((name, key)) = reference.split_once('.') else {
+        return Ok(format!("{}.{reference}", package.name));
+    };
     if name == package.name {
         return Ok(reference.to_string());
     }
     if !package.imports.iter().any(|i| i == name) {
-        return Err(format!("`{reference}` names the package `{name}`, which `import` does not list"));
+        return Err(format!(
+            "`{reference}` names the package `{name}`, which `import` does not list"
+        ));
     }
-    let other = imported.iter().find(|m| m.name == name).ok_or_else(|| format!("`{reference}`: no package `{name}`"))?;
+    let other = imported
+        .iter()
+        .find(|m| m.name == name)
+        .ok_or_else(|| format!("`{reference}`: no package `{name}`"))?;
     if !other.exports.iter().any(|e| e == key) {
-        return Err(format!("`{reference}`: the package `{name}` does not export `{key}` ({})", other.manifest));
+        return Err(format!(
+            "`{reference}`: the package `{name}` does not export `{key}` ({})",
+            other.manifest
+        ));
     }
     Ok(reference.to_string())
 }
@@ -351,7 +563,8 @@ mod tests {
 
     /// A packages directory of `(name, manifest)` under the system's temporary directory.
     fn directory(test: &str, packages: &[(&str, &str)]) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("render-lab-packages-{test}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("render-lab-packages-{test}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         for (name, manifest) in packages {
             fs::create_dir_all(dir.join(name)).unwrap();
@@ -361,25 +574,53 @@ mod tests {
     }
 
     fn manifest(name: &str, import: &str, export: &str) -> String {
-        format!("name = \"{name}\"\nauthor = \"a\"\nlicense = \"MIT\"\nimport = [{import}]\nexport = [{export}]\n")
+        format!(
+            "name = \"{name}\"\nauthor = \"a\"\nlicense = \"MIT\"\nimport = [{import}]\nexport = [{export}]\n"
+        )
     }
 
     #[test]
     fn imports_come_first() {
-        let dir = directory("order", &[("a", &manifest("a", "\"b\"", "")), ("b", &manifest("b", "", "\"x/y\""))]);
+        let dir = directory(
+            "order",
+            &[
+                ("a", &manifest("a", "\"b\"", "")),
+                ("b", &manifest("b", "", "\"x/y\"")),
+            ],
+        );
         let packages = scan(&dir, &dir).unwrap();
-        assert_eq!(packages.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(), ["b", "a"]);
+        assert_eq!(
+            packages.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(),
+            ["b", "a"]
+        );
         assert_eq!(resolve(&packages[1], &packages, "b.x/y").unwrap(), "b.x/y");
-        assert_eq!(resolve(&packages[1], &packages, "own/key").unwrap(), "a.own/key");
-        assert!(resolve(&packages[1], &packages, "b.hidden").unwrap_err().contains("does not export"));
-        assert!(resolve(&packages[0], &packages, "a.key").unwrap_err().contains("does not list"));
+        assert_eq!(
+            resolve(&packages[1], &packages, "own/key").unwrap(),
+            "a.own/key"
+        );
+        assert!(
+            resolve(&packages[1], &packages, "b.hidden")
+                .unwrap_err()
+                .contains("does not export")
+        );
+        assert!(
+            resolve(&packages[0], &packages, "a.key")
+                .unwrap_err()
+                .contains("does not list")
+        );
     }
 
     #[test]
     fn missing_import_and_cycle() {
         let dir = directory("missing", &[("a", &manifest("a", "\"c\"", ""))]);
         assert!(scan(&dir, &dir).err().unwrap().contains("imports `c`"));
-        let dir = directory("cycle", &[("a", &manifest("a", "\"b\"", "")), ("b", &manifest("b", "\"a\"", ""))]);
+        let dir = directory(
+            "cycle",
+            &[
+                ("a", &manifest("a", "\"b\"", "")),
+                ("b", &manifest("b", "\"a\"", "")),
+            ],
+        );
         assert!(scan(&dir, &dir).err().unwrap().contains("cycle"));
     }
 
@@ -387,19 +628,41 @@ mod tests {
     fn series_lists_imported_parts() {
         let series = "[[provides]]\ntype = \"series\"\nkey = \"s\"\ntitle = { en = \"S\", zh-CN = \"甲\" }\nsummary = { en = \"Two parts.\" }\nparts = [\"b\", \"c\"]\n";
         let a = manifest("a", "\"b\", \"c\"", "") + series;
-        let dir = directory("series", &[("a", &a), ("b", &manifest("b", "", "")), ("c", &manifest("c", "", ""))]);
+        let dir = directory(
+            "series",
+            &[
+                ("a", &a),
+                ("b", &manifest("b", "", "")),
+                ("c", &manifest("c", "", "")),
+            ],
+        );
         let packages = scan(&dir, &dir).unwrap();
         let s = &packages.iter().find(|p| p.name == "a").unwrap().series[0];
         assert_eq!(s.parts, ["b", "c"]);
-        assert_eq!((s.title_in("zh-CN"), s.title_in("fr"), s.summary_in("zh-CN")), ("甲", "S", "Two parts."));
+        assert_eq!(
+            (s.title_in("zh-CN"), s.title_in("fr"), s.summary_in("zh-CN")),
+            ("甲", "S", "Two parts.")
+        );
         let unimported = manifest("a", "\"b\"", "") + series;
-        let dir = directory("series-unimported", &[("a", &unimported), ("b", &manifest("b", "", "")), ("c", &manifest("c", "", ""))]);
+        let dir = directory(
+            "series-unimported",
+            &[
+                ("a", &unimported),
+                ("b", &manifest("b", "", "")),
+                ("c", &manifest("c", "", "")),
+            ],
+        );
         assert!(scan(&dir, &dir).err().unwrap().contains("part `c`"));
     }
 
     #[test]
     fn name_matches_directory() {
         let dir = directory("name", &[("a", &manifest("b", "", ""))]);
-        assert!(scan(&dir, &dir).err().unwrap().contains("directory of another name"));
+        assert!(
+            scan(&dir, &dir)
+                .err()
+                .unwrap()
+                .contains("directory of another name")
+        );
     }
 }

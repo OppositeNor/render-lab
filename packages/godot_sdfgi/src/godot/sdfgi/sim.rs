@@ -12,7 +12,7 @@
 
 use super::light::{self, Field, Light, LightTextures};
 use super::model::{Cascades, Settings};
-use super::probes::{self, History, Integrate, Maps, ProbeMaps, Sky, PROBES};
+use super::probes::{self, History, Integrate, Maps, PROBES, ProbeMaps, Sky};
 use super::voxels::{self, CascadeData};
 use glam::Vec3;
 use lab::layout::ObjectData;
@@ -48,18 +48,28 @@ impl World {
         let cascades = Cascades::create(settings, camera);
         let n = cascades.cascades.len();
         let data = std::thread::scope(|s| {
-            let handles: Vec<_> = (0..n).map(|i| {
-                let cascades = &cascades;
-                s.spawn(move || voxels::build_cascade(objects, cascades, i))
-            }).collect();
-            handles.into_iter().map(|h| h.join().expect("a cascade's voxelization")).collect()
+            let handles: Vec<_> = (0..n)
+                .map(|i| {
+                    let cascades = &cascades;
+                    s.spawn(move || voxels::build_cascade(objects, cascades, i))
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("a cascade's voxelization"))
+                .collect()
         });
-        let integrate = Integrate { y_mult: settings.y_mult(), ..Integrate::default() };
+        let integrate = Integrate {
+            y_mult: settings.y_mult(),
+            ..Integrate::default()
+        };
         World {
             cascades,
             data,
             light: (0..n).map(|_| LightTextures::cleared()).collect(),
-            history: (0..n).map(|_| History::new(integrate.history_size)).collect(),
+            history: (0..n)
+                .map(|_| History::new(integrate.history_size))
+                .collect(),
             maps: (0..n).map(|_| ProbeMaps::empty()).collect(),
             frame: 0,
             render_pass: 0,
@@ -73,7 +83,10 @@ impl World {
     }
 
     pub fn field(&self) -> Field<'_> {
-        Field { cascades: &self.cascades, sdf: self.data.iter().map(|d| d.stored.sdf.as_slice()).collect() }
+        Field {
+            cascades: &self.cascades,
+            sdf: self.data.iter().map(|d| d.stored.sdf.as_slice()).collect(),
+        }
     }
 
     /// One frame: the dynamic light pass, the probes, and their maps.
@@ -82,7 +95,12 @@ impl World {
     }
 
     /// `step` with a flat sky colour in place of the sky's radiance, when given.
-    pub fn step_sky(&mut self, lights_per_cascade: &[Vec<Light>], sky: &(dyn Fn(Vec3) -> Vec3 + Sync), color: Option<Vec3>) {
+    pub fn step_sky(
+        &mut self,
+        lights_per_cascade: &[Vec<Light>],
+        sky: &(dyn Fn(Vec3) -> Vec3 + Sync),
+        color: Option<Vec3>,
+    ) {
         let n = self.cascades.cascades.len();
         // update_light: all cells of a freshly built cascade, else every fourth.
         let maps_before: Vec<ProbeMaps> = self.maps.clone();
@@ -97,9 +115,27 @@ impl World {
                     let cells = &self.data[i].stored.cells;
                     let lights = &lights_per_cascade[i];
                     let every = self.frames_to_update_light;
-                    let (offset, increment) = if self.lights_dirty[i] { (0, 1) } else { (self.frame as usize % every, every) };
+                    let (offset, increment) = if self.lights_dirty[i] {
+                        (0, 1)
+                    } else {
+                        (self.frame as usize % every, every)
+                    };
                     let bounce = self.bounce_feedback;
-                    s.spawn(move || light::dynamic_pass(field, i, cells, &light::Lighting { lights, bounce_feedback: bounce, probes: Some(maps) }, offset, increment, textures));
+                    s.spawn(move || {
+                        light::dynamic_pass(
+                            field,
+                            i,
+                            cells,
+                            &light::Lighting {
+                                lights,
+                                bounce_feedback: bounce,
+                                probes: Some(maps),
+                            },
+                            offset,
+                            increment,
+                            textures,
+                        )
+                    });
                 }
             });
             self.light = new_light;
@@ -108,25 +144,50 @@ impl World {
         // update_probes.
         let history_index = self.render_pass % self.integrate.history_size;
         {
-            let field = Field { cascades: &self.cascades, sdf: self.data.iter().map(|d| d.stored.sdf.as_slice()).collect() };
+            let field = Field {
+                cascades: &self.cascades,
+                sdf: self.data.iter().map(|d| d.stored.sdf.as_slice()).collect(),
+            };
             let light_refs: Vec<&LightTextures> = self.light.iter().collect();
             let integrate = self.integrate;
-            let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).max(1);
+            let threads = std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4)
+                .max(1);
             for c in 0..n {
                 let values: Vec<_> = std::thread::scope(|s| {
-                    let handles: Vec<_> = (0..threads).map(|t| {
-                        let field = &field;
-                        let light_refs = &light_refs;
-                        let sky_fn = |d: Vec3| sky(d);
-                        s.spawn(move || {
-                            let sky = match color { Some(c) => Sky::Color(c), None => Sky::Radiance(&sky_fn) };
-                            (t..PROBES).step_by(threads).map(|p| {
-                                let rays = probes::trace_rays(field, light_refs, c, probes::probe_of(p), history_index, &integrate, &sky);
-                                (p, probes::frame_coefficients(&rays, integrate.ray_count))
-                            }).collect::<Vec<_>>()
+                    let handles: Vec<_> = (0..threads)
+                        .map(|t| {
+                            let field = &field;
+                            let light_refs = &light_refs;
+                            let sky_fn = |d: Vec3| sky(d);
+                            s.spawn(move || {
+                                let sky = match color {
+                                    Some(c) => Sky::Color(c),
+                                    None => Sky::Radiance(&sky_fn),
+                                };
+                                (t..PROBES)
+                                    .step_by(threads)
+                                    .map(|p| {
+                                        let rays = probes::trace_rays(
+                                            field,
+                                            light_refs,
+                                            c,
+                                            probes::probe_of(p),
+                                            history_index,
+                                            &integrate,
+                                            &sky,
+                                        );
+                                        (p, probes::frame_coefficients(&rays, integrate.ray_count))
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
                         })
-                    }).collect();
-                    handles.into_iter().flat_map(|h| h.join().expect("a probe thread")).collect()
+                        .collect();
+                    handles
+                        .into_iter()
+                        .flat_map(|h| h.join().expect("a probe thread"))
+                        .collect()
                 });
                 for (p, v) in values {
                     self.history[c].push(p, history_index, v);
@@ -166,7 +227,8 @@ pub fn panel_light(scene: &lab::scene::Scene, y_mult: f32) -> Light {
         attenuation: 2.0,
         radius,
         cos_spot_angle: 0.0,
-        inv_spot_attenuation: 1.0 / (radius + glam::Vec2::new(width.length(), height.length()).length() / 2.0),
+        inv_spot_attenuation: 1.0
+            / (radius + glam::Vec2::new(width.length(), height.length()).length() / 2.0),
         area_width: width,
         area_height: height,
     }
@@ -176,7 +238,12 @@ pub fn panel_light(scene: &lab::scene::Scene, y_mult: f32) -> Light {
 /// light is the area light (in Godot, a fixture mesh with GI mode Disabled;
 /// voxelized, it would shadow its own light).
 pub fn voxelized_objects(objects: &[ObjectData]) -> Vec<ObjectData> {
-    objects.iter().enumerate().filter(|(i, _)| *i != lab::scene::ids::PANEL).map(|(_, o)| *o).collect()
+    objects
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != lab::scene::ids::PANEL)
+        .map(|(_, o)| *o)
+        .collect()
 }
 
 /// Frames the lab runs before it shows SDFGI's light: two histories, so the
@@ -208,7 +275,14 @@ pub struct SceneSettings {
 impl Default for SceneSettings {
     fn default() -> SceneSettings {
         let integrate = Integrate::default();
-        SceneSettings { bounce_feedback: 0.5, probe_bias: integrate.ray_bias, ray_count: integrate.ray_count, history_size: integrate.history_size, frames_to_update_light: FRAMES_TO_UPDATE_LIGHT, read_sky: true }
+        SceneSettings {
+            bounce_feedback: 0.5,
+            probe_bias: integrate.ray_bias,
+            ray_count: integrate.ray_count,
+            history_size: integrate.history_size,
+            frames_to_update_light: FRAMES_TO_UPDATE_LIGHT,
+            read_sky: true,
+        }
     }
 }
 
@@ -228,7 +302,8 @@ impl SceneSettings {
             probe_bias: state.p("giProbeBias"),
             ray_count: RAY_COUNTS[index("giRayCount", RAY_COUNTS.len())],
             history_size: HISTORY_SIZES[index("giFramesToConverge", HISTORY_SIZES.len())],
-            frames_to_update_light: LIGHT_UPDATE_FRAMES[index("giFramesToUpdateLights", LIGHT_UPDATE_FRAMES.len())],
+            frames_to_update_light: LIGHT_UPDATE_FRAMES
+                [index("giFramesToUpdateLights", LIGHT_UPDATE_FRAMES.len())],
             read_sky: state.p("giReadSkyLight") > 0.5,
         }
     }
@@ -236,7 +311,10 @@ impl SceneSettings {
 
 /// The room's world after `CONVERGED_FRAMES` with a given bounce feedback.
 pub fn converged_with(bounce_feedback: f32) -> World {
-    converged_for(&SceneSettings { bounce_feedback, ..SceneSettings::default() })
+    converged_for(&SceneSettings {
+        bounce_feedback,
+        ..SceneSettings::default()
+    })
 }
 
 /// The room's world after `CONVERGED_FRAMES` with the given settings.
@@ -247,13 +325,25 @@ pub fn converged_for(s: &SceneSettings) -> World {
     let mut world = World::new(&objects, settings, super::demos::ORIGIN);
     world.bounce_feedback = s.bounce_feedback;
     world.frames_to_update_light = s.frames_to_update_light;
-    if s.ray_count != world.integrate.ray_count || s.history_size != world.integrate.history_size || s.probe_bias != world.integrate.ray_bias {
-        world.integrate = Integrate { history_size: s.history_size, ray_count: s.ray_count, ray_bias: s.probe_bias, ..world.integrate };
-        world.history = (0..world.cascades.cascades.len()).map(|_| probes::History::new(s.history_size)).collect();
+    if s.ray_count != world.integrate.ray_count
+        || s.history_size != world.integrate.history_size
+        || s.probe_bias != world.integrate.ray_bias
+    {
+        world.integrate = Integrate {
+            history_size: s.history_size,
+            ray_count: s.ray_count,
+            ray_bias: s.probe_bias,
+            ..world.integrate
+        };
+        world.history = (0..world.cascades.cascades.len())
+            .map(|_| probes::History::new(s.history_size))
+            .collect();
     }
     world.traced_probe = Some(super::probes::probe_index(super::demos::FOLLOWED_PROBE));
     let panel = panel_light(&scene, settings.y_mult());
-    let lights: Vec<Vec<Light>> = (0..world.cascades.cascades.len()).map(|_| vec![panel]).collect();
+    let lights: Vec<Vec<Light>> = (0..world.cascades.cascades.len())
+        .map(|_| vec![panel])
+        .collect();
     let lighting = scene.lighting;
     let sky = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
     // Without sdfgi_read_sky_light, a ray that leaves the cascades brings back nothing (sky_flags 0).
@@ -266,7 +356,8 @@ pub fn converged_for(s: &SceneSettings) -> World {
 
 /// Where cascade 0's distance field starts in the shading data, in vec4s
 /// (sdfgi_passes.wgsl's SDFGI_SDF_OFFSET).
-pub const SDF_OFFSET: usize = 4 * 2 * (super::probes::MAP_WIDTH * super::probes::MAP_HEIGHT) as usize / 4;
+pub const SDF_OFFSET: usize =
+    4 * 2 * (super::probes::MAP_WIDTH * super::probes::MAP_HEIGHT) as usize / 4;
 
 /// The scene shading's static data (sdfgi_shading.wgsl, gShadingData): each
 /// cascade's irradiance then radiance layer, as E5B9G9R9 words, four per vec4;
@@ -287,14 +378,23 @@ fn data_of(world: &World) -> Vec<[f32; 4]> {
         words.extend_from_slice(&maps.radiance);
     }
     debug_assert_eq!(words.len() / 4, SDF_OFFSET);
-    words.extend(world.data[0].stored.sdf.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])));
-    words.chunks(4).map(|c| {
-        let mut v = [0.0f32; 4];
-        for (k, w) in c.iter().enumerate() {
-            v[k] = f32::from_bits(*w);
-        }
-        v
-    }).collect()
+    words.extend(
+        world.data[0]
+            .stored
+            .sdf
+            .chunks(4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])),
+    );
+    words
+        .chunks(4)
+        .map(|c| {
+            let mut v = [0.0f32; 4];
+            for (k, w) in c.iter().enumerate() {
+                v[k] = f32::from_bits(*w);
+            }
+            v
+        })
+        .collect()
 }
 
 /// gShadingFrame: two vectors per cascade (SDFGIData::ProbeCascadeData):
@@ -304,11 +404,20 @@ pub fn frame_cascades(cascades: &Cascades, camera: Vec3) -> Vec<[f32; 4]> {
     let cam = Vec3::new(camera.x, camera.y * y_mult, camera.z);
     let mut out = Vec::new();
     for c in &cascades.cascades {
-        let pos = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size - cam;
-        let to_probe = 1.0 / (super::model::CASCADE_SIZE as f32 * c.cell_size / (super::model::PROBE_AXIS_COUNT - 1) as f32);
+        let pos = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + c.position).as_vec3()
+            * c.cell_size
+            - cam;
+        let to_probe = 1.0
+            / (super::model::CASCADE_SIZE as f32 * c.cell_size
+                / (super::model::PROBE_AXIS_COUNT - 1) as f32);
         let probe = c.position / super::model::PROBE_CELLS;
         out.push([pos.x, pos.y, pos.z, to_probe]);
-        out.push([probe.x as f32, probe.y as f32, probe.z as f32, 1.0 / c.cell_size]);
+        out.push([
+            probe.x as f32,
+            probe.y as f32,
+            probe.z as f32,
+            1.0 / c.cell_size,
+        ]);
     }
     out
 }
@@ -316,8 +425,20 @@ pub fn frame_cascades(cascades: &Cascades, camera: Vec3) -> Vec<[f32; 4]> {
 /// The screen pass's inputs for a world, with the default bias and energy.
 pub fn screen_inputs(world: &World) -> super::screen::Inputs<'_> {
     let frame = frame_cascades(&world.cascades, super::demos::ORIGIN);
-    let cascades = frame.chunks(2).map(|c| super::screen::ProbeCascade { position: Vec3::new(c[0][0], c[0][1], c[0][2]), to_probe: c[0][3] }).collect();
-    super::screen::Inputs { cascades, maps: world.maps.iter().collect(), y_mult: world.cascades.settings.y_mult(), normal_bias: 1.1, energy: 1.0 }
+    let cascades = frame
+        .chunks(2)
+        .map(|c| super::screen::ProbeCascade {
+            position: Vec3::new(c[0][0], c[0][1], c[0][2]),
+            to_probe: c[0][3],
+        })
+        .collect();
+    super::screen::Inputs {
+        cascades,
+        maps: world.maps.iter().collect(),
+        y_mult: world.cascades.settings.y_mult(),
+        normal_bias: 1.1,
+        energy: 1.0,
+    }
 }
 
 impl World {
@@ -328,7 +449,17 @@ impl World {
     pub fn walk(&mut self, objects: &[ObjectData], to: Vec3) {
         let before = self.cascades.clone();
         // The cascade UBO the scroll shader reads: the previous frame's offsets.
-        let ubo: Vec<(Vec3, f32)> = before.cascades.iter().map(|c| ((glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size, 1.0 / c.cell_size)).collect();
+        let ubo: Vec<(Vec3, f32)> = before
+            .cascades
+            .iter()
+            .map(|c| {
+                (
+                    (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + c.position).as_vec3()
+                        * c.cell_size,
+                    1.0 / c.cell_size,
+                )
+            })
+            .collect();
         self.cascades.update(to);
         let n = self.cascades.cascades.len();
         let old_history = self.history.clone();
@@ -339,9 +470,25 @@ impl World {
                     self.lights_dirty[i] = true;
                 }
                 super::model::Dirty::Regions(d) if d != glam::IVec3::ZERO => {
-                    self.data[i] = voxels::scroll_cascade(objects, &self.cascades, i, &self.data[i].stored.cells, d);
-                    let parent = if i + 1 < n { Some(&old_history[i + 1]) } else { None };
-                    self.history[i] = probes::scroll_history(&old_history[i], parent, d / super::model::PROBE_CELLS, &ubo, i);
+                    self.data[i] = voxels::scroll_cascade(
+                        objects,
+                        &self.cascades,
+                        i,
+                        &self.data[i].stored.cells,
+                        d,
+                    );
+                    let parent = if i + 1 < n {
+                        Some(&old_history[i + 1])
+                    } else {
+                        None
+                    };
+                    self.history[i] = probes::scroll_history(
+                        &old_history[i],
+                        parent,
+                        d / super::model::PROBE_CELLS,
+                        &ubo,
+                        i,
+                    );
                     if self.bounce_feedback > 0.0 {
                         self.maps[i] = probes::store(&self.history[i]);
                     }
@@ -388,13 +535,23 @@ pub fn cull_static(cascades: &Cascades, lights: &[StaticLight]) -> StaticCull {
     for (i, l) in lights.iter().enumerate() {
         let mut last: Option<(usize, usize)> = None;
         for r in &regions {
-            if overlaps(l.aabb_min, l.aabb_max, r.bounds_min, r.bounds_min + r.bounds_size) && r.cascade <= l.max_sdfgi_cascade && last != Some((i, r.cascade)) {
+            if overlaps(
+                l.aabb_min,
+                l.aabb_max,
+                r.bounds_min,
+                r.bounds_min + r.bounds_size,
+            ) && r.cascade <= l.max_sdfgi_cascade
+                && last != Some((i, r.cascade))
+            {
                 last = Some((i, r.cascade));
                 lists[r.cascade].push(i);
             }
         }
     }
-    StaticCull { cascade_light_index, lists }
+    StaticCull {
+        cascade_light_index,
+        lists,
+    }
 }
 
 /// `render_static_lights` as it reads the cull: dirty cascade `i` of the
@@ -402,17 +559,32 @@ pub fn cull_static(cascades: &Cascades, lights: &[StaticLight]) -> StaticCull {
 /// number), keeps those within `max_sdfgi_cascade` whose box meets the
 /// cascade's box (squashed y on one side, real y on the other), and is
 /// lit by them. Returns, per cascade, the lights it was given.
-pub fn static_pass_lights(cascades: &Cascades, cull: &StaticCull, lights: &[StaticLight]) -> Vec<(usize, Vec<Light>)> {
-    let any = cull.cascade_light_index.iter().enumerate().any(|(i, _)| !cull.lists[i].is_empty());
+pub fn static_pass_lights(
+    cascades: &Cascades,
+    cull: &StaticCull,
+    lights: &[StaticLight],
+) -> Vec<(usize, Vec<Light>)> {
+    let any = cull
+        .cascade_light_index
+        .iter()
+        .enumerate()
+        .any(|(i, _)| !cull.lists[i].is_empty());
     if !any {
         return Vec::new();
     }
     let mut out = Vec::new();
     for (i, &c) in cull.cascade_light_index.iter().enumerate() {
         let cc = &cascades.cascades[c];
-        let cmin = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + cc.position).as_vec3() * cc.cell_size;
+        let cmin = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + cc.position).as_vec3()
+            * cc.cell_size;
         let cmax = cmin + Vec3::splat(super::model::CASCADE_SIZE as f32 * cc.cell_size);
-        let given: Vec<Light> = cull.lists[i].iter().map(|&k| &lights[k]).filter(|l| c <= l.max_sdfgi_cascade && overlaps(cmin, cmax, l.aabb_min, l.aabb_max)).take(1024).map(|l| l.light).collect();
+        let given: Vec<Light> = cull.lists[i]
+            .iter()
+            .map(|&k| &lights[k])
+            .filter(|l| c <= l.max_sdfgi_cascade && overlaps(cmin, cmax, l.aabb_min, l.aabb_max))
+            .take(1024)
+            .map(|l| l.light)
+            .collect();
         out.push((c, given));
     }
     out
@@ -426,7 +598,10 @@ impl World {
         let given = static_pass_lights(&self.cascades, &cull, lights);
         let field_cascades = self.cascades.clone();
         let sdf: Vec<Vec<u8>> = self.data.iter().map(|d| d.stored.sdf.clone()).collect();
-        let field = Field { cascades: &field_cascades, sdf: sdf.iter().map(|s| s.as_slice()).collect() };
+        let field = Field {
+            cascades: &field_cascades,
+            sdf: sdf.iter().map(|s| s.as_slice()).collect(),
+        };
         for (c, ls) in &given {
             if !ls.is_empty() {
                 light::static_pass(&field, *c, &mut self.data[*c].stored.cells, ls);
@@ -440,7 +615,19 @@ impl World {
 /// defaults of attenuation 1 and energy 1 unless given), and its static box.
 pub fn omni(position: Vec3, range: f32, energy: f32, y_mult: f32) -> StaticLight {
     StaticLight {
-        light: Light { kind: light::LIGHT_TYPE_OMNI, color: Vec3::ONE, energy, direction: Vec3::NEG_Z, position: Vec3::new(position.x, position.y * y_mult, position.z), attenuation: 1.0, radius: range, cos_spot_angle: 0.0, inv_spot_attenuation: 1.0, area_width: Vec3::ZERO, area_height: Vec3::ZERO },
+        light: Light {
+            kind: light::LIGHT_TYPE_OMNI,
+            color: Vec3::ONE,
+            energy,
+            direction: Vec3::NEG_Z,
+            position: Vec3::new(position.x, position.y * y_mult, position.z),
+            attenuation: 1.0,
+            radius: range,
+            cos_spot_angle: 0.0,
+            inv_spot_attenuation: 1.0,
+            area_width: Vec3::ZERO,
+            area_height: Vec3::ZERO,
+        },
         aabb_min: position - Vec3::splat(range),
         aabb_max: position + Vec3::splat(range),
         max_sdfgi_cascade: 2,

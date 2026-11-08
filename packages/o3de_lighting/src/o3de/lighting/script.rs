@@ -13,7 +13,7 @@
 use super::brdf;
 use glam::Vec3;
 use lab::script::lamlet::embed::{Error, NativeRegistry};
-use lab::script::runtime::{frame_data, V3};
+use lab::script::runtime::{V3, frame_data};
 
 /// What `build_frame` leaves for the natives in each frame.
 pub struct Frame {
@@ -99,10 +99,22 @@ fn terms(frame: &Frame, w: Vec3) -> (f32, f32) {
     let s = &px.surface;
     let (n, l) = (frame.normal, px.light.dir_to_light);
     let n_dot_v = w.dot(n).clamp(0.0, 1.0);
-    let spec = brdf::specular_ggx(w, l, n, s.specular_f0, n_dot_v, s.roughness_a2, px.lighting.multi_scatter_compensation);
-    let response = Vec3::ONE - brdf::fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
+    let spec = brdf::specular_ggx(
+        w,
+        l,
+        n,
+        s.specular_f0,
+        n_dot_v,
+        s.roughness_a2,
+        px.lighting.multi_scatter_compensation,
+    );
+    let response = Vec3::ONE
+        - brdf::fresnel_schlick_with_roughness(n_dot_v, s.specular_f0, s.roughness_linear);
     let diff = brdf::diffuse_lambertian(s.albedo, n, l, response);
-    (spec.dot(Vec3::splat(1.0 / 3.0)) * n_dot_v, diff.dot(Vec3::splat(1.0 / 3.0)))
+    (
+        spec.dot(Vec3::splat(1.0 / 3.0)) * n_dot_v,
+        diff.dot(Vec3::splat(1.0 / 3.0)),
+    )
 }
 
 /// Registers the natives (`Investigation::script_natives`).
@@ -111,7 +123,9 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         .function("o3de_lighting/inspected", |_, ()| {
             let f = frame_data::<Frame>()?;
             let px = &f.pixel;
-            let point = lab::script::runtime::state(|s| Vec3::new(s.p("inspectX"), s.p("inspectY"), s.p("inspectZ")))?;
+            let point = lab::script::runtime::state(|s| {
+                Vec3::new(s.p("inspectX"), s.p("inspectY"), s.p("inspectZ"))
+            })?;
             Ok(Inspected {
                 point: V3(point),
                 surface: V3(px.surface.position),
@@ -179,7 +193,11 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
                 .iter()
                 .map(|x| {
                     let s = brdf::simple_point_light(light, foot + Vec3::X * *x as f32);
-                    ((candelas / s.distance_squared / unit) as f64, (if s.falloff < 1.0 { s.intensity.y } else { 0.0 } / unit) as f64)
+                    ((candelas / s.distance_squared / unit) as f64, (if s.falloff < 1.0 {
+                        s.intensity.y
+                    } else {
+                        0.0
+                    } / unit) as f64)
                 })
                 .unzip();
             Ok(Falloff { plain, attenuated })

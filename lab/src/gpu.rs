@@ -70,6 +70,12 @@ impl Gpu {
             trace: wgpu::Trace::Off,
         }))
         .context("request GPU device")?;
-        Ok(Gpu { _instance: instance, adapter, device, queue, info })
+        Ok(Gpu {
+            _instance: instance,
+            adapter,
+            device,
+            queue,
+            info,
+        })
     }
 }

@@ -21,7 +21,9 @@ use crate::palette;
 use crate::rich_text;
 use crate::text::Ink;
 use crate::ui::Layout;
-use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind};
+use egui::{
+    Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, pos2, vec2,
+};
 use glam::Vec3;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -30,7 +32,11 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub enum Picture {
     /// RGBA, row by row from the top. `key` names the inset's texture.
-    Pixels { key: String, size: [usize; 2], rgba: Arc<Vec<u8>> },
+    Pixels {
+        key: String,
+        size: [usize; 2],
+        rgba: Arc<Vec<u8>>,
+    },
     /// The texture the renderer keeps under this key (`Textures`); a key it
     /// does not keep is drawn as an empty picture.
     Texture(String),
@@ -83,7 +89,11 @@ pub enum ImageSource {
     /// A resource of the frame's graph as it stood right after a node
     /// (`<node>.<resource>`, src/graph/), drawn by the inspector `show`
     /// (its format's default when none) with the parameters the story set.
-    Graph { key: String, show: Option<String>, params: ImageParams },
+    Graph {
+        key: String,
+        show: Option<String>,
+        params: ImageParams,
+    },
 }
 
 /// The key of the texture of the story's image instance `name` (`Textures`).
@@ -96,20 +106,39 @@ pub fn view_texture(name: &str) -> String {
 /// size, or the instance's texture at its kind's size (in the texture's own
 /// shape: `aspect=viewport` follows the viewport). None for an image the
 /// frame does not publish.
-pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &str) -> Option<PictureInset> {
+pub fn story(
+    image: &StoryImage,
+    images: &[(String, PictureInset)],
+    package: &str,
+) -> Option<PictureInset> {
     let mut inset = match &image.source {
         ImageSource::Published(key) => images.iter().find(|(k, _)| k == key)?.1.clone(),
-        ImageSource::Resource(key) => PictureInset::new(String::new(), Picture::Resource(key.clone()), [0.0, 0.0]),
+        ImageSource::Resource(key) => {
+            PictureInset::new(String::new(), Picture::Resource(key.clone()), [0.0, 0.0])
+        }
         ImageSource::View { kind, .. } => {
             let kind = crate::views::kind(package, kind).ok()?;
-            let title = kind.text.as_deref().map_or(String::new(), |t| crate::i18n::package_text(&kind.package, t).to_string());
-            PictureInset::new(title, Picture::Texture(view_texture(&image.name)), [kind.size[0] as f32, kind.size[1] as f32])
+            let title = kind.text.as_deref().map_or(String::new(), |t| {
+                crate::i18n::package_text(&kind.package, t).to_string()
+            });
+            PictureInset::new(
+                title,
+                Picture::Texture(view_texture(&image.name)),
+                [kind.size[0] as f32, kind.size[1] as f32],
+            )
         }
         // Titled by what it shows: the resource, after which node.
         ImageSource::Graph { key, .. } => {
             let (node, resource) = key.rsplit_once('.').unwrap_or((key.as_str(), ""));
-            let mut inset = PictureInset::new(resource.to_string(), Picture::Texture(view_texture(&image.name)), [400.0, 400.0]);
-            inset.title.push(crate::i18n::tr_with("graph-after", crate::args!(node = node)));
+            let mut inset = PictureInset::new(
+                resource.to_string(),
+                Picture::Texture(view_texture(&image.name)),
+                [400.0, 400.0],
+            );
+            inset.title.push(crate::i18n::tr_with(
+                "graph-after",
+                crate::args!(node = node),
+            ));
             inset
         }
     };
@@ -122,8 +151,15 @@ pub fn story(image: &StoryImage, images: &[(String, PictureInset)], package: &st
         inset.title = vec![crate::i18n::package_text(package, title).to_string()];
     }
     if image.mark_alpha > 0.0 {
-        let text = image.mark_text.as_deref().map(|t| crate::i18n::package_text(package, t).to_string());
-        inset.mark = Some(Mark { rect: image.mark, alpha: image.mark_alpha, text });
+        let text = image
+            .mark_text
+            .as_deref()
+            .map(|t| crate::i18n::package_text(package, t).to_string());
+        inset.mark = Some(Mark {
+            rect: image.mark,
+            alpha: image.mark_alpha,
+            text,
+        });
     }
     Some(inset)
 }
@@ -143,7 +179,12 @@ pub enum Corner {
 
 impl Corner {
     /// Every corner (the story vocabulary's options, lab/src/script/keys.rs).
-    pub const ALL: [Corner; 4] = [Corner::TopLeft, Corner::TopRight, Corner::BottomLeft, Corner::BottomRight];
+    pub const ALL: [Corner; 4] = [
+        Corner::TopLeft,
+        Corner::TopRight,
+        Corner::BottomLeft,
+        Corner::BottomRight,
+    ];
 
     fn top(self) -> bool {
         matches!(self, Corner::TopLeft | Corner::TopRight)
@@ -259,18 +300,30 @@ struct Measures {
     frame_size: egui::Vec2,
 }
 
-fn measures(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, inset: &PictureInset) -> Measures {
+fn measures(
+    ctx: &egui::Context,
+    ink: &Ink,
+    l: &Layout,
+    textures: &Textures,
+    inset: &PictureInset,
+) -> Measures {
     let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
     let axes = !inset.y_axis.is_empty();
     // Room on the left for the vertical axis' name.
-    let (left, right) = if axes { (62.0, 30.0) } else { (10.0, 10.0) };
+    let (left, right) = if axes {
+        (62.0, 30.0)
+    } else {
+        (10.0, 10.0)
+    };
     let room = l.safe().width() * 0.5;
     let (id, own) = texture(ctx, textures, &inset.picture).unzip();
     let mut size = match (inset.size, own.flatten()) {
         ([0.0, 0.0], Some(own)) => own * (360.0 / own.max_elem()).min(1.0),
         // A renderer's texture in its own shape (an image kind's may take the
         // viewport's), its longer side the size's.
-        (size, Some(own)) if matches!(inset.picture, Picture::Texture(_)) => own * (size[0].max(size[1]) / own.max_elem()),
+        (size, Some(own)) if matches!(inset.picture, Picture::Texture(_)) => {
+            own * (size[0].max(size[1]) / own.max_elem())
+        }
         ([0.0, 0.0], None) => vec2(220.0, 220.0),
         (size, _) => vec2(size[0], size[1]),
     };
@@ -286,52 +339,141 @@ fn measures(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, ins
     } else {
         vec![joined]
     };
-    let above: Vec<(&String, Color32)> = title.iter().map(|t| (t, palette::text())).chain(inset.status.iter().map(|s| (s, palette::text_dim()))).collect();
+    let above: Vec<(&String, Color32)> = title
+        .iter()
+        .map(|t| (t, palette::text()))
+        .chain(inset.status.iter().map(|s| (s, palette::text_dim())))
+        .collect();
     // As wide as its text needs, within half the viewport.
-    let widest = above.iter().map(|(t, _)| *t).chain(inset.lines.iter().map(|(t, _)| t)).map(|t| measure(t)).fold(0.0, f32::max);
+    let widest = above
+        .iter()
+        .map(|(t, _)| *t)
+        .chain(inset.lines.iter().map(|(t, _)| t))
+        .map(|t| measure(t))
+        .fold(0.0, f32::max);
     let width = (widest + 28.0).clamp(base, room.max(base));
     let top = 10.0 + 30.0 * above.len() as f32 + 8.0;
-    let under = if inset.x_axis.is_empty() { 8.0 } else { 40.0 };
-    let below = if inset.x_axis.is_empty() && inset.lines.is_empty() { 10.0 } else { under + 32.0 * inset.lines.len() as f32 + 6.0 };
+    let under = if inset.x_axis.is_empty() {
+        8.0
+    } else {
+        40.0
+    };
+    let below = if inset.x_axis.is_empty() && inset.lines.is_empty() {
+        10.0
+    } else {
+        under + 32.0 * inset.lines.len() as f32 + 6.0
+    };
     let frame_size = vec2(width, top + size.y + below);
-    Measures { id, size, left, title, width, top, under, frame_size }
+    Measures {
+        id,
+        size,
+        left,
+        title,
+        width,
+        top,
+        under,
+        frame_size,
+    }
 }
 
 /// The size of `inset`'s frame, as `draw` lays it out.
-pub fn frame_size(ctx: &egui::Context, ink: &Ink, l: &Layout, textures: &Textures, inset: &PictureInset) -> egui::Vec2 {
+pub fn frame_size(
+    ctx: &egui::Context,
+    ink: &Ink,
+    l: &Layout,
+    textures: &Textures,
+    inset: &PictureInset,
+) -> egui::Vec2 {
     measures(ctx, ink, l, textures, inset).frame_size
 }
 
 /// Draw `inset` over the viewport, `offset` in from its corner (insets
 /// sharing a corner stack); returns the rectangle it covers and its picture's.
-pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, textures: &Textures, inset: &PictureInset, offset: egui::Vec2) -> (Rect, Rect) {
+pub fn draw(
+    ctx: &egui::Context,
+    ink: &Ink,
+    l: &Layout,
+    camera: &CameraData,
+    textures: &Textures,
+    inset: &PictureInset,
+    offset: egui::Vec2,
+) -> (Rect, Rect) {
     let painter = ink.painter;
     let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
-    let Measures { id, size, left, title, width, top, under, frame_size } = measures(ctx, ink, l, textures, inset);
-    let above: Vec<(&String, Color32)> = title.iter().map(|t| (t, palette::text())).chain(inset.status.iter().map(|s| (s, palette::text_dim()))).collect();
+    let Measures {
+        id,
+        size,
+        left,
+        title,
+        width,
+        top,
+        under,
+        frame_size,
+    } = measures(ctx, ink, l, textures, inset);
+    let above: Vec<(&String, Color32)> = title
+        .iter()
+        .map(|t| (t, palette::text()))
+        .chain(inset.status.iter().map(|s| (s, palette::text_dim())))
+        .collect();
     let safe = l.safe();
-    let x = if inset.corner.right() { safe.max.x - 16.0 - width - offset.x } else { safe.min.x + 16.0 + offset.x };
-    let y = if inset.corner.top() { safe.min.y + 16.0 + offset.y } else { safe.max.y - 16.0 - frame_size.y - offset.y };
+    let x = if inset.corner.right() {
+        safe.max.x - 16.0 - width - offset.x
+    } else {
+        safe.min.x + 16.0 + offset.x
+    };
+    let y = if inset.corner.top() {
+        safe.min.y + 16.0 + offset.y
+    } else {
+        safe.max.y - 16.0 - frame_size.y - offset.y
+    };
     let frame = Rect::from_min_size(pos2(x, y), frame_size);
-    painter.rect_filled(frame, CornerRadius::same(10), fade(crate::paint::overlay_fill(238)));
-    painter.rect_stroke(frame, CornerRadius::same(10), Stroke::new(1.0, fade(palette::border())), StrokeKind::Inside);
+    painter.rect_filled(
+        frame,
+        CornerRadius::same(10),
+        fade(crate::paint::overlay_fill(238)),
+    );
+    painter.rect_stroke(
+        frame,
+        CornerRadius::same(10),
+        Stroke::new(1.0, fade(palette::border())),
+        StrokeKind::Inside,
+    );
     for (k, (text, color)) in above.iter().enumerate() {
         let text = ink.fit_right(text, width - 28.0, 24.0, FontFamily::Proportional);
-        ink.text(frame.min + vec2(14.0, 10.0 + 30.0 * k as f32), Align2::LEFT_TOP, text, 24.0, FontFamily::Proportional, fade(*color));
+        ink.text(
+            frame.min + vec2(14.0, 10.0 + 30.0 * k as f32),
+            Align2::LEFT_TOP,
+            text,
+            24.0,
+            FontFamily::Proportional,
+            fade(*color),
+        );
     }
 
     let image = Rect::from_min_size(frame.min + vec2(left, top), size);
     match id {
         Some(id) => {
-            painter.image(id, image, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), fade(Color32::WHITE));
+            painter.image(
+                id,
+                image,
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                fade(Color32::WHITE),
+            );
         }
         None => {
-            painter.rect_filled(image, CornerRadius::ZERO, fade(Color32::from_rgb(0x18, 0x2a, 0x3c)));
+            painter.rect_filled(
+                image,
+                CornerRadius::ZERO,
+                fade(Color32::from_rgb(0x18, 0x2a, 0x3c)),
+            );
         }
     }
     match inset.grid {
         Some([columns, rows]) => {
-            let grid = Stroke::new(1.0, fade(Color32::from_rgba_unmultiplied(160, 190, 215, 89)));
+            let grid = Stroke::new(
+                1.0,
+                fade(Color32::from_rgba_unmultiplied(160, 190, 215, 89)),
+            );
             for i in 0..=columns {
                 let x = image.min.x + i as f32 * image.width() / columns.max(1) as f32;
                 painter.line_segment([pos2(x, image.min.y), pos2(x, image.max.y)], grid);
@@ -342,25 +484,64 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
             }
         }
         None => {
-            painter.rect_stroke(image, CornerRadius::ZERO, Stroke::new(1.0, fade(palette::border())), StrokeKind::Outside);
+            painter.rect_stroke(
+                image,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, fade(palette::border())),
+                StrokeKind::Outside,
+            );
         }
     }
-    let region = |r: [f32; 4]| Rect::from_min_max(image.min + vec2(r[0], r[1]) * image.size(), image.min + vec2(r[2], r[3]) * image.size());
+    let region = |r: [f32; 4]| {
+        Rect::from_min_max(
+            image.min + vec2(r[0], r[1]) * image.size(),
+            image.min + vec2(r[2], r[3]) * image.size(),
+        )
+    };
     for o in &inset.outlines {
-        let (rect, kind) = if o.outside { (region(o.rect).expand(2.0), StrokeKind::Outside) } else { (region(o.rect), StrokeKind::Inside) };
-        painter.rect_stroke(rect, CornerRadius::ZERO, Stroke::new(o.width, fade(o.color)), kind);
+        let (rect, kind) = if o.outside {
+            (region(o.rect).expand(2.0), StrokeKind::Outside)
+        } else {
+            (region(o.rect), StrokeKind::Inside)
+        };
+        painter.rect_stroke(
+            rect,
+            CornerRadius::ZERO,
+            Stroke::new(o.width, fade(o.color)),
+            kind,
+        );
     }
-    if let Some((link, o)) = inset.link.as_ref().and_then(|link| Some((link, inset.outlines.get(link.outline)?))) && let Some((px, _)) = Projector::new(camera).project(link.from) {
+    if let Some((link, o)) = inset
+        .link
+        .as_ref()
+        .and_then(|link| Some((link, inset.outlines.get(link.outline)?)))
+        && let Some((px, _)) = Projector::new(camera).project(link.from)
+    {
         let a = l.viewport_pixel_to_canvas(px);
         if l.viewport.contains(a) {
             let r = region(o.rect);
-            dashed(painter, a, if inset.corner.top() { r.center_bottom() } else { r.center_top() }, Stroke::new(2.5, fade(o.color)));
+            dashed(
+                painter,
+                a,
+                if inset.corner.top() {
+                    r.center_bottom()
+                } else {
+                    r.center_top()
+                },
+                Stroke::new(2.5, fade(o.color)),
+            );
         }
     }
 
     if let Some(mark) = &inset.mark {
         let a = (mark.alpha * inset.alpha).clamp(0.0, 1.0);
-        let r = region([mark.rect[0].min(mark.rect[2]), mark.rect[1].min(mark.rect[3]), mark.rect[0].max(mark.rect[2]), mark.rect[1].max(mark.rect[3])]).intersect(image);
+        let r = region([
+            mark.rect[0].min(mark.rect[2]),
+            mark.rect[1].min(mark.rect[3]),
+            mark.rect[0].max(mark.rect[2]),
+            mark.rect[1].max(mark.rect[3]),
+        ])
+        .intersect(image);
         // The rest of the picture dimmed, around the region.
         let dim = Color32::from_rgba_unmultiplied(4, 10, 20, 150).gamma_multiply(a);
         for side in [
@@ -373,42 +554,111 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
                 painter.rect_filled(side, CornerRadius::ZERO, dim);
             }
         }
-        painter.rect_stroke(r.expand(1.5), CornerRadius::same(3), Stroke::new(3.0, palette::accent().gamma_multiply(a)), StrokeKind::Outside);
+        painter.rect_stroke(
+            r.expand(1.5),
+            CornerRadius::same(3),
+            Stroke::new(3.0, palette::accent().gamma_multiply(a)),
+            StrokeKind::Outside,
+        );
         if let Some(text) = &mark.text {
             // Below the region inside the picture, or above it when there is no room.
             let size = ink.measure(text, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
             let below = r.max.y + 6.0 + size.y <= image.max.y;
-            let y = if below { r.max.y + 6.0 } else { (r.min.y - 6.0 - size.y).max(image.min.y) };
-            let x = r.center().x.clamp(image.min.x + size.x * 0.5, (image.max.x - size.x * 0.5).max(image.min.x + size.x * 0.5)) - size.x * 0.5;
+            let y = if below {
+                r.max.y + 6.0
+            } else {
+                (r.min.y - 6.0 - size.y).max(image.min.y)
+            };
+            let x = r.center().x.clamp(
+                image.min.x + size.x * 0.5,
+                (image.max.x - size.x * 0.5).max(image.min.x + size.x * 0.5),
+            ) - size.x * 0.5;
             let chip = Rect::from_min_size(pos2(x, y), size);
-            painter.rect_filled(chip, CornerRadius::same(6), crate::paint::overlay_fill(235).gamma_multiply(a));
-            painter.rect_stroke(chip, CornerRadius::same(6), Stroke::new(1.5, palette::accent().gamma_multiply(a)), StrokeKind::Inside);
-            ink.text(chip.center(), Align2::CENTER_CENTER, text, 24.0, FontFamily::Proportional, palette::text().gamma_multiply(a));
+            painter.rect_filled(
+                chip,
+                CornerRadius::same(6),
+                crate::paint::overlay_fill(235).gamma_multiply(a),
+            );
+            painter.rect_stroke(
+                chip,
+                CornerRadius::same(6),
+                Stroke::new(1.5, palette::accent().gamma_multiply(a)),
+                StrokeKind::Inside,
+            );
+            ink.text(
+                chip.center(),
+                Align2::CENTER_CENTER,
+                text,
+                24.0,
+                FontFamily::Proportional,
+                palette::text().gamma_multiply(a),
+            );
         }
     }
     if !inset.x_axis.is_empty() {
-        ink.text(pos2(image.center().x, image.max.y + 6.0), Align2::CENTER_TOP, &inset.x_axis, 24.0, FontFamily::Proportional, fade(palette::text_dim()));
+        ink.text(
+            pos2(image.center().x, image.max.y + 6.0),
+            Align2::CENTER_TOP,
+            &inset.x_axis,
+            24.0,
+            FontFamily::Proportional,
+            fade(palette::text_dim()),
+        );
     }
     if !inset.y_axis.is_empty() {
-        let galley = painter.layout_no_wrap(inset.y_axis.clone(), egui::FontId::proportional(24.0), fade(palette::text_dim()));
+        let galley = painter.layout_no_wrap(
+            inset.y_axis.clone(),
+            egui::FontId::proportional(24.0),
+            fade(palette::text_dim()),
+        );
         let at = pos2(image.min.x - 34.0, image.center().y + galley.size().x / 2.0);
-        painter.add(egui::epaint::TextShape::new(at, galley, fade(palette::text_dim())).with_angle(-std::f32::consts::FRAC_PI_2));
+        painter.add(
+            egui::epaint::TextShape::new(at, galley, fade(palette::text_dim()))
+                .with_angle(-std::f32::consts::FRAC_PI_2),
+        );
     }
     if let Some(m) = &inset.marker {
-        let p = pos2(image.min.x + m.at[0].clamp(0.0, 1.0) * image.width(), image.max.y - m.at[1].clamp(0.0, 1.0) * image.height());
+        let p = pos2(
+            image.min.x + m.at[0].clamp(0.0, 1.0) * image.width(),
+            image.max.y - m.at[1].clamp(0.0, 1.0) * image.height(),
+        );
         painter.circle_stroke(p, 9.0, Stroke::new(3.0, fade(Color32::BLACK)));
         painter.circle_stroke(p, 9.0, Stroke::new(2.0, fade(m.color)));
         if !m.label.is_empty() {
             let right = p.x < image.center().x;
-            let (anchor, offset) = if right { (Align2::LEFT_CENTER, 14.0) } else { (Align2::RIGHT_CENTER, -14.0) };
+            let (anchor, offset) = if right {
+                (Align2::LEFT_CENTER, 14.0)
+            } else {
+                (Align2::RIGHT_CENTER, -14.0)
+            };
             let size = rich_text::measure(ink, &m.label, 24.0, FontFamily::Proportional);
-            painter.rect_filled(anchor.anchor_size(pos2(p.x + offset, p.y), size).expand(3.0), CornerRadius::same(3), fade(crate::paint::overlay_fill(220)));
-            ink.text(pos2(p.x + offset, p.y), anchor, &m.label, 24.0, FontFamily::Proportional, fade(m.color));
+            painter.rect_filled(
+                anchor
+                    .anchor_size(pos2(p.x + offset, p.y), size)
+                    .expand(3.0),
+                CornerRadius::same(3),
+                fade(crate::paint::overlay_fill(220)),
+            );
+            ink.text(
+                pos2(p.x + offset, p.y),
+                anchor,
+                &m.label,
+                24.0,
+                FontFamily::Proportional,
+                fade(m.color),
+            );
         }
     }
     let mut y = image.max.y + under;
     for (line, color) in &inset.lines {
-        ink.text(pos2(frame.min.x + 14.0, y), Align2::LEFT_TOP, ink.fit_right(line, width - 28.0, 24.0, FontFamily::Proportional), 24.0, FontFamily::Proportional, fade(*color));
+        ink.text(
+            pos2(frame.min.x + 14.0, y),
+            Align2::LEFT_TOP,
+            ink.fit_right(line, width - 28.0, 24.0, FontFamily::Proportional),
+            24.0,
+            FontFamily::Proportional,
+            fade(*color),
+        );
         y += 32.0;
     }
     (frame.expand(4.0), image)
@@ -417,10 +667,20 @@ pub fn draw(ctx: &egui::Context, ink: &Ink, l: &Layout, camera: &CameraData, tex
 /// The picture's texture, and its own size in pixels when known: the
 /// renderer's; a resource's, read the first time; or the pixels' own, made on
 /// first use and rewritten when they change.
-fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Option<(egui::TextureId, Option<egui::Vec2>)> {
+fn texture(
+    ctx: &egui::Context,
+    textures: &Textures,
+    picture: &Picture,
+) -> Option<(egui::TextureId, Option<egui::Vec2>)> {
     let (key, size, rgba) = match picture {
-        Picture::Texture(key) => return textures.get(key).map(|&(id, size)| (id, Some(vec2(size[0] as f32, size[1] as f32)))),
-        Picture::Resource(key) => return resource_texture(ctx, key).map(|t| (t.id(), Some(t.size_vec2()))),
+        Picture::Texture(key) => {
+            return textures
+                .get(key)
+                .map(|&(id, size)| (id, Some(vec2(size[0] as f32, size[1] as f32))));
+        }
+        Picture::Resource(key) => {
+            return resource_texture(ctx, key).map(|t| (t.id(), Some(t.size_vec2())));
+        }
         Picture::Pixels { key, size, rgba } => (key, *size, rgba),
     };
     let own = Some(vec2(size[0] as f32, size[1] as f32));
@@ -436,7 +696,11 @@ fn texture(ctx: &egui::Context, textures: &Textures, picture: &Picture) -> Optio
             texture.set(image(), egui::TextureOptions::LINEAR);
             texture
         }
-        None => ctx.load_texture(format!("inset {key}"), image(), egui::TextureOptions::LINEAR),
+        None => ctx.load_texture(
+            format!("inset {key}"),
+            image(),
+            egui::TextureOptions::LINEAR,
+        ),
     };
     ctx.data_mut(|d| d.insert_temp(id, (texture.clone(), hash)));
     Some((texture.id(), own))
@@ -449,8 +713,13 @@ pub fn resource_texture(ctx: &egui::Context, key: &str) -> Option<egui::TextureH
     if let Some(texture) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
         return texture;
     }
-    let texture = match crate::resources::find(key).ok_or_else(|| anyhow::anyhow!("no resource `{key}`")).and_then(|r| crate::record::decode_png(std::io::Cursor::new(r.bytes()))) {
-        Ok(image) => Some(ctx.load_texture(format!("image {key}"), image, egui::TextureOptions::LINEAR)),
+    let texture = match crate::resources::find(key)
+        .ok_or_else(|| anyhow::anyhow!("no resource `{key}`"))
+        .and_then(|r| crate::record::decode_png(std::io::Cursor::new(r.bytes())))
+    {
+        Ok(image) => {
+            Some(ctx.load_texture(format!("image {key}"), image, egui::TextureOptions::LINEAR))
+        }
         Err(e) => {
             eprintln!("image `{key}`: {e:#}");
             None

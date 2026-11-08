@@ -83,7 +83,14 @@ pub struct MarchStep {
 /// cells, reading the field's distance at each step (`* 255 - 1`); a
 /// negative one is solid (occluded); steps are whole multiples of
 /// `distance_adv`, at least one.
-pub fn raymarch(probe: &Probe, mut distance: f32, distance_adv: f32, mut from: Vec3, direction: Vec3, mut steps: Option<&mut Vec<MarchStep>>) -> f32 {
+pub fn raymarch(
+    probe: &Probe,
+    mut distance: f32,
+    distance_adv: f32,
+    mut from: Vec3,
+    direction: Vec3,
+    mut steps: Option<&mut Vec<MarchStep>>,
+) -> f32 {
     let cell_size = Vec3::ONE / probe.octree_size.as_vec3();
     let mut occlusion = 1.0f32;
     while distance > 0.5 {
@@ -125,14 +132,21 @@ pub fn omni_attenuation(distance: f32, inv_range: f32, decay: f32) -> f32 {
 /// (a directional light's is far up its direction).
 pub fn light_vector(light: &Light, params: &Params, pos: Vec3) -> Option<(f32, Vec3)> {
     if light.kind == LIGHT_TYPE_DIRECTIONAL {
-        return Some((1.0, pos - light.direction * params.limits.as_vec3().length()));
+        return Some((
+            1.0,
+            pos - light.direction * params.limits.as_vec3().length(),
+        ));
     }
     let light_pos = light.position;
     let distance = (pos - light_pos).length();
     if distance >= light.radius {
         return None;
     }
-    let mut attenuation = omni_attenuation(distance * params.cell_size, 1.0 / (light.radius * params.cell_size), light.attenuation);
+    let mut attenuation = omni_attenuation(
+        distance * params.cell_size,
+        1.0 / (light.radius * params.cell_size),
+        light.attenuation,
+    );
     if light.kind == LIGHT_TYPE_SPOT {
         let rel = (pos - light_pos).normalize();
         let cos_angle = rel.dot(light.direction);
@@ -168,7 +182,11 @@ trait SignumOrPlus {
 
 impl SignumOrPlus for f32 {
     fn signum_or_plus(self) -> f32 {
-        if self > 0.0 { 1.0 } else { -1.0 }
+        if self > 0.0 {
+            1.0
+        } else {
+            -1.0
+        }
     }
 }
 
@@ -201,7 +219,14 @@ pub struct LightTrace {
 /// `compute_light_at_pos`: the light reaching `pos` from a punctual light
 /// (its colour x attenuation x energy), and its direction, or `None` when it
 /// is out of range, behind the cell, or shadowed.
-pub fn light_at_pos(probe: &Probe, params: &Params, light: &Light, pos: Vec3, normal: Vec3, mut trace: Option<&mut LightTrace>) -> Option<(Vec3, Vec3)> {
+pub fn light_at_pos(
+    probe: &Probe,
+    params: &Params,
+    light: &Light,
+    pos: Vec3,
+    normal: Vec3,
+    mut trace: Option<&mut LightTrace>,
+) -> Option<(Vec3, Vec3)> {
     let (mut attenuation, mut light_pos) = light_vector(light, params, pos)?;
     let light_dir = (pos - light_pos).normalize();
     if let Some(t) = trace.as_deref_mut() {
@@ -218,13 +243,47 @@ pub fn light_at_pos(probe: &Probe, params: &Params, light: &Light, pos: Vec3, no
         if normal.length() > 0.2 {
             to += normal * distance_adv * 0.51;
         } else {
-            to -= Vec3::new(light_dir.x.signum0(), light_dir.y.signum0(), light_dir.z.signum0()) * 0.45;
+            to -= Vec3::new(
+                light_dir.x.signum0(),
+                light_dir.y.signum0(),
+                light_dir.z.signum0(),
+            ) * 0.45;
         }
         let l = params.limits;
-        let pick = |neg: bool, a: Vec4, b: Vec4| if neg { b } else { a };
-        clip_segment(pick(light_dir.x < 0.0, Vec4::new(-1.0, 0.0, 0.0, 0.0), Vec4::new(1.0, 0.0, 0.0, (l.x - 1) as f32)), to, &mut light_pos);
-        clip_segment(pick(light_dir.y < 0.0, Vec4::new(0.0, -1.0, 0.0, 0.0), Vec4::new(0.0, 1.0, 0.0, (l.y - 1) as f32)), to, &mut light_pos);
-        clip_segment(pick(light_dir.z < 0.0, Vec4::new(0.0, 0.0, -1.0, 0.0), Vec4::new(0.0, 0.0, 1.0, (l.z - 1) as f32)), to, &mut light_pos);
+        let pick = |neg: bool, a: Vec4, b: Vec4| {
+            if neg {
+                b
+            } else {
+                a
+            }
+        };
+        clip_segment(
+            pick(
+                light_dir.x < 0.0,
+                Vec4::new(-1.0, 0.0, 0.0, 0.0),
+                Vec4::new(1.0, 0.0, 0.0, (l.x - 1) as f32),
+            ),
+            to,
+            &mut light_pos,
+        );
+        clip_segment(
+            pick(
+                light_dir.y < 0.0,
+                Vec4::new(0.0, -1.0, 0.0, 0.0),
+                Vec4::new(0.0, 1.0, 0.0, (l.y - 1) as f32),
+            ),
+            to,
+            &mut light_pos,
+        );
+        clip_segment(
+            pick(
+                light_dir.z < 0.0,
+                Vec4::new(0.0, 0.0, -1.0, 0.0),
+                Vec4::new(0.0, 0.0, 1.0, (l.z - 1) as f32),
+            ),
+            to,
+            &mut light_pos,
+        );
         let mut distance = (to - light_pos).length();
         if distance < 0.1 {
             return None;
@@ -232,7 +291,14 @@ pub fn light_at_pos(probe: &Probe, params: &Params, light: &Light, pos: Vec3, no
         distance += distance_adv - glsl_mod(distance, distance_adv);
         light_pos = to - light_dir * distance;
         let mut steps = Vec::new();
-        let occlusion = raymarch(probe, distance, distance_adv, light_pos, light_dir, trace.is_some().then_some(&mut steps));
+        let occlusion = raymarch(
+            probe,
+            distance,
+            distance_adv,
+            light_pos,
+            light_dir,
+            trace.is_some().then_some(&mut steps),
+        );
         if let Some(t) = trace {
             t.march_start = Some(light_pos);
             t.march_end = Some(to);
@@ -254,7 +320,13 @@ trait Signum0 {
 
 impl Signum0 for f32 {
     fn signum0(self) -> f32 {
-        if self > 0.0 { 1.0 } else if self < 0.0 { -1.0 } else { 0.0 }
+        if self > 0.0 {
+            1.0
+        } else if self < 0.0 {
+            -1.0
+        } else {
+            0.0
+        }
     }
 }
 
@@ -274,21 +346,41 @@ pub fn area_light(params: &Params, light: &Light, pos: Vec3, normal_in: Vec3) ->
     let (wn, hn) = (w.normalize(), h.normalize());
     let to_vert = pos - light.position;
     let local = Vec3::new(to_vert.dot(wn), to_vert.dot(hn), to_vert.dot(-dir));
-    let closest_local = Vec3::new(local.x.clamp(-a_len / 2.0, a_len / 2.0), local.y.clamp(-b_len / 2.0, b_len / 2.0), 0.0);
+    let closest_local = Vec3::new(
+        local.x.clamp(-a_len / 2.0, a_len / 2.0),
+        local.y.clamp(-b_len / 2.0, b_len / 2.0),
+        0.0,
+    );
     let closest = light.position + closest_local.x * wn + closest_local.y * hn;
     let dist = (closest - pos).length();
     let light_length = (1.0 / params.cell_size).max(dist);
     if light_length >= light.radius {
         return None;
     }
-    let attenuation = omni_attenuation(light_length * params.cell_size, 1.0 / (light.radius * params.cell_size), light.attenuation) * light_length * light_length * params.cell_size * params.cell_size;
+    let attenuation = omni_attenuation(
+        light_length * params.cell_size,
+        1.0 / (light.radius * params.cell_size),
+        light.attenuation,
+    ) * light_length
+        * light_length
+        * params.cell_size
+        * params.cell_size;
     if attenuation < 0.01 {
         return None;
     }
     let (hw, hh) = (w / 2.0, h / 2.0);
     let c = params.cell_size;
-    let points = [(light.position - hw - hh - pos) * c, (light.position + hw - hh - pos) * c, (light.position + hw + hh - pos) * c, (light.position - hw + hh - pos) * c];
-    let normal = if normal_in.dot(normal_in) < 0.04 { -dir } else { normal_in };
+    let points = [
+        (light.position - hw - hh - pos) * c,
+        (light.position + hw - hh - pos) * c,
+        (light.position + hw + hh - pos) * c,
+        (light.position - hw + hh - pos) * c,
+    ];
+    let normal = if normal_in.dot(normal_in) < 0.04 {
+        -dir
+    } else {
+        normal_in
+    };
     let ltc = ltc_diffuse(normal, points);
     Some(light.color * ltc * attenuation * light.energy)
 }
@@ -298,17 +390,29 @@ pub fn area_light(params: &Params, light: &Light, pos: Vec3, normal_in: Vec3) ->
 /// cosine to `normal`, not divided by 2 pi ("no division by (2.0 * M_PI) for
 /// GI calculations").
 pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
-    let eye_vec = if normal.z.abs() < 0.7 { Vec3::new(0.0, 0.0, -1.0) } else { Vec3::X };
+    let eye_vec = if normal.z.abs() < 0.7 {
+        Vec3::new(0.0, 0.0, -1.0)
+    } else {
+        Vec3::X
+    };
     let z = -(eye_vec - normal * eye_vec.dot(normal)).normalize();
     let x = normal.cross(z);
     let rot = |p: Vec3| Vec3::new(x.dot(p), normal.dot(p), z.dot(p));
-    let mut l = [rot(points[0]), rot(points[1]), rot(points[2]), rot(points[3]), Vec3::ZERO];
+    let mut l = [
+        rot(points[0]),
+        rot(points[1]),
+        rot(points[2]),
+        rot(points[3]),
+        Vec3::ZERO,
+    ];
     let n = clip_quad_to_horizon(&mut l);
     if n == 0 {
         return 0.0;
     }
     let proj = l.map(|v| v.normalize_or_zero());
-    let pnorm = (proj[0] - proj[1]).cross(proj[2] - proj[1]).normalize_or_zero();
+    let pnorm = (proj[0] - proj[1])
+        .cross(proj[2] - proj[1])
+        .normalize_or_zero();
     if pnorm.dot(proj[0]).abs() < 1e-10 {
         return 0.0;
     }
@@ -447,11 +551,19 @@ pub fn compute_light(probe: &Probe, params: &Params, lights: &[Light], cell: usi
     let mut accum = Vec3::ZERO;
     for l in lights {
         if l.kind != LIGHT_TYPE_AREA {
-            let Some((light, light_dir)) = light_at_pos(probe, params, l, pos, normal, None) else { continue };
+            let Some((light, light_dir)) = light_at_pos(probe, params, l, pos, normal, None) else {
+                continue;
+            };
             let light = light * albedo.truncate();
-            accum += if normal.length() > 0.2 { normal.dot(-light_dir).max(0.0) * light } else { light };
+            accum += if normal.length() > 0.2 {
+                normal.dot(-light_dir).max(0.0) * light
+            } else {
+                light
+            };
         } else {
-            let Some(light) = area_light(params, l, pos, normal) else { continue };
+            let Some(light) = area_light(params, l, pos, normal) else {
+                continue;
+            };
             accum += light * albedo.truncate();
         }
     }
@@ -473,7 +585,11 @@ pub const BOUNCE_TAN_HALF_ANGLE: f32 = 0.577;
 /// The tangent frame both the bounce and the screen pass build from a normal:
 /// `v0 = |n.z| < 0.999 ? +z : +y`, tangent `v0 x n`, bitangent `tangent x n`.
 pub fn tangent_frame(n: Vec3) -> [Vec3; 3] {
-    let v0 = if n.z.abs() < 0.999 { Vec3::Z } else { Vec3::Y };
+    let v0 = if n.z.abs() < 0.999 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
     let tangent = v0.cross(n).normalize();
     let bitangent = tangent.cross(n).normalize();
     [tangent, bitangent, n]
@@ -491,7 +607,13 @@ pub struct ConeStep {
 /// The bounce's march of one cone: from 1.5 cells, the diameter `2 tan dist`
 /// (at least one cell), the mip `log2(diameter)`, front to back until the
 /// alpha reaches 0.95 (no bounds test: it is commented out).
-pub fn bounce_cone(tex: &LightTexture, params: &Params, pos: Vec3, direction: Vec3, mut steps: Option<&mut Vec<ConeStep>>) -> Vec4 {
+pub fn bounce_cone(
+    tex: &LightTexture,
+    params: &Params,
+    pos: Vec3,
+    direction: Vec3,
+    mut steps: Option<&mut Vec<ConeStep>>,
+) -> Vec4 {
     let mut color = Vec4::ZERO;
     let mut dist = 1.5f32;
     let max_distance = params.limits.as_vec3().length();
@@ -505,7 +627,12 @@ pub fn bounce_cone(tex: &LightTexture, params: &Params, pos: Vec3, direction: Ve
         let a = 1.0 - color.w;
         color += a * scolor;
         if let Some(s) = steps.as_deref_mut() {
-            s.push(ConeStep { dist, diameter, lod, sample: scolor });
+            s.push(ConeStep {
+                dist,
+                diameter,
+                lod,
+                sample: scolor,
+            });
         }
         dist += half_diameter;
     }
@@ -514,7 +641,13 @@ pub fn bounce_cone(tex: &LightTexture, params: &Params, pos: Vec3, direction: Ve
 
 /// `MODE_SECOND_BOUNCE` for one cell: its direct light plus, if it has a
 /// normal, each cone's light x weight x albedo x dynamic range.
-pub fn second_bounce(probe: &Probe, params: &Params, tex: &LightTexture, cell: usize, direct: Vec3) -> Vec3 {
+pub fn second_bounce(
+    probe: &Probe,
+    params: &Params,
+    tex: &LightTexture,
+    cell: usize,
+    direct: Vec3,
+) -> Vec3 {
     let d = probe.data[cell];
     let pos = d.pos().as_vec3() + Vec3::splat(0.5);
     let normal = d.normal();
@@ -525,7 +658,10 @@ pub fn second_bounce(probe: &Probe, params: &Params, tex: &LightTexture, cell: u
         for (i, dir) in BOUNCE_CONE_DIRS.iter().enumerate() {
             let direction = t * dir.x + b * dir.y + n * dir.z;
             let color = bounce_cone(tex, params, pos, direction, None);
-            let color = color * BOUNCE_CONE_WEIGHTS[i] * Vec4::new(albedo.x, albedo.y, albedo.z, 1.0) * params.dynamic_range;
+            let color = color
+                * BOUNCE_CONE_WEIGHTS[i]
+                * Vec4::new(albedo.x, albedo.y, albedo.z, 1.0)
+                * params.dynamic_range;
             accum += color.truncate();
         }
     }
@@ -550,11 +686,21 @@ pub fn mip_cell(probe: &Probe, params: &Params, outputs: &[Vec3], cell: usize) -
 
 /// `MODE_WRITE_TEXTURE` for one cell: its light over the dynamic range, and
 /// its coverage, into its texel of its level's mip.
-pub fn write_cell(probe: &Probe, params: &Params, outputs: &[Vec3], cell: usize, tex: &mut LightTexture) {
+pub fn write_cell(
+    probe: &Probe,
+    params: &Params,
+    outputs: &[Vec3],
+    cell: usize,
+    tex: &mut LightTexture,
+) {
     let d = probe.data[cell];
     let mip = probe.mip_count() - 1 - probe.level_of(cell);
     let a = d.albedo().w;
-    tex.store(mip, d.pos(), (outputs[cell] / params.dynamic_range).extend(a));
+    tex.store(
+        mip,
+        d.pos(),
+        (outputs[cell] / params.dynamic_range).extend(a),
+    );
 }
 
 /// What `update` leaves: the float buffer after each pass and the texture.
@@ -571,9 +717,14 @@ pub struct Lit {
 }
 
 /// Runs `f(cell)` over `range` on all cores, in order.
-pub fn par_map<T: Send + Sync + Copy + Default>(range: std::ops::Range<usize>, f: impl Fn(usize) -> T + Sync) -> Vec<T> {
+pub fn par_map<T: Send + Sync + Copy + Default>(
+    range: std::ops::Range<usize>,
+    f: impl Fn(usize) -> T + Sync,
+) -> Vec<T> {
     let n = range.len();
-    let threads = std::thread::available_parallelism().map_or(4, |t| t.get()).min(32);
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |t| t.get())
+        .min(32);
     let chunk = n.div_ceil(threads).max(1);
     let mut out = vec![T::default(); n];
     std::thread::scope(|s| {
@@ -617,10 +768,24 @@ pub fn update(probe: &Probe, params: &Params, lights: &[Light], two_bounces: boo
     let first_texture = mips_and_write(probe, params, &mut outputs);
     let pass0 = outputs.clone();
     if !two_bounces {
-        return Lit { direct: pass0, first_texture: first_texture.clone(), outputs, texture: first_texture, passes: 1 };
+        return Lit {
+            direct: pass0,
+            first_texture: first_texture.clone(),
+            outputs,
+            texture: first_texture,
+            passes: 1,
+        };
     }
-    let bounced = par_map(leaves.clone(), |c| second_bounce(probe, params, &first_texture, c, pass0[c]));
+    let bounced = par_map(leaves.clone(), |c| {
+        second_bounce(probe, params, &first_texture, c, pass0[c])
+    });
     outputs[leaves].copy_from_slice(&bounced);
     let texture = mips_and_write(probe, params, &mut outputs);
-    Lit { direct: pass0, first_texture, outputs, texture, passes: 2 }
+    Lit {
+        direct: pass0,
+        first_texture,
+        outputs,
+        texture,
+        passes: 2,
+    }
 }

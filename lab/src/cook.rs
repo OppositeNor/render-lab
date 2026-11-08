@@ -57,13 +57,22 @@ fn quote(s: &str) -> String {
 }
 
 fn list(items: &[String]) -> String {
-    format!("[{}]", items.iter().map(|s| quote(s)).collect::<Vec<_>>().join(", "))
+    format!(
+        "[{}]",
+        items
+            .iter()
+            .map(|s| quote(s))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 /// Writes `text` to `path` so that a reader never sees half of it.
 fn write(path: &Path, text: &str) -> Result<(), String> {
     let partial = path.with_extension(format!("partial.{}", std::process::id()));
-    fs::write(&partial, text).and_then(|_| fs::rename(&partial, path)).map_err(|e| format!("packages: write {}: {e}", path.display()))
+    fs::write(&partial, text)
+        .and_then(|_| fs::rename(&partial, path))
+        .map_err(|e| format!("packages: write {}: {e}", path.display()))
 }
 
 /// The package a built package's manifest says it was built from.
@@ -76,9 +85,18 @@ fn cooked_from(dir: &Path) -> Option<String> {
 /// The stamps and outputs a built collection recorded, by key.
 fn previous(dir: &Path) -> BTreeMap<String, (String, String)> {
     let mut out = BTreeMap::new();
-    let Ok(text) = fs::read_to_string(dir.join("resources.toml")) else { return out };
-    let Ok(document) = toml_edit::Document::parse(text) else { return out };
-    for table in document.get("resource").and_then(|r| r.as_array_of_tables()).into_iter().flatten() {
+    let Ok(text) = fs::read_to_string(dir.join("resources.toml")) else {
+        return out;
+    };
+    let Ok(document) = toml_edit::Document::parse(text) else {
+        return out;
+    };
+    for table in document
+        .get("resource")
+        .and_then(|r| r.as_array_of_tables())
+        .into_iter()
+        .flatten()
+    {
         let field = |name: &str| table.get(name).and_then(|v| v.as_str()).map(String::from);
         if let (Some(id), Some(file), Some(stamp)) = (field("id"), field("file"), field("stamp")) {
             out.insert(id, (stamp, file));
@@ -92,13 +110,22 @@ struct Lock(#[allow(dead_code)] fs::File);
 
 fn lock(dir: &Path) -> Result<Lock, String> {
     fs::create_dir_all(dir).map_err(|e| format!("packages: create {}: {e}", dir.display()))?;
-    let file = fs::OpenOptions::new().create(true).truncate(false).write(true).open(dir.join(".build.lock")).map_err(|e| format!("packages: lock {}: {e}", dir.display()))?;
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join(".build.lock"))
+        .map_err(|e| format!("packages: lock {}: {e}", dir.display()))?;
     #[cfg(unix)]
     {
         use std::os::fd::AsRawFd;
         // SAFETY: a valid descriptor; the lock is released when the file closes.
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
-            return Err(format!("packages: lock {}: {}", dir.display(), std::io::Error::last_os_error()));
+            return Err(format!(
+                "packages: lock {}: {}",
+                dir.display(),
+                std::io::Error::last_os_error()
+            ));
         }
     }
     Ok(Lock(file))
@@ -106,7 +133,9 @@ fn lock(dir: &Path) -> Result<Lock, String> {
 
 /// Whether `a` and `b` are the same file, or files of the same size and time.
 pub fn same_file(a: &Path, b: &Path) -> bool {
-    let (Ok(a), Ok(b)) = (fs::metadata(a), fs::metadata(b)) else { return false };
+    let (Ok(a), Ok(b)) = (fs::metadata(a), fs::metadata(b)) else {
+        return false;
+    };
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -142,34 +171,69 @@ fn files(dir: &Path, base: &Path, out: &mut Vec<String>) {
 }
 
 /// Builds `package` (the source in `package.dir`, after the packages it imports, `imported`) into `out`.
-fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, report: &mut Report) -> Result<(), String> {
-    let source = fs::canonicalize(&package.dir).map_err(|e| format!("packages: {}: {e}", package.dir.display()))?.to_string_lossy().into_owned();
+fn build(
+    root: &Path,
+    package: &Package,
+    imported: &[Package],
+    out: &Path,
+    report: &mut Report,
+) -> Result<(), String> {
+    let source = fs::canonicalize(&package.dir)
+        .map_err(|e| format!("packages: {}: {e}", package.dir.display()))?
+        .to_string_lossy()
+        .into_owned();
     if out.join("manifest.toml").is_file() && cooked_from(out).as_deref() != Some(source.as_str()) {
-        return Err(format!("packages: {} was not built from {source} (it came from elsewhere): remove it or rename the source package", out.display()));
+        return Err(format!(
+            "packages: {} was not built from {source} (it came from elsewhere): remove it or rename the source package",
+            out.display()
+        ));
     }
     let resolve = |reference: &str| packages::resolve(package, imported, reference);
     let mut resources: Vec<Declaration> = Vec::new();
     let mut shaders = Vec::new();
     for collection in &package.collections {
-        let read = pipeline::read_collection(root, &package.dir, collection, &package.name, Form::Source, &resolve).map_err(|e| e.to_string())?;
+        let read = pipeline::read_collection(
+            root,
+            &package.dir,
+            collection,
+            &package.name,
+            Form::Source,
+            &resolve,
+        )
+        .map_err(|e| e.to_string())?;
         for decl in read.resources {
             if let Some(other) = resources.iter().find(|r| r.id == decl.id) {
-                return Err(format!("resources: `{}` is declared by {} and {}", decl.id, other.manifest, decl.manifest));
+                return Err(format!(
+                    "resources: `{}` is declared by {} and {}",
+                    decl.id, other.manifest, decl.manifest
+                ));
             }
             resources.push(decl);
         }
         shaders.extend(read.shaders);
     }
     let previous = previous(out);
-    let mut kept_files: BTreeSet<String> = ["manifest.toml", "resources.toml"].into_iter().map(String::from).collect();
-    let mut collection = String::from("# Built from the package's source collections; rebuilt when they change. Do not edit.\n");
+    let mut kept_files: BTreeSet<String> = ["manifest.toml", "resources.toml"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    let mut collection = String::from(
+        "# Built from the package's source collections; rebuilt when they change. Do not edit.\n",
+    );
     for decl in &resources {
         let output = decl.output();
         let stamp = decl.stamp();
         match &stamp {
             // A tool's output that is not built yet.
             None => {}
-            Some(stamp) if previous.get(decl.key()).is_some_and(|(s, f)| s == stamp && *f == output) && out.join(&output).exists() => report.kept += 1,
+            Some(stamp)
+                if previous
+                    .get(decl.key())
+                    .is_some_and(|(s, f)| s == stamp && *f == output)
+                    && out.join(&output).exists() =>
+            {
+                report.kept += 1
+            }
             Some(_) => {
                 decl.produce(&out.join(&output))?;
                 report.produced.push(decl.id.clone());
@@ -180,7 +244,16 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
         } else {
             kept_files.insert(output.clone());
         }
-        writeln!(collection, "\n[[resource]]\nid = {}\nkind = {}\nfile = {}\nsource = {}\nlicense = {}", quote(decl.key()), quote(decl.kind.name), quote(&output), quote(&decl.source), quote(&decl.license)).unwrap();
+        writeln!(
+            collection,
+            "\n[[resource]]\nid = {}\nkind = {}\nfile = {}\nsource = {}\nlicense = {}",
+            quote(decl.key()),
+            quote(decl.kind.name),
+            quote(&output),
+            quote(&decl.source),
+            quote(&decl.license)
+        )
+        .unwrap();
         if let Some(stamp) = &stamp {
             writeln!(collection, "stamp = {}", quote(stamp)).unwrap();
         }
@@ -195,12 +268,24 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
         }
     }
     for shader in &shaders {
-        let key = shader.id.split_once('.').map(|(_, k)| k).unwrap_or(&shader.id);
-        writeln!(collection, "\n[[shader]]\nid = {}\nparts = {}", quote(key), list(&shader.written)).unwrap();
+        let key = shader
+            .id
+            .split_once('.')
+            .map(|(_, k)| k)
+            .unwrap_or(&shader.id);
+        writeln!(
+            collection,
+            "\n[[shader]]\nid = {}\nparts = {}",
+            quote(key),
+            list(&shader.written)
+        )
+        .unwrap();
     }
     // Its library, from the Cargo build.
     if let Some((name, _)) = &package.library {
-        let file = libloading::library_filename(name).to_string_lossy().into_owned();
+        let file = libloading::library_filename(name)
+            .to_string_lossy()
+            .into_owned();
         let built = packages::bin_dir().join(&file);
         let target = out.join("lib").join(&file);
         if built.is_file() && !same_file(&built, &target) {
@@ -220,28 +305,81 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
     fs::create_dir_all(out).map_err(|e| format!("packages: create {}: {e}", out.display()))?;
     write(&out.join("resources.toml"), &collection)?;
     let mut manifest = format!("# Built from {source}; rebuilt when it changes. Do not edit.\n");
-    writeln!(manifest, "name = {}\nauthor = {}", quote(&package.name), quote(&package.author)).unwrap();
+    writeln!(
+        manifest,
+        "name = {}\nauthor = {}",
+        quote(&package.name),
+        quote(&package.author)
+    )
+    .unwrap();
     if let Some(contact) = &package.contact {
         writeln!(manifest, "contact = {}", quote(contact)).unwrap();
     }
-    writeln!(manifest, "license = {}\nimport = {}\nexport = {}", quote(&package.license), list(&package.imports), list(&package.exports)).unwrap();
+    writeln!(
+        manifest,
+        "license = {}\nimport = {}\nexport = {}",
+        quote(&package.license),
+        list(&package.imports),
+        list(&package.exports)
+    )
+    .unwrap();
     if let Some((library, negotiate)) = &package.library {
-        writeln!(manifest, "library = {}\nnegotiate = {}", quote(library), quote(negotiate)).unwrap();
+        writeln!(
+            manifest,
+            "library = {}\nnegotiate = {}",
+            quote(library),
+            quote(negotiate)
+        )
+        .unwrap();
     }
     // Top-level keys before the first table.
     if let Some(credit) = &package.credit {
         writeln!(manifest, "credit-text = {}", quote(credit)).unwrap();
     }
-    writeln!(manifest, "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"", quote(&source)).unwrap();
+    writeln!(
+        manifest,
+        "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"",
+        quote(&source)
+    )
+    .unwrap();
     for demo in &package.demos {
-        writeln!(manifest, "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\ntimeline = {}\naudio = {}", quote(&demo.key), quote(&demo.title), quote(&demo.timeline), quote(&demo.audio)).unwrap();
+        writeln!(
+            manifest,
+            "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\ntimeline = {}\naudio = {}",
+            quote(&demo.key),
+            quote(&demo.title),
+            quote(&demo.timeline),
+            quote(&demo.audio)
+        )
+        .unwrap();
     }
     for series in &package.series {
-        let by_language = |m: &std::collections::BTreeMap<String, String>| format!("{{ {} }}", m.iter().map(|(k, v)| format!("{} = {}", quote(k), quote(v))).collect::<Vec<_>>().join(", "));
-        writeln!(manifest, "\n[[provides]]\ntype = \"series\"\nkey = {}\ntitle = {}\nsummary = {}\nparts = {}", quote(&series.key), by_language(&series.title), by_language(&series.summary), list(&series.parts)).unwrap();
+        let by_language = |m: &std::collections::BTreeMap<String, String>| {
+            format!(
+                "{{ {} }}",
+                m.iter()
+                    .map(|(k, v)| format!("{} = {}", quote(k), quote(v)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+        writeln!(
+            manifest,
+            "\n[[provides]]\ntype = \"series\"\nkey = {}\ntitle = {}\nsummary = {}\nparts = {}",
+            quote(&series.key),
+            by_language(&series.title),
+            by_language(&series.summary),
+            list(&series.parts)
+        )
+        .unwrap();
     }
     for notice in &package.notices {
-        writeln!(manifest, "\n[[notice]]\nnotice-text = {}", quote(&notice.text)).unwrap();
+        writeln!(
+            manifest,
+            "\n[[notice]]\nnotice-text = {}",
+            quote(&notice.text)
+        )
+        .unwrap();
         if let Some(file) = &notice.license {
             writeln!(manifest, "license = {}", quote(file)).unwrap();
         }
@@ -254,7 +392,8 @@ fn build(root: &Path, package: &Package, imported: &[Package], out: &Path, repor
     for file in present {
         if !kept_files.contains(&file) {
             let path = out.join(&file);
-            fs::remove_file(&path).map_err(|e| format!("packages: remove {}: {e}", path.display()))?;
+            fs::remove_file(&path)
+                .map_err(|e| format!("packages: remove {}: {e}", path.display()))?;
             report.removed.push(path);
         }
     }
@@ -268,14 +407,27 @@ pub fn cook(root: &Path, source_dir: &Path, out_dir: &Path) -> Result<Report, St
     let sources = packages::scan(root, source_dir)?;
     let mut report = Report::default();
     for (i, package) in sources.iter().enumerate() {
-        build(root, package, &sources[..i], &out_dir.join(&package.name), &mut report)?;
+        build(
+            root,
+            package,
+            &sources[..i],
+            &out_dir.join(&package.name),
+            &mut report,
+        )?;
     }
-    let source_dir = fs::canonicalize(source_dir).map_err(|e| format!("packages: {}: {e}", source_dir.display()))?;
+    let source_dir = fs::canonicalize(source_dir)
+        .map_err(|e| format!("packages: {}: {e}", source_dir.display()))?;
     for entry in fs::read_dir(out_dir).into_iter().flatten().flatten() {
         let dir = entry.path();
-        let built_here = cooked_from(&dir).is_some_and(|from| Path::new(&from).starts_with(&source_dir));
-        if built_here && !sources.iter().any(|p| dir.file_name() == Some(p.name.as_ref())) {
-            fs::remove_dir_all(&dir).map_err(|e| format!("packages: remove {}: {e}", dir.display()))?;
+        let built_here =
+            cooked_from(&dir).is_some_and(|from| Path::new(&from).starts_with(&source_dir));
+        if built_here
+            && !sources
+                .iter()
+                .any(|p| dir.file_name() == Some(p.name.as_ref()))
+        {
+            fs::remove_dir_all(&dir)
+                .map_err(|e| format!("packages: remove {}: {e}", dir.display()))?;
             report.removed.push(dir);
         }
     }

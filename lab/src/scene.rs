@@ -90,12 +90,18 @@ impl SceneId {
 
     /// Its resource's full key.
     fn resource(self) -> String {
-        if self.0.contains('.') { self.0.to_string() } else { format!("{SCENE_PREFIX}{}", self.0) }
+        if self.0.contains('.') {
+            self.0.to_string()
+        } else {
+            format!("{SCENE_PREFIX}{}", self.0)
+        }
     }
 
     /// The package that declares it, whose text its `title-text` names.
     fn package(self) -> &'static str {
-        self.0.split_once('.').map_or("render_lab", |(package, _)| package)
+        self.0
+            .split_once('.')
+            .map_or("render_lab", |(package, _)| package)
     }
 
     /// The scene's name on the viewer's scene tabs, in the current locale.
@@ -140,7 +146,6 @@ pub struct SceneObject {
 }
 
 impl SceneObject {
-
     pub fn local_to_world(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
@@ -212,8 +217,11 @@ fn description(id: SceneId) -> &'static Description {
         return d;
     }
     let resource = id.resource();
-    let text = crate::script::data::resource_toml(&resource).unwrap_or_else(|e| panic!("{resource}: {e}"));
-    let d: &'static Description = Box::leak(Box::new(read_scene(id, &text).unwrap_or_else(|e| panic!("{resource}: {e:#}"))));
+    let text =
+        crate::script::data::resource_toml(&resource).unwrap_or_else(|e| panic!("{resource}: {e}"));
+    let d: &'static Description = Box::leak(Box::new(
+        read_scene(id, &text).unwrap_or_else(|e| panic!("{resource}: {e:#}")),
+    ));
     scenes.insert(id.0, d);
     d
 }
@@ -229,29 +237,54 @@ pub fn number(value: &toml_edit::Value) -> anyhow::Result<f32> {
 }
 
 fn vec3(value: &toml_edit::Value) -> anyhow::Result<Vec3> {
-    let a = value.as_array().filter(|a| a.len() == 3).ok_or_else(|| anyhow::anyhow!("expected [x, y, z], found {value:?}"))?;
-    Ok(Vec3::new(number(a.get(0).unwrap())?, number(a.get(1).unwrap())?, number(a.get(2).unwrap())?))
+    let a = value
+        .as_array()
+        .filter(|a| a.len() == 3)
+        .ok_or_else(|| anyhow::anyhow!("expected [x, y, z], found {value:?}"))?;
+    Ok(Vec3::new(
+        number(a.get(0).unwrap())?,
+        number(a.get(1).unwrap())?,
+        number(a.get(2).unwrap())?,
+    ))
 }
 
 fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
-    use anyhow::{anyhow, bail, Context};
+    use anyhow::{Context, anyhow, bail};
     let document = toml_edit::Document::parse(text.to_string())?;
     let root = document.as_table();
     let leak = |s: &str| -> &'static str { Box::leak(s.to_string().into_boxed_str()) };
     let value = |table: &toml_edit::Table, key: &str| -> anyhow::Result<toml_edit::Value> {
-        table.get(key).and_then(|i| i.as_value()).cloned().ok_or_else(|| anyhow!("`{key}` is missing"))
+        table
+            .get(key)
+            .and_then(|i| i.as_value())
+            .cloned()
+            .ok_or_else(|| anyhow!("`{key}` is missing"))
     };
-    let title = leak(value(root, "title-text")?.as_str().context("`title-text` is a text key")?);
+    let title = leak(
+        value(root, "title-text")?
+            .as_str()
+            .context("`title-text` is a text key")?,
+    );
     let clear = value(root, "camera-clear")?;
-    let clear = clear.as_inline_table().context("`camera-clear` is { room-margin = … } or { above = … }")?;
+    let clear = clear
+        .as_inline_table()
+        .context("`camera-clear` is { room-margin = … } or { above = … }")?;
     let camera_clear = match (clear.get("room-margin"), clear.get("above")) {
         (Some(m), None) => CameraClear::Room(number(m)?),
         (None, Some(h)) => CameraClear::Above(number(h)?),
         _ => bail!("`camera-clear` is {{ room-margin = … }} or {{ above = … }}"),
     };
     let mut objects = Vec::new();
-    for table in root.get("object").and_then(|o| o.as_array_of_tables()).context("a scene has `[[object]]` tables")? {
-        let name = leak(value(table, "name")?.as_str().context("`name` is a string")?);
+    for table in root
+        .get("object")
+        .and_then(|o| o.as_array_of_tables())
+        .context("a scene has `[[object]]` tables")?
+    {
+        let name = leak(
+            value(table, "name")?
+                .as_str()
+                .context("`name` is a string")?,
+        );
         let at = |e: anyhow::Error| e.context(format!("object `{name}`"));
         let shape_name = value(table, "shape").map_err(at)?;
         let shape = match shape_name.as_str() {
@@ -263,16 +296,30 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
             Some("terrain") => SHAPE_TERRAIN,
             _ => bail!("object `{name}`: `shape` is plane, box, sphere, panel, mesh, or terrain"),
         };
-        let optional = |key: &str, default: Vec3| -> anyhow::Result<Vec3> { table.get(key).and_then(|i| i.as_value()).map(vec3).unwrap_or(Ok(default)) };
+        let optional = |key: &str, default: Vec3| -> anyhow::Result<Vec3> {
+            table
+                .get(key)
+                .and_then(|i| i.as_value())
+                .map(vec3)
+                .unwrap_or(Ok(default))
+        };
         let translation = optional("translation", Vec3::ZERO).map_err(at)?;
-        let rotation = match table.get("rotation").and_then(|i| i.as_value()).and_then(|v| v.as_inline_table()) {
+        let rotation = match table
+            .get("rotation")
+            .and_then(|i| i.as_value())
+            .and_then(|v| v.as_inline_table())
+        {
             None => Quat::IDENTITY,
             Some(r) => match (r.get("x"), r.get("y"), r.get("z"), r.get("aim")) {
                 (Some(a), None, None, None) => Quat::from_rotation_x(deg(number(a)?)),
                 (None, Some(a), None, None) => Quat::from_rotation_y(deg(number(a)?)),
                 (None, None, Some(a), None) => Quat::from_rotation_z(deg(number(a)?)),
-                (None, None, None, Some(p)) => Quat::from_rotation_arc(Vec3::Y, (vec3(p)? - translation).normalize()),
-                _ => bail!("object `{name}`: `rotation` is one of {{ x }}, {{ y }}, {{ z }} (degrees) or {{ aim = [x, y, z] }}"),
+                (None, None, None, Some(p)) => {
+                    Quat::from_rotation_arc(Vec3::Y, (vec3(p)? - translation).normalize())
+                }
+                _ => bail!(
+                    "object `{name}`: `rotation` is one of {{ x }}, {{ y }}, {{ z }} (degrees) or {{ aim = [x, y, z] }}"
+                ),
             },
         };
         // A mesh's and the terrain's bounds are their own.
@@ -289,7 +336,10 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
                 let terrain = crate::terrain::terrain();
                 (terrain.local_center(), terrain.local_extent())
             }
-            _ => (Vec3::ZERO, vec3(&value(table, "extent").map_err(at)?).map_err(at)?),
+            _ => (
+                Vec3::ZERO,
+                vec3(&value(table, "extent").map_err(at)?).map_err(at)?,
+            ),
         };
         objects.push(SceneObject {
             name,
@@ -302,20 +352,41 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
             albedo: vec3(&value(table, "albedo").map_err(at)?).map_err(at)?,
             roughness: number(&value(table, "roughness").map_err(at)?).map_err(at)?,
             emissive: optional("emissive", Vec3::ZERO).map_err(at)?,
-            emissive_strength: table.get("emissive-strength").and_then(|i| i.as_value()).map(number).unwrap_or(Ok(0.0)).map_err(at)?,
+            emissive_strength: table
+                .get("emissive-strength")
+                .and_then(|i| i.as_value())
+                .map(number)
+                .unwrap_or(Ok(0.0))
+                .map_err(at)?,
             tags: match table.get("tags").and_then(|i| i.as_value()) {
                 None => Vec::new(),
-                Some(v) => v.as_array().context("`tags` is a list of words").map_err(at)?.iter().map(|t| t.as_str().map(leak).context("a tag is a word")).collect::<anyhow::Result<_>>().map_err(at)?,
+                Some(v) => v
+                    .as_array()
+                    .context("`tags` is a list of words")
+                    .map_err(at)?
+                    .iter()
+                    .map(|t| t.as_str().map(leak).context("a tag is a word"))
+                    .collect::<anyhow::Result<_>>()
+                    .map_err(at)?,
             },
             movable: match table.get("movable").and_then(|i| i.as_value()) {
                 None => false,
-                Some(v) => v.as_bool().context("`movable` is true or false").map_err(at)?,
+                Some(v) => v
+                    .as_bool()
+                    .context("`movable` is true or false")
+                    .map_err(at)?,
             },
         });
     }
-    let lighting = root.get("lighting").and_then(|l| l.as_table()).context("a scene has `[lighting]`")?;
+    let lighting = root
+        .get("lighting")
+        .and_then(|l| l.as_table())
+        .context("a scene has `[lighting]`")?;
     let light_name = value(lighting, "light")?;
-    let panel = objects.iter().find(|o| Some(o.name) == light_name.as_str()).with_context(|| format!("`[lighting] light`: no object {light_name:?}"))?;
+    let panel = objects
+        .iter()
+        .find(|o| Some(o.name) == light_name.as_str())
+        .with_context(|| format!("`[lighting] light`: no object {light_name:?}"))?;
     let light = Light {
         center: panel.translation,
         axis_u: panel.rotation * Vec3::new(panel.local_extent.x, 0.0, 0.0),
@@ -328,31 +399,72 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
         ambient: Vec3::splat(number(&value(lighting, "ambient")?)?),
         f0: number(&value(lighting, "f0")?)?,
         reflection_strength: number(&value(lighting, "reflection-strength")?)?,
-        ggx_samples: value(lighting, "ggx-samples")?.as_integer().filter(|n| *n > 0).context("`ggx-samples` is a whole number")? as u32,
+        ggx_samples: value(lighting, "ggx-samples")?
+            .as_integer()
+            .filter(|n| *n > 0)
+            .context("`ggx-samples` is a whole number")? as u32,
         exposure: number(&value(lighting, "exposure")?)?,
     };
     // Investigations name the study room's objects by index.
     if id == SceneId::STUDY_ROOM {
-        let names = ["floor", "back wall", "left wall", "right wall", "emissive panel", "sphere", "rotated box", "small box", "teapot"];
+        let names = [
+            "floor",
+            "back wall",
+            "left wall",
+            "right wall",
+            "emissive panel",
+            "sphere",
+            "rotated box",
+            "small box",
+            "teapot",
+        ];
         let found: Vec<&str> = objects.iter().map(|o| o.name).collect();
         if found != names {
-            bail!("the study room's objects are {names:?}, in the order of `scene::ids`; found {found:?}");
+            bail!(
+                "the study room's objects are {names:?}, in the order of `scene::ids`; found {found:?}"
+            );
         }
     }
     objects.shrink_to_fit();
-    Ok(Description { scene: Scene { id, objects, lighting }, title, camera_clear })
+    Ok(Description {
+        scene: Scene {
+            id,
+            objects,
+            lighting,
+        },
+        title,
+        camera_clear,
+    })
 }
 
 /// The terrain a scene's `[terrain]` table describes (src/terrain.rs).
 pub fn terrain_table(id: SceneId) -> anyhow::Result<crate::terrain::TerrainDesc> {
     use anyhow::Context;
     let resource = id.resource();
-    let document = toml_edit::Document::parse(crate::script::data::resource_toml(&resource).map_err(anyhow::Error::msg)?)?;
-    let t = document.get("terrain").and_then(|t| t.as_table()).with_context(|| format!("{resource} has no `[terrain]`"))?;
-    let get = |key: &str| t.get(key).and_then(|i| i.as_value()).with_context(|| format!("{resource}: `[terrain] {key}` is missing"));
-    let half = get("half-size")?.as_array().filter(|a| a.len() == 2).context("`half-size` is [x, z]")?;
-    let perlin = get("perlin")?.as_inline_table().context("`perlin` is { seed, octaves, frequency }")?;
-    let int = |v: Option<&toml_edit::Value>, key: &str| v.and_then(|v| v.as_integer()).filter(|n| *n >= 0).with_context(|| format!("{resource}: `{key}` is a whole number"));
+    let document = toml_edit::Document::parse(
+        crate::script::data::resource_toml(&resource).map_err(anyhow::Error::msg)?,
+    )?;
+    let t = document
+        .get("terrain")
+        .and_then(|t| t.as_table())
+        .with_context(|| format!("{resource} has no `[terrain]`"))?;
+    let get = |key: &str| {
+        t.get(key)
+            .and_then(|i| i.as_value())
+            .with_context(|| format!("{resource}: `[terrain] {key}` is missing"))
+    };
+    let half = get("half-size")?
+        .as_array()
+        .filter(|a| a.len() == 2)
+        .context("`half-size` is [x, z]")?;
+    let perlin = get("perlin")?
+        .as_inline_table()
+        .context("`perlin` is { seed, octaves, frequency }")?;
+    let int = |v: Option<&toml_edit::Value>, key: &str| {
+        v.and_then(|v| v.as_integer())
+            .filter(|n| *n >= 0)
+            .with_context(|| format!("{resource}: `{key}` is a whole number"))
+    };
     Ok(crate::terrain::TerrainDesc {
         resolution: int(Some(get("resolution")?), "resolution")? as u32,
         half_size: Vec2::new(number(half.get(0).unwrap())?, number(half.get(1).unwrap())?),
@@ -392,7 +504,11 @@ impl Scene {
     }
 
     pub fn records(&self) -> Vec<ObjectData> {
-        self.objects.iter().enumerate().map(|(i, o)| object_record(o, i as u32)).collect()
+        self.objects
+            .iter()
+            .enumerate()
+            .map(|(i, o)| object_record(o, i as u32))
+            .collect()
     }
 }
 
@@ -411,11 +527,19 @@ pub fn object_record(o: &SceneObject, index: u32) -> ObjectData {
     let m = o.local_to_world();
     let inv = m.inverse();
     let (world_center, world_extent) = transform_box(m, o.local_center, o.local_extent);
-    let local_radius = if o.shape == SHAPE_SPHERE { o.local_extent.x } else { o.local_extent.length() };
+    let local_radius = if o.shape == SHAPE_SPHERE {
+        o.local_extent.x
+    } else {
+        o.local_extent.length()
+    };
     // The bounding sphere's radius scales by the longest basis vector, then is
     // clamped to the new box's half diagonal.
     let a = Mat3::from_mat4(m);
-    let max_axis = a.x_axis.length().max(a.y_axis.length()).max(a.z_axis.length());
+    let max_axis = a
+        .x_axis
+        .length()
+        .max(a.y_axis.length())
+        .max(a.z_axis.length());
     let radius = (local_radius * max_axis).min(world_extent.length());
     ObjectData {
         local_to_world: m.to_cols_array_2d(),
@@ -429,7 +553,12 @@ pub fn object_record(o: &SceneObject, index: u32) -> ObjectData {
         world_extent: world_extent.to_array(),
         _pad0: 0.0,
         albedo_roughness: [o.albedo.x, o.albedo.y, o.albedo.z, o.roughness],
-        emissive: [o.emissive.x, o.emissive.y, o.emissive.z, o.emissive_strength],
+        emissive: [
+            o.emissive.x,
+            o.emissive.y,
+            o.emissive.z,
+            o.emissive_strength,
+        ],
     }
 }
 
@@ -445,7 +574,10 @@ pub fn normal_to_world(o: &ObjectData, n_local: Vec3) -> Vec3 {
 }
 
 pub fn occludes_light(o: &ObjectData) -> bool {
-    o.shape_kind == SHAPE_BOX || o.shape_kind == SHAPE_SPHERE || o.shape_kind == SHAPE_MESH || o.shape_kind == SHAPE_TERRAIN
+    o.shape_kind == SHAPE_BOX
+        || o.shape_kind == SHAPE_SPHERE
+        || o.shape_kind == SHAPE_MESH
+        || o.shape_kind == SHAPE_TERRAIN
 }
 
 pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Option<(f32, Vec3)> {
@@ -486,7 +618,11 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             if tf < tn {
                 return None;
             }
-            let t = if tn > 1e-4 { tn } else { tf };
+            let t = if tn > 1e-4 {
+                tn
+            } else {
+                tf
+            };
             if t < 1e-4 || t >= t_max {
                 return None;
             }
@@ -505,12 +641,26 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             let (t, n_local) = crate::mesh::teapot().intersect(lo, ld, t_max)?;
             // The mesh is open (lid gap, spout): face the normal toward the ray.
             let n = normal_to_world(o, n_local);
-            Some((t, if n.dot(rd) > 0.0 { -n } else { n }))
+            Some((
+                t,
+                if n.dot(rd) > 0.0 {
+                    -n
+                } else {
+                    n
+                },
+            ))
         }
         SHAPE_TERRAIN => {
             let (t, n_local) = crate::terrain::terrain().intersect(lo, ld, t_max)?;
             let n = normal_to_world(o, n_local);
-            Some((t, if n.dot(rd) > 0.0 { -n } else { n }))
+            Some((
+                t,
+                if n.dot(rd) > 0.0 {
+                    -n
+                } else {
+                    n
+                },
+            ))
         }
         _ => {
             if ld.y.abs() < 1e-9 {
@@ -547,13 +697,21 @@ impl Hit {
 }
 
 pub fn trace_scene(objects: &[ObjectData], ro: Vec3, rd: Vec3, t_max: f32, skip: u32) -> Hit {
-    let mut hit = Hit { t: t_max, object: NO_HIT, normal: Vec3::Y };
+    let mut hit = Hit {
+        t: t_max,
+        object: NO_HIT,
+        normal: Vec3::Y,
+    };
     for (i, o) in objects.iter().enumerate() {
         if i as u32 == skip {
             continue;
         }
         if let Some((t, n)) = intersect_object(o, ro, rd, hit.t) {
-            hit = Hit { t, object: i as u32, normal: n };
+            hit = Hit {
+                t,
+                object: i as u32,
+                normal: n,
+            };
         }
     }
     hit
@@ -568,16 +726,32 @@ fn shadowed(objects: &[ObjectData], p: Vec3, dir: Vec3, dist: f32, self_object: 
         if o.shape_kind == SHAPE_MESH {
             // Any triangle in range blocks the light, as in shadowed() in common.wgsl.
             let w2l = m4(&o.world_to_local);
-            return crate::mesh::teapot().occludes(w2l.transform_point3(p), w2l.transform_vector3(dir), dist);
+            return crate::mesh::teapot().occludes(
+                w2l.transform_point3(p),
+                w2l.transform_vector3(dir),
+                dist,
+            );
         }
         if i as u32 == self_object {
-            return intersect_object(o, p + dir * TERRAIN_SELF_SHADOW_BIAS, dir, dist - TERRAIN_SELF_SHADOW_BIAS).is_some();
+            return intersect_object(
+                o,
+                p + dir * TERRAIN_SELF_SHADOW_BIAS,
+                dir,
+                dist - TERRAIN_SELF_SHADOW_BIAS,
+            )
+            .is_some();
         }
         intersect_object(o, p, dir, dist).is_some()
     })
 }
 
-pub fn direct_irradiance(objects: &[ObjectData], lighting: &Lighting, p: Vec3, n: Vec3, self_object: u32) -> Vec3 {
+pub fn direct_irradiance(
+    objects: &[ObjectData],
+    lighting: &Lighting,
+    p: Vec3,
+    n: Vec3,
+    self_object: u32,
+) -> Vec3 {
     let l = &lighting.light;
     let nl = l.normal();
     let area = 4.0 * l.axis_u.length() * l.axis_v.length();
@@ -585,7 +759,9 @@ pub fn direct_irradiance(objects: &[ObjectData], lighting: &Lighting, p: Vec3, n
     let mut sum = 0.0f32;
     for j in 0..4 {
         for i in 0..4 {
-            let s = l.center + l.axis_u * ((i as f32 + 0.5) / 2.0 - 1.0) + l.axis_v * ((j as f32 + 0.5) / 2.0 - 1.0);
+            let s = l.center
+                + l.axis_u * ((i as f32 + 0.5) / 2.0 - 1.0)
+                + l.axis_v * ((j as f32 + 0.5) / 2.0 - 1.0);
             let mut w = s - origin;
             let d2 = w.dot(w);
             let d = d2.sqrt();
@@ -632,14 +808,21 @@ pub fn importance_sample_visible_ggx(e: Vec2, alpha: f32, v: Vec3) -> Vec3 {
 }
 
 pub fn tangent_basis(n: Vec3) -> [Vec3; 3] {
-    let up = if n.y.abs() < 0.99 { Vec3::Y } else { Vec3::X };
+    let up = if n.y.abs() < 0.99 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
     let t = up.cross(n).normalize();
     [t, n.cross(t), n]
 }
 
 /// The k-th of `count` Hammersley points (sampleSequence without the per-pixel rotation).
 pub fn hammersley(k: u32, count: u32) -> Vec2 {
-    Vec2::new((k as f32 + 0.5) / count as f32, k.reverse_bits() as f32 * 2.328_306_4e-10)
+    Vec2::new(
+        (k as f32 + 0.5) / count as f32,
+        k.reverse_bits() as f32 * 2.328_306_4e-10,
+    )
 }
 
 /// A 32-bit integer hash: Wellons' lowbias32 ("Prospecting for Hash
@@ -692,7 +875,11 @@ pub fn tonemap(x: Vec3, exposure: f32) -> Vec3 {
 
 pub fn linear_to_srgb(c: f32) -> f32 {
     let c = c.clamp(0.0, 1.0);
-    if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }
+    if c <= 0.0031308 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 /// Display colour (sRGB bytes) of an HDR radiance, as the composite pass computes it.
@@ -736,8 +923,15 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
                     for s in 0..=segments {
                         let u = s as f32 / segments as f32;
                         let phi = u * 2.0 * PI;
-                        let n = Vec3::new(theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin());
-                        vertices.push(Vertex { position: (c + n * e.x).to_array(), normal: n.to_array() });
+                        let n = Vec3::new(
+                            theta.sin() * phi.cos(),
+                            theta.cos(),
+                            theta.sin() * phi.sin(),
+                        );
+                        vertices.push(Vertex {
+                            position: (c + n * e.x).to_array(),
+                            normal: n.to_array(),
+                        });
                     }
                 }
                 for r in 0..rings {
@@ -753,14 +947,28 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
                     for side in [-1.0f32, 1.0] {
                         let mut n = Vec3::ZERO;
                         n[axis] = side;
-                        let t = if axis == 0 { Vec3::Y } else { Vec3::X };
+                        let t = if axis == 0 {
+                            Vec3::Y
+                        } else {
+                            Vec3::X
+                        };
                         let b = n.cross(t);
                         let start = vertices.len() as u32;
                         for (du, dv) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
                             let p = c + (n + t * du + b * dv) * e;
-                            vertices.push(Vertex { position: p.to_array(), normal: n.to_array() });
+                            vertices.push(Vertex {
+                                position: p.to_array(),
+                                normal: n.to_array(),
+                            });
                         }
-                        indices.extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
+                        indices.extend_from_slice(&[
+                            start,
+                            start + 1,
+                            start + 2,
+                            start,
+                            start + 2,
+                            start + 3,
+                        ]);
                     }
                 }
             }
@@ -768,7 +976,10 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
                 for tri in &crate::mesh::teapot().triangles {
                     for (p, n) in [(tri.p0, tri.n0), (tri.p1, tri.n1), (tri.p2, tri.n2)] {
                         indices.push(vertices.len() as u32);
-                        vertices.push(Vertex { position: p, normal: n });
+                        vertices.push(Vertex {
+                            position: p,
+                            normal: n,
+                        });
                     }
                 }
             }
@@ -776,7 +987,10 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
                 let t = crate::terrain::terrain();
                 for j in 0..t.resolution {
                     for i in 0..t.resolution {
-                        vertices.push(Vertex { position: t.vertex(i, j).to_array(), normal: t.vertex_normal(i, j).to_array() });
+                        vertices.push(Vertex {
+                            position: t.vertex(i, j).to_array(),
+                            normal: t.vertex_normal(i, j).to_array(),
+                        });
                     }
                 }
                 for j in 0..t.cells() {
@@ -790,14 +1004,21 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
             _ => {
                 for (dx, dz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
                     let p = c + Vec3::new(dx * e.x, 0.0, dz * e.z);
-                    vertices.push(Vertex { position: p.to_array(), normal: [0.0, 1.0, 0.0] });
+                    vertices.push(Vertex {
+                        position: p.to_array(),
+                        normal: [0.0, 1.0, 0.0],
+                    });
                 }
                 indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
             }
         }
         ranges.push(first..indices.len() as u32);
     }
-    Meshes { vertices, indices, ranges }
+    Meshes {
+        vertices,
+        indices,
+        ranges,
+    }
 }
 
 #[cfg(test)]
@@ -834,7 +1055,11 @@ mod tests {
             let theta = (j as f32 + 0.5) / steps as f32 * PI;
             for i in 0..steps * 2 {
                 let phi = (i as f32 + 0.5) / (steps * 2) as f32 * 2.0 * PI;
-                let d = Vec3::new(theta.sin() * phi.cos(), theta.sin() * phi.sin(), theta.cos());
+                let d = Vec3::new(
+                    theta.sin() * phi.cos(),
+                    theta.sin() * phi.sin(),
+                    theta.cos(),
+                );
                 let b = sh_l1_basis(d);
                 sum += b[1] * b[1] * theta.sin() * (PI / steps as f32) * (PI / steps as f32);
             }

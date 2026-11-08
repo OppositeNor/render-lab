@@ -8,7 +8,7 @@
 //! The story says which, when, and in what colour; the timeline fades them
 //! over `blend` and blends fixed points (src/shot/).
 
-use crate::frame::{FrameContent, Label, FLAG_ARROW};
+use crate::frame::{FLAG_ARROW, FrameContent, Label};
 use egui::Color32;
 use glam::Vec3;
 use serde::Serialize;
@@ -45,8 +45,15 @@ pub enum Anchor {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum NoteKind {
-    Arrow { from: Anchor, to: Anchor, width: f32 },
-    Label { at: Anchor, text: String },
+    Arrow {
+        from: Anchor,
+        to: Anchor,
+        width: f32,
+    },
+    Label {
+        at: Anchor,
+        text: String,
+    },
     /// A set the investigation publishes, by its key.
     Arrows,
 }
@@ -65,15 +72,25 @@ pub struct StoryNote {
 
 /// A colour as a story writes it: `#rrggbb`.
 pub fn parse_color(text: &str) -> Result<[u8; 3], String> {
-    let hex = text.strip_prefix('#').filter(|h| h.len() == 6).ok_or_else(|| format!("`{text}` is not a colour (#rrggbb)"))?;
-    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| format!("`{text}` is not a colour (#rrggbb)"));
+    let hex = text
+        .strip_prefix('#')
+        .filter(|h| h.len() == 6)
+        .ok_or_else(|| format!("`{text}` is not a colour (#rrggbb)"))?;
+    let byte = |i: usize| {
+        u8::from_str_radix(&hex[i..i + 2], 16)
+            .map_err(|_| format!("`{text}` is not a colour (#rrggbb)"))
+    };
     Ok([byte(0)?, byte(2)?, byte(4)?])
 }
 
 fn resolve(anchor: &Anchor, content: &FrameContent) -> Option<Vec3> {
     match anchor {
         Anchor::At(p) => Some(Vec3::from(*p)),
-        Anchor::Named(key) => content.points.iter().find(|(k, _)| k == key).map(|(_, p)| *p),
+        Anchor::Named(key) => content
+            .points
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, p)| *p),
     }
 }
 
@@ -86,19 +103,42 @@ pub fn draw(notes: &[StoryNote], content: &mut FrameContent, package: &str) {
         match &note.kind {
             NoteKind::Arrow { from, to, width } => {
                 if let (Some(a), Some(b)) = (resolve(from, content), resolve(to, content)) {
-                    content.draw.segment(a, b, color.unwrap_or(crate::palette::text()), note.alpha, *width, FLAG_ARROW);
+                    content.draw.segment(
+                        a,
+                        b,
+                        color.unwrap_or(crate::palette::text()),
+                        note.alpha,
+                        *width,
+                        FLAG_ARROW,
+                    );
                 }
             }
             NoteKind::Label { at, text } => {
                 if let Some(anchor) = resolve(at, content).filter(|_| note.alpha >= 0.5) {
                     let text = crate::i18n::package_text(package, text).to_string();
-                    content.labels.push(Label { anchor, text, color: color.unwrap_or(crate::palette::text()) });
+                    content.labels.push(Label {
+                        anchor,
+                        text,
+                        color: color.unwrap_or(crate::palette::text()),
+                    });
                 }
             }
             NoteKind::Arrows => {
-                let arrows: Vec<Arrow> = content.arrow_sets.iter().find(|(k, _)| *k == note.name).map(|(_, a)| a.clone()).unwrap_or_default();
+                let arrows: Vec<Arrow> = content
+                    .arrow_sets
+                    .iter()
+                    .find(|(k, _)| *k == note.name)
+                    .map(|(_, a)| a.clone())
+                    .unwrap_or_default();
                 for a in arrows {
-                    content.draw.segment(a.from, a.to, color.unwrap_or(a.color), note.alpha, a.width, FLAG_ARROW);
+                    content.draw.segment(
+                        a.from,
+                        a.to,
+                        color.unwrap_or(a.color),
+                        note.alpha,
+                        a.width,
+                        FLAG_ARROW,
+                    );
                 }
             }
         }
