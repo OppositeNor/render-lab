@@ -64,7 +64,8 @@ On Windows, Linux, and macOS, the engine loads one render pipeline by default, w
 
 That pipeline is called ${code "MainRenderPipeline"}, and Android and iOS load a mobile one instead.
 
-${cue "key" {' {callout "msaa-default"}}} It renders with multisampling, at two samples per pixel.
+${cue "key" {' {callout "msaa-default"}}}
+That default pipeline renders with multisampling, at two samples per pixel.
 
 The lab renders four, so its edges are a little smoother.
 
@@ -105,7 +106,7 @@ Others apply subsurface scattering and ambient occlusion, which later chapters e
 A merge pass then adds the diffuse light to the specular, and transparent meshes are drawn on top.
 
 ${cue "key" {' {callout "specular-preset"}}}
-These passes read two cubemaps of the sky, which were built with the assets, long before the frame.
+The passes for the sky's light read two cubemaps of the sky, which were built with the assets, long before the frame.
 
 ### Depth first, so lighting knows what is visible {#c1-prepass kind=3d}
 
@@ -591,7 +592,7 @@ We follow the tile that holds P, the point low on the teapot.
 
 First, a compute pass reads the depth of the tile's two hundred and fifty-six pixels.
 
-${cue "key" {' {callout "tile-prepare"}}} Each sample's depth becomes a distance from the camera.
+${cue "key" {' {callout "tile-prepare"}}} Each of those depths becomes a distance from the camera.
 
 The tile keeps the nearest and the farthest of those distances, called z near and z far.
 
@@ -798,6 +799,8 @@ ${cue "key" {'
 ${cue "key" {' {callout "tile-iterator"}}}
 In the forward pass, P finds its tile, then the bin its own depth falls in.
 
+Then the pass loops over that bin's list, one entry at a time.
+
 $settle ${cue "key" {'
     {inset "list"}
     {mark 0.0 0.14 0.45 0.3}
@@ -830,7 +833,7 @@ ${cue "key" {'
     {motion {' {cameraPath {' {pose 12.0 28.0 7.2} {pose -4.0 22.0 7.6} {pose 10.0 30.0 7.0}}}}}}}
 
 ${cue "key" {' {callout "point-light-radius"}}}
-A light's intensity falls as one over the distance squared.
+For each light in a tile's list, the intensity falls as one over the distance squared.
 
 It is also multiplied by a window, a factor that falls smoothly to zero exactly at the light's attenuation radius.
 
@@ -1079,7 +1082,7 @@ ${cue "key" {' {motion {' {cameraPath surfaceSweep}}}}}
 ${overCallout
     {' {sphereOcclusionRange 0.0 1.0}}
     "occlusion-input"
-    "An occlusion map's red channel is raised to the power of its factor."}
+    "The occlusion input can come from a map, whose red channel is raised to the power of its factor."}
 
 So a factor of one keeps the map as it is, and a factor of zero ignores it.
 
@@ -1314,7 +1317,7 @@ ${cue "key" {' viewModeAttenuation}}
 ${overCallout
     {' {attenuationRadiusRange 2.0 6.0}}
     "point-light-apply"
-    "For one simple point light, the shader first finds the falloff from the distance and the radius."}
+    "For one simple point light, the shader first finds how much of its light arrives, from the distance and the radius."}
 
 ${cue "key" {'
     panelCode
@@ -1360,7 +1363,7 @@ ${cue "key" {' diffuseModelLambertian}}
 ${overCallout
     {' {sphereClearCoatRange 0.0 1.0}}
     "clear-coat-specular"
-    "A clear coat adds a second, smooth GGX lobe, with its F zero fixed at zero point zero four."}
+    "Standard's clear coat adds a second, smooth GGX lobe, with its F zero fixed at zero point zero four."}
 
 The coat also dims what lies beneath it, by the coat's own Fresnel.
 
@@ -1465,7 +1468,7 @@ ${overCallout
 ${cue "key" {' panelCode listingMultiscatter {highlightCode "multiscatter" {' "compensate"}}}}
 ${cue "key" {' {multiscatter 1.0} {blend 1.5}}}
 ${cue "key" {' {callout "multiscatter"}}}
-The compensation multiplies the specular light by a factor.
+To give that light back, the multiscatter compensation multiplies the specular light by a factor.
 
 Take one divided by the kept share, which is A plus B, and subtract one.
 
@@ -1556,7 +1559,7 @@ The map is one texture array of thirty-two bit float depth.
 
 It has ${spoken {cascadeCount}} slices of one thousand and twenty-four by one thousand and twenty-four texels.
 
-Each slice belongs to one cascade, a shadow map for one range of distances from the camera.
+Each slice holds one cascade, the part of the map that covers one range of distances from the camera.
 
 $settle ${cue "key" {'
     {inset "cm"}
@@ -1757,7 +1760,7 @@ $settle ${cue "key" {'
     {inset "sb"}
     {mark 0.62 0.08 1.0 0.62}
     {imageMarkText "views-mark_lit"}
-    {blend 0.6}}} The shadow buffer is a screen-sized texture that holds each pixel's result in one byte.
+    {blend 0.6}}} This view shows the shadow buffer, a screen-sized texture that holds each pixel's result in one byte.
 
 $settle It is white where the sun is seen.
 
@@ -2002,7 +2005,7 @@ ${cue "key" {'
     imageCornerTopLeft
     {imageTitle "views-cubemap_diffuse"}}}
 ${cue "key" {' {callout "ibl-diffuse-lookup"}}}
-For P, diffuse image-based light is a single lookup of that cubemap along P's normal.
+For P, diffuse image-based light is a single lookup of the diffuse cubemap along P's normal.
 
 The ring in the diffuse cross marks that direction.
 
@@ -2022,7 +2025,9 @@ Projects made from O3DE's default template replace that pass with a gem, O3DE's 
 
 That gem is the diffuse probe grid, which lights rooms from a grid of light probes.
 
-The gem's own pass adds the grid's light, and it applies the same sky light wherever no probe grid covers the pixel.
+The gem's own pass adds the grid's light.
+
+That pass also applies the same sky light wherever no probe grid covers the pixel.
 
 ### Specular IBL: the reflection, a mip chosen by roughness {#c6-specular kind=3d}
 
@@ -2358,6 +2363,8 @@ Because the normal comes from depth, normal maps never reach SSAO.
 
 The normal view reads as in chapter one, with colour as direction, green up and blue toward the camera.
 
+Once the normal is known, the shader reads depth samples around the point.
+
 ${over
     {' {ssaoSamplesRange 0.0 12.0}}
     {cat {'
@@ -2366,7 +2373,7 @@ ${over
         {text " "}
         {cue "key" {' {callout "ssao-local-samples"}}}
         {text
-            " First come twelve fixed samples, four and eight pixels away, in a cross and its diagonals."}}}}
+            " The first twelve are fixed, four and eight pixels away, in a cross and its diagonals."}}}}
 
 ${overCallout
     {' {ssaoSamplesRange 12.0 52.0}}
@@ -2761,7 +2768,7 @@ ${cue "key" {' {motion {' {path {' sunYaw} {' {' 40.0} {' 10.0}} sentence}}}}}
 ${cue "key" {' {callout "cutout-clip"}}}
 A plain leaf is StandardPBR, cut out by its alpha and drawn double-sided.
 
-Lit from behind, it stays dark, because Standard has no transmission.
+It stays dark when lit from behind, because Standard has no transmission.
 
 ${overCallout
     {' {teapotTransmissionRange 0.0 2.0}}
@@ -2806,7 +2813,7 @@ That integer is stored in a half float, which holds integers exactly only up to 
 ${cue "key" {' {callout "sss-kernel"}}}
 A compute pass then blurs the diffuse light with Burley's normalised diffusion profile, a curve of how far light spreads under the surface.
 
-It takes two hundred samples a pixel at full quality, and eighty at the default quality of zero point four.
+The blur takes two hundred samples a pixel at full quality, and eighty at the default quality of zero point four.
 
 The blur's footprint is set by the scatter distance, in millimetres.
 
@@ -2897,7 +2904,9 @@ $settle ${cue "key" {'
     {inset "ta"}
     {mark 0.0 0.18 1.0 0.92}
     {imageMarkText "views-mark_hills"}
-    {blend 0.6}}} In the albedo view, the hills sit in the same target as everything else, in their macro colour, the coarse colour that covers the whole terrain.
+    {blend 0.6}}} In the albedo view, the hills sit in the same target as everything else.
+
+They show their macro colour, the coarse colour that covers the whole terrain.
 
 $settle So the later passes read a terrain pixel exactly as they read the room's.
 
@@ -2911,7 +2920,9 @@ ${cue "key" {' {imageHide {' "ta"}}}}
 ${cue "key" {' {callout "terrain-pass-request"}}}
 The terrain's feature processor, the engine part that manages it, adds only compute passes.
 
-Those passes fill clipmaps, caches of the terrain's textures that are finest near the camera, and they are off by default.
+Those passes fill clipmaps, caches of the terrain's textures that are finest near the camera.
+
+These compute passes are off by default.
 
 ${cue "key" {' {glide sunYaw 170.0 sentence}}}
 ${cue "key" {' {callout "terrain-forward-draw-list"}}}
@@ -2958,7 +2969,7 @@ ${overCallout
     "terrain-multiscatter-flags"
     "Turning the flag off changes only the sky's reflection on the hills."}
 
-Their direct light was never compensated.
+That is because their direct light was never compensated.
 
 ${cue "key" {' {multiscatter 1.0} {blend 1.0}}}
 ${cue "key" {' {callout "terrain-height-blend-option"}}}
@@ -3017,6 +3028,8 @@ ${cue "key" {opening demoRoom panelHidden 1.0 {append baseLight {'
     {forwardStage 3.0}}}}}
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 20.0 20.0 6.2} {pose 0.0 14.0 6.6} {pose 16.0 18.0 6.0}}}}}}}
+
+One more kind of surface has shading of its own, and that is hair.
 
 ${cue "key" {' {callout "hair-pass-after-opaque"}}}
 Hair, from the AtomTressFX gem, is drawn by passes of its own after the opaque frame, and composited over it.

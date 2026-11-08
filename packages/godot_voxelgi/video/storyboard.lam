@@ -109,7 +109,7 @@ ${over {' {cellViewRange 0.0 4.0}} {overText {' {cutHeightRange 1.4 2.4}} "Each 
 
 ${overText
     {' {octreeLevelRange 7.0 5.0}}
-    "Going up the octree, each bigger cell stores a blend of the eight smaller cells inside it"}.
+    "Each bigger cell up the octree stores a blend of the eight smaller cells inside it"}.
 
 ${cue "key" {'
     demoPixel
@@ -848,7 +848,7 @@ ${cue "key" {' {callout "omni-atten"} panelValues}}${over
     {' {lightStepRange 1.0 2.0}}
     {overText
         {' {lightXRange 0.9 0.5}}
-        "Then it finds how much the light falls off over that distance"}}.
+        "Then it finds how much the light falls off over the distance between them"}}.
 
 ${cue "key" {' {callout "light-at-pos"}}}${overText
     {' {lightStepRange 2.0 3.0}}
@@ -1320,7 +1320,7 @@ ${overText
 
 ${cue "key" {' {highlightCode "dynamic-object" {' "plot"}}}}${overText
     {' {shrinkLevelRange 3.0 4.0}}
-    "At one texel a cell, the pass plots each texel, writing it into the texture's finest mip"}.
+    "At one texel a cell, a compute pass plots each texel, writing it into the texture's finest mip"}.
 
 ${cue "key" {' {callout "plot-blend"}}}${overText
     {' {dynamicVoxelsRange 0.0 0.5}}
@@ -1435,6 +1435,8 @@ ${cue "key" {opening demoPixel panelValues 0.5 {'
     {focusRow -1.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 36.0 14.0} {aim 46.0 18.0}}}}}}}
 
+First, the screen pass needs to know which VoxelGIs light each pixel.
+
 ${cue "key" {' {callout "pairing-two"}}}${overText
     {' {pixelElevationRange 10.0 30.0}}
     "Each object keeps the first two VoxelGIs it overlaps, so a third one never lights it"}.
@@ -1490,7 +1492,7 @@ ${overText {' {pixelElevationRange 10.0 20.0}} "The fade exists to blend two box
 
 ${overText
     {' {pixelElevationRange 20.0 30.0}}
-    "With one box, the result is then divided by that same fade, so the fade cancels out"}.
+    "With one box, the weighted light is then divided by that same fade, so the fade cancels out"}.
 
 ${overText
     {' {pixelElevationRange 30.0 40.0}}
@@ -2054,7 +2056,7 @@ ${cue "key" {' {callout "fog-inject"}}}${over
 
 ${cue "key" {' {callout "debug-noop"}}}${overText
     {' {voxelgiMixRange 1.0 0.75}}
-    "The editor's lighting view never applies the dynamic range"}.
+    "The editor's lighting view also reads the texture, but it never applies the dynamic range"}.
 
 ${overText
     {' {voxelgiMixRange 0.75 0.5}}
