@@ -27,22 +27,22 @@ pub mod reflections;
 pub mod script;
 pub mod selftest;
 pub mod shot;
-pub mod ssao;
 pub mod sources;
+pub mod ssao;
 pub mod text;
 pub mod transmission;
 pub mod values;
 
+use crate::o3de::lighting::text::tr;
+use glam::Vec2;
 use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
 use lab::frame::{FrameContent, Statics};
-use crate::o3de::lighting::text::tr;
 use lab::investigation::{Engine, Investigation, SelftestOptions, Wording};
 use lab::pseudocode::Listing;
 use lab::shot::{DemoId, PanelMode, ShotState};
 use lab::sources::SourceIndex;
-use glam::Vec2;
 use shot::Demo;
 
 pub struct Lighting;
@@ -123,12 +123,29 @@ impl Investigation for Lighting {
     fn entities(&self, _demo: DemoId) -> Vec<lab::entity::EntitySpec> {
         use lab::entity::{EntityKind, EntitySpec};
         vec![
-            EntitySpec { text: "entity-light", kind: EntityKind::Light, position: ["lightX", "lightY", "lightZ"], shown: None },
-            EntitySpec { text: "entity-sphere_light", kind: EntityKind::Light, position: ["sphereLightX", "sphereLightY", "sphereLightZ"], shown: Some("sphereLight") },
+            EntitySpec {
+                text: "entity-light",
+                kind: EntityKind::Light,
+                position: ["lightX", "lightY", "lightZ"],
+                shown: None,
+            },
+            EntitySpec {
+                text: "entity-sphere_light",
+                kind: EntityKind::Light,
+                position: ["sphereLightX", "sphereLightY", "sphereLightZ"],
+                shown: Some("sphereLight"),
+            },
         ]
     }
 
-    fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    fn build_frame(
+        &self,
+        state: &ShotState,
+        statics: &Statics,
+        viewport: [f32; 2],
+        pixel_scale: f32,
+        time: f32,
+    ) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
@@ -142,7 +159,8 @@ impl Investigation for Lighting {
 
     fn choices(&self) -> &'static [&'static lab::values::Choices] {
         use lab::values::Choice;
-        static CHOICES: std::sync::OnceLock<[&'static lab::values::Choices; 2]> = std::sync::OnceLock::new();
+        static CHOICES: std::sync::OnceLock<[&'static lab::values::Choices; 2]> =
+            std::sync::OnceLock::new();
         CHOICES.get_or_init(|| [brdf::ViewMode::choices(), brdf::DiffuseModel::choices()])
     }
 
@@ -171,7 +189,10 @@ impl Investigation for Lighting {
     }
 
     fn shading_hooks(&self) -> &'static [(&'static str, lab::investigation::ShadingHook)] {
-        static HOOKS: &[(&str, lab::investigation::ShadingHook)] = &[("data", lab::investigation::ShadingHook::Data(ibl::shading_data))];
+        static HOOKS: &[(&str, lab::investigation::ShadingHook)] = &[(
+            "data",
+            lab::investigation::ShadingHook::Data(ibl::shading_data),
+        )];
         HOOKS
     }
 
@@ -184,17 +205,46 @@ impl Investigation for Lighting {
     }
 
     /// A click on the scene is its script's (script/picks.lam, `scene`): the lab runs that first.
-    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+    fn click(
+        &self,
+        _shown: &ShotState,
+        _state: &mut ShotState,
+        _content: &FrameContent,
+        _statics: &Statics,
+        _projector: &Projector,
+        _pixel: Vec2,
+    ) -> bool {
         false
     }
 
     /// What its scripts read from its code (script.rs).
-    fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+    fn script_natives(
+        &self,
+        natives: &mut lab::script::lamlet::embed::NativeRegistry,
+    ) -> Result<(), lab::script::lamlet::embed::Error> {
         script::register(natives)?;
         // The numbers the narration says of the light culling and the shadow cascades, so it says what the code holds.
-        natives.function("o3de_lighting/tile-pixels", |_, ()| Ok(culling::TILE_DIM as i64)).pure().doc("Fn([], Int). A light-culling tile's side, in pixels.").register()?;
-        natives.function("o3de_lighting/max-bins", |_, ()| Ok(culling::MAX_BINS as i64)).pure().doc("Fn([], Int). The most depth bins a tile splits its lists into.").register()?;
-        natives.function("o3de_lighting/cascade-count", |_, ()| Ok(cascades::CASCADES as i64)).pure().doc("Fn([], Int). The directional light's shadow cascades.").register()?;
+        natives
+            .function("o3de_lighting/tile-pixels", |_, ()| {
+                Ok(culling::TILE_DIM as i64)
+            })
+            .pure()
+            .doc("Fn([], Int). A light-culling tile's side, in pixels.")
+            .register()?;
+        natives
+            .function("o3de_lighting/max-bins", |_, ()| {
+                Ok(culling::MAX_BINS as i64)
+            })
+            .pure()
+            .doc("Fn([], Int). The most depth bins a tile splits its lists into.")
+            .register()?;
+        natives
+            .function("o3de_lighting/cascade-count", |_, ()| {
+                Ok(cascades::CASCADES as i64)
+            })
+            .pure()
+            .doc("Fn([], Int). The directional light's shadow cascades.")
+            .register()?;
         Ok(())
     }
 

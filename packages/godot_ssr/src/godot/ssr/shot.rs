@@ -17,7 +17,15 @@ pub enum Demo {
 }
 
 impl Demo {
-    pub const ALL: [Demo; 7] = [Demo::Room, Demo::Inputs, Demo::Pyramid, Demo::Trace, Demo::Hit, Demo::Blur, Demo::Compose];
+    pub const ALL: [Demo; 7] = [
+        Demo::Room,
+        Demo::Inputs,
+        Demo::Pyramid,
+        Demo::Trace,
+        Demo::Hit,
+        Demo::Blur,
+        Demo::Compose,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -32,7 +40,15 @@ impl Demo {
     }
 
     pub fn of(id: DemoId) -> Demo {
-        Demo::ALL.into_iter().find(|d| d.key() == id.key()).unwrap_or_else(|| panic!("{} is not a demonstration of the Godot SSR investigation", id.key()))
+        Demo::ALL
+            .into_iter()
+            .find(|d| d.key() == id.key())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} is not a demonstration of the Godot SSR investigation",
+                    id.key()
+                )
+            })
     }
 
     pub fn id(self) -> DemoId {
@@ -44,11 +60,13 @@ impl Demo {
 /// set (values.rs).
 pub fn demos() -> &'static Demos {
     static DEMOS: std::sync::OnceLock<Demos> = std::sync::OnceLock::new();
-    DEMOS.get_or_init(|| Demos::with_values::<super::values::SsrValues>("godot_ssr").unwrap_or_else(|e| panic!("{e:#}")))
+    DEMOS.get_or_init(|| {
+        Demos::with_values::<super::values::SsrValues>("godot_ssr")
+            .unwrap_or_else(|e| panic!("{e:#}"))
+    })
 }
 
 /// A demonstration's starting state, from its file.
 pub fn for_demo(demo: Demo) -> ShotState {
     demos().shot_state(demo.id())
 }
-

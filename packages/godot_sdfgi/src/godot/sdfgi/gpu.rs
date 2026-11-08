@@ -23,7 +23,7 @@
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
-use super::model::{Cascades, Dirty, Settings, CASCADE_SIZE, PROBE_AXIS_COUNT, PROBE_CELLS};
+use super::model::{CASCADE_SIZE, Cascades, Dirty, PROBE_AXIS_COUNT, PROBE_CELLS, Settings};
 use glam::{IVec3, Vec3};
 use lab::investigation::{Element, ProgramCommand, ProgramFrame};
 
@@ -45,7 +45,10 @@ pub fn init() -> Box<dyn std::any::Any + Send> {
 
 /// This frame's commands.
 pub fn plan(state: &mut dyn std::any::Any, frame: &ProgramFrame) -> Vec<ProgramCommand> {
-    state.downcast_mut::<Plan>().expect("the SDFGI plan").frame(frame)
+    state
+        .downcast_mut::<Plan>()
+        .expect("the SDFGI plan")
+        .frame(frame)
 }
 
 #[derive(Default)]
@@ -76,11 +79,20 @@ fn i(v: i32) -> u32 {
 }
 
 fn dispatch(pass: &'static str, instance: u32, groups: [u32; 3], words: &[u32]) -> ProgramCommand {
-    ProgramCommand::Dispatch { pass, instance, groups, params: params(words) }
+    ProgramCommand::Dispatch {
+        pass,
+        instance,
+        groups,
+        params: params(words),
+    }
 }
 
 fn threads(n: [u32; 3], local: [u32; 3]) -> [u32; 3] {
-    [n[0].div_ceil(local[0]), n[1].div_ceil(local[1]), n[2].div_ceil(local[2])]
+    [
+        n[0].div_ceil(local[0]),
+        n[1].div_ceil(local[1]),
+        n[2].div_ceil(local[2]),
+    ]
 }
 
 /// The scene's SDFGI settings, from the shot (`SceneSettings`).
@@ -99,19 +111,29 @@ impl Plan {
             for v in [s.bounce_feedback, s.probe_bias] {
                 v.to_bits().hash(&mut h);
             }
-            (s.ray_count, s.history_size, s.frames_to_update_light, s.read_sky).hash(&mut h);
+            (
+                s.ray_count,
+                s.history_size,
+                s.frames_to_update_light,
+                s.read_sky,
+            )
+                .hash(&mut h);
             h.finish()
         };
         let mut out = Vec::new();
         // A frame that does not follow the last starts again and converges first.
-        let jumped = self.last.is_none_or(|(eye, k)| k != key || (!frame.history && eye.distance(camera) > 0.5));
+        let jumped = self
+            .last
+            .is_none_or(|(eye, k)| k != key || (!frame.history && eye.distance(camera) > 0.5));
         if jumped {
             self.cascades = None;
         }
         self.last = Some((camera, key));
         // RenderForwardClustered::sdfgi_update: create, or follow the camera.
         let created = self.cascades.is_none();
-        let cascades = self.cascades.get_or_insert_with(|| Cascades::create(Settings::default(), camera));
+        let cascades = self
+            .cascades
+            .get_or_insert_with(|| Cascades::create(Settings::default(), camera));
         if created {
             self.lights_dirty = vec![true; cascades.cascades.len()];
             self.render_pass = 0;
@@ -124,7 +146,11 @@ impl Plan {
         let cascades = cascades.clone();
         regions(&cascades, &s, &mut out, &mut self.lights_dirty);
         let objects = lab::scene::Scene::study_room();
-        let rounds = if jumped { CONVERGED_FRAMES } else { 1 };
+        let rounds = if jumped {
+            CONVERGED_FRAMES
+        } else {
+            1
+        };
         for _ in 0..rounds {
             self.light_and_probes(&cascades, &s, &objects, camera, &mut out);
         }
@@ -135,42 +161,98 @@ impl Plan {
     }
 
     /// `update_cascades`, `pre_process_gi`, `update_light`, `update_probes`, `store_probes`: one frame's work after the regions.
-    fn light_and_probes(&mut self, cascades: &Cascades, s: &super::sim::SceneSettings, scene: &lab::scene::Scene, camera: Vec3, out: &mut Vec<ProgramCommand>) {
+    fn light_and_probes(
+        &mut self,
+        cascades: &Cascades,
+        s: &super::sim::SceneSettings,
+        scene: &lab::scene::Scene,
+        camera: Vec3,
+        out: &mut Vec<ProgramCommand>,
+    ) {
         let n = cascades.cascades.len();
         let y_mult = cascades.settings.y_mult();
         // update_cascades (gi.cpp:1514-1533).
         let mut ubo: Vec<u32> = Vec::with_capacity(8 * 12);
         for k in 0..8 {
-            let c = cascades.cascades.get(k).copied().unwrap_or(cascades.cascades[n - 1]);
+            let c = cascades
+                .cascades
+                .get(k)
+                .copied()
+                .unwrap_or(cascades.cascades[n - 1]);
             let offset = (IVec3::splat(-(CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size;
             let probe = c.position / PROBE_CELLS;
-            ubo.extend([f(offset.x), f(offset.y), f(offset.z), f(1.0 / c.cell_size), i(probe.x), i(probe.y), i(probe.z), 0, 0, 0, 0, 0]);
+            ubo.extend([
+                f(offset.x),
+                f(offset.y),
+                f(offset.z),
+                f(1.0 / c.cell_size),
+                i(probe.x),
+                i(probe.y),
+                i(probe.z),
+                0,
+                0,
+                0,
+                0,
+                0,
+            ]);
         }
-        out.push(ProgramCommand::Upload { buffer: Element::of("cascadesUbo", 0), offset: 0, words: ubo });
+        out.push(ProgramCommand::Upload {
+            buffer: Element::of("cascadesUbo", 0),
+            offset: 0,
+            words: ubo,
+        });
         // pre_process_gi: the dynamic lights of each cascade (the room's panel), and the scene pass's cascades.
         let panel = super::sim::panel_light(scene, y_mult);
         for c in 0..n {
-            out.push(ProgramCommand::Upload { buffer: Element::of("lights", c as u32), offset: 0, words: light_words(&panel) });
+            out.push(ProgramCommand::Upload {
+                buffer: Element::of("lights", c as u32),
+                offset: 0,
+                words: light_words(&panel),
+            });
         }
         let mut screen = vec![0u32; 8 * 8];
-        for (k, v) in super::sim::frame_cascades(cascades, camera).into_iter().enumerate() {
+        for (k, v) in super::sim::frame_cascades(cascades, camera)
+            .into_iter()
+            .enumerate()
+        {
             screen[k * 4..k * 4 + 4].copy_from_slice(&v.map(f));
         }
         screen.extend([f(camera.x), f(camera.y), f(camera.z), 0]);
-        out.push(ProgramCommand::Upload { buffer: Element::of("screenData", 0), offset: 0, words: screen });
+        out.push(ProgramCommand::Upload {
+            buffer: Element::of("screenData", 0),
+            offset: 0,
+            words: screen,
+        });
         // update_light (gi.cpp:1249-1309): every cell of a rebuilt cascade, else every Nth.
         let every = s.frames_to_update_light as u32;
         for c in 0..n {
-            out.push(ProgramCommand::Copy { from: Element::of("dispatchStorage", c as u32), to: Element::of("dispatchCall", c as u32), bytes: 16 });
+            out.push(ProgramCommand::Copy {
+                from: Element::of("dispatchStorage", c as u32),
+                to: Element::of("dispatchCall", c as u32),
+                bytes: 16,
+            });
         }
         for c in 0..n {
-            let (offset, increment) = if self.lights_dirty[c] || every <= 1 { (0, 1) } else { (self.frame % every, every) };
+            let (offset, increment) = if self.lights_dirty[c] || every <= 1 {
+                (0, 1)
+            } else {
+                (self.frame % every, every)
+            };
             out.push(ProgramCommand::DispatchIndirect {
                 pass: "sdfgiDynamicLight",
                 instance: c as u32,
                 buffer: Element::of("dispatchCall", c as u32),
                 offset: 0,
-                params: params(&[n as u32, c as u32, 1, offset, increment, f(s.bounce_feedback), f(y_mult), 0]),
+                params: params(&[
+                    n as u32,
+                    c as u32,
+                    1,
+                    offset,
+                    increment,
+                    f(s.bounce_feedback),
+                    f(y_mult),
+                    0,
+                ]),
             });
             self.lights_dirty[c] = false;
         }
@@ -180,12 +262,48 @@ impl Plan {
         let sky = u32::from(s.read_sky);
         for c in 0..n {
             let probe = cascades.cascades[c].position / PROBE_CELLS;
-            out.push(dispatch("sdfgiProbeProcess", c as u32, threads([P * P, P, 1], [8, 8, 1]), &[n as u32, c as u32, history_index, s.history_size.min(HISTORY), ray_count, f(s.probe_bias), P * P, P, i(probe.x), i(probe.y), i(probe.z), sky, 0, 0, 0, f(y_mult)]));
+            out.push(dispatch(
+                "sdfgiProbeProcess",
+                c as u32,
+                threads([P * P, P, 1], [8, 8, 1]),
+                &[
+                    n as u32,
+                    c as u32,
+                    history_index,
+                    s.history_size.min(HISTORY),
+                    ray_count,
+                    f(s.probe_bias),
+                    P * P,
+                    P,
+                    i(probe.x),
+                    i(probe.y),
+                    i(probe.z),
+                    sky,
+                    0,
+                    0,
+                    0,
+                    f(y_mult),
+                ],
+            ));
         }
         self.render_pass += 1;
         // store_probes (gi.cpp:1414-1456).
         for c in 0..n {
-            out.push(dispatch("sdfgiProbeStore", c as u32, threads([P * P * 6, P * 6, 1], [8, 8, 1]), &[n as u32, c as u32, 0, s.history_size.min(HISTORY), 0, 0, P * P * 6, P * 6]));
+            out.push(dispatch(
+                "sdfgiProbeStore",
+                c as u32,
+                threads([P * P * 6, P * 6, 1], [8, 8, 1]),
+                &[
+                    n as u32,
+                    c as u32,
+                    0,
+                    s.history_size.min(HISTORY),
+                    0,
+                    0,
+                    P * P * 6,
+                    P * 6,
+                ],
+            ));
         }
         self.frame += 1;
     }
@@ -193,14 +311,24 @@ impl Plan {
 
 /// `_update_sdfgi`: each pending region voxelized (`render_region`), and each
 /// cascade's pre-process after its last region (gi.cpp:2061-2418).
-fn regions(cascades: &Cascades, s: &super::sim::SceneSettings, out: &mut Vec<ProgramCommand>, lights_dirty: &mut [bool]) {
+fn regions(
+    cascades: &Cascades,
+    s: &super::sim::SceneSettings,
+    out: &mut Vec<ProgramCommand>,
+    lights_dirty: &mut [bool],
+) {
     let regions = cascades.pending_regions();
     for (k, r) in regions.iter().enumerate() {
         let c = r.cascade;
         let first = k == 0 || regions[k - 1].cascade != c;
         let last = k + 1 == regions.len() || regions[k + 1].cascade != c;
         if first {
-            for name in ["renderAlbedo", "renderEmission", "renderEmissionAniso", "renderGeomFacing"] {
+            for name in [
+                "renderAlbedo",
+                "renderEmission",
+                "renderEmissionAniso",
+                "renderGeomFacing",
+            ] {
                 out.push(ProgramCommand::Clear(Element::all(name)));
             }
         }
@@ -214,7 +342,21 @@ fn regions(cascades: &Cascades, s: &super::sim::SceneSettings, out: &mut Vec<Pro
                 pass: "sdfgiVoxelize",
                 instance: 0,
                 size,
-                params: params(&[axis as u32, i(o.x), i(o.y), i(o.z), i(z.x), i(z.y), i(z.z), f(r.bounds_min.x), f(r.bounds_min.y), f(r.bounds_min.z), f(r.bounds_size.x), f(r.bounds_size.y), f(r.bounds_size.z)]),
+                params: params(&[
+                    axis as u32,
+                    i(o.x),
+                    i(o.y),
+                    i(o.z),
+                    i(z.x),
+                    i(z.y),
+                    i(z.z),
+                    f(r.bounds_min.x),
+                    f(r.bounds_min.y),
+                    f(r.bounds_min.z),
+                    f(r.bounds_size.x),
+                    f(r.bounds_size.y),
+                    f(r.bounds_size.z),
+                ]),
             });
         }
         if last {
@@ -224,7 +366,12 @@ fn regions(cascades: &Cascades, s: &super::sim::SceneSettings, out: &mut Vec<Pro
     }
 }
 
-fn preprocess(cascades: &Cascades, c: usize, s: &super::sim::SceneSettings, out: &mut Vec<ProgramCommand>) {
+fn preprocess(
+    cascades: &Cascades,
+    c: usize,
+    s: &super::sim::SceneSettings,
+    out: &mut Vec<ProgramCommand>,
+) {
     let cascade = &cascades.cascades[c];
     let ci = c as u32;
     let scroll = match cascade.dirty {
@@ -235,17 +382,77 @@ fn preprocess(cascades: &Cascades, c: usize, s: &super::sim::SceneSettings, out:
     let base = [i(sc.x), i(sc.y), i(sc.z), N, 0, 0, 0, 0, 0, 0, ci];
     if let Some(d) = scroll {
         // The scroll (gi.cpp:2113-2211): kept cells back into the working set, the occlusion, the probes.
-        out.push(ProgramCommand::Copy { from: Element::of("dispatchStorage", ci), to: Element::of("dispatchCall", ci), bytes: 16 });
-        out.push(ProgramCommand::DispatchIndirect { pass: "sdfgiScroll", instance: ci, buffer: Element::of("dispatchCall", ci), offset: 0, params: params(&base) });
-        let keep = [N - d.x.unsigned_abs(), N - d.y.unsigned_abs(), N - d.z.unsigned_abs()];
-        out.push(dispatch("sdfgiScrollOcclusion", 0, threads(keep, [4, 4, 4]), &base));
+        out.push(ProgramCommand::Copy {
+            from: Element::of("dispatchStorage", ci),
+            to: Element::of("dispatchCall", ci),
+            bytes: 16,
+        });
+        out.push(ProgramCommand::DispatchIndirect {
+            pass: "sdfgiScroll",
+            instance: ci,
+            buffer: Element::of("dispatchCall", ci),
+            offset: 0,
+            params: params(&base),
+        });
+        let keep = [
+            N - d.x.unsigned_abs(),
+            N - d.y.unsigned_abs(),
+            N - d.z.unsigned_abs(),
+        ];
+        out.push(dispatch(
+            "sdfgiScrollOcclusion",
+            0,
+            threads(keep, [4, 4, 4]),
+            &base,
+        ));
         let probe_scroll = d / PROBE_CELLS;
         let n = cascades.cascades.len() as u32;
-        let ip = [n, ci, 0, s.history_size.min(HISTORY), 0, 0, P * P, P, 0, 0, 0, 0, i(probe_scroll.x), i(probe_scroll.y), i(probe_scroll.z), f(cascades.settings.y_mult())];
-        out.push(dispatch("sdfgiProbeScroll", ci, threads([P * P, P, 1], [8, 8, 1]), &ip));
-        out.push(dispatch("sdfgiProbeScrollStore", ci, threads([P * P, P, 1], [8, 8, 1]), &ip));
+        let ip = [
+            n,
+            ci,
+            0,
+            s.history_size.min(HISTORY),
+            0,
+            0,
+            P * P,
+            P,
+            0,
+            0,
+            0,
+            0,
+            i(probe_scroll.x),
+            i(probe_scroll.y),
+            i(probe_scroll.z),
+            f(cascades.settings.y_mult()),
+        ];
+        out.push(dispatch(
+            "sdfgiProbeScroll",
+            ci,
+            threads([P * P, P, 1], [8, 8, 1]),
+            &ip,
+        ));
+        out.push(dispatch(
+            "sdfgiProbeScrollStore",
+            ci,
+            threads([P * P, P, 1], [8, 8, 1]),
+            &ip,
+        ));
         if s.bounce_feedback > 0.0 {
-            out.push(dispatch("sdfgiProbeStoreScroll", ci, threads([P * P * 6, P * 6, 1], [8, 8, 1]), &[n, ci, 0, s.history_size.min(HISTORY), 0, 0, P * P * 6, P * 6]));
+            out.push(dispatch(
+                "sdfgiProbeStoreScroll",
+                ci,
+                threads([P * P * 6, P * 6, 1], [8, 8, 1]),
+                &[
+                    n,
+                    ci,
+                    0,
+                    s.history_size.min(HISTORY),
+                    0,
+                    0,
+                    P * P * 6,
+                    P * 6,
+                ],
+            ));
         }
     }
     // The counters zeroed before STORE's atomics (gi.cpp:2214-2215).
@@ -254,19 +461,33 @@ fn preprocess(cascades: &Cascades, c: usize, s: &super::sim::SceneSettings, out:
     let half = N / 2;
     let mut p = base;
     p[3] = half;
-    out.push(dispatch("sdfgiJumpFloodInit", 0, threads([half; 3], [4, 4, 4]), &p));
+    out.push(dispatch(
+        "sdfgiJumpFloodInit",
+        0,
+        threads([half; 3], [4, 4, 4]),
+        &p,
+    ));
     let mut ping = 0u32;
     p[8] = 1;
     for step in super::voxels::half_schedule() {
         p[7] = step.0 as u32;
-        let (pass, local) = if step.1 { ("sdfgiJumpFloodShared", [8, 8, 8]) } else { ("sdfgiJumpFlood", [4, 4, 4]) };
+        let (pass, local) = if step.1 {
+            ("sdfgiJumpFloodShared", [8, 8, 8])
+        } else {
+            ("sdfgiJumpFlood", [4, 4, 4])
+        };
         out.push(dispatch(pass, ping, threads([half; 3], local), &p));
         ping ^= 1;
     }
     let mut p = base;
     p[7] = 1;
     out.push(dispatch("sdfgiUpscale", 0, threads([N; 3], [4, 4, 4]), &p));
-    out.push(dispatch("sdfgiJumpFloodFull", 0, threads([N; 3], [8, 8, 8]), &p));
+    out.push(dispatch(
+        "sdfgiJumpFloodFull",
+        0,
+        threads([N; 3], [8, 8, 8]),
+        &p,
+    ));
     // Occlusion: eight parity classes of probes, one workgroup per probe (gi.cpp:2342-2373).
     let probe_global = cascade.position / PROBE_CELLS;
     for k in 0..8u32 {
@@ -283,9 +504,19 @@ fn preprocess(cascades: &Cascades, c: usize, s: &super::sim::SceneSettings, out:
         q[7] = 1;
         q[9] = k;
         let g = PROBE_CELLS as u32 + 1;
-        out.push(dispatch("sdfgiOcclusion", k, [g - o.x as u32, g - o.y as u32, g - o.z as u32], &q));
+        out.push(dispatch(
+            "sdfgiOcclusion",
+            k,
+            [g - o.x as u32, g - o.y as u32, g - o.z as u32],
+            &q,
+        ));
     }
-    out.push(dispatch("sdfgiStore", ci, threads([N; 3], [4, 4, 4]), &base));
+    out.push(dispatch(
+        "sdfgiStore",
+        ci,
+        threads([N; 3], [4, 4, 4]),
+        &base,
+    ));
     for name in ["lightData", "lightAniso0", "lightAniso1"] {
         out.push(ProgramCommand::Clear(Element::of(name, ci)));
     }

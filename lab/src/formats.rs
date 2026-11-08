@@ -42,7 +42,11 @@ pub fn pack_r11g11b10(c: Vec3) -> u32 {
 }
 
 pub fn unpack_r11g11b10(v: u32) -> Vec3 {
-    Vec3::new(small_float_value(v & 0x7ff, 6), small_float_value((v >> 11) & 0x7ff, 6), small_float_value(v >> 22, 5))
+    Vec3::new(
+        small_float_value(v & 0x7ff, 6),
+        small_float_value((v >> 11) & 0x7ff, 6),
+        small_float_value(v >> 22, 5),
+    )
 }
 
 #[cfg(test)]
@@ -51,7 +55,18 @@ mod tests {
 
     #[test]
     fn r11g11b10_round_trip() {
-        for &x in &[0.0f32, 1e-6, 6.1e-5, 0.01, 0.5, 1.0, 1.7, std::f32::consts::PI, 100.0, 60000.0] {
+        for &x in &[
+            0.0f32,
+            1e-6,
+            6.1e-5,
+            0.01,
+            0.5,
+            1.0,
+            1.7,
+            std::f32::consts::PI,
+            100.0,
+            60000.0,
+        ] {
             let back = unpack_r11g11b10(pack_r11g11b10(Vec3::splat(x)));
             // 6 mantissa bits for red and green, 5 for blue: relative error ≤ 2^-7 and 2^-6.
             let tol = |bits: i32| (x * 2f32.powi(-bits)).max(2f32.powi(-20));
@@ -59,6 +74,9 @@ mod tests {
             assert!((back.z - x).abs() <= tol(6), "blue {x} -> {}", back.z);
         }
         assert_eq!(pack_r11g11b10(Vec3::new(1.0, 0.0, 0.0)), 15 << 6);
-        assert_eq!(unpack_r11g11b10(pack_r11g11b10(Vec3::new(-1.0, f32::NAN, 1e9))), Vec3::new(0.0, 0.0, 64512.0));
+        assert_eq!(
+            unpack_r11g11b10(pack_r11g11b10(Vec3::new(-1.0, f32::NAN, 1e9))),
+            Vec3::new(0.0, 0.0, 64512.0)
+        );
     }
 }

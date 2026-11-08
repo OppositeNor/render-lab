@@ -86,16 +86,31 @@ pub fn shape(projector: &Projector, at: Vec3, mode: Mode, pixels: f32) -> Option
     let squares = [0, 1, 2].map(|n| {
         let (u, v) = (axis((n + 1) % 3), axis((n + 2) % 3));
         let (from, size) = (SQUARE.0 * arm, SQUARE.1 * arm);
-        let corners = [at + u * from + v * from, at + u * (from + size) + v * from, at + u * (from + size) + v * (from + size), at + u * from + v * (from + size)];
+        let corners = [
+            at + u * from + v * from,
+            at + u * (from + size) + v * from,
+            at + u * (from + size) + v * (from + size),
+            at + u * from + v * (from + size),
+        ];
         let projected: Vec<Vec2> = corners.iter().filter_map(|c| point(*c)).collect();
         (projected.len() == 4).then(|| [projected[0], projected[1], projected[2], projected[3]])
     });
-    let ring = (0..=48).filter_map(|k| {
-        let a = k as f32 / 48.0 * std::f32::consts::TAU;
-        point(at + Vec3::new(a.cos(), 0.0, a.sin()) * arm * 0.9)
-    }).collect();
+    let ring = (0..=48)
+        .filter_map(|k| {
+            let a = k as f32 / 48.0 * std::f32::consts::TAU;
+            point(at + Vec3::new(a.cos(), 0.0, a.sin()) * arm * 0.9)
+        })
+        .collect();
     let scale = tips[0].unwrap_or(center + Vec2::new(pixels, 0.0));
-    Some(Shape { mode, center, tips, squares, ring, scale, arm })
+    Some(Shape {
+        mode,
+        center,
+        tips,
+        squares,
+        ring,
+        scale,
+        arm,
+    })
 }
 
 /// The distance from `p` to the segment from `a` to `b`.
@@ -123,10 +138,22 @@ impl Shape {
                         return Some(Handle::Plane(n));
                     }
                 }
-                (0..3).filter_map(|i| self.tips[i].map(|t| (i, to_segment(p, self.center, t)))).filter(|(_, d)| *d < reach).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| Handle::Axis(i))
+                (0..3)
+                    .filter_map(|i| self.tips[i].map(|t| (i, to_segment(p, self.center, t))))
+                    .filter(|(_, d)| *d < reach)
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|(i, _)| Handle::Axis(i))
             }
-            Mode::Rotate => self.ring.windows(2).map(|w| to_segment(p, w[0], w[1])).fold(f32::INFINITY, f32::min).lt(&reach).then_some(Handle::Ring),
-            Mode::Scale => ((p - self.scale).length() < reach * 1.6 || to_segment(p, self.center, self.scale) < reach).then_some(Handle::Scale),
+            Mode::Rotate => self
+                .ring
+                .windows(2)
+                .map(|w| to_segment(p, w[0], w[1]))
+                .fold(f32::INFINITY, f32::min)
+                .lt(&reach)
+                .then_some(Handle::Ring),
+            Mode::Scale => ((p - self.scale).length() < reach * 1.6
+                || to_segment(p, self.center, self.scale) < reach)
+                .then_some(Handle::Scale),
         }
     }
 }
@@ -160,7 +187,11 @@ fn axis_plane(projector: &Projector, at: Vec3, i: usize) -> Vec3 {
     let a = axis(i);
     let to_eye = (projector.eye - at).normalize_or_zero();
     let n = a.cross(to_eye).cross(a);
-    if n.length_squared() < 1e-8 { a.any_orthonormal_vector() } else { n.normalize() }
+    if n.length_squared() < 1e-8 {
+        a.any_orthonormal_vector()
+    } else {
+        n.normalize()
+    }
 }
 
 /// What the drag `drag` with the pointer at `pixel` gives: the entity's new place, turn, and size.
@@ -169,12 +200,18 @@ pub fn dragged(projector: &Projector, drag: &Drag, pixel: Vec2) -> (Vec3, f32, f
     match drag.handle {
         Handle::Axis(i) => {
             let n = axis_plane(projector, at, i);
-            match (on_plane(projector, drag.start, at, n), on_plane(projector, pixel, at, n)) {
+            match (
+                on_plane(projector, drag.start, at, n),
+                on_plane(projector, pixel, at, n),
+            ) {
                 (Some(a), Some(b)) => (at + axis(i) * axis(i).dot(b - a), yaw, scale),
                 _ => (at, yaw, scale),
             }
         }
-        Handle::Plane(n) => match (on_plane(projector, drag.start, at, axis(n)), on_plane(projector, pixel, at, axis(n))) {
+        Handle::Plane(n) => match (
+            on_plane(projector, drag.start, at, axis(n)),
+            on_plane(projector, pixel, at, axis(n)),
+        ) {
             (Some(a), Some(b)) => {
                 let mut moved = b - a;
                 moved[n] = 0.0;
@@ -187,7 +224,15 @@ pub fn dragged(projector: &Projector, drag: &Drag, pixel: Vec2) -> (Vec3, f32, f
             let (a, b) = (drag.start - drag.center, pixel - drag.center);
             let swept = a.angle_to(b).to_degrees();
             let below = projector.eye.y < at.y;
-            (at, yaw + if below { swept } else { -swept }, scale)
+            (
+                at,
+                yaw + if below {
+                    swept
+                } else {
+                    -swept
+                },
+                scale,
+            )
         }
         Handle::Scale => {
             let start = (drag.start - drag.center).length().max(8.0);
@@ -203,7 +248,13 @@ mod tests {
     use crate::camera::OrbitCamera;
 
     fn projector() -> Projector {
-        let camera = OrbitCamera { target: [0.0, 0.0, 0.0], yaw: 30.0, pitch: 25.0, distance: 6.0, fov: 50.0 };
+        let camera = OrbitCamera {
+            target: [0.0, 0.0, 0.0],
+            yaw: 30.0,
+            pitch: 25.0,
+            distance: 6.0,
+            fov: 50.0,
+        };
         Projector::new(&camera.camera_data([1600.0, 900.0]))
     }
 
@@ -212,7 +263,12 @@ mod tests {
         let p = projector();
         for at in [Vec3::ZERO, Vec3::new(1.0, 0.5, -2.0)] {
             let s = shape(&p, at, Mode::Move, 100.0).unwrap();
-            let longest = s.tips.iter().flatten().map(|t| (*t - s.center).length()).fold(0.0, f32::max);
+            let longest = s
+                .tips
+                .iter()
+                .flatten()
+                .map(|t| (*t - s.center).length())
+                .fold(0.0, f32::max);
             assert!((longest - 100.0).abs() < 15.0, "an arm is {longest} px");
         }
     }
@@ -225,9 +281,19 @@ mod tests {
         // The arrow's middle hits it; a drag to its tip moves about one arm along x only.
         let start = s.center.lerp(tip, 0.5);
         assert_eq!(s.hit(start, REACH), Some(Handle::Axis(0)));
-        let drag = Drag { handle: Handle::Axis(0), at: Vec3::ZERO, yaw: 0.0, scale: 1.0, start, center: s.center };
+        let drag = Drag {
+            handle: Handle::Axis(0),
+            at: Vec3::ZERO,
+            yaw: 0.0,
+            scale: 1.0,
+            start,
+            center: s.center,
+        };
         let (to, _, _) = dragged(&p, &drag, start + (tip - s.center) * 0.5);
-        assert!((to.x - s.arm * 0.5).abs() < s.arm * 0.05 && to.y == 0.0 && to.z == 0.0, "{to}");
+        assert!(
+            (to.x - s.arm * 0.5).abs() < s.arm * 0.05 && to.y == 0.0 && to.z == 0.0,
+            "{to}"
+        );
     }
 
     #[test]
@@ -237,7 +303,14 @@ mod tests {
         let q = s.squares[1].unwrap();
         let start = (q[0] + q[2]) * 0.5;
         assert_eq!(s.hit(start, REACH), Some(Handle::Plane(1)));
-        let drag = Drag { handle: Handle::Plane(1), at: Vec3::ZERO, yaw: 0.0, scale: 1.0, start, center: s.center };
+        let drag = Drag {
+            handle: Handle::Plane(1),
+            at: Vec3::ZERO,
+            yaw: 0.0,
+            scale: 1.0,
+            start,
+            center: s.center,
+        };
         let (to, _, _) = dragged(&p, &drag, start + Vec2::new(40.0, 25.0));
         assert!(to.y == 0.0 && to.length() > 0.05, "{to}");
     }
@@ -247,10 +320,20 @@ mod tests {
         let p = projector();
         let s = shape(&p, Vec3::ZERO, Mode::Rotate, 100.0).unwrap();
         assert_eq!(s.hit(s.ring[0], REACH), Some(Handle::Ring));
-        let drag = Drag { handle: Handle::Ring, at: Vec3::ZERO, yaw: 10.0, scale: 1.0, start: s.center + Vec2::new(100.0, 0.0), center: s.center };
+        let drag = Drag {
+            handle: Handle::Ring,
+            at: Vec3::ZERO,
+            yaw: 10.0,
+            scale: 1.0,
+            start: s.center + Vec2::new(100.0, 0.0),
+            center: s.center,
+        };
         let (_, yaw, _) = dragged(&p, &drag, s.center + Vec2::new(0.0, 100.0));
         assert!((yaw - 10.0).abs() > 80.0, "{yaw}");
-        let drag = Drag { handle: Handle::Scale, ..drag };
+        let drag = Drag {
+            handle: Handle::Scale,
+            ..drag
+        };
         let (_, _, scale) = dragged(&p, &drag, s.center + Vec2::new(200.0, 0.0));
         assert!((scale - 2.0).abs() < 1e-4);
     }

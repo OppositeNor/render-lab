@@ -38,9 +38,9 @@ use crate::investigation;
 use crate::loading::{self, Loading};
 use crate::record::beat_fade;
 use crate::renderer::{FrameRequest, Renderer};
-use crate::shot::{self, SceneType, DemoId, ShotState, Timeline};
-use crate::view::ViewId;
+use crate::shot::{self, DemoId, SceneType, ShotState, Timeline};
 use crate::ui::{Chrome, DockTab, ViewerAction, ViewerChrome};
+use crate::view::ViewId;
 use crate::volume::Volume;
 use anyhow::Result;
 use glam::Vec2;
@@ -51,15 +51,15 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
-mod playback;
 mod actions;
-mod input;
-mod frame;
 mod events;
+mod frame;
+mod input;
+mod playback;
 mod snapshot;
 use frame::*;
 pub use snapshot::*;
@@ -74,7 +74,14 @@ const SKIP_NOTICE: std::time::Duration = std::time::Duration::from_millis(900);
 
 /// The fly camera (the right button held): the keys that move it, its speed in metres a second at first and
 /// its range (the wheel changes it while flying), and how much faster Shift moves it.
-const FLY_KEYS: [KeyCode; 6] = [KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD, KeyCode::KeyQ, KeyCode::KeyE];
+const FLY_KEYS: [KeyCode; 6] = [
+    KeyCode::KeyW,
+    KeyCode::KeyA,
+    KeyCode::KeyS,
+    KeyCode::KeyD,
+    KeyCode::KeyQ,
+    KeyCode::KeyE,
+];
 const FLY_SPEED: f32 = 2.5;
 const FLY_SPEED_MIN: f32 = 0.1;
 const FLY_SPEED_MAX: f32 = 50.0;
@@ -106,8 +113,8 @@ pub struct ViewerOptions {
     pub settings: Option<PathBuf>,
 }
 
-use crate::window::fullscreen_mode;
 use crate::popup::{self, Popup, Popups};
+use crate::window::fullscreen_mode;
 
 /// How the viewer was left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -252,13 +259,32 @@ pub struct App {
 
 impl App {
     fn new(options: ViewerOptions) -> Result<App> {
-        let timeline = options.timeline.as_ref().map(|p| Timeline::load(p)).transpose()?;
-        crate::i18n::set(options.locale.or(timeline.as_ref().map(|t| t.locale)).unwrap_or_default());
+        let timeline = options
+            .timeline
+            .as_ref()
+            .map(|p| Timeline::load(p))
+            .transpose()?;
+        crate::i18n::set(
+            options
+                .locale
+                .or(timeline.as_ref().map(|t| t.locale))
+                .unwrap_or_default(),
+        );
         let autotest = match options.autotest.clone() {
-            Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(|| anyhow::anyhow!("{} has no viewer autotest", investigation::current().title()))?),
+            Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(
+                || {
+                    anyhow::anyhow!(
+                        "{} has no viewer autotest",
+                        investigation::current().title()
+                    )
+                },
+            )?),
             None => None,
         };
-        let mut audio = options.audio.clone().and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
+        let mut audio = options
+            .audio
+            .clone()
+            .and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
         if let Some(a) = audio.as_mut() {
             a.set_gain(options.narration.gain());
         }
@@ -266,7 +292,9 @@ impl App {
         // A timeline opens on its first frame, paused; the autotest starts in the free demonstrations.
         let start_in_timeline = timeline.is_some() && autotest.is_none();
         let no_autotest = autotest.is_none();
-        let start_frame = timeline.as_ref().map_or(0, |t| options.start_frame.min(t.total_frames.saturating_sub(1)));
+        let start_frame = timeline.as_ref().map_or(0, |t| {
+            options.start_frame.min(t.total_frames.saturating_sub(1))
+        });
         let state = match (&timeline, start_in_timeline) {
             (Some(t), true) => t.state_at(start_frame),
             _ => ShotState::for_demo(investigation::current().demos()[0]),
@@ -324,7 +352,12 @@ impl App {
             popups: Popups::default(),
             error: None,
             // The autotest checks the camera, so it opens straight on the shot.
-            intro: no_autotest.then(|| (Intro::random().fit(camera, |c| scene.camera_clear(c.eye())), Instant::now())),
+            intro: no_autotest.then(|| {
+                (
+                    Intro::random().fit(camera, |c| scene.camera_clear(c.eye())),
+                    Instant::now(),
+                )
+            }),
             features: crate::feature::Features::new(investigation::current()),
             feature_actions: Vec::new(),
             tab_opening,
@@ -354,7 +387,11 @@ impl App {
 
     /// Paused on a 2D scene that shows a diagram: the viewport is the diagram's panel, zoomed and panned.
     pub fn paused_diagram(&self) -> bool {
-        self.paused_page() && self.timeline.as_ref().is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_diagram())
+        self.paused_page()
+            && self
+                .timeline
+                .as_ref()
+                .is_some_and(|t| t.beat_at(self.timeline_frame).1.shows_diagram())
     }
 
     /// The state that is rendered: the playing timeline's frame, or the
@@ -370,7 +407,8 @@ impl App {
                         s.set(k, v);
                     }
                     crate::script::runtime::animate(s.demo, self.demo_time, &mut s);
-                    s.camera = shot::camera_drift(s.camera, self.drift_from, self.demo_time, drift(&s));
+                    s.camera =
+                        shot::camera_drift(s.camera, self.drift_from, self.demo_time, drift(&s));
                 }
                 s
             }
@@ -394,7 +432,10 @@ impl App {
 
     pub fn default_state(&mut self, demo: impl Into<DemoId>) -> ShotState {
         let demo = demo.into();
-        self.renderer.as_mut().map(|r| r.default_state(demo)).unwrap_or_else(|| ShotState::for_demo(demo))
+        self.renderer
+            .as_mut()
+            .map(|r| r.default_state(demo))
+            .unwrap_or_else(|| ShotState::for_demo(demo))
     }
 
     /// Stop the intro where it is, keeping its camera, so the user's camera input carries on from what they see.
@@ -415,7 +456,6 @@ impl App {
         }
         state
     }
-
 }
 
 /// Open the viewer in its own event loop (`render-lab view`).
@@ -427,7 +467,10 @@ pub fn run(options: ViewerOptions) -> Result<()> {
 /// Run the viewer on an event loop that may be reused afterwards (the
 /// homepage's); its window closes when it returns.
 /// Returns how the viewer was left, and the narration's volume and the layout it was left with.
-pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<(ViewerExit, Volume, crate::config::ViewerLayout)> {
+pub fn run_on(
+    event_loop: &mut EventLoop<()>,
+    options: ViewerOptions,
+) -> Result<(ViewerExit, Volume, crate::config::ViewerLayout)> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::new(options)?;
     event_loop.run_app_on_demand(&mut app)?;
@@ -435,7 +478,9 @@ pub fn run_on(event_loop: &mut EventLoop<()>, options: ViewerOptions) -> Result<
     if let Some(e) = app.error.take() {
         return Err(e);
     }
-    if let Some(test) = app.autotest.take() && !test.finish()? {
+    if let Some(test) = app.autotest.take()
+        && !test.finish()?
+    {
         anyhow::bail!("viewer autotest failed; see {}", test.report().display());
     }
     Ok((app.exit, app.narration, app.layout))

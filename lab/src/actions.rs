@@ -116,7 +116,9 @@ fn given(value: Option<&Value>) -> Result<&Value, String> {
 }
 
 fn number(value: &Value) -> Result<f64, String> {
-    value.as_f64().ok_or_else(|| format!("{value} is not a number"))
+    value
+        .as_f64()
+        .ok_or_else(|| format!("{value} is not a number"))
 }
 
 fn whole(value: &Value) -> Result<i64, String> {
@@ -128,7 +130,10 @@ fn whole(value: &Value) -> Result<i64, String> {
 }
 
 fn numbers<const N: usize>(value: &Value) -> Result<[f32; N], String> {
-    let list = value.as_array().filter(|a| a.len() == N).ok_or_else(|| format!("{value} is not {N} numbers"))?;
+    let list = value
+        .as_array()
+        .filter(|a| a.len() == N)
+        .ok_or_else(|| format!("{value} is not {N} numbers"))?;
     let mut out = [0.0; N];
     for (o, v) in out.iter_mut().zip(list) {
         *o = number(v)? as f32;
@@ -163,7 +168,9 @@ impl ActionArg for bool {
     const KIND: ArgKind = ArgKind::Toggle;
     fn read(value: Option<&Value>) -> Result<bool, String> {
         let value = given(value)?;
-        value.as_bool().ok_or_else(|| format!("{value} is not true or false"))
+        value
+            .as_bool()
+            .ok_or_else(|| format!("{value} is not true or false"))
     }
 }
 
@@ -171,7 +178,10 @@ impl ActionArg for String {
     const KIND: ArgKind = ArgKind::Name;
     fn read(value: Option<&Value>) -> Result<String, String> {
         let value = given(value)?;
-        value.as_str().map(str::to_string).ok_or_else(|| format!("{value} is not a name"))
+        value
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| format!("{value} is not a name"))
     }
 }
 
@@ -235,7 +245,12 @@ pub struct Actions {
 }
 
 /// An investigation without actions or click handlers.
-pub static NONE: Actions = Actions { specs: &[], run: |action, _| Err(format!("no action `{}`", action.key)), clicks: &[], click: |key, _| Err(format!("no click handler `{key}`")) };
+pub static NONE: Actions = Actions {
+    specs: &[],
+    run: |action, _| Err(format!("no action `{}`", action.key)),
+    clicks: &[],
+    click: |key, _| Err(format!("no click handler `{key}`")),
+};
 
 impl Actions {
     /// Why a story cannot name click handler `key`: one these do not declare.
@@ -244,7 +259,10 @@ impl Actions {
             return Ok(());
         }
         let known: Vec<&str> = self.clicks.iter().map(|c| c.key).collect();
-        Err(format!("no click handler `{key}` (the investigation's: {})", crate::story_refs::names_or_none(&known)))
+        Err(format!(
+            "no click handler `{key}` (the investigation's: {})",
+            crate::story_refs::names_or_none(&known)
+        ))
     }
 
     pub fn spec(&self, key: &str) -> Option<&'static ActionSpec> {
@@ -256,13 +274,31 @@ impl Actions {
     pub fn check(&self, call: &ActionCall) -> Result<(), String> {
         let spec = self.spec(&call.name).ok_or_else(|| {
             let known: Vec<&str> = self.specs.iter().map(|s| s.key).collect();
-            format!("no action `{}` (the investigation's actions: {})", call.name, crate::story_refs::names_or_none(&known))
+            format!(
+                "no action `{}` (the investigation's actions: {})",
+                call.name,
+                crate::story_refs::names_or_none(&known)
+            )
         })?;
-        if let Some(extra) = call.args.keys().find(|k| !spec.args.iter().any(|a| a.key == k.as_str())) {
-            return Err(format!("the action `{}` takes no argument `{extra}`", spec.key));
+        if let Some(extra) = call
+            .args
+            .keys()
+            .find(|k| !spec.args.iter().any(|a| a.key == k.as_str()))
+        {
+            return Err(format!(
+                "the action `{}` takes no argument `{extra}`",
+                spec.key
+            ));
         }
         for arg in spec.args {
-            (arg.check)(call.args.get(arg.key)).map_err(|e| format!("the action `{}`'s argument `{}` ({}): {e}", spec.key, arg.key, arg.kind.describe()))?;
+            (arg.check)(call.args.get(arg.key)).map_err(|e| {
+                format!(
+                    "the action `{}`'s argument `{}` ({}): {e}",
+                    spec.key,
+                    arg.key,
+                    arg.kind.describe()
+                )
+            })?;
         }
         Ok(())
     }
@@ -290,6 +326,7 @@ pub struct RunningAction {
 impl RunningAction {
     /// Its argument `key`, as `T` (what `#[lab::actions]`'s dispatch reads).
     pub fn arg<T: ActionArg>(&self, key: &str) -> Result<T, String> {
-        T::read(self.args.get(key)).map_err(|e| format!("the action `{}`'s argument `{key}`: {e}", self.key))
+        T::read(self.args.get(key))
+            .map_err(|e| format!("the action `{}`'s argument `{key}`: {e}", self.key))
     }
 }

@@ -35,15 +35,26 @@ pub struct Package {
 impl Package {
     /// A package from a file (`--package NAME=PATH`).
     pub fn read(name: &str, path: &Path) -> Result<Package, String> {
-        let source = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        Ok(Package { name: name.to_string(), file: path.display().to_string(), source })
+        let source =
+            std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(Package {
+            name: name.to_string(),
+            file: path.display().to_string(),
+            source,
+        })
     }
 
     /// render_lab's package, from its built resource.
     pub fn render_lab() -> Result<Package, String> {
-        let resource = crate::resources::find(RENDER_LAB).ok_or_else(|| format!("no resource {RENDER_LAB} (render-lab cook)"))?;
-        let source = std::str::from_utf8(resource.bytes()).map_err(|e| format!("{RENDER_LAB}: {e}"))?;
-        Ok(Package { name: "render_lab".into(), file: resource.path().display().to_string(), source: source.to_string() })
+        let resource = crate::resources::find(RENDER_LAB)
+            .ok_or_else(|| format!("no resource {RENDER_LAB} (render-lab cook)"))?;
+        let source =
+            std::str::from_utf8(resource.bytes()).map_err(|e| format!("{RENDER_LAB}: {e}"))?;
+        Ok(Package {
+            name: "render_lab".into(),
+            file: resource.path().display().to_string(),
+            source: source.to_string(),
+        })
     }
 }
 
@@ -63,14 +74,23 @@ pub fn resolver(packages: &[Package]) -> Result<MemoryResolver, String> {
     r.add("present", lamlet_present::PRESENT_SOURCE, Exports::All);
     r.add(natives::PACKAGE, &natives::declarations()?, Exports::All);
     for p in packages {
-        r.add_package(PackageSource { name: p.name.clone(), version: "0".into(), file_name: p.file.clone(), source: p.source.clone(), exports: Exports::All });
+        r.add_package(PackageSource {
+            name: p.name.clone(),
+            version: "0".into(),
+            file_name: p.file.clone(),
+            source: p.source.clone(),
+            exports: Exports::All,
+        });
     }
     Ok(r)
 }
 
 /// An engine with these packages and the lab's natives, which check against `investigation`, and that
 /// investigation's own natives (`Investigation::script_natives`), the package `<package>_natives`.
-pub fn engine(packages: &[Package], investigation: Option<&'static dyn Investigation>) -> Result<Engine, String> {
+pub fn engine(
+    packages: &[Package],
+    investigation: Option<&'static dyn Investigation>,
+) -> Result<Engine, String> {
     let mut engine = Engine::new();
     // A `Native` declaration with no registered implementation fails the check, not the first call.
     engine.options_mut().require_linked = true;
@@ -78,16 +98,27 @@ pub fn engine(packages: &[Package], investigation: Option<&'static dyn Investiga
     let mut all = packages.to_vec();
     if let Some(i) = investigation {
         let package = i.package().unwrap_or("render_lab");
-        i.script_natives(engine.natives_mut()).map_err(|e| format!("{}'s natives: {}", i.path(), e.render()))?;
-        let stubs = engine.natives_mut().declarations(package).map_err(|e| e.render())?;
-        all.push(Package { name: format!("{package}_natives"), file: format!("<{package} natives>"), source: stubs });
+        i.script_natives(engine.natives_mut())
+            .map_err(|e| format!("{}'s natives: {}", i.path(), e.render()))?;
+        let stubs = engine
+            .natives_mut()
+            .declarations(package)
+            .map_err(|e| e.render())?;
+        all.push(Package {
+            name: format!("{package}_natives"),
+            file: format!("<{package} natives>"),
+            source: stubs,
+        });
     }
     engine.set_resolver(resolver(&all)?);
     Ok(engine)
 }
 
 fn now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn source(file: &Path) -> Result<SourceFile, String> {
@@ -99,7 +130,12 @@ fn source(file: &Path) -> Result<SourceFile, String> {
 /// prose read as CommonMark, every region evaluated and lowered, cues and spans as their anchors and spans, each
 /// attribute list in its written order. With a host's `keys` (lamlet-present's key list), every cue attribute is
 /// checked against them and every heading's attributes are read by them (`apply_keys`).
-pub fn ir(file: &Path, packages: &[Package], investigation: Option<&'static dyn Investigation>, keys: Option<&str>) -> Result<String, String> {
+pub fn ir(
+    file: &Path,
+    packages: &[Package],
+    investigation: Option<&'static dyn Investigation>,
+    keys: Option<&str>,
+) -> Result<String, String> {
     let mut doc = lowered(file, packages, investigation)?;
     if let Some(keys) = keys {
         apply_keys(&mut doc, keys, packages)?;
@@ -112,12 +148,19 @@ pub fn ir(file: &Path, packages: &[Package], investigation: Option<&'static dyn 
 /// for a closed key, one of its options (an `{attr …}` written directly too); every heading attribute must be a key
 /// of its level, and is read by its kind, with the defaults of the keys it leaves out. Every problem is reported,
 /// at its line, an unknown key with the nearest known one.
-pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -> Result<(), String> {
+pub fn apply_keys(
+    doc: &mut lamlet_doc::Doc,
+    keys: &str,
+    packages: &[Package],
+) -> Result<(), String> {
     use lamlet::embed::Location;
     use lamlet_doc::ir::{Block, Inline};
     use lamlet_present::vocab::Schema;
     let keys = lamlet_present::vocab::keys_from_json(keys)?;
-    let sources: Vec<(String, String)> = packages.iter().map(|p| (p.name.clone(), p.source.clone())).collect();
+    let sources: Vec<(String, String)> = packages
+        .iter()
+        .map(|p| (p.name.clone(), p.source.clone()))
+        .collect();
     let schema = Schema::new(&keys, &sources)?;
 
     /// A problem: where (`file:line:col: `), what (`the cue `key``), lamlet-present's message, and the heading
@@ -129,10 +172,17 @@ pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -
         level: Option<u8>,
     }
     fn at(l: &Option<Location>) -> String {
-        l.as_ref().map(|l| format!("{}:{}:{}: ", l.file, l.line, l.column)).unwrap_or_default()
+        l.as_ref()
+            .map(|l| format!("{}:{}:{}: ", l.file, l.line, l.column))
+            .unwrap_or_default()
     }
     // A range has no location of its own: it is reported at the last location before it in its paragraph.
-    fn inlines(xs: &[Inline], schema: &Schema, last: &mut Option<Location>, out: &mut Vec<Problem>) {
+    fn inlines(
+        xs: &[Inline],
+        schema: &Schema,
+        last: &mut Option<Location>,
+        out: &mut Vec<Problem>,
+    ) {
         for x in xs {
             let (subject, attrs) = match x {
                 Inline::Anchor { name, attrs, at: l } => {
@@ -141,17 +191,36 @@ pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -
                     }
                     (format!("the cue `{name}`"), attrs)
                 }
-                Inline::Span { name, attrs, inlines: inner } => {
-                    let subject = if name.is_empty() { "a range".to_string() } else { format!("the range `{name}`") };
-                    out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem { place: at(last), subject: subject.clone(), message, level: None }));
+                Inline::Span {
+                    name,
+                    attrs,
+                    inlines: inner,
+                } => {
+                    let subject = if name.is_empty() {
+                        "a range".to_string()
+                    } else {
+                        format!("the range `{name}`")
+                    };
+                    out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
+                        place: at(last),
+                        subject: subject.clone(),
+                        message,
+                        level: None,
+                    }));
                     inlines(inner, schema, last, out);
                     continue;
                 }
-                Inline::Emph(inner) | Inline::Strong(inner) | Inline::Link { inlines: inner, .. } | Inline::Say { shown: inner, .. } => {
+                Inline::Emph(inner)
+                | Inline::Strong(inner)
+                | Inline::Link { inlines: inner, .. }
+                | Inline::Say { shown: inner, .. } => {
                     inlines(inner, schema, last, out);
                     continue;
                 }
-                Inline::Text { at: l, .. } | Inline::Code { at: l, .. } | Inline::Math { at: l, .. } | Inline::Value { at: l, .. } => {
+                Inline::Text { at: l, .. }
+                | Inline::Code { at: l, .. }
+                | Inline::Math { at: l, .. }
+                | Inline::Value { at: l, .. } => {
                     if l.is_some() {
                         *last = l.clone();
                     }
@@ -159,15 +228,31 @@ pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -
                 }
                 _ => continue,
             };
-            out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem { place: at(last), subject: subject.clone(), message, level: None }));
+            out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
+                place: at(last),
+                subject: subject.clone(),
+                message,
+                level: None,
+            }));
         }
     }
     fn blocks(bs: &mut [Block], file: &str, schema: &Schema, out: &mut Vec<Problem>) {
         for b in bs {
             match b {
-                Block::Heading { level, id, attrs, inlines: xs } => {
+                Block::Heading {
+                    level,
+                    id,
+                    attrs,
+                    inlines: xs,
+                } => {
                     // A heading's attributes have no location: it is reported at its text.
-                    let text = xs.iter().find_map(|x| if let Inline::Text { at: Some(l), .. } = x { Some(at(&Some(l.clone()))) } else { None });
+                    let text = xs.iter().find_map(|x| {
+                        if let Inline::Text { at: Some(l), .. } = x {
+                            Some(at(&Some(l.clone())))
+                        } else {
+                            None
+                        }
+                    });
                     let place = text.unwrap_or_else(|| format!("{file}: "));
                     match schema.heading(*level, attrs) {
                         Ok(read) => *attrs = read,
@@ -181,39 +266,69 @@ pub fn apply_keys(doc: &mut lamlet_doc::Doc, keys: &str, packages: &[Package]) -
                     inlines(xs, schema, &mut None, out);
                 }
                 Block::Plain(xs) | Block::Paragraph(xs) => inlines(xs, schema, &mut None, out),
-                Block::List { items, .. } => items.iter_mut().for_each(|i| blocks(i, file, schema, out)),
+                Block::List { items, .. } => {
+                    items.iter_mut().for_each(|i| blocks(i, file, schema, out))
+                }
                 Block::Div { blocks: inner, .. } => blocks(inner, file, schema, out),
                 _ => {}
             }
         }
     }
     let file = doc.blocks.iter().find_map(|b| match b {
-        Block::Paragraph(xs) | Block::Plain(xs) => xs.iter().find_map(|x| if let Inline::Text { at: Some(l), .. } = x { Some(l.file.clone()) } else { None }),
+        Block::Paragraph(xs) | Block::Plain(xs) => xs.iter().find_map(|x| {
+            if let Inline::Text { at: Some(l), .. } = x {
+                Some(l.file.clone())
+            } else {
+                None
+            }
+        }),
         _ => None,
     });
     let mut problems = Vec::new();
-    blocks(&mut doc.blocks, file.as_deref().unwrap_or("the document"), &schema, &mut problems);
+    blocks(
+        &mut doc.blocks,
+        file.as_deref().unwrap_or("the document"),
+        &schema,
+        &mut problems,
+    );
     if problems.is_empty() {
         return Ok(());
     }
     // lamlet-present's message for a key nothing matches: "`k` is not a cue attribute …" or "`k` is not an
     // attribute of a level-N heading"; the nearest key the cue or the heading may have follows it.
     let suggestion = |p: &Problem| -> String {
-        let unknown = p.message.strip_prefix('`').and_then(|r| r.split_once('`')).filter(|(_, rest)| {
-            rest.starts_with(" is not a cue attribute") || rest.starts_with(" is not an attribute of")
-        });
-        let Some((name, _)) = unknown else { return String::new() };
+        let unknown = p
+            .message
+            .strip_prefix('`')
+            .and_then(|r| r.split_once('`'))
+            .filter(|(_, rest)| {
+                rest.starts_with(" is not a cue attribute")
+                    || rest.starts_with(" is not an attribute of")
+            });
+        let Some((name, _)) = unknown else {
+            return String::new();
+        };
         let known = keys.iter().filter(|k| !k.prefix).filter(|k| match p.level {
             None => k.on.cue(),
             Some(l) => k.on.heading() && (k.levels.is_empty() || k.levels.contains(&l)),
         });
-        crate::story_refs::nearest(name, known.map(|k| k.key.clone())).map(|c| format!("; did you mean `{c}`?")).unwrap_or_default()
+        crate::story_refs::nearest(name, known.map(|k| k.key.clone()))
+            .map(|c| format!("; did you mean `{c}`?"))
+            .unwrap_or_default()
     };
-    Err(problems.iter().map(|p| format!("{}{}: {}{}", p.place, p.subject, p.message, suggestion(p))).collect::<Vec<_>>().join("\n"))
+    Err(problems
+        .iter()
+        .map(|p| format!("{}{}: {}{}", p.place, p.subject, p.message, suggestion(p)))
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
 
 /// A document checked, evaluated, and lowered to lamlet-doc's IR.
-fn lowered(file: &Path, packages: &[Package], investigation: Option<&'static dyn Investigation>) -> Result<lamlet_doc::Doc, String> {
+fn lowered(
+    file: &Path,
+    packages: &[Package],
+    investigation: Option<&'static dyn Investigation>,
+) -> Result<lamlet_doc::Doc, String> {
     let file = source(file)?;
     let engine = engine(packages, investigation)?;
     let result = (|| -> Result<lamlet_doc::Doc, lamlet_doc::Error> {
@@ -226,9 +341,15 @@ fn lowered(file: &Path, packages: &[Package], investigation: Option<&'static dyn
 }
 
 /// A presentation's deck as JSON (lamlet-present's `deck`): its sections and sentences, with no timing.
-pub fn deck(file: &Path, packages: &[Package], investigation: Option<&'static dyn Investigation>) -> Result<serde_json::Value, String> {
+pub fn deck(
+    file: &Path,
+    packages: &[Package],
+    investigation: Option<&'static dyn Investigation>,
+) -> Result<serde_json::Value, String> {
     let ir = lowered(file, packages, investigation)?;
-    lamlet_present::Deck::from_doc(&ir).and_then(|d| d.to_json()).map_err(|e| e.render())
+    lamlet_present::Deck::from_doc(&ir)
+        .and_then(|d| d.to_json())
+        .map_err(|e| e.render())
 }
 
 /// The cue vocabulary package `name` from a host's keys (lamlet-present's `vocab`; those marked `"typed": true`,
@@ -239,10 +360,20 @@ pub fn vocab(name: &str, keys: &str, packages: &[Package]) -> Result<String, Str
     let keys = lamlet_present::vocab::keys_from_json(keys)?;
     let package = lamlet_present::vocab::package(&format!("The `{name}` cue vocabulary"), &keys)?;
     let mut all = packages.to_vec();
-    all.push(Package { name: name.to_string(), file: format!("<{name} vocabulary>"), source: package.clone() });
-    let imports: String = packages.iter().map(|p| format!("$[Import* {}]", p.name)).collect();
-    let probe = format!("$[Import* std]$[Import* content]$[Import* present]{imports}$[Import* {name}]\n");
-    engine(&all, None)?.check(SourceFile::new("<vocabulary check>", probe)).map_err(|e| e.render())?;
+    all.push(Package {
+        name: name.to_string(),
+        file: format!("<{name} vocabulary>"),
+        source: package.clone(),
+    });
+    let imports: String = packages
+        .iter()
+        .map(|p| format!("$[Import* {}]", p.name))
+        .collect();
+    let probe =
+        format!("$[Import* std]$[Import* content]$[Import* present]{imports}$[Import* {name}]\n");
+    engine(&all, None)?
+        .check(SourceFile::new("<vocabulary check>", probe))
+        .map_err(|e| e.render())?;
     Ok(package)
 }
 
@@ -251,7 +382,11 @@ mod tests {
     use super::*;
 
     fn package(name: &str, source: &str) -> Package {
-        Package { name: name.into(), file: format!("{name}.lam"), source: source.into() }
+        Package {
+            name: name.into(),
+            file: format!("{name}.lam"),
+            source: source.into(),
+        }
     }
 
     fn write(dir: &Path, name: &str, text: &str) -> std::path::PathBuf {
@@ -261,7 +396,8 @@ mod tests {
     }
 
     fn scratch(test: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("render-lab-script-{test}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("render-lab-script-{test}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -269,10 +405,19 @@ mod tests {
     #[test]
     fn ir_evaluates_regions_with_a_package() {
         let dir = scratch("ir");
-        let file = write(&dir, "doc.lam", "$[Import* std]\n$[Import* p]\nThree is $three, $$5.\n");
+        let file = write(
+            &dir,
+            "doc.lam",
+            "$[Import* std]\n$[Import* p]\nThree is $three, $$5.\n",
+        );
         let out = ir(&file, &[package("p", "$[# three 3]")], None, None).unwrap();
         let doc: serde_json::Value = serde_json::from_str(&out).unwrap();
-        let text: String = doc["blocks"][0]["inlines"].as_array().unwrap().iter().filter_map(|i| i["text"].as_str()).collect();
+        let text: String = doc["blocks"][0]["inlines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|i| i["text"].as_str())
+            .collect();
         assert_eq!(text, "Three is 3, $5.");
     }
 
@@ -285,39 +430,61 @@ mod tests {
         let file = write(&dir, "bad.lam", "${{+ 1}\n");
         assert!(ir(&file, &[], None, None).is_err());
         // A native declared with no implementation fails the check, though nothing calls it.
-        let file = write(&dir, "unlinked.lam", "$[Import* std]$[Native ping [% {Fn {'} Int}] \"rl/ping\" Pure]\nText.\n");
+        let file = write(
+            &dir,
+            "unlinked.lam",
+            "$[Import* std]$[Native ping [% {Fn {'} Int}] \"rl/ping\" Pure]\nText.\n",
+        );
         assert!(ir(&file, &[], None, None).is_err());
     }
 
     #[test]
     fn deck_and_vocab() {
         let dir = scratch("deck");
-        let keys = r#"[{"name": "intensity", "kind": "float"}, {"name": "camera.yaw", "kind": "float"}]"#;
+        let keys =
+            r#"[{"name": "intensity", "kind": "float"}, {"name": "camera.yaw", "kind": "float"}]"#;
         let vocabulary = vocab("probe", keys, &[]).unwrap();
         assert!(vocabulary.contains("cameraYaw"));
-        let file = write(&dir, "deck.lam", "$[Import* std]$[Import* content]$[Import* present]$[Import* probe]\n# A deck {#top}\n\n${cue \"k\" {' {intensity 0.5}}}Hello there.\n");
+        let file = write(
+            &dir,
+            "deck.lam",
+            "$[Import* std]$[Import* content]$[Import* present]$[Import* probe]\n# A deck {#top}\n\n${cue \"k\" {' {intensity 0.5}}}Hello there.\n",
+        );
         let deck = deck(&file, &[package("probe", &vocabulary)], None).unwrap();
         assert_eq!(deck["sentences"][0]["spoken"], "Hello there.");
-        assert_eq!(deck["sentences"][0]["anchors"][0]["attrs"]["intensity"], 0.5);
+        assert_eq!(
+            deck["sentences"][0]["anchors"][0]["attrs"]["intensity"],
+            0.5
+        );
         // A key whose function std already has collides when the vocabulary is generated.
         assert!(vocab("probe", r#"[{"name": "map", "kind": "float"}]"#, &[]).is_err());
     }
 
     /// render_lab's package from its source (the built resource is not there in a unit test).
     fn render_lab_source() -> Package {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../packages/render_lab/language/render_lab.lam");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../packages/render_lab/language/render_lab.lam");
         Package::read("render_lab", &path).unwrap()
     }
 
     /// The attributes of a document's point cues, in order.
     fn cue_attrs(file: &Path, packages: &[Package]) -> Result<Vec<(String, String)>, String> {
-        let doc: serde_json::Value = serde_json::from_str(&ir(file, packages, None, None)?).unwrap();
+        let doc: serde_json::Value =
+            serde_json::from_str(&ir(file, packages, None, None)?).unwrap();
         let mut out = Vec::new();
         for block in doc["blocks"].as_array().unwrap() {
-            for inline in block["inlines"].as_array().into_iter().flatten().filter(|i| i["type"] == "anchor") {
+            for inline in block["inlines"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|i| i["type"] == "anchor")
+            {
                 for pair in inline["attrs"].as_array().unwrap() {
                     // A typed attribute (motions) is Data, the others a String.
-                    let value = pair[1].as_str().map(str::to_string).unwrap_or_else(|| pair[1].to_string());
+                    let value = pair[1]
+                        .as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| pair[1].to_string());
                     out.push((pair[0].as_str().unwrap().to_string(), value));
                 }
             }
@@ -330,9 +497,20 @@ mod tests {
         let dir = scratch("typed");
         let channels = r#"[{"name": "camera.yaw", "kind": "float"}, {"name": "camera.pitch", "kind": "float"}, {"name": "lightX", "kind": "float"},
             {"name": "lightY", "kind": "float"}, {"name": "lightZ", "kind": "float"}, {"name": "easing", "key": "ease", "kind": "text", "options": ["sine", "inOut"]}]"#;
-        let packages = [render_lab_source(), package("probe", &vocab("probe", channels, &[render_lab_source()]).unwrap())];
+        let packages = [
+            render_lab_source(),
+            package(
+                "probe",
+                &vocab("probe", channels, &[render_lab_source()]).unwrap(),
+            ),
+        ];
         let head = "$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* probe]\n# A deck\n\n";
-        let doc = |body: &str| cue_attrs(&write(&dir, "doc.lam", &format!("{head}{body}\n")), &packages);
+        let doc = |body: &str| {
+            cue_attrs(
+                &write(&dir, "doc.lam", &format!("{head}{body}\n")),
+                &packages,
+            )
+        };
         let motions = [
             "{path {' cameraYaw cameraPitch} {' {' 18.0 16.0} {' -8.0 22.5}} beat}",
             "{closed {looping {eased easingInOut {path {' cameraYaw} {' {' 1.0}} {seconds 4.0}}}}}",
@@ -341,50 +519,100 @@ mod tests {
             "{lasting sentence {sway cameraYaw 6.0 24.0}}",
             "{fading 0.5 {phased 90.0 {centered 2.0 {lasting {seconds 3.0} {sway lightX 0.5 2.0}}}}}",
         ];
-        let attrs = doc(&format!("${{cue \"key\" {{' {{motion {{' {}}}}}}}}}", motions.join(" "))).unwrap();
+        let attrs = doc(&format!(
+            "${{cue \"key\" {{' {{motion {{' {}}}}}}}}}",
+            motions.join(" ")
+        ))
+        .unwrap();
         assert_eq!(attrs[0].0, "animate");
         // `animate` is Data, each motion its kind and fields; the timeline's motion is what tools/video/markup.py's
         // `motion_of` makes of it (a `Length` variant is "beat", "sentence", or its seconds).
         fn plain(v: &serde_json::Value) -> serde_json::Value {
             match v {
-                serde_json::Value::Object(o) if o.len() == 2 && o.contains_key("tag") && o.contains_key("value") => {
-                    if o["value"].is_null() { o["tag"].clone() } else { plain(&o["value"]) }
+                serde_json::Value::Object(o)
+                    if o.len() == 2 && o.contains_key("tag") && o.contains_key("value") =>
+                {
+                    if o["value"].is_null() {
+                        o["tag"].clone()
+                    } else {
+                        plain(&o["value"])
+                    }
                 }
                 serde_json::Value::Array(xs) => xs.iter().map(plain).collect(),
                 other => other.clone(),
             }
         }
         let data: serde_json::Value = serde_json::from_str(&attrs[0].1).unwrap();
-        let value: serde_json::Value = data.as_array().unwrap().iter().map(|m| {
-            let fields: serde_json::Map<String, serde_json::Value> =
-                m["fields"].as_array().unwrap().iter().map(|f| (f["name"].as_str().unwrap().to_string(), plain(&f["value"]))).collect();
-            let mut motion = serde_json::Map::new();
-            motion.insert(m["kind"].as_str().unwrap().to_string(), serde_json::Value::Object(fields));
-            serde_json::Value::Object(motion)
-        }).collect();
+        let value: serde_json::Value = data
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| {
+                let fields: serde_json::Map<String, serde_json::Value> = m["fields"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|f| (f["name"].as_str().unwrap().to_string(), plain(&f["value"])))
+                    .collect();
+                let mut motion = serde_json::Map::new();
+                motion.insert(
+                    m["kind"].as_str().unwrap().to_string(),
+                    serde_json::Value::Object(fields),
+                );
+                serde_json::Value::Object(motion)
+            })
+            .collect();
         // A beat's or a sentence's length is `seconds` the video builder fills in; here, a number.
-        let json = value.to_string().replace("\"beat\"", "1.5").replace("\"sentence\"", "2.5");
-        let parsed: Vec<crate::animation::Motion> = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{e}: {json}"));
+        let json = value
+            .to_string()
+            .replace("\"beat\"", "1.5")
+            .replace("\"sentence\"", "2.5");
+        let parsed: Vec<crate::animation::Motion> =
+            serde_json::from_str(&json).unwrap_or_else(|e| panic!("{e}: {json}"));
         assert_eq!(parsed.len(), motions.len());
-        assert_eq!(value[0]["path"]["through"], serde_json::json!([[18.0, 16.0], [-8.0, 22.5]]));
+        assert_eq!(
+            value[0]["path"]["through"],
+            serde_json::json!([[18.0, 16.0], [-8.0, 22.5]])
+        );
         assert_eq!(value[0]["path"]["seconds"], "beat");
         assert_eq!(value[2]["orbit"]["repeat"], "pingPong");
         assert_eq!(value[4]["wave"]["param"], "camera.yaw");
         // Points, marks, names, and records, as Data, which tools/video/markup.py reads.
         let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {imageHide {' \"a,b\"}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
         let expected = [
-            ("labelAt", serde_json::json!({"tag": "at", "value": {"x": 1.8, "y": 2.4, "z": -2.95}})),
-            ("arrowTo", serde_json::json!({"tag": "at", "value": {"x": 0.0, "y": 1.0, "z": 2.0}})),
-            ("imageMark", serde_json::json!({"tag": "region", "value": {"u0": 0.28, "v0": 0.42, "u1": 0.62, "v1": 1.0}})),
-            ("imageMark", serde_json::json!({"tag": "none", "value": null})),
+            (
+                "labelAt",
+                serde_json::json!({"tag": "at", "value": {"x": 1.8, "y": 2.4, "z": -2.95}}),
+            ),
+            (
+                "arrowTo",
+                serde_json::json!({"tag": "at", "value": {"x": 0.0, "y": 1.0, "z": 2.0}}),
+            ),
+            (
+                "imageMark",
+                serde_json::json!({"tag": "region", "value": {"u0": 0.28, "v0": 0.42, "u1": 0.62, "v1": 1.0}}),
+            ),
+            (
+                "imageMark",
+                serde_json::json!({"tag": "none", "value": null}),
+            ),
             ("imageHide", serde_json::json!(["a,b"])),
-            ("record", serde_json::json!({"tag": "camera", "value": null})),
+            (
+                "record",
+                serde_json::json!({"tag": "camera", "value": null}),
+            ),
             ("record", serde_json::json!({"tag": "object", "value": 3})),
         ];
         let n = expected.len();
         assert_eq!(attrs.len(), n + 1);
         for ((k, v), (name, data)) in attrs.iter().zip(expected) {
-            assert_eq!((k.as_str(), serde_json::from_str::<serde_json::Value>(v).unwrap()), (name, data));
+            assert_eq!(
+                (
+                    k.as_str(),
+                    serde_json::from_str::<serde_json::Value>(v).unwrap()
+                ),
+                (name, data)
+            );
         }
         assert_eq!(attrs[n], ("callout".to_string(), String::new()));
         // A wrong shape is an error at the storyboard, before any speech: a channel per waypoint value, a
@@ -396,12 +624,22 @@ mod tests {
             "{motion {' {eased {cameraYaw 1.0} {path {' cameraYaw} {' {' 18.0}} beat}}}}",
             "{labelAt {at 1 2 3}}",
         ] {
-            assert!(doc(&format!("${{cue \"key\" {{' {bad}}}}}")).is_err(), "{bad}");
+            assert!(
+                doc(&format!("${{cue \"key\" {{' {bad}}}}}")).is_err(),
+                "{bad}"
+            );
         }
         // A name the lab checks (a callout, a text key, a published point, a formula) needs the investigation.
-        for checked in ["{callout \"frame-order\"}", "{imageTitle \"views.depth\"}", "{arrowTo {point \"probe.top\"}}"] {
+        for checked in [
+            "{callout \"frame-order\"}",
+            "{imageTitle \"views.depth\"}",
+            "{arrowTo {point \"probe.top\"}}",
+        ] {
             let e = doc(&format!("${{cue \"key\" {{' {checked}}}}}")).unwrap_err();
-            assert!(e.contains("--investigation") && e.contains("doc.lam:4:"), "{e}");
+            assert!(
+                e.contains("--investigation") && e.contains("doc.lam:4:"),
+                "{e}"
+            );
         }
     }
 }

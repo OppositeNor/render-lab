@@ -28,10 +28,12 @@ pub fn edt(f: &mut [f32], start: usize, stride: usize, n: usize) {
     z[0] = -BIG_VAL;
     z[1] = BIG_VAL;
     for q in 1..n {
-        let mut s = ((at(f, q) + sq(q as f32)) - (at(f, v[k]) + sq(v[k] as f32))) / (2.0 * q as f32 - 2.0 * v[k] as f32);
+        let mut s = ((at(f, q) + sq(q as f32)) - (at(f, v[k]) + sq(v[k] as f32)))
+            / (2.0 * q as f32 - 2.0 * v[k] as f32);
         while s <= z[k] {
             k -= 1;
-            s = ((at(f, q) + sq(q as f32)) - (at(f, v[k]) + sq(v[k] as f32))) / (2.0 * q as f32 - 2.0 * v[k] as f32);
+            s = ((at(f, q) + sq(q as f32)) - (at(f, v[k]) + sq(v[k] as f32)))
+                / (2.0 * q as f32 - 2.0 * v[k] as f32);
         }
         k += 1;
         v[k] = q;
@@ -57,7 +59,11 @@ pub fn squared_distances(v: &Voxelizer, passes: usize) -> Vec<f32> {
     let y_mult = sx;
     let z_mult = sx * sy;
     let mut work = vec![BIG_VAL; sx * sy * sz];
-    for c in v.cells.iter().filter(|c: &&Cell| c.level as i32 == v.cell_subdiv) {
+    for c in v
+        .cells
+        .iter()
+        .filter(|c: &&Cell| c.level as i32 == v.cell_subdiv)
+    {
         work[c.x as usize + c.y as usize * y_mult + c.z as usize * z_mult] = 0.0;
     }
     if passes >= 1 {
@@ -87,7 +93,11 @@ pub fn squared_distances(v: &Voxelizer, passes: usize) -> Vec<f32> {
 /// The byte `get_sdf_3d_image` stores for a squared distance.
 pub fn encode(squared: f32) -> u8 {
     let d = squared.sqrt() as u32;
-    if d == 0 { 0 } else { (d.min(254) + 1) as u8 }
+    if d == 0 {
+        0
+    } else {
+        (d.min(254) + 1) as u8
+    }
 }
 
 /// `get_sdf_3d_image`.

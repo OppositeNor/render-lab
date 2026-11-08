@@ -61,35 +61,80 @@ impl Renderer {
     /// each node's last GPU time, and the inspected resource.
     pub(super) fn graph_view(&mut self) -> ui::GraphView {
         let graph = self.frame_graph();
-        let last: Vec<(String, f64)> = self.timing.as_ref().map(|t| t.last().to_vec()).unwrap_or_default();
+        let last: Vec<(String, f64)> = self
+            .timing
+            .as_ref()
+            .map(|t| t.last().to_vec())
+            .unwrap_or_default();
         let nodes = graph
             .order
             .iter()
             .map(|&i| {
                 let n = &graph.nodes[i];
                 // Two nodes of one entry share its row in the timing: each shows half.
-                let sharing = graph.nodes.iter().filter(|m| m.timing == n.timing).count().max(1) as f64;
-                let ms = last.iter().find(|(name, _)| name == n.timing).map(|(_, ms)| ms / sharing);
+                let sharing = graph
+                    .nodes
+                    .iter()
+                    .filter(|m| m.timing == n.timing)
+                    .count()
+                    .max(1) as f64;
+                let ms = last
+                    .iter()
+                    .find(|(name, _)| name == n.timing)
+                    .map(|(_, ms)| ms / sharing);
                 let index = crate::sources::index();
                 let engine = index.pass(n.name).map(|p| {
-                    let at = p.sources.first().and_then(|k| index.entries.get(k)).map_or(String::new(), |e| format!("{}:{}", e.path.rsplit('/').next().unwrap_or(&e.path), e.line));
+                    let at = p.sources.first().and_then(|k| index.entries.get(k)).map_or(
+                        String::new(),
+                        |e| {
+                            format!(
+                                "{}:{}",
+                                e.path.rsplit('/').next().unwrap_or(&e.path),
+                                e.line
+                            )
+                        },
+                    );
                     (p.engine.clone(), at)
                 });
                 let result = graph.result_of(i).map(str::to_string);
-                let thumbnail = self.inspections.get(&format!("{DAG_IMAGE}{}", n.name)).map(|x| (x.id, x.size));
-                ui::GraphNodeView { name: n.name.to_string(), engine, ms, live: graph.live[i], cached: n.cached, result, thumbnail, about: crate::graph::about(n.name), reads: n.reads.iter().map(|r| r.to_string()).collect(), writes: n.writes.iter().map(|w| w.to_string()).collect() }
+                let thumbnail = self
+                    .inspections
+                    .get(&format!("{DAG_IMAGE}{}", n.name))
+                    .map(|x| (x.id, x.size));
+                ui::GraphNodeView {
+                    name: n.name.to_string(),
+                    engine,
+                    ms,
+                    live: graph.live[i],
+                    cached: n.cached,
+                    result,
+                    thumbnail,
+                    about: crate::graph::about(n.name),
+                    reads: n.reads.iter().map(|r| r.to_string()).collect(),
+                    writes: n.writes.iter().map(|w| w.to_string()).collect(),
+                }
             })
             .collect();
         // The DAG's arrows, between rows: what flows from one node to the next
         // (its resources), or an order without data (a later write).
-        let row_of = |i: usize| graph.order.iter().position(|&o| o == i).expect("every node is in the order");
+        let row_of = |i: usize| {
+            graph
+                .order
+                .iter()
+                .position(|&o| o == i)
+                .expect("every node is in the order")
+        };
         let mut edges: Vec<ui::GraphEdgeView> = Vec::new();
         for &(a, b, kind) in &graph.edges {
             let (from, to) = (row_of(a), row_of(b));
             let at = match edges.iter().position(|e| e.from == from && e.to == to) {
                 Some(k) => k,
                 None => {
-                    edges.push(ui::GraphEdgeView { from, to, data: Vec::new() });
+                    edges.push(ui::GraphEdgeView {
+                        from,
+                        to,
+                        data: Vec::new(),
+                    });
                     edges.len() - 1
                 }
             };
@@ -98,7 +143,19 @@ impl Renderer {
             }
         }
         let users = |r: &crate::graph::Resource, writes: bool| -> Vec<String> {
-            graph.order.iter().map(|&i| &graph.nodes[i]).filter(|n| if writes { n.writes.contains(&r.name) } else { n.reads.contains(&r.name) }).map(|n| n.name.to_string()).collect()
+            graph
+                .order
+                .iter()
+                .map(|&i| &graph.nodes[i])
+                .filter(|n| {
+                    if writes {
+                        n.writes.contains(&r.name)
+                    } else {
+                        n.reads.contains(&r.name)
+                    }
+                })
+                .map(|n| n.name.to_string())
+                .collect()
         };
         let resources = graph
             .resources
@@ -109,8 +166,14 @@ impl Renderer {
                 shape: r.shape.describe(),
                 writers: users(r, true),
                 readers: users(r, false),
-                key: graph.last_user(r.name).filter(|_| r.name != "frame").map(|n| format!("{}.{}", graph.nodes[n].name, r.name)),
-                thumbnail: self.inspections.get(&format!("{RESOURCE_IMAGE}{}", r.name)).map(|x| (x.id, x.size)),
+                key: graph
+                    .last_user(r.name)
+                    .filter(|_| r.name != "frame")
+                    .map(|n| format!("{}.{}", graph.nodes[n].name, r.name)),
+                thumbnail: self
+                    .inspections
+                    .get(&format!("{RESOURCE_IMAGE}{}", r.name))
+                    .map(|x| (x.id, x.size)),
             })
             .collect();
         let mut uses = Vec::new();
@@ -123,41 +186,71 @@ impl Renderer {
                 }
             }
         }
-        let inspected = self.inspections.get(crate::feature::graph::INSPECTOR).map(|x| x.key.clone());
-        ui::GraphView { nodes, resources, uses, edges, inspected, timestamps: self.timing.is_some() }
+        let inspected = self
+            .inspections
+            .get(crate::feature::graph::INSPECTOR)
+            .map(|x| x.key.clone());
+        ui::GraphView {
+            nodes,
+            resources,
+            uses,
+            edges,
+            inspected,
+            timestamps: self.timing.is_some(),
+        }
     }
 
     /// What the performance panel shows (`PanelMode::Performance`): the GPU,
     /// each pass's times, and the recent frames' GPU and frame times.
     pub(super) fn performance_view(&self) -> ui::PerformanceView {
         let starts: Vec<&std::time::Instant> = self.frame_starts.iter().collect();
-        let frames = starts.windows(2).map(|w| (*w[1] - *w[0]).as_secs_f64() * 1000.0).collect();
+        let frames = starts
+            .windows(2)
+            .map(|w| (*w[1] - *w[0]).as_secs_f64() * 1000.0)
+            .collect();
         let (passes, totals) = match &self.timing {
             Some(t) => {
                 let last = t.last();
                 // The passes the last measured frame ran: a pass that runs only
                 // on a change (an update, the depth views) shows while it runs.
-                let passes = t.summary_last(30).into_iter().filter_map(|(name, mean, p95)| {
-                    let now = last.iter().find(|(n, _)| *n == name)?.1;
-                    Some((name, mean, p95, now))
-                }).collect();
+                let passes = t
+                    .summary_last(30)
+                    .into_iter()
+                    .filter_map(|(name, mean, p95)| {
+                        let now = last.iter().find(|(n, _)| *n == name)?.1;
+                        Some((name, mean, p95, now))
+                    })
+                    .collect();
                 (passes, t.totals())
             }
             None => (Vec::new(), Vec::new()),
         };
-        ui::PerformanceView { gpu: self.gpu.info.name.clone(), timestamps: self.timing.is_some(), passes, totals, frames }
+        ui::PerformanceView {
+            gpu: self.gpu.info.name.clone(),
+            timestamps: self.timing.is_some(),
+            passes,
+            totals,
+            frames,
+        }
     }
 
     /// Makes (or keeps) the texture of each graph image the state shows,
     /// and writes its parameters (src/graph.rs `Show`, `INSPECT_PARAMS`).
     pub(super) fn prepare_inspections(&mut self, state: &ShotState, boxes: &[(String, String)]) {
-        use crate::graph::{inspect_entry, FrameGraph, Shape, Show};
-        use crate::utility::inset::{view_texture, ImageSource};
-        let shown: Vec<(String, String, Option<String>, crate::utility::inset::ImageParams)> = state
+        use crate::graph::{FrameGraph, Shape, Show, inspect_entry};
+        use crate::utility::inset::{ImageSource, view_texture};
+        let shown: Vec<(
+            String,
+            String,
+            Option<String>,
+            crate::utility::inset::ImageParams,
+        )> = state
             .images
             .iter()
             .filter_map(|i| match &i.source {
-                ImageSource::Graph { key, show, params } => Some((i.name.clone(), key.clone(), show.clone(), params.clone())),
+                ImageSource::Graph { key, show, params } => {
+                    Some((i.name.clone(), key.clone(), show.clone(), params.clone()))
+                }
                 _ => None,
             })
             .collect();
@@ -166,7 +259,12 @@ impl Renderer {
             let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
             for (i, n) in graph.nodes.iter().enumerate() {
                 if let Some(r) = graph.result_of(i) {
-                    shown.push((format!("{DAG_IMAGE}{}", n.name), format!("{}.{r}", n.name), None, Default::default()));
+                    shown.push((
+                        format!("{DAG_IMAGE}{}", n.name),
+                        format!("{}.{r}", n.name),
+                        None,
+                        Default::default(),
+                    ));
                 }
             }
         }
@@ -177,7 +275,9 @@ impl Renderer {
                 let key = match graph.node(member) {
                     _ if member.contains('.') => Some(member.clone()),
                     Some(n) => graph.result_of(n).map(|r| format!("{member}.{r}")),
-                    None => graph.last_user(member).map(|n| format!("{}.{member}", graph.nodes[n].name)),
+                    None => graph
+                        .last_user(member)
+                        .map(|n| format!("{}.{member}", graph.nodes[n].name)),
                 };
                 if let Some(key) = key {
                     shown.push((format!("{BOX_IMAGE}{group}"), key, None, Default::default()));
@@ -188,11 +288,21 @@ impl Renderer {
             let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
             for r in graph.resources.iter().filter(|r| r.name != "frame") {
                 if let Some(node) = graph.last_user(r.name) {
-                    shown.push((format!("{RESOURCE_IMAGE}{}", r.name), format!("{}.{}", graph.nodes[node].name, r.name), None, Default::default()));
+                    shown.push((
+                        format!("{RESOURCE_IMAGE}{}", r.name),
+                        format!("{}.{}", graph.nodes[node].name, r.name),
+                        None,
+                        Default::default(),
+                    ));
                 }
             }
         }
-        let gone: Vec<String> = self.inspections.iter().filter(|(name, x)| !shown.iter().any(|(n, k, _, _)| n == *name && *k == x.key)).map(|(n, _)| n.clone()).collect();
+        let gone: Vec<String> = self
+            .inspections
+            .iter()
+            .filter(|(name, x)| !shown.iter().any(|(n, k, _, _)| n == *name && *k == x.key))
+            .map(|(n, _)| n.clone())
+            .collect();
         for name in gone {
             let x = self.inspections.remove(&name).expect("an inspection");
             self.egui_renderer.free_texture(&x.id);
@@ -203,77 +313,236 @@ impl Renderer {
         }
         let device = &self.gpu.device;
         if self.inspect_pipelines.is_empty() {
-            let source = crate::shaders::module(crate::shaders::INSPECT).unwrap_or_else(|e| panic!("{e:#}"));
-            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("inspect"), source: wgpu::ShaderSource::Wgsl(source.into()) });
-            let tex = |sample_type, view_dimension| wgpu::BindingType::Texture { sample_type, view_dimension, multisampled: false };
-            let (float, uint, sint) = (wgpu::TextureSampleType::Float { filterable: false }, wgpu::TextureSampleType::Uint, wgpu::TextureSampleType::Sint);
+            let source =
+                crate::shaders::module(crate::shaders::INSPECT).unwrap_or_else(|e| panic!("{e:#}"));
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("inspect"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+            let tex = |sample_type, view_dimension| wgpu::BindingType::Texture {
+                sample_type,
+                view_dimension,
+                multisampled: false,
+            };
+            let (float, uint, sint) = (
+                wgpu::TextureSampleType::Float { filterable: false },
+                wgpu::TextureSampleType::Uint,
+                wgpu::TextureSampleType::Sint,
+            );
             let programs: [(&str, u32, wgpu::BindingType); 5] = [
-                ("inspectVolumeUintCS", 8, tex(uint, wgpu::TextureViewDimension::D3)),
-                ("inspectVolumeSintCS", 9, tex(sint, wgpu::TextureViewDimension::D3)),
-                ("inspectArrayCS", 10, tex(float, wgpu::TextureViewDimension::D2Array)),
-                ("inspectArrayUintCS", 11, tex(uint, wgpu::TextureViewDimension::D2Array)),
-                ("inspectArraySintCS", 12, tex(sint, wgpu::TextureViewDimension::D2Array)),
+                (
+                    "inspectVolumeUintCS",
+                    8,
+                    tex(uint, wgpu::TextureViewDimension::D3),
+                ),
+                (
+                    "inspectVolumeSintCS",
+                    9,
+                    tex(sint, wgpu::TextureViewDimension::D3),
+                ),
+                (
+                    "inspectArrayCS",
+                    10,
+                    tex(float, wgpu::TextureViewDimension::D2Array),
+                ),
+                (
+                    "inspectArrayUintCS",
+                    11,
+                    tex(uint, wgpu::TextureViewDimension::D2Array),
+                ),
+                (
+                    "inspectArraySintCS",
+                    12,
+                    tex(sint, wgpu::TextureViewDimension::D2Array),
+                ),
             ];
             let sources: [(&str, wgpu::BindingType); 6] = [
-                ("inspectTextureCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }),
-                ("inspectTextureMsCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }),
-                ("inspectDepthMsCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: true }),
-                ("inspectDepthArrayCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2Array, multisampled: false }),
-                ("inspectBufferCS", wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None }),
-                ("inspectVolumeCS", wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: false }, view_dimension: wgpu::TextureViewDimension::D3, multisampled: false }),
+                (
+                    "inspectTextureCS",
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                ),
+                (
+                    "inspectTextureMsCS",
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: true,
+                    },
+                ),
+                (
+                    "inspectDepthMsCS",
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: true,
+                    },
+                ),
+                (
+                    "inspectDepthArrayCS",
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                ),
+                (
+                    "inspectBufferCS",
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                ),
+                (
+                    "inspectVolumeCS",
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                        multisampled: false,
+                    },
+                ),
             ];
             let sources = sources.into_iter().map(|(entry, ty)| {
-                let (_, binding) = [Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 1 }, Shape::Texture { format: wgpu::TextureFormat::Rgba8Unorm, divisor: 1, samples: 4 }, Shape::Texture { format: wgpu::TextureFormat::Depth32Float, divisor: 1, samples: 4 }, Shape::DepthArray { size: 1, layers: 1 }, Shape::UpdateBuffer, Shape::Volume { format: wgpu::TextureFormat::Rgba8Unorm, size: [1; 3], mips: 1 }]
-                    .iter()
-                    .map(inspect_entry)
-                    .find(|(e, _)| *e == entry)
-                    .expect("an entry per kind");
+                let (_, binding) = [
+                    Shape::Texture {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        divisor: 1,
+                        samples: 1,
+                    },
+                    Shape::Texture {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        divisor: 1,
+                        samples: 4,
+                    },
+                    Shape::Texture {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        divisor: 1,
+                        samples: 4,
+                    },
+                    Shape::DepthArray { size: 1, layers: 1 },
+                    Shape::UpdateBuffer,
+                    Shape::Volume {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        size: [1; 3],
+                        mips: 1,
+                    },
+                ]
+                .iter()
+                .map(inspect_entry)
+                .find(|(e, _)| *e == entry)
+                .expect("an entry per kind");
                 (entry, binding, ty)
             });
             for (entry, binding, ty) in sources.chain(programs) {
                 let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some(entry),
                     entries: &[
-                        wgpu::BindGroupLayoutEntry { binding: 0, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }, count: None },
-                        wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::COMPUTE, ty: wgpu::BindingType::StorageTexture { access: wgpu::StorageTextureAccess::WriteOnly, format: wgpu::TextureFormat::Rgba8Unorm, view_dimension: wgpu::TextureViewDimension::D2 }, count: None },
-                        wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::COMPUTE, ty, count: None },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::StorageTexture {
+                                access: wgpu::StorageTextureAccess::WriteOnly,
+                                format: wgpu::TextureFormat::Rgba8Unorm,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty,
+                            count: None,
+                        },
                     ],
                 });
-                let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some(entry), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
-                let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(entry), layout: Some(&pipeline_layout), module: &module, entry_point: Some(entry), compilation_options: Default::default(), cache: None });
+                let pipeline_layout =
+                    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some(entry),
+                        bind_group_layouts: &[Some(&layout)],
+                        immediate_size: 0,
+                    });
+                let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: Some(entry),
+                    layout: Some(&pipeline_layout),
+                    module: &module,
+                    entry_point: Some(entry),
+                    compilation_options: Default::default(),
+                    cache: None,
+                });
                 self.inspect_pipelines.insert(entry, (pipeline, layout));
             }
         }
         let source = investigation::current().scene_shading();
         let graph = FrameGraph::new(source, &[]);
-        let viewport = self.viewport.as_ref().map_or([self.width, self.height], |v| v.size);
-        let scale = source.and_then(|s| self.shadings.iter().find(|x| std::ptr::eq(x.source, s))).map_or(1, |s| s.scale.max(1));
+        let viewport = self
+            .viewport
+            .as_ref()
+            .map_or([self.width, self.height], |v| v.size);
+        let scale = source
+            .and_then(|s| self.shadings.iter().find(|x| std::ptr::eq(x.source, s)))
+            .map_or(1, |s| s.scale.max(1));
         for (name, key, show, params) in shown {
-            let Ok((node, r)) = graph.inspected(&key) else { continue };
+            let Ok((node, r)) = graph.inspected(&key) else {
+                continue;
+            };
             let resource = graph.resources[r].clone();
             // The investigation's view of it (its parameters under the image's), unless the image names another visualizer.
             let (declared, mut defaults) = graph.view_of(r);
-            let show = show.as_deref().map_or(declared, |s| Show::from_key(s).unwrap_or_else(|e| panic!("{e}")));
+            let show = show.as_deref().map_or(declared, |s| {
+                Show::from_key(s).unwrap_or_else(|e| panic!("{e}"))
+            });
             if show != declared {
                 defaults.clear();
             }
             defaults.extend(params);
             let params = defaults;
             let param = |k: &str, i: usize| params.get(k).and_then(|v| v.get(i)).copied();
-            let default = |k: &str| crate::graph::INSPECT_PARAMS.iter().find(|p| p.0 == k).map_or(0.0, |p| p.2);
+            let default = |k: &str| {
+                crate::graph::INSPECT_PARAMS
+                    .iter()
+                    .find(|p| p.0 == k)
+                    .map_or(0.0, |p| p.2)
+            };
             let level = param("level", 0).unwrap_or(0.0).max(0.0) as u32;
-            let axis = param("axis", 0).unwrap_or(default("axis")).round().clamp(0.0, 2.0) as u32;
+            let axis = param("axis", 0)
+                .unwrap_or(default("axis"))
+                .round()
+                .clamp(0.0, 2.0) as u32;
             let update_words = |name: &str| {
-                source.and_then(|s| s.update).and_then(|u| u.buffers.iter().find(|b| b.name == name)).map_or(1, |b| (b.words)().max(1))
+                source
+                    .and_then(|s| s.update)
+                    .and_then(|u| u.buffers.iter().find(|b| b.name == name))
+                    .map_or(1, |b| (b.words)().max(1))
             };
             // The source's size in texels (a buffer: the viewport's pixels, or its elements row by row).
             let src: [u32; 2] = match &resource.shape {
                 Shape::Texture { divisor, .. } => {
-                    let d = if *divisor == 0 { scale } else { *divisor };
+                    let d = if *divisor == 0 {
+                        scale
+                    } else {
+                        *divisor
+                    };
                     [(viewport[0] / d).max(1), (viewport[1] / d).max(1)]
                 }
                 Shape::Buffer { .. } => viewport,
-                Shape::UpdateBuffer => [256, (update_words(resource.name) as u32).div_ceil(256).max(1)],
+                Shape::UpdateBuffer => [
+                    256,
+                    (update_words(resource.name) as u32).div_ceil(256).max(1),
+                ],
                 Shape::DepthArray { size, .. } => [*size, *size],
                 Shape::Volume { size, mips, .. } => {
                     let m = level.min(mips.saturating_sub(1));
@@ -285,19 +554,33 @@ impl Renderer {
                     }
                 }
                 Shape::Bytes { bytes } => [256, (bytes.div_ceil(4) as u32).div_ceil(256).max(1)],
-                Shape::Image { kind: crate::investigation::ImageKind::D3, size: s, .. } => match axis {
+                Shape::Image {
+                    kind: crate::investigation::ImageKind::D3,
+                    size: s,
+                    ..
+                } => match axis {
                     0 => [s[2], s[1]],
                     2 => [s[0], s[1]],
                     _ => [s[0], s[2]],
                 },
                 // A level of an image (the view's size divided, when it follows the view).
-                Shape::Image { size, viewport: d, .. } => {
-                    let s = if *d == 0 { [size[0], size[1]] } else { [(viewport[0] / d).max(1), (viewport[1] / d).max(1)] };
+                Shape::Image {
+                    size, viewport: d, ..
+                } => {
+                    let s = if *d == 0 {
+                        [size[0], size[1]]
+                    } else {
+                        [(viewport[0] / d).max(1), (viewport[1] / d).max(1)]
+                    };
                     [(s[0] >> level).max(1), (s[1] >> level).max(1)]
                 }
             };
             let long = src[0].max(src[1]).max(1);
-            let side = if card_image(&name) { DAG_SIDE } else { INSPECT_SIDE.min(long.max(256)) };
+            let side = if card_image(&name) {
+                DAG_SIDE
+            } else {
+                INSPECT_SIDE.min(long.max(256))
+            };
             let size = [(src[0] * side / long).max(1), (src[1] * side / long).max(1)];
             if self.inspections.get(&name).is_some_and(|x| x.size != size) {
                 let x = self.inspections.remove(&name).expect("an inspection");
@@ -307,28 +590,72 @@ impl Renderer {
             if !self.inspections.contains_key(&name) {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: Some(&name),
-                    size: wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
+                    size: wgpu::Extent3d {
+                        width: size[0],
+                        height: size[1],
+                        depth_or_array_layers: 1,
+                    },
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                    usage: wgpu::TextureUsages::STORAGE_BINDING
+                        | wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC,
                     view_formats: &[],
                 });
                 let storage = texture.create_view(&Default::default());
-                let id = self.egui_renderer.register_native_texture(device, &texture.create_view(&Default::default()), wgpu::FilterMode::Linear);
-                let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some(&name), size: 80, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                let id = self.egui_renderer.register_native_texture(
+                    device,
+                    &texture.create_view(&Default::default()),
+                    wgpu::FilterMode::Linear,
+                );
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(&name),
+                    size: 80,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
                 let (entry, binding) = inspect_entry(&resource.shape);
                 self.textures.insert(view_texture(&name), (id, size));
                 let index = param("index", 0).unwrap_or(0.0) as u32;
-                self.inspections.insert(name.clone(), Inspection { key: key.clone(), node, resource: resource.name, entry, binding, _texture: texture, storage, size, params: buffer, id, index, level });
+                self.inspections.insert(
+                    name.clone(),
+                    Inspection {
+                        key: key.clone(),
+                        node,
+                        resource: resource.name,
+                        entry,
+                        binding,
+                        _texture: texture,
+                        storage,
+                        size,
+                        params: buffer,
+                        id,
+                        index,
+                        level,
+                    },
+                );
             }
-            let range = [param("range", 0).unwrap_or(show.range()[0]), param("range", 1).unwrap_or(show.range()[1])];
+            let range = [
+                param("range", 0).unwrap_or(show.range()[0]),
+                param("range", 1).unwrap_or(show.range()[1]),
+            ];
             let (tile, words, tiles_x, samples) = match &resource.shape {
-                Shape::Buffer { words_per_tile, tile } => (*tile, *words_per_tile, viewport[0].div_ceil((*tile).max(1)), 1),
+                Shape::Buffer {
+                    words_per_tile,
+                    tile,
+                } => (
+                    *tile,
+                    *words_per_tile,
+                    viewport[0].div_ceil((*tile).max(1)),
+                    1,
+                ),
                 Shape::UpdateBuffer | Shape::Bytes { .. } => (0, 1, 0, 1),
                 // An integer image: its value is the word (a hash of it, a count).
-                Shape::Image { format, .. } if crate::graph::image_class(*format) != 0 => (1, 1, 0, 1),
+                Shape::Image { format, .. } if crate::graph::image_class(*format) != 0 => {
+                    (1, 1, 0, 1)
+                }
                 Shape::Texture { samples, .. } => (1, 0, 0, *samples),
                 _ => (1, 0, 0, 1),
             };
@@ -356,17 +683,30 @@ impl Renderer {
                 u(param("bits", 0).unwrap_or(0.0)) | (u(param("bits", 1).unwrap_or(0.0)) << 8),
             ];
             let x = &self.inspections[&name];
-            self.gpu.queue.write_buffer(&x.params, 0, bytemuck::cast_slice(&words_out));
+            self.gpu
+                .queue
+                .write_buffer(&x.params, 0, bytemuck::cast_slice(&words_out));
         }
     }
 
     /// Draws each graph image that names node `node` from its resource (in
     /// `frame`'s targets) as it
     /// stands now (right after the node): packages/render_lab/shaders/inspect.wgsl.
-    pub(super) fn capture(&self, encoder: &mut wgpu::CommandEncoder, node: usize, frame: &FrameTargets) {
-        let FrameTargets { chain, shading, targets } = *frame;
+    pub(super) fn capture(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        node: usize,
+        frame: &FrameTargets,
+    ) {
+        let FrameTargets {
+            chain,
+            shading,
+            targets,
+        } = *frame;
         for x in self.inspections.values().filter(|x| x.node == node) {
-            let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else { continue };
+            let Some((pipeline, layout)) = self.inspect_pipelines.get(x.entry) else {
+                continue;
+            };
             let volume_view;
             let program_handle;
             let resource: wgpu::BindingResource = match x.resource {
@@ -378,10 +718,15 @@ impl Renderer {
                         if let Some((_, b)) = c.buffers.iter().find(|(n, _)| *n == name) {
                             return Some(b.as_entire_binding());
                         }
-                        if let (Some(d), Some((all, _))) = (c.source.depth_views, &c.depth_views) && d.name == name {
+                        if let (Some(d), Some((all, _))) = (c.source.depth_views, &c.depth_views)
+                            && d.name == name
+                        {
                             return Some(wgpu::BindingResource::TextureView(all));
                         }
-                        c.views.iter().find(|(n, _)| *n == name).map(|(_, v)| wgpu::BindingResource::TextureView(v))
+                        c.views
+                            .iter()
+                            .find(|(n, _)| *n == name)
+                            .map(|(_, v)| wgpu::BindingResource::TextureView(v))
                     });
                     match chained {
                         Some(r) => r,
@@ -391,18 +736,29 @@ impl Renderer {
                                 program_handle = h;
                                 match &program_handle {
                                     crate::program::ProgramHandle::Buffer(b) => {
-                                        let Some(b) = b.get(x.index as usize).or(b.first()) else { continue };
+                                        let Some(b) = b.get(x.index as usize).or(b.first()) else {
+                                            continue;
+                                        };
                                         b.as_entire_binding()
                                     }
                                     image => {
-                                        let Some(view) = image.view(x.index, x.level) else { continue };
+                                        let Some(view) = image.view(x.index, x.level) else {
+                                            continue;
+                                        };
                                         volume_view = view;
                                         wgpu::BindingResource::TextureView(&volume_view)
                                     }
                                 }
-                            } else if let Some(k) = s.source.update.and_then(|u| u.buffers.iter().position(|b| b.name == name)) {
+                            } else if let Some(k) = s
+                                .source
+                                .update
+                                .and_then(|u| u.buffers.iter().position(|b| b.name == name))
+                            {
                                 s.update_buffers[k].as_entire_binding()
-                            } else if let (Some(v), Some(set)) = (s.source.volumes.iter().position(|v| v.name == name), s.volume_sets.get(s.volume_set)) {
+                            } else if let (Some(v), Some(set)) = (
+                                s.source.volumes.iter().position(|v| v.name == name),
+                                s.volume_sets.get(s.volume_set),
+                            ) {
                                 volume_view = set.textures[v].create_view(&Default::default());
                                 wgpu::BindingResource::TextureView(&volume_view)
                             } else {
@@ -412,16 +768,31 @@ impl Renderer {
                     }
                 }
             };
-            let group = self.gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let group = self
+                .gpu
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("inspect"),
+                    layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: x.params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&x.storage),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: x.binding,
+                            resource,
+                        },
+                    ],
+                });
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("inspect"),
-                layout,
-                entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: x.params.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&x.storage) },
-                    wgpu::BindGroupEntry { binding: x.binding, resource },
-                ],
+                timestamp_writes: None,
             });
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("inspect"), timestamp_writes: None });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &group, &[]);
             pass.dispatch_workgroups(x.size[0].div_ceil(8), x.size[1].div_ceil(8), 1);
@@ -430,31 +801,60 @@ impl Renderer {
 
     /// The graph images shown: their names and `<node>.<resource>` keys.
     pub fn inspected(&self) -> Vec<(String, String)> {
-        self.inspections.iter().filter(|(n, _)| !card_image(n)).map(|(n, x)| (n.clone(), x.key.clone())).collect()
+        self.inspections
+            .iter()
+            .filter(|(n, _)| !card_image(n))
+            .map(|(n, x)| (n.clone(), x.key.clone()))
+            .collect()
     }
 
     /// A graph image's texture read back (RGBA8, its size).
     pub fn read_inspection(&self, name: &str) -> Option<(Vec<u8>, [u32; 2])> {
         let x = self.inspections.get(name)?;
-        Some((crate::readback::read_texture_rgba(&self.gpu.device, &self.gpu.queue, &x._texture, x.size), x.size))
+        Some((
+            crate::readback::read_texture_rgba(
+                &self.gpu.device,
+                &self.gpu.queue,
+                &x._texture,
+                x.size,
+            ),
+            x.size,
+        ))
     }
 
     /// The current frame's graph (src/graph.rs), kept alive for what the
     /// image kinds read: compiled again when the shading or those change.
     pub(super) fn frame_graph(&mut self) -> std::sync::Arc<crate::graph::FrameGraph> {
         let source = investigation::current().scene_shading();
-        let mut sinks: Vec<String> = self.views.values().flat_map(|v| v.kind.reads.iter().cloned()).collect();
-        sinks.extend(self.inspections.iter().filter(|(n, _)| !card_image(n)).map(|(_, x)| x.resource.to_string()));
+        let mut sinks: Vec<String> = self
+            .views
+            .values()
+            .flat_map(|v| v.kind.reads.iter().cloned())
+            .collect();
+        sinks.extend(
+            self.inspections
+                .iter()
+                .filter(|(n, _)| !card_image(n))
+                .map(|(_, x)| x.resource.to_string()),
+        );
         sinks.sort();
         sinks.dedup();
-        let key = (source.map_or(0, |s| s as *const SceneShading as usize), sinks);
-        if let Some((k, graph)) = &self.graph && *k == key {
+        let key = (
+            source.map_or(0, |s| s as *const SceneShading as usize),
+            sinks,
+        );
+        if let Some((k, graph)) = &self.graph
+            && *k == key
+        {
             return graph.clone();
         }
         let names: Vec<&str> = key.1.iter().map(String::as_str).collect();
         let graph = std::sync::Arc::new(crate::graph::FrameGraph::new(source, &names));
         if !graph.errors.is_empty() {
-            panic!("the frame's graph does not compile (render-lab graph):\n  {}", graph.errors.join("\n  "));
+            panic!(
+                "the frame's graph does not compile (render-lab graph):\n  {}",
+                graph.errors.join("\n  ")
+            );
         }
         self.graph = Some((key, graph.clone()));
         graph

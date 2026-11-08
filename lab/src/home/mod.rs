@@ -31,27 +31,30 @@
 //! offscreen `--snapshot` and `--autotest` modes share, so the page can be
 //! checked without opening a window.
 
-use crate::investigations;
+use crate::audio::AudioPlayer;
 use crate::config::{Category, Config};
 use crate::egui_pass::{PagePainter, PageTarget};
 use crate::frost::Frost;
-use crate::gpu::{self, Gpu, FRAME_FORMAT};
-use crate::i18n::{self, args, tr, tr_with, Locale};
+use crate::gpu::{self, FRAME_FORMAT, Gpu};
+use crate::i18n::{self, Locale, args, tr, tr_with};
 use crate::investigation::{self, Investigation, TimelineInfo};
+use crate::investigations;
 use crate::loading::{self, Loading, Progress};
 use crate::palette;
 use crate::popup::{self, Popup, Popups};
-use crate::resources;
-use crate::theme;
 use crate::readback::{copy_to_readback, read_rgba, readback_buffer};
 use crate::renderer::Renderer;
+use crate::resources;
 use crate::text::{self as ui, canvas_for};
-use crate::audio::AudioPlayer;
+use crate::theme;
 use crate::viewer::{self, ViewerExit, ViewerOptions};
 use crate::volume::{self, Volume};
 use crate::window::fullscreen_mode;
 use anyhow::{Context, Result};
-use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2};
+use egui::{
+    Align2, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, RichText, Sense, Stroke,
+    StrokeKind, Vec2, pos2, vec2,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -63,19 +66,23 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
-mod widgets;
+mod app;
 mod pages;
 mod painter;
 mod snapshot;
-mod app;
-use widgets::*;
+mod widgets;
+pub use app::*;
 use painter::*;
 pub use snapshot::*;
-pub use app::*;
+use widgets::*;
 
 /// The bottom-left line of the title page.
 fn credits() -> String {
-    format!("© 2026 OppositeNor · {} · v{}", tr("home-mit_license"), env!("CARGO_PKG_VERSION"))
+    format!(
+        "© 2026 OppositeNor · {} · v{}",
+        tr("home-mit_license"),
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 pub struct HomeOptions {
@@ -145,11 +152,20 @@ impl Page {
 #[derive(Clone, Copy)]
 pub enum Choice {
     /// Play a narrated timeline, from `start_frame`.
-    Watch { investigation: &'static dyn Investigation, timeline: &'static TimelineInfo, start_frame: u64 },
+    Watch {
+        investigation: &'static dyn Investigation,
+        timeline: &'static TimelineInfo,
+        start_frame: u64,
+    },
     /// The free demonstrations.
-    Explore { investigation: &'static dyn Investigation },
+    Explore {
+        investigation: &'static dyn Investigation,
+    },
     /// The demonstrations on a feature's tab (src/feature/), as its homepage button opens them.
-    Feature { investigation: &'static dyn Investigation, feature: &'static dyn crate::feature::Feature },
+    Feature {
+        investigation: &'static dyn Investigation,
+        feature: &'static dyn crate::feature::Feature,
+    },
     Quit,
 }
 
@@ -157,9 +173,20 @@ impl Choice {
     /// For reports: `watch engine/feature timeline @ 1234`, `explore engine/feature`, `quit`.
     pub fn describe(&self) -> String {
         match self {
-            Choice::Watch { investigation, timeline, start_frame } => format!("watch {} {} @ {start_frame}", investigation.path(), timeline.id),
+            Choice::Watch {
+                investigation,
+                timeline,
+                start_frame,
+            } => format!(
+                "watch {} {} @ {start_frame}",
+                investigation.path(),
+                timeline.id
+            ),
             Choice::Explore { investigation } => format!("explore {}", investigation.path()),
-            Choice::Feature { investigation, feature } => format!("{} {}", feature.id(), investigation.path()),
+            Choice::Feature {
+                investigation,
+                feature,
+            } => format!("{} {}", feature.id(), investigation.path()),
             Choice::Quit => "quit".into(),
         }
     }
@@ -178,11 +205,23 @@ struct TimelineSummary {
 impl TimelineSummary {
     fn load(manifest_dir: &Path, info: &TimelineInfo) -> Result<TimelineSummary> {
         let path = manifest_dir.join(&info.path);
-        let text = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-        let json: serde_json::Value = serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+        let json: serde_json::Value =
+            serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
         let chapters = json["chapters"]
             .as_array()
-            .map(|cs| cs.iter().map(|c| (c["number"].as_u64().unwrap_or(0) as u32, c["title"].as_str().unwrap_or("").to_string(), c["startFrame"].as_u64().unwrap_or(0))).collect())
+            .map(|cs| {
+                cs.iter()
+                    .map(|c| {
+                        (
+                            c["number"].as_u64().unwrap_or(0) as u32,
+                            c["title"].as_str().unwrap_or("").to_string(),
+                            c["startFrame"].as_u64().unwrap_or(0),
+                        )
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
         Ok(TimelineSummary {
             title: json["title"].as_str().unwrap_or(&info.title).to_string(),
@@ -231,7 +270,16 @@ enum Feature {
 
 /// A series' parts that are installed, in order.
 fn parts_of(series: &crate::packages::Series) -> Vec<&'static dyn Investigation> {
-    series.parts.iter().filter_map(|p| investigations::all().iter().copied().find(|i| i.package() == Some(p.as_str()))).collect()
+    series
+        .parts
+        .iter()
+        .filter_map(|p| {
+            investigations::all()
+                .iter()
+                .copied()
+                .find(|i| i.package() == Some(p.as_str()))
+        })
+        .collect()
 }
 
 /// The homepage's state: the page, the selection, and what the chosen
@@ -278,7 +326,17 @@ impl Home {
             Err(e) => (Config::default(), Some(format!("{e:#}"))),
         };
         let (themes, theme_errors) = theme::list();
-        let settings = Settings { path: config_path, saved: saved.clone(), pending: saved.clone(), trial: None, message, flash: None, category: Category::Interface, themes, theme_errors };
+        let settings = Settings {
+            path: config_path,
+            saved: saved.clone(),
+            pending: saved.clone(),
+            trial: None,
+            message,
+            flash: None,
+            category: Category::Interface,
+            themes,
+            theme_errors,
+        };
         i18n::set(saved.language);
         crate::pseudocode::set_style(saved.listing_style);
         let message = theme::apply(&saved.theme).err().map(|e| format!("{e:#}"));
@@ -317,10 +375,17 @@ impl Home {
     fn features(&self) -> Vec<Feature> {
         let engine = investigations::engines()[self.engine].id;
         let mut features: Vec<Feature> = Vec::new();
-        for i in investigations::all().iter().copied().filter(|i| i.engine().id == engine) {
+        for i in investigations::all()
+            .iter()
+            .copied()
+            .filter(|i| i.engine().id == engine)
+        {
             match i.package().and_then(crate::resources::part_of) {
                 Some((series, _)) => {
-                    if !features.iter().any(|f| matches!(f, Feature::Series(s) if std::ptr::eq(*s, series))) {
+                    if !features
+                        .iter()
+                        .any(|f| matches!(f, Feature::Series(s) if std::ptr::eq(*s, series)))
+                    {
                         features.push(Feature::Series(series));
                     }
                 }
@@ -342,9 +407,18 @@ impl Home {
     }
 
     fn timeline_rows(&mut self, chosen: &'static dyn Investigation) -> Vec<TimelineRow> {
-        let index = investigations::all().iter().position(|i| i.path() == chosen.path()).unwrap_or(0);
+        let index = investigations::all()
+            .iter()
+            .position(|i| i.path() == chosen.path())
+            .unwrap_or(0);
         let dir = self.manifest_dir.clone();
-        let loaded = self.timelines[index].get_or_insert_with(|| chosen.timelines().iter().map(|info| TimelineSummary::load(&dir, info).map_err(|e| format!("{e:#}"))).collect());
+        let loaded = self.timelines[index].get_or_insert_with(|| {
+            chosen
+                .timelines()
+                .iter()
+                .map(|info| TimelineSummary::load(&dir, info).map_err(|e| format!("{e:#}")))
+                .collect()
+        });
         chosen
             .timelines()
             .iter()
@@ -354,7 +428,17 @@ impl Home {
                 locale: s.as_ref().ok().map(|s| s.locale),
                 summary: s
                     .as_ref()
-                    .map(|s| (s.title.clone(), s.clock(s.total_frames), s.chapters.iter().map(|(n, title, f)| (*n, format!("{}  {title}", s.clock(*f)), *f)).collect(), s.narrated))
+                    .map(|s| {
+                        (
+                            s.title.clone(),
+                            s.clock(s.total_frames),
+                            s.chapters
+                                .iter()
+                                .map(|(n, title, f)| (*n, format!("{}  {title}", s.clock(*f)), *f))
+                                .collect(),
+                            s.narrated,
+                        )
+                    })
                     .map_err(|e| e.clone()),
             })
             .collect()
@@ -399,7 +483,9 @@ impl Home {
         self.pse |= config.language != self.applied.language;
         i18n::set(config.language);
         crate::pseudocode::set_style(config.listing_style);
-        if config.theme != self.applied.theme && let Err(e) = theme::apply(&config.theme) {
+        if config.theme != self.applied.theme
+            && let Err(e) = theme::apply(&config.theme)
+        {
             self.settings.message = Some(format!("{e:#}"));
         }
         self.applied = config;
@@ -436,7 +522,10 @@ impl Home {
             self.save(kept);
         }
         if pending.differs_in(&self.applied, Category::Render) {
-            self.settings.trial = Some(Trial { started: time, before: self.applied.clone() });
+            self.settings.trial = Some(Trial {
+                started: time,
+                before: self.applied.clone(),
+            });
             self.apply(pending);
         }
         if theme_error.is_some() {
@@ -484,7 +573,9 @@ impl Home {
         self.applied.narration = narration;
         self.settings.saved.narration = narration;
         self.settings.pending.narration = narration;
-        if let Some(path) = &self.settings.path && let Err(e) = self.settings.saved.save(path) {
+        if let Some(path) = &self.settings.path
+            && let Err(e) = self.settings.saved.save(path)
+        {
             self.settings.message = Some(format!("{} {e:#}", tr("home-applied_but_not_saved")));
         }
     }
@@ -494,9 +585,13 @@ impl Home {
         self.globe
             .get_or_insert_with(|| {
                 let path = resources::get(GLOBE).path();
-                let image = std::fs::File::open(&path).map_err(anyhow::Error::from).and_then(|f| crate::record::decode_png(std::io::BufReader::new(f)));
+                let image = std::fs::File::open(&path)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|f| crate::record::decode_png(std::io::BufReader::new(f)));
                 match image {
-                    Ok(image) => Some(ctx.load_texture("home-globe", image, egui::TextureOptions::LINEAR)),
+                    Ok(image) => {
+                        Some(ctx.load_texture("home-globe", image, egui::TextureOptions::LINEAR))
+                    }
                     Err(e) => {
                         eprintln!("the globe icon did not load from {}: {e:#}", path.display());
                         None
@@ -506,5 +601,4 @@ impl Home {
             .as_ref()
             .map(|t| t.id())
     }
-
 }

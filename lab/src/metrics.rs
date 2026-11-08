@@ -30,24 +30,58 @@ pub struct Image {
 
 impl Image {
     pub fn new(width: usize, height: usize, pixels: Vec<[f32; 3]>) -> Image {
-        assert_eq!(pixels.len(), width * height, "an image of {width} × {height} has that many pixels");
-        Image { width, height, pixels }
+        assert_eq!(
+            pixels.len(),
+            width * height,
+            "an image of {width} × {height} has that many pixels"
+        );
+        Image {
+            width,
+            height,
+            pixels,
+        }
     }
 
     /// From RGBA8 bytes (sRGB-encoded): values 0..1, still encoded.
     pub fn from_rgba8(width: usize, height: usize, rgba: &[u8]) -> Image {
-        Image::new(width, height, rgba.as_chunks::<4>().0.iter().map(|p| [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0]).collect())
+        Image::new(
+            width,
+            height,
+            rgba.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| {
+                    [
+                        p[0] as f32 / 255.0,
+                        p[1] as f32 / 255.0,
+                        p[2] as f32 / 255.0,
+                    ]
+                })
+                .collect(),
+        )
     }
 
     /// From RGBA half floats (a linear HDR target's texels).
     pub fn from_rgba16f(width: usize, height: usize, words: &[u16]) -> Image {
         use crate::fetch::f16_to_f32;
-        Image::new(width, height, words.as_chunks::<4>().0.iter().map(|p| [f16_to_f32(p[0]), f16_to_f32(p[1]), f16_to_f32(p[2])]).collect())
+        Image::new(
+            width,
+            height,
+            words
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| [f16_to_f32(p[0]), f16_to_f32(p[1]), f16_to_f32(p[2])])
+                .collect(),
+        )
     }
 
     /// RGBA8 bytes of the image, clamped to 0..1.
     pub fn to_rgba8(&self) -> Vec<u8> {
-        self.pixels.iter().flat_map(|p| [byte(p[0]), byte(p[1]), byte(p[2]), 255]).collect()
+        self.pixels
+            .iter()
+            .flat_map(|p| [byte(p[0]), byte(p[1]), byte(p[2]), 255])
+            .collect()
     }
 }
 
@@ -78,35 +112,73 @@ pub fn measure(reference: &Image, test: &Image, linear: Option<(&Image, &Image)>
         Some((r, t)) => (relmse(r, t), mean_luminance(r), mean_luminance(t)),
         None => (f64::NAN, f64::NAN, f64::NAN),
     };
-    Measurement { mse, rmse: mse.sqrt(), psnr: psnr(mse), ssim: ssim(reference, test), flip: flip(reference, test, DEFAULT_PPD).0, relmse, luminance_reference, luminance }
+    Measurement {
+        mse,
+        rmse: mse.sqrt(),
+        psnr: psnr(mse),
+        ssim: ssim(reference, test),
+        flip: flip(reference, test, DEFAULT_PPD).0,
+        relmse,
+        luminance_reference,
+        luminance,
+    }
 }
 
 fn same_size(a: &Image, b: &Image) {
-    assert!(a.width == b.width && a.height == b.height, "images of one size ({}×{} and {}×{})", a.width, a.height, b.width, b.height);
+    assert!(
+        a.width == b.width && a.height == b.height,
+        "images of one size ({}×{} and {}×{})",
+        a.width,
+        a.height,
+        b.width,
+        b.height
+    );
 }
 
 /// Mean squared error over every channel.
 pub fn mse(a: &Image, b: &Image) -> f64 {
     same_size(a, b);
-    let sum: f64 = a.pixels.iter().zip(&b.pixels).map(|(p, q)| (0..3).map(|c| ((p[c] - q[c]) as f64).powi(2)).sum::<f64>()).sum();
+    let sum: f64 = a
+        .pixels
+        .iter()
+        .zip(&b.pixels)
+        .map(|(p, q)| (0..3).map(|c| ((p[c] - q[c]) as f64).powi(2)).sum::<f64>())
+        .sum();
     sum / (a.pixels.len() * 3).max(1) as f64
 }
 
 /// Peak signal-to-noise ratio in dB for a peak of 1.
 pub fn psnr(mse: f64) -> f64 {
-    if mse <= 0.0 { f64::INFINITY } else { 10.0 * (1.0 / mse).log10() }
+    if mse <= 0.0 {
+        f64::INFINITY
+    } else {
+        10.0 * (1.0 / mse).log10()
+    }
 }
 
 /// Relative MSE of `test` against `reference` (linear images).
 pub fn relmse(reference: &Image, test: &Image) -> f64 {
     same_size(reference, test);
-    let sum: f64 = reference.pixels.iter().zip(&test.pixels).map(|(r, t)| (0..3).map(|c| ((t[c] - r[c]) as f64).powi(2) / ((r[c] as f64).powi(2) + 0.01)).sum::<f64>()).sum();
+    let sum: f64 = reference
+        .pixels
+        .iter()
+        .zip(&test.pixels)
+        .map(|(r, t)| {
+            (0..3)
+                .map(|c| ((t[c] - r[c]) as f64).powi(2) / ((r[c] as f64).powi(2) + 0.01))
+                .sum::<f64>()
+        })
+        .sum();
     sum / (reference.pixels.len() * 3).max(1) as f64
 }
 
 /// Mean Rec. 709 luminance.
 pub fn mean_luminance(image: &Image) -> f64 {
-    let sum: f64 = image.pixels.iter().map(|p| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64).sum();
+    let sum: f64 = image
+        .pixels
+        .iter()
+        .map(|p| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64)
+        .sum();
     sum / image.pixels.len().max(1) as f64
 }
 
@@ -120,11 +192,24 @@ struct Plane {
 
 impl Plane {
     fn map(&self, f: impl Fn(f64) -> f64) -> Plane {
-        Plane { width: self.width, height: self.height, v: self.v.iter().map(|&x| f(x)).collect() }
+        Plane {
+            width: self.width,
+            height: self.height,
+            v: self.v.iter().map(|&x| f(x)).collect(),
+        }
     }
 
     fn zip(&self, other: &Plane, f: impl Fn(f64, f64) -> f64) -> Plane {
-        Plane { width: self.width, height: self.height, v: self.v.iter().zip(&other.v).map(|(&a, &b)| f(a, b)).collect() }
+        Plane {
+            width: self.width,
+            height: self.height,
+            v: self
+                .v
+                .iter()
+                .zip(&other.v)
+                .map(|(&a, &b)| f(a, b))
+                .collect(),
+        }
     }
 
     /// Convolved with `kx` along rows, then `ky` along columns (odd lengths,
@@ -154,13 +239,25 @@ impl Plane {
                 out[y * w + x] = s;
             }
         }
-        Plane { width: w, height: h, v: out }
+        Plane {
+            width: w,
+            height: h,
+            v: out,
+        }
     }
 }
 
 /// Luma of a display image (Rec. 709 weights on the encoded values).
 fn luma(image: &Image) -> Plane {
-    Plane { width: image.width, height: image.height, v: image.pixels.iter().map(|p| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64).collect() }
+    Plane {
+        width: image.width,
+        height: image.height,
+        v: image
+            .pixels
+            .iter()
+            .map(|p| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64)
+            .collect(),
+    }
 }
 
 /// Mean SSIM of two display images.
@@ -168,7 +265,9 @@ pub fn ssim(a: &Image, b: &Image) -> f64 {
     same_size(a, b);
     let (x, y) = (luma(a), luma(b));
     let window: Vec<f64> = {
-        let g: Vec<f64> = (-5..=5).map(|i: i32| (-(i * i) as f64 / (2.0 * 1.5 * 1.5)).exp()).collect();
+        let g: Vec<f64> = (-5..=5)
+            .map(|i: i32| (-(i * i) as f64 / (2.0 * 1.5 * 1.5)).exp())
+            .collect();
         let sum: f64 = g.iter().sum();
         g.iter().map(|v| v / sum).collect()
     };
@@ -182,7 +281,11 @@ pub fn ssim(a: &Image, b: &Image) -> f64 {
     let mut sum = 0.0;
     let mut n = 0usize;
     // The pixels whose whole window is inside the image (all of them for a tiny image).
-    let (lo_x, hi_x, lo_y, hi_y) = if w > 10 && h > 10 { (5, w - 5, 5, h - 5) } else { (0, w, 0, h) };
+    let (lo_x, hi_x, lo_y, hi_y) = if w > 10 && h > 10 {
+        (5, w - 5, 5, h - 5)
+    } else {
+        (0, w, 0, h)
+    };
     for py in lo_y..hi_y {
         for px in lo_x..hi_x {
             let i = py * w + px;
@@ -190,7 +293,8 @@ pub fn ssim(a: &Image, b: &Image) -> f64 {
             let vx = sxx.v[i] - ux * ux;
             let vy = syy.v[i] - uy * uy;
             let cxy = sxy.v[i] - ux * uy;
-            sum += ((2.0 * ux * uy + c1) * (2.0 * cxy + c2)) / ((ux * ux + uy * uy + c1) * (vx + vy + c2));
+            sum += ((2.0 * ux * uy + c1) * (2.0 * cxy + c2))
+                / ((ux * ux + uy * uy + c1) * (vx + vy + c2));
             n += 1;
         }
     }
@@ -202,7 +306,11 @@ pub fn ssim(a: &Image, b: &Image) -> f64 {
 pub const DEFAULT_PPD: f64 = 0.7 * (3840.0 / 0.7) * std::f64::consts::PI / 180.0;
 
 fn srgb_to_linear(c: f64) -> f64 {
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 /// Linear sRGB to XYZ (D65).
@@ -245,10 +353,20 @@ fn xyz_of_ycxcz(c: [f64; 3]) -> [f64; 3] {
 /// Hunt-adjusted CIELAB of XYZ: a* and b* scaled by 0.01 L*.
 fn hunt_lab(x: [f64; 3]) -> [f64; 3] {
     let w = white();
-    let f = |t: f64| if t > (6.0f64 / 29.0).powi(3) { t.cbrt() } else { t / (3.0 * (6.0f64 / 29.0).powi(2)) + 4.0 / 29.0 };
+    let f = |t: f64| {
+        if t > (6.0f64 / 29.0).powi(3) {
+            t.cbrt()
+        } else {
+            t / (3.0 * (6.0f64 / 29.0).powi(2)) + 4.0 / 29.0
+        }
+    };
     let (fx, fy, fz) = (f(x[0] / w[0]), f(x[1] / w[1]), f(x[2] / w[2]));
     let l = 116.0 * fy - 16.0;
-    [l, 0.01 * l * 500.0 * (fx - fy), 0.01 * l * 200.0 * (fy - fz)]
+    [
+        l,
+        0.01 * l * 500.0 * (fx - fy),
+        0.01 * l * 200.0 * (fy - fz),
+    ]
 }
 
 fn hyab(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -259,10 +377,12 @@ fn hyab(a: [f64; 3], b: [f64; 3]) -> f64 {
 /// exp(−π²x²/b) with x in degrees, at `radius` pixels each side.
 fn csf_term(b: f64, ppd: f64, radius: isize) -> Vec<f64> {
     use std::f64::consts::PI;
-    (-radius..=radius).map(|i| {
-        let x = i as f64 / ppd;
-        (-PI * PI * x * x / b).exp()
-    }).collect()
+    (-radius..=radius)
+        .map(|i| {
+            let x = i as f64 / ppd;
+            (-PI * PI * x * x / b).exp()
+        })
+        .collect()
 }
 
 /// The ꟻLIP error of `test` against `reference` (display images): its mean,
@@ -272,15 +392,34 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
     let (w, h) = (reference.width, reference.height);
     let (qc, qf, pc, pt) = (0.7, 0.5, 0.4, 0.95);
     let planes = |image: &Image| -> [Plane; 3] {
-        let c: Vec<[f64; 3]> = image.pixels.iter().map(|p| ycxcz(xyz([srgb_to_linear(p[0] as f64), srgb_to_linear(p[1] as f64), srgb_to_linear(p[2] as f64)]))).collect();
-        [0, 1, 2].map(|k| Plane { width: w, height: h, v: c.iter().map(|p| p[k]).collect() })
+        let c: Vec<[f64; 3]> = image
+            .pixels
+            .iter()
+            .map(|p| {
+                ycxcz(xyz([
+                    srgb_to_linear(p[0] as f64),
+                    srgb_to_linear(p[1] as f64),
+                    srgb_to_linear(p[2] as f64),
+                ]))
+            })
+            .collect();
+        [0, 1, 2].map(|k| Plane {
+            width: w,
+            height: h,
+            v: c.iter().map(|p| p[k]).collect(),
+        })
     };
     let (r, t) = (planes(reference), planes(test));
 
     // Colour: each opponent channel filtered by its contrast sensitivity
     // function (a sum of two Gaussians), normalized to sum 1 in 2D.
-    let params = [(1.0, 0.0047, 0.0, 1e-5), (1.0, 0.0053, 0.0, 1e-5), (34.1, 0.04, 13.5, 0.025)];
-    let radius = (3.0 * (0.04f64 / (2.0 * std::f64::consts::PI.powi(2))).sqrt() * ppd).ceil() as isize;
+    let params = [
+        (1.0, 0.0047, 0.0, 1e-5),
+        (1.0, 0.0053, 0.0, 1e-5),
+        (34.1, 0.04, 13.5, 0.025),
+    ];
+    let radius =
+        (3.0 * (0.04f64 / (2.0 * std::f64::consts::PI.powi(2))).sqrt() * ppd).ceil() as isize;
     // The 2D kernel a1·√(π/b1)·exp(−π²r²/b1) + a2·√(π/b2)·exp(−π²r²/b2) is
     // a sum of separable Gaussians, divided by its sum over the window.
     let filter = |p: &Plane, (a1, b1, a2, b2): (f64, f64, f64, f64)| -> Plane {
@@ -297,44 +436,82 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
     };
     let filtered = |c: &[Plane; 3]| -> Vec<[f64; 3]> {
         let f: Vec<Plane> = (0..3).map(|k| filter(&c[k], params[k])).collect();
-        (0..w * h).map(|i| {
-            let rgb = rgb_of_xyz(xyz_of_ycxcz([f[0].v[i], f[1].v[i], f[2].v[i]]));
-            hunt_lab(xyz(rgb.map(|v| v.clamp(0.0, 1.0))))
-        }).collect()
+        (0..w * h)
+            .map(|i| {
+                let rgb = rgb_of_xyz(xyz_of_ycxcz([f[0].v[i], f[1].v[i], f[2].v[i]]));
+                hunt_lab(xyz(rgb.map(|v| v.clamp(0.0, 1.0))))
+            })
+            .collect()
     };
     let (lr, lt) = (filtered(&r), filtered(&t));
-    let cmax = hyab(hunt_lab(xyz([0.0, 1.0, 0.0])), hunt_lab(xyz([0.0, 0.0, 1.0]))).powf(qc);
+    let cmax = hyab(
+        hunt_lab(xyz([0.0, 1.0, 0.0])),
+        hunt_lab(xyz([0.0, 0.0, 1.0])),
+    )
+    .powf(qc);
     let pccmax = pc * cmax;
-    let color: Vec<f64> = lr.iter().zip(&lt).map(|(a, b)| {
-        let d = hyab(*a, *b).powf(qc);
-        if d < pccmax { d * pt / pccmax } else { pt + (d - pccmax) / (cmax - pccmax) * (1.0 - pt) }
-    }).collect();
+    let color: Vec<f64> = lr
+        .iter()
+        .zip(&lt)
+        .map(|(a, b)| {
+            let d = hyab(*a, *b).powf(qc);
+            if d < pccmax {
+                d * pt / pccmax
+            } else {
+                pt + (d - pccmax) / (cmax - pccmax) * (1.0 - pt)
+            }
+        })
+        .collect();
 
     // Features: edges and points of the normalized luminance, from the first
     // and second derivatives of a Gaussian of σ = 0.5 · 0.082 · ppd (each
     // kernel's positive and negative weights normalized to sum to ±1).
     let sd = 0.5 * 0.082 * ppd;
     let fr = (3.0 * sd).ceil() as isize;
-    let g: Vec<f64> = (-fr..=fr).map(|i| (-((i * i) as f64) / (2.0 * sd * sd)).exp()).collect();
+    let g: Vec<f64> = (-fr..=fr)
+        .map(|i| (-((i * i) as f64) / (2.0 * sd * sd)).exp())
+        .collect();
     let g_sum: f64 = g.iter().sum();
     let normalized = |k: Vec<f64>| -> Vec<f64> {
         let pos: f64 = k.iter().filter(|v| **v > 0.0).sum::<f64>() * g_sum;
         let neg: f64 = -k.iter().filter(|v| **v < 0.0).sum::<f64>() * g_sum;
-        k.iter().map(|v| if *v > 0.0 { v / pos } else if *v < 0.0 { v / neg } else { 0.0 }).collect()
+        k.iter()
+            .map(|v| {
+                if *v > 0.0 {
+                    v / pos
+                } else if *v < 0.0 {
+                    v / neg
+                } else {
+                    0.0
+                }
+            })
+            .collect()
     };
     let edge = normalized((-fr..=fr).zip(&g).map(|(i, gv)| -(i as f64) * gv).collect());
-    let point = normalized((-fr..=fr).zip(&g).map(|(i, gv)| ((i * i) as f64 / (sd * sd) - 1.0) * gv).collect());
+    let point = normalized(
+        (-fr..=fr)
+            .zip(&g)
+            .map(|(i, gv)| ((i * i) as f64 / (sd * sd) - 1.0) * gv)
+            .collect(),
+    );
     let features = |c: &[Plane; 3]| -> (Plane, Plane) {
         let y = c[0].map(|v| (v + 16.0) / 116.0);
         let (ex, ey) = (y.separable(&edge, &g), y.separable(&g, &edge));
         let (px, py) = (y.separable(&point, &g), y.separable(&g, &point));
-        (ex.zip(&ey, |a, b| (a * a + b * b).sqrt()), px.zip(&py, |a, b| (a * a + b * b).sqrt()))
+        (
+            ex.zip(&ey, |a, b| (a * a + b * b).sqrt()),
+            px.zip(&py, |a, b| (a * a + b * b).sqrt()),
+        )
     };
     let ((er, pr), (et, ptt)) = (features(&r), features(&t));
-    let map: Vec<f32> = (0..w * h).map(|i| {
-        let df = ((er.v[i] - et.v[i]).abs().max((pr.v[i] - ptt.v[i]).abs()) / std::f64::consts::SQRT_2).powf(qf);
-        color[i].powf(1.0 - df) as f32
-    }).collect();
+    let map: Vec<f32> = (0..w * h)
+        .map(|i| {
+            let df = ((er.v[i] - et.v[i]).abs().max((pr.v[i] - ptt.v[i]).abs())
+                / std::f64::consts::SQRT_2)
+                .powf(qf);
+            color[i].powf(1.0 - df) as f32
+        })
+        .collect();
     let mean = map.iter().map(|&v| v as f64).sum::<f64>() / map.len().max(1) as f64;
     (mean, map)
 }
@@ -342,13 +519,21 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
 /// An error map (0..1) in a magma-like ramp (black, purple, orange, pale
 /// yellow), as ꟻLIP's error maps are shown.
 pub fn heat(map: &[f32]) -> Vec<[f32; 3]> {
-    const STOPS: [[f32; 3]; 5] = [[0.0, 0.0, 0.016], [0.316, 0.071, 0.485], [0.716, 0.215, 0.475], [0.987, 0.535, 0.382], [0.987, 0.991, 0.750]];
-    map.iter().map(|&v| {
-        let t = v.clamp(0.0, 1.0) * (STOPS.len() - 1) as f32;
-        let i = (t.floor() as usize).min(STOPS.len() - 2);
-        let f = t - i as f32;
-        [0, 1, 2].map(|c| STOPS[i][c] + (STOPS[i + 1][c] - STOPS[i][c]) * f)
-    }).collect()
+    const STOPS: [[f32; 3]; 5] = [
+        [0.0, 0.0, 0.016],
+        [0.316, 0.071, 0.485],
+        [0.716, 0.215, 0.475],
+        [0.987, 0.535, 0.382],
+        [0.987, 0.991, 0.750],
+    ];
+    map.iter()
+        .map(|&v| {
+            let t = v.clamp(0.0, 1.0) * (STOPS.len() - 1) as f32;
+            let i = (t.floor() as usize).min(STOPS.len() - 2);
+            let f = t - i as f32;
+            [0, 1, 2].map(|c| STOPS[i][c] + (STOPS[i + 1][c] - STOPS[i][c]) * f)
+        })
+        .collect()
 }
 
 /// Mean, sample standard deviation, and 95th percentile of `xs` (NaN for none).
@@ -358,7 +543,11 @@ pub fn summary(xs: &[f64]) -> (f64, f64, f64) {
     }
     let n = xs.len() as f64;
     let mean = xs.iter().sum::<f64>() / n;
-    let sd = if xs.len() > 1 { (xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt() } else { 0.0 };
+    let sd = if xs.len() > 1 {
+        (xs.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
+    } else {
+        0.0
+    };
     let mut sorted = xs.to_vec();
     sorted.sort_by(|a, b| a.total_cmp(b));
     let p95 = sorted[((0.95 * (n - 1.0)).round() as usize).min(sorted.len() - 1)];
@@ -370,10 +559,16 @@ mod tests {
     use super::*;
 
     fn gradient(w: usize, h: usize) -> Image {
-        Image::new(w, h, (0..w * h).map(|i| {
-            let (x, y) = ((i % w) as f32 / w as f32, (i / w) as f32 / h as f32);
-            [x, y, 0.5 * (x + y)]
-        }).collect())
+        Image::new(
+            w,
+            h,
+            (0..w * h)
+                .map(|i| {
+                    let (x, y) = ((i % w) as f32 / w as f32, (i / w) as f32 / h as f32);
+                    [x, y, 0.5 * (x + y)]
+                })
+                .collect(),
+        )
     }
 
     #[test]
@@ -389,7 +584,14 @@ mod tests {
     #[test]
     fn known_offset() {
         let a = gradient(40, 40);
-        let b = Image::new(40, 40, a.pixels.iter().map(|p| [p[0] + 0.1, p[1] + 0.1, p[2] + 0.1]).collect());
+        let b = Image::new(
+            40,
+            40,
+            a.pixels
+                .iter()
+                .map(|p| [p[0] + 0.1, p[1] + 0.1, p[2] + 0.1])
+                .collect(),
+        );
         // MSE 0.01 exactly, so PSNR 20 dB.
         assert!((mse(&a, &b) - 0.01).abs() < 1e-6);
         assert!((psnr(mse(&a, &b)) - 20.0).abs() < 1e-3);
@@ -410,11 +612,30 @@ mod tests {
         assert!(map.iter().all(|v| (0.0..=1.0).contains(v)));
         // Noise lowers SSIM more than an offset of the same MSE does.
         let a = gradient(40, 40);
-        let noisy = Image::new(40, 40, a.pixels.iter().enumerate().map(|(i, p)| {
-            let n = if (i * 7919) % 2 == 0 { 0.1 } else { -0.1 };
-            [p[0] + n, p[1] + n, p[2] + n]
-        }).collect());
-        let offset = Image::new(40, 40, a.pixels.iter().map(|p| [p[0] + 0.1, p[1] + 0.1, p[2] + 0.1]).collect());
+        let noisy = Image::new(
+            40,
+            40,
+            a.pixels
+                .iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    let n = if (i * 7919) % 2 == 0 {
+                        0.1
+                    } else {
+                        -0.1
+                    };
+                    [p[0] + n, p[1] + n, p[2] + n]
+                })
+                .collect(),
+        );
+        let offset = Image::new(
+            40,
+            40,
+            a.pixels
+                .iter()
+                .map(|p| [p[0] + 0.1, p[1] + 0.1, p[2] + 0.1])
+                .collect(),
+        );
         assert!((mse(&a, &noisy) - mse(&a, &offset)).abs() < 1e-3);
         assert!(ssim(&a, &noisy) < ssim(&a, &offset));
     }

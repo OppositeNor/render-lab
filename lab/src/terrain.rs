@@ -19,7 +19,11 @@ pub enum HeightSource {
     #[allow(dead_code)] // the lab's terrain is generated; a heightmap is the other way in
     Samples(Vec<f32>),
     /// Fractal Perlin noise (`perlin::fbm`), scaled into `TerrainDesc::height`.
-    Perlin { seed: u64, octaves: u32, frequency: f32 },
+    Perlin {
+        seed: u64,
+        octaves: u32,
+        frequency: f32,
+    },
 }
 
 pub struct TerrainDesc {
@@ -35,7 +39,12 @@ pub struct TerrainDesc {
 /// The lab's terrain: the terrain scene's `[terrain]` (packages/render_lab/scenes/terrain.toml).
 pub fn terrain() -> &'static Terrain {
     static TERRAIN: OnceLock<Terrain> = OnceLock::new();
-    TERRAIN.get_or_init(|| Terrain::build(crate::scene::terrain_table(crate::scene::SceneId::TERRAIN).unwrap_or_else(|e| panic!("{e:#}"))))
+    TERRAIN.get_or_init(|| {
+        Terrain::build(
+            crate::scene::terrain_table(crate::scene::SceneId::TERRAIN)
+                .unwrap_or_else(|e| panic!("{e:#}")),
+        )
+    })
 }
 
 pub struct Terrain {
@@ -57,23 +66,41 @@ impl Terrain {
                 assert_eq!(samples.len(), n * n, "terrain samples");
                 samples
             }
-            HeightSource::Perlin { seed, octaves, frequency } => {
+            HeightSource::Perlin {
+                seed,
+                octaves,
+                frequency,
+            } => {
                 let noise = perlin::Perlin::new(seed);
                 let raw: Vec<f64> = (0..n * n)
                     .map(|k| {
                         let (i, j) = (k % n, k / n);
-                        let x = -desc.half_size.x as f64 + 2.0 * desc.half_size.x as f64 * i as f64 / (n - 1) as f64;
-                        let z = -desc.half_size.y as f64 + 2.0 * desc.half_size.y as f64 * j as f64 / (n - 1) as f64;
+                        let x = -desc.half_size.x as f64
+                            + 2.0 * desc.half_size.x as f64 * i as f64 / (n - 1) as f64;
+                        let z = -desc.half_size.y as f64
+                            + 2.0 * desc.half_size.y as f64 * j as f64 / (n - 1) as f64;
                         noise.fbm(x * frequency as f64, z * frequency as f64, octaves)
                     })
                     .collect();
-                let (lo, hi) = raw.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)));
-                raw.iter().map(|&v| ((v - lo) / (hi - lo).max(1e-9) * desc.height as f64) as f32).collect()
+                let (lo, hi) = raw
+                    .iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| {
+                        (lo.min(v), hi.max(v))
+                    });
+                raw.iter()
+                    .map(|&v| ((v - lo) / (hi - lo).max(1e-9) * desc.height as f64) as f32)
+                    .collect()
             }
         };
         let min_height = heights.iter().copied().fold(f32::INFINITY, f32::min);
         let max_height = heights.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-        Terrain { resolution: desc.resolution, half_size: desc.half_size, heights, min_height, max_height }
+        Terrain {
+            resolution: desc.resolution,
+            half_size: desc.half_size,
+            heights,
+            min_height,
+            max_height,
+        }
     }
 
     /// The centre and half extent of its local bounds.
@@ -82,7 +109,11 @@ impl Terrain {
     }
 
     pub fn local_extent(&self) -> Vec3 {
-        Vec3::new(self.half_size.x, 0.5 * (self.max_height - self.min_height), self.half_size.y)
+        Vec3::new(
+            self.half_size.x,
+            0.5 * (self.max_height - self.min_height),
+            self.half_size.y,
+        )
     }
 
     pub fn cells(&self) -> u32 {
@@ -100,7 +131,11 @@ impl Terrain {
 
     pub fn vertex(&self, i: u32, j: u32) -> Vec3 {
         let c = self.cell_size();
-        Vec3::new(-self.half_size.x + c.x * i as f32, self.h(i, j), -self.half_size.y + c.y * j as f32)
+        Vec3::new(
+            -self.half_size.x + c.x * i as f32,
+            self.h(i, j),
+            -self.half_size.y + c.y * j as f32,
+        )
     }
 
     /// The vertex normal: central differences, one-sided at the edges
@@ -117,7 +152,10 @@ impl Terrain {
 
     /// The two triangles of cell (`i`, `j`), as vertex coordinates.
     pub fn cell_triangles(i: u32, j: u32) -> [[(u32, u32); 3]; 2] {
-        [[(i, j), (i, j + 1), (i + 1, j + 1)], [(i, j), (i + 1, j + 1), (i + 1, j)]]
+        [
+            [(i, j), (i, j + 1), (i + 1, j + 1)],
+            [(i, j), (i + 1, j + 1), (i + 1, j)],
+        ]
     }
 
     /// The surface height under a local XZ point (clamped to the grid), on the raster triangles.
@@ -125,10 +163,22 @@ impl Terrain {
         let c = self.cell_size();
         let fx = ((x + self.half_size.x) / c.x).clamp(0.0, self.cells() as f32);
         let fz = ((z + self.half_size.y) / c.y).clamp(0.0, self.cells() as f32);
-        let (i, j) = ((fx as u32).min(self.cells() - 1), (fz as u32).min(self.cells() - 1));
+        let (i, j) = (
+            (fx as u32).min(self.cells() - 1),
+            (fz as u32).min(self.cells() - 1),
+        );
         let (u, v) = (fx - i as f32, fz - j as f32);
-        let (h00, h10, h01, h11) = (self.h(i, j), self.h(i + 1, j), self.h(i, j + 1), self.h(i + 1, j + 1));
-        if v >= u { h00 + (h11 - h01) * u + (h01 - h00) * v } else { h00 + (h10 - h00) * u + (h11 - h10) * v }
+        let (h00, h10, h01, h11) = (
+            self.h(i, j),
+            self.h(i + 1, j),
+            self.h(i, j + 1),
+            self.h(i + 1, j + 1),
+        );
+        if v >= u {
+            h00 + (h11 - h01) * u + (h01 - h00) * v
+        } else {
+            h00 + (h10 - h00) * u + (h11 - h10) * v
+        }
     }
 
     /// The vertex normals under a local XZ point (clamped to the grid), blended bilinearly.
@@ -136,10 +186,17 @@ impl Terrain {
         let c = self.cell_size();
         let fx = ((x + self.half_size.x) / c.x).clamp(0.0, self.cells() as f32);
         let fz = ((z + self.half_size.y) / c.y).clamp(0.0, self.cells() as f32);
-        let (i, j) = ((fx as u32).min(self.cells() - 1), (fz as u32).min(self.cells() - 1));
+        let (i, j) = (
+            (fx as u32).min(self.cells() - 1),
+            (fz as u32).min(self.cells() - 1),
+        );
         let (u, v) = (fx - i as f32, fz - j as f32);
         let n = |a: u32, b: u32| self.vertex_normal(a, b);
-        (n(i, j) * (1.0 - u) * (1.0 - v) + n(i + 1, j) * u * (1.0 - v) + n(i, j + 1) * (1.0 - u) * v + n(i + 1, j + 1) * u * v).normalize()
+        (n(i, j) * (1.0 - u) * (1.0 - v)
+            + n(i + 1, j) * u * (1.0 - v)
+            + n(i, j + 1) * (1.0 - u) * v
+            + n(i + 1, j + 1) * u * v)
+            .normalize()
     }
 
     /// Closest hit of a local-space ray: the cells under the ray in order
@@ -163,9 +220,32 @@ impl Terrain {
         let p = lo + ld * t_enter;
         let mut i = (((p.x + self.half_size.x) / c.x).floor() as i32).clamp(0, last);
         let mut j = (((p.z + self.half_size.y) / c.y).floor() as i32).clamp(0, last);
-        let (si, sj) = (if ld.x >= 0.0 { 1 } else { -1 }, if ld.z >= 0.0 { 1 } else { -1 });
-        let next_x = -self.half_size.x + c.x * (i + if si > 0 { 1 } else { 0 }) as f32;
-        let next_z = -self.half_size.y + c.y * (j + if sj > 0 { 1 } else { 0 }) as f32;
+        let (si, sj) = (
+            if ld.x >= 0.0 {
+                1
+            } else {
+                -1
+            },
+            if ld.z >= 0.0 {
+                1
+            } else {
+                -1
+            },
+        );
+        let next_x = -self.half_size.x
+            + c.x
+                * (i + if si > 0 {
+                    1
+                } else {
+                    0
+                }) as f32;
+        let next_z = -self.half_size.y
+            + c.y
+                * (j + if sj > 0 {
+                    1
+                } else {
+                    0
+                }) as f32;
         let mut tx = (next_x - lo.x) * inv.x;
         let mut tz = (next_z - lo.z) * inv.z;
         let (dtx, dtz) = ((c.x * inv.x).abs(), (c.y * inv.z).abs());
@@ -174,14 +254,22 @@ impl Terrain {
             let t_out = tx.min(tz).min(t_exit);
             let (ya, yb) = (lo.y + ld.y * t_cell, lo.y + ld.y * t_out);
             let (ci, cj) = (i as u32, j as u32);
-            let corners = [self.h(ci, cj), self.h(ci + 1, cj), self.h(ci, cj + 1), self.h(ci + 1, cj + 1)];
+            let corners = [
+                self.h(ci, cj),
+                self.h(ci + 1, cj),
+                self.h(ci, cj + 1),
+                self.h(ci + 1, cj + 1),
+            ];
             let lo_h = corners.iter().copied().fold(f32::INFINITY, f32::min);
             let hi_h = corners.iter().copied().fold(f32::NEG_INFINITY, f32::max);
             if ya.min(yb) <= hi_h + 1e-4 && ya.max(yb) >= lo_h - 1e-4 {
                 let mut best: Option<(f32, Vec3)> = None;
                 for tri in Self::cell_triangles(ci, cj) {
                     let [a, b, d] = tri.map(|(x, z)| self.vertex(x, z));
-                    if let Some((t, u, v)) = moller_trumbore(lo, ld, a, b, d) && t > 1e-4 && t < best.map_or(t_max, |h| h.0) {
+                    if let Some((t, u, v)) = moller_trumbore(lo, ld, a, b, d)
+                        && t > 1e-4
+                        && t < best.map_or(t_max, |h| h.0)
+                    {
                         let [na, nb, nd] = tri.map(|(x, z)| self.vertex_normal(x, z));
                         best = Some((t, (na * (1.0 - u - v) + nb * u + nd * v).normalize()));
                     }
@@ -213,7 +301,16 @@ impl Terrain {
     /// the half size, the lowest and highest heights, three unused words,
     /// then the heights.
     pub fn gpu_words(&self) -> Vec<f32> {
-        let mut words = vec![f32::from_bits(self.resolution), self.half_size.x, self.half_size.y, self.min_height, self.max_height, 0.0, 0.0, 0.0];
+        let mut words = vec![
+            f32::from_bits(self.resolution),
+            self.half_size.x,
+            self.half_size.y,
+            self.min_height,
+            self.max_height,
+            0.0,
+            0.0,
+            0.0,
+        ];
         words.extend_from_slice(&self.heights);
         words
     }
@@ -264,7 +361,9 @@ mod perlin {
             for i in (1..256).rev() {
                 table.swap(i, (next() % (i as u64 + 1)) as usize);
             }
-            Perlin { perm: std::array::from_fn(|i| table[i % 256]) }
+            Perlin {
+                perm: std::array::from_fn(|i| table[i % 256]),
+            }
         }
 
         fn grad(hash: u8, x: f64, y: f64) -> f64 {
@@ -292,13 +391,22 @@ mod perlin {
             lerp(
                 v,
                 lerp(u, Self::grad(p[a], x, y), Self::grad(p[b], x - 1.0, y)),
-                lerp(u, Self::grad(p[a + 1], x, y - 1.0), Self::grad(p[b + 1], x - 1.0, y - 1.0)),
+                lerp(
+                    u,
+                    Self::grad(p[a + 1], x, y - 1.0),
+                    Self::grad(p[b + 1], x - 1.0, y - 1.0),
+                ),
             )
         }
 
         /// Octaves at doubling frequency and halving amplitude.
         pub fn fbm(&self, x: f64, y: f64, octaves: u32) -> f64 {
-            (0..octaves).map(|o| self.noise(x * f64::from(1u32 << o), y * f64::from(1u32 << o)) / f64::from(1u32 << o)).sum()
+            (0..octaves)
+                .map(|o| {
+                    self.noise(x * f64::from(1u32 << o), y * f64::from(1u32 << o))
+                        / f64::from(1u32 << o)
+                })
+                .sum()
         }
     }
 }

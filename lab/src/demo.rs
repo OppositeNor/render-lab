@@ -32,7 +32,7 @@ use crate::resources;
 use crate::scene::{self, Scene, SceneId};
 use crate::shot::{DemoId, FrameSize, PanelMode, RecordRef, ShotState};
 use crate::values::{self, Entry, Reflect, Value, ValueMap};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 
 /// A shot parameter: its name and default (its file also says what it is,
 /// in `doc`).
@@ -87,22 +87,40 @@ fn leak(s: &str) -> &'static str {
 
 fn document(id: &str) -> Result<toml_edit::Document<String>> {
     let resource = resources::find(id).ok_or_else(|| anyhow!("no resource `{id}`"))?;
-    toml_edit::Document::parse(resource.text().to_string()).with_context(|| format!("{id} ({})", resource.source()))
+    toml_edit::Document::parse(resource.text().to_string())
+        .with_context(|| format!("{id} ({})", resource.source()))
 }
 
 fn string<'a>(table: &'a toml_edit::Table, key: &str) -> Result<Option<&'a str>> {
     match table.get(key) {
         None => Ok(None),
-        Some(item) => item.as_str().map(Some).ok_or_else(|| anyhow!("`{key}` is a string")),
+        Some(item) => item
+            .as_str()
+            .map(Some)
+            .ok_or_else(|| anyhow!("`{key}` is a string")),
     }
 }
 
 /// The camera a `[camera]` table describes.
 fn camera(table: &toml_edit::Table) -> Result<OrbitCamera> {
-    let value = |key: &str| table.get(key).and_then(|i| i.as_value()).with_context(|| format!("`[camera] {key}` is missing"));
-    let target = value("target")?.as_array().filter(|a| a.len() == 3).context("`target` is [x, y, z]")?;
+    let value = |key: &str| {
+        table
+            .get(key)
+            .and_then(|i| i.as_value())
+            .with_context(|| format!("`[camera] {key}` is missing"))
+    };
+    let target = value("target")?
+        .as_array()
+        .filter(|a| a.len() == 3)
+        .context("`target` is [x, y, z]")?;
     let t: Vec<f32> = target.iter().map(scene::number).collect::<Result<_>>()?;
-    Ok(OrbitCamera { target: [t[0], t[1], t[2]], yaw: scene::number(value("yaw")?)?, pitch: scene::number(value("pitch")?)?, distance: scene::number(value("distance")?)?, fov: scene::number(value("fov")?)? })
+    Ok(OrbitCamera {
+        target: [t[0], t[1], t[2]],
+        yaw: scene::number(value("yaw")?)?,
+        pitch: scene::number(value("pitch")?)?,
+        distance: scene::number(value("distance")?)?,
+        fov: scene::number(value("fov")?)?,
+    })
 }
 
 /// A demonstration's own scene size, `frame = [w, h]` in pixels (none: the viewport's).
@@ -110,30 +128,59 @@ fn frame_size(table: &toml_edit::Table) -> Result<FrameSize> {
     let Some(item) = table.get("frame") else {
         return Ok(FrameSize::default());
     };
-    let sides: Vec<i64> = item.as_array().map(|a| a.iter().filter_map(|v| v.as_integer()).collect()).unwrap_or_default();
+    let sides: Vec<i64> = item
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_integer()).collect())
+        .unwrap_or_default();
     match sides[..] {
-        [w, h] if (1..=4096).contains(&w) && (1..=4096).contains(&h) => Ok(FrameSize { width: w as f32, height: h as f32 }),
+        [w, h] if (1..=4096).contains(&w) && (1..=4096).contains(&h) => Ok(FrameSize {
+            width: w as f32,
+            height: h as f32,
+        }),
         _ => bail!("`frame` is [width, height], whole pixels from 1 to 4096"),
     }
 }
 
 /// A file's `include`d presets, then its own camera and parameters, into
 /// `camera` and `params` (later values replace earlier ones).
-fn apply(prefix: &str, table: &toml_edit::Table, scene: &Scene, defaults: &[Param], camera_out: &mut Option<OrbitCamera>, params: &mut Vec<(&'static str, f32)>) -> Result<()> {
+fn apply(
+    prefix: &str,
+    table: &toml_edit::Table,
+    scene: &Scene,
+    defaults: &[Param],
+    camera_out: &mut Option<OrbitCamera>,
+    params: &mut Vec<(&'static str, f32)>,
+) -> Result<()> {
     if let Some(include) = table.get("include") {
-        let list = include.as_array().context("`include` is a list of preset names")?;
+        let list = include
+            .as_array()
+            .context("`include` is a list of preset names")?;
         for name in list {
-            let name = name.as_str().context("`include` is a list of preset names")?;
+            let name = name
+                .as_str()
+                .context("`include` is a list of preset names")?;
             // A preset of the package by name, or one an imported package exports by full key
             // (`render_lab.demo-preset/room-camera`).
             let id = if name.contains('.') {
-                let package = resources::packages().iter().find(|m| m.name == prefix).ok_or_else(|| anyhow!("no package `{prefix}`"))?;
-                packages::resolve(package, resources::packages(), name).map_err(|e| anyhow!("preset {e}"))?
+                let package = resources::packages()
+                    .iter()
+                    .find(|m| m.name == prefix)
+                    .ok_or_else(|| anyhow!("no package `{prefix}`"))?;
+                packages::resolve(package, resources::packages(), name)
+                    .map_err(|e| anyhow!("preset {e}"))?
             } else {
                 format!("{prefix}.demo-preset/{name}")
             };
             let preset = document(&id)?;
-            apply(prefix, preset.as_table(), scene, defaults, camera_out, params).with_context(|| format!("preset `{name}`"))?;
+            apply(
+                prefix,
+                preset.as_table(),
+                scene,
+                defaults,
+                camera_out,
+                params,
+            )
+            .with_context(|| format!("preset `{name}`"))?;
         }
     }
     if let Some(c) = table.get("camera") {
@@ -141,11 +188,21 @@ fn apply(prefix: &str, table: &toml_edit::Table, scene: &Scene, defaults: &[Para
     }
     if let Some(p) = table.get("params") {
         for (name, item) in p.as_table().context("`params` is a table")? {
-            let param = defaults.iter().find(|d| d.name == name).ok_or_else(|| anyhow!("no parameter `{name}` ({prefix}.params declares them)"))?;
-            let value = item.as_value().with_context(|| format!("`{name}` is a value"))?;
+            let param = defaults
+                .iter()
+                .find(|d| d.name == name)
+                .ok_or_else(|| anyhow!("no parameter `{name}` ({prefix}.params declares them)"))?;
+            let value = item
+                .as_value()
+                .with_context(|| format!("`{name}` is a value"))?;
             let value = match value.as_str() {
                 // An object of the scene, by name: its index.
-                Some(object) => scene.objects.iter().position(|o| o.name == object).ok_or_else(|| anyhow!("`{name}`: the scene has no object `{object}`"))? as f32,
+                Some(object) => scene
+                    .objects
+                    .iter()
+                    .position(|o| o.name == object)
+                    .ok_or_else(|| anyhow!("`{name}`: the scene has no object `{object}`"))?
+                    as f32,
                 None => scene::number(value).with_context(|| format!("`{name}`"))?,
             };
             params.retain(|(n, _)| *n != param.name);
@@ -156,13 +213,23 @@ fn apply(prefix: &str, table: &toml_edit::Table, scene: &Scene, defaults: &[Para
 }
 
 /// A declared value as a parameter by each of its components, with its default.
-fn declare(entry: &'static Entry, params: &mut Vec<Param>, entries: &mut Vec<&'static Entry>) -> Result<()> {
-    let default = entry.default.ok_or_else(|| anyhow!("value `{}` needs a default", entry.key))?.components();
+fn declare(
+    entry: &'static Entry,
+    params: &mut Vec<Param>,
+    entries: &mut Vec<&'static Entry>,
+) -> Result<()> {
+    let default = entry
+        .default
+        .ok_or_else(|| anyhow!("value `{}` needs a default", entry.key))?
+        .components();
     for (channel, value) in entry.channels().into_iter().zip(default) {
         if params.iter().any(|p: &Param| p.name == channel) {
             bail!("parameter `{channel}` is declared twice");
         }
-        params.push(Param { name: channel, default: value });
+        params.push(Param {
+            name: channel,
+            default: value,
+        });
     }
     entries.push(entry);
     Ok(())
@@ -193,7 +260,10 @@ impl Demos {
     }
 
     fn load_with(prefix: &str, declared: &'static [Entry]) -> Result<Demos> {
-        let package: &Package = resources::packages().iter().find(|m| m.name == prefix).ok_or_else(|| anyhow!("no package `{prefix}`"))?;
+        let package: &Package = resources::packages()
+            .iter()
+            .find(|m| m.name == prefix)
+            .ok_or_else(|| anyhow!("no package `{prefix}`"))?;
         let mut params = Vec::new();
         let mut entries: Vec<&'static Entry> = Vec::new();
         for entry in declared {
@@ -204,34 +274,61 @@ impl Demos {
             None => None,
         };
         let tables = match &params_doc {
-            Some(doc) => doc.get("param").and_then(|p| p.as_array_of_tables()).context("`params` has `[[param]]` tables")?.iter().collect(),
+            Some(doc) => doc
+                .get("param")
+                .and_then(|p| p.as_array_of_tables())
+                .context("`params` has `[[param]]` tables")?
+                .iter()
+                .collect(),
             None => Vec::new(),
         };
         for table in tables {
             let name = string(table, "name")?.context("a parameter needs `name`")?;
-            let default = scene::number(table.get("default").and_then(|i| i.as_value()).with_context(|| format!("parameter `{name}` needs `default`"))?)?;
+            let default = scene::number(
+                table
+                    .get("default")
+                    .and_then(|i| i.as_value())
+                    .with_context(|| format!("parameter `{name}` needs `default`"))?,
+            )?;
             if params.iter().any(|p: &Param| p.name == name) {
                 bail!("parameter `{name}` is declared twice");
             }
-            string(table, "doc")?.with_context(|| format!("parameter `{name}` needs `doc`, what it is"))?;
-            params.push(Param { name: leak(name), default });
+            string(table, "doc")?
+                .with_context(|| format!("parameter `{name}` needs `doc`, what it is"))?;
+            params.push(Param {
+                name: leak(name),
+                default,
+            });
         }
         // The values its shaders declare (src/shader_data.rs) are parameters too, by component.
-        for shader in resources::shaders().iter().filter(|s| s.id.strip_prefix(prefix).is_some_and(|rest| rest.starts_with('.'))) {
-            let Some(schema) = crate::shader_data::schema(&shader.id)? else { continue };
+        for shader in resources::shaders().iter().filter(|s| {
+            s.id.strip_prefix(prefix)
+                .is_some_and(|rest| rest.starts_with('.'))
+        }) {
+            let Some(schema) = crate::shader_data::schema(&shader.id)? else {
+                continue;
+            };
             for entry in schema.entries() {
                 if let Some(same) = entries.iter().find(|e| e.key == entry.key) {
                     if *same != entry {
-                        bail!("`{}` is declared differently by two shaders ({})", entry.key, shader.id);
+                        bail!(
+                            "`{}` is declared differently by two shaders ({})",
+                            entry.key,
+                            shader.id
+                        );
                     }
                     continue;
                 }
-                declare(entry, &mut params, &mut entries).with_context(|| format!("the shader {}", shader.id))?;
+                declare(entry, &mut params, &mut entries)
+                    .with_context(|| format!("the shader {}", shader.id))?;
             }
         }
         let by_key = index_of(&entries);
         let index = document(&format!("{prefix}.demos"))?;
-        let keys = index.get("demos").and_then(|d| d.as_array()).context("`demos` is a list of keys")?;
+        let keys = index
+            .get("demos")
+            .and_then(|d| d.as_array())
+            .context("`demos` is a list of keys")?;
         let mut specs = Vec::new();
         for key in keys {
             let key = key.as_str().context("`demos` is a list of keys")?;
@@ -243,8 +340,10 @@ impl Demos {
                     bail!("its `key` is not `{key}`");
                 }
                 let reference = string(table, "scene")?.context("`scene` is missing")?;
-                let scene_id = packages::resolve(package, resources::packages(), reference).map_err(|e| anyhow!("scene {e}"))?;
-                let scene = SceneId::from_resource(&scene_id).ok_or_else(|| anyhow!("`{reference}` is not a scene"))?;
+                let scene_id = packages::resolve(package, resources::packages(), reference)
+                    .map_err(|e| anyhow!("scene {e}"))?;
+                let scene = SceneId::from_resource(&scene_id)
+                    .ok_or_else(|| anyhow!("`{reference}` is not a scene"))?;
                 let tab = match (string(table, "tab-text")?, string(table, "tab")?) {
                     (Some(k), None) => Tab::Text(leak(k)),
                     (None, Some(name)) => Tab::Plain(leak(name)),
@@ -252,7 +351,14 @@ impl Demos {
                 };
                 let mut camera = None;
                 let mut overrides = Vec::new();
-                apply(prefix, table, &Scene::build(scene), &params, &mut camera, &mut overrides)?;
+                apply(
+                    prefix,
+                    table,
+                    &Scene::build(scene),
+                    &params,
+                    &mut camera,
+                    &mut overrides,
+                )?;
                 Ok(DemoSpec {
                     id: DemoId::new(leak(key)),
                     title: leak(string(table, "title-text")?.context("`title-text` is missing")?),
@@ -262,7 +368,11 @@ impl Demos {
                     listing: string(table, "listing")?.map(leak),
                     animation: string(table, "animation")?.map(leak),
                     frame: frame_size(table)?,
-                    resets_camera: table.get("resets-camera").map(|r| r.as_bool().context("`resets-camera` is true or false")).transpose()?.unwrap_or(false),
+                    resets_camera: table
+                        .get("resets-camera")
+                        .map(|r| r.as_bool().context("`resets-camera` is true or false"))
+                        .transpose()?
+                        .unwrap_or(false),
                     camera: camera.context("no `[camera]`, in the file or a preset")?,
                     params: overrides,
                 })
@@ -271,7 +381,13 @@ impl Demos {
             specs.push(spec);
         }
         let ids = specs.iter().map(|s| s.id).collect();
-        Ok(Demos { params, entries, index: by_key, specs, ids })
+        Ok(Demos {
+            params,
+            entries,
+            index: by_key,
+            specs,
+            ids,
+        })
     }
 
     /// The demonstrations in order.
@@ -280,11 +396,17 @@ impl Demos {
     }
 
     pub fn spec(&self, demo: DemoId) -> &DemoSpec {
-        self.specs.iter().find(|s| s.id == demo).unwrap_or_else(|| panic!("no demonstration `{}`", demo.key()))
+        self.specs
+            .iter()
+            .find(|s| s.id == demo)
+            .unwrap_or_else(|| panic!("no demonstration `{}`", demo.key()))
     }
 
     pub fn param_default(&self, name: &str) -> Option<f32> {
-        self.params.iter().find(|p| p.name == name).map(|p| p.default)
+        self.params
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.default)
     }
 
     /// Every value at its default: each declared one in its type, each other
@@ -292,7 +414,10 @@ impl Demos {
     pub fn defaults(&self) -> ValueMap {
         let mut values = ValueMap::default();
         for entry in &self.entries {
-            values.insert(entry.key.to_string(), entry.default.expect("a declared value has a default"));
+            values.insert(
+                entry.key.to_string(),
+                entry.default.expect("a declared value has a default"),
+            );
         }
         for p in self.params.iter().filter(|p| self.entry(p.name).is_none()) {
             values.insert(p.name.to_string(), Value::F32(p.default));
@@ -304,13 +429,25 @@ impl Demos {
     /// parameters (the lab's tests).
     #[cfg(test)]
     pub(crate) fn for_tests(declared: &'static [Entry], others: &[(&'static str, f32)]) -> Demos {
-        let mut params: Vec<Param> = others.iter().map(|(name, default)| Param { name, default: *default }).collect();
+        let mut params: Vec<Param> = others
+            .iter()
+            .map(|(name, default)| Param {
+                name,
+                default: *default,
+            })
+            .collect();
         let mut entries = Vec::new();
         for entry in declared {
             declare(entry, &mut params, &mut entries).unwrap();
         }
         let index = index_of(&entries);
-        Demos { params, entries, index, specs: Vec::new(), ids: Vec::new() }
+        Demos {
+            params,
+            entries,
+            index,
+            specs: Vec::new(),
+            ids: Vec::new(),
+        }
     }
 
     /// The declared value whose key, or one of whose components' keys, is `key`.
@@ -324,7 +461,9 @@ impl Demos {
     pub fn set(&self, values: &mut ValueMap, name: &str, value: f32) -> bool {
         // A value of another view (lab/src/view.rs), `view.<name>.<key>`: kept by its full name, a known key or a camera's.
         if let Some((_, key)) = crate::shot::view_key(name) {
-            let camera = crate::camera::OrbitCamera::schema().iter().any(|e| e.key == key || e.components.contains(&key));
+            let camera = crate::camera::OrbitCamera::schema()
+                .iter()
+                .any(|e| e.key == key || e.components.contains(&key));
             if !camera && self.entry(key).is_none() && self.param_default(key).is_none() {
                 return false;
             }
@@ -333,10 +472,22 @@ impl Demos {
         }
         match self.entry(name) {
             Some(entry) => {
-                let mut numbers = values.get(entry.key).copied().or(entry.default).expect("a declared value has a default").components();
-                assert!(entry.ty.components() == 1 || entry.key != name, "{name} is a {}: set it by component, or with set_value", entry.ty.name());
+                let mut numbers = values
+                    .get(entry.key)
+                    .copied()
+                    .or(entry.default)
+                    .expect("a declared value has a default")
+                    .components();
+                assert!(
+                    entry.ty.components() == 1 || entry.key != name,
+                    "{name} is a {}: set it by component, or with set_value",
+                    entry.ty.name()
+                );
                 numbers[values::component(entry, name)] = value;
-                values.insert(entry.key.to_string(), Value::from_components(entry.ty, &numbers));
+                values.insert(
+                    entry.key.to_string(),
+                    Value::from_components(entry.ty, &numbers),
+                );
                 true
             }
             None if self.param_default(name).is_some() => {

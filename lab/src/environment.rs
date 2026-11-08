@@ -31,12 +31,14 @@ pub struct Environment {
 impl Environment {
     pub fn get() -> &'static Environment {
         static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
-        ENVIRONMENT.get_or_init(|| Environment::load(&resources::get("render_lab.environment").load()))
+        ENVIRONMENT
+            .get_or_init(|| Environment::load(&resources::get("render_lab.environment").load()))
     }
 
     fn load(r: &resources::Loaded) -> Environment {
         assert_eq!(r.word(0) as usize, LEVELS, "{}: levels", r.id());
-        let sizes: [[usize; 2]; LEVELS] = std::array::from_fn(|i| [r.word(1 + 2 * i) as usize, r.word(2 + 2 * i) as usize]);
+        let sizes: [[usize; 2]; LEVELS] =
+            std::array::from_fn(|i| [r.word(1 + 2 * i) as usize, r.word(2 + 2 * i) as usize]);
         let mut offset = 4 * (1 + 2 * LEVELS);
         let levels = std::array::from_fn(|i| {
             let count = sizes[i][0] * sizes[i][1];
@@ -57,15 +59,20 @@ impl Environment {
         let [w, h] = self.sizes[level];
         let d = dir.normalize();
         let u = (0.5 + d.x.atan2(-d.z) / (2.0 * std::f32::consts::PI) + TURN) * w as f32 - 0.5;
-        let v = (d.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI * h as f32 - 0.5).clamp(0.0, (h - 1) as f32);
+        let v = (d.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI * h as f32 - 0.5)
+            .clamp(0.0, (h - 1) as f32);
         let (x, y) = (u.floor(), v.floor());
         let (fx, fy) = (u - x, v - y);
         let x0 = (x as i32).rem_euclid(w as i32) as usize;
         let x1 = (x0 + 1) % w;
         let y0 = y as usize;
         let y1 = (y0 + 1).min(h - 1);
-        let top = self.texel(level, x0, y0).lerp(self.texel(level, x1, y0), fx);
-        let bottom = self.texel(level, x0, y1).lerp(self.texel(level, x1, y1), fx);
+        let top = self
+            .texel(level, x0, y0)
+            .lerp(self.texel(level, x1, y0), fx);
+        let bottom = self
+            .texel(level, x0, y1)
+            .lerp(self.texel(level, x1, y1), fx);
         top.lerp(bottom, fy)
     }
 }
@@ -77,7 +84,11 @@ pub fn radiance(dir: Vec3) -> Vec3 {
 
 pub fn decode_rgb9e5(t: u32) -> Vec3 {
     let step = 2f32.powi((t >> 27) as i32 - 24);
-    Vec3::new((t & 511) as f32, (t >> 9 & 511) as f32, (t >> 18 & 511) as f32) * step
+    Vec3::new(
+        (t & 511) as f32,
+        (t >> 9 & 511) as f32,
+        (t >> 18 & 511) as f32,
+    ) * step
 }
 
 #[cfg(test)]
@@ -91,9 +102,17 @@ mod tests {
 
     #[test]
     fn rgb9e5_round_trip() {
-        for c in [Vec3::new(1.0, 0.5, 0.25), Vec3::new(0.0123, 3.5, 100.0), Vec3::splat(511.0 / 512.0), Vec3::ZERO] {
+        for c in [
+            Vec3::new(1.0, 0.5, 0.25),
+            Vec3::new(0.0123, 3.5, 100.0),
+            Vec3::splat(511.0 / 512.0),
+            Vec3::ZERO,
+        ] {
             let back = decode_rgb9e5(encode_rgb9e5(c));
-            assert!((back - c).abs().max_element() <= c.max_element() / 256.0, "{c} -> {back}");
+            assert!(
+                (back - c).abs().max_element() <= c.max_element() / 256.0,
+                "{c} -> {back}"
+            );
         }
     }
 

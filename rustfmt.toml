@@ -1,0 +1,2 @@
+# rustfmt (`cargo fmt`): its defaults, except that an if/else always puts each block's code on lines of its own.
+single_line_if_else_max_width = 0

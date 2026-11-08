@@ -4,11 +4,11 @@
 //! stencil, blend weight, global, outer, inner, and composite steps for one
 //! sample in O3DE's order.
 
-use super::brdf::{multi_scatter_compensation, saturate, BrdfMap, Shading};
+use super::brdf::{BrdfMap, Shading, multi_scatter_compensation, saturate};
 use super::ibl::{Cubemap, SPECULAR_MIPS, SPECULAR_SIZE};
+use glam::{Mat3, Quat, Vec2, Vec3};
 use lab::layout::ObjectData;
 use lab::shot::ShotState;
-use glam::{Mat3, Quat, Vec2, Vec3};
 use std::sync::OnceLock;
 
 /// RenderCommon.h StencilRefs, and the reflection passes' 0x3F read mask.
@@ -39,8 +39,16 @@ pub struct Probe {
 /// inner box reaching the walls; the second, smaller, fits the back-right
 /// corner, so it renders last and replaces the first there.
 const PLACEMENTS: [(Vec3, Vec3, Vec3); 2] = [
-    (Vec3::new(0.0, 1.2, -0.1), Vec3::new(6.5, 2.8, 6.3), Vec3::new(6.0, 2.6, 5.8)),
-    (Vec3::new(1.75, 1.2, -1.75), Vec3::new(2.8, 2.8, 2.8), Vec3::new(1.6, 2.6, 1.6)),
+    (
+        Vec3::new(0.0, 1.2, -0.1),
+        Vec3::new(6.5, 2.8, 6.3),
+        Vec3::new(6.0, 2.6, 5.8),
+    ),
+    (
+        Vec3::new(1.75, 1.2, -1.75),
+        Vec3::new(2.8, 2.8, 2.8),
+        Vec3::new(1.6, 2.6, 1.6),
+    ),
 ];
 
 /// The scene's probes when `probes` is on, sorted as the feature processor
@@ -80,7 +88,15 @@ pub fn frame_records(probes: &[Probe]) -> Vec<[f32; 4]> {
     for p in probes {
         out.push(p.position.extend(p.exposure).to_array());
         out.push(p.rotation.to_array());
-        out.push(p.outer_half.extend(if p.parallax { 1.0 } else { 0.0 }).to_array());
+        out.push(
+            p.outer_half
+                .extend(if p.parallax {
+                    1.0
+                } else {
+                    0.0
+                })
+                .to_array(),
+        );
         out.push(p.inner_half.extend(p.cubemap as f32).to_array());
     }
     out
@@ -105,12 +121,20 @@ impl Probe {
         let distance = (self.outer_half - p).abs() / dir;
         let shortest = distance.min_element();
         let total = (p + dir * shortest - closest).length();
-        if total > 0.0 { saturate(shortest / total) } else { 1.0 }
+        if total > 0.0 {
+            saturate(shortest / total)
+        } else {
+            1.0
+        }
     }
 
     /// The blend weight inside the outer box (ReflectionProbeBlendWeight).
     pub fn blend_weight(&self, p: Vec3) -> f32 {
-        if self.contains(self.inner_half, p) { 1.0 } else { self.lerp_inner_outer(p) }
+        if self.contains(self.inner_half, p) {
+            1.0
+        } else {
+            self.lerp_inner_outer(p)
+        }
     }
 
     /// ApplyParallaxCorrectionOBB.
@@ -150,7 +174,13 @@ pub struct ReflectionSample {
 }
 
 /// ComputeProbeSpecular; none where it discards.
-fn probe_specular(probe: &Probe, half: Vec3, input: &ReflectionInputs, eye: Vec3, map: &BrdfMap) -> Option<Vec3> {
+fn probe_specular(
+    probe: &Probe,
+    half: Vec3,
+    input: &ReflectionInputs,
+    eye: Vec3,
+    map: &BrdfMap,
+) -> Option<Vec3> {
     if !probe.contains(half, input.position) || !input.enable_ibl {
         return None;
     }
@@ -158,7 +188,11 @@ fn probe_specular(probe: &Probe, half: Vec3, input: &ReflectionInputs, eye: Vec3
     let n_dot_v = input.normal.dot(dir_to_camera).max(0.01);
     let brdf = map.sample(Vec2::new(saturate(n_dot_v), 1.0 - input.roughness));
     let reflect_dir = lab::scene::reflect(-dir_to_camera, input.normal);
-    let dir = if probe.parallax { probe.parallax_correction(input.position, reflect_dir) } else { reflect_dir };
+    let dir = if probe.parallax {
+        probe.parallax_correction(input.position, reflect_dir)
+    } else {
+        reflect_dir
+    };
     let probe_specular = sample_specular(&cubemaps()[probe.cubemap], dir, input.roughness * 5.0);
     let compensation = multi_scatter_compensation(input.specular_f0, brdf, input.multiscatter);
     Some(probe_specular * compensation * (input.specular_f0 * brdf.x + Vec3::splat(brdf.y)))
@@ -166,18 +200,33 @@ fn probe_specular(probe: &Probe, half: Vec3, input: &ReflectionInputs, eye: Vec3
 
 /// reflectionSample: the probe stencil, the blend weight, the global pass, the
 /// outer and inner probe passes, and the composite's test, for one sample.
-pub fn reflection_sample(probes: &[Probe], input: &ReflectionInputs, eye: Vec3, ibl_exposure: f32, map: &BrdfMap) -> ReflectionSample {
+pub fn reflection_sample(
+    probes: &[Probe],
+    input: &ReflectionInputs,
+    eye: Vec3,
+    ibl_exposure: f32,
+    map: &BrdfMap,
+) -> ReflectionSample {
     let mut stencil = input.stencil;
     if stencil & STENCIL_REFLECTION_MASK > 0 {
         for probe in probes {
             if probe.contains(probe.inner_half - Vec3::splat(0.05), input.position) {
-                stencil = (stencil & !STENCIL_REFLECTION_MASK) | ((stencil + 1).min(255) & STENCIL_REFLECTION_MASK);
+                stencil = (stencil & !STENCIL_REFLECTION_MASK)
+                    | ((stencil + 1).min(255) & STENCIL_REFLECTION_MASK);
             }
         }
     }
     let masked = stencil & STENCIL_REFLECTION_MASK;
     let outside_inner = masked == STENCIL_USE_IBL_SPECULAR_PASS;
-    let total: f32 = if outside_inner { probes.iter().filter(|p| p.contains(p.outer_half, input.position)).map(|p| p.blend_weight(input.position)).sum() } else { 0.0 };
+    let total: f32 = if outside_inner {
+        probes
+            .iter()
+            .filter(|p| p.contains(p.outer_half, input.position))
+            .map(|p| p.blend_weight(input.position))
+            .sum()
+    } else {
+        0.0
+    };
     let mut reflection = REFLECTION_CLEAR;
     let mut global_weight = 0.0;
     if outside_inner {
@@ -188,13 +237,21 @@ pub fn reflection_sample(probes: &[Probe], input: &ReflectionInputs, eye: Vec3, 
             let global = super::ibl::Ibl::get().sample_specular(reflect_dir, input.roughness * 5.0);
             let n_dot_v = saturate(input.normal.dot(dir_to_camera)).max(0.01);
             let brdf = map.sample(Vec2::new(n_dot_v, 1.0 - input.roughness));
-            let compensation = multi_scatter_compensation(input.specular_f0, brdf, input.multiscatter);
+            let compensation =
+                multi_scatter_compensation(input.specular_f0, brdf, input.multiscatter);
             global_weight = 1.0 - total.min(1.0);
-            reflection = global_weight * global * compensation * (input.specular_f0 * brdf.x + Vec3::splat(brdf.y)) * 2.0f32.powf(ibl_exposure) * input.specular_occlusion;
+            reflection = global_weight
+                * global
+                * compensation
+                * (input.specular_f0 * brdf.x + Vec3::splat(brdf.y))
+                * 2.0f32.powf(ibl_exposure)
+                * input.specular_occlusion;
         }
         for probe in probes {
             if let Some(specular) = probe_specular(probe, probe.outer_half, input, eye, map) {
-                reflection += specular * 2.0f32.powf(probe.exposure) * probe.blend_weight(input.position) / total.max(1.0);
+                reflection +=
+                    specular * 2.0f32.powf(probe.exposure) * probe.blend_weight(input.position)
+                        / total.max(1.0);
             }
         }
     }
@@ -205,7 +262,17 @@ pub fn reflection_sample(probes: &[Probe], input: &ReflectionInputs, eye: Vec3, 
             }
         }
     }
-    ReflectionSample { stencil, blend_weight: total, global_weight, reflection, composited: if masked >= 1 { reflection } else { Vec3::ZERO } }
+    ReflectionSample {
+        stencil,
+        blend_weight: total,
+        global_weight,
+        reflection,
+        composited: if masked >= 1 {
+            reflection
+        } else {
+            Vec3::ZERO
+        },
+    }
 }
 
 /// The probe stencil view's colours (stencilColor in the shader).
@@ -227,7 +294,9 @@ pub fn sample_probe(probe: &Probe, dir: Vec3, mip: f32) -> Vec3 {
 pub fn forward_probe(probes: &[Probe], center: Vec3, extent: Vec3) -> Option<usize> {
     probes.iter().rposition(|p| {
         let rotation = Mat3::from_quat(p.rotation);
-        let half = rotation.x_axis.abs() * p.outer_half.x + rotation.y_axis.abs() * p.outer_half.y + rotation.z_axis.abs() * p.outer_half.z;
+        let half = rotation.x_axis.abs() * p.outer_half.x
+            + rotation.y_axis.abs() * p.outer_half.y
+            + rotation.z_axis.abs() * p.outer_half.z;
         ((p.position - center).abs() - (half + extent)).max_element() <= 0.0
     })
 }
@@ -237,7 +306,9 @@ fn sample_specular(mips: &[Cubemap], dir: Vec3, mip: f32) -> Vec3 {
     let m = mip.clamp(0.0, (SPECULAR_MIPS - 1) as f32);
     let m0 = m.floor() as usize;
     let m1 = (m0 + 1).min(SPECULAR_MIPS - 1);
-    mips[m0].sample(dir).lerp(mips[m1].sample(dir), m - m0 as f32)
+    mips[m0]
+        .sample(dir)
+        .lerp(mips[m1].sample(dir), m - m0 as f32)
 }
 
 /// The room's objects and shading as the probes see them when baked: the
@@ -251,14 +322,32 @@ fn bake_scene() -> (Vec<ObjectData>, Shading) {
 /// What a probe's capture sees along `dir` from its position `center`: the
 /// room shaded by the CPU mirror (the point light and the global skylight),
 /// with the eye at the probe, or the sky where nothing is hit.
-fn bake_radiance(objects: &[ObjectData], shading: &Shading, map: &BrdfMap, center: Vec3, dir: Vec3) -> Vec3 {
+fn bake_radiance(
+    objects: &[ObjectData],
+    shading: &Shading,
+    map: &BrdfMap,
+    center: Vec3,
+    dir: Vec3,
+) -> Vec3 {
     let hit = lab::scene::trace_scene(objects, center, dir, 100.0, lab::scene::ids::PANEL as u32);
     if !hit.is_hit() {
         return super::ibl::environment(dir);
     }
     let p = center + dir * hit.t;
-    let n = if hit.normal.dot(dir) > 0.0 { -hit.normal } else { hit.normal };
-    super::brdf::pixel(shading, objects, &super::brdf::Fragment::at(hit.object, p, n), center, 0.0, map).color
+    let n = if hit.normal.dot(dir) > 0.0 {
+        -hit.normal
+    } else {
+        hit.normal
+    };
+    super::brdf::pixel(
+        shading,
+        objects,
+        &super::brdf::Fragment::at(hit.object, p, n),
+        center,
+        0.0,
+        map,
+    )
+    .color
 }
 
 /// Each probe's specular cubemap: `bake_radiance` from the probe's centre,
@@ -271,7 +360,13 @@ pub fn cubemaps() -> &'static Vec<Vec<Cubemap>> {
         let map = BrdfMap::get();
         PLACEMENTS
             .iter()
-            .map(|&(center, _, _)| super::ibl::Ibl::build_specular(|dir| bake_radiance(&objects, &shading, map, center, dir), SPECULAR_SIZE, super::ibl::GGX_SAMPLES))
+            .map(|&(center, _, _)| {
+                super::ibl::Ibl::build_specular(
+                    |dir| bake_radiance(&objects, &shading, map, center, dir),
+                    SPECULAR_SIZE,
+                    super::ibl::GGX_SAMPLES,
+                )
+            })
             .collect()
     })
 }
@@ -295,19 +390,30 @@ pub fn bake_check(count: usize) -> Vec<(f32, f32)> {
                     let a = i as f32 * 2.399_963;
                     let r = (1.0 - z * z).max(0.0).sqrt();
                     let dir = Vec3::new(r * a.cos(), z, r * a.sin());
-                    let (baked, traced) = (mips[0].sample(dir), bake_radiance(&objects, &shading, map, center, dir));
-                    (baked - traced).abs().max_element() / baked.max_element().max(traced.max_element()).max(0.05)
+                    let (baked, traced) = (
+                        mips[0].sample(dir),
+                        bake_radiance(&objects, &shading, map, center, dir),
+                    );
+                    (baked - traced).abs().max_element()
+                        / baked.max_element().max(traced.max_element()).max(0.05)
                 })
                 .collect();
             errors.sort_by(f32::total_cmp);
-            (errors.iter().filter(|&&e| e < 0.05).count() as f32 / count as f32, errors[count / 2])
+            (
+                errors.iter().filter(|&&e| e < 0.05).count() as f32 / count as f32,
+                errors[count / 2],
+            )
         })
         .collect()
 }
 
 /// Which baked cubemap the cubemap views show (`probeShown`, 1 or 2).
 pub fn shown_cubemap(state: &ShotState) -> usize {
-    (state.p("probeShown").round().clamp(1.0, PLACEMENTS.len() as f32) as usize) - 1
+    (state
+        .p("probeShown")
+        .round()
+        .clamp(1.0, PLACEMENTS.len() as f32) as usize)
+        - 1
 }
 
 /// The probe position a cubemap was baked from.
@@ -323,13 +429,27 @@ pub fn cubemap_view_records(state: &ShotState) -> Vec<[f32; 4]> {
     let cubemap = shown_cubemap(state);
     let mip_max = (SPECULAR_MIPS - 1) as f32;
     vec![
-        [state.p("probeCubemap").clamp(0.0, 1.0), cubemap as f32, state.p("probeCubemapMip").clamp(0.0, mip_max), state.p("probeBakeFaces").clamp(0.0, 6.0)],
-        [state.p("probeBall").clamp(0.0, 1.0), state.p("probeBallRadius").max(0.01), cubemap as f32, state.p("probeBallMip").clamp(0.0, mip_max)],
+        [
+            state.p("probeCubemap").clamp(0.0, 1.0),
+            cubemap as f32,
+            state.p("probeCubemapMip").clamp(0.0, mip_max),
+            state.p("probeBakeFaces").clamp(0.0, 6.0),
+        ],
+        [
+            state.p("probeBall").clamp(0.0, 1.0),
+            state.p("probeBallRadius").max(0.01),
+            cubemap as f32,
+            state.p("probeBallMip").clamp(0.0, mip_max),
+        ],
         bake_position(cubemap).extend(0.0).to_array(),
     ]
 }
 
 /// The probes' cubemaps as gShadingData appends them.
 pub fn shading_data() -> Vec<[f32; 4]> {
-    cubemaps().iter().flatten().flat_map(|c| c.texels.iter().map(|t| [t.x, t.y, t.z, 0.0])).collect()
+    cubemaps()
+        .iter()
+        .flatten()
+        .flat_map(|c| c.texels.iter().map(|t| [t.x, t.y, t.z, 0.0]))
+        .collect()
 }

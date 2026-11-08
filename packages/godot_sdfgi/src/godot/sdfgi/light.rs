@@ -15,8 +15,10 @@
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
-use super::model::{Cascades, CASCADE_SIZE, PROBE_AXIS_COUNT};
-use super::voxels::{decode_rgbe8985, index, inside, shared_exponent, SolidCell, ANISO_DIR, CELLS, N};
+use super::model::{CASCADE_SIZE, Cascades, PROBE_AXIS_COUNT};
+use super::voxels::{
+    ANISO_DIR, CELLS, N, SolidCell, decode_rgbe8985, index, inside, shared_exponent,
+};
 use glam::{IVec3, Vec3};
 
 pub const LIGHT_TYPE_DIRECTIONAL: u32 = 0;
@@ -53,7 +55,11 @@ pub struct LightTextures {
 impl LightTextures {
     /// `render_region` clears them after STORE.
     pub fn cleared() -> LightTextures {
-        LightTextures { light: vec![0; CELLS], aniso0: vec![[0; 4]; CELLS], aniso1: vec![[0; 2]; CELLS] }
+        LightTextures {
+            light: vec![0; CELLS],
+            aniso0: vec![[0; 4]; CELLS],
+            aniso1: vec![[0; 2]; CELLS],
+        }
     }
 
     pub fn light_at(&self, p: IVec3) -> Vec3 {
@@ -76,12 +82,20 @@ pub fn encode_e5b9g9r9(light: Vec3) -> u32 {
 
 pub fn decode_e5b9g9r9(word: u32) -> Vec3 {
     let m = 2f32.powi(((word >> 27) & 0x1F) as i32 - 15 - 9);
-    Vec3::new((word & 0x1FF) as f32, ((word >> 9) & 0x1FF) as f32, ((word >> 18) & 0x1FF) as f32) * m
+    Vec3::new(
+        (word & 0x1FF) as f32,
+        ((word >> 9) & 0x1FF) as f32,
+        ((word >> 18) & 0x1FF) as f32,
+    ) * m
 }
 
 fn unorm8(v: f32) -> u8 {
     // NaN (a cell with no light: 0 / 0) is stored as 0, as GPUs do.
-    if v.is_nan() { 0 } else { (v.clamp(0.0, 1.0) * 255.0).round() as u8 }
+    if v.is_nan() {
+        0
+    } else {
+        (v.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
 }
 
 /// A trilinear `texture()` read of an `N`^3 image at `uvw` (0..1), clamped to
@@ -95,7 +109,23 @@ pub fn sample3(uvw: Vec3, at: impl Fn(IVec3) -> f32) -> f32 {
     for i in 0..8 {
         let o = IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
         let p = (b + o).clamp(IVec3::ZERO, IVec3::splat(CASCADE_SIZE - 1));
-        let w = Vec3::new(if o.x == 1 { f.x } else { 1.0 - f.x }, if o.y == 1 { f.y } else { 1.0 - f.y }, if o.z == 1 { f.z } else { 1.0 - f.z });
+        let w = Vec3::new(
+            if o.x == 1 {
+                f.x
+            } else {
+                1.0 - f.x
+            },
+            if o.y == 1 {
+                f.y
+            } else {
+                1.0 - f.y
+            },
+            if o.z == 1 {
+                f.z
+            } else {
+                1.0 - f.z
+            },
+        );
         sum += w.x * w.y * w.z * at(p);
     }
     sum
@@ -145,7 +175,14 @@ impl Field<'_> {
 /// centre, biased toward the light, through this cascade and the coarser
 /// ones, stepping by the field. True when a solid sample (below 0.001 cell)
 /// is reached before the light.
-pub fn shadow_ray(field: &Field, cascade: usize, position: Vec3, direction: Vec3, light_distance: f32, steps: Option<&mut Vec<(usize, Vec3, f32)>>) -> bool {
+pub fn shadow_ray(
+    field: &Field,
+    cascade: usize,
+    position: Vec3,
+    direction: Vec3,
+    light_distance: f32,
+    steps: Option<&mut Vec<(usize, Vec3, f32)>>,
+) -> bool {
     let grid = CASCADE_SIZE as f32;
     let inv_dir = Vec3::ONE / direction;
     let cell_size = 1.0 / field.to_cell(cascade);
@@ -192,18 +229,30 @@ pub fn shadow_ray(field: &Field, cascade: usize, position: Vec3, direction: Vec3
 /// `normal`, not divided by 2 pi (area_lights_inc.glsl: "no division by
 /// (2.0 * M_PI) for GI calculations").
 pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
-    let eye_vec = if normal.z.abs() < 0.7 { Vec3::new(0.0, 0.0, -1.0) } else { Vec3::X };
+    let eye_vec = if normal.z.abs() < 0.7 {
+        Vec3::new(0.0, 0.0, -1.0)
+    } else {
+        Vec3::X
+    };
     let z = -(eye_vec - normal * eye_vec.dot(normal)).normalize();
     let x = normal.cross(z);
     // M_inv = transpose(mat3(x, normal, z)): rows x, normal, z.
     let rot = |p: Vec3| Vec3::new(x.dot(p), normal.dot(p), z.dot(p));
-    let mut l = [rot(points[0]), rot(points[1]), rot(points[2]), rot(points[3]), Vec3::ZERO];
+    let mut l = [
+        rot(points[0]),
+        rot(points[1]),
+        rot(points[2]),
+        rot(points[3]),
+        Vec3::ZERO,
+    ];
     let n = clip_quad_to_horizon(&mut l);
     if n == 0 {
         return 0.0;
     }
     let proj = l.map(|v| v.normalize_or_zero());
-    let pnorm = (proj[0] - proj[1]).cross(proj[2] - proj[1]).normalize_or_zero();
+    let pnorm = (proj[0] - proj[1])
+        .cross(proj[2] - proj[1])
+        .normalize_or_zero();
     if pnorm.dot(proj[0]).abs() < 1e-10 {
         return 0.0;
     }
@@ -339,8 +388,16 @@ pub fn area_light(light: &Light, position: Vec3) -> (f32, Vec3, f32) {
     let wn = light.area_width.normalize();
     let hn = light.area_height.normalize();
     let to_vert = position - light.position;
-    let local = Vec3::new(to_vert.dot(wn), to_vert.dot(hn), to_vert.dot(-light.direction));
-    let closest_local = Vec3::new(local.x.clamp(-a_len / 2.0, a_len / 2.0), local.y.clamp(-b_len / 2.0, b_len / 2.0), 0.0);
+    let local = Vec3::new(
+        to_vert.dot(wn),
+        to_vert.dot(hn),
+        to_vert.dot(-light.direction),
+    );
+    let closest_local = Vec3::new(
+        local.x.clamp(-a_len / 2.0, a_len / 2.0),
+        local.y.clamp(-b_len / 2.0, b_len / 2.0),
+        0.0,
+    );
     // inv_spot_attenuation carries 1 / (radius + |area_size| / 2) for area lights.
     let inv_center_range = light.inv_spot_attenuation;
     let closest = light.position + closest_local.x * wn + closest_local.y * hn;
@@ -355,7 +412,12 @@ pub fn area_light(light: &Light, position: Vec3) -> (f32, Vec3, f32) {
     }
     let hw = light.area_width / 2.0;
     let hh = light.area_height / 2.0;
-    let points = [light.position - hw - hh - position, light.position + hw - hh - position, light.position + hw + hh - position, light.position - hw + hh - position];
+    let points = [
+        light.position - hw - hh - position,
+        light.position + hw - hh - position,
+        light.position + hw + hh - position,
+        light.position - hw + hh - position,
+    ];
     let mut attenuation = omni_attenuation(distance, 1.0 / light.radius, light.attenuation - 2.0);
     attenuation *= ltc_diffuse(direction, points);
     (attenuation, direction, distance)
@@ -384,7 +446,8 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
             (direction, distance, attenuation)
         }
         _ => {
-            if light.area_width.length_squared() < 1e-7 || light.area_height.length_squared() < 1e-7 {
+            if light.area_width.length_squared() < 1e-7 || light.area_height.length_squared() < 1e-7
+            {
                 return None;
             }
             if light.direction.dot(position - light.position) <= 0.0 {
@@ -394,7 +457,11 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
             (direction, distance, attenuation)
         }
     };
-    if attenuation < 0.001 { None } else { Some((direction, distance, attenuation)) }
+    if attenuation < 0.001 {
+        None
+    } else {
+        Some((direction, distance, attenuation))
+    }
 }
 
 /// What one cell of the light pass computes, before it is stored.
@@ -419,10 +486,20 @@ pub struct Lighting<'a> {
 
 /// The light pass for one solid cell (`main` of sdfgi_direct_light.glsl),
 /// up to the per-face sums.
-pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lighting: &Lighting) -> CellLight {
-    let Lighting { lights, bounce_feedback, probes } = *lighting;
+pub fn cell_light(
+    field: &Field,
+    cascade: usize,
+    cell: &SolidCell,
+    lighting: &Lighting,
+) -> CellLight {
+    let Lighting {
+        lights,
+        bounce_feedback,
+        probes,
+    } = *lighting;
     let positioni = cell.cell();
-    let position = (positioni.as_vec3() + Vec3::splat(0.5)) / field.to_cell(cascade) + field.offset(cascade);
+    let position =
+        (positioni.as_vec3() + Vec3::splat(0.5)) / field.to_cell(cascade) + field.offset(cascade);
     let albedo = cell.albedo_rgb();
     let valid_aniso = cell.facing();
     let mut out = CellLight::default();
@@ -430,8 +507,13 @@ pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lighting: &Li
     if let Some(probes) = probes
         && bounce_feedback > 0.001
     {
-        let feedback = if bounce_feedback < 1.0 { albedo * bounce_feedback } else { albedo.lerp(Vec3::ONE, bounce_feedback - 1.0) };
-        let pos = (positioni.as_vec3() + Vec3::splat(0.5)) * (PROBE_AXIS_COUNT - 1) as f32 / CASCADE_SIZE as f32;
+        let feedback = if bounce_feedback < 1.0 {
+            albedo * bounce_feedback
+        } else {
+            albedo.lerp(Vec3::ONE, bounce_feedback - 1.0)
+        };
+        let pos = (positioni.as_vec3() + Vec3::splat(0.5)) * (PROBE_AXIS_COUNT - 1) as f32
+            / CASCADE_SIZE as f32;
         let base = pos.as_ivec3();
         let mut weight_accum = [0.0f32; 6];
         for j in 0..8 {
@@ -448,7 +530,11 @@ pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lighting: &Li
                 if weight > 0.0 {
                     // Texel position of the probe's octahedral map at n (lightprobe_texture, layer = cascade).
                     let oct = octahedron_encode(*n) * 6.0;
-                    let tex = Vec3::new(((probe.x + probe.z * PROBE_AXIS_COUNT) * 8 + 1) as f32 + oct.x, (probe.y * 8 + 1) as f32 + oct.y, cascade as f32);
+                    let tex = Vec3::new(
+                        ((probe.x + probe.z * PROBE_AXIS_COUNT) * 8 + 1) as f32 + oct.x,
+                        (probe.y * 8 + 1) as f32 + oct.y,
+                        cascade as f32,
+                    );
                     let indirect = probes.irradiance(cascade, tex);
                     out.bounce[k] += indirect * weight;
                     weight_accum[k] += weight;
@@ -472,7 +558,9 @@ pub fn cell_light(field: &Field, cascade: usize, cell: &SolidCell, lighting: &Li
     }
     // The lights.
     for light in lights {
-        let Some((direction, distance, attenuation)) = light_at(light, position) else { continue };
+        let Some((direction, distance, attenuation)) = light_at(light, position) else {
+            continue;
+        };
         if shadow_ray(field, cascade, position, direction, distance, None) {
             continue;
         }
@@ -499,7 +587,18 @@ pub fn octahedron_encode(n: Vec3) -> glam::Vec2 {
     let xy = if n.z >= 0.0 {
         glam::Vec2::new(n.x, n.y)
     } else {
-        let sign = glam::Vec2::new(if n.x >= 0.0 { 1.0 } else { -1.0 }, if n.y >= 0.0 { 1.0 } else { -1.0 });
+        let sign = glam::Vec2::new(
+            if n.x >= 0.0 {
+                1.0
+            } else {
+                -1.0
+            },
+            if n.y >= 0.0 {
+                1.0
+            } else {
+                -1.0
+            },
+        );
         (glam::Vec2::ONE - glam::Vec2::new(n.y.abs(), n.x.abs())) * sign
     };
     xy * 0.5 + glam::Vec2::splat(0.5)
@@ -508,7 +607,15 @@ pub fn octahedron_encode(n: Vec3) -> glam::Vec2 {
 /// `MODE_PROCESS_DYNAMIC` over the cells this frame updates (every
 /// `increment`-th, from `offset`), writing the cascade's light textures and
 /// each cell's neighbours.
-pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lighting: &Lighting, offset: usize, increment: usize, textures: &mut LightTextures) {
+pub fn dynamic_pass(
+    field: &Field,
+    cascade: usize,
+    cells: &[SolidCell],
+    lighting: &Lighting,
+    offset: usize,
+    increment: usize,
+    textures: &mut LightTextures,
+) {
     const NEIGHBOURS: [IVec3; 26] = {
         let mut v = [IVec3::ZERO; 26];
         let mut k = 0;
@@ -536,7 +643,12 @@ pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lighting
         let result = cell_light(field, cascade, cell, lighting);
         let (total, lumas, luma_total) = pack(&result.accum);
         let word = encode_e5b9g9r9(total);
-        let a0 = [unorm8(lumas[0] / luma_total), unorm8(lumas[1] / luma_total), unorm8(lumas[2] / luma_total), unorm8(lumas[3] / luma_total)];
+        let a0 = [
+            unorm8(lumas[0] / luma_total),
+            unorm8(lumas[1] / luma_total),
+            unorm8(lumas[2] / luma_total),
+            unorm8(lumas[3] / luma_total),
+        ];
         let a1 = [unorm8(lumas[4] / luma_total), unorm8(lumas[5] / luma_total)];
         let p = cell.cell();
         let mut write = |q: IVec3| {
@@ -561,10 +673,22 @@ pub fn dynamic_pass(field: &Field, cascade: usize, cells: &[SolidCell], lighting
 /// cell's stored light and writes the sum back into the cell (RGBE8985).
 pub fn static_pass(field: &Field, cascade: usize, cells: &mut [SolidCell], lights: &[Light]) {
     for i in 0..cells.len() {
-        let result = cell_light(field, cascade, &cells[i], &Lighting { lights, bounce_feedback: 0.0, probes: None });
+        let result = cell_light(
+            field,
+            cascade,
+            &cells[i],
+            &Lighting {
+                lights,
+                bounce_feedback: 0.0,
+                probes: None,
+            },
+        );
         let (total, lumas, luma_total) = pack(&result.accum);
         let (s, exps) = shared_exponent(total);
-        let rgbe = ((s[0] & 0x1FF) >> 1) | ((s[1] & 0x1FF) << 8) | (((s[2] & 0x1FF) >> 1) << 17) | ((exps & 0x1F) << 25);
+        let rgbe = ((s[0] & 0x1FF) >> 1)
+            | ((s[1] & 0x1FF) << 8)
+            | (((s[2] & 0x1FF) >> 1) << 17)
+            | ((exps & 0x1F) << 25);
         let cell = &mut cells[i];
         cell.light = (cell.light & (3 << 30)) | rgbe;
         let mut aniso = cell.light_aniso & (3 << 30);

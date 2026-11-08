@@ -8,12 +8,16 @@
 //! nodes and the triangles in leaf order, laid out as types.wgsl's MeshNode
 //! (32 bytes) and MeshTriangle (96 bytes).
 
-use super::{put_f32, put_u32, Kind, Params, Ty};
+use super::{Kind, Params, Ty, put_f32, put_u32};
 use glam::Vec3;
 
 pub const KIND: Kind = Kind {
     name: "mesh",
-    params: &[("scale", Ty::Float), ("leaf-triangles", Ty::Int), ("max-depth", Ty::Int)],
+    params: &[
+        ("scale", Ty::Float),
+        ("leaf-triangles", Ty::Int),
+        ("max-depth", Ty::Int),
+    ],
     code: &[include_str!("mesh.rs")],
     process,
 };
@@ -35,10 +39,15 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
     let (leaf, max_depth) = (params.int("leaf-triangles").max(1), params.int("max-depth"));
     let (nodes, order, depth) = build(&triangles, leaf);
     if depth > max_depth {
-        return Err(format!("the BVH is {depth} levels deep (max-depth is {max_depth})"));
+        return Err(format!(
+            "the BVH is {depth} levels deep (max-depth is {max_depth})"
+        ));
     }
     let mut out = Vec::new();
-    put_u32(&mut out, &[nodes.len() as u32, order.len() as u32, depth as u32]);
+    put_u32(
+        &mut out,
+        &[nodes.len() as u32, order.len() as u32, depth as u32],
+    );
     for n in &nodes {
         put_f32(&mut out, &n.bounds_min.to_array());
         put_u32(&mut out, &[n.first_or_left]);
@@ -67,7 +76,10 @@ fn parse_obj(text: &str, scale: f32) -> Result<Vec<Triangle>, String> {
         let vec3 = |parts: &mut std::str::SplitWhitespace| -> Result<Vec3, String> {
             let mut v = [0.0f32; 3];
             for c in &mut v {
-                *c = parts.next().and_then(|x| x.parse().ok()).ok_or_else(|| fail("three numbers"))?;
+                *c = parts
+                    .next()
+                    .and_then(|x| x.parse().ok())
+                    .ok_or_else(|| fail("three numbers"))?;
             }
             Ok(Vec3::from(v))
         };
@@ -78,15 +90,28 @@ fn parse_obj(text: &str, scale: f32) -> Result<Vec<Triangle>, String> {
                 let corners = parts
                     .map(|c| {
                         let mut ids = c.split('/');
-                        let v: usize = ids.next().and_then(|x| x.parse().ok()).ok_or_else(|| fail("a vertex index"))?;
-                        let n: usize = ids.nth(1).and_then(|x| x.parse().ok()).ok_or_else(|| fail("a normal index (faces are v/vt/vn)"))?;
-                        match (positions.get(v.wrapping_sub(1)), normals.get(n.wrapping_sub(1))) {
+                        let v: usize = ids
+                            .next()
+                            .and_then(|x| x.parse().ok())
+                            .ok_or_else(|| fail("a vertex index"))?;
+                        let n: usize = ids
+                            .nth(1)
+                            .and_then(|x| x.parse().ok())
+                            .ok_or_else(|| fail("a normal index (faces are v/vt/vn)"))?;
+                        match (
+                            positions.get(v.wrapping_sub(1)),
+                            normals.get(n.wrapping_sub(1)),
+                        ) {
                             (Some(&p), Some(&n)) => Ok((p, n)),
-                            _ => Err(fail("an index past the vertices or normals declared before it")),
+                            _ => Err(fail(
+                                "an index past the vertices or normals declared before it",
+                            )),
                         }
                     })
                     .collect::<Result<Vec<(Vec3, Vec3)>, String>>()?;
-                let [a, b, c] = corners[..] else { return Err(fail("only triangles are supported")) };
+                let [a, b, c] = corners[..] else {
+                    return Err(fail("only triangles are supported"));
+                };
                 triangles.push(([a.0, b.0, c.0], [a.1, b.1, c.1]));
             }
             _ => {}
@@ -99,7 +124,10 @@ fn parse_obj(text: &str, scale: f32) -> Result<Vec<Triangle>, String> {
 /// file order, so the tree (and every traversal) is the same on each build.
 /// Returns the nodes, the triangles' order, and the depth.
 fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
-    let centroids: Vec<Vec3> = triangles.iter().map(|(p, _)| (p[0] + p[1] + p[2]) / 3.0).collect();
+    let centroids: Vec<Vec3> = triangles
+        .iter()
+        .map(|(p, _)| (p[0] + p[1] + p[2]) / 3.0)
+        .collect();
     let mut order: Vec<u32> = (0..triangles.len() as u32).collect();
     let mut nodes = vec![Node::default()];
     let mut depth = 0;
@@ -125,8 +153,18 @@ fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
             continue;
         }
         let span = chi - clo;
-        let axis = if span.x >= span.y && span.x >= span.z { 0 } else if span.y >= span.z { 1 } else { 2 };
-        order[start..end].sort_by(|&a, &b| centroids[a as usize][axis].total_cmp(&centroids[b as usize][axis]).then(a.cmp(&b)));
+        let axis = if span.x >= span.y && span.x >= span.z {
+            0
+        } else if span.y >= span.z {
+            1
+        } else {
+            2
+        };
+        order[start..end].sort_by(|&a, &b| {
+            centroids[a as usize][axis]
+                .total_cmp(&centroids[b as usize][axis])
+                .then(a.cmp(&b))
+        });
         let mid = (start + end) / 2;
         let left = nodes.len();
         nodes.push(Node::default());

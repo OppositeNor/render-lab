@@ -41,7 +41,17 @@ pub struct Cell {
 
 impl Default for Cell {
     fn default() -> Cell {
-        Cell { children: [CHILD_EMPTY; 8], albedo: [0.0; 3], emission: [0.0; 3], normal: [0.0; 3], alpha: 0.0, x: 0, y: 0, z: 0, level: 0 }
+        Cell {
+            children: [CHILD_EMPTY; 8],
+            albedo: [0.0; 3],
+            emission: [0.0; 3],
+            normal: [0.0; 3],
+            alpha: 0.0,
+            x: 0,
+            y: 0,
+            z: 0,
+            level: 0,
+        }
     }
 }
 
@@ -134,7 +144,11 @@ fn normal_at(pos: Vec3, vtx: &[Vec3; 3], normal: &[Vec3; 3]) -> Vec3 {
 /// `Vector3::normalized`: zero stays zero.
 pub fn normalized(v: Vec3) -> Vec3 {
     let l = v.length_squared();
-    if l == 0.0 { Vec3::ZERO } else { v / l.sqrt() }
+    if l == 0.0 {
+        Vec3::ZERO
+    } else {
+        v / l.sqrt()
+    }
 }
 
 /// `planeBoxOverlap` (core/math/geometry_3d.h).
@@ -184,12 +198,22 @@ pub fn triangle_box_stage(boxcenter: Vec3, h: Vec3, triverts: &[Vec3; 3]) -> Sat
     let e2 = v0 - v2;
     // The AXISTEST_* macros: p = a * v.(second) - b * v.(third), and the box's radius on that axis.
     let range = |p: f32, q: f32, rad: f32| {
-        let (min, max) = if p < q { (p, q) } else { (q, p) };
+        let (min, max) = if p < q {
+            (p, q)
+        } else {
+            (q, p)
+        };
         !(min > rad || max < -rad)
     };
-    let x_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| range(a * s.y - b * s.z, a * t.y - b * t.z, fa * h.y + fb * h.z);
-    let y_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| range(-a * s.x + b * s.z, -a * t.x + b * t.z, fa * h.x + fb * h.z);
-    let z_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| range(a * s.x - b * s.y, a * t.x - b * t.y, fa * h.x + fb * h.y);
+    let x_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| {
+        range(a * s.y - b * s.z, a * t.y - b * t.z, fa * h.y + fb * h.z)
+    };
+    let y_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| {
+        range(-a * s.x + b * s.z, -a * t.x + b * t.z, fa * h.x + fb * h.z)
+    };
+    let z_test = |a: f32, b: f32, fa: f32, fb: f32, s: Vec3, t: Vec3| {
+        range(a * s.x - b * s.y, a * t.x - b * t.y, fa * h.x + fb * h.y)
+    };
     let tests: [bool; 9] = {
         let f = e0.abs();
         let r0 = x_test(e0.z, e0.y, f.z, f.y, v0, v2); // AXISTEST_X01
@@ -218,7 +242,11 @@ pub fn triangle_box_stage(boxcenter: Vec3, h: Vec3, triverts: &[Vec3; 3]) -> Sat
     }
     let normal = e0.cross(e1);
     let d = -normal.dot(v0);
-    if plane_box_overlap(normal, d, h) { SatStage::Overlap } else { SatStage::Plane }
+    if plane_box_overlap(normal, d, h) {
+        SatStage::Overlap
+    } else {
+        SatStage::Plane
+    }
 }
 
 /// `Face3::get_closest_point_to`.
@@ -379,12 +407,31 @@ impl Voxelizer {
                 continue;
             }
             let po2 = self.po2_bounds;
-            self.plot_face(0, 0, [0, 0, 0], &Face { tri, albedo: mesh.albedo, emission: mesh.emission }, po2, &mut None);
+            self.plot_face(
+                0,
+                0,
+                [0, 0, 0],
+                &Face {
+                    tri,
+                    albedo: mesh.albedo,
+                    emission: mesh.emission,
+                },
+                po2,
+                &mut None,
+            );
         }
     }
 
     /// `_plot_face`, with an optional record of the descent.
-    pub fn plot_face(&mut self, idx: u32, level: i32, p: [i32; 3], face: &Face, aabb: Aabb, trace: &mut Option<&mut Vec<Descent>>) {
+    pub fn plot_face(
+        &mut self,
+        idx: u32,
+        level: i32,
+        p: [i32; 3],
+        face: &Face,
+        aabb: Aabb,
+        trace: &mut Option<&mut Vec<Descent>>,
+    ) {
         let tri = face.tri;
         if level == self.cell_subdiv {
             let s = leaf_sample(face, aabb);
@@ -421,18 +468,32 @@ impl Voxelizer {
             let overlaps = triangle_box_overlap(child.position + qsize, qsize, &tri.vtx);
             if !overlaps {
                 if let Some(t) = trace.as_deref_mut() {
-                    t.push(Descent { level: level + 1, aabb: child, overlaps: false });
+                    t.push(Descent {
+                        level: level + 1,
+                        aabb: child,
+                        overlaps: false,
+                    });
                 }
                 continue;
             }
             if self.cells[idx as usize].children[i] == CHILD_EMPTY {
                 let child_idx = self.cells.len() as u32;
                 self.cells[idx as usize].children[i] = child_idx;
-                self.cells.push(Cell { level: (level + 1) as u16, x: (n[0] / half) as u16, y: (n[1] / half) as u16, z: (n[2] / half) as u16, ..Cell::default() });
+                self.cells.push(Cell {
+                    level: (level + 1) as u16,
+                    x: (n[0] / half) as u16,
+                    y: (n[1] / half) as u16,
+                    z: (n[2] / half) as u16,
+                    ..Cell::default()
+                });
             }
             let next = self.cells[idx as usize].children[i];
             if let Some(t) = trace.as_deref_mut() {
-                t.push(Descent { level: level + 1, aabb: child, overlaps: true });
+                t.push(Descent {
+                    level: level + 1,
+                    aabb: child,
+                    overlaps: true,
+                });
             }
             self.plot_face(next, level + 1, n, face, child, trace);
         }
@@ -442,9 +503,14 @@ impl Voxelizer {
     /// bits); children remapped.
     pub fn sort(&mut self) {
         let mut order: Vec<usize> = (0..self.cells.len()).collect();
-        let key = |c: &Cell| ((c.level as u64) << 48) | ((c.x as u64) << 32) | ((c.y as u64) << 16) | c.z as u64;
+        let key = |c: &Cell| {
+            ((c.level as u64) << 48) | ((c.x as u64) << 32) | ((c.y as u64) << 16) | c.z as u64
+        };
         order.sort_by_key(|&i| key(&self.cells[i]));
-        assert_eq!(self.cells[order[0]].level, 0, "the sorted cells start with the root");
+        assert_eq!(
+            self.cells[order[0]].level, 0,
+            "the sorted cells start with the root"
+        );
         let mut reverse = vec![0u32; self.cells.len()];
         for (new, &old) in order.iter().enumerate() {
             reverse[old] = new as u32;
@@ -473,7 +539,11 @@ impl Voxelizer {
                 c.normal[k] /= alpha;
             }
             let n = Vec3::from(c.normal);
-            c.normal = if n.length() < 0.01 { [0.0; 3] } else { n.normalize().to_array() };
+            c.normal = if n.length() < 0.01 {
+                [0.0; 3]
+            } else {
+                n.normalize().to_array()
+            };
             c.alpha = 1.0;
             return;
         }
@@ -546,7 +616,11 @@ pub struct Face<'a> {
 /// crosses each, and the sums scaled by 1/16 (or the closest point to the
 /// cell's centre at 1/16 when no column is crossed).
 pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
-    let Face { tri, albedo, emission } = *face;
+    let Face {
+        tri,
+        albedo,
+        emission,
+    } = *face;
     let vtx = &tri.vtx;
     let (normal, d) = plane_of(vtx);
     let mut closest_axis = 0;
@@ -580,7 +654,11 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
             let to = from + t1 + t2 + axis * aabb.size[closest_axis];
             let half = (to - from) * 0.5;
             if !triangle_box_overlap(from + half, half, vtx) {
-                columns.push(Column { from, to, hit: None });
+                columns.push(Column {
+                    from,
+                    to,
+                    hit: None,
+                });
                 continue;
             }
             let mut ray_from = from + (t1 + t2) * 0.5 - axis * aabb.size[closest_axis];
@@ -588,10 +666,15 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
             if normal.dot(ray_from - ray_to) < 0.0 {
                 std::mem::swap(&mut ray_from, &mut ray_to);
             }
-            let intersection = intersects_segment(normal, d, ray_from, ray_to).unwrap_or_else(|| {
-                let dist = |p: Vec3| normal.dot(p) - d;
-                if dist(ray_from).abs() < dist(ray_to).abs() { ray_from - normal * dist(ray_from) } else { ray_to - normal * dist(ray_to) }
-            });
+            let intersection =
+                intersects_segment(normal, d, ray_from, ray_to).unwrap_or_else(|| {
+                    let dist = |p: Vec3| normal.dot(p) - d;
+                    if dist(ray_from).abs() < dist(ray_to).abs() {
+                        ray_from - normal * dist(ray_from)
+                    } else {
+                        ray_to - normal * dist(ray_to)
+                    }
+                });
             let intersection = closest_point_on_triangle(vtx, intersection);
             let mut lnormal = normal_at(intersection, vtx, &tri.normal);
             if lnormal == Vec3::ZERO {
@@ -601,7 +684,11 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
             emission_accum += emission;
             normal_accum += lnormal;
             alpha += 1.0;
-            columns.push(Column { from, to, hit: Some(intersection) });
+            columns.push(Column {
+                from,
+                to,
+                hit: Some(intersection),
+            });
         }
     }
     let accdiv = 1.0 / (w * w);
@@ -610,12 +697,30 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
         // The engine passes `normal` as the output here, so the interpolated
         // normal at the closest point is what `lnormal` falls back to.
         let lnormal = normal_at(inters, vtx, &tri.normal);
-        let lnormal = if lnormal == Vec3::ZERO { normal } else { lnormal };
+        let lnormal = if lnormal == Vec3::ZERO {
+            normal
+        } else {
+            lnormal
+        };
         alpha = accdiv;
-        return LeafSample { closest_axis, columns, albedo: albedo * alpha, emission: emission * alpha, normal: lnormal * alpha, alpha };
+        return LeafSample {
+            closest_axis,
+            columns,
+            albedo: albedo * alpha,
+            emission: emission * alpha,
+            normal: lnormal * alpha,
+            alpha,
+        };
     }
     alpha *= accdiv;
-    LeafSample { closest_axis, columns, albedo: albedo_accum * accdiv, emission: emission_accum * accdiv, normal: normal_accum * accdiv, alpha }
+    LeafSample {
+        closest_axis,
+        columns,
+        albedo: albedo_accum * accdiv,
+        emission: emission_accum * accdiv,
+        normal: normal_accum * accdiv,
+        alpha,
+    }
 }
 
 /// The room's meshes as `VoxelGI::bake` finds them (`_find_meshes`): every
@@ -623,7 +728,12 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
 /// with its transform into the VoxelGI's local space (`xf`) and its normals
 /// through the basis's inverse transpose (`plot_mesh`). `skip` leaves objects
 /// out (the ceiling panel, which is the area light's fixture, and a dynamic object).
-pub fn room_meshes(scene: &lab::scene::Scene, meshes: &lab::scene::Meshes, node: Mat4, skip: &[usize]) -> Vec<BakeMesh> {
+pub fn room_meshes(
+    scene: &lab::scene::Scene,
+    meshes: &lab::scene::Meshes,
+    node: Mat4,
+    skip: &[usize],
+) -> Vec<BakeMesh> {
     let to_local = node.inverse();
     let mut out = Vec::new();
     for (k, o) in scene.objects.iter().enumerate() {
@@ -634,13 +744,24 @@ pub fn room_meshes(scene: &lab::scene::Scene, meshes: &lab::scene::Meshes, node:
         let normal_xform = Mat3::from_mat4(xf).inverse().transpose();
         let range = meshes.ranges[k].clone();
         let idx = &meshes.indices[range.start as usize..range.end as usize];
-        let triangles = idx.as_chunks::<3>().0.iter().map(|t| {
-            let v = |i: u32| meshes.vertices[i as usize];
-            let vtx = [0, 1, 2].map(|j| xf.transform_point3(Vec3::from(v(t[j]).position)));
-            let normal = [0, 1, 2].map(|j| normalized(normal_xform * Vec3::from(v(t[j]).normal)));
-            Triangle { vtx, normal }
-        }).collect();
-        out.push(BakeMesh { object: k, triangles, albedo: o.albedo, emission: o.emissive * o.emissive_strength });
+        let triangles = idx
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .map(|t| {
+                let v = |i: u32| meshes.vertices[i as usize];
+                let vtx = [0, 1, 2].map(|j| xf.transform_point3(Vec3::from(v(t[j]).position)));
+                let normal =
+                    [0, 1, 2].map(|j| normalized(normal_xform * Vec3::from(v(t[j]).normal)));
+                Triangle { vtx, normal }
+            })
+            .collect();
+        out.push(BakeMesh {
+            object: k,
+            triangles,
+            albedo: o.albedo,
+            emission: o.emissive * o.emissive_strength,
+        });
     }
     out
 }

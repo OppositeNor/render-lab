@@ -51,8 +51,10 @@
 //! writes) is the frame graph's to check (src/graph/).
 
 use crate::investigation::{
-    Access, DepthViews, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramUse, SceneShading, ShadingBuffer, ShadingHook, ShadingPass,
-    ShadingProgram, ShadingResolution, ShadingTarget, ShadingUpdate, ShadingVolume, UpdateBuffer, UpdatePass, Which,
+    Access, DepthViews, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass,
+    ProgramUse, SceneShading, ShadingBuffer, ShadingHook, ShadingPass, ShadingProgram,
+    ShadingResolution, ShadingTarget, ShadingUpdate, ShadingVolume, UpdateBuffer, UpdatePass,
+    Which,
 };
 use std::sync::RwLock;
 use toml_edit::{Item, TableLike};
@@ -64,7 +66,8 @@ type Hooks = [(&'static str, ShadingHook)];
 /// apart by address); None when the package has none. A file that does not
 /// read is a panic naming it, as a missing resource is.
 pub fn of(package: &'static str, hooks: &'static Hooks) -> Option<&'static SceneShading> {
-    static CACHE: RwLock<Vec<(&'static str, Option<&'static SceneShading>)>> = RwLock::new(Vec::new());
+    static CACHE: RwLock<Vec<(&'static str, Option<&'static SceneShading>)>> =
+        RwLock::new(Vec::new());
     if let Some((_, shading)) = CACHE.read().unwrap().iter().find(|(p, _)| *p == package) {
         return *shading;
     }
@@ -73,7 +76,8 @@ pub fn of(package: &'static str, hooks: &'static Hooks) -> Option<&'static Scene
         return *shading;
     }
     let shading = crate::resources::find(&format!("{package}.shading")).map(|resource| {
-        let shading = parse(resource.text(), hooks).unwrap_or_else(|e| panic!("shading: {}: {e}", resource.source()));
+        let shading = parse(resource.text(), hooks)
+            .unwrap_or_else(|e| panic!("shading: {}: {e}", resource.source()));
         &*Box::leak(Box::new(shading))
     });
     cache.push((package, shading));
@@ -91,13 +95,22 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 /// Fails on a key of `t` not in `fields`.
 fn known(t: &dyn TableLike, what: &str, fields: &[&str]) -> Result<(), String> {
     match t.iter().find(|(k, _)| !fields.contains(k)) {
-        Some((key, _)) => Err(format!("{what} has no field `{key}` (it has {})", fields.join(", "))),
+        Some((key, _)) => Err(format!(
+            "{what} has no field `{key}` (it has {})",
+            fields.join(", ")
+        )),
         None => Ok(()),
     }
 }
 
 fn string(t: &dyn TableLike, field: &str, what: &str) -> Result<Option<&'static str>, String> {
-    t.get(field).map(|i| i.as_str().map(leak).ok_or_else(|| format!("{what}: `{field}` is a string"))).transpose()
+    t.get(field)
+        .map(|i| {
+            i.as_str()
+                .map(leak)
+                .ok_or_else(|| format!("{what}: `{field}` is a string"))
+        })
+        .transpose()
 }
 
 fn required(t: &dyn TableLike, field: &str, what: &str) -> Result<&'static str, String> {
@@ -105,19 +118,35 @@ fn required(t: &dyn TableLike, field: &str, what: &str) -> Result<&'static str, 
 }
 
 fn strings(t: &dyn TableLike, field: &str, what: &str) -> Result<&'static [&'static str], String> {
-    let Some(item) = t.get(field) else { return Ok(&[]) };
+    let Some(item) = t.get(field) else {
+        return Ok(&[]);
+    };
     let fail = || format!("{what}: `{field}` is a list of strings");
     let array = item.as_array().ok_or_else(fail)?;
-    Ok(leak_slice(array.iter().map(|v| v.as_str().map(leak).ok_or_else(fail)).collect::<Result<Vec<_>, _>>()?))
+    Ok(leak_slice(
+        array
+            .iter()
+            .map(|v| v.as_str().map(leak).ok_or_else(fail))
+            .collect::<Result<Vec<_>, _>>()?,
+    ))
 }
 
 fn integers(item: &Item, field: &str, what: &str) -> Result<Vec<i64>, String> {
     let fail = || format!("{what}: `{field}` is a list of integers");
-    item.as_array().ok_or_else(fail)?.iter().map(|v| v.as_integer().ok_or_else(fail)).collect()
+    item.as_array()
+        .ok_or_else(fail)?
+        .iter()
+        .map(|v| v.as_integer().ok_or_else(fail))
+        .collect()
 }
 
 fn int(t: &dyn TableLike, field: &str, what: &str) -> Result<Option<i64>, String> {
-    t.get(field).map(|i| i.as_integer().ok_or_else(|| format!("{what}: `{field}` is an integer"))).transpose()
+    t.get(field)
+        .map(|i| {
+            i.as_integer()
+                .ok_or_else(|| format!("{what}: `{field}` is an integer"))
+        })
+        .transpose()
 }
 
 fn u32_or(t: &dyn TableLike, field: &str, what: &str, default: Option<u32>) -> Result<u32, String> {
@@ -128,28 +157,52 @@ fn u32_or(t: &dyn TableLike, field: &str, what: &str, default: Option<u32>) -> R
 }
 
 fn u32s<const N: usize>(t: &dyn TableLike, field: &str, what: &str) -> Result<[u32; N], String> {
-    let item = t.get(field).ok_or_else(|| format!("{what} needs `{field}`"))?;
+    let item = t
+        .get(field)
+        .ok_or_else(|| format!("{what} needs `{field}`"))?;
     let values = integers(item, field, what)?;
-    let values: Vec<u32> = values.into_iter().map(u32::try_from).collect::<Result<_, _>>().map_err(|_| format!("{what}: `{field}` holds u32s"))?;
-    values.try_into().map_err(|_| format!("{what}: `{field}` has {N} numbers"))
+    let values: Vec<u32> = values
+        .into_iter()
+        .map(u32::try_from)
+        .collect::<Result<_, _>>()
+        .map_err(|_| format!("{what}: `{field}` holds u32s"))?;
+    values
+        .try_into()
+        .map_err(|_| format!("{what}: `{field}` has {N} numbers"))
 }
 
 fn tables<'a>(t: &'a dyn TableLike, field: &str) -> Result<Vec<&'a toml_edit::Table>, String> {
     match t.get(field) {
         None => Ok(Vec::new()),
-        Some(item) => Ok(item.as_array_of_tables().ok_or_else(|| format!("`{field}` is a list of `[[{field}]]` tables"))?.iter().collect()),
+        Some(item) => Ok(item
+            .as_array_of_tables()
+            .ok_or_else(|| format!("`{field}` is a list of `[[{field}]]` tables"))?
+            .iter()
+            .collect()),
     }
 }
 
 fn table<'a>(t: &'a dyn TableLike, field: &str) -> Result<Option<&'a dyn TableLike>, String> {
-    t.get(field).map(|i| i.as_table_like().ok_or_else(|| format!("`{field}` is a table"))).transpose()
+    t.get(field)
+        .map(|i| {
+            i.as_table_like()
+                .ok_or_else(|| format!("`{field}` is a table"))
+        })
+        .transpose()
 }
 
 fn hook(hooks: &Hooks, name: &str, what: &str) -> Result<ShadingHook, String> {
-    hooks.iter().find(|(n, _)| *n == name).map(|(_, h)| *h).ok_or_else(|| {
-        let names: Vec<&str> = hooks.iter().map(|(n, _)| *n).collect();
-        format!("{what}: no hook `{name}` (its investigation registers {})", crate::story_refs::names_or_none(&names))
-    })
+    hooks
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, h)| *h)
+        .ok_or_else(|| {
+            let names: Vec<&str> = hooks.iter().map(|(n, _)| *n).collect();
+            format!(
+                "{what}: no hook `{name}` (its investigation registers {})",
+                crate::story_refs::names_or_none(&names)
+            )
+        })
 }
 
 /// WebGPU's name of each format a shading may declare.
@@ -185,7 +238,20 @@ const FORMATS: &[(&str, wgpu::TextureFormat)] = &[
 
 fn format(t: &dyn TableLike, what: &str) -> Result<wgpu::TextureFormat, String> {
     let name = required(t, "format", what)?;
-    FORMATS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).ok_or_else(|| format!("{what}: format `{name}` is not one of {}", FORMATS.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")))
+    FORMATS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, f)| *f)
+        .ok_or_else(|| {
+            format!(
+                "{what}: format `{name}` is not one of {}",
+                FORMATS
+                    .iter()
+                    .map(|(n, _)| *n)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
 }
 
 const ACCESSES: &[(&str, Access)] = &[
@@ -198,29 +264,59 @@ const ACCESSES: &[(&str, Access)] = &[
     ("uniform", Access::Uniform),
     ("sampler", Access::Sampler),
 ];
-const KINDS: &[(&str, ImageKind)] = &[("2d", ImageKind::D2), ("2d-array", ImageKind::D2Array), ("3d", ImageKind::D3)];
+const KINDS: &[(&str, ImageKind)] = &[
+    ("2d", ImageKind::D2),
+    ("2d-array", ImageKind::D2Array),
+    ("3d", ImageKind::D3),
+];
 
 fn named<T: Copy>(table: &[(&str, T)], name: &str, field: &str, what: &str) -> Result<T, String> {
-    table.iter().find(|(n, _)| *n == name).map(|(_, v)| *v).ok_or_else(|| format!("{what}: `{field}` `{name}` is not one of {}", table.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")))
+    table
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, v)| *v)
+        .ok_or_else(|| {
+            format!(
+                "{what}: `{field}` `{name}` is not one of {}",
+                table.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
+            )
+        })
 }
 
 fn program_use(t: &dyn TableLike, what: &str) -> Result<ProgramUse, String> {
-    known(t, what, &["binding", "resource", "access", "which", "fixed", "pick", "mip"])?;
+    known(
+        t,
+        what,
+        &[
+            "binding", "resource", "access", "which", "fixed", "pick", "mip",
+        ],
+    )?;
     let resource = required(t, "resource", what)?;
     let what = &format!("{what} of `{resource}`");
     let mut choices = Vec::new();
     if let Some(which) = string(t, "which", what)? {
-        choices.push(named(&[("all", Which::All), ("instance", Which::Instance)], which, "which", what)?);
+        choices.push(named(
+            &[("all", Which::All), ("instance", Which::Instance)],
+            which,
+            "which",
+            what,
+        )?);
     }
     if t.contains_key("fixed") {
         choices.push(Which::Fixed(u32_or(t, "fixed", what, None)?));
     }
     if let Some(item) = t.get("pick") {
-        let pick = integers(item, "pick", what)?.into_iter().map(u32::try_from).collect::<Result<Vec<_>, _>>().map_err(|_| format!("{what}: `pick` holds u32s"))?;
+        let pick = integers(item, "pick", what)?
+            .into_iter()
+            .map(u32::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| format!("{what}: `pick` holds u32s"))?;
         choices.push(Which::Pick(leak_slice(pick)));
     }
     if let Some(mip) = int(t, "mip", what)? {
-        choices.push(Which::Mip(i32::try_from(mip).map_err(|_| format!("{what}: `mip` is not an i32"))?));
+        choices.push(Which::Mip(
+            i32::try_from(mip).map_err(|_| format!("{what}: `mip` is not an i32"))?,
+        ));
     }
     if choices.len() > 1 {
         return Err(format!("{what}: one of `which`, `fixed`, `pick`, `mip`"));
@@ -234,32 +330,96 @@ fn program_use(t: &dyn TableLike, what: &str) -> Result<ProgramUse, String> {
 }
 
 fn uses(t: &dyn TableLike, field: &str, what: &str) -> Result<&'static [ProgramUse], String> {
-    let Some(item) = t.get(field) else { return Ok(&[]) };
+    let Some(item) = t.get(field) else {
+        return Ok(&[]);
+    };
     let fail = || format!("{what}: `{field}` is a list of inline tables");
     let array = item.as_array().ok_or_else(fail)?;
-    let uses = array.iter().map(|v| program_use(v.as_inline_table().ok_or_else(fail)?, &format!("{what}: a use"))).collect::<Result<Vec<_>, _>>()?;
+    let uses = array
+        .iter()
+        .map(|v| {
+            program_use(
+                v.as_inline_table().ok_or_else(fail)?,
+                &format!("{what}: a use"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(leak_slice(uses))
 }
 
 fn program_pass(t: &dyn TableLike, what: &str) -> Result<ProgramPass, String> {
-    known(t, what, &["kind", "name", "compute", "workgroup", "vertex", "fragment", "instances", "uses"])?;
+    known(
+        t,
+        what,
+        &[
+            "kind",
+            "name",
+            "compute",
+            "workgroup",
+            "vertex",
+            "fragment",
+            "instances",
+            "uses",
+        ],
+    )?;
     let name = required(t, "name", what)?;
     let what = &format!("program pass `{name}`");
-    let kind = match (string(t, "compute", what)?, string(t, "vertex", what)?, string(t, "fragment", what)?) {
-        (Some(entry), None, None) => PassKind::Compute { entry, workgroup: u32s(t, "workgroup", what)? },
-        (None, Some(vertex), Some(fragment)) if !t.contains_key("workgroup") => PassKind::Raster { vertex, fragment },
-        _ => return Err(format!("{what}: `compute` and `workgroup`, or `vertex` and `fragment`")),
+    let kind = match (
+        string(t, "compute", what)?,
+        string(t, "vertex", what)?,
+        string(t, "fragment", what)?,
+    ) {
+        (Some(entry), None, None) => PassKind::Compute {
+            entry,
+            workgroup: u32s(t, "workgroup", what)?,
+        },
+        (None, Some(vertex), Some(fragment)) if !t.contains_key("workgroup") => {
+            PassKind::Raster { vertex, fragment }
+        }
+        _ => {
+            return Err(format!(
+                "{what}: `compute` and `workgroup`, or `vertex` and `fragment`"
+            ));
+        }
     };
-    Ok(ProgramPass { name, kind, uses: uses(t, "uses", what)?, instances: u32_or(t, "instances", what, Some(1))? })
+    Ok(ProgramPass {
+        name,
+        kind,
+        uses: uses(t, "uses", what)?,
+        instances: u32_or(t, "instances", what, Some(1))?,
+    })
 }
 
-fn program(t: &dyn TableLike, hooks: &Hooks, passes: Vec<ProgramPass>) -> Result<ShadingProgram, String> {
-    known(t, "[program]", &["plan", "warmup", "record-history", "scene-uses", "image", "buffer"])?;
+fn program(
+    t: &dyn TableLike,
+    hooks: &Hooks,
+    passes: Vec<ProgramPass>,
+) -> Result<ShadingProgram, String> {
+    known(
+        t,
+        "[program]",
+        &[
+            "plan",
+            "warmup",
+            "record-history",
+            "scene-uses",
+            "image",
+            "buffer",
+        ],
+    )?;
     let plan_name = required(t, "plan", "[program]")?;
-    let ShadingHook::Program { init, plan } = hook(hooks, plan_name, "[program] plan")? else { return Err(format!("[program]: hook `{plan_name}` is not a Program")) };
+    let ShadingHook::Program { init, plan } = hook(hooks, plan_name, "[program] plan")? else {
+        return Err(format!("[program]: hook `{plan_name}` is not a Program"));
+    };
     let mut images = Vec::new();
     for i in tables(t, "image")? {
-        known(i, "[[program.image]]", &["name", "kind", "size", "format", "count", "mips", "viewport"])?;
+        known(
+            i,
+            "[[program.image]]",
+            &[
+                "name", "kind", "size", "format", "count", "mips", "viewport",
+            ],
+        )?;
         let name = required(i, "name", "[[program.image]]")?;
         let what = &format!("image `{name}`");
         let mips = match i.get("mips") {
@@ -278,12 +438,30 @@ fn program(t: &dyn TableLike, hooks: &Hooks, passes: Vec<ProgramPass>) -> Result
     }
     let mut buffers = Vec::new();
     for b in tables(t, "buffer")? {
-        known(b, "[[program.buffer]]", &["name", "bytes", "indirect", "count"])?;
+        known(
+            b,
+            "[[program.buffer]]",
+            &["name", "bytes", "indirect", "count"],
+        )?;
         let name = required(b, "name", "[[program.buffer]]")?;
         let what = &format!("buffer `{name}`");
-        let bytes = int(b, "bytes", what)?.and_then(|v| u64::try_from(v).ok()).ok_or_else(|| format!("{what} needs `bytes`, a positive integer"))?;
-        let indirect = b.get("indirect").map(|v| v.as_bool().ok_or_else(|| format!("{what}: `indirect` is true or false"))).transpose()?.unwrap_or(false);
-        buffers.push(ProgramBuffer { name, bytes, indirect, count: u32_or(b, "count", what, Some(1))? });
+        let bytes = int(b, "bytes", what)?
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or_else(|| format!("{what} needs `bytes`, a positive integer"))?;
+        let indirect = b
+            .get("indirect")
+            .map(|v| {
+                v.as_bool()
+                    .ok_or_else(|| format!("{what}: `indirect` is true or false"))
+            })
+            .transpose()?
+            .unwrap_or(false);
+        buffers.push(ProgramBuffer {
+            name,
+            bytes,
+            indirect,
+            count: u32_or(b, "count", what, Some(1))?,
+        });
     }
     Ok(ShadingProgram {
         images: leak_slice(images),
@@ -293,7 +471,14 @@ fn program(t: &dyn TableLike, hooks: &Hooks, passes: Vec<ProgramPass>) -> Result
         init,
         plan,
         warmup: u32_or(t, "warmup", "[program]", Some(0))?,
-        record_history: t.get("record-history").map(|v| v.as_bool().ok_or_else(|| "[program]: `record-history` is true or false".to_string())).transpose()?.unwrap_or(false),
+        record_history: t
+            .get("record-history")
+            .map(|v| {
+                v.as_bool()
+                    .ok_or_else(|| "[program]: `record-history` is true or false".to_string())
+            })
+            .transpose()?
+            .unwrap_or(false),
     })
 }
 
@@ -306,7 +491,11 @@ struct Nodes {
     prepass: Option<(&'static str, &'static [&'static str])>,
     passes: Vec<ShadingPass>,
     programs: Vec<ProgramPass>,
-    scene: Option<(&'static str, &'static [&'static str], &'static [&'static str])>,
+    scene: Option<(
+        &'static str,
+        &'static [&'static str],
+        &'static [&'static str],
+    )>,
 }
 
 fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
@@ -320,18 +509,41 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
                 let entry = required(x, "entry", what)?;
                 let what = &format!("update pass `{entry}`");
                 n.order.push(FrameNode::Update(n.updates.len()));
-                n.updates.push(UpdatePass { entry, reads: strings(x, "reads", what)?, writes: strings(x, "writes", what)?, workgroup: u32_or(x, "workgroup", what, None)? });
+                n.updates.push(UpdatePass {
+                    entry,
+                    reads: strings(x, "reads", what)?,
+                    writes: strings(x, "writes", what)?,
+                    workgroup: u32_or(x, "workgroup", what, None)?,
+                });
             }
             "depth-views" => {
                 known(x, what, &["kind", "name", "size", "vertices", "bias"])?;
                 if n.depth_views.is_some() {
                     return Err(format!("{what}: a second depth-views node"));
                 }
-                let bias = x.get("bias").ok_or_else(|| format!("{what} needs `bias`"))?;
-                let bias = bias.as_array().filter(|a| a.len() == 2).ok_or_else(|| format!("{what}: `bias` is [constant, slope]"))?;
-                let constant = bias.get(0).and_then(|v| v.as_integer()).and_then(|v| i32::try_from(v).ok()).ok_or_else(|| format!("{what}: the bias's constant is an integer"))?;
-                let slope = bias.get(1).and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64))).ok_or_else(|| format!("{what}: the bias's slope is a number"))? as f32;
-                n.depth_views = Some(Box::leak(Box::new(DepthViews { name: required(x, "name", what)?, size: u32_or(x, "size", what, None)?, vertices: strings(x, "vertices", what)?, bias: (constant, slope) })));
+                let bias = x
+                    .get("bias")
+                    .ok_or_else(|| format!("{what} needs `bias`"))?;
+                let bias = bias
+                    .as_array()
+                    .filter(|a| a.len() == 2)
+                    .ok_or_else(|| format!("{what}: `bias` is [constant, slope]"))?;
+                let constant = bias
+                    .get(0)
+                    .and_then(|v| v.as_integer())
+                    .and_then(|v| i32::try_from(v).ok())
+                    .ok_or_else(|| format!("{what}: the bias's constant is an integer"))?;
+                let slope = bias
+                    .get(1)
+                    .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
+                    .ok_or_else(|| format!("{what}: the bias's slope is a number"))?
+                    as f32;
+                n.depth_views = Some(Box::leak(Box::new(DepthViews {
+                    name: required(x, "name", what)?,
+                    size: u32_or(x, "size", what, None)?,
+                    vertices: strings(x, "vertices", what)?,
+                    bias: (constant, slope),
+                })));
                 n.order.push(FrameNode::DepthViews);
             }
             "prepass" => {
@@ -346,7 +558,12 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
                 known(x, what, &["kind", "entry", "reads", "writes", "workgroup"])?;
                 let entry = required(x, "entry", what)?;
                 let what = &format!("compute pass `{entry}`");
-                let pass = ShadingPass { entry, reads: strings(x, "reads", what)?, writes: strings(x, "writes", what)?, workgroup: u32s(x, "workgroup", what)? };
+                let pass = ShadingPass {
+                    entry,
+                    reads: strings(x, "reads", what)?,
+                    writes: strings(x, "writes", what)?,
+                    workgroup: u32s(x, "workgroup", what)?,
+                };
                 n.order.push(FrameNode::Compute(n.passes.len()));
                 n.passes.push(pass);
             }
@@ -359,10 +576,18 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
                 if n.scene.is_some() {
                     return Err(format!("{what}: a second scene node"));
                 }
-                n.scene = Some((required(x, "entry", what)?, strings(x, "outputs", what)?, strings(x, "reads", what)?));
+                n.scene = Some((
+                    required(x, "entry", what)?,
+                    strings(x, "outputs", what)?,
+                    strings(x, "reads", what)?,
+                ));
                 n.order.push(FrameNode::Scene);
             }
-            other => return Err(format!("{what}: kind `{other}` is not one of update, depth-views, prepass, compute, program, scene")),
+            other => {
+                return Err(format!(
+                    "{what}: kind `{other}` is not one of update, depth-views, prepass, compute, program, scene"
+                ));
+            }
         }
     }
     Ok(n)
@@ -370,9 +595,27 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
 
 /// Reads a shading file, its hooks looked up in `hooks`.
 pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
-    let document = toml_edit::Document::parse(text.to_string()).map_err(|e| format!("parse: {e}"))?;
+    let document =
+        toml_edit::Document::parse(text.to_string()).map_err(|e| format!("parse: {e}"))?;
     let t: &dyn TableLike = document.as_table();
-    known(t, "a shading file", &["module", "data", "verify", "history", "target", "buffer", "volume", "resolution", "update", "shows", "program", "node"])?;
+    known(
+        t,
+        "a shading file",
+        &[
+            "module",
+            "data",
+            "verify",
+            "history",
+            "target",
+            "buffer",
+            "volume",
+            "resolution",
+            "update",
+            "shows",
+            "program",
+            "node",
+        ],
+    )?;
     let data = match string(t, "data", "the file")? {
         None => Vec::new as fn() -> Vec<[f32; 4]>,
         Some(name) => match hook(hooks, name, "data")? {
@@ -385,21 +628,34 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
         known(x, "[[target]]", &["name", "format", "divisor"])?;
         let name = required(x, "name", "[[target]]")?;
         let what = &format!("target `{name}`");
-        targets.push(ShadingTarget { name, format: format(x, what)?, divisor: u32_or(x, "divisor", what, Some(1))? });
+        targets.push(ShadingTarget {
+            name,
+            format: format(x, what)?,
+            divisor: u32_or(x, "divisor", what, Some(1))?,
+        });
     }
     let mut buffers = Vec::new();
     for x in tables(t, "buffer")? {
         known(x, "[[buffer]]", &["name", "words-per-tile", "tile"])?;
         let name = required(x, "name", "[[buffer]]")?;
         let what = &format!("buffer `{name}`");
-        buffers.push(ShadingBuffer { name, words_per_tile: u32_or(x, "words-per-tile", what, None)?, tile: u32_or(x, "tile", what, None)? });
+        buffers.push(ShadingBuffer {
+            name,
+            words_per_tile: u32_or(x, "words-per-tile", what, None)?,
+            tile: u32_or(x, "tile", what, None)?,
+        });
     }
     let mut volumes = Vec::new();
     for x in tables(t, "volume")? {
         known(x, "[[volume]]", &["name", "format", "size", "mips"])?;
         let name = required(x, "name", "[[volume]]")?;
         let what = &format!("volume `{name}`");
-        volumes.push(ShadingVolume { name, format: format(x, what)?, size: u32s(x, "size", what)?, mips: u32_or(x, "mips", what, Some(1))? });
+        volumes.push(ShadingVolume {
+            name,
+            format: format(x, what)?,
+            size: u32s(x, "size", what)?,
+            mips: u32_or(x, "mips", what, Some(1))?,
+        });
     }
     let n = nodes(t)?;
     let (fragment, outputs, scene_reads) = n.scene.ok_or("the frame needs a `scene` node")?;
@@ -408,8 +664,13 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
             let what = "[resolution]";
             known(x, what, &["targets", "divisor"])?;
             let name = required(x, "divisor", what)?;
-            let ShadingHook::Divisor(divisor) = hook(hooks, name, "[resolution] divisor")? else { return Err(format!("{what}: hook `{name}` is not a Divisor")) };
-            Ok(Box::leak(Box::new(ShadingResolution { targets: strings(x, "targets", what)?, divisor })))
+            let ShadingHook::Divisor(divisor) = hook(hooks, name, "[resolution] divisor")? else {
+                return Err(format!("{what}: hook `{name}` is not a Divisor"));
+            };
+            Ok(Box::leak(Box::new(ShadingResolution {
+                targets: strings(x, "targets", what)?,
+                divisor,
+            })))
         })
         .transpose()?;
     let update = match (table(t, "update")?, n.updates.is_empty()) {
@@ -420,21 +681,41 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
             let what = "[update]";
             known(x, what, &["plan", "buffer"])?;
             let name = required(x, "plan", what)?;
-            let ShadingHook::UpdatePlan(plan) = hook(hooks, name, "[update] plan")? else { return Err(format!("{what}: hook `{name}` is not an UpdatePlan")) };
+            let ShadingHook::UpdatePlan(plan) = hook(hooks, name, "[update] plan")? else {
+                return Err(format!("{what}: hook `{name}` is not an UpdatePlan"));
+            };
             let mut buffers = Vec::new();
             for b in tables(x, "buffer")? {
                 known(b, "[[update.buffer]]", &["name", "words"])?;
                 let name = required(b, "name", "[[update.buffer]]")?;
                 let words = required(b, "words", &format!("update buffer `{name}`"))?;
-                let ShadingHook::Words(words) = hook(hooks, words, &format!("update buffer `{name}`"))? else { return Err(format!("update buffer `{name}`: hook `{words}` is not a Words")) };
+                let ShadingHook::Words(words) =
+                    hook(hooks, words, &format!("update buffer `{name}`"))?
+                else {
+                    return Err(format!(
+                        "update buffer `{name}`: hook `{words}` is not a Words"
+                    ));
+                };
                 buffers.push(UpdateBuffer { name, words });
             }
-            Some(&*Box::leak(Box::new(ShadingUpdate { passes: leak_slice(n.updates), buffers: leak_slice(buffers), plan })))
+            Some(&*Box::leak(Box::new(ShadingUpdate {
+                passes: leak_slice(n.updates),
+                buffers: leak_slice(buffers),
+                plan,
+            })))
         }
     };
     let shows = match table(t, "shows")? {
         None => &[][..],
-        Some(x) => leak_slice(x.iter().map(|(k, v)| v.as_str().map(|s| (leak(k), leak(s))).ok_or_else(|| format!("[shows]: `{k}` is a string"))).collect::<Result<Vec<_>, _>>()?),
+        Some(x) => leak_slice(
+            x.iter()
+                .map(|(k, v)| {
+                    v.as_str()
+                        .map(|s| (leak(k), leak(s)))
+                        .ok_or_else(|| format!("[shows]: `{k}` is a string"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
     };
     let program = match (table(t, "program")?, n.programs.is_empty()) {
         (None, true) => None,
@@ -478,7 +759,10 @@ mod tests {
     fn plan(_: &mut dyn std::any::Any, _: &ProgramFrame) -> Vec<ProgramCommand> {
         Vec::new()
     }
-    static HOOKS: &Hooks = &[("data", ShadingHook::Data(data)), ("plan", ShadingHook::Program { init, plan })];
+    static HOOKS: &Hooks = &[
+        ("data", ShadingHook::Data(data)),
+        ("plan", ShadingHook::Program { init, plan }),
+    ];
 
     const FILE: &str = r#"
 module = "p.shader/s"
@@ -557,20 +841,50 @@ mips = "all"
     #[test]
     fn reads_the_frame_in_order() {
         let s = parse(FILE, HOOKS).unwrap();
-        assert_eq!((s.module, s.fragment, s.outputs, s.scene_reads), ("p.shader/s", "fs", &["color"][..], &["half"][..]));
+        assert_eq!(
+            (s.module, s.fragment, s.outputs, s.scene_reads),
+            ("p.shader/s", "fs", &["color"][..], &["half"][..])
+        );
         assert_eq!((s.data)(), vec![[1.0; 4]]);
-        assert_eq!((s.targets[1].format, s.targets[1].divisor), (wgpu::TextureFormat::R8Unorm, 2));
-        assert_eq!(s.nodes, &[FrameNode::Program(0), FrameNode::DepthViews, FrameNode::Prepass, FrameNode::Compute(0), FrameNode::Scene, FrameNode::Compute(1)]);
-        assert_eq!((s.passes[0].entry, s.passes[1].entry, s.passes[1].workgroup), ("tilesCS", "blurCS", [8, 8]));
+        assert_eq!(
+            (s.targets[1].format, s.targets[1].divisor),
+            (wgpu::TextureFormat::R8Unorm, 2)
+        );
+        assert_eq!(
+            s.nodes,
+            &[
+                FrameNode::Program(0),
+                FrameNode::DepthViews,
+                FrameNode::Prepass,
+                FrameNode::Compute(0),
+                FrameNode::Scene,
+                FrameNode::Compute(1)
+            ]
+        );
+        assert_eq!(
+            (s.passes[0].entry, s.passes[1].entry, s.passes[1].workgroup),
+            ("tilesCS", "blurCS", [8, 8])
+        );
         assert_eq!((s.prepass, s.prepass_outputs), (Some("prepassFS"), &[][..]));
         let d = s.depth_views.unwrap();
         assert_eq!((d.name, d.size, d.bias), ("shadow", 512, (-2, -1.5)));
         assert_eq!(s.shows, &[("half", "ramp?range=0,1")]);
         let p = s.program.unwrap();
         assert_eq!((p.warmup, p.record_history), (2, true));
-        assert_eq!((p.images[0].kind, p.images[0].count, p.images[0].mips, p.images[0].viewport), (ImageKind::D2Array, 2, u32::MAX, 0));
+        assert_eq!(
+            (
+                p.images[0].kind,
+                p.images[0].count,
+                p.images[0].mips,
+                p.images[0].viewport
+            ),
+            (ImageKind::D2Array, 2, u32::MAX, 0)
+        );
         assert_eq!((p.passes[0].name, p.passes[0].instances), ("fill", 2));
-        assert_eq!(p.passes[0].uses.iter().map(|u| u.which).collect::<Vec<_>>(), vec![Which::Mip(0), Which::Pick(&[1, 0]), Which::All]);
+        assert_eq!(
+            p.passes[0].uses.iter().map(|u| u.which).collect::<Vec<_>>(),
+            vec![Which::Mip(0), Which::Pick(&[1, 0]), Which::All]
+        );
         assert_eq!(p.scene_uses[0].which, Which::First);
         assert_eq!(s.program_runs(), vec![0]);
         assert!(s.update.is_none() && s.resolution.is_none());
@@ -579,21 +893,48 @@ mips = "all"
     #[test]
     fn refuses_what_it_does_not_know() {
         let fails = |text: &str, wanted: &str| {
-            let e = parse(text, HOOKS).err().unwrap_or_else(|| panic!("`{text}` read"));
+            let e = parse(text, HOOKS)
+                .err()
+                .unwrap_or_else(|| panic!("`{text}` read"));
             assert!(e.contains(wanted), "`{e}` does not say `{wanted}`");
         };
         let scene = "\n[[node]]\nkind = \"scene\"\nentry = \"fs\"\n";
-        fails(&format!("module = \"m\"\ncolour = 1{scene}"), "no field `colour`");
-        fails(&format!("module = \"m\"\ndata = \"nothing\"{scene}"), "no hook `nothing`");
-        fails(&format!("module = \"m\"\ndata = \"plan\"{scene}"), "is not a Data");
-        fails(&format!("module = \"m\"\n[[target]]\nname = \"t\"\nformat = \"rgb8\"{scene}"), "format `rgb8`");
+        fails(
+            &format!("module = \"m\"\ncolour = 1{scene}"),
+            "no field `colour`",
+        );
+        fails(
+            &format!("module = \"m\"\ndata = \"nothing\"{scene}"),
+            "no hook `nothing`",
+        );
+        fails(
+            &format!("module = \"m\"\ndata = \"plan\"{scene}"),
+            "is not a Data",
+        );
+        fails(
+            &format!("module = \"m\"\n[[target]]\nname = \"t\"\nformat = \"rgb8\"{scene}"),
+            "format `rgb8`",
+        );
         fails(scene, "needs `module`");
         fails("module = \"m\"", "needs a `scene` node");
-        fails(&format!("module = \"m\"{scene}{scene}"), "a second scene node");
-        fails(&format!("module = \"m\"{scene}[[node]]\nkind = \"raster\""), "kind `raster`");
-        fails(&format!("module = \"m\"{scene}[[node]]\nkind = \"program\"\nname = \"p\"\ncompute = \"c\"\nworkgroup = [1, 1, 1]"), "need a `[program]` table");
         fails(
-            &format!("module = \"m\"{scene}[[node]]\nkind = \"program\"\nname = \"p\"\ncompute = \"c\"\nworkgroup = [1, 1, 1]\nuses = [{{ binding = 1, resource = \"r\", access = \"load\", fixed = 1, mip = 0 }}]\n[program]\nplan = \"plan\""),
+            &format!("module = \"m\"{scene}{scene}"),
+            "a second scene node",
+        );
+        fails(
+            &format!("module = \"m\"{scene}[[node]]\nkind = \"raster\""),
+            "kind `raster`",
+        );
+        fails(
+            &format!(
+                "module = \"m\"{scene}[[node]]\nkind = \"program\"\nname = \"p\"\ncompute = \"c\"\nworkgroup = [1, 1, 1]"
+            ),
+            "need a `[program]` table",
+        );
+        fails(
+            &format!(
+                "module = \"m\"{scene}[[node]]\nkind = \"program\"\nname = \"p\"\ncompute = \"c\"\nworkgroup = [1, 1, 1]\nuses = [{{ binding = 1, resource = \"r\", access = \"load\", fixed = 1, mip = 0 }}]\n[program]\nplan = \"plan\""
+            ),
             "one of `which`, `fixed`, `pick`, `mip`",
         );
     }

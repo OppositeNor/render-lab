@@ -174,7 +174,9 @@ impl SceneShading {
         let mut previous = false;
         for node in self.nodes {
             let program = matches!(node, FrameNode::Program(_));
-            if let FrameNode::Program(i) = node && let Some(r) = runs.get_mut(*i) {
+            if let FrameNode::Program(i) = node
+                && let Some(r) = runs.get_mut(*i)
+            {
                 *r = run;
             }
             if previous && !program {
@@ -327,7 +329,10 @@ pub enum ShadingHook {
     /// `ShadingResolution::divisor`.
     Divisor(fn(&ShotState) -> u32),
     /// `ShadingProgram::init` and `plan`.
-    Program { init: fn() -> Box<dyn std::any::Any + Send>, plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand> },
+    Program {
+        init: fn() -> Box<dyn std::any::Any + Send>,
+        plan: fn(&mut dyn std::any::Any, &ProgramFrame) -> Vec<ProgramCommand>,
+    },
 }
 
 /// What a plan is told about the frame.
@@ -388,18 +393,27 @@ impl Element {
         Element { name, index }
     }
     pub const fn all(name: &'static str) -> Element {
-        Element { name, index: u32::MAX }
+        Element {
+            name,
+            index: u32::MAX,
+        }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PassKind {
     /// A compute entry point and its workgroup's size (`@workgroup_size`).
-    Compute { entry: &'static str, workgroup: [u32; 3] },
+    Compute {
+        entry: &'static str,
+        workgroup: [u32; 3],
+    },
     /// The scene's meshes drawn by `vertex` (the lab's mesh layout, instance =
     /// object index) and `fragment` into a target the pass does not write,
     /// with no depth and no culling: for fragments that write storage images.
-    Raster { vertex: &'static str, fragment: &'static str },
+    Raster {
+        vertex: &'static str,
+        fragment: &'static str,
+    },
 }
 
 pub struct ProgramPass {
@@ -474,22 +488,48 @@ impl Access {
 #[derive(Clone, Debug)]
 pub enum ProgramCommand {
     /// Writes `words` into a buffer at `offset` bytes, in order with the other commands.
-    Upload { buffer: Element, offset: u64, words: Vec<u32> },
+    Upload {
+        buffer: Element,
+        offset: u64,
+        words: Vec<u32>,
+    },
     /// Zeroes an image or a buffer (an element, or all of them).
     Clear(Element),
-    Copy { from: Element, to: Element, bytes: u64 },
-    Dispatch { pass: &'static str, instance: u32, groups: [u32; 3], params: [u32; 16] },
+    Copy {
+        from: Element,
+        to: Element,
+        bytes: u64,
+    },
+    Dispatch {
+        pass: &'static str,
+        instance: u32,
+        groups: [u32; 3],
+        params: [u32; 16],
+    },
     /// A dispatch whose group counts are three u32 at `offset` of an indirect buffer.
-    DispatchIndirect { pass: &'static str, instance: u32, buffer: Element, offset: u64, params: [u32; 16] },
+    DispatchIndirect {
+        pass: &'static str,
+        instance: u32,
+        buffer: Element,
+        offset: u64,
+        params: [u32; 16],
+    },
     /// A raster pass over a framebuffer of `size` pixels (viewport = scissor).
-    Draw { pass: &'static str, instance: u32, size: [u32; 2], params: [u32; 16] },
+    Draw {
+        pass: &'static str,
+        instance: u32,
+        size: [u32; 2],
+        params: [u32; 16],
+    },
 }
 
 impl ProgramCommand {
     /// The pass it runs, if it is a dispatch or a draw.
     pub fn pass(&self) -> Option<&'static str> {
         match self {
-            ProgramCommand::Dispatch { pass, .. } | ProgramCommand::DispatchIndirect { pass, .. } | ProgramCommand::Draw { pass, .. } => Some(pass),
+            ProgramCommand::Dispatch { pass, .. }
+            | ProgramCommand::DispatchIndirect { pass, .. }
+            | ProgramCommand::Draw { pass, .. } => Some(pass),
             _ => None,
         }
     }
@@ -631,7 +671,9 @@ pub trait Investigation: Sync {
 
     /// The listing the viewer's Code tab opens for a demonstration.
     fn listing_for_demo(&self, demo: DemoId) -> Option<&'static Listing> {
-        self.listings().iter().find(|l| l.demo.as_deref() == Some(demo.key()))
+        self.listings()
+            .iter()
+            .find(|l| l.demo.as_deref() == Some(demo.key()))
     }
 
     /// Its demonstrations as data (src/demo.rs), when it describes them
@@ -668,15 +710,19 @@ pub trait Investigation: Sync {
     /// The lab scene a demonstration shows (src/scene.rs); the renderer
     /// switches to it for the demonstration's frames.
     fn demo_scene(&self, demo: DemoId) -> SceneId {
-        self.demo_specs().map_or(SceneId::STUDY_ROOM, |d| d.spec(demo).scene)
+        self.demo_specs()
+            .map_or(SceneId::STUDY_ROOM, |d| d.spec(demo).scene)
     }
     /// The viewer's status-line hint, if the demonstration has its own.
     fn demo_hint(&self, demo: DemoId) -> Option<&'static str> {
-        self.demo_specs().and_then(|d| d.spec(demo).hint).map(|key| self.text(key))
+        self.demo_specs()
+            .and_then(|d| d.spec(demo).hint)
+            .map(|key| self.text(key))
     }
     /// Whether "Reset parameters" also resets the camera (its dock shows the camera).
     fn resets_camera(&self, demo: DemoId) -> bool {
-        self.demo_specs().is_some_and(|d| d.spec(demo).resets_camera)
+        self.demo_specs()
+            .is_some_and(|d| d.spec(demo).resets_camera)
     }
 
     /// The default of every shot parameter; None for an unknown name. The lab
@@ -726,7 +772,14 @@ pub trait Investigation: Sync {
     }
     /// Everything one shot shows. A pure function of its arguments, so the
     /// recorder stays deterministic.
-    fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent;
+    fn build_frame(
+        &self,
+        state: &ShotState,
+        statics: &Statics,
+        viewport: [f32; 2],
+        pixel_scale: f32,
+        time: f32,
+    ) -> FrameContent;
     /// The frame built for the main camera, drawn from another (the free
     /// camera, src/free_view.rs): `content.uniforms.camera` is already that
     /// camera's. Rewrite here only what the scene's own passes derive from the
@@ -751,7 +804,10 @@ pub trait Investigation: Sync {
     /// Functions of its code a storyboard may call, so its narration says the numbers the code computes
     /// (`${spoken {leaves}}`): `Pure` natives registered with ids `<package>/<name>` (lab/src/script), which a
     /// storyboard imports as the package `<package>_natives` (`render-lab --investigation <id> lamlet …`).
-    fn script_natives(&self, _natives: &mut crate::script::lamlet::embed::NativeRegistry) -> Result<(), crate::script::lamlet::embed::Error> {
+    fn script_natives(
+        &self,
+        _natives: &mut crate::script::lamlet::embed::NativeRegistry,
+    ) -> Result<(), crate::script::lamlet::embed::Error> {
         Ok(())
     }
     /// The images it publishes for a story to show (`{inset "key"}`,
@@ -788,7 +844,15 @@ pub trait Investigation: Sync {
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui);
     /// A click in the viewport at `pixel` on the frame of `shown` (the state on
     /// screen); changes `state` and returns true if it selected something.
-    fn click(&self, shown: &ShotState, state: &mut ShotState, content: &FrameContent, statics: &Statics, projector: &Projector, pixel: Vec2) -> bool;
+    fn click(
+        &self,
+        shown: &ShotState,
+        state: &mut ShotState,
+        content: &FrameContent,
+        statics: &Statics,
+        projector: &Projector,
+        pixel: Vec2,
+    ) -> bool;
 
     /// The views stacked over the main one this frame (src/view.rs), back to
     /// front: each is built with `build_frame` (`lab::view::name()` names it)
@@ -833,7 +897,11 @@ impl dyn Investigation {
 
     /// Its demonstrations of `scene`, in order.
     pub fn scene_demos(&self, scene: SceneId) -> Vec<DemoId> {
-        self.demos().iter().copied().filter(|d| self.demo_scene(*d) == scene).collect()
+        self.demos()
+            .iter()
+            .copied()
+            .filter(|d| self.demo_scene(*d) == scene)
+            .collect()
     }
 
     /// The scene of its first demonstration, which the renderer prepares first.
@@ -856,7 +924,9 @@ pub fn set(investigation: &'static dyn Investigation) {
 /// The investigation chosen on the homepage or the command line, or the one
 /// `scoped` made current on this thread.
 pub fn current() -> &'static dyn Investigation {
-    SCOPED.get().unwrap_or_else(|| CURRENT.read().unwrap().expect("no investigation selected"))
+    SCOPED
+        .get()
+        .unwrap_or_else(|| CURRENT.read().unwrap().expect("no investigation selected"))
 }
 
 /// Runs `f` with `investigation` current on this thread alone: a scene of

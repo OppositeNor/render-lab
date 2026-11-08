@@ -23,14 +23,20 @@
 
 use crate::investigation::Investigation;
 use std::collections::BTreeMap;
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{CStr, c_char, c_void};
 
 /// The highest interface version this loader speaks.
 pub const INTERFACE_VERSION: u32 = 1;
 
 /// The lab's build: its version, the compiler, and a hash of its sources
 /// (build.rs). A library compiled against another build is refused.
-pub const ABI: &str = concat!(env!("CARGO_PKG_VERSION"), "/", env!("LAB_RUSTC"), "/", env!("LAB_SOURCE_HASH"));
+pub const ABI: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "/",
+    env!("LAB_RUSTC"),
+    "/",
+    env!("LAB_SOURCE_HASH")
+);
 
 /// What a negotiation function returns.
 pub const NEGOTIATED: i32 = 0;
@@ -53,7 +59,8 @@ pub struct Negotiation {
     pub map: *mut c_void,
     /// Registers one handle by name (a NUL-terminated string); returns
     /// `NEGOTIATED`, or `ERROR_HANDLE` for a name registered twice.
-    pub register: unsafe extern "C" fn(map: *mut c_void, name: *const c_char, handle: *const c_void) -> i32,
+    pub register:
+        unsafe extern "C" fn(map: *mut c_void, name: *const c_char, handle: *const c_void) -> i32,
 }
 
 /// A negotiation function, as the manifest's `negotiate` names it.
@@ -90,7 +97,9 @@ macro_rules! negotiate {
             }
             n.interface_version = INTERFACE_VERSION;
             // SAFETY: the loader passes its build, UTF-8 of `abi_len` bytes.
-            if unsafe { ::core::slice::from_raw_parts(n.abi, n.abi_len) } != ABI.as_bytes() {
+            if unsafe {
+                ::core::slice::from_raw_parts(n.abi, n.abi_len)
+            } != ABI.as_bytes() {
                 return ERROR_ABI;
             }
             $(
@@ -126,20 +135,26 @@ impl Handles {
     /// The `investigations` handle, if the library registered it.
     pub fn investigations(&self) -> Option<InvestigationsFn> {
         // SAFETY: `negotiate!` registers this name with a function of this type.
-        self.0.get("investigations").map(|h| unsafe { std::mem::transmute::<*const c_void, InvestigationsFn>(h.0) })
+        self.0
+            .get("investigations")
+            .map(|h| unsafe { std::mem::transmute::<*const c_void, InvestigationsFn>(h.0) })
     }
 
     /// The `features` handle, if the library registered it.
     pub fn features(&self) -> Option<FeaturesFn> {
         // SAFETY: `negotiate!` registers this name with a function of this type.
-        self.0.get("features").map(|h| unsafe { std::mem::transmute::<*const c_void, FeaturesFn>(h.0) })
+        self.0
+            .get("features")
+            .map(|h| unsafe { std::mem::transmute::<*const c_void, FeaturesFn>(h.0) })
     }
 }
 
 unsafe extern "C" fn register(map: *mut c_void, name: *const c_char, handle: *const c_void) -> i32 {
     // SAFETY: `map` is the `Handles` `negotiate` passed, and `name` a C string.
     let (map, name) = unsafe { (&mut *(map as *mut Handles), CStr::from_ptr(name)) };
-    let Ok(name) = name.to_str() else { return ERROR_HANDLE };
+    let Ok(name) = name.to_str() else {
+        return ERROR_HANDLE;
+    };
     if map.0.contains_key(name) {
         return ERROR_HANDLE;
     }
@@ -164,11 +179,23 @@ pub unsafe fn negotiate(negotiate: NegotiateFn) -> Result<Handles, String> {
     };
     // SAFETY: the caller's.
     match unsafe { negotiate(&mut negotiation) } {
-        NEGOTIATED if negotiation.interface_version == 0 || negotiation.interface_version > INTERFACE_VERSION => Err(format!("it answered interface version {}, and this lab speaks 1 to {INTERFACE_VERSION}", negotiation.interface_version)),
+        NEGOTIATED
+            if negotiation.interface_version == 0
+                || negotiation.interface_version > INTERFACE_VERSION =>
+        {
+            Err(format!(
+                "it answered interface version {}, and this lab speaks 1 to {INTERFACE_VERSION}",
+                negotiation.interface_version
+            ))
+        }
         NEGOTIATED => Ok(handles),
         ERROR_STRUCT => Err("it does not know this lab's negotiation structure; rebuild it".into()),
-        ERROR_VERSION => Err(format!("it speaks no interface version up to {INTERFACE_VERSION}; rebuild it")),
-        ERROR_ABI => Err(format!("it was built against another build of the lab (this one is {ABI}); rebuild it")),
+        ERROR_VERSION => Err(format!(
+            "it speaks no interface version up to {INTERFACE_VERSION}; rebuild it"
+        )),
+        ERROR_ABI => Err(format!(
+            "it was built against another build of the lab (this one is {ABI}); rebuild it"
+        )),
         ERROR_HANDLE => Err("it registered a handle twice".into()),
         code => Err(format!("it refused (code {code})")),
     }
@@ -193,7 +220,11 @@ mod tests {
     /// A library of another build: it checks against a fingerprint of its own.
     unsafe extern "C" fn other_build(n: *mut Negotiation) -> i32 {
         let n = unsafe { &mut *n };
-        if unsafe { std::slice::from_raw_parts(n.abi, n.abi_len) } != b"0.1.0/another build" { ERROR_ABI } else { NEGOTIATED }
+        if unsafe { std::slice::from_raw_parts(n.abi, n.abi_len) } != b"0.1.0/another build" {
+            ERROR_ABI
+        } else {
+            NEGOTIATED
+        }
     }
 
     #[test]
@@ -204,9 +235,17 @@ mod tests {
         // `features` is optional: a library without it has none.
         assert!(handles.features().is_none());
         let handles = unsafe { negotiate(with_features) }.unwrap();
-        assert_eq!(handles.names().collect::<Vec<_>>(), ["features", "investigations"]);
+        assert_eq!(
+            handles.names().collect::<Vec<_>>(),
+            ["features", "investigations"]
+        );
         assert!(handles.features().unwrap()().is_empty());
         assert!(unsafe { negotiate(twice) }.err().unwrap().contains("twice"));
-        assert!(unsafe { negotiate(other_build) }.err().unwrap().contains("another build"));
+        assert!(
+            unsafe { negotiate(other_build) }
+                .err()
+                .unwrap()
+                .contains("another build")
+        );
     }
 }

@@ -54,7 +54,8 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   narrated timelines (a package's demos) are such content: an edit shows on the next launch, without a rebuild. Nothing
   a scene needs is read before it plays (lab/src/loading.rs).
 - On-screen text is a key (`group-name`: Fluent ids have no dots) in the package's `text/en.ftl` and `text/zh-CN.ftl` (Project Fluent, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for a message with variables, `{ $name }` in both languages). Formulas and code names in text are Fluent function calls, `{ FORMULA("LaTeX") }` and `{ CODE("Name") }` (lab/src/rich_text.rs). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, variables that differ between languages, an unknown key, or an unused one.
-- Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code.
+- Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code,
+  formatted by rustfmt (`cargo fmt --all`, `rustfmt.toml`); no Rust lint or formatter of our own.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents when
   your environment has them, on a cheaper model when you can choose one (Sonnet; Haiku for simple lookups). Keep
   design, edits, and final checks with the main agent. Without subagents, do the same research yourself, one
@@ -99,6 +100,7 @@ or text keys (both languages). These are never skipped because a change is small
 From this directory (set `CARGO_HOME=$PWD/.cache/cargo`):
 
 ```sh
+cargo fmt --all                                             # format the Rust code with rustfmt (rustfmt.toml; --check in CI); a local package: --manifest-path packages/<name>/Cargo.toml
 cargo build --release --locked --offline                    # the binary, the lab, and the public packages' libraries
 cargo test --release --locked --offline --workspace         # the unit tests (the loader, its negotiation, text, formulas)
 cargo run --release -- home --autotest /path/to/home.json   # the homepage's controls, offscreen (its own settings file)

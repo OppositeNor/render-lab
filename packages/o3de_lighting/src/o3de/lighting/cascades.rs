@@ -58,7 +58,10 @@ impl Observer {
         if dc < df {
             (dc, ((df - dc) * (df - dc) + df * df * (k - 1.0)).sqrt())
         } else {
-            (df, df * (self.fov_y / 2.0).tan() * (1.0 + self.aspect * self.aspect).sqrt())
+            (
+                df,
+                df * (self.fov_y / 2.0).tan() * (1.0 + self.aspect * self.aspect).sqrt(),
+            )
         }
     }
     /// The four corners of the frustum's cross-section at depth `d`.
@@ -67,7 +70,12 @@ impl Observer {
         let w = h * self.aspect;
         let c = self.position + self.forward * d;
         let (r, u) = (self.right(), self.up());
-        [c - r * w - u * h, c + r * w - u * h, c + r * w + u * h, c - r * w + u * h]
+        [
+            c - r * w - u * h,
+            c + r * w - u * h,
+            c + r * w + u * h,
+            c - r * w + u * h,
+        ]
     }
 }
 
@@ -142,7 +150,10 @@ impl Cascade {
     /// z across the orthographic projection).
     pub fn texel_coord(&self, light: Vec3) -> Vec2 {
         let (lo, hi) = (self.snapped_min, self.snapped_max);
-        Vec2::new((light.x - lo.x) / (hi.x - lo.x), (hi.z - light.z) / (hi.z - lo.z)) * SHADOWMAP_SIZE
+        Vec2::new(
+            (light.x - lo.x) / (hi.x - lo.x),
+            (hi.z - light.z) / (hi.z - lo.z),
+        ) * SHADOWMAP_SIZE
     }
 }
 
@@ -157,10 +168,16 @@ pub fn cascades(observer: Observer, direction: Vec3, ratio: f32) -> Cascades {
     let far = split_depths(observer.near, observer.far, ratio);
     // The whole frustum's sphere, and the camera, bound the near side.
     let (entire_depth, entire_radius) = observer.slice_sphere(observer.near, observer.far);
-    let entire_y = frame.to_light(observer.position + observer.forward * entire_depth).y;
+    let entire_y = frame
+        .to_light(observer.position + observer.forward * entire_depth)
+        .y;
     let behind_y = frame.to_light(observer.position).y - observer.far;
     let cascades = std::array::from_fn(|i| {
-        let near = if i == 0 { observer.near } else { far[i - 1] };
+        let near = if i == 0 {
+            observer.near
+        } else {
+            far[i - 1]
+        };
         let (depth, radius) = observer.slice_sphere(near, far[i]);
         let center = observer.position + observer.forward * depth;
         let c = frame.to_light(center);
@@ -170,7 +187,17 @@ pub fn cascades(observer: Observer, direction: Vec3, ratio: f32) -> Cascades {
         let texel = (max - min) / SHADOWMAP_SIZE;
         let snapped_min = (min / texel).floor() * texel;
         let snapped_max = (max / texel).floor() * texel;
-        Cascade { near, far: far[i], center, radius, snap: texel, snapped_min, snapped_max, min_y: min.y, max_y: max.y }
+        Cascade {
+            near,
+            far: far[i],
+            center,
+            radius,
+            snap: texel,
+            snapped_min,
+            snapped_max,
+            min_y: min.y,
+            max_y: max.y,
+        }
     });
     Cascades { frame, cascades }
 }

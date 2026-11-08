@@ -43,7 +43,10 @@ fn present(d: &Data) -> Option<&Data> {
 
 fn key(label: &str) -> String {
     let k = kebab(label);
-    if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !k.is_empty()
+        && k.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         k
     } else {
         string(&k)
@@ -74,7 +77,11 @@ fn value(d: &Data, at: &str) -> Result<String, String> {
         Data::Float(x) => format!("{x:?}"),
         Data::String(s) => string(s),
         Data::List(items) => {
-            let parts: Vec<String> = items.iter().enumerate().map(|(i, x)| value(x, &format!("{at}[{i}]"))).collect::<Result<_, _>>()?;
+            let parts: Vec<String> = items
+                .iter()
+                .enumerate()
+                .map(|(i, x)| value(x, &format!("{at}[{i}]")))
+                .collect::<Result<_, _>>()?;
             format!("[{}]", parts.join(", "))
         }
         Data::Record(fields) => {
@@ -86,7 +93,11 @@ fn value(d: &Data, at: &str) -> Result<String, String> {
             }
             format!("{{ {} }}", parts.join(", "))
         }
-        Data::Variant(tag, payload) => format!("{{ {} = {} }}", key(tag), value(payload, &format!("{at}.{tag}"))?),
+        Data::Variant(tag, payload) => format!(
+            "{{ {} = {} }}",
+            key(tag),
+            value(payload, &format!("{at}.{tag}"))?
+        ),
         Data::Unit | Data::Type(_) => return Err(format!("{at}: TOML has no value for {d:?}")),
     })
 }
@@ -95,7 +106,11 @@ fn value(d: &Data, at: &str) -> Result<String, String> {
 fn lines(fields: &BTreeMap<String, Data>, at: &str, out: &mut String) -> Result<(), String> {
     for (k, v) in fields {
         if let Some(v) = present(v) {
-            out.push_str(&format!("{} = {}\n", key(k), value(v, &format!("{at}.{k}"))?));
+            out.push_str(&format!(
+                "{} = {}\n",
+                key(k),
+                value(v, &format!("{at}.{k}"))?
+            ));
         }
     }
     Ok(())
@@ -104,7 +119,9 @@ fn lines(fields: &BTreeMap<String, Data>, at: &str, out: &mut String) -> Result<
 /// The TOML document of a record: its record fields as tables, its lists of records as arrays of tables, the
 /// rest as values.
 pub fn document(d: &Data, name: &str) -> Result<String, String> {
-    let Data::Record(fields) = d else { return Err(format!("`{name}` is a record")) };
+    let Data::Record(fields) = d else {
+        return Err(format!("`{name}` is a record"));
+    };
     let is_tables = |v: &Data| matches!(v, Data::List(items) if !items.is_empty() && items.iter().all(|x| matches!(x, Data::Record(_))));
     let (mut plain, mut tables, mut arrays) = (BTreeMap::new(), Vec::new(), Vec::new());
     for (k, v) in fields {
@@ -126,7 +143,9 @@ pub fn document(d: &Data, name: &str) -> Result<String, String> {
     for (k, v) in arrays {
         let Data::List(items) = v else { unreachable!() };
         for (i, x) in items.iter().enumerate() {
-            let Data::Record(inner) = x else { unreachable!() };
+            let Data::Record(inner) = x else {
+                unreachable!()
+            };
             out.push_str(&format!("\n[[{}]]\n", key(k)));
             lines(inner, &format!("{name}.{k}[{i}]"), &mut out)?;
         }
@@ -137,8 +156,12 @@ pub fn document(d: &Data, name: &str) -> Result<String, String> {
 /// The static top-level binding `name` of the Lamlet document `text` (its diagnostics naming `file`), as TOML.
 pub fn toml(file: &str, text: &str, name: &str) -> Result<String, String> {
     let engine = super::engine(&[], None)?;
-    let doc = engine.check(SourceFile::new(file, text)).map_err(|e| e.render())?;
-    let binding = doc.binding(name).map_err(|e| format!("{file}: {}", e.render()))?;
+    let doc = engine
+        .check(SourceFile::new(file, text))
+        .map_err(|e| e.render())?;
+    let binding = doc
+        .binding(name)
+        .map_err(|e| format!("{file}: {}", e.render()))?;
     let data = Data::from_value(&binding.value).map_err(|e| format!("{file}: `{name}`: {e}"))?;
     document(&data, name).map_err(|e| format!("{file}: {e}"))
 }
@@ -148,7 +171,8 @@ pub fn toml(file: &str, text: &str, name: &str) -> Result<String, String> {
 pub fn resource_toml(resource: &str) -> Result<String, String> {
     let r = crate::resources::get(resource);
     if r.path().extension().is_some_and(|e| e == "lam") {
-        let name = lamlet_present::vocab::camel(&[resource.rsplit('/').next().unwrap_or(resource)])?;
+        let name =
+            lamlet_present::vocab::camel(&[resource.rsplit('/').next().unwrap_or(resource)])?;
         toml(&r.path().display().to_string(), r.text(), &name)
     } else {
         Ok(r.text().to_string())
@@ -166,14 +190,33 @@ mod tests {
               lighting {. ggxSamples 16 exposure 1.0}\n\
               object {' {. name \"floor\" rotation {: none {Option rot}}} {. name \"wall\" rotation {some {: {#x 90.0} rot}}}}}]]\n";
         let toml = toml("scene.lam", text, "scene").unwrap();
-        let doc = toml_edit::Document::parse(toml.clone()).unwrap_or_else(|e| panic!("{e}: {toml}"));
+        let doc =
+            toml_edit::Document::parse(toml.clone()).unwrap_or_else(|e| panic!("{e}: {toml}"));
         let get = |k: &str| doc.get(k).unwrap_or_else(|| panic!("{k} in {toml}"));
         assert_eq!(get("title-text").as_str(), Some("scene.room"));
-        assert_eq!(get("camera-clear").as_inline_table().and_then(|t| t.get("room-margin")).and_then(|v| v.as_float()), Some(0.2));
-        assert_eq!(get("lighting").as_table().and_then(|t| t.get("ggx-samples")).and_then(|i| i.as_integer()), Some(16));
+        assert_eq!(
+            get("camera-clear")
+                .as_inline_table()
+                .and_then(|t| t.get("room-margin"))
+                .and_then(|v| v.as_float()),
+            Some(0.2)
+        );
+        assert_eq!(
+            get("lighting")
+                .as_table()
+                .and_then(|t| t.get("ggx-samples"))
+                .and_then(|i| i.as_integer()),
+            Some(16)
+        );
         let objects = get("object").as_array_of_tables().unwrap();
         assert!(objects.get(0).unwrap().get("rotation").is_none());
-        let rotation = objects.get(1).unwrap().get("rotation").and_then(|i| i.as_inline_table()).and_then(|t| t.get("x")).and_then(|v| v.as_float());
+        let rotation = objects
+            .get(1)
+            .unwrap()
+            .get("rotation")
+            .and_then(|i| i.as_inline_table())
+            .and_then(|t| t.get("x"))
+            .and_then(|v| v.as_float());
         assert_eq!(rotation, Some(90.0));
     }
 }

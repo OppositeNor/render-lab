@@ -33,6 +33,7 @@ pub mod values;
 pub mod world;
 
 use crate::godot::voxelgi::text::tr;
+use glam::Vec2;
 use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
@@ -42,7 +43,6 @@ use lab::pseudocode::Listing;
 use lab::shot::{PanelMode, ShotState};
 use lab::sources::SourceIndex;
 use lab::utility::inset::ImageSpec;
-use glam::Vec2;
 use shot::Demo;
 
 pub struct VoxelGi;
@@ -56,25 +56,66 @@ static WORDING: Wording = Wording {
 };
 
 fn gi_divisor(state: &ShotState) -> u32 {
-    if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
+    if state.p("giHalfResolution") > 0.5 {
+        2
+    } else {
+        1
+    }
 }
 
 /// The images its story can show (`{inset "key"}`).
 pub static IMAGES: &[ImageSpec] = &[
-    ImageSpec { key: "fieldSlice", doc: "An x-z slice of the baked distance field at sliceHeight after edtPass passes, the worked cell marked." },
-    ImageSpec { key: "mipSlice", doc: "An x-z slice of the light texture's mip mipLevel at sliceHeight (RGB x dynamic range; empty texels checkered)." },
-    ImageSpec { key: "cellArray", doc: "The sorted cell array as a bar, one colour per level, the worked cell marked." },
+    ImageSpec {
+        key: "fieldSlice",
+        doc: "An x-z slice of the baked distance field at sliceHeight after edtPass passes, the worked cell marked.",
+    },
+    ImageSpec {
+        key: "mipSlice",
+        doc: "An x-z slice of the light texture's mip mipLevel at sliceHeight (RGB x dynamic range; empty texels checkered).",
+    },
+    ImageSpec {
+        key: "cellArray",
+        doc: "The sorted cell array as a bar, one colour per level, the worked cell marked.",
+    },
 ];
 
 /// The points its story's arrows and labels can name.
 pub static ANNOTATIONS: &[lab::utility::annotations::AnnotationSpec] = &[
-    lab::utility::annotations::AnnotationSpec { key: "cells.worked", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The cells demonstration's worked leaf cell." },
-    lab::utility::annotations::AnnotationSpec { key: "field.worked", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The field demonstration's worked cell." },
-    lab::utility::annotations::AnnotationSpec { key: "light.cell", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The light demonstration's worked cell." },
-    lab::utility::annotations::AnnotationSpec { key: "light.march", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The last drawn step of its shadow march." },
-    lab::utility::annotations::AnnotationSpec { key: "bounce.cell", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The bounce's worked cell." },
-    lab::utility::annotations::AnnotationSpec { key: "mips.parent", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The mip pass's worked parent cell." },
-    lab::utility::annotations::AnnotationSpec { key: "pixel.point", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The worked pixel on the sphere." },
+    lab::utility::annotations::AnnotationSpec {
+        key: "cells.worked",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The cells demonstration's worked leaf cell.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "field.worked",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The field demonstration's worked cell.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "light.cell",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The light demonstration's worked cell.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "light.march",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The last drawn step of its shadow march.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "bounce.cell",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The bounce's worked cell.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "mips.parent",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The mip pass's worked parent cell.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "pixel.point",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The worked pixel on the sphere.",
+    },
 ];
 
 impl Investigation for VoxelGi {
@@ -87,7 +128,10 @@ impl Investigation for VoxelGi {
     fn annotations(&self) -> &'static [lab::utility::annotations::AnnotationSpec] {
         ANNOTATIONS
     }
-    fn script_natives(&self, natives: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
+    fn script_natives(
+        &self,
+        natives: &mut lab::script::lamlet::embed::NativeRegistry,
+    ) -> Result<(), lab::script::lamlet::embed::Error> {
         cost::natives(natives)?;
         script::register(natives)
     }
@@ -141,10 +185,22 @@ impl Investigation for VoxelGi {
     }
 
     fn entities(&self, _demo: lab::shot::DemoId) -> Vec<lab::entity::EntitySpec> {
-        vec![lab::entity::EntitySpec { text: "entity-light", kind: lab::entity::EntityKind::Light, position: ["lightX", "lightHeight", "lightZ"], shown: None }]
+        vec![lab::entity::EntitySpec {
+            text: "entity-light",
+            kind: lab::entity::EntityKind::Light,
+            position: ["lightX", "lightHeight", "lightZ"],
+            shown: None,
+        }]
     }
 
-    fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    fn build_frame(
+        &self,
+        state: &ShotState,
+        statics: &Statics,
+        viewport: [f32; 2],
+        pixel_scale: f32,
+        time: f32,
+    ) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
@@ -186,7 +242,15 @@ impl Investigation for VoxelGi {
     }
 
     /// A click on a surface is its script's (script/logic.lam `scene`: the leaf cell under it).
-    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+    fn click(
+        &self,
+        _shown: &ShotState,
+        _state: &mut ShotState,
+        _content: &FrameContent,
+        _statics: &Statics,
+        _projector: &Projector,
+        _pixel: Vec2,
+    ) -> bool {
         false
     }
 

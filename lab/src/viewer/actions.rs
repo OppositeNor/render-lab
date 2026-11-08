@@ -63,7 +63,11 @@ impl App {
                 self.seek((fraction.clamp(0.0, 1.0) as f64 * total as f64) as u64);
             }
             // A view a feature adds focused (the experiment's reference): the slider sets that view's value.
-            ViewerAction::SetParam(name, value) if interactive && self.focus != ViewId::MAIN && self.features.view_state(self.focus, &self.state).is_some() => {
+            ViewerAction::SetParam(name, value)
+                if interactive
+                    && self.focus != ViewId::MAIN
+                    && self.features.view_state(self.focus, &self.state).is_some() =>
+            {
                 let focus = self.focus;
                 self.with_features(|features, _| {
                     for state in features.states_mut() {
@@ -74,8 +78,12 @@ impl App {
                 });
             }
             // A view stacked over the main one focused: the slider sets that view's value (src/view.rs).
-            ViewerAction::SetParam(name, value) if interactive && self.over_camera(self.focus).is_some() => {
-                let (view, _) = self.over_camera(self.focus).expect("a view over the main one");
+            ViewerAction::SetParam(name, value)
+                if interactive && self.over_camera(self.focus).is_some() =>
+            {
+                let (view, _) = self
+                    .over_camera(self.focus)
+                    .expect("a view over the main one");
                 self.state.set(&format!("view.{view}.{name}"), value);
                 for (k, v) in investigation::current().linked_params(name, value) {
                     self.state.set(&format!("view.{view}.{k}"), v);
@@ -83,11 +91,15 @@ impl App {
             }
             ViewerAction::SetParam(name, value) if interactive => self.set_live_value(name, value),
             // The free camera's view focused: the camera sliders move the free camera.
-            ViewerAction::SetCamera(camera) if self.focus == ViewId::FREE && self.free_camera_on() => {
+            ViewerAction::SetCamera(camera)
+                if self.focus == ViewId::FREE && self.free_camera_on() =>
+            {
                 self.free_view().place(&camera);
             }
             ViewerAction::SetCamera(camera) if self.over_camera(self.focus).is_some() => {
-                let (view, _) = self.over_camera(self.focus).expect("a view over the main one");
+                let (view, _) = self
+                    .over_camera(self.focus)
+                    .expect("a view over the main one");
                 self.state.set_own_camera(view, &camera);
             }
             ViewerAction::SetCamera(camera) if interactive => {
@@ -109,7 +121,11 @@ impl App {
                 self.stop();
                 let demo = self.state.demo;
                 let defaults = self.default_state(demo);
-                let camera = if investigation::current().resets_camera(demo) { defaults.camera } else { self.state.camera };
+                let camera = if investigation::current().resets_camera(demo) {
+                    defaults.camera
+                } else {
+                    self.state.camera
+                };
                 self.state = ShotState { camera, ..defaults };
                 self.demo_time = 0.0;
                 self.drift_from = 0.0;
@@ -150,7 +166,9 @@ impl App {
                 // Playing, the timeline goes on from where it is at the new speed, the narration with it.
                 if self.timeline_playing() {
                     let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
-                    self.timeline_frame = self.anchored_frame(Instant::now()).min(total.saturating_sub(1));
+                    self.timeline_frame = self
+                        .anchored_frame(Instant::now())
+                        .min(total.saturating_sub(1));
                     self.speed = speed;
                     self.start_audio();
                 } else {
@@ -164,9 +182,12 @@ impl App {
     /// Move, dock, resize, collapse, open, or close window `id` (src/ui/windows.rs), from where the last
     /// frame drew it.
     fn change_window(&mut self, id: crate::ui::windows::WindowId, change: crate::ui::WindowChange) {
-        use crate::ui::windows::{Dock, MIN_FLOAT};
         use crate::ui::WindowChange;
-        let drawn = self.renderer.as_ref().and_then(|r| r.frame_layout().window(id));
+        use crate::ui::windows::{Dock, MIN_FLOAT};
+        let drawn = self
+            .renderer
+            .as_ref()
+            .and_then(|r| r.frame_layout().window(id));
         let area = self.renderer.as_ref().map(|r| r.frame_layout().area);
         let place = self.layout.window_mut(id);
         match change {
@@ -174,7 +195,11 @@ impl App {
                 let Some(drawn) = drawn else { return };
                 // A docked window floats from where it is drawn, its size kept (a collapsed one its float size).
                 if place.dock != Dock::Float {
-                    let size = if drawn.collapsed { egui::vec2(place.float[2], place.float[3]) } else { drawn.frame.size() };
+                    let size = if drawn.collapsed {
+                        egui::vec2(place.float[2], place.float[3])
+                    } else {
+                        drawn.frame.size()
+                    };
                     place.float = [drawn.frame.min.x, drawn.frame.min.y, size.x, size.y];
                     place.dock = Dock::Float;
                 }
@@ -222,15 +247,24 @@ impl App {
                     crate::ui::windows::Dock::Float => continue,
                     _ => w.frame.width(),
                 };
-                *(if w.wide { &mut place.wide } else { &mut place.size }) = size.round();
+                *(if w.wide {
+                    &mut place.wide
+                } else {
+                    &mut place.size
+                }) = size.round();
             }
             for place in &mut self.layout.windows {
                 place.float = place.float.map(f32::round);
             }
         }
-        let Some(path) = self.options.settings.clone() else { return };
+        let Some(path) = self.options.settings.clone() else {
+            return;
+        };
         if let Err(e) = crate::config::Config::save_layout(&path, self.layout) {
-            self.popups.push(Popup::new(crate::i18n::tr("ui-layout_not_saved"), format!("{e:#}")).closing_after(8.0));
+            self.popups.push(
+                Popup::new(crate::i18n::tr("ui-layout_not_saved"), format!("{e:#}"))
+                    .closing_after(8.0),
+            );
         }
     }
 
@@ -246,11 +280,16 @@ impl App {
 
     /// Update every feature: what its UI asked, done with the viewer.
     pub(super) fn update_features(&mut self) {
-        self.with_features(|features, host| features.states_mut().for_each(|state| state.update(host)));
+        self.with_features(|features, host| {
+            features.states_mut().for_each(|state| state.update(host))
+        });
     }
 
     /// Run `f` on the features with the viewer as their host, then apply what they asked of it.
-    pub(super) fn with_features(&mut self, f: impl FnOnce(&mut crate::feature::Features, &mut dyn crate::feature::Host)) {
+    pub(super) fn with_features(
+        &mut self,
+        f: impl FnOnce(&mut crate::feature::Features, &mut dyn crate::feature::Host),
+    ) {
         let mut features = std::mem::take(&mut self.features);
         f(&mut features, self);
         self.features = features;
@@ -323,14 +362,30 @@ impl crate::feature::Host for App {
     }
 
     fn timeline_chapter(&self) -> Option<u32> {
-        self.timeline.as_ref().filter(|_| self.timeline_mode).map(|t| t.chapter_at(self.timeline_frame).number)
+        self.timeline
+            .as_ref()
+            .filter(|_| self.timeline_mode)
+            .map(|t| t.chapter_at(self.timeline_frame).number)
     }
 
     /// Paused: the caption at or last before the frame, and the one before that.
     fn captions(&self) -> (Option<String>, Option<String>) {
-        let Some(t) = self.timeline.as_ref().filter(|_| self.timeline_mode && !self.playing) else { return (None, None) };
+        let Some(t) = self
+            .timeline
+            .as_ref()
+            .filter(|_| self.timeline_mode && !self.playing)
+        else {
+            return (None, None);
+        };
         let (_, beat) = t.beat_at(self.timeline_frame);
-        let at = beat.captions.iter().rposition(|c| c.start <= self.timeline_frame);
-        (at.and_then(|i| i.checked_sub(1)).map(|i| beat.captions[i].text.clone()), at.map(|i| beat.captions[i].text.clone()))
+        let at = beat
+            .captions
+            .iter()
+            .rposition(|c| c.start <= self.timeline_frame);
+        (
+            at.and_then(|i| i.checked_sub(1))
+                .map(|i| beat.captions[i].text.clone()),
+            at.map(|i| beat.captions[i].text.clone()),
+        )
     }
 }

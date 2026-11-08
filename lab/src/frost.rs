@@ -19,7 +19,11 @@ impl Target {
     fn new(device: &wgpu::Device, label: &str, size: [u32; 2]) -> Target {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
-            size: wgpu::Extent3d { width: size[0].max(1), height: size[1].max(1), depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: size[0].max(1),
+                height: size[1].max(1),
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -28,7 +32,10 @@ impl Target {
             view_formats: &[],
         });
         let view = texture.create_view(&Default::default());
-        Target { _texture: texture, view }
+        Target {
+            _texture: texture,
+            view,
+        }
     }
 }
 
@@ -54,30 +61,55 @@ impl Frost {
     /// `output`: the format of the target the page is drawn into.
     pub fn new(device: &wgpu::Device, output: wgpu::TextureFormat) -> anyhow::Result<Frost> {
         // `shader/frost` has no prelude.
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("frost"), source: wgpu::ShaderSource::Wgsl(Cow::Owned(shaders::module(shaders::FROST)?)) });
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("frost"),
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(shaders::module(shaders::FROST)?)),
+        });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("frost"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
             ],
         });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("frost"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frost"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
         let pipeline = |entry: &str, format: wgpu::TextureFormat| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState { module: &module, entry_point: Some("fullscreenVS"), compilation_options: Default::default(), buffers: &[] },
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("fullscreenVS"),
+                    compilation_options: Default::default(),
+                    buffers: &[],
+                },
                 fragment: Some(wgpu::FragmentState {
                     module: &module,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
                 }),
                 primitive: Default::default(),
                 depth_stencil: None,
@@ -96,7 +128,10 @@ impl Frost {
         });
         Ok(Frost {
             downsample: pipeline("downsampleFS", BLUR_FORMAT),
-            blur: [pipeline("blurHorizontalFS", BLUR_FORMAT), pipeline("blurVerticalFS", BLUR_FORMAT)],
+            blur: [
+                pipeline("blurHorizontalFS", BLUR_FORMAT),
+                pipeline("blurVerticalFS", BLUR_FORMAT),
+            ],
             frost: pipeline("frostFS", output),
             layout,
             sampler,
@@ -108,14 +143,36 @@ impl Frost {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frost"),
             layout: &self.layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+            ],
         })
     }
 
-    fn pass(encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, pipeline: &wgpu::RenderPipeline, group: &wgpu::BindGroup) {
+    fn pass(
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        pipeline: &wgpu::RenderPipeline,
+        group: &wgpu::BindGroup,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("frost blur"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: target, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store } })],
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -128,13 +185,31 @@ impl Frost {
 
     /// Blur `frame` (`size` pixels, the renderer's frame target) into the
     /// quarter-resolution target `draw` reads.
-    pub fn blur(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, frame: &wgpu::TextureView, size: [u32; 2]) {
+    pub fn blur(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        frame: &wgpu::TextureView,
+        size: [u32; 2],
+    ) {
         if self.targets.as_ref().is_none_or(|t| t.size != size) {
             let half = Target::new(device, "frost half", [size[0] / 2, size[1] / 2]);
-            let quarter = [Target::new(device, "frost quarter A", [size[0] / 4, size[1] / 4]), Target::new(device, "frost quarter B", [size[0] / 4, size[1] / 4])];
+            let quarter = [
+                Target::new(device, "frost quarter A", [size[0] / 4, size[1] / 4]),
+                Target::new(device, "frost quarter B", [size[0] / 4, size[1] / 4]),
+            ];
             let half_group = self.group(device, &half.view);
-            let quarter_groups = [self.group(device, &quarter[0].view), self.group(device, &quarter[1].view)];
-            self.targets = Some(Targets { size, half, quarter, half_group, quarter_groups });
+            let quarter_groups = [
+                self.group(device, &quarter[0].view),
+                self.group(device, &quarter[1].view),
+            ];
+            self.targets = Some(Targets {
+                size,
+                half,
+                quarter,
+                half_group,
+                quarter_groups,
+            });
         }
         // The frame view changes when the renderer resizes, so its group is made each time.
         let frame_group = self.group(device, frame);
@@ -142,8 +217,18 @@ impl Frost {
         Self::pass(encoder, &t.half.view, &self.downsample, &frame_group);
         Self::pass(encoder, &t.quarter[0].view, &self.downsample, &t.half_group);
         for _ in 0..BLUR_ROUNDS {
-            Self::pass(encoder, &t.quarter[1].view, &self.blur[0], &t.quarter_groups[0]);
-            Self::pass(encoder, &t.quarter[0].view, &self.blur[1], &t.quarter_groups[1]);
+            Self::pass(
+                encoder,
+                &t.quarter[1].view,
+                &self.blur[0],
+                &t.quarter_groups[0],
+            );
+            Self::pass(
+                encoder,
+                &t.quarter[0].view,
+                &self.blur[1],
+                &t.quarter_groups[1],
+            );
         }
     }
 

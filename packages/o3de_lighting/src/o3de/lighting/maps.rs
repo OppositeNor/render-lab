@@ -22,7 +22,14 @@ pub fn occlusion() -> &'static [f32] {
             t * t * (3.0 - 2.0 * t)
         };
         (0..OCCLUSION_HEIGHT)
-            .flat_map(|y| (0..OCCLUSION_WIDTH).map(move |x| ((x as f32 + 0.5) / OCCLUSION_WIDTH as f32, (y as f32 + 0.5) / OCCLUSION_HEIGHT as f32)))
+            .flat_map(|y| {
+                (0..OCCLUSION_WIDTH).map(move |x| {
+                    (
+                        (x as f32 + 0.5) / OCCLUSION_WIDTH as f32,
+                        (y as f32 + 0.5) / OCCLUSION_HEIGHT as f32,
+                    )
+                })
+            })
             .map(|(u, v)| {
                 let (gu, gv) = ((u * 16.0).fract(), (v * 8.0).fract());
                 let edge = gu.min(1.0 - gu).min(gv.min(1.0 - gv));
@@ -51,7 +58,10 @@ pub fn sample_occlusion(uv: Vec2) -> f32 {
 /// longitude across, latitude from the top pole down.
 pub fn sphere_uv(local_direction: Vec3) -> Vec2 {
     let d = local_direction.normalize_or(Vec3::Y);
-    Vec2::new(d.z.atan2(d.x) / std::f32::consts::TAU + 0.5, d.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI)
+    Vec2::new(
+        d.z.atan2(d.x) / std::f32::consts::TAU + 0.5,
+        d.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI,
+    )
 }
 
 /// GetOcclusionInput (OcclusionInput.azsli): 1 without a texture, otherwise
@@ -111,7 +121,11 @@ pub fn decals() -> &'static [[f32; 4]] {
                 let slope = |u: f32| {
                     let f = (u * 4.0).fract();
                     let d = f.min(1.0 - f);
-                    let side = if f < 0.5 { -1.0 } else { 1.0 };
+                    let side = if f < 0.5 {
+                        -1.0
+                    } else {
+                        1.0
+                    };
                     side * 0.6 * (1.0 - smooth(0.0, 0.06, d))
                 };
                 out.push([slope(uv.y), slope(uv.x), 0.0, 0.0]);
@@ -130,8 +144,14 @@ pub fn sample_decal(index: usize, normal: bool, uv: Vec2) -> [f32; 4] {
     let p = uv * size as f32 - 0.5;
     let base = p.floor();
     let t = p - base;
-    let texel = |x: i32, y: i32| data[offset + (y.clamp(0, size - 1) * size + x.clamp(0, size - 1)) as usize];
+    let texel = |x: i32, y: i32| {
+        data[offset + (y.clamp(0, size - 1) * size + x.clamp(0, size - 1)) as usize]
+    };
     let (x, y) = (base.x as i32, base.y as i32);
     let mix = |a: [f32; 4], b: [f32; 4], t: f32| [0, 1, 2, 3].map(|k| a[k] * (1.0 - t) + b[k] * t);
-    mix(mix(texel(x, y), texel(x + 1, y), t.x), mix(texel(x, y + 1), texel(x + 1, y + 1), t.x), t.y)
+    mix(
+        mix(texel(x, y), texel(x + 1, y), t.x),
+        mix(texel(x, y + 1), texel(x + 1, y + 1), t.x),
+        t.y,
+    )
 }

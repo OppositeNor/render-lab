@@ -26,7 +26,10 @@ impl Feature for PerformanceFeature {
     }
 
     fn pages(&self) -> &'static [Page] {
-        &[Page { name: "viewer-performance", help: "[:<demo>] (the performance panel, its most expensive pass called out)" }]
+        &[Page {
+            name: "viewer-performance",
+            help: "[:<demo>] (the performance panel, its most expensive pass called out)",
+        }]
     }
 
     fn snapshot_demo<'a>(&self, _page: &str, args: Option<&'a str>) -> Option<&'a str> {
@@ -59,7 +62,13 @@ impl FeatureState for Performance {
 
     /// The demonstration at its defaults with the panel, measured over 60 frames; then the most expensive pass
     /// called out, as a story's `highlight` would, settled over four.
-    fn snapshot(&mut self, _page: &str, _args: Option<&str>, step: usize, host: &mut dyn Host) -> Result<Snapshot> {
+    fn snapshot(
+        &mut self,
+        _page: &str,
+        _args: Option<&str>,
+        step: usize,
+        host: &mut dyn Host,
+    ) -> Result<Snapshot> {
         match step {
             0 => {
                 let defaults = host.default_state(host.state().demo);
@@ -69,13 +78,30 @@ impl FeatureState for Performance {
             }
             1..60 => Ok(Snapshot::Settle),
             60 => {
-                let passes = host.renderer().and_then(|r| r.timing.as_ref().map(|t| t.summary())).unwrap_or_default();
-                let top = passes.iter().max_by(|a, b| a.1.total_cmp(&b.1)).map(|p| p.0.clone());
+                let passes = host
+                    .renderer()
+                    .and_then(|r| r.timing.as_ref().map(|t| t.summary()))
+                    .unwrap_or_default();
+                let top = passes
+                    .iter()
+                    .max_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|p| p.0.clone());
                 if let Some(name) = &top {
                     host.state_mut().highlight = vec![name.clone()];
                 }
-                let list: Vec<String> = passes.iter().map(|(n, mean, _)| format!("{n} {mean:.2} ms")).collect();
-                self.report = format!("{}; called out: {}", if list.is_empty() { "no GPU timestamps".into() } else { list.join(", ") }, top.unwrap_or_else(|| "none".into()));
+                let list: Vec<String> = passes
+                    .iter()
+                    .map(|(n, mean, _)| format!("{n} {mean:.2} ms"))
+                    .collect();
+                self.report = format!(
+                    "{}; called out: {}",
+                    if list.is_empty() {
+                        "no GPU timestamps".into()
+                    } else {
+                        list.join(", ")
+                    },
+                    top.unwrap_or_else(|| "none".into())
+                );
                 Ok(Snapshot::Settle)
             }
             61..64 => Ok(Snapshot::Settle),

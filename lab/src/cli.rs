@@ -6,16 +6,20 @@
 //! `main`; the investigations come from the packages' libraries
 //! (src/investigations.rs).
 
-use anyhow::{bail, Context, Result};
-use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use crate::home;
 use crate::investigations;
 use crate::text::DEFAULT_UI_SCALE;
 use crate::{investigation, layout, record, shaders, viewer};
+use anyhow::{Context, Result, bail};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "render-lab", version, about = "Illustrated investigations of game-engine features: homepage, viewer, recorder, and verification")]
+#[command(
+    name = "render-lab",
+    version,
+    about = "Illustrated investigations of game-engine features: homepage, viewer, recorder, and verification"
+)]
 struct Cli {
     /// The investigation, as engine/feature (default: the first one; `--list` lists them).
     #[arg(long, global = true)]
@@ -351,14 +355,24 @@ fn parse_package(value: &str) -> Result<(String, PathBuf), String> {
 
 /// `render-lab [--investigation <id>] lamlet …`; an error is a diagnostic (or a file's error) for stderr. The lab's
 /// natives (src/script/natives.rs) check names against `investigation`, the one given.
-fn lamlet(command: LamletCommand, investigation: Option<&'static dyn crate::investigation::Investigation>) -> Result<(), String> {
+fn lamlet(
+    command: LamletCommand,
+    investigation: Option<&'static dyn crate::investigation::Investigation>,
+) -> Result<(), String> {
     use crate::script;
     let read = |given: Vec<(String, PathBuf)>| -> Result<Vec<script::Package>, String> {
-        script::packages(given.iter().map(|(name, path)| script::Package::read(name, path)).collect::<Result<_, _>>()?)
+        script::packages(
+            given
+                .iter()
+                .map(|(name, path)| script::Package::read(name, path))
+                .collect::<Result<_, _>>()?,
+        )
     };
     let write = |out: Option<PathBuf>, text: String| -> Result<(), String> {
         match out {
-            Some(path) => std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display())),
+            Some(path) => {
+                std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
+            }
             None => {
                 print!("{text}");
                 Ok(())
@@ -366,27 +380,61 @@ fn lamlet(command: LamletCommand, investigation: Option<&'static dyn crate::inve
         }
     };
     match command {
-        LamletCommand::Ir { file, packages, keys, out } => {
-            let keys = keys.map(|k| std::fs::read_to_string(&k).map_err(|e| format!("{}: {e}", k.display()))).transpose()?;
-            write(out, script::ir(&file, &read(packages)?, investigation, keys.as_deref())?)
+        LamletCommand::Ir {
+            file,
+            packages,
+            keys,
+            out,
+        } => {
+            let keys = keys
+                .map(|k| std::fs::read_to_string(&k).map_err(|e| format!("{}: {e}", k.display())))
+                .transpose()?;
+            write(
+                out,
+                script::ir(&file, &read(packages)?, investigation, keys.as_deref())?,
+            )
         }
-        LamletCommand::Deck { file, packages, out } => {
+        LamletCommand::Deck {
+            file,
+            packages,
+            out,
+        } => {
             let deck = script::deck(&file, &read(packages)?, investigation)?;
-            write(out, serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n")
+            write(
+                out,
+                serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n",
+            )
         }
         LamletCommand::Toml { file, name, out } => {
-            let text = std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-            write(out, script::data::toml(&file.display().to_string(), &text, &name)?)
+            let text =
+                std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            write(
+                out,
+                script::data::toml(&file.display().to_string(), &text, &name)?,
+            )
         }
-        LamletCommand::Vocab { name, keys, packages, out } => {
-            let json = std::fs::read_to_string(&keys).map_err(|e| format!("{}: {e}", keys.display()))?;
-            write(out, script::vocab(&name, &json, &read(packages)?).map_err(|e| format!("{}: {e}", keys.display()))?)
+        LamletCommand::Vocab {
+            name,
+            keys,
+            packages,
+            out,
+        } => {
+            let json =
+                std::fs::read_to_string(&keys).map_err(|e| format!("{}: {e}", keys.display()))?;
+            write(
+                out,
+                script::vocab(&name, &json, &read(packages)?)
+                    .map_err(|e| format!("{}: {e}", keys.display()))?,
+            )
         }
     }
 }
 
 /// `render-lab --investigation <id> script …`.
-fn script(command: ScriptCommand, investigation: &'static dyn crate::investigation::Investigation) -> Result<(), String> {
+fn script(
+    command: ScriptCommand,
+    investigation: &'static dyn crate::investigation::Investigation,
+) -> Result<(), String> {
     use crate::script::runtime;
     match command {
         ScriptCommand::Check => {
@@ -403,7 +451,11 @@ fn script(command: ScriptCommand, investigation: &'static dyn crate::investigati
             let (_, sources) = runtime::engine(investigation)?;
             match name {
                 Some(name) => {
-                    let p = sources.packages.iter().find(|p| p.name == name).ok_or_else(|| format!("no package `{name}`"))?;
+                    let p = sources
+                        .packages
+                        .iter()
+                        .find(|p| p.name == name)
+                        .ok_or_else(|| format!("no package `{name}`"))?;
                     print!("{}", p.source);
                 }
                 None => {
@@ -411,7 +463,10 @@ fn script(command: ScriptCommand, investigation: &'static dyn crate::investigati
                         println!("{}\t{}", p.name, p.file);
                     }
                     if !sources.skipped.is_empty() {
-                        println!("values left out of the values package (their names are taken): {}", sources.skipped.join(", "));
+                        println!(
+                            "values left out of the values package (their names are taken): {}",
+                            sources.skipped.join(", ")
+                        );
                     }
                 }
             }
@@ -433,12 +488,20 @@ fn parse_resolution(value: &str) -> Result<[u32; 2], String> {
         "1440p" => [2560, 1440],
         "2160p" | "4k" => [3840, 2160],
         other => {
-            let (w, h) = other.split_once('x').ok_or("expected WIDTHxHEIGHT or 720p, 1080p, 1440p, 2160p")?;
-            [w.parse().map_err(|_| format!("bad width `{w}`"))?, h.parse().map_err(|_| format!("bad height `{h}`"))?]
+            let (w, h) = other
+                .split_once('x')
+                .ok_or("expected WIDTHxHEIGHT or 720p, 1080p, 1440p, 2160p")?;
+            [
+                w.parse().map_err(|_| format!("bad width `{w}`"))?,
+                h.parse().map_err(|_| format!("bad height `{h}`"))?,
+            ]
         }
     };
     if size.iter().any(|&n| !(2..=8192).contains(&n) || n % 2 != 0) {
-        return Err(format!("{}x{}: width and height are even, from 2 to 8192", size[0], size[1]));
+        return Err(format!(
+            "{}x{}: width and height are even, from 2 to 8192",
+            size[0], size[1]
+        ));
     }
     Ok(size)
 }
@@ -453,8 +516,18 @@ pub struct App {
 /// Runs the command line; the binary's `main`.
 pub fn main(app: App) -> Result<()> {
     // `--page`'s help lists the lab's features' pages too (src/feature/).
-    let pages = format!("{}\n\nThe viewer's features' pages: {}; and the pages of the packages' features.", Cli::command().find_subcommand("home").and_then(|c| c.get_arguments().find(|a| a.get_id() == "page")).and_then(|a| a.get_long_help().or(a.get_help())).map(|h| h.to_string()).unwrap_or_default(), crate::feature::page_help());
-    let command = Cli::command().mut_subcommand("home", |c| c.mut_arg("page", |a| a.long_help(pages)));
+    let pages = format!(
+        "{}\n\nThe viewer's features' pages: {}; and the pages of the packages' features.",
+        Cli::command()
+            .find_subcommand("home")
+            .and_then(|c| c.get_arguments().find(|a| a.get_id() == "page"))
+            .and_then(|a| a.get_long_help().or(a.get_help()))
+            .map(|h| h.to_string())
+            .unwrap_or_default(),
+        crate::feature::page_help()
+    );
+    let command =
+        Cli::command().mut_subcommand("home", |c| c.mut_arg("page", |a| a.long_help(pages)));
     let cli = Cli::from_arg_matches(&command.get_matches()).unwrap_or_else(|e| e.exit());
     if let Some(root) = &cli.root {
         crate::resources::set_root(root.clone());
@@ -471,11 +544,24 @@ pub fn main(app: App) -> Result<()> {
         }
         let width = all.iter().map(|i| i.path().len()).max().unwrap_or(0);
         for i in all {
-            println!("{:width$}  {} ({}, package {})", i.path(), i.title(), i.engine().name, i.package().unwrap_or("render_lab"));
+            println!(
+                "{:width$}  {} ({}, package {})",
+                i.path(),
+                i.title(),
+                i.engine().name,
+                i.package().unwrap_or("render_lab")
+            );
         }
         return Ok(());
     }
-    let command = cli.command.unwrap_or(Command::Home { width: 1600, height: 900, ui_scale: DEFAULT_UI_SCALE, snapshot: None, page: "title".into(), autotest: None });
+    let command = cli.command.unwrap_or(Command::Home {
+        width: 1600,
+        height: 900,
+        ui_scale: DEFAULT_UI_SCALE,
+        snapshot: None,
+        page: "title".into(),
+        autotest: None,
+    });
     // Lamlet runs before an investigation is chosen, unless one is given for its natives to check against.
     let command = match command {
         Command::Lamlet(command) if cli.investigation.is_none() => {
@@ -489,54 +575,156 @@ pub fn main(app: App) -> Result<()> {
     };
     let chosen = {
         let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
-        let path = cli.investigation.clone().or_else(|| known.first().cloned()).context("no investigation is installed")?;
-        let chosen = investigations::find(&path).with_context(|| format!("unknown investigation `{path}`; known: {} (render-lab --list)", known.join(", ")))?;
+        let path = cli
+            .investigation
+            .clone()
+            .or_else(|| known.first().cloned())
+            .context("no investigation is installed")?;
+        let chosen = investigations::find(&path).with_context(|| {
+            format!(
+                "unknown investigation `{path}`; known: {} (render-lab --list)",
+                known.join(", ")
+            )
+        })?;
         investigation::set(chosen);
         chosen
     };
     match command {
-        Command::Home { width, height, ui_scale, snapshot, page, autotest } => {
-            let options = home::HomeOptions { manifest_dir: manifest_dir.clone(), width, height, ui_scale: ui_scale.clamp(0.4, 1.5), config_path: crate::config::Config::default_path() };
+        Command::Home {
+            width,
+            height,
+            ui_scale,
+            snapshot,
+            page,
+            autotest,
+        } => {
+            let options = home::HomeOptions {
+                manifest_dir: manifest_dir.clone(),
+                width,
+                height,
+                ui_scale: ui_scale.clamp(0.4, 1.5),
+                config_path: crate::config::Config::default_path(),
+            };
             match (snapshot, autotest) {
-                (Some(png), _) if page == "loading" => crate::loading::snapshot(&png, [width.max(64), height.max(64)], options.ui_scale),
+                (Some(png), _) if page == "loading" => crate::loading::snapshot(
+                    &png,
+                    [width.max(64), height.max(64)],
+                    options.ui_scale,
+                ),
                 (Some(png), _) if page == "starting" => home::snapshot_starting(&options, &png),
-                (Some(png), _) if page == "viewer" || page == "viewer-timeline" => home::snapshot_viewer(&options, page == "viewer-timeline", None, &png),
-                (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Diagram), &png),
-                (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(&options, true, None, Some(crate::viewer::PausedPage::Sources), &png),
+                (Some(png), _) if page == "viewer" || page == "viewer-timeline" => {
+                    home::snapshot_viewer(&options, page == "viewer-timeline", None, &png)
+                }
+                (Some(png), _) if page == "viewer-diagram" => home::snapshot_viewer_page(
+                    &options,
+                    true,
+                    None,
+                    Some(crate::viewer::PausedPage::Diagram),
+                    &png,
+                ),
+                (Some(png), _) if page == "viewer-sources" => home::snapshot_viewer_page(
+                    &options,
+                    true,
+                    None,
+                    Some(crate::viewer::PausedPage::Sources),
+                    &png,
+                ),
                 (Some(png), _) if page == "viewer-layout" => home::snapshot_layout(&options, &png),
                 (Some(png), _) if page == "viewer-camera" => home::snapshot_camera(&options, &png),
-                (Some(png), _) if page == "viewer-scene" || page.starts_with("viewer-scene:") || page.starts_with("viewer-scene@") => {
+                (Some(png), _)
+                    if page == "viewer-scene"
+                        || page.starts_with("viewer-scene:")
+                        || page.starts_with("viewer-scene@") =>
+                {
                     let rest = page.strip_prefix("viewer-scene").unwrap_or_default();
                     let (entity, mode) = rest.split_once('@').map_or((rest, ""), |(e, m)| (e, m));
                     let mode = match mode {
                         "" | "move" => crate::gizmo::Mode::Move,
                         "rotate" => crate::gizmo::Mode::Rotate,
                         "scale" => crate::gizmo::Mode::Scale,
-                        other => anyhow::bail!("viewer-scene@{other}: the gizmo's modes are move, rotate, scale"),
+                        other => anyhow::bail!(
+                            "viewer-scene@{other}: the gizmo's modes are move, rotate, scale"
+                        ),
                     };
-                    home::snapshot_scene(&options, entity.strip_prefix(':').filter(|e| !e.is_empty()), mode, &png)
+                    home::snapshot_scene(
+                        &options,
+                        entity.strip_prefix(':').filter(|e| !e.is_empty()),
+                        mode,
+                        &png,
+                    )
                 }
-                (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png),
+                (Some(png), _) if page == "viewer-free" || page.starts_with("viewer-free:") => {
+                    home::snapshot_free(&options, page.strip_prefix("viewer-free:"), &png)
+                }
                 // A feature's page (src/feature/: viewer-experiments, viewer-quiz, viewer-prerequisites…): the viewer on its tab, set up as the page says.
                 (Some(png), _) if crate::feature::page(&page).is_some() => {
-                    let (feature, name, args) = crate::feature::page(&page).expect("a feature's page");
+                    let (feature, name, args) =
+                        crate::feature::page(&page).expect("a feature's page");
                     home::snapshot_feature(&options, feature, name, args, &png)
                 }
-                (Some(png), _) if page == "select-knowledge" => home::snapshot_knowledge(&options, &png),
-                (Some(png), _) if page.starts_with("viewer:") => home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png),
+                (Some(png), _) if page == "select-knowledge" => {
+                    home::snapshot_knowledge(&options, &png)
+                }
+                (Some(png), _) if page.starts_with("viewer:") => {
+                    home::snapshot_viewer(&options, false, page.strip_prefix("viewer:"), &png)
+                }
                 (Some(png), _) => {
                     let trial = page == "trial";
-                    home::snapshot(&options, if trial { home::Page::Config } else { home::Page::parse(&page)? }, trial, &png)
+                    home::snapshot(
+                        &options,
+                        if trial {
+                            home::Page::Config
+                        } else {
+                            home::Page::parse(&page)?
+                        },
+                        trial,
+                        &png,
+                    )
                 }
                 (None, Some(report)) => home::autotest(&options, &report),
                 (None, None) => home::run(options),
             }
         }
-        Command::ViewerAutotest { report, timeline, ui_scale, width, height } => {
+        Command::ViewerAutotest {
+            report,
+            timeline,
+            ui_scale,
+            width,
+            height,
+        } => {
             // Silent: the test plays the timeline without its narration.
-            viewer::run(viewer::ViewerOptions { timeline, audio: None, manifest_dir: manifest_dir.clone(), ui_scale: ui_scale.clamp(0.4, 1.5), autotest: Some(report), width, height, locale: None, start_frame: 0, fullscreen: false, narration: crate::config::Config::default().narration, tab: None, layout: Default::default(), settings: None })
+            viewer::run(viewer::ViewerOptions {
+                timeline,
+                audio: None,
+                manifest_dir: manifest_dir.clone(),
+                ui_scale: ui_scale.clamp(0.4, 1.5),
+                autotest: Some(report),
+                width,
+                height,
+                locale: None,
+                start_frame: 0,
+                fullscreen: false,
+                narration: crate::config::Config::default().narration,
+                tab: None,
+                layout: Default::default(),
+                settings: None,
+            })
         }
-        Command::Render { timeline, output, frames, warmup, resolution, snapshot, snapshot_dir, report, codec, crf, preset, ffmpeg, frame_stamp } => {
+        Command::Render {
+            timeline,
+            output,
+            frames,
+            warmup,
+            resolution,
+            snapshot,
+            snapshot_dir,
+            report,
+            codec,
+            crf,
+            preset,
+            ffmpeg,
+            frame_stamp,
+        } => {
             // A frame a script did not draw must not reach a video.
             crate::script::runtime::set_strict(true);
             let frames = frames
@@ -564,13 +752,29 @@ pub fn main(app: App) -> Result<()> {
                 frame_stamp,
             };
             let summary = record::record(&options)?;
-            eprintln!("rendered {} frames in {:.1} s ({:.1} fps); smallest text {:.1} px", summary.frames, summary.seconds, summary.frames as f64 / summary.seconds, summary.min_text_pt);
+            eprintln!(
+                "rendered {} frames in {:.1} s ({:.1} fps); smallest text {:.1} px",
+                summary.frames,
+                summary.seconds,
+                summary.frames as f64 / summary.seconds,
+                summary.min_text_pt
+            );
             Ok(())
         }
-        Command::Selftest { report, timeline, work_dir, ffmpeg } => {
+        Command::Selftest {
+            report,
+            timeline,
+            work_dir,
+            ffmpeg,
+        } => {
             crate::script::runtime::set_strict(true);
             let work_dir = work_dir.unwrap_or_else(|| manifest_dir.join("target/selftest"));
-            let passed = chosen.selftest(&investigation::SelftestOptions { report: report.clone(), timeline, ffmpeg: ffmpeg.unwrap_or_else(|| record::default_ffmpeg(&manifest_dir)), work_dir })?;
+            let passed = chosen.selftest(&investigation::SelftestOptions {
+                report: report.clone(),
+                timeline,
+                ffmpeg: ffmpeg.unwrap_or_else(|| record::default_ffmpeg(&manifest_dir)),
+                work_dir,
+            })?;
             if !passed {
                 bail!("selftest failed; see {}", report.display());
             }
@@ -585,12 +789,25 @@ pub fn main(app: App) -> Result<()> {
             }
             Ok(())
         }
-        Command::Text { package, locale, sources } => {
-            crate::i18n::set(crate::i18n::Locale::from_code(&locale).with_context(|| format!("unknown locale `{locale}`"))?);
+        Command::Text {
+            package,
+            locale,
+            sources,
+        } => {
+            crate::i18n::set(
+                crate::i18n::Locale::from_code(&locale)
+                    .with_context(|| format!("unknown locale `{locale}`"))?,
+            );
             let table: serde_json::Map<String, serde_json::Value> = if sources {
-                crate::i18n::source_texts(&package).into_iter().map(|(k, v)| (k.to_string(), v.into())).collect()
+                crate::i18n::source_texts(&package)
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v.into()))
+                    .collect()
             } else {
-                crate::i18n::package_keys(&package).into_iter().map(|k| (k.to_string(), crate::i18n::package_text(&package, k).into())).collect()
+                crate::i18n::package_keys(&package)
+                    .into_iter()
+                    .map(|k| (k.to_string(), crate::i18n::package_text(&package, k).into()))
+                    .collect()
             };
             println!("{}", serde_json::to_string_pretty(&table)?);
             Ok(())
@@ -625,9 +842,21 @@ pub fn main(app: App) -> Result<()> {
             let entries: Vec<&crate::values::Entry> = crate::values::list()
                 .into_iter()
                 .filter(|e| label.as_deref().is_none_or(|l| e.has_label(l)))
-                .filter(|e| scope.as_deref().is_none_or(|s| e.key.starts_with(&format!("{s}."))))
+                .filter(|e| {
+                    scope
+                        .as_deref()
+                        .is_none_or(|s| e.key.starts_with(&format!("{s}.")))
+                })
                 .collect();
-            let numbers = |v: Option<Value>| v.map(|v| v.components().iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", "));
+            let numbers = |v: Option<Value>| {
+                v.map(|v| {
+                    v.components()
+                        .iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+            };
             if json {
                 let list: Vec<serde_json::Value> = entries
                     .iter()
@@ -639,14 +868,41 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&list)?);
             } else {
                 for e in entries {
-                    let channels = if e.components.is_empty() { String::new() } else { format!(" ({})", e.components.join(", ")) };
-                    let default = numbers(e.default).map(|d| format!(" = {d}")).unwrap_or_default();
-                    let ranges: Vec<String> = (0..e.ty.components()).filter_map(|i| e.range_of(i)).map(|r| format!("{}..{}", r.0, r.1)).collect();
-                    let range = if ranges.is_empty() { String::new() } else if e.component_ranges.is_empty() { format!(" in {}", ranges[0]) } else { format!(" in {}", ranges.join(", ")) };
-                    let labels = if e.labels.is_empty() { String::new() } else { format!(" [{}]", e.labels.join(", ")) };
-                    let choice = e.choices.map(|c| format!(" choice of {} ({})", c.name, c.names())).unwrap_or_default();
+                    let channels = if e.components.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", e.components.join(", "))
+                    };
+                    let default = numbers(e.default)
+                        .map(|d| format!(" = {d}"))
+                        .unwrap_or_default();
+                    let ranges: Vec<String> = (0..e.ty.components())
+                        .filter_map(|i| e.range_of(i))
+                        .map(|r| format!("{}..{}", r.0, r.1))
+                        .collect();
+                    let range = if ranges.is_empty() {
+                        String::new()
+                    } else if e.component_ranges.is_empty() {
+                        format!(" in {}", ranges[0])
+                    } else {
+                        format!(" in {}", ranges.join(", "))
+                    };
+                    let labels = if e.labels.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" [{}]", e.labels.join(", "))
+                    };
+                    let choice = e
+                        .choices
+                        .map(|c| format!(" choice of {} ({})", c.name, c.names()))
+                        .unwrap_or_default();
                     let engine = e.engine.map(|p| format!(" engine {p}")).unwrap_or_default();
-                    println!("{}{channels}: {}{default}{range} {:?}{labels}{choice}{engine}", e.key, e.ty.name(), e.unit);
+                    println!(
+                        "{}{channels}: {}{default}{range} {:?}{labels}{choice}{engine}",
+                        e.key,
+                        e.ty.name(),
+                        e.unit
+                    );
                     if !e.doc.is_empty() {
                         println!("    {}", e.doc);
                     }
@@ -660,19 +916,29 @@ pub fn main(app: App) -> Result<()> {
                 (None, true) => PathBuf::new(),
                 (None, false) => bail!("give --out, the directory for the results (or --dry-run)"),
             };
-            crate::research::run(&crate::research::ResearchOptions { experiment: file, out, dry_run, root: manifest_dir.clone() })
+            crate::research::run(&crate::research::ResearchOptions {
+                experiment: file,
+                out,
+                dry_run,
+                root: manifest_dir.clone(),
+            })
         }
         Command::Story(StoryCommand::Keys) => {
-            let keys = crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
+            let keys =
+                crate::script::keys::keys(investigation::current()).map_err(anyhow::Error::msg)?;
             println!("{}", serde_json::to_string_pretty(&keys)?);
             Ok(())
         }
         Command::Story(StoryCommand::Headings { translation }) => {
-            println!("{}", serde_json::to_string_pretty(&crate::script::keys::heading_keys(translation))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&crate::script::keys::heading_keys(translation))?
+            );
             Ok(())
         }
         Command::Story(StoryCommand::Schema) => {
-            let schema = crate::script::keys::schema(investigation::current()).map_err(anyhow::Error::msg)?;
+            let schema = crate::script::keys::schema(investigation::current())
+                .map_err(anyhow::Error::msg)?;
             println!("{}", serde_json::to_string_pretty(&schema)?);
             Ok(())
         }
@@ -680,7 +946,8 @@ pub fn main(app: App) -> Result<()> {
             let text = if file == std::path::Path::new("-") {
                 std::io::read_to_string(std::io::stdin())?
             } else {
-                std::fs::read_to_string(&file).with_context(|| format!("read story check input {}", file.display()))?
+                std::fs::read_to_string(&file)
+                    .with_context(|| format!("read story check input {}", file.display()))?
             };
             let report = crate::story::check(&text, timeline);
             println!("{}", serde_json::to_string_pretty(&report)?);
@@ -691,10 +958,22 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::Choices => {
             for choices in investigation::current().choices() {
-                let options: Vec<String> = (0..choices.options.len()).map(|i| format!("{i} {} ({})", choices.options[i].name, choices.option_text(i))).collect();
+                let options: Vec<String> = (0..choices.options.len())
+                    .map(|i| {
+                        format!(
+                            "{i} {} ({})",
+                            choices.options[i].name,
+                            choices.option_text(i)
+                        )
+                    })
+                    .collect();
                 println!("{}: {}", choices.name, options.join(", "));
                 if let Some(prefix) = choices.wgsl {
-                    println!("    WGSL {prefix}_*, written to {}'s {}", choices.package, choices.wgsl_file());
+                    println!(
+                        "    WGSL {prefix}_*, written to {}'s {}",
+                        choices.package,
+                        choices.wgsl_file()
+                    );
                 }
             }
             Ok(())
@@ -715,7 +994,22 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}({}) (a script's)", action.name, args.join(", "));
             }
             for spec in actions.specs {
-                let args: Vec<String> = spec.args.iter().map(|a| format!("{}: {}{}", a.key, a.kind.describe(), if a.required { "" } else { " (optional)" })).collect();
+                let args: Vec<String> = spec
+                    .args
+                    .iter()
+                    .map(|a| {
+                        format!(
+                            "{}: {}{}",
+                            a.key,
+                            a.kind.describe(),
+                            if a.required {
+                                ""
+                            } else {
+                                " (optional)"
+                            }
+                        )
+                    })
+                    .collect();
                 println!("{}({})", spec.key, args.join(", "));
                 if !spec.doc.is_empty() {
                     println!("    {}", spec.doc);
@@ -742,8 +1036,35 @@ pub fn main(app: App) -> Result<()> {
             }
             let package = investigation::current().package().unwrap_or("render_lab");
             for kind in crate::views::kinds(package)? {
-                let params: Vec<String> = kind.params.iter().map(|p| format!("{} = {}", p.key, p.default.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","))).collect();
-                println!("kind {} ({}x{}{}, {} · {}): {}", kind.key, kind.size[0], kind.size[1], if kind.viewport_aspect { ", the viewport's shape" } else { "" }, kind.module, kind.entry, params.join(", "));
+                let params: Vec<String> = kind
+                    .params
+                    .iter()
+                    .map(|p| {
+                        format!(
+                            "{} = {}",
+                            p.key,
+                            p.default
+                                .iter()
+                                .map(|v| v.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )
+                    })
+                    .collect();
+                println!(
+                    "kind {} ({}x{}{}, {} · {}): {}",
+                    kind.key,
+                    kind.size[0],
+                    kind.size[1],
+                    if kind.viewport_aspect {
+                        ", the viewport's shape"
+                    } else {
+                        ""
+                    },
+                    kind.module,
+                    kind.entry,
+                    params.join(", ")
+                );
                 if !kind.doc.is_empty() {
                     println!("    {}", kind.doc);
                 }
@@ -753,11 +1074,21 @@ pub fn main(app: App) -> Result<()> {
         Command::Packages { json } => {
             let packages = crate::resources::packages();
             // Its library: the file, and its handles or why it is not loaded.
-            let library = |m: &crate::packages::Package| -> Option<(String, Result<Vec<String>, String>)> {
-                let (name, _) = m.library.as_ref()?;
-                let loaded = investigations::libraries().iter().find(|l| l.package == m.name)?;
-                Some((crate::packages::library_path(m, name).display().to_string(), loaded.loaded.as_ref().map(|h| h.names().map(String::from).collect()).map_err(Clone::clone)))
-            };
+            let library =
+                |m: &crate::packages::Package| -> Option<(String, Result<Vec<String>, String>)> {
+                    let (name, _) = m.library.as_ref()?;
+                    let loaded = investigations::libraries()
+                        .iter()
+                        .find(|l| l.package == m.name)?;
+                    Some((
+                        crate::packages::library_path(m, name).display().to_string(),
+                        loaded
+                            .loaded
+                            .as_ref()
+                            .map(|h| h.names().map(String::from).collect())
+                            .map_err(Clone::clone),
+                    ))
+                };
             if json {
                 let list: Vec<serde_json::Value> = packages
                     .iter()
@@ -773,20 +1104,51 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&list)?);
             } else {
                 for m in packages {
-                    let contact = m.contact.as_deref().map(|c| format!(" <{c}>")).unwrap_or_default();
-                    println!("{}  by {}{contact}, {}  ({})", m.name, m.author, m.license, m.manifest);
-                    println!("    import: {}", if m.imports.is_empty() { "-".to_string() } else { m.imports.join(", ") });
-                    println!("    export: {}", if m.exports.is_empty() { "-".to_string() } else { m.exports.join(", ") });
+                    let contact = m
+                        .contact
+                        .as_deref()
+                        .map(|c| format!(" <{c}>"))
+                        .unwrap_or_default();
+                    println!(
+                        "{}  by {}{contact}, {}  ({})",
+                        m.name, m.author, m.license, m.manifest
+                    );
+                    println!(
+                        "    import: {}",
+                        if m.imports.is_empty() {
+                            "-".to_string()
+                        } else {
+                            m.imports.join(", ")
+                        }
+                    );
+                    println!(
+                        "    export: {}",
+                        if m.exports.is_empty() {
+                            "-".to_string()
+                        } else {
+                            m.exports.join(", ")
+                        }
+                    );
                     match library(m) {
-                        Some((file, Ok(handles))) => println!("    library: {file}, handles: {}", handles.join(", ")),
+                        Some((file, Ok(handles))) => {
+                            println!("    library: {file}, handles: {}", handles.join(", "))
+                        }
                         Some((file, Err(_))) => println!("    library: {file}, not loaded (above)"),
                         None => {}
                     }
                     for d in &m.demos {
-                        println!("    demo {}: {}, {} + {}", d.key, d.title, d.timeline, d.audio);
+                        println!(
+                            "    demo {}: {}, {} + {}",
+                            d.key, d.title, d.timeline, d.audio
+                        );
                     }
                     for s in &m.series {
-                        println!("    series {}: {}, parts {}", s.key, s.title_in("en"), s.parts.join(" -> "));
+                        println!(
+                            "    series {}: {}, parts {}",
+                            s.key,
+                            s.title_in("en"),
+                            s.parts.join(" -> ")
+                        );
                     }
                 }
             }
@@ -794,7 +1156,8 @@ pub fn main(app: App) -> Result<()> {
         }
         Command::Resources { json } => {
             let all = crate::resources::all();
-            let size = |r: &crate::resources::Resource| std::fs::metadata(r.path()).ok().map(|m| m.len());
+            let size =
+                |r: &crate::resources::Resource| std::fs::metadata(r.path()).ok().map(|m| m.len());
             if json {
                 let list: Vec<serde_json::Value> = all
                     .iter()
@@ -803,14 +1166,27 @@ pub fn main(app: App) -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&list)?);
             } else {
                 for r in all {
-                    let size = size(r).map(|b| format!("{b:>10} B")).unwrap_or_else(|| format!("{:>12}", "not built"));
-                    println!("{:<44} {:<9} {size}  {:<36} {}", r.id(), r.kind(), r.license(), r.source());
+                    let size = size(r)
+                        .map(|b| format!("{b:>10} B"))
+                        .unwrap_or_else(|| format!("{:>12}", "not built"));
+                    println!(
+                        "{:<44} {:<9} {size}  {:<36} {}",
+                        r.id(),
+                        r.kind(),
+                        r.license(),
+                        r.source()
+                    );
                 }
             }
             Ok(())
         }
         Command::Cook => {
-            let Some(report) = crate::resources::build_packages()? else { bail!("{} has no source packages (RENDER_LAB_ROOT or --root names a checkout)", crate::resources::root().display()) };
+            let Some(report) = crate::resources::build_packages()? else {
+                bail!(
+                    "{} has no source packages (RENDER_LAB_ROOT or --root names a checkout)",
+                    crate::resources::root().display()
+                )
+            };
             for id in &report.produced {
                 println!("built   {id}");
             }
@@ -820,19 +1196,50 @@ pub fn main(app: App) -> Result<()> {
             for path in &report.removed {
                 println!("removed {}", path.display());
             }
-            println!("{} built, {} up to date, in {}", report.produced.len(), report.kept, crate::resources::packages_dir().display());
+            println!(
+                "{} built, {} up to date, in {}",
+                report.produced.len(),
+                report.kept,
+                crate::resources::packages_dir().display()
+            );
             Ok(())
         }
         Command::Layout { json } => {
             let layouts = layout::parse_layouts(&shaders::layout_json()?)?;
             let checks = layout::check_all(&layouts);
             if json {
-                println!("{}", serde_json::to_string_pretty(&serde_json::json!({"wgsl": layouts, "checks": checks}))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &serde_json::json!({"wgsl": layouts, "checks": checks})
+                    )?
+                );
             } else {
                 for c in &checks {
-                    println!("{:<16} {:>4} B  padding {:>3} B  {}", c.record, c.wgsl_size, c.padding_bytes, if c.ok { "Rust = WGSL" } else { "MISMATCH" });
+                    println!(
+                        "{:<16} {:>4} B  padding {:>3} B  {}",
+                        c.record,
+                        c.wgsl_size,
+                        c.padding_bytes,
+                        if c.ok {
+                            "Rust = WGSL"
+                        } else {
+                            "MISMATCH"
+                        }
+                    );
                     for f in &c.fields {
-                        println!("    {:>4}  {:<22} {:<12} {:>3} B{}", f.wgsl_offset, f.name, f.wgsl_type, f.wgsl_size, if f.ok { "" } else { "  <-- mismatch" });
+                        println!(
+                            "    {:>4}  {:<22} {:<12} {:>3} B{}",
+                            f.wgsl_offset,
+                            f.name,
+                            f.wgsl_type,
+                            f.wgsl_size,
+                            if f.ok {
+                                ""
+                            } else {
+                                "  <-- mismatch"
+                            }
+                        );
                     }
                 }
             }
@@ -843,7 +1250,11 @@ pub fn main(app: App) -> Result<()> {
 
 /// The `graph` command: print the frame's graph; fail if its declarations
 /// do not compile or do not match the WGSL.
-fn graph(chosen: &'static dyn investigation::Investigation, dot: Option<&std::path::Path>, json: bool) -> Result<()> {
+fn graph(
+    chosen: &'static dyn investigation::Investigation,
+    dot: Option<&std::path::Path>,
+    json: bool,
+) -> Result<()> {
     let shading = chosen.scene_shading();
     let graph = crate::graph::FrameGraph::new(shading, &[]);
     let mut problems = graph.errors.clone();
@@ -854,16 +1265,28 @@ fn graph(chosen: &'static dyn investigation::Investigation, dot: Option<&std::pa
     let index = crate::sources::index();
     for p in &index.passes {
         if graph.node(&p.lab).is_none() {
-            problems.push(format!("source index: pass `{}` maps `{}`, which is no node of the graph", p.engine, p.lab));
+            problems.push(format!(
+                "source index: pass `{}` maps `{}`, which is no node of the graph",
+                p.engine, p.lab
+            ));
         }
         for k in p.sources.iter().filter(|k| !index.entries.contains_key(*k)) {
-            problems.push(format!("source index: pass `{}` cites `{k}`, which is no entry", p.engine));
+            problems.push(format!(
+                "source index: pass `{}` cites `{k}`, which is no entry",
+                p.engine
+            ));
         }
     }
     if json {
         let mut value = graph.json();
         value["errors"] = serde_json::json!(problems);
-        value["engine"] = serde_json::json!(index.passes.iter().map(|p| serde_json::json!({"node": p.lab, "pass": p.engine, "sources": p.sources})).collect::<Vec<_>>());
+        value["engine"] = serde_json::json!(
+            index
+                .passes
+                .iter()
+                .map(|p| serde_json::json!({"node": p.lab, "pass": p.engine, "sources": p.sources}))
+                .collect::<Vec<_>>()
+        );
         println!("{}", serde_json::to_string_pretty(&value)?);
     } else {
         print!("{}", graph.text());
@@ -879,7 +1302,11 @@ fn graph(chosen: &'static dyn investigation::Investigation, dot: Option<&std::pa
         eprintln!("wrote {}", path.display());
     }
     if !problems.is_empty() {
-        bail!("{} problem(s):\n  {}", problems.len(), problems.join("\n  "));
+        bail!(
+            "{} problem(s):\n  {}",
+            problems.len(),
+            problems.join("\n  ")
+        );
     }
     Ok(())
 }
@@ -895,15 +1322,33 @@ fn series() -> Result<()> {
         println!("no package provides a series");
     }
     for (package, series) in all {
-        println!("{}.{}: {} ({} parts)", package.name, series.key, series.title_in("en"), series.parts.len());
+        println!(
+            "{}.{}: {} ({} parts)",
+            package.name,
+            series.key,
+            series.title_in("en"),
+            series.parts.len()
+        );
         // Each part's graph, and what the parts before it taught (by topic name).
         let mut taught: Vec<(usize, String)> = Vec::new();
         for (k, part) in series.parts.iter().enumerate() {
-            let investigation = crate::investigations::all().iter().copied().find(|i| i.package() == Some(part.as_str()));
+            let investigation = crate::investigations::all()
+                .iter()
+                .copied()
+                .find(|i| i.package() == Some(part.as_str()));
             let timelines = crate::resources::timelines(part).len();
             match investigation {
-                Some(i) => println!("  part {}: {part}: {} ({}), {timelines} narrated timeline(s)", k + 1, i.title(), i.path()),
-                None => problems.push(format!("{}: part {} (`{part}`) provides no investigation", series.key, k + 1)),
+                Some(i) => println!(
+                    "  part {}: {part}: {} ({}), {timelines} narrated timeline(s)",
+                    k + 1,
+                    i.title(),
+                    i.path()
+                ),
+                None => problems.push(format!(
+                    "{}: part {} (`{part}`) provides no investigation",
+                    series.key,
+                    k + 1
+                )),
             }
             let graph = match crate::knowledge::load(part) {
                 None => {
@@ -914,14 +1359,36 @@ fn series() -> Result<()> {
             };
             let audience = graph.audience();
             for (earlier, topic) in &taught {
-                let Some(i) = graph.nodes.iter().position(|n| &n.id == topic) else { continue };
+                let Some(i) = graph.nodes.iter().position(|n| &n.id == topic) else {
+                    continue;
+                };
                 if audience.relevant.get(i).copied().unwrap_or(false) && !audience.is_known(i) {
-                    let why = if audience.teach.contains(&i) || audience.level.contains(&i) { "teaches it again" } else { "does not know it" };
+                    let why = if audience.teach.contains(&i) || audience.level.contains(&i) {
+                        "teaches it again"
+                    } else {
+                        "does not know it"
+                    };
                     problems.push(format!("{}: part {} (`{part}`) needs `{topic}`, which part {earlier} teaches, and {why} (add it to its audience's `known`)", series.key, k + 1));
                 }
             }
-            let teaches: Vec<usize> = audience.level.iter().chain(&audience.teach).copied().collect();
-            println!("    teaches {} topic(s); its audience knows {} the parts before it taught", teaches.len(), taught.iter().filter(|(_, t)| graph.nodes.iter().position(|n| &n.id == t).is_some_and(|i| audience.is_known(i))).count());
+            let teaches: Vec<usize> = audience
+                .level
+                .iter()
+                .chain(&audience.teach)
+                .copied()
+                .collect();
+            println!(
+                "    teaches {} topic(s); its audience knows {} the parts before it taught",
+                teaches.len(),
+                taught
+                    .iter()
+                    .filter(|(_, t)| graph
+                        .nodes
+                        .iter()
+                        .position(|n| &n.id == t)
+                        .is_some_and(|i| audience.is_known(i)))
+                    .count()
+            );
             for i in teaches {
                 if !taught.iter().any(|(_, t)| t == &graph.nodes[i].id) {
                     taught.push((k + 1, graph.nodes[i].id.clone()));
@@ -932,22 +1399,44 @@ fn series() -> Result<()> {
     for p in &problems {
         println!("problem: {p}");
     }
-    if problems.is_empty() { Ok(()) } else { bail!("{} problem(s) in the series", problems.len()) }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        bail!("{} problem(s) in the series", problems.len())
+    }
 }
 
-fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String], levels: bool) -> Result<()> {
-    let package = chosen.package().context("this investigation has no package")?;
+fn knowledge(
+    chosen: &'static dyn investigation::Investigation,
+    known: &[String],
+    levels: bool,
+) -> Result<()> {
+    let package = chosen
+        .package()
+        .context("this investigation has no package")?;
     let graph = match crate::knowledge::load(package) {
         None => bail!("{package} has no knowledge graph (no `knowledge` resource of its own)"),
         Some(graph) => graph.map_err(|e| anyhow::anyhow!(e))?,
     };
-    let names = |list: &[usize]| list.iter().map(|&i| graph.nodes[i].key.as_str()).collect::<Vec<_>>().join(", ");
+    let names = |list: &[usize]| {
+        list.iter()
+            .map(|&i| graph.nodes[i].key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     let edges: usize = graph.nodes.iter().map(|n| n.requires.len()).sum();
-    println!("{package}: {} topics, {edges} requirements, {} chapters; acyclic, transitively reduced, every topic reaches a base", graph.nodes.len(), graph.chapters.len());
+    println!(
+        "{package}: {} topics, {edges} requirements, {} chapters; acyclic, transitively reduced, every topic reaches a base",
+        graph.nodes.len(),
+        graph.chapters.len()
+    );
     let known: Vec<usize> = if known.is_empty() {
         graph.known.clone()
     } else {
-        known.iter().map(|k| graph.find(k).with_context(|| format!("no topic `{k}`"))).collect::<Result<_>>()?
+        known
+            .iter()
+            .map(|k| graph.find(k).with_context(|| format!("no topic `{k}`")))
+            .collect::<Result<_>>()?
     };
     if let Some(profile) = &graph.profile {
         println!("audience: {profile}");
@@ -955,20 +1444,54 @@ fn knowledge(chosen: &'static dyn investigation::Investigation, known: &[String]
     let p = graph.partition_for(&known);
     let relevant = p.relevant.iter().filter(|r| **r).count();
     let known_count = p.known.iter().filter(|k| **k).count();
-    println!("relevant {relevant}, known {known_count}, level {}, to teach {}, carries {}", p.level.len(), p.teach.len(), p.carries.len());
+    println!(
+        "relevant {relevant}, known {known_count}, level {}, to teach {}, carries {}",
+        p.level.len(),
+        p.teach.len(),
+        p.carries.len()
+    );
     println!("level: {}", names(&p.level));
     println!("to teach: {}", names(&p.teach));
-    println!("carried (known, used directly above the level): {}", names(&p.carried()));
+    println!(
+        "carried (known, used directly above the level): {}",
+        names(&p.carried())
+    );
     for c in &graph.chapters {
         let context = graph.context(&[c.number]);
-        let own = |list: &[usize]| list.iter().copied().filter(|&i| context[i]).collect::<Vec<_>>();
-        println!("chapter {}: level {}; teaches {}", c.number, names(&own(&p.level)), names(&own(&p.teach)));
+        let own = |list: &[usize]| {
+            list.iter()
+                .copied()
+                .filter(|&i| context[i])
+                .collect::<Vec<_>>()
+        };
+        println!(
+            "chapter {}: level {}; teaches {}",
+            c.number,
+            names(&own(&p.level)),
+            names(&own(&p.teach))
+        );
     }
     if levels {
         println!("nearby audiences (carries):");
-        for n in crate::knowledge::neighbours(&graph.requires(), &graph.bases(), &graph.chapter_needs(), &known) {
+        for n in crate::knowledge::neighbours(
+            &graph.requires(),
+            &graph.bases(),
+            &graph.chapter_needs(),
+            &known,
+        ) {
             let q = graph.partition_for(&n.known);
-            println!("  {}{} ({}): level {}, to teach {}", if n.added { "+" } else { "-" }, graph.nodes[n.node].key, n.carries, q.level.len(), q.teach.len());
+            println!(
+                "  {}{} ({}): level {}, to teach {}",
+                if n.added {
+                    "+"
+                } else {
+                    "-"
+                },
+                graph.nodes[n.node].key,
+                n.carries,
+                q.level.len(),
+                q.teach.len()
+            );
         }
     }
     let demos: Vec<&str> = chosen.demos().iter().map(|d| d.key()).collect();

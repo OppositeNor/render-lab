@@ -73,11 +73,16 @@ pub fn get(latex: &str, size_px: f32, display: bool) -> Result<Arc<Formula>, Str
 pub fn check(latex: &str, display: bool) -> Result<Arc<Formula>, String> {
     let f = get(latex, FORMULA_PX, display)?;
     if f.min_glyph_px < MIN_GLYPH_PX - 0.05 {
-        return Err(format!("its smallest glyph is {:.1} px (< {MIN_GLYPH_PX}); avoid nested scripts", f.min_glyph_px));
+        return Err(format!(
+            "its smallest glyph is {:.1} px (< {MIN_GLYPH_PX}); avoid nested scripts",
+            f.min_glyph_px
+        ));
     }
     let ink = f.width - 2 * PAD;
     if display && ink > MAX_DISPLAY_WIDTH {
-        return Err(format!("{ink} px wide (> {MAX_DISPLAY_WIDTH}); break it over more lines"));
+        return Err(format!(
+            "{ink} px wide (> {MAX_DISPLAY_WIDTH}); break it over more lines"
+        ));
     }
     Ok(f)
 }
@@ -97,11 +102,13 @@ pub fn check_files(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<serde_jso
     let mut seen = std::collections::BTreeSet::new();
     let mut report = Vec::new();
     for path in paths {
-        let text = std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
         let mut all = Vec::new();
         let json: serde_json::Value;
         if path.extension().is_some_and(|e| e == "json") {
-            json = serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            json = serde_json::from_str(&text)
+                .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
             strings(&json, &mut all);
         } else {
             all.extend(text.lines());
@@ -115,13 +122,19 @@ pub fn check_files(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<serde_jso
                 }
             };
             for run in runs {
-                let crate::rich_text::Run::Formula { latex, display, .. } = run else { continue };
+                let crate::rich_text::Run::Formula { latex, display, .. } = run else {
+                    continue;
+                };
                 if !seen.insert((latex.clone(), display)) {
                     continue;
                 }
                 let entry = match check(&latex, display) {
-                    Ok(f) => serde_json::json!({"file": path, "latex": latex, "display": display, "size": [f.width - 2 * PAD, f.height - 2 * PAD], "minGlyphPx": f.min_glyph_px, "terms": f.terms.len(), "error": null}),
-                    Err(e) => serde_json::json!({"file": path, "latex": latex, "display": display, "error": e}),
+                    Ok(f) => {
+                        serde_json::json!({"file": path, "latex": latex, "display": display, "size": [f.width - 2 * PAD, f.height - 2 * PAD], "minGlyphPx": f.min_glyph_px, "terms": f.terms.len(), "error": null})
+                    }
+                    Err(e) => {
+                        serde_json::json!({"file": path, "latex": latex, "display": display, "error": e})
+                    }
                 };
                 report.push(entry);
             }
@@ -139,18 +152,45 @@ struct FormulaWorld {
 }
 
 fn file_id(path: &str) -> FileId {
-    RootedPath::new(VirtualRoot::Project, VirtualPath::new(path).expect("a valid virtual path")).intern()
+    RootedPath::new(
+        VirtualRoot::Project,
+        VirtualPath::new(path).expect("a valid virtual path"),
+    )
+    .intern()
 }
 
 /// MiTeX's Typst scope (packages/render_lab/assets/mitex/specs), at the paths its files import each other by.
-const SPECS: [(&str, &str); 3] = [("/specs/mod.typ", "render_lab.mitex/mod"), ("/specs/prelude.typ", "render_lab.mitex/prelude"), ("/specs/latex/standard.typ", "render_lab.mitex/latex/standard")];
+const SPECS: [(&str, &str); 3] = [
+    ("/specs/mod.typ", "render_lab.mitex/mod"),
+    ("/specs/prelude.typ", "render_lab.mitex/prelude"),
+    (
+        "/specs/latex/standard.typ",
+        "render_lab.mitex/latex/standard",
+    ),
+];
 
 impl FormulaWorld {
     fn new() -> FormulaWorld {
-        let fonts: Vec<Font> = typst_assets::fonts().flat_map(|data| Font::iter(Bytes::new(data))).collect();
+        let fonts: Vec<Font> = typst_assets::fonts()
+            .flat_map(|data| Font::iter(Bytes::new(data)))
+            .collect();
         let book = FontBook::from_fonts(&fonts);
-        let files = SPECS.iter().map(|(path, spec)| (file_id(path), Bytes::from_string(resources::get(spec).text()))).collect();
-        FormulaWorld { library: LazyHash::new(Library::default()), book: LazyHash::new(book), fonts, files, main: file_id("/main.typ") }
+        let files = SPECS
+            .iter()
+            .map(|(path, spec)| {
+                (
+                    file_id(path),
+                    Bytes::from_string(resources::get(spec).text()),
+                )
+            })
+            .collect();
+        FormulaWorld {
+            library: LazyHash::new(Library::default()),
+            book: LazyHash::new(book),
+            fonts,
+            files,
+            main: file_id("/main.typ"),
+        }
     }
 }
 
@@ -166,10 +206,16 @@ impl World for FormulaWorld {
     }
     fn source(&self, id: FileId) -> FileResult<Source> {
         let bytes = self.file(id)?;
-        Ok(Source::new(id, String::from_utf8(bytes.to_vec()).map_err(|_| FileError::InvalidUtf8)?))
+        Ok(Source::new(
+            id,
+            String::from_utf8(bytes.to_vec()).map_err(|_| FileError::InvalidUtf8)?,
+        ))
     }
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        self.files.get(&id).cloned().ok_or_else(|| FileError::NotFound(PathBuf::from(format!("{id:?}"))))
+        self.files
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| FileError::NotFound(PathBuf::from(format!("{id:?}"))))
     }
     fn font(&self, index: usize) -> Option<Font> {
         self.fonts.get(index).cloned()
@@ -207,7 +253,10 @@ fn lit_args(latex: &str, at: usize) -> Result<(u32, &str, usize), String> {
         args.push(&latex[start..j]);
         j += 1;
     }
-    let n = args[0].trim().parse::<u32>().map_err(|_| format!("\\lit{{{}}}: the term is a number from 1", args[0]))?;
+    let n = args[0]
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| format!("\\lit{{{}}}: the term is a number from 1", args[0]))?;
     Ok((n, args[1], j))
 }
 
@@ -220,7 +269,11 @@ fn lit_args(latex: &str, at: usize) -> Result<(u32, &str, usize), String> {
 fn prepare(latex: &str, lit: Option<u32>) -> Result<(String, u32), String> {
     let mut out = String::new();
     let mut terms = 0;
-    let latex = ["\\cdot", "-", "+"].iter().fold(latex.to_string(), |s, op| s.replace(&format!("{{{op}}}"), &format!("\\mathord{{{op}}}")));
+    let latex = ["\\cdot", "-", "+"]
+        .iter()
+        .fold(latex.to_string(), |s, op| {
+            s.replace(&format!("{{{op}}}"), &format!("\\mathord{{{op}}}"))
+        });
     let mut rest = latex.as_str();
     loop {
         let lit_at = rest.find("\\lit{");
@@ -254,47 +307,86 @@ fn min_text_size(frame: &Frame, scale: f64, min: &mut f64) {
     for (_, item) in frame.items() {
         match item {
             FrameItem::Group(g) => min_text_size(&g.frame, scale * g.transform.sy.get(), min),
-            FrameItem::Text(t) if t.glyphs.iter().any(|g| g.id != 0) => *min = min.min(t.size.to_pt() * scale),
+            FrameItem::Text(t) if t.glyphs.iter().any(|g| g.id != 0) => {
+                *min = min.min(t.size.to_pt() * scale)
+            }
             _ => {}
         }
     }
 }
 
 /// Premultiplied RGBA of the formula, its size, its baseline, and its smallest glyph.
-fn render(world: &mut FormulaWorld, latex: &str, size_px: f32, display: bool) -> Result<(Vec<u8>, u32, u32, f32, f32), String> {
+fn render(
+    world: &mut FormulaWorld,
+    latex: &str,
+    size_px: f32,
+    display: bool,
+) -> Result<(Vec<u8>, u32, u32, f32, f32), String> {
     let converted = mitex::convert_math(latex, None)?;
     // `\widehat` spans its whole argument, as in LaTeX.
     let scope = "mitex-scope + (hat: x => math.accent(x, \"\\u{302}\", size: 100%))";
-    let equation = format!("math.equation(block: {display}, eval(\"$\" + read(\"/formula.txt\") + \"$\", scope: {scope}))");
+    let equation = format!(
+        "math.equation(block: {display}, eval(\"$\" + read(\"/formula.txt\") + \"$\", scope: {scope}))"
+    );
     let main = format!(
         "#import \"/specs/mod.typ\": mitex-scope\n#set page(width: auto, height: auto, margin: {PAD}pt, fill: none)\n#set par(leading: {LEADING}em)\n#set text(size: {size_px}pt, fill: black, font: \"New Computer Modern\")\n#box({equation})\n"
     );
     world.files.insert(world.main, Bytes::from_string(main));
-    world.files.insert(file_id("/formula.txt"), Bytes::from_string(converted.clone()));
+    world.files.insert(
+        file_id("/formula.txt"),
+        Bytes::from_string(converted.clone()),
+    );
     let document = typst::compile::<PagedDocument>(world)
         .output
-        .map_err(|errors| format!("{} (Typst: {converted})", errors.iter().map(|e| e.message.to_string()).collect::<Vec<_>>().join("; ")))?;
+        .map_err(|errors| {
+            format!(
+                "{} (Typst: {converted})",
+                errors
+                    .iter()
+                    .map(|e| e.message.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )
+        })?;
     let page = document.pages().first().ok_or("no page")?;
     // The box holding the formula keeps its baseline.
     let baseline = page
         .frame
         .items()
         .find_map(|(pos, item)| match item {
-            FrameItem::Group(g) if g.frame.has_baseline() => Some((pos.y + g.frame.baseline()).to_pt()),
+            FrameItem::Group(g) if g.frame.has_baseline() => {
+                Some((pos.y + g.frame.baseline()).to_pt())
+            }
             _ => None,
         })
         .unwrap_or(page.frame.height().to_pt());
     let mut min = f64::INFINITY;
     min_text_size(&page.frame, 1.0, &mut min);
-    let pixmap = typst_render::render(page, &typst_render::RenderOptions { pixel_per_pt: typst::utils::Scalar::new(1.0), ..Default::default() });
-    Ok((pixmap.data().to_vec(), pixmap.width(), pixmap.height(), baseline as f32, min as f32))
+    let pixmap = typst_render::render(
+        page,
+        &typst_render::RenderOptions {
+            pixel_per_pt: typst::utils::Scalar::new(1.0),
+            ..Default::default()
+        },
+    );
+    Ok((
+        pixmap.data().to_vec(),
+        pixmap.width(),
+        pixmap.height(),
+        baseline as f32,
+        min as f32,
+    ))
 }
 
 fn typeset(latex: &str, size_px: f32, display: bool) -> Result<Formula, String> {
     static WORLD: OnceLock<Mutex<FormulaWorld>> = OnceLock::new();
-    let mut world = WORLD.get_or_init(|| Mutex::new(FormulaWorld::new())).lock().unwrap();
+    let mut world = WORLD
+        .get_or_init(|| Mutex::new(FormulaWorld::new()))
+        .lock()
+        .unwrap();
     let (plain, terms) = prepare(latex, None)?;
-    let (rgba, width, height, baseline, min_glyph_px) = render(&mut world, &plain, size_px, display)?;
+    let (rgba, width, height, baseline, min_glyph_px) =
+        render(&mut world, &plain, size_px, display)?;
     let coverage = rgba.as_chunks::<4>().0.iter().map(|p| p[3]).collect();
     let mut term_masks = Vec::new();
     for n in 1..=terms {
@@ -304,9 +396,22 @@ fn typeset(latex: &str, size_px: f32, display: bool) -> Result<Formula, String> 
             return Err(format!("term {n} changes the formula's size"));
         }
         // Black ink has as much green as red; the lit term is red alone.
-        term_masks.push(rgba.as_chunks::<4>().0.iter().map(|p| p[0].saturating_sub(p[1])).collect());
+        term_masks.push(
+            rgba.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| p[0].saturating_sub(p[1]))
+                .collect(),
+        );
     }
-    Ok(Formula { width, height, baseline, coverage, terms: term_masks, min_glyph_px })
+    Ok(Formula {
+        width,
+        height,
+        baseline,
+        coverage,
+        terms: term_masks,
+        min_glyph_px,
+    })
 }
 
 #[cfg(test)]
@@ -315,7 +420,11 @@ mod tests {
 
     #[test]
     fn lit_terms_and_spacing() {
-        let (s, n) = prepare(r"a &= \lit{1}{b} \\[3pt] c &= \lit{2}{d_{\lit{3}{e}}}", Some(2)).unwrap();
+        let (s, n) = prepare(
+            r"a &= \lit{1}{b} \\[3pt] c &= \lit{2}{d_{\lit{3}{e}}}",
+            Some(2),
+        )
+        .unwrap();
         assert_eq!(n, 3);
         assert_eq!(s, r"a &= {b} \\ c &= {\color{red}{d_{{e}}}}");
     }

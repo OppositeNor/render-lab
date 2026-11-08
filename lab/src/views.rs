@@ -48,9 +48,9 @@
 //! the tags of its first declaration: write it as part of the `///` block.
 
 use crate::resources;
-use crate::shader_data::{number, parse_tags, wgsl_value_type, Storage};
+use crate::shader_data::{Storage, number, parse_tags, wgsl_value_type};
 use crate::shaders;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use naga::{ImageClass, ImageDimension, ShaderStage, StorageFormat, TypeInner};
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -107,7 +107,11 @@ impl ViewKind {
         let long = self.size[0].max(self.size[1]) as f32;
         let aspect = viewport[0] as f32 / viewport[1] as f32;
         let side = |s: f32| (s.round() as u32).clamp(1, 2048);
-        if aspect >= 1.0 { [side(long), side(long / aspect)] } else { [side(long * aspect), side(long)] }
+        if aspect >= 1.0 {
+            [side(long), side(long / aspect)]
+        } else {
+            [side(long * aspect), side(long)]
+        }
     }
     pub fn param(&self, key: &str) -> Option<&ViewParam> {
         self.params.iter().find(|p| p.key == key)
@@ -116,9 +120,24 @@ impl ViewKind {
     /// Why `value` cannot be parameter `key`: one it does not take, or the
     /// wrong number of components.
     pub fn check(&self, key: &str, value: &[f32]) -> Result<(), String> {
-        let param = self.param(key).ok_or_else(|| format!("the image kind `{}` takes no parameter `{key}` (its parameters: {})", self.key, self.params.iter().map(|p| p.key.as_str()).collect::<Vec<_>>().join(", ")))?;
+        let param = self.param(key).ok_or_else(|| {
+            format!(
+                "the image kind `{}` takes no parameter `{key}` (its parameters: {})",
+                self.key,
+                self.params
+                    .iter()
+                    .map(|p| p.key.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
         if value.len() != param.components {
-            return Err(format!("the image kind `{}`'s parameter `{key}` is {} number(s), not {}", self.key, param.components, value.len()));
+            return Err(format!(
+                "the image kind `{}`'s parameter `{key}` is {} number(s), not {}",
+                self.key,
+                param.components,
+                value.len()
+            ));
         }
         Ok(())
     }
@@ -151,10 +170,19 @@ pub fn kinds(package: &str) -> Result<&'static [ViewKind]> {
         return Ok(k);
     }
     let mut out: Vec<ViewKind> = Vec::new();
-    for shader in resources::shaders().iter().filter(|s| s.id.strip_prefix(package).is_some_and(|r| r.starts_with('.'))) {
+    for shader in resources::shaders().iter().filter(|s| {
+        s.id.strip_prefix(package)
+            .is_some_and(|r| r.starts_with('.'))
+    }) {
         for kind in read(&shader.id, package)? {
             if let Some(other) = out.iter().find(|k| k.key == kind.key) {
-                bail!("{}: the image kind `{}` is defined twice ({} and {})", package, kind.key, other.module, kind.module);
+                bail!(
+                    "{}: the image kind `{}` is defined twice ({} and {})",
+                    package,
+                    kind.key,
+                    other.module,
+                    kind.module
+                );
             }
             out.push(kind);
         }
@@ -169,7 +197,10 @@ pub fn kind(package: &str, key: &str) -> Result<&'static ViewKind, String> {
     let kinds = kinds(package).map_err(|e| format!("{e:#}"))?;
     kinds.iter().find(|k| k.key == key).ok_or_else(|| {
         let known: Vec<&str> = kinds.iter().map(|k| k.key.as_str()).collect();
-        format!("no image kind `{key}` (the package's: {})", crate::story_refs::names_or_none(&known))
+        format!(
+            "no image kind `{key}` (the package's: {})",
+            crate::story_refs::names_or_none(&known)
+        )
     })
 }
 
@@ -177,9 +208,12 @@ pub fn kind(package: &str, key: &str) -> Result<&'static ViewKind, String> {
 fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
     let r = shaders::reflect(id)?;
     let module = &r.module;
-    let Some(docs) = module.doc_comments.as_deref() else { return Ok(Vec::new()) };
+    let Some(docs) = module.doc_comments.as_deref() else {
+        return Ok(Vec::new());
+    };
     let mut kinds = Vec::new();
-    let mut params_of: BTreeMap<String, (naga::Handle<naga::GlobalVariable>, String)> = BTreeMap::new();
+    let mut params_of: BTreeMap<String, (naga::Handle<naga::GlobalVariable>, String)> =
+        BTreeMap::new();
     for (handle, lines) in &docs.global_variables {
         let (tags, doc) = parse_tags(lines)?;
         let var = &module.global_variables[*handle];
@@ -188,62 +222,144 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
         let arg = |tag: &str| tags.iter().find(|t| t.name == tag).map(|t| t.args.clone());
         let binding = var.binding.as_ref().map(|b| (b.group, b.binding));
         if let Some(key) = arg("view_params") {
-            let [key] = key.as_slice() else { bail!("{id}: `{name}`: `view_params=` names one kind{at}") };
+            let [key] = key.as_slice() else {
+                bail!("{id}: `{name}`: `view_params=` names one kind{at}")
+            };
             if binding != Some((VIEW_GROUP, 1)) {
-                bail!("{id}: `{name}`, the parameters of `{key}`, is bound at @group({VIEW_GROUP}) @binding(1){at}");
+                bail!(
+                    "{id}: `{name}`, the parameters of `{key}`, is bound at @group({VIEW_GROUP}) @binding(1){at}"
+                );
             }
             params_of.insert(key.clone(), (*handle, at));
             continue;
         }
         let Some(key) = arg("view") else { continue };
-        let [key] = key.as_slice() else { bail!("{id}: `{name}`: `view=` names one kind{at}") };
-        if let Some(t) = tags.iter().find(|t| !["view", "entry", "size", "text", "reads", "aspect"].contains(&t.name.as_str())) {
-            bail!("{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text, reads, aspect){at}", t.name);
+        let [key] = key.as_slice() else {
+            bail!("{id}: `{name}`: `view=` names one kind{at}")
+        };
+        if let Some(t) = tags.iter().find(|t| {
+            !["view", "entry", "size", "text", "reads", "aspect"].contains(&t.name.as_str())
+        }) {
+            bail!(
+                "{id}: `{name}`: unknown attribute `{}` of an image kind (view, entry, size, text, reads, aspect){at}",
+                t.name
+            );
         }
         if binding != Some((VIEW_GROUP, 0)) {
-            bail!("{id}: `{name}`, the image kind `{key}`, is bound at @group({VIEW_GROUP}) @binding(0){at}");
+            bail!(
+                "{id}: `{name}`, the image kind `{key}`, is bound at @group({VIEW_GROUP}) @binding(0){at}"
+            );
         }
-        let storage = matches!(module.types[var.ty].inner, TypeInner::Image { dim: ImageDimension::D2, arrayed: false, class: ImageClass::Storage { format: StorageFormat::Rgba8Unorm, .. } });
+        let storage = matches!(
+            module.types[var.ty].inner,
+            TypeInner::Image {
+                dim: ImageDimension::D2,
+                arrayed: false,
+                class: ImageClass::Storage {
+                    format: StorageFormat::Rgba8Unorm,
+                    ..
+                }
+            }
+        );
         if !storage {
-            bail!("{id}: `{name}`, the image kind `{key}`, is a texture_storage_2d<rgba8unorm, write>{at}");
+            bail!(
+                "{id}: `{name}`, the image kind `{key}`, is a texture_storage_2d<rgba8unorm, write>{at}"
+            );
         }
-        let entry = arg("entry").and_then(|e| e.first().cloned()).ok_or_else(|| anyhow!("{id}: the image kind `{key}` names its compute entry point (`entry=`){at}"))?;
-        let point = module.entry_points.iter().find(|e| e.name == entry && e.stage == ShaderStage::Compute).ok_or_else(|| anyhow!("{id}: the image kind `{key}`: no compute entry point `{entry}`{at}"))?;
+        let entry = arg("entry")
+            .and_then(|e| e.first().cloned())
+            .ok_or_else(|| {
+                anyhow!("{id}: the image kind `{key}` names its compute entry point (`entry=`){at}")
+            })?;
+        let point = module
+            .entry_points
+            .iter()
+            .find(|e| e.name == entry && e.stage == ShaderStage::Compute)
+            .ok_or_else(|| {
+                anyhow!("{id}: the image kind `{key}`: no compute entry point `{entry}`{at}")
+            })?;
         let size = match arg("size").as_deref() {
             Some([w, h]) => [number(w)? as u32, number(h)? as u32],
-            _ => bail!("{id}: the image kind `{key}` names its size in texels (`size=width,height`){at}"),
+            _ => bail!(
+                "{id}: the image kind `{key}` names its size in texels (`size=width,height`){at}"
+            ),
         };
         if size[0] == 0 || size[1] == 0 || size[0] > 2048 || size[1] > 2048 {
-            bail!("{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}", size[0], size[1]);
+            bail!(
+                "{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}",
+                size[0],
+                size[1]
+            );
         }
         let viewport_aspect = match arg("aspect").as_deref() {
             None => false,
             Some([a]) if a == "viewport" => true,
-            Some(_) => bail!("{id}: the image kind `{key}`: `aspect=` takes `viewport` (its texture takes the viewport's shape){at}"),
+            Some(_) => bail!(
+                "{id}: the image kind `{key}`: `aspect=` takes `viewport` (its texture takes the viewport's shape){at}"
+            ),
         };
         let text = arg("text").and_then(|t| t.first().cloned());
         let reads = arg("reads").unwrap_or_default();
-        kinds.push(ViewKind { key: key.clone(), package: package.to_string(), module: id.to_string(), entry, workgroup: point.workgroup_size, size, viewport_aspect, text, reads, doc, params: Vec::new(), params_size: 0 });
+        kinds.push(ViewKind {
+            key: key.clone(),
+            package: package.to_string(),
+            module: id.to_string(),
+            entry,
+            workgroup: point.workgroup_size,
+            size,
+            viewport_aspect,
+            text,
+            reads,
+            doc,
+            params: Vec::new(),
+            params_size: 0,
+        });
     }
     for (key, (handle, at)) in params_of {
-        let Some(kind) = kinds.iter_mut().find(|k| k.key == key) else { bail!("{id}: parameters of `{key}`, which is not an image kind of the module{at}") };
+        let Some(kind) = kinds.iter_mut().find(|k| k.key == key) else {
+            bail!("{id}: parameters of `{key}`, which is not an image kind of the module{at}")
+        };
         let var = &module.global_variables[handle];
         let global = var.name.clone().unwrap_or_default();
-        let TypeInner::Struct { members, span } = &module.types[var.ty].inner else { bail!("{id}: `{global}` is not a struct{at}") };
+        let TypeInner::Struct { members, span } = &module.types[var.ty].inner else {
+            bail!("{id}: `{global}` is not a struct{at}")
+        };
         kind.params_size = *span;
         for (index, m) in members.iter().enumerate() {
             let member = m.name.clone().unwrap_or_default();
-            let lines = docs.struct_members.get(&(var.ty, index)).cloned().unwrap_or_default();
+            let lines = docs
+                .struct_members
+                .get(&(var.ty, index))
+                .cloned()
+                .unwrap_or_default();
             let (tags, doc) = parse_tags(&lines)?;
             let context = format!("{id}: `{global}.{member}`{at}");
-            if let Some(t) = tags.iter().find(|t| !["key", "default", "range"].contains(&t.name.as_str())) {
-                bail!("{context}: unknown attribute `{}` of an image kind's parameter (key, default, range)", t.name);
+            if let Some(t) = tags
+                .iter()
+                .find(|t| !["key", "default", "range"].contains(&t.name.as_str()))
+            {
+                bail!(
+                    "{context}: unknown attribute `{}` of an image kind's parameter (key, default, range)",
+                    t.name
+                );
             }
-            let (storage, components) = wgsl_value_type(&module.types[m.ty].inner).ok_or_else(|| anyhow!("{context}: a parameter is an f32, u32, i32, or vecN<f32>"))?;
-            let key = tags.iter().find(|t| t.name == "key").and_then(|t| t.args.first().cloned()).unwrap_or(member.clone());
+            let (storage, components) =
+                wgsl_value_type(&module.types[m.ty].inner).ok_or_else(|| {
+                    anyhow!("{context}: a parameter is an f32, u32, i32, or vecN<f32>")
+                })?;
+            let key = tags
+                .iter()
+                .find(|t| t.name == "key")
+                .and_then(|t| t.args.first().cloned())
+                .unwrap_or(member.clone());
             let default: Vec<f32> = match tags.iter().find(|t| t.name == "default") {
-                Some(t) if t.args.len() == components => t.args.iter().map(|a| number(a)).collect::<Result<_>>()?,
-                Some(t) => bail!("{context}: `default=` has {} number(s), the parameter {components}", t.args.len()),
+                Some(t) if t.args.len() == components => {
+                    t.args.iter().map(|a| number(a)).collect::<Result<_>>()?
+                }
+                Some(t) => bail!(
+                    "{context}: `default=` has {} number(s), the parameter {components}",
+                    t.args.len()
+                ),
                 None => bail!("{context}: a parameter has a `default=`"),
             };
             let range = match tags.iter().find(|t| t.name == "range") {
@@ -251,7 +367,15 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
                 Some(_) => bail!("{context}: `range=low,high`"),
                 None => None,
             };
-            kind.params.push(ViewParam { key, offset: m.offset, storage, components, default, range, doc });
+            kind.params.push(ViewParam {
+                key,
+                offset: m.offset,
+                storage,
+                components,
+                default,
+                range,
+                doc,
+            });
         }
     }
     Ok(kinds)

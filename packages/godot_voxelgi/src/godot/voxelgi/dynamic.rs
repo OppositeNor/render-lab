@@ -19,7 +19,7 @@
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
 
-use super::light::{self, Light, Params, LIGHT_TYPE_AREA};
+use super::light::{self, LIGHT_TYPE_AREA, Light, Params};
 use super::storage::{LightTexture, Probe};
 use glam::{IVec2, IVec3, Vec3, Vec4};
 use lab::layout::ObjectData;
@@ -30,7 +30,14 @@ pub const MULTIPLIER: i32 = 16;
 pub const OVERSAMPLED: usize = 4;
 
 /// `render_z` and `render_up` of the six views.
-pub const RENDER_Z: [Vec3; 6] = [Vec3::X, Vec3::Y, Vec3::Z, Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
+pub const RENDER_Z: [Vec3; 6] = [
+    Vec3::X,
+    Vec3::Y,
+    Vec3::Z,
+    Vec3::NEG_X,
+    Vec3::NEG_Y,
+    Vec3::NEG_Z,
+];
 pub const RENDER_UP: [Vec3; 6] = [Vec3::Y, Vec3::Z, Vec3::Y, Vec3::Y, Vec3::Z, Vec3::Y];
 
 /// One map of a view's shrink chain: its rectangle (in that map's texels of
@@ -79,7 +86,13 @@ fn looking_at(target: Vec3, up: Vec3) -> [Vec3; 3] {
 
 fn axis_of(v: Vec3) -> usize {
     let a = v.abs();
-    if a.x > 0.5 { 0 } else if a.y > 0.5 { 1 } else { 2 }
+    if a.x > 0.5 {
+        0
+    } else if a.y > 0.5 {
+        1
+    } else {
+        2
+    }
 }
 
 /// The views' setup for the box `begin..end` (oversampled cells).
@@ -93,7 +106,14 @@ fn view_axes(j: usize, begin: IVec3, end: IVec3) -> (Vec3, [Vec3; 3], Vec3) {
 
 /// The dynamic pass for one object: `object` (its world record), lit by
 /// `lights` with the field of `probe`, plotted over `texture`.
-pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectData, texture: &LightTexture, node: Vec3) -> Plot {
+pub fn plot(
+    probe: &Probe,
+    params: &Params,
+    lights: &[Light],
+    object: &ObjectData,
+    texture: &LightTexture,
+    node: Vec3,
+) -> Plot {
     let octree = probe.octree_size;
     let m = MULTIPLIER as f32;
     // World to oversampled cells, and back.
@@ -103,7 +123,30 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
     let o = object;
     let l2w = glam::Mat4::from_cols_array_2d(&o.local_to_world);
     let (lc, le) = (Vec3::from(o.local_center), Vec3::from(o.local_extent));
-    let corners: Vec<Vec3> = (0..8).map(|i| to_over(l2w.transform_point3(lc + le * Vec3::new(if i & 1 == 0 { -1.0 } else { 1.0 }, if i & 2 == 0 { -1.0 } else { 1.0 }, if i & 4 == 0 { -1.0 } else { 1.0 })))).collect();
+    let corners: Vec<Vec3> = (0..8)
+        .map(|i| {
+            to_over(l2w.transform_point3(
+                lc + le
+                    * Vec3::new(
+                        if i & 1 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                        if i & 2 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                        if i & 4 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                    ),
+            ))
+        })
+        .collect();
     let min = corners.iter().fold(Vec3::splat(f32::MAX), |a, &c| a.min(c));
     let max = corners.iter().fold(Vec3::splat(f32::MIN), |a, &c| a.max(c));
     // `begin = aabb.position - 1`, `end = aabb.end + 1` (Vector3i truncates), even sizes, clamped.
@@ -131,7 +174,11 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
         let z_dir = z_dir_f.round().as_ivec3();
         let z_flip = basis[2].x + basis[2].y + basis[2].z > 0.0;
         let z_base = eye[z_axis];
-        let z_sign = if z_flip { -1.0 } else { 1.0 };
+        let z_sign = if z_flip {
+            -1.0
+        } else {
+            1.0
+        };
         let rect_pos = IVec2::new(begin[x_axis], begin[y_axis]);
         let rect_size = IVec2::new(size[x_axis], size[y_axis]);
         let n = (rect_size.x * rect_size.y) as usize;
@@ -149,36 +196,60 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
                 c[z_axis] = z_base;
                 let ro = from_over(c);
                 let t_max = size[z_axis] as f32 * world_per_over;
-                let Some((t, nw)) = lab::scene::intersect_object(o, ro, render_dir, t_max) else { continue };
+                let Some((t, nw)) = lab::scene::intersect_object(o, ro, render_dir, t_max) else {
+                    continue;
+                };
                 let d = t / world_per_over;
                 let nw = nw.normalize();
-                albedo[i] = Vec4::new(o.albedo_roughness[0], o.albedo_roughness[1], o.albedo_roughness[2], 1.0);
+                albedo[i] = Vec4::new(
+                    o.albedo_roughness[0],
+                    o.albedo_roughness[1],
+                    o.albedo_roughness[2],
+                    1.0,
+                );
                 // MODE_DYNAMIC_LIGHTING: the voxel from the depth, lit like a cell.
                 let z = z_base + d * z_sign;
                 depth[i] = z;
-                let pos = x_dir * (rect_pos.x + px) + y_dir * (rect_pos.y + py) + z_dir.abs() * z as i32;
+                let pos =
+                    x_dir * (rect_pos.x + px) + y_dir * (rect_pos.y + py) + z_dir.abs() * z as i32;
                 let p = pos.as_vec3() / m;
                 let mut accum = Vec3::ZERO;
                 for l in lights {
                     if l.kind != LIGHT_TYPE_AREA {
-                        let Some((li, light_dir)) = light::light_at_pos(probe, params, l, p, nw, None) else { continue };
+                        let Some((li, light_dir)) =
+                            light::light_at_pos(probe, params, l, p, nw, None)
+                        else {
+                            continue;
+                        };
                         accum += nw.dot(-light_dir).max(0.0) * li * albedo[i].truncate();
                     } else {
-                        let Some(li) = light::area_light(params, l, p, nw) else { continue };
+                        let Some(li) = light::area_light(params, l, p, nw) else {
+                            continue;
+                        };
                         accum += li * albedo[i].truncate();
                     }
                 }
-                let emission = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
+                let emission =
+                    Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
                 lit[i] = (accum + emission).extend(1.0);
             }
         }
-        let mut maps = vec![Map { mipmap: -1, rect_size, light: lit, depth }];
+        let mut maps = vec![Map {
+            mipmap: -1,
+            rect_size,
+            light: lit,
+            depth,
+        }];
         let map_count = OVERSAMPLED + probe.mip_count();
         let mut rect_p = rect_pos;
         let mut rect_s = rect_size;
         let mut limits = octree;
         for k in 1..map_count {
-            let mipmap = if k < OVERSAMPLED { -1 } else { (k - OVERSAMPLED) as i32 };
+            let mipmap = if k < OVERSAMPLED {
+                -1
+            } else {
+                (k - OVERSAMPLED) as i32
+            };
             let mut prev_ofs = IVec2::ZERO;
             for a in 0..2 {
                 if rect_p[a] & 1 != 0 {
@@ -208,7 +279,11 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
                     let mut count = 0.0f32;
                     for i in 0..4 {
                         let ofs = IVec2::new(px * 2 + (i & 1), py * 2 + (i >> 1)) - prev_ofs;
-                        if ofs.x < 0 || ofs.y < 0 || ofs.x >= prev.rect_size.x || ofs.y >= prev.rect_size.y {
+                        if ofs.x < 0
+                            || ofs.y < 0
+                            || ofs.x >= prev.rect_size.x
+                            || ofs.y >= prev.rect_size.y
+                        {
                             continue;
                         }
                         let (l, z) = prev.at(ofs);
@@ -225,27 +300,41 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
                     } else {
                         accum /= 4.0;
                     }
-                    accum_z = if count == 0.0 { 0.0 } else { accum_z / count };
+                    accum_z = if count == 0.0 {
+                        0.0
+                    } else {
+                        accum_z / count
+                    };
                     let i = (px + py * rect_s.x) as usize;
                     if write {
                         out_light[i] = accum;
                         out_depth[i] = accum_z;
                     }
                     if do_plot && accum.w >= 0.001 {
-                        let pos = x_dir * (rect_p.x + px) + y_dir * (rect_p.y + py) + z_dir.abs() * accum_z as i32;
+                        let pos = x_dir * (rect_p.x + px)
+                            + y_dir * (rect_p.y + py)
+                            + z_dir.abs() * accum_z as i32;
                         let z_frac = accum_z.fract();
                         for s in 0..2 {
                             let pos3d = pos + z_dir.abs() * s;
                             if pos3d.cmplt(IVec3::ZERO).any() || pos3d.cmpge(limits).any() {
                                 continue;
                             }
-                            let blit = accum * if s == 0 { 1.0 - z_frac } else { z_frac };
+                            let blit = accum
+                                * if s == 0 {
+                                    1.0 - z_frac
+                                } else {
+                                    z_frac
+                                };
                             let mut color = tex.texel(mipmap as usize, pos3d);
                             color = (color.truncate() * params.dynamic_range).extend(color.w);
                             let sa = 1.0 - blit.w;
                             let a = color.w * sa + blit.w;
                             if a != 0.0 {
-                                color = ((color.truncate() * color.w * sa + blit.truncate() * blit.w) / a).extend(a);
+                                color = ((color.truncate() * color.w * sa
+                                    + blit.truncate() * blit.w)
+                                    / a)
+                                    .extend(a);
                             }
                             color = (color.truncate() / params.dynamic_range).extend(color.w);
                             tex.store(mipmap as usize, pos3d, color);
@@ -254,7 +343,12 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
                     }
                 }
             }
-            maps.push(Map { mipmap, rect_size: rect_s, light: out_light, depth: out_depth });
+            maps.push(Map {
+                mipmap,
+                rect_size: rect_s,
+                light: out_light,
+                depth: out_depth,
+            });
         }
         views.push(View { albedo, maps });
     }
@@ -262,5 +356,11 @@ pub fn plot(probe: &Probe, params: &Params, lights: &[Light], object: &ObjectDat
         p.sort_by_key(|v| (v.z, v.y, v.x));
         p.dedup();
     }
-    Plot { begin, end, views, texture: tex, plotted }
+    Plot {
+        begin,
+        end,
+        views,
+        texture: tex,
+        plotted,
+    }
 }

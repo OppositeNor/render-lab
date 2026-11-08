@@ -22,7 +22,20 @@ pub enum Demo {
 }
 
 impl Demo {
-    pub const ALL: [Demo; 12] = [Demo::Room, Demo::Bounds, Demo::Octree, Demo::Cells, Demo::Field, Demo::Light, Demo::Bounce, Demo::Mips, Demo::Dynamic, Demo::Pixel, Demo::Cost, Demo::Compose];
+    pub const ALL: [Demo; 12] = [
+        Demo::Room,
+        Demo::Bounds,
+        Demo::Octree,
+        Demo::Cells,
+        Demo::Field,
+        Demo::Light,
+        Demo::Bounce,
+        Demo::Mips,
+        Demo::Dynamic,
+        Demo::Pixel,
+        Demo::Cost,
+        Demo::Compose,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -42,7 +55,15 @@ impl Demo {
     }
 
     pub fn of(id: DemoId) -> Demo {
-        Demo::ALL.into_iter().find(|d| d.key() == id.key()).unwrap_or_else(|| panic!("{} is not a demonstration of the Godot VoxelGI investigation", id.key()))
+        Demo::ALL
+            .into_iter()
+            .find(|d| d.key() == id.key())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} is not a demonstration of the Godot VoxelGI investigation",
+                    id.key()
+                )
+            })
     }
 
     pub fn id(self) -> DemoId {
@@ -54,11 +75,13 @@ impl Demo {
 /// set (values.rs).
 pub fn demos() -> &'static Demos {
     static DEMOS: std::sync::OnceLock<Demos> = std::sync::OnceLock::new();
-    DEMOS.get_or_init(|| Demos::with_values::<super::values::VoxelgiValues>("godot_voxelgi").unwrap_or_else(|e| panic!("{e:#}")))
+    DEMOS.get_or_init(|| {
+        Demos::with_values::<super::values::VoxelgiValues>("godot_voxelgi")
+            .unwrap_or_else(|e| panic!("{e:#}"))
+    })
 }
 
 /// A demonstration's starting state, from its file.
 pub fn for_demo(demo: Demo) -> ShotState {
     demos().shot_state(demo.id())
 }
-

@@ -29,7 +29,12 @@ pub struct SdfgiValues {
     #[value(default = 0.0, toggle, text = "values-regions", help = "help-regions")]
     pub regions: f32,
     /// A top view of the walk's first row of cells (the scroll worked step by step).
-    #[value(default = 0.0, toggle, text = "values-scrollView", help = "help-scrollView")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-scrollView",
+        help = "help-scrollView"
+    )]
     pub scroll_view: f32,
     /// Cascade 0's solid voxels, as points in their albedo.
     #[value(default = 0.0, toggle, text = "values-voxels", help = "help-voxels")]
@@ -53,13 +58,23 @@ pub struct SdfgiValues {
     #[value(default = 22.0, range = 0.0..=22.0, unit = index, text = "controls-occlusion_shell", color = palette::OUTSIDE, label(field), help = "help-occlusionShell")]
     pub occlusion_shell: f32,
     /// The solid cells, coloured by the light the light pass stored in them.
-    #[value(default = 0.0, toggle, text = "values-cellLight", help = "help-cellLight")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-cellLight",
+        help = "help-cellLight"
+    )]
     pub cell_light: f32,
     /// Which quarter of the cells this frame's light pass updates (0 to 3; 4 shows all).
     #[value(default = 4.0, range = 0.0..=4.0, unit = index, text = "controls-light_phase", color = palette::INCIDENT, label(light), help = "help-lightPhase")]
     pub light_phase: f32,
     /// The extra omni light (for the light pass's worked cell): on or off.
-    #[value(default = 0.0, toggle, text = "values-extraLight", help = "help-extraLight")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-extraLight",
+        help = "help-extraLight"
+    )]
     pub extra_light: f32,
     /// Its height above the floor, metres.
     #[value(default = 2.0, range = 0.2..=2.9, unit = m, text = "controls-light_height", color = palette::INCIDENT, label(light), help = "help-lightHeight")]
@@ -85,10 +100,20 @@ pub struct SdfgiValues {
     #[value(default = 0.5, range = 0.0..=1.99, text = "controls-bounce_feedback", color = palette::INCIDENT, label(light), help = "help-bounceFeedback")]
     pub bounce_feedback: f32,
     /// The shadow ray of the worked cell, with a sphere per step.
-    #[value(default = 0.0, toggle, text = "values-shadowRay", help = "help-shadowRay")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-shadowRay",
+        help = "help-shadowRay"
+    )]
     pub shadow_ray: f32,
     /// The probe the probe demonstrations follow, and its rays.
-    #[value(default = 0.0, toggle, text = "values-probeRays", help = "help-probeRays")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeRays",
+        help = "help-probeRays"
+    )]
     pub probe_rays: f32,
     /// How many frames of the probe's rays are drawn (8 rays a frame, 0 to 30).
     #[value(default = 1.0, range = 0.0..=30.0, unit = index, text = "controls-ray_frames", color = palette::INCIDENT, label(probes), help = "help-rayFrames")]
@@ -100,7 +125,12 @@ pub struct SdfgiValues {
     #[value(default = 60.0, range = 0.0..=60.0, unit = index, text = "controls-frames", color = palette::INCIDENT, label(probes), help = "help-frames")]
     pub frames: f32,
     /// The followed probe's octahedral maps (an inset).
-    #[value(default = 0.0, toggle, text = "values-probeMaps", help = "help-probeMaps")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeMaps",
+        help = "help-probeMaps"
+    )]
     pub probe_maps: f32,
     /// The inspected pixel's point on the red wall, along z, metres.
     #[value(default = -0.4, range = -2.8..=2.8, unit = m, text = "controls-pixel_z", color = palette::VIEW, label(pixel), help = "help-pixelZ")]
@@ -109,34 +139,69 @@ pub struct SdfgiValues {
     #[value(default = 0.9, range = 0.1..=2.9, unit = m, text = "controls-pixel_y", color = palette::VIEW, label(pixel), help = "help-pixelY")]
     pub pixel_y: f32,
     /// The pixel's eight probes, their weights, and the cascades it reads.
-    #[value(default = 0.0, toggle, text = "values-pixelProbes", help = "help-pixelProbes")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-pixelProbes",
+        help = "help-pixelProbes"
+    )]
     pub pixel_probes: f32,
     /// The sphere's roughness (the screen pass's specular source depends on it).
     #[value(default = 0.5, range = 0.0..=1.0, text = "controls-roughness", color = palette::VIEW, label(pixel), help = "help-sphereRoughness")]
     pub sphere_roughness: f32,
     /// The walk is one jump (a single `update`), not 0.2 m steps.
-    #[value(default = 0.0, toggle, text = "values-cameraJump", help = "help-cameraJump")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-cameraJump",
+        help = "help-cameraJump"
+    )]
     pub camera_jump: f32,
     /// The settings readout's row lit (-1: none).
     #[value(default = -1.0, range = -1.0..=11.0, unit = index, text = "controls-focus_row", color = palette::THEME_ACCENT, label(cascades), help = "help-focusRow")]
     pub focus_row: f32,
     /// Voxels coloured by albedo (0) or by their facing bits (1).
-    #[value(default = 0.0, toggle, text = "values-voxelFacing", help = "help-voxelFacing")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-voxelFacing",
+        help = "help-voxelFacing"
+    )]
     pub voxel_facing: f32,
     /// A sphere trace from the field's worked cell along +x, a circle per step.
-    #[value(default = 0.0, toggle, text = "values-fieldMarch", help = "help-fieldMarch")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-fieldMarch",
+        help = "help-fieldMarch"
+    )]
     pub field_march: f32,
     /// The followed probe's irradiance over the frames since creation (an inset chart).
-    #[value(default = 0.0, toggle, text = "values-historyChart", help = "help-historyChart")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-historyChart",
+        help = "help-historyChart"
+    )]
     pub history_chart: f32,
     /// The uniform-sky gain row of the maps readout.
-    #[value(default = 0.0, toggle, text = "values-showGain", help = "help-showGain")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-showGain",
+        help = "help-showGain"
+    )]
     pub show_gain: f32,
     /// A test point on the camera's +x axis this far out, metres: its cascade and blend.
     #[value(default = 0.0, range = 0.0..=30.0, unit = m, text = "controls-blend_point", color = palette::AXIS_Y, label(pixel), help = "help-blendPoint")]
     pub blend_point: f32,
     /// The pixel on the sphere's front instead of the red wall (the specular sources).
-    #[value(default = 0.0, toggle, text = "values-spherePixel", help = "help-spherePixel")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-spherePixel",
+        help = "help-spherePixel"
+    )]
     pub sphere_pixel: f32,
     /// Labels on what is drawn.
     #[value(default = 1.0, toggle, text = "values-labels", help = "help-labels")]
@@ -163,9 +228,23 @@ pub struct SdfgiValues {
     #[value(default = 2.0, range = 0.0..=4.0, unit = index, text = "controls-gi_frames_to_update_lights", label(gi), engine = "ProjectSettings.rendering/global_illumination/sdfgi/frames_to_update_lights", help = "help-giFramesToUpdateLights")]
     pub gi_frames_to_update_lights: f32,
     /// Environment.sdfgi_read_sky_light: rays that leave the cascades bring back the sky (else nothing).
-    #[value(default = 1.0, toggle, text = "controls-gi_read_sky_light", label(gi), engine = "Environment.sdfgi_read_sky_light", help = "help-giReadSkyLight")]
+    #[value(
+        default = 1.0,
+        toggle,
+        text = "controls-gi_read_sky_light",
+        label(gi),
+        engine = "Environment.sdfgi_read_sky_light",
+        help = "help-giReadSkyLight"
+    )]
     pub gi_read_sky_light: f32,
     /// rendering/global_illumination/gi/use_half_resolution: the screen gather writes half-size buffers, one pixel of each 2 × 2 block, which the opaque pass reads bilinearly.
-    #[value(default = 0.0, toggle, text = "controls-gi_half_resolution", label(gi), engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution", help = "help-giHalfResolution")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "controls-gi_half_resolution",
+        label(gi),
+        engine = "ProjectSettings.rendering/global_illumination/gi/use_half_resolution",
+        help = "help-giHalfResolution"
+    )]
     pub gi_half_resolution: f32,
 }

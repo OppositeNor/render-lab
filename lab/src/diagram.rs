@@ -47,7 +47,11 @@ pub struct Transition<'a> {
 impl Default for Transition<'_> {
     /// Settled: shown as it is.
     fn default() -> Self {
-        Transition { from: None, seconds: 0.0, built: true }
+        Transition {
+            from: None,
+            seconds: 0.0,
+            built: true,
+        }
     }
 }
 
@@ -74,19 +78,42 @@ impl BeatDiagram<'_> {
     }
 }
 
-fn lit_sections(scene: Option<&crate::graph::GraphScene>, focus: &[String]) -> Vec<(String, String)> {
-    let Some(scene) = scene else { return Vec::new() };
+fn lit_sections(
+    scene: Option<&crate::graph::GraphScene>,
+    focus: &[String],
+) -> Vec<(String, String)> {
+    let Some(scene) = scene else {
+        return Vec::new();
+    };
     scene
         .sections
         .iter()
         .filter(|s| !s.outside && !(s.passes.is_empty() && s.resources.is_empty()))
-        .filter(|s| focus.contains(&s.id) || s.passes.iter().chain(&s.resources).any(|m| focus.contains(m)))
-        .filter_map(|s| Some((s.id.clone(), s.picture.clone().or_else(|| s.resources.last().or(s.passes.last()).cloned())?)))
+        .filter(|s| {
+            focus.contains(&s.id)
+                || s.passes
+                    .iter()
+                    .chain(&s.resources)
+                    .any(|m| focus.contains(m))
+        })
+        .filter_map(|s| {
+            Some((
+                s.id.clone(),
+                s.picture
+                    .clone()
+                    .or_else(|| s.resources.last().or(s.passes.last()).cloned())?,
+            ))
+        })
         .collect()
 }
 
 /// A diagram's layout, once per graph and set of pictured nodes.
-fn laid_out(graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspect: f32) -> &'static graph_view::Laid {
+fn laid_out(
+    graph: &Graph,
+    width: &dyn Fn(&str) -> f32,
+    pictured: &[usize],
+    aspect: f32,
+) -> &'static graph_view::Laid {
     use std::hash::{Hash, Hasher};
     static CACHE: OnceLock<Mutex<HashMap<u64, &'static graph_view::Laid>>> = OnceLock::new();
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -94,7 +121,15 @@ fn laid_out(graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspe
     pictured.hash(&mut h);
     aspect.to_bits().hash(&mut h);
     let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
-    cache.entry(h.finish()).or_insert_with(|| Box::leak(Box::new(graph_view::lay_out(graph, width, pictured, aspect, &Options::default()))))
+    cache.entry(h.finish()).or_insert_with(|| {
+        Box::leak(Box::new(graph_view::lay_out(
+            graph,
+            width,
+            pictured,
+            aspect,
+            &Options::default(),
+        )))
+    })
 }
 
 /// A paused timeline's diagram in the viewer (src/graph_view.rs `view`):
@@ -124,23 +159,45 @@ pub fn paused_id() -> egui::Id {
 /// plan to its own; a first beat builds it up. Labels go through `ink`,
 /// whose smallest size the recorder checks against the lab's minimum.
 /// Returns the zoom (1: fitted).
-pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pictures: &[Picture]) -> f32 {
+pub fn draw(
+    ink: &Ink,
+    area: Rect,
+    paused: Option<Paused>,
+    beat: BeatDiagram,
+    pictures: &[Picture],
+) -> f32 {
     let painter = ink.painter;
     painter.rect_filled(area, CornerRadius::same(12), palette::panel());
     let graph = beat.graph;
     let width = |s: &str| ink.measure(s, 100.0, FontFamily::Proportional).x / 100.0;
-    let aspect = pictures.first().map_or(9.0 / 16.0, |p| p.2[1] as f32 / p.2[0].max(1) as f32).clamp(0.3, 1.5);
-    let now: Vec<usize> = pictures.iter().filter_map(|p| graph.nodes.iter().position(|n| n.id == p.0)).collect();
+    let aspect = pictures
+        .first()
+        .map_or(9.0 / 16.0, |p| p.2[1] as f32 / p.2[0].max(1) as f32)
+        .clamp(0.3, 1.5);
+    let now: Vec<usize> = pictures
+        .iter()
+        .filter_map(|p| graph.nodes.iter().position(|n| n.id == p.0))
+        .collect();
     let current = plan(area, graph, &width, &now, aspect);
     let tr = beat.transition;
     // On the way from the beat before: its plan (its lit boxes' pictures had their room).
     let moving = tr.from.filter(|_| tr.seconds < MOVE);
     let e = ease(tr.seconds / MOVE);
-    let before: Vec<usize> = moving.map(|f| lit_sections(beat.scene, f).iter().filter_map(|(id, _)| graph.nodes.iter().position(|n| &n.id == id)).collect()).unwrap_or_default();
+    let before: Vec<usize> = moving
+        .map(|f| {
+            lit_sections(beat.scene, f)
+                .iter()
+                .filter_map(|(id, _)| graph.nodes.iter().position(|n| &n.id == id))
+                .collect()
+        })
+        .unwrap_or_default();
     let (laid, base) = match moving {
         Some(_) => {
             let from = plan(area, graph, &width, &before, aspect);
-            let t = Transform { scale: from.1.scale + (current.1.scale - from.1.scale) * e, origin: from.1.origin + (current.1.origin - from.1.origin) * e };
+            let t = Transform {
+                scale: from.1.scale + (current.1.scale - from.1.scale) * e,
+                origin: from.1.origin + (current.1.origin - from.1.origin) * e,
+            };
             (graph_view::blend(from.0, current.0, e), t)
         }
         None => (current.0.clone(), current.1),
@@ -159,8 +216,12 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
                     v.centre = laid.bounds.min.to_vec2() + laid.bounds.size() * at;
                 }
             };
-            let controls = graph_view::Controls { zoom: Some((base.scale, base.scale * MAX_ZOOM)), move_nodes: true };
-            let (mut state, _) = graph_view::view(p.ctx, Some(id), area, &laid, p.key, &controls, &setup);
+            let controls = graph_view::Controls {
+                zoom: Some((base.scale, base.scale * MAX_ZOOM)),
+                move_nodes: true,
+            };
+            let (mut state, _) =
+                graph_view::view(p.ctx, Some(id), area, &laid, p.key, &controls, &setup);
             graph_view::keep(&mut state, &laid, area);
             p.ctx.data_mut(|d| d.insert_temp(id, state.clone()));
             (state.transform(area), state.moved)
@@ -177,23 +238,52 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
         if !named && rows.contains(&true) {
             look.outline = Stroke::new(2.5 * zoom, palette::accent());
         }
-        look.rows = rows.iter().map(|&lit| (if lit { palette::text() } else { palette::text_dim() }, lit)).collect();
+        look.rows = rows
+            .iter()
+            .map(|&lit| {
+                (
+                    if lit {
+                        palette::text()
+                    } else {
+                        palette::text_dim()
+                    },
+                    lit,
+                )
+            })
+            .collect();
         look
     };
     // Building up: a box appears when its layer's turn comes (by its place along the flow).
     let b = laid.bounds;
-    let turn = |i: usize| if b.width() > 1e-3 { (laid.rects[i].min.x - b.min.x) / b.width() * BUILD } else { 0.0 };
-    let appear = |i: usize| if tr.built { 1.0 } else { ease((tr.seconds - turn(i)) / APPEAR) };
+    let turn = |i: usize| {
+        if b.width() > 1e-3 {
+            (laid.rects[i].min.x - b.min.x) / b.width() * BUILD
+        } else {
+            0.0
+        }
+    };
+    let appear = |i: usize| {
+        if tr.built {
+            1.0
+        } else {
+            ease((tr.seconds - turn(i)) / APPEAR)
+        }
+    };
     let nodes = (0..graph.nodes.len())
         .map(|i| {
             let mut l = match moving {
                 Some(f) => look(f, i).blend(&look(beat.focus, i), e),
                 None => look(beat.focus, i),
             };
-            l.picture = pictures.iter().find(|p| p.0 == graph.nodes[i].id).filter(|_| shown.contains(&i)).map(|p| (p.1, p.2));
+            l.picture = pictures
+                .iter()
+                .find(|p| p.0 == graph.nodes[i].id)
+                .filter(|_| shown.contains(&i))
+                .map(|p| (p.1, p.2));
             // An image node: its PNG, decoded once.
             if let Some((key, _)) = &graph.nodes[i].image {
-                l.picture = crate::utility::inset::resource_texture(painter.ctx(), key).map(|t| (t.id(), [t.size()[0] as u32, t.size()[1] as u32]));
+                l.picture = crate::utility::inset::resource_texture(painter.ctx(), key)
+                    .map(|t| (t.id(), [t.size()[0] as u32, t.size()[1] as u32]));
             }
             // A picture new to this beat fades in as its room grows.
             if moving.is_some() && !before.contains(&i) {
@@ -207,12 +297,40 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
         .edges
         .iter()
         .map(|edge| {
-            let drawn = if tr.built { 1.0 } else { ((tr.seconds - turn(edge.from) - APPEAR * 0.6) / (APPEAR * 1.5)).clamp(0.0, 1.0) };
-            graph_view::EdgeLook { color: palette::text_dim(), width: 1.8 * zoom, hidden: false, drawn }
+            let drawn = if tr.built {
+                1.0
+            } else {
+                ((tr.seconds - turn(edge.from) - APPEAR * 0.6) / (APPEAR * 1.5)).clamp(0.0, 1.0)
+            };
+            graph_view::EdgeLook {
+                color: palette::text_dim(),
+                width: 1.8 * zoom,
+                hidden: false,
+                drawn,
+            }
         })
         .collect();
-    graph_view::draw(ink, area, &t, graph, &laid, &Look { nodes, edges, clusters: Vec::new(), moved: &moved, edge_labels: true, tracked: true });
-    painter.rect_stroke(area, CornerRadius::same(12), Stroke::new(1.0, palette::border()), StrokeKind::Inside);
+    graph_view::draw(
+        ink,
+        area,
+        &t,
+        graph,
+        &laid,
+        &Look {
+            nodes,
+            edges,
+            clusters: Vec::new(),
+            moved: &moved,
+            edge_labels: true,
+            tracked: true,
+        },
+    );
+    painter.rect_stroke(
+        area,
+        CornerRadius::same(12),
+        Stroke::new(1.0, palette::border()),
+        StrokeKind::Inside,
+    );
     zoom_now
 }
 
@@ -220,25 +338,60 @@ pub fn draw(ink: &Ink, area: Rect, paused: Option<Paused>, beat: BeatDiagram, pi
 /// pictures: fitted if the labels stay at the lab's minimum; else at the
 /// minimum, the view on the pictured boxes (the rest clipped), if they fit in
 /// it; else without pictures. Also which boxes show their pictures.
-fn plan(area: Rect, graph: &Graph, width: &dyn Fn(&str) -> f32, pictured: &[usize], aspect: f32) -> (&'static graph_view::Laid, Transform, Vec<usize>) {
+fn plan(
+    area: Rect,
+    graph: &Graph,
+    width: &dyn Fn(&str) -> f32,
+    pictured: &[usize],
+    aspect: f32,
+) -> (&'static graph_view::Laid, Transform, Vec<usize>) {
     let min = crate::text::MIN_TEXT_PT;
-    let fit_of = |laid: &graph_view::Laid| ((area.width() - 2.0 * MARGIN) / laid.bounds.width()).min((area.height() - 2.0 * MARGIN) / laid.bounds.height()).min(MAX_FONT);
+    let fit_of = |laid: &graph_view::Laid| {
+        ((area.width() - 2.0 * MARGIN) / laid.bounds.width())
+            .min((area.height() - 2.0 * MARGIN) / laid.bounds.height())
+            .min(MAX_FONT)
+    };
     let plain = laid_out(graph, width, &[], aspect);
     if !pictured.is_empty() {
         let with = laid_out(graph, width, pictured, aspect);
         if fit_of(with) >= min {
-            return (with, Transform::fit(area, with.bounds, MARGIN, MAX_FONT), pictured.to_vec());
+            return (
+                with,
+                Transform::fit(area, with.bounds, MARGIN, MAX_FONT),
+                pictured.to_vec(),
+            );
         }
-        let lit = pictured.iter().map(|&i| with.rects[i]).reduce(|a, b| a.union(b)).expect("a pictured node");
+        let lit = pictured
+            .iter()
+            .map(|&i| with.rects[i])
+            .reduce(|a, b| a.union(b))
+            .expect("a pictured node");
         let room = (area.size() - egui::Vec2::splat(2.0 * MARGIN)) / min;
         if lit.width() <= room.x && lit.height() <= room.y {
             // Centred on them, but not past the diagram's edges where it can help it.
             let b = with.bounds;
             let half = room / 2.0;
-            let keep = |c: f32, a: f32, z: f32, h: f32| if z - a <= 2.0 * h { (a + z) / 2.0 } else { c.clamp(a + h, z - h) };
-            let centre = egui::pos2(keep(lit.center().x, b.min.x, b.max.x, half.x), keep(lit.center().y, b.min.y, b.max.y, half.y));
-            return (with, Transform::centred(area, centre, min), pictured.to_vec());
+            let keep = |c: f32, a: f32, z: f32, h: f32| {
+                if z - a <= 2.0 * h {
+                    (a + z) / 2.0
+                } else {
+                    c.clamp(a + h, z - h)
+                }
+            };
+            let centre = egui::pos2(
+                keep(lit.center().x, b.min.x, b.max.x, half.x),
+                keep(lit.center().y, b.min.y, b.max.y, half.y),
+            );
+            return (
+                with,
+                Transform::centred(area, centre, min),
+                pictured.to_vec(),
+            );
         }
     }
-    (plain, Transform::fit(area, plain.bounds, MARGIN, MAX_FONT), Vec::new())
+    (
+        plain,
+        Transform::fit(area, plain.bounds, MARGIN, MAX_FONT),
+        Vec::new(),
+    )
 }

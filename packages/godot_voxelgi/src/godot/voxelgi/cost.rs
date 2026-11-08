@@ -68,7 +68,11 @@ pub fn costs(state: &ShotState) -> Costs {
         leaves: probe.level_range(probe.leaf_level()).len(),
         cells: probe.data.len(),
         texels: (s.x * s.y * s.z) as usize,
-        passes: if world::scene_settings(state).two_bounces { 2 } else { 1 },
+        passes: if world::scene_settings(state).two_bounces {
+            2
+        } else {
+            1
+        },
         dispatches: plan.dispatches.len(),
         workgroups: plan.dispatches.iter().map(|d| d.groups).sum(),
         low_steps: steps_45(bias, max),
@@ -87,12 +91,37 @@ pub fn natives(r: &mut NativeRegistry) -> Result<(), Error> {
     fn count(n: usize) -> Result<i64, String> {
         i64::try_from(n).map_err(|e| e.to_string())
     }
-    r.function("godot_voxelgi/leaves", |_, ()| count(demo().leaves)).pure().doc("Fn([], Int). The bake's leaves in the cost demonstration's room.").register()?;
-    r.function("godot_voxelgi/texels", |_, ()| count(demo().texels)).pure().doc("Fn([], Int). Texels of the light texture's finest mip.").register()?;
-    r.function("godot_voxelgi/dispatches", |_, ()| count(demo().dispatches)).pure().doc("Fn([], Int). The light passes' dispatches an update, with two bounces.").register()?;
-    r.function("godot_voxelgi/low-steps", |_, ()| count(demo().low_steps)).pure().doc("Fn([], Int). The most steps of one diffuse cone at Low quality.").register()?;
-    r.function("godot_voxelgi/high-steps", |_, ()| count(demo().high_steps)).pure().doc("Fn([], Int). The most steps of one diffuse cone at High quality.").register()?;
-    r.function("godot_voxelgi/rough-steps", |_, ()| count(demo().spec_steps[0])).pure().doc("Fn([], Int). The reflection cone's most steps at roughness 1.").register()?;
-    r.function("godot_voxelgi/mirror-steps", |_, ()| count(demo().spec_steps[2])).pure().doc("Fn([], Int). The reflection cone's most steps at roughness 0.").register()?;
+    r.function("godot_voxelgi/leaves", |_, ()| count(demo().leaves))
+        .pure()
+        .doc("Fn([], Int). The bake's leaves in the cost demonstration's room.")
+        .register()?;
+    r.function("godot_voxelgi/texels", |_, ()| count(demo().texels))
+        .pure()
+        .doc("Fn([], Int). Texels of the light texture's finest mip.")
+        .register()?;
+    r.function("godot_voxelgi/dispatches", |_, ()| count(demo().dispatches))
+        .pure()
+        .doc("Fn([], Int). The light passes' dispatches an update, with two bounces.")
+        .register()?;
+    r.function("godot_voxelgi/low-steps", |_, ()| count(demo().low_steps))
+        .pure()
+        .doc("Fn([], Int). The most steps of one diffuse cone at Low quality.")
+        .register()?;
+    r.function("godot_voxelgi/high-steps", |_, ()| count(demo().high_steps))
+        .pure()
+        .doc("Fn([], Int). The most steps of one diffuse cone at High quality.")
+        .register()?;
+    r.function("godot_voxelgi/rough-steps", |_, ()| {
+        count(demo().spec_steps[0])
+    })
+    .pure()
+    .doc("Fn([], Int). The reflection cone's most steps at roughness 1.")
+    .register()?;
+    r.function("godot_voxelgi/mirror-steps", |_, ()| {
+        count(demo().spec_steps[2])
+    })
+    .pure()
+    .doc("Fn([], Int). The reflection cone's most steps at roughness 0.")
+    .register()?;
     Ok(())
 }

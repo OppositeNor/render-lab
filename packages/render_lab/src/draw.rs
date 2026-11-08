@@ -31,30 +31,68 @@ pub fn circle(content: &mut FrameContent, p: Vec3, r: f32, color: Color32, alpha
     let n = (eye - p).normalize_or_zero();
     let u = n.any_orthonormal_vector();
     let v = n.cross(u);
-    let pts: Vec<Vec3> = (0..=32).map(|k| {
-        let a = k as f32 / 32.0 * std::f32::consts::TAU;
-        p + (u * a.cos() + v * a.sin()) * r
-    }).collect();
+    let pts: Vec<Vec3> = (0..=32)
+        .map(|k| {
+            let a = k as f32 / 32.0 * std::f32::consts::TAU;
+            p + (u * a.cos() + v * a.sin()) * r
+        })
+        .collect();
     content.draw.polyline(&pts, color, alpha, 1.5);
 }
 
 /// The twelve edges of the axis-aligned box from `min` of `size`.
-pub fn wire_box(content: &mut FrameContent, min: Vec3, size: Vec3, color: Color32, alpha: f32, width: f32) {
-    let c = |i: u32| min + size * Vec3::new((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32);
-    for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
+pub fn wire_box(
+    content: &mut FrameContent,
+    min: Vec3,
+    size: Vec3,
+    color: Color32,
+    alpha: f32,
+    width: f32,
+) {
+    let c = |i: u32| {
+        min + size * Vec3::new((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32)
+    };
+    for (a, b) in [
+        (0, 1),
+        (2, 3),
+        (4, 5),
+        (6, 7),
+        (0, 2),
+        (1, 3),
+        (4, 6),
+        (5, 7),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ] {
         content.draw.segment(c(a), c(b), color, alpha, width, 0);
     }
 }
 
 /// A label at `anchor`, while the shot's `labels` value is on.
-pub fn label(content: &mut FrameContent, state: &ShotState, anchor: Vec3, text: String, color: Color32) {
+pub fn label(
+    content: &mut FrameContent,
+    state: &ShotState,
+    anchor: Vec3,
+    text: String,
+    color: Color32,
+) {
     if state.p("labels") > 0.5 {
-        content.labels.push(Label { anchor, text, color });
+        content.labels.push(Label {
+            anchor,
+            text,
+            color,
+        });
     }
 }
 
 /// A readout's row: its name, its value, and its colour.
 #[inline]
-pub fn row(name: impl Into<String>, value: impl Into<String>, color: Color32) -> (String, String, Color32) {
+pub fn row(
+    name: impl Into<String>,
+    value: impl Into<String>,
+    color: Color32,
+) -> (String, String, Color32) {
     (name.into(), value.into(), color)
 }

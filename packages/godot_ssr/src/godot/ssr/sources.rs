@@ -3,7 +3,6 @@
 //! the checkout. `selftest` checks each line's hash against the checkout
 //! when it is present.
 
-
 use lab::utility::sources::PackageIndex;
 
 pub static INDEX: PackageIndex = PackageIndex::new("godot_ssr.source-index");

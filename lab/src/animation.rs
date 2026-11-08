@@ -36,7 +36,14 @@ pub enum Ease {
 
 impl Ease {
     /// Every easing, in declaration order (the story vocabulary's options, lab/src/script/keys.rs).
-    pub const ALL: [Ease; 6] = [Ease::Smooth, Ease::Linear, Ease::In, Ease::Out, Ease::InOut, Ease::Sine];
+    pub const ALL: [Ease; 6] = [
+        Ease::Smooth,
+        Ease::Linear,
+        Ease::In,
+        Ease::Out,
+        Ease::InOut,
+        Ease::Sine,
+    ];
 
     pub fn apply(self, x: f32) -> f32 {
         match self {
@@ -152,12 +159,23 @@ pub struct Wave<D = f32> {
 
 impl Wave {
     pub fn new(param: &str, center: f32, amplitude: f32, period: f32) -> Wave {
-        Wave { param: param.to_string(), center: Some(center), amplitude, period, phase: 0.0, seconds: None, fade: 0.0 }
+        Wave {
+            param: param.to_string(),
+            center: Some(center),
+            amplitude,
+            period,
+            phase: 0.0,
+            seconds: None,
+            fade: 0.0,
+        }
     }
 
     /// The same wave a quarter period earlier: `center + amplitude · cos(...)`.
     pub fn cosine(self) -> Wave {
-        Wave { phase: 90.0, ..self }
+        Wave {
+            phase: 90.0,
+            ..self
+        }
     }
 
     fn value(&self, t: f32, start: f32) -> f32 {
@@ -172,17 +190,26 @@ impl Wave {
         if self.seconds.is_some_and(|s| t >= s) {
             envelope = 0.0;
         }
-        self.center.unwrap_or(start) + self.amplitude * envelope * (TAU * t / self.period + self.phase.to_radians()).sin()
+        self.center.unwrap_or(start)
+            + self.amplitude * envelope * (TAU * t / self.period + self.phase.to_radians()).sin()
     }
 }
 
 impl Path {
     fn sample(&self, t: f32, start: &[f32]) -> Vec<f32> {
-        let mut points: Vec<&[f32]> = std::iter::once(start).chain(self.through.iter().map(|p| p.as_slice())).collect();
+        let mut points: Vec<&[f32]> = std::iter::once(start)
+            .chain(self.through.iter().map(|p| p.as_slice()))
+            .collect();
         if self.closed {
             points.push(start);
         }
-        let distance = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| (y - x) * (y - x)).sum::<f32>().sqrt();
+        let distance = |a: &[f32], b: &[f32]| {
+            a.iter()
+                .zip(b)
+                .map(|(x, y)| (y - x) * (y - x))
+                .sum::<f32>()
+                .sqrt()
+        };
         let spans: Vec<f32> = points.windows(2).map(|w| distance(w[0], w[1])).collect();
         let total: f32 = spans.iter().sum();
         if total == 0.0 {
@@ -201,7 +228,10 @@ impl Path {
                 _ => (Some(i - 1), Some(i)),
             };
             match (before, after) {
-                (Some(b), Some(a)) => (chord(b, c) * spans[a] + chord(a, c) * spans[b]) / (spans[a] + spans[b]).max(1e-6),
+                (Some(b), Some(a)) => {
+                    (chord(b, c) * spans[a] + chord(a, c) * spans[b])
+                        / (spans[a] + spans[b]).max(1e-6)
+                }
                 (Some(b), None) => chord(b, c),
                 (None, Some(a)) => chord(a, c),
                 (None, None) => 0.0,
@@ -214,12 +244,19 @@ impl Path {
             i += 1;
         }
         let h = spans[i];
-        let s = if h > 0.0 { (along / h).clamp(0.0, 1.0) } else { 0.0 };
+        let s = if h > 0.0 {
+            (along / h).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         let (s2, s3) = (s * s, s * s * s);
         (0..start.len())
             .map(|c| {
                 let (p0, p1) = (points[i][c], points[i + 1][c]);
-                (2.0 * s3 - 3.0 * s2 + 1.0) * p0 + (s3 - 2.0 * s2 + s) * h * velocity(i, c) + (-2.0 * s3 + 3.0 * s2) * p1 + (s3 - s2) * h * velocity(i + 1, c)
+                (2.0 * s3 - 3.0 * s2 + 1.0) * p0
+                    + (s3 - 2.0 * s2 + s) * h * velocity(i, c)
+                    + (-2.0 * s3 + 3.0 * s2) * p1
+                    + (s3 - s2) * h * velocity(i + 1, c)
             })
             .collect()
     }
@@ -228,7 +265,8 @@ impl Path {
 impl Orbit {
     fn sample(&self, t: f32, start: &[f32]) -> Vec<f32> {
         let p = self.start.as_deref().unwrap_or(start);
-        let angle = (self.degrees * self.ease.apply(self.repeat.progress(t, self.seconds))).to_radians();
+        let angle =
+            (self.degrees * self.ease.apply(self.repeat.progress(t, self.seconds))).to_radians();
         let (sin, cos) = angle.sin_cos();
         let r: Vec<f32> = p.iter().zip(&self.center).map(|(p, c)| p - c).collect();
         let turned = if r.len() == 2 {
@@ -237,9 +275,15 @@ impl Orbit {
             // Rodrigues' rotation of r about the unit axis k.
             let k = glam::Vec3::from(self.axis.unwrap_or([0.0, 1.0, 0.0])).normalize();
             let v = glam::Vec3::new(r[0], r[1], r[2]);
-            (v * cos + k.cross(v) * sin + k * k.dot(v) * (1.0 - cos)).to_array().to_vec()
+            (v * cos + k.cross(v) * sin + k * k.dot(v) * (1.0 - cos))
+                .to_array()
+                .to_vec()
         };
-        turned.iter().zip(&self.center).map(|(r, c)| c + r).collect()
+        turned
+            .iter()
+            .zip(&self.center)
+            .map(|(r, c)| c + r)
+            .collect()
     }
 }
 
@@ -266,28 +310,62 @@ impl<D> Motion<D> {
     pub fn problem(&self) -> Option<String> {
         let params = self.params();
         let n = params.len();
-        if let Some((i, p)) = params.iter().enumerate().find(|(i, p)| params[..*i].contains(p)) {
-            return Some(format!("channel `{p}` is named twice in one motion (at {} and {i})", params.iter().position(|q| q == p).unwrap_or(0)));
+        if let Some((i, p)) = params
+            .iter()
+            .enumerate()
+            .find(|(i, p)| params[..*i].contains(p))
+        {
+            return Some(format!(
+                "channel `{p}` is named twice in one motion (at {} and {i})",
+                params.iter().position(|q| q == p).unwrap_or(0)
+            ));
         }
         let values: Vec<f32> = match self {
             Motion::Path(m) => m.through.iter().flatten().copied().collect(),
-            Motion::Orbit(m) => m.center.iter().chain(m.start.iter().flatten()).chain(m.axis.iter().flatten()).copied().chain([m.degrees]).collect(),
-            Motion::Wave(m) => m.center.into_iter().chain([m.amplitude, m.period, m.phase, m.fade]).collect(),
+            Motion::Orbit(m) => m
+                .center
+                .iter()
+                .chain(m.start.iter().flatten())
+                .chain(m.axis.iter().flatten())
+                .copied()
+                .chain([m.degrees])
+                .collect(),
+            Motion::Wave(m) => m
+                .center
+                .into_iter()
+                .chain([m.amplitude, m.period, m.phase, m.fade])
+                .collect(),
         };
         if values.iter().any(|v| !v.is_finite()) {
             return Some("a motion's values must be finite numbers".into());
         }
         match self {
-            Motion::Orbit(m) if m.axis.is_some_and(|a| a == [0.0; 3]) => return Some("an orbit's axis cannot be zero".into()),
-            Motion::Wave(m) if m.fade < 0.0 => return Some("a wave's fade cannot be negative".into()),
+            Motion::Orbit(m) if m.axis.is_some_and(|a| a == [0.0; 3]) => {
+                return Some("an orbit's axis cannot be zero".into());
+            }
+            Motion::Wave(m) if m.fade < 0.0 => {
+                return Some("a wave's fade cannot be negative".into());
+            }
             _ => {}
         }
         match self {
-            Motion::Path(m) if m.through.is_empty() => Some("a path needs at least one waypoint".into()),
-            Motion::Path(m) if m.through.iter().any(|p| p.len() != n) => Some(format!("each waypoint needs {n} values")),
-            Motion::Orbit(m) if n != 2 && n != 3 => Some("an orbit turns two or three channels".into()),
-            Motion::Orbit(m) if m.center.len() != n || m.start.as_ref().is_some_and(|s| s.len() != n) => Some(format!("the orbit's center and start need {n} values")),
-            Motion::Orbit(m) if m.axis.is_some() && n != 3 => Some("only a three-channel orbit has an axis".into()),
+            Motion::Path(m) if m.through.is_empty() => {
+                Some("a path needs at least one waypoint".into())
+            }
+            Motion::Path(m) if m.through.iter().any(|p| p.len() != n) => {
+                Some(format!("each waypoint needs {n} values"))
+            }
+            Motion::Orbit(m) if n != 2 && n != 3 => {
+                Some("an orbit turns two or three channels".into())
+            }
+            Motion::Orbit(m)
+                if m.center.len() != n || m.start.as_ref().is_some_and(|s| s.len() != n) =>
+            {
+                Some(format!("the orbit's center and start need {n} values"))
+            }
+            Motion::Orbit(m) if m.axis.is_some() && n != 3 => {
+                Some("only a three-channel orbit has an axis".into())
+            }
             Motion::Wave(m) if m.period <= 0.0 => Some("a wave needs a positive period".into()),
             _ => None,
         }
@@ -296,7 +374,8 @@ impl<D> Motion<D> {
 
 /// Zero seconds preserves the existing instantaneous completion semantics.
 pub(crate) fn seconds_problem(seconds: f32) -> Option<&'static str> {
-    (!seconds.is_finite() || seconds < 0.0).then_some("motion seconds must be finite and nonnegative")
+    (!seconds.is_finite() || seconds < 0.0)
+        .then_some("motion seconds must be finite and nonnegative")
 }
 
 impl Motion {
@@ -324,7 +403,12 @@ impl Clip {
         for motion in &self.0 {
             let params = motion.params();
             let from: Vec<f32> = params.iter().map(|p| start(p)).collect();
-            values.extend(params.iter().map(|p| p.to_string()).zip(motion.sample(t, &from)));
+            values.extend(
+                params
+                    .iter()
+                    .map(|p| p.to_string())
+                    .zip(motion.sample(t, &from)),
+            );
         }
         values
     }
@@ -334,7 +418,10 @@ impl Clip {
 /// distance (a fraction of it), on periods that do not line up.
 fn sway() -> [Vec<Wave>; 3] {
     [
-        vec![Wave::new("camera.yaw", 0.0, 3.0, 17.0), Wave::new("camera.yaw", 0.0, 1.0, 7.3)],
+        vec![
+            Wave::new("camera.yaw", 0.0, 3.0, 17.0),
+            Wave::new("camera.yaw", 0.0, 1.0, 7.3),
+        ],
         vec![Wave::new("camera.pitch", 0.0, 1.5, 11.0)],
         vec![Wave::new("camera.distance", 0.0, 0.03, 13.0)],
     ]
@@ -390,7 +477,9 @@ impl Intro {
 
     /// One of the three at random, never the one chosen last.
     pub fn random() -> Intro {
-        let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as usize);
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.subsec_nanos() as usize);
         let last = LAST_INTRO.load(std::sync::atomic::Ordering::Relaxed) as usize;
         let choices: Vec<usize> = (0..3).filter(|&i| i != last).collect();
         let i = choices[seed % choices.len()];
@@ -409,13 +498,21 @@ impl Intro {
         };
         for scale in [1.0, 0.75, 0.5, 0.25] {
             for side in [1.0, -1.0] {
-                let candidate = IntroMove { yaw: yaw * side * scale, pitch: pitch * scale, distance: 1.0 + (distance - 1.0) * scale };
+                let candidate = IntroMove {
+                    yaw: yaw * side * scale,
+                    pitch: pitch * scale,
+                    distance: 1.0 + (distance - 1.0) * scale,
+                };
                 if fits(&candidate.camera(shot, 0.0)) {
                     return candidate;
                 }
             }
         }
-        IntroMove { yaw: 0.0, pitch: 0.0, distance: 1.0 }
+        IntroMove {
+            yaw: 0.0,
+            pitch: 0.0,
+            distance: 1.0,
+        }
     }
 }
 
@@ -442,28 +539,68 @@ mod tests {
 
     #[test]
     fn eases_run_from_zero_to_one() {
-        for ease in [Ease::Smooth, Ease::Linear, Ease::In, Ease::Out, Ease::InOut, Ease::Sine] {
-            assert!(ease.apply(0.0).abs() < 1e-6 && (ease.apply(1.0) - 1.0).abs() < 1e-6, "{ease:?}");
+        for ease in [
+            Ease::Smooth,
+            Ease::Linear,
+            Ease::In,
+            Ease::Out,
+            Ease::InOut,
+            Ease::Sine,
+        ] {
+            assert!(
+                ease.apply(0.0).abs() < 1e-6 && (ease.apply(1.0) - 1.0).abs() < 1e-6,
+                "{ease:?}"
+            );
         }
     }
 
     #[test]
     fn a_path_passes_its_waypoints() {
-        let path = Path { params: vec!["a".into(), "b".into()], through: vec![vec![1.0, 0.0], vec![1.0, 1.0]], seconds: 2.0, ease: Ease::Linear, closed: false, repeat: Repeat::Once };
+        let path = Path {
+            params: vec!["a".into(), "b".into()],
+            through: vec![vec![1.0, 0.0], vec![1.0, 1.0]],
+            seconds: 2.0,
+            ease: Ease::Linear,
+            closed: false,
+            repeat: Repeat::Once,
+        };
         let at = |t: f32| path.sample(t, &[0.0, 0.0]);
         assert_eq!(at(0.0), vec![0.0, 0.0]);
-        assert!(at(1.0).iter().zip([1.0, 0.0]).all(|(a, b)| (a - b).abs() < 1e-5), "{:?}", at(1.0));
-        assert!(at(2.0).iter().zip([1.0, 1.0]).all(|(a, b)| (a - b).abs() < 1e-5));
+        assert!(
+            at(1.0)
+                .iter()
+                .zip([1.0, 0.0])
+                .all(|(a, b)| (a - b).abs() < 1e-5),
+            "{:?}",
+            at(1.0)
+        );
+        assert!(
+            at(2.0)
+                .iter()
+                .zip([1.0, 1.0])
+                .all(|(a, b)| (a - b).abs() < 1e-5)
+        );
     }
 
     #[test]
     fn a_motion_with_bad_values_has_a_problem() {
         let problem = |json: &str| serde_json::from_str::<Motion>(json).unwrap().problem();
-        assert!(problem(r#"{"path":{"params":["a","b"],"through":[[1,2]],"seconds":1}}"#).is_none());
-        assert!(problem(r#"{"path":{"params":["a","a"],"through":[[1,2]],"seconds":1}}"#).unwrap().contains("named twice"));
-        assert!(problem(r#"{"wave":{"param":"a","amplitude":1,"period":2,"fade":-1}}"#).unwrap().contains("fade"));
+        assert!(
+            problem(r#"{"path":{"params":["a","b"],"through":[[1,2]],"seconds":1}}"#).is_none()
+        );
+        assert!(
+            problem(r#"{"path":{"params":["a","a"],"through":[[1,2]],"seconds":1}}"#)
+                .unwrap()
+                .contains("named twice")
+        );
+        assert!(
+            problem(r#"{"wave":{"param":"a","amplitude":1,"period":2,"fade":-1}}"#)
+                .unwrap()
+                .contains("fade")
+        );
         assert!(problem(r#"{"orbit":{"params":["x","y","z"],"center":[0,0,0],"axis":[0,0,0],"degrees":90,"seconds":1}}"#).unwrap().contains("axis"));
-        let mut wave: Motion = serde_json::from_str(r#"{"wave":{"param":"a","amplitude":1,"period":2}}"#).unwrap();
+        let mut wave: Motion =
+            serde_json::from_str(r#"{"wave":{"param":"a","amplitude":1,"period":2}}"#).unwrap();
         if let Motion::Wave(w) = &mut wave {
             w.period = f32::NAN;
         }
@@ -472,20 +609,44 @@ mod tests {
 
     #[test]
     fn an_orbit_keeps_its_radius() {
-        let orbit = Orbit { params: vec!["x".into(), "y".into(), "z".into()], center: vec![1.0, 2.0, 3.0], axis: None, start: Some(vec![2.0, 2.5, 3.0]), degrees: 90.0, seconds: 1.0, ease: Ease::Linear, repeat: Repeat::Once };
+        let orbit = Orbit {
+            params: vec!["x".into(), "y".into(), "z".into()],
+            center: vec![1.0, 2.0, 3.0],
+            axis: None,
+            start: Some(vec![2.0, 2.5, 3.0]),
+            degrees: 90.0,
+            seconds: 1.0,
+            ease: Ease::Linear,
+            repeat: Repeat::Once,
+        };
         let p = orbit.sample(1.0, &[0.0; 3]);
         // A right-handed quarter turn about +y takes +x to -z, at the same height.
-        assert!((p[0] - 1.0).abs() < 1e-5 && (p[1] - 2.5).abs() < 1e-5 && (p[2] - 2.0).abs() < 1e-5, "{p:?}");
+        assert!(
+            (p[0] - 1.0).abs() < 1e-5 && (p[1] - 2.5).abs() < 1e-5 && (p[2] - 2.0).abs() < 1e-5,
+            "{p:?}"
+        );
     }
 
     #[test]
     fn every_intro_ends_on_the_shot_starts_where_it_fits_and_never_repeats() {
-        let shot = OrbitCamera { target: [0.0, 1.0, 0.0], yaw: 10.0, pitch: 20.0, distance: 3.0, fov: 50.0 };
+        let shot = OrbitCamera {
+            target: [0.0, 1.0, 0.0],
+            yaw: 10.0,
+            pitch: 20.0,
+            distance: 3.0,
+            fov: 50.0,
+        };
         for intro in Intro::ALL {
             let fitted = intro.fit(shot, |_| true);
             let end = fitted.camera(shot, Intro::SECONDS);
-            assert!(end.yaw == shot.yaw && end.pitch == shot.pitch && end.distance == shot.distance, "{intro:?}");
-            assert!(fitted.camera(shot, 0.0).yaw != shot.yaw, "{intro:?} starts on the shot");
+            assert!(
+                end.yaw == shot.yaw && end.pitch == shot.pitch && end.distance == shot.distance,
+                "{intro:?}"
+            );
+            assert!(
+                fitted.camera(shot, 0.0).yaw != shot.yaw,
+                "{intro:?} starts on the shot"
+            );
             // Only the mirrored side fits: the swing turns the other way.
             let left = intro.fit(shot, |c| c.yaw <= shot.yaw);
             assert!(left.camera(shot, 0.0).yaw < shot.yaw, "{intro:?}");

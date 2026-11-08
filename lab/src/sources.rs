@@ -89,7 +89,9 @@ pub struct PassMapping {
 impl SourceEntry {
     /// What to inspect (the entry `key`'s), in the current locale.
     pub fn inspect_text(&self, key: &str) -> &str {
-        let package = crate::investigation::current().package().unwrap_or("render_lab");
+        let package = crate::investigation::current()
+            .package()
+            .unwrap_or("render_lab");
         crate::i18n::source_text(package, &format!("entry-{key}-inspect")).unwrap_or(&self.inspect)
     }
 
@@ -115,11 +117,15 @@ impl SourceEntry {
 
 impl SourceIndex {
     pub fn entry(&self, key: &str) -> &SourceEntry {
-        self.entries.get(key).unwrap_or_else(|| panic!("unknown source key {key}"))
+        self.entries
+            .get(key)
+            .unwrap_or_else(|| panic!("unknown source key {key}"))
     }
 
     pub fn mapping(&self, record: &str) -> Option<&Mapping> {
-        self.mappings.iter().find(|m| m.lab == record || m.lab.split(" / ").any(|part| part == record))
+        self.mappings
+            .iter()
+            .find(|m| m.lab == record || m.lab.split(" / ").any(|part| part == record))
     }
 
     /// The engine pass a node of the frame's graph mirrors (a repeated entry's `#2` too).

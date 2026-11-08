@@ -31,11 +31,18 @@
 use crate::experiment::{json_of, values_of};
 use crate::investigation;
 use crate::shot::ShotState;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use serde_json::{Map, Value as Json};
 
 const FIELDS: &[&str] = &["title-text", "question"];
-const QUESTION_FIELDS: &[&str] = &["demo", "question-text", "explanation-text", "camera", "values", "choice"];
+const QUESTION_FIELDS: &[&str] = &[
+    "demo",
+    "question-text",
+    "explanation-text",
+    "camera",
+    "values",
+    "choice",
+];
 const CHOICE_FIELDS: &[&str] = &["choice-text", "correct"];
 /// How many choices a question may have.
 pub const CHOICES: std::ops::RangeInclusive<usize> = 2..=6;
@@ -65,9 +72,14 @@ pub struct Choice {
 }
 
 fn table<'a>(json: &'a Json, at: &str, fields: &[&str]) -> Result<&'a Map<String, Json>> {
-    let Json::Object(t) = json else { bail!("{at} is a table") };
+    let Json::Object(t) = json else {
+        bail!("{at} is a table")
+    };
     if let Some(unknown) = t.keys().find(|k| !fields.contains(&k.as_str())) {
-        bail!("unknown field `{unknown}` in {at} (it has {})", fields.join(", "));
+        bail!(
+            "unknown field `{unknown}` in {at} (it has {})",
+            fields.join(", ")
+        );
     }
     Ok(t)
 }
@@ -107,10 +119,19 @@ impl Quiz {
                     Some(Json::Bool(b)) => *b,
                     Some(other) => bail!("{at}: `correct` is true or false, not {other}"),
                 };
-                choices.push(Choice { text: key(c, "choice-text", &at)?.ok_or_else(|| anyhow!("{at} has no `choice-text`"))?, correct });
+                choices.push(Choice {
+                    text: key(c, "choice-text", &at)?
+                        .ok_or_else(|| anyhow!("{at} has no `choice-text`"))?,
+                    correct,
+                });
             }
             if !CHOICES.contains(&choices.len()) {
-                bail!("{at} has {} choices; a question has {} to {}", choices.len(), CHOICES.start(), CHOICES.end());
+                bail!(
+                    "{at} has {} choices; a question has {} to {}",
+                    choices.len(),
+                    CHOICES.start(),
+                    CHOICES.end()
+                );
             }
             let correct = choices.iter().filter(|c| c.correct).count();
             if correct != 1 {
@@ -118,7 +139,14 @@ impl Quiz {
             }
             let mut camera = Map::new();
             for (k, v) in values_of(q.get("camera"), &format!("{at}: camera"))? {
-                camera.insert(if k.starts_with("camera.") { k } else { format!("camera.{k}") }, v);
+                camera.insert(
+                    if k.starts_with("camera.") {
+                        k
+                    } else {
+                        format!("camera.{k}")
+                    },
+                    v,
+                );
             }
             let demo = match q.get("demo") {
                 None => None,
@@ -127,7 +155,8 @@ impl Quiz {
             };
             questions.push(Question {
                 demo,
-                question_text: key(q, "question-text", &at)?.ok_or_else(|| anyhow!("{at} has no `question-text`"))?,
+                question_text: key(q, "question-text", &at)?
+                    .ok_or_else(|| anyhow!("{at} has no `question-text`"))?,
                 explanation_text: key(q, "explanation-text", &at)?,
                 camera,
                 values: values_of(q.get("values"), &format!("{at}: values"))?,
@@ -137,16 +166,23 @@ impl Quiz {
         if questions.is_empty() {
             bail!("a quiz has at least one `[[question]]`");
         }
-        Ok(Quiz { title_text: key(top, "title-text", "a quiz")?, questions })
+        Ok(Quiz {
+            title_text: key(top, "title-text", "a quiz")?,
+            questions,
+        })
     }
 
     /// Check it against the current investigation: its demonstrations, values, and text keys (in every language
     /// the package has, without formulas or code names).
     pub fn check(&self, package: &str) -> Result<()> {
         let mut problems = Vec::new();
-        let text = |key: &str, problems: &mut Vec<String>| match crate::i18n::try_package_text(package, key) {
+        let text = |key: &str, problems: &mut Vec<String>| match crate::i18n::try_package_text(
+            package, key,
+        ) {
             None => problems.push(format!("no text `{key}` in {package}'s table")),
-            Some(t) if crate::rich_text::is_rich(t) => problems.push(format!("`{key}` holds a formula or a code name, which a quiz does not draw yet")),
+            Some(t) if crate::rich_text::is_rich(t) => problems.push(format!(
+                "`{key}` holds a formula or a code name, which a quiz does not draw yet"
+            )),
             Some(_) => {}
         };
         if let Some(k) = &self.title_text {
@@ -165,7 +201,11 @@ impl Quiz {
                 }
             }
             text(&q.question_text, &mut problems);
-            for k in q.explanation_text.iter().chain(q.choices.iter().map(|c| &c.text)) {
+            for k in q
+                .explanation_text
+                .iter()
+                .chain(q.choices.iter().map(|c| &c.text))
+            {
                 text(k, &mut problems);
             }
         }
@@ -200,16 +240,25 @@ impl Question {
 
 /// The quizzes of `investigation`'s package: its `quiz/<name>` resources' ids, by name.
 pub fn ids(investigation: &dyn investigation::Investigation) -> Vec<String> {
-    let Some(package) = investigation.package() else { return Vec::new() };
+    let Some(package) = investigation.package() else {
+        return Vec::new();
+    };
     let prefix = format!("{package}.quiz/");
-    let mut ids: Vec<String> = crate::resources::all().iter().map(|r| r.id()).filter(|id| id.starts_with(&prefix)).map(str::to_string).collect();
+    let mut ids: Vec<String> = crate::resources::all()
+        .iter()
+        .map(|r| r.id())
+        .filter(|id| id.starts_with(&prefix))
+        .map(str::to_string)
+        .collect();
     ids.sort();
     ids
 }
 
 /// Read and check the quiz resource `id` of the current investigation's package.
 pub fn load(id: &str) -> Result<Quiz> {
-    let package = investigation::current().package().context("the investigation has no package")?;
+    let package = investigation::current()
+        .package()
+        .context("the investigation has no package")?;
     let source = crate::script::data::resource_toml(id).map_err(anyhow::Error::msg)?;
     let quiz = Quiz::parse(&source).with_context(|| id.to_string())?;
     quiz.check(package).with_context(|| id.to_string())?;
@@ -242,11 +291,19 @@ impl QuizView {
     pub fn of(quiz: &Quiz, package: &str) -> QuizView {
         let text = |k: &str| crate::i18n::package_text(package, k).to_string();
         QuizView {
-            title: quiz.title_text.as_deref().map_or_else(|| investigation::current().title().to_string(), text),
+            title: quiz
+                .title_text
+                .as_deref()
+                .map_or_else(|| investigation::current().title().to_string(), text),
             questions: quiz
                 .questions
                 .iter()
-                .map(|q| QuestionView { question: text(&q.question_text), choices: q.choices.iter().map(|c| text(&c.text)).collect(), correct: q.correct(), explanation: q.explanation_text.as_deref().map(text) })
+                .map(|q| QuestionView {
+                    question: text(&q.question_text),
+                    choices: q.choices.iter().map(|c| text(&c.text)).collect(),
+                    correct: q.correct(),
+                    explanation: q.explanation_text.as_deref().map(text),
+                })
                 .collect(),
             index: 0,
             answers: vec![None; quiz.questions.len()],
@@ -256,7 +313,11 @@ impl QuizView {
 
     /// How many questions were answered right.
     pub fn score(&self) -> usize {
-        self.answers.iter().zip(&self.questions).filter(|(a, q)| **a == Some(q.correct)).count()
+        self.answers
+            .iter()
+            .zip(&self.questions)
+            .filter(|(a, q)| **a == Some(q.correct))
+            .count()
     }
 
     pub fn finished(&self) -> bool {
@@ -291,7 +352,14 @@ correct = true
         let quiz = Quiz::parse(QUIZ).unwrap();
         assert_eq!(quiz.title_text.as_deref(), Some("quiz-title"));
         let q = &quiz.questions[0];
-        assert_eq!((q.demo.as_deref(), q.question_text.as_str(), q.explanation_text.as_deref()), (Some("room"), "q1", Some("q1-why")));
+        assert_eq!(
+            (
+                q.demo.as_deref(),
+                q.question_text.as_str(),
+                q.explanation_text.as_deref()
+            ),
+            (Some("room"), "q1", Some("q1-why"))
+        );
         assert_eq!(q.camera.get("camera.yaw"), Some(&Json::from(20.0)));
         assert_eq!(q.values.get("lightCount"), Some(&Json::from(8.0)));
         assert_eq!((q.choices.len(), q.correct()), (2, 1));
@@ -304,7 +372,10 @@ correct = true
         assert!(error("colour = 1\n[[question]]").contains("unknown field `colour`"));
         let no_correct = QUIZ.replace("correct = true", "");
         assert!(error(&no_correct).contains("0 correct choices"));
-        let two_correct = QUIZ.replace("choice-text = \"q1-a\"", "choice-text = \"q1-a\"\ncorrect = true");
+        let two_correct = QUIZ.replace(
+            "choice-text = \"q1-a\"",
+            "choice-text = \"q1-a\"\ncorrect = true",
+        );
         assert!(error(&two_correct).contains("2 correct choices"));
         let one_choice = "[[question]]\nquestion-text = \"q\"\n[[question.choice]]\nchoice-text = \"a\"\ncorrect = true\n";
         assert!(error(one_choice).contains("1 choices"));

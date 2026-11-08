@@ -11,32 +11,37 @@ use crate::investigation;
 use crate::layout::{FieldKind, RustField};
 use crate::palette::{self, field_colors};
 use crate::rich_text;
-use crate::shot::{SceneType, DemoId, PanelMode, ShotState, Timeline};
+use crate::shot::{DemoId, PanelMode, SceneType, ShotState, Timeline};
 use crate::sources;
-use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
+use egui::{
+    Align2, Color32, CornerRadius, FontFamily, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2, pos2,
+    vec2,
+};
 
-pub use crate::text::{bold, install_fonts, restyle, Ink, CODE_PANEL_WIDTH, MIN_TEXT_PT, REFERENCE};
 use crate::text::mono_bold;
+pub use crate::text::{
+    CODE_PANEL_WIDTH, Ink, MIN_TEXT_PT, REFERENCE, bold, install_fonts, restyle,
+};
 
 pub use crate::config::ViewerLayout;
 
-mod viewport;
+mod code;
 mod graph_panel;
 mod knowledge_panel;
 mod panel;
-mod code;
-mod timeline_bar;
-pub mod windows;
-mod window_frame;
 mod scene_window;
-use scene_window::*;
-use viewport::*;
-use window_frame::*;
+mod timeline_bar;
+mod viewport;
+mod window_frame;
+pub mod windows;
+pub use code::*;
 pub use graph_panel::*;
 pub use knowledge_panel::*;
 pub use panel::*;
-pub use code::*;
+use scene_window::*;
 pub use timeline_bar::*;
+use viewport::*;
+use window_frame::*;
 
 /// A recording's layout (`Layout::for_video`): the margin of its panel card and 2D page, and the bands its
 /// tag (above) and its subtitles and watermark (below) keep over the viewport, in points.
@@ -104,12 +109,38 @@ impl Layout {
         let content_top = 112.0;
         let content_bottom = canvas.y - 240.0;
         let panel_width = 590.0;
-        let panel = Rect::from_min_max(pos2(canvas.x - margin - panel_width, content_top), pos2(canvas.x - margin, content_bottom));
-        let viewport = Rect::from_min_max(pos2(margin, content_top), pos2(panel.min.x - 24.0, content_bottom));
+        let panel = Rect::from_min_max(
+            pos2(canvas.x - margin - panel_width, content_top),
+            pos2(canvas.x - margin, content_bottom),
+        );
+        let viewport = Rect::from_min_max(
+            pos2(margin, content_top),
+            pos2(panel.min.x - 24.0, content_bottom),
+        );
         let content = Rect::from_min_max(viewport.min, panel.max);
-        let captions = Rect::from_min_max(pos2(margin, canvas.y - 228.0), pos2(canvas.x - margin, canvas.y - 66.0));
-        let footer = Rect::from_min_max(pos2(margin, canvas.y - 58.0), pos2(canvas.x - margin, canvas.y - 8.0));
-        Layout { scale, canvas, viewport, panel, content, captions, footer, panel_shown: true, windows: [None; 3], area: content, windowed: None, video: false, render: None }
+        let captions = Rect::from_min_max(
+            pos2(margin, canvas.y - 228.0),
+            pos2(canvas.x - margin, canvas.y - 66.0),
+        );
+        let footer = Rect::from_min_max(
+            pos2(margin, canvas.y - 58.0),
+            pos2(canvas.x - margin, canvas.y - 8.0),
+        );
+        Layout {
+            scale,
+            canvas,
+            viewport,
+            panel,
+            content,
+            captions,
+            footer,
+            panel_shown: true,
+            windows: [None; 3],
+            area: content,
+            windowed: None,
+            video: false,
+            render: None,
+        }
     }
 
     /// A recording's layout: the viewport reaches the frame's edges (beside the panel, a card at the right
@@ -119,10 +150,16 @@ impl Layout {
     pub fn for_video(mut self) -> Layout {
         let c = self.canvas;
         self.video = true;
-        self.panel = Rect::from_min_max(pos2(c.x - VIDEO_MARGIN - 590.0, VIDEO_MARGIN), pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_MARGIN));
+        self.panel = Rect::from_min_max(
+            pos2(c.x - VIDEO_MARGIN - 590.0, VIDEO_MARGIN),
+            pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_MARGIN),
+        );
         self.viewport = Rect::from_min_max(Pos2::ZERO, pos2(self.panel.min.x - VIDEO_MARGIN, c.y));
         // A 2D page: the frame between the tag and the subtitles.
-        self.content = Rect::from_min_max(pos2(VIDEO_MARGIN, VIDEO_TOP), pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_BOTTOM));
+        self.content = Rect::from_min_max(
+            pos2(VIDEO_MARGIN, VIDEO_TOP),
+            pos2(c.x - VIDEO_MARGIN, c.y - VIDEO_BOTTOM),
+        );
         self.footer = Rect::from_min_max(pos2(0.0, c.y - 4.0), c.to_pos2());
         self.video_captions()
     }
@@ -130,7 +167,11 @@ impl Layout {
     /// The subtitles' band: under the viewport's picture (the frame's, on a 2D page).
     fn video_captions(mut self) -> Layout {
         let c = self.canvas;
-        let (left, right) = if self.panel_shown { (self.viewport.min.x, self.viewport.max.x) } else { (0.0, c.x) };
+        let (left, right) = if self.panel_shown {
+            (self.viewport.min.x, self.viewport.max.x)
+        } else {
+            (0.0, c.x)
+        };
         self.captions = Rect::from_min_max(pos2(left, c.y - VIDEO_BOTTOM), pos2(right, c.y - 52.0));
         self
     }
@@ -138,7 +179,14 @@ impl Layout {
     /// Where the viewport's own cards go (insets, the callout, the formula card): in a recording, clear of the
     /// tag above and the subtitles and the watermark below.
     pub fn safe(&self) -> Rect {
-        if self.video { Rect::from_min_max(self.viewport.min + vec2(0.0, VIDEO_TOP - 16.0), self.viewport.max - vec2(0.0, VIDEO_BOTTOM - 8.0)) } else { self.viewport }
+        if self.video {
+            Rect::from_min_max(
+                self.viewport.min + vec2(0.0, VIDEO_TOP - 16.0),
+                self.viewport.max - vec2(0.0, VIDEO_BOTTOM - 8.0),
+            )
+        } else {
+            self.viewport
+        }
     }
 
     /// The interactive viewer's layout: its windows (src/ui/windows.rs) where the user left them, the
@@ -146,7 +194,11 @@ impl Layout {
     /// Controls window's. Without the Controls window (a playing timeline) the captions keep their band
     /// below, as in a recording.
     pub fn with_windows(self, user: &ViewerLayout, shown: windows::Shown) -> Layout {
-        let bottom = if shown.controls { self.footer.min.y - 8.0 } else { self.content.max.y };
+        let bottom = if shown.controls {
+            self.footer.min.y - 8.0
+        } else {
+            self.content.max.y
+        };
         let area = Rect::from_min_max(self.content.min, pos2(self.content.max.x, bottom));
         self.place_windows(area, user, shown)
     }
@@ -161,7 +213,9 @@ impl Layout {
         self.viewport = viewport;
         let panel = frames[WindowId::Panel.index()];
         self.panel_shown = panel.is_some_and(|f| !f.collapsed);
-        self.panel = panel.map_or(Rect::from_min_size(viewport.right_top(), Vec2::ZERO), |f| f.body);
+        self.panel = panel.map_or(Rect::from_min_size(viewport.right_top(), Vec2::ZERO), |f| {
+            f.body
+        });
         // A 2D page takes the viewport and a panel docked beside it.
         self.content = match panel {
             Some(f) if f.dock == windows::Dock::Right && !f.collapsed => viewport.union(f.frame),
@@ -204,10 +258,21 @@ impl Layout {
     /// when the struct panel is hidden, or has nothing to show.
     pub fn for_panel(mut self, panel_visible: bool) -> Layout {
         if let (false, Some((user, shown))) = (panel_visible, self.windowed) {
-            return self.place_windows(self.area, &user, windows::Shown { panel: false, ..shown });
+            return self.place_windows(
+                self.area,
+                &user,
+                windows::Shown {
+                    panel: false,
+                    ..shown
+                },
+            );
         }
         if !panel_visible {
-            self.viewport = if self.video { Rect::from_min_size(Pos2::ZERO, self.canvas) } else { self.content };
+            self.viewport = if self.video {
+                Rect::from_min_size(Pos2::ZERO, self.canvas)
+            } else {
+                self.content
+            };
             self.panel_shown = false;
             if self.video {
                 return self.video_captions();
@@ -234,10 +299,15 @@ impl Layout {
         let gap = (24.0 * self.scale).round() as u32;
         let width = (v[2].saturating_sub(gap * (n - 1)) / n).max(1);
         let point = |px: u32| px as f32 / self.scale;
-        (0..n).map(|k| {
-            let x = v[0] + k * (width + gap);
-            Rect::from_min_max(pos2(point(x), point(v[1])), pos2(point(x + width), point(v[1] + v[3])))
-        }).collect()
+        (0..n)
+            .map(|k| {
+                let x = v[0] + k * (width + gap);
+                Rect::from_min_max(
+                    pos2(point(x), point(v[1])),
+                    pos2(point(x + width), point(v[1] + v[3])),
+                )
+            })
+            .collect()
     }
 
     pub fn viewport_size_px(&self) -> [u32; 2] {
@@ -255,7 +325,8 @@ impl Layout {
         let h = ((size[1] as f32 * fit).round() as u32).clamp(1, v[3]);
         let (x, y) = (v[0] + (v[2] - w) / 2, v[1] + (v[3] - h) / 2);
         let point = |px: u32| px as f32 / self.scale;
-        self.viewport = Rect::from_min_max(pos2(point(x), point(y)), pos2(point(x + w), point(y + h)));
+        self.viewport =
+            Rect::from_min_max(pos2(point(x), point(y)), pos2(point(x + w), point(y + h)));
         self.render = Some(size);
         self
     }
@@ -267,14 +338,18 @@ impl Layout {
 
     /// Target pixels per scene pixel: 1 unless the scene has a size of its own (`with_frame`).
     pub fn render_scale(&self) -> f32 {
-        self.render.map_or(1.0, |r| self.viewport_size_px()[0] as f32 / r[0] as f32)
+        self.render
+            .map_or(1.0, |r| self.viewport_size_px()[0] as f32 / r[0] as f32)
     }
 
     /// Canvas point of a scene pixel.
     pub fn viewport_pixel_to_canvas(&self, px: glam::Vec2) -> Pos2 {
         let v = self.viewport_px();
         let s = self.render_scale();
-        pos2((v[0] as f32 + px.x * s) / self.scale, (v[1] as f32 + px.y * s) / self.scale)
+        pos2(
+            (v[0] as f32 + px.x * s) / self.scale,
+            (v[1] as f32 + px.y * s) / self.scale,
+        )
     }
 
     /// The scene pixel at target pixel `at` (the inverse of `viewport_pixel_to_canvas`, before the canvas's scale).
@@ -282,7 +357,6 @@ impl Layout {
         let v = self.viewport_px();
         (at - glam::Vec2::new(v[0] as f32, v[1] as f32)) / self.render_scale()
     }
-
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -452,7 +526,10 @@ pub struct ViewerChrome {
 impl ViewerChrome {
     /// The tab is a feature's that draws its own panel (`FeatureLayout::panel`): its layout.
     pub fn feature_panel(&self) -> Option<crate::feature::FeatureLayout> {
-        self.features.feature(self.tab.0).map(|f| f.layout()).filter(|l| l.panel)
+        self.features
+            .feature(self.tab.0)
+            .map(|f| f.layout())
+            .filter(|l| l.panel)
     }
 }
 
@@ -510,7 +587,12 @@ pub struct PaneView<'a> {
 
 /// The frame's UI. `recording`: the features a recording's story panels are drawn by (src/feature/; the
 /// viewer's are its chrome's).
-pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording: &mut crate::feature::Features) -> UiReport {
+pub fn draw(
+    ctx: &egui::Context,
+    input: &UiInput,
+    mut chrome: Chrome,
+    recording: &mut crate::feature::Features,
+) -> UiReport {
     let painter = ctx.layer_painter(egui::LayerId::background());
     let ink = Ink::new(&painter);
     let l = &input.layout;
@@ -521,28 +603,64 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
     // A feature's tab may put its own panel in the panel's place (the Experiments tab its tools, the Quiz tab its
     // question); one that yields gives way to the panels that show the frame, when asked for.
     let frame_panel = input.state.panel.analysis();
-    let feature_panel = scene_beat && matches!(&chrome, Chrome::Viewer(v) if v.feature_panel().is_some_and(|l| !(l.yields && frame_panel)) && !(v.timeline_mode && v.playing));
+    let feature_panel = scene_beat
+        && matches!(&chrome, Chrome::Viewer(v) if v.feature_panel().is_some_and(|l| !(l.yields && frame_panel)) && !(v.timeline_mode && v.playing));
     match input.scene_type {
         SceneType::ThreeD => {
             // A recording's picture reaches the frame's edges: no border.
             if !l.video {
-                painter.rect_stroke(l.viewport.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
+                painter.rect_stroke(
+                    l.viewport.expand(1.0),
+                    CornerRadius::same(10),
+                    Stroke::new(1.5, palette::border()),
+                    StrokeKind::Outside,
+                );
             }
             // The other views: each its border, its title, and its labels.
             for pane in input.panes {
-                painter.rect_stroke(pane.rect.expand(1.0), CornerRadius::same(10), Stroke::new(1.5, palette::border()), StrokeKind::Outside);
-                let at = UiInput { layout: Layout { viewport: pane.rect, ..*l }, content: Some(pane.content), ..*input };
-                let title = pane.title.map(|t| draw_pane_title(&ink, pane.rect, t, &[])).into_iter().collect::<Vec<_>>();
+                painter.rect_stroke(
+                    pane.rect.expand(1.0),
+                    CornerRadius::same(10),
+                    Stroke::new(1.5, palette::border()),
+                    StrokeKind::Outside,
+                );
+                let at = UiInput {
+                    layout: Layout {
+                        viewport: pane.rect,
+                        ..*l
+                    },
+                    content: Some(pane.content),
+                    ..*input
+                };
+                let title = pane
+                    .title
+                    .map(|t| draw_pane_title(&ink, pane.rect, t, &[]))
+                    .into_iter()
+                    .collect::<Vec<_>>();
                 draw_labels(&ink, &at, pane.content, &title, &mut report);
             }
             // The views stacked over the main one: their labels (their pictures are in the frame).
             for over in input.overs {
-                let at = UiInput { layout: Layout { viewport: over.rect, ..*l }, content: Some(over.content), ..*input };
+                let at = UiInput {
+                    layout: Layout {
+                        viewport: over.rect,
+                        ..*l
+                    },
+                    content: Some(over.content),
+                    ..*input
+                };
                 draw_labels(&ink, &at, over.content, &[], &mut report);
             }
             // The focused view (the dock's), when there are several.
-            if let Chrome::Viewer(v) = &chrome && let Some(r) = v.focus_rect {
-                painter.rect_stroke(r.expand(2.0), CornerRadius::same(10), Stroke::new(2.5, palette::accent()), StrokeKind::Outside);
+            if let Chrome::Viewer(v) = &chrome
+                && let Some(r) = v.focus_rect
+            {
+                painter.rect_stroke(
+                    r.expand(2.0),
+                    CornerRadius::same(10),
+                    Stroke::new(2.5, palette::accent()),
+                    StrokeKind::Outside,
+                );
             }
             if let Some(content) = input.content {
                 // A view stacked over the main one (src/view.rs) covers it: the main view's tags (its insets, its
@@ -551,18 +669,40 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                 // Insets and the callout first; labels then avoid them, and a recording's tag and subtitles.
                 let mut obstacles = Vec::new();
                 if l.video {
-                    obstacles.push(Rect::from_min_max(l.viewport.min, pos2(l.viewport.max.x, l.safe().min.y)));
-                    obstacles.push(Rect::from_min_max(pos2(l.viewport.min.x, l.safe().max.y), l.viewport.max));
+                    obstacles.push(Rect::from_min_max(
+                        l.viewport.min,
+                        pos2(l.viewport.max.x, l.safe().min.y),
+                    ));
+                    obstacles.push(Rect::from_min_max(
+                        pos2(l.viewport.min.x, l.safe().max.y),
+                        l.viewport.max,
+                    ));
                 }
                 // The investigation's insets, then the image the story shows.
                 let package = investigation::current().package().unwrap_or("render_lab");
-                let story: Vec<_> = input.state.images.iter().filter_map(|image| crate::utility::inset::story(image, &content.images, package)).collect();
+                let story: Vec<_> = input
+                    .state
+                    .images
+                    .iter()
+                    .filter_map(|image| {
+                        crate::utility::inset::story(image, &content.images, package)
+                    })
+                    .collect();
                 // Insets sharing a corner stack in a row away from it, and in a
                 // new row once the next would leave the viewport.
                 let mut rows: Vec<(crate::utility::inset::Corner, egui::Vec2, f32)> = Vec::new();
-                for inset in content.insets.iter().chain(&story).filter(|i| i.alpha > 0.0 && !covered) {
-                    let size = crate::utility::inset::frame_size(ctx, &ink, l, input.textures, inset);
-                    let offset = match rows.iter_mut().find(|(corner, _, _)| *corner == inset.corner) {
+                for inset in content
+                    .insets
+                    .iter()
+                    .chain(&story)
+                    .filter(|i| i.alpha > 0.0 && !covered)
+                {
+                    let size =
+                        crate::utility::inset::frame_size(ctx, &ink, l, input.textures, inset);
+                    let offset = match rows
+                        .iter_mut()
+                        .find(|(corner, _, _)| *corner == inset.corner)
+                    {
                         None => {
                             rows.push((inset.corner, vec2(size.x + 12.0, 0.0), size.y));
                             Vec2::ZERO
@@ -578,9 +718,21 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                             offset
                         }
                     };
-                    let (frame, picture) = crate::utility::inset::draw(ctx, &ink, l, &content.uniforms.camera, input.textures, inset, offset);
+                    let (frame, picture) = crate::utility::inset::draw(
+                        ctx,
+                        &ink,
+                        l,
+                        &content.uniforms.camera,
+                        input.textures,
+                        inset,
+                        offset,
+                    );
                     obstacles.push(frame);
-                    report.insets.push(InsetArea { frame, picture, click: inset.click.clone() });
+                    report.insets.push(InsetArea {
+                        frame,
+                        picture,
+                        click: inset.click.clone(),
+                    });
                 }
                 if let Some(title) = input.title {
                     let insets = obstacles.clone();
@@ -588,7 +740,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                 }
                 // The main camera's own view, framed and named.
                 if let Some(rect) = input.main_view {
-                    painter.rect_stroke(rect.expand(1.0), CornerRadius::same(6), Stroke::new(2.0, palette::VIEW), StrokeKind::Outside);
+                    painter.rect_stroke(
+                        rect.expand(1.0),
+                        CornerRadius::same(6),
+                        Stroke::new(2.0, palette::VIEW),
+                        StrokeKind::Outside,
+                    );
                     obstacles.push(rect);
                     obstacles.push(draw_pane_title(&ink, rect, tr("ui-main_view"), &[]));
                 }
@@ -602,7 +759,14 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                 }
                 if let Some(tag) = &input.state.formula {
                     let insets = obstacles.clone();
-                    obstacles.extend(draw_formula_card(&ink, l, tag, input.state.formula_term, input.state.formula_lit, &insets));
+                    obstacles.extend(draw_formula_card(
+                        &ink,
+                        l,
+                        tag,
+                        input.state.formula_term,
+                        input.state.formula_lit,
+                        &insets,
+                    ));
                 }
                 if !covered {
                     draw_labels(&ink, input, content, &obstacles, &mut report);
@@ -620,7 +784,16 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                         Chrome::Viewer(v) => v.shader_reload.clone().filter(|r| r.1).map(|r| r.0),
                         Chrome::Recording { .. } => None,
                     };
-                    let mut panel = crate::feature::StoryPanel { ctx, ink: &ink, input, interactive, shader_error: shader_error.as_deref(), report: &mut report, actions: Vec::new(), pointer: false };
+                    let mut panel = crate::feature::StoryPanel {
+                        ctx,
+                        ink: &ink,
+                        input,
+                        interactive,
+                        shader_error: shader_error.as_deref(),
+                        report: &mut report,
+                        actions: Vec::new(),
+                        pointer: false,
+                    };
                     let features = match &mut chrome {
                         Chrome::Viewer(v) => &mut v.features,
                         Chrome::Recording { .. } => &mut *recording,
@@ -640,7 +813,9 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
             }
         }
         // A 2D scene: the beat's diagram, its sources card, or the notices.
-        SceneType::TwoD if input.diagram.is_none() && input.notices => draw_notices_card(&ink, input),
+        SceneType::TwoD if input.diagram.is_none() && input.notices => {
+            draw_notices_card(&ink, input)
+        }
         SceneType::TwoD if input.diagram.is_none() => draw_source_card(&ink, input),
         SceneType::TwoD => {
             if let Some(diagram) = input.diagram {
@@ -655,24 +830,69 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                     }
                     Some(page) => {
                         // The diagram panel of a paused timeline: zoomed, panned, its boxes moved, clipped to the panel.
-                        let paused = crate::diagram::Paused { ctx, key: page.key, preset: page.preset };
-                        let zoom = crate::diagram::draw(&ink, area, Some(paused), diagram, input.diagram_pictures);
+                        let paused = crate::diagram::Paused {
+                            ctx,
+                            key: page.key,
+                            preset: page.preset,
+                        };
+                        let zoom = crate::diagram::draw(
+                            &ink,
+                            area,
+                            Some(paused),
+                            diagram,
+                            input.diagram_pictures,
+                        );
                         if let Chrome::Viewer(v) = &mut chrome {
-                            v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
+                            v.ui_has_pointer |=
+                                ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
                         }
-                        let hint = tr_with("viewer-diagram_hint", args!(zoom = format!("{zoom:.1}")));
+                        let hint =
+                            tr_with("viewer-diagram_hint", args!(zoom = format!("{zoom:.1}")));
                         let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
-                        let galley = painter.layout_no_wrap(hint.clone(), egui::FontId::proportional(24.0), palette::text_dim());
-                        painter.rect_filled(Rect::from_min_size(at - vec2(8.0, galley.size().y + 4.0), galley.size() + vec2(16.0, 8.0)), CornerRadius::same(6), Color32::from_rgba_unmultiplied(7, 18, 31, 220));
-                        ink.text(at, Align2::LEFT_BOTTOM, hint, 24.0, FontFamily::Proportional, palette::text_dim());
+                        let galley = painter.layout_no_wrap(
+                            hint.clone(),
+                            egui::FontId::proportional(24.0),
+                            palette::text_dim(),
+                        );
+                        painter.rect_filled(
+                            Rect::from_min_size(
+                                at - vec2(8.0, galley.size().y + 4.0),
+                                galley.size() + vec2(16.0, 8.0),
+                            ),
+                            CornerRadius::same(6),
+                            Color32::from_rgba_unmultiplied(7, 18, 31, 220),
+                        );
+                        ink.text(
+                            at,
+                            Align2::LEFT_BOTTOM,
+                            hint,
+                            24.0,
+                            FontFamily::Proportional,
+                            palette::text_dim(),
+                        );
                         // Beside the hint: put the moved boxes back (and the view).
                         let label = tr("graph-reset");
-                        let size = vec2(ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0, 40.0);
-                        egui::Area::new(egui::Id::unique("paused-diagram-reset")).fixed_pos(pos2(area.min.x + 14.0 + galley.size().x + 24.0, area.max.y - 12.0 - size.y)).fade_in(false).show(ctx, |ui| {
-                            if ui.add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(size)).clicked() {
-                                crate::graph_view::ask_reset(ctx, crate::diagram::paused_id());
-                            }
-                        });
+                        let size = vec2(
+                            ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0,
+                            40.0,
+                        );
+                        egui::Area::new(egui::Id::unique("paused-diagram-reset"))
+                            .fixed_pos(pos2(
+                                area.min.x + 14.0 + galley.size().x + 24.0,
+                                area.max.y - 12.0 - size.y,
+                            ))
+                            .fade_in(false)
+                            .show(ctx, |ui| {
+                                if ui
+                                    .add(
+                                        egui::Button::new(egui::RichText::new(label).size(24.0))
+                                            .min_size(size),
+                                    )
+                                    .clicked()
+                                {
+                                    crate::graph_view::ask_reset(ctx, crate::diagram::paused_id());
+                                }
+                            });
                     }
                 }
             }
@@ -681,8 +901,16 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
     if input.fade > 0.0 {
         let a = (input.fade.clamp(0.0, 1.0) * 255.0) as u8;
         let bg = palette::background();
-        let faded = if l.video { Rect::from_min_size(Pos2::ZERO, l.canvas) } else { l.content.expand(4.0) };
-        painter.rect_filled(faded, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), a));
+        let faded = if l.video {
+            Rect::from_min_size(Pos2::ZERO, l.canvas)
+        } else {
+            l.content.expand(4.0)
+        };
+        painter.rect_filled(
+            faded,
+            CornerRadius::ZERO,
+            Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), a),
+        );
     }
     match &mut chrome {
         Chrome::Recording { timeline, frame } => {
@@ -700,7 +928,12 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
                     draw_window_card(&ink, l, windows::WindowId::Panel);
                     let mut dock = crate::controls::Dock::new(input, viewer);
                     if let Some(state) = viewer.features.state_mut(viewer.tab.0) {
-                        state.panel(&mut crate::feature::PanelUi { ctx, ink: &ink, input, dock: &mut dock });
+                        state.panel(&mut crate::feature::PanelUi {
+                            ctx,
+                            ink: &ink,
+                            input,
+                            dock: &mut dock,
+                        });
                     }
                     viewer.actions.extend(dock.actions);
                     viewer.widgets.extend(dock.widgets);
@@ -723,7 +956,16 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
             }
             // What the features show full screen (the knowledge graph, the DAG), over everything but the popups.
             let shader_error = viewer.shader_reload.clone().filter(|r| r.1).map(|r| r.0);
-            let mut overlay = crate::feature::StoryPanel { ctx, ink: &ink, input, interactive: true, shader_error: shader_error.as_deref(), report: &mut report, actions: Vec::new(), pointer: false };
+            let mut overlay = crate::feature::StoryPanel {
+                ctx,
+                ink: &ink,
+                input,
+                interactive: true,
+                shader_error: shader_error.as_deref(),
+                report: &mut report,
+                actions: Vec::new(),
+                pointer: false,
+            };
             for state in viewer.features.states_mut() {
                 state.overlay(&mut overlay);
             }
@@ -740,7 +982,15 @@ pub fn draw(ctx: &egui::Context, input: &UiInput, mut chrome: Chrome, recording:
             let on = (index >> bit) & 1 == 1;
             let s = 8.0 / l.scale;
             let r = Rect::from_min_size(pos2(bit as f32 * s, 0.0), vec2(s, s));
-            painter.rect_filled(r, CornerRadius::ZERO, if on { Color32::from_rgb(255, 0, 0) } else { Color32::from_rgb(0, 255, 0) });
+            painter.rect_filled(
+                r,
+                CornerRadius::ZERO,
+                if on {
+                    Color32::from_rgb(255, 0, 0)
+                } else {
+                    Color32::from_rgb(0, 255, 0)
+                },
+            );
         }
     }
     report.min_text_pt = ink.min_size.get();
@@ -755,24 +1005,50 @@ mod tests {
     fn windows_lay_out_the_viewer() {
         use windows::{Dock, Shown, WindowId};
         let base = Layout::new(1920, 1080);
-        let all = Shown { scene: false, controls: true, panel: true, wide: false };
+        let all = Shown {
+            scene: false,
+            controls: true,
+            panel: true,
+            wide: false,
+        };
         // The default: the controls docked below, the panel on the right, the viewport between.
         let l = base.with_windows(&ViewerLayout::default(), all);
-        let (panel, controls) = (l.window(WindowId::Panel).unwrap(), l.window(WindowId::Controls).unwrap());
+        let (panel, controls) = (
+            l.window(WindowId::Panel).unwrap(),
+            l.window(WindowId::Controls).unwrap(),
+        );
         assert_eq!((l.panel, l.captions), (panel.body, controls.body));
         assert_eq!(l.viewport.max.x, panel.frame.min.x - windows::GAP);
         assert_eq!(l.viewport.max.y, controls.frame.min.y - windows::GAP);
-        assert!(l.panel_shown && l.content.contains_rect(panel.frame) && !l.content.intersects(controls.frame));
+        assert!(
+            l.panel_shown
+                && l.content.contains_rect(panel.frame)
+                && !l.content.intersects(controls.frame)
+        );
         // Without the panel (nothing to show), the viewport takes its room; a floating panel takes none.
         let hidden = l.for_panel(false);
-        assert!(!hidden.panel_shown && hidden.window(WindowId::Panel).is_none() && hidden.viewport.max.x == l.area.max.x);
+        assert!(
+            !hidden.panel_shown
+                && hidden.window(WindowId::Panel).is_none()
+                && hidden.viewport.max.x == l.area.max.x
+        );
         let mut user = ViewerLayout::default();
         user.window_mut(WindowId::Panel).dock = Dock::Float;
         let floating = base.with_windows(&user, all);
         assert_eq!(floating.viewport.max.x, floating.area.max.x);
-        assert!(floating.viewport.contains_rect(floating.window(WindowId::Panel).unwrap().frame));
+        assert!(
+            floating
+                .viewport
+                .contains_rect(floating.window(WindowId::Panel).unwrap().frame)
+        );
         // A playing timeline: no controls; the captions keep their band, as in a recording.
-        let playing = base.with_windows(&ViewerLayout::default(), Shown { controls: false, ..all });
+        let playing = base.with_windows(
+            &ViewerLayout::default(),
+            Shown {
+                controls: false,
+                ..all
+            },
+        );
         assert_eq!(playing.captions, base.captions);
         assert!(playing.viewport.max.y <= base.captions.min.y);
     }

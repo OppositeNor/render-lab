@@ -38,7 +38,11 @@ pub fn ranks(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
             return r;
         }
         rank[i] = Some(0);
-        let r = before[i].iter().map(|&p| visit(p, before, rank) + 1).max().unwrap_or(0);
+        let r = before[i]
+            .iter()
+            .map(|&p| visit(p, before, rank) + 1)
+            .max()
+            .unwrap_or(0);
         rank[i] = Some(r);
         r
     }
@@ -52,7 +56,12 @@ pub fn ranks(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
 
 /// Lays out `sizes.len()` nodes (width, height) joined by `edges` (from, to;
 /// acyclic). `order` lists every node once: the first order of each column.
-pub fn layout(sizes: &[(f32, f32)], edges: &[(usize, usize)], order: &[usize], spacing: Spacing) -> Layout {
+pub fn layout(
+    sizes: &[(f32, f32)],
+    edges: &[(usize, usize)],
+    order: &[usize],
+    spacing: Spacing,
+) -> Layout {
     #[derive(Clone, Copy, PartialEq)]
     enum Item {
         Node(usize),
@@ -76,7 +85,11 @@ pub fn layout(sizes: &[(f32, f32)], edges: &[(usize, usize)], order: &[usize], s
         let step = |e: usize, k: usize| -> Item {
             let (r, i) = edges[e];
             if up {
-                if k + 1 < rank[i] { Item::Dummy(e, k + 1) } else { Item::Node(i) }
+                if k + 1 < rank[i] {
+                    Item::Dummy(e, k + 1)
+                } else {
+                    Item::Node(i)
+                }
             } else if k - 1 > rank[r] {
                 Item::Dummy(e, k - 1)
             } else {
@@ -84,23 +97,53 @@ pub fn layout(sizes: &[(f32, f32)], edges: &[(usize, usize)], order: &[usize], s
             }
         };
         match item {
-            Item::Node(i) => edges.iter().enumerate().filter(|(_, x)| if up { x.0 == i } else { x.1 == i }).map(|(e, _)| step(e, rank[i])).collect(),
+            Item::Node(i) => edges
+                .iter()
+                .enumerate()
+                .filter(|(_, x)| {
+                    if up {
+                        x.0 == i
+                    } else {
+                        x.1 == i
+                    }
+                })
+                .map(|(e, _)| step(e, rank[i]))
+                .collect(),
             Item::Dummy(e, k) => vec![step(e, k)],
         }
     };
     for sweep in 0..8 {
         let up = sweep % 2 == 0;
-        let ks: Vec<usize> = if up { (1..=top).collect() } else { (0..top).rev().collect() };
+        let ks: Vec<usize> = if up {
+            (1..=top).collect()
+        } else {
+            (0..top).rev().collect()
+        };
         for k in ks {
-            let near_row = if up { k - 1 } else { k + 1 };
+            let near_row = if up {
+                k - 1
+            } else {
+                k + 1
+            };
             let len = rows[near_row].len().max(1) as f32;
             let own_len = rows[k].len().max(1) as f32;
             let mut keyed: Vec<(f32, Item)> = rows[k]
                 .iter()
                 .enumerate()
                 .map(|(p, &item)| {
-                    let xs: Vec<f32> = neighbours(item, !up).iter().filter_map(|&m| rows[near_row].iter().position(|&x| x == m)).map(|q| q as f32 / len).collect();
-                    (if xs.is_empty() { p as f32 / own_len } else { xs.iter().sum::<f32>() / xs.len() as f32 }, item)
+                    let xs: Vec<f32> = neighbours(item, !up)
+                        .iter()
+                        .filter_map(|&m| rows[near_row].iter().position(|&x| x == m))
+                        .map(|q| q as f32 / len)
+                        .collect();
+                    (
+                        if xs.is_empty() {
+                            p as f32 / own_len
+                        } else {
+                            xs.iter().sum::<f32>() / xs.len() as f32
+                        },
+                        item,
+                    )
                 })
                 .collect();
             keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -113,7 +156,20 @@ pub fn layout(sizes: &[(f32, f32)], edges: &[(usize, usize)], order: &[usize], s
         Item::Node(i) => sizes[i].1 + spacing.row,
         Item::Dummy(..) => spacing.dummy,
     };
-    let column_width: Vec<f32> = rows.iter().map(|row| row.iter().map(|&x| if let Item::Node(i) = x { sizes[i].0 } else { spacing.dummy }).fold(spacing.dummy, f32::max)).collect();
+    let column_width: Vec<f32> = rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|&x| {
+                    if let Item::Node(i) = x {
+                        sizes[i].0
+                    } else {
+                        spacing.dummy
+                    }
+                })
+                .fold(spacing.dummy, f32::max)
+        })
+        .collect();
     let column_height = |row: &Vec<Item>| row.iter().map(|&x| slot(x)).sum::<f32>();
     let height = rows.iter().map(column_height).fold(0.0, f32::max);
     let mut positions = vec![(0.0, 0.0); n];
@@ -133,7 +189,17 @@ pub fn layout(sizes: &[(f32, f32)], edges: &[(usize, usize)], order: &[usize], s
         }
         x += column_width[k] + spacing.column;
     }
-    let bends = edges.iter().enumerate().map(|(e, &(r, i))| (r, i, (rank[r] + 1..rank[i]).map(|k| dummy_at[&(e, k)]).collect())).collect();
+    let bends = edges
+        .iter()
+        .enumerate()
+        .map(|(e, &(r, i))| {
+            (
+                r,
+                i,
+                (rank[r] + 1..rank[i]).map(|k| dummy_at[&(e, k)]).collect(),
+            )
+        })
+        .collect();
     Layout {
         positions,
         widths: sizes.iter().map(|s| s.0).collect(),
@@ -166,20 +232,34 @@ pub struct Clustered {
 /// `clusters` covers every node once, in the order its tracks should come
 /// (top to bottom). A box is its members' bounds widened by `pad`, with
 /// `title` more above; tracks are `gap` apart.
-pub fn clustered(sizes: &[(f32, f32)], edges: &[(usize, usize)], clusters: &[Cluster], spacing: Spacing, pad: f32, title: f32, gap: f32) -> Clustered {
+pub fn clustered(
+    sizes: &[(f32, f32)],
+    edges: &[(usize, usize)],
+    clusters: &[Cluster],
+    spacing: Spacing,
+    pad: f32,
+    title: f32,
+    gap: f32,
+) -> Clustered {
     let n = sizes.len();
     let rank = ranks(n, edges);
     let top = rank.iter().copied().max().unwrap_or(0);
     // Each cluster's span of columns.
     let spans: Vec<(usize, usize)> = clusters
         .iter()
-        .map(|c| c.members.iter().fold((usize::MAX, 0), |(lo, hi), &i| (lo.min(rank[i]), hi.max(rank[i]))))
+        .map(|c| {
+            c.members.iter().fold((usize::MAX, 0), |(lo, hi), &i| {
+                (lo.min(rank[i]), hi.max(rank[i]))
+            })
+        })
         .collect();
     // Tracks: the first one free over a cluster's span, in order.
     let mut tracks: Vec<Vec<usize>> = Vec::new();
     let mut track_of = vec![0usize; clusters.len()];
     for (c, &(lo, hi)) in spans.iter().enumerate() {
-        let free = tracks.iter().position(|t| t.iter().all(|&o| spans[o].1 < lo || spans[o].0 > hi));
+        let free = tracks
+            .iter()
+            .position(|t| t.iter().all(|&o| spans[o].1 < lo || spans[o].0 > hi));
         let t = free.unwrap_or_else(|| {
             tracks.push(Vec::new());
             tracks.len() - 1
@@ -197,8 +277,22 @@ pub fn clustered(sizes: &[(f32, f32)], edges: &[(usize, usize)], clusters: &[Clu
     }
     let slot = |i: usize| sizes[i].1 + spacing.row;
     let place = |cells: &Vec<Vec<Vec<usize>>>| -> (Vec<(f32, f32)>, Vec<f32>, f32) {
-        let heights: Vec<f32> = cells.iter().map(|t| t.iter().map(|col| col.iter().map(|&i| slot(i)).sum::<f32>()).fold(0.0, f32::max)).collect();
-        let column_width: Vec<f32> = (0..=top).map(|k| (0..n).filter(|&i| rank[i] == k).map(|i| sizes[i].0).fold(spacing.dummy, f32::max)).collect();
+        let heights: Vec<f32> = cells
+            .iter()
+            .map(|t| {
+                t.iter()
+                    .map(|col| col.iter().map(|&i| slot(i)).sum::<f32>())
+                    .fold(0.0, f32::max)
+            })
+            .collect();
+        let column_width: Vec<f32> = (0..=top)
+            .map(|k| {
+                (0..n)
+                    .filter(|&i| rank[i] == k)
+                    .map(|i| sizes[i].0)
+                    .fold(spacing.dummy, f32::max)
+            })
+            .collect();
         let mut positions = vec![(0.0, 0.0); n];
         let mut y0 = title;
         for (t, track) in cells.iter().enumerate() {
@@ -224,8 +318,26 @@ pub fn clustered(sizes: &[(f32, f32)], edges: &[(usize, usize)], clusters: &[Clu
                 let mut keyed: Vec<(f32, usize)> = col
                     .iter()
                     .map(|&i| {
-                        let ys: Vec<f32> = edges.iter().filter_map(|&(a, b)| if sweep % 2 == 0 && b == i { Some(positions[a].1) } else if sweep % 2 == 1 && a == i { Some(positions[b].1) } else { None }).collect();
-                        (if ys.is_empty() { positions[i].1 } else { ys.iter().sum::<f32>() / ys.len() as f32 }, i)
+                        let ys: Vec<f32> = edges
+                            .iter()
+                            .filter_map(|&(a, b)| {
+                                if sweep % 2 == 0 && b == i {
+                                    Some(positions[a].1)
+                                } else if sweep % 2 == 1 && a == i {
+                                    Some(positions[b].1)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        (
+                            if ys.is_empty() {
+                                positions[i].1
+                            } else {
+                                ys.iter().sum::<f32>() / ys.len() as f32
+                            },
+                            i,
+                        )
                     })
                     .collect();
                 keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -239,11 +351,20 @@ pub fn clustered(sizes: &[(f32, f32)], edges: &[(usize, usize)], clusters: &[Clu
         .enumerate()
         .filter(|(_, c)| c.boxed && !c.members.is_empty())
         .map(|(c, cluster)| {
-            let b = cluster.members.iter().fold((f32::MAX, f32::MAX, f32::MIN, f32::MIN), |b, &i| {
-                let (x, y) = positions[i];
-                let (w, h) = sizes[i];
-                (b.0.min(x - w / 2.0), b.1.min(y - h / 2.0), b.2.max(x + w / 2.0), b.3.max(y + h / 2.0))
-            });
+            let b =
+                cluster
+                    .members
+                    .iter()
+                    .fold((f32::MAX, f32::MAX, f32::MIN, f32::MIN), |b, &i| {
+                        let (x, y) = positions[i];
+                        let (w, h) = sizes[i];
+                        (
+                            b.0.min(x - w / 2.0),
+                            b.1.min(y - h / 2.0),
+                            b.2.max(x + w / 2.0),
+                            b.3.max(y + h / 2.0),
+                        )
+                    });
             (c, (b.0 - pad, b.1 - pad - title, b.2 + pad, b.3 + pad))
         })
         .collect();

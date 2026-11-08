@@ -94,23 +94,48 @@ pub struct PinnedText {
 }
 
 impl DrawLists {
-    pub fn segment(&mut self, p0: Vec3, p1: Vec3, color: Color32, alpha: f32, width: f32, flags: u32) {
+    pub fn segment(
+        &mut self,
+        p0: Vec3,
+        p1: Vec3,
+        color: Color32,
+        alpha: f32,
+        width: f32,
+        flags: u32,
+    ) {
         if alpha <= 0.0 {
             return;
         }
-        self.segments.push(SegmentInstance { p0: p0.to_array(), width, p1: p1.to_array(), flags, color: to_f32(color, alpha), rid: [SEG_EXPLICIT, 0, 0, 0] });
+        self.segments.push(SegmentInstance {
+            p0: p0.to_array(),
+            width,
+            p1: p1.to_array(),
+            flags,
+            color: to_f32(color, alpha),
+            rid: [SEG_EXPLICIT, 0, 0, 0],
+        });
     }
 
     pub fn point(&mut self, p: Vec3, radius: f32, color: Color32, alpha: f32) {
         if alpha <= 0.0 {
             return;
         }
-        self.points.push(PointInstance { position: p.to_array(), radius, color: to_f32(color, alpha), rid: [0; 4] });
+        self.points.push(PointInstance {
+            position: p.to_array(),
+            radius,
+            color: to_f32(color, alpha),
+            rid: [0; 4],
+        });
     }
 
     /// Text at `at`, the point `align` of its box (0 to 1 across and down: `[0.5, 1.0]` centres it above `at`).
     pub fn text(&mut self, at: Vec3, text: impl Into<String>, color: Color32, align: [f32; 2]) {
-        self.texts.push(PinnedText { at, text: text.into(), color, align });
+        self.texts.push(PinnedText {
+            at,
+            text: text.into(),
+            color,
+            align,
+        });
     }
 
     /// A solid box at `center` with half-extent vectors `axes` (lit flat, its edges darkened).
@@ -119,7 +144,14 @@ impl DrawLists {
             return;
         }
         let [u, v, w] = axes.map(|a| a.extend(0.0).to_array());
-        self.cuboids.push(CuboidInstance { center: center.to_array(), pad: 0.0, u, v, w, color: to_f32(color, alpha) });
+        self.cuboids.push(CuboidInstance {
+            center: center.to_array(),
+            pad: 0.0,
+            u,
+            v,
+            w,
+            color: to_f32(color, alpha),
+        });
     }
 
     pub fn polyline(&mut self, points: &[Vec3], color: Color32, alpha: f32, width: f32) {
@@ -214,19 +246,39 @@ impl FrameContent {
     /// Ask for `region` of `source` to be read back after this frame's passes
     /// (src/fetch.rs), its result named `key`, tagged with the frame's inputs;
     /// and return the latest result of `key`, of this frame or one before it.
-    pub fn fetch(&mut self, key: &str, source: crate::fetch::Source, region: crate::fetch::Region) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
+    pub fn fetch(
+        &mut self,
+        key: &str,
+        source: crate::fetch::Source,
+        region: crate::fetch::Region,
+    ) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
         self.fetch_tagged(key, source, region, None)
     }
 
     /// `fetch` with a tag of the investigation's own (what the result depends on), None for the frame's inputs.
-    pub fn fetch_tagged(&mut self, key: &str, source: crate::fetch::Source, region: crate::fetch::Region, tag: Option<u64>) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
-        self.fetches.push(crate::fetch::Request { key: key.to_string(), source, region, tag });
+    pub fn fetch_tagged(
+        &mut self,
+        key: &str,
+        source: crate::fetch::Source,
+        region: crate::fetch::Region,
+        tag: Option<u64>,
+    ) -> Option<std::sync::Arc<crate::fetch::Fetched>> {
+        self.fetches.push(crate::fetch::Request {
+            key: key.to_string(),
+            source,
+            region,
+            tag,
+        });
         crate::fetch::get(key)
     }
 
     /// Where its draw lists and labels end now: what `overlay_at` takes.
     pub fn mark(&self) -> DrawMark {
-        DrawMark { segments: self.draw.segments.len(), points: self.draw.points.len(), labels: self.labels.len() }
+        DrawMark {
+            segments: self.draw.segments.len(),
+            points: self.draw.points.len(),
+            labels: self.labels.len(),
+        }
     }
 
     /// A frame of `objects` under `uniforms` with nothing else: no overlays,

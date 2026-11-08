@@ -17,7 +17,14 @@ pub struct Settings {
 
 impl Settings {
     pub fn from_records(r: &[[f32; 4]]) -> Settings {
-        Settings { strength: r[0][0], sampling_radius: r[0][1], blur: r[0][2] > 0.5, const_falloff: r[1][0], depth_falloff_threshold: r[1][1], depth_falloff_strength: r[1][2] }
+        Settings {
+            strength: r[0][0],
+            sampling_radius: r[0][1],
+            blur: r[0][2] > 0.5,
+            const_falloff: r[1][0],
+            depth_falloff_threshold: r[1][1],
+            depth_falloff_strength: r[1][2],
+        }
     }
 }
 
@@ -53,10 +60,26 @@ pub fn unorm8(x: f32) -> f32 {
 
 /// DepthDownsample: the upper-left pixel of each 2 x 2.
 pub fn downsample(full: &Image) -> Image {
-    Image::from_fn([full.size[0].div_ceil(2), full.size[1].div_ceil(2)], |x, y| full.at(2 * x, 2 * y))
+    Image::from_fn(
+        [full.size[0].div_ceil(2), full.size[1].div_ceil(2)],
+        |x, y| full.at(2 * x, 2 * y),
+    )
 }
 
-const LOCAL_SAMPLES: [[i32; 2]; 12] = [[0, -4], [-4, 0], [4, 0], [0, 4], [-4, -4], [4, -4], [-4, 4], [4, 4], [0, -8], [-8, 0], [8, 0], [0, 8]];
+const LOCAL_SAMPLES: [[i32; 2]; 12] = [
+    [0, -4],
+    [-4, 0],
+    [4, 0],
+    [0, 4],
+    [-4, -4],
+    [4, -4],
+    [-4, 4],
+    [4, 4],
+    [0, -8],
+    [-8, 0],
+    [8, 0],
+    [0, 8],
+];
 #[allow(clippy::approx_constant, clippy::excessive_precision)] // the engine's literal
 const OUTER_SAMPLE_ANGLE: f32 = 2.0 * 3.14159265 / 10.0;
 
@@ -80,15 +103,30 @@ fn accumulate(position: Vec3, normal: Vec3, occluder: Vec3, occlusion: &mut f32,
 /// SsaoCompute for every half-res pixel; `tan` is (tan of half the horizontal
 /// field of view, of the vertical one).
 pub fn compute(half: &Image, s: &Settings, tan: Vec2) -> Image {
-    Image::from_fn(half.size, |x, y| compute_at(&|x, y| half.at(x, y), half.size, s, tan, x, y))
+    Image::from_fn(half.size, |x, y| {
+        compute_at(&|x, y| half.at(x, y), half.size, s, tan, x, y)
+    })
 }
 
 /// SsaoCompute at one half-res pixel, reading the clamped half-res depth through `half`.
-pub fn compute_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Settings, tan: Vec2, x: i32, y: i32) -> f32 {
+pub fn compute_at(
+    half: &dyn Fn(i32, i32) -> f32,
+    half_size: [u32; 2],
+    s: &Settings,
+    tan: Vec2,
+    x: i32,
+    y: i32,
+) -> f32 {
     let samples = samples_at(half, half_size, s, tan, x, y);
     let (mut occlusion, mut total) = (0.0, 0.0);
     for o in &samples.occluders {
-        accumulate(samples.position, samples.normal, *o, &mut occlusion, &mut total);
+        accumulate(
+            samples.position,
+            samples.normal,
+            *o,
+            &mut occlusion,
+            &mut total,
+        );
     }
     let ao = occlusion / f32::max(total, 10e-5);
     unorm8((1.0 - ao * s.strength).powf(2.2))
@@ -108,29 +146,74 @@ pub struct PixelSamples {
 impl PixelSamples {
     /// Each occluder's saturate(cos) against the normal and its weight 1 / (d^2 + 0.07).
     pub fn terms(&self) -> Vec<(f32, f32)> {
-        self.occluders.iter().map(|o| {
-            let diff = *o - self.position;
-            let d2 = diff.dot(diff);
-            ((diff / d2.sqrt()).dot(self.normal).clamp(0.0, 1.0), 1.0 / (d2 + 0.07))
-        }).collect()
+        self.occluders
+            .iter()
+            .map(|o| {
+                let diff = *o - self.position;
+                let d2 = diff.dot(diff);
+                (
+                    (diff / d2.sqrt()).dot(self.normal).clamp(0.0, 1.0),
+                    1.0 / (d2 + 0.07),
+                )
+            })
+            .collect()
     }
 }
 
-pub fn samples_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Settings, tan: Vec2, x: i32, y: i32) -> PixelSamples {
+pub fn samples_at(
+    half: &dyn Fn(i32, i32) -> f32,
+    half_size: [u32; 2],
+    s: &Settings,
+    tan: Vec2,
+    x: i32,
+    y: i32,
+) -> PixelSamples {
     let size = Vec2::new(half_size[0] as f32, half_size[1] as f32);
     let pixel_size = Vec2::ONE / size;
-    let at = |x: i32, y: i32| half(x.clamp(0, half_size[0] as i32 - 1), y.clamp(0, half_size[1] as i32 - 1));
-    let position_at = |x: i32, y: i32| view_position((Vec2::new(x as f32, y as f32) + 0.5) * pixel_size, at(x, y), tan);
-    let (group, local) = ([x as u32 / 16, y as u32 / 16], [x as u32 % 16, y as u32 % 16]);
+    let at = |x: i32, y: i32| {
+        half(
+            x.clamp(0, half_size[0] as i32 - 1),
+            y.clamp(0, half_size[1] as i32 - 1),
+        )
+    };
+    let position_at = |x: i32, y: i32| {
+        view_position(
+            (Vec2::new(x as f32, y as f32) + 0.5) * pixel_size,
+            at(x, y),
+            tan,
+        )
+    };
+    let (group, local) = (
+        [x as u32 / 16, y as u32 / 16],
+        [x as u32 % 16, y as u32 % 16],
+    );
     let subgroup = [local[0] / 4, local[1] / 4];
     let sub = [local[0] % 4, local[1] % 4];
-    let linear = (sub[0] & 1) | ((sub[1] & 1) << 1) | ((sub[0] >> 1) << 2) | ((sub[1] >> 1) << 3) | (subgroup[0] << 4) | (subgroup[1] << 6);
+    let linear = (sub[0] & 1)
+        | ((sub[1] & 1) << 1)
+        | ((sub[0] >> 1) << 2)
+        | ((sub[1] >> 1) << 3)
+        | (subgroup[0] << 4)
+        | (subgroup[1] << 6);
     let p = position_at(x, y);
-    let (l, r, u, d) = (position_at(x - 1, y), position_at(x + 1, y), position_at(x, y - 1), position_at(x, y + 1));
+    let (l, r, u, d) = (
+        position_at(x - 1, y),
+        position_at(x + 1, y),
+        position_at(x, y - 1),
+        position_at(x, y + 1),
+    );
     let (dl, dr) = (p - l, r - p);
-    let dx = if dl.z.abs() < dr.z.abs() { dl } else { dr };
+    let dx = if dl.z.abs() < dr.z.abs() {
+        dl
+    } else {
+        dr
+    };
     let (du, dd) = (p - u, d - p);
-    let dy = if du.z.abs() < dd.z.abs() { du } else { dd };
+    let dy = if du.z.abs() < dd.z.abs() {
+        du
+    } else {
+        dd
+    };
     let n = dx.cross(dy).normalize();
     let mut occluders = Vec::with_capacity(52);
     for [ox, oy] in LOCAL_SAMPLES {
@@ -139,7 +222,8 @@ pub fn samples_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Setti
     let group_offset = Vec2::new(group[0] as f32, group[1] as f32) * 16.0 + 2.0;
     let subgroup_offset = Vec2::new(subgroup[0] as f32, subgroup[1] as f32) * 4.0 + group_offset;
     let outer = |id: u32, i: u32| {
-        let angle_offset = ((id >> 4) & 0x0F) as f32 * (OUTER_SAMPLE_ANGLE / 16.0) + i as f32 * OUTER_SAMPLE_ANGLE;
+        let angle_offset =
+            ((id >> 4) & 0x0F) as f32 * (OUTER_SAMPLE_ANGLE / 16.0) + i as f32 * OUTER_SAMPLE_ANGLE;
         let factor = ((id & 0x0F) as f32 + 1.0) / 16.0;
         let radius = factor.sqrt() * (size.y * s.sampling_radius);
         let angle = factor * (OUTER_SAMPLE_ANGLE / 16.0) + angle_offset;
@@ -156,22 +240,50 @@ pub fn samples_at(half: &dyn Fn(i32, i32) -> f32, half_size: [u32; 2], s: &Setti
             occluders.push(outer(other, i));
         }
     }
-    PixelSamples { position: p, normal: n, occluders }
+    PixelSamples {
+        position: p,
+        normal: n,
+        occluders,
+    }
 }
 
 /// FastDepthAwareBlur along x (`horizontal`) or y: each output is half the
 /// forward chain and half the backward one, as the three-pixel threads compute them.
 pub fn blur(values: &Image, half: &Image, s: &Settings, horizontal: bool) -> Image {
-    Image::from_fn(values.size, |x, y| blur_at(&|x, y| values.at(x, y), &|x, y| half.at(x, y), s, horizontal, x, y))
+    Image::from_fn(values.size, |x, y| {
+        blur_at(
+            &|x, y| values.at(x, y),
+            &|x, y| half.at(x, y),
+            s,
+            horizontal,
+            x,
+            y,
+        )
+    })
 }
 
 /// The blur at one half-res pixel; `values` and `half` read clamped.
-pub fn blur_at(values: &dyn Fn(i32, i32) -> f32, half: &dyn Fn(i32, i32) -> f32, s: &Settings, horizontal: bool, x: i32, y: i32) -> f32 {
+pub fn blur_at(
+    values: &dyn Fn(i32, i32) -> f32,
+    half: &dyn Fn(i32, i32) -> f32,
+    s: &Settings,
+    horizontal: bool,
+    x: i32,
+    y: i32,
+) -> f32 {
     if !s.blur {
         return values(x, y);
     }
-    let falloff = |previous: f32, current: f32| ((previous - current).abs() - s.depth_falloff_threshold).mul_add(-s.depth_falloff_strength, 1.0).clamp(0.0, 1.0);
-    let axis = if horizontal { [1, 0] } else { [0, 1] };
+    let falloff = |previous: f32, current: f32| {
+        ((previous - current).abs() - s.depth_falloff_threshold)
+            .mul_add(-s.depth_falloff_strength, 1.0)
+            .clamp(0.0, 1.0)
+    };
+    let axis = if horizontal {
+        [1, 0]
+    } else {
+        [0, 1]
+    };
     let chain = |start: [i32; 2], dir: [i32; 2], steps: i32| {
         let mut p = start;
         let mut previous_depth = half(p[0], p[1]);
@@ -196,7 +308,11 @@ pub fn blur_at(values: &dyn Fn(i32, i32) -> f32, half: &dyn Fn(i32, i32) -> f32,
         current_value
     };
     {
-        let coordinate = if horizontal { x } else { y };
+        let coordinate = if horizontal {
+            x
+        } else {
+            y
+        };
         let k = coordinate % 3;
         let base = [x - axis[0] * k, y - axis[1] * k];
         let start = [base[0] - axis[0] * 8, base[1] - axis[1] * 8];
@@ -209,15 +325,45 @@ pub fn blur_at(values: &dyn Fn(i32, i32) -> f32, half: &dyn Fn(i32, i32) -> f32,
 
 /// DepthUpsample: the four nearest half-res pixels, 3/4 near and 1/4 far on each axis, by depth.
 pub fn upsample(values: &Image, half: &Image, full: &Image) -> Image {
-    Image::from_fn(full.size, |x, y| upsample_at(&|x, y| values.at(x, y), &|x, y| half.at(x, y), full.at(x, y), x, y))
+    Image::from_fn(full.size, |x, y| {
+        upsample_at(
+            &|x, y| values.at(x, y),
+            &|x, y| half.at(x, y),
+            full.at(x, y),
+            x,
+            y,
+        )
+    })
 }
 
 /// DepthUpsample at one full-res pixel of linear depth `depth`.
-pub fn upsample_at(values: &dyn Fn(i32, i32) -> f32, half: &dyn Fn(i32, i32) -> f32, depth: f32, x: i32, y: i32) -> f32 {
+pub fn upsample_at(
+    values: &dyn Fn(i32, i32) -> f32,
+    half: &dyn Fn(i32, i32) -> f32,
+    depth: f32,
+    x: i32,
+    y: i32,
+) -> f32 {
     {
         let near = [x / 2, y / 2];
-        let far = [if x & 1 == 1 { near[0] + 1 } else { near[0] - 1 }, if y & 1 == 1 { near[1] + 1 } else { near[1] - 1 }];
-        let taps = [(near, 0.75 * 0.75), ([far[0], near[1]], 0.25 * 0.75), ([near[0], far[1]], 0.75 * 0.25), (far, 0.25 * 0.25)];
+        let far = [
+            if x & 1 == 1 {
+                near[0] + 1
+            } else {
+                near[0] - 1
+            },
+            if y & 1 == 1 {
+                near[1] + 1
+            } else {
+                near[1] - 1
+            },
+        ];
+        let taps = [
+            (near, 0.75 * 0.75),
+            ([far[0], near[1]], 0.25 * 0.75),
+            ([near[0], far[1]], 0.75 * 0.25),
+            (far, 0.25 * 0.25),
+        ];
         let (mut value, mut total) = (0.0, 0.0);
         for (t, w) in taps {
             let d = (depth - half(t[0], t[1])).abs() + 0.00001;
@@ -240,11 +386,23 @@ pub struct PixelStages {
     pub upsampled: f32,
 }
 
-pub fn at_pixel(linear_depth: &dyn Fn(i32, i32) -> f32, full_size: [u32; 2], s: &Settings, tan: Vec2, x: i32, y: i32) -> PixelStages {
+pub fn at_pixel(
+    linear_depth: &dyn Fn(i32, i32) -> f32,
+    full_size: [u32; 2],
+    s: &Settings,
+    tan: Vec2,
+    x: i32,
+    y: i32,
+) -> PixelStages {
     use std::cell::RefCell;
     use std::collections::HashMap;
     let half_size = [full_size[0].div_ceil(2), full_size[1].div_ceil(2)];
-    let clamp_half = |x: i32, y: i32| (x.clamp(0, half_size[0] as i32 - 1), y.clamp(0, half_size[1] as i32 - 1));
+    let clamp_half = |x: i32, y: i32| {
+        (
+            x.clamp(0, half_size[0] as i32 - 1),
+            y.clamp(0, half_size[1] as i32 - 1),
+        )
+    };
     let depths: RefCell<HashMap<(i32, i32), f32>> = RefCell::new(HashMap::new());
     let half = |x: i32, y: i32| -> f32 {
         let key = clamp_half(x, y);
@@ -281,5 +439,12 @@ pub fn at_pixel(linear_depth: &dyn Fn(i32, i32) -> f32, full_size: [u32; 2], s: 
     };
     let depth = linear_depth(x, y);
     let h = [x / 2, y / 2];
-    PixelStages { half_pixel: h, linear_depth: depth, raw: raw(h[0], h[1]), blur_vertical: vertical(h[0], h[1]), blurred: horizontal(h[0], h[1]), upsampled: upsample_at(&horizontal, &half, depth, x, y) }
+    PixelStages {
+        half_pixel: h,
+        linear_depth: depth,
+        raw: raw(h[0], h[1]),
+        blur_vertical: vertical(h[0], h[1]),
+        blurred: horizontal(h[0], h[1]),
+        upsampled: upsample_at(&horizontal, &half, depth, x, y),
+    }
 }

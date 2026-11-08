@@ -16,7 +16,11 @@ pub const FAR: f32 = 1000.0;
 #[values(scope = "camera", package = "render_lab")]
 pub struct OrbitCamera {
     /// The point it orbits.
-    #[value(components(x, y, z), text = "values-camera-target", help = "help-camera-target")]
+    #[value(
+        components(x, y, z),
+        text = "values-camera-target",
+        help = "help-camera-target"
+    )]
     pub target: [f32; 3],
     /// Degrees around +Y; 0 looks down -Z.
     #[value(range = -180.0..=180.0, unit = deg, wrap, label(view), text = "values-camera-yaw", help = "help-camera-yaw")]
@@ -34,14 +38,21 @@ pub struct OrbitCamera {
 
 impl Default for OrbitCamera {
     fn default() -> Self {
-        OrbitCamera { target: [0.0, 0.9, 0.0], yaw: 18.0, pitch: 16.0, distance: 6.8, fov: 50.0 }
+        OrbitCamera {
+            target: [0.0, 0.9, 0.0],
+            yaw: 18.0,
+            pitch: 16.0,
+            distance: 6.8,
+            fov: 50.0,
+        }
     }
 }
 
 impl OrbitCamera {
     pub fn eye(&self) -> Vec3 {
         let (y, p) = (self.yaw.to_radians(), self.pitch.to_radians());
-        Vec3::from(self.target) + self.distance * Vec3::new(p.cos() * y.sin(), p.sin(), p.cos() * y.cos())
+        Vec3::from(self.target)
+            + self.distance * Vec3::new(p.cos() * y.sin(), p.sin(), p.cos() * y.cos())
     }
 
     pub fn view(&self) -> Mat4 {
@@ -77,7 +88,12 @@ impl OrbitCamera {
         let view = self.view();
         let aspect = like.viewport_size[0] / like.viewport_size[1].max(1.0);
         // Reversed depth, as `projection`: the far plane first.
-        let proj = glam::camera::rh::proj::directx::perspective(self.fov.to_radians(), aspect, like.far_plane, like.near_plane);
+        let proj = glam::camera::rh::proj::directx::perspective(
+            self.fov.to_radians(),
+            aspect,
+            like.far_plane,
+            like.near_plane,
+        );
         CameraData {
             world_to_view: view.to_cols_array_2d(),
             view_to_clip: proj.to_cols_array_2d(),
@@ -99,7 +115,8 @@ impl OrbitCamera {
         let view = self.view();
         let right = Vec3::new(view.x_axis.x, view.y_axis.x, view.z_axis.x);
         let up = Vec3::new(view.x_axis.y, view.y_axis.y, view.z_axis.y);
-        let scale = 2.0 * self.distance * (self.fov.to_radians() * 0.5).tan() / viewport_height.max(1.0);
+        let scale =
+            2.0 * self.distance * (self.fov.to_radians() * 0.5).tan() / viewport_height.max(1.0);
         let t = Vec3::from(self.target) - right * delta.x * scale + up * delta.y * scale;
         self.target = t.to_array();
     }
@@ -126,7 +143,9 @@ impl OrbitCamera {
     /// right, y along the world's up (not the view's), z along its view.
     pub fn fly(&mut self, step: Vec3) {
         let (forward, right) = self.forward_right();
-        self.target = (Vec3::from(self.target) + right * step.x + Vec3::Y * step.y + forward * step.z).to_array();
+        self.target =
+            (Vec3::from(self.target) + right * step.x + Vec3::Y * step.y + forward * step.z)
+                .to_array();
     }
 }
 
@@ -161,7 +180,14 @@ pub struct FreeCamera {
 impl Default for FreeCamera {
     /// Off, placed to see the room and a camera in it from above and aside.
     fn default() -> Self {
-        FreeCamera { on: false, target: [0.0, 0.9, 0.0], yaw: 40.0, pitch: 32.0, distance: 13.0, fov: 50.0 }
+        FreeCamera {
+            on: false,
+            target: [0.0, 0.9, 0.0],
+            yaw: 40.0,
+            pitch: 32.0,
+            distance: 13.0,
+            fov: 50.0,
+        }
     }
 }
 
@@ -173,19 +199,37 @@ impl FreeCamera {
 
     /// Its pose, as an orbit camera.
     pub fn orbit(&self) -> OrbitCamera {
-        OrbitCamera { target: self.target, yaw: self.yaw, pitch: self.pitch, distance: self.distance, fov: self.fov }
+        OrbitCamera {
+            target: self.target,
+            yaw: self.yaw,
+            pitch: self.pitch,
+            distance: self.distance,
+            fov: self.fov,
+        }
     }
 
     /// Takes the pose of `camera`.
     pub fn place(&mut self, camera: &OrbitCamera) {
-        (self.target, self.yaw, self.pitch, self.distance, self.fov) = (camera.target, camera.yaw, camera.pitch, camera.distance, camera.fov);
+        (self.target, self.yaw, self.pitch, self.distance, self.fov) = (
+            camera.target,
+            camera.yaw,
+            camera.pitch,
+            camera.distance,
+            camera.fov,
+        );
     }
 
     /// A pose that sees `main` and what it looks at: further back, higher,
     /// and turned aside, about the middle of its view.
     pub fn beside(main: &OrbitCamera) -> OrbitCamera {
         let middle = (main.eye() + Vec3::from(main.target)) * 0.5;
-        OrbitCamera { target: middle.to_array(), yaw: main.yaw + 40.0, pitch: (main.pitch + 18.0).clamp(25.0, 70.0), distance: main.distance * 1.4 + 4.0, fov: main.fov }
+        OrbitCamera {
+            target: middle.to_array(),
+            yaw: main.yaw + 40.0,
+            pitch: (main.pitch + 18.0).clamp(25.0, 70.0),
+            distance: main.distance * 1.4 + 4.0,
+            fov: main.fov,
+        }
     }
 }
 
@@ -196,7 +240,8 @@ pub fn frustum_corners(camera: &CameraData, depth: f32) -> [Vec3; 4] {
     let to_world = Mat4::from_cols_array_2d(&camera.world_to_view).inverse();
     let h = (camera.vertical_fov * 0.5).tan() * depth;
     let w = h * camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
-    [(-w, h), (w, h), (w, -h), (-w, -h)].map(|(x, y)| to_world.transform_point3(Vec3::new(x, y, -depth)))
+    [(-w, h), (w, h), (w, -h), (-w, -h)]
+        .map(|(x, y)| to_world.transform_point3(Vec3::new(x, y, -depth)))
 }
 
 /// Projection helpers built from the same matrix the GPU receives.
@@ -211,7 +256,12 @@ pub struct Projector {
 impl Projector {
     pub fn new(camera: &CameraData) -> Self {
         let m = Mat4::from_cols_array_2d(&camera.world_to_clip);
-        Projector { world_to_clip: m, clip_to_world: m.inverse(), viewport: Vec2::from(camera.viewport_size), eye: Vec3::from(camera.position) }
+        Projector {
+            world_to_clip: m,
+            clip_to_world: m.inverse(),
+            viewport: Vec2::from(camera.viewport_size),
+            eye: Vec3::from(camera.position),
+        }
     }
 
     /// Pixel position inside the viewport (origin top left, +Y down) and
@@ -222,12 +272,21 @@ impl Projector {
             return None;
         }
         let ndc = Vec2::new(c.x / c.w, c.y / c.w);
-        Some((Vec2::new((ndc.x * 0.5 + 0.5) * self.viewport.x, (0.5 - ndc.y * 0.5) * self.viewport.y), c.w))
+        Some((
+            Vec2::new(
+                (ndc.x * 0.5 + 0.5) * self.viewport.x,
+                (0.5 - ndc.y * 0.5) * self.viewport.y,
+            ),
+            c.w,
+        ))
     }
 
     /// World-space ray through a viewport pixel.
     pub fn ray(&self, pixel: Vec2) -> (Vec3, Vec3) {
-        let ndc = Vec2::new(pixel.x / self.viewport.x * 2.0 - 1.0, 1.0 - pixel.y / self.viewport.y * 2.0);
+        let ndc = Vec2::new(
+            pixel.x / self.viewport.x * 2.0 - 1.0,
+            1.0 - pixel.y / self.viewport.y * 2.0,
+        );
         // Reversed depth: the far plane is at depth 0.
         let far = self.clip_to_world * Vec4::new(ndc.x, ndc.y, 0.0, 1.0);
         let far = far.truncate() / far.w;

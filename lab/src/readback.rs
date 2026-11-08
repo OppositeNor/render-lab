@@ -30,22 +30,57 @@ pub fn unpad_rows(data: &[u8], width: u32, height: u32) -> Vec<u8> {
 
 /// Encode the copy of an RGBA8 `texture`'s first `size` texels (mip 0) into
 /// `buffer`, a `readback_buffer` of that size, its rows padded.
-pub fn copy_to_readback(encoder: &mut wgpu::CommandEncoder, texture: &wgpu::Texture, buffer: &wgpu::Buffer, size: [u32; 2]) {
+pub fn copy_to_readback(
+    encoder: &mut wgpu::CommandEncoder,
+    texture: &wgpu::Texture,
+    buffer: &wgpu::Buffer,
+    size: [u32; 2],
+) {
     encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
-        wgpu::TexelCopyBufferInfo { buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded_row_bytes(size[0])), rows_per_image: Some(size[1]) } },
-        wgpu::Extent3d { width: size[0], height: size[1], depth_or_array_layers: 1 },
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded_row_bytes(size[0])),
+                rows_per_image: Some(size[1]),
+            },
+        },
+        wgpu::Extent3d {
+            width: size[0],
+            height: size[1],
+            depth_or_array_layers: 1,
+        },
     );
 }
 
 /// A `readback_buffer`'s RGBA rows of `size` texels, read now, their padding dropped.
-pub fn read_rgba(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &wgpu::Buffer, size: [u32; 2]) -> Vec<u8> {
+pub fn read_rgba(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    buffer: &wgpu::Buffer,
+    size: [u32; 2],
+) -> Vec<u8> {
     let padded = padded_row_bytes(size[0]) as u64;
-    unpad_rows(&read_buffer(device, queue, buffer, 0, padded * size[1] as u64), size[0], size[1])
+    unpad_rows(
+        &read_buffer(device, queue, buffer, 0, padded * size[1] as u64),
+        size[0],
+        size[1],
+    )
 }
 
 /// An RGBA8 `texture`'s first `size` texels (mip 0), copied out and read now.
-pub fn read_texture_rgba(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture, size: [u32; 2]) -> Vec<u8> {
+pub fn read_texture_rgba(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    size: [u32; 2],
+) -> Vec<u8> {
     let buffer = readback_buffer(device, size[0], size[1]);
     let mut encoder = device.create_command_encoder(&Default::default());
     copy_to_readback(&mut encoder, texture, &buffer, size);
@@ -54,24 +89,41 @@ pub fn read_texture_rgba(device: &wgpu::Device, queue: &wgpu::Queue, texture: &w
 }
 
 /// Map a buffer (copying through a staging buffer if needed) and return its bytes.
-pub fn read_buffer(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &wgpu::Buffer, offset: u64, size: u64) -> Vec<u8> {
+pub fn read_buffer(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    buffer: &wgpu::Buffer,
+    offset: u64,
+    size: u64,
+) -> Vec<u8> {
     let staging;
     let source = if buffer.usage().contains(wgpu::BufferUsages::MAP_READ) {
         buffer
     } else {
-        staging = device.create_buffer(&wgpu::BufferDescriptor { label: Some("staging"), size, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+        staging = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("staging"),
+            size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
         let mut encoder = device.create_command_encoder(&Default::default());
         encoder.copy_buffer_to_buffer(buffer, offset, &staging, 0, size);
         queue.submit([encoder.finish()]);
         &staging
     };
-    let range = if std::ptr::eq(source, buffer) { offset..offset + size } else { 0..size };
+    let range = if std::ptr::eq(source, buffer) {
+        offset..offset + size
+    } else {
+        0..size
+    };
     let slice = source.slice(range);
     let (tx, rx) = std::sync::mpsc::channel();
     slice.map_async(wgpu::MapMode::Read, move |r| {
         let _ = tx.send(r);
     });
-    device.poll(wgpu::PollType::wait_indefinitely()).expect("device poll");
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("device poll");
     rx.recv().expect("map callback").expect("map buffer");
     let data = slice.get_mapped_range().expect("mapped range").to_vec();
     source.unmap();
@@ -79,7 +131,9 @@ pub fn read_buffer(device: &wgpu::Device, queue: &wgpu::Queue, buffer: &wgpu::Bu
 }
 
 pub fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<()> {
-    let file = std::io::BufWriter::new(std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?);
+    let file = std::io::BufWriter::new(
+        std::fs::File::create(path).with_context(|| format!("create {}", path.display()))?,
+    );
     let mut encoder = png::Encoder::new(file, width, height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
@@ -93,14 +147,22 @@ pub fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<()
 /// configured with `COPY_SRC`, after its rendering was submitted), saved as
 /// `build/screenshots/render-lab-2026-10-27_22-15-43.png` (the local date and
 /// time; `-2`, `-3`, … for more in the same second) under `root`.
-pub fn screenshot(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture, root: &Path) -> Result<std::path::PathBuf> {
+pub fn screenshot(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    root: &Path,
+) -> Result<std::path::PathBuf> {
     let (width, height) = (texture.width(), texture.height());
     let bgra = match texture.format() {
         wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
         wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
         format => anyhow::bail!("cannot save a {format:?} window"),
     };
-    anyhow::ensure!(texture.usage().contains(wgpu::TextureUsages::COPY_SRC), "the window cannot be copied (its surface lacks COPY_SRC)");
+    anyhow::ensure!(
+        texture.usage().contains(wgpu::TextureUsages::COPY_SRC),
+        "the window cannot be copied (its surface lacks COPY_SRC)"
+    );
     let mut rgba = read_texture_rgba(device, queue, texture, [width, height]);
     for pixel in rgba.as_chunks_mut::<4>().0.iter_mut() {
         if bgra {
@@ -113,7 +175,13 @@ pub fn screenshot(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Te
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = local_stamp();
     let path = (1..)
-        .map(|n| dir.join(if n == 1 { format!("render-lab-{stamp}.png") } else { format!("render-lab-{stamp}-{n}.png") }))
+        .map(|n| {
+            dir.join(if n == 1 {
+                format!("render-lab-{stamp}.png")
+            } else {
+                format!("render-lab-{stamp}-{n}.png")
+            })
+        })
         .find(|p| !p.exists())
         .unwrap();
     write_png(&path, width, height, &rgba)?;
@@ -130,16 +198,30 @@ pub fn local_clock_after(seconds: u64) -> String {
         // `localtime_r` writes only to the `tm` it is given.
         let now = unsafe { libc::time(std::ptr::null_mut()) };
         let then = now + seconds as libc::time_t;
-        let (mut a, mut b): (libc::tm, libc::tm) = unsafe { (std::mem::zeroed(), std::mem::zeroed()) };
-        if !unsafe { libc::localtime_r(&now, &mut a) }.is_null() && !unsafe { libc::localtime_r(&then, &mut b) }.is_null() {
+        let (mut a, mut b): (libc::tm, libc::tm) =
+            unsafe { (std::mem::zeroed(), std::mem::zeroed()) };
+        if !unsafe { libc::localtime_r(&now, &mut a) }.is_null()
+            && !unsafe { libc::localtime_r(&then, &mut b) }.is_null()
+        {
             return if (a.tm_year, a.tm_yday) == (b.tm_year, b.tm_yday) {
                 format!("{:02}:{:02}", b.tm_hour, b.tm_min)
             } else {
-                format!("{:04}-{:02}-{:02} {:02}:{:02}", b.tm_year + 1900, b.tm_mon + 1, b.tm_mday, b.tm_hour, b.tm_min)
+                format!(
+                    "{:04}-{:02}-{:02} {:02}:{:02}",
+                    b.tm_year + 1900,
+                    b.tm_mon + 1,
+                    b.tm_mday,
+                    b.tm_hour,
+                    b.tm_min
+                )
             };
         }
     }
-    let then = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() + seconds;
+    let then = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + seconds;
     format!("{:02}:{:02}Z", then % 86_400 / 3600, then % 3600 / 60)
 }
 
@@ -158,10 +240,20 @@ fn local_stamp() -> String {
         let now = unsafe { libc::time(std::ptr::null_mut()) };
         let mut tm: libc::tm = unsafe { std::mem::zeroed() };
         if !unsafe { libc::localtime_r(&now, &mut tm) }.is_null() {
-            return format!("{:04}-{:02}-{:02}_{:02}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+            return format!(
+                "{:04}-{:02}-{:02}_{:02}-{:02}-{:02}",
+                tm.tm_year + 1900,
+                tm.tm_mon + 1,
+                tm.tm_mday,
+                tm.tm_hour,
+                tm.tm_min,
+                tm.tm_sec
+            );
         }
     }
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     let (days, seconds) = ((now.as_secs() / 86_400) as i64, now.as_secs() % 86_400);
     // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
     let z = days + 719_468;
@@ -171,7 +263,16 @@ fn local_stamp() -> String {
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let month = if mp < 10 {
+        mp + 3
+    } else {
+        mp - 9
+    };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year}-{month:02}-{day:02}_{:02}-{:02}-{:02}Z", seconds / 3600, seconds / 60 % 60, seconds % 60)
+    format!(
+        "{year}-{month:02}-{day:02}_{:02}-{:02}-{:02}Z",
+        seconds / 3600,
+        seconds / 60 % 60,
+        seconds % 60
+    )
 }

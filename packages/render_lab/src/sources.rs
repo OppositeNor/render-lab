@@ -13,7 +13,10 @@ pub struct PackageIndex {
 
 impl PackageIndex {
     pub const fn new(key: &'static str) -> PackageIndex {
-        PackageIndex { key, index: OnceLock::new() }
+        PackageIndex {
+            key,
+            index: OnceLock::new(),
+        }
     }
 
     /// The index as its JSON reads.
@@ -22,6 +25,9 @@ impl PackageIndex {
     }
 
     pub fn get(&self) -> &SourceIndex {
-        self.index.get_or_init(|| SourceIndex::parse(self.json()).unwrap_or_else(|e| panic!("{} is not a valid source index: {e:#}", self.key)))
+        self.index.get_or_init(|| {
+            SourceIndex::parse(self.json())
+                .unwrap_or_else(|e| panic!("{} is not a valid source index: {e:#}", self.key))
+        })
     }
 }

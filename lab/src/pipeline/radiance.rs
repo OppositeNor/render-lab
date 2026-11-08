@@ -7,8 +7,8 @@
 //! Output, little-endian: the number of levels, each level's width and
 //! height, then each level's RGB9E5 texels, row-major from the top row.
 
+use super::{Kind, Params, Ty, put_u32};
 use crate::rgb9e5::encode_rgb9e5;
-use super::{put_u32, Kind, Params, Ty};
 use glam::Vec3;
 
 pub const KIND: Kind = Kind {
@@ -22,7 +22,9 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
     let (sun_cap, count) = (params.float("sun-cap"), params.int("levels"));
     let (width, height, mut texels) = read_radiance(file)?;
     if count == 0 || width % (1 << (count - 1)) != 0 || height % (1 << (count - 1)) != 0 {
-        return Err(format!("{width} x {height} does not halve into {count} levels"));
+        return Err(format!(
+            "{width} x {height} does not halve into {count} levels"
+        ));
     }
     for t in &mut texels {
         let luminance = luminance(*t);
@@ -35,7 +37,10 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
     let mut weight = 0.0f64;
     for y in 0..height {
         let w = (std::f64::consts::PI * (y as f64 + 0.5) / height as f64).sin();
-        sum += w * texels[y * width..(y + 1) * width].iter().map(|&t| luminance(t) as f64).sum::<f64>();
+        sum += w * texels[y * width..(y + 1) * width]
+            .iter()
+            .map(|&t| luminance(t) as f64)
+            .sum::<f64>();
         weight += w * width as f64;
     }
     let scale = (weight / sum) as f32;
@@ -51,11 +56,21 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
             level = (0..level.len() / 4)
                 .map(|k| {
                     let (x, y) = (k % (w / 2) * 2, k / (w / 2) * 2);
-                    (level[y * w + x] + level[y * w + x + 1] + level[(y + 1) * w + x] + level[(y + 1) * w + x + 1]) * 0.25
+                    (level[y * w + x]
+                        + level[y * w + x + 1]
+                        + level[(y + 1) * w + x]
+                        + level[(y + 1) * w + x + 1])
+                        * 0.25
                 })
                 .collect();
         }
-        put_u32(&mut out, &level.iter().map(|&t| encode_rgb9e5(t)).collect::<Vec<u32>>());
+        put_u32(
+            &mut out,
+            &level
+                .iter()
+                .map(|&t| encode_rgb9e5(t))
+                .collect::<Vec<u32>>(),
+        );
     }
     Ok(out)
 }
@@ -70,8 +85,13 @@ fn luminance(c: Vec3) -> f32 {
 fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
     let mut at = 0;
     let mut line = || -> Result<&str, String> {
-        let end = at + file[at..].iter().position(|&b| b == b'\n').ok_or("the Radiance header does not end")?;
-        let text = std::str::from_utf8(&file[at..end]).map_err(|_| "the Radiance header is not text")?;
+        let end = at
+            + file[at..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .ok_or("the Radiance header does not end")?;
+        let text =
+            std::str::from_utf8(&file[at..end]).map_err(|_| "the Radiance header is not text")?;
         at = end + 1;
         Ok(text)
     };
@@ -91,7 +111,10 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
     if size.len() != 4 || size[0] != "-Y" || size[2] != "+X" {
         return Err("unsupported Radiance orientation".into());
     }
-    let (height, width): (usize, usize) = (size[1].parse().map_err(|_| "Radiance height")?, size[3].parse().map_err(|_| "Radiance width")?);
+    let (height, width): (usize, usize) = (
+        size[1].parse().map_err(|_| "Radiance height")?,
+        size[3].parse().map_err(|_| "Radiance width")?,
+    );
     let mut data = &file[at..];
     let mut texels = Vec::with_capacity(width * height);
     let mut scanline = vec![[0u8; 4]; width];
@@ -111,14 +134,22 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
                     let count = *data.first().ok_or_else(truncated)? as usize;
                     if count > 128 {
                         let value = *data.get(1).ok_or_else(truncated)?;
-                        for texel in scanline.get_mut(x..x + count - 128).ok_or("a Radiance run overflows its scanline")? {
+                        for texel in scanline
+                            .get_mut(x..x + count - 128)
+                            .ok_or("a Radiance run overflows its scanline")?
+                        {
                             texel[c] = value;
                         }
                         x += count - 128;
                         data = &data[2..];
                     } else {
                         let run = data.get(1..1 + count).ok_or_else(truncated)?;
-                        for (texel, &value) in scanline.get_mut(x..x + count).ok_or("a Radiance run overflows its scanline")?.iter_mut().zip(run) {
+                        for (texel, &value) in scanline
+                            .get_mut(x..x + count)
+                            .ok_or("a Radiance run overflows its scanline")?
+                            .iter_mut()
+                            .zip(run)
+                        {
                             texel[c] = value;
                         }
                         x += count;
@@ -133,7 +164,13 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
             }
             data = &data[4 * width..];
         }
-        texels.extend(scanline.iter().map(|&[r, g, b, e]| if e == 0 { Vec3::ZERO } else { Vec3::new(r as f32, g as f32, b as f32) * 2f32.powi(e as i32 - 136) }));
+        texels.extend(scanline.iter().map(|&[r, g, b, e]| {
+            if e == 0 {
+                Vec3::ZERO
+            } else {
+                Vec3::new(r as f32, g as f32, b as f32) * 2f32.powi(e as i32 - 136)
+            }
+        }));
     }
     Ok((width, height, texels))
 }

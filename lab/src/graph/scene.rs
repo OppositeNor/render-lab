@@ -43,23 +43,47 @@ pub struct Section {
 impl GraphScene {
     /// The sections of a package's `graphs/<name>.toml` (tools/video/frame_graph.py
     /// has the format), `say` giving a text key's text.
-    pub fn parse(text: &str, at: &str, say: &dyn Fn(&str) -> Option<String>) -> Result<GraphScene, String> {
+    pub fn parse(
+        text: &str,
+        at: &str,
+        say: &dyn Fn(&str) -> Option<String>,
+    ) -> Result<GraphScene, String> {
         let fail = |m: String| format!("{at}: {m}");
-        let document = toml_edit::Document::parse(text.to_string()).map_err(|e| fail(format!("parse: {e}")))?;
+        let document = toml_edit::Document::parse(text.to_string())
+            .map_err(|e| fail(format!("parse: {e}")))?;
         let table = document.as_table();
         let strings = |t: &toml_edit::Table, field: &str| -> Result<Vec<String>, String> {
             match t.get(field) {
                 None => Ok(Vec::new()),
-                Some(item) => item.as_array().ok_or_else(|| fail(format!("`{field}` is a list of strings")))?.iter().map(|v| v.as_str().map(str::to_string).ok_or_else(|| fail(format!("`{field}` is a list of strings")))).collect(),
+                Some(item) => item
+                    .as_array()
+                    .ok_or_else(|| fail(format!("`{field}` is a list of strings")))?
+                    .iter()
+                    .map(|v| {
+                        v.as_str()
+                            .map(str::to_string)
+                            .ok_or_else(|| fail(format!("`{field}` is a list of strings")))
+                    })
+                    .collect(),
             }
         };
-        let string = |t: &toml_edit::Table, field: &str| t.get(field).and_then(|v| v.as_str()).map(str::to_string);
+        let string = |t: &toml_edit::Table, field: &str| {
+            t.get(field).and_then(|v| v.as_str()).map(str::to_string)
+        };
         let text = |key: String| say(&key).ok_or_else(|| fail(format!("no text `{key}`")));
         let mut sections = Vec::new();
-        for t in table.get("section").and_then(|i| i.as_array_of_tables()).map(|a| a.iter().collect::<Vec<_>>()).unwrap_or_default() {
+        for t in table
+            .get("section")
+            .and_then(|i| i.as_array_of_tables())
+            .map(|a| a.iter().collect::<Vec<_>>())
+            .unwrap_or_default()
+        {
             let id = string(t, "id").ok_or_else(|| fail("a section needs `id`".into()))?;
             sections.push(Section {
-                title: text(string(t, "title-text").ok_or_else(|| fail(format!("{id}: needs `title-text`")))?)?,
+                title: text(
+                    string(t, "title-text")
+                        .ok_or_else(|| fail(format!("{id}: needs `title-text`")))?,
+                )?,
                 note: string(t, "note-text").map(text).transpose()?,
                 passes: strings(t, "passes")?,
                 resources: strings(t, "resources")?,
@@ -70,7 +94,10 @@ impl GraphScene {
                 id,
             });
         }
-        Ok(GraphScene { sections, omit: strings(table, "omit")? })
+        Ok(GraphScene {
+            sections,
+            omit: strings(table, "omit")?,
+        })
     }
 
     /// The current investigation's sections `graph/<name>`, in the
@@ -85,11 +112,15 @@ impl GraphScene {
         if let Some((_, scene)) = cache.iter().find(|(k, _)| *k == key) {
             return *scene;
         }
-        let scene = crate::resources::find(&key.0).and_then(|r| match GraphScene::parse(r.text(), r.source(), &|k| crate::i18n::try_package_text(package, k).map(str::to_string)) {
-            Ok(s) => Some(&*Box::leak(Box::new(s))),
-            Err(e) => {
-                eprintln!("{e}");
-                None
+        let scene = crate::resources::find(&key.0).and_then(|r| {
+            match GraphScene::parse(r.text(), r.source(), &|k| {
+                crate::i18n::try_package_text(package, k).map(str::to_string)
+            }) {
+                Ok(s) => Some(&*Box::leak(Box::new(s))),
+                Err(e) => {
+                    eprintln!("{e}");
+                    None
+                }
             }
         });
         cache.push((key, scene));
@@ -133,22 +164,40 @@ impl FrameGraph {
                 errors.push(format!("{}: its picture {e}", s.id));
             }
         }
-        let missing: Vec<&str> = self.nodes.iter().map(|n| n.name).filter(|n| !section_of.contains_key(&entry(n)) && !["overlay", "composite", "scene"].contains(n) && !scene.omit.contains(&entry(n))).collect();
+        let missing: Vec<&str> = self
+            .nodes
+            .iter()
+            .map(|n| n.name)
+            .filter(|n| {
+                !section_of.contains_key(&entry(n))
+                    && !["overlay", "composite", "scene"].contains(n)
+                    && !scene.omit.contains(&entry(n))
+            })
+            .collect();
         if !missing.is_empty() {
-            errors.push(format!("passes in no section: {} (or list them in `omit`)", missing.join(", ")));
+            errors.push(format!(
+                "passes in no section: {} (or list them in `omit`)",
+                missing.join(", ")
+            ));
         }
         if !errors.is_empty() {
             return Err(errors.join("; "));
         }
         let mut edges: Vec<(String, String)> = Vec::new();
         let mut add = |a: Option<&String>, b: Option<&String>| {
-            if let (Some(a), Some(b)) = (a, b) && a != b && !edges.iter().any(|e| e.0 == *a && e.1 == *b) {
+            if let (Some(a), Some(b)) = (a, b)
+                && a != b
+                && !edges.iter().any(|e| e.0 == *a && e.1 == *b)
+            {
                 edges.push((a.clone(), b.clone()));
             }
         };
         for &(a, b, e) in &self.edges {
             let Edge::Data(r) = e else { continue };
-            let (from, to) = (section_of.get(&entry(self.nodes[a].name)), section_of.get(&entry(self.nodes[b].name)));
+            let (from, to) = (
+                section_of.get(&entry(self.nodes[a].name)),
+                section_of.get(&entry(self.nodes[b].name)),
+            );
             match holder.get(self.resources[r].name) {
                 Some(h) => {
                     add(from, Some(h));
@@ -175,7 +224,13 @@ impl FrameGraph {
                     return true;
                 }
                 if seen.insert(x.clone()) {
-                    stack.extend(edges.iter().enumerate().filter(|(k, e)| *k != skip && e.0 == x).map(|(_, e)| e.1.clone()));
+                    stack.extend(
+                        edges
+                            .iter()
+                            .enumerate()
+                            .filter(|(k, e)| *k != skip && e.0 == x)
+                            .map(|(_, e)| e.1.clone()),
+                    );
                 }
             }
             false
@@ -189,11 +244,23 @@ impl FrameGraph {
                 k += 1;
             }
         }
-        kept.sort_by_key(|e| (ids.iter().position(|i| *i == e.0), ids.iter().position(|i| *i == e.1)));
+        kept.sort_by_key(|e| {
+            (
+                ids.iter().position(|i| *i == e.0),
+                ids.iter().position(|i| *i == e.1),
+            )
+        });
         let prefix = crate::ui::graph_prefix(self.nodes.iter().map(|n| n.name));
         let label = |p: &str| {
-            let name = p.strip_prefix(prefix).filter(|r| !r.is_empty()).unwrap_or(p);
-            let name = ["CS", "FS", "VS"].iter().find_map(|s| name.strip_suffix(s)).filter(|r| !r.is_empty()).unwrap_or(name);
+            let name = p
+                .strip_prefix(prefix)
+                .filter(|r| !r.is_empty())
+                .unwrap_or(p);
+            let name = ["CS", "FS", "VS"]
+                .iter()
+                .find_map(|s| name.strip_suffix(s))
+                .filter(|r| !r.is_empty())
+                .unwrap_or(name);
             name.to_string()
         };
         // A title or note may break its line (a newline in its text).
@@ -206,13 +273,43 @@ impl FrameGraph {
                 if s.passes.is_empty() && s.resources.is_empty() {
                     title.extend(s.note.iter().flat_map(|n| lines(n)));
                 }
-                let rows = s.passes.iter().map(|p| crate::graph_view::Row { id: p.clone(), label: label(p) }).chain(s.resources.iter().map(|r| crate::graph_view::Row { id: r.clone(), label: r.clone() })).collect();
-                crate::graph_view::Node { id: s.id.clone(), title, rows, dashed: s.outside, card: None, image: None }
+                let rows = s
+                    .passes
+                    .iter()
+                    .map(|p| crate::graph_view::Row {
+                        id: p.clone(),
+                        label: label(p),
+                    })
+                    .chain(s.resources.iter().map(|r| crate::graph_view::Row {
+                        id: r.clone(),
+                        label: r.clone(),
+                    }))
+                    .collect();
+                crate::graph_view::Node {
+                    id: s.id.clone(),
+                    title,
+                    rows,
+                    dashed: s.outside,
+                    card: None,
+                    image: None,
+                }
             })
             .collect();
         let index = |id: &str| ids.iter().position(|i| *i == id).expect("a section");
-        let edges = kept.iter().map(|(a, b)| crate::graph_view::Edge { from: index(a), to: index(b), dotted: false, label: None }).collect();
-        Ok(crate::graph_view::Graph { nodes, edges, clusters: Vec::new() })
+        let edges = kept
+            .iter()
+            .map(|(a, b)| crate::graph_view::Edge {
+                from: index(a),
+                to: index(b),
+                dotted: false,
+                label: None,
+            })
+            .collect();
+        Ok(crate::graph_view::Graph {
+            nodes,
+            edges,
+            clusters: Vec::new(),
+        })
     }
 }
 
@@ -222,11 +319,25 @@ impl FrameGraph {
 pub fn source_of(shading: Option<&SceneShading>, node: &Node) -> (&'static str, Vec<&'static str>) {
     let entry = entry_of(node.name);
     match (node.step, shading) {
-        (Step::Overlay, _) => (crate::shaders::OVERLAY, vec!["ghostVS", "ghostFS", "segmentVS", "boxVS", "lineFS", "pointVS", "pointFS"]),
+        (Step::Overlay, _) => (
+            crate::shaders::OVERLAY,
+            vec![
+                "ghostVS",
+                "ghostFS",
+                "segmentVS",
+                "boxVS",
+                "lineFS",
+                "pointVS",
+                "pointFS",
+            ],
+        ),
         (Step::Composite, _) => (crate::shaders::SCENE, vec!["fullscreenVS", "compositeFS"]),
         (Step::Scene, None) => (crate::shaders::SCENE, vec!["sceneVS", "sceneFS"]),
         (Step::Scene | Step::Prepass, Some(s)) => (s.module, vec!["sceneVS", entry]),
-        (Step::DepthViews, Some(s)) => (s.module, s.depth_views.map_or_else(Vec::new, |d| d.vertices.to_vec())),
+        (Step::DepthViews, Some(s)) => (
+            s.module,
+            s.depth_views.map_or_else(Vec::new, |d| d.vertices.to_vec()),
+        ),
         (_, Some(s)) => (s.module, vec![entry]),
         (_, None) => (crate::shaders::SCENE, vec![entry]),
     }

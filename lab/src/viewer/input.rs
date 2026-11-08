@@ -29,7 +29,11 @@ impl App {
         // The keys choose among the shown scene's demonstrations.
         let investigation = investigation::current();
         let demos = investigation.scene_demos(investigation.demo_scene(self.state.demo));
-        if let Some(d) = DEMO_KEYS.iter().position(|k| *k == code).and_then(|i| demos.get(i)) {
+        if let Some(d) = DEMO_KEYS
+            .iter()
+            .position(|k| *k == code)
+            .and_then(|i| demos.get(i))
+        {
             self.apply(ViewerAction::SelectDemo(*d));
             return;
         }
@@ -61,14 +65,27 @@ impl App {
     /// one size, and usually the camera), so a drag or a click in any view
     /// moves or picks through the main view's camera.
     /// A view stacked over the main one (src/view.rs): its name and its camera as last drawn.
-    pub(super) fn over_camera(&self, view: ViewId) -> Option<(&'static str, crate::camera::OrbitCamera)> {
-        self.renderer.as_ref()?.last_overs.iter().find(|(id, _, _)| *id == view).map(|(_, name, camera)| (*name, *camera))
+    pub(super) fn over_camera(
+        &self,
+        view: ViewId,
+    ) -> Option<(&'static str, crate::camera::OrbitCamera)> {
+        self.renderer
+            .as_ref()?
+            .last_overs
+            .iter()
+            .find(|(id, _, _)| *id == view)
+            .map(|(_, name, camera)| (*name, *camera))
     }
 
     /// The view on top under `window_px` (src/view.rs), and where it is (canvas points).
     pub(super) fn view_at(&self, window_px: Vec2) -> Option<(ViewId, egui::Rect)> {
         let point = self.to_egui(window_px);
-        self.renderer().frame_views().iter().rev().find(|(_, rect)| rect.contains(point)).copied()
+        self.renderer()
+            .frame_views()
+            .iter()
+            .rev()
+            .find(|(_, rect)| rect.contains(point))
+            .copied()
     }
 
     pub fn viewport_height(&self) -> f32 {
@@ -79,9 +96,13 @@ impl App {
         if self.ui_has_pointer {
             return;
         }
-        let Some((view, _)) = self.view_at(at) else { return };
+        let Some((view, _)) = self.view_at(at) else {
+            return;
+        };
         // A press on the selected entity's gizmo drags its handle (src/gizmo.rs).
-        if button == MouseButton::Left && let Some(drag) = self.gizmo_at(at) {
+        if button == MouseButton::Left
+            && let Some(drag) = self.gizmo_at(at)
+        {
             self.gizmo_drag = Some(drag);
             return;
         }
@@ -89,24 +110,58 @@ impl App {
         // and dragging keeps picking under the cursor.
         let point = self.to_egui(at);
         let inset = (button == MouseButton::Left && !self.timeline_playing())
-            .then(|| self.last_insets.iter().rev().find(|i| i.frame.contains(point)))
+            .then(|| {
+                self.last_insets
+                    .iter()
+                    .rev()
+                    .find(|i| i.frame.contains(point))
+            })
             .flatten()
-            .and_then(|i| i.click.clone().filter(|_| i.picture.contains(point)).map(|h| (h, i.picture)));
+            .and_then(|i| {
+                i.click
+                    .clone()
+                    .filter(|_| i.picture.contains(point))
+                    .map(|h| (h, i.picture))
+            });
         if let Some((handler, picture)) = &inset {
             self.run_inset_click(handler, *picture, point);
         }
-        self.drag = Some(Drag { button, view, last: at, moved: 0.0, inset });
+        self.drag = Some(Drag {
+            button,
+            view,
+            last: at,
+            moved: 0.0,
+            inset,
+        });
     }
 
     /// Run an inset's click handler at `point` (canvas points), clamped to its picture.
-    pub(super) fn run_inset_click(&mut self, handler: &str, picture: egui::Rect, point: egui::Pos2) {
-        let Some(content) = &self.last_content else { return };
+    pub(super) fn run_inset_click(
+        &mut self,
+        handler: &str,
+        picture: egui::Rect,
+        point: egui::Pos2,
+    ) {
+        let Some(content) = &self.last_content else {
+            return;
+        };
         let shown = self.render_state();
-        let Some(renderer) = &self.renderer else { return };
-        let uv = ((point - picture.min) / picture.size()).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
-        let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
+        let uv =
+            ((point - picture.min) / picture.size()).clamp(egui::Vec2::ZERO, egui::vec2(1.0, 1.0));
+        let mut frame = crate::actions::ClickFrame {
+            shown: &shown,
+            state: &mut self.state,
+            uv: Vec2::new(uv.x, uv.y),
+            content,
+            statics: &renderer.statics,
+        };
         // The scripts' handler of that name, else the investigation's code's.
-        if crate::script::runtime::click(handler, &mut frame).is_none() && let Err(e) = (investigation::current().actions().click)(handler, &mut frame) {
+        if crate::script::runtime::click(handler, &mut frame).is_none()
+            && let Err(e) = (investigation::current().actions().click)(handler, &mut frame)
+        {
             eprintln!("click on an image: {e}");
         }
     }
@@ -118,7 +173,12 @@ impl App {
             return;
         }
         let Some(mut drag) = self.drag.clone() else {
-            self.gizmo_hover = if self.ui_has_pointer { None } else { self.gizmo_shape(at).and_then(|(shape, _, pixel)| shape.hit(pixel, self.gizmo_reach())) };
+            self.gizmo_hover = if self.ui_has_pointer {
+                None
+            } else {
+                self.gizmo_shape(at)
+                    .and_then(|(shape, _, pixel)| shape.hit(pixel, self.gizmo_reach()))
+            };
             return;
         };
         let delta = at - drag.last;
@@ -152,7 +212,11 @@ impl App {
 
     /// Change the camera of `view`: the free camera on its view, a view stacked over the main one its own
     /// (src/view.rs; the main camera keeps its place), else the main camera.
-    pub(super) fn move_camera(&mut self, view: ViewId, change: impl FnOnce(&mut crate::camera::OrbitCamera)) {
+    pub(super) fn move_camera(
+        &mut self,
+        view: ViewId,
+        change: impl FnOnce(&mut crate::camera::OrbitCamera),
+    ) {
         if view == ViewId::FREE {
             let free = self.free_view();
             let mut orbit = free.orbit();
@@ -171,8 +235,15 @@ impl App {
 
     /// F: the camera turned to the selected entity (the Scene window's Focus), its distance kept.
     fn focus_selected(&mut self) {
-        let Some(renderer) = self.renderer.as_ref() else { return };
-        let Some(entity) = crate::entity::list(&self.state, &renderer.statics).into_iter().find(|e| Some(&e.id) == self.selected.as_ref()) else { return };
+        let Some(renderer) = self.renderer.as_ref() else {
+            return;
+        };
+        let Some(entity) = crate::entity::list(&self.state, &renderer.statics)
+            .into_iter()
+            .find(|e| Some(&e.id) == self.selected.as_ref())
+        else {
+            return;
+        };
         let mut camera = self.state.camera;
         camera.target = entity.at.to_array();
         self.apply(ViewerAction::SetCamera(camera));
@@ -186,22 +257,40 @@ impl App {
     /// The selected entity's gizmo as the view under `at` shows it (src/gizmo.rs), the entity, and the
     /// viewport pixel at `at`: in the view on screen (the free camera's while it is on), outside a playing
     /// timeline, for an entity that shows and may move.
-    pub(super) fn gizmo_shape(&self, at: Vec2) -> Option<(crate::gizmo::Shape, crate::entity::Entity, Vec2)> {
+    pub(super) fn gizmo_shape(
+        &self,
+        at: Vec2,
+    ) -> Option<(crate::gizmo::Shape, crate::entity::Entity, Vec2)> {
         if self.timeline_playing() || self.paused_page() {
             return None;
         }
         let renderer = self.renderer.as_ref()?;
         let content = self.last_content.as_ref()?;
-        let shown = if self.free_camera_on() { ViewId::FREE } else { ViewId::MAIN };
+        let shown = if self.free_camera_on() {
+            ViewId::FREE
+        } else {
+            ViewId::MAIN
+        };
         if self.view_at(at)?.0 != shown || renderer.frame_views().len() > 2 {
             return None;
         }
-        let entity = crate::entity::list(&self.state, &renderer.statics).into_iter().find(|e| Some(&e.id) == self.selected.as_ref() && e.movable() && e.visible)?;
+        let entity = crate::entity::list(&self.state, &renderer.statics)
+            .into_iter()
+            .find(|e| Some(&e.id) == self.selected.as_ref() && e.movable() && e.visible)?;
         let layout = renderer.frame_layout();
         let pixel = layout.target_to_viewport_pixel(at);
         let projector = Projector::new(&content.uniforms.camera);
-        let mode = if entity.yaw.is_some() { self.gizmo_mode } else { crate::gizmo::Mode::Move };
-        let shape = crate::gizmo::shape(&projector, entity.at, mode, crate::gizmo::ARM * layout.scale)?;
+        let mode = if entity.yaw.is_some() {
+            self.gizmo_mode
+        } else {
+            crate::gizmo::Mode::Move
+        };
+        let shape = crate::gizmo::shape(
+            &projector,
+            entity.at,
+            mode,
+            crate::gizmo::ARM * layout.scale,
+        )?;
         Some((shape, entity, pixel))
     }
 
@@ -210,13 +299,25 @@ impl App {
         let (shape, entity, pixel) = self.gizmo_shape(at)?;
         let handle = shape.hit(pixel, self.gizmo_reach())?;
         self.end_intro();
-        Some((crate::gizmo::Drag { handle, at: entity.at, yaw: entity.yaw_degrees, scale: entity.scale_factor, start: pixel, center: shape.center }, entity))
+        Some((
+            crate::gizmo::Drag {
+                handle,
+                at: entity.at,
+                yaw: entity.yaw_degrees,
+                scale: entity.scale_factor,
+                start: pixel,
+                center: shape.center,
+            },
+            entity,
+        ))
     }
 
     /// The gizmo's drag with the pointer at `at`: the entity's values set where it puts them, each within
     /// its range.
     fn drag_gizmo(&mut self, drag: &crate::gizmo::Drag, entity: &crate::entity::Entity, at: Vec2) {
-        let Some(content) = self.last_content.as_ref() else { return };
+        let Some(content) = self.last_content.as_ref() else {
+            return;
+        };
         let projector = Projector::new(&content.uniforms.camera);
         let pixel = self.renderer().frame_layout().target_to_viewport_pixel(at);
         let (to, yaw, scale) = crate::gizmo::dragged(&projector, drag, pixel);
@@ -231,7 +332,9 @@ impl App {
             set.push((key, scale));
         }
         for (key, value) in set {
-            let value = crate::values::entry(key).and_then(|e| e.range_of(crate::values::component(e, key))).map_or(value, |(lo, hi)| value.clamp(lo, hi));
+            let value = crate::values::entry(key)
+                .and_then(|e| e.range_of(crate::values::component(e, key)))
+                .map_or(value, |(lo, hi)| value.clamp(lo, hi));
             if self.state.try_get(key).is_none_or(|v| v.f32() != value) {
                 self.set_live_value(key, value);
             }
@@ -241,18 +344,31 @@ impl App {
     /// The view a held right button flies (src/camera.rs `OrbitCamera::fly`), if any: WASD move along the view,
     /// Q and E down and up the world's Y; Shift faster.
     pub(super) fn flying(&self) -> Option<ViewId> {
-        self.drag.as_ref().filter(|d| d.button == MouseButton::Right && d.inset.is_none()).map(|d| d.view).filter(|v| *v == ViewId::FREE || !self.timeline_playing())
+        self.drag
+            .as_ref()
+            .filter(|d| d.button == MouseButton::Right && d.inset.is_none())
+            .map(|d| d.view)
+            .filter(|v| *v == ViewId::FREE || !self.timeline_playing())
     }
 
     /// One frame of the fly camera: `dt` seconds of the held keys' motion.
     pub(super) fn fly_step(&mut self, dt: f32) {
         let Some(view) = self.flying() else { return };
         let held = |codes: &[KeyCode]| self.held.iter().any(|k| codes.contains(k)) as i32 as f32;
-        let axis = glam::Vec3::new(held(&[KeyCode::KeyD]) - held(&[KeyCode::KeyA]), held(&[KeyCode::KeyE]) - held(&[KeyCode::KeyQ]), held(&[KeyCode::KeyW]) - held(&[KeyCode::KeyS]));
+        let axis = glam::Vec3::new(
+            held(&[KeyCode::KeyD]) - held(&[KeyCode::KeyA]),
+            held(&[KeyCode::KeyE]) - held(&[KeyCode::KeyQ]),
+            held(&[KeyCode::KeyW]) - held(&[KeyCode::KeyS]),
+        );
         if axis == glam::Vec3::ZERO {
             return;
         }
-        let speed = self.fly_speed * if self.modifiers.shift { FLY_SHIFT } else { 1.0 };
+        let speed = self.fly_speed
+            * if self.modifiers.shift {
+                FLY_SHIFT
+            } else {
+                1.0
+            };
         let step = axis.normalize() * speed * dt;
         self.move_camera(view, |camera| camera.fly(step));
     }
@@ -284,13 +400,19 @@ impl App {
 
     /// A cursor move in window pixels, for egui and the 3D view.
     pub fn cursor_moved(&mut self, p: Vec2) {
-        self.egui_events.push(egui::Event::PointerMoved(self.to_egui(p)));
+        self.egui_events
+            .push(egui::Event::PointerMoved(self.to_egui(p)));
         self.pointer_move(p);
     }
 
     pub fn mouse_button(&mut self, button: MouseButton, pressed: bool) {
         if let Some(b) = crate::window::pointer_button(button) {
-            self.egui_events.push(egui::Event::PointerButton { pos: self.to_egui(self.cursor), button: b, pressed, modifiers: self.modifiers });
+            self.egui_events.push(egui::Event::PointerButton {
+                pos: self.to_egui(self.cursor),
+                button: b,
+                pressed,
+                modifiers: self.modifiers,
+            });
         }
         if pressed {
             self.pointer_down(button, self.cursor);
@@ -316,9 +438,17 @@ impl App {
             _ => None,
         };
         if let Some(key) = key {
-            self.egui_events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: event.repeat, modifiers: self.modifiers });
+            self.egui_events.push(egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed,
+                repeat: event.repeat,
+                modifiers: self.modifiers,
+            });
         }
-        if let (true, Some(text)) = (pressed, &event.text) && !text.chars().any(char::is_control) {
+        if let (true, Some(text)) = (pressed, &event.text)
+            && !text.chars().any(char::is_control)
+        {
             self.egui_events.push(egui::Event::Text(text.to_string()));
         }
     }
@@ -326,7 +456,8 @@ impl App {
     pub fn wheel(&mut self, steps: f32) {
         // Flying, the wheel sets the fly speed.
         if self.flying().is_some() {
-            self.fly_speed = (self.fly_speed * 1.2f32.powf(steps)).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX);
+            self.fly_speed =
+                (self.fly_speed * 1.2f32.powf(steps)).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX);
             return;
         }
         // A paused diagram zooms itself (src/diagram.rs).
@@ -352,11 +483,16 @@ impl App {
     }
 
     pub(super) fn click(&mut self, at: Vec2, view: ViewId) {
-        let Some((_, rect)) = self.view_at(at).filter(|(v, _)| *v == view) else { return };
+        let Some((_, rect)) = self.view_at(at).filter(|(v, _)| *v == view) else {
+            return;
+        };
         // The view's content, by field (so `self.state` stays free to change).
         let content = match view {
             ViewId::FREE => self.last_content.as_ref(),
-            _ => self.last_main_content.as_ref().or(self.last_content.as_ref()),
+            _ => self
+                .last_main_content
+                .as_ref()
+                .or(self.last_content.as_ref()),
         };
         let Some(content) = content else { return };
         // The pixel of the view's own frame (its picture may be shown smaller, as the main view in a corner).
@@ -365,18 +501,38 @@ impl App {
         let size = content.uniforms.camera.viewport_size;
         let pixel = Vec2::new(uv.x * size[0], uv.y * size[1]);
         let shown = self.render_state();
-        let Some(renderer) = &self.renderer else { return };
+        let Some(renderer) = &self.renderer else {
+            return;
+        };
         // An inset covers the scene behind it; a click on the picture of one
         // with a click handler (`PictureInset::click`) runs the handler.
-        if self.last_insets.iter().rev().any(|i| i.frame.contains(point)) {
+        if self
+            .last_insets
+            .iter()
+            .rev()
+            .any(|i| i.frame.contains(point))
+        {
             return;
         }
         // The scripts' `scene` click handler, else the investigation's code's.
-        let mut frame = crate::actions::ClickFrame { shown: &shown, state: &mut self.state, uv: Vec2::new(uv.x, uv.y), content, statics: &renderer.statics };
+        let mut frame = crate::actions::ClickFrame {
+            shown: &shown,
+            state: &mut self.state,
+            uv: Vec2::new(uv.x, uv.y),
+            content,
+            statics: &renderer.statics,
+        };
         if crate::script::runtime::click("scene", &mut frame).is_some() {
             return;
         }
         let projector = Projector::new(&content.uniforms.camera);
-        investigation::current().click(&shown, &mut self.state, content, &renderer.statics, &projector, pixel);
+        investigation::current().click(
+            &shown,
+            &mut self.state,
+            content,
+            &renderer.statics,
+            &projector,
+            pixel,
+        );
     }
 }

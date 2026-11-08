@@ -69,18 +69,46 @@ pub struct Kind {
 
 pub const KINDS: &[Kind] = &[
     // The source's bytes as they are.
-    Kind { name: "file", params: &[], code: &[], process: |bytes, _| Ok(bytes.to_vec()) },
+    Kind {
+        name: "file",
+        params: &[],
+        code: &[],
+        process: |bytes, _| Ok(bytes.to_vec()),
+    },
     // A directory of files read where they are (the images a timeline names
     // beside it), linked into the built package file by file.
-    Kind { name: "directory", params: &[], code: &[], process: |_, _| Err("a directory is linked file by file, not processed".into()) },
+    Kind {
+        name: "directory",
+        params: &[],
+        code: &[],
+        process: |_, _| Err("a directory is linked file by file, not processed".into()),
+    },
     radiance::KIND,
     mesh::KIND,
 ];
 
 /// The fields every resource has, and the overlay's flags.
-const FIELDS: &[&str] = &["id", "kind", "source", "license", "overridable", "override", "built"];
+const FIELDS: &[&str] = &[
+    "id",
+    "kind",
+    "source",
+    "license",
+    "overridable",
+    "override",
+    "built",
+];
 /// A built collection's fields (src/cook.rs writes them).
-const BUILT_FIELDS: &[&str] = &["id", "kind", "file", "source", "license", "stamp", "overridable", "override", "built"];
+const BUILT_FIELDS: &[&str] = &[
+    "id",
+    "kind",
+    "file",
+    "source",
+    "license",
+    "stamp",
+    "overridable",
+    "override",
+    "built",
+];
 
 /// Which form of a collection to read: a source package's (`source` and the
 /// kind's parameters), or a built package's (`file`, the processed output).
@@ -132,18 +160,35 @@ pub struct Collection {
 }
 
 pub fn relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 fn valid_id(id: &str) -> bool {
     !id.is_empty()
-        && id.split('/').all(|group| !group.is_empty() && group.split('-').all(|w| !w.is_empty() && w.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())))
+        && id.split('/').all(|group| {
+            !group.is_empty()
+                && group.split('-').all(|w| {
+                    !w.is_empty()
+                        && w.bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+                })
+        })
 }
 
 /// Reads one collection of the package `package` (in `package_dir`), in
 /// `form`: its ids become full keys, and `resolve` turns its references into
 /// full keys. A source must be inside its package.
-pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &str, form: Form, resolve: &dyn Fn(&str) -> Result<String, String>) -> Result<Collection, String> {
+pub fn read_collection(
+    root: &Path,
+    package_dir: &Path,
+    path: &Path,
+    package: &str,
+    form: Form,
+    resolve: &dyn Fn(&str) -> Result<String, String>,
+) -> Result<Collection, String> {
     let mut out = Collection::default();
     let name = relative(root, path);
     let fail = |message: String| format!("resources: {name}: {message}");
@@ -152,26 +197,52 @@ pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &s
     let dir = path.parent().unwrap();
     for (key, _) in document.as_table() {
         if key != "resource" && key != "shader" {
-            return Err(fail(format!("unknown key `{key}` (a collection has `[[resource]]` and `[[shader]]` tables)")));
+            return Err(fail(format!(
+                "unknown key `{key}` (a collection has `[[resource]]` and `[[shader]]` tables)"
+            )));
         }
     }
     if let Some(shaders) = document.get("shader") {
-        let tables = shaders.as_array_of_tables().ok_or_else(|| fail("`shader` is a list of `[[shader]]` tables".into()))?;
+        let tables = shaders
+            .as_array_of_tables()
+            .ok_or_else(|| fail("`shader` is a list of `[[shader]]` tables".into()))?;
         for table in tables {
             let id = table.get("id").and_then(|i| i.as_str()).filter(|s| valid_id(s)).ok_or_else(|| fail("a shader needs `id`, lower-case words joined by `-`, in groups joined by `/`".into()))?.to_string();
             let fail = |message: String| fail(format!("shader `{id}`: {message}"));
-            if let Some((key, _)) = table.iter().find(|(key, _)| *key != "id" && *key != "parts") {
-                return Err(fail(format!("unknown field `{key}` (a shader has `id` and `parts`)")));
+            if let Some((key, _)) = table
+                .iter()
+                .find(|(key, _)| *key != "id" && *key != "parts")
+            {
+                return Err(fail(format!(
+                    "unknown field `{key}` (a shader has `id` and `parts`)"
+                )));
             }
-            let parts: Option<Vec<String>> = table.get("parts").and_then(|p| p.as_array()).and_then(|a| a.iter().map(|v| v.as_str().map(String::from)).collect());
-            let parts = parts.filter(|p| !p.is_empty()).ok_or_else(|| fail("`parts` is a list of resource and shader ids".into()))?;
+            let parts: Option<Vec<String>> = table
+                .get("parts")
+                .and_then(|p| p.as_array())
+                .and_then(|a| a.iter().map(|v| v.as_str().map(String::from)).collect());
+            let parts = parts
+                .filter(|p| !p.is_empty())
+                .ok_or_else(|| fail("`parts` is a list of resource and shader ids".into()))?;
             let written = parts.clone();
-            let parts = parts.iter().map(|p| resolve(p).map_err(|e| fail(format!("part {e}")))).collect::<Result<_, _>>()?;
-            out.shaders.push(ShaderDeclaration { id: format!("{package}.{id}"), manifest: name.clone(), parts, written });
+            let parts = parts
+                .iter()
+                .map(|p| resolve(p).map_err(|e| fail(format!("part {e}"))))
+                .collect::<Result<_, _>>()?;
+            out.shaders.push(ShaderDeclaration {
+                id: format!("{package}.{id}"),
+                manifest: name.clone(),
+                parts,
+                written,
+            });
         }
     }
-    let Some(resources) = document.get("resource") else { return Ok(out) };
-    let tables = resources.as_array_of_tables().ok_or_else(|| fail("`resource` is a list of `[[resource]]` tables".into()))?;
+    let Some(resources) = document.get("resource") else {
+        return Ok(out);
+    };
+    let tables = resources
+        .as_array_of_tables()
+        .ok_or_else(|| fail("`resource` is a list of `[[resource]]` tables".into()))?;
     for table in tables {
         let string = |field: &str| -> Result<String, String> {
             match table.get(field).and_then(|item| item.as_str()) {
@@ -182,24 +253,32 @@ pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &s
         let id = string("id")?;
         let fail = |message: String| fail(format!("resource `{id}`: {message}"));
         if !valid_id(&id) {
-            return Err(fail("ids are lower-case words joined by `-`, in groups joined by `/`".into()));
+            return Err(fail(
+                "ids are lower-case words joined by `-`, in groups joined by `/`".into(),
+            ));
         }
         let kind_name = string("kind")?;
-        let kind = KINDS
-            .iter()
-            .find(|k| k.name == kind_name)
-            .ok_or_else(|| fail(format!("unknown kind `{kind_name}` (kinds: {})", KINDS.iter().map(|k| k.name).collect::<Vec<_>>().join(", "))))?;
+        let kind = KINDS.iter().find(|k| k.name == kind_name).ok_or_else(|| {
+            fail(format!(
+                "unknown kind `{kind_name}` (kinds: {})",
+                KINDS.iter().map(|k| k.name).collect::<Vec<_>>().join(", ")
+            ))
+        })?;
         let flag = |field: &str| -> Result<bool, String> {
             match table.get(field) {
                 None => Ok(false),
-                Some(item) => item.as_bool().ok_or_else(|| fail(format!("`{field}` is true or false"))),
+                Some(item) => item
+                    .as_bool()
+                    .ok_or_else(|| fail(format!("`{field}` is true or false"))),
             }
         };
         let (overridable, built) = (flag("overridable")?, flag("built")?);
         let overrides = match table.get("override") {
             None => None,
             Some(item) => {
-                let target = item.as_str().ok_or_else(|| fail("`override` names the resource it replaces, `<package>.<id>`".into()))?;
+                let target = item.as_str().ok_or_else(|| {
+                    fail("`override` names the resource it replaces, `<package>.<id>`".into())
+                })?;
                 Some(resolve(target).map_err(|e| fail(format!("override {e}")))?)
             }
         };
@@ -210,11 +289,33 @@ pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &s
             let file = string("file")?;
             let path = dir.join(&file);
             if !built && !path.exists() {
-                return Err(fail(format!("file `{file}`: no such file (rebuild the package)")));
+                return Err(fail(format!(
+                    "file `{file}`: no such file (rebuild the package)"
+                )));
             }
-            let stamp = table.get("stamp").and_then(|s| s.as_str()).map(String::from);
-            let source = table.get("source").and_then(|s| s.as_str()).unwrap_or(&file).to_string();
-            out.resources.push(Declaration { license: string("license")?, id: format!("{package}.{id}"), kind, manifest: name.clone(), source, params: Params(BTreeMap::new()), file: path, local: file, stamp, overridable, overrides, built });
+            let stamp = table
+                .get("stamp")
+                .and_then(|s| s.as_str())
+                .map(String::from);
+            let source = table
+                .get("source")
+                .and_then(|s| s.as_str())
+                .unwrap_or(&file)
+                .to_string();
+            out.resources.push(Declaration {
+                license: string("license")?,
+                id: format!("{package}.{id}"),
+                kind,
+                manifest: name.clone(),
+                source,
+                params: Params(BTreeMap::new()),
+                file: path,
+                local: file,
+                stamp,
+                overridable,
+                overrides,
+                built,
+            });
             continue;
         }
         let mut params = BTreeMap::new();
@@ -223,12 +324,28 @@ pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &s
                 continue;
             }
             let Some(&(_, ty)) = kind.params.iter().find(|(name, _)| *name == key) else {
-                return Err(fail(format!("`{key}` is not a parameter of kind `{}`", kind.name)));
+                return Err(fail(format!(
+                    "`{key}` is not a parameter of kind `{}`",
+                    kind.name
+                )));
             };
             let value = match (ty, item.as_value()) {
                 (Ty::Float, Some(toml_edit::Value::Float(f))) => *f.value(),
-                (Ty::Float | Ty::Int, Some(toml_edit::Value::Integer(i))) if *i.value() >= 0 || ty == Ty::Float => *i.value() as f64,
-                _ => return Err(fail(format!("`{key}` is {}", if ty == Ty::Float { "a number" } else { "a whole number, at least 0" }))),
+                (Ty::Float | Ty::Int, Some(toml_edit::Value::Integer(i)))
+                    if *i.value() >= 0 || ty == Ty::Float =>
+                {
+                    *i.value() as f64
+                }
+                _ => {
+                    return Err(fail(format!(
+                        "`{key}` is {}",
+                        if ty == Ty::Float {
+                            "a number"
+                        } else {
+                            "a whole number, at least 0"
+                        }
+                    )));
+                }
             };
             params.insert(key.to_string(), value);
         }
@@ -243,20 +360,49 @@ pub fn read_collection(root: &Path, package_dir: &Path, path: &Path, package: &s
         }
         let file = if built {
             // It may not be built yet.
-            fs::canonicalize(dir).map_err(|e| fail(format!("{e}")))?.join(&source_name)
+            fs::canonicalize(dir)
+                .map_err(|e| fail(format!("{e}")))?
+                .join(&source_name)
         } else {
-            let found = if kind.name == "directory" { dir.join(&source_name).is_dir() } else { dir.join(&source_name).is_file() };
+            let found = if kind.name == "directory" {
+                dir.join(&source_name).is_dir()
+            } else {
+                dir.join(&source_name).is_file()
+            };
             if !found {
-                return Err(fail(format!("source `{source_name}`: no such {}", if kind.name == "directory" { "directory" } else { "file" })));
+                return Err(fail(format!(
+                    "source `{source_name}`: no such {}",
+                    if kind.name == "directory" {
+                        "directory"
+                    } else {
+                        "file"
+                    }
+                )));
             }
-            fs::canonicalize(dir.join(&source_name)).map_err(|e| fail(format!("source `{source_name}`: {e}")))?
+            fs::canonicalize(dir.join(&source_name))
+                .map_err(|e| fail(format!("source `{source_name}`: {e}")))?
         };
         let package_dir = fs::canonicalize(package_dir).map_err(|e| fail(format!("{e}")))?;
         if !file.starts_with(&package_dir) {
-            return Err(fail(format!("source `{source_name}` is outside its package (a package is self-contained)")));
+            return Err(fail(format!(
+                "source `{source_name}` is outside its package (a package is self-contained)"
+            )));
         }
         let local = relative(&package_dir, &file);
-        out.resources.push(Declaration { license: string("license")?, id: format!("{package}.{id}"), kind, manifest: name.clone(), source: relative(root, &file), params: Params(params), file, local, stamp: None, overridable, overrides, built });
+        out.resources.push(Declaration {
+            license: string("license")?,
+            id: format!("{package}.{id}"),
+            kind,
+            manifest: name.clone(),
+            source: relative(root, &file),
+            params: Params(params),
+            file,
+            local,
+            stamp: None,
+            overridable,
+            overrides,
+            built,
+        });
     }
     Ok(out)
 }
@@ -270,7 +416,11 @@ impl Declaration {
     /// Its output's path in its built package: a `file` resource keeps its
     /// path in the package; a processed one is `cooked/<key>.bin`.
     pub fn output(&self) -> String {
-        if self.kind.name == "file" || self.kind.name == "directory" { self.local.clone() } else { format!("cooked/{}.bin", self.key().replace('/', "-")) }
+        if self.kind.name == "file" || self.kind.name == "directory" {
+            self.local.clone()
+        } else {
+            format!("cooked/{}.bin", self.key().replace('/', "-"))
+        }
     }
 
     /// A directory resource's files, relative to it, sorted.
@@ -278,7 +428,11 @@ impl Declaration {
         fn walk(dir: &Path, base: &Path, out: &mut Vec<String>) {
             for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
                 let path = entry.path();
-                if path.is_dir() { walk(&path, base, out) } else { out.push(relative(base, &path)) }
+                if path.is_dir() {
+                    walk(&path, base, out)
+                } else {
+                    out.push(relative(base, &path))
+                }
             }
         }
         let mut out = Vec::new();
@@ -293,7 +447,15 @@ impl Declaration {
     pub fn stamp(&self) -> Option<String> {
         let size_and_time = |path: &Path| -> Option<String> {
             let meta = fs::metadata(path).ok()?;
-            Some(format!("{}:{}", meta.len(), meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos()))
+            Some(format!(
+                "{}:{}",
+                meta.len(),
+                meta.modified()
+                    .ok()?
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()?
+                    .as_nanos()
+            ))
         };
         let mut hash = Sha256::new();
         hash.update(self.kind.name);
@@ -308,12 +470,21 @@ impl Declaration {
                 return None;
             }
             for file in self.files() {
-                hash.update(format!("{file}={};", size_and_time(&self.file.join(&file))?));
+                hash.update(format!(
+                    "{file}={};",
+                    size_and_time(&self.file.join(&file))?
+                ));
             }
         } else {
             hash.update(size_and_time(&self.file)?);
         }
-        Some(hash.finalize().iter().take(12).map(|b| format!("{b:02x}")).collect())
+        Some(
+            hash.finalize()
+                .iter()
+                .take(12)
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        )
     }
 
     /// Makes its output at `out` from its source: a `file` resource is
@@ -322,13 +493,18 @@ impl Declaration {
     pub fn produce(&self, out: &Path) -> Result<(), String> {
         if self.kind.name == "directory" {
             for file in self.files() {
-                let one = Declaration { kind: &KINDS[0], file: self.file.join(&file), ..self.clone() };
+                let one = Declaration {
+                    kind: &KINDS[0],
+                    file: self.file.join(&file),
+                    ..self.clone()
+                };
                 one.produce(&out.join(&file))?;
             }
             return Ok(());
         }
         if let Some(dir) = out.parent() {
-            fs::create_dir_all(dir).map_err(|e| format!("resources: create {}: {e}", dir.display()))?;
+            fs::create_dir_all(dir)
+                .map_err(|e| format!("resources: create {}: {e}", dir.display()))?;
         }
         // Written beside it, then moved, so a reader never sees half a file.
         let partial = out.with_extension(format!("partial.{}", std::process::id()));
@@ -338,12 +514,16 @@ impl Declaration {
                 return Ok(());
             }
             if fs::hard_link(&self.file, &partial).is_err() {
-                fs::copy(&self.file, &partial).map_err(|e| format!("resources: {}: copy {}: {e}", self.id, self.source))?;
+                fs::copy(&self.file, &partial)
+                    .map_err(|e| format!("resources: {}: copy {}: {e}", self.id, self.source))?;
             }
         } else {
-            let bytes = fs::read(&self.file).map_err(|e| format!("resources: {}: read {}: {e}", self.id, self.source))?;
-            let processed = (self.kind.process)(&bytes, &self.params).map_err(|e| format!("resources: {} ({}): {e}", self.id, self.manifest))?;
-            fs::write(&partial, &processed).map_err(|e| format!("resources: write {}: {e}", partial.display()))?;
+            let bytes = fs::read(&self.file)
+                .map_err(|e| format!("resources: {}: read {}: {e}", self.id, self.source))?;
+            let processed = (self.kind.process)(&bytes, &self.params)
+                .map_err(|e| format!("resources: {} ({}): {e}", self.id, self.manifest))?;
+            fs::write(&partial, &processed)
+                .map_err(|e| format!("resources: write {}: {e}", partial.display()))?;
         }
         fs::rename(&partial, out).map_err(|e| format!("resources: write {}: {e}", out.display()))
     }

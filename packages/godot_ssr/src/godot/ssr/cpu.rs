@@ -25,7 +25,10 @@ pub struct View {
 impl View {
     /// The SSR pixels of a frame drawn by `camera`.
     pub fn of(camera: &CameraData) -> View {
-        let viewport = [camera.viewport_size[0].max(1.0) as u32, camera.viewport_size[1].max(1.0) as u32];
+        let viewport = [
+            camera.viewport_size[0].max(1.0) as u32,
+            camera.viewport_size[1].max(1.0) as u32,
+        ];
         View {
             size: gpu::ssr_size(viewport),
             projection: gpu::godot_projection(Mat4::from_cols_array_2d(&camera.view_to_clip)),
@@ -42,7 +45,10 @@ impl View {
 
     /// The world point of SSR pixel `p`'s centre at reversed depth `depth`.
     pub fn world_at(&self, p: [i32; 2], depth: f32) -> Vec3 {
-        let uv = Vec2::new((p[0] as f32 + 0.5) / self.size[0] as f32, (p[1] as f32 + 0.5) / self.size[1] as f32);
+        let uv = Vec2::new(
+            (p[0] as f32 + 0.5) / self.size[0] as f32,
+            (p[1] as f32 + 0.5) / self.size[1] as f32,
+        );
         self.world_of(uv.extend(depth))
     }
 
@@ -60,7 +66,8 @@ impl View {
         let uv = Vec2::new(c.x / c.w, c.y / c.w) * 0.5 + Vec2::splat(0.5);
         let px = uv * Vec2::new(self.size[0] as f32, self.size[1] as f32);
         let q = [px.x.floor() as i32, px.y.floor() as i32];
-        (q[0] >= 0 && q[1] >= 0 && q[0] < self.size[0] as i32 && q[1] < self.size[1] as i32).then_some(q)
+        (q[0] >= 0 && q[1] >= 0 && q[0] < self.size[0] as i32 && q[1] < self.size[1] as i32)
+            .then_some(q)
     }
 }
 
@@ -81,7 +88,11 @@ impl Deref for Screen {
 impl Screen {
     /// The frame's inputs from images read back (each level of `hiz`, and `normal_roughness`).
     pub fn new(view: View, hiz: Vec<Image>, normal_roughness: Image) -> Screen {
-        Screen { view, hiz, normal_roughness }
+        Screen {
+            view,
+            hiz,
+            normal_roughness,
+        }
     }
 
     /// The world point of SSR pixel `p`'s surface (its depth at level 0).
@@ -90,7 +101,14 @@ impl Screen {
     }
 
     /// The trace's inputs over this frame (last frame black: the stepper shows geometry, not colour).
-    pub fn inputs<'a>(&'a self, last: &'a Image, steps: i32, fade_in: f32, fade_out: f32, tolerance: f32) -> trace::Inputs<'a> {
+    pub fn inputs<'a>(
+        &'a self,
+        last: &'a Image,
+        steps: i32,
+        fade_in: f32,
+        fade_out: f32,
+        tolerance: f32,
+    ) -> trace::Inputs<'a> {
         trace::Inputs {
             hiz: &self.hiz,
             normal_roughness: &self.normal_roughness,
@@ -109,7 +127,13 @@ impl Screen {
 /// A whole image read back, as trace.rs's image.
 pub fn image_of(f: &Fetched) -> Option<Image> {
     let size = [f.extent[0], f.extent[1]];
-    (f.region.origin == [0, 0, 0] && f.region.size == [size[0], size[1], 1] && f.channels > 0).then(|| Image { size, channels: f.channels, data: f.floats.clone() })
+    (f.region.origin == [0, 0, 0] && f.region.size == [size[0], size[1], 1] && f.channels > 0).then(
+        || Image {
+            size,
+            channels: f.channels,
+            data: f.floats.clone(),
+        },
+    )
 }
 
 /// The frame's whole pyramid and normal-roughness (asked for in `content`):
@@ -119,8 +143,20 @@ pub fn image_of(f: &Fetched) -> Option<Image> {
 pub fn screen(content: &mut FrameContent) -> Option<Arc<Screen>> {
     let view = View::of(&content.uniforms.camera);
     let mips = gpu::mipmaps(view.size);
-    let levels: Vec<Option<Arc<Fetched>>> = (0..mips).map(|m| content.fetch(&format!("godot_ssr.hiz/{m}"), Source::image("hiz", m), Region::ALL)).collect();
-    let normal = content.fetch("godot_ssr.halfNormal", Source::image("halfNormal", 0), Region::ALL);
+    let levels: Vec<Option<Arc<Fetched>>> = (0..mips)
+        .map(|m| {
+            content.fetch(
+                &format!("godot_ssr.hiz/{m}"),
+                Source::image("hiz", m),
+                Region::ALL,
+            )
+        })
+        .collect();
+    let normal = content.fetch(
+        "godot_ssr.halfNormal",
+        Source::image("halfNormal", 0),
+        Region::ALL,
+    );
     assemble(view, levels, normal)
 }
 
@@ -130,17 +166,26 @@ pub fn screen(content: &mut FrameContent) -> Option<Arc<Screen>> {
 pub fn screen_in(of: lab::view::ViewId, camera: &CameraData) -> Option<Arc<Screen>> {
     let view = View::of(camera);
     let mips = gpu::mipmaps(view.size);
-    let levels: Vec<Option<Arc<Fetched>>> = (0..mips).map(|m| lab::fetch::get_in(of, &format!("godot_ssr.hiz/{m}"))).collect();
+    let levels: Vec<Option<Arc<Fetched>>> = (0..mips)
+        .map(|m| lab::fetch::get_in(of, &format!("godot_ssr.hiz/{m}")))
+        .collect();
     let normal = lab::fetch::get_in(of, "godot_ssr.halfNormal");
     assemble(view, levels, normal)
 }
 
 /// The screen from a pyramid's levels and the normals read back, all of one frame (kept for the current view).
-fn assemble(mut view: View, levels: Vec<Option<Arc<Fetched>>>, normal: Option<Arc<Fetched>>) -> Option<Arc<Screen>> {
-    let (levels, normal): (Vec<Arc<Fetched>>, Arc<Fetched>) = (levels.into_iter().collect::<Option<_>>()?, normal?);
+fn assemble(
+    mut view: View,
+    levels: Vec<Option<Arc<Fetched>>>,
+    normal: Option<Arc<Fetched>>,
+) -> Option<Arc<Screen>> {
+    let (levels, normal): (Vec<Arc<Fetched>>, Arc<Fetched>) =
+        (levels.into_iter().collect::<Option<_>>()?, normal?);
     // All of one frame: the levels and the normals read after the same passes.
     let frames: Vec<u64> = levels.iter().chain([&normal]).map(|f| f.frame).collect();
-    if frames.iter().any(|&f| f != frames[0]) || levels.iter().chain([&normal]).any(|f| f.tag != normal.tag) {
+    if frames.iter().any(|&f| f != frames[0])
+        || levels.iter().chain([&normal]).any(|f| f.tag != normal.tag)
+    {
         return kept(&view, None);
     }
     view.size = [normal.extent[0], normal.extent[1]];
@@ -149,7 +194,11 @@ fn assemble(mut view: View, levels: Vec<Option<Arc<Fetched>>>, normal: Option<Ar
         return Some(s);
     }
     let hiz: Vec<Image> = levels.iter().map(|f| image_of(f)).collect::<Option<_>>()?;
-    if hiz.iter().enumerate().any(|(m, l)| l.size != gpu::level_size(view.size, m as u32)) {
+    if hiz
+        .iter()
+        .enumerate()
+        .any(|(m, l)| l.size != gpu::level_size(view.size, m as u32))
+    {
         return kept(&view, None);
     }
     let screen = Arc::new(Screen::new(view, hiz, image_of(&normal)?));
@@ -176,7 +225,13 @@ fn kept(view: &View, key: Option<Key>) -> Option<Arc<Screen>> {
 
 fn view_bits(view: &View) -> [u32; 48] {
     let mut bits = [0u32; 48];
-    for (i, v) in view.projection.to_cols_array().iter().chain(view.world_to_view.to_cols_array().iter()).enumerate() {
+    for (i, v) in view
+        .projection
+        .to_cols_array()
+        .iter()
+        .chain(view.world_to_view.to_cols_array().iter())
+        .enumerate()
+    {
         bits[i] = v.to_bits();
     }
     bits[32] = view.size[0];
@@ -186,7 +241,12 @@ fn view_bits(view: &View) -> [u32; 48] {
 
 /// Pixel `p` of a program image, read back alone (key `key`): the latest read,
 /// its pixel (`p`, or while P moves the one a frame or two before) and texel.
-pub fn texel(content: &mut FrameContent, key: &str, source: Source, p: [i32; 2]) -> Option<([i32; 2], Vec4)> {
+pub fn texel(
+    content: &mut FrameContent,
+    key: &str,
+    source: Source,
+    p: [i32; 2],
+) -> Option<([i32; 2], Vec4)> {
     let f = content.fetch(key, source, Region::around(p, 0))?;
     let at = [f.region.origin[0] as i32, f.region.origin[1] as i32];
     Some((at, f.texel(at)?))

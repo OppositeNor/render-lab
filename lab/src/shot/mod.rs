@@ -12,22 +12,22 @@
 
 use crate::actions::{ActionCall, ActionFrame, RunningAction};
 use crate::animation::{Ease, Motion};
-use crate::utility::annotations::{Anchor, AnnotationKind, NoteKind, StoryNote};
-use crate::utility::inset::{Corner, ImageSource, StoryImage};
 use crate::camera::{FreeCamera, OrbitCamera};
 use crate::investigation;
+use crate::utility::annotations::{Anchor, AnnotationKind, NoteKind, StoryNote};
+use crate::utility::inset::{Corner, ImageSource, StoryImage};
 use crate::values::{self, Reflect, Value, ValueMap};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-mod timeline;
-mod eval;
 mod check;
-pub use timeline::*;
-use eval::*;
+mod eval;
+mod timeline;
 pub(crate) use check::*;
+use eval::*;
+pub use timeline::*;
 
 /// A demonstration of the current investigation, by its key (`"cards"`).
 /// Investigations define their own demonstrations and hand out these ids.
@@ -50,7 +50,11 @@ impl DemoId {
 
     /// The current investigation's demonstration with this key.
     pub fn find(key: &str) -> Option<DemoId> {
-        investigation::current().demos().iter().copied().find(|d| d.key() == key)
+        investigation::current()
+            .demos()
+            .iter()
+            .copied()
+            .find(|d| d.key() == key)
     }
 }
 
@@ -63,7 +67,12 @@ impl Serialize for DemoId {
 impl<'de> Deserialize<'de> for DemoId {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<DemoId, D::Error> {
         let key = String::deserialize(deserializer)?;
-        DemoId::find(&key).ok_or_else(|| serde::de::Error::custom(format!("unknown demonstration `{key}` for {}", investigation::current().title())))
+        DemoId::find(&key).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "unknown demonstration `{key}` for {}",
+                investigation::current().title()
+            ))
+        })
     }
 }
 
@@ -120,12 +129,18 @@ impl PanelMode {
     /// It takes the wider panel (the code panel's width, `ViewerLayout::code_panel_width`): the pseudo-code,
     /// the knowledge graph, the DAG, the resources' cards.
     pub fn wide(self) -> bool {
-        matches!(self, PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources)
+        matches!(
+            self,
+            PanelMode::Code | PanelMode::Knowledge | PanelMode::Dag | PanelMode::Resources
+        )
     }
 
     /// It shows the frame graph (src/graph/): its passes, the DAG, or the resources' cards.
     pub fn shows_graph(self) -> bool {
-        matches!(self, PanelMode::Graph | PanelMode::Dag | PanelMode::Resources)
+        matches!(
+            self,
+            PanelMode::Graph | PanelMode::Dag | PanelMode::Resources
+        )
     }
 
     /// It shows the frame's passes with their GPU times: the frame is timed while it shows (src/timing.rs),
@@ -213,7 +228,10 @@ pub struct FrameSize {
 impl FrameSize {
     /// The size, when both sides name one.
     pub fn size(&self) -> Option<[u32; 2]> {
-        let (w, h) = (self.width.round().min(4096.0), self.height.round().min(4096.0));
+        let (w, h) = (
+            self.width.round().min(4096.0),
+            self.height.round().min(4096.0),
+        );
         (w >= 1.0 && h >= 1.0).then_some([w as u32, h as u32])
     }
 
@@ -235,7 +253,14 @@ impl ShotState {
     pub fn view_state(&self, name: &str) -> ShotState {
         let mut out = self.clone();
         let prefix = format!("view.{name}.");
-        let own: Vec<(String, f32)> = self.values.iter().filter_map(|(k, v)| k.strip_prefix(&prefix).map(|inner| (inner.to_string(), v.f32()))).collect();
+        let own: Vec<(String, f32)> = self
+            .values
+            .iter()
+            .filter_map(|(k, v)| {
+                k.strip_prefix(&prefix)
+                    .map(|inner| (inner.to_string(), v.f32()))
+            })
+            .collect();
         for (key, value) in own {
             out.set(&key, value);
         }
@@ -257,7 +282,8 @@ impl ShotState {
     pub fn set_own_camera(&mut self, name: &str, camera: &OrbitCamera) {
         for c in camera_channels() {
             let v = camera.get(c).expect("a camera channel").f32();
-            self.values.insert(format!("view.{name}.{c}"), Value::F32(v));
+            self.values
+                .insert(format!("view.{name}.{c}"), Value::F32(v));
         }
     }
 
@@ -269,13 +295,17 @@ impl ShotState {
     /// Whether the story shows the image the investigation publishes as `key`
     /// (so its frame publishes it, in `FrameContent::images`).
     pub fn shows_arrows(&self, key: &str) -> bool {
-        self.notes.iter().any(|n| n.kind == NoteKind::Arrows && n.name == key)
+        self.notes
+            .iter()
+            .any(|n| n.kind == NoteKind::Arrows && n.name == key)
     }
 
     /// Whether the story shows the image the investigation publishes as `key`
     /// (so its frame publishes it, in `FrameContent::images`).
     pub fn shows_image(&self, key: &str) -> bool {
-        self.images.iter().any(|i| matches!(&i.source, ImageSource::Published(k) if k == key))
+        self.images
+            .iter()
+            .any(|i| matches!(&i.source, ImageSource::Published(k) if k == key))
     }
 
     /// A number by name: a value's (a flag is 0 or 1), a component's, a
@@ -284,13 +314,18 @@ impl ShotState {
         if let Some(v) = self.values.get(name) {
             return v.f32();
         }
-        self.try_get(name).unwrap_or_else(|| panic!("unknown shot parameter {name}")).f32()
+        self.try_get(name)
+            .unwrap_or_else(|| panic!("unknown shot parameter {name}"))
+            .f32()
     }
 
     /// Sets a number by name: a value (in its type: a flag on above 0.5, an
     /// index the nearest whole number), a component, a parameter, or the camera's.
     pub fn set(&mut self, name: &str, value: f32) {
-        if self.camera.set(name, Value::F32(value)) || self.free_camera.set(name, Value::F32(value)) || self.frame.set(name, Value::F32(value)) {
+        if self.camera.set(name, Value::F32(value))
+            || self.free_camera.set(name, Value::F32(value))
+            || self.frame.set(name, Value::F32(value))
+        {
             return;
         }
         // A value of another view (src/view.rs): kept by its full name, a known key.
@@ -306,10 +341,16 @@ impl ShotState {
         }
         let investigation = investigation::current();
         if let Some(demos) = investigation.demo_specs() {
-            assert!(demos.set(&mut self.values, name, value), "unknown shot parameter {name}");
+            assert!(
+                demos.set(&mut self.values, name, value),
+                "unknown shot parameter {name}"
+            );
             return;
         }
-        assert!(investigation.param_default(name).is_some(), "unknown shot parameter {name}");
+        assert!(
+            investigation.param_default(name).is_some(),
+            "unknown shot parameter {name}"
+        );
         self.values.insert(name.to_string(), Value::F32(value));
     }
 
@@ -322,16 +363,26 @@ impl ShotState {
             Some(c) => serde_json::json!(c.options.get(v.u32() as usize).map_or("", |o| o.name)),
             None => v.to_json(),
         };
-        let json: serde_json::Map<String, serde_json::Value> = self.values.iter().map(|(k, v)| (k.clone(), json_of(k, v))).collect();
-        serde_json::from_value(serde_json::Value::Object(json)).unwrap_or_else(|e| panic!("the shot's values as {}: {e}", std::any::type_name::<T>()))
+        let json: serde_json::Map<String, serde_json::Value> = self
+            .values
+            .iter()
+            .map(|(k, v)| (k.clone(), json_of(k, v)))
+            .collect();
+        serde_json::from_value(serde_json::Value::Object(json))
+            .unwrap_or_else(|e| panic!("the shot's values as {}: {e}", std::any::type_name::<T>()))
     }
 
     /// Sets every value a typed struct holds (`#[derive(serde::Serialize)]`),
     /// by its fields' names (a choice's enum by its option's name).
     pub fn store<T: serde::Serialize>(&mut self, typed: &T) {
-        let serde_json::Value::Object(fields) = serde_json::to_value(typed).expect("a struct of values") else { panic!("{} is not a struct", std::any::type_name::<T>()) };
+        let serde_json::Value::Object(fields) =
+            serde_json::to_value(typed).expect("a struct of values")
+        else {
+            panic!("{} is not a struct", std::any::type_name::<T>())
+        };
         for (key, json) in fields {
-            for (channel, number) in values::resolve(&key, &json).unwrap_or_else(|e| panic!("{e}")) {
+            for (channel, number) in values::resolve(&key, &json).unwrap_or_else(|e| panic!("{e}"))
+            {
                 self.set(&channel, number);
             }
         }
@@ -343,7 +394,12 @@ impl ShotState {
         let mut out = Vec::new();
         for (key, value) in self.values.iter() {
             match values::entry(key).filter(|e| e.key == key && !e.components.is_empty()) {
-                Some(e) => out.extend(e.components.iter().zip(value.components()).map(|(c, n)| (c.to_string(), n))),
+                Some(e) => out.extend(
+                    e.components
+                        .iter()
+                        .zip(value.components())
+                        .map(|(c, n)| (c.to_string(), n)),
+                ),
                 None => out.push((key.clone(), value.f32())),
             }
         }
@@ -357,22 +413,53 @@ impl ShotState {
 
     /// Every channel a timeline blends: the cameras', then the values'.
     fn channels(&self) -> Vec<(String, f32)> {
-        let camera = camera_channels().into_iter().map(|c| (c.to_string(), self.camera.get(c).expect("a camera channel").f32()));
-        let free = free_camera_channels().into_iter().map(|c| (c.to_string(), self.free_camera.get(c).expect("a free camera channel").f32()));
-        let frame = frame_channels().into_iter().map(|c| (c.to_string(), self.frame.get(c).expect("a frame channel").f32()));
-        camera.chain(free).chain(frame).chain(self.value_channels()).collect()
+        let camera = camera_channels().into_iter().map(|c| {
+            (
+                c.to_string(),
+                self.camera.get(c).expect("a camera channel").f32(),
+            )
+        });
+        let free = free_camera_channels().into_iter().map(|c| {
+            (
+                c.to_string(),
+                self.free_camera
+                    .get(c)
+                    .expect("a free camera channel")
+                    .f32(),
+            )
+        });
+        let frame = frame_channels().into_iter().map(|c| {
+            (
+                c.to_string(),
+                self.frame.get(c).expect("a frame channel").f32(),
+            )
+        });
+        camera
+            .chain(free)
+            .chain(frame)
+            .chain(self.value_channels())
+            .collect()
     }
 
     /// The camera the viewport shows the scene from: the free camera while
     /// it is on, else the main camera.
     pub fn view_camera(&self) -> OrbitCamera {
-        if self.free_camera.on { self.free_camera.orbit() } else { self.camera }
+        if self.free_camera.on {
+            self.free_camera.orbit()
+        } else {
+            self.camera
+        }
     }
 
     /// The value of `key` (src/values.rs): the camera's, a stored one, a
     /// vector's component (an `F32`), or None for no such key.
     pub fn try_get(&self, key: &str) -> Option<Value> {
-        if let Some(v) = self.camera.get(key).or_else(|| self.free_camera.get(key)).or_else(|| self.frame.get(key)) {
+        if let Some(v) = self
+            .camera
+            .get(key)
+            .or_else(|| self.free_camera.get(key))
+            .or_else(|| self.frame.get(key))
+        {
             return Some(v);
         }
         if let Some(v) = self.values.get(key) {
@@ -389,24 +476,32 @@ impl ShotState {
             None if entry.key.starts_with("object.") => entry.default?,
             None => return None,
         };
-        Some(Value::F32(stored.components()[values::component(entry, key)]))
+        Some(Value::F32(
+            stored.components()[values::component(entry, key)],
+        ))
     }
 
     /// The value of `key`; panics for a key the investigation does not have.
     pub fn get(&self, key: &str) -> Value {
-        self.try_get(key).unwrap_or_else(|| panic!("unknown value {key}"))
+        self.try_get(key)
+            .unwrap_or_else(|| panic!("unknown value {key}"))
     }
 
     /// Sets `key` to `value`, in the key's declared type: a camera value, a
     /// stored value (a vector whole), a component, or a parameter.
     pub fn set_value(&mut self, key: &str, value: impl Into<Value>) {
         let value = value.into();
-        if self.camera.set(key, value) || self.free_camera.set(key, value) || self.frame.set(key, value) {
+        if self.camera.set(key, value)
+            || self.free_camera.set(key, value)
+            || self.frame.set(key, value)
+        {
             return;
         }
         match values::entry(key).filter(|e| e.key == key) {
             Some(e) => {
-                let value = Value::from_json(e.ty, &value.to_json()).unwrap_or_else(|| panic!("{key} is a {}, not a {}", e.ty.name(), value.ty().name()));
+                let value = Value::from_json(e.ty, &value.to_json()).unwrap_or_else(|| {
+                    panic!("{key} is a {}, not a {}", e.ty.name(), value.ty().name())
+                });
                 self.values.insert(key.to_string(), value);
             }
             None => self.set(key, value.f32()),
@@ -419,13 +514,17 @@ impl ShotState {
 impl std::ops::Index<&str> for ShotState {
     type Output = Value;
     fn index(&self, key: &str) -> &Value {
-        self.values.get(key).unwrap_or_else(|| panic!("no stored value `{key}` (a component or the camera's is read with `get`)"))
+        self.values.get(key).unwrap_or_else(|| {
+            panic!("no stored value `{key}` (a component or the camera's is read with `get`)")
+        })
     }
 }
 
 impl std::ops::IndexMut<&str> for ShotState {
     fn index_mut(&mut self, key: &str) -> &mut Value {
-        self.values.get_mut(key).unwrap_or_else(|| panic!("no stored value `{key}` (a component or the camera's is set with `set_value`)"))
+        self.values.get_mut(key).unwrap_or_else(|| {
+            panic!("no stored value `{key}` (a component or the camera's is set with `set_value`)")
+        })
     }
 }
 

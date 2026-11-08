@@ -33,15 +33,33 @@ pub fn open(event_loop: &ActiveEventLoop, attributes: WindowAttributes) -> Resul
     let gpu = Gpu::new(instance, Some(&surface))?;
     let size = window.inner_size();
     let caps = surface.get_capabilities(&gpu.adapter);
-    let format = caps.formats.iter().copied().find(|f| !f.is_srgb() && matches!(f, wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm)).unwrap_or(caps.formats[0]);
-    let mut config = surface.get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1)).ok_or_else(|| anyhow::anyhow!("surface unsupported"))?;
+    let format = caps
+        .formats
+        .iter()
+        .copied()
+        .find(|f| {
+            !f.is_srgb()
+                && matches!(
+                    f,
+                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm
+                )
+        })
+        .unwrap_or(caps.formats[0]);
+    let mut config = surface
+        .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
+        .ok_or_else(|| anyhow::anyhow!("surface unsupported"))?;
     config.format = format;
     config.present_mode = wgpu::PresentMode::Fifo;
     if caps.usages.contains(wgpu::TextureUsages::COPY_SRC) {
         config.usage |= wgpu::TextureUsages::COPY_SRC;
     }
     surface.configure(&gpu.device, &config);
-    Ok(Opened { window, surface, gpu, config })
+    Ok(Opened {
+        window,
+        surface,
+        gpu,
+        config,
+    })
 }
 
 /// egui's button for a mouse button (left, right, middle; none for the others).
@@ -56,10 +74,27 @@ pub fn pointer_button(button: MouseButton) -> Option<egui::PointerButton> {
 
 /// A wheel turn as egui's event (pixel deltas in points of `scale` pixels),
 /// and how many lines it turned (a pixel delta's 40 pixels a line).
-pub fn wheel_event(delta: MouseScrollDelta, scale: f32, modifiers: egui::Modifiers) -> (egui::Event, f32) {
+pub fn wheel_event(
+    delta: MouseScrollDelta,
+    scale: f32,
+    modifiers: egui::Modifiers,
+) -> (egui::Event, f32) {
     let (unit, scroll, lines) = match delta {
         MouseScrollDelta::LineDelta(x, y) => (egui::MouseWheelUnit::Line, egui::vec2(x, y), y),
-        MouseScrollDelta::PixelDelta(PhysicalPosition { x, y }) => (egui::MouseWheelUnit::Point, egui::vec2(x as f32, y as f32) / scale, y as f32 / 40.0),
+        MouseScrollDelta::PixelDelta(PhysicalPosition { x, y }) => (
+            egui::MouseWheelUnit::Point,
+            egui::vec2(x as f32, y as f32) / scale,
+            y as f32 / 40.0,
+        ),
     };
-    (egui::Event::MouseWheel { unit, delta: scroll, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers }, lines)
+    (
+        egui::Event::MouseWheel {
+            unit,
+            delta: scroll,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+            modifiers,
+        },
+        lines,
+    )
 }

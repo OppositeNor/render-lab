@@ -17,8 +17,8 @@ use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 /// A language of the on-screen text: an entry of the locale registry,
 /// render_lab's `locales.toml` (the resource `render_lab.locales`). The first
@@ -38,15 +38,28 @@ struct Entry {
 
 fn registry() -> &'static [Entry] {
     static REGISTRY: OnceLock<Vec<Entry>> = OnceLock::new();
-    REGISTRY.get_or_init(|| parse_registry(resources::get("render_lab.locales").text()).unwrap_or_else(|e| panic!("render_lab.locales: {e}")))
+    REGISTRY.get_or_init(|| {
+        parse_registry(resources::get("render_lab.locales").text())
+            .unwrap_or_else(|e| panic!("render_lab.locales: {e}"))
+    })
 }
 
 /// The registry from `locales.toml`: `[[locale]]` tables of `code`, `name`,
 /// `fallback` (codes; English is always last), and `status`.
 fn parse_registry(text: &str) -> Result<Vec<Entry>, String> {
-    let document = text.parse::<toml_edit::Document<String>>().map_err(|e| e.to_string())?;
-    let tables = document.get("locale").and_then(|i| i.as_array_of_tables()).ok_or("no [[locale]]")?;
-    let field = |t: &toml_edit::Table, k: &str| t.get(k).and_then(|v| v.as_str()).map(str::to_string).ok_or(format!("a locale without `{k}`"));
+    let document = text
+        .parse::<toml_edit::Document<String>>()
+        .map_err(|e| e.to_string())?;
+    let tables = document
+        .get("locale")
+        .and_then(|i| i.as_array_of_tables())
+        .ok_or("no [[locale]]")?;
+    let field = |t: &toml_edit::Table, k: &str| {
+        t.get(k)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or(format!("a locale without `{k}`"))
+    };
     let mut entries: Vec<(Entry, Vec<String>)> = Vec::new();
     for t in tables.iter() {
         let code = field(t, "code")?;
@@ -55,17 +68,45 @@ fn parse_registry(text: &str) -> Result<Vec<Entry>, String> {
             "draft" => false,
             other => return Err(format!("{code}: status `{other}` is not complete or draft")),
         };
-        let fallback = t.get("fallback").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect()).unwrap_or_default();
-        entries.push((Entry { code, name: field(t, "name")?, fallback: Vec::new(), complete }, fallback));
+        let fallback = t
+            .get("fallback")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        entries.push((
+            Entry {
+                code,
+                name: field(t, "name")?,
+                fallback: Vec::new(),
+                complete,
+            },
+            fallback,
+        ));
     }
-    if entries.first().is_none_or(|(e, _)| e.code != "en" || !e.complete) {
+    if entries
+        .first()
+        .is_none_or(|(e, _)| e.code != "en" || !e.complete)
+    {
         return Err("the first locale is en, complete".into());
     }
     let codes: Vec<String> = entries.iter().map(|(e, _)| e.code.clone()).collect();
-    let index = |c: &str| codes.iter().position(|k| k == c).map(|i| i as u8).ok_or(format!("unknown fallback `{c}`"));
+    let index = |c: &str| {
+        codes
+            .iter()
+            .position(|k| k == c)
+            .map(|i| i as u8)
+            .ok_or(format!("unknown fallback `{c}`"))
+    };
     let mut out = Vec::new();
     for (mut entry, fallback) in entries {
-        entry.fallback = fallback.iter().map(|c| index(c)).collect::<Result<_, _>>()?;
+        entry.fallback = fallback
+            .iter()
+            .map(|c| index(c))
+            .collect::<Result<_, _>>()?;
         if entry.code != "en" && entry.fallback.last() != Some(&0) {
             entry.fallback.push(0);
         }
@@ -85,7 +126,10 @@ impl Locale {
 
     /// The locales a language picker offers: the complete ones.
     pub fn offered() -> Vec<Locale> {
-        Locale::all().into_iter().filter(|l| l.entry().complete).collect()
+        Locale::all()
+            .into_iter()
+            .filter(|l| l.entry().complete)
+            .collect()
     }
 
     fn entry(self) -> &'static Entry {
@@ -98,7 +142,10 @@ impl Locale {
     }
 
     pub fn from_code(code: &str) -> Option<Locale> {
-        registry().iter().position(|e| e.code == code).map(|i| Locale(i as u8))
+        registry()
+            .iter()
+            .position(|e| e.code == code)
+            .map(|i| Locale(i as u8))
     }
 
     /// Its name in itself, as a language picker shows it in every locale.
@@ -121,7 +168,8 @@ impl Serialize for Locale {
 impl<'de> Deserialize<'de> for Locale {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Locale, D::Error> {
         let code = String::deserialize(d)?;
-        Locale::from_code(&code).ok_or_else(|| serde::de::Error::custom(format!("unknown locale `{code}`")))
+        Locale::from_code(&code)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown locale `{code}`")))
     }
 }
 
@@ -134,7 +182,6 @@ pub fn set(locale: Locale) {
 pub fn current() -> Locale {
     Locale(CURRENT.load(Ordering::Relaxed))
 }
-
 
 /// One layer's on-screen text: a Fluent file for each registered locale
 /// (`text/en.ftl`, `text/zh-CN.ftl`, … of the layer's package, the resources
@@ -160,12 +207,16 @@ struct Texts {
 impl Table {
     /// The table whose resources are `<prefix>/<locale>`.
     pub const fn new(prefix: &'static str) -> Table {
-        Table { prefix, texts: OnceLock::new() }
+        Table {
+            prefix,
+            texts: OnceLock::new(),
+        }
     }
 
     /// The text of `key` in the current locale.
     pub fn get(&'static self, key: &str) -> &'static str {
-        self.try_get(key).unwrap_or_else(|| panic!("no text for {key:?}"))
+        self.try_get(key)
+            .unwrap_or_else(|| panic!("no text for {key:?}"))
     }
 
     /// The text of `key` in the current locale (or the first of its fallbacks that has it), or None when the
@@ -177,19 +228,26 @@ impl Table {
     /// The texts of the current locale's chain that first have `key`.
     fn find(&'static self, key: &str) -> Option<&'static Texts> {
         let texts = self.get_or_load();
-        current().chain().filter_map(|i| texts[i].as_ref()).find(|t| t.plain.contains_key(key))
+        current()
+            .chain()
+            .filter_map(|i| texts[i].as_ref())
+            .find(|t| t.plain.contains_key(key))
     }
 
     /// Every key of the table (its English keys), sorted.
     pub fn keys(&'static self) -> Vec<&'static str> {
-        let mut keys: Vec<&'static str> = self.get_or_load()[0].as_ref().map_or_else(Vec::new, |t| t.plain.keys().map(String::as_str).collect());
+        let mut keys: Vec<&'static str> = self.get_or_load()[0]
+            .as_ref()
+            .map_or_else(Vec::new, |t| t.plain.keys().map(String::as_str).collect());
         keys.sort_unstable();
         keys
     }
 
     /// Whether `key` is in `locale`'s own file, not taken from a fallback.
     pub fn has_own(&'static self, locale: Locale, key: &str) -> bool {
-        self.get_or_load()[locale.0 as usize].as_ref().is_some_and(|t| t.plain.contains_key(key))
+        self.get_or_load()[locale.0 as usize]
+            .as_ref()
+            .is_some_and(|t| t.plain.contains_key(key))
     }
 
     fn get_or_load(&'static self) -> &'static [Option<Texts>] {
@@ -210,19 +268,32 @@ impl Table {
 
     /// The text of `key` with its values filled in (`args!`).
     pub fn format(&'static self, key: &str, args: &[(&str, &dyn Display)]) -> String {
-        format(self.find(key).unwrap_or_else(|| panic!("no text for {key:?}")), self.prefix, key, args)
+        format(
+            self.find(key)
+                .unwrap_or_else(|| panic!("no text for {key:?}")),
+            self.prefix,
+            key,
+            args,
+        )
     }
 }
 
 /// `key`'s message of `texts` with its values.
 fn format(texts: &Texts, table: &str, key: &str, args: &[(&str, &dyn Display)]) -> String {
-    let pattern = texts.bundle.get_message(key).and_then(|m| m.value()).unwrap_or_else(|| panic!("no text for {key:?}"));
+    let pattern = texts
+        .bundle
+        .get_message(key)
+        .and_then(|m| m.value())
+        .unwrap_or_else(|| panic!("no text for {key:?}"));
     let mut values = FluentArgs::new();
     for (name, value) in args {
         values.set(*name, value_of(value.to_string()));
     }
     let mut errors = Vec::new();
-    let text = texts.bundle.format_pattern(pattern, Some(&values), &mut errors).into_owned();
+    let text = texts
+        .bundle
+        .format_pattern(pattern, Some(&values), &mut errors)
+        .into_owned();
     assert!(errors.is_empty(), "{table}: {key}: {errors:?}");
     text
 }
@@ -239,7 +310,8 @@ fn value_of(text: String) -> FluentValue<'static> {
 /// A locale's bundle from its Fluent file, with the rich text's functions,
 /// and its messages' texts without values.
 fn load(id: &str, source: &str, locale: &str) -> Texts {
-    let resource = FluentResource::try_new(source.to_string()).unwrap_or_else(|(_, e)| panic!("{id}: not a Fluent file: {e:?}"));
+    let resource = FluentResource::try_new(source.to_string())
+        .unwrap_or_else(|(_, e)| panic!("{id}: not a Fluent file: {e:?}"));
     let keys: Vec<String> = resource
         .entries()
         .filter_map(|e| match e {
@@ -247,19 +319,35 @@ fn load(id: &str, source: &str, locale: &str) -> Texts {
             _ => None,
         })
         .collect();
-    let mut bundle = FluentBundle::new_concurrent(vec![locale.parse().unwrap_or_else(|e| panic!("{locale}: {e}"))]);
+    let mut bundle = FluentBundle::new_concurrent(vec![
+        locale.parse().unwrap_or_else(|e| panic!("{locale}: {e}")),
+    ]);
     // The lab lays text out itself: no bidirectional isolation marks around values.
     bundle.set_use_isolating(false);
     for name in crate::rich_text::FUNCTIONS {
-        bundle.add_function(name, move |positional, named| FluentValue::String(crate::rich_text::call(name, positional, named).into())).expect("each function once");
+        bundle
+            .add_function(name, move |positional, named| {
+                FluentValue::String(crate::rich_text::call(name, positional, named).into())
+            })
+            .expect("each function once");
     }
-    bundle.add_resource(resource).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+    bundle
+        .add_resource(resource)
+        .unwrap_or_else(|e| panic!("{id}: {e:?}"));
     let plain = keys
         .into_iter()
         .map(|key| {
-            let pattern = bundle.get_message(&key).and_then(|m| m.value()).unwrap_or_else(|| panic!("{id}: {key} has no value"));
+            let pattern = bundle
+                .get_message(&key)
+                .and_then(|m| m.value())
+                .unwrap_or_else(|| panic!("{id}: {key} has no value"));
             // Without values, a message's variables read as Fluent writes a missing one (`{$seconds}`).
-            let text: &'static str = Box::leak(bundle.format_pattern(pattern, None, &mut Vec::new()).into_owned().into_boxed_str());
+            let text: &'static str = Box::leak(
+                bundle
+                    .format_pattern(pattern, None, &mut Vec::new())
+                    .into_owned()
+                    .into_boxed_str(),
+            );
             (key, text)
         })
         .collect();
@@ -321,32 +409,72 @@ pub fn report() -> Vec<serde_json::Value> {
         }
         let table = package_table(package);
         let keys = table.keys();
-        let english: Vec<&str> = keys.iter().map(|k| table.get_or_load()[0].as_ref().map_or("", |t| t.plain[*k])).collect();
+        let english: Vec<&str> = keys
+            .iter()
+            .map(|k| table.get_or_load()[0].as_ref().map_or("", |t| t.plain[*k]))
+            .collect();
         for locale in Locale::all() {
             set(locale);
-            let missing: Vec<&str> = keys.iter().copied().filter(|k| !table.has_own(locale, k)).collect();
-            let same: Vec<&str> = if locale == Locale::EN { Vec::new() } else { keys.iter().zip(&english).filter(|(k, en)| table.has_own(locale, k) && table.get(k) == **en).map(|(k, _)| *k).collect() };
+            let missing: Vec<&str> = keys
+                .iter()
+                .copied()
+                .filter(|k| !table.has_own(locale, k))
+                .collect();
+            let same: Vec<&str> = if locale == Locale::EN {
+                Vec::new()
+            } else {
+                keys.iter()
+                    .zip(&english)
+                    .filter(|(k, en)| table.has_own(locale, k) && table.get(k) == **en)
+                    .map(|(k, _)| *k)
+                    .collect()
+            };
             let mut unglyphed: Vec<(char, &str)> = Vec::new();
             // The package's own texts, then its source table's (src/sources.rs), in this locale.
-            let sources: Vec<(&'static str, &'static str)> = if locale == Locale::EN { Vec::new() } else { source_table(package, locale).map_or_else(Vec::new, |t| t.plain.iter().map(|(k, v)| (k.as_str(), *v)).collect()) };
-            let texts: Vec<(&str, &str)> = keys.iter().map(|k| (*k, table.get(k))).chain(sources.iter().copied()).collect();
+            let sources: Vec<(&'static str, &'static str)> = if locale == Locale::EN {
+                Vec::new()
+            } else {
+                source_table(package, locale).map_or_else(Vec::new, |t| {
+                    t.plain.iter().map(|(k, v)| (k.as_str(), *v)).collect()
+                })
+            };
+            let texts: Vec<(&str, &str)> = keys
+                .iter()
+                .map(|k| (*k, table.get(k)))
+                .chain(sources.iter().copied())
+                .collect();
             for (key, text) in texts {
-                let plain: String = crate::rich_text::parse(text).unwrap_or_default().into_iter().filter_map(|r| match r {
-                    crate::rich_text::Run::Text(t) | crate::rich_text::Run::Code(t) => Some(t),
-                    crate::rich_text::Run::Formula { .. } => None,
-                }).collect();
+                let plain: String = crate::rich_text::parse(text)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|r| match r {
+                        crate::rich_text::Run::Text(t) | crate::rich_text::Run::Code(t) => Some(t),
+                        crate::rich_text::Run::Formula { .. } => None,
+                    })
+                    .collect();
                 for c in plain.chars().filter(|c| !c.is_control()) {
-                    if !unglyphed.iter().any(|(u, _)| *u == c) && !ctx.fonts_mut(|f| f.has_glyph(&egui::FontId::proportional(24.0), c)) {
+                    if !unglyphed.iter().any(|(u, _)| *u == c)
+                        && !ctx.fonts_mut(|f| f.has_glyph(&egui::FontId::proportional(24.0), c))
+                    {
                         unglyphed.push((c, key));
                     }
                 }
             }
             let complete = locale.entry().complete;
-            let problems = unglyphed.len() + if complete { missing.len() } else { 0 };
+            let problems = unglyphed.len()
+                + if complete {
+                    missing.len()
+                } else {
+                    0
+                };
             out.push(serde_json::json!({
                 "package": package,
                 "locale": locale.code(),
-                "status": if complete { "complete" } else { "draft" },
+                "status": if complete {
+                    "complete"
+                } else {
+                    "draft"
+                },
                 "keys": keys.len(),
                 "missing": missing,
                 "sameAsEnglish": same.len(),
@@ -366,13 +494,16 @@ pub fn report() -> Vec<serde_json::Value> {
 /// `<package>.sources/<code in lower case>`, along the locale's fallback chain;
 /// None in English, which is the index's own, or when no table has the key.
 pub fn source_text(package: &str, key: &str) -> Option<&'static str> {
-    current().chain().filter(|&i| i != 0).find_map(|i| source_table(package, Locale(i as u8)).and_then(|t| t.plain.get(key).copied()))
+    current().chain().filter(|&i| i != 0).find_map(|i| {
+        source_table(package, Locale(i as u8)).and_then(|t| t.plain.get(key).copied())
+    })
 }
 
 /// Every source text of `package` in the current locale's chain (first found
 /// wins), sorted by key; empty in English.
 pub fn source_texts(package: &str) -> Vec<(&'static str, &'static str)> {
-    let mut out: std::collections::BTreeMap<&'static str, &'static str> = std::collections::BTreeMap::new();
+    let mut out: std::collections::BTreeMap<&'static str, &'static str> =
+        std::collections::BTreeMap::new();
     for i in current().chain().filter(|&i| i != 0) {
         if let Some(t) = source_table(package, Locale(i as u8)) {
             for (k, v) in &t.plain {
@@ -393,7 +524,8 @@ fn source_table(package: &str, locale: Locale) -> Option<&'static Texts> {
         return *t;
     }
     let id = format!("{package}.sources/{}", locale.code().to_lowercase());
-    let table = resources::find(&id).map(|r| &*Box::leak(Box::new(load(&id, r.text(), locale.code()))));
+    let table =
+        resources::find(&id).map(|r| &*Box::leak(Box::new(load(&id, r.text(), locale.code()))));
     tables.push(((package.to_string(), locale), table));
     table
 }
@@ -413,7 +545,8 @@ fn package_table(package: &str) -> &'static Table {
     match tables.iter().find(|t| t.prefix == prefix) {
         Some(t) => t,
         None => {
-            let t: &'static Table = Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
+            let t: &'static Table =
+                Box::leak(Box::new(Table::new(Box::leak(prefix.into_boxed_str()))));
             tables.push(t);
             t
         }
@@ -424,7 +557,6 @@ fn package_table(package: &str) -> &'static Table {
 pub fn tr_with(key: &'static str, args: &[(&str, &dyn Display)]) -> String {
     TEXT.format(key, args)
 }
-
 
 /// A scene object's display name, or a card name that starts with one
 /// (`rotated box +X` → `旋转的盒子 +X`).
@@ -447,7 +579,9 @@ pub fn object_name(name: &str) -> String {
         ("none", tr("object-none")),
     ];
     for (en, zh) in objects {
-        if let Some(rest) = name.strip_prefix(en) && (rest.is_empty() || rest.starts_with(' ')) {
+        if let Some(rest) = name.strip_prefix(en)
+            && (rest.is_empty() || rest.starts_with(' '))
+        {
             return format!("{zh}{rest}");
         }
     }
@@ -474,9 +608,16 @@ mod tests {
 
     #[test]
     fn messages() {
-        let t = load("test", "back = back { $seconds } s\nbraces = { \"{\" }x{ \"}\" } = { $x }\nlead = { \"  \" }= r g b\nlines =\n    one\n    { \"  \" }two\n", "en");
+        let t = load(
+            "test",
+            "back = back { $seconds } s\nbraces = { \"{\" }x{ \"}\" } = { $x }\nlead = { \"  \" }= r g b\nlines =\n    one\n    { \"  \" }two\n",
+            "en",
+        );
         assert_eq!(format(&t, "test", "back", args!(seconds = 10)), "back 10 s");
-        assert_eq!(format(&t, "test", "back", args!(seconds = "0.50")), "back 0.50 s");
+        assert_eq!(
+            format(&t, "test", "back", args!(seconds = "0.50")),
+            "back 0.50 s"
+        );
         assert_eq!(format(&t, "test", "braces", args!(x = 1.5)), "{x} = 1.5");
         assert_eq!(t.plain["lead"], "  = r g b");
         assert_eq!(t.plain["lines"], "one\n  two");
@@ -485,7 +626,11 @@ mod tests {
 
     #[test]
     fn plurals_and_rich_text() {
-        let t = load("test", "n = { $n ->\n    [one] one cluster\n   *[other] { $n } clusters\n}\nzh = { $n } 个 cluster\n", "en");
+        let t = load(
+            "test",
+            "n = { $n ->\n    [one] one cluster\n   *[other] { $n } clusters\n}\nzh = { $n } 个 cluster\n",
+            "en",
+        );
         assert_eq!(format(&t, "test", "n", args!(n = 1)), "one cluster");
         assert_eq!(format(&t, "test", "n", args!(n = 3)), "3 clusters");
         assert_eq!(format(&t, "test", "zh", args!(n = 3)), "3 个 cluster");

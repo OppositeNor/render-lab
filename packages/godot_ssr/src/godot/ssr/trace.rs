@@ -16,7 +16,11 @@ pub struct Image {
 
 impl Image {
     pub fn new(size: [u32; 2], channels: usize) -> Image {
-        Image { size, channels, data: vec![0.0; size[0] as usize * size[1] as usize * channels] }
+        Image {
+            size,
+            channels,
+            data: vec![0.0; size[0] as usize * size[1] as usize * channels],
+        }
     }
 
     /// Texel `p` (texelFetch): channel 0 and on; zero outside the image (the
@@ -159,7 +163,11 @@ fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
 
 /// The roughness of a normal-roughness texel's alpha.
 pub fn decode_roughness(w: f32) -> f32 {
-    let r = if w > 0.5 { 1.0 - w } else { w };
+    let r = if w > 0.5 {
+        1.0 - w
+    } else {
+        w
+    };
     r / (127.0 / 255.0)
 }
 
@@ -189,19 +197,39 @@ impl Inputs<'_> {
     }
 
     fn geometric_normal(&self, pixel: [i32; 2], depth_c: f32, view_c: Vec3) -> Vec3 {
-        let h = Vec4::new(self.hiz([pixel[0] - 1, pixel[1]], 0), self.hiz([pixel[0] - 2, pixel[1]], 0), self.hiz([pixel[0] + 1, pixel[1]], 0), self.hiz([pixel[0] + 2, pixel[1]], 0));
-        let v = Vec4::new(self.hiz([pixel[0], pixel[1] - 1], 0), self.hiz([pixel[0], pixel[1] - 2], 0), self.hiz([pixel[0], pixel[1] + 1], 0), self.hiz([pixel[0], pixel[1] + 2], 0));
+        let h = Vec4::new(
+            self.hiz([pixel[0] - 1, pixel[1]], 0),
+            self.hiz([pixel[0] - 2, pixel[1]], 0),
+            self.hiz([pixel[0] + 1, pixel[1]], 0),
+            self.hiz([pixel[0] + 2, pixel[1]], 0),
+        );
+        let v = Vec4::new(
+            self.hiz([pixel[0], pixel[1] - 1], 0),
+            self.hiz([pixel[0], pixel[1] - 2], 0),
+            self.hiz([pixel[0], pixel[1] + 1], 0),
+            self.hiz([pixel[0], pixel[1] + 2], 0),
+        );
         let he = (Vec2::new(2.0 * h.x - h.y, 2.0 * h.z - h.w) - Vec2::splat(depth_c)).abs();
         let ve = (Vec2::new(2.0 * v.x - v.y, 2.0 * v.z - v.w) - Vec2::splat(depth_c)).abs();
-        let h_sign: i32 = if he.x < he.y { -1 } else { 1 };
-        let v_sign: i32 = if ve.x < ve.y { -1 } else { 1 };
+        let h_sign: i32 = if he.x < he.y {
+            -1
+        } else {
+            1
+        };
+        let v_sign: i32 = if ve.x < ve.y {
+            -1
+        } else {
+            1
+        };
         let s = self.size();
         let fs = Vec2::new(s[0] as f32, s[1] as f32);
         let px = Vec2::new(pixel[0] as f32, pixel[1] as f32);
         let hv = h.to_array()[(1 + h_sign) as usize];
         let vv = v.to_array()[(1 + v_sign) as usize];
-        let view_h = self.view_pos(((px + Vec2::new(h_sign as f32, 0.0) + Vec2::splat(0.5)) / fs).extend(hv));
-        let view_v = self.view_pos(((px + Vec2::new(0.0, v_sign as f32) + Vec2::splat(0.5)) / fs).extend(vv));
+        let view_h = self
+            .view_pos(((px + Vec2::new(h_sign as f32, 0.0) + Vec2::splat(0.5)) / fs).extend(hv));
+        let view_v = self
+            .view_pos(((px + Vec2::new(0.0, v_sign as f32) + Vec2::splat(0.5)) / fs).extend(vv));
         let h_der = h_sign as f32 * (view_h - view_c);
         let v_der = v_sign as f32 * (view_v - view_c);
         v_der.cross(h_der)
@@ -211,7 +239,9 @@ impl Inputs<'_> {
     pub fn trace(&self, pixel: [i32; 2]) -> Trace {
         let s = self.size();
         let fs = Vec2::new(s[0] as f32, s[1] as f32);
-        let mut screen_pos = ((Vec2::new(pixel[0] as f32, pixel[1] as f32) + Vec2::splat(0.5)) / fs).extend(self.hiz(pixel, 0));
+        let mut screen_pos = ((Vec2::new(pixel[0] as f32, pixel[1] as f32) + Vec2::splat(0.5))
+            / fs)
+            .extend(self.hiz(pixel, 0));
         let mut out = Trace {
             exit: Exit::NotTraced,
             roughness: 0.0,
@@ -275,7 +305,18 @@ impl Inputs<'_> {
         let t2 = t0.max(t1);
         let t_max = t2.x.min(t2.y);
         out.t_max = t_max;
-        let cell_step = Vec2::new(if ray.x < 0.0 { -1.0 } else { 1.0 }, if ray.y < 0.0 { -1.0 } else { 1.0 });
+        let cell_step = Vec2::new(
+            if ray.x < 0.0 {
+                -1.0
+            } else {
+                1.0
+            },
+            if ray.y < 0.0 {
+                -1.0
+            } else {
+                1.0
+            },
+        );
         let mips = self.hiz.len() as i32;
         let mut level = 0i32;
         let mut iteration = self.num_steps;
@@ -296,8 +337,16 @@ impl Inputs<'_> {
             let next_pos = next / count + cell_step * 0.000001;
             let pos_t = (next_pos - screen_pos.truncate()) / ray.truncate();
             let edge_t = pos_t.x.min(pos_t.y);
-            let mut hit = if facing { t <= depth_t } else { depth_t <= edge_t };
-            let mut offset = if hit { -1 } else { 1 };
+            let mut hit = if facing {
+                t <= depth_t
+            } else {
+                depth_t <= edge_t
+            };
+            let mut offset = if hit {
+                -1
+            } else {
+                1
+            };
             let mut held = false;
             if level == 0 {
                 let z0 = self.linearize(cell_depth);
@@ -317,11 +366,28 @@ impl Inputs<'_> {
                 t = edge_t;
             }
             let next_level = (level + offset).min(mips - 1);
-            out.steps.push(Step { level, t: before, cell: [cell.x as i32, cell.y as i32], cell_depth, depth_t, edge_t, hit, held, next_level, next_t: t });
+            out.steps.push(Step {
+                level,
+                t: before,
+                cell: [cell.x as i32, cell.y as i32],
+                cell_depth,
+                depth_t,
+                edge_t,
+                hit,
+                held,
+                next_level,
+                next_t: t,
+            });
             level = next_level;
             iteration -= 1;
         }
-        out.exit = if level < 0 { Exit::Hit } else if t >= t_max { Exit::Screen } else { Exit::Steps };
+        out.exit = if level < 0 {
+            Exit::Hit
+        } else if t >= t_max {
+            Exit::Screen
+        } else {
+            Exit::Steps
+        };
         out.t = t;
         let cur = screen_pos + ray * t;
         out.hit_screen = cur;
@@ -331,10 +397,18 @@ impl Inputs<'_> {
         let mut validity = 1.0f32;
         let cur_pixel = [(cur.x * fs.x) as i32, (cur.y * fs.y) as i32];
         let hit_depth = self.hiz(cur_pixel, 0);
-        let edge = if t >= t_max || hit_depth == 0.0 { 0.0 } else { 1.0 };
+        let edge = if t >= t_max || hit_depth == 0.0 {
+            0.0
+        } else {
+            1.0
+        };
         validity *= edge;
         let mut back = 1.0;
-        if (ray.truncate() * t).abs().cmplt(Vec2::splat(2.0) / fs).all() {
+        if (ray.truncate() * t)
+            .abs()
+            .cmplt(Vec2::splat(2.0) / fs)
+            .all()
+        {
             let hn = self.normal_roughness.load(cur_pixel).truncate() * 2.0 - Vec3::ONE;
             if ray_dir.dot(hn) >= 0.0 {
                 back = 0.0;
@@ -349,7 +423,18 @@ impl Inputs<'_> {
         validity *= conf2;
         let rp = uv * fs;
         let margin = (fs.x + fs.y) * 0.05;
-        let grad = Vec2::new(if rp.x < fs.x * 0.5 { rp.x } else { fs.x - rp.x }, if rp.y < fs.y * 0.5 { rp.y } else { fs.y - rp.y });
+        let grad = Vec2::new(
+            if rp.x < fs.x * 0.5 {
+                rp.x
+            } else {
+                fs.x - rp.x
+            },
+            if rp.y < fs.y * 0.5 {
+                rp.y
+            } else {
+                fs.y - rp.y
+            },
+        );
         let margin_blend = smoothstep(0.0, margin * margin, grad.x * grad.y);
         let ray_len = (ray.truncate() * t).length();
         out.ray_len = ray_len;
@@ -373,10 +458,22 @@ impl Inputs<'_> {
 
 /// The fade over the ray's screen length (screen_space_reflection.glsl:270-282).
 pub fn fade(ray_len: f32, fade_in: f32, fade_out: f32) -> f32 {
-    let a = if fade_in == 0.0 { 1.0 } else { ray_len.clamp(0.0, 1.0).powf(fade_in) };
-    let b = if fade_out == 0.0 { 1.0 } else { (1.0 - ray_len).clamp(0.0, 1.0).powf(fade_out) };
+    let a = if fade_in == 0.0 {
+        1.0
+    } else {
+        ray_len.clamp(0.0, 1.0).powf(fade_in)
+    };
+    let b = if fade_out == 0.0 {
+        1.0
+    } else {
+        (1.0 - ray_len).clamp(0.0, 1.0).powf(fade_out)
+    };
     let f = a * b;
-    if f > 0.999 { 1.0 } else { f }
+    if f > 0.999 {
+        1.0
+    } else {
+        f
+    }
 }
 
 /// The blur level for a roughness and a ray length (screen_space_reflection.glsl:294-318):
@@ -386,5 +483,7 @@ pub fn blur_level(roughness: f32, ray_len: f32, largest: f32, mips: i32) -> f32 
     let a = 2.0 * cone_angle.tan() * ray_len;
     let h = ray_len;
     let radius = (a * ((a * a + 4.0 * h * h).sqrt() - a)) / (4.0 * h);
-    (radius * largest / 16.0 + 1.0).log2().clamp(0.0, (mips - 1) as f32)
+    (radius * largest / 16.0 + 1.0)
+        .log2()
+        .clamp(0.0, (mips - 1) as f32)
 }

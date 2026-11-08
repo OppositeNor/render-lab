@@ -8,7 +8,7 @@ use crate::investigation;
 use crate::renderer::{self, FrameRequest, Renderer};
 use crate::shot::{SceneType, Timeline};
 use crate::ui::{Chrome, UiReport};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::io::Write;
@@ -61,7 +61,11 @@ pub fn beat_fade(timeline: &Timeline, frame: u64) -> f32 {
     let mut fade = 0.0f32;
     // Two beats of one diagram (or one frame graph scene) in a chapter run on
     // without a fade: the diagram moves to the next beat's focus instead.
-    let differs = |a: &crate::shot::TimelineBeat, b: &crate::shot::TimelineBeat| a.kind != b.kind || a.chapter != b.chapter || (a.kind != SceneType::ThreeD && !a.same_diagram(b));
+    let differs = |a: &crate::shot::TimelineBeat, b: &crate::shot::TimelineBeat| {
+        a.kind != b.kind
+            || a.chapter != b.chapter
+            || (a.kind != SceneType::ThreeD && !a.same_diagram(b))
+    };
     if i > 0 && differs(&timeline.beats[i - 1], beat) && local < FADE_FRAMES {
         fade = fade.max(1.0 - (local as f32 + 1.0) / (FADE_FRAMES as f32 + 1.0));
     }
@@ -76,18 +80,66 @@ pub fn beat_fade(timeline: &Timeline, frame: u64) -> f32 {
 
 /// Starts FFmpeg encoding RGBA frames `width` x `height` at `fps` into `output`, with
 /// the encoder `options` name (its binary, codec, CRF, and preset).
-pub fn spawn_ffmpeg(options: &RecordOptions, [width, height]: [u32; 2], fps: u32, output: &Path) -> Result<Child> {
-    let (ffmpeg, codec, crf, preset) = (&options.ffmpeg, options.codec.as_str(), options.crf, options.preset.as_str());
+pub fn spawn_ffmpeg(
+    options: &RecordOptions,
+    [width, height]: [u32; 2],
+    fps: u32,
+    output: &Path,
+) -> Result<Child> {
+    let (ffmpeg, codec, crf, preset) = (
+        &options.ffmpeg,
+        options.codec.as_str(),
+        options.crf,
+        options.preset.as_str(),
+    );
     let mut cmd = Command::new(ffmpeg);
-    cmd.args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "rgba"]);
-    cmd.args(["-s", &format!("{width}x{height}"), "-r", &fps.to_string(), "-i", "-", "-an"]);
+    cmd.args([
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgba",
+    ]);
+    cmd.args([
+        "-s",
+        &format!("{width}x{height}"),
+        "-r",
+        &fps.to_string(),
+        "-i",
+        "-",
+        "-an",
+    ]);
     match codec {
         "h264" => {
             // setparams tags the frames themselves: raw RGBA input carries no colour
             // properties, and unset frame properties override the encoder options.
             cmd.args(["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv"]);
-            cmd.args(["-c:v", "libx264", "-preset", preset, "-crf", &crf.to_string(), "-pix_fmt", "yuv420p"]);
-            cmd.args(["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv", "-movflags", "+faststart"]);
+            cmd.args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                "-crf",
+                &crf.to_string(),
+                "-pix_fmt",
+                "yuv420p",
+            ]);
+            cmd.args([
+                "-colorspace",
+                "bt709",
+                "-color_primaries",
+                "bt709",
+                "-color_trc",
+                "bt709",
+                "-color_range",
+                "tv",
+                "-movflags",
+                "+faststart",
+            ]);
         }
         "ffv1" => {
             cmd.args(["-c:v", "ffv1", "-pix_fmt", "rgba"]);
@@ -98,8 +150,11 @@ pub fn spawn_ffmpeg(options: &RecordOptions, [width, height]: [u32; 2], fps: u32
         other => bail!("unknown codec {other}"),
     }
     cmd.arg(output);
-    cmd.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::inherit());
-    cmd.spawn().with_context(|| format!("start {}", ffmpeg.display()))
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    cmd.spawn()
+        .with_context(|| format!("start {}", ffmpeg.display()))
 }
 
 #[derive(Debug, Default, serde::Serialize)]
@@ -128,7 +183,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let gpu_info = renderer::gpu_summary(&gpu);
     eprintln!("GPU: {}", gpu.info.name);
     let statics = Statics::prepare(crate::investigation::current().first_scene())?;
-    let [width, height] = options.resolution.unwrap_or([timeline.width, timeline.height]);
+    let [width, height] = options
+        .resolution
+        .unwrap_or([timeline.width, timeline.height]);
     let mut renderer = Renderer::new(gpu, statics, width, height)?;
     let (first, last) = options.frames.unwrap_or((0, timeline.total_frames));
     let last = last.min(timeline.total_frames);
@@ -152,17 +209,33 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         })
     });
     let device = renderer.device().clone();
-    let buffers: Vec<wgpu::Buffer> = (0..RING).map(|_| renderer::readback_buffer(&device, width, height)).collect();
+    let buffers: Vec<wgpu::Buffer> = (0..RING)
+        .map(|_| renderer::readback_buffer(&device, width, height))
+        .collect();
     // A frame, its buffer, and the buffer's mapping.
     type Mapping = mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>;
     let mut pending: VecDeque<(u64, usize, Mapping)> = VecDeque::new();
-    let mut summary = RecordSummary { first_frame: first, width, height, fps: timeline.fps, ring_buffers: RING, min_text_pt: f32::INFINITY, gpu: gpu_info, output: options.output.as_ref().map(|p| p.display().to_string()), ..Default::default() };
+    let mut summary = RecordSummary {
+        first_frame: first,
+        width,
+        height,
+        fps: timeline.fps,
+        ring_buffers: RING,
+        min_text_pt: f32::INFINITY,
+        gpu: gpu_info,
+        output: options.output.as_ref().map(|p| p.display().to_string()),
+        ..Default::default()
+    };
     if let Some(dir) = &options.snapshot_dir {
         std::fs::create_dir_all(dir)?;
     }
     let finish = |frame_index: u64, slot: usize, summary: &mut RecordSummary| -> Result<()> {
         let buffer = &buffers[slot];
-        let data = buffer.slice(..).get_mapped_range().context("mapped readback")?.to_vec();
+        let data = buffer
+            .slice(..)
+            .get_mapped_range()
+            .context("mapped readback")?
+            .to_vec();
         buffer.unmap();
         if frame_index < first {
             return Ok(());
@@ -170,7 +243,12 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         let frame = renderer::unpad_rows(&data, width, height);
         if options.snapshots.contains(&frame_index) {
             if let Some(dir) = &options.snapshot_dir {
-                write_png(&dir.join(format!("frame-{frame_index:06}.png")), width, height, &frame)?;
+                write_png(
+                    &dir.join(format!("frame-{frame_index:06}.png")),
+                    width,
+                    height,
+                    &frame,
+                )?;
             }
             summary.frame_sha256.push((frame_index, hex(&frame)));
         }
@@ -183,7 +261,12 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     // Without a video output only the requested snapshots are rendered: each
     // frame depends only on its index, so skipping the others changes nothing.
     let frame_list: Vec<u64> = if options.output.is_none() {
-        let mut v: Vec<u64> = options.snapshots.iter().copied().filter(|f| (first..last).contains(f)).collect();
+        let mut v: Vec<u64> = options
+            .snapshots
+            .iter()
+            .copied()
+            .filter(|f| (first..last).contains(f))
+            .collect();
         v.sort_unstable();
         v.dedup();
         v
@@ -193,7 +276,11 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     // A program that records with history (`ShadingProgram::record_history`):
     // each frame of a beat builds on the one before it, rendered just before;
     // a beat's first frame, and a frame after a gap, stand alone.
-    let record_history = options.output.is_some() && investigation::current().scene_shading().and_then(|s| s.program).is_some_and(|p| p.record_history);
+    let record_history = options.output.is_some()
+        && investigation::current()
+            .scene_shading()
+            .and_then(|s| s.program)
+            .is_some_and(|p| p.record_history);
     let mut last_drawn: Option<(u64, usize)> = None;
     // The rate so far, from the first frame on, for the progress line's estimate.
     let rendering = std::time::Instant::now();
@@ -204,7 +291,9 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         while pending.len() >= RING || pending.iter().any(|p| p.1 == slot) {
             let (index, s, done) = pending.pop_front().unwrap();
             device.poll(wgpu::PollType::wait_indefinitely()).ok();
-            done.recv().context("map callback")?.context("map readback buffer")?;
+            done.recv()
+                .context("map callback")?
+                .context("map readback buffer")?;
             finish(index, s, &mut summary)?;
         }
         let state = timeline.state_at(f);
@@ -220,8 +309,14 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             chapter_number: beat.chapter,
             fade: beat_fade(&timeline, f),
             time: f as f32 / timeline.fps as f32,
-            raw_input: egui::RawInput { time: Some(f as f64 / timeline.fps as f64), ..Default::default() },
-            chrome: Chrome::Recording { timeline: &timeline, frame: f },
+            raw_input: egui::RawInput {
+                time: Some(f as f64 / timeline.fps as f64),
+                ..Default::default()
+            },
+            chrome: Chrome::Recording {
+                timeline: &timeline,
+                frame: f,
+            },
             stamp: options.frame_stamp.then_some(f),
             focus: None,
             history,
@@ -233,9 +328,11 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             track(&mut summary, f, &result.report, beat.kind);
         }
         let (done_tx, done_rx) = mpsc::channel();
-        buffers[slot].slice(..).map_async(wgpu::MapMode::Read, move |r| {
-            let _ = done_tx.send(r);
-        });
+        buffers[slot]
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |r| {
+                let _ = done_tx.send(r);
+            });
         pending.push_back((f, slot, done_rx));
         device.poll(wgpu::PollType::Poll).ok();
         if warming {
@@ -248,21 +345,33 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
             let estimate = if done > 0 && elapsed > 0.0 {
                 let fps = done as f64 / elapsed;
                 let left = ((last - f) as f64 / fps).round() as u64;
-                format!(" · {fps:.1} fps · {} left, done about {}", duration_text(left), crate::readback::local_clock_after(left))
+                format!(
+                    " · {fps:.1} fps · {} left, done about {}",
+                    duration_text(left),
+                    crate::readback::local_clock_after(left)
+                )
             } else {
                 String::new()
             };
-            eprintln!("frame {f} / {last} ({:.0}%){estimate}", 100.0 * done as f64 / (last - first) as f64);
+            eprintln!(
+                "frame {f} / {last} ({:.0}%){estimate}",
+                100.0 * done as f64 / (last - first) as f64
+            );
         }
     }
     while let Some((index, s, done)) = pending.pop_front() {
         device.poll(wgpu::PollType::wait_indefinitely()).ok();
-        done.recv().context("map callback")?.context("map readback buffer")?;
+        done.recv()
+            .context("map callback")?
+            .context("map readback buffer")?;
         finish(index, s, &mut summary)?;
     }
     drop(tx);
     if let Some(w) = writer {
-        let written = w.join().expect("writer thread").context("write frames to FFmpeg")?;
+        let written = w
+            .join()
+            .expect("writer thread")
+            .context("write frames to FFmpeg")?;
         if written != summary.frames {
             bail!("wrote {written} frames, rendered {}", summary.frames);
         }
@@ -285,14 +394,19 @@ fn track(summary: &mut RecordSummary, frame: u64, report: &UiReport, kind: Scene
     if kind == SceneType::ThreeD {
         summary.max_label_overlaps = summary.max_label_overlaps.max(report.label_overlaps);
         summary.max_labels_outside = summary.max_labels_outside.max(report.labels_outside);
-        if (report.label_overlaps > 0 || report.labels_outside > 0) && summary.frames_with_label_issues.len() < 200 {
+        if (report.label_overlaps > 0 || report.labels_outside > 0)
+            && summary.frames_with_label_issues.len() < 200
+        {
             summary.frames_with_label_issues.push(frame);
         }
     }
 }
 
 pub fn hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// FFmpeg: `FFMPEG`, the video build's Conda environment, or PATH.
@@ -301,7 +415,11 @@ pub fn default_ffmpeg(manifest_dir: &Path) -> PathBuf {
         return PathBuf::from(p);
     }
     let local = manifest_dir.join("video/.conda-env/bin/ffmpeg");
-    if local.is_file() { local } else { PathBuf::from("ffmpeg") }
+    if local.is_file() {
+        local
+    } else {
+        PathBuf::from("ffmpeg")
+    }
 }
 
 /// A duration as `1 h 05 min`, `12 min 30 s`, or `45 s`.

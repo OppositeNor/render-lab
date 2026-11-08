@@ -90,10 +90,18 @@ pub struct ObjectKeys {
 /// An object's name in camel case, as its values' keys have it (`rotated box`: `rotatedBox`).
 pub fn camel(name: &str) -> String {
     let mut out = String::new();
-    for (i, word) in name.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).enumerate() {
+    for (i, word) in name
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .enumerate()
+    {
         let mut chars = word.chars();
         if let Some(first) = chars.next() {
-            out.push(if i == 0 { first.to_ascii_lowercase() } else { first.to_ascii_uppercase() });
+            out.push(if i == 0 {
+                first.to_ascii_lowercase()
+            } else {
+                first.to_ascii_uppercase()
+            });
             out.extend(chars);
         }
     }
@@ -104,11 +112,22 @@ pub fn camel(name: &str) -> String {
 pub fn object_keys(name: &str) -> ObjectKeys {
     static KEYS: Mutex<Option<HashMap<String, ObjectKeys>>> = Mutex::new(None);
     let mut keys = KEYS.lock().unwrap();
-    *keys.get_or_insert_with(HashMap::new).entry(name.to_string()).or_insert_with(|| {
-        let id = camel(name);
-        let leak = |part: &str| -> &'static str { Box::leak(format!("object.{id}.{part}").into_boxed_str()) };
-        ObjectKeys { x: leak("x"), y: leak("y"), z: leak("z"), yaw: leak("yaw"), scale: leak("scale") }
-    })
+    *keys
+        .get_or_insert_with(HashMap::new)
+        .entry(name.to_string())
+        .or_insert_with(|| {
+            let id = camel(name);
+            let leak = |part: &str| -> &'static str {
+                Box::leak(format!("object.{id}.{part}").into_boxed_str())
+            };
+            ObjectKeys {
+                x: leak("x"),
+                y: leak("y"),
+                z: leak("z"),
+                yaw: leak("yaw"),
+                scale: leak("scale"),
+            }
+        })
 }
 
 /// The entries of an object's values, its defaults the scene's.
@@ -136,15 +155,32 @@ fn object_entries(o: &SceneObject) -> Vec<&'static Entry> {
         components: &[],
     };
     let t = o.translation;
-    let axis = |key, default: f32, range, name: &'static str, color| Entry { name: Some(name), color: Some(color), help: Some("help-object_position"), ..entry(key, default, range, Unit::Metres) };
+    let axis = |key, default: f32, range, name: &'static str, color| Entry {
+        name: Some(name),
+        color: Some(color),
+        help: Some("help-object_position"),
+        ..entry(key, default, range, Unit::Metres)
+    };
     let entries = [
         axis(keys.x, t.x, (-10.0, 10.0), "x", palette::AXIS_X),
         axis(keys.y, t.y, (-1.0, 6.0), "y", palette::AXIS_Y),
         axis(keys.z, t.z, (-10.0, 10.0), "z", palette::AXIS_Z),
-        Entry { wrap: true, text: Some("values-object_yaw"), help: Some("help-object_yaw"), ..entry(keys.yaw, 0.0, (-180.0, 180.0), Unit::Degrees) },
-        Entry { text: Some("values-object_scale"), help: Some("help-object_scale"), ..entry(keys.scale, 1.0, (0.25, 3.0), Unit::Factor) },
+        Entry {
+            wrap: true,
+            text: Some("values-object_yaw"),
+            help: Some("help-object_yaw"),
+            ..entry(keys.yaw, 0.0, (-180.0, 180.0), Unit::Degrees)
+        },
+        Entry {
+            text: Some("values-object_scale"),
+            help: Some("help-object_scale"),
+            ..entry(keys.scale, 1.0, (0.25, 3.0), Unit::Factor)
+        },
     ];
-    entries.into_iter().map(|e| &*Box::leak(Box::new(e))).collect()
+    entries
+        .into_iter()
+        .map(|e| &*Box::leak(Box::new(e)))
+        .collect()
 }
 
 /// The entries of the values of every movable object in the current investigation's scenes (none when
@@ -159,7 +195,14 @@ pub fn entries() -> Vec<&'static Entry> {
     let scenes = scenes.get_or_insert_with(HashMap::new);
     let mut all: Vec<&'static Entry> = Vec::new();
     for id in current.scenes() {
-        let entries = scenes.entry(id.key()).or_insert_with(|| crate::scene::Scene::build(id).objects.iter().filter(|o| o.movable).flat_map(object_entries).collect());
+        let entries = scenes.entry(id.key()).or_insert_with(|| {
+            crate::scene::Scene::build(id)
+                .objects
+                .iter()
+                .filter(|o| o.movable)
+                .flat_map(object_entries)
+                .collect()
+        });
         for e in entries.iter() {
             if !all.iter().any(|a| a.key == e.key) {
                 all.push(e);
@@ -204,7 +247,12 @@ pub fn list(state: &ShotState, statics: &Statics) -> Vec<Entity> {
         .collect();
     let movable = current.movable_objects();
     for o in &statics.scene.objects {
-        let kind = if o.emissive_strength > 0.0 && statics.scene.lighting.light.center == o.translation { EntityKind::Light } else { EntityKind::Object };
+        let kind =
+            if o.emissive_strength > 0.0 && statics.scene.lighting.light.center == o.translation {
+                EntityKind::Light
+            } else {
+                EntityKind::Object
+            };
         let mut entity = Entity {
             id: format!("object.{}", camel(o.name)),
             name: crate::i18n::object_name(o.name),
@@ -224,7 +272,11 @@ pub fn list(state: &ShotState, statics: &Statics) -> Vec<Entity> {
             entity.position = Some([keys.x, keys.y, keys.z]);
             entity.yaw = Some(keys.yaw);
             entity.scale = Some(keys.scale);
-            entity.at = Vec3::new(number(keys.x, t.x), number(keys.y, t.y), number(keys.z, t.z));
+            entity.at = Vec3::new(
+                number(keys.x, t.x),
+                number(keys.y, t.y),
+                number(keys.z, t.z),
+            );
             entity.yaw_degrees = number(keys.yaw, 0.0);
             entity.scale_factor = number(keys.scale, 1.0);
         }
@@ -240,20 +292,38 @@ pub fn moved(state: &ShotState, o: &SceneObject) -> Option<Mat4> {
     let keys = object_keys(o.name);
     let number = |key: &str, default: f32| state.try_get(key).map_or(default, |v| v.f32());
     let t = o.translation;
-    let at = Vec3::new(number(keys.x, t.x), number(keys.y, t.y), number(keys.z, t.z));
+    let at = Vec3::new(
+        number(keys.x, t.x),
+        number(keys.y, t.y),
+        number(keys.z, t.z),
+    );
     let (yaw, scale) = (number(keys.yaw, 0.0), number(keys.scale, 1.0));
     if at == t && yaw == 0.0 && scale == 1.0 {
         return None;
     }
-    Some(Mat4::from_scale_rotation_translation(Vec3::splat(scale), Quat::from_rotation_y(yaw.to_radians()), at) * Mat4::from_translation(-t))
+    Some(
+        Mat4::from_scale_rotation_translation(
+            Vec3::splat(scale),
+            Quat::from_rotation_y(yaw.to_radians()),
+            at,
+        ) * Mat4::from_translation(-t),
+    )
 }
 
 /// `record` moved by `delta` (`moved`): its matrices, its world bounds, and its bounding radius.
 pub fn repose(record: &mut ObjectData, delta: Mat4) {
     let m = delta * Mat4::from_cols_array_2d(&record.local_to_world);
-    let (center, extent) = crate::scene::transform_box(m, Vec3::from(record.local_center), Vec3::from(record.local_extent));
+    let (center, extent) = crate::scene::transform_box(
+        m,
+        Vec3::from(record.local_center),
+        Vec3::from(record.local_extent),
+    );
     let a = Mat3::from_mat4(delta);
-    let grow = a.x_axis.length().max(a.y_axis.length()).max(a.z_axis.length());
+    let grow = a
+        .x_axis
+        .length()
+        .max(a.y_axis.length())
+        .max(a.z_axis.length());
     record.local_to_world = m.to_cols_array_2d();
     record.world_to_local = m.inverse().to_cols_array_2d();
     record.world_center = center.to_array();
@@ -271,19 +341,37 @@ pub fn pose(state: &ShotState, statics: &Statics, content: &mut FrameContent) {
     let scene = &statics.scene;
     let mut light = None;
     for record in &mut content.objects {
-        let Some(o) = scene.objects.get(record.object_index as usize).filter(|o| o.movable) else { continue };
-        let Some(delta) = moved(state, o) else { continue };
+        let Some(o) = scene
+            .objects
+            .get(record.object_index as usize)
+            .filter(|o| o.movable)
+        else {
+            continue;
+        };
+        let Some(delta) = moved(state, o) else {
+            continue;
+        };
         repose(record, delta);
         if o.emissive_strength > 0.0 && scene.lighting.light.center == o.translation {
             light = Some(delta);
         }
     }
     let u = &mut content.uniforms;
-    if let Some(delta) = light && Vec3::from_slice(&u.light_center_radiance[..3]) == scene.lighting.light.center {
+    if let Some(delta) = light
+        && Vec3::from_slice(&u.light_center_radiance[..3]) == scene.lighting.light.center
+    {
         let center = delta.transform_point3(scene.lighting.light.center);
         u.light_center_radiance[..3].copy_from_slice(&center.to_array());
-        u.light_axis_u[..3].copy_from_slice(&delta.transform_vector3(scene.lighting.light.axis_u).to_array());
-        u.light_axis_v[..3].copy_from_slice(&delta.transform_vector3(scene.lighting.light.axis_v).to_array());
+        u.light_axis_u[..3].copy_from_slice(
+            &delta
+                .transform_vector3(scene.lighting.light.axis_u)
+                .to_array(),
+        );
+        u.light_axis_v[..3].copy_from_slice(
+            &delta
+                .transform_vector3(scene.lighting.light.axis_v)
+                .to_array(),
+        );
     }
 }
 
@@ -306,13 +394,24 @@ mod tests {
         let o = &scene.objects[i];
         let mut record = crate::scene::object_record(o, i as u32);
         // Up 1 m, a quarter turn, twice the size: the pivot is where the values say.
-        let delta = Mat4::from_scale_rotation_translation(Vec3::splat(2.0), Quat::from_rotation_y(90f32.to_radians()), o.translation + Vec3::Y) * Mat4::from_translation(-o.translation);
+        let delta = Mat4::from_scale_rotation_translation(
+            Vec3::splat(2.0),
+            Quat::from_rotation_y(90f32.to_radians()),
+            o.translation + Vec3::Y,
+        ) * Mat4::from_translation(-o.translation);
         let before = record;
         repose(&mut record, delta);
         let m = Mat4::from_cols_array_2d(&record.local_to_world);
-        assert!(m.transform_point3(Vec3::ZERO).abs_diff_eq(o.translation + Vec3::Y, 1e-5));
+        assert!(
+            m.transform_point3(Vec3::ZERO)
+                .abs_diff_eq(o.translation + Vec3::Y, 1e-5)
+        );
         assert!((Mat3::from_mat4(m).x_axis.length() - 2.0 * o.scale.x).abs() < 1e-5);
         assert!((record.bounding_radius - 2.0 * before.bounding_radius).abs() < 1e-4);
-        assert!(Mat4::from_cols_array_2d(&record.world_to_local).mul_mat4(&m).abs_diff_eq(Mat4::IDENTITY, 1e-5));
+        assert!(
+            Mat4::from_cols_array_2d(&record.world_to_local)
+                .mul_mat4(&m)
+                .abs_diff_eq(Mat4::IDENTITY, 1e-5)
+        );
     }
 }

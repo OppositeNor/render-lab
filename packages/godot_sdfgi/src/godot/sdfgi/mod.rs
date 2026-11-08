@@ -28,6 +28,7 @@ pub mod values;
 pub mod voxels;
 
 use crate::godot::sdfgi::text::tr;
+use glam::Vec2;
 use lab::camera::Projector;
 use lab::controls::Dock;
 use lab::demo::Demos;
@@ -37,7 +38,6 @@ use lab::pseudocode::Listing;
 use lab::shot::{PanelMode, ShotState};
 use lab::sources::SourceIndex;
 use lab::utility::inset::ImageSpec;
-use glam::Vec2;
 use shot::Demo;
 
 pub struct Sdfgi;
@@ -51,19 +51,37 @@ static WORDING: Wording = Wording {
 };
 
 fn gi_divisor(state: &lab::shot::ShotState) -> u32 {
-    if state.p("giHalfResolution") > 0.5 { 2 } else { 1 }
+    if state.p("giHalfResolution") > 0.5 {
+        2
+    } else {
+        1
+    }
 }
 
 /// The images its story can show (`{inset "key"}`), which `demos::field_demo` publishes.
 pub static IMAGES: &[ImageSpec] = &[
-    ImageSpec { key: "distanceField", doc: "A slice of cascade 0's distance field at sliceHeight, the worked cell marked." },
-    ImageSpec { key: "floodSeeds", doc: "The same slice's jump-flood seeds at floodStep, the cells the step changed in orange." },
+    ImageSpec {
+        key: "distanceField",
+        doc: "A slice of cascade 0's distance field at sliceHeight, the worked cell marked.",
+    },
+    ImageSpec {
+        key: "floodSeeds",
+        doc: "The same slice's jump-flood seeds at floodStep, the cells the step changed in orange.",
+    },
 ];
 
 /// The points its story's arrows and labels can name, which `demos::field_demo` publishes.
 pub static ANNOTATIONS: &[lab::utility::annotations::AnnotationSpec] = &[
-    lab::utility::annotations::AnnotationSpec { key: "field.worked", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The field demonstration's worked cell, at sliceHeight." },
-    lab::utility::annotations::AnnotationSpec { key: "field.seed", kind: lab::utility::annotations::AnnotationKind::Point, doc: "The seed the jump flood has given that cell at floodStep (none before it has one)." },
+    lab::utility::annotations::AnnotationSpec {
+        key: "field.worked",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The field demonstration's worked cell, at sliceHeight.",
+    },
+    lab::utility::annotations::AnnotationSpec {
+        key: "field.seed",
+        kind: lab::utility::annotations::AnnotationKind::Point,
+        doc: "The seed the jump flood has given that cell at floodStep (none before it has one).",
+    },
 ];
 
 impl Investigation for Sdfgi {
@@ -78,20 +96,61 @@ impl Investigation for Sdfgi {
     }
     /// The sizes chapter 2 says (`godot_sdfgi_natives`): the cascade count the resources are made for, and a
     /// cascade's cells along an axis.
-    fn script_natives(&self, r: &mut lab::script::lamlet::embed::NativeRegistry) -> Result<(), lab::script::lamlet::embed::Error> {
-        r.function("godot_sdfgi/cascades", |_, ()| Ok(gpu::CASCADES as i64)).pure().doc("Fn([], Int). `sdfgi_cascades`, the cascade count.").register()?;
-        r.function("godot_sdfgi/cascade-cells", |_, ()| Ok(model::CASCADE_SIZE as i64)).pure().doc("Fn([], Int). A cascade's cells along an axis.").register()?;
+    fn script_natives(
+        &self,
+        r: &mut lab::script::lamlet::embed::NativeRegistry,
+    ) -> Result<(), lab::script::lamlet::embed::Error> {
+        r.function("godot_sdfgi/cascades", |_, ()| Ok(gpu::CASCADES as i64))
+            .pure()
+            .doc("Fn([], Int). `sdfgi_cascades`, the cascade count.")
+            .register()?;
+        r.function("godot_sdfgi/cascade-cells", |_, ()| {
+            Ok(model::CASCADE_SIZE as i64)
+        })
+        .pure()
+        .doc("Fn([], Int). A cascade's cells along an axis.")
+        .register()?;
         // The numbers chapter 2 says of the default settings, so the narration says what the code holds. Metres are
         // rounded to a tenth, as said.
         let tenth = |x: f64| (x * 10.0).round() / 10.0;
         let cell = model::Settings::default().min_cell_size as f64;
-        r.function("godot_sdfgi/cell-centimetres", move |_, ()| Ok((cell * 100.0).round() as i64)).pure().doc("Fn([], Int). The finest cascade's cell, in centimetres (`sdfgi_min_cell_size`).").register()?;
-        r.function("godot_sdfgi/first-span", move |_, ()| Ok(tenth(cell * model::CASCADE_SIZE as f64))).pure().doc("Fn([], Float). How far the finest cascade spans, in metres, to a tenth.").register()?;
-        r.function("godot_sdfgi/probe-gaps", |_, ()| Ok(model::PROBE_DIVISOR as i64)).pure().doc("Fn([], Int). The gaps between probes along a cascade's axis (`PROBE_DIVISOR`).").register()?;
-        r.function("godot_sdfgi/probe-cells", |_, ()| Ok(model::PROBE_CELLS as i64)).pure().doc("Fn([], Int). Cells from one probe to the next.").register()?;
+        r.function("godot_sdfgi/cell-centimetres", move |_, ()| {
+            Ok((cell * 100.0).round() as i64)
+        })
+        .pure()
+        .doc("Fn([], Int). The finest cascade's cell, in centimetres (`sdfgi_min_cell_size`).")
+        .register()?;
+        r.function("godot_sdfgi/first-span", move |_, ()| {
+            Ok(tenth(cell * model::CASCADE_SIZE as f64))
+        })
+        .pure()
+        .doc("Fn([], Float). How far the finest cascade spans, in metres, to a tenth.")
+        .register()?;
+        r.function("godot_sdfgi/probe-gaps", |_, ()| {
+            Ok(model::PROBE_DIVISOR as i64)
+        })
+        .pure()
+        .doc("Fn([], Int). The gaps between probes along a cascade's axis (`PROBE_DIVISOR`).")
+        .register()?;
+        r.function("godot_sdfgi/probe-cells", |_, ()| {
+            Ok(model::PROBE_CELLS as i64)
+        })
+        .pure()
+        .doc("Fn([], Int). Cells from one probe to the next.")
+        .register()?;
         r.function("godot_sdfgi/drag-margin", |_, ()| Ok(((model::CASCADE_SIZE / model::PROBE_DIVISOR) / 2) as i64)).pure().doc("Fn([], Int). How many cells the camera may stray before a cascade scrolls (`drag_margin`).").register()?;
-        r.function("godot_sdfgi/probe-axis-count", |_, ()| Ok(model::PROBE_AXIS_COUNT as i64)).pure().doc("Fn([], Int). Probes along a cascade's axis (`probe_axis_count`).").register()?;
-        r.function("godot_sdfgi/probe-spacing", move |_, ()| Ok(tenth(cell * model::PROBE_CELLS as f64))).pure().doc("Fn([], Float). Metres between the finest cascade's probes, to a tenth.").register()?;
+        r.function("godot_sdfgi/probe-axis-count", |_, ()| {
+            Ok(model::PROBE_AXIS_COUNT as i64)
+        })
+        .pure()
+        .doc("Fn([], Int). Probes along a cascade's axis (`probe_axis_count`).")
+        .register()?;
+        r.function("godot_sdfgi/probe-spacing", move |_, ()| {
+            Ok(tenth(cell * model::PROBE_CELLS as f64))
+        })
+        .pure()
+        .doc("Fn([], Float). Metres between the finest cascade's probes, to a tenth.")
+        .register()?;
         Ok(())
     }
 
@@ -144,10 +203,22 @@ impl Investigation for Sdfgi {
     }
 
     fn entities(&self, _demo: lab::shot::DemoId) -> Vec<lab::entity::EntitySpec> {
-        vec![lab::entity::EntitySpec { text: "entity-light", kind: lab::entity::EntityKind::Light, position: ["lightX", "lightHeight", "lightZ"], shown: None }]
+        vec![lab::entity::EntitySpec {
+            text: "entity-light",
+            kind: lab::entity::EntityKind::Light,
+            position: ["lightX", "lightHeight", "lightZ"],
+            shown: None,
+        }]
     }
 
-    fn build_frame(&self, state: &ShotState, statics: &Statics, viewport: [f32; 2], pixel_scale: f32, time: f32) -> FrameContent {
+    fn build_frame(
+        &self,
+        state: &ShotState,
+        statics: &Statics,
+        viewport: [f32; 2],
+        pixel_scale: f32,
+        time: f32,
+    ) -> FrameContent {
         demos::build_frame(state, statics, viewport, pixel_scale, time)
     }
 
@@ -182,7 +253,13 @@ impl Investigation for Sdfgi {
         static HOOKS: &[(&str, ShadingHook)] = &[
             ("data", ShadingHook::Data(sim::shading_data)),
             ("gi-divisor", ShadingHook::Divisor(gi_divisor)),
-            ("plan", ShadingHook::Program { init: gpu::init, plan: gpu::plan }),
+            (
+                "plan",
+                ShadingHook::Program {
+                    init: gpu::init,
+                    plan: gpu::plan,
+                },
+            ),
         ];
         HOOKS
     }
@@ -199,15 +276,34 @@ impl Investigation for Sdfgi {
         }
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        (settings.bounce_feedback.to_bits(), settings.probe_bias.to_bits(), settings.ray_count, settings.history_size, settings.frames_to_update_light, settings.read_sky).hash(&mut hasher);
-        Some(lab::investigation::SceneData { key: hasher.finish(), build: Box::new(move || sim::shading_data_for(&settings)) })
+        (
+            settings.bounce_feedback.to_bits(),
+            settings.probe_bias.to_bits(),
+            settings.ray_count,
+            settings.history_size,
+            settings.frames_to_update_light,
+            settings.read_sky,
+        )
+            .hash(&mut hasher);
+        Some(lab::investigation::SceneData {
+            key: hasher.finish(),
+            build: Box::new(move || sim::shading_data_for(&settings)),
+        })
     }
 
     fn dock(&self, dock: &mut Dock, ui: &mut egui::Ui) {
         controls::parameters(dock, ui);
     }
 
-    fn click(&self, _shown: &ShotState, _state: &mut ShotState, _content: &FrameContent, _statics: &Statics, _projector: &Projector, _pixel: Vec2) -> bool {
+    fn click(
+        &self,
+        _shown: &ShotState,
+        _state: &mut ShotState,
+        _content: &FrameContent,
+        _statics: &Statics,
+        _projector: &Projector,
+        _pixel: Vec2,
+    ) -> bool {
         false
     }
 

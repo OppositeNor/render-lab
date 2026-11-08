@@ -45,15 +45,30 @@ pub struct LightingValues {
     #[value(default = 0.0, range = -360.0..=360.0, unit = deg, text = "controls-light_motion", color = LIGHT, label(culling), help = "help-extraLightMotion")]
     pub extra_light_motion: f32,
     /// A marker on each of those lights; the ones the inspected point's bin keeps (with cullTile on) are ringed and joined to the point.
-    #[value(default = 0.0, toggle, text = "values-lightMarkers", help = "help-lightMarkers")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-lightMarkers",
+        help = "help-lightMarkers"
+    )]
     pub light_markers: f32,
     /// The inspected point's 16 x 16 tile: its view-space box, its depth bins, and the lights its bin keeps.
-    #[value(default = 0.0, toggle, text = "values-cullTile", help = "help-cullTile")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-cullTile",
+        help = "help-cullTile"
+    )]
     pub cull_tile: f32,
     /// The scene area split in two (Investigation::panes): on the left the
     /// same camera's view in `splitViewMode`, on the right the frame as
     /// `viewMode` shows it.
-    #[value(default = 0.0, toggle, text = "values-splitView", help = "help-splitView")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-splitView",
+        help = "help-splitView"
+    )]
     pub split_view: f32,
     /// The left view's view mode: an index of ViewMode (12, the lights in
     /// each pixel's tile and bin).
@@ -81,10 +96,20 @@ pub struct LightingValues {
     #[value(default = 0.0, range = -180.0..=180.0, unit = deg, text = "controls-grid_turn", color = palette::REFLECTED, label(decals), help = "help-decalTurn")]
     pub decal_turn: f32,
     /// The decals' boxes and projection axes.
-    #[value(default = 0.0, toggle, text = "values-decalBoxes", help = "help-decalBoxes")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-decalBoxes",
+        help = "help-decalBoxes"
+    )]
     pub decal_boxes: f32,
     /// An O3DE point light: a sphere area light, without shadows (simple point lights do no back lighting).
-    #[value(default = 0.0, toggle, text = "values-sphereLight", help = "help-sphereLight")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-sphereLight",
+        help = "help-sphereLight"
+    )]
     pub sphere_light: f32,
     /// The sphere light's position x, metres.
     #[value(default = -0.85, range = -2.8..=2.8, unit = m, color = palette::AXIS_X, label(sphere_light), text = "values-sphereLightX", help = "help-sphereLightX")]
@@ -105,7 +130,13 @@ pub struct LightingValues {
     #[value(default = 0.05, range = 0.0..=0.5, unit = m, text = "controls-bulb_radius", color = SPHERE_LIGHT, label(sphere_light), help = "help-sphereLightBulb")]
     pub sphere_light_bulb: f32,
     /// Screen-space ambient occlusion (on by default in the main pipeline).
-    #[value(default = 1.0, toggle, engine = "SsaoParams::Enabled", text = "values-ssao", help = "help-ssao")]
+    #[value(
+        default = 1.0,
+        toggle,
+        engine = "SsaoParams::Enabled",
+        text = "values-ssao",
+        help = "help-ssao"
+    )]
     pub ssao: f32,
     /// SSAO strength (DefaultSsaoStrength 1).
     #[value(default = 1.0, range = 0.0..=1.0, color = palette::THEME_ACCENT, label(ssao), engine = "SsaoParams::Strength", text = "values-ssaoStrength", help = "help-ssaoStrength")]
@@ -114,7 +145,13 @@ pub struct LightingValues {
     #[value(default = 0.05, range = 0.0..=0.2, text = "controls-sampling_radius", color = palette::THEME_ACCENT, label(ssao), engine = "SsaoParams::SamplingRadius", help = "help-ssaoRadius")]
     pub ssao_radius: f32,
     /// The SSAO's depth-aware blur.
-    #[value(default = 1.0, toggle, engine = "SsaoParams::EnableBlur", text = "values-ssaoBlur", help = "help-ssaoBlur")]
+    #[value(
+        default = 1.0,
+        toggle,
+        engine = "SsaoParams::EnableBlur",
+        text = "values-ssaoBlur",
+        help = "help-ssaoBlur"
+    )]
     pub ssao_blur: f32,
     /// The blur's constant falloff (2/3 without an AO component; the component's default is 0.85).
     #[value(default = 0.6667, range = 0.0..=1.0, text = "controls-blur_falloff", color = palette::THEME_ACCENT, label(ssao), engine = "SsaoParams::BlurConstFalloff", help = "help-ssaoBlurConstFalloff")]
@@ -129,7 +166,13 @@ pub struct LightingValues {
     #[value(default = 0.0, toggle, text = "values-probes", help = "help-probes")]
     pub probes: f32,
     /// The probes' parallax correction (the component's default: on).
-    #[value(default = 1.0, toggle, engine = "ReflectionProbeComponentConfig::m_useParallaxCorrection", text = "values-probeParallax", help = "help-probeParallax")]
+    #[value(
+        default = 1.0,
+        toggle,
+        engine = "ReflectionProbeComponentConfig::m_useParallaxCorrection",
+        text = "values-probeParallax",
+        help = "help-probeParallax"
+    )]
     pub probe_parallax: f32,
     /// The probes' inner extents as a fraction of the placed ones (clamped to the outer extents).
     #[value(default = 1.0, range = 0.0..=1.0, text = "controls-inner_extents", color = palette::THEME_ACCENT, label(probes), help = "help-probeInnerScale")]
@@ -138,13 +181,23 @@ pub struct LightingValues {
     #[value(default = 0.0, range = -4.0..=4.0, text = "controls-exposure_stops", color = palette::THEME_ACCENT, label(probes), engine = "ReflectionProbeComponentConfig::m_renderExposure", help = "help-probeExposure")]
     pub probe_exposure: f32,
     /// The probes' outer and inner boxes.
-    #[value(default = 0.0, toggle, text = "values-probeBoxes", help = "help-probeBoxes")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeBoxes",
+        help = "help-probeBoxes"
+    )]
     pub probe_boxes: f32,
     /// The probe whose baked cubemap the cubemap views show (1 or 2).
     #[value(default = 1.0, range = 1.0..=2.0, unit = index, text = "demos-probe", color = palette::THEME_ACCENT, label(cubemap), help = "help-probeShown")]
     pub probe_shown: f32,
     /// That cubemap unfolded as a cross over the viewport (the lab's view, not an O3DE pass; a fraction fades it in).
-    #[value(default = 0.0, toggle, text = "values-probeCubemap", help = "help-probeCubemap")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeCubemap",
+        help = "help-probeCubemap"
+    )]
     pub probe_cubemap: f32,
     /// The cross's mip (0 the 256-texel capture, 5 the roughest prefiltered mip; a fraction blends two).
     #[value(default = 0.0, range = 0.0..=5.0, color = palette::THEME_ACCENT, label(cubemap), text = "values-probeCubemapMip", help = "help-probeCubemapMip")]
@@ -153,10 +206,19 @@ pub struct LightingValues {
     #[value(default = 6.0, range = 0.0..=6.0, text = "controls-faces_baked", color = palette::THEME_ACCENT, label(cubemap), help = "help-probeBakeFaces")]
     pub probe_bake_faces: f32,
     /// A mirror ball at the probe's position reflecting its cubemap (a fraction fades it in).
-    #[value(default = 0.0, toggle, text = "values-probeBall", help = "help-probeBall")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeBall",
+        help = "help-probeBall"
+    )]
     pub probe_ball: f32,
     /// The mirror ball's radius, metres.
-    #[value(default = 0.22, text = "values-probeBallRadius", help = "help-probeBallRadius")]
+    #[value(
+        default = 0.22,
+        text = "values-probeBallRadius",
+        help = "help-probeBallRadius"
+    )]
     pub probe_ball_radius: f32,
     /// The mip the mirror ball reads.
     #[value(default = 0.0, range = 0.0..=5.0, text = "controls-ball_mip", color = palette::REFLECTED, label(cubemap), help = "help-probeBallMip")]
@@ -186,7 +248,13 @@ pub struct LightingValues {
     #[value(default = 0.5, range = 0.0..=4.0, text = "controls-distance_attenuation_thin", color = palette::THEME_ACCENT, label(transmission), help = "help-transmissionDistanceAttenuation")]
     pub transmission_distance_attenuation: f32,
     /// The sphere's clearCoat.enable (false by default).
-    #[value(default = 0.0, toggle, engine = "StandardPBR clearCoat.enable", text = "values-sphereClearCoat", help = "help-sphereClearCoat")]
+    #[value(
+        default = 0.0,
+        toggle,
+        engine = "StandardPBR clearCoat.enable",
+        text = "values-sphereClearCoat",
+        help = "help-sphereClearCoat"
+    )]
     pub sphere_clear_coat: f32,
     /// ClearCoat.factor (1 by default).
     #[value(default = 1.0, range = 0.0..=1.0, color = palette::THEME_ACCENT, label(clear_coat), engine = "StandardPBR clearCoat.factor", text = "values-clearCoatFactor", help = "help-clearCoatFactor")]
@@ -195,7 +263,12 @@ pub struct LightingValues {
     #[value(default = 0.0, range = 0.0..=1.0, color = palette::THEME_ACCENT, label(clear_coat), engine = "StandardPBR clearCoat.roughness", text = "values-clearCoatRoughness", help = "help-clearCoatRoughness")]
     pub clear_coat_roughness: f32,
     /// The sphere's diffuse AO and specular cavity maps assigned (1) or not (0, O3DE's default: no texture, occlusion 1).
-    #[value(default = 0.0, toggle, text = "values-sphereOcclusion", help = "help-sphereOcclusion")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-sphereOcclusion",
+        help = "help-sphereOcclusion"
+    )]
     pub sphere_occlusion: f32,
     /// DiffuseOcclusion.factor: the exponent on the diffuse AO map.
     #[value(default = 1.0, range = 0.0..=2.0, text = "controls-diffuse_factor", color = DIFFUSE, label(occlusion), engine = "StandardPBR occlusion.diffuseFactor", help = "help-diffuseOcclusionFactor")]
@@ -255,10 +328,19 @@ pub struct LightingValues {
     #[value(default = 0.562, text = "values-inspectNZ", help = "help-inspectNZ")]
     pub inspect_n_z: f32,
     /// The object of the inspected point (scene ids).
-    #[value(default = 5.0, text = "values-inspectObject", help = "help-inspectObject")]
+    #[value(
+        default = 5.0,
+        text = "values-inspectObject",
+        help = "help-inspectObject"
+    )]
     pub inspect_object: f32,
     /// The readout and vectors see the point from the observer (1) or the camera (0).
-    #[value(default = 0.0, toggle, text = "values-observer", help = "help-observer")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-observer",
+        help = "help-observer"
+    )]
     pub observer: f32,
     /// Observer position x, metres.
     #[value(default = -0.362, text = "values-observerX", help = "help-observerX")]
@@ -288,7 +370,11 @@ pub struct LightingValues {
     #[value(default = 1.0, range = 0.2..=4.0, unit = factor, text = "controls-exposure", label(display), help = "help-exposure")]
     pub exposure: f32,
     /// How many of N, L, V, H, and R are drawn, in that order (the video reveals them one by one; a fraction grows the next one).
-    #[value(default = 5.0, text = "values-vectorsShown", help = "help-vectorsShown")]
+    #[value(
+        default = 5.0,
+        text = "values-vectorsShown",
+        help = "help-vectorsShown"
+    )]
     pub vectors_shown: f32,
     /// How many readout rows are shown (the video reveals them step by step).
     #[value(default = 99.0, text = "values-readoutRows", help = "help-readoutRows")]
@@ -303,7 +389,12 @@ pub struct LightingValues {
     #[value(default = 0.0, text = "values-cameraDrift", help = "help-cameraDrift")]
     pub camera_drift: f32,
     /// The sun's cascades for the main camera drawn in the scene: its frustum and split planes (cascades.rs).
-    #[value(default = 0.0, toggle, text = "values-cascades", help = "help-cascades")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-cascades",
+        help = "help-cascades"
+    )]
     pub cascades: f32,
     /// How many of the four cascades are drawn (the video adds them one by one; a fraction grows the next one).
     #[value(default = 4.0, range = 0.0..=4.0, text = "controls-cascades_shown", label(cascades), help = "help-cascadesShown")]
@@ -338,7 +429,13 @@ pub struct LightingValues {
     #[value(default = 0.0015, range = 0.0..=0.05, unit = m, text = "controls-shadow_bias", label(sun), engine = "DirectionalLightComponentConfig::m_shadowBias", help = "help-shadowBias")]
     pub shadow_bias: f32,
     /// FullscreenShadowBlur (m_fullscreenBlurEnabled, on by default).
-    #[value(default = 1.0, toggle, engine = "DirectionalLightComponentConfig::m_fullscreenBlurEnabled", text = "values-shadowBlur", help = "help-shadowBlur")]
+    #[value(
+        default = 1.0,
+        toggle,
+        engine = "DirectionalLightComponentConfig::m_fullscreenBlurEnabled",
+        text = "values-shadowBlur",
+        help = "help-shadowBlur"
+    )]
     pub shadow_blur: f32,
     /// The fullscreen shadow blur's strength (m_fullscreenBlurConstFalloff, 2/3 by default; the editor's 0 to 0.95).
     #[value(default = 0.6666667, range = 0.0..=0.95, text = "controls-shadow_blur_strength", label(sun), engine = "DirectionalLightComponentConfig::m_fullscreenBlurConstFalloff", help = "help-shadowBlurStrength")]
@@ -348,7 +445,13 @@ pub struct LightingValues {
     pub shadow_blur_sharpness: f32,
     /// O3DE's cascade debug colouring (m_isDebugColoringEnabled): each pixel's
     /// cascade tints its specular light, red, green, blue, yellow.
-    #[value(default = 0.0, toggle, engine = "DirectionalLightComponentConfig::m_isDebugColoringEnabled", text = "values-cascadeColors", help = "help-cascadeColors")]
+    #[value(
+        default = 0.0,
+        toggle,
+        engine = "DirectionalLightComponentConfig::m_isDebugColoringEnabled",
+        text = "values-cascadeColors",
+        help = "help-cascadeColors"
+    )]
     pub cascade_colors: f32,
     /// What the room's readout shows: 0 the forward pass's light at the
     /// point, 1 the five targets' texels there, 2 the normal's encoding, step
@@ -357,7 +460,12 @@ pub struct LightingValues {
     pub readout_mode: f32,
     /// The inspected point ringed in every view of a screen-sized resource
     /// (a click sets it).
-    #[value(default = 0.0, toggle, text = "values-pickShown", help = "help-pickShown")]
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-pickShown",
+        help = "help-pickShown"
+    )]
     pub pick_shown: f32,
     /// SSAO's occluders drawn around the inspected point: the first this many
     /// of its 52 (a fraction fades the next in).

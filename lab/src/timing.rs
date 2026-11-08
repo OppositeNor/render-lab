@@ -7,8 +7,8 @@
 //! stalls; a research run waits for them (`finish`).
 
 use std::collections::{BTreeMap, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Pairs a frame can time.
 const PAIRS: u32 = 64;
@@ -25,16 +25,28 @@ pub struct Span {
 
 impl Span {
     pub fn writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
-        wgpu::RenderPassTimestampWrites { query_set: &self.set, beginning_of_pass_write_index: Some(self.begin), end_of_pass_write_index: Some(self.begin + 1) }
+        wgpu::RenderPassTimestampWrites {
+            query_set: &self.set,
+            beginning_of_pass_write_index: Some(self.begin),
+            end_of_pass_write_index: Some(self.begin + 1),
+        }
     }
 
     /// For one pass of several the span covers: the start in the first, the end in the last.
     pub fn span(&self, first: bool, last: bool) -> wgpu::RenderPassTimestampWrites<'_> {
-        wgpu::RenderPassTimestampWrites { query_set: &self.set, beginning_of_pass_write_index: first.then_some(self.begin), end_of_pass_write_index: last.then_some(self.begin + 1) }
+        wgpu::RenderPassTimestampWrites {
+            query_set: &self.set,
+            beginning_of_pass_write_index: first.then_some(self.begin),
+            end_of_pass_write_index: last.then_some(self.begin + 1),
+        }
     }
 
     pub fn compute(&self) -> wgpu::ComputePassTimestampWrites<'_> {
-        wgpu::ComputePassTimestampWrites { query_set: &self.set, beginning_of_pass_write_index: Some(self.begin), end_of_pass_write_index: Some(self.begin + 1) }
+        wgpu::ComputePassTimestampWrites {
+            query_set: &self.set,
+            beginning_of_pass_write_index: Some(self.begin),
+            end_of_pass_write_index: Some(self.begin + 1),
+        }
     }
 }
 
@@ -66,22 +78,50 @@ pub struct Timing {
 impl Timing {
     /// None when the device has no timestamp queries.
     pub fn new(gpu: &crate::gpu::Gpu) -> Option<Timing> {
-        if !gpu.device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+        if !gpu
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY)
+        {
             return None;
         }
         let device = &gpu.device;
         let bytes = PAIRS as u64 * 2 * 8;
-        let set = device.create_query_set(&wgpu::QuerySetDescriptor { label: Some("pass timestamps"), ty: wgpu::QueryType::Timestamp, count: PAIRS * 2 });
-        let resolve = device.create_buffer(&wgpu::BufferDescriptor { label: Some("timestamp resolve"), size: bytes, usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
+        let set = device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some("pass timestamps"),
+            ty: wgpu::QueryType::Timestamp,
+            count: PAIRS * 2,
+        });
+        let resolve = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("timestamp resolve"),
+            size: bytes,
+            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
         let ring = (0..RING)
             .map(|_| InFlight {
-                buffer: device.create_buffer(&wgpu::BufferDescriptor { label: Some("timestamp readback"), size: bytes, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false }),
+                buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("timestamp readback"),
+                    size: bytes,
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                    mapped_at_creation: false,
+                }),
                 labels: Vec::new(),
                 mapped: Arc::new(AtomicBool::new(false)),
                 waiting: false,
             })
             .collect();
-        Some(Timing { set, resolve, period: gpu.queue.get_timestamp_period() as f64, labels: Vec::new(), ring, next: 0, history: Vec::new(), last: Vec::new(), totals: VecDeque::new() })
+        Some(Timing {
+            set,
+            resolve,
+            period: gpu.queue.get_timestamp_period() as f64,
+            labels: Vec::new(),
+            ring,
+            next: 0,
+            history: Vec::new(),
+            last: Vec::new(),
+            totals: VecDeque::new(),
+        })
     }
 
     /// A pair for a pass labelled `label`; None once the frame's pairs are used,
@@ -92,7 +132,10 @@ impl Timing {
         }
         let begin = self.labels.len() as u32 * 2;
         self.labels.push(label.to_string());
-        Some(Span { set: self.set.clone(), begin })
+        Some(Span {
+            set: self.set.clone(),
+            begin,
+        })
     }
 
     pub fn render_writes(&mut self, label: &str) -> Option<Span> {
@@ -123,7 +166,11 @@ impl Timing {
             slot.waiting = true;
             slot.mapped.store(false, Ordering::Release);
             let flag = slot.mapped.clone();
-            slot.buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| flag.store(r.is_ok(), Ordering::Release));
+            slot.buffer
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |r| {
+                    flag.store(r.is_ok(), Ordering::Release)
+                });
             self.next = (self.next + 1) % RING;
         }
         self.labels.clear();
@@ -144,7 +191,13 @@ impl Timing {
                 continue;
             }
             let ticks: Vec<u64> = match slot.buffer.slice(..).get_mapped_range() {
-                Ok(data) => data.as_chunks::<8>().0.iter().take(slot.labels.len() * 2).map(|c| u64::from_le_bytes(*c)).collect(),
+                Ok(data) => data
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .take(slot.labels.len() * 2)
+                    .map(|c| u64::from_le_bytes(*c))
+                    .collect(),
                 Err(_) => Vec::new(),
             };
             slot.buffer.unmap();
@@ -195,7 +248,11 @@ impl Timing {
         self.history
             .iter()
             .map(|(label, h)| {
-                let xs: Vec<f64> = h.iter().skip(h.len().saturating_sub(frames)).copied().collect();
+                let xs: Vec<f64> = h
+                    .iter()
+                    .skip(h.len().saturating_sub(frames))
+                    .copied()
+                    .collect();
                 let (mean, _, p95) = crate::metrics::summary(&xs);
                 (label.clone(), mean, p95)
             })

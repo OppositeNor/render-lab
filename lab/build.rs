@@ -16,13 +16,20 @@ use std::process::Command;
 
 /// Hashes every file under `dir` (sorted, by path and bytes) into `hash`.
 fn hash_dir(dir: &Path, root: &Path, hash: &mut DefaultHasher) {
-    let mut entries: Vec<PathBuf> = fs::read_dir(dir).map(|e| e.flatten().map(|e| e.path()).collect()).unwrap_or_default();
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .map(|e| e.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default();
     entries.sort();
     for path in entries {
         if path.is_dir() {
             hash_dir(&path, root, hash);
         } else if let Ok(bytes) = fs::read(&path) {
-            hash.write(path.strip_prefix(root).unwrap_or(&path).to_string_lossy().as_bytes());
+            hash.write(
+                path.strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .as_bytes(),
+            );
             hash.write(&bytes);
         }
     }
@@ -37,7 +44,11 @@ fn main() {
 
     // The fingerprint: the compiler, and every source the lab is built from.
     let rustc = env::var("RUSTC").unwrap_or_else(|_| "rustc".into());
-    let version = Command::new(&rustc).arg("--version").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+    let version = Command::new(&rustc)
+        .arg("--version")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
     println!("cargo:rustc-env=LAB_RUSTC={version}");
     let mut hash = DefaultHasher::new();
     hash_dir(&manifest_dir.join("src"), &root, &mut hash);
