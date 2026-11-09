@@ -79,7 +79,7 @@ use widgets::*;
 /// The bottom-left line of the title page.
 fn credits() -> String {
     format!(
-        "© 2026 OppositeNor · {} · v{}",
+        "© 2026 OppositeNor, Render Lab Contributors · {} · v{}",
         tr("home-mit_license"),
         env!("CARGO_PKG_VERSION")
     )

@@ -1,7 +1,7 @@
 # Third-party material
 
 Everything in this repository written for Render Lab (the Rust lab and its WGSL shaders) is released under the
-[MIT License](LICENSE), copyright © 2026 OppositeNor.
+[MIT License](LICENSE), copyright © 2026 OppositeNor and Render Lab Contributors.
 
 The following are **not** covered by that license; they keep their own terms.
 

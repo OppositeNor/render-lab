@@ -86,5 +86,5 @@ WGSL、审查和验证。只有许可证允许发布衍生代码的引擎才能�
 
 ## 许可证
 
-Render Lab 以 [MIT 许可证](LICENSE) 发布，版权所有 © 2026 OppositeNor。随附的字体、茶壶模型、环境光、声音以及 vendor 的 crate
-保留各自的条款；见 [`THIRD_PARTY.md`](THIRD_PARTY.md)。
+Render Lab 以 [MIT 许可证](LICENSE) 发布，版权所有 © 2026 OppositeNor 和 Render Lab Contributors。
+随附的字体、茶壶模型、环境光、声音以及 vendor 的 crate 保留各自的条款；见 [`THIRD_PARTY.md`](THIRD_PARTY.md)。

@@ -100,5 +100,11 @@ derived code belong in the public repository; see `AGENTS.md`.
 
 ## License
 
-Render Lab is released under the [MIT License](LICENSE), copyright © 2026 OppositeNor. Bundled fonts, the teapot mesh,
-the environment, the sounds, and the vendored crates keep their own terms; see [`THIRD_PARTY.md`](THIRD_PARTY.md).
+Render Lab is released under the [MIT License](LICENSE), copyright © 2026 OppositeNor and Render Lab Contributors.
+Bundled fonts, the teapot mesh, the environment, the sounds, and the vendored crates keep their own terms; see
+[`THIRD_PARTY.md`](THIRD_PARTY.md).
+
+## Acknowledgements
+
+Thanks to everyone who has helped improve Render Lab.
+See [Acknowledgements](ACKNOWLEDGEMENTS.md).
