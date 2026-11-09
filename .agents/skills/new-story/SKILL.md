@@ -24,8 +24,8 @@ AGENTS.md, "How deep a task goes", sets the levels; for a story they are:
 
 | Task | Do | Load |
 |---|---|---|
-| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only`; render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against the checkout before it is narrated (the fact check, for that sentence). A changed sentence is mapped with its neighbours (`storytelling`). | `references/storyboard.md`, `storytelling` |
-| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks | the references of those phases, `storytelling` |
+| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only` (both languages when a sentence changed; the build too if code changed); render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against the checkout before it is narrated (the fact check, for that sentence). A changed sentence is mapped with its neighbours (`storytelling`). | `references/storyboard.md`, `storytelling` |
+| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks except the full build (the selftest with `--timeline` for labels, text sizes, and fit; both languages' `--prepare-only`) | the references of those phases, `storytelling` |
 | **Story**: a new story, or a redesign of an existing one | Every phase, in order | each phase's reference as you reach it |
 | **Feedback** on a built story | `references/review.md`, "Revising a finished story" | it, then what the corrections need |
 | **Quiz**: writing or revising a story's quiz | `references/quiz.md`: the quiz agent, then the quiz file and its checks | `references/quiz.md` |
@@ -101,7 +101,7 @@ recorded calls at the end. Never skip the work a gate reviews.
 | 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md` | storage mirrored, every view interactive, the interaction review answered, every taught topic demonstrated, pick round-trip in the selftest; gate |
 | 4. The base | index entries, port, mirror, selftest, listings, formulas, step parameters | `new-investigation` (procedure steps 3 to 6) | below |
 | 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md`, `storytelling` | each chapter's sentences mapped with no fault left, the chapter prepared, its stills looked at |
-| 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's animations counted (at least 32, each demonstrating something), its per-beat checks passed |
+| 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's supporting animations at least ⌈T / 6 s⌉, no gap over about 12 s, every named mechanism shown (a replay only with a reason the narration gives), its per-beat checks passed |
 | 7. Review | `story/reviews/`, revisions | `references/review.md`, `storytelling` | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
 | 8. Translate and build | `storyboard.zh-CN.lam`, both editions | below | the checks below pass, the user asked to watch |
 
@@ -131,7 +131,8 @@ parameter.
   - the stills of every beat (`--snapshots-only`), looked at;
   - after a change to a storyboard's form or to `tools/video`, every edition's prepared outputs unchanged
     (`tools/video/compare.py`);
-  - the full build in the background, English first, then `--lang zh-CN`.
+  - the full build in the background, English first, then `--lang zh-CN`, only when the user asks for it or the story
+    is being delivered.
 - Report the checks and the corrections, and ask the user to watch the result.
 
 ### The quiz
@@ -140,8 +141,3 @@ A story can end with a quiz: multiple-choice questions on how its algorithm work
 demonstration (the homepage's Quiz button). Write one when the story is delivered, or when the user asks:
 `references/quiz.md` (a dedicated quiz agent proposes the questions; every question about the algorithm, never the
 engine's configuration).
-
-A local change runs `--prepare-only` (both languages when a sentence changed) and the stills of the beats it changed;
-the build too if code changed. A chapter change adds the selftest with `--timeline` (labels, text sizes, fit) and
-both languages' `--prepare-only`. Render the full video only when
-the user asks for it or the story is being delivered.

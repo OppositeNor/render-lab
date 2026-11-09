@@ -153,20 +153,30 @@ The timeline is the package's `build/timelines/<lang>/timeline.json`; the captio
 
 A pass over the drafted chapters for what the story shows, not what it says.
 
-**Make this feel more like a video instead of a powerpoint.** Something on screen moves while every sentence is said:
-a sweep, a step, a camera glide, rays drawing in, a value counting. Still beats are the exception.
+**Make this feel more like a video instead of a powerpoint.** Something on screen moves while the narration runs, and
+the motion that counts is the motion that explains.
 
-- **At least 32 animations per chapter** (required for a new or rewritten chapter): parameter sweeps, step-by-step
+- **Animations by the chapter's length** (required for a new or rewritten chapter): parameter sweeps, step-by-step
   reveals, actions (`run`), camera paths. Each is driven by a value the interactive view shows (a slider or a toggle
   in the dock), so a viewer can replay it, stop it anywhere, and change it; a timeline sets only values the dock can
-  set. Count them per chapter before the review. A local edit to one beat keeps its chapter's count from falling below
-  it.
-- **Every animation demonstrates something** (required; it is what the count means). Reach the count with animations
-  that show how the feature works: a ray marching to its hit, a texel picked and read, a count growing until the noise
-  settles, a step of the algorithm played out. Don't pad it with motion that explains nothing: a filler sweep, a
-  camera move with no subject, a value changed and changed back, or a whole-image swing (a mix or a frame count
-  jumping mid-beat), which also flashes. When a chapter falls short, add a demonstration where a sentence names a
-  mechanism, and cut an animation that only adds motion.
+  set. Three rules, all checked per chapter before the review:
+  - *Density*: at least ⌈T / 6 s⌉ supporting animations, T the chapter's narration time (about one a spoken
+    sentence). No cap: a longer chapter needs more.
+  - *No long gaps*: no stretch of narration longer than about 12 s without a supporting animation playing or starting.
+  - *Coverage*: every sentence that names a mechanism has an animation that shows that mechanism working.
+
+  A local edit to one beat keeps its chapter inside the three rules.
+- **What counts as supporting** (required). An animation counts when the sentence it plays under explains something
+  with it: a ray marching to its hit, a texel picked and read, a count growing until the noise settles, a step of the
+  algorithm played out, a value read off the picture, a cause and its effect. Filler is cut, never counted: a sweep
+  nobody reads, a camera move that frames nothing new, a value changed and changed back, or a whole-image swing (a mix
+  or a frame count jumping mid-beat), which also flashes. A replay of an animation already played counts only for a
+  practical reason the narration gives (a comparison with what changed since, a recap that ties steps together, a
+  second subject the same mechanism now acts on). A chapter that falls short gets a demonstration where a sentence
+  names a mechanism; it is never lengthened or padded to raise its count, since the count follows the narration.
+- **The camera sways** whenever it need not be locked at one angle to demonstrate something (`swayYaw`,
+  `swayPitch`): the one motion kept without explaining anything, and never counted. Only a deliberate camera move, or
+  a view that must hold its angle (an alignment, a subject at the frame's edge), goes without it.
 - **Interactions**: clicking scene elements (an object, a card, a probe, a point) and image elements (a texel, a
   probe's map, a slice) picks them; the pick is shown everywhere it lives at once, with arrows and connection lines
   between them (from a texel in an inset to its point in the scene, from a probe to its map, from a ray's hit to the
