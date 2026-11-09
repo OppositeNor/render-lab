@@ -28,7 +28,7 @@ use crate::values::{self, Type, Value as LabValue};
 use egui::Color32;
 use glam::Vec3;
 use lamlet::embed::{
-    Binding, Data, Document, Engine, Instance, IntoLamlet, LamletType, SourceFile,
+    Binding, Data, Document, Engine, Instance, IntoLamlet, LamletType, Part, SourceFile,
 };
 use lamlet::types::TypeDesc;
 use lamlet::{Limits, Value};
@@ -565,6 +565,28 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
     ))
 }
 
+/// The names a document's own declarations bind (`[# name …]`, `[# {name args} …]`): its bindings without those
+/// its imports bring.
+fn declared_names(document: &Document, source: &str) -> BTreeSet<String> {
+    document
+        .parts()
+        .into_iter()
+        .filter_map(|part| {
+            let Part::Declaration { region } = part else {
+                return None;
+            };
+            let text = source.get(region.at.start as usize..region.at.end as usize)?;
+            let rest = text.trim_start_matches(['$', '[']).strip_prefix('#')?;
+            let rest = rest.trim_start().trim_start_matches('{');
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            (!name.is_empty()).then_some(name)
+        })
+        .collect()
+}
+
 /// A Type a runtime library binding holds (`Shape`, `Write`, `Click`).
 fn library_type(library: &Document, name: &str) -> Result<TypeDesc, String> {
     match library.binding(name).map_err(|e| e.render())?.value {
@@ -632,11 +654,23 @@ impl Runtime {
             let mut instance = runtime.engine.instance(&document).map_err(|e| e.render())?;
             instance.set_limits(limits());
             let module = runtime.modules.len();
+            let own = declared_names(&document, &source.source);
             for binding in document.bindings() {
-                if binding.name.starts_with('_') {
+                // A hook is the script's own binding, not one it imports.
+                if binding.name.starts_with('_') || !own.contains(&binding.name) {
                     continue;
                 }
                 let Some(TypeDesc::Func(params, ret)) = &binding.ty else {
+                    // A generic function (a parameter it never constrains) has no hook's type.
+                    if binding.ty.is_none()
+                        && matches!(binding.value, Value::Closure(_) | Value::Native(_))
+                    {
+                        return Err(format!(
+                            "{key}: `{}` is a generic function ({}), never called as a hook; ascribe a hook's \
+                             type (render_lab_runtime), or start a helper's name with `_`",
+                            binding.name, binding.type_text
+                        ));
+                    }
                     continue;
                 };
                 let named = binding.name.clone();
@@ -673,7 +707,37 @@ impl Runtime {
                             .actions
                             .insert(named, (Hook { module, binding }, args));
                     }
-                    _ => {}
+                    // A function that returns what a hook returns but takes what none takes is a hook whose
+                    // signature is wrong: refused, rather than never called.
+                    _ => {
+                        let Some(returns) =
+                            [(&shapes, "Shape"), (&rows, "Row"), (&writes, "Write")]
+                                .into_iter()
+                                .find(|(t, _)| **t == **ret)
+                                .map(|(_, n)| n)
+                        else {
+                            continue;
+                        };
+                        let expected = if returns == "Write" {
+                            "(Click) for a click handler, (Float) for an animation, or (Float, a record) for an \
+                             action"
+                        } else {
+                            "(Float)"
+                        };
+                        let takes = params
+                            .iter()
+                            .map(|p| match p == &click {
+                                true => "Click".to_string(),
+                                false => p.to_string(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        return Err(format!(
+                            "{key}: `{named}` returns List({returns}) as a hook does, but takes ({takes}); a hook \
+                             returning List({returns}) takes {expected} (render_lab_runtime). A helper's name \
+                             starts with `_`"
+                        ));
+                    }
                 }
             }
             runtime.modules.push(Module {

@@ -202,8 +202,10 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   be a value's key (the key would leave the values package).
 - **Text.** A label's or a row's text is a text key: `{labelText at {textKey "demos-observer"} color}`, or
   `{text {textKey "…"}}` for the string; the text check (`lab/check`) finds `textKey`.
-- **Errors.** A script that does not check fails when its package loads, with its line (`render-lab --investigation
-  <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
+- **Errors.** A script that does not check fails when its package loads, with its line, and so does a function of
+  its own (not `_`) that looks like a hook with the wrong signature: one returning a hook's list (`List(Shape)`,
+  `List(Row)`, `List(Write)`) but taking what no hook takes, or one that is generic; the error names the parameters
+  a hook takes (`render-lab --investigation <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
   (`set_strict`); in the viewer it keeps its last good shapes, sets nothing, and shows its message as a note until
   it succeeds again. A script hook named like one of the code's (`#[click]`, `#[action]`) is an error.
 - **Examples.** `packages/o3de_lighting/script/` (overlay, readout, picks, animations; natives in `script.rs`) and

@@ -69,7 +69,8 @@ one):
 - an animation, `Animation`, the values at a demonstration's time in seconds (its `animation` in the demo's
   TOML).
 
-A hook's type must be exactly one of these: ascribe it (`{: {^ {t} …} Overlay}`).
+A hook's type must be exactly one of these: ascribe it (`{: {^ {t} …} Overlay}`). A script's function that returns
+what a hook returns but takes something else, or that is generic, fails the script; a helper's name starts with `_`.
 $[# Overlay [% {Fn {' Float} {List Shape}}]]
 $[# Readout [% {Fn {' Float} {List Row}}]]
 $[# ClickHandler [% {Fn {' Click} {List Write}}]]
