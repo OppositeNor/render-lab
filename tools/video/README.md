@@ -397,7 +397,7 @@ in the captions and the formula card, and in its text tables, as the Fluent func
 - the package's `build/timelines/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
   and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, `--prepare-only` builds
   them (the homepage shows "Not built yet" until then).
-- the package's `build/video/<lang>/`: the video, `narration.wav`, captions, `chapters.txt`, `script.md`,
+- the package's `build/video/<lang>/`: the video, `narration.wav`, captions, `chapters.txt` (one `MM:SS Title` line per chapter, for a video site's description), `script.md`,
   `source-reading-guide.md`, `preview.html`, `NOTICE.txt` (the package's `[[notice]]`s and each one's license
   text), `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and `verification-report.{json,md}` (git-ignored).
   A package with notices gets a closing notices card (a silent 2D beat, `timeline.py` `NOTICES` seconds) at the end of

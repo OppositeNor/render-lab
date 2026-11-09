@@ -102,11 +102,25 @@ def write_chapters(cfg: Config, board: Json, timeline: Json) -> None:
     meta = [';FFMETADATA1', 'title=' + board['title'], 'comment=' + board['subtitle'], 'artist=Render Lab', 'date=' + board['date']]
     if cfg.zh():
         meta.append('language=chi')
-    text = []
     for c in timeline['chapters']:
         meta += ['[CHAPTER]', 'TIMEBASE=1/1000', f'START={round(c["startFrame"] / fps * 1000)}', f'END={round(c["endFrame"] / fps * 1000)}', f'title={c["number"]:02d} {c["title"]}']
-        text.append(f'{clock(c["startFrame"] / fps)} {c["number"]:02d} {c["title"]}')
     (cfg.build() / 'chapters.ffmeta').write_text('\n'.join(meta) + '\n')
+    write_chapter_list(cfg, timeline)
+
+
+def chapter_time(seconds: float, hours: bool) -> str:
+    """A chapter's start as a video site's chapter list writes it: MM:SS, or H:MM:SS in a video of an hour or more."""
+    h, rest = divmod(int(seconds), 3600)
+    m, s = divmod(rest, 60)
+    return f'{h}:{m:02}:{s:02}' if hours else f'{m:02}:{s:02}'
+
+
+def write_chapter_list(cfg: Config, timeline: Json) -> None:
+    """chapters.txt: one line per chapter, its start and title (`00:30 Title`), to paste into a video site's
+    description, where the site turns the times into chapter links."""
+    fps = timeline['fps']
+    hours = timeline['totalFrames'] / fps >= 3600
+    text = [f'{chapter_time(c["startFrame"] / fps, hours)} {c["title"]}' for c in timeline['chapters']]
     (cfg.build() / 'chapters.txt').write_text('\n'.join(text) + '\n')
 
 
