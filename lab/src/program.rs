@@ -839,12 +839,6 @@ impl ProgramRuntime {
         after: &mut dyn FnMut(&mut wgpu::CommandEncoder, &'static str),
     ) {
         let ProgramRun { runs, run } = run;
-        let (pipelines, frame, shading, meshes) = (
-            bindings.pipelines,
-            bindings.frame,
-            bindings.shading,
-            &bindings.meshes,
-        );
         if self.commands.is_empty() {
             return;
         }
@@ -853,31 +847,288 @@ impl ProgramRuntime {
             "a program's groups are made when the frame's textures exist (ProgramRuntime::bind)"
         );
         let commands = std::mem::take(&mut self.commands);
-        let source = self.source;
-        let stage = run;
-        let pass_index = |name: &str| {
-            source
-                .passes
-                .iter()
-                .position(|p| p.name == name)
-                .unwrap_or_else(|| panic!("a program has no pass `{name}`"))
+        let s = Schedule::of(self.source, &commands, runs, run);
+        let mut i = 0;
+        let count = commands.len();
+        while i < count {
+            if s.stages[i] != run {
+                i += 1;
+                continue;
+            }
+            match &commands[i] {
+                ProgramCommand::Dispatch { pass, .. }
+                | ProgramCommand::DispatchIndirect { pass, .. } => {
+                    i = self.record_dispatches(
+                        encoder,
+                        (&s, i, *pass),
+                        bindings,
+                        timing.as_deref_mut(),
+                        after,
+                    );
+                }
+                ProgramCommand::Draw { pass, .. } => {
+                    i = self.record_draws(
+                        device,
+                        encoder,
+                        (&s, i, *pass),
+                        bindings,
+                        timing.as_deref_mut(),
+                        after,
+                    );
+                }
+                command => {
+                    self.record_transfer(encoder, command, s.uploads[i]);
+                    i += 1;
+                }
+            }
+        }
+        self.commands = commands;
+    }
+
+    /// An upload (from its staging slot `upload`), a clear, or a copy, recorded.
+    fn record_transfer(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        command: &ProgramCommand,
+        upload: usize,
+    ) {
+        match command {
+            ProgramCommand::Upload {
+                buffer,
+                offset,
+                words,
+            } => {
+                let (staging, offsets) = self.uploads.as_ref().expect("the uploads");
+                let to = self.buffer(*buffer);
+                encoder.copy_buffer_to_buffer(
+                    staging,
+                    offsets[upload],
+                    to,
+                    *offset,
+                    words.len() as u64 * 4,
+                );
+            }
+            ProgramCommand::Clear(e) => {
+                let pick = |k: usize| e.index == u32::MAX || k == e.index as usize;
+                if let Some(b) = self.source.buffers.iter().position(|b| b.name == e.name) {
+                    for (_, x) in self.buffers[b].iter().enumerate().filter(|(k, _)| pick(*k)) {
+                        encoder.clear_buffer(x, 0, None);
+                    }
+                } else {
+                    let k = self
+                        .image(e.name)
+                        .unwrap_or_else(|| panic!("a program has no image or buffer `{}`", e.name));
+                    for (_, t) in self.images[k].iter().enumerate().filter(|(k, _)| pick(*k)) {
+                        encoder.clear_texture(t, &wgpu::ImageSubresourceRange::default());
+                    }
+                }
+            }
+            ProgramCommand::Copy { from, to, bytes } => {
+                encoder.copy_buffer_to_buffer(self.buffer(*from), 0, self.buffer(*to), 0, *bytes);
+            }
+            _ => unreachable!("a transfer"),
+        }
+    }
+
+    /// The consecutive dispatches of compute pass `pass` from command `i` of the schedule, in one compute pass;
+    /// `after` called once they are recorded. Where the commands after them start.
+    fn record_dispatches(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        (s, i, pass): (&Schedule, usize, &'static str),
+        bindings: &ProgramBindings,
+        mut timing: Option<&mut crate::timing::Timing>,
+        after: &mut dyn FnMut(&mut wgpu::CommandEncoder, &'static str),
+    ) -> usize {
+        let p = s.pass_index(pass);
+        let PassPipeline::Compute(pipeline) = &bindings.pipelines.passes[p].0 else {
+            panic!("`{pass}` is a raster pass: draw it")
         };
-        // Each command's run, and its parameters' slot.
-        let mut stages = vec![BEFORE_SCENE; commands.len()];
+        let mut end = i;
+        while end < s.commands.len()
+            && s.stages[end] == s.stage
+            && s.commands[end].pass() == Some(pass)
+            && !matches!(s.commands[end], ProgramCommand::Draw { .. })
+        {
+            end += 1;
+        }
+        let span = timing.as_mut().and_then(|t| t.compute_writes(pass));
+        let mut cp = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some(pass),
+            timestamp_writes: span.as_ref().map(|t| t.compute()),
+        });
+        cp.set_pipeline(pipeline);
+        cp.set_bind_group(0, bindings.frame, &[]);
+        cp.set_bind_group(1, bindings.shading, &[]);
+        for k in i..end {
+            match &s.commands[k] {
+                ProgramCommand::Dispatch {
+                    groups, instance, ..
+                } => {
+                    cp.set_bind_group(
+                        2,
+                        &self.params_group,
+                        &[(s.slots[k] * PARAMS_STRIDE) as u32],
+                    );
+                    cp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
+                    if groups.iter().all(|g| *g > 0) {
+                        cp.dispatch_workgroups(groups[0], groups[1], groups[2]);
+                    }
+                }
+                ProgramCommand::DispatchIndirect {
+                    buffer,
+                    offset,
+                    instance,
+                    ..
+                } => {
+                    cp.set_bind_group(
+                        2,
+                        &self.params_group,
+                        &[(s.slots[k] * PARAMS_STRIDE) as u32],
+                    );
+                    cp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
+                    cp.dispatch_workgroups_indirect(self.buffer(*buffer), *offset);
+                }
+                _ => unreachable!(),
+            }
+        }
+        drop(cp);
+        after(encoder, pass);
+        end
+    }
+
+    /// The consecutive draws of raster pass `pass` from command `i` of the schedule, each a render pass into a
+    /// target of its size (its attachment is never written); `after` called once they are recorded. Where the
+    /// commands after them start.
+    fn record_draws(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        (s, i, pass): (&Schedule, usize, &'static str),
+        bindings: &ProgramBindings,
+        mut timing: Option<&mut crate::timing::Timing>,
+        after: &mut dyn FnMut(&mut wgpu::CommandEncoder, &'static str),
+    ) -> usize {
+        let p = s.pass_index(pass);
+        let PassPipeline::Raster(pipeline) = &bindings.pipelines.passes[p].0 else {
+            panic!("`{pass}` is a compute pass: dispatch it")
+        };
+        let mut end = i;
+        while end < s.commands.len()
+            && s.stages[end] == s.stage
+            && s.commands[end].pass() == Some(pass)
+            && matches!(s.commands[end], ProgramCommand::Draw { .. })
+        {
+            end += 1;
+        }
+        let span = timing.as_mut().and_then(|t| t.render_writes(pass));
+        for k in i..end {
+            let ProgramCommand::Draw { size, instance, .. } = &s.commands[k] else {
+                unreachable!()
+            };
+            let size = [size[0].max(1), size[1].max(1)];
+            let target = self.targets.entry(size).or_insert_with(|| {
+                device
+                    .create_texture(&wgpu::TextureDescriptor {
+                        label: Some("program raster target"),
+                        size: wgpu::Extent3d {
+                            width: size[0],
+                            height: size[1],
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: TARGET_FORMAT,
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        view_formats: &[],
+                    })
+                    .create_view(&Default::default())
+            });
+            let writes = span
+                .as_ref()
+                .filter(|_| k == i || k + 1 == end)
+                .map(|t| t.span(k == i, k + 1 == end));
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some(pass),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Discard,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            rp.set_pipeline(pipeline);
+            rp.set_bind_group(0, bindings.frame, &[]);
+            rp.set_bind_group(1, bindings.shading, &[]);
+            rp.set_bind_group(
+                2,
+                &self.params_group,
+                &[(s.slots[k] * PARAMS_STRIDE) as u32],
+            );
+            rp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
+            rp.set_vertex_buffer(0, bindings.meshes.vertices.slice(..));
+            rp.set_vertex_buffer(1, bindings.meshes.objects.slice(..));
+            rp.set_index_buffer(bindings.meshes.indices.slice(..), wgpu::IndexFormat::Uint32);
+            for (o, range) in bindings.meshes.ranges.iter().enumerate() {
+                rp.draw_indexed(range.clone(), 0, o as u32..o as u32 + 1);
+            }
+        }
+        after(encoder, pass);
+        end
+    }
+
+    /// Ends the frame's recording: its commands and uploads are spent.
+    pub fn finish(&mut self) {
+        self.commands.clear();
+        self.uploads = None;
+    }
+}
+
+/// When a program's commands record: each command's run (the run of the next pass command after it; those after
+/// the last, `BEFORE_SCENE`), its parameters' slot, and its upload's; and the run being recorded.
+struct Schedule<'a> {
+    source: &'static crate::investigation::ShadingProgram,
+    commands: &'a [ProgramCommand],
+    stages: Vec<u32>,
+    slots: Vec<u64>,
+    uploads: Vec<usize>,
+    stage: u32,
+}
+
+impl<'a> Schedule<'a> {
+    fn of(
+        source: &'static crate::investigation::ShadingProgram,
+        commands: &'a [ProgramCommand],
+        runs: &[u32],
+        stage: u32,
+    ) -> Schedule<'a> {
+        let mut s = Schedule {
+            source,
+            commands,
+            stages: vec![BEFORE_SCENE; commands.len()],
+            slots: vec![0u64; commands.len()],
+            uploads: vec![0usize; commands.len()],
+            stage,
+        };
         let mut next = None;
         for (i, c) in commands.iter().enumerate().rev() {
             if let Some(p) = c.pass() {
-                next = Some(runs[pass_index(p)]);
+                next = Some(runs[s.pass_index(p)]);
             }
-            stages[i] = next.unwrap_or(BEFORE_SCENE);
+            s.stages[i] = next.unwrap_or(BEFORE_SCENE);
         }
-        let mut slot = 0u64;
-        let mut slots = vec![0u64; commands.len()];
-        let mut upload = 0usize;
-        let mut uploads = vec![0usize; commands.len()];
+        let (mut slot, mut upload) = (0u64, 0usize);
         for (i, c) in commands.iter().enumerate() {
-            slots[i] = slot;
-            uploads[i] = upload;
+            s.slots[i] = slot;
+            s.uploads[i] = upload;
             if c.pass().is_some() {
                 slot += 1;
             }
@@ -885,198 +1136,15 @@ impl ProgramRuntime {
                 upload += 1;
             }
         }
-        let mut i = 0;
-        let count = commands.len();
-        while i < count {
-            if stages[i] != stage {
-                i += 1;
-                continue;
-            }
-            match &commands[i] {
-                ProgramCommand::Upload {
-                    buffer,
-                    offset,
-                    words,
-                } => {
-                    let (staging, offsets) = self.uploads.as_ref().expect("the uploads");
-                    let to = self.buffer(*buffer);
-                    encoder.copy_buffer_to_buffer(
-                        staging,
-                        offsets[uploads[i]],
-                        to,
-                        *offset,
-                        words.len() as u64 * 4,
-                    );
-                    i += 1;
-                }
-                ProgramCommand::Clear(e) => {
-                    let pick = |k: usize| e.index == u32::MAX || k == e.index as usize;
-                    if let Some(b) = self.source.buffers.iter().position(|b| b.name == e.name) {
-                        for (_, x) in self.buffers[b].iter().enumerate().filter(|(k, _)| pick(*k)) {
-                            encoder.clear_buffer(x, 0, None);
-                        }
-                    } else {
-                        let k = self.image(e.name).unwrap_or_else(|| {
-                            panic!("a program has no image or buffer `{}`", e.name)
-                        });
-                        for (_, t) in self.images[k].iter().enumerate().filter(|(k, _)| pick(*k)) {
-                            encoder.clear_texture(t, &wgpu::ImageSubresourceRange::default());
-                        }
-                    }
-                    i += 1;
-                }
-                ProgramCommand::Copy { from, to, bytes } => {
-                    encoder.copy_buffer_to_buffer(
-                        self.buffer(*from),
-                        0,
-                        self.buffer(*to),
-                        0,
-                        *bytes,
-                    );
-                    i += 1;
-                }
-                ProgramCommand::Dispatch { pass, .. }
-                | ProgramCommand::DispatchIndirect { pass, .. } => {
-                    let p = pass_index(pass);
-                    let PassPipeline::Compute(pipeline) = &pipelines.passes[p].0 else {
-                        panic!("`{pass}` is a raster pass: draw it")
-                    };
-                    let mut end = i;
-                    while end < count
-                        && stages[end] == stage
-                        && commands[end].pass() == Some(*pass)
-                        && !matches!(commands[end], ProgramCommand::Draw { .. })
-                    {
-                        end += 1;
-                    }
-                    let span = timing.as_mut().and_then(|t| t.compute_writes(pass));
-                    let mut cp = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                        label: Some(pass),
-                        timestamp_writes: span.as_ref().map(|t| t.compute()),
-                    });
-                    cp.set_pipeline(pipeline);
-                    cp.set_bind_group(0, frame, &[]);
-                    cp.set_bind_group(1, shading, &[]);
-                    for k in i..end {
-                        match &commands[k] {
-                            ProgramCommand::Dispatch {
-                                groups, instance, ..
-                            } => {
-                                cp.set_bind_group(
-                                    2,
-                                    &self.params_group,
-                                    &[(slots[k] * PARAMS_STRIDE) as u32],
-                                );
-                                cp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
-                                if groups.iter().all(|g| *g > 0) {
-                                    cp.dispatch_workgroups(groups[0], groups[1], groups[2]);
-                                }
-                            }
-                            ProgramCommand::DispatchIndirect {
-                                buffer,
-                                offset,
-                                instance,
-                                ..
-                            } => {
-                                cp.set_bind_group(
-                                    2,
-                                    &self.params_group,
-                                    &[(slots[k] * PARAMS_STRIDE) as u32],
-                                );
-                                cp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
-                                cp.dispatch_workgroups_indirect(self.buffer(*buffer), *offset);
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    drop(cp);
-                    after(encoder, pass);
-                    i = end;
-                }
-                ProgramCommand::Draw { pass, .. } => {
-                    let p = pass_index(pass);
-                    let PassPipeline::Raster(pipeline) = &pipelines.passes[p].0 else {
-                        panic!("`{pass}` is a compute pass: dispatch it")
-                    };
-                    let mut end = i;
-                    while end < count
-                        && stages[end] == stage
-                        && commands[end].pass() == Some(*pass)
-                        && matches!(commands[end], ProgramCommand::Draw { .. })
-                    {
-                        end += 1;
-                    }
-                    let span = timing.as_mut().and_then(|t| t.render_writes(pass));
-                    for k in i..end {
-                        let ProgramCommand::Draw { size, instance, .. } = &commands[k] else {
-                            unreachable!()
-                        };
-                        let size = [size[0].max(1), size[1].max(1)];
-                        let target = self.targets.entry(size).or_insert_with(|| {
-                            device
-                                .create_texture(&wgpu::TextureDescriptor {
-                                    label: Some("program raster target"),
-                                    size: wgpu::Extent3d {
-                                        width: size[0],
-                                        height: size[1],
-                                        depth_or_array_layers: 1,
-                                    },
-                                    mip_level_count: 1,
-                                    sample_count: 1,
-                                    dimension: wgpu::TextureDimension::D2,
-                                    format: TARGET_FORMAT,
-                                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                                    view_formats: &[],
-                                })
-                                .create_view(&Default::default())
-                        });
-                        let writes = span
-                            .as_ref()
-                            .filter(|_| k == i || k + 1 == end)
-                            .map(|t| t.span(k == i, k + 1 == end));
-                        let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: Some(pass),
-                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                view: target,
-                                depth_slice: None,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                                    store: wgpu::StoreOp::Discard,
-                                },
-                            })],
-                            depth_stencil_attachment: None,
-                            timestamp_writes: writes,
-                            occlusion_query_set: None,
-                            multiview_mask: None,
-                        });
-                        rp.set_pipeline(pipeline);
-                        rp.set_bind_group(0, frame, &[]);
-                        rp.set_bind_group(1, shading, &[]);
-                        rp.set_bind_group(
-                            2,
-                            &self.params_group,
-                            &[(slots[k] * PARAMS_STRIDE) as u32],
-                        );
-                        rp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
-                        rp.set_vertex_buffer(0, meshes.vertices.slice(..));
-                        rp.set_vertex_buffer(1, meshes.objects.slice(..));
-                        rp.set_index_buffer(meshes.indices.slice(..), wgpu::IndexFormat::Uint32);
-                        for (o, range) in meshes.ranges.iter().enumerate() {
-                            rp.draw_indexed(range.clone(), 0, o as u32..o as u32 + 1);
-                        }
-                    }
-                    after(encoder, pass);
-                    i = end;
-                }
-            }
-        }
-        self.commands = commands;
+        s
     }
 
-    /// Ends the frame's recording: its commands and uploads are spent.
-    pub fn finish(&mut self) {
-        self.commands.clear();
-        self.uploads = None;
+    /// The index of the program's pass `name`.
+    fn pass_index(&self, name: &str) -> usize {
+        self.source
+            .passes
+            .iter()
+            .position(|p| p.name == name)
+            .unwrap_or_else(|| panic!("a program has no pass `{name}`"))
     }
 }

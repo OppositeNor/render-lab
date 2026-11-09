@@ -207,34 +207,8 @@ pub fn read_collection(
             .as_array_of_tables()
             .ok_or_else(|| fail("`shader` is a list of `[[shader]]` tables".into()))?;
         for table in tables {
-            let id = table.get("id").and_then(|i| i.as_str()).filter(|s| valid_id(s)).ok_or_else(|| fail("a shader needs `id`, lower-case words joined by `-`, in groups joined by `/`".into()))?.to_string();
-            let fail = |message: String| fail(format!("shader `{id}`: {message}"));
-            if let Some((key, _)) = table
-                .iter()
-                .find(|(key, _)| *key != "id" && *key != "parts")
-            {
-                return Err(fail(format!(
-                    "unknown field `{key}` (a shader has `id` and `parts`)"
-                )));
-            }
-            let parts: Option<Vec<String>> = table
-                .get("parts")
-                .and_then(|p| p.as_array())
-                .and_then(|a| a.iter().map(|v| v.as_str().map(String::from)).collect());
-            let parts = parts
-                .filter(|p| !p.is_empty())
-                .ok_or_else(|| fail("`parts` is a list of resource and shader ids".into()))?;
-            let written = parts.clone();
-            let parts = parts
-                .iter()
-                .map(|p| resolve(p).map_err(|e| fail(format!("part {e}"))))
-                .collect::<Result<_, _>>()?;
-            out.shaders.push(ShaderDeclaration {
-                id: format!("{package}.{id}"),
-                manifest: name.clone(),
-                parts,
-                written,
-            });
+            out.shaders
+                .push(read_shader(table, (package, &name), resolve, &fail)?);
         }
     }
     let Some(resources) = document.get("resource") else {
@@ -244,167 +218,294 @@ pub fn read_collection(
         .as_array_of_tables()
         .ok_or_else(|| fail("`resource` is a list of `[[resource]]` tables".into()))?;
     for table in tables {
-        let string = |field: &str| -> Result<String, String> {
-            match table.get(field).and_then(|item| item.as_str()) {
-                Some(s) if !s.is_empty() => Ok(s.to_string()),
-                _ => Err(fail(format!("a resource needs `{field}`, a string"))),
-            }
+        let reading = Reading {
+            root,
+            package_dir,
+            dir,
+            package,
+            name: &name,
+            form,
+            resolve,
         };
-        let id = string("id")?;
-        let fail = |message: String| fail(format!("resource `{id}`: {message}"));
-        if !valid_id(&id) {
-            return Err(fail(
-                "ids are lower-case words joined by `-`, in groups joined by `/`".into(),
-            ));
+        out.resources.push(read_resource(table, &reading, &fail)?);
+    }
+    Ok(out)
+}
+
+/// What a collection's resources are read in: the checkout's root, the package's directory, the collection's
+/// directory, the package's name, the collection's name (relative to the root), its form, and how its
+/// references resolve.
+struct Reading<'a> {
+    root: &'a Path,
+    package_dir: &'a Path,
+    dir: &'a Path,
+    package: &'a str,
+    name: &'a str,
+    form: Form,
+    resolve: &'a dyn Fn(&str) -> Result<String, String>,
+}
+
+/// A `[[shader]]` of the collection `name` of `package`: its id, and its parts as written and resolved.
+fn read_shader(
+    table: &toml_edit::Table,
+    (package, name): (&str, &str),
+    resolve: &dyn Fn(&str) -> Result<String, String>,
+    fail: &dyn Fn(String) -> String,
+) -> Result<ShaderDeclaration, String> {
+    let id = table
+        .get("id")
+        .and_then(|i| i.as_str())
+        .filter(|s| valid_id(s))
+        .ok_or_else(|| {
+            fail(
+                "a shader needs `id`, lower-case words joined by `-`, in groups joined by `/`"
+                    .into(),
+            )
+        })?
+        .to_string();
+    let fail = |message: String| fail(format!("shader `{id}`: {message}"));
+    if let Some((key, _)) = table
+        .iter()
+        .find(|(key, _)| *key != "id" && *key != "parts")
+    {
+        return Err(fail(format!(
+            "unknown field `{key}` (a shader has `id` and `parts`)"
+        )));
+    }
+    let parts: Option<Vec<String>> = table
+        .get("parts")
+        .and_then(|p| p.as_array())
+        .and_then(|a| a.iter().map(|v| v.as_str().map(String::from)).collect());
+    let parts = parts
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| fail("`parts` is a list of resource and shader ids".into()))?;
+    let written = parts.clone();
+    let parts = parts
+        .iter()
+        .map(|p| resolve(p).map_err(|e| fail(format!("part {e}"))))
+        .collect::<Result<_, _>>()?;
+    Ok(ShaderDeclaration {
+        id: format!("{package}.{id}"),
+        manifest: name.to_string(),
+        parts,
+        written,
+    })
+}
+
+/// A `[[resource]]` of a collection: its id, kind, flags, and override; built, its file; a source, its
+/// The flag `field` of a resource (false when it is left out).
+fn flag(
+    table: &toml_edit::Table,
+    field: &str,
+    fail: &dyn Fn(String) -> String,
+) -> Result<bool, String> {
+    match table.get(field) {
+        None => Ok(false),
+        Some(item) => item
+            .as_bool()
+            .ok_or_else(|| fail(format!("`{field}` is true or false"))),
+    }
+}
+
+/// The resource a resource overrides, `<package>.<id>` resolved, if it overrides one.
+fn read_override(
+    table: &toml_edit::Table,
+    resolve: &dyn Fn(&str) -> Result<String, String>,
+    fail: &dyn Fn(String) -> String,
+) -> Result<Option<String>, String> {
+    let Some(item) = table.get("override") else {
+        return Ok(None);
+    };
+    let target = item.as_str().ok_or_else(|| {
+        fail("`override` names the resource it replaces, `<package>.<id>`".into())
+    })?;
+    Ok(Some(
+        resolve(target).map_err(|e| fail(format!("override {e}")))?,
+    ))
+}
+
+/// parameters and its source file (inside its package).
+fn read_resource(
+    table: &toml_edit::Table,
+    reading: &Reading,
+    fail: &dyn Fn(String) -> String,
+) -> Result<Declaration, String> {
+    let Reading {
+        root,
+        package_dir,
+        dir,
+        package,
+        name,
+        form,
+        resolve,
+    } = *reading;
+    let string = |field: &str| -> Result<String, String> {
+        match table.get(field).and_then(|item| item.as_str()) {
+            Some(s) if !s.is_empty() => Ok(s.to_string()),
+            _ => Err(fail(format!("a resource needs `{field}`, a string"))),
         }
-        let kind_name = string("kind")?;
-        let kind = KINDS.iter().find(|k| k.name == kind_name).ok_or_else(|| {
-            fail(format!(
-                "unknown kind `{kind_name}` (kinds: {})",
-                KINDS.iter().map(|k| k.name).collect::<Vec<_>>().join(", ")
-            ))
-        })?;
-        let flag = |field: &str| -> Result<bool, String> {
-            match table.get(field) {
-                None => Ok(false),
-                Some(item) => item
-                    .as_bool()
-                    .ok_or_else(|| fail(format!("`{field}` is true or false"))),
-            }
-        };
-        let (overridable, built) = (flag("overridable")?, flag("built")?);
-        let overrides = match table.get("override") {
-            None => None,
-            Some(item) => {
-                let target = item.as_str().ok_or_else(|| {
-                    fail("`override` names the resource it replaces, `<package>.<id>`".into())
-                })?;
-                Some(resolve(target).map_err(|e| fail(format!("override {e}")))?)
-            }
-        };
-        if form == Form::Built {
-            if let Some((key, _)) = table.iter().find(|(key, _)| !BUILT_FIELDS.contains(key)) {
-                return Err(fail(format!("unknown field `{key}` in a built collection")));
-            }
-            let file = string("file")?;
-            let path = dir.join(&file);
-            if !built && !path.exists() {
-                return Err(fail(format!(
-                    "file `{file}`: no such file (rebuild the package)"
-                )));
-            }
-            let stamp = table
-                .get("stamp")
-                .and_then(|s| s.as_str())
-                .map(String::from);
-            let source = table
-                .get("source")
-                .and_then(|s| s.as_str())
-                .unwrap_or(&file)
-                .to_string();
-            out.resources.push(Declaration {
-                license: string("license")?,
-                id: format!("{package}.{id}"),
-                kind,
-                manifest: name.clone(),
-                source,
-                params: Params(BTreeMap::new()),
-                file: path,
-                local: file,
-                stamp,
-                overridable,
-                overrides,
-                built,
-            });
-            continue;
+    };
+    let id = string("id")?;
+    let fail = |message: String| fail(format!("resource `{id}`: {message}"));
+    if !valid_id(&id) {
+        return Err(fail(
+            "ids are lower-case words joined by `-`, in groups joined by `/`".into(),
+        ));
+    }
+    let kind_name = string("kind")?;
+    let kind = KINDS.iter().find(|k| k.name == kind_name).ok_or_else(|| {
+        fail(format!(
+            "unknown kind `{kind_name}` (kinds: {})",
+            KINDS.iter().map(|k| k.name).collect::<Vec<_>>().join(", ")
+        ))
+    })?;
+    let (overridable, built) = (
+        flag(table, "overridable", &fail)?,
+        flag(table, "built", &fail)?,
+    );
+    let overrides = read_override(table, resolve, &fail)?;
+    if form == Form::Built {
+        if let Some((key, _)) = table.iter().find(|(key, _)| !BUILT_FIELDS.contains(key)) {
+            return Err(fail(format!("unknown field `{key}` in a built collection")));
         }
-        let mut params = BTreeMap::new();
-        for (key, item) in table {
-            if FIELDS.contains(&key) {
-                continue;
-            }
-            let Some(&(_, ty)) = kind.params.iter().find(|(name, _)| *name == key) else {
-                return Err(fail(format!(
-                    "`{key}` is not a parameter of kind `{}`",
-                    kind.name
-                )));
-            };
-            let value = match (ty, item.as_value()) {
-                (Ty::Float, Some(toml_edit::Value::Float(f))) => *f.value(),
-                (Ty::Float | Ty::Int, Some(toml_edit::Value::Integer(i)))
-                    if *i.value() >= 0 || ty == Ty::Float =>
-                {
-                    *i.value() as f64
-                }
-                _ => {
-                    return Err(fail(format!(
-                        "`{key}` is {}",
-                        if ty == Ty::Float {
-                            "a number"
-                        } else {
-                            "a whole number, at least 0"
-                        }
-                    )));
-                }
-            };
-            params.insert(key.to_string(), value);
-        }
-        for (name, _) in kind.params {
-            if !params.contains_key(*name) {
-                return Err(fail(format!("kind `{}` needs `{name}`", kind.name)));
-            }
-        }
-        let source_name = string("source")?;
-        if Path::new(&source_name).is_absolute() {
-            return Err(fail("`source` is relative to the collection".into()));
-        }
-        let file = if built {
-            // It may not be built yet.
-            fs::canonicalize(dir)
-                .map_err(|e| fail(format!("{e}")))?
-                .join(&source_name)
-        } else {
-            let found = if kind.name == "directory" {
-                dir.join(&source_name).is_dir()
-            } else {
-                dir.join(&source_name).is_file()
-            };
-            if !found {
-                return Err(fail(format!(
-                    "source `{source_name}`: no such {}",
-                    if kind.name == "directory" {
-                        "directory"
-                    } else {
-                        "file"
-                    }
-                )));
-            }
-            fs::canonicalize(dir.join(&source_name))
-                .map_err(|e| fail(format!("source `{source_name}`: {e}")))?
-        };
-        let package_dir = fs::canonicalize(package_dir).map_err(|e| fail(format!("{e}")))?;
-        if !file.starts_with(&package_dir) {
+        let file = string("file")?;
+        let path = dir.join(&file);
+        if !built && !path.exists() {
             return Err(fail(format!(
-                "source `{source_name}` is outside its package (a package is self-contained)"
+                "file `{file}`: no such file (rebuild the package)"
             )));
         }
-        let local = relative(&package_dir, &file);
-        out.resources.push(Declaration {
+        let stamp = table
+            .get("stamp")
+            .and_then(|s| s.as_str())
+            .map(String::from);
+        let source = table
+            .get("source")
+            .and_then(|s| s.as_str())
+            .unwrap_or(&file)
+            .to_string();
+        return Ok(Declaration {
             license: string("license")?,
             id: format!("{package}.{id}"),
             kind,
-            manifest: name.clone(),
-            source: relative(root, &file),
-            params: Params(params),
-            file,
-            local,
-            stamp: None,
+            manifest: name.to_string(),
+            source,
+            params: Params(BTreeMap::new()),
+            file: path,
+            local: file,
+            stamp,
             overridable,
             overrides,
             built,
         });
     }
-    Ok(out)
+    let params = kind_params(table, kind, &fail)?;
+    let source_name = string("source")?;
+    if Path::new(&source_name).is_absolute() {
+        return Err(fail("`source` is relative to the collection".into()));
+    }
+    let file = source_path(dir, &source_name, (kind, built), &fail)?;
+    let package_dir = fs::canonicalize(package_dir).map_err(|e| fail(format!("{e}")))?;
+    if !file.starts_with(&package_dir) {
+        return Err(fail(format!(
+            "source `{source_name}` is outside its package (a package is self-contained)"
+        )));
+    }
+    let local = relative(&package_dir, &file);
+    Ok(Declaration {
+        license: string("license")?,
+        id: format!("{package}.{id}"),
+        kind,
+        manifest: name.to_string(),
+        source: relative(root, &file),
+        params: Params(params),
+        file,
+        local,
+        stamp: None,
+        overridable,
+        overrides,
+        built,
+    })
+}
+
+/// A source's parameters, each one its kind takes, of its type; every one the kind needs.
+fn kind_params(
+    table: &toml_edit::Table,
+    kind: &Kind,
+    fail: &dyn Fn(String) -> String,
+) -> Result<BTreeMap<String, f64>, String> {
+    let mut params = BTreeMap::new();
+    for (key, item) in table {
+        if FIELDS.contains(&key) {
+            continue;
+        }
+        let Some(&(_, ty)) = kind.params.iter().find(|(name, _)| *name == key) else {
+            return Err(fail(format!(
+                "`{key}` is not a parameter of kind `{}`",
+                kind.name
+            )));
+        };
+        let value = match (ty, item.as_value()) {
+            (Ty::Float, Some(toml_edit::Value::Float(f))) => *f.value(),
+            (Ty::Float | Ty::Int, Some(toml_edit::Value::Integer(i)))
+                if *i.value() >= 0 || ty == Ty::Float =>
+            {
+                *i.value() as f64
+            }
+            _ => {
+                return Err(fail(format!(
+                    "`{key}` is {}",
+                    if ty == Ty::Float {
+                        "a number"
+                    } else {
+                        "a whole number, at least 0"
+                    }
+                )));
+            }
+        };
+        params.insert(key.to_string(), value);
+    }
+    for (name, _) in kind.params {
+        if !params.contains_key(*name) {
+            return Err(fail(format!("kind `{}` needs `{name}`", kind.name)));
+        }
+    }
+    Ok(params)
+}
+
+/// A source's path, canonical: one built may not be built yet; else it must be there (a directory for a
+/// `directory` resource, else a file).
+fn source_path(
+    dir: &Path,
+    source_name: &str,
+    (kind, built): (&Kind, bool),
+    fail: &dyn Fn(String) -> String,
+) -> Result<PathBuf, String> {
+    let file = if built {
+        // It may not be built yet.
+        fs::canonicalize(dir)
+            .map_err(|e| fail(format!("{e}")))?
+            .join(source_name)
+    } else {
+        let found = if kind.name == "directory" {
+            dir.join(source_name).is_dir()
+        } else {
+            dir.join(source_name).is_file()
+        };
+        if !found {
+            return Err(fail(format!(
+                "source `{source_name}`: no such {}",
+                if kind.name == "directory" {
+                    "directory"
+                } else {
+                    "file"
+                }
+            )));
+        }
+        fs::canonicalize(dir.join(source_name))
+            .map_err(|e| fail(format!("source `{source_name}`: {e}")))?
+    };
+    Ok(file)
 }
 
 impl Declaration {

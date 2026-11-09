@@ -95,56 +95,8 @@ fn expand_choice(input: &DeriveInput) -> Result<Tokens> {
             ));
         }
         let ident = &variant.ident;
-        let text_name = ident.to_string();
-        let mut story = {
-            let mut c = text_name.chars();
-            c.next()
-                .map(|f| f.to_lowercase().collect::<String>() + c.as_str())
-                .unwrap_or_default()
-        };
-        let mut wgsl = String::new();
-        for (j, c) in text_name.chars().enumerate() {
-            if c.is_uppercase() && j > 0 {
-                wgsl.push('_');
-            }
-            wgsl.extend(c.to_uppercase());
-        }
-        let (mut text, mut label) = (None::<String>, None::<String>);
-        for attr in variant.attrs.iter().filter(|a| a.path().is_ident("choice")) {
-            attr.parse_nested_meta(|meta| {
-                let value = meta.value()?.parse::<LitStr>()?.value();
-                if meta.path.is_ident("name") {
-                    story = value;
-                } else if meta.path.is_ident("text") {
-                    text = Some(value);
-                } else if meta.path.is_ident("label") {
-                    label = Some(value);
-                } else if meta.path.is_ident("wgsl") {
-                    wgsl = value;
-                } else {
-                    return Err(meta.error(
-                        "unknown `#[choice]` attribute of a variant (name, text, label, wgsl)",
-                    ));
-                }
-                Ok(())
-            })?;
-        }
-        if text.is_some() && package.is_empty() {
-            return Err(Error::new(
-                variant.span(),
-                "`text` names a key of a package's text: give the enum `#[choice(package = \"...\")]`",
-            ));
-        }
-        let text = match text {
-            Some(t) => quote!(Some(#t)),
-            None => quote!(None),
-        };
-        let label = match label {
-            Some(l) => quote!(Some(#l)),
-            None => quote!(None),
-        };
+        options.push(choice_option(variant, &package)?);
         let i = i as u32;
-        options.push(quote!(::lab::values::ChoiceOption { name: #story, text: #text, label: #label, wgsl: #wgsl }));
         indices.push(quote!(#name::#ident => #i));
         variants.push(quote!(#i => Some(#name::#ident)));
     }
@@ -174,6 +126,63 @@ fn expand_choice(input: &DeriveInput) -> Result<Tokens> {
             }
         }
     })
+}
+
+/// A choice's option: its name in stories (the variant's, lower camel case, unless `name` gives one), its text
+/// and label, and its WGSL constant's name (upper snake case, unless `wgsl` gives one).
+fn choice_option(variant: &syn::Variant, package: &str) -> Result<Tokens> {
+    let ident = &variant.ident;
+    let text_name = ident.to_string();
+    let mut story = {
+        let mut c = text_name.chars();
+        c.next()
+            .map(|f| f.to_lowercase().collect::<String>() + c.as_str())
+            .unwrap_or_default()
+    };
+    let mut wgsl = String::new();
+    for (j, c) in text_name.chars().enumerate() {
+        if c.is_uppercase() && j > 0 {
+            wgsl.push('_');
+        }
+        wgsl.extend(c.to_uppercase());
+    }
+    let (mut text, mut label) = (None::<String>, None::<String>);
+    for attr in variant.attrs.iter().filter(|a| a.path().is_ident("choice")) {
+        attr.parse_nested_meta(|meta| {
+            let value = meta.value()?.parse::<LitStr>()?.value();
+            if meta.path.is_ident("name") {
+                story = value;
+            } else if meta.path.is_ident("text") {
+                text = Some(value);
+            } else if meta.path.is_ident("label") {
+                label = Some(value);
+            } else if meta.path.is_ident("wgsl") {
+                wgsl = value;
+            } else {
+                return Err(meta.error(
+                    "unknown `#[choice]` attribute of a variant (name, text, label, wgsl)",
+                ));
+            }
+            Ok(())
+        })?;
+    }
+    if text.is_some() && package.is_empty() {
+        return Err(Error::new(
+            variant.span(),
+            "`text` names a key of a package's text: give the enum `#[choice(package = \"...\")]`",
+        ));
+    }
+    let text = match text {
+        Some(t) => quote!(Some(#t)),
+        None => quote!(None),
+    };
+    let label = match label {
+        Some(l) => quote!(Some(#l)),
+        None => quote!(None),
+    };
+    Ok(
+        quote!(::lab::values::ChoiceOption { name: #story, text: #text, label: #label, wgsl: #wgsl }),
+    )
 }
 
 #[proc_macro_derive(Values, attributes(values, value))]
@@ -332,48 +341,13 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
     let Fields::Named(fields) = &data.fields else {
         return Err(Error::new(input.span(), "`Values` needs named fields"));
     };
-    let (mut scope, mut package, mut camel) = (String::new(), String::new(), false);
-    for attr in input.attrs.iter().filter(|a| a.path().is_ident("values")) {
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("scope") {
-                scope = meta.value()?.parse::<LitStr>()?.value();
-            } else if meta.path.is_ident("package") {
-                package = meta.value()?.parse::<LitStr>()?.value();
-            } else if meta.path.is_ident("rename_all") {
-                let rule = meta.value()?.parse::<LitStr>()?;
-                if rule.value() != "camelCase" {
-                    return Err(Error::new(rule.span(), "`rename_all` is \"camelCase\""));
-                }
-                camel = true;
-            } else {
-                return Err(
-                    meta.error("unknown `#[values]` attribute (scope, package, rename_all)")
-                );
-            }
-            Ok(())
-        })?;
-    }
+    let (scope, package, camel) = values_attrs(input)?;
     let scoped = |key: &str| {
         if scope.is_empty() {
             key.to_string()
         } else {
             format!("{scope}.{key}")
         }
-    };
-    let camel_case = |name: &str| {
-        let mut out = String::new();
-        let mut upper = false;
-        for c in name.chars() {
-            if c == '_' {
-                upper = true;
-            } else if upper {
-                out.extend(c.to_uppercase());
-                upper = false;
-            } else {
-                out.push(c);
-            }
-        }
-        out
     };
     let (mut entries, mut gets, mut sets, mut defaults) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -394,116 +368,17 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
             ident.to_string()
         };
         let key = scoped(attrs.key.as_deref().unwrap_or(&field_name));
-        let components: Vec<String> = match kind {
-            Kind::Vec(n) => {
-                if !attrs.components.is_empty() && attrs.components.len() != n {
-                    return Err(Error::new(
-                        field.span(),
-                        format!("a [f32; {n}] has {n} components"),
-                    ));
-                }
-                let names: Vec<String> = if attrs.components.is_empty() {
-                    ["x", "y", "z", "w"][..n]
-                        .iter()
-                        .map(|c| format!("{key}.{c}"))
-                        .collect()
-                } else {
-                    attrs.components.iter().map(|c| scoped(c)).collect()
-                };
-                names
-            }
-            _ if !attrs.components.is_empty() => {
-                return Err(Error::new(field.span(), "only a vector has components"));
-            }
-            _ => Vec::new(),
-        };
+        let components = field_components(field, kind, &attrs, (&key, &scope))?;
         let ty = kind.ty();
-        let default = match &attrs.default {
-            Some(v) => {
-                defaults.push(match kind {
-                    Kind::F32 => quote!(#ident: (#v) as f32),
-                    Kind::I32 => quote!(#ident: (#v) as i32),
-                    Kind::U32 => quote!(#ident: (#v) as u32),
-                    _ => quote!(#ident: #v),
-                });
-                let v = kind.value(v);
-                quote!(Some(#v))
-            }
-            None => {
-                all_defaults = false;
-                quote!(None)
-            }
-        };
-        let range = match &attrs.range {
-            Some((a, b)) => quote!(Some((#a as f32, #b as f32))),
-            None => quote!(None),
-        };
-        let step = match &attrs.step {
-            Some(s) => quote!(Some(#s as f32)),
-            None => quote!(None),
-        };
-        let unit = match attrs.unit.as_ref().map(|u| u.to_string()).as_deref() {
-            Some("m") => quote!(::lab::values::Unit::Metres),
-            Some("deg") => quote!(::lab::values::Unit::Degrees),
-            Some("factor") => quote!(::lab::values::Unit::Factor),
-            Some("index") => quote!(::lab::values::Unit::Index),
-            _ => quote!(::lab::values::Unit::Plain),
-        };
-        let wrap = attrs.wrap;
-        let labels = &attrs.labels;
-        let text = match &attrs.text {
-            Some(t) => quote!(Some(#t)),
-            None => quote!(None),
-        };
-        let doc = doc(&field.attrs);
-        let name = match &attrs.name {
-            Some(n) => quote!(Some(#n)),
-            None => quote!(None),
-        };
-        let color = match &attrs.color {
-            Some(c) => quote!(Some(#c)),
-            None => quote!(None),
-        };
-        let toggle = attrs.toggle;
-        let engine = match &attrs.engine {
-            Some(e) => quote!(Some(#e)),
-            None => quote!(None),
-        };
-        let help = match &attrs.help {
-            Some(h) => quote!(Some(#h)),
-            None => quote!(None),
-        };
-        entries.push(quote! {
-            ::lab::values::Entry { key: #key, ty: #ty, default: #default, range: #range, component_ranges: &[], step: #step, unit: #unit, wrap: #wrap,
-                labels: &[#(#labels),*], text: #text, name: #name, color: #color, toggle: #toggle, choices: None, package: #package, doc: #doc, engine: #engine, help: #help, components: &[#(#components),*] }
-        });
-        match kind {
-            Kind::Vec(n) => {
-                let variant = syn::Ident::new(&format!("Vec{n}"), ident.span());
-                gets.push(quote!(#key => Some(::lab::values::Value::#variant(self.#ident))));
-                sets.push(quote!(#key => match value { ::lab::values::Value::#variant(v) => self.#ident = v, _ => panic!("{} is a {}, not a {:?}", #key, stringify!(#variant), value) }));
-                for (i, c) in components.iter().enumerate() {
-                    gets.push(quote!(#c => Some(::lab::values::Value::F32(self.#ident[#i]))));
-                    sets.push(quote!(#c => self.#ident[#i] = value.f32()));
-                }
-            }
-            _ => {
-                let read = match kind {
-                    Kind::F32 => quote!(::lab::values::Value::F32(self.#ident)),
-                    Kind::I32 => quote!(::lab::values::Value::I32(self.#ident)),
-                    Kind::U32 => quote!(::lab::values::Value::U32(self.#ident)),
-                    _ => quote!(::lab::values::Value::Bool(self.#ident)),
-                };
-                let write = match kind {
-                    Kind::F32 => quote!(value.f32()),
-                    Kind::I32 => quote!(value.i32()),
-                    Kind::U32 => quote!(value.u32()),
-                    _ => quote!(value.bool()),
-                };
-                gets.push(quote!(#key => Some(#read)));
-                sets.push(quote!(#key => self.#ident = #write));
-            }
-        }
+        let default = default_tokens(kind, ident, &attrs, (&mut defaults, &mut all_defaults));
+        entries.push(entry_tokens(
+            field,
+            &attrs,
+            (&key, &ty, &default),
+            &package,
+            &components,
+        ));
+        accessors(kind, ident, &key, &components, (&mut gets, &mut sets));
     }
     let count = entries.len();
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -541,6 +416,205 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
             }
         }
     })
+}
+
+/// A vector field's components' keys: `<key>.x`… unless `components` names them (in the struct's scope).
+fn field_components(
+    field: &syn::Field,
+    kind: Kind,
+    attrs: &FieldAttrs,
+    (key, scope): (&str, &str),
+) -> Result<Vec<String>> {
+    let scoped = |key: &str| {
+        if scope.is_empty() {
+            key.to_string()
+        } else {
+            format!("{scope}.{key}")
+        }
+    };
+    let components: Vec<String> = match kind {
+        Kind::Vec(n) => {
+            if !attrs.components.is_empty() && attrs.components.len() != n {
+                return Err(Error::new(
+                    field.span(),
+                    format!("a [f32; {n}] has {n} components"),
+                ));
+            }
+            let names: Vec<String> = if attrs.components.is_empty() {
+                ["x", "y", "z", "w"][..n]
+                    .iter()
+                    .map(|c| format!("{key}.{c}"))
+                    .collect()
+            } else {
+                attrs.components.iter().map(|c| scoped(c)).collect()
+            };
+            names
+        }
+        _ if !attrs.components.is_empty() => {
+            return Err(Error::new(field.span(), "only a vector has components"));
+        }
+        _ => Vec::new(),
+    };
+    Ok(components)
+}
+
+/// A field's default in its `Entry`, and its initializer in `defaults()` (a field without one: no `defaults()`).
+fn default_tokens(
+    kind: Kind,
+    ident: &syn::Ident,
+    attrs: &FieldAttrs,
+    (defaults, all_defaults): (&mut Vec<Tokens>, &mut bool),
+) -> Tokens {
+    match &attrs.default {
+        Some(v) => {
+            defaults.push(match kind {
+                Kind::F32 => quote!(#ident: (#v) as f32),
+                Kind::I32 => quote!(#ident: (#v) as i32),
+                Kind::U32 => quote!(#ident: (#v) as u32),
+                _ => quote!(#ident: #v),
+            });
+            let v = kind.value(v);
+            quote!(Some(#v))
+        }
+        None => {
+            *all_defaults = false;
+            quote!(None)
+        }
+    }
+}
+
+/// The struct's `#[values(…)]`: its scope, its package, and whether its fields' names are camel-cased.
+fn values_attrs(input: &DeriveInput) -> Result<(String, String, bool)> {
+    let (mut scope, mut package, mut camel) = (String::new(), String::new(), false);
+    for attr in input.attrs.iter().filter(|a| a.path().is_ident("values")) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("scope") {
+                scope = meta.value()?.parse::<LitStr>()?.value();
+            } else if meta.path.is_ident("package") {
+                package = meta.value()?.parse::<LitStr>()?.value();
+            } else if meta.path.is_ident("rename_all") {
+                let rule = meta.value()?.parse::<LitStr>()?;
+                if rule.value() != "camelCase" {
+                    return Err(Error::new(rule.span(), "`rename_all` is \"camelCase\""));
+                }
+                camel = true;
+            } else {
+                return Err(
+                    meta.error("unknown `#[values]` attribute (scope, package, rename_all)")
+                );
+            }
+            Ok(())
+        })?;
+    }
+    Ok((scope, package, camel))
+}
+
+/// A field's name in camel case (`light_x`: `lightX`).
+fn camel_case(name: &str) -> String {
+    let mut out = String::new();
+    let mut upper = false;
+    for c in name.chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// A field's `Entry` in the schema: its key, type, default, range, step, unit, labels, text, doc, and the rest
+/// of its attributes.
+fn entry_tokens(
+    field: &syn::Field,
+    attrs: &FieldAttrs,
+    (key, ty, default): (&str, &Tokens, &Tokens),
+    package: &str,
+    components: &[String],
+) -> Tokens {
+    let range = match &attrs.range {
+        Some((a, b)) => quote!(Some((#a as f32, #b as f32))),
+        None => quote!(None),
+    };
+    let step = match &attrs.step {
+        Some(s) => quote!(Some(#s as f32)),
+        None => quote!(None),
+    };
+    let unit = match attrs.unit.as_ref().map(|u| u.to_string()).as_deref() {
+        Some("m") => quote!(::lab::values::Unit::Metres),
+        Some("deg") => quote!(::lab::values::Unit::Degrees),
+        Some("factor") => quote!(::lab::values::Unit::Factor),
+        Some("index") => quote!(::lab::values::Unit::Index),
+        _ => quote!(::lab::values::Unit::Plain),
+    };
+    let wrap = attrs.wrap;
+    let labels = &attrs.labels;
+    let text = match &attrs.text {
+        Some(t) => quote!(Some(#t)),
+        None => quote!(None),
+    };
+    let doc = doc(&field.attrs);
+    let name = match &attrs.name {
+        Some(n) => quote!(Some(#n)),
+        None => quote!(None),
+    };
+    let color = match &attrs.color {
+        Some(c) => quote!(Some(#c)),
+        None => quote!(None),
+    };
+    let toggle = attrs.toggle;
+    let engine = match &attrs.engine {
+        Some(e) => quote!(Some(#e)),
+        None => quote!(None),
+    };
+    let help = match &attrs.help {
+        Some(h) => quote!(Some(#h)),
+        None => quote!(None),
+    };
+    quote! {
+        ::lab::values::Entry { key: #key, ty: #ty, default: #default, range: #range, component_ranges: &[], step: #step, unit: #unit, wrap: #wrap,
+            labels: &[#(#labels),*], text: #text, name: #name, color: #color, toggle: #toggle, choices: None, package: #package, doc: #doc, engine: #engine, help: #help, components: &[#(#components),*] }
+    }
+}
+
+/// A field's arms of `get` and `set`: by its key, and a vector's by each component's too.
+fn accessors(
+    kind: Kind,
+    ident: &syn::Ident,
+    key: &str,
+    components: &[String],
+    (gets, sets): (&mut Vec<Tokens>, &mut Vec<Tokens>),
+) {
+    match kind {
+        Kind::Vec(n) => {
+            let variant = syn::Ident::new(&format!("Vec{n}"), ident.span());
+            gets.push(quote!(#key => Some(::lab::values::Value::#variant(self.#ident))));
+            sets.push(quote!(#key => match value { ::lab::values::Value::#variant(v) => self.#ident = v, _ => panic!("{} is a {}, not a {:?}", #key, stringify!(#variant), value) }));
+            for (i, c) in components.iter().enumerate() {
+                gets.push(quote!(#c => Some(::lab::values::Value::F32(self.#ident[#i]))));
+                sets.push(quote!(#c => self.#ident[#i] = value.f32()));
+            }
+        }
+        _ => {
+            let read = match kind {
+                Kind::F32 => quote!(::lab::values::Value::F32(self.#ident)),
+                Kind::I32 => quote!(::lab::values::Value::I32(self.#ident)),
+                Kind::U32 => quote!(::lab::values::Value::U32(self.#ident)),
+                _ => quote!(::lab::values::Value::Bool(self.#ident)),
+            };
+            let write = match kind {
+                Kind::F32 => quote!(value.f32()),
+                Kind::I32 => quote!(value.i32()),
+                Kind::U32 => quote!(value.u32()),
+                _ => quote!(value.bool()),
+            };
+            gets.push(quote!(#key => Some(#read)));
+            sets.push(quote!(#key => self.#ident = #write));
+        }
+    }
 }
 
 /// `#[lab::actions]` on an `impl` block: its `#[action]` functions are the
@@ -595,6 +669,23 @@ fn camel(name: &str) -> String {
     out
 }
 
+/// The key of a `#[click]` or `#[action]` (`what`) on the function `ident`: its `key = "…"`, else its name in
+/// camel case.
+fn attr_key(attr: &syn::Attribute, ident: &syn::Ident, what: &str) -> Result<String> {
+    let mut key = camel(&ident.to_string());
+    if !matches!(attr.meta, syn::Meta::Path(_)) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("key") {
+                key = meta.value()?.parse::<LitStr>()?.value();
+                Ok(())
+            } else {
+                Err(meta.error(format!("unknown `#[{what}]` attribute (key)")))
+            }
+        })?;
+    }
+    Ok(key)
+}
+
 fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
     if input.trait_.is_some() {
         return Err(Error::new(
@@ -612,17 +703,7 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
         if let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("click")) {
             let attr = f.attrs.remove(at);
             let ident = f.sig.ident.clone();
-            let mut key = camel(&ident.to_string());
-            if !matches!(attr.meta, syn::Meta::Path(_)) {
-                attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("key") {
-                        key = meta.value()?.parse::<LitStr>()?.value();
-                        Ok(())
-                    } else {
-                        Err(meta.error("unknown `#[click]` attribute (key)"))
-                    }
-                })?;
-            }
+            let key = attr_key(&attr, &ident, "click")?;
             if f.sig.inputs.len() != 1
                 || matches!(f.sig.inputs.first(), Some(syn::FnArg::Receiver(_)))
             {
@@ -650,17 +731,7 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
         };
         let attr = f.attrs.remove(at);
         let ident = f.sig.ident.clone();
-        let mut key = camel(&ident.to_string());
-        if !matches!(attr.meta, syn::Meta::Path(_)) {
-            attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("key") {
-                    key = meta.value()?.parse::<LitStr>()?.value();
-                    Ok(())
-                } else {
-                    Err(meta.error("unknown `#[action]` attribute (key)"))
-                }
-            })?;
-        }
+        let key = attr_key(&attr, &ident, "action")?;
         if keys.contains(&key) {
             return Err(Error::new(
                 ident.span(),
@@ -669,45 +740,7 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
         }
         keys.push(key.clone());
         let doc = doc(&f.attrs);
-        let mut inputs = f.sig.inputs.iter();
-        match inputs.next() {
-            Some(syn::FnArg::Typed(_)) => {}
-            Some(syn::FnArg::Receiver(r)) => {
-                return Err(Error::new(
-                    r.span(),
-                    "an action is a function of its frame and arguments, without `self`",
-                ));
-            }
-            None => {
-                return Err(Error::new(
-                    f.sig.span(),
-                    "an action's first parameter is its `&mut ActionFrame`",
-                ));
-            }
-        }
-        let (mut args, mut reads) = (Vec::new(), Vec::new());
-        for input in inputs {
-            let syn::FnArg::Typed(pt) = input else {
-                unreachable!("only the first parameter can be `self`")
-            };
-            let syn::Pat::Ident(name) = &*pt.pat else {
-                return Err(Error::new(
-                    pt.pat.span(),
-                    "an action's argument is a plain name",
-                ));
-            };
-            let arg_key = camel(&name.ident.to_string());
-            let arg_ty = &pt.ty;
-            args.push(quote! {
-                ::lab::actions::ArgSpec {
-                    key: #arg_key,
-                    kind: <#arg_ty as ::lab::actions::ActionArg>::KIND,
-                    required: <#arg_ty as ::lab::actions::ActionArg>::REQUIRED,
-                    check: <#arg_ty as ::lab::actions::ActionArg>::check,
-                }
-            });
-            reads.push(quote! { action.arg::<#arg_ty>(#arg_key)? });
-        }
+        let (args, reads) = action_args(f)?;
         specs.push(
             quote! { ::lab::actions::ActionSpec { key: #key, doc: #doc, args: &[#(#args),*] } },
         );
@@ -752,4 +785,48 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
             }
         }
     })
+}
+
+/// An action's arguments, after its `&mut ActionFrame`: each one's `ArgSpec`, and how the call reads it.
+fn action_args(f: &syn::ImplItemFn) -> Result<(Vec<Tokens>, Vec<Tokens>)> {
+    let mut inputs = f.sig.inputs.iter();
+    match inputs.next() {
+        Some(syn::FnArg::Typed(_)) => {}
+        Some(syn::FnArg::Receiver(r)) => {
+            return Err(Error::new(
+                r.span(),
+                "an action is a function of its frame and arguments, without `self`",
+            ));
+        }
+        None => {
+            return Err(Error::new(
+                f.sig.span(),
+                "an action's first parameter is its `&mut ActionFrame`",
+            ));
+        }
+    }
+    let (mut args, mut reads) = (Vec::new(), Vec::new());
+    for input in inputs {
+        let syn::FnArg::Typed(pt) = input else {
+            unreachable!("only the first parameter can be `self`")
+        };
+        let syn::Pat::Ident(name) = &*pt.pat else {
+            return Err(Error::new(
+                pt.pat.span(),
+                "an action's argument is a plain name",
+            ));
+        };
+        let arg_key = camel(&name.ident.to_string());
+        let arg_ty = &pt.ty;
+        args.push(quote! {
+            ::lab::actions::ArgSpec {
+                key: #arg_key,
+                kind: <#arg_ty as ::lab::actions::ActionArg>::KIND,
+                required: <#arg_ty as ::lab::actions::ActionArg>::REQUIRED,
+                check: <#arg_ty as ::lab::actions::ActionArg>::check,
+            }
+        });
+        reads.push(quote! { action.arg::<#arg_ty>(#arg_key)? });
+    }
+    Ok((args, reads))
 }

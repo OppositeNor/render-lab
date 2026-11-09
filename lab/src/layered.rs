@@ -54,6 +54,13 @@ pub fn ranks(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
     (0..n).map(|i| visit(i, &before, &mut rank)).collect()
 }
 
+/// An item of a rank's row: a node, or an edge's dummy point (the edge's index, the rank).
+#[derive(Clone, Copy, PartialEq)]
+enum Item {
+    Node(usize),
+    Dummy(usize, usize),
+}
+
 /// Lays out `sizes.len()` nodes (width, height) joined by `edges` (from, to;
 /// acyclic). `order` lists every node once: the first order of each column.
 pub fn layout(
@@ -62,12 +69,6 @@ pub fn layout(
     order: &[usize],
     spacing: Spacing,
 ) -> Layout {
-    #[derive(Clone, Copy, PartialEq)]
-    enum Item {
-        Node(usize),
-        /// Edge index, rank.
-        Dummy(usize, usize),
-    }
     let n = sizes.len();
     let rank = ranks(n, edges);
     let top = rank.iter().copied().max().unwrap_or(0);
@@ -80,6 +81,70 @@ pub fn layout(
             rows[k].push(Item::Dummy(e, k));
         }
     }
+    sweep_rows(&mut rows, edges, &rank);
+    // Ranks as columns from the left, each as wide as its widest node; a
+    // column's items stacked and centred.
+    let slot = |item: Item| match item {
+        Item::Node(i) => sizes[i].1 + spacing.row,
+        Item::Dummy(..) => spacing.dummy,
+    };
+    let column_width: Vec<f32> = rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|&x| {
+                    if let Item::Node(i) = x {
+                        sizes[i].0
+                    } else {
+                        spacing.dummy
+                    }
+                })
+                .fold(spacing.dummy, f32::max)
+        })
+        .collect();
+    let column_height = |row: &Vec<Item>| row.iter().map(|&x| slot(x)).sum::<f32>();
+    let height = rows.iter().map(column_height).fold(0.0, f32::max);
+    let mut positions = vec![(0.0, 0.0); n];
+    let mut dummy_at: BTreeMap<(usize, usize), (f32, f32)> = BTreeMap::new();
+    let mut x = 0.0;
+    for (k, row) in rows.iter().enumerate() {
+        let mut y = (height - column_height(row)) / 2.0;
+        for &item in row {
+            let centre = (x + column_width[k] / 2.0, y + slot(item) / 2.0);
+            match item {
+                Item::Node(i) => positions[i] = centre,
+                Item::Dummy(e, k) => {
+                    dummy_at.insert((e, k), centre);
+                }
+            }
+            y += slot(item);
+        }
+        x += column_width[k] + spacing.column;
+    }
+    let bends = edges
+        .iter()
+        .enumerate()
+        .map(|(e, &(r, i))| {
+            (
+                r,
+                i,
+                (rank[r] + 1..rank[i]).map(|k| dummy_at[&(e, k)]).collect(),
+            )
+        })
+        .collect();
+    Layout {
+        positions,
+        widths: sizes.iter().map(|s| s.0).collect(),
+        heights: sizes.iter().map(|s| s.1).collect(),
+        bends,
+        size: ((x - spacing.column).max(0.0), height),
+    }
+}
+
+/// Eight sweeps up and down the ranks, each ordering a row by the mean place of its items' neighbours in the row
+/// before (barycentres), an item without neighbours keeping its place.
+fn sweep_rows(rows: &mut [Vec<Item>], edges: &[(usize, usize)], rank: &[usize]) {
+    let top = rows.len() - 1;
     // The items next to an item in the row below (or above).
     let neighbours = |item: Item, up: bool| -> Vec<Item> {
         let step = |e: usize, k: usize| -> Item {
@@ -150,63 +215,6 @@ pub fn layout(
             rows[k] = keyed.into_iter().map(|x| x.1).collect();
         }
     }
-    // Ranks as columns from the left, each as wide as its widest node; a
-    // column's items stacked and centred.
-    let slot = |item: Item| match item {
-        Item::Node(i) => sizes[i].1 + spacing.row,
-        Item::Dummy(..) => spacing.dummy,
-    };
-    let column_width: Vec<f32> = rows
-        .iter()
-        .map(|row| {
-            row.iter()
-                .map(|&x| {
-                    if let Item::Node(i) = x {
-                        sizes[i].0
-                    } else {
-                        spacing.dummy
-                    }
-                })
-                .fold(spacing.dummy, f32::max)
-        })
-        .collect();
-    let column_height = |row: &Vec<Item>| row.iter().map(|&x| slot(x)).sum::<f32>();
-    let height = rows.iter().map(column_height).fold(0.0, f32::max);
-    let mut positions = vec![(0.0, 0.0); n];
-    let mut dummy_at: BTreeMap<(usize, usize), (f32, f32)> = BTreeMap::new();
-    let mut x = 0.0;
-    for (k, row) in rows.iter().enumerate() {
-        let mut y = (height - column_height(row)) / 2.0;
-        for &item in row {
-            let centre = (x + column_width[k] / 2.0, y + slot(item) / 2.0);
-            match item {
-                Item::Node(i) => positions[i] = centre,
-                Item::Dummy(e, k) => {
-                    dummy_at.insert((e, k), centre);
-                }
-            }
-            y += slot(item);
-        }
-        x += column_width[k] + spacing.column;
-    }
-    let bends = edges
-        .iter()
-        .enumerate()
-        .map(|(e, &(r, i))| {
-            (
-                r,
-                i,
-                (rank[r] + 1..rank[i]).map(|k| dummy_at[&(e, k)]).collect(),
-            )
-        })
-        .collect();
-    Layout {
-        positions,
-        widths: sizes.iter().map(|s| s.0).collect(),
-        heights: sizes.iter().map(|s| s.1).collect(),
-        bends,
-        size: ((x - spacing.column).max(0.0), height),
-    }
 }
 
 /// One node set of `clustered`: its members, and whether it is a group
@@ -254,19 +262,7 @@ pub fn clustered(
         })
         .collect();
     // Tracks: the first one free over a cluster's span, in order.
-    let mut tracks: Vec<Vec<usize>> = Vec::new();
-    let mut track_of = vec![0usize; clusters.len()];
-    for (c, &(lo, hi)) in spans.iter().enumerate() {
-        let free = tracks
-            .iter()
-            .position(|t| t.iter().all(|&o| spans[o].1 < lo || spans[o].0 > hi));
-        let t = free.unwrap_or_else(|| {
-            tracks.push(Vec::new());
-            tracks.len() - 1
-        });
-        tracks[t].push(c);
-        track_of[c] = t;
-    }
+    let (tracks, track_of) = assign_tracks(&spans);
     // In each track and column, its nodes (one cluster's), ordered by sweeps
     // of the barycentre of their neighbours' positions.
     let mut cells: Vec<Vec<Vec<usize>>> = vec![vec![Vec::new(); top + 1]; tracks.len()];
@@ -315,33 +311,7 @@ pub fn clustered(
         let (positions, _, _) = place(&cells);
         for track in cells.iter_mut() {
             for col in track.iter_mut() {
-                let mut keyed: Vec<(f32, usize)> = col
-                    .iter()
-                    .map(|&i| {
-                        let ys: Vec<f32> = edges
-                            .iter()
-                            .filter_map(|&(a, b)| {
-                                if sweep % 2 == 0 && b == i {
-                                    Some(positions[a].1)
-                                } else if sweep % 2 == 1 && a == i {
-                                    Some(positions[b].1)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        (
-                            if ys.is_empty() {
-                                positions[i].1
-                            } else {
-                                ys.iter().sum::<f32>() / ys.len() as f32
-                            },
-                            i,
-                        )
-                    })
-                    .collect();
-                keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
-                *col = keyed.into_iter().map(|x| x.1).collect();
+                sort_by_neighbours(col, edges, &positions, sweep % 2 == 0);
             }
         }
     }
@@ -379,4 +349,60 @@ pub fn clustered(
         },
         boxes,
     }
+}
+
+/// Each cluster on the first track free over its span of columns, in order: the tracks' clusters, and each
+/// cluster's track.
+fn assign_tracks(spans: &[(usize, usize)]) -> (Vec<Vec<usize>>, Vec<usize>) {
+    let mut track_of = vec![0usize; spans.len()];
+    let mut tracks: Vec<Vec<usize>> = Vec::new();
+    for (c, &(lo, hi)) in spans.iter().enumerate() {
+        let free = tracks
+            .iter()
+            .position(|t| t.iter().all(|&o| spans[o].1 < lo || spans[o].0 > hi));
+        let t = free.unwrap_or_else(|| {
+            tracks.push(Vec::new());
+            tracks.len() - 1
+        });
+        tracks[t].push(c);
+        track_of[c] = t;
+    }
+    (tracks, track_of)
+}
+
+/// A column's nodes ordered by the mean height of their neighbours (those before them, `down`; else those
+/// after), a node without neighbours keeping its own.
+fn sort_by_neighbours(
+    col: &mut Vec<usize>,
+    edges: &[(usize, usize)],
+    positions: &[(f32, f32)],
+    down: bool,
+) {
+    let mut keyed: Vec<(f32, usize)> = col
+        .iter()
+        .map(|&i| {
+            let ys: Vec<f32> = edges
+                .iter()
+                .filter_map(|&(a, b)| {
+                    if down && b == i {
+                        Some(positions[a].1)
+                    } else if !down && a == i {
+                        Some(positions[b].1)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            (
+                if ys.is_empty() {
+                    positions[i].1
+                } else {
+                    ys.iter().sum::<f32>() / ys.len() as f32
+                },
+                i,
+            )
+        })
+        .collect();
+    keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
+    *col = keyed.into_iter().map(|x| x.1).collect();
 }

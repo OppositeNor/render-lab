@@ -62,6 +62,59 @@ impl App {
                 let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
                 self.seek((fraction.clamp(0.0, 1.0) as f64 * total as f64) as u64);
             }
+            ViewerAction::SelectTab(tab) => {
+                self.tab = tab;
+                self.show_tab();
+                self.select_feature();
+            }
+            ViewerAction::Home => {
+                self.stop_audio();
+                self.exit = ViewerExit::Back;
+                self.leaving = true;
+            }
+            ViewerAction::Window(id, change) => self.change_window(id, change),
+            ViewerAction::Select(id) => {
+                self.selected = id;
+                self.gizmo_hover = None;
+            }
+            ViewerAction::SetGizmo(mode) => self.gizmo_mode = mode,
+            ViewerAction::SaveLayout => self.save_layout(),
+            ViewerAction::ResetLayout => {
+                self.layout = Default::default();
+                self.save_layout();
+            }
+            ViewerAction::SetNarration(volume, finished) => {
+                self.narration = volume;
+                if let Some(a) = self.audio.as_mut() {
+                    a.set_gain(volume.gain());
+                }
+                // FFplay takes a volume when it starts: a playing narration restarts where it is.
+                if finished && self.timeline_playing() {
+                    self.start_audio();
+                }
+            }
+            ViewerAction::SetSpeed(speed) => {
+                // Playing, the timeline goes on from where it is at the new speed, the narration with it.
+                if self.timeline_playing() {
+                    let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
+                    self.timeline_frame = self
+                        .anchored_frame(Instant::now())
+                        .min(total.saturating_sub(1));
+                    self.speed = speed;
+                    self.start_audio();
+                } else {
+                    self.speed = speed;
+                }
+            }
+            action => self.apply_edit(action, interactive),
+        }
+    }
+
+    /// The actions that edit the state: a value (of the main view, a view a feature adds, or a view over the main
+    /// one), a camera (the main one's, the free one's, or a view's), the record, the highlight, the panel, and the
+    /// demonstration's defaults; only while no timeline plays (`interactive`), but the free camera's and a view's.
+    fn apply_edit(&mut self, action: ViewerAction, interactive: bool) {
+        match action {
             // A view a feature adds focused (the experiment's reference): the slider sets that view's value.
             ViewerAction::SetParam(name, value)
                 if interactive
@@ -130,50 +183,6 @@ impl App {
                 self.demo_time = 0.0;
                 self.drift_from = 0.0;
                 self.playing = false;
-            }
-            ViewerAction::SelectTab(tab) => {
-                self.tab = tab;
-                self.show_tab();
-                self.select_feature();
-            }
-            ViewerAction::Home => {
-                self.stop_audio();
-                self.exit = ViewerExit::Back;
-                self.leaving = true;
-            }
-            ViewerAction::Window(id, change) => self.change_window(id, change),
-            ViewerAction::Select(id) => {
-                self.selected = id;
-                self.gizmo_hover = None;
-            }
-            ViewerAction::SetGizmo(mode) => self.gizmo_mode = mode,
-            ViewerAction::SaveLayout => self.save_layout(),
-            ViewerAction::ResetLayout => {
-                self.layout = Default::default();
-                self.save_layout();
-            }
-            ViewerAction::SetNarration(volume, finished) => {
-                self.narration = volume;
-                if let Some(a) = self.audio.as_mut() {
-                    a.set_gain(volume.gain());
-                }
-                // FFplay takes a volume when it starts: a playing narration restarts where it is.
-                if finished && self.timeline_playing() {
-                    self.start_audio();
-                }
-            }
-            ViewerAction::SetSpeed(speed) => {
-                // Playing, the timeline goes on from where it is at the new speed, the narration with it.
-                if self.timeline_playing() {
-                    let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
-                    self.timeline_frame = self
-                        .anchored_frame(Instant::now())
-                        .min(total.saturating_sub(1));
-                    self.speed = speed;
-                    self.start_audio();
-                } else {
-                    self.speed = speed;
-                }
             }
             _ => {}
         }

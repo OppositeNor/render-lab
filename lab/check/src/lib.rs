@@ -427,173 +427,200 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
         }
         // Data files name keys in fields ending in `-text` (`title-text = "scene-terrain"`).
         if path.extension().is_some_and(|e| e == "toml") {
-            println!("cargo:rerun-if-changed={}", path.display());
-            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                let Some((field, value)) = line.split_once('=') else {
-                    continue;
-                };
-                if !field.trim().ends_with("-text") || line.trim_start().starts_with('#') {
-                    continue;
-                }
-                let at = format!("{}:{}", path.display(), n + 1);
-                let key = value
-                    .trim()
-                    .strip_prefix('"')
-                    .and_then(|v| v.strip_suffix('"'))
-                    .unwrap_or_else(|| panic!("{at}: a text key is a quoted string"));
-                keys.push((key.to_string(), at));
-            }
+            toml_keys(&path, keys);
             continue;
         }
         // A storyboard's image title, mark label, and label text: render_lab's `{imageTitle "key"}`,
         // `{imageMarkText "key"}` (empty: none), and `{labelText "key"}`, or `{attr "imageTitle" "key"}`; and
         // a Lamlet data file's `titleText "key"` (a scene's `title-text`, lab/src/script/data.rs).
         if path.extension().is_some_and(|e| e == "lam") {
-            println!("cargo:rerun-if-changed={}", path.display());
-            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                for (i, found) in line.match_indices("titleText \"") {
-                    let rest = &line[i + found.len()..];
-                    let key = &rest[..rest.find('"').unwrap_or(rest.len())];
-                    if !key.is_empty() {
-                        keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
-                    }
-                }
-                for name in ["imageTitle", "imageMarkText", "labelText", "textKey"] {
-                    let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
-                    for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {
-                        let rest = &line[i + found.len()..];
-                        let key = &rest[..rest.find('"').unwrap_or(rest.len())];
-                        if !key.is_empty() {
-                            keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
-                        }
-                    }
-                }
-            }
+            lam_keys(&path, keys);
             continue;
         }
         // A pseudo-code listing's title and dispatch line (lab/src/pseudocode.rs): `# title-text: key`.
         if path.extension().is_some_and(|e| e == "py") {
-            println!("cargo:rerun-if-changed={}", path.display());
-            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                for field in ["# title-text: ", "# dispatch-text: "] {
-                    if let Some(key) = line.strip_prefix(field) {
-                        keys.push((
-                            key.trim().to_string(),
-                            format!("{}:{}", path.display(), n + 1),
-                        ));
-                    }
-                }
-            }
+            py_keys(&path, keys);
             continue;
         }
         // A shader value's name on screen: `/// {@ … text=key …}`.
         if path.extension().is_some_and(|e| e == "wgsl") {
-            println!("cargo:rerun-if-changed={}", path.display());
-            for (n, line) in fs::read_to_string(&path).unwrap().lines().enumerate() {
-                let Some(comment) = line
-                    .trim_start()
-                    .strip_prefix("///")
-                    .filter(|c| c.contains("{@"))
-                else {
-                    continue;
-                };
-                for (i, _) in comment
-                    .match_indices("text=")
-                    .chain(comment.match_indices("help="))
-                {
-                    if comment[..i]
-                        .chars()
-                        .next_back()
-                        .is_some_and(|c| !c.is_whitespace())
-                    {
-                        continue;
-                    }
-                    let rest = comment[i..]
-                        .split_once('=')
-                        .map_or("", |(_, r)| r)
-                        .trim_start_matches('"');
-                    let key = &rest[..rest
-                        .find(|c: char| c == '"' || c == '}' || c.is_whitespace())
-                        .unwrap_or(rest.len())];
-                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
-                }
-            }
+            wgsl_keys(&path, keys);
             continue;
         }
         if path.extension().is_none_or(|e| e != "rs") {
             continue;
         }
-        println!("cargo:rerun-if-changed={}", path.display());
-        let source = fs::read_to_string(&path).unwrap();
-        // The whole file, not line by line: rustfmt may put a key on a line after its call or field. Comment
-        // lines are blanked, their newlines kept, so an offset's line stays the source's.
-        let code: String = source
-            .split_inclusive('\n')
-            .map(|line| {
-                if line.trim_start().starts_with("//") {
-                    line.chars()
-                        .map(|c| {
-                            if c == '\n' {
-                                c
-                            } else {
-                                ' '
-                            }
-                        })
-                        .collect()
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect();
-        let at = |i: usize| format!("{}:{}", path.display(), code[..i].matches('\n').count() + 1);
-        // A derived value's or a choice option's name on screen: `#[value(… text = "key" …)]`, `#[choice(text = "key")]`.
-        for attribute in ["#[value(", "#[choice("] {
-            for (i, _) in code.match_indices(attribute) {
-                let span = &code[i..closing(&code, i + 1)];
-                for (j, _) in span
-                    .match_indices("text = \"")
-                    .chain(span.match_indices("help = \""))
-                {
-                    let place = at(i + j);
-                    let key = string_literal(&span[j + 7..], &place)
-                        .unwrap_or_else(|| panic!("{place}: a text key must be a string literal"));
-                    keys.push((key, place));
+        rust_keys(&path, keys);
+    }
+}
+
+/// The text keys a data file names, in fields ending in `-text` (`title-text = "scene-terrain"`).
+fn toml_keys(path: &Path, keys: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        let Some((field, value)) = line.split_once('=') else {
+            continue;
+        };
+        if !field.trim().ends_with("-text") || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let at = format!("{}:{}", path.display(), n + 1);
+        let key = value
+            .trim()
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or_else(|| panic!("{at}: a text key is a quoted string"));
+        keys.push((key.to_string(), at));
+    }
+}
+
+/// The text keys a Lamlet file names: a storyboard's image title, mark label, and label text, a script's
+/// `{textKey "…"}`, and a data file's `titleText "…"`.
+fn lam_keys(path: &Path, keys: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        for (i, found) in line.match_indices("titleText \"") {
+            let rest = &line[i + found.len()..];
+            let key = &rest[..rest.find('"').unwrap_or(rest.len())];
+            if !key.is_empty() {
+                keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
+            }
+        }
+        for name in ["imageTitle", "imageMarkText", "labelText", "textKey"] {
+            let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
+            for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {
+                let rest = &line[i + found.len()..];
+                let key = &rest[..rest.find('"').unwrap_or(rest.len())];
+                if !key.is_empty() {
+                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
                 }
             }
         }
-        // A value entry's name and help written out (`text: Some("key")`, `help: Some("key")`).
-        for field in ["text: Some(", "help: Some("] {
-            for (i, _) in code.match_indices(field) {
-                let place = at(i);
-                if let Some(key) = string_literal(&code[i + field.len()..], &place) {
-                    keys.push((key, place));
-                }
+    }
+}
+
+/// The text keys a pseudo-code listing names: its title and dispatch line (`# title-text: key`, lab/src/pseudocode.rs).
+fn py_keys(path: &Path, keys: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        for field in ["# title-text: ", "# dispatch-text: "] {
+            if let Some(key) = line.strip_prefix(field) {
+                keys.push((
+                    key.trim().to_string(),
+                    format!("{}:{}", path.display(), n + 1),
+                ));
             }
         }
-        // An entity's name (`EntitySpec { text: "key", … }`, src/entity.rs).
-        for (i, _) in code.match_indices("EntitySpec {") {
-            let open = i + "EntitySpec ".len();
-            let span = &code[open..closing(&code, open)];
-            for (j, _) in span.match_indices("text:") {
-                let place = at(open + j);
-                if let Some(key) = string_literal(&span[j + "text:".len()..], &place) {
-                    keys.push((key, place));
-                }
+    }
+}
+
+/// The text keys a shader names: a value's name on screen, `/// {@ … text=key …}` (and `help=`).
+fn wgsl_keys(path: &Path, keys: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        let Some(comment) = line
+            .trim_start()
+            .strip_prefix("///")
+            .filter(|c| c.contains("{@"))
+        else {
+            continue;
+        };
+        for (i, _) in comment
+            .match_indices("text=")
+            .chain(comment.match_indices("help="))
+        {
+            if comment[..i]
+                .chars()
+                .next_back()
+                .is_some_and(|c| !c.is_whitespace())
+            {
+                continue;
             }
+            let rest = comment[i..]
+                .split_once('=')
+                .map_or("", |(_, r)| r)
+                .trim_start_matches('"');
+            let key = &rest[..rest
+                .find(|c: char| c == '"' || c == '}' || c.is_whitespace())
+                .unwrap_or(rest.len())];
+            keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
         }
-        for call in ["tr(", "tr_with("] {
-            for (i, _) in code.match_indices(call) {
-                let before = code[..i].chars().next_back();
-                if before.is_some_and(|c| c.is_alphanumeric() || c == '_')
-                    || code[..i].trim_end().ends_with("fn")
-                {
-                    continue;
-                }
-                let place = at(i);
-                let key = string_literal(&code[i + call.len()..], &place)
+    }
+}
+
+/// The text keys a Rust file names: `tr("…")` and `tr_with("…", …)`, the `text` and `help` of a `#[value(…)]` or
+/// `#[choice(…)]`, a value entry's `text: Some("…")` and `help: Some("…")`, and an `EntitySpec`'s `text: "…"`.
+fn rust_keys(path: &Path, keys: &mut Vec<(String, String)>) {
+    println!("cargo:rerun-if-changed={}", path.display());
+    let source = fs::read_to_string(path).unwrap();
+    // The whole file, not line by line: rustfmt may put a key on a line after its call or field. Comment
+    // lines are blanked, their newlines kept, so an offset's line stays the source's.
+    let code: String = source
+        .split_inclusive('\n')
+        .map(|line| {
+            if line.trim_start().starts_with("//") {
+                line.chars()
+                    .map(|c| {
+                        if c == '\n' {
+                            c
+                        } else {
+                            ' '
+                        }
+                    })
+                    .collect()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+    let at = |i: usize| format!("{}:{}", path.display(), code[..i].matches('\n').count() + 1);
+    // A derived value's or a choice option's name on screen: `#[value(… text = "key" …)]`, `#[choice(text = "key")]`.
+    for attribute in ["#[value(", "#[choice("] {
+        for (i, _) in code.match_indices(attribute) {
+            let span = &code[i..closing(&code, i + 1)];
+            for (j, _) in span
+                .match_indices("text = \"")
+                .chain(span.match_indices("help = \""))
+            {
+                let place = at(i + j);
+                let key = string_literal(&span[j + 7..], &place)
                     .unwrap_or_else(|| panic!("{place}: a text key must be a string literal"));
                 keys.push((key, place));
             }
+        }
+    }
+    // A value entry's name and help written out (`text: Some("key")`, `help: Some("key")`).
+    for field in ["text: Some(", "help: Some("] {
+        for (i, _) in code.match_indices(field) {
+            let place = at(i);
+            if let Some(key) = string_literal(&code[i + field.len()..], &place) {
+                keys.push((key, place));
+            }
+        }
+    }
+    // An entity's name (`EntitySpec { text: "key", … }`, src/entity.rs).
+    for (i, _) in code.match_indices("EntitySpec {") {
+        let open = i + "EntitySpec ".len();
+        let span = &code[open..closing(&code, open)];
+        for (j, _) in span.match_indices("text:") {
+            let place = at(open + j);
+            if let Some(key) = string_literal(&span[j + "text:".len()..], &place) {
+                keys.push((key, place));
+            }
+        }
+    }
+    for call in ["tr(", "tr_with("] {
+        for (i, _) in code.match_indices(call) {
+            let before = code[..i].chars().next_back();
+            if before.is_some_and(|c| c.is_alphanumeric() || c == '_')
+                || code[..i].trim_end().ends_with("fn")
+            {
+                continue;
+            }
+            let place = at(i);
+            let key = string_literal(&code[i + call.len()..], &place)
+                .unwrap_or_else(|| panic!("{place}: a text key must be a string literal"));
+            keys.push((key, place));
         }
     }
 }

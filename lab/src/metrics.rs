@@ -390,7 +390,7 @@ fn csf_term(b: f64, ppd: f64, radius: isize) -> Vec<f64> {
 pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
     same_size(reference, test);
     let (w, h) = (reference.width, reference.height);
-    let (qc, qf, pc, pt) = (0.7, 0.5, 0.4, 0.95);
+    let qf = 0.5;
     let planes = |image: &Image| -> [Plane; 3] {
         let c: Vec<[f64; 3]> = image
             .pixels
@@ -411,6 +411,26 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
     };
     let (r, t) = (planes(reference), planes(test));
 
+    let color = flip_color(&r, &t, ppd);
+
+    let ((er, pr), (et, ptt)) = flip_features(&r, &t, ppd);
+    let map: Vec<f32> = (0..w * h)
+        .map(|i| {
+            let df = ((er.v[i] - et.v[i]).abs().max((pr.v[i] - ptt.v[i]).abs())
+                / std::f64::consts::SQRT_2)
+                .powf(qf);
+            color[i].powf(1.0 - df) as f32
+        })
+        .collect();
+    let mean = map.iter().map(|&v| v as f64).sum::<f64>() / map.len().max(1) as f64;
+    (mean, map)
+}
+
+/// ꟻLIP's colour error per pixel: each opponent channel filtered by its contrast sensitivity function (a sum of
+/// two Gaussians, normalized to sum 1 in 2D), then the HyAB distance, remapped.
+fn flip_color(r: &[Plane; 3], t: &[Plane; 3], ppd: f64) -> Vec<f64> {
+    let (w, h) = (r[0].width, r[0].height);
+    let (qc, pc, pt) = (0.7, 0.4, 0.95);
     // Colour: each opponent channel filtered by its contrast sensitivity
     // function (a sum of two Gaussians), normalized to sum 1 in 2D.
     let params = [
@@ -443,7 +463,7 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
             })
             .collect()
     };
-    let (lr, lt) = (filtered(&r), filtered(&t));
+    let (lr, lt) = (filtered(r), filtered(t));
     let cmax = hyab(
         hunt_lab(xyz([0.0, 1.0, 0.0])),
         hunt_lab(xyz([0.0, 0.0, 1.0])),
@@ -462,7 +482,13 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
             }
         })
         .collect();
+    color
+}
 
+/// ꟻLIP's features: edges and points of the normalized luminance of both images, from the first and second
+/// derivatives of a Gaussian of σ = 0.5 · 0.082 · ppd (each kernel's positive and negative weights normalized to
+/// sum to ±1).
+fn flip_features(r: &[Plane; 3], t: &[Plane; 3], ppd: f64) -> ((Plane, Plane), (Plane, Plane)) {
     // Features: edges and points of the normalized luminance, from the first
     // and second derivatives of a Gaussian of σ = 0.5 · 0.082 · ppd (each
     // kernel's positive and negative weights normalized to sum to ±1).
@@ -503,17 +529,8 @@ pub fn flip(reference: &Image, test: &Image, ppd: f64) -> (f64, Vec<f32>) {
             px.zip(&py, |a, b| (a * a + b * b).sqrt()),
         )
     };
-    let ((er, pr), (et, ptt)) = (features(&r), features(&t));
-    let map: Vec<f32> = (0..w * h)
-        .map(|i| {
-            let df = ((er.v[i] - et.v[i]).abs().max((pr.v[i] - ptt.v[i]).abs())
-                / std::f64::consts::SQRT_2)
-                .powf(qf);
-            color[i].powf(1.0 - df) as f32
-        })
-        .collect();
-    let mean = map.iter().map(|&v| v as f64).sum::<f64>() / map.len().max(1) as f64;
-    (mean, map)
+    let ((er, pr), (et, ptt)) = (features(r), features(t));
+    ((er, pr), (et, ptt))
 }
 
 /// An error map (0..1) in a magma-like ramp (black, purple, orange, pale

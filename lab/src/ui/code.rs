@@ -376,27 +376,7 @@ impl BlockPainter<'_, '_> {
         let painter = self.ink.painter;
         let lit = self.lit(&lines);
         let rect = Rect::from_min_size(at, vec2(width, height));
-        let radius = match shape {
-            BarShape::Hat(_) => CornerRadius {
-                nw: 14,
-                ne: 14,
-                sw: 3,
-                se: 3,
-            },
-            BarShape::Head => CornerRadius {
-                nw: 4,
-                ne: 4,
-                sw: 0,
-                se: 4,
-            },
-            BarShape::Middle => CornerRadius {
-                nw: 0,
-                ne: 4,
-                sw: 0,
-                se: 4,
-            },
-            BarShape::Plain | BarShape::Cap => CornerRadius::same(4),
-        };
+        let radius = Self::bar_radius(&shape);
         painter.rect_filled(rect, radius, self.fill(color, lit));
         painter.rect_filled(
             Rect::from_min_size(at, vec2(BLOCK_EDGE, height)),
@@ -472,6 +452,31 @@ impl BlockPainter<'_, '_> {
             y += BLOCK_ROW * rows.len() as f32;
         }
         height
+    }
+
+    /// A bar's corners: a hat's round top, a head's and a middle's square left foot (a block hangs below).
+    fn bar_radius(shape: &BarShape) -> CornerRadius {
+        match shape {
+            BarShape::Hat(_) => CornerRadius {
+                nw: 14,
+                ne: 14,
+                sw: 3,
+                se: 3,
+            },
+            BarShape::Head => CornerRadius {
+                nw: 4,
+                ne: 4,
+                sw: 0,
+                se: 4,
+            },
+            BarShape::Middle => CornerRadius {
+                nw: 0,
+                ne: 4,
+                sw: 0,
+                se: 4,
+            },
+            BarShape::Plain | BarShape::Cap => CornerRadius::same(4),
+        }
     }
 
     /// A loop's or a branch's column left of a body, or its foot.
@@ -562,57 +567,61 @@ impl BlockPainter<'_, '_> {
                     BLOCK_ROW
                 }
                 Block::Gap => self.spacing.blank,
-                Block::C { arms } => {
-                    let color = Self::color(self.listing.lines[arms[0].head.start].kind());
-                    let lit = arms.iter().any(|a| self.lit(&a.head));
-                    let mut cy = y;
-                    for (k, arm) in arms.iter().enumerate() {
-                        cy += self.bar(
-                            pos2(at.x, cy),
-                            width,
-                            arm.head.clone(),
-                            color,
-                            if k == 0 {
-                                BarShape::Head
-                            } else {
-                                BarShape::Middle
-                            },
-                        );
-                        let body = self.spacing.gap
-                            + self.stack(
-                                &arm.body,
-                                pos2(at.x + BLOCK_ARM, cy + self.spacing.gap),
-                                width - BLOCK_ARM,
-                            )
-                            + self.spacing.gap;
-                        self.frame(
-                            Rect::from_min_size(pos2(at.x, cy), vec2(BLOCK_ARM, body)),
-                            color,
-                            lit,
-                            CornerRadius::ZERO,
-                        );
-                        cy += body;
-                    }
-                    let foot = Rect::from_min_size(
-                        pos2(at.x, cy),
-                        vec2(width.min(BLOCK_ARM + 120.0), self.spacing.foot),
-                    );
-                    self.frame(
-                        foot,
-                        color,
-                        lit,
-                        CornerRadius {
-                            nw: 0,
-                            ne: 4,
-                            sw: 4,
-                            se: 4,
-                        },
-                    );
-                    cy + self.spacing.foot - y
-                }
+                Block::C { arms } => self.c_block(arms, at, width),
             };
         }
         y - at.y
+    }
+
+    /// A C-shaped block at `at`: each arm's head and its body stacked inside it, then the foot; its height.
+    fn c_block(&mut self, arms: &[crate::pseudocode::Arm], at: Pos2, width: f32) -> f32 {
+        let y = at.y;
+        let color = Self::color(self.listing.lines[arms[0].head.start].kind());
+        let lit = arms.iter().any(|a| self.lit(&a.head));
+        let mut cy = y;
+        for (k, arm) in arms.iter().enumerate() {
+            cy += self.bar(
+                pos2(at.x, cy),
+                width,
+                arm.head.clone(),
+                color,
+                if k == 0 {
+                    BarShape::Head
+                } else {
+                    BarShape::Middle
+                },
+            );
+            let body = self.spacing.gap
+                + self.stack(
+                    &arm.body,
+                    pos2(at.x + BLOCK_ARM, cy + self.spacing.gap),
+                    width - BLOCK_ARM,
+                )
+                + self.spacing.gap;
+            self.frame(
+                Rect::from_min_size(pos2(at.x, cy), vec2(BLOCK_ARM, body)),
+                color,
+                lit,
+                CornerRadius::ZERO,
+            );
+            cy += body;
+        }
+        let foot = Rect::from_min_size(
+            pos2(at.x, cy),
+            vec2(width.min(BLOCK_ARM + 120.0), self.spacing.foot),
+        );
+        self.frame(
+            foot,
+            color,
+            lit,
+            CornerRadius {
+                nw: 0,
+                ne: 4,
+                sw: 4,
+                se: 4,
+            },
+        );
+        cy + self.spacing.foot - y
     }
 }
 

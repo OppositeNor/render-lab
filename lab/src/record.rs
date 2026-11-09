@@ -175,6 +175,31 @@ pub struct RecordSummary {
     pub output: Option<String>,
 }
 
+/// A frame in flight: its index, its read-back buffer's slot, and the buffer's mapping.
+type InFlight = (
+    u64,
+    usize,
+    mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+);
+
+/// A recording under way: what it renders and how, its read-back ring and the frames in it, where finished
+/// frames go (the FFmpeg writer's channel, when it writes a video), and its summary so far.
+struct Recording<'a> {
+    options: &'a RecordOptions,
+    timeline: &'a Timeline,
+    renderer: Renderer,
+    device: wgpu::Device,
+    buffers: Vec<wgpu::Buffer>,
+    pending: VecDeque<InFlight>,
+    tx: Option<mpsc::SyncSender<Vec<u8>>>,
+    /// The first frame kept (those before it warm up), the end of the range, and the frame's size.
+    range: (u64, u64),
+    size: [u32; 2],
+    record_history: bool,
+    last_drawn: Option<(u64, usize)>,
+    summary: RecordSummary,
+}
+
 pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let started = std::time::Instant::now();
     let timeline = Timeline::load(&options.timeline)?;
@@ -186,7 +211,7 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
     let [width, height] = options
         .resolution
         .unwrap_or([timeline.width, timeline.height]);
-    let mut renderer = Renderer::new(gpu, statics, width, height)?;
+    let renderer = Renderer::new(gpu, statics, width, height)?;
     let (first, last) = options.frames.unwrap_or((0, timeline.total_frames));
     let last = last.min(timeline.total_frames);
     if first >= last {
@@ -197,176 +222,61 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         None => None,
     };
     let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(RING);
-    let writer = child.as_mut().map(|c| {
-        let mut stdin = c.stdin.take().expect("ffmpeg stdin");
-        std::thread::spawn(move || -> std::io::Result<u64> {
-            let mut n = 0;
-            for frame in rx {
-                stdin.write_all(&frame)?;
-                n += 1;
-            }
-            Ok(n)
-        })
-    });
-    let device = renderer.device().clone();
-    let buffers: Vec<wgpu::Buffer> = (0..RING)
-        .map(|_| renderer::readback_buffer(&device, width, height))
-        .collect();
-    // A frame, its buffer, and the buffer's mapping.
-    type Mapping = mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>;
-    let mut pending: VecDeque<(u64, usize, Mapping)> = VecDeque::new();
-    let mut summary = RecordSummary {
-        first_frame: first,
-        width,
-        height,
-        fps: timeline.fps,
-        ring_buffers: RING,
-        min_text_pt: f32::INFINITY,
-        gpu: gpu_info,
-        output: options.output.as_ref().map(|p| p.display().to_string()),
-        ..Default::default()
-    };
+    let writer = child.as_mut().map(|c| spawn_writer(c, rx));
     if let Some(dir) = &options.snapshot_dir {
         std::fs::create_dir_all(dir)?;
     }
-    let finish = |frame_index: u64, slot: usize, summary: &mut RecordSummary| -> Result<()> {
-        let buffer = &buffers[slot];
-        let data = buffer
-            .slice(..)
-            .get_mapped_range()
-            .context("mapped readback")?
-            .to_vec();
-        buffer.unmap();
-        if frame_index < first {
-            return Ok(());
-        }
-        let frame = renderer::unpad_rows(&data, width, height);
-        if options.snapshots.contains(&frame_index) {
-            if let Some(dir) = &options.snapshot_dir {
-                write_png(
-                    &dir.join(format!("frame-{frame_index:06}.png")),
-                    width,
-                    height,
-                    &frame,
-                )?;
-            }
-            summary.frame_sha256.push((frame_index, hex(&frame)));
-        }
-        if writer.is_some() {
-            tx.send(frame).context("FFmpeg writer stopped")?;
-        }
-        Ok(())
+    let device = renderer.device().clone();
+    let mut recording = Recording {
+        options,
+        timeline: &timeline,
+        buffers: (0..RING)
+            .map(|_| renderer::readback_buffer(&device, width, height))
+            .collect(),
+        renderer,
+        device,
+        pending: VecDeque::new(),
+        tx: writer.is_some().then_some(tx),
+        range: (first, last),
+        size: [width, height],
+        // A program that records with history (`ShadingProgram::record_history`):
+        // each frame of a beat builds on the one before it, rendered just before;
+        // a beat's first frame, and a frame after a gap, stand alone.
+        record_history: options.output.is_some()
+            && investigation::current()
+                .scene_shading()
+                .and_then(|s| s.program)
+                .is_some_and(|p| p.record_history),
+        last_drawn: None,
+        summary: RecordSummary {
+            first_frame: first,
+            width,
+            height,
+            fps: timeline.fps,
+            ring_buffers: RING,
+            min_text_pt: f32::INFINITY,
+            gpu: gpu_info,
+            output: options.output.as_ref().map(|p| p.display().to_string()),
+            ..Default::default()
+        },
     };
-    let progress_every = (timeline.fps as u64) * 10;
-    // Without a video output only the requested snapshots are rendered: each
-    // frame depends only on its index, so skipping the others changes nothing.
-    let frame_list: Vec<u64> = if options.output.is_none() {
-        let mut v: Vec<u64> = options
-            .snapshots
-            .iter()
-            .copied()
-            .filter(|f| (first..last).contains(f))
-            .collect();
-        v.sort_unstable();
-        v.dedup();
-        v
-    } else {
-        (first.saturating_sub(options.warmup)..last).collect()
-    };
-    // A program that records with history (`ShadingProgram::record_history`):
-    // each frame of a beat builds on the one before it, rendered just before;
-    // a beat's first frame, and a frame after a gap, stand alone.
-    let record_history = options.output.is_some()
-        && investigation::current()
-            .scene_shading()
-            .and_then(|s| s.program)
-            .is_some_and(|p| p.record_history);
-    let mut last_drawn: Option<(u64, usize)> = None;
     // The rate so far, from the first frame on, for the progress line's estimate.
     let rendering = std::time::Instant::now();
-    for (n, f) in frame_list.into_iter().enumerate() {
-        // Slots are used round-robin in render order, so the slot needed next
-        // is always the oldest one in flight: frames leave in the order they entered.
-        let slot = n % RING;
-        while pending.len() >= RING || pending.iter().any(|p| p.1 == slot) {
-            let (index, s, done) = pending.pop_front().unwrap();
-            device.poll(wgpu::PollType::wait_indefinitely()).ok();
-            done.recv()
-                .context("map callback")?
-                .context("map readback buffer")?;
-            finish(index, s, &mut summary)?;
-        }
-        let state = timeline.state_at(f);
-        let (beat_index, beat) = timeline.beat_at(f);
-        let history = record_history && last_drawn == Some((f.wrapping_sub(1), beat_index));
-        last_drawn = Some((f, beat_index));
-        let request = FrameRequest {
-            state: &state,
-            scene_type: beat.kind,
-            diagram: timeline.diagram_at(f),
-            beat_sources: &beat.sources,
-            notices: beat.notices,
-            chapter_number: beat.chapter,
-            fade: beat_fade(&timeline, f),
-            time: f as f32 / timeline.fps as f32,
-            raw_input: egui::RawInput {
-                time: Some(f as f64 / timeline.fps as f64),
-                ..Default::default()
-            },
-            chrome: Chrome::Recording {
-                timeline: &timeline,
-                frame: f,
-            },
-            stamp: options.frame_stamp.then_some(f),
-            focus: None,
-            history,
-            wait: true,
-        };
-        let result = renderer.render_frame(request, Some(&buffers[slot]));
-        let warming = f < first;
-        if !warming {
-            track(&mut summary, f, &result.report, beat.kind);
-        }
-        let (done_tx, done_rx) = mpsc::channel();
-        buffers[slot]
-            .slice(..)
-            .map_async(wgpu::MapMode::Read, move |r| {
-                let _ = done_tx.send(r);
-            });
-        pending.push_back((f, slot, done_rx));
-        device.poll(wgpu::PollType::Poll).ok();
-        if warming {
-            continue;
-        }
-        summary.frames += 1;
-        if options.output.is_some() && (f - first) % progress_every == 0 {
-            let done = f - first;
-            let elapsed = rendering.elapsed().as_secs_f64();
-            let estimate = if done > 0 && elapsed > 0.0 {
-                let fps = done as f64 / elapsed;
-                let left = ((last - f) as f64 / fps).round() as u64;
-                format!(
-                    " · {fps:.1} fps · {} left, done about {}",
-                    duration_text(left),
-                    crate::readback::local_clock_after(left)
-                )
-            } else {
-                String::new()
-            };
-            eprintln!(
-                "frame {f} / {last} ({:.0}%){estimate}",
-                100.0 * done as f64 / (last - first) as f64
-            );
+    let progress_every = (timeline.fps as u64) * 10;
+    for (n, f) in frames_to_render(options, first, last)
+        .into_iter()
+        .enumerate()
+    {
+        recording.render(n, f)?;
+        if f >= first && options.output.is_some() && (f - first) % progress_every == 0 {
+            print_progress(f, (first, last), rendering.elapsed().as_secs_f64());
         }
     }
-    while let Some((index, s, done)) = pending.pop_front() {
-        device.poll(wgpu::PollType::wait_indefinitely()).ok();
-        done.recv()
-            .context("map callback")?
-            .context("map readback buffer")?;
-        finish(index, s, &mut summary)?;
+    while !recording.pending.is_empty() {
+        recording.finish_oldest()?;
     }
-    drop(tx);
+    let mut summary = std::mem::take(&mut recording.summary);
+    drop(recording);
     if let Some(w) = writer {
         let written = w
             .join()
@@ -387,6 +297,154 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         std::fs::write(path, serde_json::to_string_pretty(&summary)?)?;
     }
     Ok(summary)
+}
+
+/// The thread that writes the frames `rx` brings into FFmpeg's input: how many it wrote.
+fn spawn_writer(
+    ffmpeg: &mut Child,
+    rx: mpsc::Receiver<Vec<u8>>,
+) -> std::thread::JoinHandle<std::io::Result<u64>> {
+    let mut stdin = ffmpeg.stdin.take().expect("ffmpeg stdin");
+    std::thread::spawn(move || -> std::io::Result<u64> {
+        let mut n = 0;
+        for frame in rx {
+            stdin.write_all(&frame)?;
+            n += 1;
+        }
+        Ok(n)
+    })
+}
+
+/// The frames rendered: without a video output only the requested snapshots (each frame depends only on its
+/// index, so skipping the others changes nothing); with one, the range and the warm-up before it.
+fn frames_to_render(options: &RecordOptions, first: u64, last: u64) -> Vec<u64> {
+    if options.output.is_none() {
+        let mut v: Vec<u64> = options
+            .snapshots
+            .iter()
+            .copied()
+            .filter(|f| (first..last).contains(f))
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    } else {
+        (first.saturating_sub(options.warmup)..last).collect()
+    }
+}
+
+/// The progress line at frame `f` of `first..last`, `elapsed` seconds in: the share done, the rate, and when it
+/// is done.
+fn print_progress(f: u64, (first, last): (u64, u64), elapsed: f64) {
+    let done = f - first;
+    let estimate = if done > 0 && elapsed > 0.0 {
+        let fps = done as f64 / elapsed;
+        let left = ((last - f) as f64 / fps).round() as u64;
+        format!(
+            " · {fps:.1} fps · {} left, done about {}",
+            duration_text(left),
+            crate::readback::local_clock_after(left)
+        )
+    } else {
+        String::new()
+    };
+    eprintln!(
+        "frame {f} / {last} ({:.0}%){estimate}",
+        100.0 * done as f64 / (last - first) as f64
+    );
+}
+
+impl Recording<'_> {
+    /// Frame `f`, the `n`th rendered, drawn into its read-back slot and its read-back started; the oldest frames
+    /// in flight finished first while the slot is in use (slots are used round-robin in render order, so the
+    /// slot needed next is always the oldest one in flight: frames leave in the order they entered).
+    fn render(&mut self, n: usize, f: u64) -> Result<()> {
+        let slot = n % RING;
+        while self.pending.len() >= RING || self.pending.iter().any(|p| p.1 == slot) {
+            self.finish_oldest()?;
+        }
+        let timeline = self.timeline;
+        let state = timeline.state_at(f);
+        let (beat_index, beat) = timeline.beat_at(f);
+        let history =
+            self.record_history && self.last_drawn == Some((f.wrapping_sub(1), beat_index));
+        self.last_drawn = Some((f, beat_index));
+        let request = FrameRequest {
+            state: &state,
+            scene_type: beat.kind,
+            diagram: timeline.diagram_at(f),
+            beat_sources: &beat.sources,
+            notices: beat.notices,
+            chapter_number: beat.chapter,
+            fade: beat_fade(timeline, f),
+            time: f as f32 / timeline.fps as f32,
+            raw_input: egui::RawInput {
+                time: Some(f as f64 / timeline.fps as f64),
+                ..Default::default()
+            },
+            chrome: Chrome::Recording { timeline, frame: f },
+            stamp: self.options.frame_stamp.then_some(f),
+            focus: None,
+            history,
+            wait: true,
+        };
+        let result = self
+            .renderer
+            .render_frame(request, Some(&self.buffers[slot]));
+        let warming = f < self.range.0;
+        if !warming {
+            track(&mut self.summary, f, &result.report, beat.kind);
+        }
+        let (done_tx, done_rx) = mpsc::channel();
+        self.buffers[slot]
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |r| {
+                let _ = done_tx.send(r);
+            });
+        self.pending.push_back((f, slot, done_rx));
+        self.device.poll(wgpu::PollType::Poll).ok();
+        if !warming {
+            self.summary.frames += 1;
+        }
+        Ok(())
+    }
+
+    /// The oldest frame in flight read back: saved when it is a snapshot (and hashed), sent to FFmpeg when
+    /// there is a video; a warm-up frame dropped.
+    fn finish_oldest(&mut self) -> Result<()> {
+        let (frame_index, slot, done) = self.pending.pop_front().expect("a frame in flight");
+        self.device.poll(wgpu::PollType::wait_indefinitely()).ok();
+        done.recv()
+            .context("map callback")?
+            .context("map readback buffer")?;
+        let buffer = &self.buffers[slot];
+        let data = buffer
+            .slice(..)
+            .get_mapped_range()
+            .context("mapped readback")?
+            .to_vec();
+        buffer.unmap();
+        if frame_index < self.range.0 {
+            return Ok(());
+        }
+        let [width, height] = self.size;
+        let frame = renderer::unpad_rows(&data, width, height);
+        if self.options.snapshots.contains(&frame_index) {
+            if let Some(dir) = &self.options.snapshot_dir {
+                write_png(
+                    &dir.join(format!("frame-{frame_index:06}.png")),
+                    width,
+                    height,
+                    &frame,
+                )?;
+            }
+            self.summary.frame_sha256.push((frame_index, hex(&frame)));
+        }
+        if let Some(tx) = &self.tx {
+            tx.send(frame).context("FFmpeg writer stopped")?;
+        }
+        Ok(())
+    }
 }
 
 fn track(summary: &mut RecordSummary, frame: u64, report: &UiReport, kind: SceneType) {

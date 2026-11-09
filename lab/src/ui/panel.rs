@@ -183,7 +183,6 @@ pub(super) fn draw_panel(
     );
     y += 10.0;
     let rust = rust_fields(record.struct_name);
-    let highlighted = |name: &str| state.highlight.iter().any(|h| h == name);
     if state.panel == PanelMode::Memory {
         draw_memory(
             ink,
@@ -196,6 +195,26 @@ pub(super) fn draw_panel(
         return;
     }
     // Declaration rows with byte offsets and padding.
+    let y = draw_declaration(ink, input, record, (layout, decl), (x, width, y));
+    if state.panel != PanelMode::Values {
+        return;
+    }
+    // Values of the highlighted fields, read from the uploaded bytes.
+    draw_values(ink, input, content, &rust, report, (x, width, y));
+}
+
+/// The record's declaration from `y`: its fields with their byte offsets, the padding between them, the
+/// highlighted ones lit. Where what follows it starts.
+fn draw_declaration(
+    ink: &Ink,
+    input: &UiInput,
+    record: &crate::frame::PanelRecord,
+    (layout, decl): (&crate::layout::ShaderStruct, &crate::layout::Declaration),
+    (x, width, y): (f32, f32, f32),
+) -> f32 {
+    let (painter, state) = (ink.painter, input.state);
+    let highlighted = |name: &str| state.highlight.iter().any(|h| h == name);
+    let mut y = y;
     let line = 27.0;
     ink.text(
         pos2(x, y),
@@ -206,7 +225,6 @@ pub(super) fn draw_panel(
         palette::text_dim(),
     );
     y += line;
-    let pads = layout.padding();
     let mut cursor = 0usize;
     for (_, field_name, code) in &decl.fields {
         let Some(f) = layout.field(field_name) else {
@@ -274,12 +292,24 @@ pub(super) fn draw_panel(
         palette::text_dim(),
     );
     y += line + 4.0;
-    let _ = pads;
-    if state.panel != PanelMode::Values {
+    y
+}
+
+/// Values of the highlighted fields from `y`, read from the uploaded bytes, then the frame's notes, as many as fit.
+fn draw_values(
+    ink: &Ink,
+    input: &UiInput,
+    content: &FrameContent,
+    rust: &[RustField],
+    report: &mut UiReport,
+    (x, width, y): (f32, f32, f32),
+) {
+    let Some(record) = &content.panel_record else {
         return;
-    }
-    // Values of the highlighted fields, read from the uploaded bytes.
-    let bottom = rect.max.y - 14.0;
+    };
+    let (state, line) = (input.state, 27.0);
+    let bottom = input.layout.panel.max.y - 14.0;
+    let mut y = y;
     for name in &state.highlight {
         let Some(field) = rust.iter().find(|f| f.name == name.as_str()) else {
             continue;
@@ -415,6 +445,56 @@ pub(super) fn draw_readout(
     y += 10.0;
     let line = 29.0;
     let bottom = rect.max.y - 14.0;
+    y = draw_readout_formula(ink, readout, (notes.len(), report), (x, width, y), bottom);
+    for (i, (name, value, color)) in readout.rows.iter().enumerate() {
+        if y + line > bottom {
+            report.readout_overflow = readout.rows.len() - i + notes.len();
+            return;
+        }
+        if name.is_empty() && value.is_empty() {
+            y += line * 0.5;
+            continue;
+        }
+        let value_width = ink.measure(value, 24.0, FontFamily::Monospace).x;
+        fitted_line(
+            ink,
+            pos2(x, y),
+            name,
+            (width - value_width - 16.0).max(40.0),
+            palette::text_dim(),
+        );
+        ink.text(
+            pos2(rect.max.x - 22.0, y),
+            Align2::RIGHT_TOP,
+            value,
+            24.0,
+            FontFamily::Monospace,
+            *color,
+        );
+        y += line;
+    }
+    y += 6.0;
+    for (i, (note, color)) in notes.iter().enumerate() {
+        if y + line > bottom {
+            report.readout_overflow = notes.len() - i;
+            return;
+        }
+        fitted_line(ink, pos2(x, y), note, width, *color);
+        y += line;
+    }
+}
+
+/// The readout's formula from `y`: full size, unless the panel is too short for it and every row and the `notes`
+/// (the viewer's panel is shorter than the recorder's); its term lit. Where what follows it starts.
+fn draw_readout_formula(
+    ink: &Ink,
+    readout: &crate::frame::Readout,
+    (notes, report): (usize, &mut UiReport),
+    (x, width, y): (f32, f32, f32),
+    bottom: f32,
+) -> f32 {
+    let line = 29.0;
+    let mut y = y;
     if let Some((latex, display, colors)) = readout
         .formula
         .as_deref()
@@ -439,7 +519,7 @@ pub(super) fn draw_readout(
                         }
                     })
                     .sum::<f32>()
-                    + notes.len() as f32;
+                    + notes as f32;
                 let room = bottom - y - 12.0 - 6.0 - rows * line;
                 let scale = (width / size.x).min(room / size.y).clamp(0.5, 1.0);
                 let lit = readout.formula_lit.map(|(term, weight)| {
@@ -489,42 +569,7 @@ pub(super) fn draw_readout(
             }
         }
     }
-    for (i, (name, value, color)) in readout.rows.iter().enumerate() {
-        if y + line > bottom {
-            report.readout_overflow = readout.rows.len() - i + notes.len();
-            return;
-        }
-        if name.is_empty() && value.is_empty() {
-            y += line * 0.5;
-            continue;
-        }
-        let value_width = ink.measure(value, 24.0, FontFamily::Monospace).x;
-        fitted_line(
-            ink,
-            pos2(x, y),
-            name,
-            (width - value_width - 16.0).max(40.0),
-            palette::text_dim(),
-        );
-        ink.text(
-            pos2(rect.max.x - 22.0, y),
-            Align2::RIGHT_TOP,
-            value,
-            24.0,
-            FontFamily::Monospace,
-            *color,
-        );
-        y += line;
-    }
-    y += 6.0;
-    for (i, (note, color)) in notes.iter().enumerate() {
-        if y + line > bottom {
-            report.readout_overflow = notes.len() - i;
-            return;
-        }
-        fitted_line(ink, pos2(x, y), note, width, *color);
-        y += line;
-    }
+    y
 }
 
 /// One line of 24 px text cut to `width`, or, holding a formula, drawn whole
@@ -570,13 +615,6 @@ pub(super) fn draw_memory(
     let row_h = 28.0;
     let label_x = x + 68.0 + 16.0 * cell + 14.0;
     let pads = layout.padding();
-    let is_pad = |byte: usize| pads.iter().any(|(o, s, _)| byte >= *o && byte < o + s);
-    let field_at = |byte: usize| {
-        layout
-            .fields
-            .iter()
-            .position(|f| byte >= f.offset && byte < f.offset + f.size)
-    };
     ink.text(
         pos2(x, y),
         Align2::LEFT_TOP,
@@ -598,37 +636,7 @@ pub(super) fn draw_memory(
             FontFamily::Monospace,
             palette::text_dim(),
         );
-        let mut label = String::new();
-        for b in 0..16 {
-            let byte = r * 16 + b;
-            let cell_rect = Rect::from_min_size(
-                pos2(x + 68.0 + b as f32 * cell, y + 3.0),
-                vec2(cell - 2.0, row_h - 8.0),
-            );
-            let color = if is_pad(byte) {
-                palette::padding()
-            } else if let Some(fi) = field_at(byte) {
-                let f = &layout.fields[fi];
-                if label.is_empty() {
-                    label = match f.matrix {
-                        Some(_) => format!("{} c{}", f.name, (byte - f.offset) / 16),
-                        None => f.name.clone(),
-                    };
-                }
-                if state.highlight.iter().any(|h| h == &f.name) {
-                    let colors = field_colors(record.struct_name, &f.name);
-                    let column = f.matrix.map(|_| (byte - f.offset) / 16).unwrap_or(0);
-                    colors[column.min(colors.len() - 1)]
-                } else if fi % 2 == 0 {
-                    palette::theme().field_even
-                } else {
-                    palette::theme().field_odd
-                }
-            } else {
-                palette::padding()
-            };
-            painter.rect_filled(cell_rect, CornerRadius::same(2), color);
-        }
+        let label = memory_cells(painter, (layout, record), state, (x, y), r);
         let text = ink.fit_right(&label, x + width - label_x, 24.0, FontFamily::Monospace);
         ink.text(
             pos2(label_x, y),
@@ -681,6 +689,58 @@ pub(super) fn draw_memory(
             y += row_h;
         }
     }
+}
+
+/// Row `r` of the record's bytes at (`x`, `y`), a cell per byte coloured by its field (the highlighted ones
+/// in their colours) or as padding; the name of the first field in it.
+fn memory_cells(
+    painter: &egui::Painter,
+    (layout, record): (&crate::layout::ShaderStruct, &crate::frame::PanelRecord),
+    state: &ShotState,
+    (x, y): (f32, f32),
+    r: usize,
+) -> String {
+    let (cell, row_h) = (15.0, 28.0);
+    let pads = layout.padding();
+    let is_pad = |byte: usize| pads.iter().any(|(o, s, _)| byte >= *o && byte < o + s);
+    let field_at = |byte: usize| {
+        layout
+            .fields
+            .iter()
+            .position(|f| byte >= f.offset && byte < f.offset + f.size)
+    };
+    let mut label = String::new();
+    for b in 0..16 {
+        let byte = r * 16 + b;
+        let cell_rect = Rect::from_min_size(
+            pos2(x + 68.0 + b as f32 * cell, y + 3.0),
+            vec2(cell - 2.0, row_h - 8.0),
+        );
+        let color = if is_pad(byte) {
+            palette::padding()
+        } else if let Some(fi) = field_at(byte) {
+            let f = &layout.fields[fi];
+            if label.is_empty() {
+                label = match f.matrix {
+                    Some(_) => format!("{} c{}", f.name, (byte - f.offset) / 16),
+                    None => f.name.clone(),
+                };
+            }
+            if state.highlight.iter().any(|h| h == &f.name) {
+                let colors = field_colors(record.struct_name, &f.name);
+                let column = f.matrix.map(|_| (byte - f.offset) / 16).unwrap_or(0);
+                colors[column.min(colors.len() - 1)]
+            } else if fi % 2 == 0 {
+                palette::theme().field_even
+            } else {
+                palette::theme().field_odd
+            }
+        } else {
+            palette::padding()
+        };
+        painter.rect_filled(cell_rect, CornerRadius::same(2), color);
+    }
+    label
 }
 
 pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {

@@ -278,6 +278,42 @@ fn find_choices(package: &str, name: &str) -> Result<&'static Choices> {
         })
 }
 
+/// The tag `name` of a declaration, if it is given (once).
+fn one_tag<'a>(tags: &'a [Tag], name: &str) -> Result<Option<&'a Tag>> {
+    let found: Vec<&Tag> = tags.iter().filter(|t| t.name == name).collect();
+    if found.len() > 1 {
+        bail!("`{name}` is given twice");
+    }
+    Ok(found.first().copied())
+}
+
+/// The one value of the tag `name`, kept for the program's life, if it is given.
+fn one_text(tags: &[Tag], name: &str) -> Result<Option<&'static str>> {
+    match one_tag(tags, name)? {
+        Some(t) => {
+            tag_args(t, 1)?;
+            Ok(Some(leak(t.args[0].clone())))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Refuses a tag that does not take `n` values.
+fn tag_args(tag: &Tag, n: usize) -> Result<()> {
+    if tag.args.len() != n {
+        bail!(
+            "`{}=` takes {n} value{}",
+            tag.name,
+            if n == 1 {
+                ""
+            } else {
+                "s"
+            }
+        );
+    }
+    Ok(())
+}
+
 fn entry(
     r: &Reflected,
     scope: Option<&str>,
@@ -286,57 +322,18 @@ fn entry(
     storage: Storage,
     components: usize,
 ) -> Result<Entry> {
-    let one = |name: &str| -> Result<Option<&Tag>> {
-        let found: Vec<&Tag> = tags.iter().filter(|t| t.name == name).collect();
-        if found.len() > 1 {
-            bail!("`{name}` is given twice");
-        }
-        Ok(found.first().copied())
-    };
+    let one = |name: &str| one_tag(tags, name);
     let scoped = |key: &str| match scope {
         Some(s) => format!("{s}.{key}"),
         None => key.to_string(),
     };
-    let arg = |tag: &Tag, n: usize| -> Result<()> {
-        if tag.args.len() != n {
-            bail!(
-                "`{}=` takes {n} value{}",
-                tag.name,
-                if n == 1 {
-                    ""
-                } else {
-                    "s"
-                }
-            );
-        }
-        Ok(())
-    };
+    let arg = tag_args;
     let key_tag = one("key")?.unwrap();
     arg(key_tag, 1)?;
     let key = leak(scoped(&key_tag.args[0]));
     let toggle = one("toggle")?.is_some();
     let package = r.id.split('.').next().unwrap_or_default();
-    let choices = match one("choice")? {
-        Some(t) => {
-            arg(t, 1)?;
-            if components != 1 || storage == Storage::I32 || toggle {
-                bail!("a choice is one u32 or f32");
-            }
-            let c = find_choices(package, &t.args[0])?;
-            // The constants the shader compares against must be the enum's current ones.
-            if let Some(source) = c.wgsl_source()
-                && !r.source.contains(&source)
-            {
-                bail!(
-                    "the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)",
-                    c.name,
-                    c.wgsl_file()
-                );
-            }
-            Some(c)
-        }
-        None => None,
-    };
+    let choices = entry_choices(r, tags, (components, storage, toggle))?;
     let unit = match one("unit")? {
         _ if choices.is_some() => Unit::Index,
         Some(t) => {
@@ -363,6 +360,95 @@ fn entry(
         (4, Storage::F32, false, _) => Type::Vec4,
         _ => bail!("a toggle is one number"),
     };
+    let numbers = entry_default(tags, ty, choices)?;
+    // One low, high pair, or one per component; a choice's is its options'.
+    let (range, component_ranges) = entry_ranges(tags, ty, choices)?;
+    let step = match one("step")? {
+        Some(t) => {
+            arg(t, 1)?;
+            Some(number(&t.args[0])?)
+        }
+        None => None,
+    };
+    let labels: Vec<&'static str> = tags
+        .iter()
+        .filter(|t| t.name == "label")
+        .flat_map(|t| t.args.iter().map(|a| leak(a.clone())))
+        .collect();
+    let text = one_text(tags, "text")?;
+    let components: Vec<&'static str> = match one("components")? {
+        Some(t) if ty.components() > 1 => {
+            arg(t, ty.components())?;
+            t.args.iter().map(|c| leak(scoped(c))).collect()
+        }
+        Some(_) => bail!("only a vector has `components=`"),
+        None if ty.components() > 1 => ["x", "y", "z", "w"][..ty.components()]
+            .iter()
+            .map(|c| leak(format!("{key}.{c}")))
+            .collect(),
+        None => Vec::new(),
+    };
+    let engine = one_text(tags, "engine")?;
+    let help = one_text(tags, "help")?;
+    Ok(Entry {
+        key,
+        ty,
+        default: Some(Value::from_components(ty, &numbers)),
+        range,
+        component_ranges: Box::leak(component_ranges.into_boxed_slice()),
+        step,
+        unit,
+        wrap: one("wrap")?.is_some(),
+        labels: Box::leak(labels.into_boxed_slice()),
+        text,
+        name: None,
+        color: None,
+        toggle: false,
+        choices,
+        package: leak(package.to_string()),
+        doc: leak(doc),
+        engine,
+        help,
+        components: Box::leak(components.into_boxed_slice()),
+    })
+}
+
+/// A value's `choice=`: one u32 or f32 whose shader composes the enum's current constants.
+fn entry_choices(
+    r: &Reflected,
+    tags: &[Tag],
+    (components, storage, toggle): (usize, Storage, bool),
+) -> Result<Option<&'static Choices>> {
+    let one = |name: &str| one_tag(tags, name);
+    let arg = tag_args;
+    let package = r.id.split('.').next().unwrap_or_default();
+    let choices = match one("choice")? {
+        Some(t) => {
+            arg(t, 1)?;
+            if components != 1 || storage == Storage::I32 || toggle {
+                bail!("a choice is one u32 or f32");
+            }
+            let c = find_choices(package, &t.args[0])?;
+            // The constants the shader compares against must be the enum's current ones.
+            if let Some(source) = c.wgsl_source()
+                && !r.source.contains(&source)
+            {
+                bail!(
+                    "the shader does not compose {}'s current constants: compose its package's `{}` (a `built = true` resource the lab writes)",
+                    c.name,
+                    c.wgsl_file()
+                );
+            }
+            Some(c)
+        }
+        None => None,
+    };
+    Ok(choices)
+}
+
+/// A value's `default=`: a number per component; a choice's, an option's name.
+fn entry_default(tags: &[Tag], ty: Type, choices: Option<&'static Choices>) -> Result<Vec<f32>> {
+    let one = |name: &str| one_tag(tags, name);
     let default = one("default")?.ok_or_else(|| anyhow!("a value needs `default=`"))?;
     if default.args.len() != ty.components() {
         bail!(
@@ -392,7 +478,15 @@ fn entry(
             .map(|a| number(a))
             .collect::<Result<_>>()?,
     };
-    // One low, high pair, or one per component; a choice's is its options'.
+    Ok(numbers)
+}
+
+/// A value's range (a low, high pair), or one per component.
+type Ranges = (Option<(f32, f32)>, Vec<(f32, f32)>);
+
+/// A value's `range=`: one low, high pair, or one per component; a choice's is its options'.
+fn entry_ranges(tags: &[Tag], ty: Type, choices: Option<&'static Choices>) -> Result<Ranges> {
+    let one = |name: &str| one_tag(tags, name);
     let (range, component_ranges) = match one("range")? {
         Some(_) if choices.is_some() => bail!("a choice's range is its options"),
         None if choices.is_some() => (
@@ -409,97 +503,16 @@ fn entry(
         Some(_) => bail!("`range=` takes a low and a high, or one pair per component"),
         None => (None, Vec::new()),
     };
-    let step = match one("step")? {
-        Some(t) => {
-            arg(t, 1)?;
-            Some(number(&t.args[0])?)
-        }
-        None => None,
-    };
-    let labels: Vec<&'static str> = tags
-        .iter()
-        .filter(|t| t.name == "label")
-        .flat_map(|t| t.args.iter().map(|a| leak(a.clone())))
-        .collect();
-    let text = match one("text")? {
-        Some(t) => {
-            arg(t, 1)?;
-            Some(leak(t.args[0].clone()))
-        }
-        None => None,
-    };
-    let components: Vec<&'static str> = match one("components")? {
-        Some(t) if ty.components() > 1 => {
-            arg(t, ty.components())?;
-            t.args.iter().map(|c| leak(scoped(c))).collect()
-        }
-        Some(_) => bail!("only a vector has `components=`"),
-        None if ty.components() > 1 => ["x", "y", "z", "w"][..ty.components()]
-            .iter()
-            .map(|c| leak(format!("{key}.{c}")))
-            .collect(),
-        None => Vec::new(),
-    };
-    let engine = match one("engine")? {
-        Some(t) => {
-            arg(t, 1)?;
-            Some(leak(t.args[0].clone()))
-        }
-        None => None,
-    };
-    let help = match one("help")? {
-        Some(t) => {
-            arg(t, 1)?;
-            Some(leak(t.args[0].clone()))
-        }
-        None => None,
-    };
-    Ok(Entry {
-        key,
-        ty,
-        default: Some(Value::from_components(ty, &numbers)),
-        range,
-        component_ranges: Box::leak(component_ranges.into_boxed_slice()),
-        step,
-        unit,
-        wrap: one("wrap")?.is_some(),
-        labels: Box::leak(labels.into_boxed_slice()),
-        text,
-        name: None,
-        color: None,
-        toggle: false,
-        choices,
-        package: leak(package.to_string()),
-        doc: leak(doc),
-        engine,
-        help,
-        components: Box::leak(components.into_boxed_slice()),
-    })
+    Ok((range, component_ranges))
 }
 
-/// The tags a member may carry.
-const MEMBER_TAGS: &[&str] = &[
-    "key",
-    "derived",
-    "default",
-    "range",
-    "step",
-    "unit",
-    "wrap",
-    "label",
-    "text",
-    "toggle",
-    "components",
-    "choice",
-    "engine",
-    "help",
-];
+/// The `@shader_data` global of a reflected shader (one at most, tagged only with `scope=` besides): its
+/// A `@shader_data` global: its handle, its scope, and where it is.
+type DataGlobal = (naga::Handle<naga::GlobalVariable>, Option<String>, String);
 
-fn build(r: &'static Reflected) -> Result<Option<Schema>> {
+/// handle, its scope, and where it is.
+fn data_global(r: &Reflected, docs: &naga::DocComments) -> Result<Option<DataGlobal>> {
     let module = &r.module;
-    let Some(docs) = module.doc_comments.as_deref() else {
-        return Ok(None);
-    };
     let mut found = None;
     for (handle, lines) in &docs.global_variables {
         let (tags, _) = parse_tags(lines)?;
@@ -532,6 +545,33 @@ fn build(r: &'static Reflected) -> Result<Option<Schema>> {
         };
         found = Some((*handle, scope, at));
     }
+    Ok(found)
+}
+
+/// The tags a member may carry.
+const MEMBER_TAGS: &[&str] = &[
+    "key",
+    "derived",
+    "default",
+    "range",
+    "step",
+    "unit",
+    "wrap",
+    "label",
+    "text",
+    "toggle",
+    "components",
+    "choice",
+    "engine",
+    "help",
+];
+
+fn build(r: &'static Reflected) -> Result<Option<Schema>> {
+    let module = &r.module;
+    let Some(docs) = module.doc_comments.as_deref() else {
+        return Ok(None);
+    };
+    let found = data_global(r, docs)?;
     let Some((handle, scope, at)) = found else {
         return Ok(None);
     };

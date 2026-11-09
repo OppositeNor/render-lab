@@ -157,14 +157,9 @@ pub(super) fn point_value(value: &serde_json::Value) -> Result<PointValue, Strin
     Ok(PointValue::At([x, y, z]))
 }
 
-/// Applies `key`'s arrows and labels to `state`: shown ones fade in over the
-/// key's blend, hidden ones out, fixed points blend to their new place.
-pub(super) fn apply_notes(
-    key: &Key,
-    state: &mut ShotState,
-    segments: &mut BTreeMap<String, Channel>,
-    targets: &mut Vec<(String, f32)>,
-) {
+/// The arrows and labels `key` hides (all of them, by its empty `arrow` or `label`, or those it names) fade
+/// out.
+fn hide_notes(key: &Key, state: &ShotState, targets: &mut Vec<(String, f32)>) {
     let hide = |state: &ShotState,
                 targets: &mut Vec<(String, f32)>,
                 which: &dyn Fn(&StoryNote) -> bool| {
@@ -196,60 +191,79 @@ pub(super) fn apply_notes(
             })
             .map(|n| (note_alpha(&n.name), 0.0)),
     );
+}
+
+/// A point's anchor at `key` (its note `name`'s `end`): published, or fixed and blended over its channels.
+fn set_point(
+    key: &Key,
+    name: &str,
+    end: &str,
+    value: &serde_json::Value,
+    segments: &mut BTreeMap<String, Channel>,
+    targets: &mut Vec<(String, f32)>,
+) -> Anchor {
+    match point_value(value).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)) {
+        PointValue::Named(k) => Anchor::Named(k),
+        PointValue::At(p) => {
+            for (k, v) in p.into_iter().enumerate() {
+                let channel = note_point(name, end, k);
+                if !segments.contains_key(&channel) {
+                    segments.insert(channel.clone(), Channel::hold(key.frame, v));
+                }
+                targets.push((channel, v));
+            }
+            Anchor::At(p)
+        }
+    }
+}
+
+/// The note `name` shown at `key` as `kind` (in `color`, when given): made or changed, faded in from where it is.
+fn show_note(
+    key: &Key,
+    name: &str,
+    kind: NoteKind,
+    color: Option<[u8; 3]>,
+    state: &mut ShotState,
+    segments: &mut BTreeMap<String, Channel>,
+    targets: &mut Vec<(String, f32)>,
+) {
+    let shown = segments
+        .get(&note_alpha(name))
+        .is_some_and(|s| s.value(key.frame) > 0.0);
+    match state.notes.iter_mut().find(|n| n.name == name) {
+        Some(n) => {
+            n.kind = kind;
+            if color.is_some() {
+                n.color = color;
+            }
+        }
+        None => state.notes.push(StoryNote {
+            name: name.to_string(),
+            kind,
+            color,
+            alpha: 0.0,
+        }),
+    }
+    if !shown {
+        segments.insert(note_alpha(name), Channel::hold(key.frame, 0.0));
+    }
+    targets.push((note_alpha(name), 1.0));
+}
+
+/// Applies `key`'s arrows and labels to `state`: shown ones fade in over the
+/// key's blend, hidden ones out, fixed points blend to their new place.
+pub(super) fn apply_notes(
+    key: &Key,
+    state: &mut ShotState,
+    segments: &mut BTreeMap<String, Channel>,
+    targets: &mut Vec<(String, f32)>,
+) {
+    hide_notes(key, state, targets);
     let color = |c: &Option<String>| {
         c.as_deref().map(|c| {
             crate::utility::annotations::parse_color(c)
                 .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame))
         })
-    };
-    // A point's anchor: published, or fixed and blended over its channels.
-    let set_point = |name: &str,
-                     end: &str,
-                     value: &serde_json::Value,
-                     segments: &mut BTreeMap<String, Channel>,
-                     targets: &mut Vec<(String, f32)>|
-     -> Anchor {
-        match point_value(value).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)) {
-            PointValue::Named(k) => Anchor::Named(k),
-            PointValue::At(p) => {
-                for (k, v) in p.into_iter().enumerate() {
-                    let channel = note_point(name, end, k);
-                    if !segments.contains_key(&channel) {
-                        segments.insert(channel.clone(), Channel::hold(key.frame, v));
-                    }
-                    targets.push((channel, v));
-                }
-                Anchor::At(p)
-            }
-        }
-    };
-    let show = |name: &str,
-                kind: NoteKind,
-                color: Option<[u8; 3]>,
-                state: &mut ShotState,
-                segments: &mut BTreeMap<String, Channel>,
-                targets: &mut Vec<(String, f32)>| {
-        let shown = segments
-            .get(&note_alpha(name))
-            .is_some_and(|s| s.value(key.frame) > 0.0);
-        match state.notes.iter_mut().find(|n| n.name == name) {
-            Some(n) => {
-                n.kind = kind;
-                if color.is_some() {
-                    n.color = color;
-                }
-            }
-            None => state.notes.push(StoryNote {
-                name: name.to_string(),
-                kind,
-                color,
-                alpha: 0.0,
-            }),
-        }
-        if !shown {
-            segments.insert(note_alpha(name), Channel::hold(key.frame, 0.0));
-        }
-        targets.push((note_alpha(name), 1.0));
     };
     if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
         let old = state
@@ -264,16 +278,17 @@ pub(super) fn apply_notes(
         let from = key
             .arrow_from
             .as_ref()
-            .map(|v| set_point(name, "from", v, segments, targets))
+            .map(|v| set_point(key, name, "from", v, segments, targets))
             .or(old_from)
             .expect("a new arrow names its ends (checked)");
         let to = key
             .arrow_to
             .as_ref()
-            .map(|v| set_point(name, "to", v, segments, targets))
+            .map(|v| set_point(key, name, "to", v, segments, targets))
             .or(old_to)
             .expect("a new arrow names its ends (checked)");
-        show(
+        show_note(
+            key,
             name,
             NoteKind::Arrow {
                 from,
@@ -287,7 +302,8 @@ pub(super) fn apply_notes(
         );
     }
     if let Some(set) = &key.arrows {
-        show(
+        show_note(
+            key,
             set,
             NoteKind::Arrows,
             color(&key.arrow_color),
@@ -309,7 +325,7 @@ pub(super) fn apply_notes(
         let at = key
             .label_at
             .as_ref()
-            .map(|v| set_point(name, "at", v, segments, targets))
+            .map(|v| set_point(key, name, "at", v, segments, targets))
             .or(old_at)
             .expect("a new label names its point (checked)");
         let text = key
@@ -317,7 +333,8 @@ pub(super) fn apply_notes(
             .clone()
             .or(old_text)
             .expect("a new label names its text (checked)");
-        show(
+        show_note(
+            key,
             name,
             NoteKind::Label { at, text },
             color(&key.label_color),
@@ -517,78 +534,10 @@ impl Timeline {
         let mut state = ShotState::for_demo(investigation::current().demos()[0]);
         let mut segments: BTreeMap<String, Channel> = BTreeMap::new();
         let camera = camera_channels();
-        let reset = |segments: &mut BTreeMap<String, Channel>, state: &ShotState, at: u64| {
-            for (name, value) in state.channels() {
-                segments.insert(name, Channel::hold(at, value));
-            }
-        };
-        reset(&mut segments, &state, 0);
+        Self::reset(&mut segments, &state, 0);
         for key in self.keys.iter().take_while(|k| k.frame <= frame) {
-            if let Some(demo) = key.demo {
-                let callout = state.callout.clone();
-                let (formula, term) = (state.formula.clone(), state.formula_term);
-                let images = std::mem::take(&mut state.images);
-                let notes = std::mem::take(&mut state.notes);
-                let camera_now: Vec<f32> = camera
-                    .iter()
-                    .map(|c| segments[*c].value(key.frame))
-                    .collect();
-                state = ShotState::for_demo(demo);
-                state.callout = callout;
-                // The images and the formula card belong to the narration, not the demonstration.
-                state.images = images;
-                state.notes = notes;
-                (state.formula, state.formula_term) = (formula, term);
-                reset(&mut segments, &state, key.frame);
-                // A demo switch cuts parameters but keeps the camera continuous
-                // when the key itself moves the camera.
-                if key.camera.is_some() {
-                    for (i, c) in camera.iter().enumerate() {
-                        segments.insert(c.to_string(), Channel::hold(key.frame, camera_now[i]));
-                    }
-                }
-            }
-            if let Some(record) = key.record {
-                state.record = record;
-            }
-            if let Some(highlight) = &key.highlight {
-                state.highlight = highlight.iter().map(|h| h.name().to_string()).collect();
-            }
-            if let Some(panel) = key.panel {
-                state.panel = panel;
-            }
-            if let Some(callout) = &key.callout {
-                state.callout = if callout.is_empty() {
-                    None
-                } else {
-                    Some(callout.clone())
-                };
-            }
-            if let Some(code) = &key.code {
-                state.code = if code.is_empty() {
-                    None
-                } else {
-                    Some(code.clone())
-                };
-            }
-            if let Some(formula) = &key.formula {
-                state.formula = if formula.is_empty() {
-                    None
-                } else {
-                    Some(formula.clone())
-                };
-            }
-            // A demonstration's switch above stops every action (its state is new).
-            state.actions.retain(|a| !key.stop.contains(&a.key));
-            if let Some(call) = &key.run {
-                state.actions.retain(|a| a.key != call.name);
-                state.actions.push(RunningAction {
-                    key: call.name.clone(),
-                    args: call.args.clone(),
-                    started: key.frame,
-                    elapsed: 0.0,
-                });
-            }
+            Self::switch_demo(key, &mut state, &mut segments, &camera);
+            Self::apply_cues(key, &mut state);
             let mut targets: Vec<(String, f32)> = key
                 .targets()
                 .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame))
@@ -597,111 +546,7 @@ impl Timeline {
                 targets.extend(state.images.iter().map(|i| (image_alpha(&i.name), 0.0)));
             }
             targets.extend(key.image_hide.iter().map(|name| (image_alpha(name), 0.0)));
-            if let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) {
-                let made = key
-                    .image_from
-                    .as_ref()
-                    .map(|kind| ImageSource::View {
-                        kind: kind.clone(),
-                        params: BTreeMap::new(),
-                    })
-                    .or_else(|| {
-                        key.image_graph.as_ref().map(|graph| ImageSource::Graph {
-                            key: graph.clone(),
-                            show: key.image_show.clone(),
-                            params: BTreeMap::new(),
-                        })
-                    });
-                let shown = segments
-                    .get(&image_alpha(name))
-                    .is_some_and(|s| s.value(key.frame) > 0.0);
-                match state.images.iter().position(|i| i.name == name) {
-                    // A new kind for an instance starts its parameters over.
-                    Some(i) => {
-                        if let Some(made) = made.filter(|m| *m != state.images[i].source) {
-                            let prefix = format!("image.{name}.param.");
-                            segments.retain(|channel, _| !channel.starts_with(&prefix));
-                            state.images[i].source = made;
-                        }
-                    }
-                    None => {
-                        let source = made.unwrap_or_else(|| {
-                            image_source(name)
-                                .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame))
-                        });
-                        state.images.push(StoryImage {
-                            name: name.to_string(),
-                            source,
-                            title: None,
-                            corner: Corner::TopRight,
-                            alpha: 0.0,
-                            click: None,
-                            mark: [0.0; 4],
-                            mark_alpha: 0.0,
-                            mark_text: None,
-                        });
-                    }
-                }
-                let image = state
-                    .images
-                    .iter_mut()
-                    .find(|i| i.name == name)
-                    .expect("the image just shown");
-                if let Some(title) = &key.image_title {
-                    image.title = Some(title.clone());
-                }
-                // A later key may draw the same resource another way.
-                if let (Some(show), ImageSource::Graph { show: shown, .. }) =
-                    (&key.image_show, &mut image.source)
-                {
-                    *shown = Some(show.clone());
-                }
-                if let Some(corner) = key.image_corner {
-                    image.corner = corner;
-                }
-                if let Some(click) = &key.image_click {
-                    image.click = Some(click.clone());
-                }
-                if let Some(text) = &key.image_mark_text {
-                    image.mark_text = Some(text.clone()).filter(|t| !t.is_empty());
-                }
-                if !shown {
-                    segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));
-                    segments.insert(image_mark_alpha(name), Channel::hold(key.frame, 0.0));
-                }
-                match key.image_mark.as_deref() {
-                    Some([]) => targets.push((image_mark_alpha(name), 0.0)),
-                    Some(&[u0, v0, u1, v1]) => {
-                        // A mark not yet shown appears where it points; a shown one moves there.
-                        let marked = segments
-                            .get(&image_mark_alpha(name))
-                            .is_some_and(|s| s.value(key.frame) > 0.0);
-                        for (k, v) in [u0, v0, u1, v1].into_iter().enumerate() {
-                            if !marked {
-                                segments.insert(image_mark(name, k), Channel::hold(key.frame, v));
-                            }
-                            targets.push((image_mark(name, k), v));
-                        }
-                        targets.push((image_mark_alpha(name), 1.0));
-                    }
-                    Some(other) => panic!(
-                        "imageMark takes four numbers (u0,v0,u1,v1) or none, not {other:?}, in key at frame {}",
-                        key.frame
-                    ),
-                    None => {}
-                }
-                targets.push((image_alpha(name), 1.0));
-                for (param, value) in &key.image_params {
-                    let value = components(value)
-                        .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
-                    targets.extend(
-                        value
-                            .into_iter()
-                            .enumerate()
-                            .map(|(k, v)| (image_param(name, param, k), v)),
-                    );
-                }
-            }
+            Self::show_image(key, &mut state, &mut segments, &mut targets);
             // A newly lit term fades in from dark; unlighting fades the term out.
             apply_notes(key, &mut state, &mut segments, &mut targets);
             if let Some(term) = key.term {
@@ -718,73 +563,324 @@ impl Timeline {
                     },
                 ));
             }
-            if let Some(c) = &key.camera {
-                if let Some(t) = c.target {
-                    let target = OrbitCamera::schema()
-                        .iter()
-                        .find(|e| e.key == "camera.target")
-                        .expect("the camera's target");
-                    targets.extend(
-                        target
-                            .channels()
-                            .into_iter()
-                            .zip(t)
-                            .map(|(n, v)| (n.to_string(), v)),
-                    );
-                }
-                for (name, v) in [
-                    ("camera.yaw", c.yaw),
-                    ("camera.pitch", c.pitch),
-                    ("camera.distance", c.distance),
-                    ("camera.fov", c.fov),
-                ] {
-                    if let Some(v) = v {
-                        targets.push((name.into(), v));
-                    }
-                }
-            }
-            for (name, target) in targets {
-                let start = segments
-                    .get(&name)
-                    .map(|s| s.value(key.frame))
-                    .unwrap_or(target);
-                segments.insert(
-                    name,
-                    Channel::Blend(Segment {
-                        from: key.frame,
-                        blend: key.blend,
-                        ease: key.ease,
-                        start,
-                        target,
-                    }),
-                );
-            }
-            for motion in &key.animate {
-                let params = motion.params();
-                let start = Rc::new(
-                    params
-                        .iter()
-                        .map(|p| segments[*p].value(key.frame))
-                        .collect::<Vec<f32>>(),
-                );
-                let motion = Rc::new(motion.clone());
-                for (index, name) in params.iter().enumerate() {
-                    segments.insert(
-                        name.to_string(),
-                        Channel::Motion {
-                            motion: motion.clone(),
-                            index,
-                            from: key.frame,
-                            fps: self.fps as f32,
-                            start: start.clone(),
-                        },
-                    );
+            Self::camera_targets(key, &mut targets);
+            Self::blend_to(key, targets, &mut segments);
+            self.animate(key, &mut segments);
+        }
+        self.channel_values(&mut state, &segments, &camera, frame);
+        state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
+        if state.formula_lit <= 0.0 {
+            state.formula_term = 0;
+        }
+        // Each image's fade and an instance's parameters; the faded-out ones are gone.
+        Self::image_values(&mut state, &segments, frame);
+        state.images.retain(|i| i.alpha > 0.0);
+        finish_notes(&mut state, &segments, frame);
+        // The running actions set the state last, in the order they started.
+        self.run_actions(&mut state, frame);
+        state
+    }
+
+    /// Every channel of `state` held at its value from frame `at` on.
+    fn reset(segments: &mut BTreeMap<String, Channel>, state: &ShotState, at: u64) {
+        for (name, value) in state.channels() {
+            segments.insert(name, Channel::hold(at, value));
+        }
+    }
+
+    /// A key that switches the demonstration: a new state, keeping the callout, the narration's images and formula
+    /// card, and the camera's motion when the key itself moves the camera.
+    fn switch_demo(
+        key: &Key,
+        state: &mut ShotState,
+        segments: &mut BTreeMap<String, Channel>,
+        camera: &[&'static str],
+    ) {
+        if let Some(demo) = key.demo {
+            let callout = state.callout.clone();
+            let (formula, term) = (state.formula.clone(), state.formula_term);
+            let images = std::mem::take(&mut state.images);
+            let notes = std::mem::take(&mut state.notes);
+            let camera_now: Vec<f32> = camera
+                .iter()
+                .map(|c| segments[*c].value(key.frame))
+                .collect();
+            *state = ShotState::for_demo(demo);
+            state.callout = callout;
+            // The images and the formula card belong to the narration, not the demonstration.
+            state.images = images;
+            state.notes = notes;
+            (state.formula, state.formula_term) = (formula, term);
+            Self::reset(segments, state, key.frame);
+            // A demo switch cuts parameters but keeps the camera continuous
+            // when the key itself moves the camera.
+            if key.camera.is_some() {
+                for (i, c) in camera.iter().enumerate() {
+                    segments.insert(c.to_string(), Channel::hold(key.frame, camera_now[i]));
                 }
             }
         }
+    }
+
+    /// `key`'s cues that set the state at once: the record, the highlight, the panel, the callout, the listing, the
+    /// formula, and the actions it stops and runs.
+    fn apply_cues(key: &Key, state: &mut ShotState) {
+        if let Some(record) = key.record {
+            state.record = record;
+        }
+        if let Some(highlight) = &key.highlight {
+            state.highlight = highlight.iter().map(|h| h.name().to_string()).collect();
+        }
+        if let Some(panel) = key.panel {
+            state.panel = panel;
+        }
+        if let Some(callout) = &key.callout {
+            state.callout = if callout.is_empty() {
+                None
+            } else {
+                Some(callout.clone())
+            };
+        }
+        if let Some(code) = &key.code {
+            state.code = if code.is_empty() {
+                None
+            } else {
+                Some(code.clone())
+            };
+        }
+        if let Some(formula) = &key.formula {
+            state.formula = if formula.is_empty() {
+                None
+            } else {
+                Some(formula.clone())
+            };
+        }
+        // A demonstration's switch above stops every action (its state is new).
+        state.actions.retain(|a| !key.stop.contains(&a.key));
+        if let Some(call) = &key.run {
+            state.actions.retain(|a| a.key != call.name);
+            state.actions.push(RunningAction {
+                key: call.name.clone(),
+                args: call.args.clone(),
+                started: key.frame,
+                elapsed: 0.0,
+            });
+        }
+    }
+
+    /// The image `key` shows: made (or given a new kind, its parameters starting over), titled, placed, marked, and
+    /// faded in with its parameters.
+    fn show_image(
+        key: &Key,
+        state: &mut ShotState,
+        segments: &mut BTreeMap<String, Channel>,
+        targets: &mut Vec<(String, f32)>,
+    ) {
+        if let Some(name) = key.image.as_deref().filter(|n| !n.is_empty()) {
+            let made = key
+                .image_from
+                .as_ref()
+                .map(|kind| ImageSource::View {
+                    kind: kind.clone(),
+                    params: BTreeMap::new(),
+                })
+                .or_else(|| {
+                    key.image_graph.as_ref().map(|graph| ImageSource::Graph {
+                        key: graph.clone(),
+                        show: key.image_show.clone(),
+                        params: BTreeMap::new(),
+                    })
+                });
+            let shown = segments
+                .get(&image_alpha(name))
+                .is_some_and(|s| s.value(key.frame) > 0.0);
+            match state.images.iter().position(|i| i.name == name) {
+                // A new kind for an instance starts its parameters over.
+                Some(i) => {
+                    if let Some(made) = made.filter(|m| *m != state.images[i].source) {
+                        let prefix = format!("image.{name}.param.");
+                        segments.retain(|channel, _| !channel.starts_with(&prefix));
+                        state.images[i].source = made;
+                    }
+                }
+                None => {
+                    let source = made.unwrap_or_else(|| {
+                        image_source(name)
+                            .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame))
+                    });
+                    state.images.push(StoryImage {
+                        name: name.to_string(),
+                        source,
+                        title: None,
+                        corner: Corner::TopRight,
+                        alpha: 0.0,
+                        click: None,
+                        mark: [0.0; 4],
+                        mark_alpha: 0.0,
+                        mark_text: None,
+                    });
+                }
+            }
+            let image = state
+                .images
+                .iter_mut()
+                .find(|i| i.name == name)
+                .expect("the image just shown");
+            if let Some(title) = &key.image_title {
+                image.title = Some(title.clone());
+            }
+            // A later key may draw the same resource another way.
+            if let (Some(show), ImageSource::Graph { show: shown, .. }) =
+                (&key.image_show, &mut image.source)
+            {
+                *shown = Some(show.clone());
+            }
+            if let Some(corner) = key.image_corner {
+                image.corner = corner;
+            }
+            if let Some(click) = &key.image_click {
+                image.click = Some(click.clone());
+            }
+            if let Some(text) = &key.image_mark_text {
+                image.mark_text = Some(text.clone()).filter(|t| !t.is_empty());
+            }
+            if !shown {
+                segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));
+                segments.insert(image_mark_alpha(name), Channel::hold(key.frame, 0.0));
+            }
+            Self::mark_image(key, name, segments, targets);
+            targets.push((image_alpha(name), 1.0));
+            for (param, value) in &key.image_params {
+                let value = components(value)
+                    .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
+                targets.extend(
+                    value
+                        .into_iter()
+                        .enumerate()
+                        .map(|(k, v)| (image_param(name, param, k), v)),
+                );
+            }
+        }
+    }
+
+    /// The mark `key` sets on the image `name`: none hides it; one not yet shown appears where it points, a shown one
+    /// moves there.
+    fn mark_image(
+        key: &Key,
+        name: &str,
+        segments: &mut BTreeMap<String, Channel>,
+        targets: &mut Vec<(String, f32)>,
+    ) {
+        match key.image_mark.as_deref() {
+            Some([]) => targets.push((image_mark_alpha(name), 0.0)),
+            Some(&[u0, v0, u1, v1]) => {
+                // A mark not yet shown appears where it points; a shown one moves there.
+                let marked = segments
+                    .get(&image_mark_alpha(name))
+                    .is_some_and(|s| s.value(key.frame) > 0.0);
+                for (k, v) in [u0, v0, u1, v1].into_iter().enumerate() {
+                    if !marked {
+                        segments.insert(image_mark(name, k), Channel::hold(key.frame, v));
+                    }
+                    targets.push((image_mark(name, k), v));
+                }
+                targets.push((image_mark_alpha(name), 1.0));
+            }
+            Some(other) => panic!(
+                "imageMark takes four numbers (u0,v0,u1,v1) or none, not {other:?}, in key at frame {}",
+                key.frame
+            ),
+            None => {}
+        }
+    }
+
+    /// The camera's channels `key` moves: its target, yaw, pitch, distance, and field of view.
+    fn camera_targets(key: &Key, targets: &mut Vec<(String, f32)>) {
+        if let Some(c) = &key.camera {
+            if let Some(t) = c.target {
+                let target = OrbitCamera::schema()
+                    .iter()
+                    .find(|e| e.key == "camera.target")
+                    .expect("the camera's target");
+                targets.extend(
+                    target
+                        .channels()
+                        .into_iter()
+                        .zip(t)
+                        .map(|(n, v)| (n.to_string(), v)),
+                );
+            }
+            for (name, v) in [
+                ("camera.yaw", c.yaw),
+                ("camera.pitch", c.pitch),
+                ("camera.distance", c.distance),
+                ("camera.fov", c.fov),
+            ] {
+                if let Some(v) = v {
+                    targets.push((name.into(), v));
+                }
+            }
+        }
+    }
+
+    /// Each target blends from its channel's value at `key` over the key's blend.
+    fn blend_to(key: &Key, targets: Vec<(String, f32)>, segments: &mut BTreeMap<String, Channel>) {
+        for (name, target) in targets {
+            let start = segments
+                .get(&name)
+                .map(|s| s.value(key.frame))
+                .unwrap_or(target);
+            segments.insert(
+                name,
+                Channel::Blend(Segment {
+                    from: key.frame,
+                    blend: key.blend,
+                    ease: key.ease,
+                    start,
+                    target,
+                }),
+            );
+        }
+    }
+
+    /// `key`'s motions: each moves its parameters from where they are at the key.
+    fn animate(&self, key: &Key, segments: &mut BTreeMap<String, Channel>) {
+        for motion in &key.animate {
+            let params = motion.params();
+            let start = Rc::new(
+                params
+                    .iter()
+                    .map(|p| segments[*p].value(key.frame))
+                    .collect::<Vec<f32>>(),
+            );
+            let motion = Rc::new(motion.clone());
+            for (index, name) in params.iter().enumerate() {
+                segments.insert(
+                    name.to_string(),
+                    Channel::Motion {
+                        motion: motion.clone(),
+                        index,
+                        from: key.frame,
+                        fps: self.fps as f32,
+                        start: start.clone(),
+                    },
+                );
+            }
+        }
+    }
+
+    /// The channels' values at `frame`: the cameras (the sway moving the one the viewport shows), the frame's size,
+    /// the values, and other views' values.
+    fn channel_values(
+        &self,
+        state: &mut ShotState,
+        segments: &BTreeMap<String, Channel>,
+        camera: &[&'static str],
+        frame: u64,
+    ) {
         let value = |name: &str| segments[name].value(frame);
         let mut keyed = state.camera;
-        for name in &camera {
+        for name in camera {
             keyed.set(name, Value::F32(value(name)));
         }
         for name in free_camera_channels() {
@@ -814,11 +910,10 @@ impl Timeline {
         {
             state.set(name, segment.value(frame));
         }
-        state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
-        if state.formula_lit <= 0.0 {
-            state.formula_term = 0;
-        }
-        // Each image's fade and an instance's parameters; the faded-out ones are gone.
+    }
+
+    /// Each image's fade, its mark, and an instance's parameters at `frame`.
+    fn image_values(state: &mut ShotState, segments: &BTreeMap<String, Channel>, frame: u64) {
         for image in &mut state.images {
             image.alpha = segments
                 .get(&image_alpha(&image.name))
@@ -849,28 +944,23 @@ impl Timeline {
                 }
             }
         }
-        state.images.retain(|i| i.alpha > 0.0);
-        finish_notes(&mut state, &segments, frame);
-        // The running actions set the state last, in the order they started.
+    }
+
+    /// The running actions set the state last, in the order they started: a script's action, else the
+    /// investigation's code's.
+    fn run_actions(&self, state: &mut ShotState, frame: u64) {
         let actions = investigation::current().actions();
         for a in &mut state.actions {
             a.elapsed = (frame - a.started) as f32 / self.fps as f32;
         }
         for action in state.actions.clone() {
             // A script's action, else the investigation's code's.
-            if crate::script::runtime::run_action(&action, &mut state).is_some() {
+            if crate::script::runtime::run_action(&action, state).is_some() {
                 continue;
             }
             let elapsed = action.elapsed;
-            (actions.run)(
-                &action,
-                &mut ActionFrame {
-                    state: &mut state,
-                    elapsed,
-                },
-            )
-            .unwrap_or_else(|e| panic!("{e}, at frame {frame}"));
+            (actions.run)(&action, &mut ActionFrame { state, elapsed })
+                .unwrap_or_else(|e| panic!("{e}, at frame {frame}"));
         }
-        state
     }
 }

@@ -26,18 +26,22 @@ pub use crate::text::{
 pub use crate::config::ViewerLayout;
 
 mod code;
+mod dag_panel;
 mod graph_panel;
 mod knowledge_panel;
 mod panel;
+mod resource_panel;
 mod scene_window;
 mod timeline_bar;
 mod viewport;
 mod window_frame;
 pub mod windows;
 pub use code::*;
+pub(crate) use dag_panel::*;
 pub use graph_panel::*;
 pub use knowledge_panel::*;
 pub use panel::*;
+pub(crate) use resource_panel::*;
 use scene_window::*;
 pub use timeline_bar::*;
 use viewport::*;
@@ -608,166 +612,13 @@ pub fn draw(
     match input.scene_type {
         SceneType::ThreeD => {
             // A recording's picture reaches the frame's edges: no border.
-            if !l.video {
-                painter.rect_stroke(
-                    l.viewport.expand(1.0),
-                    CornerRadius::same(10),
-                    Stroke::new(1.5, palette::border()),
-                    StrokeKind::Outside,
-                );
-            }
-            // The other views: each its border, its title, and its labels.
-            for pane in input.panes {
-                painter.rect_stroke(
-                    pane.rect.expand(1.0),
-                    CornerRadius::same(10),
-                    Stroke::new(1.5, palette::border()),
-                    StrokeKind::Outside,
-                );
-                let at = UiInput {
-                    layout: Layout {
-                        viewport: pane.rect,
-                        ..*l
-                    },
-                    content: Some(pane.content),
-                    ..*input
-                };
-                let title = pane
-                    .title
-                    .map(|t| draw_pane_title(&ink, pane.rect, t, &[]))
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                draw_labels(&ink, &at, pane.content, &title, &mut report);
-            }
-            // The views stacked over the main one: their labels (their pictures are in the frame).
-            for over in input.overs {
-                let at = UiInput {
-                    layout: Layout {
-                        viewport: over.rect,
-                        ..*l
-                    },
-                    content: Some(over.content),
-                    ..*input
-                };
-                draw_labels(&ink, &at, over.content, &[], &mut report);
-            }
-            // The focused view (the dock's), when there are several.
-            if let Chrome::Viewer(v) = &chrome
-                && let Some(r) = v.focus_rect
-            {
-                painter.rect_stroke(
-                    r.expand(2.0),
-                    CornerRadius::same(10),
-                    Stroke::new(2.5, palette::accent()),
-                    StrokeKind::Outside,
-                );
-            }
+            draw_view_frames(&ink, input, &chrome, &mut report);
             if let Some(content) = input.content {
                 // A view stacked over the main one (src/view.rs) covers it: the main view's tags (its insets, its
                 // callout, its labels) belong to it, so they are not drawn over the other view's picture.
                 let covered = !input.overs.is_empty();
                 // Insets and the callout first; labels then avoid them, and a recording's tag and subtitles.
-                let mut obstacles = Vec::new();
-                if l.video {
-                    obstacles.push(Rect::from_min_max(
-                        l.viewport.min,
-                        pos2(l.viewport.max.x, l.safe().min.y),
-                    ));
-                    obstacles.push(Rect::from_min_max(
-                        pos2(l.viewport.min.x, l.safe().max.y),
-                        l.viewport.max,
-                    ));
-                }
-                // The investigation's insets, then the image the story shows.
-                let package = investigation::current().package().unwrap_or("render_lab");
-                let story: Vec<_> = input
-                    .state
-                    .images
-                    .iter()
-                    .filter_map(|image| {
-                        crate::utility::inset::story(image, &content.images, package)
-                    })
-                    .collect();
-                // Insets sharing a corner stack in a row away from it, and in a
-                // new row once the next would leave the viewport.
-                let mut rows: Vec<(crate::utility::inset::Corner, egui::Vec2, f32)> = Vec::new();
-                for inset in content
-                    .insets
-                    .iter()
-                    .chain(&story)
-                    .filter(|i| i.alpha > 0.0 && !covered)
-                {
-                    let size =
-                        crate::utility::inset::frame_size(ctx, &ink, l, input.textures, inset);
-                    let offset = match rows
-                        .iter_mut()
-                        .find(|(corner, _, _)| *corner == inset.corner)
-                    {
-                        None => {
-                            rows.push((inset.corner, vec2(size.x + 12.0, 0.0), size.y));
-                            Vec2::ZERO
-                        }
-                        Some((_, at, tallest)) => {
-                            if at.x + size.x > l.safe().width() - 32.0 {
-                                *at = vec2(0.0, at.y + *tallest + 12.0);
-                                *tallest = 0.0;
-                            }
-                            let offset = *at;
-                            at.x += size.x + 12.0;
-                            *tallest = tallest.max(size.y);
-                            offset
-                        }
-                    };
-                    let (frame, picture) = crate::utility::inset::draw(
-                        ctx,
-                        &ink,
-                        l,
-                        &content.uniforms.camera,
-                        input.textures,
-                        inset,
-                        offset,
-                    );
-                    obstacles.push(frame);
-                    report.insets.push(InsetArea {
-                        frame,
-                        picture,
-                        click: inset.click.clone(),
-                    });
-                }
-                if let Some(title) = input.title {
-                    let insets = obstacles.clone();
-                    obstacles.push(draw_pane_title(&ink, l.viewport, title, &insets));
-                }
-                // The main camera's own view, framed and named.
-                if let Some(rect) = input.main_view {
-                    painter.rect_stroke(
-                        rect.expand(1.0),
-                        CornerRadius::same(6),
-                        Stroke::new(2.0, palette::VIEW),
-                        StrokeKind::Outside,
-                    );
-                    obstacles.push(rect);
-                    obstacles.push(draw_pane_title(&ink, rect, tr("ui-main_view"), &[]));
-                }
-                if let Some(compare) = input.compare {
-                    let insets = obstacles.clone();
-                    obstacles.extend(draw_compare(&ink, l.viewport, compare, &insets));
-                }
-                if let (Some(key), false) = (&input.state.callout, covered) {
-                    let insets = obstacles.clone();
-                    obstacles.extend(draw_callout(&ink, l, key, &insets));
-                }
-                if let Some(tag) = &input.state.formula {
-                    let insets = obstacles.clone();
-                    obstacles.extend(draw_formula_card(
-                        &ink,
-                        l,
-                        tag,
-                        input.state.formula_term,
-                        input.state.formula_lit,
-                        &insets,
-                    ));
-                }
+                let obstacles = draw_main_tags(ctx, &ink, input, content, covered, &mut report);
                 if !covered {
                     draw_labels(&ink, input, content, &obstacles, &mut report);
                 }
@@ -776,37 +627,15 @@ pub fn draw(
                     draw_gizmo(&ink, input, content, v);
                 }
                 if !feature_panel {
-                    draw_window_card(&ink, l, windows::WindowId::Panel);
-                    // A story panel a feature draws (src/feature/: the knowledge graph, the frame graph, the
-                    // code, the performance), else the demonstration's.
-                    let interactive = matches!(&chrome, Chrome::Viewer(_));
-                    let shader_error = match &chrome {
-                        Chrome::Viewer(v) => v.shader_reload.clone().filter(|r| r.1).map(|r| r.0),
-                        Chrome::Recording { .. } => None,
-                    };
-                    let mut panel = crate::feature::StoryPanel {
+                    draw_story_panel(
                         ctx,
-                        ink: &ink,
+                        &ink,
                         input,
-                        interactive,
-                        shader_error: shader_error.as_deref(),
-                        report: &mut report,
-                        actions: Vec::new(),
-                        pointer: false,
-                    };
-                    let features = match &mut chrome {
-                        Chrome::Viewer(v) => &mut v.features,
-                        Chrome::Recording { .. } => &mut *recording,
-                    };
-                    match features.panel_mut(input.state.panel) {
-                        Some(owner) => owner.story_panel(&mut panel),
-                        None => draw_panel(&ink, input, content, panel.report),
-                    }
-                    let (actions, pointer) = (panel.actions, panel.pointer);
-                    if let Chrome::Viewer(v) = &mut chrome {
-                        v.actions.extend(actions);
-                        v.ui_has_pointer |= pointer;
-                    }
+                        content,
+                        &mut chrome,
+                        recording,
+                        &mut report,
+                    );
                 }
             } else if let Some(key) = &input.state.callout {
                 draw_callout(&ink, l, key, &[]);
@@ -818,84 +647,7 @@ pub fn draw(
         }
         SceneType::TwoD if input.diagram.is_none() => draw_source_card(&ink, input),
         SceneType::TwoD => {
-            if let Some(diagram) = input.diagram {
-                let area = l.content;
-                let page = match &chrome {
-                    Chrome::Viewer(v) => v.diagram,
-                    Chrome::Recording { .. } => None,
-                };
-                match page {
-                    None => {
-                        crate::diagram::draw(&ink, area, None, diagram, input.diagram_pictures);
-                    }
-                    Some(page) => {
-                        // The diagram panel of a paused timeline: zoomed, panned, its boxes moved, clipped to the panel.
-                        let paused = crate::diagram::Paused {
-                            ctx,
-                            key: page.key,
-                            preset: page.preset,
-                        };
-                        let zoom = crate::diagram::draw(
-                            &ink,
-                            area,
-                            Some(paused),
-                            diagram,
-                            input.diagram_pictures,
-                        );
-                        if let Chrome::Viewer(v) = &mut chrome {
-                            v.ui_has_pointer |=
-                                ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
-                        }
-                        let hint =
-                            tr_with("viewer-diagram_hint", args!(zoom = format!("{zoom:.1}")));
-                        let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
-                        let galley = painter.layout_no_wrap(
-                            hint.clone(),
-                            egui::FontId::proportional(24.0),
-                            palette::text_dim(),
-                        );
-                        painter.rect_filled(
-                            Rect::from_min_size(
-                                at - vec2(8.0, galley.size().y + 4.0),
-                                galley.size() + vec2(16.0, 8.0),
-                            ),
-                            CornerRadius::same(6),
-                            Color32::from_rgba_unmultiplied(7, 18, 31, 220),
-                        );
-                        ink.text(
-                            at,
-                            Align2::LEFT_BOTTOM,
-                            hint,
-                            24.0,
-                            FontFamily::Proportional,
-                            palette::text_dim(),
-                        );
-                        // Beside the hint: put the moved boxes back (and the view).
-                        let label = tr("graph-reset");
-                        let size = vec2(
-                            ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0,
-                            40.0,
-                        );
-                        egui::Area::new(egui::Id::unique("paused-diagram-reset"))
-                            .fixed_pos(pos2(
-                                area.min.x + 14.0 + galley.size().x + 24.0,
-                                area.max.y - 12.0 - size.y,
-                            ))
-                            .fade_in(false)
-                            .show(ctx, |ui| {
-                                if ui
-                                    .add(
-                                        egui::Button::new(egui::RichText::new(label).size(24.0))
-                                            .min_size(size),
-                                    )
-                                    .clicked()
-                                {
-                                    crate::graph_view::ask_reset(ctx, crate::diagram::paused_id());
-                                }
-                            });
-                    }
-                }
-            }
+            draw_diagram_beat(ctx, &ink, input, &mut chrome);
         }
     }
     if input.fade > 0.0 {
@@ -919,82 +671,422 @@ pub fn draw(
             draw_video_foot(&ink, l, timeline, *frame);
         }
         Chrome::Viewer(viewer) => {
-            if viewer.timeline_mode && viewer.playing {
-                draw_caption_text(&ink, l, viewer.caption.as_deref());
-            } else {
-                draw_window_card(&ink, l, windows::WindowId::Controls);
-                crate::controls::draw_dock(ctx, &ink, input, viewer);
-                if feature_panel && l.panel_shown {
-                    draw_window_card(&ink, l, windows::WindowId::Panel);
-                    let mut dock = crate::controls::Dock::new(input, viewer);
-                    if let Some(state) = viewer.features.state_mut(viewer.tab.0) {
-                        state.panel(&mut crate::feature::PanelUi {
-                            ctx,
-                            ink: &ink,
-                            input,
-                            dock: &mut dock,
-                        });
-                    }
-                    viewer.actions.extend(dock.actions);
-                    viewer.widgets.extend(dock.widgets);
-                }
-            }
-            if !(viewer.timeline_mode && viewer.playing) && input.scene_type == SceneType::ThreeD {
-                draw_scene_window(ctx, &ink, input, viewer);
-            }
-            draw_window_titles(ctx, &ink, input, viewer);
-            if let Some((seconds, opacity)) = viewer.skip {
-                draw_skip_notice(&ink, l, seconds, opacity);
-            }
-            if let Some((text, failed)) = &viewer.shader_reload {
-                draw_reload_notice(&ink, l, text, *failed);
-            }
-            if viewer.timeline_mode {
-                draw_timeline_bar(ctx, &ink, l, viewer);
-            } else {
-                draw_footer(&ink, l, None);
-            }
-            // What the features show full screen (the knowledge graph, the DAG), over everything but the popups.
-            let shader_error = viewer.shader_reload.clone().filter(|r| r.1).map(|r| r.0);
-            let mut overlay = crate::feature::StoryPanel {
-                ctx,
-                ink: &ink,
-                input,
-                interactive: true,
-                shader_error: shader_error.as_deref(),
-                report: &mut report,
-                actions: Vec::new(),
-                pointer: false,
-            };
-            for state in viewer.features.states_mut() {
-                state.overlay(&mut overlay);
-            }
-            viewer.actions.extend(overlay.actions);
-            viewer.ui_has_pointer |= overlay.pointer;
-            viewer.popups.draw(ctx, l.canvas);
-            viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
+            draw_viewer_chrome(ctx, &ink, input, viewer, &mut report, feature_panel);
         }
     }
     let _ = scene_beat;
     if let Some(index) = input.stamp {
-        // One 8x8 block per bit at the top-left corner: red = 1, green = 0.
-        for bit in 0..24u32 {
-            let on = (index >> bit) & 1 == 1;
-            let s = 8.0 / l.scale;
-            let r = Rect::from_min_size(pos2(bit as f32 * s, 0.0), vec2(s, s));
-            painter.rect_filled(
-                r,
-                CornerRadius::ZERO,
-                if on {
-                    Color32::from_rgb(255, 0, 0)
-                } else {
-                    Color32::from_rgb(0, 255, 0)
-                },
-            );
-        }
+        draw_stamp(&painter, l, index);
     }
     report.min_text_pt = ink.min_size.get();
     report
+}
+
+/// The main view's tags: its insets and the story's images, its title, the main camera's own view, the comparison,
+/// the callout, and the formula card; the rectangles they take (and, in a recording, the bands its tag and
+/// subtitles take), which the labels avoid.
+fn draw_main_tags(
+    ctx: &egui::Context,
+    ink: &Ink,
+    input: &UiInput,
+    content: &FrameContent,
+    covered: bool,
+    report: &mut UiReport,
+) -> Vec<Rect> {
+    let (l, painter) = (&input.layout, ink.painter);
+    let mut obstacles = Vec::new();
+    if l.video {
+        obstacles.push(Rect::from_min_max(
+            l.viewport.min,
+            pos2(l.viewport.max.x, l.safe().min.y),
+        ));
+        obstacles.push(Rect::from_min_max(
+            pos2(l.viewport.min.x, l.safe().max.y),
+            l.viewport.max,
+        ));
+    }
+    // The investigation's insets, then the image the story shows.
+    draw_insets(
+        ctx,
+        ink,
+        input,
+        content,
+        covered,
+        &mut obstacles,
+        &mut *report,
+    );
+    if let Some(title) = input.title {
+        let insets = obstacles.clone();
+        obstacles.push(draw_pane_title(ink, l.viewport, title, &insets));
+    }
+    // The main camera's own view, framed and named.
+    if let Some(rect) = input.main_view {
+        painter.rect_stroke(
+            rect.expand(1.0),
+            CornerRadius::same(6),
+            Stroke::new(2.0, palette::VIEW),
+            StrokeKind::Outside,
+        );
+        obstacles.push(rect);
+        obstacles.push(draw_pane_title(ink, rect, tr("ui-main_view"), &[]));
+    }
+    if let Some(compare) = input.compare {
+        let insets = obstacles.clone();
+        obstacles.extend(draw_compare(ink, l.viewport, compare, &insets));
+    }
+    if let (Some(key), false) = (&input.state.callout, covered) {
+        let insets = obstacles.clone();
+        obstacles.extend(draw_callout(ink, l, key, &insets));
+    }
+    if let Some(tag) = &input.state.formula {
+        let insets = obstacles.clone();
+        obstacles.extend(draw_formula_card(
+            ink,
+            l,
+            tag,
+            input.state.formula_term,
+            input.state.formula_lit,
+            &insets,
+        ));
+    }
+    obstacles
+}
+
+/// The frame's index as a binary stamp: one 8x8 block per bit at the top-left corner, red = 1, green = 0.
+fn draw_stamp(painter: &egui::Painter, l: &Layout, index: u64) {
+    // One 8x8 block per bit at the top-left corner: red = 1, green = 0.
+    for bit in 0..24u32 {
+        let on = (index >> bit) & 1 == 1;
+        let s = 8.0 / l.scale;
+        let r = Rect::from_min_size(pos2(bit as f32 * s, 0.0), vec2(s, s));
+        painter.rect_filled(
+            r,
+            CornerRadius::ZERO,
+            if on {
+                Color32::from_rgb(255, 0, 0)
+            } else {
+                Color32::from_rgb(0, 255, 0)
+            },
+        );
+    }
+}
+
+/// The viewport's border, the other views' (each its title and its labels), the labels of the views over the main
+/// one, and the focused view's outline.
+fn draw_view_frames(ink: &Ink, input: &UiInput, chrome: &Chrome, report: &mut UiReport) {
+    let (l, painter) = (&input.layout, ink.painter);
+    if !l.video {
+        painter.rect_stroke(
+            l.viewport.expand(1.0),
+            CornerRadius::same(10),
+            Stroke::new(1.5, palette::border()),
+            StrokeKind::Outside,
+        );
+    }
+    // The other views: each its border, its title, and its labels.
+    for pane in input.panes {
+        painter.rect_stroke(
+            pane.rect.expand(1.0),
+            CornerRadius::same(10),
+            Stroke::new(1.5, palette::border()),
+            StrokeKind::Outside,
+        );
+        let at = UiInput {
+            layout: Layout {
+                viewport: pane.rect,
+                ..*l
+            },
+            content: Some(pane.content),
+            ..*input
+        };
+        let title = pane
+            .title
+            .map(|t| draw_pane_title(ink, pane.rect, t, &[]))
+            .into_iter()
+            .collect::<Vec<_>>();
+        draw_labels(ink, &at, pane.content, &title, &mut *report);
+    }
+    // The views stacked over the main one: their labels (their pictures are in the frame).
+    for over in input.overs {
+        let at = UiInput {
+            layout: Layout {
+                viewport: over.rect,
+                ..*l
+            },
+            content: Some(over.content),
+            ..*input
+        };
+        draw_labels(ink, &at, over.content, &[], &mut *report);
+    }
+    // The focused view (the dock's), when there are several.
+    if let Chrome::Viewer(v) = chrome
+        && let Some(r) = v.focus_rect
+    {
+        painter.rect_stroke(
+            r.expand(2.0),
+            CornerRadius::same(10),
+            Stroke::new(2.5, palette::accent()),
+            StrokeKind::Outside,
+        );
+    }
+}
+
+/// The investigation's insets, then the images the story shows: insets sharing a corner stack in a row away from
+/// it, and in a new row once the next would leave the viewport; each an obstacle for what follows (none while
+/// the main view is `covered`).
+fn draw_insets(
+    ctx: &egui::Context,
+    ink: &Ink,
+    input: &UiInput,
+    content: &FrameContent,
+    covered: bool,
+    obstacles: &mut Vec<Rect>,
+    report: &mut UiReport,
+) {
+    let l = &input.layout;
+    let package = investigation::current().package().unwrap_or("render_lab");
+    let story: Vec<_> = input
+        .state
+        .images
+        .iter()
+        .filter_map(|image| crate::utility::inset::story(image, &content.images, package))
+        .collect();
+    // Insets sharing a corner stack in a row away from it, and in a
+    // new row once the next would leave the viewport.
+    let mut rows: Vec<(crate::utility::inset::Corner, egui::Vec2, f32)> = Vec::new();
+    for inset in content
+        .insets
+        .iter()
+        .chain(&story)
+        .filter(|i| i.alpha > 0.0 && !covered)
+    {
+        let size = crate::utility::inset::frame_size(ctx, ink, l, input.textures, inset);
+        let offset = match rows
+            .iter_mut()
+            .find(|(corner, _, _)| *corner == inset.corner)
+        {
+            None => {
+                rows.push((inset.corner, vec2(size.x + 12.0, 0.0), size.y));
+                Vec2::ZERO
+            }
+            Some((_, at, tallest)) => {
+                if at.x + size.x > l.safe().width() - 32.0 {
+                    *at = vec2(0.0, at.y + *tallest + 12.0);
+                    *tallest = 0.0;
+                }
+                let offset = *at;
+                at.x += size.x + 12.0;
+                *tallest = tallest.max(size.y);
+                offset
+            }
+        };
+        let (frame, picture) = crate::utility::inset::draw(
+            ctx,
+            ink,
+            l,
+            &content.uniforms.camera,
+            input.textures,
+            inset,
+            offset,
+        );
+        obstacles.push(frame);
+        report.insets.push(InsetArea {
+            frame,
+            picture,
+            click: inset.click.clone(),
+        });
+    }
+}
+
+/// The story panel: one a feature draws (src/feature/: the knowledge graph, the frame graph, the code, the
+/// performance), else the demonstration's; `recording`, a recording's features.
+fn draw_story_panel(
+    ctx: &egui::Context,
+    ink: &Ink,
+    input: &UiInput,
+    content: &FrameContent,
+    chrome: &mut Chrome,
+    recording: &mut crate::feature::Features,
+    report: &mut UiReport,
+) {
+    let l = &input.layout;
+    draw_window_card(ink, l, windows::WindowId::Panel);
+    // A story panel a feature draws (src/feature/: the knowledge graph, the frame graph, the
+    // code, the performance), else the demonstration's.
+    let interactive = matches!(&chrome, Chrome::Viewer(_));
+    let shader_error = match &*chrome {
+        Chrome::Viewer(v) => v.shader_reload.clone().filter(|r| r.1).map(|r| r.0),
+        Chrome::Recording { .. } => None,
+    };
+    let mut panel = crate::feature::StoryPanel {
+        ctx,
+        ink,
+        input,
+        interactive,
+        shader_error: shader_error.as_deref(),
+        report: &mut *report,
+        actions: Vec::new(),
+        pointer: false,
+    };
+    let features = match &mut *chrome {
+        Chrome::Viewer(v) => &mut v.features,
+        Chrome::Recording { .. } => &mut *recording,
+    };
+    match features.panel_mut(input.state.panel) {
+        Some(owner) => owner.story_panel(&mut panel),
+        None => draw_panel(ink, input, content, panel.report),
+    }
+    let (actions, pointer) = (panel.actions, panel.pointer);
+    if let Chrome::Viewer(v) = &mut *chrome {
+        v.actions.extend(actions);
+        v.ui_has_pointer |= pointer;
+    }
+}
+
+/// A 2D beat's diagram, or a paused timeline's diagram panel (zoomed, panned, its boxes moved).
+fn draw_diagram_beat(ctx: &egui::Context, ink: &Ink, input: &UiInput, chrome: &mut Chrome) {
+    let l = &input.layout;
+    if let Some(diagram) = input.diagram {
+        let area = l.content;
+        let page = match &*chrome {
+            Chrome::Viewer(v) => v.diagram,
+            Chrome::Recording { .. } => None,
+        };
+        match page {
+            None => {
+                crate::diagram::draw(ink, area, None, diagram, input.diagram_pictures);
+            }
+            Some(page) => {
+                // The diagram panel of a paused timeline: zoomed, panned, its boxes moved, clipped to the panel.
+                let paused = crate::diagram::Paused {
+                    ctx,
+                    key: page.key,
+                    preset: page.preset,
+                };
+                let zoom =
+                    crate::diagram::draw(ink, area, Some(paused), diagram, input.diagram_pictures);
+                if let Chrome::Viewer(v) = &mut *chrome {
+                    v.ui_has_pointer |= ctx.pointer_hover_pos().is_some_and(|p| area.contains(p));
+                }
+                draw_paused_hint(ctx, ink, area, zoom);
+            }
+        }
+    }
+}
+
+/// A paused timeline's diagram panel's hint (its `zoom`), and beside it the button that puts the moved boxes back.
+fn draw_paused_hint(ctx: &egui::Context, ink: &Ink, area: Rect, zoom: f32) {
+    let painter = ink.painter;
+    let hint = tr_with("viewer-diagram_hint", args!(zoom = format!("{zoom:.1}")));
+    let at = pos2(area.min.x + 14.0, area.max.y - 12.0);
+    let galley = painter.layout_no_wrap(
+        hint.clone(),
+        egui::FontId::proportional(24.0),
+        palette::text_dim(),
+    );
+    painter.rect_filled(
+        Rect::from_min_size(
+            at - vec2(8.0, galley.size().y + 4.0),
+            galley.size() + vec2(16.0, 8.0),
+        ),
+        CornerRadius::same(6),
+        Color32::from_rgba_unmultiplied(7, 18, 31, 220),
+    );
+    ink.text(
+        at,
+        Align2::LEFT_BOTTOM,
+        hint,
+        24.0,
+        FontFamily::Proportional,
+        palette::text_dim(),
+    );
+    // Beside the hint: put the moved boxes back (and the view).
+    let label = tr("graph-reset");
+    let size = vec2(
+        ink.measure(label, 24.0, FontFamily::Proportional).x + 32.0,
+        40.0,
+    );
+    egui::Area::new(egui::Id::unique("paused-diagram-reset"))
+        .fixed_pos(pos2(
+            area.min.x + 14.0 + galley.size().x + 24.0,
+            area.max.y - 12.0 - size.y,
+        ))
+        .fade_in(false)
+        .show(ctx, |ui| {
+            if ui
+                .add(egui::Button::new(egui::RichText::new(label).size(24.0)).min_size(size))
+                .clicked()
+            {
+                crate::graph_view::ask_reset(ctx, crate::diagram::paused_id());
+            }
+        });
+}
+
+/// The viewer's chrome: the dock (or, while a timeline plays, its caption), a feature's panel, the Scene window,
+/// the windows' titles, notices, the timeline bar or the footer, and what the features show full screen.
+fn draw_viewer_chrome(
+    ctx: &egui::Context,
+    ink: &Ink,
+    input: &UiInput,
+    viewer: &mut ViewerChrome,
+    report: &mut UiReport,
+    feature_panel: bool,
+) {
+    let l = &input.layout;
+    if viewer.timeline_mode && viewer.playing {
+        draw_caption_text(ink, l, viewer.caption.as_deref());
+    } else {
+        draw_window_card(ink, l, windows::WindowId::Controls);
+        crate::controls::draw_dock(ctx, ink, input, viewer);
+        if feature_panel && l.panel_shown {
+            draw_window_card(ink, l, windows::WindowId::Panel);
+            let mut dock = crate::controls::Dock::new(input, viewer);
+            if let Some(state) = viewer.features.state_mut(viewer.tab.0) {
+                state.panel(&mut crate::feature::PanelUi {
+                    ctx,
+                    ink,
+                    input,
+                    dock: &mut dock,
+                });
+            }
+            viewer.actions.extend(dock.actions);
+            viewer.widgets.extend(dock.widgets);
+        }
+    }
+    if !(viewer.timeline_mode && viewer.playing) && input.scene_type == SceneType::ThreeD {
+        draw_scene_window(ctx, ink, input, viewer);
+    }
+    draw_window_titles(ctx, ink, input, viewer);
+    if let Some((seconds, opacity)) = viewer.skip {
+        draw_skip_notice(ink, l, seconds, opacity);
+    }
+    if let Some((text, failed)) = &viewer.shader_reload {
+        draw_reload_notice(ink, l, text, *failed);
+    }
+    if viewer.timeline_mode {
+        draw_timeline_bar(ctx, ink, l, viewer);
+    } else {
+        draw_footer(ink, l, None);
+    }
+    // What the features show full screen (the knowledge graph, the DAG), over everything but the popups.
+    let shader_error = viewer.shader_reload.clone().filter(|r| r.1).map(|r| r.0);
+    let mut overlay = crate::feature::StoryPanel {
+        ctx,
+        ink,
+        input,
+        interactive: true,
+        shader_error: shader_error.as_deref(),
+        report: &mut *report,
+        actions: Vec::new(),
+        pointer: false,
+    };
+    for state in viewer.features.states_mut() {
+        state.overlay(&mut overlay);
+    }
+    viewer.actions.extend(overlay.actions);
+    viewer.ui_has_pointer |= overlay.pointer;
+    viewer.popups.draw(ctx, l.canvas);
+    viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
 }
 
 #[cfg(test)]

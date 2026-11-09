@@ -216,40 +216,35 @@ impl FrameGraph {
         }
         // Only the edges no longer path implies, dropped one at a time (so of
         // two that imply each other around a cycle, one stays).
-        let reaches = |edges: &[(String, String)], a: &str, b: &str, skip: usize| {
-            let mut seen = BTreeSet::new();
-            let mut stack = vec![a.to_string()];
-            while let Some(x) = stack.pop() {
-                if x == b {
-                    return true;
-                }
-                if seen.insert(x.clone()) {
-                    stack.extend(
-                        edges
-                            .iter()
-                            .enumerate()
-                            .filter(|(k, e)| *k != skip && e.0 == x)
-                            .map(|(_, e)| e.1.clone()),
-                    );
-                }
-            }
-            false
-        };
-        let mut kept = edges.clone();
-        let mut k = 0;
-        while k < kept.len() {
-            if reaches(&kept, &kept[k].0, &kept[k].1, k) {
-                kept.remove(k);
-            } else {
-                k += 1;
-            }
-        }
+        let mut kept = reduced(&edges);
         kept.sort_by_key(|e| {
             (
                 ids.iter().position(|i| *i == e.0),
                 ids.iter().position(|i| *i == e.1),
             )
         });
+        let nodes = self.scene_nodes(scene);
+        let index = |id: &str| ids.iter().position(|i| *i == id).expect("a section");
+        let edges = kept
+            .iter()
+            .map(|(a, b)| crate::graph_view::Edge {
+                from: index(a),
+                to: index(b),
+                dotted: false,
+                label: None,
+            })
+            .collect();
+        Ok(crate::graph_view::Graph {
+            nodes,
+            edges,
+            clusters: Vec::new(),
+        })
+    }
+
+    /// The scene's sections as boxes: each its title (a newline breaks its line; a section of neither passes nor
+    /// resources adds its note), its passes (their names without the entries' shared prefix and stage suffix) and
+    /// resources as rows, dashed when outside the frame.
+    fn scene_nodes(&self, scene: &GraphScene) -> Vec<crate::graph_view::Node> {
         let prefix = crate::ui::graph_prefix(self.nodes.iter().map(|n| n.name));
         let label = |p: &str| {
             let name = p
@@ -265,7 +260,8 @@ impl FrameGraph {
         };
         // A title or note may break its line (a newline in its text).
         let lines = |t: &str| t.split('\n').map(str::to_string).collect::<Vec<_>>();
-        let nodes = scene
+
+        scene
             .sections
             .iter()
             .map(|s| {
@@ -294,22 +290,7 @@ impl FrameGraph {
                     image: None,
                 }
             })
-            .collect();
-        let index = |id: &str| ids.iter().position(|i| *i == id).expect("a section");
-        let edges = kept
-            .iter()
-            .map(|(a, b)| crate::graph_view::Edge {
-                from: index(a),
-                to: index(b),
-                dotted: false,
-                label: None,
-            })
-            .collect();
-        Ok(crate::graph_view::Graph {
-            nodes,
-            edges,
-            clusters: Vec::new(),
-        })
+            .collect()
     }
 }
 
@@ -360,4 +341,38 @@ pub fn about(name: &str) -> Option<&'static str> {
         "composite" => Some(crate::i18n::tr("graph-about_composite")),
         _ => crate::investigation::current().pass_about(name),
     }
+}
+
+/// Only the edges no longer path implies, dropped one at a time (so of two that imply each other around a cycle,
+/// one stays).
+fn reduced(edges: &[(String, String)]) -> Vec<(String, String)> {
+    let reaches = |edges: &[(String, String)], a: &str, b: &str, skip: usize| {
+        let mut seen = BTreeSet::new();
+        let mut stack = vec![a.to_string()];
+        while let Some(x) = stack.pop() {
+            if x == b {
+                return true;
+            }
+            if seen.insert(x.clone()) {
+                stack.extend(
+                    edges
+                        .iter()
+                        .enumerate()
+                        .filter(|(k, e)| *k != skip && e.0 == x)
+                        .map(|(_, e)| e.1.clone()),
+                );
+            }
+        }
+        false
+    };
+    let mut kept = edges.to_vec();
+    let mut k = 0;
+    while k < kept.len() {
+        if reaches(&kept, &kept[k].0, &kept[k].1, k) {
+            kept.remove(k);
+        } else {
+            k += 1;
+        }
+    }
+    kept
 }

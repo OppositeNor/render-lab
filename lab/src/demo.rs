@@ -333,51 +333,8 @@ impl Demos {
         for key in keys {
             let key = key.as_str().context("`demos` is a list of keys")?;
             let id = format!("{prefix}.demo/{key}");
-            let spec = (|| -> Result<DemoSpec> {
-                let doc = document(&id)?;
-                let table = doc.as_table();
-                if string(table, "key")? != Some(key) {
-                    bail!("its `key` is not `{key}`");
-                }
-                let reference = string(table, "scene")?.context("`scene` is missing")?;
-                let scene_id = packages::resolve(package, resources::packages(), reference)
-                    .map_err(|e| anyhow!("scene {e}"))?;
-                let scene = SceneId::from_resource(&scene_id)
-                    .ok_or_else(|| anyhow!("`{reference}` is not a scene"))?;
-                let tab = match (string(table, "tab-text")?, string(table, "tab")?) {
-                    (Some(k), None) => Tab::Text(leak(k)),
-                    (None, Some(name)) => Tab::Plain(leak(name)),
-                    _ => bail!("a demonstration has `tab-text` or `tab`"),
-                };
-                let mut camera = None;
-                let mut overrides = Vec::new();
-                apply(
-                    prefix,
-                    table,
-                    &Scene::build(scene),
-                    &params,
-                    &mut camera,
-                    &mut overrides,
-                )?;
-                Ok(DemoSpec {
-                    id: DemoId::new(leak(key)),
-                    title: leak(string(table, "title-text")?.context("`title-text` is missing")?),
-                    tab,
-                    hint: string(table, "hint-text")?.map(leak),
-                    scene,
-                    listing: string(table, "listing")?.map(leak),
-                    animation: string(table, "animation")?.map(leak),
-                    frame: frame_size(table)?,
-                    resets_camera: table
-                        .get("resets-camera")
-                        .map(|r| r.as_bool().context("`resets-camera` is true or false"))
-                        .transpose()?
-                        .unwrap_or(false),
-                    camera: camera.context("no `[camera]`, in the file or a preset")?,
-                    params: overrides,
-                })
-            })()
-            .with_context(|| format!("demonstration `{key}` ({id})"))?;
+            let spec = Self::read_spec(prefix, package, (key, &id), &params)
+                .with_context(|| format!("demonstration `{key}` ({id})"))?;
             specs.push(spec);
         }
         let ids = specs.iter().map(|s| s.id).collect();
@@ -387,6 +344,58 @@ impl Demos {
             index: by_key,
             specs,
             ids,
+        })
+    }
+
+    /// The demonstration `key` (its resource `id`) of the package `prefix`: its scene, tab, title, hint, listing,
+    /// animation, frame size, camera, and the parameters it sets (`params`, the package's).
+    fn read_spec(
+        prefix: &str,
+        package: &Package,
+        (key, id): (&str, &str),
+        params: &[Param],
+    ) -> Result<DemoSpec> {
+        let doc = document(id)?;
+        let table = doc.as_table();
+        if string(table, "key")? != Some(key) {
+            bail!("its `key` is not `{key}`");
+        }
+        let reference = string(table, "scene")?.context("`scene` is missing")?;
+        let scene_id = packages::resolve(package, resources::packages(), reference)
+            .map_err(|e| anyhow!("scene {e}"))?;
+        let scene = SceneId::from_resource(&scene_id)
+            .ok_or_else(|| anyhow!("`{reference}` is not a scene"))?;
+        let tab = match (string(table, "tab-text")?, string(table, "tab")?) {
+            (Some(k), None) => Tab::Text(leak(k)),
+            (None, Some(name)) => Tab::Plain(leak(name)),
+            _ => bail!("a demonstration has `tab-text` or `tab`"),
+        };
+        let mut camera = None;
+        let mut overrides = Vec::new();
+        apply(
+            prefix,
+            table,
+            &Scene::build(scene),
+            params,
+            &mut camera,
+            &mut overrides,
+        )?;
+        Ok(DemoSpec {
+            id: DemoId::new(leak(key)),
+            title: leak(string(table, "title-text")?.context("`title-text` is missing")?),
+            tab,
+            hint: string(table, "hint-text")?.map(leak),
+            scene,
+            listing: string(table, "listing")?.map(leak),
+            animation: string(table, "animation")?.map(leak),
+            frame: frame_size(table)?,
+            resets_camera: table
+                .get("resets-camera")
+                .map(|r| r.as_bool().context("`resets-camera` is true or false"))
+                .transpose()?
+                .unwrap_or(false),
+            camera: camera.context("no `[camera]`, in the file or a preset")?,
+            params: overrides,
         })
     }
 

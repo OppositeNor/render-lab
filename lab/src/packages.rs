@@ -275,123 +275,13 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     };
     let imports = strings(table, "import", &fail)?;
     let exports = strings(table, "export", &fail)?;
-    let mut collections = Vec::new();
-    let mut demos = Vec::new();
-    let mut series = Vec::new();
-    let mut references = Vec::new();
-    let provides = match table.get("provides") {
-        None => Vec::new(),
-        Some(item) => item
-            .as_array_of_tables()
-            .ok_or_else(|| fail("`provides` is a list of `[[provides]]` tables".into()))?
-            .iter()
-            .collect(),
-    };
-    for entry in provides {
-        let kind = string(entry, "type", &fail)?.ok_or_else(|| {
-            fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into())
-        })?;
-        let fields: &[&str] = match kind.as_str() {
-            "resource" => &["type", "path"],
-            "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
-            "series" => &["type", "key", "title", "summary", "parts"],
-            other => {
-                return Err(fail(format!(
-                    "unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"
-                )));
-            }
-        };
-        if let Some((key, _)) = entry.iter().find(|(key, _)| !fields.contains(key)) {
-            return Err(fail(format!(
-                "a {kind} has no field `{key}` (it has {})",
-                fields.join(", ")
-            )));
-        }
-        let field = |name: &str| {
-            string(entry, name, &fail)?
-                .ok_or_else(|| fail(format!("a {kind} needs `{name}`, a string")))
-        };
-        if kind == "resource" {
-            let file = field("path")?;
-            let target = dir.join(&file);
-            if Path::new(&file).is_absolute() || !target.is_file() {
-                return Err(fail(format!(
-                    "resource `{file}`: no such file (a path relative to the manifest)"
-                )));
-            }
-            collections.push(target);
-        } else if kind == "series" {
-            let key = field("key")?;
-            if !valid_demo_key(&key) || series.iter().any(|s: &Series| s.key == key) {
-                return Err(fail(format!(
-                    "series `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
-                )));
-            }
-            let parts = strings(entry, "parts", &fail)?;
-            if parts.is_empty() {
-                return Err(fail(format!(
-                    "series `{key}`: `parts` lists its parts' packages, in order"
-                )));
-            }
-            for (i, part) in parts.iter().enumerate() {
-                if !imports.contains(part) || parts[..i].contains(part) {
-                    return Err(fail(format!(
-                        "series `{key}`: part `{part}` is a package `import` lists, once"
-                    )));
-                }
-            }
-            series.push(Series {
-                key,
-                title: by_language(entry, "title", &fail)?,
-                summary: by_language(entry, "summary", &fail)?,
-                parts,
-            });
-        } else {
-            let key = field("key")?;
-            if !valid_demo_key(&key) || demos.iter().any(|d: &Demo| d.key == key) {
-                return Err(fail(format!(
-                    "demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
-                )));
-            }
-            references.push((field("timeline")?, field("audio")?));
-            demos.push(Demo {
-                key,
-                title: field("title")?,
-                timeline: String::new(),
-                audio: String::new(),
-            });
-        }
-    }
-    let mut notices = Vec::new();
-    let listed = match table.get("notice") {
-        None => Vec::new(),
-        Some(item) => item
-            .as_array_of_tables()
-            .ok_or_else(|| fail("`notice` is a list of `[[notice]]` tables".into()))?
-            .iter()
-            .collect(),
-    };
-    for entry in listed {
-        if let Some((key, _)) = entry
-            .iter()
-            .find(|(key, _)| !["notice-text", "license"].contains(key))
-        {
-            return Err(fail(format!(
-                "a notice has no field `{key}` (it has notice-text, license)"
-            )));
-        }
-        let text = string(entry, "notice-text", &fail)?
-            .ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
-        let license = string(entry, "license", &fail)?;
-        if let Some(file) = &license
-            && (Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file())
-        {
-            return Err(fail(format!(
-                "notice license `{file}`: no such file (a path inside the package)"
-            )));
-        }
-        notices.push(Notice { text, license });
-    }
+    let Provided {
+        collections,
+        demos,
+        series,
+        references,
+    } = read_provides(table, dir, &imports, &fail)?;
+    let notices = read_notices(table, dir, &fail)?;
     let credit = string(table, "credit-text", &fail)?;
     let package = Package {
         author: required("author")?,
@@ -411,6 +301,170 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         credit,
     };
     Ok((package, references))
+}
+
+/// What a manifest provides: its resource collections, demos, and series, and each demo's timeline and audio as
+/// written.
+struct Provided {
+    collections: Vec<PathBuf>,
+    demos: Vec<Demo>,
+    series: Vec<Series>,
+    references: Vec<(String, String)>,
+}
+
+/// A manifest's `[[provides]]`: its resource collections, demos, and series, and each demo's timeline and audio
+/// as written (resolved once every package is read).
+fn read_provides(
+    table: &toml_edit::Table,
+    dir: &Path,
+    imports: &[String],
+    fail: &dyn Fn(String) -> String,
+) -> Result<Provided, String> {
+    let mut collections = Vec::new();
+    let mut demos = Vec::new();
+    let mut series = Vec::new();
+    let mut references = Vec::new();
+    let provides = match table.get("provides") {
+        None => Vec::new(),
+        Some(item) => item
+            .as_array_of_tables()
+            .ok_or_else(|| fail("`provides` is a list of `[[provides]]` tables".into()))?
+            .iter()
+            .collect(),
+    };
+    for entry in provides {
+        let kind = string(entry, "type", fail)?.ok_or_else(|| {
+            fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into())
+        })?;
+        let fields: &[&str] = match kind.as_str() {
+            "resource" => &["type", "path"],
+            "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
+            "series" => &["type", "key", "title", "summary", "parts"],
+            other => {
+                return Err(fail(format!(
+                    "unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"
+                )));
+            }
+        };
+        if let Some((key, _)) = entry.iter().find(|(key, _)| !fields.contains(key)) {
+            return Err(fail(format!(
+                "a {kind} has no field `{key}` (it has {})",
+                fields.join(", ")
+            )));
+        }
+        let field = |name: &str| {
+            string(entry, name, fail)?
+                .ok_or_else(|| fail(format!("a {kind} needs `{name}`, a string")))
+        };
+        if kind == "resource" {
+            let file = field("path")?;
+            let target = dir.join(&file);
+            if Path::new(&file).is_absolute() || !target.is_file() {
+                return Err(fail(format!(
+                    "resource `{file}`: no such file (a path relative to the manifest)"
+                )));
+            }
+            collections.push(target);
+        } else if kind == "series" {
+            series.push(read_series(entry, (imports, &series), fail)?);
+        } else {
+            let key = field("key")?;
+            if !valid_demo_key(&key) || demos.iter().any(|d: &Demo| d.key == key) {
+                return Err(fail(format!(
+                    "demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
+                )));
+            }
+            references.push((field("timeline")?, field("audio")?));
+            demos.push(Demo {
+                key,
+                title: field("title")?,
+                timeline: String::new(),
+                audio: String::new(),
+            });
+        }
+    }
+    Ok(Provided {
+        collections,
+        demos,
+        series,
+        references,
+    })
+}
+
+/// A `[[provides]]` series: its key (unique among `series`), its title and summary by language, and its parts,
+/// each a package `imports` lists, once.
+fn read_series(
+    entry: &toml_edit::Table,
+    (imports, series): (&[String], &[Series]),
+    fail: &dyn Fn(String) -> String,
+) -> Result<Series, String> {
+    let field = |name: &str| {
+        string(entry, name, fail)?.ok_or_else(|| fail(format!("a series needs `{name}`, a string")))
+    };
+    let key = field("key")?;
+    if !valid_demo_key(&key) || series.iter().any(|s| s.key == key) {
+        return Err(fail(format!(
+            "series `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
+        )));
+    }
+    let parts = strings(entry, "parts", fail)?;
+    if parts.is_empty() {
+        return Err(fail(format!(
+            "series `{key}`: `parts` lists its parts' packages, in order"
+        )));
+    }
+    for (i, part) in parts.iter().enumerate() {
+        if !imports.contains(part) || parts[..i].contains(part) {
+            return Err(fail(format!(
+                "series `{key}`: part `{part}` is a package `import` lists, once"
+            )));
+        }
+    }
+    Ok(Series {
+        key,
+        title: by_language(entry, "title", fail)?,
+        summary: by_language(entry, "summary", fail)?,
+        parts,
+    })
+}
+
+/// A manifest's `[[notice]]`s: each its text key and its license's file (inside the package).
+fn read_notices(
+    table: &toml_edit::Table,
+    dir: &Path,
+    fail: &dyn Fn(String) -> String,
+) -> Result<Vec<Notice>, String> {
+    let mut notices = Vec::new();
+    let listed = match table.get("notice") {
+        None => Vec::new(),
+        Some(item) => item
+            .as_array_of_tables()
+            .ok_or_else(|| fail("`notice` is a list of `[[notice]]` tables".into()))?
+            .iter()
+            .collect(),
+    };
+    for entry in listed {
+        if let Some((key, _)) = entry
+            .iter()
+            .find(|(key, _)| !["notice-text", "license"].contains(key))
+        {
+            return Err(fail(format!(
+                "a notice has no field `{key}` (it has notice-text, license)"
+            )));
+        }
+        let text = string(entry, "notice-text", fail)?
+            .ok_or_else(|| fail("a `[[notice]]` needs `notice-text`, a text key".into()))?;
+        let license = string(entry, "license", fail)?;
+        if let Some(file) = &license
+            && (Path::new(file).is_absolute() || file.contains("..") || !dir.join(file).is_file())
+        {
+            return Err(fail(format!(
+                "notice license `{file}`: no such file (a path inside the package)"
+            )));
+        }
+        notices.push(Notice { text, license });
+    }
+    Ok(notices)
 }
 
 /// Every package in `dir`, each after the packages it imports (and otherwise by name).

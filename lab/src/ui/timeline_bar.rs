@@ -309,22 +309,7 @@ pub(super) fn draw_timeline_bar(
                     }
                 },
             );
-            ui.scope_builder(
-                egui::UiBuilder::new()
-                    .max_rect(volume)
-                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                |ui| {
-                    let mut narration = viewer.narration;
-                    let r = crate::volume::slider(ui, &mut narration, 32.0, BAR_VOLUME - 150.0);
-                    viewer.widgets.push(("bar:narration".into(), r.rail));
-                    viewer.widgets.push(("bar:narration-mute".into(), r.mute));
-                    if r.changed || r.committed {
-                        viewer
-                            .actions
-                            .push(ViewerAction::SetNarration(narration, r.committed));
-                    }
-                },
-            );
+            bar_volume(ui, volume, viewer);
             hit.hover_pos()
                 .map(|p| ((p.x - bar.min.x) / bar.width()).clamp(0.0, 1.0))
         });
@@ -350,6 +335,26 @@ pub(super) fn draw_timeline_bar(
     if let Some(share) = response.inner {
         draw_bar_preview(ctx, bar, share, total, viewer);
     }
+}
+
+/// The narration's volume in `volume`: its slider and its mute button.
+fn bar_volume(ui: &mut egui::Ui, volume: Rect, viewer: &mut ViewerChrome) {
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(volume)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        |ui| {
+            let mut narration = viewer.narration;
+            let r = crate::volume::slider(ui, &mut narration, 32.0, BAR_VOLUME - 150.0);
+            viewer.widgets.push(("bar:narration".into(), r.rail));
+            viewer.widgets.push(("bar:narration-mute".into(), r.mute));
+            if r.changed || r.committed {
+                viewer
+                    .actions
+                    .push(ViewerAction::SetNarration(narration, r.committed));
+            }
+        },
+    );
 }
 
 /// The section under the pointer on the timeline bar: its chapter, the

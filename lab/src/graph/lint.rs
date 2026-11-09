@@ -28,22 +28,6 @@ type Uses = Vec<(u32, u32, GlobalUse)>;
 /// Returns what is wrong, one message each.
 pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     let (module, info) = crate::shaders::analyse(shading.module)?;
-    let mut problems = Vec::new();
-    let uses = |entry: &str| -> Option<Uses> {
-        let index = module.entry_points.iter().position(|e| e.name == entry)?;
-        let function = info.get_entry_point(index);
-        Some(
-            module
-                .global_variables
-                .iter()
-                .filter_map(|(handle, var)| {
-                    let binding = var.binding.as_ref()?;
-                    let used = function[handle];
-                    (!used.is_empty()).then_some((binding.group, binding.binding, used))
-                })
-                .collect(),
-        )
-    };
     // Group 2 of the chain: what each binding is.
     let mut chain: Vec<(u32, &str, bool)> = Vec::new();
     for t in shading.targets {
@@ -59,25 +43,119 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     if let Some(d) = shading.depth_views {
         chain.push((chain_binding(shading, d.name, false), d.name, false));
     }
-    // Group 3 of a chain pass: the volumes, or (a shading without volumes) the program's scene group.
-    let volume = |binding: u32| {
+    let mut lint = Lint {
+        shading,
+        module,
+        info,
+        chain,
+        buffers,
+        problems: Vec::new(),
+    };
+    for pass in shading.passes.iter() {
+        lint.check_chain(pass.entry, pass.reads, Some(pass.writes), false);
+    }
+    if shading.chained() {
+        lint.check_chain(shading.fragment, shading.scene_reads, None, false);
+        // The pre-pass runs before the passes that fill the scene's reads: it reads none of them,
+        // but may read the program's scene group, which it binds too.
+        if let Some(entry) = shading.prepass {
+            let scene_uses: Vec<&str> = shading
+                .program
+                .map_or(Vec::new(), |p| program_reads(p.scene_uses));
+            lint.check_chain(entry, &scene_uses, None, true);
+        }
+    }
+    for pass in shading.passes.iter() {
+        if pass.writes.iter().any(|w| is_volume(shading, w)) {
+            lint.problems.push(format!(
+                "{}: a chain pass cannot write a volume (an update pass does)",
+                pass.entry
+            ));
+        }
+    }
+    // The update passes: group 2 their parameters, the update's buffers, the volumes written; group 3 the
+    // volumes read.
+    if let Some(update) = shading.update {
+        for pass in update.passes {
+            lint.check_update(update, pass);
+        }
+    }
+    let mut problems = std::mem::take(&mut lint.problems);
+    if let Some(program) = shading.program {
+        // The scene group is bound by the scene pass, the pre-pass, and (a shading without volumes) the chain's compute passes.
+        let mut chain_entries: Vec<&str> = shading.prepass.into_iter().collect();
         if shading.volumes.is_empty() {
-            return shading
+            chain_entries.extend(shading.passes.iter().map(|p| p.entry));
+        }
+        lint_program(
+            shading,
+            program,
+            &|entry: &str| lint.uses(entry),
+            &mut problems,
+            shading.module,
+            shading.fragment,
+            &chain_entries,
+        );
+    }
+    Ok(problems)
+}
+
+/// What the lint reads a shading's WGSL with: the shading, its module analysed, what each group-2 binding of
+/// the chain is (its resource, and whether it is the written one), the chain's buffers, and the problems found.
+struct Lint<'a> {
+    shading: &'a SceneShading,
+    module: naga::Module,
+    info: naga::valid::ModuleInfo,
+    chain: Vec<(u32, &'static str, bool)>,
+    buffers: Vec<&'static str>,
+    problems: Vec<String>,
+}
+
+impl Lint<'_> {
+    /// The bindings `entry` uses, if the module has it.
+    fn uses(&self, entry: &str) -> Option<Uses> {
+        let index = self
+            .module
+            .entry_points
+            .iter()
+            .position(|e| e.name == entry)?;
+        let function = self.info.get_entry_point(index);
+        Some(
+            self.module
+                .global_variables
+                .iter()
+                .filter_map(|(handle, var)| {
+                    let binding = var.binding.as_ref()?;
+                    let used = function[handle];
+                    (!used.is_empty()).then_some((binding.group, binding.binding, used))
+                })
+                .collect(),
+        )
+    }
+
+    /// The resource group 3 of a chain pass binds at `binding`: a volume, or (a shading without volumes) the
+    /// program's scene group's.
+    fn volume(&self, binding: u32) -> Option<&'static str> {
+        if self.shading.volumes.is_empty() {
+            return self
+                .shading
                 .program
                 .and_then(|p| p.scene_uses.iter().find(|u| u.binding == binding))
                 .map(|u| u.resource);
         }
-        shading
+        self.shading
             .volumes
             .get(binding.wrapping_sub(1) as usize)
             .map(|v| v.name)
-    };
-    // A chain pass, the scene pass (`writes` None: it may only read), or the pre-pass (`subset`: only what it uses is checked).
-    let mut check_chain = |entry: &str, reads: &[&str], writes: Option<&[&str]>, subset: bool| {
-        let Some(used) = uses(entry) else {
-            problems.push(format!(
+    }
+
+    /// A chain pass, the scene pass (`writes` None: it may only read), or the pre-pass (`subset`: only what it
+    /// uses must be listed).
+    fn check_chain(&mut self, entry: &str, reads: &[&str], writes: Option<&[&str]>, subset: bool) {
+        let Some(used) = self.uses(entry) else {
+            self.problems.push(format!(
                 "{entry}: no such entry point in {}",
-                shading.module
+                self.shading.module
             ));
             return;
         };
@@ -85,24 +163,25 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         for &(group, binding, flags) in &used {
             match group {
                 2 => {
-                    let Some(&(_, name, written)) = chain.iter().find(|c| c.0 == binding) else {
-                        problems.push(format!("{entry}: binds group 2 binding {binding}, which is none of the chain's resources"));
+                    let Some(&(_, name, written)) = self.chain.iter().find(|c| c.0 == binding)
+                    else {
+                        self.problems.push(format!("{entry}: binds group 2 binding {binding}, which is none of the chain's resources"));
                         continue;
                     };
-                    if buffers.contains(&name) {
+                    if self.buffers.contains(&name) {
                         if flags.intersects(GlobalUse::READ | GlobalUse::QUERY) {
                             seen.push((name, false));
                             if !reads.contains(&name) && flags.contains(GlobalUse::READ) {
-                                problems.push(format!("{entry}: reads buffer `{name}` but does not list it in its reads"));
+                                self.problems.push(format!("{entry}: reads buffer `{name}` but does not list it in its reads"));
                             }
                         }
                         if flags.contains(GlobalUse::WRITE) {
                             seen.push((name, true));
                             match writes {
-                                Some(w) if !w.contains(&name) => problems.push(format!("{entry}: writes buffer `{name}` but does not list it in its writes")),
-                                None => problems.push(format!("{entry}: writes buffer `{name}`, which a scene pass cannot list (it only reads)")),
-                                _ => {}
-                            }
+                            Some(w) if !w.contains(&name) => self.problems.push(format!("{entry}: writes buffer `{name}` but does not list it in its writes")),
+                            None => self.problems.push(format!("{entry}: writes buffer `{name}`, which a scene pass cannot list (it only reads)")),
+                            _ => {}
+                        }
                         }
                     } else {
                         seen.push((name, written));
@@ -112,7 +191,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
                             reads.contains(&name)
                         };
                         if !listed {
-                            problems.push(format!(
+                            self.problems.push(format!(
                                 "{entry}: {} `{name}` but does not list it in its {}",
                                 if written {
                                     "writes"
@@ -129,12 +208,12 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
                     }
                 }
                 3 if binding > 0 => {
-                    let Some(name) = volume(binding) else {
+                    let Some(name) = self.volume(binding) else {
                         continue;
                     };
                     seen.push((name, false));
                     if !reads.contains(&name) {
-                        problems.push(format!(
+                        self.problems.push(format!(
                             "{entry}: samples volume `{name}` but does not list it in its reads"
                         ));
                     }
@@ -147,141 +226,104 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         }
         for name in reads {
             if !seen.contains(&(name, false)) {
-                problems.push(format!(
+                self.problems.push(format!(
                     "{entry}: lists `{name}` in its reads but does not read it"
                 ));
             }
         }
         for name in writes.unwrap_or(&[]) {
             if !seen.contains(&(name, true)) {
-                problems.push(format!(
+                self.problems.push(format!(
                     "{entry}: lists `{name}` in its writes but does not write it"
                 ));
             }
         }
-    };
-    for pass in shading.passes.iter() {
-        check_chain(pass.entry, pass.reads, Some(pass.writes), false);
     }
-    if shading.chained() {
-        check_chain(shading.fragment, shading.scene_reads, None, false);
-        // The pre-pass runs before the passes that fill the scene's reads: it reads none of them,
-        // but may read the program's scene group, which it binds too.
-        if let Some(entry) = shading.prepass {
-            let scene_uses: Vec<&str> = shading
-                .program
-                .map_or(Vec::new(), |p| program_reads(p.scene_uses));
-            check_chain(entry, &scene_uses, None, true);
-        }
-    }
-    drop(check_chain);
-    for pass in shading.passes.iter() {
-        if pass.writes.iter().any(|w| is_volume(shading, w)) {
-            problems.push(format!(
-                "{}: a chain pass cannot write a volume (an update pass does)",
-                pass.entry
-            ));
-        }
-    }
-    // The update passes: group 2 their parameters, the update's buffers, the volumes written; group 3 the volumes read.
-    if let Some(update) = shading.update {
+
+    /// An update pass of `update` against its WGSL.
+    fn check_update(
+        &mut self,
+        update: &crate::investigation::ShadingUpdate,
+        pass: &crate::investigation::UpdatePass,
+    ) {
         let nb = update.buffers.len() as u32;
-        for pass in update.passes {
-            let Some(used) = uses(pass.entry) else {
-                problems.push(format!(
-                    "{}: no such entry point in {}",
-                    pass.entry, shading.module
+        let Some(used) = self.uses(pass.entry) else {
+            self.problems.push(format!(
+                "{}: no such entry point in {}",
+                pass.entry, self.shading.module
+            ));
+            return;
+        };
+        let mut seen: Vec<(&str, bool)> = Vec::new();
+        for &(group, binding, flags) in &used {
+            match (group, binding) {
+                (2, 0) => {}
+                (2, b) if b <= nb => {
+                    let name = update.buffers[(b - 1) as usize].name;
+                    if flags.contains(GlobalUse::READ) {
+                        seen.push((name, false));
+                        if !pass.reads.contains(&name) {
+                            self.problems.push(format!(
+                                "{}: reads buffer `{name}` but does not list it in its reads",
+                                pass.entry
+                            ));
+                        }
+                    }
+                    if flags.contains(GlobalUse::QUERY) && pass.reads.contains(&name) {
+                        seen.push((name, false));
+                    }
+                    if flags.contains(GlobalUse::WRITE) {
+                        seen.push((name, true));
+                        if !pass.writes.contains(&name) {
+                            self.problems.push(format!(
+                                "{}: writes buffer `{name}` but does not list it in its writes",
+                                pass.entry
+                            ));
+                        }
+                    }
+                }
+                (2, b) => {
+                    if let Some(v) = self.shading.volumes.get((b - 1 - nb) as usize) {
+                        seen.push((v.name, true));
+                        if !pass.writes.contains(&v.name) {
+                            self.problems.push(format!(
+                                "{}: writes volume `{}` but does not list it in its writes",
+                                pass.entry, v.name
+                            ));
+                        }
+                    }
+                }
+                (3, b) if b > 0 => {
+                    if let Some(name) = self.volume(b) {
+                        seen.push((name, false));
+                        if !pass.reads.contains(&name) {
+                            self.problems.push(format!(
+                                "{}: samples volume `{name}` but does not list it in its reads",
+                                pass.entry
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        for name in pass.reads {
+            if !seen.contains(&(name, false)) {
+                self.problems.push(format!(
+                    "{}: lists `{name}` in its reads but does not read it",
+                    pass.entry
                 ));
-                continue;
-            };
-            let mut seen: Vec<(&str, bool)> = Vec::new();
-            for &(group, binding, flags) in &used {
-                match (group, binding) {
-                    (2, 0) => {}
-                    (2, b) if b <= nb => {
-                        let name = update.buffers[(b - 1) as usize].name;
-                        if flags.contains(GlobalUse::READ) {
-                            seen.push((name, false));
-                            if !pass.reads.contains(&name) {
-                                problems.push(format!(
-                                    "{}: reads buffer `{name}` but does not list it in its reads",
-                                    pass.entry
-                                ));
-                            }
-                        }
-                        if flags.contains(GlobalUse::QUERY) && pass.reads.contains(&name) {
-                            seen.push((name, false));
-                        }
-                        if flags.contains(GlobalUse::WRITE) {
-                            seen.push((name, true));
-                            if !pass.writes.contains(&name) {
-                                problems.push(format!(
-                                    "{}: writes buffer `{name}` but does not list it in its writes",
-                                    pass.entry
-                                ));
-                            }
-                        }
-                    }
-                    (2, b) => {
-                        if let Some(v) = shading.volumes.get((b - 1 - nb) as usize) {
-                            seen.push((v.name, true));
-                            if !pass.writes.contains(&v.name) {
-                                problems.push(format!(
-                                    "{}: writes volume `{}` but does not list it in its writes",
-                                    pass.entry, v.name
-                                ));
-                            }
-                        }
-                    }
-                    (3, b) if b > 0 => {
-                        if let Some(name) = volume(b) {
-                            seen.push((name, false));
-                            if !pass.reads.contains(&name) {
-                                problems.push(format!(
-                                    "{}: samples volume `{name}` but does not list it in its reads",
-                                    pass.entry
-                                ));
-                            }
-                        }
-                    }
-                    _ => {}
-                }
             }
-            for name in pass.reads {
-                if !seen.contains(&(name, false)) {
-                    problems.push(format!(
-                        "{}: lists `{name}` in its reads but does not read it",
-                        pass.entry
-                    ));
-                }
-            }
-            for name in pass.writes {
-                if !seen.contains(&(name, true)) {
-                    problems.push(format!(
-                        "{}: lists `{name}` in its writes but does not write it",
-                        pass.entry
-                    ));
-                }
+        }
+        for name in pass.writes {
+            if !seen.contains(&(name, true)) {
+                self.problems.push(format!(
+                    "{}: lists `{name}` in its writes but does not write it",
+                    pass.entry
+                ));
             }
         }
     }
-    if let Some(program) = shading.program {
-        // The scene group is bound by the scene pass, the pre-pass, and (a shading without volumes) the chain's compute passes.
-        let mut chain_entries: Vec<&str> = shading.prepass.into_iter().collect();
-        if shading.volumes.is_empty() {
-            chain_entries.extend(shading.passes.iter().map(|p| p.entry));
-        }
-        lint_program(
-            shading,
-            program,
-            &uses,
-            &mut problems,
-            shading.module,
-            shading.fragment,
-            &chain_entries,
-        );
-    }
-    Ok(problems)
 }
 
 /// A program's passes against their WGSL: every group-3 binding an entry
@@ -341,43 +383,7 @@ pub(super) fn lint_program(
                 ));
             }
         }
-        for (binding, flags) in &used {
-            let Some(d) = declared.iter().find(|d| d.binding == *binding) else {
-                problems.push(format!(
-                    "{label}: binds group 3 binding {binding}, which none of its uses declares"
-                ));
-                continue;
-            };
-            if flags.contains(GlobalUse::WRITE) && !d.access.writes() {
-                problems.push(format!(
-                    "{label}: writes `{}` (binding {binding}), declared {:?}",
-                    d.resource, d.access
-                ));
-            }
-            // naga marks texture atomics; a buffer's atomics are reads and writes.
-            let image = program.images.iter().any(|i| i.name == d.resource);
-            if image
-                && flags.contains(GlobalUse::ATOMIC) != (d.access == Access::Atomic)
-                && !matches!(d.access, Access::Sampler | Access::Uniform)
-            {
-                problems.push(format!(
-                    "{label}: `{}` (binding {binding}) is {}used with atomics, declared {:?}",
-                    d.resource,
-                    if flags.contains(GlobalUse::ATOMIC) {
-                        ""
-                    } else {
-                        "not "
-                    },
-                    d.access
-                ));
-            }
-            if d.access.writes() && !flags.intersects(GlobalUse::WRITE | GlobalUse::ATOMIC) {
-                problems.push(format!(
-                    "{label}: declares `{}` {:?} but only reads it",
-                    d.resource, d.access
-                ));
-            }
-        }
+        check_bindings(label, (program, declared), &used, problems);
         for d in declared {
             if !used.iter().any(|(b, _)| *b == d.binding) {
                 problems.push(format!(
@@ -400,5 +406,56 @@ pub(super) fn lint_program(
         let mut entries = vec![fragment];
         entries.extend(chain_entries.iter().copied());
         check(fragment, &entries, program.scene_uses, true);
+    }
+}
+
+/// Each group-3 binding a program pass uses: one of its declared uses, written only where declared so, with
+/// atomics where declared `Atomic` (an image's), and written where declared writing.
+fn check_bindings(
+    label: &str,
+    (program, declared): (
+        &crate::investigation::ShadingProgram,
+        &[crate::investigation::ProgramUse],
+    ),
+    used: &[(u32, GlobalUse)],
+    problems: &mut Vec<String>,
+) {
+    use crate::investigation::Access;
+    for (binding, flags) in used {
+        let Some(d) = declared.iter().find(|d| d.binding == *binding) else {
+            problems.push(format!(
+                "{label}: binds group 3 binding {binding}, which none of its uses declares"
+            ));
+            continue;
+        };
+        if flags.contains(GlobalUse::WRITE) && !d.access.writes() {
+            problems.push(format!(
+                "{label}: writes `{}` (binding {binding}), declared {:?}",
+                d.resource, d.access
+            ));
+        }
+        // naga marks texture atomics; a buffer's atomics are reads and writes.
+        let image = program.images.iter().any(|i| i.name == d.resource);
+        if image
+            && flags.contains(GlobalUse::ATOMIC) != (d.access == Access::Atomic)
+            && !matches!(d.access, Access::Sampler | Access::Uniform)
+        {
+            problems.push(format!(
+                "{label}: `{}` (binding {binding}) is {}used with atomics, declared {:?}",
+                d.resource,
+                if flags.contains(GlobalUse::ATOMIC) {
+                    ""
+                } else {
+                    "not "
+                },
+                d.access
+            ));
+        }
+        if d.access.writes() && !flags.intersects(GlobalUse::WRITE | GlobalUse::ATOMIC) {
+            problems.push(format!(
+                "{label}: declares `{}` {:?} but only reads it",
+                d.resource, d.access
+            ));
+        }
     }
 }

@@ -321,6 +321,41 @@ impl References {
                 unknown("action", &call.name, actions.iter().cloned(), ""),
             ));
         }
+        Self::check_image(cue)?;
+        self.check_cleanup(cue)?;
+        self.check_text(cue)?;
+        let context = self
+            .context
+            .get_or_insert_with(|| Context::for_demo(current.demos()[0]));
+        context.apply(cue);
+        let context = context.clone();
+        for target in &context.highlight {
+            self.check_highlight(target, &context)?;
+        }
+        // A highlight is set only where it shows: a panel that is hidden, or a readout without a record, draws none,
+        // and the next highlight would replace it unseen.
+        let no_consumer = matches!(context.panel, PanelMode::Hidden | PanelMode::Knowledge)
+            || (matches!(
+                context.panel,
+                PanelMode::Values | PanelMode::Declaration | PanelMode::Memory
+            ) && context.record_name().is_none());
+        if no_consumer && cue.highlight.as_ref().is_some_and(|h| !h.is_empty()) {
+            return Err(CueProblem::new(
+                "story.highlight.unseen",
+                "highlight",
+                format!(
+                    "nothing shows this highlight{}: show its panel in the same cue (panelCode with its listing, a graph or performance panel, or panelValues with a record), or leave the highlight out",
+                    context.description()
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// A cue's image: its click handler (the code's or a script's), the image kind it makes, and how it shows a
+    /// graph resource, each one that exists.
+    fn check_image(cue: &Cue) -> Result<(), CueProblem> {
+        let current = crate::investigation::current();
         if let Some(click) = &cue.image_click {
             let script_clicks = crate::script::runtime::click_handlers();
             if !script_clicks.contains(click) {
@@ -362,33 +397,6 @@ impl References {
                     show,
                     crate::graph::Show::ALL.map(|s| s.key().to_string()),
                     "",
-                ),
-            ));
-        }
-        self.check_cleanup(cue)?;
-        self.check_text(cue)?;
-        let context = self
-            .context
-            .get_or_insert_with(|| Context::for_demo(current.demos()[0]));
-        context.apply(cue);
-        let context = context.clone();
-        for target in &context.highlight {
-            self.check_highlight(target, &context)?;
-        }
-        // A highlight is set only where it shows: a panel that is hidden, or a readout without a record, draws none,
-        // and the next highlight would replace it unseen.
-        let no_consumer = matches!(context.panel, PanelMode::Hidden | PanelMode::Knowledge)
-            || (matches!(
-                context.panel,
-                PanelMode::Values | PanelMode::Declaration | PanelMode::Memory
-            ) && context.record_name().is_none());
-        if no_consumer && cue.highlight.as_ref().is_some_and(|h| !h.is_empty()) {
-            return Err(CueProblem::new(
-                "story.highlight.unseen",
-                "highlight",
-                format!(
-                    "nothing shows this highlight{}: show its panel in the same cue (panelCode with its listing, a graph or performance panel, or panelValues with a record), or leave the highlight out",
-                    context.description()
                 ),
             ));
         }

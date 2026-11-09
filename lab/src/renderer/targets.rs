@@ -230,6 +230,12 @@ pub(super) struct ChainTargets {
     pub(super) scene_group: wgpu::BindGroup,
 }
 
+/// Each chain target's name and divisor of the viewport's size.
+type Divisors = Vec<(&'static str, u32)>;
+
+/// Each chain target's name and view.
+type TargetViews = Vec<(&'static str, wgpu::TextureView)>;
+
 impl ChainTargets {
     pub(super) fn new(
         device: &wgpu::Device,
@@ -238,64 +244,7 @@ impl ChainTargets {
     ) -> ChainTargets {
         let source = shading.source;
         let size = viewport.size;
-        let written: Vec<&str> = source
-            .passes
-            .iter()
-            .flat_map(|p| p.writes.iter().copied())
-            .collect();
-        let divisors: Vec<(&'static str, u32)> = source
-            .targets
-            .iter()
-            .map(|t| {
-                (
-                    t.name,
-                    if source
-                        .resolution
-                        .is_some_and(|r| r.targets.contains(&t.name))
-                    {
-                        shading.scale
-                    } else {
-                        t.divisor
-                    },
-                )
-            })
-            .collect();
-        let views: Vec<(&'static str, wgpu::TextureView)> = source
-            .targets
-            .iter()
-            .zip(&divisors)
-            .map(|(t, &(_, divisor))| {
-                let output = source.attachment(t.name);
-                let mut usage = wgpu::TextureUsages::TEXTURE_BINDING;
-                if output {
-                    usage |= wgpu::TextureUsages::RENDER_ATTACHMENT;
-                }
-                if written.contains(&t.name) {
-                    usage |= wgpu::TextureUsages::STORAGE_BINDING;
-                }
-                let s = if divisor == 1 {
-                    size
-                } else {
-                    [(size[0] / divisor).max(1), (size[1] / divisor).max(1)]
-                };
-                (
-                    t.name,
-                    target(
-                        device,
-                        t.name,
-                        s,
-                        t.format,
-                        if output {
-                            MSAA
-                        } else {
-                            1
-                        },
-                        usage,
-                    )
-                    .create_view(&Default::default()),
-                )
-            })
-            .collect();
+        let (divisors, views) = Self::targets(device, shading, size);
         let tiles = |tile: u32| size[0].div_ceil(tile) as u64 * size[1].div_ceil(tile) as u64;
         let buffers: Vec<(&'static str, wgpu::Buffer)> = source
             .buffers
@@ -312,38 +261,7 @@ impl ChainTargets {
                 )
             })
             .collect();
-        let depth_views = source.depth_views.map(|d| {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some(d.name),
-                size: wgpu::Extent3d {
-                    width: d.size,
-                    height: d.size,
-                    depth_or_array_layers: d.vertices.len() as u32,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: crate::gpu::DEPTH_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            });
-            let all = texture.create_view(&wgpu::TextureViewDescriptor {
-                dimension: Some(wgpu::TextureViewDimension::D2Array),
-                ..Default::default()
-            });
-            let layers = (0..d.vertices.len() as u32)
-                .map(|layer| {
-                    texture.create_view(&wgpu::TextureViewDescriptor {
-                        dimension: Some(wgpu::TextureViewDimension::D2),
-                        base_array_layer: layer,
-                        array_layer_count: Some(1),
-                        ..Default::default()
-                    })
-                })
-                .collect();
-            (all, layers)
-        });
+        let depth_views = Self::depth_views(device, source);
         let resource = |name: &str| -> wgpu::BindingResource {
             if let Some((_, buffer)) = buffers.iter().find(|(n, _)| *n == name) {
                 return buffer.as_entire_binding();
@@ -413,6 +331,114 @@ impl ChainTargets {
             groups,
             scene_group,
         }
+    }
+
+    /// The chain's targets at the viewport's `size`: each one's divisor (the shading's scale, for those its
+    /// resolution scales), and its view.
+    fn targets(
+        device: &wgpu::Device,
+        shading: &Shading,
+        size: [u32; 2],
+    ) -> (Divisors, TargetViews) {
+        let source = shading.source;
+        let written: Vec<&str> = source
+            .passes
+            .iter()
+            .flat_map(|p| p.writes.iter().copied())
+            .collect();
+        let divisors: Vec<(&'static str, u32)> = source
+            .targets
+            .iter()
+            .map(|t| {
+                (
+                    t.name,
+                    if source
+                        .resolution
+                        .is_some_and(|r| r.targets.contains(&t.name))
+                    {
+                        shading.scale
+                    } else {
+                        t.divisor
+                    },
+                )
+            })
+            .collect();
+        let views: Vec<(&'static str, wgpu::TextureView)> = source
+            .targets
+            .iter()
+            .zip(&divisors)
+            .map(|(t, &(_, divisor))| {
+                let output = source.attachment(t.name);
+                let mut usage = wgpu::TextureUsages::TEXTURE_BINDING;
+                if output {
+                    usage |= wgpu::TextureUsages::RENDER_ATTACHMENT;
+                }
+                if written.contains(&t.name) {
+                    usage |= wgpu::TextureUsages::STORAGE_BINDING;
+                }
+                let s = if divisor == 1 {
+                    size
+                } else {
+                    [(size[0] / divisor).max(1), (size[1] / divisor).max(1)]
+                };
+                (
+                    t.name,
+                    target(
+                        device,
+                        t.name,
+                        s,
+                        t.format,
+                        if output {
+                            MSAA
+                        } else {
+                            1
+                        },
+                        usage,
+                    )
+                    .create_view(&Default::default()),
+                )
+            })
+            .collect();
+        (divisors, views)
+    }
+
+    /// The shading's depth views (`DepthViews`): the array, and a view of each layer.
+    fn depth_views(
+        device: &wgpu::Device,
+        source: &SceneShading,
+    ) -> Option<(wgpu::TextureView, Vec<wgpu::TextureView>)> {
+        source.depth_views.map(|d| {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(d.name),
+                size: wgpu::Extent3d {
+                    width: d.size,
+                    height: d.size,
+                    depth_or_array_layers: d.vertices.len() as u32,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: crate::gpu::DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let all = texture.create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                ..Default::default()
+            });
+            let layers = (0..d.vertices.len() as u32)
+                .map(|layer| {
+                    texture.create_view(&wgpu::TextureViewDescriptor {
+                        dimension: Some(wgpu::TextureViewDimension::D2),
+                        base_array_layer: layer,
+                        array_layer_count: Some(1),
+                        ..Default::default()
+                    })
+                })
+                .collect();
+            (all, layers)
+        })
     }
 
     pub(super) fn view(&self, name: &str) -> &wgpu::TextureView {

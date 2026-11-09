@@ -267,42 +267,7 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     out.extend(components);
     out.extend(fields);
     // Dotted keys: an image kind's parameters, and an action's arguments.
-    let mut dotted = BTreeMap::new();
-    let package = investigation.package().unwrap_or("render_lab");
-    for kind in crate::views::kinds(package).map_err(|e| e.to_string())? {
-        for p in &kind.params {
-            merge(
-                &mut dotted,
-                format!("image.{}", p.key),
-                if p.components > 1 {
-                    "vector"
-                } else {
-                    "float"
-                },
-            );
-        }
-    }
-    let script_args: Vec<(String, crate::actions::ArgKind)> = crate::script::runtime::actions()
-        .into_iter()
-        .flat_map(|a| a.args)
-        .map(|a| (a.key, a.kind))
-        .collect();
-    let code_args = investigation
-        .actions()
-        .specs
-        .iter()
-        .flat_map(|s| s.args)
-        .map(|a| (a.key.to_string(), a.kind));
-    for (key, kind) in code_args.chain(script_args) {
-        use crate::actions::ArgKind;
-        let kind = match kind {
-            ArgKind::Number | ArgKind::Index | ArgKind::Integer => "float",
-            ArgKind::Toggle => "bool",
-            ArgKind::Vector(_) => "vector",
-            ArgKind::Name => "text",
-        };
-        merge(&mut dotted, format!("run.{key}"), kind);
-    }
+    let dotted = dotted_keys(investigation)?;
     // A dotted key is named after it (`image.mip` is `imageMip`), or `imageParam…`/`runArg…` where that name is taken.
     let taken: std::collections::BTreeSet<String> = out
         .iter()
@@ -353,6 +318,50 @@ pub fn keys(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     }
     out.extend(heading_keys(false));
     Ok(out)
+}
+
+/// Dotted keys and their types: an image kind's parameters (`image.<param>`), and an action's arguments
+/// (`run.<arg>`), the code's and the scripts'.
+fn dotted_keys(
+    investigation: &dyn Investigation,
+) -> Result<BTreeMap<String, &'static str>, String> {
+    let mut dotted = BTreeMap::new();
+    let package = investigation.package().unwrap_or("render_lab");
+    for kind in crate::views::kinds(package).map_err(|e| e.to_string())? {
+        for p in &kind.params {
+            merge(
+                &mut dotted,
+                format!("image.{}", p.key),
+                if p.components > 1 {
+                    "vector"
+                } else {
+                    "float"
+                },
+            );
+        }
+    }
+    let script_args: Vec<(String, crate::actions::ArgKind)> = crate::script::runtime::actions()
+        .into_iter()
+        .flat_map(|a| a.args)
+        .map(|a| (a.key, a.kind))
+        .collect();
+    let code_args = investigation
+        .actions()
+        .specs
+        .iter()
+        .flat_map(|s| s.args)
+        .map(|a| (a.key.to_string(), a.kind));
+    for (key, kind) in code_args.chain(script_args) {
+        use crate::actions::ArgKind;
+        let kind = match kind {
+            ArgKind::Number | ArgKind::Index | ArgKind::Integer => "float",
+            ArgKind::Toggle => "bool",
+            ArgKind::Vector(_) => "vector",
+            ArgKind::Name => "text",
+        };
+        merge(&mut dotted, format!("run.{key}"), kind);
+    }
+    Ok(dotted)
 }
 
 /// A heading key of `levels` (lamlet-present's: no function; `apply_keys` reads the heading's attribute by its

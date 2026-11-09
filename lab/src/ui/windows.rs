@@ -220,6 +220,20 @@ pub fn arrange(
     }
     // Collapsed windows: their title bars at their edge's corner of the viewport, over it; floating windows
     // where they were dropped, kept on the viewport.
+    place_undocked(&mut frames, (area, free), places, shown);
+    (frames, free)
+}
+
+/// Collapsed windows: their title bars at their edge's corner of the viewport (`free`), over it; floating windows
+/// where they were dropped, kept on the viewport (on the whole `area` when the viewport is too small).
+fn place_undocked(
+    frames: &mut [Option<WindowFrame>; 3],
+    (area, free): (Rect, Rect),
+    places: &[WindowPlace; 3],
+    shown: Shown,
+) {
+    let visible = |id: WindowId| shown.has(id) && places[id.index()].open;
+    let wide = |id: WindowId| id == WindowId::Panel && shown.wide;
     let mut corners = [free.min.y; 2];
     for id in WindowId::ALL.into_iter().filter(|id| visible(*id)) {
         let p = &places[id.index()];
@@ -271,7 +285,6 @@ pub fn arrange(
             ));
         }
     }
-    (frames, free)
 }
 
 /// `rect` cut into `n` equal parts, side by side (`across`) or stacked, `GAP` apart.

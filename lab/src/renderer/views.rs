@@ -78,7 +78,6 @@ impl Renderer {
             self.egui_renderer.free_texture(&view.id);
             self.textures.remove(&view_texture(&name));
         }
-        let device = &self.gpu.device;
         let viewport = self.viewport.as_ref().map_or([0, 0], |v| v.size);
         for (name, kind, params) in shown {
             let kind = crate::views::kind(package, kind).unwrap_or_else(|e| panic!("{e}"));
@@ -93,67 +92,71 @@ impl Renderer {
                 }
             }
             if !self.views.contains_key(name) {
-                let texture = device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some(name),
-                    size: wgpu::Extent3d {
-                        width: size[0],
-                        height: size[1],
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING
-                        | wgpu::TextureUsages::TEXTURE_BINDING,
-                    view_formats: &[],
-                });
-                // The entry point writes display colours, shown as they are (as a CPU picture's pixels are).
-                let storage = texture.create_view(&Default::default());
-                let shown = texture.create_view(&Default::default());
-                let params = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some(name),
-                    size: kind.params_size.max(16) as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(name),
-                    layout: &self.view_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&storage),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: params.as_entire_binding(),
-                        },
-                    ],
-                });
-                let id = self.egui_renderer.register_native_texture(
-                    device,
-                    &shown,
-                    wgpu::FilterMode::Linear,
-                );
-                self.textures.insert(view_texture(name), (id, size));
-                self.views.insert(
-                    name.to_string(),
-                    ViewInstance {
-                        kind,
-                        _texture: texture,
-                        size,
-                        params,
-                        group,
-                        id,
-                    },
-                );
+                self.make_view(name, kind, size);
             }
             let view = &self.views[name];
             self.gpu
                 .queue
                 .write_buffer(&view.params, 0, &view.kind.pack(params));
         }
+    }
+
+    /// An instance `name` of the image kind `kind`: its texture (`size` texels), its parameters, and its group.
+    fn make_view(&mut self, name: &str, kind: &'static crate::views::ViewKind, size: [u32; 2]) {
+        use crate::utility::inset::view_texture;
+        let device = &self.gpu.device;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(name),
+            size: wgpu::Extent3d {
+                width: size[0],
+                height: size[1],
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        // The entry point writes display colours, shown as they are (as a CPU picture's pixels are).
+        let storage = texture.create_view(&Default::default());
+        let shown = texture.create_view(&Default::default());
+        let params = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(name),
+            size: kind.params_size.max(16) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some(name),
+            layout: &self.view_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&storage),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: params.as_entire_binding(),
+                },
+            ],
+        });
+        let id =
+            self.egui_renderer
+                .register_native_texture(device, &shown, wgpu::FilterMode::Linear);
+        self.textures.insert(view_texture(name), (id, size));
+        self.views.insert(
+            name.to_string(),
+            ViewInstance {
+                kind,
+                _texture: texture,
+                size,
+                params,
+                group,
+                id,
+            },
+        );
     }
 
     /// Runs each image instance's entry point into its texture: before the
@@ -167,42 +170,7 @@ impl Renderer {
         {
             return;
         }
-        let shading = match self.shading().map(|s| s.group.clone()) {
-            Some(group) => group,
-            None => self
-                .view_shading
-                .get_or_insert_with(|| {
-                    let device = &self.gpu.device;
-                    let storage = |label| {
-                        device.create_buffer(&wgpu::BufferDescriptor {
-                            label: Some(label),
-                            size: 16,
-                            usage: wgpu::BufferUsages::STORAGE,
-                            mapped_at_creation: false,
-                        })
-                    };
-                    let (data, frame) = (storage("no shading data"), storage("no shading frame"));
-                    device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("no scene shading"),
-                        layout: &self.pipelines.shading_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: self.shading_uniforms.as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: data.as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 2,
-                                resource: frame.as_entire_binding(),
-                            },
-                        ],
-                    })
-                })
-                .clone(),
-        };
+        let shading = self.view_shading_group();
         let device = &self.gpu.device;
         // The chain an after-chain kind reads: the current shading's, when it has one.
         let source = investigation::current().scene_shading();
@@ -293,6 +261,46 @@ impl Renderer {
                 view.size[1].div_ceil(kind.workgroup[1].max(1)),
                 1,
             );
+        }
+    }
+
+    /// Group 1 of the image kinds' passes: the current shading's, or an empty one of its layout without a shading.
+    fn view_shading_group(&mut self) -> wgpu::BindGroup {
+        match self.shading().map(|s| s.group.clone()) {
+            Some(group) => group,
+            None => self
+                .view_shading
+                .get_or_insert_with(|| {
+                    let device = &self.gpu.device;
+                    let storage = |label| {
+                        device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some(label),
+                            size: 16,
+                            usage: wgpu::BufferUsages::STORAGE,
+                            mapped_at_creation: false,
+                        })
+                    };
+                    let (data, frame) = (storage("no shading data"), storage("no shading frame"));
+                    device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("no scene shading"),
+                        layout: &self.pipelines.shading_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: self.shading_uniforms.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: data.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: frame.as_entire_binding(),
+                            },
+                        ],
+                    })
+                })
+                .clone(),
         }
     }
 }

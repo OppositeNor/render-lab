@@ -39,6 +39,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+mod overlays;
+mod writes;
+pub use overlays::*;
+pub use writes::*;
+
 /// The resource that holds the runtime library.
 pub const LIBRARY: &str = "render_lab.script/runtime";
 /// The runtime library's Lamlet package.
@@ -598,6 +603,76 @@ fn library_type(library: &Document, name: &str) -> Result<TypeDesc, String> {
     }
 }
 
+/// The error for a function `named` that returns what a hook returns (`ret`) but takes what none takes
+/// (`params`); Ok when it returns no hook's type.
+fn wrong_hook(
+    key: &str,
+    named: &str,
+    params: &[TypeDesc],
+    ret: &TypeDesc,
+    types: &HookTypes,
+) -> Result<(), String> {
+    let Some(returns) = [
+        (&types.shapes, "Shape"),
+        (&types.rows, "Row"),
+        (&types.writes, "Write"),
+    ]
+    .into_iter()
+    .find(|(t, _)| *t == ret)
+    .map(|(_, n)| n) else {
+        return Ok(());
+    };
+    let expected = if returns == "Write" {
+        "(Click) for a click handler, (Float) for an animation, or (Float, a record) for an \
+         action"
+    } else {
+        "(Float)"
+    };
+    let takes = params
+        .iter()
+        .map(|p| match p == &types.click {
+            true => "Click".to_string(),
+            false => p.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!(
+        "{key}: `{named}` returns List({returns}) as a hook does, but takes ({takes}); a hook \
+         returning List({returns}) takes {expected} (render_lab_runtime). A helper's name \
+         starts with `_`"
+    ))
+}
+
+/// The types a hook's signature is told by, from the runtime library.
+struct HookTypes {
+    shapes: TypeDesc,
+    rows: TypeDesc,
+    writes: TypeDesc,
+    click: TypeDesc,
+}
+
+impl HookTypes {
+    fn of(engine: &Engine, sources: &Sources) -> Result<HookTypes, String> {
+        let library = sources
+            .packages
+            .iter()
+            .find(|p| p.name == LIBRARY_PACKAGE)
+            .expect("the runtime library");
+        let library = engine
+            .check(SourceFile::new(
+                library.file.clone(),
+                library.source.clone(),
+            ))
+            .map_err(|e| e.render())?;
+        Ok(HookTypes {
+            shapes: TypeDesc::List(Rc::new(library_type(&library, "Shape")?)),
+            rows: TypeDesc::List(Rc::new(library_type(&library, "Row")?)),
+            writes: TypeDesc::List(Rc::new(library_type(&library, "Write")?)),
+            click: library_type(&library, "Click")?,
+        })
+    }
+}
+
 impl Runtime {
     /// `investigation`'s scripts checked, or None when its package has none.
     fn load(investigation: &'static dyn Investigation) -> Result<Option<Runtime>, String> {
@@ -611,23 +686,7 @@ impl Runtime {
             return Ok(None);
         }
         let (engine, sources) = engine(investigation)?;
-        let library = sources
-            .packages
-            .iter()
-            .find(|p| p.name == LIBRARY_PACKAGE)
-            .expect("the runtime library");
-        let library = engine
-            .check(SourceFile::new(
-                library.file.clone(),
-                library.source.clone(),
-            ))
-            .map_err(|e| e.render())?;
-        let shape = library_type(&library, "Shape")?;
-        let write = library_type(&library, "Write")?;
-        let click = library_type(&library, "Click")?;
-        let rows = TypeDesc::List(Rc::new(library_type(&library, "Row")?));
-        let shapes = TypeDesc::List(Rc::new(shape));
-        let writes = TypeDesc::List(Rc::new(write));
+        let types = HookTypes::of(&engine, &sources)?;
         let mut runtime = Runtime {
             package: package.to_string(),
             modules: Vec::new(),
@@ -647,122 +706,99 @@ impl Runtime {
                 .iter()
                 .find(|p| &p.name == name)
                 .expect("a script's source");
-            let document = runtime
-                .engine
-                .check(SourceFile::new(source.file.clone(), source.source.clone()))
-                .map_err(|e| e.render())?;
-            let mut instance = runtime.engine.instance(&document).map_err(|e| e.render())?;
-            instance.set_limits(limits());
-            let module = runtime.modules.len();
-            let own = declared_names(&document, &source.source);
-            for binding in document.bindings() {
-                // A hook is the script's own binding, not one it imports.
-                if binding.name.starts_with('_') || !own.contains(&binding.name) {
-                    continue;
-                }
-                let Some(TypeDesc::Func(params, ret)) = &binding.ty else {
-                    // A generic function (a parameter it never constrains) has no hook's type.
-                    if binding.ty.is_none()
-                        && matches!(binding.value, Value::Closure(_) | Value::Native(_))
-                    {
-                        return Err(format!(
-                            "{key}: `{}` is a generic function ({}), never called as a hook; ascribe a hook's \
-                             type (render_lab_runtime), or start a helper's name with `_`",
-                            binding.name, binding.type_text
-                        ));
-                    }
-                    continue;
-                };
-                let named = binding.name.clone();
-                let taken = |m: &BTreeMap<String, Hook>| m.contains_key(&named);
-                match params.as_slice() {
-                    [TypeDesc::Float] if **ret == shapes => {
-                        runtime.overlays.push(Hook { module, binding })
-                    }
-                    [TypeDesc::Float] if **ret == rows => {
-                        runtime.readouts.push(Hook { module, binding })
-                    }
-                    [p] if **ret == writes && *p == click => {
-                        if taken(&runtime.clicks) {
-                            return Err(format!("{key}: a second click handler `{named}`"));
-                        }
-                        runtime.clicks.insert(named, Hook { module, binding });
-                    }
-                    [TypeDesc::Float] if **ret == writes => {
-                        if taken(&runtime.animations) {
-                            return Err(format!("{key}: a second animation `{named}`"));
-                        }
-                        runtime.animations.insert(named, Hook { module, binding });
-                    }
-                    [TypeDesc::Float, TypeDesc::Record(fields)] if **ret == writes => {
-                        if runtime.actions.contains_key(&named) {
-                            return Err(format!("{key}: a second action `{named}`"));
-                        }
-                        let args = fields
-                            .iter()
-                            .map(|(l, t)| ScriptArg::of(l, t))
-                            .collect::<Result<Vec<_>, _>>()
-                            .map_err(|e| format!("{key}: the action `{named}`: {e}"))?;
-                        runtime
-                            .actions
-                            .insert(named, (Hook { module, binding }, args));
-                    }
-                    // A function that returns what a hook returns but takes what none takes is a hook whose
-                    // signature is wrong: refused, rather than never called.
-                    _ => {
-                        let Some(returns) =
-                            [(&shapes, "Shape"), (&rows, "Row"), (&writes, "Write")]
-                                .into_iter()
-                                .find(|(t, _)| **t == **ret)
-                                .map(|(_, n)| n)
-                        else {
-                            continue;
-                        };
-                        let expected = if returns == "Write" {
-                            "(Click) for a click handler, (Float) for an animation, or (Float, a record) for an \
-                             action"
-                        } else {
-                            "(Float)"
-                        };
-                        let takes = params
-                            .iter()
-                            .map(|p| match p == &click {
-                                true => "Click".to_string(),
-                                false => p.to_string(),
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        return Err(format!(
-                            "{key}: `{named}` returns List({returns}) as a hook does, but takes ({takes}); a hook \
-                             returning List({returns}) takes {expected} (render_lab_runtime). A helper's name \
-                             starts with `_`"
-                        ));
-                    }
-                }
-            }
-            runtime.modules.push(Module {
-                name: key.clone(),
-                instance,
-                _document: document,
-            });
+            runtime.add_module(key, source, &types)?;
         }
+        runtime.check_names(investigation)?;
+        Ok(Some(runtime))
+    }
+
+    /// The script `key` (its package `source`) checked, its hooks added.
+    fn add_module(&mut self, key: &str, source: &Package, types: &HookTypes) -> Result<(), String> {
+        let document = self
+            .engine
+            .check(SourceFile::new(source.file.clone(), source.source.clone()))
+            .map_err(|e| e.render())?;
+        let mut instance = self.engine.instance(&document).map_err(|e| e.render())?;
+        instance.set_limits(limits());
+        let module = self.modules.len();
+        let own = declared_names(&document, &source.source);
+        for binding in document.bindings() {
+            // A hook is the script's own binding, not one it imports.
+            if binding.name.starts_with('_') || !own.contains(&binding.name) {
+                continue;
+            }
+            self.add_hook(key, Hook { module, binding }, types)?;
+        }
+        self.modules.push(Module {
+            name: key.to_string(),
+            instance,
+            _document: document,
+        });
+        Ok(())
+    }
+
+    /// A binding of the script `key` added as the hook its type makes it, if it is one.
+    fn add_hook(&mut self, key: &str, hook: Hook, types: &HookTypes) -> Result<(), String> {
+        let binding = &hook.binding;
+        let Some(TypeDesc::Func(params, ret)) = &binding.ty else {
+            // A generic function (a parameter it never constrains) has no hook's type.
+            if binding.ty.is_none() && matches!(binding.value, Value::Closure(_) | Value::Native(_))
+            {
+                return Err(format!(
+                    "{key}: `{}` is a generic function ({}), never called as a hook; ascribe a hook's \
+                     type (render_lab_runtime), or start a helper's name with `_`",
+                    binding.name, binding.type_text
+                ));
+            }
+            return Ok(());
+        };
+        let (params, ret) = (params.clone(), ret.clone());
+        let named = binding.name.clone();
+        let taken = |m: &BTreeMap<String, Hook>| m.contains_key(&named);
+        match params.as_slice() {
+            [TypeDesc::Float] if *ret == types.shapes => self.overlays.push(hook),
+            [TypeDesc::Float] if *ret == types.rows => self.readouts.push(hook),
+            [p] if *ret == types.writes && *p == types.click => {
+                if taken(&self.clicks) {
+                    return Err(format!("{key}: a second click handler `{named}`"));
+                }
+                self.clicks.insert(named, hook);
+            }
+            [TypeDesc::Float] if *ret == types.writes => {
+                if taken(&self.animations) {
+                    return Err(format!("{key}: a second animation `{named}`"));
+                }
+                self.animations.insert(named, hook);
+            }
+            [TypeDesc::Float, TypeDesc::Record(fields)] if *ret == types.writes => {
+                if self.actions.contains_key(&named) {
+                    return Err(format!("{key}: a second action `{named}`"));
+                }
+                let args = fields
+                    .iter()
+                    .map(|(l, t)| ScriptArg::of(l, t))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| format!("{key}: the action `{named}`: {e}"))?;
+                self.actions.insert(named, (hook, args));
+            }
+            // A function that returns what a hook returns but takes what none takes is a hook whose
+            // signature is wrong: refused, rather than never called.
+            _ => return wrong_hook(key, &named, &params, &ret, types),
+        }
+        Ok(())
+    }
+
+    /// Refuses a name both the scripts and the code take, and a demonstration's animation the scripts lack.
+    fn check_names(&self, investigation: &'static dyn Investigation) -> Result<(), String> {
         // A name is the scripts' or the code's, not both.
         let code = investigation.actions();
-        if let Some(c) = code
-            .clicks
-            .iter()
-            .find(|c| runtime.clicks.contains_key(c.key))
-        {
+        if let Some(c) = code.clicks.iter().find(|c| self.clicks.contains_key(c.key)) {
             return Err(format!(
                 "the click handler `{}` is both a script's and the investigation's code's (`#[click]`)",
                 c.key
             ));
         }
-        if let Some(a) = code
-            .specs
-            .iter()
-            .find(|a| runtime.actions.contains_key(a.key))
-        {
+        if let Some(a) = code.specs.iter().find(|a| self.actions.contains_key(a.key)) {
             return Err(format!(
                 "the action `{}` is both a script's and the investigation's code's (`#[action]`)",
                 a.key
@@ -771,11 +807,8 @@ impl Runtime {
         // A demonstration's animation is one of the scripts'.
         if let Some(demos) = investigation.demo_specs() {
             for spec in &demos.specs {
-                if let Some(name) = spec
-                    .animation
-                    .filter(|n| !runtime.animations.contains_key(*n))
-                {
-                    let known: Vec<&str> = runtime.animations.keys().map(String::as_str).collect();
+                if let Some(name) = spec.animation.filter(|n| !self.animations.contains_key(*n)) {
+                    let known: Vec<&str> = self.animations.keys().map(String::as_str).collect();
                     return Err(format!(
                         "demonstration `{}`: no animation `{name}` in the scripts (theirs: {})",
                         spec.id.key(),
@@ -784,7 +817,7 @@ impl Runtime {
                 }
             }
         }
-        Ok(Some(runtime))
+        Ok(())
     }
 
     /// The hook `kind` names, if the scripts have it.
@@ -965,863 +998,5 @@ pub fn check() -> Result<Vec<String>, String> {
     Ok(hooks)
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// Overlays
-
-/// A shape an overlay drew, decoded before any is drawn.
-#[derive(Clone, Debug)]
-enum Shape {
-    Segment {
-        from: Vec3,
-        to: Vec3,
-        color: Color32,
-        alpha: f32,
-        width: f32,
-        flags: u32,
-    },
-    Point {
-        at: Vec3,
-        radius: f32,
-        color: Color32,
-        alpha: f32,
-    },
-    Label {
-        at: Vec3,
-        text: String,
-        color: Color32,
-    },
-}
-
-fn field<'a>(d: &'a Data, label: &str) -> Result<&'a Data, String> {
-    match d {
-        Data::Record(fields) => fields
-            .get(label)
-            .ok_or_else(|| format!("no field `{label}`")),
-        _ => Err(format!("not a record (reading `{label}`)")),
-    }
-}
-
-fn number(d: &Data, label: &str) -> Result<f32, String> {
-    match field(d, label)? {
-        Data::Float(x) => Ok(*x as f32),
-        other => Err(format!("`{label}` is {other:?}, not a Float")),
-    }
-}
-
-fn flag(d: &Data, label: &str) -> Result<bool, String> {
-    match field(d, label)? {
-        Data::Bool(b) => Ok(*b),
-        other => Err(format!("`{label}` is {other:?}, not a Bool")),
-    }
-}
-
-fn text<'a>(d: &'a Data, label: &str) -> Result<&'a str, String> {
-    match field(d, label)? {
-        Data::String(s) => Ok(s),
-        other => Err(format!("`{label}` is {other:?}, not a String")),
-    }
-}
-
-fn point(d: &Data, label: &str) -> Result<Vec3, String> {
-    let p = field(d, label)?;
-    Ok(Vec3::new(number(p, "x")?, number(p, "y")?, number(p, "z")?))
-}
-
-/// `#rrggbb`, or a colour of the lab's theme by name: `text`, `textDim`, `textFaint`, `accent`.
-fn color(d: &Data) -> Result<Color32, String> {
-    let s = text(d, "color")?;
-    use crate::palette;
-    match s {
-        "text" => return Ok(palette::text()),
-        "textDim" => return Ok(palette::text_dim()),
-        "textFaint" => return Ok(palette::text_faint()),
-        "accent" => return Ok(palette::accent()),
-        _ => {}
-    }
-    let hex = s
-        .strip_prefix('#')
-        .filter(|h| h.len() == 6)
-        .and_then(|h| u32::from_str_radix(h, 16).ok())
-        .ok_or_else(|| format!("the colour {s:?} is not #rrggbb"))?;
-    Ok(crate::palette::rgb(hex))
-}
-
-/// The overlay's shapes, each checked; a label's text key looked up in `package`'s text, then the lab's.
-fn shapes(list: &Data, package: &str) -> Result<Vec<Shape>, String> {
-    let Data::List(items) = list else {
-        return Err("an overlay returns a list".into());
-    };
-    items
-        .iter()
-        .map(|item| {
-            let Data::Variant(tag, d) = item else {
-                return Err(format!("{item:?} is not a Shape"));
-            };
-            Ok(match tag.as_str() {
-                "segment" => {
-                    let flags = if flag(d, "arrow")? {
-                        FLAG_ARROW
-                    } else {
-                        0
-                    } | if flag(d, "dashed")? {
-                        FLAG_DASHED
-                    } else {
-                        0
-                    };
-                    Shape::Segment {
-                        from: point(d, "from")?,
-                        to: point(d, "to")?,
-                        color: color(d)?,
-                        alpha: number(d, "alpha")?,
-                        width: number(d, "width")?,
-                        flags,
-                    }
-                }
-                "point" => Shape::Point {
-                    at: point(d, "at")?,
-                    radius: number(d, "radius")?,
-                    color: color(d)?,
-                    alpha: number(d, "alpha")?,
-                },
-                "label" => Shape::Label {
-                    at: point(d, "at")?,
-                    text: text(d, "text")?.to_string(),
-                    color: color(d)?,
-                },
-                "labelText" => {
-                    let key = text(d, "text")?;
-                    let text = crate::i18n::try_package_text(package, key)
-                        .or_else(|| crate::i18n::try_package_text("render_lab", key))
-                        .ok_or_else(|| {
-                            format!("no text `{key}` in {package}'s text table or the lab's")
-                        })?;
-                    Shape::Label {
-                        at: point(d, "at")?,
-                        text: text.to_string(),
-                        color: color(d)?,
-                    }
-                }
-                other => return Err(format!("no shape `{other}`")),
-            })
-        })
-        .collect()
-}
-
-/// A readout hook's rows, each checked.
-fn readout_rows(list: &Data) -> Result<Vec<(String, String, Color32)>, String> {
-    let Data::List(items) = list else {
-        return Err("a readout returns a list of Rows".into());
-    };
-    items
-        .iter()
-        .map(|r| {
-            Ok((
-                text(r, "name")?.to_string(),
-                text(r, "value")?.to_string(),
-                color(r)?,
-            ))
-        })
-        .collect()
-}
-
-/// Draws `shapes` at `at` in the frame's lists (`FrameContent::overlay_at`), or after everything; returns where they
-/// end, so the next overlay follows them.
-fn draw(shapes: &[Shape], content: &mut FrameContent, at: Option<DrawMark>) -> Option<DrawMark> {
-    let mut drawn = FrameContent::new(Vec::new(), content.uniforms);
-    for s in shapes {
-        match s {
-            Shape::Segment {
-                from,
-                to,
-                color,
-                alpha,
-                width,
-                flags,
-            } => drawn
-                .draw
-                .segment(*from, *to, *color, *alpha, *width, *flags),
-            Shape::Point {
-                at,
-                radius,
-                color,
-                alpha,
-            } => drawn.draw.point(*at, *radius, *color, *alpha),
-            Shape::Label { at, text, color } => drawn.labels.push(Label {
-                anchor: *at,
-                text: text.clone(),
-                color: *color,
-            }),
-        }
-    }
-    let Some(at) = at else {
-        content.draw.segments.extend(drawn.draw.segments);
-        content.draw.points.extend(drawn.draw.points);
-        content.labels.extend(drawn.labels);
-        return None;
-    };
-    let end = DrawMark {
-        segments: at.segments + drawn.draw.segments.len(),
-        points: at.points + drawn.draw.points.len(),
-        labels: at.labels + drawn.labels.len(),
-    };
-    content
-        .draw
-        .segments
-        .splice(at.segments..at.segments, drawn.draw.segments);
-    content
-        .draw
-        .points
-        .splice(at.points..at.points, drawn.draw.points);
-    content.labels.splice(at.labels..at.labels, drawn.labels);
-    Some(end)
-}
-
-/// Draws the current investigation's overlays over `content` (after its `build_frame`) and adds its readouts' rows,
-/// at `time` seconds, and shows the message of a failing hook. Nothing without scripts.
-pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent, time: f32) {
-    let view = crate::view::name();
-    let mut at = content.overlay_at.filter(|m| {
-        m.segments <= content.draw.segments.len()
-            && m.points <= content.draw.points.len()
-            && m.labels <= content.labels.len()
-    });
-    let result = with_runtime(|rt| {
-        for i in 0..rt.overlays.len() {
-            let name = Kind::Overlay(i).to_string();
-            let drawn = rt
-                .call(
-                    &Kind::Overlay(i),
-                    vec![Value::Float(time as f64)],
-                    state,
-                    Some(content),
-                    Some(statics),
-                )
-                .and_then(|d| shapes(&d, &rt.package));
-            match drawn {
-                Ok(s) => {
-                    rt.succeeded(&name);
-                    rt.last.insert((i, view), s);
-                }
-                Err(e) => rt.failed(&name, e),
-            }
-            if let Some(s) = rt.last.get(&(i, view)) {
-                at = draw(s, content, at);
-            }
-        }
-        for i in 0..rt.readouts.len() {
-            let name = Kind::Readout(i).to_string();
-            let rows = rt
-                .call(
-                    &Kind::Readout(i),
-                    vec![Value::Float(time as f64)],
-                    state,
-                    Some(content),
-                    Some(statics),
-                )
-                .and_then(|d| readout_rows(&d));
-            match rows {
-                Ok(rows) => {
-                    rt.succeeded(&name);
-                    content
-                        .readout
-                        .get_or_insert_with(Default::default)
-                        .rows
-                        .extend(rows);
-                }
-                Err(e) => rt.failed(&name, e),
-            }
-        }
-        rt.errors.values().cloned().collect::<Vec<_>>()
-    });
-    let errors = match result {
-        Ok(errors) => errors.unwrap_or_default(),
-        Err(e) => vec![e],
-    };
-    for e in errors {
-        content.notes.push((
-            crate::i18n::tr_with(
-                "script-error",
-                crate::args!(message = e.lines().next().unwrap_or_default()),
-            ),
-            crate::palette::MISMATCH,
-        ));
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// Writes
-
-/// A hook's writes, each checked against the key's declaration (its type, a whole number's range, a choice's
-/// options) before any is applied: the key and its value, or a component's number.
-fn writes(list: &Data) -> Result<Vec<(String, Written)>, String> {
-    let Data::List(items) = list else {
-        return Err("a hook returns a list of Writes".into());
-    };
-    items
-        .iter()
-        .map(|w| {
-            let key = text(w, "key")?.to_string();
-            let value = field(w, "value")?;
-            let entry =
-                values::entry(&key).ok_or_else(|| format!("the shot has no value `{key}`"))?;
-            let written = if entry.key != key {
-                // A vector's component.
-                Written::Number(match value {
-                    Data::Float(x) => *x as f32,
-                    other => return Err(format!("`{key}` is a number, not {other:?}")),
-                })
-            } else {
-                Written::Value(typed(&key, entry, value)?)
-            };
-            Ok((key, written))
-        })
-        .collect()
-}
-
-/// A value a hook writes.
-enum Written {
-    Value(LabValue),
-    /// A vector's component, set by itself.
-    Number(f32),
-}
-
-/// `value` as `entry`'s type.
-fn typed(key: &str, entry: &values::Entry, value: &Data) -> Result<LabValue, String> {
-    let wrong = || format!("`{key}` is a {}, not {value:?}", entry.ty.name());
-    let whole = |n: i64, lo: i64, hi: i64| {
-        if (lo..=hi).contains(&n) {
-            Ok(n)
-        } else {
-            Err(format!(
-                "`{key}` is a {}: {n} is out of its range",
-                entry.ty.name()
-            ))
-        }
-    };
-    if let Some(c) = entry.choices {
-        let index = match value {
-            Data::String(name) => c.index(name).ok_or_else(|| {
-                format!(
-                    "`{key}` has no option `{name}` (its options: {})",
-                    c.names()
-                )
-            })? as i64,
-            _ => return Err(wrong()),
-        };
-        return Ok(match entry.ty {
-            Type::I32 => LabValue::I32(index as i32),
-            _ => LabValue::U32(index as u32),
-        });
-    }
-    let vector = |n: usize| -> Result<Vec<f32>, String> {
-        ["x", "y", "z", "w"][..n]
-            .iter()
-            .map(|c| number(value, c))
-            .collect()
-    };
-    Ok(match (entry.ty, value) {
-        (Type::F32, Data::Float(x)) => LabValue::F32(*x as f32),
-        (Type::I32, Data::Int(n)) => {
-            LabValue::I32(whole(*n, i32::MIN as i64, i32::MAX as i64)? as i32)
-        }
-        (Type::U32, Data::Int(n)) => LabValue::U32(whole(*n, 0, u32::MAX as i64)? as u32),
-        (Type::Bool, Data::Bool(b)) => LabValue::Bool(*b),
-        (Type::Vec2, Data::Record(_)) => {
-            LabValue::Vec2(vector(2)?.try_into().expect("two numbers"))
-        }
-        (Type::Vec3, Data::Record(_)) => {
-            LabValue::Vec3(vector(3)?.try_into().expect("three numbers"))
-        }
-        (Type::Vec4, Data::Record(_)) => {
-            LabValue::Vec4(vector(4)?.try_into().expect("four numbers"))
-        }
-        _ => return Err(wrong()),
-    })
-}
-
-/// Applies checked writes, in order: whether there were any.
-fn apply(writes: &[(String, Written)], state: &mut ShotState) -> bool {
-    for (key, w) in writes {
-        match w {
-            Written::Value(v) => state.set_value(key, *v),
-            Written::Number(x) => state.set(key, *x),
-        }
-    }
-    !writes.is_empty()
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// Clicks
-
-crate::lamlet_record! {
-    /// Where a ray from the camera hits the scene (`rl_runtime/trace`).
-    pub struct Hit {
-        pub point: V3 = "point",
-        /// The surface's normal there, as the object gives it (it may face away from the ray).
-        pub normal: V3 = "normal",
-        /// The ray's direction.
-        pub dir: V3 = "dir",
-        /// The object's index in the scene.
-        pub object: i64 = "object",
-        /// The object's name (`sphere`).
-        pub name: String = "name",
-    }
-}
-
-/// The ray from the frame's camera through `uv` (0..1 across and down) into its objects, skipping the objects named
-/// in `skip` (a name the scene lacks skips nothing: the investigation's scenes differ).
-fn trace(u: f64, v: f64, skip: &[String]) -> Result<Option<Hit>, String> {
-    let names: Vec<&'static str> = statics(|s| s.scene.objects.iter().map(|o| o.name).collect())?;
-    frame(|content| {
-        let camera = &content.uniforms.camera;
-        let (origin, dir) = crate::camera::Projector::new(camera)
-            .ray(glam::Vec2::new(u as f32, v as f32) * glam::Vec2::from(camera.viewport_size));
-        let mut best: Option<(f32, Vec3, usize)> = None;
-        for (i, o) in content.objects.iter().enumerate() {
-            if names.get(i).is_some_and(|n| skip.iter().any(|s| s == n)) {
-                continue;
-            }
-            if let Some((t, n)) =
-                crate::scene::intersect_object(o, origin, dir, best.map_or(100.0, |b| b.0))
-            {
-                best = Some((t, n, i));
-            }
-        }
-        best.map(|(t, n, i)| Hit {
-            point: V3(origin + dir * t),
-            normal: V3(n),
-            dir: V3(dir),
-            object: i as i64,
-            name: names.get(i).copied().unwrap_or_default().to_string(),
-        })
-    })
-}
-
-/// Registers the natives that read the frame (`rl_runtime/trace`, `rl_runtime/viewport`).
-fn register_frame_natives(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
-    engine
-        .natives_mut()
-        .function("rl_runtime/trace", |_, (u, v, skip): (f64, f64, Vec<String>)| trace(u, v, &skip))
-        .doc("Fn([Float, Float, List(String)], Option(Hit)). Where the ray from the frame's camera through (u, v) (0 to 1 across and down) first hits the scene, past the objects named in `skip` (names the scene lacks are ignored).")
-        .register()?;
-    engine
-        .natives_mut()
-        .function("rl_runtime/viewport", |_, ()| frame(|content| V2(glam::Vec2::from(content.uniforms.camera.viewport_size))))
-        .doc("Fn([], Vec2). The frame's viewport in pixels: a click at (u, v) is at pixel (u x, v y).")
-        .register()?;
-    Ok(())
-}
-
-/// The scripts' click handlers, by name (a story gives one to an image: `imageClick`).
-pub fn click_handlers() -> Vec<String> {
-    with_runtime(|rt| rt.clicks.keys().cloned().collect())
-        .ok()
-        .flatten()
-        .unwrap_or_default()
-}
-
-/// Runs the scripts' click handler `key` on `frame` (a click at `frame.uv` on the picture of `frame.content`):
-/// whether it set anything; None when the scripts have no such handler. The handler named `scene` takes a click
-/// on the scene itself, before `Investigation::click`.
-pub fn click(key: &str, frame: &mut crate::actions::ClickFrame) -> Option<bool> {
-    let click = lamlet::embed::record()
-        .field("u", frame.uv.x as f64)
-        .field("v", frame.uv.y as f64)
-        .build()
-        .ok()?;
-    let (shown, content, statics) = (frame.shown, frame.content, frame.statics);
-    with_runtime(|rt| {
-        rt.run(
-            Kind::Click(key.to_string()),
-            vec![click],
-            shown,
-            Some(content),
-            Some(statics),
-            frame.state,
-        )
-    })
-    .ok()
-    .flatten()
-    .flatten()
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// Actions
-
-/// An argument of a script action: a field of its `Args` record. Its type gives its kind as a story writes it:
-/// `Float` a number, `Int` a whole number, `Bool` true or false, `String` a name, `Vec2`/`Vec3` numbers;
-/// `Option(T)` an optional one.
-#[derive(Clone, Debug)]
-pub struct ScriptArg {
-    pub key: String,
-    pub kind: crate::actions::ArgKind,
-    pub required: bool,
-    ty: TypeDesc,
-}
-
-impl ScriptArg {
-    fn of(key: &str, ty: &TypeDesc) -> Result<ScriptArg, String> {
-        use crate::actions::ArgKind;
-        let (inner, required) = match ty {
-            TypeDesc::Variant(alts)
-                if alts.len() == 2
-                    && &*alts[0].0 == "none"
-                    && alts[0].1 == TypeDesc::Unit
-                    && &*alts[1].0 == "some" =>
-            {
-                (&alts[1].1, false)
-            }
-            other => (other, true),
-        };
-        let kind = match inner {
-            TypeDesc::Float => ArgKind::Number,
-            TypeDesc::Int => ArgKind::Integer,
-            TypeDesc::Bool => ArgKind::Toggle,
-            TypeDesc::String => ArgKind::Name,
-            TypeDesc::Record(fields)
-                if *inner == floats(&["x", "y"]) || *inner == floats(&["x", "y", "z"]) =>
-            {
-                ArgKind::Vector(fields.len())
-            }
-            other => {
-                return Err(format!(
-                    "the argument `{key}` is a {other}; an argument is a Float, an Int, a Bool, a String, a Vec2 or Vec3, or an Option of one"
-                ));
-            }
-        };
-        Ok(ScriptArg {
-            key: key.to_string(),
-            kind,
-            required,
-            ty: inner.clone(),
-        })
-    }
-
-    pub fn describe(&self) -> String {
-        format!(
-            "{}: {}{}",
-            self.key,
-            self.kind.describe(),
-            if self.required {
-                ""
-            } else {
-                " (optional)"
-            }
-        )
-    }
-
-    /// The story's value for it (JSON), as Lamlet.
-    fn value(&self, given: Option<&serde_json::Value>) -> Result<Value, String> {
-        let Some(v) = given.filter(|v| !v.is_null()) else {
-            return if self.required {
-                Err("missing".into())
-            } else {
-                Ok(Value::variant("none", Value::Unit))
-            };
-        };
-        // A number at the lab's precision (f32), as the investigation's code reads it.
-        let number = |v: &serde_json::Value| {
-            v.as_f64()
-                .map(|n| n as f32 as f64)
-                .ok_or_else(|| format!("{v} is not a number"))
-        };
-        let value = match &self.ty {
-            TypeDesc::Float => Value::Float(number(v)?),
-            TypeDesc::Int => {
-                let n = number(v)?;
-                if n.fract() != 0.0 || n.abs() > 9.0e15 {
-                    return Err(format!("{v} is not a whole number"));
-                }
-                Value::Int(n as i64)
-            }
-            TypeDesc::Bool => Value::Bool(
-                v.as_bool()
-                    .ok_or_else(|| format!("{v} is not true or false"))?,
-            ),
-            TypeDesc::String => Value::Str(Rc::from(
-                v.as_str().ok_or_else(|| format!("{v} is not a name"))?,
-            )),
-            TypeDesc::Record(fields) => {
-                let list = v
-                    .as_array()
-                    .filter(|a| a.len() == fields.len())
-                    .ok_or_else(|| format!("{v} is not {} numbers", fields.len()))?;
-                let labels = ["x", "y", "z"];
-                Value::record(
-                    list.iter()
-                        .zip(labels)
-                        .map(|(n, l)| Ok((Rc::from(l), Value::Float(number(n)?))))
-                        .collect::<Result<Vec<_>, String>>()?,
-                )
-            }
-            other => return Err(format!("an argument of type {other}")),
-        };
-        Ok(if self.required {
-            value
-        } else {
-            Value::variant("some", value)
-        })
-    }
-}
-
-/// A script action: its name and arguments.
-#[derive(Clone, Debug)]
-pub struct ScriptAction {
-    pub name: String,
-    pub args: Vec<ScriptArg>,
-}
-
-/// The scripts' actions.
-pub fn actions() -> Vec<ScriptAction> {
-    with_runtime(|rt| {
-        rt.actions
-            .iter()
-            .map(|(n, (_, args))| ScriptAction {
-                name: n.clone(),
-                args: args.clone(),
-            })
-            .collect()
-    })
-    .ok()
-    .flatten()
-    .unwrap_or_default()
-}
-
-/// The argument record a story's call gives the action `args` takes.
-fn arguments(
-    name: &str,
-    args: &[ScriptArg],
-    given: &BTreeMap<String, serde_json::Value>,
-) -> Result<Value, String> {
-    if let Some(extra) = given.keys().find(|k| !args.iter().any(|a| &a.key == *k)) {
-        return Err(format!("the action `{name}` takes no argument `{extra}`"));
-    }
-    let fields = args.iter().map(|a| {
-        Ok((
-            Rc::from(a.key.as_str()),
-            a.value(given.get(&a.key)).map_err(|e| {
-                format!(
-                    "the action `{name}`'s argument `{}` ({}): {e}",
-                    a.key,
-                    a.kind.describe()
-                )
-            })?,
-        ))
-    });
-    Ok(Value::record(fields.collect::<Result<Vec<_>, String>>()?))
-}
-
-/// Why a story's call of a script action cannot run (an argument it does not take, one missing or of the wrong
-/// kind); None when the scripts have no such action.
-pub fn check_action(call: &crate::actions::ActionCall) -> Option<Result<(), String>> {
-    with_runtime(|rt| {
-        rt.actions
-            .get(&call.name)
-            .map(|(_, args)| arguments(&call.name, args, &call.args).map(|_| ()))
-    })
-    .ok()
-    .flatten()
-    .flatten()
-}
-
-/// Runs the script action `action` on `state` (the state so far in `Timeline::state_at`): None when the scripts have
-/// no such action. Its writes apply all or none.
-pub fn run_action(action: &crate::actions::RunningAction, state: &mut ShotState) -> Option<()> {
-    let snapshot = state.clone();
-    with_runtime(|rt| {
-        let (_, args) = rt.actions.get(&action.key)?;
-        let kind = Kind::Action(action.key.clone());
-        match arguments(&action.key, args, &action.args) {
-            Ok(record) => {
-                rt.run(
-                    kind,
-                    vec![Value::Float(action.elapsed as f64), record],
-                    &snapshot,
-                    None,
-                    None,
-                    state,
-                );
-            }
-            Err(e) => rt.failed(&kind.to_string(), e),
-        }
-        Some(())
-    })
-    .ok()
-    .flatten()
-    .flatten()
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// Animations
-
-/// The script animation of `demo` (its `animation`), if it has one.
-fn animation_of(demo: crate::shot::DemoId) -> Option<&'static str> {
-    investigation::current()
-        .demo_specs()?
-        .specs
-        .iter()
-        .find(|s| s.id == demo)?
-        .animation
-}
-
-/// Applies `demo`'s script animation at `t` seconds to `state` (after the investigation's own animation): the keys
-/// it set, or None when the demonstration has no script animation. Its writes apply all or none.
-pub fn animate(demo: crate::shot::DemoId, t: f32, state: &mut ShotState) -> Option<Vec<String>> {
-    let name = animation_of(demo)?;
-    let snapshot = state.clone();
-    with_runtime(|rt| {
-        let kind = Kind::Animation(name.to_string());
-        let written = rt
-            .call(&kind, vec![Value::Float(t as f64)], &snapshot, None, None)
-            .and_then(|d| writes(&d));
-        match written {
-            Ok(w) => {
-                rt.succeeded(&kind.to_string());
-                apply(&w, state);
-                w.into_iter().map(|(k, _)| k).collect()
-            }
-            Err(e) => {
-                rt.failed(&kind.to_string(), e);
-                Vec::new()
-            }
-        }
-    })
-    .ok()
-    .flatten()
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// An engine with the runtime library (from its source: the built resource is not there in a unit test) and the
-    /// lab's runtime natives' stubs.
-    fn engine() -> Engine {
-        let mut engine = Engine::new();
-        register(&mut engine).unwrap();
-        register_frame_natives(&mut engine).unwrap();
-        let stubs = engine.natives_mut().declarations(NATIVES).unwrap();
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../packages/render_lab/language/runtime.lam");
-        let library = Package::read(LIBRARY_PACKAGE, &path).unwrap();
-        let packages = [
-            library,
-            Package {
-                name: NATIVES.into(),
-                file: "<stubs>".into(),
-                source: stubs,
-            },
-        ];
-        engine.set_resolver(super::super::resolver(&packages).unwrap());
-        engine
-    }
-
-    /// Each expression region's value of a document that imports std and the runtime library.
-    fn values(regions: &[&str]) -> Vec<Data> {
-        let engine = engine();
-        let body: String = regions.iter().map(|r| format!("${{{r}}}\n")).collect();
-        let document = engine
-            .check(SourceFile::new(
-                "test.lam",
-                format!("$[Import* std]$[Import* {LIBRARY_PACKAGE}]\n{body}"),
-            ))
-            .unwrap_or_else(|e| panic!("{}", e.render()));
-        let mut instance = engine.instance(&document).unwrap();
-        instance
-            .evaluate()
-            .unwrap_or_else(|e| panic!("{}", e.render()))
-            .iter()
-            .map(|(_, v)| Data::from_value(v).unwrap())
-            .collect()
-    }
-
-    #[test]
-    fn the_library_computes_what_it_says() {
-        let v = values(&[
-            "length {sweep {vec3 0.0 1.0 0.0} {vec3 1.0 0.0 0.0} 90}",
-            "steps 0.7 2.8",
-            "seq {' {span 1.0 {^ {x} x}} {span 2.0 {^ {x} {+ 10.0 x}}}} 2.5",
-            "seq {' {span 1.0 {^ {x} x}} {span 2.0 {^ {x} {+ 10.0 x}}}} 9.0",
-            "pingPong 2.0 3.0",
-            "looping 2.0 5.0",
-            "hex2 31",
-            "hex2 5",
-            "vectorText {vec3 1.0 -0.25 0.12345} 3",
-            "easeInOut 0.25",
-            "length {grownArrows {vec3 0.0 0.0 0.0} {' {named \"N\" {vec3 0.0 1.0 0.0} \"#ffffff\"} {named \"L\" {vec3 1.0 0.0 0.0} \"#ffffff\"}} 0.5 1.0 4.0 1.5}",
-            "length {lobeLine {vec3 0.0 0.0 0.0} {' {vec3 0.0 1.0 0.0} {vec3 1.0 0.0 0.0}} {' 1.0 2.0} \"#ffffff\" 0.8 1.0 3.0 none}",
-            "inPlane {vec3 0.0 1.0 0.0} {vec3 0.0 1.0 0.0}",
-        ]);
-        assert_eq!(v[0], Data::Int(91));
-        // 2.8 / 0.7 is 3.9999999999999996: the fourth step counts from its frame.
-        assert_eq!(v[1], Data::Int(4));
-        assert_eq!(v[2], Data::Float(11.5));
-        assert_eq!(v[3], Data::Float(12.0));
-        assert_eq!(v[4], Data::Float(0.5));
-        assert_eq!(v[5], Data::Float(0.5));
-        assert_eq!(v[6], Data::String("1F".into()));
-        assert_eq!(v[7], Data::String("05".into()));
-        assert_eq!(v[8], Data::String("(1.000, -0.250, 0.123)".into()));
-        assert_eq!(
-            v[9],
-            Data::Float(crate::animation::Ease::InOut.apply(0.25) as f64)
-        );
-        // N whole with its label; L half grown, its label not yet out.
-        assert_eq!(v[10], Data::Int(3));
-        // Two values through the point: three segments.
-        assert_eq!(v[11], Data::Int(3));
-        // Along the normal, any perpendicular unit vector.
-        assert!(matches!(&v[12], Data::Record(f) if f["y"] == Data::Float(0.0)));
-    }
-
-    #[test]
-    fn shapes_are_checked_before_use() {
-        let v = values(&[
-            "' {arrow {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"#ff0000\" 1.0 4.0} {point {vec3 0.0 1.0 0.0} 8.0 \"accent\" 0.5}",
-        ]);
-        let s = shapes(&v[0], "render_lab").unwrap();
-        assert!(
-            matches!(&s[0], Shape::Segment { flags, width, color, .. } if *flags == FLAG_ARROW && *width == 4.0 && *color == crate::palette::rgb(0xff0000))
-        );
-        assert!(matches!(&s[1], Shape::Point { alpha, .. } if *alpha == 0.5));
-        let bad = values(&["' {segment {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"red\" 1.0 4.0}"]);
-        assert!(
-            shapes(&bad[0], "render_lab")
-                .unwrap_err()
-                .contains("#rrggbb")
-        );
-    }
-
-    #[test]
-    fn action_arguments_take_their_kinds_from_their_types() {
-        use crate::actions::ArgKind;
-        let int = TypeDesc::Variant(vec![
-            (Rc::from("none"), TypeDesc::Unit),
-            (Rc::from("some"), TypeDesc::Int),
-        ]);
-        let from = ScriptArg::of("from", &int).unwrap();
-        assert!(!from.required && from.kind == ArgKind::Integer);
-        let at = ScriptArg::of("at", &floats(&["x", "y", "z"])).unwrap();
-        assert!(at.required && at.kind == ArgKind::Vector(3));
-        assert!(ScriptArg::of("list", &TypeDesc::List(Rc::new(TypeDesc::Int))).is_err());
-        // A story's numbers: a whole number for an Int, the lab's precision for a Float, none for an option left out.
-        assert!(
-            matches!(from.value(Some(&serde_json::json!(3.0))).unwrap(), Value::Variant(v) if v.0.as_ref() == "some" && matches!(v.1, Value::Int(3)))
-        );
-        assert!(from.value(Some(&serde_json::json!(2.5))).is_err());
-        assert!(matches!(from.value(None).unwrap(), Value::Variant(v) if v.0.as_ref() == "none"));
-        let seconds = ScriptArg::of("seconds", &TypeDesc::Float).unwrap();
-        assert!(
-            matches!(seconds.value(Some(&serde_json::json!(0.7))).unwrap(), Value::Float(x) if x == 0.7f32 as f64)
-        );
-        assert!(seconds.value(None).is_err());
-        let args = [seconds, from];
-        let given: BTreeMap<String, serde_json::Value> =
-            [("secs".to_string(), serde_json::json!(1.0))].into();
-        assert!(
-            arguments("marchCone", &args, &given)
-                .unwrap_err()
-                .contains("no argument `secs`")
-        );
-    }
-}
+mod tests;

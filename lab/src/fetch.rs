@@ -481,82 +481,14 @@ impl Queue {
             };
             let tag = request.tag.unwrap_or(tag);
             match target {
-                Target::Texture { texture, level } => {
-                    if level >= texture.mip_level_count()
-                        || !texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
-                        || texture.sample_count() != 1
-                    {
-                        continue;
-                    }
-                    let format = texture.format();
-                    let Some(texel) = format.block_copy_size(None) else {
-                        continue;
-                    };
-                    let layers = if texture.dimension() == wgpu::TextureDimension::D3 {
-                        (texture.depth_or_array_layers() >> level).max(1)
-                    } else {
-                        texture.depth_or_array_layers()
-                    };
-                    let extent = [
-                        (texture.width() >> level).max(1),
-                        (texture.height() >> level).max(1),
-                        layers,
-                    ];
-                    let Some(region) = request.region.clip(extent) else {
-                        continue;
-                    };
-                    let row = region.size[0] * texel;
-                    let pitch = row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                        * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-                    let rows = region.size[1] * region.size[2];
-                    let bytes = pitch as u64 * rows as u64;
-                    if spent > 0 && spent + bytes > budget {
-                        continue;
-                    }
-                    spent += bytes;
-                    let staging = self.staging(device, bytes);
-                    encoder.copy_texture_to_buffer(
-                        wgpu::TexelCopyTextureInfo {
-                            texture: &texture,
-                            mip_level: level,
-                            origin: wgpu::Origin3d {
-                                x: region.origin[0],
-                                y: region.origin[1],
-                                z: region.origin[2],
-                            },
-                            aspect: wgpu::TextureAspect::All,
-                        },
-                        wgpu::TexelCopyBufferInfo {
-                            buffer: &staging,
-                            layout: wgpu::TexelCopyBufferLayout {
-                                offset: 0,
-                                bytes_per_row: Some(pitch),
-                                rows_per_image: Some(region.size[1]),
-                            },
-                        },
-                        wgpu::Extent3d {
-                            width: region.size[0],
-                            height: region.size[1],
-                            depth_or_array_layers: region.size[2],
-                        },
-                    );
-                    self.flights.push(Flight {
-                        view,
-                        key: request.key.clone(),
-                        source: request.source.clone(),
-                        asked: request.region,
-                        region,
-                        extent,
-                        format: Some(format),
-                        row,
-                        pitch,
-                        rows,
-                        tag,
-                        frame: self.frame,
-                        staging,
-                        state: Arc::new(AtomicU8::new(0)),
-                    });
-                }
+                Target::Texture { texture, level } => self.copy_texture(
+                    device,
+                    encoder,
+                    request,
+                    (texture, level),
+                    (tag, view),
+                    (&mut spent, budget),
+                ),
                 Target::Buffer(buffer) => {
                     if !buffer.usage().contains(wgpu::BufferUsages::COPY_SRC) {
                         continue;
@@ -597,6 +529,93 @@ impl Queue {
                 }
             }
         }
+    }
+
+    /// A request's region of level `level` of `texture` copied into a staging buffer, while the budget allows
+    /// (`spent` bytes so far of `budget`): a flight that lands later. Nothing for a texture that cannot be copied.
+    fn copy_texture(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        request: &Request,
+        (texture, level): (wgpu::Texture, u32),
+        (tag, view): (u64, crate::view::ViewId),
+        (spent, budget): (&mut u64, u64),
+    ) {
+        if level >= texture.mip_level_count()
+            || !texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
+            || texture.sample_count() != 1
+        {
+            return;
+        }
+        let format = texture.format();
+        let Some(texel) = format.block_copy_size(None) else {
+            return;
+        };
+        let layers = if texture.dimension() == wgpu::TextureDimension::D3 {
+            (texture.depth_or_array_layers() >> level).max(1)
+        } else {
+            texture.depth_or_array_layers()
+        };
+        let extent = [
+            (texture.width() >> level).max(1),
+            (texture.height() >> level).max(1),
+            layers,
+        ];
+        let Some(region) = request.region.clip(extent) else {
+            return;
+        };
+        let row = region.size[0] * texel;
+        let pitch =
+            row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let rows = region.size[1] * region.size[2];
+        let bytes = pitch as u64 * rows as u64;
+        if *spent > 0 && *spent + bytes > budget {
+            return;
+        }
+        *spent += bytes;
+        let staging = self.staging(device, bytes);
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: level,
+                origin: wgpu::Origin3d {
+                    x: region.origin[0],
+                    y: region.origin[1],
+                    z: region.origin[2],
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &staging,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(pitch),
+                    rows_per_image: Some(region.size[1]),
+                },
+            },
+            wgpu::Extent3d {
+                width: region.size[0],
+                height: region.size[1],
+                depth_or_array_layers: region.size[2],
+            },
+        );
+        self.flights.push(Flight {
+            view,
+            key: request.key.clone(),
+            source: request.source.clone(),
+            asked: request.region,
+            region,
+            extent,
+            format: Some(format),
+            row,
+            pitch,
+            rows,
+            tag,
+            frame: self.frame,
+            staging,
+            state: Arc::new(AtomicU8::new(0)),
+        });
     }
 
     /// Map the staging buffers copied into by the encoder just submitted.

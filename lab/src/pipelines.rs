@@ -364,108 +364,23 @@ fn render_pipeline(
 impl Pipelines {
     pub fn new(device: &wgpu::Device) -> Result<Pipelines> {
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let mut frame_entries = vec![wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
-                    crate::layout::FrameUniforms,
-                >() as u64),
-            },
-            count: None,
-        }];
-        frame_entries.push(storage(1, true));
-        frame_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 2,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: None,
-        });
-        frame_entries.extend([storage(3, true), storage(4, true)]);
-        frame_entries.push(texture(5, wgpu::TextureViewDimension::D2));
-        frame_entries.push(storage(6, true));
-        let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("frame"),
-            entries: &frame_entries,
-        });
-        let texture_pair_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("texture pair"),
-                entries: &[
-                    texture(0, wgpu::TextureViewDimension::D2),
-                    texture(1, wgpu::TextureViewDimension::D2),
-                ],
-            });
-        let verify_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("verify"),
-            entries: &[storage(0, false), storage(1, true)],
-        });
-        let shading_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("scene shading"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(SHADING_UNIFORM_BYTES),
-                    },
-                    count: None,
-                },
-                storage(1, true),
-                storage(2, true),
-            ],
-        });
-
-        let frame_only = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame only"),
-            bind_group_layouts: &[Some(&frame_layout)],
-            immediate_size: 0,
-        });
-        let with_pair = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame + textures"),
-            bind_group_layouts: &[Some(&frame_layout), Some(&texture_pair_layout)],
-            immediate_size: 0,
-        });
-        let compare_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("compare"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(16),
-                },
-                count: None,
-            }],
-        });
-        let with_compare = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame + textures + compare"),
-            bind_group_layouts: &[
-                Some(&frame_layout),
-                Some(&texture_pair_layout),
-                Some(&compare_layout),
-            ],
-            immediate_size: 0,
-        });
-        let with_verify = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame + verify"),
-            bind_group_layouts: &[Some(&frame_layout), Some(&verify_layout)],
-            immediate_size: 0,
-        });
+        let base = BaseLayouts::new(device);
+        let [frame_only, with_pair, with_compare, with_verify] = base.pipeline_layouts(device);
+        let (frame_layout, texture_pair_layout, verify_layout, shading_layout, compare_layout) = (
+            base.frame,
+            base.texture_pair,
+            base.verify,
+            base.shading,
+            base.compare,
+        );
 
         let scene_module = module(device, shaders::SCENE, shaders::module(shaders::SCENE)?);
         let overlay_module = module(device, shaders::OVERLAY, shaders::module(shaders::OVERLAY)?);
         let verify_module = module(device, shaders::VERIFY, shaders::module(shaders::VERIFY)?);
         let [mesh, objects] = mesh_layouts();
         let mesh_buffers = [Some(mesh), Some(objects)];
-        let premultiplied = Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING);
         // Reversed depth (camera.rs): nearer is greater.
-        use wgpu::CompareFunction::{Always, Greater, GreaterEqual};
+        use wgpu::CompareFunction::{Always, Greater};
 
         let scene = render_pipeline(
             device,
@@ -482,31 +397,17 @@ impl Pipelines {
                 blend: None,
             },
         );
-        let overlay = |label: &'static str,
-                       vs: &'static str,
-                       fs: &'static str,
-                       buffers: &[Option<wgpu::VertexBufferLayout>],
-                       depth: (wgpu::CompareFunction, bool)| {
-            render_pipeline(
-                device,
-                &frame_only,
-                PipelineSpec {
-                    label,
-                    module: &overlay_module,
-                    vs,
-                    fs,
-                    buffers,
-                    format: OVERLAY_FORMAT,
-                    samples: MSAA,
-                    depth: Some(depth),
-                    blend: premultiplied,
-                },
-            )
-        };
-        let segments = [Some(instance_layout::<SegmentInstance>(&SEGMENT_ATTRS))];
-        let boxes = [Some(instance_layout::<BoxInstance>(&BOX_ATTRS))];
-        let points = [Some(instance_layout::<PointInstance>(&POINT_ATTRS))];
-        let cuboids = [Some(instance_layout::<CuboidInstance>(&CUBOID_ATTRS))];
+        let [
+            ghost,
+            segment,
+            segment_xray,
+            boxes,
+            boxes_xray,
+            point,
+            cuboid,
+        ] = overlay_pipelines(device, &frame_only, &overlay_module);
+        let [composite, composite_over, composite_scene, composite_diff] =
+            composite_pipelines(device, &with_pair, &with_compare, &scene_module);
         let sky = render_pipeline(
             device,
             &frame_only,
@@ -524,125 +425,19 @@ impl Pipelines {
         );
         let pipelines = Pipelines {
             sky,
-            ghost: overlay(
-                "ghost",
-                "ghostVS",
-                "ghostFS",
-                &mesh_buffers,
-                (GreaterEqual, false),
-            ),
-            segment: overlay(
-                "segment",
-                "segmentVS",
-                "lineFS",
-                &segments,
-                (GreaterEqual, false),
-            ),
-            segment_xray: overlay(
-                "segment x-ray",
-                "segmentVS",
-                "lineFS",
-                &segments,
-                (Always, false),
-            ),
-            boxes: overlay("box", "boxVS", "lineFS", &boxes, (GreaterEqual, false)),
-            boxes_xray: overlay("box x-ray", "boxVS", "lineFS", &boxes, (Always, false)),
-            point: overlay("point", "pointVS", "pointFS", &points, (Always, false)),
-            cuboid: overlay(
-                "cuboid",
-                "cuboidVS",
-                "cuboidFS",
-                &cuboids,
-                (GreaterEqual, true),
-            ),
-            composite: render_pipeline(
-                device,
-                &with_pair,
-                PipelineSpec {
-                    label: "composite",
-                    module: &scene_module,
-                    vs: "fullscreenVS",
-                    fs: "compositeFS",
-                    buffers: &[],
-                    format: FRAME_FORMAT,
-                    samples: 1,
-                    depth: None,
-                    blend: None,
-                },
-            ),
-            // A view laid over another (src/view.rs): blended by a constant (its alpha).
-            composite_over: render_pipeline(
-                device,
-                &with_pair,
-                PipelineSpec {
-                    label: "composite over",
-                    module: &scene_module,
-                    vs: "fullscreenVS",
-                    fs: "compositeFS",
-                    buffers: &[],
-                    format: FRAME_FORMAT,
-                    samples: 1,
-                    depth: None,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::Constant,
-                            dst_factor: wgpu::BlendFactor::OneMinusConstant,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::Constant,
-                            dst_factor: wgpu::BlendFactor::OneMinusConstant,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
-                },
-            ),
-            composite_scene: render_pipeline(
-                device,
-                &with_pair,
-                PipelineSpec {
-                    label: "composite scene",
-                    module: &scene_module,
-                    vs: "fullscreenVS",
-                    fs: "compositeSceneFS",
-                    buffers: &[],
-                    format: FRAME_FORMAT,
-                    samples: 1,
-                    depth: None,
-                    blend: None,
-                },
-            ),
-            composite_diff: render_pipeline(
-                device,
-                &with_compare,
-                PipelineSpec {
-                    label: "composite difference",
-                    module: &scene_module,
-                    vs: "fullscreenVS",
-                    fs: "compositeDiffFS",
-                    buffers: &[],
-                    format: FRAME_FORMAT,
-                    samples: 1,
-                    depth: None,
-                    blend: None,
-                },
-            ),
+            ghost,
+            segment,
+            segment_xray,
+            boxes,
+            boxes_xray,
+            point,
+            cuboid,
+            composite,
+            composite_over,
+            composite_scene,
+            composite_diff,
             compare_layout,
-            verify: VERIFY_ENTRIES
-                .iter()
-                .map(|&entry| {
-                    let pipeline =
-                        device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                            label: Some(entry),
-                            layout: Some(&with_verify),
-                            module: &verify_module,
-                            entry_point: Some(entry),
-                            compilation_options: Default::default(),
-                            cache: None,
-                        });
-                    (entry, pipeline)
-                })
-                .collect(),
+            verify: verify_pipelines(device, &with_verify, &verify_module),
             scene,
             frame_layout,
             texture_pair_layout,
@@ -699,6 +494,57 @@ impl Pipelines {
             ],
             immediate_size: 0,
         });
+        let scene = Self::scene_pipeline(device, &module, shading, &layout);
+        let prepass = Self::prepass_pipeline(device, &module, shading, &layout);
+        // The depth views: the scene's meshes, depth only, one pipeline per layer.
+        let depth_views = self.depth_view_pipelines(device, &module, shading);
+        let volumes = (!shading.volumes.is_empty()).then(|| volume_layout(device, shading));
+        let passes = self.pass_pipelines(
+            device,
+            &module,
+            shading,
+            volumes.as_ref().or(program_scene.as_ref()),
+        );
+        let verify = self.verify_pipelines(device, &module, shading, volumes.as_ref());
+        let updates = self.update_pipelines(device, &module, shading, volumes.as_ref());
+        let program = shading.program.map(|p| {
+            crate::program::pipelines(
+                device,
+                &module,
+                shading,
+                p,
+                &self.frame_layout,
+                &self.shading_layout,
+                program_scene,
+            )
+        });
+        if let Some(error) = pollster::block_on(scope.pop()) {
+            return Err(anyhow!(
+                "{} pipeline creation failed: {error}",
+                shading.fragment
+            ));
+        }
+        Ok(ShadingPipelines {
+            scene,
+            prepass,
+            depth_views,
+            scene_group,
+            passes,
+            verify,
+            volumes,
+            updates,
+            program,
+        })
+    }
+
+    /// The scene pass: the meshes, into the chain's outputs (or the HDR target); after a depth pre-pass it only tests
+    /// against its depth (reversed: nearer is greater).
+    fn scene_pipeline(
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
         let [mesh, objects] = mesh_layouts();
         // After a depth pre-pass, the scene pass only tests against its depth (reversed: nearer is greater).
         let (compare, write) = if shading.prepass.is_some() {
@@ -725,11 +571,12 @@ impl Pipelines {
                 })
             })
             .collect();
-        let scene = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(shading.fragment),
-            layout: Some(&layout),
+            layout: Some(layout),
             vertex: wgpu::VertexState {
-                module: &module,
+                module,
                 entry_point: Some("sceneVS"),
                 compilation_options: Default::default(),
                 buffers: &[Some(mesh), Some(objects)],
@@ -752,14 +599,23 @@ impl Pipelines {
                 alpha_to_coverage_enabled: false,
             },
             fragment: Some(wgpu::FragmentState {
-                module: &module,
+                module,
                 entry_point: Some(shading.fragment),
                 compilation_options: Default::default(),
                 targets: &targets,
             }),
             multiview_mask: None,
             cache: None,
-        });
+        })
+    }
+
+    /// The depth pre-pass, and what it writes besides the depth.
+    fn prepass_pipeline(
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+        layout: &wgpu::PipelineLayout,
+    ) -> Option<wgpu::RenderPipeline> {
         let prepass_targets: Vec<Option<wgpu::ColorTargetState>> = shading
             .prepass_outputs
             .iter()
@@ -771,12 +627,13 @@ impl Pipelines {
                 })
             })
             .collect();
-        let prepass = shading.prepass.map(|entry| {
+
+        shading.prepass.map(|entry| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
-                layout: Some(&layout),
+                layout: Some(layout),
                 vertex: wgpu::VertexState {
-                    module: &module,
+                    module,
                     entry_point: Some("sceneVS"),
                     compilation_options: Default::default(),
                     buffers: &[
@@ -802,7 +659,7 @@ impl Pipelines {
                     alpha_to_coverage_enabled: false,
                 },
                 fragment: Some(wgpu::FragmentState {
-                    module: &module,
+                    module,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     targets: &prepass_targets,
@@ -810,14 +667,23 @@ impl Pipelines {
                 multiview_mask: None,
                 cache: None,
             })
-        });
-        // The depth views: the scene's meshes, depth only, one pipeline per layer.
+        })
+    }
+
+    /// The depth views: the scene's meshes, depth only, one pipeline per layer.
+    fn depth_view_pipelines(
+        &self,
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+    ) -> Vec<wgpu::RenderPipeline> {
         let views_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading (depth views)"),
             bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout)],
             immediate_size: 0,
         });
-        let depth_views = shading.depth_views.map_or_else(Vec::new, |d| {
+
+        shading.depth_views.map_or_else(Vec::new, |d| {
             d.vertices
                 .iter()
                 .map(|&entry| {
@@ -825,7 +691,7 @@ impl Pipelines {
                         label: Some(entry),
                         layout: Some(&views_layout),
                         vertex: wgpu::VertexState {
-                            module: &module,
+                            module,
                             entry_point: Some(entry),
                             compilation_options: Default::default(),
                             buffers: &[
@@ -856,13 +722,24 @@ impl Pipelines {
                     })
                 })
                 .collect()
-        });
-        let volumes = (!shading.volumes.is_empty()).then(|| volume_layout(device, shading));
-        let passes = shading
+        })
+    }
+
+    /// The chain's compute passes' pipelines and group layouts (`group3`: the volumes', else the program's scene group).
+    fn pass_pipelines(
+        &self,
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+        group3: Option<&wgpu::BindGroupLayout>,
+    ) -> Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)> {
+        shading
             .passes
             .iter()
             .map(|pass| {
                 let group = chain_layout(
+                    device,
+                    shading,
                     pass.entry,
                     pass.reads,
                     pass.writes,
@@ -874,47 +751,68 @@ impl Pipelines {
                         Some(&self.frame_layout),
                         Some(&self.shading_layout),
                         Some(&group),
-                        volumes.as_ref().or(program_scene.as_ref()),
+                        group3,
                     ],
                     immediate_size: 0,
                 });
                 let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                     label: Some(pass.entry),
                     layout: Some(&layout),
-                    module: &module,
+                    module,
                     entry_point: Some(pass.entry),
                     compilation_options: Default::default(),
                     cache: None,
                 });
                 (pipeline, group)
             })
-            .collect();
+            .collect()
+    }
+
+    /// The selftest's verification entry points' pipelines, by entry point.
+    fn verify_pipelines(
+        &self,
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+        volumes: Option<&wgpu::BindGroupLayout>,
+    ) -> BTreeMap<&'static str, wgpu::ComputePipeline> {
         let verify_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("frame + shading + verify"),
             bind_group_layouts: &[
                 Some(&self.frame_layout),
                 Some(&self.shading_layout),
                 Some(&self.verify_layout),
-                volumes.as_ref(),
+                volumes,
             ],
             immediate_size: 0,
         });
-        let verify = shading
+
+        shading
             .verify
             .iter()
             .map(|&entry| {
                 let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                     label: Some(entry),
                     layout: Some(&verify_layout),
-                    module: &module,
+                    module,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
                     cache: None,
                 });
                 (entry, pipeline)
             })
-            .collect();
-        let updates = shading.update.map_or_else(Vec::new, |update| {
+            .collect()
+    }
+
+    /// The update passes' pipelines and group layouts (`volumes`: the volumes' group, bound for a pass that reads one).
+    fn update_pipelines(
+        &self,
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        shading: &SceneShading,
+        volumes: Option<&wgpu::BindGroupLayout>,
+    ) -> Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)> {
+        shading.update.map_or_else(Vec::new, |update| {
             update
                 .passes
                 .iter()
@@ -925,7 +823,7 @@ impl Pipelines {
                         .iter()
                         .any(|r| crate::graph::is_volume(shading, r))
                     {
-                        volumes.as_ref()
+                        volumes
                     } else {
                         None
                     };
@@ -943,7 +841,7 @@ impl Pipelines {
                         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                             label: Some(pass.entry),
                             layout: Some(&layout),
-                            module: &module,
+                            module,
                             entry_point: Some(pass.entry),
                             compilation_options: Default::default(),
                             cache: None,
@@ -951,34 +849,6 @@ impl Pipelines {
                     (pipeline, group)
                 })
                 .collect()
-        });
-        let program = shading.program.map(|p| {
-            crate::program::pipelines(
-                device,
-                &module,
-                shading,
-                p,
-                &self.frame_layout,
-                &self.shading_layout,
-                program_scene,
-            )
-        });
-        if let Some(error) = pollster::block_on(scope.pop()) {
-            return Err(anyhow!(
-                "{} pipeline creation failed: {error}",
-                shading.fragment
-            ));
-        }
-        Ok(ShadingPipelines {
-            scene,
-            prepass,
-            depth_views,
-            scene_group,
-            passes,
-            verify,
-            volumes,
-            updates,
-            program,
         })
     }
 
@@ -1076,4 +946,304 @@ pub fn chain_layout(
         label: Some(label),
         entries: &entries,
     })
+}
+
+/// The lab's own bind group layouts: the frame's (group 0), a texture pair's, the verification's, a scene
+/// shading's (group 1), and the comparison's.
+struct BaseLayouts {
+    frame: wgpu::BindGroupLayout,
+    texture_pair: wgpu::BindGroupLayout,
+    verify: wgpu::BindGroupLayout,
+    shading: wgpu::BindGroupLayout,
+    compare: wgpu::BindGroupLayout,
+}
+
+impl BaseLayouts {
+    fn new(device: &wgpu::Device) -> BaseLayouts {
+        let mut frame_entries = vec![wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                    crate::layout::FrameUniforms,
+                >() as u64),
+            },
+            count: None,
+        }];
+        frame_entries.push(storage(1, true));
+        frame_entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 2,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        });
+        frame_entries.extend([storage(3, true), storage(4, true)]);
+        frame_entries.push(texture(5, wgpu::TextureViewDimension::D2));
+        frame_entries.push(storage(6, true));
+        let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("frame"),
+            entries: &frame_entries,
+        });
+        let texture_pair_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("texture pair"),
+                entries: &[
+                    texture(0, wgpu::TextureViewDimension::D2),
+                    texture(1, wgpu::TextureViewDimension::D2),
+                ],
+            });
+        let verify_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("verify"),
+            entries: &[storage(0, false), storage(1, true)],
+        });
+        let shading_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("scene shading"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(SHADING_UNIFORM_BYTES),
+                    },
+                    count: None,
+                },
+                storage(1, true),
+                storage(2, true),
+            ],
+        });
+
+        let compare_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("compare"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(16),
+                },
+                count: None,
+            }],
+        });
+        BaseLayouts {
+            frame: frame_layout,
+            texture_pair: texture_pair_layout,
+            verify: verify_layout,
+            shading: shading_layout,
+            compare: compare_layout,
+        }
+    }
+
+    /// The lab's pipeline layouts: the frame's group alone, with a texture pair, with a pair and the comparison, and
+    /// with the verification's.
+    fn pipeline_layouts(&self, device: &wgpu::Device) -> [wgpu::PipelineLayout; 4] {
+        let (frame_layout, texture_pair_layout, verify_layout, compare_layout) =
+            (&self.frame, &self.texture_pair, &self.verify, &self.compare);
+        let frame_only = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame only"),
+            bind_group_layouts: &[Some(frame_layout)],
+            immediate_size: 0,
+        });
+        let with_pair = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame + textures"),
+            bind_group_layouts: &[Some(frame_layout), Some(texture_pair_layout)],
+            immediate_size: 0,
+        });
+        let with_compare = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame + textures + compare"),
+            bind_group_layouts: &[
+                Some(frame_layout),
+                Some(texture_pair_layout),
+                Some(compare_layout),
+            ],
+            immediate_size: 0,
+        });
+        let with_verify = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("frame + verify"),
+            bind_group_layouts: &[Some(frame_layout), Some(verify_layout)],
+            immediate_size: 0,
+        });
+        [frame_only, with_pair, with_compare, with_verify]
+    }
+}
+
+/// The overlay's pipelines (src/overlay.wgsl): the ghosts, the segments and boxes (each also seen through
+/// everything, x-ray), the points, and the cuboids; in the order of `Pipelines`' fields.
+fn overlay_pipelines(
+    device: &wgpu::Device,
+    frame_only: &wgpu::PipelineLayout,
+    overlay_module: &wgpu::ShaderModule,
+) -> [wgpu::RenderPipeline; 7] {
+    use wgpu::CompareFunction::{Always, GreaterEqual};
+    let [mesh, objects] = mesh_layouts();
+    let mesh_buffers = [Some(mesh), Some(objects)];
+    let premultiplied = Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING);
+    let overlay = |label: &'static str,
+                   vs: &'static str,
+                   fs: &'static str,
+                   buffers: &[Option<wgpu::VertexBufferLayout>],
+                   depth: (wgpu::CompareFunction, bool)| {
+        render_pipeline(
+            device,
+            frame_only,
+            PipelineSpec {
+                label,
+                module: overlay_module,
+                vs,
+                fs,
+                buffers,
+                format: OVERLAY_FORMAT,
+                samples: MSAA,
+                depth: Some(depth),
+                blend: premultiplied,
+            },
+        )
+    };
+    let segments = [Some(instance_layout::<SegmentInstance>(&SEGMENT_ATTRS))];
+    let boxes = [Some(instance_layout::<BoxInstance>(&BOX_ATTRS))];
+    let points = [Some(instance_layout::<PointInstance>(&POINT_ATTRS))];
+    let cuboids = [Some(instance_layout::<CuboidInstance>(&CUBOID_ATTRS))];
+    [
+        overlay(
+            "ghost",
+            "ghostVS",
+            "ghostFS",
+            &mesh_buffers,
+            (GreaterEqual, false),
+        ),
+        overlay(
+            "segment",
+            "segmentVS",
+            "lineFS",
+            &segments,
+            (GreaterEqual, false),
+        ),
+        overlay(
+            "segment x-ray",
+            "segmentVS",
+            "lineFS",
+            &segments,
+            (Always, false),
+        ),
+        overlay("box", "boxVS", "lineFS", &boxes, (GreaterEqual, false)),
+        overlay("box x-ray", "boxVS", "lineFS", &boxes, (Always, false)),
+        overlay("point", "pointVS", "pointFS", &points, (Always, false)),
+        overlay(
+            "cuboid",
+            "cuboidVS",
+            "cuboidFS",
+            &cuboids,
+            (GreaterEqual, true),
+        ),
+    ]
+}
+
+/// The composites into the frame: the viewport's, the scene's alone, one over another at an alpha, and an
+/// experiment's difference; in the order of `Pipelines`' fields.
+fn composite_pipelines(
+    device: &wgpu::Device,
+    with_pair: &wgpu::PipelineLayout,
+    with_compare: &wgpu::PipelineLayout,
+    scene_module: &wgpu::ShaderModule,
+) -> [wgpu::RenderPipeline; 4] {
+    [
+        render_pipeline(
+            device,
+            with_pair,
+            PipelineSpec {
+                label: "composite",
+                module: scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: None,
+            },
+        ),
+        // A view laid over another (src/view.rs): blended by a constant (its alpha).
+        render_pipeline(
+            device,
+            with_pair,
+            PipelineSpec {
+                label: "composite over",
+                module: scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::Constant,
+                        dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::Constant,
+                        dst_factor: wgpu::BlendFactor::OneMinusConstant,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+            },
+        ),
+        render_pipeline(
+            device,
+            with_pair,
+            PipelineSpec {
+                label: "composite scene",
+                module: scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeSceneFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: None,
+            },
+        ),
+        render_pipeline(
+            device,
+            with_compare,
+            PipelineSpec {
+                label: "composite difference",
+                module: scene_module,
+                vs: "fullscreenVS",
+                fs: "compositeDiffFS",
+                buffers: &[],
+                format: FRAME_FORMAT,
+                samples: 1,
+                depth: None,
+                blend: None,
+            },
+        ),
+    ]
+}
+
+/// The lab's verification entry points' pipelines (`VERIFY_ENTRIES`), by entry point.
+fn verify_pipelines(
+    device: &wgpu::Device,
+    with_verify: &wgpu::PipelineLayout,
+    verify_module: &wgpu::ShaderModule,
+) -> BTreeMap<&'static str, wgpu::ComputePipeline> {
+    VERIFY_ENTRIES
+        .iter()
+        .map(|&entry| {
+            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(entry),
+                layout: Some(with_verify),
+                module: verify_module,
+                entry_point: Some(entry),
+                compilation_options: Default::default(),
+                cache: None,
+            });
+            (entry, pipeline)
+        })
+        .collect()
 }

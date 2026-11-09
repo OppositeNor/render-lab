@@ -19,6 +19,9 @@ use egui::{
     vec2,
 };
 
+mod draw;
+pub use draw::*;
+
 /// A label line's height, a box's padding across and down, a member row's
 /// height, the room around a box's rule, and a picture's greatest height
 /// (font units: a label's font is 1 high).
@@ -404,6 +407,168 @@ fn size(
     )
 }
 
+/// The layered layout of `graph`, left to right (`sizes` already turned for its flow), with its edges `edges`
+/// (the back edges reversed): the layout and the boxed clusters' rectangles.
+fn layered_layout(
+    graph: &Graph,
+    sizes: &[(f32, f32)],
+    edges: &[(usize, usize)],
+    back: &[bool],
+    width: &dyn Fn(&str) -> f32,
+    options: &Options,
+) -> layered::Clustered {
+    let flow = options.flow;
+    let label_room = graph
+        .edges
+        .iter()
+        .zip(back)
+        .filter(|(_, b)| !**b)
+        .filter_map(|(e, _)| e.label.as_deref())
+        .map(|l| {
+            if flow == Flow::Down {
+                LINE + 0.4
+            } else {
+                width(l) + 1.0
+            }
+        })
+        .fold(0.0, f32::max);
+    let spacing = options.spacing.unwrap_or(layered::Spacing {
+        column: label_room.max(1.7),
+        row: 0.7,
+        dummy: 0.5,
+    });
+    if graph.clusters.is_empty() {
+        let order: Vec<usize> = (0..graph.nodes.len()).collect();
+        return layered::Clustered {
+            layout: layered::layout(sizes, edges, &order, spacing),
+            boxes: Vec::new(),
+        };
+    }
+    let clusters: Vec<layered::Cluster> = graph
+        .clusters
+        .iter()
+        .map(|c| layered::Cluster {
+            members: c.members.clone(),
+            boxed: c.boxed,
+        })
+        .collect();
+    // A box's title goes above it once turned: on its side, no room is kept beside it.
+    let title = if flow == Flow::Down {
+        0.0
+    } else {
+        options.title
+    };
+    layered::clustered(
+        sizes,
+        edges,
+        &clusters,
+        spacing,
+        options.pad,
+        title,
+        options.gap,
+    )
+}
+
+/// What the edges' routes are laid out in (the layout's space, left to right): the layout, how wide a line of
+/// text is, and the bounds the routes grow.
+struct Routing<'a> {
+    layout: &'a layered::Layout,
+    width: &'a dyn Fn(&str) -> f32,
+    lo: Pos2,
+    hi: Pos2,
+}
+
+impl Routing<'_> {
+    /// Node `i`'s rectangle in the layout's space.
+    fn rect(&self, i: usize) -> Rect {
+        let layout = self.layout;
+        Rect::from_center_size(
+            pos2(layout.positions[i].0, layout.positions[i].1),
+            vec2(layout.widths[i], layout.heights[i]),
+        )
+    }
+
+    /// The widest node of the column at `x`.
+    fn column_width(&self, x: f32) -> f32 {
+        let layout = self.layout;
+        (0..layout.positions.len())
+            .filter(|&i| (layout.positions[i].0 - x).abs() < 1e-3)
+            .map(|i| layout.widths[i])
+            .fold(0.0, f32::max)
+    }
+
+    /// A back edge: an arc under (or over) the columns, toward the nearer side; its points and its label's place.
+    fn back(&mut self, edge: &Edge) -> (Vec<Pos2>, Pos2) {
+        let (a, b) = (self.rect(edge.from), self.rect(edge.to));
+        let below = (a.center().y + b.center().y) / 2.0 >= self.layout.size.1 / 2.0;
+        let depth = 1.6;
+        let (p0, p3) = if below {
+            (a.center_bottom(), b.center_bottom())
+        } else {
+            (a.center_top(), b.center_top())
+        };
+        let y = if below {
+            p0.y.max(p3.y) + depth
+        } else {
+            p0.y.min(p3.y) - depth
+        };
+        let mut points = vec![p0];
+        cubic([p0, pos2(p0.x, y), pos2(p3.x, y), p3], &mut points);
+        let label_at = pos2(
+            (p0.x + p3.x) / 2.0,
+            if below {
+                y - depth * 0.25 + 0.55
+            } else {
+                y + depth * 0.25 - 0.55
+            },
+        );
+        let label = edge.label.as_deref().map_or(0.0, self.width);
+        let room = if label > 0.0 {
+            LINE
+        } else {
+            0.2
+        };
+        if below {
+            self.hi.y = self.hi.y.max(y + room);
+        } else {
+            self.lo.y = self.lo.y.min(y - room);
+        }
+        self.lo.x = self.lo.x.min(label_at.x - label / 2.0 - 0.4);
+        self.hi.x = self.hi.x.max(label_at.x + label / 2.0 + 0.4);
+        (points, label_at)
+    }
+
+    /// A forward edge: through a column it skips, it runs straight across the column; its points and its
+    /// label's place.
+    fn forward(&self, edge: &Edge) -> (Vec<Pos2>, Pos2) {
+        let (a, b) = (self.rect(edge.from), self.rect(edge.to));
+        let mut stops = vec![a.right_center()];
+        for &p in self
+            .layout
+            .bends
+            .iter()
+            .find(|x| x.0 == edge.from && x.1 == edge.to)
+            .map(|x| x.2.as_slice())
+            .unwrap_or_default()
+        {
+            let half = self.column_width(p.0) / 2.0;
+            stops.push(pos2(p.0 - half, p.1));
+            stops.push(pos2(p.0 + half, p.1));
+        }
+        stops.push(b.left_center());
+        let mut points = vec![stops[0]];
+        for (k, w) in stops.windows(2).enumerate() {
+            if k % 2 == 1 {
+                points.push(w[1]);
+                continue;
+            }
+            points.extend(curve(w[0], w[1], Flow::Right).into_iter().skip(1));
+        }
+        let label_at = points[points.len() / 2];
+        (points, label_at)
+    }
+}
+
 /// Lays `graph` out: `width` measures a line of text in font units;
 /// `pictured` nodes get room for a picture of `aspect` (height over width).
 pub fn lay_out(
@@ -442,54 +607,8 @@ pub fn lay_out(
             }
         })
         .collect();
-    let label_room = graph
-        .edges
-        .iter()
-        .zip(&back)
-        .filter(|(_, b)| !**b)
-        .filter_map(|(e, _)| e.label.as_deref())
-        .map(|l| {
-            if flow == Flow::Down {
-                LINE + 0.4
-            } else {
-                width(l) + 1.0
-            }
-        })
-        .fold(0.0, f32::max);
-    let spacing = options.spacing.unwrap_or(layered::Spacing {
-        column: label_room.max(1.7),
-        row: 0.7,
-        dummy: 0.5,
-    });
-    let (layout, boxes) = if graph.clusters.is_empty() {
-        let order: Vec<usize> = (0..graph.nodes.len()).collect();
-        (layered::layout(&sizes, &edges, &order, spacing), Vec::new())
-    } else {
-        let clusters: Vec<layered::Cluster> = graph
-            .clusters
-            .iter()
-            .map(|c| layered::Cluster {
-                members: c.members.clone(),
-                boxed: c.boxed,
-            })
-            .collect();
-        // A box's title goes above it once turned: on its side, no room is kept beside it.
-        let title = if flow == Flow::Down {
-            0.0
-        } else {
-            options.title
-        };
-        let c = layered::clustered(
-            &sizes,
-            &edges,
-            &clusters,
-            spacing,
-            options.pad,
-            title,
-            options.gap,
-        );
-        (c.layout, c.boxes)
-    };
+    let layered::Clustered { layout, boxes } =
+        layered_layout(graph, &sizes, &edges, &back, width, options);
     // In the layout's space (left to right), then turned for a top-to-bottom flow.
     let side = |p: Pos2| {
         if flow == Flow::Down {
@@ -499,105 +618,31 @@ pub fn lay_out(
         }
     };
     let side_rect = |r: Rect| Rect::from_two_pos(side(r.min), side(r.max));
-    let laid_rect = |i: usize| {
-        Rect::from_center_size(
-            pos2(layout.positions[i].0, layout.positions[i].1),
-            vec2(layout.widths[i], layout.heights[i]),
-        )
+    let mut routing = Routing {
+        layout: &layout,
+        width,
+        lo: pos2(0.0, 0.0),
+        hi: pos2(layout.size.0, layout.size.1),
     };
-    let column_width = |x: f32| {
-        (0..graph.nodes.len())
-            .filter(|&i| (layout.positions[i].0 - x).abs() < 1e-3)
-            .map(|i| layout.widths[i])
-            .fold(0.0, f32::max)
-    };
-    let mut lo = pos2(0.0, 0.0);
-    let mut hi = pos2(layout.size.0, layout.size.1);
-    let mut routes = Vec::with_capacity(graph.edges.len());
-    for (e, edge) in graph.edges.iter().enumerate() {
-        let (a, b) = (laid_rect(edge.from), laid_rect(edge.to));
-        if back[e] {
-            // An arc under (or over) the columns, toward the nearer side.
-            let below = (a.center().y + b.center().y) / 2.0 >= layout.size.1 / 2.0;
-            let depth = 1.6;
-            let (p0, p3) = if below {
-                (a.center_bottom(), b.center_bottom())
+    let routes: Vec<Route> = graph
+        .edges
+        .iter()
+        .zip(&back)
+        .map(|(edge, &back)| {
+            let (points, label_at) = if back {
+                routing.back(edge)
             } else {
-                (a.center_top(), b.center_top())
+                routing.forward(edge)
             };
-            let y = if below {
-                p0.y.max(p3.y) + depth
-            } else {
-                p0.y.min(p3.y) - depth
-            };
-            let mut points = vec![p0];
-            cubic([p0, pos2(p0.x, y), pos2(p3.x, y), p3], &mut points);
-            let label_at = pos2(
-                (p0.x + p3.x) / 2.0,
-                if below {
-                    y - depth * 0.25 + 0.55
-                } else {
-                    y + depth * 0.25 - 0.55
-                },
-            );
-            let label = edge.label.as_deref().map_or(0.0, width);
-            if below {
-                hi.y = hi.y.max(
-                    y + if label > 0.0 {
-                        LINE
-                    } else {
-                        0.2
-                    },
-                );
-            } else {
-                lo.y = lo.y.min(
-                    y - if label > 0.0 {
-                        LINE
-                    } else {
-                        0.2
-                    },
-                );
-            }
-            lo.x = lo.x.min(label_at.x - label / 2.0 - 0.4);
-            hi.x = hi.x.max(label_at.x + label / 2.0 + 0.4);
-            routes.push(Route {
+            Route {
                 points: points.into_iter().map(side).collect(),
                 label_at: side(label_at),
-                back: true,
-            });
-            continue;
-        }
-        // Through a column it skips, the edge runs straight across the column.
-        let mut stops = vec![a.right_center()];
-        for &p in layout
-            .bends
-            .iter()
-            .find(|x| x.0 == edge.from && x.1 == edge.to)
-            .map(|x| x.2.as_slice())
-            .unwrap_or_default()
-        {
-            let half = column_width(p.0) / 2.0;
-            stops.push(pos2(p.0 - half, p.1));
-            stops.push(pos2(p.0 + half, p.1));
-        }
-        stops.push(b.left_center());
-        let mut points = vec![stops[0]];
-        for (k, w) in stops.windows(2).enumerate() {
-            if k % 2 == 1 {
-                points.push(w[1]);
-                continue;
+                back,
             }
-            points.extend(curve(w[0], w[1], Flow::Right).into_iter().skip(1));
-        }
-        let label_at = points[points.len() / 2];
-        routes.push(Route {
-            points: points.into_iter().map(side).collect(),
-            label_at: side(label_at),
-            back: false,
-        });
-    }
+        })
+        .collect();
     let rects: Vec<Rect> = (0..graph.nodes.len())
-        .map(|i| side_rect(laid_rect(i)))
+        .map(|i| side_rect(routing.rect(i)))
         .collect();
     let boxes: Vec<(usize, Rect)> = boxes
         .into_iter()
@@ -609,7 +654,7 @@ pub fn lay_out(
             (c, r)
         })
         .collect();
-    let mut bounds = side_rect(Rect::from_min_max(lo, hi));
+    let mut bounds = side_rect(Rect::from_min_max(routing.lo, routing.hi));
     for r in rects.iter().chain(boxes.iter().map(|b| &b.1)) {
         bounds = bounds.union(*r);
     }
@@ -855,380 +900,6 @@ fn prefix(points: &[Pos2], fraction: f32) -> Vec<Pos2> {
     out
 }
 
-/// How a laid-out graph is drawn: each node, edge, and boxed cluster (its
-/// strength: faded when false), the nodes moved by hand (font units), the
-/// labels of edges, the corner radius of boxes, and whether text goes
-/// through `Ink` (whose smallest size the recorder checks) or straight to the
-/// painter (a zoomable view, whose text may be small).
-pub struct Look<'a> {
-    pub nodes: Vec<NodeLook>,
-    pub edges: Vec<EdgeLook>,
-    pub clusters: Vec<bool>,
-    pub moved: &'a [(usize, Vec2)],
-    pub edge_labels: bool,
-    pub tracked: bool,
-}
-
-/// A node's rectangle in graph units, moved by hand.
-pub fn placed(laid: &Laid, moved: &[(usize, Vec2)], i: usize) -> Rect {
-    laid.rects[i].translate(moved.iter().find(|m| m.0 == i).map_or(Vec2::ZERO, |m| m.1))
-}
-
-/// A line ending in an arrowhead along its last segment, solid or dashed.
-fn arrow(painter: &egui::Painter, points: Vec<Pos2>, dotted: bool, stroke: Stroke, tip: f32) {
-    let n = points.len();
-    if n < 2 {
-        return;
-    }
-    let (end, before) = (points[n - 1], points[n.saturating_sub(4)]);
-    let dir = (end - before).normalized();
-    let normal = vec2(-dir.y, dir.x);
-    let base = end - dir * tip * 1.6;
-    let mut line = points;
-    *line.last_mut().unwrap() = base;
-    if dotted {
-        painter.extend(Shape::dashed_line(&line, stroke, tip * 0.9, tip * 0.7));
-    } else {
-        painter.add(Shape::line(line, stroke));
-    }
-    painter.add(Shape::convex_polygon(
-        vec![end, base + normal * tip * 0.8, base - normal * tip * 0.8],
-        stroke.color,
-        Stroke::NONE,
-    ));
-}
-
-/// Draws `graph`, laid out as `laid`, through `t`, clipped to `clip`, as `look` says.
-pub fn draw(ink: &Ink, clip: Rect, t: &Transform, graph: &Graph, laid: &Laid, look: &Look) {
-    let painter = ink.painter.with_clip_rect(clip);
-    let draw_ink = Ink::new(&painter);
-    let scale = t.scale;
-    let text = |at: Pos2, align: Align2, s: &str, size: f32, family: FontFamily, color: Color32| {
-        if size < 8.0 {
-            return;
-        }
-        if look.tracked {
-            draw_ink.text(at, align, s, size, family, color);
-        } else {
-            painter.text(at, align, s, egui::FontId::new(size, family), color);
-        }
-    };
-    let rect = |i: usize| t.rect(placed(laid, look.moved, i));
-    // The clusters' boxes, their titles in their top bands.
-    for &(c, b) in &laid.boxes {
-        let b = t.rect(b);
-        if !b.intersects(clip) {
-            continue;
-        }
-        let strong = look.clusters.get(c).copied().unwrap_or(true);
-        let fade = |c: Color32| {
-            if strong {
-                c
-            } else {
-                c.gamma_multiply(0.3)
-            }
-        };
-        let radius = CornerRadius::same((scale * 0.6).min(255.0) as u8);
-        painter.rect_filled(b, radius, fade(palette::background()).gamma_multiply(0.6));
-        painter.rect_stroke(
-            b,
-            radius,
-            Stroke::new(1.5, fade(palette::border())),
-            StrokeKind::Inside,
-        );
-        if let Some(title) = &graph.clusters[c].title {
-            // A view whose text is checked keeps it at full size; a zoomable one a little smaller.
-            let size = if look.tracked {
-                scale
-            } else {
-                scale * 0.84
-            };
-            text(
-                b.min + vec2(scale * 0.6, scale * 0.2),
-                Align2::LEFT_TOP,
-                title,
-                size,
-                FontFamily::Proportional,
-                fade(palette::text_dim()),
-            );
-        }
-    }
-    let tip = (scale * 0.3).clamp(5.0, 14.0);
-    for (e, edge) in graph.edges.iter().enumerate() {
-        let l = look.edges[e];
-        if l.hidden || l.drawn <= 0.0 || look.nodes[edge.from].hidden || look.nodes[edge.to].hidden
-        {
-            continue;
-        }
-        let route = &laid.routes[e];
-        let moved = look
-            .moved
-            .iter()
-            .any(|m| m.0 == edge.from || m.0 == edge.to);
-        // A moved node's edges run straight to it, as curves.
-        let points: Vec<Pos2> = if moved && !route.back {
-            let (a, b) = ends(
-                placed(laid, look.moved, edge.from),
-                placed(laid, look.moved, edge.to),
-                laid.flow,
-            );
-            curve(a, b, laid.flow)
-                .into_iter()
-                .map(|p| t.at(p))
-                .collect()
-        } else {
-            route.points.iter().map(|&p| t.at(p)).collect()
-        };
-        let label_at = t.at(route.label_at);
-        arrow(
-            &painter,
-            prefix(&points, l.drawn),
-            edge.dotted,
-            Stroke::new(l.width, l.color),
-            tip,
-        );
-        if let (true, Some(label), true) = (look.edge_labels, &edge.label, l.drawn >= 1.0) {
-            let w = draw_ink.measure(label, scale, FontFamily::Proportional);
-            painter.rect_filled(
-                Rect::from_center_size(label_at, w + vec2(scale * 0.5, scale * 0.2)),
-                CornerRadius::same(4),
-                palette::panel(),
-            );
-            text(
-                label_at,
-                Align2::CENTER_CENTER,
-                label,
-                scale,
-                FontFamily::Proportional,
-                palette::text_dim(),
-            );
-        }
-    }
-    let line = scale * LINE;
-    for (i, node) in graph.nodes.iter().enumerate() {
-        let faded;
-        let mut l = &look.nodes[i];
-        let r = rect(i);
-        if l.hidden || l.alpha <= 0.0 || !r.intersects(clip) {
-            continue;
-        }
-        if l.alpha < 1.0 {
-            // Partly shown: every colour of it at that strength.
-            let a = l.alpha;
-            faded = NodeLook {
-                fill: l.fill.gamma_multiply(a),
-                outline: Stroke::new(l.outline.width, l.outline.color.gamma_multiply(a)),
-                text: l.text.gamma_multiply(a),
-                rows: l
-                    .rows
-                    .iter()
-                    .map(|(c, lit)| (c.gamma_multiply(a), *lit))
-                    .collect(),
-                tint: l.tint.gamma_multiply(a),
-                ..l.clone()
-            };
-            l = &faded;
-        }
-        let under = if l.alpha < 1.0 {
-            palette::panel_raised().gamma_multiply(l.alpha)
-        } else {
-            palette::panel_raised()
-        };
-        let radius = CornerRadius::same((scale * 0.3).min(255.0) as u8);
-        painter.rect_filled(r, radius, under);
-        painter.rect_filled(r, radius, l.fill);
-        if node.card.is_some() {
-            // A card: its title on a line, its picture under it, its badge in the picture's corner.
-            let label = scale * 1.33;
-            let inner = r.shrink2(vec2(scale * 0.33, 0.0));
-            text(
-                pos2(inner.min.x, r.min.y + label / 2.0),
-                Align2::LEFT_CENTER,
-                &draw_ink.fit_right(
-                    &node.title.join(" "),
-                    inner.width(),
-                    scale,
-                    FontFamily::Proportional,
-                ),
-                scale,
-                FontFamily::Proportional,
-                l.text,
-            );
-            // Its rows under the picture, a line each.
-            let rows = node.rows.len() as f32 * ROW * scale;
-            let room = Rect::from_min_max(
-                pos2(r.min.x + scale * 0.17, r.min.y + label),
-                pos2(r.max.x - scale * 0.17, r.max.y - scale * 0.17 - rows),
-            );
-            for (k, row) in node.rows.iter().enumerate() {
-                let (color, _) = l
-                    .rows
-                    .get(k)
-                    .copied()
-                    .unwrap_or((palette::text_dim(), false));
-                let at = pos2(
-                    inner.min.x,
-                    r.max.y - rows + (k as f32 + 0.5) * ROW * scale - scale * 0.08,
-                );
-                text(
-                    at,
-                    Align2::LEFT_CENTER,
-                    &draw_ink.fit_right(&row.label, inner.width(), scale, FontFamily::Proportional),
-                    scale,
-                    FontFamily::Proportional,
-                    color,
-                );
-            }
-            match l.picture {
-                Some(p) => picture(&painter, room, p, l.tint, false),
-                None => text(
-                    room.center(),
-                    Align2::CENTER_CENTER,
-                    l.note.as_deref().unwrap_or("–"),
-                    scale,
-                    FontFamily::Proportional,
-                    palette::text_faint(),
-                ),
-            }
-            if let Some(badge) = &l.badge {
-                let size = draw_ink.measure(badge, scale, FontFamily::Monospace)
-                    + vec2(scale * 0.4, scale * 0.08);
-                let tag = Rect::from_min_size(room.max - size, size);
-                if tag.width() < room.width() * 0.9 {
-                    painter.rect_filled(
-                        tag,
-                        CornerRadius::same(4),
-                        palette::panel().gamma_multiply(0.85),
-                    );
-                    text(
-                        tag.center(),
-                        Align2::CENTER_CENTER,
-                        badge,
-                        scale,
-                        FontFamily::Monospace,
-                        palette::text_dim(),
-                    );
-                }
-            }
-        } else if node.rows.is_empty() && laid.pictures[i] == 0.0 {
-            let top = r.center().y - line * node.title.len() as f32 / 2.0;
-            for (k, title) in node.title.iter().enumerate() {
-                text(
-                    pos2(r.center().x, top + line * (k as f32 + 0.5)),
-                    Align2::CENTER_CENTER,
-                    title,
-                    scale,
-                    FontFamily::Proportional,
-                    l.text,
-                );
-            }
-        } else {
-            // A group: its title in bold, a rule, its rows, its picture.
-            let mut y = r.min.y + PAD_Y / 2.0 * scale;
-            for title in &node.title {
-                text(
-                    pos2(r.center().x, y + line / 2.0),
-                    Align2::CENTER_CENTER,
-                    title,
-                    scale,
-                    crate::text::bold(),
-                    l.text,
-                );
-                y += line;
-            }
-            if !node.rows.is_empty() {
-                let rule = y + RULE / 2.0 * scale;
-                painter.line_segment(
-                    [
-                        pos2(r.min.x + scale * 0.4, rule),
-                        pos2(r.max.x - scale * 0.4, rule),
-                    ],
-                    Stroke::new(1.0, palette::text_faint()),
-                );
-                y += RULE * scale;
-            }
-            for (k, row) in node.rows.iter().enumerate() {
-                let band = Rect::from_min_max(
-                    pos2(r.min.x + scale * 0.25, y),
-                    pos2(r.max.x - scale * 0.25, y + ROW * scale),
-                );
-                let (color, lit) = l
-                    .rows
-                    .get(k)
-                    .copied()
-                    .unwrap_or((palette::text_dim(), false));
-                if lit {
-                    painter.rect_filled(
-                        band,
-                        CornerRadius::same((scale * 0.2) as u8),
-                        palette::accent().gamma_multiply(0.45),
-                    );
-                }
-                text(
-                    band.center(),
-                    Align2::CENTER_CENTER,
-                    &row.label,
-                    scale,
-                    FontFamily::Proportional,
-                    color,
-                );
-                y += ROW * scale;
-            }
-            if let (Some(p), true) = (l.picture, laid.pictures[i] > 0.0) {
-                y += RULE * scale;
-                let room = Rect::from_min_size(
-                    pos2(r.min.x + PAD_X / 2.0 * scale, y),
-                    vec2(r.width() - PAD_X * scale, laid.pictures[i] * scale),
-                );
-                picture(&painter, room, p, l.tint, true);
-            }
-        }
-        if node.dashed {
-            let corners = [
-                r.left_top(),
-                r.right_top(),
-                r.right_bottom(),
-                r.left_bottom(),
-                r.left_top(),
-            ];
-            painter.extend(Shape::dashed_line(
-                &corners,
-                l.outline,
-                scale * 0.25,
-                scale * 0.2,
-            ));
-        } else {
-            painter.rect_stroke(r, radius, l.outline, StrokeKind::Inside);
-        }
-    }
-    ink.min_size
-        .set(ink.min_size.get().min(draw_ink.min_size.get()));
-}
-
-/// A picture fitted in `room`, its shape kept; framed when `frame`.
-fn picture(painter: &egui::Painter, room: Rect, p: Picture, tint: Color32, frame: bool) {
-    let shape = p.1[1] as f32 / p.1[0].max(1) as f32;
-    let fitted = if shape > room.height() / room.width() {
-        Rect::from_center_size(room.center(), vec2(room.height() / shape, room.height()))
-    } else {
-        Rect::from_center_size(room.center(), vec2(room.width(), room.width() * shape))
-    };
-    painter.image(
-        p.0,
-        fitted,
-        Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
-        tint,
-    );
-    if frame {
-        painter.rect_stroke(
-            fitted,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, palette::text_faint()),
-            StrokeKind::Outside,
-        );
-    }
-}
-
 /// A view of a graph that pans, zooms, and moves its nodes by hand, kept in
 /// egui's memory between frames: its scale (pixels per unit; 0 until set),
 /// the graph point at the area's centre, the moved nodes, what a drag holds
@@ -1470,291 +1141,4 @@ pub fn interact(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn spec(nodes: &[(&str, &[&str])], edges: &[(&str, &str)]) -> Spec {
-        Spec {
-            nodes: nodes
-                .iter()
-                .map(|(id, rows)| SpecNode {
-                    id: id.to_string(),
-                    title: vec![id.to_string()],
-                    rows: rows
-                        .iter()
-                        .map(|r| SpecRow {
-                            id: r.to_string(),
-                            label: r.to_string(),
-                        })
-                        .collect(),
-                    dashed: false,
-                    image: None,
-                })
-                .collect(),
-            edges: edges
-                .iter()
-                .map(|(a, b)| SpecEdge {
-                    from: a.to_string(),
-                    to: b.to_string(),
-                    ..Default::default()
-                })
-                .collect(),
-        }
-    }
-
-    #[test]
-    fn a_spec_names_its_nodes_and_rows() {
-        let g = spec(
-            &[("CULL", &["tilesCS", "cullCS"]), ("FWD", &[])],
-            &[("CULL", "FWD")],
-        )
-        .graph()
-        .unwrap();
-        assert_eq!(g.named("cullCS"), Some(0));
-        assert_eq!(g.named("FWD"), Some(1));
-        assert!(g.check_focus(&["tilesCS".into(), "FWD".into()]).is_ok());
-        assert!(g.check_focus(&["nothing".into()]).is_err());
-        assert!(spec(&[("A", &[])], &[("A", "B")]).graph().is_err());
-        assert!(spec(&[("A", &["A"])], &[]).graph().is_err());
-    }
-
-    #[test]
-    fn lays_out_along_its_flow() {
-        let g = spec(
-            &[("A", &[]), ("B", &["b1", "b2"]), ("C", &[])],
-            &[("A", "B"), ("B", "C"), ("C", "B")],
-        )
-        .graph()
-        .unwrap();
-        let width = |s: &str| s.len() as f32 * 0.6;
-        let right = lay_out(&g, &width, &[], 0.5625, &Options::default());
-        assert!(
-            right.rects[0].center().x < right.rects[1].center().x
-                && right.rects[1].center().x < right.rects[2].center().x
-        );
-        // The edge written last closes the cycle: an arc back.
-        assert_eq!(
-            right.routes.iter().map(|r| r.back).collect::<Vec<_>>(),
-            [false, false, true]
-        );
-        // A box of rows is taller; a picture makes it taller still.
-        assert!(right.rects[1].height() > right.rects[0].height());
-        let pictured = lay_out(&g, &width, &[1], 0.5625, &Options::default());
-        assert!(pictured.rects[1].height() > right.rects[1].height() && pictured.pictures[1] > 0.0);
-        // Top to bottom: the same layers, down the page.
-        let down = lay_out(
-            &g,
-            &width,
-            &[],
-            0.5625,
-            &Options {
-                flow: Flow::Down,
-                ..Default::default()
-            },
-        );
-        assert!(
-            down.rects[0].center().y < down.rects[1].center().y
-                && down.rects[1].center().y < down.rects[2].center().y
-        );
-        assert!(down.bounds.contains_rect(down.rects[1]));
-    }
-
-    #[test]
-    fn an_image_node_takes_its_pictures_shape() {
-        let mut g = spec(&[("A", &[]), ("I", &[])], &[("A", "I")])
-            .graph()
-            .unwrap();
-        g.nodes[1].image = Some(("p.image".into(), 0.5));
-        let laid = lay_out(
-            &g,
-            &|s| s.len() as f32 * 0.6,
-            &[],
-            0.5625,
-            &Options::default(),
-        );
-        // At least `IMAGE` wide (with its padding), its picture as high as half its width, at most `IMAGE`.
-        assert!(laid.rects[1].width() >= IMAGE);
-        assert!(laid.pictures[1] > 0.0 && laid.pictures[1] <= IMAGE && laid.pictures[0] == 0.0);
-    }
-
-    #[test]
-    fn a_drag_moves_a_node_and_a_reset_puts_it_back() {
-        let g = spec(&[("A", &[]), ("B", &[])], &[("A", "B")])
-            .graph()
-            .unwrap();
-        let laid = lay_out(
-            &g,
-            &|s| s.len() as f32 * 0.6,
-            &[],
-            0.5625,
-            &Options::default(),
-        );
-        let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
-        let ctx = egui::Context::default();
-        let id = egui::Id::unique("test-graph-view");
-        let setup = |v: &mut ViewState, _: bool| {
-            v.scale = 24.0;
-            v.centre = laid.bounds.center().to_vec2();
-        };
-        let controls = Controls {
-            zoom: None,
-            move_nodes: true,
-        };
-        let frame = |events: Vec<egui::Event>| -> ViewState {
-            let mut out = None;
-            let _ = ctx.run_ui(
-                egui::RawInput {
-                    events,
-                    screen_rect: Some(area),
-                    ..Default::default()
-                },
-                |ui| {
-                    out = Some(view(ui.ctx(), Some(id), area, &laid, 1, &controls, &setup).0);
-                },
-            );
-            out.expect("a frame")
-        };
-        let a = Transform::centred(area, laid.bounds.center(), 24.0)
-            .rect(laid.rects[0])
-            .center();
-        let button = |pos: Pos2, pressed: bool| egui::Event::PointerButton {
-            pos,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: Default::default(),
-        };
-        frame(vec![egui::Event::PointerMoved(a)]);
-        frame(vec![button(a, true)]);
-        frame(vec![egui::Event::PointerMoved(a + vec2(30.0, 0.0))]);
-        let moved = frame(vec![egui::Event::PointerMoved(a + vec2(60.0, 0.0))]);
-        assert!(
-            moved.moved.iter().any(|m| m.0 == 0 && m.1.x > 1.0),
-            "{:?}",
-            moved.moved
-        );
-        frame(vec![button(a + vec2(60.0, 0.0), false)]);
-        ask_reset(&ctx, id);
-        let back = frame(Vec::new());
-        assert!(back.moved.is_empty());
-        assert_eq!(back.centre, laid.bounds.center().to_vec2());
-    }
-
-    #[test]
-    fn the_wheel_zooms_a_panel_and_a_drag_pans_it() {
-        let g = spec(&[("A", &[]), ("B", &[])], &[("A", "B")])
-            .graph()
-            .unwrap();
-        let laid = lay_out(
-            &g,
-            &|s| s.len() as f32 * 0.6,
-            &[],
-            0.5625,
-            &Options::default(),
-        );
-        let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
-        let ctx = egui::Context::default();
-        let id = egui::Id::unique("test-graph-zoom");
-        let setup = |v: &mut ViewState, _: bool| {
-            v.scale = 24.0;
-            v.centre = laid.bounds.center().to_vec2();
-        };
-        let range = zoom_range(&laid, area, 24.0);
-        assert!(range.0 <= 24.0 && range.1 == 96.0);
-        let controls = Controls {
-            zoom: Some(range),
-            move_nodes: true,
-        };
-        let frame = |events: Vec<egui::Event>| -> ViewState {
-            let mut out = None;
-            let _ = ctx.run_ui(
-                egui::RawInput {
-                    events,
-                    screen_rect: Some(area),
-                    ..Default::default()
-                },
-                |ui| {
-                    out = Some(view(ui.ctx(), Some(id), area, &laid, 1, &controls, &setup).0);
-                },
-            );
-            out.expect("a frame")
-        };
-        let at = area.center();
-        frame(vec![egui::Event::PointerMoved(at)]);
-        let wheel = egui::Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Point,
-            delta: vec2(0.0, 120.0),
-            phase: egui::TouchPhase::Move,
-            source: egui::MouseWheelSource::Unknown,
-            modifiers: Default::default(),
-        };
-        let mut zoomed = frame(vec![wheel]);
-        for _ in 0..30 {
-            zoomed = frame(Vec::new());
-        }
-        // The wheel zooms about the pointer and does not pan.
-        assert!(
-            zoomed.scale > 24.0 && zoomed.scale <= 96.0,
-            "{}",
-            zoomed.scale
-        );
-        assert!(
-            (zoomed.centre - laid.bounds.center().to_vec2()).length() < 1e-3,
-            "{:?}",
-            zoomed.centre
-        );
-        // A drag on the background pans.
-        let empty = area.min + vec2(5.0, 5.0);
-        let button = |pos: Pos2, pressed: bool| egui::Event::PointerButton {
-            pos,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: Default::default(),
-        };
-        frame(vec![egui::Event::PointerMoved(empty)]);
-        frame(vec![button(empty, true)]);
-        let panned = frame(vec![egui::Event::PointerMoved(empty + vec2(40.0, 0.0))]);
-        assert!(
-            panned.centre.x < zoomed.centre.x - 0.1,
-            "{:?} {:?}",
-            panned.centre,
-            zoomed.centre
-        );
-        assert_eq!(panned.scale, zoomed.scale);
-    }
-
-    #[test]
-    fn clusters_are_boxed_together() {
-        let mut g = spec(
-            &[("A", &[]), ("B", &[]), ("C", &[])],
-            &[("A", "B"), ("A", "C")],
-        )
-        .graph()
-        .unwrap();
-        g.clusters = vec![
-            Cluster {
-                title: Some("one".into()),
-                members: vec![0, 1],
-                boxed: true,
-            },
-            Cluster {
-                title: None,
-                members: vec![2],
-                boxed: false,
-            },
-        ];
-        let laid = lay_out(
-            &g,
-            &|s| s.len() as f32 * 0.6,
-            &[],
-            0.5625,
-            &Options::default(),
-        );
-        assert_eq!(laid.boxes.len(), 1);
-        let (_, b) = laid.boxes[0];
-        assert!(
-            b.contains_rect(laid.rects[0])
-                && b.contains_rect(laid.rects[1])
-                && !b.contains_rect(laid.rects[2])
-        );
-    }
-}
+mod tests;

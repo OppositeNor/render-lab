@@ -67,11 +67,15 @@ use winit::platform::run_on_demand::EventLoopExtRunOnDemand;
 use winit::window::{Window, WindowId};
 
 mod app;
+mod autotest;
+mod config_page;
 mod pages;
 mod painter;
+mod select_page;
 mod snapshot;
 mod widgets;
 pub use app::*;
+pub use autotest::*;
 use painter::*;
 pub use snapshot::*;
 use widgets::*;

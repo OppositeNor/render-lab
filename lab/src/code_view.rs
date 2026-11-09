@@ -232,6 +232,72 @@ pub struct Scroll<'a> {
 /// A row's height.
 pub const LINE: f32 = 28.0;
 
+/// A section laid out: its header, and each of its lines' rows.
+type LaidSection<'a> = (Option<&'a String>, Vec<Vec<Row>>);
+
+/// The view's scroll offset, kept in egui's memory for `s.key` (and where a drag holds the bar's thumb): the
+/// wheel over `rect`, a press or a drag on the bar's `track`, clamped to the content (`height` high,
+/// `content_w` wide); and whether the bar is lit (dragged or hovered).
+fn scrolled(
+    s: &Scroll,
+    rect: Rect,
+    (height, content_w): (f32, f32),
+    (track, thumb_of): (Rect, &dyn Fn(f32) -> Rect),
+) -> (Vec2, bool) {
+    // The offset, and where on the thumb a drag holds it (none while not dragging).
+    let (mut offset, key, mut grab) = s
+        .ctx
+        .data(|d| d.get_temp::<(Vec2, String, Option<f32>)>(s.id))
+        .unwrap_or_default();
+    if key != s.key {
+        (offset, grab) = (Vec2::ZERO, None);
+    }
+    let (hover, pressed, down) = s.ctx.input(|i| {
+        (
+            i.pointer.hover_pos(),
+            i.pointer.primary_pressed(),
+            i.pointer.primary_down(),
+        )
+    });
+    let bar = height > rect.height();
+    if hover.is_some_and(|p| rect.contains(p)) {
+        offset -= s.ctx.input(|i| i.smooth_scroll_delta);
+    }
+    if bar
+        && pressed
+        && let Some(p) = hover.filter(|p| track.contains(*p))
+    {
+        let thumb = thumb_of(offset.y);
+        // On the thumb, held where it is pressed; beside it, the thumb's middle comes there.
+        grab = Some(if thumb.y_range().contains(p.y) {
+            p.y - thumb.min.y
+        } else {
+            thumb.height() / 2.0
+        });
+    }
+    if !down || !bar {
+        grab = None;
+    }
+    if let (Some(g), Some(p)) = (grab, hover) {
+        offset.y = (p.y - g - rect.min.y) * height / rect.height();
+    }
+    offset = vec2(
+        offset.x.clamp(0.0, (content_w - rect.width()).max(0.0)),
+        offset.y.clamp(0.0, (height - rect.height()).max(0.0)),
+    );
+    let bar_lit = bar && (grab.is_some() || hover.is_some_and(|p| track.contains(p)));
+    if bar_lit {
+        s.ctx.set_cursor_icon(if grab.is_some() {
+            egui::CursorIcon::Grabbing
+        } else {
+            egui::CursorIcon::Grab
+        });
+    }
+    s.ctx
+        .data_mut(|d| d.insert_temp(s.id, (offset, s.key.to_string(), grab)));
+    (offset, bar_lit)
+}
+
 /// Draws `sections` of `language` code in `rect`: each header, then its
 /// lines, a lit line on a band with an accent bar, the others dimmed while
 /// any is lit (and those of a section that is not strong). `wrap` breaks long
@@ -251,9 +317,8 @@ pub fn draw(
     } else {
         usize::MAX / 2
     };
-    let any_lit = sections.iter().any(|s| s.lines.iter().any(|l| l.lit));
     // Each section's rows, and the content's size.
-    let laid: Vec<(Option<&String>, Vec<Vec<Row>>)> = sections
+    let laid: Vec<LaidSection> = sections
         .iter()
         .map(|s| {
             (
@@ -290,78 +355,59 @@ pub fn draw(
         )
     };
     let track = Rect::from_x_y_ranges(rect.max.x - 14.0..=rect.max.x + 4.0, rect.y_range());
-    let mut bar_lit = false;
-    let offset = match &scroll {
-        Some(s) => {
-            // The offset, and where on the thumb a drag holds it (none while not dragging).
-            let (mut offset, key, mut grab) = s
-                .ctx
-                .data(|d| d.get_temp::<(Vec2, String, Option<f32>)>(s.id))
-                .unwrap_or_default();
-            if key != s.key {
-                (offset, grab) = (Vec2::ZERO, None);
-            }
-            let (hover, pressed, down) = s.ctx.input(|i| {
-                (
-                    i.pointer.hover_pos(),
-                    i.pointer.primary_pressed(),
-                    i.pointer.primary_down(),
-                )
-            });
-            let bar = height > rect.height();
-            if hover.is_some_and(|p| rect.contains(p)) {
-                offset -= s.ctx.input(|i| i.smooth_scroll_delta);
-            }
-            if bar
-                && pressed
-                && let Some(p) = hover.filter(|p| track.contains(*p))
-            {
-                let thumb = thumb_of(offset.y);
-                // On the thumb, held where it is pressed; beside it, the thumb's middle comes there.
-                grab = Some(if thumb.y_range().contains(p.y) {
-                    p.y - thumb.min.y
-                } else {
-                    thumb.height() / 2.0
-                });
-            }
-            if !down || !bar {
-                grab = None;
-            }
-            if let (Some(g), Some(p)) = (grab, hover) {
-                offset.y = (p.y - g - rect.min.y) * height / rect.height();
-            }
-            let content_w = if wrap_lines {
-                rect.width()
-            } else {
-                width
-            };
-            offset = vec2(
-                offset.x.clamp(0.0, (content_w - rect.width()).max(0.0)),
-                offset.y.clamp(0.0, (height - rect.height()).max(0.0)),
-            );
-            bar_lit = bar && (grab.is_some() || hover.is_some_and(|p| track.contains(p)));
-            if bar_lit {
-                s.ctx.set_cursor_icon(if grab.is_some() {
-                    egui::CursorIcon::Grabbing
-                } else {
-                    egui::CursorIcon::Grab
-                });
-            }
-            s.ctx
-                .data_mut(|d| d.insert_temp(s.id, (offset, s.key.to_string(), grab)));
-            offset
-        }
-        None => Vec2::ZERO,
+    let content_w = if wrap_lines {
+        rect.width()
+    } else {
+        width
+    };
+    let (offset, bar_lit) = match &scroll {
+        Some(s) => scrolled(s, rect, (height, content_w), (track, &thumb_of)),
+        None => (Vec2::ZERO, false),
     };
     // A lit band reaches 10 points past the code on either side, and 2 above it.
+    let overflow = draw_sections(
+        ink,
+        rect,
+        (language, sections, &laid),
+        offset,
+        scroll.is_some(),
+    );
+    // Where the view is in the code: a thin bar along the right edge, brighter under the pointer.
+    if scroll.is_some() && height > rect.height() {
+        ink.painter.rect_filled(
+            thumb_of(offset.y),
+            CornerRadius::same(2),
+            if bar_lit {
+                palette::text_dim()
+            } else {
+                palette::text_faint()
+            },
+        );
+    }
+    overflow
+}
+
+/// The sections' headers and lines at `offset` into the content, clipped to `rect` (a lit band reaches 10
+/// points past the code on either side, and 2 above it); without scrolling (`scrolls`), the lines that do not
+/// fit left out, and their number returned.
+fn draw_sections(
+    ink: &Ink,
+    rect: Rect,
+    (language, sections, laid): (Language, &[Section], &[LaidSection]),
+    offset: Vec2,
+    scrolls: bool,
+) -> usize {
+    let column = ink.measure("0", 24.0, FontFamily::Monospace).x;
+    let any_lit = sections.iter().any(|s| s.lines.iter().any(|l| l.lit));
+    let (header_height, gap) = (32.0, 14.0);
     let clipped = ink.painter.with_clip_rect(rect.expand2(vec2(12.0, 2.0)));
     let cink = Ink::new(&clipped);
     let mut overflow = 0;
     let mut y = rect.min.y - offset.y;
     let x = rect.min.x - offset.x;
-    for (section, (header, rows)) in sections.iter().zip(&laid) {
+    for (section, (header, rows)) in sections.iter().zip(laid) {
         if let Some(h) = header {
-            if scroll.is_some() || y + header_height <= rect.max.y {
+            if scrolls || y + header_height <= rect.max.y {
                 cink.text(
                     pos2(x, y),
                     Align2::LEFT_TOP,
@@ -375,7 +421,7 @@ pub fn draw(
         }
         for (line, rows) in section.lines.iter().zip(rows) {
             let h = rows.len() as f32 * LINE;
-            if scroll.is_none() && y + h > rect.max.y {
+            if !scrolls && y + h > rect.max.y {
                 overflow += 1;
                 continue;
             }
@@ -406,18 +452,6 @@ pub fn draw(
             y += h;
         }
         y += gap;
-    }
-    // Where the view is in the code: a thin bar along the right edge, brighter under the pointer.
-    if scroll.is_some() && height > rect.height() {
-        ink.painter.rect_filled(
-            thumb_of(offset.y),
-            CornerRadius::same(2),
-            if bar_lit {
-                palette::text_dim()
-            } else {
-                palette::text_faint()
-            },
-        );
     }
     ink.min_size
         .set(ink.min_size.get().min(cink.min_size.get()));

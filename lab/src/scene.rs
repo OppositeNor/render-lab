@@ -248,18 +248,25 @@ fn vec3(value: &toml_edit::Value) -> anyhow::Result<Vec3> {
     ))
 }
 
+/// `s` kept for the program's life (a scene's names and tags).
+fn leak_str(s: &str) -> &'static str {
+    Box::leak(s.to_string().into_boxed_str())
+}
+
+/// The value `key` of `table`, which must be there.
+fn table_value(table: &toml_edit::Table, key: &str) -> anyhow::Result<toml_edit::Value> {
+    table
+        .get(key)
+        .and_then(|i| i.as_value())
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("`{key}` is missing"))
+}
+
 fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
-    use anyhow::{Context, anyhow, bail};
+    use anyhow::{Context, bail};
     let document = toml_edit::Document::parse(text.to_string())?;
     let root = document.as_table();
-    let leak = |s: &str| -> &'static str { Box::leak(s.to_string().into_boxed_str()) };
-    let value = |table: &toml_edit::Table, key: &str| -> anyhow::Result<toml_edit::Value> {
-        table
-            .get(key)
-            .and_then(|i| i.as_value())
-            .cloned()
-            .ok_or_else(|| anyhow!("`{key}` is missing"))
-    };
+    let (leak, value) = (leak_str, table_value);
     let title = leak(
         value(root, "title-text")?
             .as_str()
@@ -280,131 +287,9 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
         .and_then(|o| o.as_array_of_tables())
         .context("a scene has `[[object]]` tables")?
     {
-        let name = leak(
-            value(table, "name")?
-                .as_str()
-                .context("`name` is a string")?,
-        );
-        let at = |e: anyhow::Error| e.context(format!("object `{name}`"));
-        let shape_name = value(table, "shape").map_err(at)?;
-        let shape = match shape_name.as_str() {
-            Some("plane") => SHAPE_PLANE,
-            Some("box") => SHAPE_BOX,
-            Some("sphere") => SHAPE_SPHERE,
-            Some("panel") => SHAPE_PANEL,
-            Some("mesh") => SHAPE_MESH,
-            Some("terrain") => SHAPE_TERRAIN,
-            _ => bail!("object `{name}`: `shape` is plane, box, sphere, panel, mesh, or terrain"),
-        };
-        let optional = |key: &str, default: Vec3| -> anyhow::Result<Vec3> {
-            table
-                .get(key)
-                .and_then(|i| i.as_value())
-                .map(vec3)
-                .unwrap_or(Ok(default))
-        };
-        let translation = optional("translation", Vec3::ZERO).map_err(at)?;
-        let rotation = match table
-            .get("rotation")
-            .and_then(|i| i.as_value())
-            .and_then(|v| v.as_inline_table())
-        {
-            None => Quat::IDENTITY,
-            Some(r) => match (r.get("x"), r.get("y"), r.get("z"), r.get("aim")) {
-                (Some(a), None, None, None) => Quat::from_rotation_x(deg(number(a)?)),
-                (None, Some(a), None, None) => Quat::from_rotation_y(deg(number(a)?)),
-                (None, None, Some(a), None) => Quat::from_rotation_z(deg(number(a)?)),
-                (None, None, None, Some(p)) => {
-                    Quat::from_rotation_arc(Vec3::Y, (vec3(p)? - translation).normalize())
-                }
-                _ => bail!(
-                    "object `{name}`: `rotation` is one of {{ x }}, {{ y }}, {{ z }} (degrees) or {{ aim = [x, y, z] }}"
-                ),
-            },
-        };
-        // A mesh's and the terrain's bounds are their own.
-        let (local_center, local_extent) = match shape {
-            SHAPE_MESH => {
-                let mesh = value(table, "mesh").map_err(at)?;
-                if mesh.as_str() != Some("teapot") {
-                    bail!("object `{name}`: the lab's one mesh is `teapot` (src/mesh.rs)");
-                }
-                let teapot = crate::mesh::teapot();
-                (teapot.local_center(), teapot.local_extent())
-            }
-            SHAPE_TERRAIN => {
-                let terrain = crate::terrain::terrain();
-                (terrain.local_center(), terrain.local_extent())
-            }
-            _ => (
-                Vec3::ZERO,
-                vec3(&value(table, "extent").map_err(at)?).map_err(at)?,
-            ),
-        };
-        objects.push(SceneObject {
-            name,
-            shape,
-            local_center,
-            local_extent,
-            translation,
-            rotation,
-            scale: optional("scale", Vec3::ONE).map_err(at)?,
-            albedo: vec3(&value(table, "albedo").map_err(at)?).map_err(at)?,
-            roughness: number(&value(table, "roughness").map_err(at)?).map_err(at)?,
-            emissive: optional("emissive", Vec3::ZERO).map_err(at)?,
-            emissive_strength: table
-                .get("emissive-strength")
-                .and_then(|i| i.as_value())
-                .map(number)
-                .unwrap_or(Ok(0.0))
-                .map_err(at)?,
-            tags: match table.get("tags").and_then(|i| i.as_value()) {
-                None => Vec::new(),
-                Some(v) => v
-                    .as_array()
-                    .context("`tags` is a list of words")
-                    .map_err(at)?
-                    .iter()
-                    .map(|t| t.as_str().map(leak).context("a tag is a word"))
-                    .collect::<anyhow::Result<_>>()
-                    .map_err(at)?,
-            },
-            movable: match table.get("movable").and_then(|i| i.as_value()) {
-                None => false,
-                Some(v) => v
-                    .as_bool()
-                    .context("`movable` is true or false")
-                    .map_err(at)?,
-            },
-        });
+        objects.push(read_object(table)?);
     }
-    let lighting = root
-        .get("lighting")
-        .and_then(|l| l.as_table())
-        .context("a scene has `[lighting]`")?;
-    let light_name = value(lighting, "light")?;
-    let panel = objects
-        .iter()
-        .find(|o| Some(o.name) == light_name.as_str())
-        .with_context(|| format!("`[lighting] light`: no object {light_name:?}"))?;
-    let light = Light {
-        center: panel.translation,
-        axis_u: panel.rotation * Vec3::new(panel.local_extent.x, 0.0, 0.0),
-        axis_v: panel.rotation * Vec3::new(0.0, 0.0, panel.local_extent.z),
-        color: panel.emissive,
-        radiance: panel.emissive_strength,
-    };
-    let lighting = Lighting {
-        light,
-        ambient: Vec3::splat(number(&value(lighting, "ambient")?)?),
-        f0: number(&value(lighting, "f0")?)?,
-        reflection_strength: number(&value(lighting, "reflection-strength")?)?,
-        ggx_samples: value(lighting, "ggx-samples")?
-            .as_integer()
-            .filter(|n| *n > 0)
-            .context("`ggx-samples` is a whole number")? as u32,
-        exposure: number(&value(lighting, "exposure")?)?,
-    };
+    let lighting = read_lighting(root, &objects)?;
     // Investigations name the study room's objects by index.
     if id == SceneId::STUDY_ROOM {
         let names = [
@@ -435,6 +320,160 @@ fn read_scene(id: SceneId, text: &str) -> anyhow::Result<Description> {
         title,
         camera_clear,
     })
+}
+
+/// An `[[object]]` of a scene: its name, shape, place, turn, size, bounds, material, tags, and whether it moves.
+fn read_object(table: &toml_edit::Table) -> anyhow::Result<SceneObject> {
+    use anyhow::{Context, bail};
+    let (leak, value) = (leak_str, table_value);
+    let name = leak(
+        value(table, "name")?
+            .as_str()
+            .context("`name` is a string")?,
+    );
+    let at = |e: anyhow::Error| e.context(format!("object `{name}`"));
+    let shape_name = value(table, "shape").map_err(at)?;
+    let shape = match shape_name.as_str() {
+        Some("plane") => SHAPE_PLANE,
+        Some("box") => SHAPE_BOX,
+        Some("sphere") => SHAPE_SPHERE,
+        Some("panel") => SHAPE_PANEL,
+        Some("mesh") => SHAPE_MESH,
+        Some("terrain") => SHAPE_TERRAIN,
+        _ => bail!("object `{name}`: `shape` is plane, box, sphere, panel, mesh, or terrain"),
+    };
+    let optional = |key: &str, default: Vec3| -> anyhow::Result<Vec3> {
+        table
+            .get(key)
+            .and_then(|i| i.as_value())
+            .map(vec3)
+            .unwrap_or(Ok(default))
+    };
+    let translation = optional("translation", Vec3::ZERO).map_err(at)?;
+    let rotation = read_rotation(table, translation, name)?;
+    // A mesh's and the terrain's bounds are their own.
+    let (local_center, local_extent) = local_bounds(table, shape, name)?;
+    Ok(SceneObject {
+        name,
+        shape,
+        local_center,
+        local_extent,
+        translation,
+        rotation,
+        scale: optional("scale", Vec3::ONE).map_err(at)?,
+        albedo: vec3(&value(table, "albedo").map_err(at)?).map_err(at)?,
+        roughness: number(&value(table, "roughness").map_err(at)?).map_err(at)?,
+        emissive: optional("emissive", Vec3::ZERO).map_err(at)?,
+        emissive_strength: table
+            .get("emissive-strength")
+            .and_then(|i| i.as_value())
+            .map(number)
+            .unwrap_or(Ok(0.0))
+            .map_err(at)?,
+        tags: match table.get("tags").and_then(|i| i.as_value()) {
+            None => Vec::new(),
+            Some(v) => v
+                .as_array()
+                .context("`tags` is a list of words")
+                .map_err(at)?
+                .iter()
+                .map(|t| t.as_str().map(leak).context("a tag is a word"))
+                .collect::<anyhow::Result<_>>()
+                .map_err(at)?,
+        },
+        movable: match table.get("movable").and_then(|i| i.as_value()) {
+            None => false,
+            Some(v) => v
+                .as_bool()
+                .context("`movable` is true or false")
+                .map_err(at)?,
+        },
+    })
+}
+
+/// An object's `rotation`: about x, y, or z (degrees), or aimed at a point (its y axis toward it).
+fn read_rotation(table: &toml_edit::Table, translation: Vec3, name: &str) -> anyhow::Result<Quat> {
+    use anyhow::bail;
+    let rotation = match table
+        .get("rotation")
+        .and_then(|i| i.as_value())
+        .and_then(|v| v.as_inline_table())
+    {
+        None => Quat::IDENTITY,
+        Some(r) => match (r.get("x"), r.get("y"), r.get("z"), r.get("aim")) {
+            (Some(a), None, None, None) => Quat::from_rotation_x(deg(number(a)?)),
+            (None, Some(a), None, None) => Quat::from_rotation_y(deg(number(a)?)),
+            (None, None, Some(a), None) => Quat::from_rotation_z(deg(number(a)?)),
+            (None, None, None, Some(p)) => {
+                Quat::from_rotation_arc(Vec3::Y, (vec3(p)? - translation).normalize())
+            }
+            _ => bail!(
+                "object `{name}`: `rotation` is one of {{ x }}, {{ y }}, {{ z }} (degrees) or {{ aim = [x, y, z] }}"
+            ),
+        },
+    };
+    Ok(rotation)
+}
+
+/// An object's bounds in its own space: a mesh's and the terrain's are their own, others' their `extent`.
+fn local_bounds(table: &toml_edit::Table, shape: u32, name: &str) -> anyhow::Result<(Vec3, Vec3)> {
+    use anyhow::bail;
+    let value = table_value;
+    let at = |e: anyhow::Error| e.context(format!("object `{name}`"));
+    let (local_center, local_extent) = match shape {
+        SHAPE_MESH => {
+            let mesh = value(table, "mesh").map_err(at)?;
+            if mesh.as_str() != Some("teapot") {
+                bail!("object `{name}`: the lab's one mesh is `teapot` (src/mesh.rs)");
+            }
+            let teapot = crate::mesh::teapot();
+            (teapot.local_center(), teapot.local_extent())
+        }
+        SHAPE_TERRAIN => {
+            let terrain = crate::terrain::terrain();
+            (terrain.local_center(), terrain.local_extent())
+        }
+        _ => (
+            Vec3::ZERO,
+            vec3(&value(table, "extent").map_err(at)?).map_err(at)?,
+        ),
+    };
+    Ok((local_center, local_extent))
+}
+
+/// A scene's `[lighting]`: its light (the emissive panel it names), the ambient light, F0, the reflections'
+/// strength, the GGX samples, and the exposure.
+fn read_lighting(root: &toml_edit::Table, objects: &[SceneObject]) -> anyhow::Result<Lighting> {
+    use anyhow::Context;
+    let value = table_value;
+    let lighting = root
+        .get("lighting")
+        .and_then(|l| l.as_table())
+        .context("a scene has `[lighting]`")?;
+    let light_name = value(lighting, "light")?;
+    let panel = objects
+        .iter()
+        .find(|o| Some(o.name) == light_name.as_str())
+        .with_context(|| format!("`[lighting] light`: no object {light_name:?}"))?;
+    let light = Light {
+        center: panel.translation,
+        axis_u: panel.rotation * Vec3::new(panel.local_extent.x, 0.0, 0.0),
+        axis_v: panel.rotation * Vec3::new(0.0, 0.0, panel.local_extent.z),
+        color: panel.emissive,
+        radiance: panel.emissive_strength,
+    };
+    let lighting = Lighting {
+        light,
+        ambient: Vec3::splat(number(&value(lighting, "ambient")?)?),
+        f0: number(&value(lighting, "f0")?)?,
+        reflection_strength: number(&value(lighting, "reflection-strength")?)?,
+        ggx_samples: value(lighting, "ggx-samples")?
+            .as_integer()
+            .filter(|n| *n > 0)
+            .context("`ggx-samples` is a whole number")? as u32,
+        exposure: number(&value(lighting, "exposure")?)?,
+    };
+    Ok(lighting)
 }
 
 /// The terrain a scene's `[terrain]` table describes (src/terrain.rs).
@@ -916,61 +955,10 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
         let e = o.local_extent;
         match o.shape {
             SHAPE_SPHERE => {
-                let (rings, segments) = (40u32, 80u32);
-                for r in 0..=rings {
-                    let v = r as f32 / rings as f32;
-                    let theta = v * PI;
-                    for s in 0..=segments {
-                        let u = s as f32 / segments as f32;
-                        let phi = u * 2.0 * PI;
-                        let n = Vec3::new(
-                            theta.sin() * phi.cos(),
-                            theta.cos(),
-                            theta.sin() * phi.sin(),
-                        );
-                        vertices.push(Vertex {
-                            position: (c + n * e.x).to_array(),
-                            normal: n.to_array(),
-                        });
-                    }
-                }
-                for r in 0..rings {
-                    for s in 0..segments {
-                        let a = base + r * (segments + 1) + s;
-                        let b = a + segments + 1;
-                        indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
-                    }
-                }
+                sphere_mesh(o, &mut vertices, &mut indices);
             }
             SHAPE_BOX => {
-                for axis in 0..3 {
-                    for side in [-1.0f32, 1.0] {
-                        let mut n = Vec3::ZERO;
-                        n[axis] = side;
-                        let t = if axis == 0 {
-                            Vec3::Y
-                        } else {
-                            Vec3::X
-                        };
-                        let b = n.cross(t);
-                        let start = vertices.len() as u32;
-                        for (du, dv) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-                            let p = c + (n + t * du + b * dv) * e;
-                            vertices.push(Vertex {
-                                position: p.to_array(),
-                                normal: n.to_array(),
-                            });
-                        }
-                        indices.extend_from_slice(&[
-                            start,
-                            start + 1,
-                            start + 2,
-                            start,
-                            start + 2,
-                            start + 3,
-                        ]);
-                    }
-                }
+                box_mesh(o, &mut vertices, &mut indices);
             }
             SHAPE_MESH => {
                 for tri in &crate::mesh::teapot().triangles {
@@ -1018,6 +1006,63 @@ pub fn build_meshes(scene: &Scene) -> Meshes {
         vertices,
         indices,
         ranges,
+    }
+}
+
+/// A sphere of 40 rings by 80 segments.
+fn sphere_mesh(o: &SceneObject, vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>) {
+    let (c, e) = (o.local_center, o.local_extent);
+    let base = vertices.len() as u32;
+    let (rings, segments) = (40u32, 80u32);
+    for r in 0..=rings {
+        let v = r as f32 / rings as f32;
+        let theta = v * PI;
+        for s in 0..=segments {
+            let u = s as f32 / segments as f32;
+            let phi = u * 2.0 * PI;
+            let n = Vec3::new(
+                theta.sin() * phi.cos(),
+                theta.cos(),
+                theta.sin() * phi.sin(),
+            );
+            vertices.push(Vertex {
+                position: (c + n * e.x).to_array(),
+                normal: n.to_array(),
+            });
+        }
+    }
+    for r in 0..rings {
+        for s in 0..segments {
+            let a = base + r * (segments + 1) + s;
+            let b = a + segments + 1;
+            indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+        }
+    }
+}
+
+/// A box's six faces, each two triangles.
+fn box_mesh(o: &SceneObject, vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>) {
+    let (c, e) = (o.local_center, o.local_extent);
+    for axis in 0..3 {
+        for side in [-1.0f32, 1.0] {
+            let mut n = Vec3::ZERO;
+            n[axis] = side;
+            let t = if axis == 0 {
+                Vec3::Y
+            } else {
+                Vec3::X
+            };
+            let b = n.cross(t);
+            let start = vertices.len() as u32;
+            for (du, dv) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+                let p = c + (n + t * du + b * dv) * e;
+                vertices.push(Vertex {
+                    position: p.to_array(),
+                    normal: n.to_array(),
+                });
+            }
+            indices.extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
+        }
     }
 }
 

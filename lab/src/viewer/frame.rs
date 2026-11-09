@@ -124,8 +124,108 @@ impl App {
         let dt = (now - self.last_tick).as_secs_f32().min(0.1);
         self.last_tick = now;
         self.fly_step(dt);
-        // Live reload: about twice a second, the checkout's WGSL files changed since are read
-        // again and every pipeline made from them (a broken edit keeps the last good ones).
+        self.reload_shaders(now);
+        self.advance(now, dt);
+        // Opened on a feature's tab (a homepage button): it is selected once the scene can set up its views.
+        if self.tab_opening && self.renderer.is_some() && !self.timeline_mode {
+            self.tab_opening = false;
+            self.select_feature();
+        }
+        self.update_features();
+        let state = self.render_state();
+        let state = self.with_intro(state, now);
+        // Playing, the caption on screen (paused, the Captions tab has them, src/feature/captions.rs).
+        let caption = self
+            .timeline
+            .as_ref()
+            .filter(|_| self.timeline_mode && self.playing)
+            .and_then(|t| {
+                t.beat_at(self.timeline_frame)
+                    .1
+                    .caption_at(self.timeline_frame)
+                    .map(|c| c.text.clone())
+            });
+        let mut chrome = self.chrome(now, caption);
+        self.frame_times.push_back(dt as f64 * 1000.0);
+        if self.frame_times.len() > 120 {
+            self.frame_times.pop_front();
+        }
+        self.ask_features(&mut chrome, &state);
+        // The frame a screenshot is taken of shows no popup.
+        chrome.popups.hidden = self.screenshot;
+        // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
+        let paused_diagram = self.paused_diagram();
+        let shown = self.beat_shown();
+        if paused_diagram {
+            chrome.diagram = Some(self.diagram_page());
+        }
+        let raw_input = egui::RawInput {
+            time: Some(self.frames as f64 / 60.0),
+            events: std::mem::take(&mut self.egui_events),
+            ..Default::default()
+        };
+        // The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it.
+        let focus = self.focus_state(&chrome.features, &state);
+        let renderer = self.renderer.as_mut().expect("renderer");
+        renderer.user_layout = self.layout;
+        let result = renderer.render_frame(
+            FrameRequest {
+                state: &state,
+                scene_type: shown.kind,
+                diagram: shown.diagram.as_ref().map(OwnedDiagram::borrowed),
+                beat_sources: &shown.sources,
+                notices: shown.notices,
+                chapter_number: shown.chapter,
+                fade: shown.fade,
+                time: self.demo_time,
+                raw_input,
+                chrome: Chrome::Viewer(&mut chrome),
+                stamp: None,
+                history: true,
+                wait: false,
+                focus: focus.as_ref(),
+            },
+            readback,
+        );
+        self.ui_has_pointer = chrome.ui_has_pointer;
+        self.bar_hover = chrome.hover.take();
+        let cursor = self.renderer().cursor;
+        if cursor != self.cursor_icon {
+            self.cursor_icon = cursor;
+            if let Some(surface) = &self.surface {
+                surface.window.set_cursor(window_cursor(cursor));
+            }
+        }
+        self.dock_widgets = std::mem::take(&mut chrome.widgets);
+        self.features = std::mem::take(&mut chrome.features);
+        self.popups = std::mem::take(&mut chrome.popups);
+        for action in self.popups.take_actions() {
+            popup::perform(action);
+        }
+        if result.content.is_some() {
+            self.last_content = result.content;
+            self.last_main_content = result.main_content;
+            // A focused view that is gone gives the focus back to the main view.
+            if !self
+                .renderer()
+                .frame_views()
+                .iter()
+                .any(|(v, _)| *v == self.focus)
+            {
+                self.focus = ViewId::MAIN;
+            }
+            self.last_insets = result.report.insets;
+        }
+        for action in chrome.actions {
+            self.apply(action);
+        }
+        self.update_features();
+        Ok(())
+    }
+
+    /// Live reload: about twice a second, the checkout's WGSL files changed since are read
+    /// again and every pipeline made from them (a broken edit keeps the last good ones).
+    fn reload_shaders(&mut self, now: Instant) {
         if self.frames.is_multiple_of(30)
             && let Some(renderer) = self.renderer.as_mut()
         {
@@ -153,6 +253,11 @@ impl App {
                 });
             }
         }
+    }
+
+    /// The clock moved on by `dt`: a playing timeline's frame (the wall clock since its anchor, so the
+    /// narration stays in step; the autotest advances one frame per redraw), or the demonstration's time.
+    fn advance(&mut self, now: Instant, dt: f32) {
         if self.playing {
             if self.timeline_mode {
                 if let Some(t) = &self.timeline {
@@ -176,26 +281,12 @@ impl App {
         if let Some(t) = &self.timeline {
             self.timeline_frame = self.timeline_frame.min(t.total_frames - 1);
         }
-        // Opened on a feature's tab (a homepage button): it is selected once the scene can set up its views.
-        if self.tab_opening && self.renderer.is_some() && !self.timeline_mode {
-            self.tab_opening = false;
-            self.select_feature();
-        }
-        self.update_features();
-        let state = self.render_state();
-        let state = self.with_intro(state, now);
-        // Playing, the caption on screen (paused, the Captions tab has them, src/feature/captions.rs).
-        let caption = self
-            .timeline
-            .as_ref()
-            .filter(|_| self.timeline_mode && self.playing)
-            .and_then(|t| {
-                t.beat_at(self.timeline_frame)
-                    .1
-                    .caption_at(self.timeline_frame)
-                    .map(|c| c.text.clone())
-            });
-        let mut chrome = ViewerChrome {
+    }
+
+    /// The viewer's chrome for this frame: the timeline's place and its chapters, the caption on screen, the
+    /// notices, the dock's tab, and the features, popups, and selection it takes for the frame.
+    fn chrome(&mut self, now: Instant, caption: Option<String>) -> ViewerChrome {
+        ViewerChrome {
             playing: self.playing,
             timeline: self
                 .timeline
@@ -250,34 +341,38 @@ impl App {
                 .map(|r| r.frame_views())
                 .filter(|v| v.len() > 1)
                 .and_then(|v| v.iter().find(|(id, _)| *id == self.focus).map(|(_, r)| *r)),
+        }
+    }
+
+    /// What the features ask of the frame (src/feature/): the experiment's reference drawn with the live
+    /// state, and timings while its tab is in use; then what they read of the renderer.
+    fn ask_features(&mut self, chrome: &mut ViewerChrome, state: &ShotState) {
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
         };
-        self.frame_times.push_back(dt as f64 * 1000.0);
-        if self.frame_times.len() > 120 {
-            self.frame_times.pop_front();
+        let times: Vec<f64> = self.frame_times.iter().copied().collect();
+        let (mean, _, p95) = crate::metrics::summary(&times);
+        // What the features ask of the frame (src/feature/): the experiment's reference drawn with the live
+        // state, and timings while its tab is in use; then what they read of the renderer.
+        let frame = crate::feature::FrameInfo {
+            tab: self.tab,
+            opened: self.options.tab,
+            timeline_mode: self.timeline_mode,
+            frame_ms: (mean, p95),
+        };
+        let ask = chrome.features.frame_request(state, &frame);
+        renderer.set_compare(ask.compare);
+        // The performance panel measures as it shows, here or on a timeline.
+        renderer.set_timing(ask.timing || state.panel.shows_passes());
+        for feature in chrome.features.states_mut() {
+            feature.frame_readout(renderer, &frame);
         }
-        if let Some(renderer) = self.renderer.as_mut() {
-            let times: Vec<f64> = self.frame_times.iter().copied().collect();
-            let (mean, _, p95) = crate::metrics::summary(&times);
-            // What the features ask of the frame (src/feature/): the experiment's reference drawn with the live
-            // state, and timings while its tab is in use; then what they read of the renderer.
-            let frame = crate::feature::FrameInfo {
-                tab: self.tab,
-                opened: self.options.tab,
-                timeline_mode: self.timeline_mode,
-                frame_ms: (mean, p95),
-            };
-            let ask = chrome.features.frame_request(&state, &frame);
-            renderer.set_compare(ask.compare);
-            // The performance panel measures as it shows, here or on a timeline.
-            renderer.set_timing(ask.timing || state.panel.shows_passes());
-            for feature in chrome.features.states_mut() {
-                feature.frame_readout(renderer, &frame);
-            }
-        }
-        // The frame a screenshot is taken of shows no popup.
-        chrome.popups.hidden = self.screenshot;
-        // Paused on a diagram beat, the diagram stays, in its panel, zoomed and panned by the pointer.
-        let paused_diagram = self.paused_diagram();
+    }
+
+    /// What the frame shows of the timeline's beat while it plays or is paused on a page: its kind, its diagram
+    /// (playing, moving from the beat before or building up; paused, settled), its sources, its chapter, its
+    /// fade, and whether it is the notices.
+    fn beat_shown(&self) -> BeatShown {
         let (kind, diagram, sources, chapter, fade, notices) = match (
             &self.timeline,
             self.timeline_playing() || self.paused_page(),
@@ -290,18 +385,7 @@ impl App {
                 } else {
                     beat.beat_diagram()
                 };
-                let diagram = shown.map(|d| {
-                    (
-                        d.graph.clone(),
-                        d.focus.to_vec(),
-                        d.scene.cloned(),
-                        (
-                            d.transition.from.map(<[String]>::to_vec),
-                            d.transition.seconds,
-                            d.transition.built,
-                        ),
-                    )
-                });
+                let diagram = shown.as_ref().map(OwnedDiagram::of);
                 let fade = if self.paused_page() {
                     0.0
                 } else {
@@ -318,107 +402,52 @@ impl App {
             }
             _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false),
         };
-        if paused_diagram {
-            // The view is set up afresh for another beat, or another first view.
-            let beat = self
-                .timeline
-                .as_ref()
-                .map_or(0, |t| t.beat_at(self.timeline_frame).1.start_frame);
-            let preset = self.diagram_preset.map_or(0, |(z, c)| {
-                (z.to_bits() as u64) << 32 ^ (c.x.to_bits() as u64) << 16 ^ c.y.to_bits() as u64
-            });
-            chrome.diagram = Some(crate::ui::DiagramPage {
-                key: beat ^ preset.rotate_left(7),
-                preset: self.diagram_preset,
-            });
+        BeatShown {
+            kind,
+            diagram,
+            sources,
+            chapter,
+            fade,
+            notices,
         }
-        let raw_input = egui::RawInput {
-            time: Some(self.frames as f64 / 60.0),
-            events: std::mem::take(&mut self.egui_events),
-            ..Default::default()
-        };
-        // The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it.
-        let focus = match self.focus {
+    }
+
+    /// The paused diagram's page: its view set up afresh for another beat, or another first view.
+    fn diagram_page(&self) -> crate::ui::DiagramPage {
+        // The view is set up afresh for another beat, or another first view.
+        let beat = self
+            .timeline
+            .as_ref()
+            .map_or(0, |t| t.beat_at(self.timeline_frame).1.start_frame);
+        let preset = self.diagram_preset.map_or(0, |(z, c)| {
+            (z.to_bits() as u64) << 32 ^ (c.x.to_bits() as u64) << 16 ^ c.y.to_bits() as u64
+        });
+        crate::ui::DiagramPage {
+            key: beat ^ preset.rotate_left(7),
+            preset: self.diagram_preset,
+        }
+    }
+
+    /// The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it. A
+    /// view a feature adds (the experiment's reference), else a view stacked over the main one.
+    fn focus_state(
+        &self,
+        features: &crate::feature::Features,
+        state: &ShotState,
+    ) -> Option<ShotState> {
+        match self.focus {
             ViewId::FREE => state.free_camera.on.then(|| ShotState {
                 camera: state.free_camera.orbit(),
                 ..state.clone()
             }),
             // A view a feature adds (the experiment's reference), else a view stacked over the main one.
-            view => chrome.features.view_state(view, &state).or_else(|| {
+            view => features.view_state(view, state).or_else(|| {
                 self.over_camera(view).map(|(name, camera)| ShotState {
                     camera,
                     ..state.view_state(name)
                 })
             }),
-        };
-        let renderer = self.renderer.as_mut().expect("renderer");
-        renderer.user_layout = self.layout;
-        let result = renderer.render_frame(
-            FrameRequest {
-                state: &state,
-                scene_type: kind,
-                diagram: diagram
-                    .as_ref()
-                    .map(|(graph, focus, scene, (from, seconds, built))| {
-                        crate::diagram::BeatDiagram {
-                            graph,
-                            focus,
-                            scene: scene.as_ref(),
-                            transition: crate::diagram::Transition {
-                                from: from.as_deref(),
-                                seconds: *seconds,
-                                built: *built,
-                            },
-                        }
-                    }),
-                beat_sources: &sources,
-                notices,
-                chapter_number: chapter,
-                fade,
-                time: self.demo_time,
-                raw_input,
-                chrome: Chrome::Viewer(&mut chrome),
-                stamp: None,
-                history: true,
-                wait: false,
-                focus: focus.as_ref(),
-            },
-            readback,
-        );
-        self.ui_has_pointer = chrome.ui_has_pointer;
-        self.bar_hover = chrome.hover.take();
-        let cursor = self.renderer().cursor;
-        if cursor != self.cursor_icon {
-            self.cursor_icon = cursor;
-            if let Some(surface) = &self.surface {
-                surface.window.set_cursor(window_cursor(cursor));
-            }
         }
-        self.dock_widgets = std::mem::take(&mut chrome.widgets);
-        self.features = std::mem::take(&mut chrome.features);
-        self.popups = std::mem::take(&mut chrome.popups);
-        for action in self.popups.take_actions() {
-            popup::perform(action);
-        }
-        if result.content.is_some() {
-            self.last_content = result.content;
-            self.last_main_content = result.main_content;
-            // A focused view that is gone gives the focus back to the main view.
-            if !self
-                .renderer()
-                .frame_views()
-                .iter()
-                .any(|(v, _)| *v == self.focus)
-            {
-                self.focus = ViewId::MAIN;
-            }
-            self.last_insets = result.report.insets;
-        }
-        for action in chrome.actions {
-            self.apply(action);
-        }
-        self.update_features();
-        Ok(())
     }
 
     pub(super) fn redraw(&mut self) -> Result<()> {
@@ -478,4 +507,53 @@ impl App {
         self.frames += 1;
         Ok(())
     }
+}
+
+/// A beat's diagram as a frame draws it, held while the timeline it is read from is borrowed: its graph, its
+/// focus, its frame graph scene, and how it comes on (from the focus of the beat before, seconds into its beat,
+/// built).
+struct OwnedDiagram {
+    graph: crate::graph_view::Graph,
+    focus: Vec<String>,
+    scene: Option<crate::graph::GraphScene>,
+    from: Option<Vec<String>>,
+    seconds: f32,
+    built: bool,
+}
+
+impl OwnedDiagram {
+    fn of(d: &crate::diagram::BeatDiagram) -> OwnedDiagram {
+        OwnedDiagram {
+            graph: d.graph.clone(),
+            focus: d.focus.to_vec(),
+            scene: d.scene.cloned(),
+            from: d.transition.from.map(<[String]>::to_vec),
+            seconds: d.transition.seconds,
+            built: d.transition.built,
+        }
+    }
+
+    fn borrowed(&self) -> crate::diagram::BeatDiagram<'_> {
+        crate::diagram::BeatDiagram {
+            graph: &self.graph,
+            focus: &self.focus,
+            scene: self.scene.as_ref(),
+            transition: crate::diagram::Transition {
+                from: self.from.as_deref(),
+                seconds: self.seconds,
+                built: self.built,
+            },
+        }
+    }
+}
+
+/// What a frame shows of the timeline's beat: its kind, its diagram, its sources, its chapter, its fade, and
+/// whether it is the notices.
+struct BeatShown {
+    kind: SceneType,
+    diagram: Option<OwnedDiagram>,
+    sources: Vec<String>,
+    chapter: u32,
+    fade: f32,
+    notices: bool,
 }

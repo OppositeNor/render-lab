@@ -175,56 +175,12 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
     app.state = app.default_state(app.state.demo);
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 3)?;
-    let press = |app: &mut App, at: egui::Pos2, pressed: bool| {
-        app.egui_events.push(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::default(),
-        })
-    };
-    // A drag from `from` to `to` in steps, a frame each, as egui sees a pointer.
-    let drag = |app: &mut App, from: egui::Pos2, to: egui::Pos2| -> Result<()> {
-        app.egui_events.push(egui::Event::PointerMoved(from));
-        app.render(Some(&buffer))?;
-        press(app, from, true);
-        app.render(Some(&buffer))?;
-        for k in 1..=6 {
-            app.egui_events.push(egui::Event::PointerMoved(
-                from + (to - from) * (k as f32 / 6.0),
-            ));
-            app.render(Some(&buffer))?;
-        }
-        press(app, to, false);
-        app.render(Some(&buffer))?;
-        // The drop's actions apply after the frame that saw it: one more, to lay it out.
-        app.render(Some(&buffer))?;
-        Ok(())
-    };
-    let describe = |l: &crate::ui::Layout| {
-        WindowId::ALL
-            .iter()
-            .filter_map(|id| l.window(*id))
-            .map(|w| {
-                format!(
-                    "{} {:?} {:.0}×{:.0} at ({:.0}, {:.0})",
-                    w.id.key(),
-                    w.dock,
-                    w.frame.width(),
-                    w.frame.height(),
-                    w.frame.min.x,
-                    w.frame.min.y
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
     let before = app.renderer().frame_layout();
     let mut steps = Vec::new();
     // The panel's title bar into the viewport: it floats where it is dropped.
     if let Some(panel) = before.window(WindowId::Panel) {
         let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
-        drag(&mut app, grab, before.viewport.center())?;
+        drag(&mut app, &buffer, grab, before.viewport.center())?;
         let l = app.renderer().frame_layout();
         steps.push(format!(
             "panel dropped in the viewport: {:?}, viewport {:.0} wide",
@@ -238,7 +194,7 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
             controls.frame.center().x,
             controls.frame.min.y - crate::ui::windows::GAP / 2.0,
         );
-        drag(&mut app, edge, edge - egui::vec2(0.0, 120.0))?;
+        drag(&mut app, &buffer, edge, edge - egui::vec2(0.0, 120.0))?;
     }
     // The panel back to the right edge (docked), then into the viewport again for the picture.
     if let Some(panel) = app.renderer().frame_layout().window(WindowId::Panel) {
@@ -246,6 +202,7 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
         drag(
             &mut app,
+            &buffer,
             grab,
             egui::pos2(l.area.max.x - 10.0, l.area.center().y),
         )?;
@@ -256,7 +213,7 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         ));
         if let Some(panel) = l.window(WindowId::Panel) {
             let grab = panel.title.left_center() + egui::vec2(60.0, 0.0);
-            drag(&mut app, grab, grab - egui::vec2(500.0, -120.0))?;
+            drag(&mut app, &buffer, grab, grab - egui::vec2(500.0, -120.0))?;
         }
     }
     settle(&mut app, &buffer, 16)?;
@@ -280,9 +237,9 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         png.display(),
         size[0],
         size[1],
-        describe(&before),
+        describe_windows(&before),
         steps.join("; "),
-        describe(&after),
+        describe_windows(&after),
         settings.display()
     );
     Ok(())
@@ -308,28 +265,17 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
     let vp = app.renderer().frame_layout().viewport_px();
     let center = Vec2::new((vp[0] + vp[2] / 2) as f32, (vp[1] + vp[3] / 2) as f32);
     let mut checks: Vec<String> = Vec::new();
-    let mut check = |ok: bool, what: String| -> Result<()> {
-        anyhow::ensure!(ok, "viewer camera: {what}");
-        checks.push(what);
-        Ok(())
-    };
-    // A drag of `button` by `by` window pixels, a frame a step.
-    let drag = |app: &mut App, button: MouseButton, by: Vec2| -> Result<()> {
-        app.cursor_moved(center);
-        app.render(Some(&buffer))?;
-        app.mouse_button(button, true);
-        for k in 1..=5 {
-            app.cursor_moved(center + by * (k as f32 / 5.0));
-            app.render(Some(&buffer))?;
-        }
-        app.mouse_button(button, false);
-        app.render(Some(&buffer))?;
-        Ok(())
-    };
+    let check = camera_check;
     let before = app.state.camera;
-    drag(&mut app, MouseButton::Left, Vec2::new(120.0, 0.0))?;
+    camera_drag(
+        &mut app,
+        (&buffer, center),
+        MouseButton::Left,
+        Vec2::new(120.0, 0.0),
+    )?;
     let orbit = app.state.camera;
     check(
+        &mut checks,
         orbit.target == before.target
             && (orbit.yaw - before.yaw).abs() > 10.0
             && (orbit.distance - before.distance).abs() < 1e-4,
@@ -339,84 +285,21 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
         ),
     )?;
     app.modifiers.shift = true;
-    drag(&mut app, MouseButton::Left, Vec2::new(120.0, 60.0))?;
+    camera_drag(
+        &mut app,
+        (&buffer, center),
+        MouseButton::Left,
+        Vec2::new(120.0, 60.0),
+    )?;
     app.modifiers.shift = false;
     let pan = app.state.camera;
     let moved = (glam::Vec3::from(pan.target) - glam::Vec3::from(orbit.target)).length();
     check(
+        &mut checks,
         pan.yaw == orbit.yaw && pan.pitch == orbit.pitch && moved > 0.1,
         format!("Shift-left drag pans: target moved {moved:.2} m, view kept"),
     )?;
-    // Fly: the right button held over the viewport.
-    app.cursor_moved(center);
-    app.render(Some(&buffer))?;
-    app.mouse_button(MouseButton::Right, true);
-    let eye = pan.eye();
-    for k in 1..=5 {
-        app.cursor_moved(center + Vec2::new(16.0 * k as f32, 0.0));
-        app.render(Some(&buffer))?;
-    }
-    let look = app.state.camera;
-    check(
-        look.eye().distance(eye) < 1e-3 && (look.yaw - pan.yaw).abs() > 5.0,
-        format!(
-            "right drag turns the view about the eye: yaw {:.1} → {:.1}, eye kept",
-            pan.yaw, look.yaw
-        ),
-    )?;
-    // Each key held for a few frames, through the keyboard's handler too (a fly key is not a shortcut then).
-    let hold = |app: &mut App, code: KeyCode| -> Result<crate::camera::OrbitCamera> {
-        app.held.push(code);
-        app.key(code, None);
-        for _ in 0..6 {
-            std::thread::sleep(std::time::Duration::from_millis(15));
-            app.render(Some(&buffer))?;
-        }
-        app.held.retain(|k| *k != code);
-        app.render(Some(&buffer))?;
-        Ok(app.state.camera)
-    };
-    let a = app.state.camera;
-    let w = hold(&mut app, KeyCode::KeyW)?;
-    let (forward, _) = a.forward_right();
-    let step = w.eye() - a.eye();
-    check(
-        step.length() > 1e-3 && step.normalize().dot(forward) > 0.999 && w.yaw == a.yaw,
-        format!("W flies along the view: {:.3} m", step.length()),
-    )?;
-    let e = hold(&mut app, KeyCode::KeyE)?;
-    let up = e.eye() - w.eye();
-    check(
-        up.y > 1e-3 && up.x.abs() < 1e-5 && up.z.abs() < 1e-5,
-        format!(
-            "E flies up the world's Y: {:.3} m (pitch {:.1}°)",
-            up.y, e.pitch
-        ),
-    )?;
-    let q = hold(&mut app, KeyCode::KeyQ)?;
-    let down = q.eye() - e.eye();
-    check(
-        down.y < -1e-3 && down.x.abs() < 1e-5 && down.z.abs() < 1e-5,
-        format!("Q flies down the world's Y: {:.3} m", down.y),
-    )?;
-    let speed = app.fly_speed;
-    app.wheel(3.0);
-    check(
-        app.fly_speed > speed && app.state.camera.distance == q.distance,
-        format!(
-            "the wheel while flying sets the speed: {speed:.2} → {:.2} m/s, distance kept",
-            app.fly_speed
-        ),
-    )?;
-    app.mouse_button(MouseButton::Right, false);
-    // Released, the keys and the wheel are the viewer's again.
-    app.held.push(KeyCode::KeyW);
-    app.render(Some(&buffer))?;
-    app.held.clear();
-    check(
-        app.state.camera.eye().distance(q.eye()) < 1e-4,
-        "after the right button is let go, W no longer moves the camera".into(),
-    )?;
+    check_flying(&mut app, (&buffer, center), pan, &mut checks)?;
     settle(&mut app, &buffer, 4)?;
     write_png(
         png,
@@ -431,6 +314,83 @@ pub fn snapshot_camera(options: ViewerOptions, png: &std::path::Path) -> Result<
         size[1],
         checks.join("; ")
     );
+    Ok(())
+}
+
+/// Fly: the right button held over the viewport (`center`, from the camera `pan`): a drag turns the view about
+/// the eye; W, E, and Q fly along the view and the world's Y; the wheel sets the speed; released, W no longer
+/// moves the camera.
+fn check_flying(
+    app: &mut App,
+    (buffer, center): (&wgpu::Buffer, Vec2),
+    pan: crate::camera::OrbitCamera,
+    checks: &mut Vec<String>,
+) -> Result<()> {
+    let check = camera_check;
+    // Fly: the right button held over the viewport.
+    app.cursor_moved(center);
+    app.render(Some(buffer))?;
+    app.mouse_button(MouseButton::Right, true);
+    let eye = pan.eye();
+    for k in 1..=5 {
+        app.cursor_moved(center + Vec2::new(16.0 * k as f32, 0.0));
+        app.render(Some(buffer))?;
+    }
+    let look = app.state.camera;
+    check(
+        checks,
+        look.eye().distance(eye) < 1e-3 && (look.yaw - pan.yaw).abs() > 5.0,
+        format!(
+            "right drag turns the view about the eye: yaw {:.1} → {:.1}, eye kept",
+            pan.yaw, look.yaw
+        ),
+    )?;
+    let a = app.state.camera;
+    let w = hold_key(app, buffer, KeyCode::KeyW)?;
+    let (forward, _) = a.forward_right();
+    let step = w.eye() - a.eye();
+    check(
+        checks,
+        step.length() > 1e-3 && step.normalize().dot(forward) > 0.999 && w.yaw == a.yaw,
+        format!("W flies along the view: {:.3} m", step.length()),
+    )?;
+    let e = hold_key(app, buffer, KeyCode::KeyE)?;
+    let up = e.eye() - w.eye();
+    check(
+        checks,
+        up.y > 1e-3 && up.x.abs() < 1e-5 && up.z.abs() < 1e-5,
+        format!(
+            "E flies up the world's Y: {:.3} m (pitch {:.1}°)",
+            up.y, e.pitch
+        ),
+    )?;
+    let q = hold_key(app, buffer, KeyCode::KeyQ)?;
+    let down = q.eye() - e.eye();
+    check(
+        checks,
+        down.y < -1e-3 && down.x.abs() < 1e-5 && down.z.abs() < 1e-5,
+        format!("Q flies down the world's Y: {:.3} m", down.y),
+    )?;
+    let speed = app.fly_speed;
+    app.wheel(3.0);
+    check(
+        checks,
+        app.fly_speed > speed && app.state.camera.distance == q.distance,
+        format!(
+            "the wheel while flying sets the speed: {speed:.2} → {:.2} m/s, distance kept",
+            app.fly_speed
+        ),
+    )?;
+    app.mouse_button(MouseButton::Right, false);
+    // Released, the keys and the wheel are the viewer's again.
+    app.held.push(KeyCode::KeyW);
+    app.render(Some(buffer))?;
+    app.held.clear();
+    check(
+        checks,
+        app.state.camera.eye().distance(q.eye()) < 1e-4,
+        "after the right button is let go, W no longer moves the camera".into(),
+    )?;
     Ok(())
 }
 
@@ -461,23 +421,7 @@ pub fn snapshot_scene(
     let buffer = readback_buffer(&gpu.device, size[0], size[1]);
     settle(&mut app, &buffer, 2)?;
     let entities = crate::entity::list(&app.state, &app.renderer().statics);
-    let chosen = match entity {
-        Some(id) => entities.iter().find(|e| e.id == id).ok_or_else(|| {
-            anyhow::anyhow!(
-                "no entity `{id}` (the scene's: {})",
-                entities
-                    .iter()
-                    .map(|e| e.id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        })?,
-        None => entities
-            .iter()
-            .find(|e| e.movable() && e.visible)
-            .ok_or_else(|| anyhow::anyhow!("nothing in the scene moves"))?,
-    }
-    .clone();
+    let chosen = pick_entity(&entities, entity)?;
     app.apply(ViewerAction::Select(Some(chosen.id.clone())));
     app.apply(ViewerAction::SetGizmo(mode));
     settle(&mut app, &buffer, 2)?;
@@ -610,4 +554,122 @@ pub fn snapshot_page(
         }
     );
     Ok(())
+}
+
+/// The left button pressed (or let go) at `at`, as egui sees it.
+fn press(app: &mut App, at: egui::Pos2, pressed: bool) {
+    app.egui_events.push(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::default(),
+    })
+}
+
+/// A drag from `from` to `to` in steps, a frame each (read back into `buffer`), as egui sees a pointer.
+fn drag(app: &mut App, buffer: &wgpu::Buffer, from: egui::Pos2, to: egui::Pos2) -> Result<()> {
+    app.egui_events.push(egui::Event::PointerMoved(from));
+    app.render(Some(buffer))?;
+    press(app, from, true);
+    app.render(Some(buffer))?;
+    for k in 1..=6 {
+        app.egui_events.push(egui::Event::PointerMoved(
+            from + (to - from) * (k as f32 / 6.0),
+        ));
+        app.render(Some(buffer))?;
+    }
+    press(app, to, false);
+    app.render(Some(buffer))?;
+    // The drop's actions apply after the frame that saw it: one more, to lay it out.
+    app.render(Some(buffer))?;
+    Ok(())
+}
+
+/// The windows of a layout: each one's dock, size, and place.
+fn describe_windows(l: &crate::ui::Layout) -> String {
+    use crate::ui::windows::WindowId;
+    WindowId::ALL
+        .iter()
+        .filter_map(|id| l.window(*id))
+        .map(|w| {
+            format!(
+                "{} {:?} {:.0}×{:.0} at ({:.0}, {:.0})",
+                w.id.key(),
+                w.dock,
+                w.frame.width(),
+                w.frame.height(),
+                w.frame.min.x,
+                w.frame.min.y
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A check of the camera's modes: kept when it holds, else the run fails naming it.
+fn camera_check(checks: &mut Vec<String>, ok: bool, what: String) -> Result<()> {
+    anyhow::ensure!(ok, "viewer camera: {what}");
+    checks.push(what);
+    Ok(())
+}
+
+/// A drag of `button` by `by` window pixels from `center`, a frame a step (read back into `buffer`).
+fn camera_drag(
+    app: &mut App,
+    (buffer, center): (&wgpu::Buffer, Vec2),
+    button: MouseButton,
+    by: Vec2,
+) -> Result<()> {
+    app.cursor_moved(center);
+    app.render(Some(buffer))?;
+    app.mouse_button(button, true);
+    for k in 1..=5 {
+        app.cursor_moved(center + by * (k as f32 / 5.0));
+        app.render(Some(buffer))?;
+    }
+    app.mouse_button(button, false);
+    app.render(Some(buffer))?;
+    Ok(())
+}
+
+/// A key held for a few frames, through the keyboard's handler too (a fly key is not a shortcut): the camera
+/// it leaves.
+fn hold_key(
+    app: &mut App,
+    buffer: &wgpu::Buffer,
+    code: KeyCode,
+) -> Result<crate::camera::OrbitCamera> {
+    app.held.push(code);
+    app.key(code, None);
+    for _ in 0..6 {
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        app.render(Some(buffer))?;
+    }
+    app.held.retain(|k| *k != code);
+    app.render(Some(buffer))?;
+    Ok(app.state.camera)
+}
+
+/// The entity `entity` names (its `Entity::id`), or the first that moves and shows.
+fn pick_entity(
+    entities: &[crate::entity::Entity],
+    entity: Option<&str>,
+) -> Result<crate::entity::Entity> {
+    Ok(match entity {
+        Some(id) => entities.iter().find(|e| e.id == id).ok_or_else(|| {
+            anyhow::anyhow!(
+                "no entity `{id}` (the scene's: {})",
+                entities
+                    .iter()
+                    .map(|e| e.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?,
+        None => entities
+            .iter()
+            .find(|e| e.movable() && e.visible)
+            .ok_or_else(|| anyhow::anyhow!("nothing in the scene moves"))?,
+    }
+    .clone())
 }

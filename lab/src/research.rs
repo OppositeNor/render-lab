@@ -292,27 +292,7 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
     e.check()?;
     let runs = e.runs();
     if options.dry_run {
-        println!(
-            "{} ({}): {} runs at {}×{}, {} frames + {} warm-up + {} measured each",
-            e.name,
-            investigation::current().path(),
-            runs.len(),
-            e.resolution[0],
-            e.resolution[1],
-            e.frames,
-            e.warmup,
-            e.repeats
-        );
-        if let Some(r) = &e.reference {
-            println!(
-                "  reference: {} frames, {}",
-                r.frames.unwrap_or(e.frames),
-                Json::Object(r.values.clone())
-            );
-        }
-        for (i, run) in runs.iter().enumerate() {
-            println!("  {i:2} {}: {}", run.name, Json::Object(run.values.clone()));
-        }
+        print_runs(&e, &runs);
         return Ok(());
     }
     let images = options.out.join("images");
@@ -336,6 +316,60 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         eprintln!("this GPU has no timestamp queries: gpu_ms is left out");
     }
 
+    let reference = measure_reference(&mut renderer, &gpu, &e, &images)?;
+
+    let mut rows: Vec<Row> = Vec::new();
+    for (i, run) in runs.iter().enumerate() {
+        let measured = measure_and_write(
+            &mut renderer,
+            &gpu,
+            &e,
+            (i, run, runs.len()),
+            reference.as_ref(),
+            &options.out,
+        )?;
+        rows.push((i, run, measured));
+    }
+    let columns = Columns::of(&runs, &rows);
+    std::fs::write(
+        options.out.join("results.csv"),
+        results_csv(&rows, &columns),
+    )?;
+    if e.convergence {
+        std::fs::write(
+            options.out.join("convergence.csv"),
+            convergence_csv(&rows, &columns),
+        )?;
+    }
+    write_results_json(&options.out, &e, &rows, &columns, reference.is_some())?;
+    write_manifest(
+        options,
+        &source,
+        &e,
+        &gpu,
+        timestamps,
+        (started, runs.len()),
+    )?;
+    std::fs::write(options.out.join("experiment.toml"), e.to_toml())?;
+    if rows.is_empty() {
+        bail!("the experiment has no runs");
+    }
+    eprintln!(
+        "results: {} (report: python3 tools/experiments/report.py {})",
+        options.out.display(),
+        options.out.display()
+    );
+    Ok(())
+}
+
+/// The experiment's reference, when it has one: rendered once (its own frame count), its images written into
+/// `images`.
+fn measure_reference(
+    renderer: &mut Renderer,
+    gpu: &Gpu,
+    e: &Experiment,
+    images: &Path,
+) -> Result<Option<(Image, Image)>> {
     let reference = match e.reference_values() {
         Some(values) => {
             let frames = e
@@ -348,14 +382,7 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
             reference_options.repeats = 1;
             reference_options.convergence = false;
             reference_options.metrics = vec!["luminance".into()];
-            let measured = measure_run(
-                &mut renderer,
-                &gpu,
-                &reference_options,
-                &values,
-                frames,
-                None,
-            )?;
+            let measured = measure_run(renderer, gpu, &reference_options, &values, frames, None)?;
             let image = measured.image.context("the reference's image")?;
             write_png(&images.join("reference.png"), &image.0)?;
             write_pfm(&images.join("reference.pfm"), &image.1)?;
@@ -363,82 +390,133 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         }
         None => None,
     };
+    Ok(reference)
+}
 
-    let mut rows: Vec<(usize, &Run, Measured)> = Vec::new();
-    for (i, run) in runs.iter().enumerate() {
-        let t = Instant::now();
-        let measured = measure_run(
-            &mut renderer,
-            &gpu,
-            &e,
-            &run.values,
-            e.frames,
-            reference.as_ref(),
-        )?;
-        let name = slug(i, &run.name);
-        if let Some((display, linear)) = &measured.image {
-            write_png(&images.join(format!("{name}.png")), display)?;
-            write_pfm(&images.join(format!("{name}.pfm")), linear)?;
-        }
-        if let (Some(map), Some((display, _))) = (&measured.flip_map, &measured.image) {
-            write_png(
-                &options.out.join("flip").join(format!("{name}.png")),
-                &Image::new(display.width, display.height, metrics::heat(map)),
-            )?;
-        }
-        let summary: Vec<String> = ["psnr", "flip", "gpu_ms"]
-            .iter()
-            .filter_map(|m| {
-                let xs: Vec<f64> = measured
-                    .samples
-                    .iter()
-                    .filter_map(|s| s.metrics.get(*m).and_then(Json::as_f64))
-                    .collect();
-                (!xs.is_empty()).then(|| format!("{m} {:.4}", metrics::summary(&xs).0))
-            })
-            .collect();
-        eprintln!(
-            "[{}/{}] {} ({:.1} s){}",
-            i + 1,
-            runs.len(),
-            run.name,
-            t.elapsed().as_secs_f64(),
-            if summary.is_empty() {
-                String::new()
-            } else {
-                format!(": {}", summary.join(", "))
-            }
+/// A run measured: its index, the run, and what was measured.
+type Row<'a> = (usize, &'a Run, Measured);
+
+/// `--dry-run`: the experiment's runs, listed.
+fn print_runs(e: &Experiment, runs: &[Run]) {
+    println!(
+        "{} ({}): {} runs at {}×{}, {} frames + {} warm-up + {} measured each",
+        e.name,
+        investigation::current().path(),
+        runs.len(),
+        e.resolution[0],
+        e.resolution[1],
+        e.frames,
+        e.warmup,
+        e.repeats
+    );
+    if let Some(r) = &e.reference {
+        println!(
+            "  reference: {} frames, {}",
+            r.frames.unwrap_or(e.frames),
+            Json::Object(r.values.clone())
         );
-        rows.push((i, run, measured));
     }
+    for (i, run) in runs.iter().enumerate() {
+        println!("  {i:2} {}: {}", run.name, Json::Object(run.values.clone()));
+    }
+}
 
-    // results.csv: the varied keys, the metrics, then each pass.
-    let mut varied: Vec<String> = Vec::new();
-    for run in &runs {
-        for (k, _) in &run.varied {
-            if !varied.contains(k) {
-                varied.push(k.clone());
-            }
-        }
+/// Run `i` measured (`frames` from `e`, against `reference` when it has one), its images written into `out`,
+/// and its summary printed.
+fn measure_and_write(
+    renderer: &mut Renderer,
+    gpu: &Gpu,
+    e: &Experiment,
+    (i, run, runs): (usize, &Run, usize),
+    reference: Option<&(Image, Image)>,
+    out: &Path,
+) -> Result<Measured> {
+    let images = out.join("images");
+    let t = Instant::now();
+    let measured = measure_run(renderer, gpu, e, &run.values, e.frames, reference)?;
+    let name = slug(i, &run.name);
+    if let Some((display, linear)) = &measured.image {
+        write_png(&images.join(format!("{name}.png")), display)?;
+        write_pfm(&images.join(format!("{name}.pfm")), linear)?;
     }
-    let metric_columns: Vec<&str> = experiment::METRICS
+    if let (Some(map), Some((display, _))) = (&measured.flip_map, &measured.image) {
+        write_png(
+            &out.join("flip").join(format!("{name}.png")),
+            &Image::new(display.width, display.height, metrics::heat(map)),
+        )?;
+    }
+    let summary: Vec<String> = ["psnr", "flip", "gpu_ms"]
         .iter()
-        .copied()
-        .filter(|m| {
-            rows.iter()
-                .any(|r| r.2.samples.iter().any(|s| s.metrics.contains_key(*m)))
+        .filter_map(|m| {
+            let xs: Vec<f64> = measured
+                .samples
+                .iter()
+                .filter_map(|s| s.metrics.get(*m).and_then(Json::as_f64))
+                .collect();
+            (!xs.is_empty()).then(|| format!("{m} {:.4}", metrics::summary(&xs).0))
         })
         .collect();
-    let mut passes: Vec<String> = Vec::new();
-    for (_, _, m) in &rows {
-        for s in &m.samples {
-            for (p, _) in &s.passes {
-                if !passes.contains(p) {
-                    passes.push(p.clone());
+    eprintln!(
+        "[{}/{}] {} ({:.1} s){}",
+        i + 1,
+        runs,
+        run.name,
+        t.elapsed().as_secs_f64(),
+        if summary.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", summary.join(", "))
+        }
+    );
+    Ok(measured)
+}
+
+/// The columns of the results: the varied keys, the metrics measured, and the passes timed.
+struct Columns<'a> {
+    varied: Vec<String>,
+    metrics: Vec<&'a str>,
+    passes: Vec<String>,
+}
+
+impl Columns<'static> {
+    fn of(runs: &[Run], rows: &[Row]) -> Columns<'static> {
+        let mut varied: Vec<String> = Vec::new();
+        for run in runs {
+            for (k, _) in &run.varied {
+                if !varied.contains(k) {
+                    varied.push(k.clone());
                 }
             }
         }
+        let metric_columns: Vec<&str> = experiment::METRICS
+            .iter()
+            .copied()
+            .filter(|m| {
+                rows.iter()
+                    .any(|r| r.2.samples.iter().any(|s| s.metrics.contains_key(*m)))
+            })
+            .collect();
+        let mut passes: Vec<String> = Vec::new();
+        for (_, _, m) in rows {
+            for s in &m.samples {
+                for (p, _) in &s.passes {
+                    if !passes.contains(p) {
+                        passes.push(p.clone());
+                    }
+                }
+            }
+        }
+        Columns {
+            varied,
+            metrics: metric_columns,
+            passes,
+        }
     }
+}
+
+/// results.csv: the varied keys, the metrics, then each pass; a row per repeat of each run.
+fn results_csv(rows: &[Row], columns: &Columns) -> String {
+    let (varied, metric_columns, passes) = (&columns.varied, &columns.metrics, &columns.passes);
     let mut csv = String::new();
     let header: Vec<String> = ["run", "repeat"]
         .iter()
@@ -450,7 +528,7 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         .collect();
     csv.push_str(&header.join(","));
     csv.push('\n');
-    for (_, run, m) in &rows {
+    for (_, run, m) in rows {
         for (r, s) in m.samples.iter().enumerate() {
             let mut fields = vec![csv_field(&run.name), r.to_string()];
             fields.extend(varied.iter().map(|k| csv_value(run.values.get(k))));
@@ -465,45 +543,57 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
             csv.push('\n');
         }
     }
-    std::fs::write(options.out.join("results.csv"), csv)?;
+    csv
+}
 
-    if e.convergence {
-        let mut conv = String::from("run,frame");
-        for c in metric_columns
-            .iter()
-            .filter(|c| !matches!(**c, "gpu_ms" | "cpu_ms" | "luminance"))
-        {
-            conv.push_str(&format!(",{c}"));
-        }
-        conv.push('\n');
-        for (_, run, m) in &rows {
-            for (f, values) in m.convergence.iter().enumerate() {
-                let mut fields = vec![csv_field(&run.name), (f + 1).to_string()];
-                fields.extend(
-                    metric_columns
-                        .iter()
-                        .filter(|c| !matches!(**c, "gpu_ms" | "cpu_ms" | "luminance"))
-                        .map(|c| csv_value(values.get(*c))),
-                );
-                conv.push_str(&fields.join(","));
-                conv.push('\n');
-            }
-        }
-        std::fs::write(options.out.join("convergence.csv"), conv)?;
+/// convergence.csv: each run's quality metrics after each frame.
+fn convergence_csv(rows: &[Row], columns: &Columns) -> String {
+    let metric_columns = &columns.metrics;
+    let mut conv = String::from("run,frame");
+    for c in metric_columns
+        .iter()
+        .filter(|c| !matches!(**c, "gpu_ms" | "cpu_ms" | "luminance"))
+    {
+        conv.push_str(&format!(",{c}"));
     }
+    conv.push('\n');
+    for (_, run, m) in rows {
+        for (f, values) in m.convergence.iter().enumerate() {
+            let mut fields = vec![csv_field(&run.name), (f + 1).to_string()];
+            fields.extend(
+                metric_columns
+                    .iter()
+                    .filter(|c| !matches!(**c, "gpu_ms" | "cpu_ms" | "luminance"))
+                    .map(|c| csv_value(values.get(*c))),
+            );
+            conv.push_str(&fields.join(","));
+            conv.push('\n');
+        }
+    }
+    conv
+}
 
+/// results.json: the experiment, and each run's values, images, samples, and summaries.
+fn write_results_json(
+    out: &Path,
+    e: &Experiment,
+    rows: &[Row],
+    columns: &Columns,
+    reference: bool,
+) -> Result<()> {
+    let (varied, metric_columns, passes) = (&columns.varied, &columns.metrics, &columns.passes);
     let results: Vec<Json> = rows
         .iter()
         .map(|(i, run, m)| {
             let mut summary = Map::new();
-            for c in &metric_columns {
+            for c in metric_columns {
                 let xs: Vec<f64> = m.samples.iter().filter_map(|s| s.metrics.get(*c).and_then(Json::as_f64)).collect();
                 if !xs.is_empty() {
                     let (mean, sd, p95) = metrics::summary(&xs);
                     summary.insert(c.to_string(), json!({"mean": number(mean), "sd": number(sd), "p95": number(p95)}));
                 }
             }
-            for p in &passes {
+            for p in passes {
                 let xs: Vec<f64> = m.samples.iter().filter_map(|s| s.passes.iter().find(|(n, _)| n == p).map(|x| x.1)).collect();
                 if !xs.is_empty() {
                     let (mean, sd, p95) = metrics::summary(&xs);
@@ -526,17 +616,29 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         "experiment": e.name,
         "description": e.description,
         "investigation": investigation::current().path(),
-        "reference": reference.as_ref().map(|_| "images/reference.png"),
+        "reference": reference.then_some("images/reference.png"),
         "varied": varied,
         "metrics": metric_columns,
         "passes": passes,
         "runs": results,
     });
     std::fs::write(
-        options.out.join("results.json"),
+        out.join("results.json"),
         serde_json::to_string_pretty(&results)?,
     )?;
+    Ok(())
+}
 
+/// manifest.json: what reproduces the results: the experiment's source and its digest, the lab, the commit, the
+/// GPU, the platform, and when it ran (`started`, with the number of runs).
+fn write_manifest(
+    options: &ResearchOptions,
+    source: &str,
+    e: &Experiment,
+    gpu: &Gpu,
+    timestamps: bool,
+    (started, runs): (u64, usize),
+) -> Result<()> {
     use sha2::Digest;
     let digest: String = sha2::Sha256::digest(source.as_bytes())
         .iter()
@@ -551,7 +653,7 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         "lab": env!("CARGO_PKG_VERSION"),
         "commit": git(&options.root, &["rev-parse", "HEAD"]),
         "describe": git(&options.root, &["describe", "--always", "--dirty"]),
-        "gpu": crate::renderer::gpu_summary(&gpu),
+        "gpu": crate::renderer::gpu_summary(gpu),
         "timestamps": timestamps,
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
@@ -559,7 +661,7 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         "frames": e.frames,
         "warmup": e.warmup,
         "repeats": e.repeats,
-        "runs": runs.len(),
+        "runs": runs,
         "command": std::env::args().collect::<Vec<_>>(),
         "started": started,
         "finished": unix_seconds(),
@@ -568,14 +670,5 @@ pub fn run(options: &ResearchOptions) -> Result<()> {
         options.out.join("manifest.json"),
         serde_json::to_string_pretty(&manifest)?,
     )?;
-    std::fs::write(options.out.join("experiment.toml"), e.to_toml())?;
-    if rows.is_empty() {
-        bail!("the experiment has no runs");
-    }
-    eprintln!(
-        "results: {} (report: python3 tools/experiments/report.py {})",
-        options.out.display(),
-        options.out.display()
-    );
     Ok(())
 }

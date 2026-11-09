@@ -468,6 +468,42 @@ pub fn draw(
             );
         }
     }
+    draw_outlines(ink, (l, camera), image, inset);
+
+    draw_mark(ink, image, inset);
+    draw_axes(ink, image, inset);
+    draw_marker(ink, image, inset);
+    let mut y = image.max.y + under;
+    for (line, color) in &inset.lines {
+        ink.text(
+            pos2(frame.min.x + 14.0, y),
+            Align2::LEFT_TOP,
+            ink.fit_right(line, width - 28.0, 24.0, FontFamily::Proportional),
+            24.0,
+            FontFamily::Proportional,
+            fade(*color),
+        );
+        y += 32.0;
+    }
+    (frame.expand(4.0), image)
+}
+
+/// The picture's grid (or its border), its outlined regions, and the dashed link from a point of the scene to
+/// one of them.
+fn draw_outlines(
+    ink: &Ink,
+    (l, camera): (&Layout, &CameraData),
+    image: Rect,
+    inset: &PictureInset,
+) {
+    let painter = ink.painter;
+    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
+    let region = |r: [f32; 4]| {
+        Rect::from_min_max(
+            image.min + vec2(r[0], r[1]) * image.size(),
+            image.min + vec2(r[2], r[3]) * image.size(),
+        )
+    };
     match inset.grid {
         Some([columns, rows]) => {
             let grid = Stroke::new(
@@ -492,12 +528,6 @@ pub fn draw(
             );
         }
     }
-    let region = |r: [f32; 4]| {
-        Rect::from_min_max(
-            image.min + vec2(r[0], r[1]) * image.size(),
-            image.min + vec2(r[2], r[3]) * image.size(),
-        )
-    };
     for o in &inset.outlines {
         let (rect, kind) = if o.outside {
             (region(o.rect).expand(2.0), StrokeKind::Outside)
@@ -532,7 +562,18 @@ pub fn draw(
             );
         }
     }
+}
 
+/// The inset's mark: its region outlined, the rest of the picture dimmed around it, and its text below the
+/// region inside the picture (above it when there is no room).
+fn draw_mark(ink: &Ink, image: Rect, inset: &PictureInset) {
+    let painter = ink.painter;
+    let region = |r: [f32; 4]| {
+        Rect::from_min_max(
+            image.min + vec2(r[0], r[1]) * image.size(),
+            image.min + vec2(r[2], r[3]) * image.size(),
+        )
+    };
     if let Some(mark) = &inset.mark {
         let a = (mark.alpha * inset.alpha).clamp(0.0, 1.0);
         let r = region([
@@ -595,6 +636,12 @@ pub fn draw(
             );
         }
     }
+}
+
+/// The picture's axis names: x under it, y turned along its left side.
+fn draw_axes(ink: &Ink, image: Rect, inset: &PictureInset) {
+    let painter = ink.painter;
+    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
     if !inset.x_axis.is_empty() {
         ink.text(
             pos2(image.center().x, image.max.y + 6.0),
@@ -617,6 +664,12 @@ pub fn draw(
                 .with_angle(-std::f32::consts::FRAC_PI_2),
         );
     }
+}
+
+/// The inset's marker on its picture (`Marker.at` in y-up units), and its label on the side away from the edge.
+fn draw_marker(ink: &Ink, image: Rect, inset: &PictureInset) {
+    let painter = ink.painter;
+    let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
     if let Some(m) = &inset.marker {
         let p = pos2(
             image.min.x + m.at[0].clamp(0.0, 1.0) * image.width(),
@@ -649,19 +702,6 @@ pub fn draw(
             );
         }
     }
-    let mut y = image.max.y + under;
-    for (line, color) in &inset.lines {
-        ink.text(
-            pos2(frame.min.x + 14.0, y),
-            Align2::LEFT_TOP,
-            ink.fit_right(line, width - 28.0, 24.0, FontFamily::Proportional),
-            24.0,
-            FontFamily::Proportional,
-            fade(*color),
-        );
-        y += 32.0;
-    }
-    (frame.expand(4.0), image)
 }
 
 /// The picture's texture, and its own size in pixels when known: the

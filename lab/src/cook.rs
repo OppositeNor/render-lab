@@ -217,10 +217,64 @@ fn build(
         .into_iter()
         .map(String::from)
         .collect();
+    let collection = built_collection(
+        &resources,
+        &shaders,
+        (out, &previous),
+        (&mut kept_files, report),
+    )?;
+    // Its library, from the Cargo build.
+    if let Some((name, _)) = &package.library {
+        let file = libloading::library_filename(name)
+            .to_string_lossy()
+            .into_owned();
+        let built = packages::bin_dir().join(&file);
+        let target = out.join("lib").join(&file);
+        if built.is_file() && !same_file(&built, &target) {
+            link(&built, &target)?;
+            report.libraries.push(package.name.clone());
+        }
+        kept_files.insert(format!("lib/{file}"));
+    }
+    // Its notices' terms travel with it.
+    for file in package.notices.iter().filter_map(|n| n.license.as_ref()) {
+        let (from, to) = (package.dir.join(file), out.join(file));
+        if !same_file(&from, &to) {
+            link(&from, &to)?;
+        }
+        kept_files.insert(file.clone());
+    }
+    fs::create_dir_all(out).map_err(|e| format!("packages: create {}: {e}", out.display()))?;
+    write(&out.join("resources.toml"), &collection)?;
+    let manifest = built_manifest(package, &source);
+    write(&out.join("manifest.toml"), &manifest)?;
+    // What no source names any more, and what an interrupted build left
+    // (no other build runs: this one holds the lock).
+    let mut present = Vec::new();
+    files(out, out, &mut present);
+    for file in present {
+        if !kept_files.contains(&file) {
+            let path = out.join(&file);
+            fs::remove_file(&path)
+                .map_err(|e| format!("packages: remove {}: {e}", path.display()))?;
+            report.removed.push(path);
+        }
+    }
+    Ok(())
+}
+
+/// Each resource produced into `out` (kept when its stamp and output are the last build's), and the built
+/// collection that lists them and the shaders; the files kept.
+fn built_collection(
+    resources: &[Declaration],
+    shaders: &[pipeline::ShaderDeclaration],
+    (out, previous): (&Path, &BTreeMap<String, (String, String)>),
+    (kept_files, report): (&mut BTreeSet<String>, &mut Report),
+) -> Result<String, String> {
     let mut collection = String::from(
         "# Built from the package's source collections; rebuilt when they change. Do not edit.\n",
     );
-    for decl in &resources {
+    for decl in resources {
         let output = decl.output();
         let stamp = decl.stamp();
         match &stamp {
@@ -267,7 +321,7 @@ fn build(
             writeln!(collection, "override = {}", quote(target)).unwrap();
         }
     }
-    for shader in &shaders {
+    for shader in shaders {
         let key = shader
             .id
             .split_once('.')
@@ -281,29 +335,11 @@ fn build(
         )
         .unwrap();
     }
-    // Its library, from the Cargo build.
-    if let Some((name, _)) = &package.library {
-        let file = libloading::library_filename(name)
-            .to_string_lossy()
-            .into_owned();
-        let built = packages::bin_dir().join(&file);
-        let target = out.join("lib").join(&file);
-        if built.is_file() && !same_file(&built, &target) {
-            link(&built, &target)?;
-            report.libraries.push(package.name.clone());
-        }
-        kept_files.insert(format!("lib/{file}"));
-    }
-    // Its notices' terms travel with it.
-    for file in package.notices.iter().filter_map(|n| n.license.as_ref()) {
-        let (from, to) = (package.dir.join(file), out.join(file));
-        if !same_file(&from, &to) {
-            link(&from, &to)?;
-        }
-        kept_files.insert(file.clone());
-    }
-    fs::create_dir_all(out).map_err(|e| format!("packages: create {}: {e}", out.display()))?;
-    write(&out.join("resources.toml"), &collection)?;
+    Ok(collection)
+}
+
+/// The built package's manifest: what the source's says, with where it was cooked from and its one collection.
+fn built_manifest(package: &Package, source: &str) -> String {
     let mut manifest = format!("# Built from {source}; rebuilt when it changes. Do not edit.\n");
     writeln!(
         manifest,
@@ -339,7 +375,7 @@ fn build(
     writeln!(
         manifest,
         "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"",
-        quote(&source)
+        quote(source)
     )
     .unwrap();
     for demo in &package.demos {
@@ -384,20 +420,7 @@ fn build(
             writeln!(manifest, "license = {}", quote(file)).unwrap();
         }
     }
-    write(&out.join("manifest.toml"), &manifest)?;
-    // What no source names any more, and what an interrupted build left
-    // (no other build runs: this one holds the lock).
-    let mut present = Vec::new();
-    files(out, out, &mut present);
-    for file in present {
-        if !kept_files.contains(&file) {
-            let path = out.join(&file);
-            fs::remove_file(&path)
-                .map_err(|e| format!("packages: remove {}: {e}", path.display()))?;
-            report.removed.push(path);
-        }
-    }
-    Ok(())
+    manifest
 }
 
 /// Builds every package of `source_dir` into `out_dir`, and removes the

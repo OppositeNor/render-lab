@@ -250,54 +250,8 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
                 "{id}: `{name}`, the image kind `{key}`, is bound at @group({VIEW_GROUP}) @binding(0){at}"
             );
         }
-        let storage = matches!(
-            module.types[var.ty].inner,
-            TypeInner::Image {
-                dim: ImageDimension::D2,
-                arrayed: false,
-                class: ImageClass::Storage {
-                    format: StorageFormat::Rgba8Unorm,
-                    ..
-                }
-            }
-        );
-        if !storage {
-            bail!(
-                "{id}: `{name}`, the image kind `{key}`, is a texture_storage_2d<rgba8unorm, write>{at}"
-            );
-        }
-        let entry = arg("entry")
-            .and_then(|e| e.first().cloned())
-            .ok_or_else(|| {
-                anyhow!("{id}: the image kind `{key}` names its compute entry point (`entry=`){at}")
-            })?;
-        let point = module
-            .entry_points
-            .iter()
-            .find(|e| e.name == entry && e.stage == ShaderStage::Compute)
-            .ok_or_else(|| {
-                anyhow!("{id}: the image kind `{key}`: no compute entry point `{entry}`{at}")
-            })?;
-        let size = match arg("size").as_deref() {
-            Some([w, h]) => [number(w)? as u32, number(h)? as u32],
-            _ => bail!(
-                "{id}: the image kind `{key}` names its size in texels (`size=width,height`){at}"
-            ),
-        };
-        if size[0] == 0 || size[1] == 0 || size[0] > 2048 || size[1] > 2048 {
-            bail!(
-                "{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}",
-                size[0],
-                size[1]
-            );
-        }
-        let viewport_aspect = match arg("aspect").as_deref() {
-            None => false,
-            Some([a]) if a == "viewport" => true,
-            Some(_) => bail!(
-                "{id}: the image kind `{key}`: `aspect=` takes `viewport` (its texture takes the viewport's shape){at}"
-            ),
-        };
+        let (entry, workgroup, size, viewport_aspect) =
+            kind_shape(module, var, &arg, (id, &name, key, &at))?;
         let text = arg("text").and_then(|t| t.first().cloned());
         let reads = arg("reads").unwrap_or_default();
         kinds.push(ViewKind {
@@ -305,7 +259,7 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
             package: package.to_string(),
             module: id.to_string(),
             entry,
-            workgroup: point.workgroup_size,
+            workgroup,
             size,
             viewport_aspect,
             text,
@@ -332,51 +286,120 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
                 .get(&(var.ty, index))
                 .cloned()
                 .unwrap_or_default();
-            let (tags, doc) = parse_tags(&lines)?;
             let context = format!("{id}: `{global}.{member}`{at}");
-            if let Some(t) = tags
-                .iter()
-                .find(|t| !["key", "default", "range"].contains(&t.name.as_str()))
-            {
-                bail!(
-                    "{context}: unknown attribute `{}` of an image kind's parameter (key, default, range)",
-                    t.name
-                );
-            }
-            let (storage, components) =
-                wgsl_value_type(&module.types[m.ty].inner).ok_or_else(|| {
-                    anyhow!("{context}: a parameter is an f32, u32, i32, or vecN<f32>")
-                })?;
-            let key = tags
-                .iter()
-                .find(|t| t.name == "key")
-                .and_then(|t| t.args.first().cloned())
-                .unwrap_or(member.clone());
-            let default: Vec<f32> = match tags.iter().find(|t| t.name == "default") {
-                Some(t) if t.args.len() == components => {
-                    t.args.iter().map(|a| number(a)).collect::<Result<_>>()?
-                }
-                Some(t) => bail!(
-                    "{context}: `default=` has {} number(s), the parameter {components}",
-                    t.args.len()
-                ),
-                None => bail!("{context}: a parameter has a `default=`"),
-            };
-            let range = match tags.iter().find(|t| t.name == "range") {
-                Some(t) if t.args.len() == 2 => Some((number(&t.args[0])?, number(&t.args[1])?)),
-                Some(_) => bail!("{context}: `range=low,high`"),
-                None => None,
-            };
-            kind.params.push(ViewParam {
-                key,
-                offset: m.offset,
-                storage,
-                components,
-                default,
-                range,
-                doc,
-            });
+            kind.params.push(read_param(module, &lines, m, &context)?);
         }
     }
     Ok(kinds)
+}
+
+/// An image kind's output (a texture_storage_2d<rgba8unorm, write>), its compute entry point and that point's
+/// workgroup, its size in texels, and whether its texture takes the viewport's shape.
+fn kind_shape(
+    module: &naga::Module,
+    var: &naga::GlobalVariable,
+    arg: &dyn Fn(&str) -> Option<Vec<String>>,
+    (id, name, key, at): (&str, &str, &str, &str),
+) -> Result<(String, [u32; 3], [u32; 2], bool)> {
+    let storage = matches!(
+        module.types[var.ty].inner,
+        TypeInner::Image {
+            dim: ImageDimension::D2,
+            arrayed: false,
+            class: ImageClass::Storage {
+                format: StorageFormat::Rgba8Unorm,
+                ..
+            }
+        }
+    );
+    if !storage {
+        bail!(
+            "{id}: `{name}`, the image kind `{key}`, is a texture_storage_2d<rgba8unorm, write>{at}"
+        );
+    }
+    let entry = arg("entry")
+        .and_then(|e| e.first().cloned())
+        .ok_or_else(|| {
+            anyhow!("{id}: the image kind `{key}` names its compute entry point (`entry=`){at}")
+        })?;
+    let point = module
+        .entry_points
+        .iter()
+        .find(|e| e.name == entry && e.stage == ShaderStage::Compute)
+        .ok_or_else(|| {
+            anyhow!("{id}: the image kind `{key}`: no compute entry point `{entry}`{at}")
+        })?;
+    let size = match arg("size").as_deref() {
+        Some([w, h]) => [number(w)? as u32, number(h)? as u32],
+        _ => {
+            bail!("{id}: the image kind `{key}` names its size in texels (`size=width,height`){at}")
+        }
+    };
+    if size[0] == 0 || size[1] == 0 || size[0] > 2048 || size[1] > 2048 {
+        bail!(
+            "{id}: the image kind `{key}` is {}x{} texels (1 to 2048 a side){at}",
+            size[0],
+            size[1]
+        );
+    }
+    let viewport_aspect = match arg("aspect").as_deref() {
+        None => false,
+        Some([a]) if a == "viewport" => true,
+        Some(_) => bail!(
+            "{id}: the image kind `{key}`: `aspect=` takes `viewport` (its texture takes the viewport's shape){at}"
+        ),
+    };
+    Ok((entry, point.workgroup_size, size, viewport_aspect))
+}
+
+/// An image kind's parameter (a member of its `view_params` struct): its key (the member's name unless
+/// `key=` gives one), its type, its default, and its range.
+fn read_param(
+    module: &naga::Module,
+    lines: &[String],
+    m: &naga::StructMember,
+    context: &str,
+) -> Result<ViewParam> {
+    let member = m.name.clone().unwrap_or_default();
+    let (tags, doc) = parse_tags(lines)?;
+    if let Some(t) = tags
+        .iter()
+        .find(|t| !["key", "default", "range"].contains(&t.name.as_str()))
+    {
+        bail!(
+            "{context}: unknown attribute `{}` of an image kind's parameter (key, default, range)",
+            t.name
+        );
+    }
+    let (storage, components) = wgsl_value_type(&module.types[m.ty].inner)
+        .ok_or_else(|| anyhow!("{context}: a parameter is an f32, u32, i32, or vecN<f32>"))?;
+    let key = tags
+        .iter()
+        .find(|t| t.name == "key")
+        .and_then(|t| t.args.first().cloned())
+        .unwrap_or(member);
+    let default: Vec<f32> = match tags.iter().find(|t| t.name == "default") {
+        Some(t) if t.args.len() == components => {
+            t.args.iter().map(|a| number(a)).collect::<Result<_>>()?
+        }
+        Some(t) => bail!(
+            "{context}: `default=` has {} number(s), the parameter {components}",
+            t.args.len()
+        ),
+        None => bail!("{context}: a parameter has a `default=`"),
+    };
+    let range = match tags.iter().find(|t| t.name == "range") {
+        Some(t) if t.args.len() == 2 => Some((number(&t.args[0])?, number(&t.args[1])?)),
+        Some(_) => bail!("{context}: `range=low,high`"),
+        None => None,
+    };
+    Ok(ViewParam {
+        key,
+        offset: m.offset,
+        storage,
+        components,
+        default,
+        range,
+        doc,
+    })
 }

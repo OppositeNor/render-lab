@@ -316,40 +316,8 @@ impl Experiment {
             );
         }
         let defaults = Experiment::default();
-        let resolution = match top.get("resolution") {
-            None => defaults.resolution,
-            Some(Json::Array(a)) if a.len() == 2 => {
-                let n = |j: &Json| {
-                    j.as_u64()
-                        .filter(|n| (16..=8192).contains(n))
-                        .map(|n| n as u32)
-                        .ok_or_else(|| anyhow!("`resolution` is two whole numbers from 16 to 8192"))
-                };
-                [n(&a[0])?, n(&a[1])?]
-            }
-            Some(other) => bail!("`resolution` is [width, height], not {other}"),
-        };
-        let metrics = match top.get("metrics") {
-            None => defaults.metrics,
-            Some(Json::Array(a)) => {
-                let names = a
-                    .iter()
-                    .map(|m| {
-                        m.as_str()
-                            .map(str::to_string)
-                            .ok_or_else(|| anyhow!("`metrics` is a list of names"))
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                if let Some(unknown) = names.iter().find(|m| !METRICS.contains(&m.as_str())) {
-                    bail!(
-                        "unknown metric `{unknown}` (the metrics: {})",
-                        METRICS.join(", ")
-                    );
-                }
-                names
-            }
-            Some(other) => bail!("`metrics` is a list of names, not {other}"),
-        };
+        let resolution = Self::parse_resolution(top.get("resolution"), defaults.resolution)?;
+        let metrics = Self::parse_metrics(top.get("metrics"), defaults.metrics.clone())?;
         let mut camera = Map::new();
         for (k, v) in values_of(top.get("camera"), "camera")? {
             camera.insert(
@@ -401,8 +369,81 @@ impl Experiment {
                 Some(other) => bail!("`{name}` is a list of tables (`[[{name}]]`), not {other}"),
             }
         };
+        let sweeps = Self::parse_sweeps(tables("sweep")?)?;
+        let variants = Self::parse_variants(tables("variant")?)?;
+        let inspect = Self::parse_inspect(top.get("inspect"))?;
+        Ok(Experiment {
+            name: text(top.get("name"), "name")?.unwrap_or(defaults.name),
+            description: text(top.get("description"), "description")?.unwrap_or_default(),
+            investigation: text(top.get("investigation"), "investigation")?,
+            demo: text(top.get("demo"), "demo")?,
+            resolution,
+            frames: count(top.get("frames"), "frames", defaults.frames)?.max(1),
+            warmup: count(top.get("warmup"), "warmup", defaults.warmup)?,
+            repeats: count(top.get("repeats"), "repeats", defaults.repeats)?.max(1),
+            convergence: match top.get("convergence") {
+                None => false,
+                Some(Json::Bool(b)) => *b,
+                Some(other) => bail!("`convergence` is true or false, not {other}"),
+            },
+            metrics,
+            camera,
+            base,
+            reference,
+            sweeps,
+            variants,
+            inspect,
+        })
+    }
+
+    /// The experiment's `resolution`: two whole numbers from 16 to 8192.
+    fn parse_resolution(item: Option<&Json>, default: [u32; 2]) -> Result<[u32; 2]> {
+        let resolution = match item {
+            None => default,
+            Some(Json::Array(a)) if a.len() == 2 => {
+                let n = |j: &Json| {
+                    j.as_u64()
+                        .filter(|n| (16..=8192).contains(n))
+                        .map(|n| n as u32)
+                        .ok_or_else(|| anyhow!("`resolution` is two whole numbers from 16 to 8192"))
+                };
+                [n(&a[0])?, n(&a[1])?]
+            }
+            Some(other) => bail!("`resolution` is [width, height], not {other}"),
+        };
+        Ok(resolution)
+    }
+
+    /// The experiment's `metrics`: names of the metrics it measures (`METRICS`).
+    fn parse_metrics(item: Option<&Json>, defaults: Vec<String>) -> Result<Vec<String>> {
+        let metrics = match item {
+            None => defaults,
+            Some(Json::Array(a)) => {
+                let names = a
+                    .iter()
+                    .map(|m| {
+                        m.as_str()
+                            .map(str::to_string)
+                            .ok_or_else(|| anyhow!("`metrics` is a list of names"))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if let Some(unknown) = names.iter().find(|m| !METRICS.contains(&m.as_str())) {
+                    bail!(
+                        "unknown metric `{unknown}` (the metrics: {})",
+                        METRICS.join(", ")
+                    );
+                }
+                names
+            }
+            Some(other) => bail!("`metrics` is a list of names, not {other}"),
+        };
+        Ok(metrics)
+    }
+
+    /// The experiment's `[[sweep]]`s: each its values' lists (one length when zipped).
+    fn parse_sweeps(tables: Vec<Map<String, Json>>) -> Result<Vec<Sweep>> {
         let mut sweeps = Vec::new();
-        for (i, t) in tables("sweep")?.into_iter().enumerate() {
+        for (i, t) in tables.into_iter().enumerate() {
             if let Some(unknown) = t.keys().find(|k| *k != "values" && *k != "zip") {
                 bail!(
                     "unknown field `{unknown}` in sweep {} (a sweep has values and zip)",
@@ -432,8 +473,13 @@ impl Experiment {
             }
             sweeps.push(Sweep { values: axes, zip });
         }
+        Ok(sweeps)
+    }
+
+    /// The experiment's `[[variant]]`s: each its own name (not base or reference) and its values.
+    fn parse_variants(tables: Vec<Map<String, Json>>) -> Result<Vec<Variant>> {
         let mut variants: Vec<Variant> = Vec::new();
-        for (i, t) in tables("variant")?.into_iter().enumerate() {
+        for (i, t) in tables.into_iter().enumerate() {
             if let Some(unknown) = t.keys().find(|k| *k != "values" && *k != "name") {
                 bail!(
                     "unknown field `{unknown}` in variant {} (a variant has name and values)",
@@ -450,7 +496,13 @@ impl Experiment {
                 values: values_of(t.get("values"), "variant.values")?,
             });
         }
-        let inspect = match top.get("inspect") {
+        Ok(variants)
+    }
+
+    /// The experiment's `[inspect]`: the <node>.<resource> it inspects, how it shows it, and the inspector's
+    /// parameters, each checked.
+    fn parse_inspect(item: Option<&Json>) -> Result<Option<Inspect>> {
+        let inspect = match item {
             None => None,
             Some(Json::Object(t)) => {
                 if let Some(unknown) = t
@@ -493,28 +545,7 @@ impl Experiment {
             }
             Some(other) => bail!("`inspect` is a table (of, show, values), not {other}"),
         };
-        Ok(Experiment {
-            name: text(top.get("name"), "name")?.unwrap_or(defaults.name),
-            description: text(top.get("description"), "description")?.unwrap_or_default(),
-            investigation: text(top.get("investigation"), "investigation")?,
-            demo: text(top.get("demo"), "demo")?,
-            resolution,
-            frames: count(top.get("frames"), "frames", defaults.frames)?.max(1),
-            warmup: count(top.get("warmup"), "warmup", defaults.warmup)?,
-            repeats: count(top.get("repeats"), "repeats", defaults.repeats)?.max(1),
-            convergence: match top.get("convergence") {
-                None => false,
-                Some(Json::Bool(b)) => *b,
-                Some(other) => bail!("`convergence` is true or false, not {other}"),
-            },
-            metrics,
-            camera,
-            base,
-            reference,
-            sweeps,
-            variants,
-            inspect,
-        })
+        Ok(inspect)
     }
 
     /// The experiment as a file that `parse` reads back.
@@ -603,6 +634,12 @@ impl Experiment {
                 toml_of(&Json::Object(v.values.clone()))
             ));
         }
+        self.inspect_toml(&mut out);
+        out
+    }
+
+    /// The experiment's `[inspect]`, as `parse` reads it back.
+    fn inspect_toml(&self, out: &mut String) {
         if let Some(i) = &self.inspect {
             out.push_str(&format!("\n[inspect]\nof = {}\n", quote(&i.of)));
             if let Some(show) = &i.show {
@@ -626,7 +663,6 @@ impl Experiment {
                 out.push_str(&format!("values = {}\n", toml_of(&Json::Object(values))));
             }
         }
-        out
     }
 
     /// The runs: the base, each sweep's combinations, then each variant.

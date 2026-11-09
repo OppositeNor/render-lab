@@ -221,36 +221,7 @@ impl Prerequisites {
         };
         // A topic: its title (a click selects it in the graph) and its summary under it.
         let topic = |d: &mut Dock, ui: &mut Ui, i: usize, color: Color32| {
-            let node = &graph.nodes[i];
-            let mark = if carried.contains(&i) {
-                " ↗"
-            } else {
-                ""
-            };
-            let r = ui.selectable_label(
-                false,
-                RichText::new(format!("{}{mark}", node.title)).color(color),
-            );
-            let r = if mark.is_empty() {
-                r
-            } else {
-                r.on_hover_text(tr("prerequisites-carried_hint"))
-            };
-            if r.clicked() {
-                crate::ui::focus_topic(ui.ctx(), i);
-                if d.state.panel != PanelMode::Knowledge {
-                    d.actions.push(ViewerAction::SetPanel(PanelMode::Knowledge));
-                }
-            }
-            ui.add(
-                egui::Label::new(
-                    RichText::new(&node.summary)
-                        .size(20.0)
-                        .color(palette::text_dim()),
-                )
-                .wrap(),
-            );
-            ui.add_space(6.0);
+            topic_row(d, ui, (graph, &carried), (i, color))
         };
         // Each group a column of this width, its summaries wrapped in it.
         const COLUMN: f32 = 360.0;
@@ -313,4 +284,44 @@ impl Prerequisites {
         }
         self.overlay |= full_screen;
     }
+}
+
+/// A topic's row: its title (a click selects it in the graph; a topic carried from an earlier part is marked)
+/// and its summary under it.
+fn topic_row(
+    d: &mut Dock,
+    ui: &mut Ui,
+    (graph, carried): (&crate::knowledge::Graph, &[usize]),
+    (i, color): (usize, Color32),
+) {
+    let node = &graph.nodes[i];
+    let mark = if carried.contains(&i) {
+        " ↗"
+    } else {
+        ""
+    };
+    let r = ui.selectable_label(
+        false,
+        RichText::new(format!("{}{mark}", node.title)).color(color),
+    );
+    let r = if mark.is_empty() {
+        r
+    } else {
+        r.on_hover_text(tr("prerequisites-carried_hint"))
+    };
+    if r.clicked() {
+        crate::ui::focus_topic(ui.ctx(), i);
+        if d.state.panel != PanelMode::Knowledge {
+            d.actions.push(ViewerAction::SetPanel(PanelMode::Knowledge));
+        }
+    }
+    ui.add(
+        egui::Label::new(
+            RichText::new(&node.summary)
+                .size(20.0)
+                .color(palette::text_dim()),
+        )
+        .wrap(),
+    );
+    ui.add_space(6.0);
 }

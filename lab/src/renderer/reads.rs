@@ -236,28 +236,7 @@ impl Renderer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("experiment readback"),
         });
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("experiment display"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &display_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(&self.pipelines.composite_scene);
-            pass.set_bind_group(0, &self.frame_bind_group, &[]);
-            pass.set_bind_group(1, &targets.composite, &[]);
-            pass.draw(0..3, 0..1);
-        }
+        self.composite_display(&mut encoder, &display_view, targets);
         let extent = wgpu::Extent3d {
             width: w,
             height: h,
@@ -309,10 +288,49 @@ impl Renderer {
             w,
             h,
         );
+        let words = self.read_halves(&half_buffer, half_row, [w, h]);
+        Some((
+            crate::metrics::Image::from_rgba8(w as usize, h as usize, &rgba),
+            crate::metrics::Image::from_rgba16f(w as usize, h as usize, &words),
+        ))
+    }
+
+    /// The scene composite of `targets` into `display_view` (as displayed: tone mapped, sRGB-encoded).
+    fn composite_display(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        display_view: &wgpu::TextureView,
+        targets: &ViewportTargets,
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("experiment display"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: display_view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(&self.pipelines.composite_scene);
+        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        pass.set_bind_group(1, &targets.composite, &[]);
+        pass.draw(0..3, 0..1);
+    }
+
+    /// The half floats of a `w` × `h` RGBA16F image read back into `half_buffer` (rows `half_row` bytes apart).
+    fn read_halves(&self, half_buffer: &wgpu::Buffer, half_row: u32, [w, h]: [u32; 2]) -> Vec<u16> {
+        let device = &self.gpu.device;
         let halves_padded = read_buffer(
             device,
             &self.gpu.queue,
-            &half_buffer,
+            half_buffer,
             0,
             half_row as u64 * h as u64,
         );
@@ -326,10 +344,7 @@ impl Renderer {
                     .map(|b| u16::from_le_bytes(*b)),
             );
         }
-        Some((
-            crate::metrics::Image::from_rgba8(w as usize, h as usize, &rgba),
-            crate::metrics::Image::from_rgba16f(w as usize, h as usize, &words),
-        ))
+        words
     }
 
     /// A buffer of the current shading's pass chain as the last frame left it

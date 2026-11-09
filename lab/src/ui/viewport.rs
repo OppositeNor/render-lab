@@ -131,31 +131,7 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
         return;
     }
     let right = credit_line();
-    let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
-    let left = match chrome {
-        // The chapter's tag, in bold as it is drawn below.
-        Chrome::Recording { timeline, frame } => {
-            let chapter = timeline.chapter_at(*frame);
-            rich_text::measure(ink, &timeline.chapter_tag(chapter), 24.0, bold()).x
-        }
-        Chrome::Viewer(_) => {
-            let investigation = investigation::current();
-            let title = measure(&format!(
-                "RENDER LAB · {}",
-                input.state.demo.title().to_uppercase()
-            ));
-            let scenes = investigation.scenes();
-            title
-                + if scenes.len() > 1 {
-                    28.0 + scenes
-                        .iter()
-                        .map(|s| measure(s.title()) + 24.0)
-                        .sum::<f32>()
-                } else {
-                    0.0
-                }
-        }
-    };
+    let left = header_left(ink, input, chrome);
     let right = ink.fit_right(
         &right,
         (l.canvas.x - 80.0 - left - 24.0).max(200.0),
@@ -204,82 +180,12 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
             );
             ink.font(24.0, FontFamily::Proportional);
             // The scene tabs, on the title's line, when the demonstrations show more than one scene.
-            let investigation = investigation::current();
-            let shown = investigation.demo_scene(input.state.demo);
-            let scenes = investigation.scenes();
-            if scenes.len() > 1 {
-                egui::Area::new(egui::Id::unique("viewer-scenes"))
-                    .fixed_pos(pos2(title.max.x + 28.0, 8.0))
-                    .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            for scene in scenes {
-                                if ui
-                                    .selectable_label(
-                                        scene == shown,
-                                        egui::RichText::new(scene.title()).strong(),
-                                    )
-                                    .clicked()
-                                    && scene != shown
-                                {
-                                    viewer.actions.push(ViewerAction::SelectDemo(
-                                        investigation.scene_demos(scene)[0],
-                                    ));
-                                }
-                            }
-                        });
-                    });
-            }
+            scene_tabs(ctx, title.max.x, input, viewer);
             let response = egui::Area::new(egui::Id::unique("viewer-controls"))
                 .fixed_pos(pos2(36.0, 50.0))
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        // The shown scene's demonstrations.
-                        for (i, demo) in investigation.scene_demos(shown).iter().enumerate() {
-                            let selected = input.state.demo == *demo && !viewer.timeline_mode;
-                            if ui
-                                .selectable_label(
-                                    selected,
-                                    format!("{} {}", i + 1, investigation.demo_tab(*demo)),
-                                )
-                                .clicked()
-                            {
-                                viewer.actions.push(ViewerAction::SelectDemo(*demo));
-                            }
-                        }
-                        ui.separator();
-                        if ui
-                            .button(if viewer.playing {
-                                tr("ui-pause")
-                            } else {
-                                tr("ui-play")
-                            })
-                            .on_hover_text(tr("controls-play_animation_hint"))
-                            .clicked()
-                        {
-                            viewer.actions.push(ViewerAction::TogglePlay);
-                        }
-                        if ui.button(tr("ui-step")).clicked() {
-                            viewer.actions.push(ViewerAction::Step);
-                        }
-                        if ui.button(tr("ui-reset")).clicked() {
-                            viewer.actions.push(ViewerAction::Reset);
-                        }
-                        if viewer.timeline.is_some()
-                            && ui
-                                .selectable_label(viewer.timeline_mode, tr("ui-timeline"))
-                                .clicked()
-                        {
-                            viewer.actions.push(ViewerAction::ToggleTimeline);
-                        }
-                        ui.separator();
-                        windows_menu(ui, l, viewer);
-                        if ui
-                            .button(tr("ui-home"))
-                            .on_hover_text(tr("ui-home_hint"))
-                            .clicked()
-                        {
-                            viewer.actions.push(ViewerAction::Home);
-                        }
+                        viewer_controls(ui, input, viewer);
                     });
                 });
             viewer.ui_has_pointer = ctx.egui_wants_pointer_input() || response.response.hovered();
@@ -297,6 +203,119 @@ pub(super) fn draw_header(ink: &Ink, input: &UiInput, chrome: &mut Chrome, ctx: 
                 );
             }
         }
+    }
+}
+
+/// How wide the header's left part is: the chapter's tag, or the viewer's title and its scene tabs.
+fn header_left(ink: &Ink, input: &UiInput, chrome: &Chrome) -> f32 {
+    let measure = |t: &str| rich_text::measure(ink, t, 24.0, FontFamily::Proportional).x;
+
+    match chrome {
+        // The chapter's tag, in bold as it is drawn below.
+        Chrome::Recording { timeline, frame } => {
+            let chapter = timeline.chapter_at(*frame);
+            rich_text::measure(ink, &timeline.chapter_tag(chapter), 24.0, bold()).x
+        }
+        Chrome::Viewer(_) => {
+            let investigation = investigation::current();
+            let title = measure(&format!(
+                "RENDER LAB · {}",
+                input.state.demo.title().to_uppercase()
+            ));
+            let scenes = investigation.scenes();
+            title
+                + if scenes.len() > 1 {
+                    28.0 + scenes
+                        .iter()
+                        .map(|s| measure(s.title()) + 24.0)
+                        .sum::<f32>()
+                } else {
+                    0.0
+                }
+        }
+    }
+}
+
+/// The scene tabs, on the title's line after `after`, when the demonstrations show more than one scene.
+fn scene_tabs(ctx: &egui::Context, after: f32, input: &UiInput, viewer: &mut ViewerChrome) {
+    let investigation = investigation::current();
+    let shown = investigation.demo_scene(input.state.demo);
+    let scenes = investigation.scenes();
+    if scenes.len() > 1 {
+        egui::Area::new(egui::Id::unique("viewer-scenes"))
+            .fixed_pos(pos2(after + 28.0, 8.0))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    for scene in scenes {
+                        if ui
+                            .selectable_label(
+                                scene == shown,
+                                egui::RichText::new(scene.title()).strong(),
+                            )
+                            .clicked()
+                            && scene != shown
+                        {
+                            viewer.actions.push(ViewerAction::SelectDemo(
+                                investigation.scene_demos(scene)[0],
+                            ));
+                        }
+                    }
+                });
+            });
+    }
+}
+
+/// The viewer's controls: the shown scene's demonstrations, Play or Pause, Step, Reset, the timeline's toggle,
+/// the windows' menu, and Home.
+fn viewer_controls(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome) {
+    let (l, investigation) = (&input.layout, investigation::current());
+    let shown = investigation.demo_scene(input.state.demo);
+    // The shown scene's demonstrations.
+    for (i, demo) in investigation.scene_demos(shown).iter().enumerate() {
+        let selected = input.state.demo == *demo && !viewer.timeline_mode;
+        if ui
+            .selectable_label(
+                selected,
+                format!("{} {}", i + 1, investigation.demo_tab(*demo)),
+            )
+            .clicked()
+        {
+            viewer.actions.push(ViewerAction::SelectDemo(*demo));
+        }
+    }
+    ui.separator();
+    if ui
+        .button(if viewer.playing {
+            tr("ui-pause")
+        } else {
+            tr("ui-play")
+        })
+        .on_hover_text(tr("controls-play_animation_hint"))
+        .clicked()
+    {
+        viewer.actions.push(ViewerAction::TogglePlay);
+    }
+    if ui.button(tr("ui-step")).clicked() {
+        viewer.actions.push(ViewerAction::Step);
+    }
+    if ui.button(tr("ui-reset")).clicked() {
+        viewer.actions.push(ViewerAction::Reset);
+    }
+    if viewer.timeline.is_some()
+        && ui
+            .selectable_label(viewer.timeline_mode, tr("ui-timeline"))
+            .clicked()
+    {
+        viewer.actions.push(ViewerAction::ToggleTimeline);
+    }
+    ui.separator();
+    windows_menu(ui, l, viewer);
+    if ui
+        .button(tr("ui-home"))
+        .on_hover_text(tr("ui-home_hint"))
+        .clicked()
+    {
+        viewer.actions.push(ViewerAction::Home);
     }
 }
 
@@ -377,33 +396,7 @@ pub(super) fn draw_labels(
         }
         let size =
             rich_text::measure(ink, &label.text, 24.0, FontFamily::Proportional) + vec2(22.0, 10.0);
-        let near = [
-            vec2(20.0, -size.y - 14.0),
-            vec2(20.0, 14.0),
-            vec2(-size.x - 20.0, -size.y - 14.0),
-            vec2(-size.x - 20.0, 14.0),
-            vec2(-size.x * 0.5, -size.y - 30.0),
-            vec2(-size.x * 0.5, 30.0),
-            vec2(36.0, -size.y * 0.5),
-            vec2(-size.x - 36.0, -size.y * 0.5),
-            vec2(20.0, -size.y - 60.0),
-            vec2(20.0, 60.0),
-        ];
-        // Farther rings for crowded anchors; the leader line keeps the link visible.
-        let mut candidates: Vec<Rect> = near
-            .iter()
-            .map(|o| Rect::from_min_size(anchor + *o, size))
-            .collect();
-        for ring in [2.0f32, 3.2] {
-            for k in 0..12 {
-                let angle = k as f32 / 12.0 * std::f32::consts::TAU;
-                let d = vec2(angle.cos(), angle.sin()) * (size.y + 28.0) * ring;
-                candidates.push(Rect::from_center_size(
-                    anchor + d + vec2(angle.cos() * size.x * 0.5, 0.0),
-                    size,
-                ));
-            }
-        }
+        let candidates = label_places(anchor, size);
         if obstacles.iter().any(|o| o.contains(anchor)) {
             continue;
         }
@@ -435,41 +428,79 @@ pub(super) fn draw_labels(
             report.labels_outside += 1;
         }
         placed.push(rect);
-        let painter = ink.painter;
-        let edge = rect.clamp(anchor);
-        painter.line_segment([anchor, edge], Stroke::new(2.0, label.color));
-        painter.circle_filled(anchor, 4.0, label.color);
-        painter.rect_filled(
-            rect,
-            CornerRadius::same(6),
-            Color32::from_rgba_premultiplied(9, 22, 36, 235),
-        );
-        painter.rect_filled(
-            Rect::from_min_max(rect.min, pos2(rect.min.x + 5.0, rect.max.y)),
-            CornerRadius::same(2),
-            label.color,
-        );
-        painter.rect_stroke(
-            rect,
-            CornerRadius::same(6),
-            Stroke::new(1.0, palette::border()),
-            StrokeKind::Inside,
-        );
-        rich_text::text(
-            ink,
-            pos2(rect.min.x + 13.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            &label.text,
-            24.0,
-            FontFamily::Proportional,
-            palette::text(),
-        );
+        draw_label(ink, label, anchor, rect);
         report.labels.push(PlacedLabel {
             text: label.text.clone(),
             anchor: [anchor.x, anchor.y],
             rect: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
         });
     }
+}
+
+/// The places a label `size` large may take near `anchor`: the near ones first, then farther rings for crowded
+/// anchors (the leader line keeps the link visible).
+fn label_places(anchor: Pos2, size: Vec2) -> Vec<Rect> {
+    let near = [
+        vec2(20.0, -size.y - 14.0),
+        vec2(20.0, 14.0),
+        vec2(-size.x - 20.0, -size.y - 14.0),
+        vec2(-size.x - 20.0, 14.0),
+        vec2(-size.x * 0.5, -size.y - 30.0),
+        vec2(-size.x * 0.5, 30.0),
+        vec2(36.0, -size.y * 0.5),
+        vec2(-size.x - 36.0, -size.y * 0.5),
+        vec2(20.0, -size.y - 60.0),
+        vec2(20.0, 60.0),
+    ];
+    // Farther rings for crowded anchors; the leader line keeps the link visible.
+    let mut candidates: Vec<Rect> = near
+        .iter()
+        .map(|o| Rect::from_min_size(anchor + *o, size))
+        .collect();
+    for ring in [2.0f32, 3.2] {
+        for k in 0..12 {
+            let angle = k as f32 / 12.0 * std::f32::consts::TAU;
+            let d = vec2(angle.cos(), angle.sin()) * (size.y + 28.0) * ring;
+            candidates.push(Rect::from_center_size(
+                anchor + d + vec2(angle.cos() * size.x * 0.5, 0.0),
+                size,
+            ));
+        }
+    }
+    candidates
+}
+
+/// A label in `rect`: its leader line from `anchor`, its card with its colour's edge, its text.
+fn draw_label(ink: &Ink, label: &crate::frame::Label, anchor: Pos2, rect: Rect) {
+    let painter = ink.painter;
+    let edge = rect.clamp(anchor);
+    painter.line_segment([anchor, edge], Stroke::new(2.0, label.color));
+    painter.circle_filled(anchor, 4.0, label.color);
+    painter.rect_filled(
+        rect,
+        CornerRadius::same(6),
+        Color32::from_rgba_premultiplied(9, 22, 36, 235),
+    );
+    painter.rect_filled(
+        Rect::from_min_max(rect.min, pos2(rect.min.x + 5.0, rect.max.y)),
+        CornerRadius::same(2),
+        label.color,
+    );
+    painter.rect_stroke(
+        rect,
+        CornerRadius::same(6),
+        Stroke::new(1.0, palette::border()),
+        StrokeKind::Inside,
+    );
+    rich_text::text(
+        ink,
+        pos2(rect.min.x + 13.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        &label.text,
+        24.0,
+        FontFamily::Proportional,
+        palette::text(),
+    );
 }
 
 pub(super) fn translate_inside(r: Rect, bounds: Rect) -> Rect {

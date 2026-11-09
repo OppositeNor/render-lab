@@ -89,102 +89,24 @@ pub(super) fn draw_scene_window(
             spacing.slider_width = crate::controls::SLIDER_WIDTH;
             // The gizmo's mode: a turn and a size only for what has them.
             ui.horizontal(|ui| {
-                let can =
-                    |m: Mode| m == Mode::Move || selected.as_ref().is_some_and(|e| e.yaw.is_some());
-                for (m, label) in [
-                    (Mode::Move, tr("outliner-move")),
-                    (Mode::Rotate, tr("outliner-rotate")),
-                    (Mode::Scale, tr("outliner-scale")),
-                ] {
-                    let shown = if can(mode) {
-                        mode
-                    } else {
-                        Mode::Move
-                    };
-                    let r = ui.add_enabled(can(m), egui::Button::selectable(shown == m, label));
-                    if r.on_hover_text(tr("outliner-gizmo_hint")).clicked() {
-                        actions.push(ViewerAction::SetGizmo(m));
-                    }
-                }
+                gizmo_modes(ui, selected.as_ref(), mode, &mut actions);
             });
             ui.separator();
             // The list: as tall as its rows, up to 40 % of the window; the rest for the selected entity's values.
             let list_height = ((inner.height() - 60.0) * 0.4).max(90.0);
-            egui::ScrollArea::vertical()
-                .id_salt("viewer-scene-list")
-                .max_height(list_height)
-                .min_scrolled_height(list_height)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                    // Rows the window's width, their names from the left.
-                    ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
-                        for e in &entities {
-                            // Room for the icon, painted over the row.
-                            let mut text = format!("      {}", e.name);
-                            if !e.visible {
-                                text.push_str(&format!("  · {}", tr("outliner-hidden")));
-                            }
-                            let color = if e.movable() && e.visible {
-                                palette::text()
-                            } else {
-                                palette::text_dim()
-                            };
-                            let on = selected.as_ref().is_some_and(|s| s.id == e.id);
-                            let row = ui.add(egui::Button::selectable(
-                                on,
-                                RichText::new(text).color(color),
-                            ));
-                            paint_icon(
-                                ui.painter(),
-                                pos2(row.rect.min.x + 16.0, row.rect.center().y),
-                                e,
-                            );
-                            dock.widgets.push((format!("entity:{}", e.id), row.rect));
-                            if row.clicked() {
-                                actions.push(ViewerAction::Select((!on).then(|| e.id.clone())));
-                            }
-                        }
-                    });
-                });
+            entity_list(
+                ui,
+                (&entities, selected.as_ref()),
+                list_height,
+                &mut dock.widgets,
+                &mut actions,
+            );
             ui.separator();
             let Some(e) = &selected else {
                 ui.label(RichText::new(tr("outliner-none_selected")).color(palette::text_dim()));
                 return;
             };
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(&e.name)
-                        .font(egui::FontId::new(24.0, bold()))
-                        .color(palette::accent()),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if e.movable()
-                        && ui
-                            .button(tr("outliner-reset"))
-                            .on_hover_text(tr("outliner-reset_hint"))
-                            .clicked()
-                    {
-                        for key in e.position.iter().flatten().chain(&e.yaw).chain(&e.scale) {
-                            if let Some(default) = crate::values::entry(key).and_then(|en| {
-                                en.default
-                                    .map(|d| d.components()[crate::values::component(en, key)])
-                            }) {
-                                actions.push(ViewerAction::SetParam(key, default));
-                            }
-                        }
-                    }
-                    if ui
-                        .button(tr("outliner-focus"))
-                        .on_hover_text(tr("outliner-focus_hint"))
-                        .clicked()
-                    {
-                        let mut camera = dock.state.camera;
-                        camera.target = e.at.to_array();
-                        actions.push(ViewerAction::SetCamera(camera));
-                    }
-                });
-            });
+            entity_header(ui, e, dock.state.camera, &mut actions);
             if !e.movable() {
                 let why = if e.kind == EntityKind::Object
                     && input
@@ -233,6 +155,122 @@ pub(super) fn draw_scene_window(
     viewer.actions.extend(dock.actions);
     viewer.actions.extend(actions);
     viewer.widgets.extend(dock.widgets);
+}
+
+/// The gizmo's modes: a turn and a size only for what has them.
+fn gizmo_modes(
+    ui: &mut egui::Ui,
+    selected: Option<&entity::Entity>,
+    mode: Mode,
+    actions: &mut Vec<ViewerAction>,
+) {
+    let can = |m: Mode| m == Mode::Move || selected.is_some_and(|e| e.yaw.is_some());
+    for (m, label) in [
+        (Mode::Move, tr("outliner-move")),
+        (Mode::Rotate, tr("outliner-rotate")),
+        (Mode::Scale, tr("outliner-scale")),
+    ] {
+        let shown = if can(mode) {
+            mode
+        } else {
+            Mode::Move
+        };
+        let r = ui.add_enabled(can(m), egui::Button::selectable(shown == m, label));
+        if r.on_hover_text(tr("outliner-gizmo_hint")).clicked() {
+            actions.push(ViewerAction::SetGizmo(m));
+        }
+    }
+}
+
+/// The scene's entities, a row each (its icon, its name, whether it is hidden), `list_height` high at most: a
+/// click selects one, or clears the selection.
+fn entity_list(
+    ui: &mut egui::Ui,
+    (entities, selected): (&[entity::Entity], Option<&entity::Entity>),
+    list_height: f32,
+    widgets: &mut Vec<(String, Rect)>,
+    actions: &mut Vec<ViewerAction>,
+) {
+    egui::ScrollArea::vertical()
+        .id_salt("viewer-scene-list")
+        .max_height(list_height)
+        .min_scrolled_height(list_height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+            // Rows the window's width, their names from the left.
+            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+                for e in entities {
+                    // Room for the icon, painted over the row.
+                    let mut text = format!("      {}", e.name);
+                    if !e.visible {
+                        text.push_str(&format!("  · {}", tr("outliner-hidden")));
+                    }
+                    let color = if e.movable() && e.visible {
+                        palette::text()
+                    } else {
+                        palette::text_dim()
+                    };
+                    let on = selected.is_some_and(|s| s.id == e.id);
+                    let row = ui.add(egui::Button::selectable(
+                        on,
+                        RichText::new(text).color(color),
+                    ));
+                    paint_icon(
+                        ui.painter(),
+                        pos2(row.rect.min.x + 16.0, row.rect.center().y),
+                        e,
+                    );
+                    widgets.push((format!("entity:{}", e.id), row.rect));
+                    if row.clicked() {
+                        actions.push(ViewerAction::Select((!on).then(|| e.id.clone())));
+                    }
+                }
+            });
+        });
+}
+
+/// The selected entity's name, with Reset (its place, turn, and size back to their defaults) and Focus (the
+/// camera turned on it, from `camera`).
+fn entity_header(
+    ui: &mut egui::Ui,
+    e: &entity::Entity,
+    camera: crate::camera::OrbitCamera,
+    actions: &mut Vec<ViewerAction>,
+) {
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(&e.name)
+                .font(egui::FontId::new(24.0, bold()))
+                .color(palette::accent()),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if e.movable()
+                && ui
+                    .button(tr("outliner-reset"))
+                    .on_hover_text(tr("outliner-reset_hint"))
+                    .clicked()
+            {
+                for key in e.position.iter().flatten().chain(&e.yaw).chain(&e.scale) {
+                    if let Some(default) = crate::values::entry(key).and_then(|en| {
+                        en.default
+                            .map(|d| d.components()[crate::values::component(en, key)])
+                    }) {
+                        actions.push(ViewerAction::SetParam(key, default));
+                    }
+                }
+            }
+            if ui
+                .button(tr("outliner-focus"))
+                .on_hover_text(tr("outliner-focus_hint"))
+                .clicked()
+            {
+                let mut camera = camera;
+                camera.target = e.at.to_array();
+                actions.push(ViewerAction::SetCamera(camera));
+            }
+        });
+    });
 }
 
 /// A colour lit for a handle under the pointer or dragged.

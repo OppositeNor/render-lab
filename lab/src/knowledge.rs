@@ -393,81 +393,11 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
     };
     let mut nodes = Vec::new();
     for t in tables("topic")? {
-        const FIELDS: &[&str] = &[
-            "key",
-            "title-text",
-            "summary-text",
-            "area",
-            "base",
-            "requires",
-            "reading",
-            "group",
-        ];
-        if let Some((key, _)) = t.iter().find(|(k, _)| !FIELDS.contains(k)) {
-            return Err(fail(format!(
-                "a topic has no field `{key}` (it has {})",
-                FIELDS.join(", ")
-            )));
-        }
-        let key = string(t, "key", &fail)?.ok_or_else(|| fail("a topic needs `key`".into()))?;
-        let f = |m: String| fail(format!("topic `{key}`: {m}"));
-        if key.is_empty()
-            || !key
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-        {
-            return Err(f("a key is lower-case letters, digits, and `-`".into()));
-        }
-        let area = string(t, "area", &f)?.ok_or_else(|| f("needs `area`".into()))?;
-        if !AREAS.contains(&area.as_str()) {
-            return Err(f(format!(
-                "area `{area}` is not one of {}",
-                AREAS.join(", ")
-            )));
-        }
-        nodes.push(RawNode {
-            title: string(t, "title-text", &f)?.ok_or_else(|| f("needs `title-text`".into()))?,
-            summary: string(t, "summary-text", &f)?
-                .ok_or_else(|| f("needs `summary-text`".into()))?,
-            area,
-            base: t
-                .get("base")
-                .map(|b| {
-                    b.as_bool()
-                        .ok_or_else(|| f("`base` is true or false".into()))
-                })
-                .transpose()?
-                .unwrap_or(false),
-            requires: strings(t, "requires", &f)?,
-            reading: strings(t, "reading", &f)?,
-            group: string(t, "group", &f)?,
-            key,
-        });
+        nodes.push(parse_topic(t, &fail)?);
     }
     let mut groups = Vec::new();
     for t in tables("group")? {
-        if let Some((key, _)) = t
-            .iter()
-            .find(|(k, _)| !["key", "title-text", "area"].contains(k))
-        {
-            return Err(fail(format!(
-                "a group has no field `{key}` (it has key, title-text, area)"
-            )));
-        }
-        let key = string(t, "key", &fail)?.ok_or_else(|| fail("a group needs `key`".into()))?;
-        let f = |m: String| fail(format!("group `{key}`: {m}"));
-        let area = string(t, "area", &f)?.ok_or_else(|| f("needs `area`".into()))?;
-        if !AREAS.contains(&area.as_str()) {
-            return Err(f(format!(
-                "area `{area}` is not one of {}",
-                AREAS.join(", ")
-            )));
-        }
-        groups.push((
-            key.clone(),
-            string(t, "title-text", &f)?.ok_or_else(|| f("needs `title-text`".into()))?,
-            area,
-        ));
+        groups.push(parse_group(t, &fail)?);
     }
     let mut chapters = Vec::new();
     for t in tables("chapter")? {
@@ -515,6 +445,88 @@ fn parse(text: &str, at: &str) -> Result<RawFile, String> {
     })
 }
 
+/// A `[[topic]]` of a knowledge file, its fields checked.
+fn parse_topic(t: &toml_edit::Table, fail: &dyn Fn(String) -> String) -> Result<RawNode, String> {
+    const FIELDS: &[&str] = &[
+        "key",
+        "title-text",
+        "summary-text",
+        "area",
+        "base",
+        "requires",
+        "reading",
+        "group",
+    ];
+    if let Some((key, _)) = t.iter().find(|(k, _)| !FIELDS.contains(k)) {
+        return Err(fail(format!(
+            "a topic has no field `{key}` (it has {})",
+            FIELDS.join(", ")
+        )));
+    }
+    let key = string(t, "key", &fail)?.ok_or_else(|| fail("a topic needs `key`".into()))?;
+    let f = |m: String| fail(format!("topic `{key}`: {m}"));
+    if key.is_empty()
+        || !key
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        return Err(f("a key is lower-case letters, digits, and `-`".into()));
+    }
+    let area = string(t, "area", &f)?.ok_or_else(|| f("needs `area`".into()))?;
+    if !AREAS.contains(&area.as_str()) {
+        return Err(f(format!(
+            "area `{area}` is not one of {}",
+            AREAS.join(", ")
+        )));
+    }
+    Ok(RawNode {
+        title: string(t, "title-text", &f)?.ok_or_else(|| f("needs `title-text`".into()))?,
+        summary: string(t, "summary-text", &f)?.ok_or_else(|| f("needs `summary-text`".into()))?,
+        area,
+        base: t
+            .get("base")
+            .map(|b| {
+                b.as_bool()
+                    .ok_or_else(|| f("`base` is true or false".into()))
+            })
+            .transpose()?
+            .unwrap_or(false),
+        requires: strings(t, "requires", &f)?,
+        reading: strings(t, "reading", &f)?,
+        group: string(t, "group", &f)?,
+        key,
+    })
+}
+
+/// A `[[group]]` of a knowledge file: its key, its title's text key, its area.
+fn parse_group(
+    t: &toml_edit::Table,
+    fail: &dyn Fn(String) -> String,
+) -> Result<(String, String, String), String> {
+    if let Some((key, _)) = t
+        .iter()
+        .find(|(k, _)| !["key", "title-text", "area"].contains(k))
+    {
+        return Err(fail(format!(
+            "a group has no field `{key}` (it has key, title-text, area)"
+        )));
+    }
+    let key = string(t, "key", &fail)?.ok_or_else(|| fail("a group needs `key`".into()))?;
+    let f = |m: String| fail(format!("group `{key}`: {m}"));
+    let area = string(t, "area", &f)?.ok_or_else(|| f("needs `area`".into()))?;
+    if !AREAS.contains(&area.as_str()) {
+        return Err(f(format!(
+            "area `{area}` is not one of {}",
+            AREAS.join(", ")
+        )));
+    }
+    Ok((
+        key.clone(),
+        string(t, "title-text", &f)?.ok_or_else(|| f("needs `title-text`".into()))?,
+        area,
+    ))
+}
+
 /// The full node name a reference in `package`'s topics names.
 fn resolve(package: &Package, imported: &[Package], reference: &str) -> Result<String, String> {
     match reference.split_once('#') {
@@ -543,56 +555,7 @@ fn merge(
         package: package.to_string(),
         ..Default::default()
     };
-    let mut index: BTreeMap<String, usize> = BTreeMap::new();
-    for (p, file) in &files {
-        for node in &file.nodes {
-            let id = format!("{}.knowledge#{}", p.name, node.key);
-            if index.contains_key(&id) {
-                return Err(format!(
-                    "knowledge: {}: the topic `{}` is declared twice",
-                    p.name, node.key
-                ));
-            }
-            if node.base && p.name != "render_lab" {
-                return Err(format!(
-                    "knowledge: {}: `{}` is a base; only render_lab declares the bases",
-                    p.name, node.key
-                ));
-            }
-            index.insert(id.clone(), graph.nodes.len());
-            graph.nodes.push(Node {
-                id,
-                package: p.name.clone(),
-                key: node.key.clone(),
-                title: text(&p.name, &node.title),
-                summary: text(&p.name, &node.summary),
-                area: node.area.clone(),
-                base: node.base,
-                requires: Vec::new(),
-                reading: node.reading.clone(),
-                group: None,
-            });
-        }
-    }
-    let mut group_index: BTreeMap<String, usize> = BTreeMap::new();
-    for (p, file) in &files {
-        for (key, title, area) in &file.groups {
-            let id = format!("{}.knowledge#{}", p.name, key);
-            if group_index.contains_key(&id) || index.contains_key(&id) {
-                return Err(format!(
-                    "knowledge: {}: `{key}` is declared twice (a group's key is not a topic's)",
-                    p.name
-                ));
-            }
-            group_index.insert(id.clone(), graph.groups.len());
-            graph.groups.push(Group {
-                id,
-                key: key.clone(),
-                title: text(&p.name, title),
-                area: area.clone(),
-            });
-        }
-    }
+    let (index, group_index) = index_topics(&mut graph, &files, text)?;
     let mut start = 0;
     for (p, file) in &files {
         let at = all
@@ -681,6 +644,76 @@ fn merge(
         }
     }
     graph.chapters.sort_by_key(|c| c.number);
+    check_graph(&graph, package)?;
+    Ok(graph)
+}
+
+/// The files' topics and groups added to `graph` (each declared once; only render_lab declares the bases):
+/// Where each topic (or each group) is in the graph, by its full name.
+type Places = BTreeMap<String, usize>;
+
+/// where each topic is, and where each group is, by full name.
+fn index_topics(
+    graph: &mut Graph,
+    files: &[(&Package, RawFile)],
+    text: &dyn Fn(&str, &str) -> String,
+) -> Result<(Places, Places), String> {
+    let mut index: BTreeMap<String, usize> = BTreeMap::new();
+    for (p, file) in files {
+        for node in &file.nodes {
+            let id = format!("{}.knowledge#{}", p.name, node.key);
+            if index.contains_key(&id) {
+                return Err(format!(
+                    "knowledge: {}: the topic `{}` is declared twice",
+                    p.name, node.key
+                ));
+            }
+            if node.base && p.name != "render_lab" {
+                return Err(format!(
+                    "knowledge: {}: `{}` is a base; only render_lab declares the bases",
+                    p.name, node.key
+                ));
+            }
+            index.insert(id.clone(), graph.nodes.len());
+            graph.nodes.push(Node {
+                id,
+                package: p.name.clone(),
+                key: node.key.clone(),
+                title: text(&p.name, &node.title),
+                summary: text(&p.name, &node.summary),
+                area: node.area.clone(),
+                base: node.base,
+                requires: Vec::new(),
+                reading: node.reading.clone(),
+                group: None,
+            });
+        }
+    }
+    let mut group_index: BTreeMap<String, usize> = BTreeMap::new();
+    for (p, file) in files {
+        for (key, title, area) in &file.groups {
+            let id = format!("{}.knowledge#{}", p.name, key);
+            if group_index.contains_key(&id) || index.contains_key(&id) {
+                return Err(format!(
+                    "knowledge: {}: `{key}` is declared twice (a group's key is not a topic's)",
+                    p.name
+                ));
+            }
+            group_index.insert(id.clone(), graph.groups.len());
+            graph.groups.push(Group {
+                id,
+                key: key.clone(),
+                title: text(&p.name, title),
+                area: area.clone(),
+            });
+        }
+    }
+    Ok((index, group_index))
+}
+
+/// Refuses a merged graph whose requirements form a cycle or repeat what another requirement implies, whose
+/// bases are not three, or a chapter requirement another one implies.
+fn check_graph(graph: &Graph, package: &str) -> Result<(), String> {
     let requires = graph.requires();
     if let Some(c) = cycle(&requires) {
         return Err(format!(
@@ -717,7 +750,7 @@ fn merge(
             ));
         }
     }
-    Ok(graph)
+    Ok(())
 }
 
 impl Graph {

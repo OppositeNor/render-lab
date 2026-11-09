@@ -105,87 +105,9 @@ fn mount() -> Result<Registry> {
         ));
     }
     let packages = packages::scan(&root, &dir).map_err(|e| anyhow!(e))?;
-    let mut resources: Vec<Resource> = Vec::new();
-    let mut shaders: Vec<ShaderDeclaration> = Vec::new();
-    let mut overrides: Vec<Declaration> = Vec::new();
-    for (i, package) in packages.iter().enumerate() {
-        let resolve = |reference: &str| packages::resolve(package, &packages[..i], reference);
-        for collection in &package.collections {
-            let read = pipeline::read_collection(
-                &root,
-                &package.dir,
-                collection,
-                &package.name,
-                Form::Built,
-                &resolve,
-            )
-            .map_err(|e| anyhow!(e))?;
-            for decl in read.resources {
-                if let Some(other) = resources.iter().find(|r| r.decl.id == decl.id) {
-                    return Err(anyhow!(
-                        "resources: `{}` is declared by {} and {}",
-                        decl.id,
-                        other.decl.manifest,
-                        decl.manifest
-                    ));
-                }
-                if decl.overrides.is_some() {
-                    overrides.push(decl.clone());
-                }
-                resources.push(Resource {
-                    decl,
-                    bytes: OnceLock::new(),
-                });
-            }
-            for shader in read.shaders {
-                if let Some(other) = shaders.iter().find(|s| s.id == shader.id) {
-                    return Err(anyhow!(
-                        "resources: shader `{}` is declared by {} and {}",
-                        shader.id,
-                        other.manifest,
-                        shader.manifest
-                    ));
-                }
-                shaders.push(shader);
-            }
-        }
-    }
+    let (mut resources, shaders, overrides) = read_collections(&root, &packages)?;
     // A package replaces, for everyone, what an imported package lets it.
-    let mut replaced: Vec<(String, String)> = Vec::new();
-    for decl in overrides {
-        let target = decl.overrides.clone().unwrap();
-        if let Some((_, by)) = replaced.iter().find(|(t, _)| *t == target) {
-            return Err(anyhow!(
-                "resources: `{target}` is overridden by {by} and {}",
-                decl.manifest
-            ));
-        }
-        let Some(slot) = resources.iter_mut().find(|r| r.decl.id == target) else {
-            return Err(anyhow!(
-                "resources: `{}` ({}) overrides `{target}`, which is not a resource any package declares",
-                decl.id,
-                decl.manifest
-            ));
-        };
-        if !slot.decl.overridable {
-            return Err(anyhow!(
-                "resources: `{}` ({}) overrides `{target}`, which is not `overridable` ({})",
-                decl.id,
-                decl.manifest,
-                slot.decl.manifest
-            ));
-        }
-        replaced.push((target.clone(), decl.manifest.clone()));
-        *slot = Resource {
-            decl: Declaration {
-                id: target,
-                overridable: false,
-                overrides: None,
-                ..decl
-            },
-            bytes: OnceLock::new(),
-        };
-    }
+    apply_overrides(&mut resources, overrides)?;
     resources.sort_by(|a, b| a.decl.id.cmp(&b.decl.id));
     let declared = |key: &str| {
         shaders.iter().any(|s| s.id == key)
@@ -243,6 +165,101 @@ fn mount() -> Result<Registry> {
         shaders,
         timelines,
     })
+}
+
+/// Every package's built collections read: their resources and shaders (each declared once), and the overrides
+/// among the resources.
+fn read_collections(
+    root: &Path,
+    packages: &[packages::Package],
+) -> Result<(Vec<Resource>, Vec<ShaderDeclaration>, Vec<Declaration>)> {
+    let mut resources: Vec<Resource> = Vec::new();
+    let mut shaders: Vec<ShaderDeclaration> = Vec::new();
+    let mut overrides: Vec<Declaration> = Vec::new();
+    for (i, package) in packages.iter().enumerate() {
+        let resolve = |reference: &str| packages::resolve(package, &packages[..i], reference);
+        for collection in &package.collections {
+            let read = pipeline::read_collection(
+                root,
+                &package.dir,
+                collection,
+                &package.name,
+                Form::Built,
+                &resolve,
+            )
+            .map_err(|e| anyhow!(e))?;
+            for decl in read.resources {
+                if let Some(other) = resources.iter().find(|r| r.decl.id == decl.id) {
+                    return Err(anyhow!(
+                        "resources: `{}` is declared by {} and {}",
+                        decl.id,
+                        other.decl.manifest,
+                        decl.manifest
+                    ));
+                }
+                if decl.overrides.is_some() {
+                    overrides.push(decl.clone());
+                }
+                resources.push(Resource {
+                    decl,
+                    bytes: OnceLock::new(),
+                });
+            }
+            for shader in read.shaders {
+                if let Some(other) = shaders.iter().find(|s| s.id == shader.id) {
+                    return Err(anyhow!(
+                        "resources: shader `{}` is declared by {} and {}",
+                        shader.id,
+                        other.manifest,
+                        shader.manifest
+                    ));
+                }
+                shaders.push(shader);
+            }
+        }
+    }
+    Ok((resources, shaders, overrides))
+}
+
+/// A package replaces, for everyone, what an imported package lets it: each override in place of the resource it
+/// names (once, and only an `overridable` one).
+fn apply_overrides(resources: &mut [Resource], overrides: Vec<Declaration>) -> Result<()> {
+    let mut replaced: Vec<(String, String)> = Vec::new();
+    for decl in overrides {
+        let target = decl.overrides.clone().unwrap();
+        if let Some((_, by)) = replaced.iter().find(|(t, _)| *t == target) {
+            return Err(anyhow!(
+                "resources: `{target}` is overridden by {by} and {}",
+                decl.manifest
+            ));
+        }
+        let Some(slot) = resources.iter_mut().find(|r| r.decl.id == target) else {
+            return Err(anyhow!(
+                "resources: `{}` ({}) overrides `{target}`, which is not a resource any package declares",
+                decl.id,
+                decl.manifest
+            ));
+        };
+        if !slot.decl.overridable {
+            return Err(anyhow!(
+                "resources: `{}` ({}) overrides `{target}`, which is not `overridable` ({})",
+                decl.id,
+                decl.manifest,
+                slot.decl.manifest
+            ));
+        }
+        replaced.push((target.clone(), decl.manifest.clone()));
+        *slot = Resource {
+            decl: Declaration {
+                id: target,
+                overridable: false,
+                overrides: None,
+                ..decl
+            },
+            bytes: OnceLock::new(),
+        };
+    }
+    Ok(())
 }
 
 /// The full key `reference` names in `package`'s content: its own key, or

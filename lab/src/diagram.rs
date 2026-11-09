@@ -204,55 +204,10 @@ pub fn draw(
     };
     let shown = &current.2;
     // Paused: the viewer's view of it, from the fitted one.
-    let (t, moved) = match paused {
-        Some(p) => {
-            let id = paused_id();
-            let fitted = (area.center() - base.origin) / base.scale;
-            let setup = |v: &mut graph_view::ViewState, _: bool| {
-                v.scale = base.scale;
-                v.centre = fitted;
-                if let Some((zoom, at)) = p.preset {
-                    v.scale = base.scale * zoom;
-                    v.centre = laid.bounds.min.to_vec2() + laid.bounds.size() * at;
-                }
-            };
-            let controls = graph_view::Controls {
-                zoom: Some((base.scale, base.scale * MAX_ZOOM)),
-                move_nodes: true,
-            };
-            let (mut state, _) =
-                graph_view::view(p.ctx, Some(id), area, &laid, p.key, &controls, &setup);
-            graph_view::keep(&mut state, &laid, area);
-            p.ctx.data_mut(|d| d.insert_temp(id, state.clone()));
-            (state.transform(area), state.moved)
-        }
-        None => (base, Vec::new()),
-    };
+    let (t, moved) = paused_view(paused, area, base, &laid);
     let zoom_now = t.scale / base.scale;
     let zoom = zoom_now.min(2.0);
-    let look = |focus: &[String], i: usize| -> NodeLook {
-        let node = &graph.nodes[i];
-        let named = focus.contains(&node.id);
-        let rows: Vec<bool> = node.rows.iter().map(|r| focus.contains(&r.id)).collect();
-        let mut look = NodeLook::plain(node, named, 1.5 * zoom);
-        if !named && rows.contains(&true) {
-            look.outline = Stroke::new(2.5 * zoom, palette::accent());
-        }
-        look.rows = rows
-            .iter()
-            .map(|&lit| {
-                (
-                    if lit {
-                        palette::text()
-                    } else {
-                        palette::text_dim()
-                    },
-                    lit,
-                )
-            })
-            .collect();
-        look
-    };
+    let look = |focus: &[String], i: usize| -> NodeLook { focus_look(graph, focus, i, zoom) };
     // Building up: a box appears when its layer's turn comes (by its place along the flow).
     let b = laid.bounds;
     let turn = |i: usize| {
@@ -293,23 +248,7 @@ pub fn draw(
             l
         })
         .collect();
-    let edges = graph
-        .edges
-        .iter()
-        .map(|edge| {
-            let drawn = if tr.built {
-                1.0
-            } else {
-                ((tr.seconds - turn(edge.from) - APPEAR * 0.6) / (APPEAR * 1.5)).clamp(0.0, 1.0)
-            };
-            graph_view::EdgeLook {
-                color: palette::text_dim(),
-                width: 1.8 * zoom,
-                hidden: false,
-                drawn,
-            }
-        })
-        .collect();
+    let edges = diagram_edges(graph, &laid, tr, zoom);
     graph_view::draw(
         ink,
         area,
@@ -332,6 +271,102 @@ pub fn draw(
         StrokeKind::Inside,
     );
     zoom_now
+}
+
+/// Paused: the viewer's view of the diagram, from the fitted one (`base`): zoomed, panned, its boxes moved; else
+/// the fitted view.
+fn paused_view(
+    paused: Option<Paused>,
+    area: Rect,
+    base: Transform,
+    laid: &graph_view::Laid,
+) -> (Transform, Vec<(usize, egui::Vec2)>) {
+    let (t, moved) = match paused {
+        Some(p) => {
+            let id = paused_id();
+            let fitted = (area.center() - base.origin) / base.scale;
+            let setup = |v: &mut graph_view::ViewState, _: bool| {
+                v.scale = base.scale;
+                v.centre = fitted;
+                if let Some((zoom, at)) = p.preset {
+                    v.scale = base.scale * zoom;
+                    v.centre = laid.bounds.min.to_vec2() + laid.bounds.size() * at;
+                }
+            };
+            let controls = graph_view::Controls {
+                zoom: Some((base.scale, base.scale * MAX_ZOOM)),
+                move_nodes: true,
+            };
+            let (mut state, _) =
+                graph_view::view(p.ctx, Some(id), area, laid, p.key, &controls, &setup);
+            graph_view::keep(&mut state, laid, area);
+            p.ctx.data_mut(|d| d.insert_temp(id, state.clone()));
+            (state.transform(area), state.moved)
+        }
+        None => (base, Vec::new()),
+    };
+    (t, moved)
+}
+
+/// Box `i` as the beat's `focus` lights it: named, outlined; one of its rows named, its outline accented and the
+/// row lit.
+fn focus_look(graph: &Graph, focus: &[String], i: usize, zoom: f32) -> NodeLook {
+    let node = &graph.nodes[i];
+    let named = focus.contains(&node.id);
+    let rows: Vec<bool> = node.rows.iter().map(|r| focus.contains(&r.id)).collect();
+    let mut look = NodeLook::plain(node, named, 1.5 * zoom);
+    if !named && rows.contains(&true) {
+        look.outline = Stroke::new(2.5 * zoom, palette::accent());
+    }
+    look.rows = rows
+        .iter()
+        .map(|&lit| {
+            (
+                if lit {
+                    palette::text()
+                } else {
+                    palette::text_dim()
+                },
+                lit,
+            )
+        })
+        .collect();
+    look
+}
+
+/// The diagram's arrows: building up, each drawn once the box it leaves has appeared.
+fn diagram_edges(
+    graph: &Graph,
+    laid: &graph_view::Laid,
+    tr: Transition,
+    zoom: f32,
+) -> Vec<graph_view::EdgeLook> {
+    let b = laid.bounds;
+    let turn = |i: usize| {
+        if b.width() > 1e-3 {
+            (laid.rects[i].min.x - b.min.x) / b.width() * BUILD
+        } else {
+            0.0
+        }
+    };
+
+    graph
+        .edges
+        .iter()
+        .map(|edge| {
+            let drawn = if tr.built {
+                1.0
+            } else {
+                ((tr.seconds - turn(edge.from) - APPEAR * 0.6) / (APPEAR * 1.5)).clamp(0.0, 1.0)
+            };
+            graph_view::EdgeLook {
+                color: palette::text_dim(),
+                width: 1.8 * zoom,
+                hidden: false,
+                drawn,
+            }
+        })
+        .collect()
 }
 
 /// A diagram's layout and framing in `area` with `pictured` boxes holding

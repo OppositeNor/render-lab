@@ -268,101 +268,7 @@ impl FrameGraph {
             },
         ];
         if let Some(s) = shading {
-            for t in s.targets {
-                let divisor = if s.resolution.is_some_and(|r| r.targets.contains(&t.name)) {
-                    0
-                } else {
-                    t.divisor
-                };
-                let samples = if s.attachment(t.name) {
-                    crate::gpu::MSAA
-                } else {
-                    1
-                };
-                resources.push(Resource {
-                    name: t.name,
-                    lifetime: if s.history.contains(&t.name) {
-                        Lifetime::History
-                    } else {
-                        Lifetime::Transient
-                    },
-                    shape: Shape::Texture {
-                        format: t.format,
-                        divisor,
-                        samples,
-                    },
-                });
-            }
-            let life = |name: &str| {
-                if s.history.contains(&name) {
-                    Lifetime::History
-                } else {
-                    Lifetime::Transient
-                }
-            };
-            for b in s.buffers {
-                resources.push(Resource {
-                    name: b.name,
-                    lifetime: life(b.name),
-                    shape: Shape::Buffer {
-                        words_per_tile: b.words_per_tile,
-                        tile: b.tile,
-                    },
-                });
-            }
-            if let Some(d) = s.depth_views {
-                resources.push(Resource {
-                    name: d.name,
-                    lifetime: Lifetime::Persistent,
-                    shape: Shape::DepthArray {
-                        size: d.size,
-                        layers: d.vertices.len() as u32,
-                    },
-                });
-            }
-            for v in s.volumes {
-                resources.push(Resource {
-                    name: v.name,
-                    lifetime: Lifetime::Persistent,
-                    shape: Shape::Volume {
-                        format: v.format,
-                        size: v.size,
-                        mips: v.mips,
-                    },
-                });
-            }
-            if let Some(u) = s.update {
-                for b in u.buffers {
-                    resources.push(Resource {
-                        name: b.name,
-                        lifetime: Lifetime::Persistent,
-                        shape: Shape::UpdateBuffer,
-                    });
-                }
-            }
-            if let Some(program) = s.program {
-                for i in program.images {
-                    resources.push(Resource {
-                        name: i.name,
-                        lifetime: Lifetime::Persistent,
-                        shape: Shape::Image {
-                            kind: i.kind,
-                            format: i.format,
-                            size: i.size,
-                            count: i.count,
-                            mips: i.mips,
-                            viewport: i.viewport,
-                        },
-                    });
-                }
-                for b in program.buffers {
-                    resources.push(Resource {
-                        name: b.name,
-                        lifetime: Lifetime::Persistent,
-                        shape: Shape::Bytes { bytes: b.bytes },
-                    });
-                }
-            }
+            Self::shading_resources(s, &mut resources);
         }
         // The program's scene group: what the scene pass reads of it, but what the chain's passes declare they read.
         let chain_reads: Vec<&str> = shading.map_or(Vec::new(), |s| {
@@ -433,8 +339,116 @@ impl FrameGraph {
             errors,
             shows,
         };
+        graph.check_declarations(shading);
+        graph.compile(sinks);
+        graph
+    }
+
+    /// The shading's own resources: its targets, buffers, depth views, volumes, update buffers, and program images
+    /// and buffers.
+    fn shading_resources(s: &'static SceneShading, resources: &mut Vec<Resource>) {
+        for t in s.targets {
+            let divisor = if s.resolution.is_some_and(|r| r.targets.contains(&t.name)) {
+                0
+            } else {
+                t.divisor
+            };
+            let samples = if s.attachment(t.name) {
+                crate::gpu::MSAA
+            } else {
+                1
+            };
+            resources.push(Resource {
+                name: t.name,
+                lifetime: if s.history.contains(&t.name) {
+                    Lifetime::History
+                } else {
+                    Lifetime::Transient
+                },
+                shape: Shape::Texture {
+                    format: t.format,
+                    divisor,
+                    samples,
+                },
+            });
+        }
+        let life = |name: &str| {
+            if s.history.contains(&name) {
+                Lifetime::History
+            } else {
+                Lifetime::Transient
+            }
+        };
+        for b in s.buffers {
+            resources.push(Resource {
+                name: b.name,
+                lifetime: life(b.name),
+                shape: Shape::Buffer {
+                    words_per_tile: b.words_per_tile,
+                    tile: b.tile,
+                },
+            });
+        }
+        if let Some(d) = s.depth_views {
+            resources.push(Resource {
+                name: d.name,
+                lifetime: Lifetime::Persistent,
+                shape: Shape::DepthArray {
+                    size: d.size,
+                    layers: d.vertices.len() as u32,
+                },
+            });
+        }
+        for v in s.volumes {
+            resources.push(Resource {
+                name: v.name,
+                lifetime: Lifetime::Persistent,
+                shape: Shape::Volume {
+                    format: v.format,
+                    size: v.size,
+                    mips: v.mips,
+                },
+            });
+        }
+        if let Some(u) = s.update {
+            for b in u.buffers {
+                resources.push(Resource {
+                    name: b.name,
+                    lifetime: Lifetime::Persistent,
+                    shape: Shape::UpdateBuffer,
+                });
+            }
+        }
+        if let Some(program) = s.program {
+            for i in program.images {
+                resources.push(Resource {
+                    name: i.name,
+                    lifetime: Lifetime::Persistent,
+                    shape: Shape::Image {
+                        kind: i.kind,
+                        format: i.format,
+                        size: i.size,
+                        count: i.count,
+                        mips: i.mips,
+                        viewport: i.viewport,
+                    },
+                });
+            }
+            for b in program.buffers {
+                resources.push(Resource {
+                    name: b.name,
+                    lifetime: Lifetime::Persistent,
+                    shape: Shape::Bytes { bytes: b.bytes },
+                });
+            }
+        }
+    }
+
+    /// The shading's declarations that cannot hold, as errors: compute passes that never run, passes after a scene
+    /// pass that writes the frame, a history of no target, a view of no resource or that does not parse.
+    fn check_declarations(&mut self, shading: Option<&'static SceneShading>) {
         if let Some(s) = shading.filter(|s| !s.chained() && !s.passes.is_empty()) {
-            graph.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
+            self.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
         }
         let after_scene = |s: &SceneShading| {
             s.nodes
@@ -443,35 +457,32 @@ impl FrameGraph {
                 .any(|n| matches!(n, crate::investigation::FrameNode::Compute(_)))
         };
         if let Some(s) = shading.filter(|s| s.outputs.is_empty() && after_scene(s)) {
-            graph.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.fragment));
+            self.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.fragment));
         }
         if let Some(s) = shading {
             for h in s.history {
                 if !s.targets.iter().any(|t| t.name == *h)
                     && !s.buffers.iter().any(|b| b.name == *h)
                 {
-                    graph.errors.push(format!(
+                    self.errors.push(format!(
                         "{}: history `{h}` is none of its targets or buffers",
                         s.fragment
                     ));
                 }
             }
             for (name, spec) in s.shows {
-                if graph.resource(name).is_none() {
-                    graph.errors.push(format!(
+                if self.resource(name).is_none() {
+                    self.errors.push(format!(
                         "{}: shows `{name}`, which is no resource",
                         s.fragment
                     ));
                 }
                 if let Err(e) = parse_view(spec) {
-                    graph
-                        .errors
+                    self.errors
                         .push(format!("{}: shows `{name}` as `{spec}`: {e}", s.fragment));
                 }
             }
         }
-        graph.compile(sinks);
-        graph
     }
 
     /// The graph of the current investigation's frame.
@@ -528,40 +539,8 @@ impl FrameGraph {
                     }),
                     None => errors.push(format!("{}: no update pass {i}", s.fragment)),
                 },
-                FrameNode::DepthViews => match s.depth_views {
-                    Some(d) if chained => nodes.push(Node {
-                        name: "depthViews",
-                        step: Step::DepthViews,
-                        reads: Vec::new(),
-                        writes: vec![d.name],
-                        timing: "depth views",
-                        cached: true,
-                    }),
-                    Some(_) => {}
-                    None => errors.push(format!(
-                        "{}: a depth views node without depth views",
-                        s.fragment
-                    )),
-                },
-                FrameNode::Prepass => match s.prepass {
-                    Some(entry) if chained => {
-                        let mut writes = vec!["depth"];
-                        writes.extend(s.prepass_outputs.iter().copied());
-                        nodes.push(Node {
-                            name: entry,
-                            step: Step::Prepass,
-                            reads: Vec::new(),
-                            writes,
-                            timing: "depth pre-pass",
-                            cached: false,
-                        });
-                    }
-                    Some(_) => {}
-                    None => errors.push(format!(
-                        "{}: a pre-pass node without a pre-pass",
-                        s.fragment
-                    )),
-                },
+                FrameNode::DepthViews => nodes.extend(Self::depth_views_node(s, errors)),
+                FrameNode::Prepass => nodes.extend(Self::prepass_node(s, errors)),
                 FrameNode::Compute(i) => match computes.get(i) {
                     // Without a chain they never run (an error below).
                     Some(p) if chained => nodes.push(Node {
@@ -587,29 +566,7 @@ impl FrameGraph {
                     None => errors.push(format!("{}: no program pass {i}", s.fragment)),
                 },
                 FrameNode::Scene => {
-                    let (reads, writes) = if chained {
-                        let mut reads = s.scene_reads.to_vec();
-                        reads.extend(
-                            scene_uses
-                                .iter()
-                                .copied()
-                                .filter(|r| !s.scene_reads.contains(r)),
-                        );
-                        // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
-                        let mut writes = if s.outputs.is_empty() {
-                            vec!["hdr"]
-                        } else {
-                            s.outputs.to_vec()
-                        };
-                        if s.prepass.is_some() {
-                            reads.push("depth");
-                        } else {
-                            writes.push("depth");
-                        }
-                        (reads, writes)
-                    } else {
-                        (scene_uses.to_vec(), vec!["hdr", "depth"])
-                    };
+                    let (reads, writes) = Self::scene_access(s, scene_uses);
                     nodes.push(Node {
                         name: s.fragment,
                         step: Step::Scene,
@@ -621,6 +578,102 @@ impl FrameGraph {
                 }
             }
         }
+        Self::check_placed(s, &placed, errors);
+    }
+
+    /// What the scene pass reads and writes: with a chain, its declared reads and the program's scene uses, the
+    /// chain's outputs (or the HDR target), and the depth (read after a pre-pass, else written).
+    fn scene_access(
+        s: &'static SceneShading,
+        scene_uses: &[&'static str],
+    ) -> (Vec<&'static str>, Vec<&'static str>) {
+        let chained = s.chained();
+        let (reads, writes) = if chained {
+            let mut reads = s.scene_reads.to_vec();
+            reads.extend(
+                scene_uses
+                    .iter()
+                    .copied()
+                    .filter(|r| !s.scene_reads.contains(r)),
+            );
+            // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
+            let mut writes = if s.outputs.is_empty() {
+                vec!["hdr"]
+            } else {
+                s.outputs.to_vec()
+            };
+            if s.prepass.is_some() {
+                reads.push("depth");
+            } else {
+                writes.push("depth");
+            }
+            (reads, writes)
+        } else {
+            (scene_uses.to_vec(), vec!["hdr", "depth"])
+        };
+        (reads, writes)
+    }
+
+    /// The depth views' node, with a chain (none without one); an error when the shading has no depth views.
+    fn depth_views_node(s: &'static SceneShading, errors: &mut Vec<String>) -> Option<Node> {
+        match s.depth_views {
+            Some(d) if s.chained() => Some(Node {
+                name: "depthViews",
+                step: Step::DepthViews,
+                reads: Vec::new(),
+                writes: vec![d.name],
+                timing: "depth views",
+                cached: true,
+            }),
+            Some(_) => None,
+            None => {
+                errors.push(format!(
+                    "{}: a depth views node without depth views",
+                    s.fragment
+                ));
+                None
+            }
+        }
+    }
+
+    /// The pre-pass's node, with a chain (none without one): it writes the depth and its outputs; an error when
+    /// the shading has no pre-pass.
+    fn prepass_node(s: &'static SceneShading, errors: &mut Vec<String>) -> Option<Node> {
+        match s.prepass {
+            Some(entry) if s.chained() => {
+                let mut writes = vec!["depth"];
+                writes.extend(s.prepass_outputs.iter().copied());
+                Some(Node {
+                    name: entry,
+                    step: Step::Prepass,
+                    reads: Vec::new(),
+                    writes,
+                    timing: "depth pre-pass",
+                    cached: false,
+                })
+            }
+            Some(_) => None,
+            None => {
+                errors.push(format!(
+                    "{}: a pre-pass node without a pre-pass",
+                    s.fragment
+                ));
+                None
+            }
+        }
+    }
+
+    /// Each declared node once in the frame, the scene pass once, the pre-pass before it: what is not, as errors.
+    fn check_placed(
+        s: &'static SceneShading,
+        placed: &std::collections::BTreeMap<crate::investigation::FrameNode, usize>,
+        errors: &mut Vec<String>,
+    ) {
+        use crate::investigation::FrameNode;
+        let frame = s.nodes;
+        let updates = s.update.map_or(&[][..], |u| u.passes);
+        let programs = s.program.map_or(&[][..], |p| p.passes);
+        let computes = s.passes;
         // Each declared node once, the scene pass once, the pre-pass before it.
         let count = |n: FrameNode| placed.get(&n).copied().unwrap_or(0);
         let mut wanted: Vec<(FrameNode, String)> =
@@ -683,46 +736,7 @@ impl FrameGraph {
     }
 
     fn compile(&mut self, sinks: &[&str]) {
-        // Names: every one a node uses is a resource; a node names each once.
-        for n in &self.nodes {
-            for name in n.reads.iter().chain(&n.writes) {
-                if self.resources.iter().all(|r| r.name != *name) {
-                    self.errors
-                        .push(format!("{}: no resource `{name}`", n.name));
-                }
-            }
-            let mut seen = BTreeSet::new();
-            for name in n
-                .reads
-                .iter()
-                .chain(&n.writes)
-                .filter(|name| self.resources.iter().any(|r| r.name == **name))
-            {
-                if (n.reads.iter().filter(|r| *r == name).count() > 1
-                    || n.writes.iter().filter(|w| *w == name).count() > 1)
-                    && seen.insert(*name)
-                {
-                    self.errors
-                        .push(format!("{}: lists `{name}` twice", n.name));
-                }
-            }
-        }
-        if self
-            .nodes
-            .iter()
-            .map(|n| n.name)
-            .collect::<BTreeSet<_>>()
-            .len()
-            != self.nodes.len()
-        {
-            let mut seen = BTreeSet::new();
-            for n in &self.nodes {
-                if !seen.insert(n.name) {
-                    self.errors
-                        .push(format!("two nodes are named `{}`", n.name));
-                }
-            }
-        }
+        self.check_names();
         // Edges, per resource, in declaration order.
         let mut edges = Vec::new();
         for (r, resource) in self.resources.iter().enumerate() {
@@ -783,6 +797,57 @@ impl FrameGraph {
                 incoming[e.1] -= 1;
             }
         }
+        self.mark_live(sinks);
+    }
+
+    /// Names: every one a node uses is a resource; a node names each once; no two nodes share a name.
+    fn check_names(&mut self) {
+        // Names: every one a node uses is a resource; a node names each once.
+        for n in &self.nodes {
+            for name in n.reads.iter().chain(&n.writes) {
+                if self.resources.iter().all(|r| r.name != *name) {
+                    self.errors
+                        .push(format!("{}: no resource `{name}`", n.name));
+                }
+            }
+            let mut seen = BTreeSet::new();
+            for name in n
+                .reads
+                .iter()
+                .chain(&n.writes)
+                .filter(|name| self.resources.iter().any(|r| r.name == **name))
+            {
+                if (n.reads.iter().filter(|r| *r == name).count() > 1
+                    || n.writes.iter().filter(|w| *w == name).count() > 1)
+                    && seen.insert(*name)
+                {
+                    self.errors
+                        .push(format!("{}: lists `{name}` twice", n.name));
+                }
+            }
+        }
+        if self
+            .nodes
+            .iter()
+            .map(|n| n.name)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != self.nodes.len()
+        {
+            let mut seen = BTreeSet::new();
+            for n in &self.nodes {
+                if !seen.insert(n.name) {
+                    self.errors
+                        .push(format!("two nodes are named `{}`", n.name));
+                }
+            }
+        }
+    }
+
+    /// Live: the composite, the cached nodes (their results outlive the frame), the writers of the sinks, and every
+    /// writer what is live reads.
+    fn mark_live(&mut self, sinks: &[&str]) {
+        let count = self.nodes.len();
         // Live: the composite, the cached nodes (their results outlive the
         // frame), the writers of the sinks, and every writer what is live reads.
         let mut live = vec![false; count];
@@ -1062,500 +1127,4 @@ impl FrameGraph {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::investigation::{ShadingBuffer, ShadingPass, ShadingTarget};
-
-    /// A chain: the pre-pass, `early`, the scene pass, then `after`.
-    fn shading(
-        early: &'static [ShadingPass],
-        after: &'static [ShadingPass],
-    ) -> &'static SceneShading {
-        use crate::investigation::FrameNode;
-        static TARGETS: &[ShadingTarget] = &[
-            ShadingTarget {
-                name: "color",
-                format: wgpu::TextureFormat::Rgba16Float,
-                divisor: 1,
-            },
-            ShadingTarget {
-                name: "blur",
-                format: wgpu::TextureFormat::Rgba16Float,
-                divisor: 1,
-            },
-            ShadingTarget {
-                name: "unused",
-                format: wgpu::TextureFormat::Rgba16Float,
-                divisor: 1,
-            },
-        ];
-        static BUFFERS: &[ShadingBuffer] = &[ShadingBuffer {
-            name: "tiles",
-            words_per_tile: 4,
-            tile: 16,
-        }];
-        let passes: &'static [ShadingPass] = Box::leak(
-            early
-                .iter()
-                .chain(after)
-                .map(|p| ShadingPass { ..*p })
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
-        );
-        let mut nodes = vec![FrameNode::Prepass];
-        nodes.extend((0..early.len()).map(FrameNode::Compute));
-        nodes.push(FrameNode::Scene);
-        nodes.extend((early.len()..passes.len()).map(FrameNode::Compute));
-        Box::leak(Box::new(SceneShading {
-            module: "test",
-            fragment: "sceneFS",
-            data: Vec::new,
-            verify: &[],
-            targets: TARGETS,
-            outputs: &["color"],
-            passes,
-            prepass: Some("prepassFS"),
-            prepass_outputs: &[],
-            buffers: BUFFERS,
-            scene_reads: &["tiles"],
-            depth_views: None,
-            volumes: &[],
-            update: None,
-            resolution: None,
-            history: &[],
-            shows: &[],
-            program: None,
-            nodes: Box::leak(nodes.into_boxed_slice()),
-        }))
-    }
-
-    #[test]
-    fn a_program_places_its_passes_where_its_nodes_are() {
-        use crate::investigation::{
-            Access, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass,
-            ProgramUse, ShadingProgram, Which,
-        };
-        static IMAGES: &[ProgramImage] = &[ProgramImage {
-            name: "grid",
-            kind: ImageKind::D3,
-            size: [8, 8, 8],
-            format: wgpu::TextureFormat::R32Uint,
-            count: 2,
-            mips: 1,
-            viewport: 0,
-        }];
-        static BUFFERS: &[ProgramBuffer] = &[ProgramBuffer {
-            name: "list",
-            bytes: 64,
-            indirect: true,
-            count: 1,
-        }];
-        static PASSES: &[ProgramPass] = &[
-            ProgramPass {
-                name: "buildCS",
-                kind: PassKind::Compute {
-                    entry: "buildCS",
-                    workgroup: [4, 4, 4],
-                },
-                uses: &[
-                    ProgramUse {
-                        binding: 1,
-                        resource: "grid",
-                        access: Access::Write,
-                        which: Which::Instance,
-                    },
-                    ProgramUse {
-                        binding: 2,
-                        resource: "list",
-                        access: Access::Atomic,
-                        which: Which::First,
-                    },
-                ],
-                instances: 2,
-            },
-            ProgramPass {
-                name: "gatherCS",
-                kind: PassKind::Compute {
-                    entry: "gatherCS",
-                    workgroup: [8, 8, 1],
-                },
-                uses: &[ProgramUse {
-                    binding: 1,
-                    resource: "grid",
-                    access: Access::Load,
-                    which: Which::All,
-                }],
-                instances: 1,
-            },
-            // This frame's colour, once the scene pass has written it.
-            ProgramPass {
-                name: "keepCS",
-                kind: PassKind::Compute {
-                    entry: "keepCS",
-                    workgroup: [8, 8, 1],
-                },
-                uses: &[
-                    ProgramUse {
-                        binding: 1,
-                        resource: "hdr",
-                        access: Access::Load,
-                        which: Which::First,
-                    },
-                    ProgramUse {
-                        binding: 2,
-                        resource: "grid",
-                        access: Access::Write,
-                        which: Which::Mip(0),
-                    },
-                ],
-                instances: 1,
-            },
-        ];
-        static PROGRAM: ShadingProgram = ShadingProgram {
-            images: IMAGES,
-            buffers: BUFFERS,
-            passes: PASSES,
-            scene_uses: &[],
-            init: || Box::new(()),
-            plan: |_, _| Vec::new(),
-            warmup: 0,
-            record_history: false,
-        };
-        let s = shading(&[], &[]);
-        // No chain (the scene pass writes the frame), as a program's investigation may have.
-        // Its pre-pass does not run without a chain.
-        static NODES: &[FrameNode] = &[
-            FrameNode::Program(0),
-            FrameNode::Prepass,
-            FrameNode::Program(1),
-            FrameNode::Scene,
-            FrameNode::Program(2),
-        ];
-        let with = |nodes: &'static [FrameNode]| -> &'static SceneShading {
-            Box::leak(Box::new(SceneShading {
-                program: Some(&PROGRAM),
-                outputs: &[],
-                scene_reads: &[],
-                nodes,
-                ..*s
-            }))
-        };
-        let g = FrameGraph::new(Some(with(NODES)), &[]);
-        assert!(g.errors.is_empty(), "{:?}", g.errors);
-        // Its commands are recorded in three runs: before the pre-pass, between it and the scene pass, after the scene pass.
-        assert_eq!(with(NODES).program_runs(), vec![0, 1, 2]);
-        // A pass in no node, or in two, is an error; so is a pre-pass after the scene pass.
-        let missing = FrameGraph::new(
-            Some(with(&[
-                FrameNode::Prepass,
-                FrameNode::Program(0),
-                FrameNode::Program(1),
-                FrameNode::Scene,
-            ])),
-            &[],
-        );
-        assert!(
-            missing
-                .errors
-                .iter()
-                .any(|e| e.contains("program pass `keepCS` is in no node")),
-            "{:?}",
-            missing.errors
-        );
-        let twice = FrameGraph::new(
-            Some(with(&[
-                FrameNode::Program(0),
-                FrameNode::Program(1),
-                FrameNode::Scene,
-                FrameNode::Program(2),
-                FrameNode::Program(2),
-                FrameNode::Prepass,
-            ])),
-            &[],
-        );
-        assert!(
-            twice
-                .errors
-                .iter()
-                .any(|e| e.contains("`keepCS` is in 2 nodes")),
-            "{:?}",
-            twice.errors
-        );
-        assert!(
-            twice
-                .errors
-                .iter()
-                .any(|e| e.contains("pre-pass comes after the scene pass")),
-            "{:?}",
-            twice.errors
-        );
-        let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
-        assert_eq!(
-            names,
-            [
-                "buildCS",
-                "gatherCS",
-                "sceneFS",
-                "keepCS",
-                "overlay",
-                "composite"
-            ]
-        );
-        // It reads `hdr` after the scene pass writes it.
-        let keep = g.nodes.iter().position(|n| n.name == "keepCS").unwrap();
-        let scene = g.nodes.iter().position(|n| n.name == "sceneFS").unwrap();
-        assert!(g.edges.iter().any(|e| (e.0, e.1) == (scene, keep)));
-        // A program's passes write what outlives the frame: they run though nothing reads their writes this frame.
-        assert!(g.live.iter().all(|l| *l));
-        let build = &g.nodes[g.node("buildCS").unwrap()];
-        assert_eq!(
-            (build.reads.clone(), build.writes.clone()),
-            (vec!["list"], vec!["grid", "list"])
-        );
-        let grid = &g.resources[g.resource("grid").unwrap()];
-        assert_eq!(grid.lifetime, Lifetime::Persistent);
-        assert_eq!(grid.shape.describe(), "R32Uint, 8x8x8, 2 of them");
-        assert_eq!(inspect_entry(&grid.shape).0, "inspectVolumeUintCS");
-        assert_eq!(default_show(&grid.shape), Show::Hash);
-    }
-
-    #[test]
-    fn order_follows_accesses_and_keeps_declaration_order() {
-        let s = shading(
-            &[ShadingPass {
-                entry: "tilesCS",
-                reads: &["depth"],
-                writes: &["tiles"],
-                workgroup: [16, 16],
-            }],
-            &[
-                ShadingPass {
-                    entry: "blurCS",
-                    reads: &["color"],
-                    writes: &["blur"],
-                    workgroup: [8, 8],
-                },
-                ShadingPass {
-                    entry: "mergeCS",
-                    reads: &["blur", "depth"],
-                    writes: &["hdr"],
-                    workgroup: [8, 8],
-                },
-            ],
-        );
-        let g = FrameGraph::new(Some(s), &[]);
-        assert!(g.errors.is_empty(), "{:?}", g.errors);
-        let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
-        assert_eq!(
-            names,
-            [
-                "prepassFS",
-                "tilesCS",
-                "sceneFS",
-                "blurCS",
-                "mergeCS",
-                "overlay",
-                "composite"
-            ]
-        );
-        assert!(g.live.iter().all(|l| *l));
-        // The scene pass reads the pre-pass's depth and the tiles.
-        let scene = g.node("sceneFS").unwrap();
-        assert!(g.edges.contains(&(
-            g.node("tilesCS").unwrap(),
-            scene,
-            Edge::Data(g.resource("tiles").unwrap())
-        )));
-        assert!(g.inspected("blurCS.blur").is_ok());
-        assert!(g.inspected("blurCS.hdr").is_err());
-        assert_eq!(g.result_of(g.node("composite").unwrap()), Some("hdr"));
-        assert_eq!(g.result_of(g.node("blurCS").unwrap()), Some("blur"));
-        assert_eq!(g.last_user("blur"), g.node("blurCS"));
-        // What each node is compiled from.
-        assert_eq!(
-            source_of(Some(s), &g.nodes[g.node("blurCS").unwrap()]),
-            (s.module, vec!["blurCS"])
-        );
-        assert_eq!(
-            source_of(Some(s), &g.nodes[g.node("sceneFS").unwrap()]),
-            (s.module, vec!["sceneVS", "sceneFS"])
-        );
-        assert_eq!(
-            source_of(Some(s), &g.nodes[g.node("composite").unwrap()]).0,
-            crate::shaders::SCENE
-        );
-        // The frame graph as a 2D scene: its sections' boxes and the edges between them.
-        let section = |id: &str, passes: &[&str]| Section {
-            id: id.into(),
-            title: id.into(),
-            passes: passes.iter().map(|p| p.to_string()).collect(),
-            ..Default::default()
-        };
-        let scene = GraphScene {
-            sections: vec![
-                section("DEPTH", &["prepassFS", "tilesCS"]),
-                section("SCENE", &["sceneFS"]),
-                section("POST", &["blurCS", "mergeCS"]),
-            ],
-            omit: Vec::new(),
-        };
-        let d = g.scene_graph(&scene).unwrap();
-        assert_eq!(
-            d.nodes.iter().map(|n| n.rows.len()).collect::<Vec<_>>(),
-            [2, 1, 2]
-        );
-        assert_eq!(d.nodes[0].rows[1].label, "tiles");
-        // DEPTH reaches POST through SCENE (the blur reads the scene's colour): no edge of its own.
-        assert_eq!(
-            d.edges.iter().map(|e| (e.from, e.to)).collect::<Vec<_>>(),
-            [(0, 1), (1, 2)]
-        );
-        assert_eq!(d.named("tilesCS"), Some(0));
-        let parsed = GraphScene::parse("[[section]]\nid = \"DEPTH\"\ntitle-text = \"t\"\npasses = [\"prepassFS\"]\npicture = \"prepassFS.depth\"\n", "test", &|k| (k == "t").then(|| "Depth".to_string())).unwrap();
-        assert_eq!(
-            (
-                parsed.sections[0].title.as_str(),
-                parsed.sections[0].picture.as_deref()
-            ),
-            ("Depth", Some("prepassFS.depth"))
-        );
-        assert!(
-            GraphScene::parse(
-                "[[section]]\nid = \"A\"\ntitle-text = \"missing\"\n",
-                "test",
-                &|_| None
-            )
-            .is_err()
-        );
-        let short = GraphScene {
-            sections: vec![section("DEPTH", &["prepassFS"])],
-            omit: Vec::new(),
-        };
-        assert!(
-            g.scene_graph(&short)
-                .unwrap_err()
-                .contains("passes in no section: tilesCS")
-        );
-        assert_eq!(g.last_user("hdr"), g.node("mergeCS"));
-        // A resource's view: the investigation's, else its format's.
-        let shown = FrameGraph::new(
-            Some(Box::leak(Box::new(SceneShading {
-                shows: &[("tiles", "count?word=3&range=0,8")],
-                ..*s
-            }))),
-            &[],
-        );
-        let (show, params) = shown.view_of(shown.resource("tiles").unwrap());
-        assert_eq!(
-            (show, params["word"].clone(), params["range"].clone()),
-            (Show::Count, vec![3.0], vec![0.0, 8.0])
-        );
-        assert_eq!(
-            shown.view_of(shown.resource("depth").unwrap()).0,
-            Show::Depth
-        );
-        let bad = FrameGraph::new(
-            Some(Box::leak(Box::new(SceneShading {
-                shows: &[("tiles", "count?wurd=3"), ("nothing", "hash")],
-                ..*s
-            }))),
-            &[],
-        );
-        assert_eq!(bad.errors.len(), 2, "{:?}", bad.errors);
-    }
-
-    #[test]
-    fn reads_before_writes_and_culling() {
-        let s = shading(
-            &[],
-            &[
-                ShadingPass {
-                    entry: "mergeCS",
-                    reads: &["blur"],
-                    writes: &["hdr"],
-                    workgroup: [8, 8],
-                },
-                ShadingPass {
-                    entry: "blurCS",
-                    reads: &["color"],
-                    writes: &["blur"],
-                    workgroup: [8, 8],
-                },
-                ShadingPass {
-                    entry: "debugCS",
-                    reads: &["color"],
-                    writes: &["unused"],
-                    workgroup: [8, 8],
-                },
-            ],
-        );
-        let g = FrameGraph::new(Some(s), &[]);
-        assert!(
-            g.errors
-                .iter()
-                .any(|e| e.contains("mergeCS reads `blur` before")),
-            "{:?}",
-            g.errors
-        );
-        assert!(!g.live[g.node("debugCS").unwrap()]);
-        assert_eq!(g.unread(), vec![("blurCS", "blur"), ("debugCS", "unused")]);
-        // An inspected resource keeps its writer alive.
-        let g = FrameGraph::new(Some(s), &["unused"]);
-        assert!(g.live[g.node("debugCS").unwrap()]);
-    }
-
-    #[test]
-    fn history_and_repeated_entries() {
-        let s = shading(
-            &[ShadingPass {
-                entry: "tilesCS",
-                reads: &["depth"],
-                writes: &["tiles"],
-                workgroup: [16, 16],
-            }],
-            &[
-                ShadingPass {
-                    entry: "mergeCS",
-                    reads: &["blur", "color"],
-                    writes: &["hdr"],
-                    workgroup: [8, 8],
-                },
-                ShadingPass {
-                    entry: "blurCS",
-                    reads: &["color"],
-                    writes: &["blur"],
-                    workgroup: [8, 8],
-                },
-                ShadingPass {
-                    entry: "blurCS",
-                    reads: &["color"],
-                    writes: &["blur"],
-                    workgroup: [8, 8],
-                },
-            ],
-        );
-        let g = FrameGraph::new(
-            Some(Box::leak(Box::new(SceneShading {
-                history: &["blur"],
-                ..*s
-            }))),
-            &[],
-        );
-        assert!(g.errors.is_empty(), "{:?}", g.errors);
-        assert_eq!(
-            g.resources[g.resource("blur").unwrap()].lifetime,
-            Lifetime::History
-        );
-        // The next frame reads what blurCS writes.
-        assert!(g.live[g.node("blurCS").unwrap()]);
-        assert!(g.node("blurCS#2").is_some());
-    }
-
-    #[test]
-    fn without_a_chain() {
-        let g = FrameGraph::new(None, &[]);
-        assert!(g.errors.is_empty());
-        let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
-        assert_eq!(names, ["scene", "overlay", "composite"]);
-    }
-}
+mod tests;

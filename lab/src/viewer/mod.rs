@@ -270,24 +270,8 @@ impl App {
                 .or(timeline.as_ref().map(|t| t.locale))
                 .unwrap_or_default(),
         );
-        let autotest = match options.autotest.clone() {
-            Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(
-                || {
-                    anyhow::anyhow!(
-                        "{} has no viewer autotest",
-                        investigation::current().title()
-                    )
-                },
-            )?),
-            None => None,
-        };
-        let mut audio = options
-            .audio
-            .clone()
-            .and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
-        if let Some(a) = audio.as_mut() {
-            a.set_gain(options.narration.gain());
-        }
+        let autotest = Self::autotest_of(&options)?;
+        let audio = Self::narration_player(&options);
         let narration = options.narration;
         // A timeline opens on its first frame, paused; the autotest starts in the free demonstrations.
         let start_in_timeline = timeline.is_some() && autotest.is_none();
@@ -365,6 +349,34 @@ impl App {
             layout,
             cursor_icon: egui::CursorIcon::Default,
         })
+    }
+
+    /// The investigation's viewer autotest, when the options ask for one (an error when it has none).
+    fn autotest_of(options: &ViewerOptions) -> Result<Option<Box<dyn ViewerTest>>> {
+        let autotest = match options.autotest.clone() {
+            Some(report) => Some(investigation::current().viewer_test(report).ok_or_else(
+                || {
+                    anyhow::anyhow!(
+                        "{} has no viewer autotest",
+                        investigation::current().title()
+                    )
+                },
+            )?),
+            None => None,
+        };
+        Ok(autotest)
+    }
+
+    /// The narration's player, at the viewer's volume, when the timeline has a narration.
+    fn narration_player(options: &ViewerOptions) -> Option<crate::audio::AudioPlayer> {
+        let mut audio = options
+            .audio
+            .clone()
+            .and_then(|a| crate::audio::AudioPlayer::new(a, &options.manifest_dir));
+        if let Some(a) = audio.as_mut() {
+            a.set_gain(options.narration.gain());
+        }
+        audio
     }
 
     pub fn renderer(&self) -> &Renderer {

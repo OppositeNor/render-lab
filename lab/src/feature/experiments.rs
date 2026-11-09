@@ -477,54 +477,7 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
         tr("experiments-experiment"),
         Some(tr("experiments-experiment_hint")),
         |d, ui| {
-            ui.set_max_width(330.0);
-            ui.label(
-                RichText::new(tr_with("experiments-changed", args!(count = changed.len())))
-                    .color(palette::text_dim()),
-            );
-            if changed.is_empty() {
-                ui.label(RichText::new(tr("experiments-no_changes")).color(palette::text_faint()));
-            }
-            for (entry, channel) in changed.iter().take(8) {
-                ui.horizontal(|ui| {
-                    let name = if entry.components.is_empty() {
-                        entry.label_text().to_string()
-                    } else {
-                        format!(
-                            "{} {}",
-                            entry.label_text(),
-                            channel.rsplit('.').next().unwrap_or(channel)
-                        )
-                    };
-                    let value = d
-                        .state
-                        .try_get(channel)
-                        .map(|v| readout(v.f32() as f64))
-                        .unwrap_or_default();
-                    if ui.small_button("↺").clicked() {
-                        d.reset(channel);
-                    }
-                    ui.label(RichText::new(format!("{name} = {value}")).color(palette::text()));
-                });
-            }
-            if changed.len() > 8 {
-                ui.label(
-                    RichText::new(tr_with(
-                        "experiments-more",
-                        args!(count = changed.len() - 8),
-                    ))
-                    .color(palette::text_faint()),
-                );
-            }
-            if ui
-                .add_enabled(
-                    !changed.is_empty(),
-                    egui::Button::new(tr("experiments-reset_all")),
-                )
-                .clicked()
-            {
-                d.actions.push(ViewerAction::ResetParameters);
-            }
+            changed_group(d, ui, &changed);
         },
     );
 
@@ -533,104 +486,8 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
         tr("experiments-compare"),
         Some(tr("experiments-compare_hint")),
         |d, ui| {
-            ui.set_max_width(360.0);
-            ui.horizontal(|ui| {
-                if ui
-                    .button(tr("experiments-set_reference"))
-                    .on_hover_text(tr("experiments-set_reference_hint"))
-                    .clicked()
-                {
-                    asked.push(Asked::SetReference);
-                }
-                if ui
-                    .add_enabled(view.reference, egui::Button::new(tr("experiments-swap")))
-                    .on_hover_text(tr("experiments-swap_hint"))
-                    .clicked()
-                {
-                    asked.push(Asked::SwapReference);
-                }
-                if ui
-                    .add_enabled(view.reference, egui::Button::new(tr("experiments-clear")))
-                    .clicked()
-                {
-                    asked.push(Asked::ClearReference);
-                }
-            });
-            ui.add_enabled_ui(view.reference, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    for mode in Compare::ALL {
-                        let label = match mode {
-                            Compare::Off => tr("experiments-compare_off"),
-                            Compare::Wipe => tr("experiments-compare_wipe"),
-                            Compare::SideBySide => tr("experiments-compare_side"),
-                            Compare::Difference => tr("experiments-compare_difference"),
-                            Compare::Reference => tr("experiments-compare_reference"),
-                        };
-                        if ui.selectable_label(view.compare == mode, label).clicked() {
-                            asked.push(Asked::SetCompare(mode));
-                        }
-                    }
-                });
-                d.rows(ui, "experiment-compare", |d, ui| {
-                    if view.compare == Compare::Wipe
-                        && let Some(v) = d.number(
-                            ui,
-                            "experiment.split",
-                            SliderRow {
-                                label: tr("experiments-split"),
-                                color: palette::text(),
-                                range: 0.0..=1.0,
-                                unit: Unit::Plain,
-                            },
-                            view.split,
-                        )
-                    {
-                        asked.push(Asked::SetSplit(v));
-                    }
-                    if view.compare == Compare::Difference
-                        && let Some(v) = d.number(
-                            ui,
-                            "experiment.gain",
-                            SliderRow {
-                                label: tr("experiments-gain"),
-                                color: palette::text(),
-                                range: 1.0..=64.0,
-                                unit: Unit::Factor,
-                            },
-                            view.gain,
-                        )
-                    {
-                        asked.push(Asked::SetGain(v));
-                    }
-                });
-                if ui
-                    .button(tr("experiments-measure"))
-                    .on_hover_text(tr("experiments-measure_hint"))
-                    .clicked()
-                {
-                    asked.push(Asked::Measure);
-                }
-            });
-            if let Some(m) = view.measurement {
-                egui::Grid::new("experiment-measurement")
-                    .num_columns(2)
-                    .spacing(vec2(10.0, 2.0))
-                    .show(ui, |ui| {
-                        for (name, value) in [
-                            ("PSNR (dB)", m.psnr),
-                            ("SSIM", m.ssim),
-                            ("ꟻLIP", m.flip),
-                            ("MSE", m.mse),
-                            ("relMSE", m.relmse),
-                            ("L̄ A", m.luminance_reference),
-                            ("L̄ B", m.luminance),
-                        ] {
-                            ui.label(RichText::new(name).color(palette::text_dim()));
-                            ui.label(RichText::new(readout(value)).color(palette::text()));
-                            ui.end_row();
-                        }
-                    });
-            }
+            compare_group(d, ui, view, asked);
+            measurement_grid(ui, view);
         },
     );
 
@@ -639,71 +496,7 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
         tr("experiments-performance"),
         Some(tr("experiments-performance_hint")),
         |d, ui| {
-            // The performance panel on the right, or back to the demonstration's panel.
-            let shown = d.state.panel == PanelMode::Performance;
-            let label = if shown {
-                tr("experiments-hide_panel")
-            } else {
-                tr("experiments-show_panel")
-            };
-            if ui
-                .selectable_label(shown, label)
-                .on_hover_text(tr("experiments-show_panel_hint"))
-                .clicked()
-            {
-                let back = d.defaults.as_ref().map_or(PanelMode::Values, |s| s.panel);
-                d.actions.push(ViewerAction::SetPanel(if shown {
-                    back
-                } else {
-                    PanelMode::Performance
-                }));
-            }
-            // The frame graph (src/graph/) has a tab of its own.
-            if ui
-                .selectable_label(false, tr("experiments-show_graph"))
-                .on_hover_text(tr("experiments-show_graph_hint"))
-                .clicked()
-            {
-                d.actions.push(ViewerAction::SelectTab(super::graph::TAB));
-            }
-            egui::Grid::new("experiment-timings")
-                .num_columns(3)
-                .spacing(vec2(10.0, 2.0))
-                .show(ui, |ui| {
-                    ui.label(RichText::new(tr("experiments-frame")).color(palette::text_dim()));
-                    ui.label(
-                        RichText::new(format!("{:.2} ms", view.frame_ms.0)).color(palette::text()),
-                    );
-                    ui.label(
-                        RichText::new(format!("p95 {:.2}", view.frame_ms.1))
-                            .color(palette::text_faint()),
-                    );
-                    ui.end_row();
-                    for (pass, mean, p95) in &view.timings {
-                        ui.label(
-                            RichText::new(crate::ui::pass_label(pass)).color(palette::text_dim()),
-                        );
-                        ui.label(RichText::new(format!("{mean:.3} ms")).color(palette::text()));
-                        ui.label(
-                            RichText::new(format!("p95 {p95:.3}")).color(palette::text_faint()),
-                        );
-                        ui.end_row();
-                    }
-                });
-            if view.timings.is_empty() {
-                ui.label(
-                    RichText::new(tr("experiments-no_timestamps")).color(palette::text_faint()),
-                );
-            }
-            if let Some(seconds) = view.rebuilding {
-                ui.label(
-                    RichText::new(tr_with(
-                        "experiments-rebuilding",
-                        args!(seconds = format!("{seconds:.1}")),
-                    ))
-                    .color(palette::accent()),
-                );
-            }
+            performance_group(d, ui, view);
         },
     );
 
@@ -712,53 +505,280 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
         tr("experiments-presets"),
         Some(tr("experiments-presets_hint")),
         |_, ui| {
-            ui.set_max_width(330.0);
-            let name_id = egui::Id::unique("experiments-preset-name");
-            let mut name = ui
-                .data(|data| data.get_temp::<String>(name_id))
-                .unwrap_or_default();
-            ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut name)
-                            .hint_text(tr("experiments-preset_name"))
-                            .desired_width(200.0),
-                    )
-                    .changed()
-                {
-                    ui.data_mut(|data| data.insert_temp(name_id, name.clone()));
-                }
-                if ui
-                    .add_enabled(
-                        !name.trim().is_empty(),
-                        egui::Button::new(tr("experiments-save")),
-                    )
-                    .on_hover_text(tr("experiments-save_hint"))
-                    .clicked()
-                {
-                    asked.push(Asked::SavePreset(name.trim().to_string()));
-                }
-            });
-            for (i, preset) in view.presets.iter().enumerate() {
-                let shipped = matches!(preset.source, crate::experiment::Source::Shipped(_));
-                let label = if shipped {
-                    format!("{} · {}", preset.name, tr("experiments-shipped"))
-                } else {
-                    preset.name.clone()
-                };
-                if ui
-                    .button(label)
-                    .on_hover_text(tr("experiments-load_hint"))
-                    .clicked()
-                {
-                    asked.push(Asked::LoadPreset(i));
-                }
-            }
-            if let Some(message) = &view.message {
-                ui.add(egui::Label::new(RichText::new(message).color(palette::text_dim())).wrap());
-            }
+            presets_group(ui, view, asked);
         },
     );
+}
+
+/// The experiment group: the values changed from the demonstration's defaults, each with its reset (the first
+/// eight), and Reset all.
+fn changed_group(d: &mut Dock, ui: &mut Ui, changed: &[(&'static Entry, &'static str)]) {
+    ui.set_max_width(330.0);
+    ui.label(
+        RichText::new(tr_with("experiments-changed", args!(count = changed.len())))
+            .color(palette::text_dim()),
+    );
+    if changed.is_empty() {
+        ui.label(RichText::new(tr("experiments-no_changes")).color(palette::text_faint()));
+    }
+    for (entry, channel) in changed.iter().take(8) {
+        ui.horizontal(|ui| {
+            let name = if entry.components.is_empty() {
+                entry.label_text().to_string()
+            } else {
+                format!(
+                    "{} {}",
+                    entry.label_text(),
+                    channel.rsplit('.').next().unwrap_or(channel)
+                )
+            };
+            let value = d
+                .state
+                .try_get(channel)
+                .map(|v| readout(v.f32() as f64))
+                .unwrap_or_default();
+            if ui.small_button("↺").clicked() {
+                d.reset(channel);
+            }
+            ui.label(RichText::new(format!("{name} = {value}")).color(palette::text()));
+        });
+    }
+    if changed.len() > 8 {
+        ui.label(
+            RichText::new(tr_with(
+                "experiments-more",
+                args!(count = changed.len() - 8),
+            ))
+            .color(palette::text_faint()),
+        );
+    }
+    if ui
+        .add_enabled(
+            !changed.is_empty(),
+            egui::Button::new(tr("experiments-reset_all")),
+        )
+        .clicked()
+    {
+        d.actions.push(ViewerAction::ResetParameters);
+    }
+}
+
+/// The A/B comparison group: the reference set, swapped, or cleared; how it is shown (a wipe's split, a
+/// difference's gain); and Measure.
+fn compare_group(d: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<Asked>) {
+    ui.set_max_width(360.0);
+    ui.horizontal(|ui| {
+        if ui
+            .button(tr("experiments-set_reference"))
+            .on_hover_text(tr("experiments-set_reference_hint"))
+            .clicked()
+        {
+            asked.push(Asked::SetReference);
+        }
+        if ui
+            .add_enabled(view.reference, egui::Button::new(tr("experiments-swap")))
+            .on_hover_text(tr("experiments-swap_hint"))
+            .clicked()
+        {
+            asked.push(Asked::SwapReference);
+        }
+        if ui
+            .add_enabled(view.reference, egui::Button::new(tr("experiments-clear")))
+            .clicked()
+        {
+            asked.push(Asked::ClearReference);
+        }
+    });
+    ui.add_enabled_ui(view.reference, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            for mode in Compare::ALL {
+                let label = match mode {
+                    Compare::Off => tr("experiments-compare_off"),
+                    Compare::Wipe => tr("experiments-compare_wipe"),
+                    Compare::SideBySide => tr("experiments-compare_side"),
+                    Compare::Difference => tr("experiments-compare_difference"),
+                    Compare::Reference => tr("experiments-compare_reference"),
+                };
+                if ui.selectable_label(view.compare == mode, label).clicked() {
+                    asked.push(Asked::SetCompare(mode));
+                }
+            }
+        });
+        d.rows(ui, "experiment-compare", |d, ui| {
+            if view.compare == Compare::Wipe
+                && let Some(v) = d.number(
+                    ui,
+                    "experiment.split",
+                    SliderRow {
+                        label: tr("experiments-split"),
+                        color: palette::text(),
+                        range: 0.0..=1.0,
+                        unit: Unit::Plain,
+                    },
+                    view.split,
+                )
+            {
+                asked.push(Asked::SetSplit(v));
+            }
+            if view.compare == Compare::Difference
+                && let Some(v) = d.number(
+                    ui,
+                    "experiment.gain",
+                    SliderRow {
+                        label: tr("experiments-gain"),
+                        color: palette::text(),
+                        range: 1.0..=64.0,
+                        unit: Unit::Factor,
+                    },
+                    view.gain,
+                )
+            {
+                asked.push(Asked::SetGain(v));
+            }
+        });
+        if ui
+            .button(tr("experiments-measure"))
+            .on_hover_text(tr("experiments-measure_hint"))
+            .clicked()
+        {
+            asked.push(Asked::Measure);
+        }
+    });
+}
+
+/// The last measurement against the reference, if there is one: PSNR, SSIM, FLIP, MSE, relMSE, the mean
+/// luminances.
+fn measurement_grid(ui: &mut Ui, view: &ExperimentView) {
+    if let Some(m) = view.measurement {
+        egui::Grid::new("experiment-measurement")
+            .num_columns(2)
+            .spacing(vec2(10.0, 2.0))
+            .show(ui, |ui| {
+                for (name, value) in [
+                    ("PSNR (dB)", m.psnr),
+                    ("SSIM", m.ssim),
+                    ("ꟻLIP", m.flip),
+                    ("MSE", m.mse),
+                    ("relMSE", m.relmse),
+                    ("L̄ A", m.luminance_reference),
+                    ("L̄ B", m.luminance),
+                ] {
+                    ui.label(RichText::new(name).color(palette::text_dim()));
+                    ui.label(RichText::new(readout(value)).color(palette::text()));
+                    ui.end_row();
+                }
+            });
+    }
+}
+
+/// The performance group: the performance panel and the frame graph's tab, the frame's time and each pass's, and
+/// whether the scene data is building.
+fn performance_group(d: &mut Dock, ui: &mut Ui, view: &ExperimentView) {
+    // The performance panel on the right, or back to the demonstration's panel.
+    let shown = d.state.panel == PanelMode::Performance;
+    let label = if shown {
+        tr("experiments-hide_panel")
+    } else {
+        tr("experiments-show_panel")
+    };
+    if ui
+        .selectable_label(shown, label)
+        .on_hover_text(tr("experiments-show_panel_hint"))
+        .clicked()
+    {
+        let back = d.defaults.as_ref().map_or(PanelMode::Values, |s| s.panel);
+        d.actions.push(ViewerAction::SetPanel(if shown {
+            back
+        } else {
+            PanelMode::Performance
+        }));
+    }
+    // The frame graph (src/graph/) has a tab of its own.
+    if ui
+        .selectable_label(false, tr("experiments-show_graph"))
+        .on_hover_text(tr("experiments-show_graph_hint"))
+        .clicked()
+    {
+        d.actions.push(ViewerAction::SelectTab(super::graph::TAB));
+    }
+    egui::Grid::new("experiment-timings")
+        .num_columns(3)
+        .spacing(vec2(10.0, 2.0))
+        .show(ui, |ui| {
+            ui.label(RichText::new(tr("experiments-frame")).color(palette::text_dim()));
+            ui.label(RichText::new(format!("{:.2} ms", view.frame_ms.0)).color(palette::text()));
+            ui.label(
+                RichText::new(format!("p95 {:.2}", view.frame_ms.1)).color(palette::text_faint()),
+            );
+            ui.end_row();
+            for (pass, mean, p95) in &view.timings {
+                ui.label(RichText::new(crate::ui::pass_label(pass)).color(palette::text_dim()));
+                ui.label(RichText::new(format!("{mean:.3} ms")).color(palette::text()));
+                ui.label(RichText::new(format!("p95 {p95:.3}")).color(palette::text_faint()));
+                ui.end_row();
+            }
+        });
+    if view.timings.is_empty() {
+        ui.label(RichText::new(tr("experiments-no_timestamps")).color(palette::text_faint()));
+    }
+    if let Some(seconds) = view.rebuilding {
+        ui.label(
+            RichText::new(tr_with(
+                "experiments-rebuilding",
+                args!(seconds = format!("{seconds:.1}")),
+            ))
+            .color(palette::accent()),
+        );
+    }
+}
+
+/// The presets group: a name to save the values under, and the presets saved and shipped, each loaded by a click.
+fn presets_group(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<Asked>) {
+    ui.set_max_width(330.0);
+    let name_id = egui::Id::unique("experiments-preset-name");
+    let mut name = ui
+        .data(|data| data.get_temp::<String>(name_id))
+        .unwrap_or_default();
+    ui.horizontal(|ui| {
+        if ui
+            .add(
+                egui::TextEdit::singleline(&mut name)
+                    .hint_text(tr("experiments-preset_name"))
+                    .desired_width(200.0),
+            )
+            .changed()
+        {
+            ui.data_mut(|data| data.insert_temp(name_id, name.clone()));
+        }
+        if ui
+            .add_enabled(
+                !name.trim().is_empty(),
+                egui::Button::new(tr("experiments-save")),
+            )
+            .on_hover_text(tr("experiments-save_hint"))
+            .clicked()
+        {
+            asked.push(Asked::SavePreset(name.trim().to_string()));
+        }
+    });
+    for (i, preset) in view.presets.iter().enumerate() {
+        let shipped = matches!(preset.source, crate::experiment::Source::Shipped(_));
+        let label = if shipped {
+            format!("{} · {}", preset.name, tr("experiments-shipped"))
+        } else {
+            preset.name.clone()
+        };
+        if ui
+            .button(label)
+            .on_hover_text(tr("experiments-load_hint"))
+            .clicked()
+        {
+            asked.push(Asked::LoadPreset(i));
+        }
+    }
+    if let Some(message) = &view.message {
+        ui.add(egui::Label::new(RichText::new(message).color(palette::text_dim())).wrap());
+    }
 }
 
 /// The Experiments tab's dock: every value of the investigation in
@@ -768,46 +788,7 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
 fn values(dock: &mut Dock, ui: &mut Ui) {
     let defaults = investigation::current().default_state(dock.state.demo, dock.input.statics);
     dock.defaults = Some(defaults);
-    let filter_id = egui::Id::unique("experiments-filter");
-    let shown_id = egui::Id::unique("experiments-presentation");
-    let mut filter = ui
-        .data(|d| d.get_temp::<String>(filter_id))
-        .unwrap_or_default();
-    let mut toggle_presentation = false;
-    let shown_before = ui.data(|d| d.get_temp::<bool>(shown_id)).unwrap_or(false);
-    dock.group(
-        ui,
-        tr("controls-experiments"),
-        Some(tr("experiments-experiment_hint")),
-        |_, ui| {
-            ui.set_max_width(260.0);
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut filter)
-                        .hint_text(tr("experiments-filter"))
-                        .desired_width(250.0),
-                )
-                .changed()
-            {
-                ui.data_mut(|data| data.insert_temp(filter_id, filter.clone()));
-            }
-            let label = if shown_before {
-                tr("experiments-hide_presentation").to_string()
-            } else {
-                tr("experiments-presentation").to_string()
-            };
-            if ui
-                .selectable_label(shown_before, label)
-                .on_hover_text(tr("experiments-presentation_hint"))
-                .clicked()
-            {
-                toggle_presentation = true;
-            }
-        },
-    );
-    if toggle_presentation {
-        ui.data_mut(|d| d.insert_temp(shown_id, !shown_before));
-    }
+    let (filter, shown_before) = filter_group(dock, ui);
     let all = values::list();
     let camera = OrbitCamera::schema();
     let is_camera = |e: &Entry| camera.iter().any(|c| std::ptr::eq(c, e));
@@ -849,41 +830,7 @@ fn values(dock: &mut Dock, ui: &mut Ui) {
             tr("experiments-engine_settings"),
             Some(tr("experiments-engine_settings_hint")),
             |d, ui| {
-                let mut labels: Vec<&str> = Vec::new();
-                for e in &engine {
-                    let label = e.labels.first().copied().unwrap_or("");
-                    if !labels.contains(&label) {
-                        labels.push(label);
-                    }
-                }
-                ui.horizontal_top(|ui| {
-                    for label in labels {
-                        ui.vertical(|ui| {
-                            if !label.is_empty() {
-                                // The package's name for the group (its dock's `controls-<label>`), else the label.
-                                let package = engine
-                                    .iter()
-                                    .find(|e| e.labels.first().copied() == Some(label))
-                                    .map_or("render_lab", |e| e.package);
-                                let title = crate::i18n::try_package_text(
-                                    package,
-                                    &format!("controls-{label}"),
-                                )
-                                .unwrap_or(label);
-                                ui.label(RichText::new(title).color(palette::text_faint()));
-                            }
-                            d.rows(ui, &format!("experiment-engine-{label}"), |d, ui| {
-                                for e in engine
-                                    .iter()
-                                    .filter(|e| e.labels.first().copied().unwrap_or("") == label)
-                                {
-                                    d.value_rows(ui, e);
-                                }
-                            });
-                        });
-                        ui.add_space(16.0);
-                    }
-                });
+                engine_settings(d, ui, &engine);
             },
         );
     }
@@ -940,4 +887,87 @@ fn values(dock: &mut Dock, ui: &mut Ui) {
         "experiment-camera",
         &cameras,
     );
+}
+
+/// The filter's group: the filter (kept in egui's memory) and the presentation's toggle. The filter, and whether
+/// the presentation was shown before this frame.
+fn filter_group(dock: &mut Dock, ui: &mut Ui) -> (String, bool) {
+    let filter_id = egui::Id::unique("experiments-filter");
+    let shown_id = egui::Id::unique("experiments-presentation");
+    let mut filter = ui
+        .data(|d| d.get_temp::<String>(filter_id))
+        .unwrap_or_default();
+    let mut toggle_presentation = false;
+    let shown_before = ui.data(|d| d.get_temp::<bool>(shown_id)).unwrap_or(false);
+    dock.group(
+        ui,
+        tr("controls-experiments"),
+        Some(tr("experiments-experiment_hint")),
+        |_, ui| {
+            ui.set_max_width(260.0);
+            if ui
+                .add(
+                    egui::TextEdit::singleline(&mut filter)
+                        .hint_text(tr("experiments-filter"))
+                        .desired_width(250.0),
+                )
+                .changed()
+            {
+                ui.data_mut(|data| data.insert_temp(filter_id, filter.clone()));
+            }
+            let label = if shown_before {
+                tr("experiments-hide_presentation").to_string()
+            } else {
+                tr("experiments-presentation").to_string()
+            };
+            if ui
+                .selectable_label(shown_before, label)
+                .on_hover_text(tr("experiments-presentation_hint"))
+                .clicked()
+            {
+                toggle_presentation = true;
+            }
+        },
+    );
+    if toggle_presentation {
+        ui.data_mut(|d| d.insert_temp(shown_id, !shown_before));
+    }
+    (filter, shown_before)
+}
+
+/// The engine's settings, a column per label (its package's name for the group, `controls-<label>`).
+fn engine_settings(d: &mut Dock, ui: &mut Ui, engine: &[&'static Entry]) {
+    let mut labels: Vec<&str> = Vec::new();
+    for e in engine {
+        let label = e.labels.first().copied().unwrap_or("");
+        if !labels.contains(&label) {
+            labels.push(label);
+        }
+    }
+    ui.horizontal_top(|ui| {
+        for label in labels {
+            ui.vertical(|ui| {
+                if !label.is_empty() {
+                    // The package's name for the group (its dock's `controls-<label>`), else the label.
+                    let package = engine
+                        .iter()
+                        .find(|e| e.labels.first().copied() == Some(label))
+                        .map_or("render_lab", |e| e.package);
+                    let title =
+                        crate::i18n::try_package_text(package, &format!("controls-{label}"))
+                            .unwrap_or(label);
+                    ui.label(RichText::new(title).color(palette::text_faint()));
+                }
+                d.rows(ui, &format!("experiment-engine-{label}"), |d, ui| {
+                    for e in engine
+                        .iter()
+                        .filter(|e| e.labels.first().copied().unwrap_or("") == label)
+                    {
+                        d.value_rows(ui, e);
+                    }
+                });
+            });
+            ui.add_space(16.0);
+        }
+    });
 }

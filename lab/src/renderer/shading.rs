@@ -78,28 +78,7 @@ impl VolumeSet {
         params: Option<&wgpu::Buffer>,
         sampler: &wgpu::Sampler,
     ) -> VolumeSet {
-        let textures: Vec<wgpu::Texture> = source
-            .volumes
-            .iter()
-            .map(|v| {
-                device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some(v.name),
-                    size: wgpu::Extent3d {
-                        width: v.size[0],
-                        height: v.size[1],
-                        depth_or_array_layers: v.size[2],
-                    },
-                    mip_level_count: v.mips,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D3,
-                    format: v.format,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::STORAGE_BINDING
-                        | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                })
-            })
-            .collect();
+        let textures = Self::textures(device, source);
         let views: Vec<wgpu::TextureView> = textures
             .iter()
             .map(|t| t.create_view(&Default::default()))
@@ -192,6 +171,33 @@ impl VolumeSet {
             updates,
         }
     }
+
+    /// The shading's volumes' 3D textures, with their mips.
+    fn textures(device: &wgpu::Device, source: &SceneShading) -> Vec<wgpu::Texture> {
+        let textures: Vec<wgpu::Texture> = source
+            .volumes
+            .iter()
+            .map(|v| {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some(v.name),
+                    size: wgpu::Extent3d {
+                        width: v.size[0],
+                        height: v.size[1],
+                        depth_or_array_layers: v.size[2],
+                    },
+                    mip_level_count: v.mips,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D3,
+                    format: v.format,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::STORAGE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                })
+            })
+            .collect();
+        textures
+    }
 }
 
 /// How many `scene_data` builds a shading keeps.
@@ -207,39 +213,7 @@ impl Renderer {
                 .pipelines
                 .shading(device, source)
                 .unwrap_or_else(|e| panic!("{e:#}"));
-            let mut data = (source.data)();
-            if data.is_empty() {
-                data.push([0.0; 4]);
-            }
-            let data = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("scene shading data"),
-                contents: bytemuck::cast_slice(&data),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-            let frame_data = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("scene shading frame data"),
-                size: (frame::SHADING_FRAME_CAPACITY * 16) as u64,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("scene shading"),
-                layout: &self.pipelines.shading_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.shading_uniforms.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: data.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: frame_data.as_entire_binding(),
-                    },
-                ],
-            });
+            let (data, frame_data, group) = self.shading_data(source);
             let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("volumes"),
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -250,27 +224,7 @@ impl Renderer {
                 mipmap_filter: wgpu::MipmapFilterMode::Linear,
                 ..Default::default()
             });
-            let update_buffers: Vec<wgpu::Buffer> = source.update.map_or_else(Vec::new, |u| {
-                u.buffers
-                    .iter()
-                    .map(|b| {
-                        device.create_buffer(&wgpu::BufferDescriptor {
-                            label: Some(b.name),
-                            size: ((b.words)().max(1) * 4),
-                            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-                            mapped_at_creation: false,
-                        })
-                    })
-                    .collect()
-            });
-            let update_params = source.update.map(|_| {
-                device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("update parameters"),
-                    size: UPDATE_DISPATCHES_MAX * crate::pipelines::UPDATE_PARAMS_STRIDE,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                })
-            });
+            let (update_buffers, update_params) = Self::update_buffers(device, source);
             let volume_sets = if source.volumes.is_empty() {
                 Vec::new()
             } else {
@@ -330,6 +284,75 @@ impl Renderer {
             .find(|s| std::ptr::eq(s.source, source))
     }
 
+    /// Group 1 of a new shading: its uniforms, its data as built once (`SceneShading::data`), and its frame's data;
+    /// the data's buffer, the frame data's, and the group.
+    fn shading_data(&self, source: &SceneShading) -> (wgpu::Buffer, wgpu::Buffer, wgpu::BindGroup) {
+        let device = &self.gpu.device;
+        let mut data = (source.data)();
+        if data.is_empty() {
+            data.push([0.0; 4]);
+        }
+        let data = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("scene shading data"),
+            contents: bytemuck::cast_slice(&data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+        let frame_data = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene shading frame data"),
+            size: (frame::SHADING_FRAME_CAPACITY * 16) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("scene shading"),
+            layout: &self.pipelines.shading_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.shading_uniforms.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: data.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: frame_data.as_entire_binding(),
+                },
+            ],
+        });
+        (data, frame_data, group)
+    }
+
+    /// The shading's update buffers, and its update passes' parameters (`UPDATE_DISPATCHES_MAX` of them).
+    fn update_buffers(
+        device: &wgpu::Device,
+        source: &SceneShading,
+    ) -> (Vec<wgpu::Buffer>, Option<wgpu::Buffer>) {
+        let update_buffers: Vec<wgpu::Buffer> = source.update.map_or_else(Vec::new, |u| {
+            u.buffers
+                .iter()
+                .map(|b| {
+                    device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some(b.name),
+                        size: ((b.words)().max(1) * 4),
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                        mapped_at_creation: false,
+                    })
+                })
+                .collect()
+        });
+        let update_params = source.update.map(|_| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("update parameters"),
+                size: UPDATE_DISPATCHES_MAX * crate::pipelines::UPDATE_PARAMS_STRIDE,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        });
+        (update_buffers, update_params)
+    }
+
     /// Group 1 of the current shading with the data `state` needs
     /// (`Investigation::scene_data`): a kept one, or, while a new one builds
     /// on a worker thread, the last one drawn. With `wait`, the build is
@@ -367,6 +390,35 @@ impl Renderer {
             }
         }
         let mut finished = false;
+        finished |= Self::land_data(shading, &device, &layout, &uniforms, wait, key);
+        if let Some(i) = shading.data.iter().position(|d| d.0 == key) {
+            shading.group = shading.data[i].2.clone();
+        }
+        if let Some(r) = source.resolution {
+            shading.scale = (r.divisor)(state).max(1);
+        }
+        finished |= Self::select_volume_set(shading, &device, source, state);
+        if finished {
+            self.still = (None, 0);
+            self.still_scene = (None, 0);
+            for slot in self.slots.values_mut() {
+                slot.still = (None, 0);
+                slot.still_scene = (None, 0);
+            }
+        }
+    }
+
+    /// The scene data building for `shading`, once it has landed (waited for with `wait` when it is the data `key`
+    /// names): its group made and kept beside the others. Whether it landed.
+    fn land_data(
+        shading: &mut Shading,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        uniforms: &wgpu::Buffer,
+        wait: bool,
+        key: Option<u64>,
+    ) -> bool {
+        let mut finished = false;
         if let Some((pending_key, rx, _)) = &shading.pending {
             let result = if wait && key == Some(*pending_key) {
                 rx.recv().ok()
@@ -384,7 +436,7 @@ impl Renderer {
                 });
                 let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("scene shading"),
-                    layout: &layout,
+                    layout,
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -417,68 +469,66 @@ impl Renderer {
                 finished = true;
             }
         }
-        if let Some(i) = shading.data.iter().position(|d| d.0 == key) {
-            shading.group = shading.data[i].2.clone();
-        }
-        if let Some(r) = source.resolution {
-            shading.scale = (r.divisor)(state).max(1);
-        }
-        if let Some(update) = source.update {
-            let plan = (update.plan)(state);
-            shading.clock += 1;
-            let clock = shading.clock;
-            let set = match shading
-                .volume_sets
-                .iter()
-                .position(|v| v.key == Some(plan.key))
-            {
-                Some(i) => i,
-                None => {
-                    if shading.volume_sets.len() < VOLUME_SETS_KEPT {
-                        let set = VolumeSet::new(
-                            &device,
-                            source,
-                            &shading.pipelines,
-                            &shading.update_buffers,
-                            shading.update_params.as_ref(),
-                            &shading.sampler,
-                        );
-                        shading.volume_sets.push(set);
-                        shading.volume_sets.len() - 1
-                    } else {
-                        // The set used longest ago, unless a run still waits to fill it.
-                        let waiting: Vec<usize> = shading.update_runs.iter().map(|r| r.0).collect();
-                        (0..shading.volume_sets.len())
-                            .filter(|i| !waiting.contains(i))
-                            .min_by_key(|&i| shading.volume_sets[i].used)
-                            .unwrap_or(0)
-                    }
+        finished
+    }
+
+    /// The volume set `state`'s update plan fills (kept, a new one, or the one used longest ago), and its run of
+    /// updates when it is fresh or always runs: whether the set is fresh.
+    fn select_volume_set(
+        shading: &mut Shading,
+        device: &wgpu::Device,
+        source: &SceneShading,
+        state: &ShotState,
+    ) -> bool {
+        let Some(update) = source.update else {
+            return false;
+        };
+        let plan = (update.plan)(state);
+        shading.clock += 1;
+        let clock = shading.clock;
+        let set = match shading
+            .volume_sets
+            .iter()
+            .position(|v| v.key == Some(plan.key))
+        {
+            Some(i) => i,
+            None => {
+                if shading.volume_sets.len() < VOLUME_SETS_KEPT {
+                    let set = VolumeSet::new(
+                        device,
+                        source,
+                        &shading.pipelines,
+                        &shading.update_buffers,
+                        shading.update_params.as_ref(),
+                        &shading.sampler,
+                    );
+                    shading.volume_sets.push(set);
+                    shading.volume_sets.len() - 1
+                } else {
+                    // The set used longest ago, unless a run still waits to fill it.
+                    let waiting: Vec<usize> = shading.update_runs.iter().map(|r| r.0).collect();
+                    (0..shading.volume_sets.len())
+                        .filter(|i| !waiting.contains(i))
+                        .min_by_key(|&i| shading.volume_sets[i].used)
+                        .unwrap_or(0)
                 }
-            };
-            let fresh = shading.volume_sets[set].key != Some(plan.key);
-            if fresh || plan.always {
-                assert!(
-                    plan.dispatches.len() as u64 <= UPDATE_DISPATCHES_MAX,
-                    "{}: {} update dispatches, at most {UPDATE_DISPATCHES_MAX}",
-                    source.fragment,
-                    plan.dispatches.len()
-                );
-                shading.update_runs.retain(|r| r.0 != set);
-                shading.update_runs.push((set, plan.dispatches));
-                shading.volume_sets[set].key = Some(plan.key);
-                finished |= fresh;
             }
-            shading.volume_sets[set].used = clock;
-            shading.volume_set = set;
+        };
+        let fresh = shading.volume_sets[set].key != Some(plan.key);
+        if fresh || plan.always {
+            assert!(
+                plan.dispatches.len() as u64 <= UPDATE_DISPATCHES_MAX,
+                "{}: {} update dispatches, at most {UPDATE_DISPATCHES_MAX}",
+                source.fragment,
+                plan.dispatches.len()
+            );
+            shading.update_runs.retain(|r| r.0 != set);
+            shading.update_runs.push((set, plan.dispatches));
+            shading.volume_sets[set].key = Some(plan.key);
         }
-        if finished {
-            self.still = (None, 0);
-            self.still_scene = (None, 0);
-            for slot in self.slots.values_mut() {
-                slot.still = (None, 0);
-                slot.still_scene = (None, 0);
-            }
-        }
+        shading.volume_sets[set].used = clock;
+        shading.volume_set = set;
+        fresh
     }
 
     /// Seconds the current shading's scene data has been building, while it does.

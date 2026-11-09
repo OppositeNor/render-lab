@@ -153,7 +153,6 @@ pub fn apply_keys(
     keys: &str,
     packages: &[Package],
 ) -> Result<(), String> {
-    use lamlet::embed::Location;
     use lamlet_doc::ir::{Block, Inline};
     use lamlet_present::vocab::Schema;
     let keys = lamlet_present::vocab::keys_from_json(keys)?;
@@ -163,117 +162,6 @@ pub fn apply_keys(
         .collect();
     let schema = Schema::new(&keys, &sources)?;
 
-    /// A problem: where (`file:line:col: `), what (`the cue `key``), lamlet-present's message, and the heading
-    /// level it is of (none for a cue's).
-    struct Problem {
-        place: String,
-        subject: String,
-        message: String,
-        level: Option<u8>,
-    }
-    fn at(l: &Option<Location>) -> String {
-        l.as_ref()
-            .map(|l| format!("{}:{}:{}: ", l.file, l.line, l.column))
-            .unwrap_or_default()
-    }
-    // A range has no location of its own: it is reported at the last location before it in its paragraph.
-    fn inlines(
-        xs: &[Inline],
-        schema: &Schema,
-        last: &mut Option<Location>,
-        out: &mut Vec<Problem>,
-    ) {
-        for x in xs {
-            let (subject, attrs) = match x {
-                Inline::Anchor { name, attrs, at: l } => {
-                    if l.is_some() {
-                        *last = l.clone();
-                    }
-                    (format!("the cue `{name}`"), attrs)
-                }
-                Inline::Span {
-                    name,
-                    attrs,
-                    inlines: inner,
-                } => {
-                    let subject = if name.is_empty() {
-                        "a range".to_string()
-                    } else {
-                        format!("the range `{name}`")
-                    };
-                    out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
-                        place: at(last),
-                        subject: subject.clone(),
-                        message,
-                        level: None,
-                    }));
-                    inlines(inner, schema, last, out);
-                    continue;
-                }
-                Inline::Emph(inner)
-                | Inline::Strong(inner)
-                | Inline::Link { inlines: inner, .. }
-                | Inline::Say { shown: inner, .. } => {
-                    inlines(inner, schema, last, out);
-                    continue;
-                }
-                Inline::Text { at: l, .. }
-                | Inline::Code { at: l, .. }
-                | Inline::Math { at: l, .. }
-                | Inline::Value { at: l, .. } => {
-                    if l.is_some() {
-                        *last = l.clone();
-                    }
-                    continue;
-                }
-                _ => continue,
-            };
-            out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
-                place: at(last),
-                subject: subject.clone(),
-                message,
-                level: None,
-            }));
-        }
-    }
-    fn blocks(bs: &mut [Block], file: &str, schema: &Schema, out: &mut Vec<Problem>) {
-        for b in bs {
-            match b {
-                Block::Heading {
-                    level,
-                    id,
-                    attrs,
-                    inlines: xs,
-                } => {
-                    // A heading's attributes have no location: it is reported at its text.
-                    let text = xs.iter().find_map(|x| {
-                        if let Inline::Text { at: Some(l), .. } = x {
-                            Some(at(&Some(l.clone())))
-                        } else {
-                            None
-                        }
-                    });
-                    let place = text.unwrap_or_else(|| format!("{file}: "));
-                    match schema.heading(*level, attrs) {
-                        Ok(read) => *attrs = read,
-                        Err(ms) => out.extend(ms.into_iter().map(|message| Problem {
-                            place: place.clone(),
-                            subject: format!("the heading `{}`", id.as_deref().unwrap_or("")),
-                            message,
-                            level: Some(*level),
-                        })),
-                    }
-                    inlines(xs, schema, &mut None, out);
-                }
-                Block::Plain(xs) | Block::Paragraph(xs) => inlines(xs, schema, &mut None, out),
-                Block::List { items, .. } => {
-                    items.iter_mut().for_each(|i| blocks(i, file, schema, out))
-                }
-                Block::Div { blocks: inner, .. } => blocks(inner, file, schema, out),
-                _ => {}
-            }
-        }
-    }
     let file = doc.blocks.iter().find_map(|b| match b {
         Block::Paragraph(xs) | Block::Plain(xs) => xs.iter().find_map(|x| {
             if let Inline::Text { at: Some(l), .. } = x {
@@ -321,6 +209,125 @@ pub fn apply_keys(
         .map(|p| format!("{}{}: {}{}", p.place, p.subject, p.message, suggestion(p)))
         .collect::<Vec<_>>()
         .join("\n"))
+}
+
+/// A problem: where (`file:line:col: `), what (`the cue `key``), lamlet-present's message, and the heading
+/// level it is of (none for a cue's).
+struct Problem {
+    place: String,
+    subject: String,
+    message: String,
+    level: Option<u8>,
+}
+fn at(l: &Option<lamlet::embed::Location>) -> String {
+    l.as_ref()
+        .map(|l| format!("{}:{}:{}: ", l.file, l.line, l.column))
+        .unwrap_or_default()
+}
+/// A range has no location of its own: it is reported at the last location before it in its paragraph.
+fn inlines(
+    xs: &[lamlet_doc::ir::Inline],
+    schema: &lamlet_present::vocab::Schema,
+    last: &mut Option<lamlet::embed::Location>,
+    out: &mut Vec<Problem>,
+) {
+    use lamlet_doc::ir::Inline;
+    for x in xs {
+        let (subject, attrs) = match x {
+            Inline::Anchor { name, attrs, at: l } => {
+                if l.is_some() {
+                    *last = l.clone();
+                }
+                (format!("the cue `{name}`"), attrs)
+            }
+            Inline::Span {
+                name,
+                attrs,
+                inlines: inner,
+            } => {
+                let subject = if name.is_empty() {
+                    "a range".to_string()
+                } else {
+                    format!("the range `{name}`")
+                };
+                out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
+                    place: at(last),
+                    subject: subject.clone(),
+                    message,
+                    level: None,
+                }));
+                inlines(inner, schema, last, out);
+                continue;
+            }
+            Inline::Emph(inner)
+            | Inline::Strong(inner)
+            | Inline::Link { inlines: inner, .. }
+            | Inline::Say { shown: inner, .. } => {
+                inlines(inner, schema, last, out);
+                continue;
+            }
+            Inline::Text { at: l, .. }
+            | Inline::Code { at: l, .. }
+            | Inline::Math { at: l, .. }
+            | Inline::Value { at: l, .. } => {
+                if l.is_some() {
+                    *last = l.clone();
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        out.extend(schema.check_cue(attrs).into_iter().map(|message| Problem {
+            place: at(last),
+            subject: subject.clone(),
+            message,
+            level: None,
+        }));
+    }
+}
+fn blocks(
+    bs: &mut [lamlet_doc::ir::Block],
+    file: &str,
+    schema: &lamlet_present::vocab::Schema,
+    out: &mut Vec<Problem>,
+) {
+    use lamlet_doc::ir::{Block, Inline};
+    for b in bs {
+        match b {
+            Block::Heading {
+                level,
+                id,
+                attrs,
+                inlines: xs,
+            } => {
+                // A heading's attributes have no location: it is reported at its text.
+                let text = xs.iter().find_map(|x| {
+                    if let Inline::Text { at: Some(l), .. } = x {
+                        Some(at(&Some(l.clone())))
+                    } else {
+                        None
+                    }
+                });
+                let place = text.unwrap_or_else(|| format!("{file}: "));
+                match schema.heading(*level, attrs) {
+                    Ok(read) => *attrs = read,
+                    Err(ms) => out.extend(ms.into_iter().map(|message| Problem {
+                        place: place.clone(),
+                        subject: format!("the heading `{}`", id.as_deref().unwrap_or("")),
+                        message,
+                        level: Some(*level),
+                    })),
+                }
+                inlines(xs, schema, &mut None, out);
+            }
+            Block::Plain(xs) | Block::Paragraph(xs) => inlines(xs, schema, &mut None, out),
+            Block::List { items, .. } => {
+                items.iter_mut().for_each(|i| blocks(i, file, schema, out))
+            }
+            Block::Div { blocks: inner, .. } => blocks(inner, file, schema, out),
+            _ => {}
+        }
+    }
 }
 
 /// A document checked, evaluated, and lowered to lamlet-doc's IR.

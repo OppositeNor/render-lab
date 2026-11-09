@@ -623,87 +623,15 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
             _ => return Err(format!("data: hook `{name}` is not a Data")),
         },
     };
-    let mut targets = Vec::new();
-    for x in tables(t, "target")? {
-        known(x, "[[target]]", &["name", "format", "divisor"])?;
-        let name = required(x, "name", "[[target]]")?;
-        let what = &format!("target `{name}`");
-        targets.push(ShadingTarget {
-            name,
-            format: format(x, what)?,
-            divisor: u32_or(x, "divisor", what, Some(1))?,
-        });
-    }
-    let mut buffers = Vec::new();
-    for x in tables(t, "buffer")? {
-        known(x, "[[buffer]]", &["name", "words-per-tile", "tile"])?;
-        let name = required(x, "name", "[[buffer]]")?;
-        let what = &format!("buffer `{name}`");
-        buffers.push(ShadingBuffer {
-            name,
-            words_per_tile: u32_or(x, "words-per-tile", what, None)?,
-            tile: u32_or(x, "tile", what, None)?,
-        });
-    }
-    let mut volumes = Vec::new();
-    for x in tables(t, "volume")? {
-        known(x, "[[volume]]", &["name", "format", "size", "mips"])?;
-        let name = required(x, "name", "[[volume]]")?;
-        let what = &format!("volume `{name}`");
-        volumes.push(ShadingVolume {
-            name,
-            format: format(x, what)?,
-            size: u32s(x, "size", what)?,
-            mips: u32_or(x, "mips", what, Some(1))?,
-        });
-    }
+    let (targets, buffers, volumes) = read_storage(t)?;
     let n = nodes(t)?;
     let (fragment, outputs, scene_reads) = n.scene.ok_or("the frame needs a `scene` node")?;
-    let resolution = table(t, "resolution")?
-        .map(|x| -> Result<&'static ShadingResolution, String> {
-            let what = "[resolution]";
-            known(x, what, &["targets", "divisor"])?;
-            let name = required(x, "divisor", what)?;
-            let ShadingHook::Divisor(divisor) = hook(hooks, name, "[resolution] divisor")? else {
-                return Err(format!("{what}: hook `{name}` is not a Divisor"));
-            };
-            Ok(Box::leak(Box::new(ShadingResolution {
-                targets: strings(x, "targets", what)?,
-                divisor,
-            })))
-        })
-        .transpose()?;
+    let resolution = read_resolution(t, hooks)?;
     let update = match (table(t, "update")?, n.updates.is_empty()) {
         (None, true) => None,
         (None, false) => return Err("update nodes need an `[update]` table (its plan)".into()),
         (Some(_), true) => return Err("`[update]` without update nodes".into()),
-        (Some(x), false) => {
-            let what = "[update]";
-            known(x, what, &["plan", "buffer"])?;
-            let name = required(x, "plan", what)?;
-            let ShadingHook::UpdatePlan(plan) = hook(hooks, name, "[update] plan")? else {
-                return Err(format!("{what}: hook `{name}` is not an UpdatePlan"));
-            };
-            let mut buffers = Vec::new();
-            for b in tables(x, "buffer")? {
-                known(b, "[[update.buffer]]", &["name", "words"])?;
-                let name = required(b, "name", "[[update.buffer]]")?;
-                let words = required(b, "words", &format!("update buffer `{name}`"))?;
-                let ShadingHook::Words(words) =
-                    hook(hooks, words, &format!("update buffer `{name}`"))?
-                else {
-                    return Err(format!(
-                        "update buffer `{name}`: hook `{words}` is not a Words"
-                    ));
-                };
-                buffers.push(UpdateBuffer { name, words });
-            }
-            Some(&*Box::leak(Box::new(ShadingUpdate {
-                passes: leak_slice(n.updates),
-                buffers: leak_slice(buffers),
-                plan,
-            })))
-        }
+        (Some(x), false) => Some(read_update(x, hooks, n.updates)?),
     };
     let shows = match table(t, "shows")? {
         None => &[][..],
@@ -743,6 +671,102 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
         program,
         nodes: leak_slice(n.order),
     })
+}
+
+/// A shading file's own targets, buffers, and volumes.
+type Storage = (Vec<ShadingTarget>, Vec<ShadingBuffer>, Vec<ShadingVolume>);
+
+/// The file's `[[target]]`s, `[[buffer]]`s, and `[[volume]]`s.
+fn read_storage(t: &dyn TableLike) -> Result<Storage, String> {
+    let mut targets = Vec::new();
+    for x in tables(t, "target")? {
+        known(x, "[[target]]", &["name", "format", "divisor"])?;
+        let name = required(x, "name", "[[target]]")?;
+        let what = &format!("target `{name}`");
+        targets.push(ShadingTarget {
+            name,
+            format: format(x, what)?,
+            divisor: u32_or(x, "divisor", what, Some(1))?,
+        });
+    }
+    let mut buffers = Vec::new();
+    for x in tables(t, "buffer")? {
+        known(x, "[[buffer]]", &["name", "words-per-tile", "tile"])?;
+        let name = required(x, "name", "[[buffer]]")?;
+        let what = &format!("buffer `{name}`");
+        buffers.push(ShadingBuffer {
+            name,
+            words_per_tile: u32_or(x, "words-per-tile", what, None)?,
+            tile: u32_or(x, "tile", what, None)?,
+        });
+    }
+    let mut volumes = Vec::new();
+    for x in tables(t, "volume")? {
+        known(x, "[[volume]]", &["name", "format", "size", "mips"])?;
+        let name = required(x, "name", "[[volume]]")?;
+        let what = &format!("volume `{name}`");
+        volumes.push(ShadingVolume {
+            name,
+            format: format(x, what)?,
+            size: u32s(x, "size", what)?,
+            mips: u32_or(x, "mips", what, Some(1))?,
+        });
+    }
+    Ok((targets, buffers, volumes))
+}
+
+/// The file's `[resolution]`: the targets it scales and the hook of its divisor.
+fn read_resolution(
+    t: &dyn TableLike,
+    hooks: &Hooks,
+) -> Result<Option<&'static ShadingResolution>, String> {
+    let resolution = table(t, "resolution")?
+        .map(|x| -> Result<&'static ShadingResolution, String> {
+            let what = "[resolution]";
+            known(x, what, &["targets", "divisor"])?;
+            let name = required(x, "divisor", what)?;
+            let ShadingHook::Divisor(divisor) = hook(hooks, name, "[resolution] divisor")? else {
+                return Err(format!("{what}: hook `{name}` is not a Divisor"));
+            };
+            Ok(Box::leak(Box::new(ShadingResolution {
+                targets: strings(x, "targets", what)?,
+                divisor,
+            })))
+        })
+        .transpose()?;
+    Ok(resolution)
+}
+
+/// The file's `[update]`: its plan, and its buffers (each its words' hook), with the frame's update passes.
+fn read_update(
+    x: &dyn TableLike,
+    hooks: &Hooks,
+    updates: Vec<crate::investigation::UpdatePass>,
+) -> Result<&'static ShadingUpdate, String> {
+    let what = "[update]";
+    known(x, what, &["plan", "buffer"])?;
+    let name = required(x, "plan", what)?;
+    let ShadingHook::UpdatePlan(plan) = hook(hooks, name, "[update] plan")? else {
+        return Err(format!("{what}: hook `{name}` is not an UpdatePlan"));
+    };
+    let mut buffers = Vec::new();
+    for b in tables(x, "buffer")? {
+        known(b, "[[update.buffer]]", &["name", "words"])?;
+        let name = required(b, "name", "[[update.buffer]]")?;
+        let words = required(b, "words", &format!("update buffer `{name}`"))?;
+        let ShadingHook::Words(words) = hook(hooks, words, &format!("update buffer `{name}`"))?
+        else {
+            return Err(format!(
+                "update buffer `{name}`: hook `{words}` is not a Words"
+            ));
+        };
+        buffers.push(UpdateBuffer { name, words });
+    }
+    Ok(Box::leak(Box::new(ShadingUpdate {
+        passes: leak_slice(updates),
+        buffers: leak_slice(buffers),
+        plan,
+    })))
 }
 
 #[cfg(test)]
