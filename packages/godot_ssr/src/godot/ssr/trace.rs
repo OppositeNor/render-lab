@@ -242,28 +242,7 @@ impl Inputs<'_> {
         let mut screen_pos = ((Vec2::new(pixel[0] as f32, pixel[1] as f32) + Vec2::splat(0.5))
             / fs)
             .extend(self.hiz(pixel, 0));
-        let mut out = Trace {
-            exit: Exit::NotTraced,
-            roughness: 0.0,
-            start: Vec3::ZERO,
-            biased: Vec3::ZERO,
-            normal: Vec3::ZERO,
-            geom_normal: Vec3::ZERO,
-            ray_dir: Vec3::ZERO,
-            bounced: false,
-            screen_pos,
-            screen_ray: Vec3::ZERO,
-            t_max: 0.0,
-            steps: Vec::new(),
-            t: 0.0,
-            hit_screen: Vec3::ZERO,
-            reprojected_uv: Vec2::ZERO,
-            validity: 0.0,
-            terms: [0.0; 5],
-            ray_len: 0.0,
-            color: Vec4::ZERO,
-            mip_level: 0.0,
-        };
+        let mut out = Trace::untraced(screen_pos);
         if screen_pos.z == 0.0 {
             return out;
         }
@@ -317,6 +296,43 @@ impl Inputs<'_> {
                 1.0
             },
         );
+        let (level, t) = self.march(&mut out, (facing, t_max), cell_step);
+        out.exit = if level < 0 {
+            Exit::Hit
+        } else if t >= t_max {
+            Exit::Screen
+        } else {
+            Exit::Steps
+        };
+        out.t = t;
+        let cur = screen_pos + ray * t;
+        out.hit_screen = cur;
+        let r = self.reprojection * Vec4::new(cur.x * 2.0 - 1.0, cur.y * 2.0 - 1.0, cur.z, 1.0);
+        let uv = Vec2::new(r.x, r.y) / r.w * 0.5 + Vec2::splat(0.5);
+        out.reprojected_uv = uv;
+        self.weigh(&mut out, t_max);
+        let validity = out.validity;
+        if validity > 0.0 {
+            let c = self.last_frame.sample(uv).truncate().extend(1.0) * validity;
+            let l = c.truncate().dot(Vec3::new(0.2126, 0.7152, 0.0722));
+            out.color = (c.truncate() / (1.0 + l)).extend(c.w);
+        }
+        let (mips, ray_len) = (self.hiz.len() as i32, out.ray_len);
+        let mut mip = 0.0;
+        if roughness > 0.001 {
+            mip = blur_level(roughness, ray_len, fs.x.max(fs.y), mips);
+        }
+        out.mip_level = mip * (1.25 - ray_len).clamp(0.0, 1.0).powf(0.2);
+        out
+    }
+
+    /// The Hi-Z march (screen_space_reflection.glsl's loop): from `t`, a cell at a time on the level, a miss climbing
+    /// a level and a hit descending, until it hits, runs out of steps, or leaves the screen; each iteration kept. The
+    /// level it ends on and its t.
+    fn march(&self, out: &mut Trace, (facing, t_max): (bool, f32), cell_step: Vec2) -> (i32, f32) {
+        let s = self.size();
+        let fs = Vec2::new(s[0] as f32, s[1] as f32);
+        let (screen_pos, ray) = (out.screen_pos, out.screen_ray);
         let mips = self.hiz.len() as i32;
         let mut level = 0i32;
         let mut iteration = self.num_steps;
@@ -381,19 +397,21 @@ impl Inputs<'_> {
             level = next_level;
             iteration -= 1;
         }
-        out.exit = if level < 0 {
-            Exit::Hit
-        } else if t >= t_max {
-            Exit::Screen
-        } else {
-            Exit::Steps
-        };
-        out.t = t;
-        let cur = screen_pos + ray * t;
-        out.hit_screen = cur;
-        let r = self.reprojection * Vec4::new(cur.x * 2.0 - 1.0, cur.y * 2.0 - 1.0, cur.z, 1.0);
-        let uv = Vec2::new(r.x, r.y) / r.w * 0.5 + Vec2::splat(0.5);
-        out.reprojected_uv = uv;
+        (level, t)
+    }
+
+    /// The hit weighed (screen_space_reflection.glsl's validity): the screen's edge, a back face, the depth's
+    /// confidence, the margin, and the fade over the ray's screen length; with it, the reflected colour.
+    fn weigh(&self, out: &mut Trace, t_max: f32) {
+        let s = self.size();
+        let fs = Vec2::new(s[0] as f32, s[1] as f32);
+        let (cur, uv, ray, t, ray_dir) = (
+            out.hit_screen,
+            out.reprojected_uv,
+            out.screen_ray,
+            out.t,
+            out.ray_dir,
+        );
         let mut validity = 1.0f32;
         let cur_pixel = [(cur.x * fs.x) as i32, (cur.y * fs.y) as i32];
         let hit_depth = self.hiz(cur_pixel, 0);
@@ -442,17 +460,34 @@ impl Inputs<'_> {
         validity *= fade * margin_blend;
         out.terms = [edge, back, conf2, margin_blend, fade];
         out.validity = validity;
-        if validity > 0.0 {
-            let c = self.last_frame.sample(uv).truncate().extend(1.0) * validity;
-            let l = c.truncate().dot(Vec3::new(0.2126, 0.7152, 0.0722));
-            out.color = (c.truncate() / (1.0 + l)).extend(c.w);
+    }
+}
+
+impl Trace {
+    /// A trace that has not been traced yet, from `screen_pos`: nothing but its start.
+    fn untraced(screen_pos: Vec3) -> Trace {
+        Trace {
+            exit: Exit::NotTraced,
+            roughness: 0.0,
+            start: Vec3::ZERO,
+            biased: Vec3::ZERO,
+            normal: Vec3::ZERO,
+            geom_normal: Vec3::ZERO,
+            ray_dir: Vec3::ZERO,
+            bounced: false,
+            screen_pos,
+            screen_ray: Vec3::ZERO,
+            t_max: 0.0,
+            steps: Vec::new(),
+            t: 0.0,
+            hit_screen: Vec3::ZERO,
+            reprojected_uv: Vec2::ZERO,
+            validity: 0.0,
+            terms: [0.0; 5],
+            ray_len: 0.0,
+            color: Vec4::ZERO,
+            mip_level: 0.0,
         }
-        let mut mip = 0.0;
-        if roughness > 0.001 {
-            mip = blur_level(roughness, ray_len, fs.x.max(fs.y), mips);
-        }
-        out.mip_level = mip * (1.25 - ray_len).clamp(0.0, 1.0).powf(0.2);
-        out
     }
 }
 
