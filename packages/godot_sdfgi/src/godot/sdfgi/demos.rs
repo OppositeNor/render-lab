@@ -4,6 +4,11 @@
 //! frame shows is computed from the shot's values and the converged world
 //! (sim::converged), which is built once.
 
+mod field;
+mod probe_views;
+use field::*;
+use probe_views::*;
+
 use super::light;
 use super::model::{self, CASCADE_SIZE, Cascades, Dirty, PROBE_AXIS_COUNT, Settings};
 use super::probes::{self, SH_SIZE};
@@ -324,6 +329,48 @@ fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
         }
     }
     // A top view of one row of cells along x: the camera's cell and the cascade's centre.
+    scroll_row(state, &c0, cell, content);
+    let (min, size) = cascades.bounds(0);
+    content.readout = Some(Readout {
+        title: tr("demos-cascade_zero").into(),
+        subtitle: tr("demos-cascade_zero_subtitle").into(),
+        formula: None,
+        formula_lit: None,
+        rows: vec![
+            row(tr("demos-camera_x"), format!("{walk:.2} m"), palette::VIEW),
+            row(
+                tr("demos-camera_cell"),
+                format!("int({:.2} / 0.2) = {}", camera.x, cell.x),
+                palette::VIEW,
+            ),
+            row(
+                tr("demos-cascade_position"),
+                format!("{} {}", c0.position.x, tr("demos-cells")),
+                palette::AXIS_Y,
+            ),
+            row(
+                "drag_margin",
+                tr("demos-drag_margin_value"),
+                palette::THEME_ACCENT,
+            ),
+            row("dirty_regions", dirty, palette::INSIDE),
+            row(
+                tr("demos-box"),
+                format!("{:.2} .. {:.2} m", min.x, min.x + size.x),
+                palette::AXIS_Y,
+            ),
+            row(
+                tr("demos-height"),
+                format!("{:.2} m (y_mult {y_mult})", size.y),
+                palette::AXIS_Y,
+            ),
+        ],
+    });
+}
+
+/// A top view of one row of cascade 0's cells along x, when the scroll view is on: the camera's cell and the
+/// cascade's centre.
+fn scroll_row(state: &ShotState, c0: &model::Cascade, cell: IVec3, content: &mut FrameContent) {
     if state.p("scrollView") > 0.5 {
         let y = 0.02;
         let from = c0.position.x - 20;
@@ -366,42 +413,6 @@ fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
         let cam = cell.x as f32 * c0.cell_size + c0.cell_size * 0.5;
         ball(content, Vec3::new(cam, y, 0.0), 0.08, palette::VIEW, 1.0);
     }
-    let (min, size) = cascades.bounds(0);
-    content.readout = Some(Readout {
-        title: tr("demos-cascade_zero").into(),
-        subtitle: tr("demos-cascade_zero_subtitle").into(),
-        formula: None,
-        formula_lit: None,
-        rows: vec![
-            row(tr("demos-camera_x"), format!("{walk:.2} m"), palette::VIEW),
-            row(
-                tr("demos-camera_cell"),
-                format!("int({:.2} / 0.2) = {}", camera.x, cell.x),
-                palette::VIEW,
-            ),
-            row(
-                tr("demos-cascade_position"),
-                format!("{} {}", c0.position.x, tr("demos-cells")),
-                palette::AXIS_Y,
-            ),
-            row(
-                "drag_margin",
-                tr("demos-drag_margin_value"),
-                palette::THEME_ACCENT,
-            ),
-            row("dirty_regions", dirty, palette::INSIDE),
-            row(
-                tr("demos-box"),
-                format!("{:.2} .. {:.2} m", min.x, min.x + size.x),
-                palette::AXIS_Y,
-            ),
-            row(
-                tr("demos-height"),
-                format!("{:.2} m (y_mult {y_mult})", size.y),
-                palette::AXIS_Y,
-            ),
-        ],
-    });
 }
 
 /// Chapter 3: the regions of the walk, the geometry inside them, and the light lists.
@@ -507,462 +518,6 @@ fn worked_voxel(world: &World) -> IVec3 {
         .map(|c| c.cell())
         .min_by_key(|c| (*c - target).length_squared())
         .unwrap_or(target)
-}
-
-/// Chapter 4: the solid voxels of cascade 0 and one voxel's bits.
-fn voxels_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
-    let data = &world.data[0];
-    let passes = state.p("voxelPasses");
-    let cut = state.p("cutHeight");
-    if state.p("voxels") > 0.5 {
-        let voxels = voxel_passes(passes.round().clamp(0.0, 3.0) as usize);
-        let size = world.cascades.cascades[0].cell_size * 0.45;
-        for c in &data.stored.cells {
-            let p = c.cell();
-            if voxels.albedo[index(p)] & 1 == 0 {
-                continue;
-            }
-            let w = cell_world(world, 0, p);
-            if w.y > cut {
-                continue;
-            }
-            let color = if state.p("voxelFacing") > 0.5 {
-                // One colour per axis, the +/- faces in two shades: the bits a voxel's fragments set.
-                const FACE: [Color32; 6] = [
-                    palette::AXIS_X,
-                    palette::AXIS_Y,
-                    palette::AXIS_Z,
-                    Color32::from_rgb(140, 40, 40),
-                    Color32::from_rgb(40, 120, 50),
-                    Color32::from_rgb(40, 70, 150),
-                ];
-                let f = c.facing();
-                let (mut r, mut g, mut b, mut n) = (0u32, 0u32, 0u32, 0u32);
-                for (k, col) in FACE.iter().enumerate() {
-                    if f & (1 << k) != 0 {
-                        r += col.r() as u32;
-                        g += col.g() as u32;
-                        b += col.b() as u32;
-                        n += 1;
-                    }
-                }
-                let n = n.max(1);
-                Color32::from_rgb((r / n) as u8, (g / n) as u8, (b / n) as u8)
-            } else {
-                let a = c.albedo_rgb();
-                Color32::from_rgb(
-                    (a.x.sqrt() * 255.0) as u8,
-                    (a.y.sqrt() * 255.0) as u8,
-                    (a.z.sqrt() * 255.0) as u8,
-                )
-            };
-            ball(content, w, size, color, 1.0);
-        }
-    }
-    let p = worked_voxel(world);
-    let w = cell_world(world, 0, p);
-    ball(content, w, 0.08, palette::SELECTED, 1.0);
-    for (k, dir) in voxels::ANISO_DIR.iter().enumerate() {
-        let on = data.voxels.facing[index(p)] & (1 << k) != 0;
-        content.draw.segment(
-            w,
-            w + *dir * 0.25,
-            if on {
-                palette::NORMAL
-            } else {
-                palette::BRICK_EMPTY
-            },
-            if on {
-                1.0
-            } else {
-                0.4
-            },
-            if on {
-                3.0
-            } else {
-                1.0
-            },
-            lab::frame::FLAG_ARROW,
-        );
-    }
-    let albedo = data.voxels.albedo[index(p)];
-    let facing = data.voxels.facing[index(p)];
-    content.readout = Some(Readout {
-        title: tr("demos-voxel").into(),
-        subtitle: tr_with(
-            "demos-voxel_subtitle",
-            lab::args!(x = p.x, y = p.y, z = p.z),
-        ),
-        formula: None,
-        formula_lit: None,
-        rows: vec![
-            row(
-                tr("demos-albedo_word"),
-                format!("{albedo:#06x} (R16_UINT)"),
-                palette::text(),
-            ),
-            row(
-                tr("demos-solid_bit"),
-                format!("bit 0 = {}", albedo & 1),
-                palette::INSIDE,
-            ),
-            row(
-                "R (bits 11-15)",
-                format!("{} / 31", (albedo >> 11) & 31),
-                Color32::from_rgb(255, 120, 120),
-            ),
-            row(
-                "G (bits 6-10)",
-                format!("{} / 31", (albedo >> 6) & 31),
-                Color32::from_rgb(120, 230, 120),
-            ),
-            row(
-                "B (bits 1-5)",
-                format!("{} / 31", (albedo >> 1) & 31),
-                Color32::from_rgb(130, 160, 255),
-            ),
-            row(
-                tr("demos-facing_bits"),
-                format!("{:06b}", facing.reverse_bits() >> 26),
-                palette::NORMAL,
-            ),
-            row(
-                tr("demos-emission"),
-                format!("{:#010x}", data.voxels.emission[index(p)]),
-                palette::text_dim(),
-            ),
-            row(
-                tr("demos-passes_run"),
-                format!("{}", passes.round()),
-                palette::THEME_ACCENT,
-            ),
-        ],
-    });
-}
-
-/// Cascade 0's render images after `passes` of the three views (cached).
-fn voxel_passes(passes: usize) -> &'static voxels::RenderVoxels {
-    static PASSES: OnceLock<Vec<voxels::RenderVoxels>> = OnceLock::new();
-    &PASSES.get_or_init(|| {
-        let scene = Scene::study_room();
-        let objects = sim::voxelized_objects(&scene.records());
-        let cascades = model::Cascades::create(Settings::default(), ORIGIN);
-        let region = cascades.pending_regions()[0];
-        (0..=3)
-            .map(|n| {
-                let mut v = voxels::RenderVoxels::cleared();
-                voxels::voxelize_axes(&objects, &region, &mut v, n);
-                v
-            })
-            .collect()
-    })[passes]
-}
-
-/// A horizontal slice of cascade 0 around the room, as an inset: 48 x 48 cells.
-const SLICE_CELLS: i32 = 34;
-
-/// What an inset says besides its picture: its title, its picture's key,
-/// and lines of text under it.
-struct Caption {
-    title: String,
-    key: String,
-    lines: Vec<(String, Color32)>,
-}
-
-fn slice_inset(
-    state: &ShotState,
-    world: &World,
-    caption: Caption,
-    pixel: impl Fn(IVec3) -> [u8; 4],
-    marker: Option<IVec3>,
-) -> PictureInset {
-    let min = world_cell(
-        world,
-        0,
-        Vec3::new(-SLICE_CELLS as f32 * 0.1, 0.0, -SLICE_CELLS as f32 * 0.1),
-    );
-    slice_window(state, world, caption, pixel, marker, min, SLICE_CELLS)
-}
-
-/// A slice inset of `cells` x `cells` from cell `min` (x and z).
-fn slice_window(
-    state: &ShotState,
-    world: &World,
-    caption: Caption,
-    pixel: impl Fn(IVec3) -> [u8; 4],
-    marker: Option<IVec3>,
-    min: IVec3,
-    cells: i32,
-) -> PictureInset {
-    let y = world_cell(world, 0, Vec3::new(0.0, state.p("sliceHeight"), 0.0)).y;
-    let n = cells as usize;
-    // Each cell drawn as a block of k x k pixels, so the inset's filtering keeps cells sharp.
-    let k = (220 / n).max(1);
-    let size = n * k;
-    let mut rgba = vec![0u8; size * size * 4];
-    for row in 0..n {
-        for col in 0..n {
-            // Rows from the top: +z at the bottom, as the top camera sees the room.
-            let p = IVec3::new(min.x + col as i32, y, min.z + row as i32);
-            let c = if inside(p) {
-                pixel(p)
-            } else {
-                [0, 0, 0, 255]
-            };
-            for dy in 0..k {
-                for dx in 0..k {
-                    let i = ((row * k + dy) * size + col * k + dx) * 4;
-                    rgba[i..i + 4].copy_from_slice(&c);
-                }
-            }
-        }
-    }
-    let marker = marker.map(|m| {
-        (
-            [
-                ((m.x - min.x) as f32 + 0.5) / n as f32,
-                1.0 - ((m.z - min.z) as f32 + 0.5) / n as f32,
-            ],
-            palette::SELECTED,
-        )
-    });
-    let key = format!("{}-{y}", caption.key);
-    picture(
-        Corner::TopRight,
-        Caption { key, ..caption },
-        size,
-        rgba,
-        ["x".into(), "z".into()],
-        marker,
-    )
-}
-
-/// A square picture of `size` pixels in an inset, 220 points a side, with its
-/// axes (x, y) and a marked point.
-fn picture(
-    corner: Corner,
-    caption: Caption,
-    size: usize,
-    rgba: Vec<u8>,
-    axes: [String; 2],
-    marker: Option<([f32; 2], Color32)>,
-) -> PictureInset {
-    let (Caption { title, key, lines }, [x_axis, y_axis]) = (caption, axes);
-    let marker = marker.map(|(at, color)| Marker {
-        at,
-        color,
-        label: String::new(),
-    });
-    PictureInset {
-        corner,
-        x_axis,
-        y_axis,
-        marker,
-        lines,
-        ..PictureInset::new(
-            title,
-            Picture::Pixels {
-                key,
-                size: [size, size],
-                rgba: Arc::new(rgba),
-            },
-            [220.0, 220.0],
-        )
-    }
-}
-
-fn grey(v: f32) -> [u8; 4] {
-    let g = (v.clamp(0.0, 1.0) * 255.0) as u8;
-    [g, g, g, 255]
-}
-
-/// Chapter 5: the distance field and the jump flood, step by step.
-fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
-    let data = &world.data[0];
-    let step = state.p("floodStep").round().clamp(0.0, 8.0) as usize;
-    let worked = world_cell(world, 0, Vec3::new(-0.2, state.p("sliceHeight"), -0.55));
-    let seeds_at = |p: IVec3| -> [u8; 4] {
-        match step {
-            0 => data.flood.half_init[half_index(p)],
-            1..=6 => data.flood.half_passes[step - 1].2[half_index(p)],
-            7 => data.flood.upscaled[index(p)],
-            _ => data.flood.seeds[index(p)],
-        }
-    };
-    // The slices: an inset while `slice` picks one, an image while the story shows it (super::IMAGES).
-    let slice = state.p("slice").round() as i32;
-    for (n, key) in [(1, "distanceField"), (2, "floodSeeds")] {
-        let (inset_on, image_on) = (slice == n, state.shows_image(key));
-        if !inset_on && !image_on {
-            continue;
-        }
-        let title = if n == 1 {
-            tr("demos-sdf_slice").to_string()
-        } else {
-            tr_with("demos-seed_slice", lab::args!(step = step))
-        };
-        let inset = slice_inset(
-            state,
-            world,
-            Caption {
-                title,
-                key: format!("sdf-{n}-{step}"),
-                lines: vec![],
-            },
-            |p| {
-                if n == 1 {
-                    grey(data.stored.sdf[index(p)] as f32 / 24.0)
-                } else {
-                    let s = seeds_at(p);
-                    let changed = step > 0 && {
-                        let prev = match step - 1 {
-                            0 => data.flood.half_init[half_index(p)],
-                            k @ 1..=6 => data.flood.half_passes[k - 1].2[half_index(p)],
-                            7 => data.flood.upscaled[index(p)],
-                            _ => s,
-                        };
-                        prev != s
-                    };
-                    if s[3] == 0 {
-                        [0, 0, 0, 255]
-                    } else if changed {
-                        // A cell this step gave a nearer seed.
-                        [255, 120, 60, 255]
-                    } else {
-                        // The seed's own colour, so cells sharing a seed share a colour.
-                        [
-                            60 + (s[0] as u32 * 37 % 160) as u8,
-                            60 + (s[2] as u32 * 53 % 160) as u8,
-                            90 + (s[1] as u32 * 29 % 140) as u8,
-                            255,
-                        ]
-                    }
-                }
-            },
-            Some(worked),
-        );
-        if image_on {
-            content.images.push((key.to_string(), inset.clone()));
-        }
-        if inset_on {
-            content.insets.push(inset);
-        }
-    }
-    let seed = seeds_at(worked);
-    let byte = data.stored.sdf[index(worked)];
-    let seed_cell = IVec3::new(seed[0] as i32, seed[1] as i32, seed[2] as i32);
-    let w = cell_world(world, 0, worked);
-    ball(content, w, 0.06, palette::SELECTED, 1.0);
-    // The worked cell and its seed, for a story's arrows and labels (super::ANNOTATIONS).
-    content.points.push(("field.worked".into(), w));
-    if seed[3] != 0 {
-        let s = cell_world(world, 0, seed_cell);
-        content.points.push(("field.seed".into(), s));
-        content
-            .draw
-            .segment(w, s, palette::OUTSIDE, 1.0, 2.0, lab::frame::FLAG_ARROW);
-        ball(content, s, 0.05, palette::INSIDE, 1.0);
-    }
-    // A sphere trace across the slice: from the worked cell along +x, each step the stored distance.
-    let mut march_steps = 0;
-    if state.p("fieldMarch") > 0.5 {
-        let field = world.field();
-        let y_mult = world.cascades.settings.y_mult();
-        let start = (worked.as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
-        let pos = (start - field.offset(0)) * field.to_cell(0);
-        let dir = Vec3::X;
-        let mut advance = 0.0;
-        for _ in 0..40 {
-            let d = light::sample_sdf(
-                &data.stored.sdf,
-                (pos + dir * advance) / CASCADE_SIZE as f32,
-            ) * 255.0
-                - 1.0;
-            let at = (pos + dir * advance) / field.to_cell(0) + field.offset(0);
-            let real = Vec3::new(at.x, at.y / y_mult, at.z);
-            circle(
-                content,
-                real,
-                (d.max(0.0) / field.to_cell(0)).max(0.02),
-                palette::OUTSIDE,
-                0.9,
-            );
-            ball(content, real, 0.03, palette::OUTSIDE, 1.0);
-            march_steps += 1;
-            if d < 0.05 {
-                break;
-            }
-            advance += d;
-        }
-    }
-    let schedule = voxels::half_schedule();
-    let step_text = match step {
-        0 => tr("demos-flood_init").to_string(),
-        1..=6 => format!(
-            "{} {} ({})",
-            tr("demos-flood_step_size"),
-            schedule[step - 1].0,
-            if schedule[step - 1].1 {
-                tr("demos-optimized")
-            } else {
-                tr("demos-regular")
-            }
-        ),
-        7 => tr("demos-flood_upscale").to_string(),
-        _ => tr("demos-flood_final").to_string(),
-    };
-    content.readout = Some(Readout {
-        title: tr("demos-field").into(),
-        subtitle: step_text,
-        formula: None,
-        formula_lit: None,
-        rows: vec![
-            row(
-                tr("demos-cell"),
-                format!("{:?}", worked.to_array()),
-                palette::SELECTED,
-            ),
-            row(
-                tr("demos-seed"),
-                if seed[3] == 0 {
-                    tr("demos-unused").to_string()
-                } else {
-                    format!("{:?}", [seed[0], seed[1], seed[2]])
-                },
-                palette::INSIDE,
-            ),
-            row(
-                tr("demos-distance_cells"),
-                format!("{:.2}", (seed_cell - worked).as_vec3().length()),
-                palette::OUTSIDE,
-            ),
-            row(
-                tr("demos-stored_byte"),
-                format!("{byte} = 1 + d"),
-                palette::OUTSIDE,
-            ),
-            row(
-                tr("demos-marches_read"),
-                format!("{byte} - 1 = {}", byte as i32 - 1),
-                palette::text(),
-            ),
-            row(
-                tr("demos-solid_cells"),
-                format!("{} / {}", data.stored.cells.len(), CELLS / 4),
-                palette::INSIDE,
-            ),
-            row(
-                tr("demos-march_steps"),
-                march_steps.to_string(),
-                palette::OUTSIDE,
-            ),
-        ],
-    });
-}
-
-fn half_index(p: IVec3) -> usize {
-    let h: IVec3 = p >> IVec3::ONE;
-    (h.x + h.y * 64 + h.z * 64 * 64) as usize
 }
 
 /// Chapter 6: one probe's occlusion around it.
@@ -1122,90 +677,16 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
             ball(content, cell_world(world, 0, c.cell()), size, color, 1.0);
         }
     }
-    let y_mult = world.cascades.settings.y_mult();
     let light_pos = Vec3::new(state.p("lightX"), state.p("lightHeight"), state.p("lightZ"));
-    let omni = sim::omni(light_pos, 5.0, 1.0, y_mult).light;
     let at = if state.p("cellX") < -9.0 {
         Vec3::new(light_pos.x, 0.05, light_pos.z)
     } else {
         Vec3::new(state.p("cellX"), 0.05, state.p("cellZ"))
     };
     let cell = world_cell(world, 0, at);
-    let cell_w = cell_world(world, 0, cell);
     let mut rows = Vec::new();
     if state.p("extraLight") > 0.5 {
-        ball(content, light_pos, 0.1, palette::INCIDENT, 1.0);
-        label(
-            content,
-            state,
-            light_pos + Vec3::Y * 0.2,
-            tr("demos-omni_light").into(),
-            palette::INCIDENT,
-        );
-        ball(content, cell_w, 0.07, palette::SELECTED, 1.0);
-        let field = world.field();
-        let squashed = (cell.as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
-        if let Some((dir, dist, att)) = light::light_at(&omni, squashed) {
-            let mut steps = Vec::new();
-            let hit = light::shadow_ray(&field, 0, squashed, dir, dist, Some(&mut steps));
-            if state.p("shadowRay") > 0.5 {
-                for (j, pos, d) in steps.iter().take(24) {
-                    let s = *pos / field.to_cell(*j) + field.offset(*j);
-                    let r = Vec3::new(s.x, s.y / y_mult, s.z);
-                    circle(
-                        content,
-                        r,
-                        (d.max(0.0) / field.to_cell(*j)).clamp(0.02, 1.5),
-                        palette::OUTSIDE,
-                        0.9,
-                    );
-                    ball(content, r, 0.03, palette::OUTSIDE, 1.0);
-                }
-                content.draw.segment(
-                    cell_w,
-                    light_pos,
-                    if hit {
-                        palette::MISMATCH
-                    } else {
-                        palette::HIT
-                    },
-                    1.0,
-                    4.0,
-                    0,
-                );
-            }
-            let real_d = (light_pos - cell_w).length();
-            rows.extend([
-                row(
-                    tr("demos-squashed_distance"),
-                    format!("{dist:.2} m ({} {real_d:.2} m)", tr("demos-real")),
-                    palette::INCIDENT,
-                ),
-                row(
-                    tr("demos-attenuation"),
-                    format!("(1 - (d/5)^4)^2 / d = {att:.4}"),
-                    palette::INCIDENT,
-                ),
-                row(
-                    tr("demos-shadow"),
-                    if hit {
-                        tr("demos-blocked").to_string()
-                    } else {
-                        format!(
-                            "{} ({} {})",
-                            tr("demos-lit"),
-                            steps.len(),
-                            tr("demos-steps")
-                        )
-                    },
-                    if hit {
-                        palette::MISMATCH
-                    } else {
-                        palette::NORMAL
-                    },
-                ),
-            ]);
-        }
+        rows.extend(extra_light(state, world, (light_pos, cell), content));
     }
     let scrolls = static_scrolls();
     let k = state.p("scrolls").round().clamp(0.0, 3.0) as usize;
@@ -1277,472 +758,91 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
     });
 }
 
-/// Chapters 8 and 9: the followed probe, its rays, one ray's march, its SH
-/// history, and its octahedral maps.
-fn probes_demo(state: &ShotState, world: &World, content: &mut FrameContent, maps: bool) {
-    let field = world.field();
+/// An omni light added at `light_pos` (`extraLight`): the cell it lights, the shadow ray's march to it, and the
+/// light's rows: the squashed distance, the attenuation, and whether the cell is lit.
+fn extra_light(
+    state: &ShotState,
+    world: &World,
+    (light_pos, cell): (Vec3, IVec3),
+    content: &mut FrameContent,
+) -> Vec<(String, String, Color32)> {
     let y_mult = world.cascades.settings.y_mult();
-    let unsquash = |p: Vec3| Vec3::new(p.x, p.y / y_mult, p.z);
-    let probe_pos = probes::probe_position(&field, 0, FOLLOWED_PROBE);
-    let real = unsquash(probe_pos);
-    ball(content, real, 0.08, palette::PROBE_SELECTED, 1.0);
-    let light_refs: Vec<&light::LightTextures> = world.light.iter().collect();
-    let lighting = Scene::study_room().lighting;
-    let sky_fn = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
-    let sky = probes::Sky::Radiance(&sky_fn);
-    let frames = state.p("rayFrames").round().clamp(0.0, 30.0) as u32;
-    if state.p("probeRays") > 0.5 {
-        for h in 0..frames {
-            for ray in probes::trace_rays(
-                &field,
-                &light_refs,
-                0,
-                FOLLOWED_PROBE,
-                h,
-                &world.integrate,
-                &sky,
-            ) {
-                let end = match ray.hit {
-                    Some((j, p)) => unsquash(p / field.to_cell(j) + field.offset(j)),
-                    None => real + unsquash(ray.direction) * 1.2,
-                };
-                // Even slots point to -z, odd ones to +z: a frame's eight rays share a half.
-                let color = if h % 2 == 0 {
-                    palette::INCIDENT
-                } else {
-                    palette::VIEW
-                };
-                content.draw.segment(
-                    real,
-                    end,
-                    color,
-                    if h + 1 == frames {
-                        1.0
-                    } else {
-                        0.35
-                    },
-                    if ray.hit.is_some() {
-                        2.0
-                    } else {
-                        1.0
-                    },
-                    0,
-                );
-            }
-        }
-    }
-    // One ray's march: spheres of the stored distance.
-    let steps = state.p("raySteps").round() as usize;
-    if steps > 0 {
-        let rays = probes::trace_rays(
-            &field,
-            &light_refs,
-            0,
-            FOLLOWED_PROBE,
-            0,
-            &world.integrate,
-            &sky,
-        );
-        let dir = rays[1].direction;
-        let start =
-            probe_pos + dir / dir.abs().max_element() * world.integrate.ray_bias / field.to_cell(0);
-        let mut advance = 0.0;
-        let pos = (start - field.offset(0)) * field.to_cell(0);
-        for _ in 0..steps {
-            let d = light::sample_sdf(
-                &world.data[0].stored.sdf,
-                (pos + dir * advance) / CASCADE_SIZE as f32,
-            ) * 255.0
-                - 1.0;
-            let p = unsquash((pos + dir * advance) / field.to_cell(0) + field.offset(0));
-            circle(
-                content,
-                p,
-                (d.max(0.0) / field.to_cell(0)).min(3.0),
-                palette::OUTSIDE,
-                0.5,
-            );
-            ball(content, p, 0.025, palette::OUTSIDE, 1.0);
-            if d < 0.05 {
-                break;
-            }
-            advance += d;
-        }
-    }
-    // The history: mean coefficients after `frames` frames.
-    let k = state
-        .p("frames")
-        .round()
-        .clamp(0.0, sim::CONVERGED_FRAMES as f32) as usize;
-    let mean = if k == 0 {
-        [Vec3::ZERO; SH_SIZE]
-    } else {
-        world.trace[k - 1]
-    };
-    let irradiance = |n: Vec3| -> Vec3 {
-        let c = probes::sh_basis(n);
-        (0..SH_SIZE)
-            .map(|i| mean[i] * c[i] * 4.0 * probes::L_MULT[i])
-            .sum()
-    };
-    let up = irradiance(Vec3::Y);
-    let side = irradiance(Vec3::NEG_X);
-    let mut rows = vec![
-        row(
-            tr("demos-probe"),
-            format!(
-                "{:?} ({:.2}, {:.2}, {:.2}) m",
-                FOLLOWED_PROBE.to_array(),
-                real.x,
-                real.y,
-                real.z
-            ),
-            palette::PROBE_SELECTED,
-        ),
-        row(
-            tr("demos-rays_per_frame"),
-            format!(
-                "{} ({} {})",
-                world.integrate.ray_count,
-                world.integrate.history_size * world.integrate.ray_count,
-                tr("demos-over_history")
-            ),
-            palette::INCIDENT,
-        ),
-        row(
-            tr("demos-frames_run"),
-            format!("{k} / {}", world.integrate.history_size),
-            palette::THEME_ACCENT,
-        ),
-        row(
-            "L0",
-            format!("{:.3} {:.3} {:.3}", mean[0].x, mean[0].y, mean[0].z),
-            palette::text(),
-        ),
-        row(
-            tr("demos-irradiance_up"),
-            format!("{:.3} {:.3} {:.3}", up.x, up.y, up.z),
-            palette::NORMAL,
-        ),
-        row(
-            tr("demos-irradiance_wall"),
-            format!("{:.3} {:.3} {:.3}", side.x, side.y, side.z),
-            Color32::from_rgb(230, 110, 90),
-        ),
-    ];
-    if state.p("historyChart") > 0.5 {
-        // Irradiance (up, green channel) after each frame since creation: a straight rise for 30 frames.
-        let n = 110usize;
-        let values: Vec<f32> = (0..=sim::CONVERGED_FRAMES as usize)
-            .map(|f| {
-                let m = if f == 0 {
-                    [Vec3::ZERO; SH_SIZE]
-                } else {
-                    world.trace[f - 1]
-                };
-                let c = probes::sh_basis(Vec3::Y);
-                (0..SH_SIZE)
-                    .map(|i| m[i].y * c[i] * 4.0 * probes::L_MULT[i])
-                    .sum::<f32>()
-            })
-            .collect();
-        let top = values.iter().copied().fold(1e-6, f32::max) * 1.1;
-        let mut rgba = vec![12u8; n * n * 4];
-        for px in rgba.chunks_mut(4) {
-            px.copy_from_slice(&[12, 20, 32, 255]);
-        }
-        for (f, v) in values.iter().enumerate() {
-            let x = f * (n - 1) / values.len().max(2).saturating_sub(1).max(1);
-            let y = n - 1 - ((v / top) * (n - 1) as f32) as usize;
-            let lit = f <= k;
-            for yy in y..n {
-                let i = (yy * n + x) * 4;
-                rgba[i..i + 4].copy_from_slice(&if lit {
-                    [90, 200, 130, 255]
-                } else {
-                    [40, 70, 60, 255]
-                });
-            }
-        }
-        let marker = Some((
-            [
-                k as f32 / sim::CONVERGED_FRAMES as f32,
-                values[k.min(values.len() - 1)] / top,
-            ],
-            palette::SELECTED,
-        ));
-        content.insets.push(picture(
-            Corner::TopRight,
-            Caption {
-                title: tr("demos-history_chart").into(),
-                key: "history-chart".into(),
-                lines: vec![],
-            },
-            n,
-            rgba,
-            [
-                tr("demos-frames_axis").into(),
-                tr("demos-irradiance_axis").into(),
-            ],
-            marker,
-        ));
-    }
-    if maps {
-        // Both maps, 8 x 8 texels each with their border, side by side in a square, nearest-filtered.
-        let maps = &world.maps[0];
-        let n = (probes::OCT_SIZE + 2) as usize;
-        let k = 12usize;
-        let size = 2 * n * k + k;
-        let origin = glam::IVec2::new(
-            (FOLLOWED_PROBE.x + FOLLOWED_PROBE.z * PROBE_AXIS_COUNT) * (probes::OCT_SIZE + 2),
-            FOLLOWED_PROBE.y * (probes::OCT_SIZE + 2),
-        );
-        let mut rgba = vec![0u8; size * size * 4];
-        for px in rgba.chunks_mut(4) {
-            px.copy_from_slice(&[12, 20, 32, 255]);
-        }
-        let top = (size - n * k) / 2;
-        for (m, layer) in [&maps.irradiance, &maps.radiance].into_iter().enumerate() {
-            for y in 0..n {
-                for x in 0..n {
-                    let t =
-                        probes::ProbeMaps::texel(layer, origin.x + x as i32, origin.y + y as i32);
-                    let tm = |v: f32| ((v / (1.0 + v)).sqrt() * 255.0) as u8;
-                    let border = x == 0 || x == n - 1 || y == 0 || y == n - 1;
-                    let mut px = [tm(t.x * 3.0), tm(t.y * 3.0), tm(t.z * 3.0), 255];
-                    if border {
-                        px = [px[0] / 2, px[1] / 2, px[2] / 2, 255];
-                    }
-                    for dy in 0..k {
-                        for dx in 0..k {
-                            let edge = dx == 0 || dy == 0;
-                            let i = ((top + y * k + dy) * size + m * (n * k + k) + x * k + dx) * 4;
-                            rgba[i..i + 4].copy_from_slice(if edge {
-                                &[20, 28, 40, 255]
-                            } else {
-                                &px
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        content.insets.push(picture(
-            Corner::TopLeft,
-            Caption {
-                title: tr("demos-oct_maps").into(),
-                key: "oct-maps".into(),
-                lines: vec![(tr("demos-oct_border").into(), palette::text_dim())],
-            },
-            size,
-            rgba,
-            [tr("demos-oct_axes").into(), "v".into()],
-            None,
-        ));
-        if state.p("showGain") > 0.5 {
-            let gain = 4.0 / std::f32::consts::PI;
-            rows.push(row(
-                tr("demos-sky_gain"),
-                format!("4/pi = {gain:.3}"),
-                palette::MISMATCH,
-            ));
-        }
-    }
-    content.readout = Some(Readout {
-        title: if maps {
-            tr("demos-maps")
-        } else {
-            tr("demos-probes")
-        }
-        .into(),
-        subtitle: tr("demos-probes_subtitle").into(),
-        formula: None,
-        formula_lit: None,
-        rows,
-    });
-}
-
-/// Chapter 10: a pixel on the red wall, its cascade, its eight probes.
-fn pixel_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
-    let on_sphere = state.p("spherePixel") > 0.5;
-    let sphere_centre = Vec3::new(-1.05, 0.62, -0.55);
-    let n = if on_sphere {
-        Vec3::new(0.35, 0.5, 0.8).normalize()
-    } else {
-        Vec3::X
-    };
-    let p = if on_sphere {
-        sphere_centre + n * 0.621
-    } else {
-        Vec3::new(-2.999, state.p("pixelY"), state.p("pixelZ"))
-    };
-    let inputs = sim::screen_inputs(world);
-    let eye = Vec3::from(content.uniforms.camera.position);
-    let v = (eye - p).normalize();
-    let r = (-v) - 2.0 * (-v).dot(n) * n;
-    let roughness = if on_sphere {
-        state.p("sphereRoughness")
-    } else {
-        1.0
-    };
-    let result = super::screen::process(&inputs, p - ORIGIN, n, r, roughness);
-    ball(content, p, 0.07, palette::SELECTED, 1.0);
-    content.draw.segment(
-        p,
-        p + n * 0.4,
-        palette::NORMAL,
-        1.0,
-        3.0,
-        lab::frame::FLAG_ARROW,
+    let omni = sim::omni(light_pos, 5.0, 1.0, y_mult).light;
+    let cell_w = cell_world(world, 0, cell);
+    let mut rows = Vec::new();
+    ball(content, light_pos, 0.1, palette::INCIDENT, 1.0);
+    label(
+        content,
+        state,
+        light_pos + Vec3::Y * 0.2,
+        tr("demos-omni_light").into(),
+        palette::INCIDENT,
     );
-    // The normal bias: the point moved off the surface before its probes are chosen (1.1 cells).
-    let bias = p + n * (1.1 * 0.2);
-    content
-        .draw
-        .segment(p, bias, palette::INCIDENT, 1.0, 4.0, 0);
-    if on_sphere {
-        content.draw.segment(
-            p,
-            p + r * 0.8,
-            palette::REFLECTED,
-            1.0,
-            3.0,
-            lab::frame::FLAG_ARROW,
-        );
-    }
-    let mut rows = vec![
-        row(
-            tr("demos-cascade"),
-            result
-                .cascade
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "-".into()),
-            palette::AXIS_Y,
-        ),
-        row(
-            tr("demos-blend"),
-            format!("{:.3}", result.blend),
-            palette::AXIS_Y,
-        ),
-    ];
-    let d = state.p("blendPoint");
-    if d > 0.0 {
-        // A point on SDFGI's camera's +x axis: which cascade holds it and how far it has blended to the next.
-        let q = ORIGIN + Vec3::X * d;
-        let qr = super::screen::process(&inputs, q - ORIGIN, Vec3::Y, Vec3::Y, 1.0);
-        ball(content, q, 0.25, palette::AXIS_Y, 1.0);
-        content
-            .draw
-            .segment(ORIGIN, q, palette::AXIS_Y, 1.0, 2.0, 0);
-        rows.push(row(
-            tr("demos-test_point"),
-            format!(
-                "{d:.1} m: {} {}, blend {:.2}",
-                tr("demos-cascade"),
-                qr.cascade
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| "-".into()),
-                qr.blend
-            ),
-            palette::AXIS_Y,
-        ));
-    }
-    if on_sphere {
-        let radiance = if roughness < 0.99 {
-            1.0 - ((roughness - 0.2) * 1.25).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        rows.push(row(
-            tr("demos-roughness"),
-            format!("{roughness:.2}"),
-            palette::VIEW,
-        ));
-        rows.push(row(
-            tr("demos-from_radiance"),
-            format!("{:.0} %", radiance * 100.0),
-            palette::REFLECTED,
-        ));
-        rows.push(row(
-            tr("demos-from_irradiance"),
-            format!("{:.0} %", (1.0 - radiance) * 100.0),
-            palette::NORMAL,
-        ));
-        rows.push(row(
-            tr("demos-godot_march"),
-            if roughness < 0.2 {
-                format!("{:.0} %", (1.0 - (roughness * 5.0).min(1.0)) * 100.0)
-            } else {
-                "0 %".to_string()
-            },
-            palette::text_dim(),
-        ));
-    }
-    if let Some(c) = result.cascade {
-        let y = inputs.y_mult;
-        let vertex = Vec3::new(p.x - ORIGIN.x, (p.y - ORIGIN.y) * y, p.z - ORIGIN.z);
-        let cascade_pos = (vertex - inputs.cascades[c].position) * inputs.cascades[c].to_probe;
-        let gi = super::screen::voxel_gi(&inputs, c, cascade_pos, n, r, roughness);
-        if state.p("pixelProbes") > 0.5 {
-            let total: f32 = gi.probes.iter().map(|w| w.weight).sum();
-            let field = world.field();
-            for w in &gi.probes {
-                let pos = probes::probe_position(&field, c, w.probe);
-                let real = Vec3::new(pos.x, pos.y / y, pos.z);
-                let share = w.weight / total.max(1e-9);
-                ball(
+    ball(content, cell_w, 0.07, palette::SELECTED, 1.0);
+    let field = world.field();
+    let squashed = (cell.as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
+    if let Some((dir, dist, att)) = light::light_at(&omni, squashed) {
+        let mut steps = Vec::new();
+        let hit = light::shadow_ray(&field, 0, squashed, dir, dist, Some(&mut steps));
+        if state.p("shadowRay") > 0.5 {
+            for (j, pos, d) in steps.iter().take(24) {
+                let s = *pos / field.to_cell(*j) + field.offset(*j);
+                let r = Vec3::new(s.x, s.y / y_mult, s.z);
+                circle(
                     content,
-                    real,
-                    0.04 + 0.12 * share,
-                    palette::PROBE_SELECTED,
-                    0.4 + 0.6 * share,
+                    r,
+                    (d.max(0.0) / field.to_cell(*j)).clamp(0.02, 1.5),
+                    palette::OUTSIDE,
+                    0.9,
                 );
-                content.draw.segment(
-                    p,
-                    real,
-                    palette::PROBE,
-                    0.2 + 0.8 * share,
-                    1.0 + 2.0 * share,
-                    0,
-                );
-                label(
-                    content,
-                    state,
-                    real + Vec3::Y * 0.15,
-                    format!("{:.0} %", share * 100.0),
-                    palette::PROBE_SELECTED,
-                );
+                ball(content, r, 0.03, palette::OUTSIDE, 1.0);
             }
+            content.draw.segment(
+                cell_w,
+                light_pos,
+                if hit {
+                    palette::MISMATCH
+                } else {
+                    palette::HIT
+                },
+                1.0,
+                4.0,
+                0,
+            );
         }
-        rows.push(row(
-            tr("demos-probe_cell"),
-            format!("{:.2} {:.2} {:.2}", gi.biased.x, gi.biased.y, gi.biased.z),
-            palette::PROBE_SELECTED,
-        ));
-        rows.push(row(
-            tr("demos-diffuse"),
-            format!(
-                "{:.3} {:.3} {:.3}",
-                result.ambient.x, result.ambient.y, result.ambient.z
+        let real_d = (light_pos - cell_w).length();
+        rows.extend([
+            row(
+                tr("demos-squashed_distance"),
+                format!("{dist:.2} m ({} {real_d:.2} m)", tr("demos-real")),
+                palette::INCIDENT,
             ),
-            palette::text(),
-        ));
-        rows.push(row(
-            tr("demos-reflection"),
-            format!(
-                "{:.3} {:.3} {:.3}",
-                result.reflection.x, result.reflection.y, result.reflection.z
+            row(
+                tr("demos-attenuation"),
+                format!("(1 - (d/5)^4)^2 / d = {att:.4}"),
+                palette::INCIDENT,
             ),
-            palette::VIEW,
-        ));
+            row(
+                tr("demos-shadow"),
+                if hit {
+                    tr("demos-blocked").to_string()
+                } else {
+                    format!(
+                        "{} ({} {})",
+                        tr("demos-lit"),
+                        steps.len(),
+                        tr("demos-steps")
+                    )
+                },
+                if hit {
+                    palette::MISMATCH
+                } else {
+                    palette::NORMAL
+                },
+            ),
+        ]);
     }
-    content.readout = Some(Readout {
-        title: tr("demos-pixel").into(),
-        subtitle: tr("demos-pixel_subtitle").into(),
-        formula: None,
-        formula_lit: None,
-        rows,
-    });
+    rows
 }
 
 /// gShading's derived values (sdfgi_shading.wgsl).

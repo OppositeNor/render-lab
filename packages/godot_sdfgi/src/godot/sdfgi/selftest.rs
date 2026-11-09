@@ -22,6 +22,52 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let mut report = Report::new();
 
     // ---- 1. The cascades (gi.cpp create, update, get_pending_region_data) ----
+    check_cascades(&mut report);
+    // ---- 2. Voxelization, the jump flood, and STORE (cascade 0 of the room) --
+    let statics = lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?;
+    check_voxels(&mut report, &statics)?;
+    check_light_and_probes(&mut report, &statics)?;
+    // ---- 5. The screen pass: the WGSL port against screen.rs -----------------
+    check_screen_pass(&mut report, options)?;
+
+    // ---- 6. Static lights after a scroll (F1) and their lists (F2) ----------
+    check_static_lights(&mut report)?;
+
+    // Listings: each cites a source entry and a demonstration, and every demonstration has one.
+    check_listings(&mut report)?;
+
+    // The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves set them.
+    check_animations(&mut report)?;
+
+    // Every demonstration builds its state.
+    let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
+    report.check(
+        "every demonstration's file loads",
+        states_ok,
+        json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()),
+    );
+
+    // The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
+    check_actions(&mut report)?;
+
+    // The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.
+    check_image_kind(&mut report)?;
+
+    // ---- 3. The source index ------------------------------------------------
+    let index = super::sources::INDEX.get();
+    report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
+
+    let passed = report.passed();
+    std::fs::write(
+        &options.report,
+        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
+    )?;
+    Ok(passed)
+}
+
+/// The cascades (gi.cpp create, update, get_pending_region_data): their sizes, a worked scroll, a diagonal and a
+/// long move, and the y scale.
+fn check_cascades(report: &mut Report) {
     let settings = Settings::default();
     let mut cascades = Cascades::create(settings, Vec3::ZERO);
     let created = cascades
@@ -90,9 +136,12 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         close(size, Vec3::new(25.6, 25.6 / 1.5, 25.6)),
         json!(size.to_array()),
     );
+}
 
-    // ---- 2. Voxelization, the jump flood, and STORE (cascade 0 of the room) --
-    let statics = lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?;
+/// Voxelization, the jump flood, and STORE (cascade 0 of the room); occlusion around a probe; the RGBE8985
+/// encode.
+fn check_voxels(report: &mut Report, statics: &lab::frame::Statics) -> Result<()> {
+    let settings = Settings::default();
     let objects = statics.scene.records();
     let voxelized = sim::voxelized_objects(&objects);
     let room = Cascades::create(settings, super::demos::ORIGIN);
@@ -130,32 +179,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         json!(face.map(|p| p.to_array())),
     );
     // The jump flood against the exact nearest solid voxel, at sampled cells.
-    let mut rng = 0x2545_f491_4f6c_dd1du64;
-    let mut next = || {
-        rng ^= rng << 13;
-        rng ^= rng >> 7;
-        rng ^= rng << 17;
-        (rng >> 33) as i32
-    };
-    let (mut exact, mut worst, mut samples) = (0, 0.0f32, 0);
-    for _ in 0..600 {
-        let p = IVec3::new(next() % 128, next() % 128, next() % 128);
-        let best = solid
-            .iter()
-            .map(|&q| (q - p).as_vec3().length())
-            .fold(f32::MAX, f32::min);
-        let stored = data.stored.sdf[voxels::index(p)] as f32;
-        let expected = if best == 0.0 {
-            0.0
-        } else {
-            (1.0 + best).min(255.0).round()
-        };
-        samples += 1;
-        if stored == expected {
-            exact += 1;
-        }
-        worst = worst.max(stored - expected);
-    }
+    let (exact, worst, samples) = flood_samples(&data, &solid);
     report.check("the half-size jump flood finds the nearest solid voxel at most sampled cells (never nearer than exact)", exact * 10 >= samples * 9 && worst >= 0.0 - 1e-6, json!({"samples": samples, "exact": exact, "worstExcessCells": worst}));
     // Neighbour bits: bit n is set exactly when that neighbour's seed is this cell.
     let neighbours_ok = data.stored.cells.iter().take(2000).all(|c| {
@@ -215,6 +239,47 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         json!({"word": format!("{rgbe:#010x}"), "decoded": back.to_array()}),
     );
 
+    Ok(())
+}
+
+/// The jump flood against the exact nearest solid voxel, at 600 sampled cells: how many are exact, the worst
+/// overestimate, and how many were sampled.
+fn flood_samples(data: &voxels::CascadeData, solid: &[IVec3]) -> (i32, f32, i32) {
+    let mut rng = 0x2545_f491_4f6c_dd1du64;
+    let mut next = || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        (rng >> 33) as i32
+    };
+    let (mut exact, mut worst, mut samples) = (0, 0.0f32, 0);
+    for _ in 0..600 {
+        let p = IVec3::new(next() % 128, next() % 128, next() % 128);
+        let best = solid
+            .iter()
+            .map(|&q| (q - p).as_vec3().length())
+            .fold(f32::MAX, f32::min);
+        let stored = data.stored.sdf[voxels::index(p)] as f32;
+        let expected = if best == 0.0 {
+            0.0
+        } else {
+            (1.0 + best).min(255.0).round()
+        };
+        samples += 1;
+        if stored == expected {
+            exact += 1;
+        }
+        worst = worst.max(stored - expected);
+    }
+    (exact, worst, samples)
+}
+
+/// Light in the voxels, and the probes: the panel as an AreaLight3D at two y scales, and a uniform sky's
+/// irradiance in the probes (F4).
+fn check_light_and_probes(report: &mut Report, statics: &lab::frame::Statics) -> Result<()> {
+    let settings = Settings::default();
+    let objects = statics.scene.records();
+    let voxelized = sim::voxelized_objects(&objects);
     // ---- 4. Light in the voxels, and the probes ------------------------------
     // The panel as an AreaLight3D: one dynamic pass, then the floor cell under
     // it, at the default y scale (75 %) and at 100 %.
@@ -309,534 +374,568 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let average = values.iter().map(|v| v.1).sum::<f32>() / values.len() as f32;
     report.check("uniform sky (F4): a probe's irradiance under a sky of radiance 1 is about 4/pi = 1.27, not 1", (1.15..1.40).contains(&average), json!({"irradiance": values, "mean": average, "expected": 4.0 / std::f32::consts::PI}));
 
-    // ---- 5. The screen pass: the WGSL port against screen.rs -----------------
-    {
-        let gpu = lab::gpu::Gpu::new(lab::gpu::instance(None), None)?;
-        let mut renderer = lab::renderer::Renderer::new(
-            gpu,
-            lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?,
-            640,
-            360,
-        )?;
-        let still = still_timeline(640, 360);
-        renderer.render_frame(request(&shot::for_demo(Demo::Room), &still), None);
-        gpu_passes(&mut report, &renderer);
-        let converged = sim::converged();
-        let inputs = sim::screen_inputs(converged);
-        // Points on the room's surfaces (floor, walls, sphere top), near and far from cascade 0's edge.
-        let mut cases: Vec<(Vec3, Vec3, Vec3, f32)> = Vec::new();
-        let mut rng = 0x9e37_79b9_7f4a_7c15u64;
-        let mut next = || {
-            rng ^= rng << 13;
-            rng ^= rng >> 7;
-            rng ^= rng << 17;
-            (rng >> 40) as f32 / (1u64 << 24) as f32
-        };
-        for k in 0..64 {
-            let (p, n) = match k % 4 {
-                0 => (
-                    Vec3::new(next() * 5.8 - 2.9, 0.0, next() * 5.8 - 2.9),
-                    Vec3::Y,
-                ),
-                1 => (Vec3::new(-3.0, next() * 2.9, next() * 5.8 - 2.9), Vec3::X),
-                2 => (Vec3::new(next() * 5.8 - 2.9, next() * 2.9, -3.0), Vec3::Z),
-                _ => (
-                    Vec3::new(
-                        next() * 30.0 - 15.0,
-                        next() * 12.0 - 2.0,
-                        next() * 30.0 - 15.0,
-                    ),
-                    Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).normalize(),
-                ),
+    Ok(())
+}
+
+/// The screen pass: the WGSL port against screen.rs.
+fn check_screen_pass(
+    report: &mut Report,
+    options: &lab::investigation::SelftestOptions,
+) -> Result<()> {
+    let gpu = lab::gpu::Gpu::new(lab::gpu::instance(None), None)?;
+    let mut renderer = lab::renderer::Renderer::new(
+        gpu,
+        lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?,
+        640,
+        360,
+    )?;
+    let still = still_timeline(640, 360);
+    renderer.render_frame(request(&shot::for_demo(Demo::Room), &still), None);
+    gpu_passes(&mut *report, &renderer);
+    check_screen_samples(report, &mut renderer)?;
+
+    check_light_pass(report, &mut renderer)?;
+    check_probe_rays(report, &mut renderer)?;
+    check_store(report, &mut renderer)?;
+    // Every scene beat of a timeline, rendered at its middle: text, labels, listings, readouts.
+    if let Some(path) = &options.timeline {
+        let timeline = lab::shot::Timeline::load(path)?;
+        let mut problems = Vec::new();
+        let mut beats = 0;
+        for beat in timeline
+            .beats
+            .iter()
+            .filter(|b| b.kind == lab::shot::SceneType::ThreeD)
+        {
+            let frame = beat.start_frame + beat.frames / 2;
+            let state = timeline.state_at(frame);
+            let mut req = request(&state, &timeline);
+            req.chrome = lab::ui::Chrome::Recording {
+                timeline: &timeline,
+                frame,
             };
-            let v = (Vec3::new(0.0, 1.6, 4.0) - p).normalize();
-            let r = (-v) - 2.0 * (-v).dot(n) * n;
-            cases.push((p - super::demos::ORIGIN, n, r, next()));
-        }
-        let tests: Vec<[f32; 4]> = cases
-            .iter()
-            .flat_map(|&(p, n, r, rough)| {
-                [
-                    p.extend(rough).to_array(),
-                    n.extend(0.0).to_array(),
-                    r.extend(0.0).to_array(),
-                ]
-            })
-            .collect();
-        let words = renderer.run_shading_verify(
-            "sdfgiProcessTests",
-            cases.len() as u32,
-            &tests,
-            8 * cases.len(),
-        );
-        let mut worst = 0.0f32;
-        let mut worst_case = 0;
-        for (k, &(p, n, r, rough)) in cases.iter().enumerate() {
-            let cpu = screen::process(&inputs, p, n, r, rough);
-            let gpu_vals: Vec<f32> = (0..8).map(|i| f32::from_bits(words[k * 8 + i])).collect();
-            let cpu_vals = [
-                cpu.ambient.x,
-                cpu.ambient.y,
-                cpu.ambient.z,
-                cpu.ambient.w,
-                cpu.reflection.x,
-                cpu.reflection.y,
-                cpu.reflection.z,
-                cpu.reflection.w,
-            ];
-            let d = gpu_vals
-                .iter()
-                .zip(cpu_vals.iter())
-                .map(|(g, c)| (g - c).abs() / c.abs().max(1e-3))
-                .fold(0.0, f32::max);
-            if d > worst {
-                worst = d;
-                worst_case = k;
-            }
-        }
-        report.check("screen pass: the WGSL port of sdfgi_process matches screen.rs (ambient and reflection, rgba)", worst < 1e-3, json!({"cases": cases.len(), "worstRelative": worst, "worstCase": worst_case}));
-
-        // The light pass: lights at cells of cascade 0, with the shadow march in cascade 0 alone.
-        let one = Cascades {
-            settings: converged.cascades.settings,
-            cascades: vec![converged.cascades.cascades[0]],
-        };
-        let field = light::Field {
-            cascades: &one,
-            sdf: vec![converged.data[0].stored.sdf.as_slice()],
-        };
-        let offset = field.offset(0);
-        let to_cell = field.to_cell(0);
-        let panel = sim::panel_light(&lab::scene::Scene::study_room(), settings.y_mult());
-        let omni = light::Light {
-            kind: light::LIGHT_TYPE_OMNI,
-            color: Vec3::ONE,
-            energy: 1.0,
-            direction: Vec3::NEG_Y,
-            position: Vec3::new(1.0, 2.0 * 1.5, 0.5),
-            attenuation: 1.0,
-            radius: 5.0,
-            cos_spot_angle: 0.0,
-            inv_spot_attenuation: 1.0,
-            area_width: Vec3::ZERO,
-            area_height: Vec3::ZERO,
-        };
-        let spot = light::Light {
-            kind: light::LIGHT_TYPE_SPOT,
-            cos_spot_angle: 45f32.to_radians().cos(),
-            position: Vec3::new(-1.5, 2.5 * 1.5, -1.0),
-            ..omni
-        };
-        let sun = light::Light {
-            kind: light::LIGHT_TYPE_DIRECTIONAL,
-            direction: Vec3::new(0.3, -0.8, 0.2).normalize(),
-            ..omni
-        };
-        let cells: Vec<voxels::SolidCell> = converged.data[0]
-            .stored
-            .cells
-            .iter()
-            .step_by(converged.data[0].stored.cells.len() / 64 + 1)
-            .copied()
-            .collect();
-        let mut tests = Vec::new();
-        let mut cases = Vec::new();
-        for (k, cell) in cells.iter().enumerate() {
-            let l = [panel, omni, spot, sun][k % 4];
-            let position = (cell.cell().as_vec3() + Vec3::splat(0.5)) / to_cell + offset;
-            tests.extend([
-                position.extend(l.kind as f32).to_array(),
-                l.position.extend(l.radius).to_array(),
-                l.direction.extend(l.attenuation).to_array(),
-                l.area_width.extend(l.inv_spot_attenuation).to_array(),
-                l.area_height.extend(l.cos_spot_angle).to_array(),
-                offset.extend(to_cell).to_array(),
-                [0.0; 4],
-            ]);
-            cases.push((position, l));
-        }
-        let words = renderer.run_shading_verify(
-            "sdfgiLightTests",
-            cases.len() as u32,
-            &tests,
-            8 * cases.len(),
-        );
-        let (mut worst_att, mut hit_mismatch, mut capped) = (0.0f32, 0, 0);
-        let mut worst_light = json!(null);
-        for (k, (position, l)) in cases.iter().enumerate() {
-            let gpu_att = f32::from_bits(words[k * 8]);
-            let gpu_valid = words[k * 8 + 5] != 0;
-            let gpu_hit = words[k * 8 + 6] != 0;
-            capped += (words[k * 8 + 7] >= 4096) as usize;
-            let cpu = light::light_at(l, *position);
-            let cpu_att = cpu.map(|c| c.2).unwrap_or(0.0);
-            if cpu.is_some() != gpu_valid {
-                hit_mismatch += 1;
-                continue;
-            }
-            if !gpu_valid {
-                continue;
-            }
-            let d = (gpu_att - cpu_att).abs() / cpu_att.abs().max(1e-3);
-            if d > worst_att {
-                worst_att = d;
-                worst_light = json!({"kind": l.kind, "position": position.to_array(), "gpu": gpu_att, "cpu": cpu_att, "gpuDirection": [f32::from_bits(words[k * 8 + 1]), f32::from_bits(words[k * 8 + 2]), f32::from_bits(words[k * 8 + 3])], "gpuDistance": f32::from_bits(words[k * 8 + 4])});
-            }
-            if let Some((dir, dist, _)) = cpu {
-                let cpu_hit = light::shadow_ray(&field, 0, *position, dir, dist, None);
-                hit_mismatch += (cpu_hit != gpu_hit) as usize;
-            }
-        }
-        report.check("light pass: the WGSL port's attenuation (omni, spot, directional, area LTC) and shadow march match light.rs", worst_att < 1e-3 && hit_mismatch <= 1 && capped == 0, json!({"cases": cases.len(), "worstAttenuationRelative": worst_att, "worst": worst_light, "visibilityMismatches": hit_mismatch, "capped": capped}));
-
-        // The probe rays: directions, the hash's rotation, and the march in cascade 0.
-        let integrate = converged.integrate;
-        let world_offset = converged.cascades.cascades[0].position / 8;
-        let mut tests = Vec::new();
-        let mut cases = Vec::new();
-        for k in 0..96u32 {
-            let probe = probes::probe_of(((k * 2654435761) % probes::PROBES as u32) as usize);
-            let index = (k * 7) % (integrate.history_size * integrate.ray_count);
-            let cpu_offset = probes::ray_offset(world_offset + probe);
-            let pos = probes::probe_position(&field, 0, probe);
-            tests.extend([
-                pos.extend(index as f32).to_array(),
-                offset.extend(to_cell).to_array(),
-                [
-                    cpu_offset,
-                    (integrate.history_size * integrate.ray_count) as f32,
-                    integrate.y_mult,
-                    integrate.ray_bias,
-                ],
-                (world_offset + probe).as_vec3().extend(0.0).to_array(),
-            ]);
-            cases.push((pos, index, cpu_offset, probe));
-        }
-        let words = renderer.run_shading_verify(
-            "sdfgiProbeTests",
-            cases.len() as u32,
-            &tests,
-            8 * cases.len(),
-        );
-        let (mut worst_dir, mut worst_advance, mut hit_mismatch, mut worst_hash, mut capped) =
-            (0.0f32, 0.0f32, 0, 0.0f32, 0);
-        for (k, &(pos, index, cpu_offset, _)) in cases.iter().enumerate() {
-            let mut dir = probes::vogel(
-                index,
-                integrate.history_size * integrate.ray_count,
-                cpu_offset,
-            );
-            dir.y *= integrate.y_mult;
-            dir = dir.normalize();
-            let gpu_dir = Vec3::new(
-                f32::from_bits(words[k * 8]),
-                f32::from_bits(words[k * 8 + 1]),
-                f32::from_bits(words[k * 8 + 2]),
-            );
-            worst_dir = worst_dir.max((gpu_dir - dir).abs().max_element());
-            let start = pos + dir / dir.abs().max_element() * integrate.ray_bias / to_cell;
-            let m = probes::march_cascade(
-                &converged.data[0].stored.sdf,
-                (start - offset) * to_cell,
-                dir,
-            );
-            let gpu_hit = words[k * 8 + 3] != 0;
-            capped += (words[k * 8 + 4] >= 4096 || m.steps >= 4096) as usize;
-            if gpu_hit != m.hit {
-                hit_mismatch += 1;
-            } else if m.hit {
-                worst_advance =
-                    worst_advance.max((f32::from_bits(words[k * 8 + 5]) - m.advance).abs());
-            }
-            worst_hash = worst_hash.max((f32::from_bits(words[k * 8 + 6]) - cpu_offset).abs());
-        }
-        report.check("probe rays: the WGSL port's Vogel directions and march match probes.rs (the same rotation given)", worst_dir < 2e-4 && hit_mismatch <= 1 && worst_advance < 0.05 && capped == 0, json!({"cases": cases.len(), "worstDirection": worst_dir, "hitMismatches": hit_mismatch, "worstAdvanceCells": worst_advance, "capped": capped}));
-        report.check("probe rays: the GPU's and the CPU's hashf3 rotation (sin of a large argument) recorded", true, json!({"worstDifference": worst_hash, "note": "hashf3 takes sin of arguments near 1e7; the shader's result depends on the GPU's sin precision"}));
-
-        // STORE: SH means to the octahedral texels and their E5B9G9R9 words.
-        let mut tests = Vec::new();
-        let mut cases = Vec::new();
-        for k in 0..36usize {
-            let p = (k * 97) % probes::PROBES;
-            let mean = converged.history[0].mean(p);
-            let local = glam::IVec2::new((k % 6) as i32, (k / 6) as i32);
-            tests.extend(mean.iter().map(|m| m.extend(0.0).to_array()));
-            tests.push([local.x as f32, local.y as f32, 0.0, 0.0]);
-            cases.push((mean, local));
-        }
-        let words = renderer.run_shading_verify(
-            "sdfgiStoreTests",
-            cases.len() as u32,
-            &tests,
-            8 * cases.len(),
-        );
-        let (mut worst, mut word_mismatch) = (0.0f32, 0);
-        for (k, (mean, local)) in cases.iter().enumerate() {
-            let (irr, rad) = probes::store_texel(mean, *local);
-            for (i, v) in [irr.x, irr.y, irr.z, rad.x, rad.y, rad.z]
-                .iter()
-                .enumerate()
-            {
-                worst = worst.max((f32::from_bits(words[k * 8 + i]) - v).abs() / v.abs().max(1e-3));
-            }
-            word_mismatch += (words[k * 8 + 6] != light::encode_e5b9g9r9(irr)) as usize
-                + (words[k * 8 + 7] != light::encode_e5b9g9r9(rad)) as usize;
-        }
-        report.check(
-            "STORE: the WGSL port's octahedral texels and E5B9G9R9 words match probes.rs",
-            worst < 1e-4 && word_mismatch <= 2,
-            json!({"cases": cases.len(), "worstRelative": worst, "wordMismatches": word_mismatch}),
-        );
-
-        // Every scene beat of a timeline, rendered at its middle: text, labels, listings, readouts.
-        if let Some(path) = &options.timeline {
-            let timeline = lab::shot::Timeline::load(path)?;
-            let mut problems = Vec::new();
-            let mut beats = 0;
-            for beat in timeline
-                .beats
-                .iter()
-                .filter(|b| b.kind == lab::shot::SceneType::ThreeD)
-            {
-                let frame = beat.start_frame + beat.frames / 2;
-                let state = timeline.state_at(frame);
+            req.chapter_number = beat.chapter;
+            let mut r = renderer.render_frame(req, None).report;
+            // A listing fits in the block style too.
+            if state.panel == lab::shot::PanelMode::Code {
                 let mut req = request(&state, &timeline);
                 req.chrome = lab::ui::Chrome::Recording {
                     timeline: &timeline,
                     frame,
                 };
                 req.chapter_number = beat.chapter;
-                let mut r = renderer.render_frame(req, None).report;
-                // A listing fits in the block style too.
-                if state.panel == lab::shot::PanelMode::Code {
-                    let mut req = request(&state, &timeline);
-                    req.chrome = lab::ui::Chrome::Recording {
-                        timeline: &timeline,
-                        frame,
-                    };
-                    req.chapter_number = beat.chapter;
-                    r.code_overflow +=
-                        lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || {
-                            renderer.render_frame(req, None).report.code_overflow
-                        });
-                }
-                beats += 1;
-                if r.min_text_pt < lab::ui::MIN_TEXT_PT
-                    || r.label_overlaps > 0
-                    || r.labels_outside > 0
-                    || r.code_overflow > 0
-                    || r.readout_overflow > 0
-                    || r.formula_scale.is_some_and(|s| s < 1.0)
-                {
-                    problems.push(json!({"beat": beat.id, "frame": frame, "minTextPt": r.min_text_pt, "labelOverlaps": r.label_overlaps, "labelsOutside": r.labels_outside, "codeOverflow": r.code_overflow, "readoutOverflow": r.readout_overflow}));
-                }
+                r.code_overflow +=
+                    lab::pseudocode::with_style(lab::pseudocode::Style::Blocks, || {
+                        renderer.render_frame(req, None).report.code_overflow
+                    });
             }
-            report.check("every scene beat of the timeline: text >= 24 px, labels inside and apart, listings and readouts fit", problems.is_empty() && beats > 0, json!({"timeline": path, "sceneBeats": beats, "problems": problems}));
+            beats += 1;
+            if r.min_text_pt < lab::ui::MIN_TEXT_PT
+                || r.label_overlaps > 0
+                || r.labels_outside > 0
+                || r.code_overflow > 0
+                || r.readout_overflow > 0
+                || r.formula_scale.is_some_and(|s| s < 1.0)
+            {
+                problems.push(json!({"beat": beat.id, "frame": frame, "minTextPt": r.min_text_pt, "labelOverlaps": r.label_overlaps, "labelsOutside": r.labels_outside, "codeOverflow": r.code_overflow, "readoutOverflow": r.readout_overflow}));
+            }
+        }
+        report.check("every scene beat of the timeline: text >= 24 px, labels inside and apart, listings and readouts fit", problems.is_empty() && beats > 0, json!({"timeline": path, "sceneBeats": beats, "problems": problems}));
+    }
+    Ok(())
+}
+
+/// Points on the room's surfaces (floor, walls, sphere top), near and far from cascade 0's edge: the screen
+/// pass's WGSL against screen.rs.
+fn check_screen_samples(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> Result<()> {
+    let converged = sim::converged();
+    let inputs = sim::screen_inputs(converged);
+    // Points on the room's surfaces (floor, walls, sphere top), near and far from cascade 0's edge.
+    let mut cases: Vec<(Vec3, Vec3, Vec3, f32)> = Vec::new();
+    let mut rng = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        (rng >> 40) as f32 / (1u64 << 24) as f32
+    };
+    for k in 0..64 {
+        let (p, n) = match k % 4 {
+            0 => (
+                Vec3::new(next() * 5.8 - 2.9, 0.0, next() * 5.8 - 2.9),
+                Vec3::Y,
+            ),
+            1 => (Vec3::new(-3.0, next() * 2.9, next() * 5.8 - 2.9), Vec3::X),
+            2 => (Vec3::new(next() * 5.8 - 2.9, next() * 2.9, -3.0), Vec3::Z),
+            _ => (
+                Vec3::new(
+                    next() * 30.0 - 15.0,
+                    next() * 12.0 - 2.0,
+                    next() * 30.0 - 15.0,
+                ),
+                Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).normalize(),
+            ),
+        };
+        let v = (Vec3::new(0.0, 1.6, 4.0) - p).normalize();
+        let r = (-v) - 2.0 * (-v).dot(n) * n;
+        cases.push((p - super::demos::ORIGIN, n, r, next()));
+    }
+    let tests: Vec<[f32; 4]> = cases
+        .iter()
+        .flat_map(|&(p, n, r, rough)| {
+            [
+                p.extend(rough).to_array(),
+                n.extend(0.0).to_array(),
+                r.extend(0.0).to_array(),
+            ]
+        })
+        .collect();
+    let words = renderer.run_shading_verify(
+        "sdfgiProcessTests",
+        cases.len() as u32,
+        &tests,
+        8 * cases.len(),
+    );
+    let mut worst = 0.0f32;
+    let mut worst_case = 0;
+    for (k, &(p, n, r, rough)) in cases.iter().enumerate() {
+        let cpu = screen::process(&inputs, p, n, r, rough);
+        let gpu_vals: Vec<f32> = (0..8).map(|i| f32::from_bits(words[k * 8 + i])).collect();
+        let cpu_vals = [
+            cpu.ambient.x,
+            cpu.ambient.y,
+            cpu.ambient.z,
+            cpu.ambient.w,
+            cpu.reflection.x,
+            cpu.reflection.y,
+            cpu.reflection.z,
+            cpu.reflection.w,
+        ];
+        let d = gpu_vals
+            .iter()
+            .zip(cpu_vals.iter())
+            .map(|(g, c)| (g - c).abs() / c.abs().max(1e-3))
+            .fold(0.0, f32::max);
+        if d > worst {
+            worst = d;
+            worst_case = k;
         }
     }
+    report.check("screen pass: the WGSL port of sdfgi_process matches screen.rs (ambient and reflection, rgba)", worst < 1e-3, json!({"cases": cases.len(), "worstRelative": worst, "worstCase": worst_case}));
+    Ok(())
+}
 
-    // ---- 6. Static lights after a scroll (F1) and their lists (F2) ----------
-    {
-        let objects = sim::voxelized_objects(&lab::scene::Scene::study_room().records());
-        let static_light = sim::omni(Vec3::new(1.5, 1.2, 1.0), 15.0, 1.0, settings.y_mult());
-        let mut world = sim::World::new(&objects, settings, super::demos::ORIGIN);
-        world.static_frame(&[static_light]);
-        let field = world.field();
-        // A floor cell near the light, kept by a 1.0 m walk (it moves 8 cells down in x).
-        let keep = world.data[0]
+/// The light pass: lights at cells of cascade 0, with the shadow march in cascade 0 alone, the WGSL against
+/// light.rs.
+fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> Result<()> {
+    let converged = sim::converged();
+    let settings = Settings::default();
+    // The light pass: lights at cells of cascade 0, with the shadow march in cascade 0 alone.
+    let one = Cascades {
+        settings: converged.cascades.settings,
+        cascades: vec![converged.cascades.cascades[0]],
+    };
+    let field = light::Field {
+        cascades: &one,
+        sdf: vec![converged.data[0].stored.sdf.as_slice()],
+    };
+    let offset = field.offset(0);
+    let to_cell = field.to_cell(0);
+    let panel = sim::panel_light(&lab::scene::Scene::study_room(), settings.y_mult());
+    let omni = light::Light {
+        kind: light::LIGHT_TYPE_OMNI,
+        color: Vec3::ONE,
+        energy: 1.0,
+        direction: Vec3::NEG_Y,
+        position: Vec3::new(1.0, 2.0 * 1.5, 0.5),
+        attenuation: 1.0,
+        radius: 5.0,
+        cos_spot_angle: 0.0,
+        inv_spot_attenuation: 1.0,
+        area_width: Vec3::ZERO,
+        area_height: Vec3::ZERO,
+    };
+    let spot = light::Light {
+        kind: light::LIGHT_TYPE_SPOT,
+        cos_spot_angle: 45f32.to_radians().cos(),
+        position: Vec3::new(-1.5, 2.5 * 1.5, -1.0),
+        ..omni
+    };
+    let sun = light::Light {
+        kind: light::LIGHT_TYPE_DIRECTIONAL,
+        direction: Vec3::new(0.3, -0.8, 0.2).normalize(),
+        ..omni
+    };
+    let cells: Vec<voxels::SolidCell> = converged.data[0]
+        .stored
+        .cells
+        .iter()
+        .step_by(converged.data[0].stored.cells.len() / 64 + 1)
+        .copied()
+        .collect();
+    let mut tests = Vec::new();
+    let mut cases = Vec::new();
+    for (k, cell) in cells.iter().enumerate() {
+        let l = [panel, omni, spot, sun][k % 4];
+        let position = (cell.cell().as_vec3() + Vec3::splat(0.5)) / to_cell + offset;
+        tests.extend([
+            position.extend(l.kind as f32).to_array(),
+            l.position.extend(l.radius).to_array(),
+            l.direction.extend(l.attenuation).to_array(),
+            l.area_width.extend(l.inv_spot_attenuation).to_array(),
+            l.area_height.extend(l.cos_spot_angle).to_array(),
+            offset.extend(to_cell).to_array(),
+            [0.0; 4],
+        ]);
+        cases.push((position, l));
+    }
+    let words = renderer.run_shading_verify(
+        "sdfgiLightTests",
+        cases.len() as u32,
+        &tests,
+        8 * cases.len(),
+    );
+    let (mut worst_att, mut hit_mismatch, mut capped) = (0.0f32, 0, 0);
+    let mut worst_light = json!(null);
+    for (k, (position, l)) in cases.iter().enumerate() {
+        let gpu_att = f32::from_bits(words[k * 8]);
+        let gpu_valid = words[k * 8 + 5] != 0;
+        let gpu_hit = words[k * 8 + 6] != 0;
+        capped += (words[k * 8 + 7] >= 4096) as usize;
+        let cpu = light::light_at(l, *position);
+        let cpu_att = cpu.map(|c| c.2).unwrap_or(0.0);
+        if cpu.is_some() != gpu_valid {
+            hit_mismatch += 1;
+            continue;
+        }
+        if !gpu_valid {
+            continue;
+        }
+        let d = (gpu_att - cpu_att).abs() / cpu_att.abs().max(1e-3);
+        if d > worst_att {
+            worst_att = d;
+            worst_light = json!({"kind": l.kind, "position": position.to_array(), "gpu": gpu_att, "cpu": cpu_att, "gpuDirection": [f32::from_bits(words[k * 8 + 1]), f32::from_bits(words[k * 8 + 2]), f32::from_bits(words[k * 8 + 3])], "gpuDistance": f32::from_bits(words[k * 8 + 4])});
+        }
+        if let Some((dir, dist, _)) = cpu {
+            let cpu_hit = light::shadow_ray(&field, 0, *position, dir, dist, None);
+            hit_mismatch += (cpu_hit != gpu_hit) as usize;
+        }
+    }
+    report.check("light pass: the WGSL port's attenuation (omni, spot, directional, area LTC) and shadow march match light.rs", worst_att < 1e-3 && hit_mismatch <= 1 && capped == 0, json!({"cases": cases.len(), "worstAttenuationRelative": worst_att, "worst": worst_light, "visibilityMismatches": hit_mismatch, "capped": capped}));
+
+    Ok(())
+}
+
+/// The probe rays: directions, the hash's rotation, and the march in cascade 0, the WGSL against probes.rs.
+fn check_probe_rays(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> Result<()> {
+    let converged = sim::converged();
+    // Cascade 0 alone, as the light pass marches it.
+    let one = Cascades {
+        settings: converged.cascades.settings,
+        cascades: vec![converged.cascades.cascades[0]],
+    };
+    let field = light::Field {
+        cascades: &one,
+        sdf: vec![converged.data[0].stored.sdf.as_slice()],
+    };
+    let offset = field.offset(0);
+    let to_cell = field.to_cell(0);
+    // The probe rays: directions, the hash's rotation, and the march in cascade 0.
+    let integrate = converged.integrate;
+    let world_offset = converged.cascades.cascades[0].position / 8;
+    let mut tests = Vec::new();
+    let mut cases = Vec::new();
+    for k in 0..96u32 {
+        let probe = probes::probe_of(((k * 2654435761) % probes::PROBES as u32) as usize);
+        let index = (k * 7) % (integrate.history_size * integrate.ray_count);
+        let cpu_offset = probes::ray_offset(world_offset + probe);
+        let pos = probes::probe_position(&field, 0, probe);
+        tests.extend([
+            pos.extend(index as f32).to_array(),
+            offset.extend(to_cell).to_array(),
+            [
+                cpu_offset,
+                (integrate.history_size * integrate.ray_count) as f32,
+                integrate.y_mult,
+                integrate.ray_bias,
+            ],
+            (world_offset + probe).as_vec3().extend(0.0).to_array(),
+        ]);
+        cases.push((pos, index, cpu_offset, probe));
+    }
+    let words = renderer.run_shading_verify(
+        "sdfgiProbeTests",
+        cases.len() as u32,
+        &tests,
+        8 * cases.len(),
+    );
+    let (mut worst_dir, mut worst_advance, mut hit_mismatch, mut worst_hash, mut capped) =
+        (0.0f32, 0.0f32, 0, 0.0f32, 0);
+    for (k, &(pos, index, cpu_offset, _)) in cases.iter().enumerate() {
+        let mut dir = probes::vogel(
+            index,
+            integrate.history_size * integrate.ray_count,
+            cpu_offset,
+        );
+        dir.y *= integrate.y_mult;
+        dir = dir.normalize();
+        let gpu_dir = Vec3::new(
+            f32::from_bits(words[k * 8]),
+            f32::from_bits(words[k * 8 + 1]),
+            f32::from_bits(words[k * 8 + 2]),
+        );
+        worst_dir = worst_dir.max((gpu_dir - dir).abs().max_element());
+        let start = pos + dir / dir.abs().max_element() * integrate.ray_bias / to_cell;
+        let m = probes::march_cascade(
+            &converged.data[0].stored.sdf,
+            (start - offset) * to_cell,
+            dir,
+        );
+        let gpu_hit = words[k * 8 + 3] != 0;
+        capped += (words[k * 8 + 4] >= 4096 || m.steps >= 4096) as usize;
+        if gpu_hit != m.hit {
+            hit_mismatch += 1;
+        } else if m.hit {
+            worst_advance = worst_advance.max((f32::from_bits(words[k * 8 + 5]) - m.advance).abs());
+        }
+        worst_hash = worst_hash.max((f32::from_bits(words[k * 8 + 6]) - cpu_offset).abs());
+    }
+    report.check("probe rays: the WGSL port's Vogel directions and march match probes.rs (the same rotation given)", worst_dir < 2e-4 && hit_mismatch <= 1 && worst_advance < 0.05 && capped == 0, json!({"cases": cases.len(), "worstDirection": worst_dir, "hitMismatches": hit_mismatch, "worstAdvanceCells": worst_advance, "capped": capped}));
+    report.check("probe rays: the GPU's and the CPU's hashf3 rotation (sin of a large argument) recorded", true, json!({"worstDifference": worst_hash, "note": "hashf3 takes sin of arguments near 1e7; the shader's result depends on the GPU's sin precision"}));
+
+    Ok(())
+}
+
+/// STORE: SH means to the octahedral texels and their E5B9G9R9 words, the WGSL against probes.rs.
+fn check_store(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> Result<()> {
+    let converged = sim::converged();
+    // STORE: SH means to the octahedral texels and their E5B9G9R9 words.
+    let mut tests = Vec::new();
+    let mut cases = Vec::new();
+    for k in 0..36usize {
+        let p = (k * 97) % probes::PROBES;
+        let mean = converged.history[0].mean(p);
+        let local = glam::IVec2::new((k % 6) as i32, (k / 6) as i32);
+        tests.extend(mean.iter().map(|m| m.extend(0.0).to_array()));
+        tests.push([local.x as f32, local.y as f32, 0.0, 0.0]);
+        cases.push((mean, local));
+    }
+    let words = renderer.run_shading_verify(
+        "sdfgiStoreTests",
+        cases.len() as u32,
+        &tests,
+        8 * cases.len(),
+    );
+    let (mut worst, mut word_mismatch) = (0.0f32, 0);
+    for (k, (mean, local)) in cases.iter().enumerate() {
+        let (irr, rad) = probes::store_texel(mean, *local);
+        for (i, v) in [irr.x, irr.y, irr.z, rad.x, rad.y, rad.z]
+            .iter()
+            .enumerate()
+        {
+            worst = worst.max((f32::from_bits(words[k * 8 + i]) - v).abs() / v.abs().max(1e-3));
+        }
+        word_mismatch += (words[k * 8 + 6] != light::encode_e5b9g9r9(irr)) as usize
+            + (words[k * 8 + 7] != light::encode_e5b9g9r9(rad)) as usize;
+    }
+    report.check(
+        "STORE: the WGSL port's octahedral texels and E5B9G9R9 words match probes.rs",
+        worst < 1e-4 && word_mismatch <= 2,
+        json!({"cases": cases.len(), "worstRelative": worst, "wordMismatches": word_mismatch}),
+    );
+
+    Ok(())
+}
+
+/// Static lights after a scroll (F1) and their lists (F2).
+fn check_static_lights(report: &mut Report) -> Result<()> {
+    let settings = Settings::default();
+    let objects = sim::voxelized_objects(&lab::scene::Scene::study_room().records());
+    let static_light = sim::omni(Vec3::new(1.5, 1.2, 1.0), 15.0, 1.0, settings.y_mult());
+    let mut world = sim::World::new(&objects, settings, super::demos::ORIGIN);
+    world.static_frame(&[static_light]);
+    let field = world.field();
+    // A floor cell near the light, kept by a 1.0 m walk (it moves 8 cells down in x).
+    let keep = world.data[0]
+        .stored
+        .cells
+        .iter()
+        .filter(|c| c.facing() & 0b10 != 0)
+        .min_by(|a, b| {
+            let pa = (a.cell().as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
+            let pb = (b.cell().as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
+            pa.distance(Vec3::new(1.5, 0.0, 1.0))
+                .total_cmp(&pb.distance(Vec3::new(1.5, 0.0, 1.0)))
+        })
+        .copied()
+        .expect("a floor cell");
+    let before = voxels::decode_rgbe8985(keep.light & 0x3FFF_FFFF);
+    let mut after = Vec::new();
+    let start_position = world.cascades.cascades[0].position;
+    let mut steps_detail = Vec::new();
+    for step in 0..3 {
+        // Each walk moves cascade 0 by 8 cells (2.6 m would not: int(12.99) = 12 is not past 8 + 4).
+        world.walk(
+            &objects,
+            super::demos::ORIGIN + Vec3::X * [1.0, 2.7, 4.3][step],
+        );
+        let dirty: Vec<String> = world
+            .cascades
+            .cascades
+            .iter()
+            .map(|c| format!("{:?}", c.dirty))
+            .collect();
+        let given = world.static_frame(&[static_light]);
+        steps_detail.push(json!({"dirty": dirty, "given": given.iter().map(|(c, l)| (c, l.len())).collect::<Vec<_>>(), "position": world.cascades.cascades[0].position.to_array()}));
+        let walked = keep.cell() - (world.cascades.cascades[0].position - start_position);
+        let cell = world.data[0]
             .stored
             .cells
             .iter()
-            .filter(|c| c.facing() & 0b10 != 0)
-            .min_by(|a, b| {
-                let pa =
-                    (a.cell().as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
-                let pb =
-                    (b.cell().as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
-                pa.distance(Vec3::new(1.5, 0.0, 1.0))
-                    .total_cmp(&pb.distance(Vec3::new(1.5, 0.0, 1.0)))
-            })
-            .copied()
-            .expect("a floor cell");
-        let before = voxels::decode_rgbe8985(keep.light & 0x3FFF_FFFF);
-        let mut after = Vec::new();
-        let start_position = world.cascades.cascades[0].position;
-        let mut steps_detail = Vec::new();
-        for step in 0..3 {
-            // Each walk moves cascade 0 by 8 cells (2.6 m would not: int(12.99) = 12 is not past 8 + 4).
-            world.walk(
-                &objects,
-                super::demos::ORIGIN + Vec3::X * [1.0, 2.7, 4.3][step],
-            );
-            let dirty: Vec<String> = world
-                .cascades
-                .cascades
-                .iter()
-                .map(|c| format!("{:?}", c.dirty))
-                .collect();
-            let given = world.static_frame(&[static_light]);
-            steps_detail.push(json!({"dirty": dirty, "given": given.iter().map(|(c, l)| (c, l.len())).collect::<Vec<_>>(), "position": world.cascades.cascades[0].position.to_array()}));
-            let walked = keep.cell() - (world.cascades.cascades[0].position - start_position);
-            let cell = world.data[0]
-                .stored
-                .cells
-                .iter()
-                .find(|c| c.cell() == walked)
-                .copied();
-            after.push(
-                cell.map(|c| voxels::decode_rgbe8985(c.light & 0x3FFF_FFFF).y)
-                    .unwrap_or(-1.0),
-            );
+            .find(|c| c.cell() == walked)
+            .copied();
+        after.push(
+            cell.map(|c| voxels::decode_rgbe8985(c.light & 0x3FFF_FFFF).y)
+                .unwrap_or(-1.0),
+        );
+    }
+    // Each scroll adds the light once more: 1x, 2x, 3x, 4x the first bake.
+    let grows = after
+        .iter()
+        .enumerate()
+        .all(|(k, &v)| (v / before.y - (k + 2) as f32).abs() < 0.1);
+    report.check("static light after a scroll (F1): a kept cell holds the static light once more after every scroll the light overlaps (2x, 3x, 4x)", grows, json!({"cell": keep.cell().to_array(), "initial": before.y, "afterScrolls": after, "steps": steps_detail}));
+
+    // F2: walk until a frame's dirty cascades are not 0, 1, ...; their lists then come from the wrong slots.
+    let mut found = json!(null);
+    let mut probe = sim::World::new(&[], settings, super::demos::ORIGIN);
+    for k in 1..400 {
+        let to = super::demos::ORIGIN + Vec3::new(0.37 * k as f32, 0.0, 0.0);
+        probe.cascades.update(to);
+        let wide = sim::omni(Vec3::new(1.5, 1.2, 1.0), 60.0, 1.0, settings.y_mult());
+        let cull = sim::cull_static(&probe.cascades, &[wide]);
+        if cull.cascade_light_index.first().is_some_and(|&c| c != 0)
+            && cull.lists.iter().any(|l| !l.is_empty())
+        {
+            let given = sim::static_pass_lights(&probe.cascades, &cull, &[wide]);
+            found = json!({"walk": 0.37 * k as f32, "dirtyCascades": cull.cascade_light_index, "storedUnder": (0..8).filter(|&c| !cull.lists[c].is_empty()).collect::<Vec<_>>(), "given": given.iter().map(|(c, l)| (c, l.len())).collect::<Vec<_>>()});
+            break;
         }
-        // Each scroll adds the light once more: 1x, 2x, 3x, 4x the first bake.
-        let grows = after
-            .iter()
-            .enumerate()
-            .all(|(k, &v)| (v / before.y - (k + 2) as f32).abs() < 0.1);
-        report.check("static light after a scroll (F1): a kept cell holds the static light once more after every scroll the light overlaps (2x, 3x, 4x)", grows, json!({"cell": keep.cell().to_array(), "initial": before.y, "afterScrolls": after, "steps": steps_detail}));
-
-        // F2: walk until a frame's dirty cascades are not 0, 1, ...; their lists then come from the wrong slots.
-        let mut found = json!(null);
-        let mut probe = sim::World::new(&[], settings, super::demos::ORIGIN);
-        for k in 1..400 {
-            let to = super::demos::ORIGIN + Vec3::new(0.37 * k as f32, 0.0, 0.0);
-            probe.cascades.update(to);
-            let wide = sim::omni(Vec3::new(1.5, 1.2, 1.0), 60.0, 1.0, settings.y_mult());
-            let cull = sim::cull_static(&probe.cascades, &[wide]);
-            if cull.cascade_light_index.first().is_some_and(|&c| c != 0)
-                && cull.lists.iter().any(|l| !l.is_empty())
-            {
-                let given = sim::static_pass_lights(&probe.cascades, &cull, &[wide]);
-                found = json!({"walk": 0.37 * k as f32, "dirtyCascades": cull.cascade_light_index, "storedUnder": (0..8).filter(|&c| !cull.lists[c].is_empty()).collect::<Vec<_>>(), "given": given.iter().map(|(c, l)| (c, l.len())).collect::<Vec<_>>()});
-                break;
-            }
-        }
-        let dropped = found["given"]
-            .as_array()
-            .is_some_and(|g| g.iter().all(|e| e[1] == 0));
-        report.check("static-light lists (F2): a frame whose only dirty cascade is not 0 reads its lights from slot 0 and gets none", dropped, found);
     }
+    let dropped = found["given"]
+        .as_array()
+        .is_some_and(|g| g.iter().all(|e| e[1] == 0));
+    report.check("static-light lists (F2): a frame whose only dirty cascade is not 0 reads its lights from slot 0 and gets none", dropped, found);
+    Ok(())
+}
 
-    // Listings: each cites a source entry and a demonstration, and every demonstration has one.
-    {
-        let index = super::sources::INDEX.get();
-        let listings = super::pseudocode::all();
-        let bad: Vec<&str> = listings
-            .iter()
-            .filter(|l| {
-                !index.entries.contains_key(&l.source)
-                    || l.demo
-                        .as_deref()
-                        .is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d))
-            })
-            .map(|l| l.name)
-            .collect();
-        let without: Vec<&str> = Demo::ALL
-            .iter()
-            .filter(|d| shot::demos().spec(d.id()).listing.is_none())
-            .map(|d| d.key())
-            .collect();
-        report.check("every listing cites a source entry and a demonstration; every demonstration has a listing", bad.is_empty() && without.is_empty(), json!({"listings": listings.len(), "bad": bad, "demosWithout": without}));
-    }
-
-    // The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves set them.
-    {
-        let mut differ = Vec::new();
-        let mut samples = 0;
-        for demo in Demo::ALL {
-            for k in 0..=80 {
-                let t = k as f32 * 0.25;
-                let expected =
-                    lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
-                let mut state = shot::for_demo(demo);
-                let written =
-                    lab::script::runtime::animate(demo.id(), t, &mut state).unwrap_or_default();
-                samples += 1;
-                let same = expected.len() == written.len()
-                    && expected.iter().all(|(name, v)| {
-                        written.iter().any(|w| w == name)
-                            && (state.p(name) - v).abs() <= 1e-4 * v.abs().max(1.0)
-                    });
-                if !same {
-                    differ.push(json!({"demo": demo.key(), "t": t, "rust": expected, "script": written.iter().map(|w| (w.clone(), state.p(w))).collect::<Vec<_>>()}));
-                }
-            }
-        }
-        report.check("the Play animations (script/animations.lam) set what the Rust waves set, within 1e-4, at 81 times of every demonstration", differ.is_empty(), json!({"samples": samples, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
-    }
-
-    // Every demonstration builds its state.
-    let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
-    report.check(
-        "every demonstration's file loads",
-        states_ok,
-        json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()),
-    );
-
-    // The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
-    {
-        let mut timeline = still_timeline(64, 64);
-        (
-            timeline.total_frames,
-            timeline.beats[0].frames,
-            timeline.chapters[0].end_frame,
-        ) = (400, 400, 400);
-        timeline.keys = serde_json::from_value(
-            json!([{"frame": 0, "demo": "field"}, {"frame": 30, "run": {"name": "jumpFlood", "args": {"seconds": 0.5}}}, {"frame": 120, "stop": ["jumpFlood"]}]),
-        )?;
-        let valid = timeline.validate().map_err(|e| e.to_string());
-        let frames = [20u64, 30, 44, 45, 60, 119, 120];
-        let steps: Vec<f32> = frames
-            .iter()
-            .map(|&f| timeline.state_at(f).p("floodStep"))
-            .collect();
-        // Before it, the demonstration's own step (the full-size pass); then 0, 0, 1, 2, 5; once stopped, the demonstration's again.
-        let expected = [8.0, 0.0, 0.0, 1.0, 2.0, 5.0, 8.0];
-        report.check("the jumpFlood action steps floodStep through a timeline, and stopping it hands floodStep back", valid.is_ok() && steps == expected, json!({"valid": valid, "frames": frames, "steps": steps, "expected": expected}));
-    }
-
-    // The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.
-    {
-        let kinds = lab::views::kinds("godot_sdfgi").map_err(|e| anyhow::anyhow!("{e:#}"))?;
-        let kind = kinds.iter().find(|k| k.key == "probeMap");
-        let params: Vec<(&str, Vec<f32>)> = kind
-            .map(|k| {
-                k.params
-                    .iter()
-                    .map(|p| (p.key.as_str(), p.default.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let declared = kind.is_some_and(|k| k.size == [208, 104] && k.entry == "sdfgiProbeMapView")
-            && params
-                == [
-                    ("probe", vec![7.0, 7.0, 8.0]),
-                    ("cascade", vec![0.0]),
-                    ("gain", vec![3.0]),
-                ];
-        let mut timeline = still_timeline(64, 64);
-        timeline.keys = serde_json::from_value(
-            json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7, 8]}}]),
-        )?;
-        let valid = timeline.validate().map_err(|e| e.to_string());
-        let mut wrong = still_timeline(64, 64);
-        wrong.keys = serde_json::from_value(
-            json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7]}}]),
-        )?;
-        let refused = wrong.validate().map_err(|e| e.to_string()).err();
-        report.check("the probeMap image kind: its size, entry point, and parameters; a story's instance of it loads, and a wrong parameter does not", declared && valid.is_ok() && refused.is_some(), json!({"params": format!("{params:?}"), "valid": valid, "refused": refused}));
-    }
-
-    // ---- 3. The source index ------------------------------------------------
+/// Listings: each cites a source entry and a demonstration, and every demonstration has one.
+fn check_listings(report: &mut Report) -> Result<()> {
     let index = super::sources::INDEX.get();
-    report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
+    let listings = super::pseudocode::all();
+    let bad: Vec<&str> = listings
+        .iter()
+        .filter(|l| {
+            !index.entries.contains_key(&l.source)
+                || l.demo
+                    .as_deref()
+                    .is_none_or(|d| Demo::ALL.iter().all(|x| x.key() != d))
+        })
+        .map(|l| l.name)
+        .collect();
+    let without: Vec<&str> = Demo::ALL
+        .iter()
+        .filter(|d| shot::demos().spec(d.id()).listing.is_none())
+        .map(|d| d.key())
+        .collect();
+    report.check(
+        "every listing cites a source entry and a demonstration; every demonstration has a listing",
+        bad.is_empty() && without.is_empty(),
+        json!({"listings": listings.len(), "bad": bad, "demosWithout": without}),
+    );
+    Ok(())
+}
 
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
+/// The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves.
+fn check_animations(report: &mut Report) -> Result<()> {
+    let mut differ = Vec::new();
+    let mut samples = 0;
+    for demo in Demo::ALL {
+        for k in 0..=80 {
+            let t = k as f32 * 0.25;
+            let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
+            let mut state = shot::for_demo(demo);
+            let written =
+                lab::script::runtime::animate(demo.id(), t, &mut state).unwrap_or_default();
+            samples += 1;
+            let same = expected.len() == written.len()
+                && expected.iter().all(|(name, v)| {
+                    written.iter().any(|w| w == name)
+                        && (state.p(name) - v).abs() <= 1e-4 * v.abs().max(1.0)
+                });
+            if !same {
+                differ.push(json!({"demo": demo.key(), "t": t, "rust": expected, "script": written.iter().map(|w| (w.clone(), state.p(w))).collect::<Vec<_>>()}));
+            }
+        }
+    }
+    report.check("the Play animations (script/animations.lam) set what the Rust waves set, within 1e-4, at 81 times of every demonstration", differ.is_empty(), json!({"samples": samples, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
+    Ok(())
+}
+
+/// The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s.
+fn check_actions(report: &mut Report) -> Result<()> {
+    let mut timeline = still_timeline(64, 64);
+    (
+        timeline.total_frames,
+        timeline.beats[0].frames,
+        timeline.chapters[0].end_frame,
+    ) = (400, 400, 400);
+    timeline.keys = serde_json::from_value(
+        json!([{"frame": 0, "demo": "field"}, {"frame": 30, "run": {"name": "jumpFlood", "args": {"seconds": 0.5}}}, {"frame": 120, "stop": ["jumpFlood"]}]),
     )?;
-    Ok(passed)
+    let valid = timeline.validate().map_err(|e| e.to_string());
+    let frames = [20u64, 30, 44, 45, 60, 119, 120];
+    let steps: Vec<f32> = frames
+        .iter()
+        .map(|&f| timeline.state_at(f).p("floodStep"))
+        .collect();
+    // Before it, the demonstration's own step (the full-size pass); then 0, 0, 1, 2, 5; once stopped, the demonstration's again.
+    let expected = [8.0, 0.0, 0.0, 1.0, 2.0, 5.0, 8.0];
+    report.check("the jumpFlood action steps floodStep through a timeline, and stopping it hands floodStep back", valid.is_ok() && steps == expected, json!({"valid": valid, "frames": frames, "steps": steps, "expected": expected}));
+    Ok(())
+}
+
+/// The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.
+fn check_image_kind(report: &mut Report) -> Result<()> {
+    let kinds = lab::views::kinds("godot_sdfgi").map_err(|e| anyhow::anyhow!("{e:#}"))?;
+    let kind = kinds.iter().find(|k| k.key == "probeMap");
+    let params: Vec<(&str, Vec<f32>)> = kind
+        .map(|k| {
+            k.params
+                .iter()
+                .map(|p| (p.key.as_str(), p.default.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let declared = kind.is_some_and(|k| k.size == [208, 104] && k.entry == "sdfgiProbeMapView")
+        && params
+            == [
+                ("probe", vec![7.0, 7.0, 8.0]),
+                ("cascade", vec![0.0]),
+                ("gain", vec![3.0]),
+            ];
+    let mut timeline = still_timeline(64, 64);
+    timeline.keys = serde_json::from_value(
+        json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7, 8]}}]),
+    )?;
+    let valid = timeline.validate().map_err(|e| e.to_string());
+    let mut wrong = still_timeline(64, 64);
+    wrong.keys = serde_json::from_value(
+        json!([{"frame": 0, "image": "maps", "imageFrom": "probeMap", "imageParams": {"probe": [9, 7]}}]),
+    )?;
+    let refused = wrong.validate().map_err(|e| e.to_string()).err();
+    report.check("the probeMap image kind: its size, entry point, and parameters; a story's instance of it loads, and a wrong parameter does not", declared && valid.is_ok() && refused.is_some(), json!({"params": format!("{params:?}"), "valid": valid, "refused": refused}));
+    Ok(())
 }
 
 /// The GPU passes (gpu.rs, Godot's own passes ported) against their CPU
@@ -941,6 +1040,16 @@ fn gpu_passes(report: &mut Report, renderer: &lab::renderer::Renderer) {
         by_size.keys().all(|k| k == "-1" || k == "1") && gpu_list == cpu_list,
         json!({"differing_bytes": differing, "by_difference": by_size, "examples": examples, "gpu_cells": gpu_list.len(), "cpu_cells": cpu_list.len(), "differing_records": gpu_list.iter().zip(&cpu_list).filter(|(a, b)| a != b).count()}),
     );
+    check_probe_maps(report, renderer, &mut world);
+}
+
+/// The probes: the GPU's and the CPU's both converge for the same frames, with the room's light and sky;
+/// cascade 0's irradiance maps compared.
+fn check_probe_maps(
+    report: &mut Report,
+    renderer: &lab::renderer::Renderer,
+    world: &mut sim::World,
+) {
     // The probes: both converge for the same frames, with the room's light and sky.
     let scene = lab::scene::Scene::study_room();
     let panel = sim::panel_light(&scene, world.cascades.settings.y_mult());

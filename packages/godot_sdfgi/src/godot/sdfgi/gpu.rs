@@ -172,35 +172,7 @@ impl Plan {
         let n = cascades.cascades.len();
         let y_mult = cascades.settings.y_mult();
         // update_cascades (gi.cpp:1514-1533).
-        let mut ubo: Vec<u32> = Vec::with_capacity(8 * 12);
-        for k in 0..8 {
-            let c = cascades
-                .cascades
-                .get(k)
-                .copied()
-                .unwrap_or(cascades.cascades[n - 1]);
-            let offset = (IVec3::splat(-(CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size;
-            let probe = c.position / PROBE_CELLS;
-            ubo.extend([
-                f(offset.x),
-                f(offset.y),
-                f(offset.z),
-                f(1.0 / c.cell_size),
-                i(probe.x),
-                i(probe.y),
-                i(probe.z),
-                0,
-                0,
-                0,
-                0,
-                0,
-            ]);
-        }
-        out.push(ProgramCommand::Upload {
-            buffer: Element::of("cascadesUbo", 0),
-            offset: 0,
-            words: ubo,
-        });
+        out.push(Self::cascades_ubo(cascades));
         // pre_process_gi: the dynamic lights of each cascade (the room's panel), and the scene pass's cascades.
         let panel = super::sim::panel_light(scene, y_mult);
         for c in 0..n {
@@ -210,19 +182,7 @@ impl Plan {
                 words: light_words(&panel),
             });
         }
-        let mut screen = vec![0u32; 8 * 8];
-        for (k, v) in super::sim::frame_cascades(cascades, camera)
-            .into_iter()
-            .enumerate()
-        {
-            screen[k * 4..k * 4 + 4].copy_from_slice(&v.map(f));
-        }
-        screen.extend([f(camera.x), f(camera.y), f(camera.z), 0]);
-        out.push(ProgramCommand::Upload {
-            buffer: Element::of("screenData", 0),
-            offset: 0,
-            words: screen,
-        });
+        out.push(Self::screen_data(cascades, camera));
         // update_light (gi.cpp:1249-1309): every cell of a rebuilt cascade, else every Nth.
         let every = s.frames_to_update_light as u32;
         for c in 0..n {
@@ -307,6 +267,58 @@ impl Plan {
         }
         self.frame += 1;
     }
+
+    /// update_cascades (gi.cpp:1514-1533): each cascade's offset, cell size, and probe offset; the last repeated
+    /// up to eight.
+    fn cascades_ubo(cascades: &Cascades) -> ProgramCommand {
+        let n = cascades.cascades.len();
+        let mut ubo: Vec<u32> = Vec::with_capacity(8 * 12);
+        for k in 0..8 {
+            let c = cascades
+                .cascades
+                .get(k)
+                .copied()
+                .unwrap_or(cascades.cascades[n - 1]);
+            let offset = (IVec3::splat(-(CASCADE_SIZE >> 1)) + c.position).as_vec3() * c.cell_size;
+            let probe = c.position / PROBE_CELLS;
+            ubo.extend([
+                f(offset.x),
+                f(offset.y),
+                f(offset.z),
+                f(1.0 / c.cell_size),
+                i(probe.x),
+                i(probe.y),
+                i(probe.z),
+                0,
+                0,
+                0,
+                0,
+                0,
+            ]);
+        }
+        ProgramCommand::Upload {
+            buffer: Element::of("cascadesUbo", 0),
+            offset: 0,
+            words: ubo,
+        }
+    }
+
+    /// The scene pass's cascades as the camera sees them, and the camera.
+    fn screen_data(cascades: &Cascades, camera: Vec3) -> ProgramCommand {
+        let mut screen = vec![0u32; 8 * 8];
+        for (k, v) in super::sim::frame_cascades(cascades, camera)
+            .into_iter()
+            .enumerate()
+        {
+            screen[k * 4..k * 4 + 4].copy_from_slice(&v.map(f));
+        }
+        screen.extend([f(camera.x), f(camera.y), f(camera.z), 0]);
+        ProgramCommand::Upload {
+            buffer: Element::of("screenData", 0),
+            offset: 0,
+            words: screen,
+        }
+    }
 }
 
 /// `_update_sdfgi`: each pending region voxelized (`render_region`), and each
@@ -381,79 +393,7 @@ fn preprocess(
     let sc = scroll.unwrap_or(IVec3::ZERO);
     let base = [i(sc.x), i(sc.y), i(sc.z), N, 0, 0, 0, 0, 0, 0, ci];
     if let Some(d) = scroll {
-        // The scroll (gi.cpp:2113-2211): kept cells back into the working set, the occlusion, the probes.
-        out.push(ProgramCommand::Copy {
-            from: Element::of("dispatchStorage", ci),
-            to: Element::of("dispatchCall", ci),
-            bytes: 16,
-        });
-        out.push(ProgramCommand::DispatchIndirect {
-            pass: "sdfgiScroll",
-            instance: ci,
-            buffer: Element::of("dispatchCall", ci),
-            offset: 0,
-            params: params(&base),
-        });
-        let keep = [
-            N - d.x.unsigned_abs(),
-            N - d.y.unsigned_abs(),
-            N - d.z.unsigned_abs(),
-        ];
-        out.push(dispatch(
-            "sdfgiScrollOcclusion",
-            0,
-            threads(keep, [4, 4, 4]),
-            &base,
-        ));
-        let probe_scroll = d / PROBE_CELLS;
-        let n = cascades.cascades.len() as u32;
-        let ip = [
-            n,
-            ci,
-            0,
-            s.history_size.min(HISTORY),
-            0,
-            0,
-            P * P,
-            P,
-            0,
-            0,
-            0,
-            0,
-            i(probe_scroll.x),
-            i(probe_scroll.y),
-            i(probe_scroll.z),
-            f(cascades.settings.y_mult()),
-        ];
-        out.push(dispatch(
-            "sdfgiProbeScroll",
-            ci,
-            threads([P * P, P, 1], [8, 8, 1]),
-            &ip,
-        ));
-        out.push(dispatch(
-            "sdfgiProbeScrollStore",
-            ci,
-            threads([P * P, P, 1], [8, 8, 1]),
-            &ip,
-        ));
-        if s.bounce_feedback > 0.0 {
-            out.push(dispatch(
-                "sdfgiProbeStoreScroll",
-                ci,
-                threads([P * P * 6, P * 6, 1], [8, 8, 1]),
-                &[
-                    n,
-                    ci,
-                    0,
-                    s.history_size.min(HISTORY),
-                    0,
-                    0,
-                    P * P * 6,
-                    P * 6,
-                ],
-            ));
-        }
+        scroll_commands(cascades, (c, d), s, out);
     }
     // The counters zeroed before STORE's atomics (gi.cpp:2214-2215).
     out.push(ProgramCommand::Clear(Element::of("dispatchStorage", ci)));
@@ -519,6 +459,91 @@ fn preprocess(
     ));
     for name in ["lightData", "lightAniso0", "lightAniso1"] {
         out.push(ProgramCommand::Clear(Element::of(name, ci)));
+    }
+}
+
+/// The scroll of cascade `c` by `d` cells (gi.cpp:2113-2211): kept cells back into the working set, the
+/// occlusion, the probes (and their stored light, with bounce feedback).
+fn scroll_commands(
+    cascades: &Cascades,
+    (c, d): (usize, IVec3),
+    s: &super::sim::SceneSettings,
+    out: &mut Vec<ProgramCommand>,
+) {
+    let ci = c as u32;
+    let base = [i(d.x), i(d.y), i(d.z), N, 0, 0, 0, 0, 0, 0, ci];
+    // The scroll (gi.cpp:2113-2211): kept cells back into the working set, the occlusion, the probes.
+    out.push(ProgramCommand::Copy {
+        from: Element::of("dispatchStorage", ci),
+        to: Element::of("dispatchCall", ci),
+        bytes: 16,
+    });
+    out.push(ProgramCommand::DispatchIndirect {
+        pass: "sdfgiScroll",
+        instance: ci,
+        buffer: Element::of("dispatchCall", ci),
+        offset: 0,
+        params: params(&base),
+    });
+    let keep = [
+        N - d.x.unsigned_abs(),
+        N - d.y.unsigned_abs(),
+        N - d.z.unsigned_abs(),
+    ];
+    out.push(dispatch(
+        "sdfgiScrollOcclusion",
+        0,
+        threads(keep, [4, 4, 4]),
+        &base,
+    ));
+    let probe_scroll = d / PROBE_CELLS;
+    let n = cascades.cascades.len() as u32;
+    let ip = [
+        n,
+        ci,
+        0,
+        s.history_size.min(HISTORY),
+        0,
+        0,
+        P * P,
+        P,
+        0,
+        0,
+        0,
+        0,
+        i(probe_scroll.x),
+        i(probe_scroll.y),
+        i(probe_scroll.z),
+        f(cascades.settings.y_mult()),
+    ];
+    out.push(dispatch(
+        "sdfgiProbeScroll",
+        ci,
+        threads([P * P, P, 1], [8, 8, 1]),
+        &ip,
+    ));
+    out.push(dispatch(
+        "sdfgiProbeScrollStore",
+        ci,
+        threads([P * P, P, 1], [8, 8, 1]),
+        &ip,
+    ));
+    if s.bounce_feedback > 0.0 {
+        out.push(dispatch(
+            "sdfgiProbeStoreScroll",
+            ci,
+            threads([P * P * 6, P * 6, 1], [8, 8, 1]),
+            &[
+                n,
+                ci,
+                0,
+                s.history_size.min(HISTORY),
+                0,
+                0,
+                P * P * 6,
+                P * 6,
+            ],
+        ));
     }
 }
 
