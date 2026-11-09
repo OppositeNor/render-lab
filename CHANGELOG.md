@@ -4,6 +4,27 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-11-08
+
+### Added
+
+- Testing acknowledgements and shared rules for listing names in alphabetical order.
+
+### Changed
+
+- Project copyright notices now credit both OppositeNor and Render Lab Contributors, including the homepage and
+  documentation.
+- The video builder writes `chapters.txt` as timestamp/title lines for video descriptions, using `H:MM:SS` for
+  videos of at least an hour.
+- The `new-story` guide now scales supporting animations with narration length, requires every named mechanism to
+  be shown, and avoids narration gaps longer than about 12 seconds without supporting animation. It calls for full
+  video builds only when requested or when delivering a story.
+
+### Fixed
+
+- A wrongly lit rim at smooth-mesh silhouettes. Back-face normal flips now follow the triangle's side instead of
+  treating smooth normals that lean away from the eye as back faces.
+
 ## [0.0.3] - 2026-11-07
 
 ### Added
@@ -43,7 +64,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/OppositeNor/render-lab/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/OppositeNor/render-lab/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/OppositeNor/render-lab/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/OppositeNor/render-lab/releases/tag/v0.0.1
