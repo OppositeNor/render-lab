@@ -42,12 +42,14 @@ impl Image {
 
     /// textureLod(sampler(LINEAR, CLAMP), uv, 0): bilinear, clamped to the edge.
     pub fn sample(&self, uv: Vec2) -> Vec4 {
+        // The texel coordinate of `uv`, half a texel back, so the four texels around it are b and b + 1.
         let f = uv * Vec2::new(self.size[0] as f32, self.size[1] as f32) - Vec2::splat(0.5);
         let b = f.floor();
         let w = f - b;
         let hi = [self.size[0] as i32 - 1, self.size[1] as i32 - 1];
         let c = |x: i32, y: i32| self.load([x.clamp(0, hi[0]), y.clamp(0, hi[1])]);
         let (x0, y0) = (b.x as i32, b.y as i32);
+        // Blend along x on the two rows, then between the rows along y.
         let top = c(x0, y0).lerp(c(x0 + 1, y0), w.x);
         let bottom = c(x0, y0 + 1).lerp(c(x0 + 1, y0 + 1), w.x);
         top.lerp(bottom, w.y)
@@ -61,6 +63,7 @@ pub fn hiz_level(parent: &Image, size: [u32; 2]) -> Image {
     let odd = [parent.size[0] % 2 == 1, parent.size[1] % 2 == 1];
     for y in 0..size[1] {
         for x in 0..size[0] {
+            // Each texel starts from the max of the 2 x 2 parents at twice its coordinate.
             let p = [x as i32 * 2, y as i32 * 2];
             let mut d = parent.load(p).x;
             let mut take = |dx: i32, dy: i32| d = d.max(parent.load([p[0] + dx, p[1] + dy]).x);
@@ -68,14 +71,17 @@ pub fn hiz_level(parent: &Image, size: [u32; 2]) -> Image {
             take(0, 1);
             take(1, 1);
             if odd[0] {
+                // An odd width leaves a column the halving would drop, so the texel takes it too.
                 take(2, 0);
                 take(2, 1);
             }
             if odd[1] {
+                // Likewise an odd height's last row.
                 take(0, 2);
                 take(1, 2);
             }
             if odd[0] && odd[1] {
+                // And with both odd, the corner the extra row and column share.
                 take(2, 2);
             }
             out.store([x, y], Vec4::new(d, 0.0, 0.0, 0.0));
@@ -209,6 +215,7 @@ impl Inputs<'_> {
             self.hiz([pixel[0], pixel[1] + 1], 0),
             self.hiz([pixel[0], pixel[1] + 2], 0),
         );
+        // How far each side's linear extrapolation misses the centre's depth: the smoother side is the same surface.
         let he = (Vec2::new(2.0 * h.x - h.y, 2.0 * h.z - h.w) - Vec2::splat(depth_c)).abs();
         let ve = (Vec2::new(2.0 * v.x - v.y, 2.0 * v.z - v.w) - Vec2::splat(depth_c)).abs();
         let h_sign: i32 = if he.x < he.y {
@@ -224,6 +231,7 @@ impl Inputs<'_> {
         let s = self.size();
         let fs = Vec2::new(s[0] as f32, s[1] as f32);
         let px = Vec2::new(pixel[0] as f32, pixel[1] as f32);
+        // The chosen neighbours' view positions; the cross of their differences is the normal.
         let hv = h.to_array()[(1 + h_sign) as usize];
         let vv = v.to_array()[(1 + v_sign) as usize];
         let view_h = self
@@ -244,6 +252,7 @@ impl Inputs<'_> {
             .extend(self.hiz(pixel, 0));
         let mut out = Trace::untraced(screen_pos);
         if screen_pos.z == 0.0 {
+            // Depth 0 is the sky, which reflects nothing.
             return out;
         }
         let mut pos = self.view_pos(screen_pos);
@@ -254,10 +263,12 @@ impl Inputs<'_> {
         out.normal = normal;
         out.roughness = roughness;
         if roughness >= 0.7 {
+            // Rough surfaces are left to other reflections: the trace stops here.
             return out;
         }
         let geom_normal = self.geometric_normal(pixel, screen_pos.z, pos).normalize();
         out.geom_normal = geom_normal;
+        // Push the start off the surface along its geometric normal, more where the normal map bends away from it.
         pos += geom_normal * (1.0 - normal.dot(geom_normal).clamp(0.0, 1.0).powf(8.0));
         out.biased = pos;
         screen_pos = self.screen_pos(pos);
@@ -266,24 +277,29 @@ impl Inputs<'_> {
         let reflect = |i: Vec3, n: Vec3| i - 2.0 * n.dot(i) * n;
         let mut ray_dir = reflect(view_dir, normal).normalize();
         if ray_dir.dot(geom_normal) < 0.0 {
+            // A reflection that points into the surface is mirrored back out by its geometric normal.
             ray_dir = reflect(ray_dir, geom_normal).normalize();
             out.bounced = true;
         }
         out.ray_dir = ray_dir;
         let mut end_pos = pos + ray_dir;
         if end_pos.z > 0.0 {
+            // An end behind the camera is pulled back along the ray to just in front of it.
             end_pos -= ray_dir / ray_dir.z * (end_pos.z + 0.00001);
         }
         let screen_end = self.screen_pos(end_pos);
         let mut ray = screen_end - screen_pos;
+        // The screen-space ray, scaled so a step of t moves one unit of depth.
         ray /= ray.z.abs();
         out.screen_ray = ray;
         let facing = ray.z >= 0.0;
+        // The ray's t where it leaves the screen: the nearer of the two far edges.
         let t0 = (Vec2::ZERO - screen_pos.truncate()) / ray.truncate();
         let t1 = (Vec2::ONE - screen_pos.truncate()) / ray.truncate();
         let t2 = t0.max(t1);
         let t_max = t2.x.min(t2.y);
         out.t_max = t_max;
+        // Which way the ray crosses cells on each axis.
         let cell_step = Vec2::new(
             if ray.x < 0.0 {
                 -1.0
@@ -313,6 +329,7 @@ impl Inputs<'_> {
         self.weigh(&mut out, t_max);
         let validity = out.validity;
         if validity > 0.0 {
+            // The last frame's colour at the reprojected hit, weighed by validity, then compressed by its luminance.
             let c = self.last_frame.sample(uv).truncate().extend(1.0) * validity;
             let l = c.truncate().dot(Vec3::new(0.2126, 0.7152, 0.0722));
             out.color = (c.truncate() / (1.0 + l)).extend(c.w);
@@ -320,6 +337,7 @@ impl Inputs<'_> {
         let (mips, ray_len) = (self.hiz.len() as i32, out.ray_len);
         let mut mip = 0.0;
         if roughness > 0.001 {
+            // A rough surface reads a blurrier level, by the cone its roughness spreads over the ray's length.
             mip = blur_level(roughness, ray_len, fs.x.max(fs.y), mips);
         }
         out.mip_level = mip * (1.25 - ray_len).clamp(0.0, 1.0).powf(0.2);
@@ -337,6 +355,7 @@ impl Inputs<'_> {
         let mut level = 0i32;
         let mut iteration = self.num_steps;
         let mut t = {
+            // Start at the edge of the starting cell, so the march never tests the pixel against itself.
             let cell = (screen_pos.truncate() * fs).floor();
             let next = cell + cell_step.clamp(Vec2::ZERO, Vec2::ONE);
             let next_pos = next / fs + cell_step * 0.000001;
@@ -344,27 +363,33 @@ impl Inputs<'_> {
             pos_t.x.min(pos_t.y)
         };
         while level >= 0 && iteration > 0 && t < t_max {
+            // The cell the ray is in at this level, its depth, and the t where the ray reaches that depth.
             let cur = screen_pos + ray * t;
             let count = Vec2::new((s[0] >> level).max(1) as f32, (s[1] >> level).max(1) as f32);
             let cell = (cur.truncate() * count).floor();
             let cell_depth = self.hiz([cell.x as i32, cell.y as i32], level);
             let depth_t = (cell_depth - screen_pos.z) * ray.z;
+            // The t where the ray leaves the cell, nudged across its edge.
             let next = cell + cell_step.clamp(Vec2::ZERO, Vec2::ONE);
             let next_pos = next / count + cell_step * 0.000001;
             let pos_t = (next_pos - screen_pos.truncate()) / ray.truncate();
             let edge_t = pos_t.x.min(pos_t.y);
             let mut hit = if facing {
+                // Moving toward the camera (reversed Z), the ray hits while still behind the cell's nearest depth.
                 t <= depth_t
             } else {
+                // Moving away, it hits when it reaches the cell's depth before it leaves the cell.
                 depth_t <= edge_t
             };
             let mut offset = if hit {
+                // A hit descends a level to look closer; a miss climbs one to skip further.
                 -1
             } else {
                 1
             };
             let mut held = false;
             if level == 0 {
+                // At level 0, a hit beyond the depth tolerance behind the surface is no hit: the ray passed behind it.
                 let z0 = self.linearize(cell_depth);
                 let z1 = self.linearize(cur.z);
                 if z0 - z1 > self.depth_tolerance {
@@ -376,9 +401,11 @@ impl Inputs<'_> {
             let before = t;
             if hit {
                 if !facing {
+                    // A ray moving away advances to the depth it hit.
                     t = t.max(depth_t);
                 }
             } else {
+                // A miss advances to the cell's edge.
                 t = edge_t;
             }
             let next_level = (level + offset).min(mips - 1);
@@ -416,6 +443,7 @@ impl Inputs<'_> {
         let cur_pixel = [(cur.x * fs.x) as i32, (cur.y * fs.y) as i32];
         let hit_depth = self.hiz(cur_pixel, 0);
         let edge = if t >= t_max || hit_depth == 0.0 {
+            // A ray that left the screen, or landed on the sky, reflects nothing.
             0.0
         } else {
             1.0
@@ -427,6 +455,7 @@ impl Inputs<'_> {
             .cmplt(Vec2::splat(2.0) / fs)
             .all()
         {
+            // A hit within two pixels of the start that faces away from the ray is the surface's own back face.
             let hn = self.normal_roughness.load(cur_pixel).truncate() * 2.0 - Vec3::ONE;
             if ray_dir.dot(hn) >= 0.0 {
                 back = 0.0;
@@ -439,6 +468,7 @@ impl Inputs<'_> {
         let confidence = 1.0 - smoothstep(0.0, self.depth_tolerance, delta);
         let conf2 = (confidence * confidence).clamp(0.0, 1.0);
         validity *= conf2;
+        // Fade near the screen's border: the margin grows with the distance to the nearest two edges.
         let rp = uv * fs;
         let margin = (fs.x + fs.y) * 0.05;
         let grad = Vec2::new(
@@ -494,17 +524,20 @@ impl Trace {
 /// The fade over the ray's screen length (screen_space_reflection.glsl:270-282).
 pub fn fade(ray_len: f32, fade_in: f32, fade_out: f32) -> f32 {
     let a = if fade_in == 0.0 {
+        // No fade-in when its curve is 0; otherwise the ray's length raised to the curve.
         1.0
     } else {
         ray_len.clamp(0.0, 1.0).powf(fade_in)
     };
     let b = if fade_out == 0.0 {
+        // Likewise the fade-out over the rest of the length.
         1.0
     } else {
         (1.0 - ray_len).clamp(0.0, 1.0).powf(fade_out)
     };
     let f = a * b;
     if f > 0.999 {
+        // Almost no fade is no fade.
         1.0
     } else {
         f
@@ -517,6 +550,7 @@ pub fn blur_level(roughness: f32, ray_len: f32, largest: f32, mips: i32) -> f32 
     let cone_angle = roughness.min(0.999) * std::f32::consts::PI * 0.5;
     let a = 2.0 * cone_angle.tan() * ray_len;
     let h = ray_len;
+    // The radius of the circle inscribed in the isosceles triangle of base a and height h.
     let radius = (a * ((a * a + 4.0 * h * h).sqrt() - a)) / (4.0 * h);
     (radius * largest / 16.0 + 1.0)
         .log2()

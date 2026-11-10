@@ -65,6 +65,7 @@ pub fn ssr_size(viewport: [u32; 2]) -> [u32; 2] {
 pub fn mipmaps(size: [u32; 2]) -> u32 {
     let (mut w, mut h, mut m) = (size[0], size[1], 1);
     while w > 1 && h > 1 {
+        // One more level for each halving that leaves both sides above zero.
         w /= 2;
         h /= 2;
         m += 1;
@@ -122,13 +123,16 @@ impl Plan {
             out.push(ProgramCommand::Clear(Element::all("lastFrame")));
             self.last = None;
         }
+        // The reprojection reads the frame before's camera, or this one's on the first frame.
         let last = self.last.unwrap_or(current);
         self.last = Some(current);
         if state.p("ssrEnabled") < 0.5 {
+            // With SSR off, the plan stops once the camera is kept for the next frame.
             return out;
         }
         let mut words: Vec<u32> = Vec::with_capacity(SCENE_WORDS);
         for m in [current.0, current.0.inverse(), reprojection(current, last)] {
+            // The UBO: the projection, its inverse, and the reprojection, column by column, then the eye offset.
             words.extend(m.to_cols_array().iter().map(|x| x.to_bits()));
         }
         words.extend([0u32; 4]);

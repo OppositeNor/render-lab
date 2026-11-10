@@ -38,6 +38,7 @@ impl View {
 
     /// The world point of a screen position (u, v, reversed depth) of this frame.
     pub fn world_of(&self, s: Vec3) -> Vec3 {
+        // Undo the projection to view space, then the camera to the world.
         let p = self.projection.inverse() * Vec4::new(s.x * 2.0 - 1.0, s.y * 2.0 - 1.0, s.z, 1.0);
         let view = p.truncate() / p.w;
         self.world_to_view.inverse().transform_point3(view)
@@ -61,6 +62,7 @@ impl View {
     pub fn pixel_of(&self, p: Vec3) -> Option<[i32; 2]> {
         let c = self.projection * self.world_to_view * p.extend(1.0);
         if c.w <= 1e-4 {
+            // Behind the camera: no pixel.
             return None;
         }
         let uv = Vec2::new(c.x / c.w, c.y / c.w) * 0.5 + Vec2::splat(0.5);
@@ -179,6 +181,7 @@ fn assemble(
     levels: Vec<Option<Arc<Fetched>>>,
     normal: Option<Arc<Fetched>>,
 ) -> Option<Arc<Screen>> {
+    // Every level and the normals must have landed.
     let (levels, normal): (Vec<Arc<Fetched>>, Arc<Fetched>) =
         (levels.into_iter().collect::<Option<_>>()?, normal?);
     // All of one frame: the levels and the normals read after the same passes.
@@ -186,9 +189,12 @@ fn assemble(
     if frames.iter().any(|&f| f != frames[0])
         || levels.iter().chain([&normal]).any(|f| f.tag != normal.tag)
     {
+        // Images from two frames would not match: show the view's last whole screen instead.
         return kept(&view, None);
     }
+    // The screen's pixels are the images', which lag a resize by a frame or two.
     view.size = [normal.extent[0], normal.extent[1]];
+    // A screen already built from these images for this camera is reused.
     let key = (normal.tag, normal.frame, view_bits(&view));
     if let Some(s) = kept(&view, Some(key)) {
         return Some(s);
@@ -199,9 +205,11 @@ fn assemble(
         .enumerate()
         .any(|(m, l)| l.size != gpu::level_size(view.size, m as u32))
     {
+        // A level of the wrong size is from another resolution: keep the last screen.
         return kept(&view, None);
     }
     let screen = Arc::new(Screen::new(view, hiz, image_of(&normal)?));
+    // Keep it as this view's screen, replacing the one before.
     let mut kept = KEPT.lock().expect("the kept screens");
     kept.retain(|(v, _, _)| *v != lab::view::current());
     kept.push((lab::view::current(), key, screen.clone()));
@@ -218,7 +226,9 @@ fn kept(view: &View, key: Option<Key>) -> Option<Arc<Screen>> {
     let kept = KEPT.lock().expect("the kept screens");
     let (_, k, s) = kept.iter().find(|(v, _, _)| *v == lab::view::current())?;
     match key {
+        // With a key, only the screen of exactly those images and camera.
         Some(key) => (*k == key).then(|| s.clone()),
+        // Without one, the last screen, if it is still the view's size.
         None => (s.size == view.size).then(|| s.clone()),
     }
 }
@@ -232,6 +242,7 @@ fn view_bits(view: &View) -> [u32; 48] {
         .chain(view.world_to_view.to_cols_array().iter())
         .enumerate()
     {
+        // The two matrices' bits, then the size, so any change to the camera changes the key.
         bits[i] = v.to_bits();
     }
     bits[32] = view.size[0];

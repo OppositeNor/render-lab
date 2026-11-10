@@ -23,6 +23,7 @@ def ask_checkout() -> Path:
     """The Godot source: GODOT_SOURCE_DIR, else where the user says."""
     given = os.environ.get("GODOT_SOURCE_DIR", "")
     if not given:
+        # No variable: ask, and stop when there is no one to answer.
         try:
             given = input("Where is the Godot source (the checkout's root)? ").strip()
         except EOFError:
@@ -243,12 +244,14 @@ def line_hash(text: str) -> str:
 def find(path: str, token: str) -> int:
     lines = (CHECKOUT / path).read_text(encoding="utf-8", errors="replace").splitlines()
     if " >>> " in token:
+        # `anchor >>> text`: the first line holding `text` after the anchor's own line.
         anchor, text = token.split(" >>> ", 1)
         start = find(path, anchor)
         after = [i + 1 for i, l in enumerate(lines) if i + 1 > start and text in l]
         if not after:
             raise SystemExit(f"{path}: `{text}` not found after `{anchor}`")
         return after[0]
+    # A plain token must occur exactly once, so its line is never a guess.
     hits = [i + 1 for i, l in enumerate(lines) if token in l]
     if not hits:
         raise SystemExit(f"{path}: `{token}` not found")
@@ -265,6 +268,7 @@ def main() -> None:
     commit = subprocess.run(["git", "-C", str(CHECKOUT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     entries: dict[str, dict[str, object]] = {}
     for key, path, token, symbol, inspect, details in ENTRIES:
+        # Each entry's line and its hash (to notice a drifted checkout), with its details' lines.
         if key in entries:
             raise SystemExit(f"duplicate key {key}")
         if not inspect:
@@ -275,6 +279,7 @@ def main() -> None:
             d_line = find(path, d_token)
             detail_list.append({"line": d_line, "lineHash": line_hash(line_text(path, d_line)), "note": note})
         entries[key] = {"path": path, "line": line, "symbol": symbol, "lineHash": line_hash(line_text(path, line)), "inspect": inspect, "details": detail_list}
+    # Every key a chapter, a demonstration, a mapping, or a pass cites must be an entry.
     for _, _, keys in CHAPTERS:
         for k in keys:
             assert k in entries, k

@@ -20,14 +20,17 @@ fn half(bits: u16) -> f32 {
     let exp = ((bits >> 10) & 0x1f) as i32;
     let man = (bits & 0x3ff) as f32;
     sign * match exp {
+        // Exponent 0: a subnormal, the mantissa alone in units of 2^-24.
         0 => man * 2f32.powi(-24),
         31 => {
+            // Exponent 31 with no mantissa is infinity; with one, NaN.
             if man == 0.0 {
                 f32::INFINITY
             } else {
                 f32::NAN
             }
         }
+        // Any other: the implicit leading 1, scaled by the unbiased exponent.
         e => (1.0 + man / 1024.0) * 2f32.powi(e - 15),
     }
 }
@@ -43,6 +46,7 @@ fn read(
         .read_program_mip(name, 0, mip)
         .ok_or_else(|| anyhow!("no image {name} mip {mip}"))?;
     let (channels, data): (usize, Vec<f32>) = match format {
+        // Each format's bytes as floats: 32-bit floats as they are, 8-bit unorm over 255, halves decoded.
         wgpu::TextureFormat::R32Float => (
             1,
             bytes
@@ -156,6 +160,7 @@ fn check_passes(report: &mut Report) -> Result<()> {
     let mut levels_ok = hiz[0].size == size;
     let mut worst = Vec::new();
     for m in 1..mips as usize {
+        // Each level reduced on the CPU from the GPU's level before must equal the GPU's, bit for bit.
         let cpu = trace::hiz_level(&hiz[m - 1], gpu::level_size(size, m as u32));
         let same = cpu.size == hiz[m].size && cpu.data == hiz[m].data;
         levels_ok &= same;
@@ -220,6 +225,7 @@ fn compare_traces(
     let mut examples = Vec::new();
     for y in 0..size[1] as i32 {
         for x in 0..size[0] as i32 {
+            // Trace each pixel on the CPU, and read the GPU's validity (alpha) and blur level (stored over 14 levels).
             let t = inputs.trace([x, y]);
             let g = color.load([x, y]);
             let g_level = level.load([x, y]).x * 14.0;
@@ -310,6 +316,7 @@ fn check_reads(report: &mut Report) -> Result<()> {
     let screen = super::cpu::screen(&mut content);
     let (p, back) = match &screen {
         Some(screen) => {
+            // P's world surface, projected back, must land in P.
             let p = super::demos::picked(&state, screen, &content.objects);
             (Some(p), screen.pixel_of(screen.surface(p)))
         }
@@ -326,6 +333,7 @@ fn check_reads(report: &mut Report) -> Result<()> {
     let mut differ = Vec::new();
     let mut clicks = 0;
     for demo in [Demo::Trace, Demo::Room] {
+        // Click at 41 x 41 points of the view, each from the demonstration's own state.
         let shown = shot::for_demo(demo);
         for i in 0..=40 {
             for j in 0..=40 {
@@ -353,7 +361,9 @@ fn check_reads(report: &mut Report) -> Result<()> {
                 let before = ["pickX", "pickY", "pickWidth", "pickHeight"].map(|k| shown.p(k));
                 clicks += 1;
                 let same = match expected {
+                    // The trace demonstration's click picks that pixel.
                     Some(e) => ran == Some(true) && got == e,
+                    // Any other demonstration's click changes nothing.
                     None => ran == Some(false) && got == before,
                 };
                 if !same {
@@ -381,6 +391,7 @@ fn check_worked_example(report: &mut Report) -> Result<()> {
     let still = still_timeline(1920, 1080);
     let mut state = shot::for_demo(Demo::Trace);
     for (k, x) in [
+        // The worked example's shot: a mirror-like floor, no sky reflection, SSR composed, the camera on the spout.
         ("floorMetallic", 1.0),
         ("skyReflection", 0.0),
         ("ssrEnabled", 1.0),
@@ -409,6 +420,7 @@ fn check_worked_example(report: &mut Report) -> Result<()> {
             state.p("ssrDepthTolerance"),
         );
         let walk = |p: [i32; 2]| {
+            // A walk as the narration reads it: each iteration's level and m (miss), h (hit), or t (held by tolerance).
             let t = inputs.trace(p);
             let steps: Vec<String> = t
                 .steps
@@ -480,6 +492,7 @@ fn check_animations(report: &mut Report) -> Result<()> {
     let mut samples = 0;
     for demo in Demo::ALL {
         for k in 0..=80 {
+            // Every quarter second for 20 seconds, the script's animation must set what the Rust wave sets.
             let t = k as f32 * 0.25;
             let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
             let mut state = shot::for_demo(demo);

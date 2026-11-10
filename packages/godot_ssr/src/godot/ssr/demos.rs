@@ -59,6 +59,7 @@ pub fn views(state: &ShotState) -> Vec<lab::investigation::OverView> {
         (FIELD, "fieldShow", &[Demo::Pyramid, Demo::Trace][..]),
         (PROFILE, "profileShow", &[Demo::Trace][..]),
     ] {
+        // Each view shows as far as its own `…Show` value, and only in the demonstrations that have it.
         let alpha = state.view_state(name).p(show).clamp(0.0, 1.0);
         if alpha > 0.0 && demos.contains(&demo) {
             out.push(lab::investigation::OverView {
@@ -159,6 +160,7 @@ fn field_view(
         return content;
     };
     if Demo::of(state.demo) == Demo::Trace {
+        // In the trace demonstration the field follows the stepped ray: its level, the cell it tests, and its path.
         let (pixel, t) = main_trace(state, &screen);
         let stepper = Stepper::new(&t, state.p("traceStep"));
         let level = stepper.level();
@@ -182,6 +184,7 @@ fn field_view(
             })
             .unwrap_or_default();
         let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
+        // Frame the ray: the box from where it starts to where its last iteration ends.
         let ends = [
             t.screen_pos,
             t.screen_pos + t.screen_ray * t.steps.last().map_or(0.0, |s| s.next_t),
@@ -205,6 +208,7 @@ fn field_view(
             },
         );
         let top = field_top(&screen, pixel);
+        // The ray drawn over the field, each point raised to its depth.
         let over = |tt: f32| {
             let s = t.screen_pos + t.screen_ray * tt;
             f.point_uv(Vec2::new(s.x, s.y), s.z / top)
@@ -220,6 +224,7 @@ fn field_view(
                 .point(*ray.last().expect("a point"), 6.0, palette::REFLECTED, 1.0);
         }
     } else {
+        // In the pyramid demonstration the field shows the chosen level around P, P's cell lit.
         let pixel = picked(state, &screen, room_objects());
         let shown = own.p("fieldLevel");
         let at = (shown.round().max(0.0) as usize).min(screen.hiz.len() - 1);
@@ -331,16 +336,19 @@ pub fn picked(
 ) -> [i32; 2] {
     let (x, y) = (state.p("pickX"), state.p("pickY"));
     if x >= 0.0 && y >= 0.0 {
+        // A pick made, at the size it was made at.
         let (w, h) = (screen.size[0] as f32, screen.size[1] as f32);
         let (rw, rh) = (state.p("pickWidth"), state.p("pickHeight"));
         // Chosen at another size: the same direction, at this one (the same pixel at that size).
         let (x, y) = if rw > 0.0 && rh > 0.0 && (rw != w || rh != h) {
+            // Keep the pick's direction: its x in NDC, rescaled by the change of aspect, back to this size's pixels.
             let ndc = ((x + 0.5) / rw * 2.0 - 1.0) * (rw / rh) / (w / h);
             (
                 ((ndc + 1.0) * 0.5 * w).floor().max(0.0),
                 ((y + 0.5) / rh * h).floor(),
             )
         } else {
+            // Picked at this size: the pixel as it is.
             (x, y)
         };
         return [
@@ -348,6 +356,7 @@ pub fn picked(
             (y as i32).min(screen.size[1] as i32 - 1),
         ];
     }
+    // No pick: the floor just in front of the teapot, or failing that a point low in the middle.
     let t = Vec3::from(objects[ids::TEAPOT].world_center);
     screen
         .pixel_of(Vec3::new(t.x, 0.0, t.z + 0.9))
@@ -447,6 +456,7 @@ fn visited_cells(t: &trace::Trace, level: usize, img: &Image, shown: usize) -> V
     let mut outlines = Vec::new();
     for (k, s) in t.steps.iter().take(shown).enumerate() {
         if s.level.max(0) as usize != level {
+            // An iteration on another level leaves no cell on this one.
             continue;
         }
         let (w, h) = (img.size[0] as f32, img.size[1] as f32);
@@ -486,6 +496,7 @@ fn trace_rows(t: &trace::Trace, stepper: &Stepper) -> Vec<(String, String, Color
         rows.push((name.to_string(), v, c))
     };
     if let Some(s) = current {
+        // An iteration is shown: its step, level, cell, the depths, and the two t's.
         row(
             &mut rows,
             tr("demos-step"),
@@ -543,6 +554,7 @@ fn trace_rows(t: &trace::Trace, stepper: &Stepper) -> Vec<(String, String, Color
         );
     }
     if stepper.i == t.steps.len() {
+        // At the last iteration: why the loop ended, and the validity it weighed.
         let exit = match t.exit {
             Exit::Hit => tr("demos-exit_hit"),
             Exit::Steps => tr("demos-exit_steps"),
@@ -597,15 +609,18 @@ fn inputs_demo(state: &ShotState, content: &mut FrameContent) {
         pixel,
     );
     let (Some((pixel, depth)), Some((_, nr))) = (depth, nr) else {
+        // Until P's texels have been read back, there is nothing to show.
         return;
     };
     let depth = depth.x;
+    // P's position rebuilt from its depth: its screen coordinate and depth back through the projection.
     let uv = Vec2::new(
         (pixel[0] as f32 + 0.5) / screen.size[0] as f32,
         (pixel[1] as f32 + 0.5) / screen.size[1] as f32,
     );
     let world = screen.world_of(uv.extend(depth));
     content.draw.point(world, 7.0, palette::SELECTED, 1.0);
+    // The normal is stored in [0, 1]; back to [-1, 1], then into the world for its arrow.
     let normal = (nr.truncate() * 2.0 - Vec3::ONE).normalize_or_zero();
     let world_normal = screen.world_to_view.inverse().transform_vector3(normal);
     content.draw.segment(
@@ -680,9 +695,11 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
         Source::image("hiz", level as u32),
     );
     let (Some((pixel, p_depth)), Some(img)) = (p_depth, img) else {
+        // Until both have been read back, there is nothing to show.
         return;
     };
     let (p_depth, img) = (p_depth.x, &img);
+    // P's cell on the level: its pixel shifted down by the level, clamped to the level's size.
     let cell = [
         (pixel[0] >> level).min(img.size[0] as i32 - 1),
         (pixel[1] >> level).min(img.size[1] as i32 - 1),
@@ -779,6 +796,7 @@ fn chart(w: usize, h: usize) -> Vec<u8> {
 fn plot(rgba: &mut [u8], w: usize, h: usize, x: i32, y: i32, c: Color32) {
     for dy in -1..=1 {
         for dx in -1..=1 {
+            // A 3 x 3 dot, clipped to the picture.
             let (px, py) = (x + dx, y + dy);
             if px >= 0 && py >= 0 && (px as usize) < w && (py as usize) < h {
                 let i = (py as usize * w + px as usize) * 4;
@@ -887,6 +905,7 @@ fn fade_chart(
     let mut rgba = chart(w, h);
     let (mut peak, mut at) = (0.0f32, 0.0f32);
     for x in 0..w {
+        // Each column is a ray length from 0 to 1; its fade is plotted from the top, and the highest kept.
         let l = x as f32 / (w - 1) as f32;
         let f = trace::fade(l, fade_in, fade_out);
         if f > peak {
@@ -902,6 +921,7 @@ fn fade_chart(
             palette::THEME_ACCENT,
         );
     }
+    // P's ray length as a vertical line.
     let mx = (ray_len.clamp(0.0, 1.0) * (w - 1) as f32) as i32;
     for y in 0..h as i32 {
         plot(&mut rgba, w, h, mx, y, palette::REFLECTED);
@@ -928,6 +948,7 @@ fn blur_demo(state: &ShotState, content: &mut FrameContent) {
     let largest = screen.size[0].max(screen.size[1]) as f32;
     let angle = t.roughness.min(0.999) * std::f32::consts::PI * 0.5;
     let a = 2.0 * angle.tan() * t.ray_len;
+    // The circle inscribed in the cone's end, as trace::blur_level computes it; none for a ray of no length.
     let radius = if t.ray_len > 0.0 {
         (a * ((a * a + 4.0 * t.ray_len * t.ray_len).sqrt() - a)) / (4.0 * t.ray_len)
     } else {
@@ -991,6 +1012,7 @@ fn cone_chart((w, h): (usize, usize), angle: f32, (ray_len, radius): (f32, f32))
     let half = angle.tan() * len;
     let (ax, ay) = (20.0f32, h as f32 * 0.5);
     for k in 0..400 {
+        // The cone's two sides, from the apex out to the ray's end.
         let f = k as f32 / 399.0;
         plot(
             &mut rgba,
@@ -1011,6 +1033,7 @@ fn cone_chart((w, h): (usize, usize), angle: f32, (ray_len, radius): (f32, f32))
     }
     let r = radius * scale;
     for k in 0..720 {
+        // The circle inside the cone, its right edge touching the ray's end.
         let a = k as f32 / 720.0 * std::f32::consts::TAU;
         plot(
             &mut rgba,

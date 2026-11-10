@@ -91,6 +91,7 @@ impl Investigation for Ssr {
     }
 
     fn backdrop(&self, t: f32) -> Option<ShotState> {
+        // The title screen's backdrop: the room without its panel, the camera turning slowly and drifting.
         let mut state = shot::for_demo(Demo::Room);
         state.panel = PanelMode::Hidden;
         state.camera.yaw += 3.0 * t;
@@ -146,6 +147,7 @@ impl Investigation for Ssr {
     /// A view over the main one draws on the canvas (lab/src/view.rs); the main view its demonstration's scene.
     fn scene(&self, state: &ShotState) -> lab::scene::SceneId {
         if lab::view::name().is_some() {
+            // A view over the main one draws on the empty canvas.
             lab::scene::SceneId::CANVAS
         } else {
             self.demo_scene(state.demo)
@@ -173,6 +175,7 @@ impl Investigation for Ssr {
         natives: &mut lab::script::lamlet::embed::NativeRegistry,
     ) -> Result<(), lab::script::lamlet::embed::Error> {
         fn peak() -> (f32, f32) {
+            // Sample the fade at 2000 ray lengths across the screen, and keep the one where it is highest.
             let d = shot::demos();
             let (fade_in, fade_out) = (
                 d.param_default("ssrFadeIn").unwrap_or(0.15),

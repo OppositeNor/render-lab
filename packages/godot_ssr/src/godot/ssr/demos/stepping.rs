@@ -37,12 +37,14 @@ impl<'a> Stepper<'a> {
     pub(super) fn new(t: &'a trace::Trace, step: f32) -> Stepper<'a> {
         let len = t.steps.len();
         let x = step.max(0.0);
+        // The whole part is the iteration, the fraction how far into it; past the last there is no fraction.
         let i = (x.floor() as usize).min(len);
         let f = if i < len {
             x - i as f32
         } else {
             0.0
         };
+        // Each of the five things eases in over its own fifth of the iteration.
         let fifth = |k: f32| smooth(f * 5.0 - k);
         Stepper {
             steps: &t.steps,
@@ -67,6 +69,7 @@ impl<'a> Stepper<'a> {
     pub(super) fn fading(&self) -> Vec<(usize, &'a trace::Step, f32)> {
         let mut out = Vec::new();
         if let Some(s) = self.previous() {
+            // The iteration before fades out as the current one's cell appears; after the last it stays.
             let a = if self.current().is_some() {
                 1.0 - self.appear
             } else {
@@ -98,7 +101,9 @@ impl<'a> Stepper<'a> {
     /// changes (so the ray visibly moves on a still chart, then the chart follows).
     pub(super) fn anchor(&self) -> f32 {
         match (self.current(), self.previous()) {
+            // Mid-iteration: from its start toward where it sends the ray, as the level changes.
             (Some(s), _) => s.t + (s.next_t - s.t) * self.climb,
+            // All done: where the last iteration sent the ray.
             (None, Some(s)) => s.next_t,
             (None, None) => 0.0,
         }
@@ -106,6 +111,7 @@ impl<'a> Stepper<'a> {
 
     pub(super) fn tip(&self) -> f32 {
         match (self.current(), self.previous()) {
+            // The tip moves during the ray's own fifth, before the chart follows.
             (Some(s), _) => s.t + (s.next_t - s.t) * self.travel,
             (None, Some(s)) => s.next_t,
             (None, None) => 0.0,
@@ -117,6 +123,7 @@ impl<'a> Stepper<'a> {
     /// before it as it fades.
     pub(super) fn mark_of(&self, k: usize, j: usize, a: f32) -> f32 {
         if k == self.i {
+            // The iteration in progress shows each mark only once its fifth has come.
             a.min(if j == 0 {
                 self.leave
             } else {
@@ -145,6 +152,7 @@ impl<'a> Stepper<'a> {
     pub(super) fn level(&self) -> f32 {
         match (self.current(), self.previous()) {
             (Some(s), _) => {
+                // Between this iteration's level and the next, as the climb fifth runs.
                 let (a, b) = (s.level.max(0) as f32, s.next_level.max(0) as f32);
                 a + (b - a) * self.climb
             }
@@ -170,8 +178,10 @@ pub(super) fn field_cells(s: &trace::Step, level: f32) -> Vec<[i32; 2]> {
     let l = level.max(0.0).floor() as i32;
     let own = s.level.max(0);
     if own <= l {
+        // A cell of a level at or below the one shown is inside one of its cells.
         return vec![[s.cell[0] >> (l - own), s.cell[1] >> (l - own)]];
     }
+    // A cell of a higher level covers 2^k x 2^k cells of the level shown.
     let k = own - l;
     let n = 1 << k;
     (0..n * n)
@@ -240,6 +250,7 @@ pub(super) fn field(
         cx + close[0] * 0.5,
         cy + close[1] * 0.5,
     ];
+    // Zooming moves from the whole image to that window.
     let window = [
         near[0] * zoom,
         near[1] * zoom,
@@ -257,6 +268,7 @@ pub(super) fn field(
     let ramp = hiz[0].data.iter().copied().fold(0.0f32, f32::max).max(1e-6);
     let last = hiz.len() - 1;
     let l = (level.max(0.0).floor() as usize).min(last);
+    // The fraction between this level and the next, none on the last.
     let f = if l < last {
         level - l as f32
     } else {
@@ -267,6 +279,7 @@ pub(super) fn field(
     let (sx, sy) = (w / img.size[0] as f32, h / img.size[1] as f32);
     for y in 0..img.size[1] as i32 {
         for x in 0..img.size[0] as i32 {
+            // This cell's texel box at level 0; a cell outside the window is skipped.
             let texels = [
                 x as f32 * sx,
                 y as f32 * sy,
@@ -293,6 +306,7 @@ pub(super) fn field(
             if d <= 0.0 {
                 continue;
             }
+            // A lit cell takes its colour; the rest are grey on the depth map's ramp.
             let color = lit
                 .iter()
                 .find(|(c, _)| *c == [x, y])
@@ -327,6 +341,7 @@ pub(super) fn cells_along(
     let mut out: Vec<Crossing> = Vec::new();
     const SAMPLES: usize = 3000;
     for k in 0..=SAMPLES {
+        // Sample the ray finely; each new cell it enters starts a crossing, and the same cell extends it.
         let tt = end * k as f32 / SAMPLES as f32;
         let p = (t.screen_pos + t.screen_ray * tt).truncate() * size;
         let cell = [p.x.floor() as i32, p.y.floor() as i32];
@@ -335,6 +350,7 @@ pub(super) fn cells_along(
             || cell[0] >= img.size[0] as i32
             || cell[1] >= img.size[1] as i32
         {
+            // The ray has left the level's image.
             break;
         }
         match out.last_mut() {
@@ -462,6 +478,7 @@ impl<'a> Chart<'a> {
             last_level,
         };
         let ray = |tt: f32| (t.screen_pos + t.screen_ray * tt).z;
+        // The depths shown span the ray and every bar's depth, the sky's (0) left out.
         let mut lo = ray(0.0).min(ray(end));
         let mut hi = ray(0.0).max(ray(end));
         for &(_, _, _, d) in bars.levels.iter().flat_map(|(_, b)| b).chain(&bars.surface) {
@@ -472,6 +489,7 @@ impl<'a> Chart<'a> {
         }
         let pad = (hi - lo).max(1e-6) * 0.15;
         let size = Vec2::new(screen.size[0] as f32, screen.size[1] as f32);
+        // The t a texel of level 0 takes along the ray, so the window is eight cells of the level shown wide.
         let per_texel = 1.0
             / (t.screen_ray.x.abs() * size.x)
                 .max(t.screen_ray.y.abs() * size.y)
@@ -557,6 +575,7 @@ impl<'a> Chart<'a> {
         let below = (level.floor() as usize).min(last_level);
         let above = (below + 1).min(last_level);
         let mix = if above > below {
+            // Between two levels, the upper one fades in as the lower fades out.
             level - below as f32
         } else {
             0.0
@@ -566,6 +585,7 @@ impl<'a> Chart<'a> {
                 continue;
             }
             for &(_, x0, x1, d) in bars.at(l) {
+                // Each cell is a bar from the chart's floor to its nearest depth.
                 self.plane.rect(
                     &mut content.draw,
                     self.at(x0, lo),
@@ -578,6 +598,7 @@ impl<'a> Chart<'a> {
         }
         for &(_, s, a) in &stepper.fading() {
             let l = (s.level.max(0) as usize).min(last_level);
+            // The cell each iteration on screen tests, lit on its own level: blocking in the hit colour.
             let color = if s.hit {
                 palette::INCIDENT
             } else {
@@ -642,11 +663,13 @@ impl<'a> Chart<'a> {
         ];
         for (j, (tt, color, text, a)) in marks.into_iter().enumerate() {
             if a <= 0.0 {
+                // A mark not yet up is not drawn.
                 continue;
             }
             // Names do not fade: only the iteration named carries them.
             let text = (named == Some(k)).then_some(text);
             if self.inside(tt) {
+                // A mark in the window is drawn on the chart; one past its edge as an arrow at that edge.
                 self.mark(content, (tt, j), (color, a), text);
             } else {
                 self.off_chart(content, (tt, j), (color, a), text);
@@ -654,6 +677,7 @@ impl<'a> Chart<'a> {
         }
         let moving = stepper.move_of(k, a);
         if s.next_t > s.t && moving > 0.0 {
+            // Once the ray moves, an arrow to where the next iteration starts.
             content.draw.segment(
                 self.on(self.at(s.t, self.ray(s.t))),
                 self.on(self.at(s.next_t, self.ray(s.next_t))),
@@ -691,6 +715,7 @@ impl<'a> Chart<'a> {
         let Some(text) = text else {
             return;
         };
+        // In the chart's right half the name goes left of its line, so it stays inside the chart.
         let left = x > 0.55;
         content.draw.text(
             self.on(Vec2::new(
@@ -726,6 +751,7 @@ impl<'a> Chart<'a> {
     ) {
         let (u0, u1, v0, _) = CHART;
         let right = tt > self.t0 + self.width;
+        // The arrow points out of the side the mark lies past.
         let (edge, back) = if right {
             (u1, u1 - 0.05)
         } else {
@@ -770,6 +796,7 @@ impl<'a> Chart<'a> {
             return;
         };
         if !stepper.decided(k) {
+            // The result is named only once both marks are up.
             return;
         }
         let result = if s.held {
