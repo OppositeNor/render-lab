@@ -78,6 +78,7 @@ fn find_packages(module_dir: &Path) -> Vec<Package> {
     let mut packages: Vec<Package> = Vec::new();
     let mut pending = vec![module_dir.to_path_buf()];
     while let Some(dir) = pending.pop() {
+        // A package is read once, and its imports join the walk, so every package it reaches is found.
         if packages.iter().any(|m| m.dir == dir) {
             continue;
         }
@@ -187,6 +188,7 @@ fn read_collection(
 /// written yet (the lab writes the generated ones when it first runs).
 fn shader_files(manifests: &Manifests, id: &str, out: &mut Vec<PathBuf>) -> bool {
     for part in &manifests.shaders[id] {
+        // A part is another shader (its files, in place), a built resource (once written), or a source file.
         if manifests.shaders.contains_key(part) {
             if !shader_files(manifests, part, out) {
                 return false;
@@ -217,6 +219,7 @@ fn check_shaders(packages: &[Package], package: &str) {
     let mut manifests = Manifests::default();
     let mut overrides = Vec::new();
     for m in packages {
+        // Every package's collections fill the manifests; the checked package's own overrides are kept apart.
         let mut own = Vec::new();
         for collection in &m.collections {
             read_collection(&m.name, collection, &mut manifests, &mut own);
@@ -321,6 +324,7 @@ fn read_inline(e: &ast::InlineExpression<&str>, out: &mut Message) {
     match e {
         ast::InlineExpression::VariableReference { id } => out.variables.push(id.name.to_string()),
         ast::InlineExpression::FunctionReference { id, arguments } => {
+            // A call is recorded, a FORMULA's LaTeX kept, and its arguments read in turn.
             out.functions.push(id.name.to_string());
             if id.name == "FORMULA"
                 && let Some(ast::InlineExpression::StringLiteral { value }) =
@@ -355,6 +359,7 @@ fn read_table(path: &Path) -> Vec<(String, Message)> {
     for entry in resource.body {
         match entry {
             ast::Entry::Message(m) => {
+                // A message is one text without attributes, calls only known functions, and appears once.
                 let key = m.id.name.to_string();
                 assert!(
                     m.attributes.is_empty(),
@@ -414,6 +419,7 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
         .collect();
     entries.sort();
     for path in entries {
+        // Links and build outputs are skipped; a directory is walked, and each kind of file has its own scanner.
         if path.is_symlink()
             || path
                 .file_name()
@@ -458,6 +464,7 @@ fn text_keys_used(dir: &Path, keys: &mut Vec<(String, String)>) {
 fn toml_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     println!("cargo:rerun-if-changed={}", path.display());
     for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        // A `<name>-text = "key"` line names a key; comments and other fields are skipped.
         let Some((field, value)) = line.split_once('=') else {
             continue;
         };
@@ -479,6 +486,7 @@ fn toml_keys(path: &Path, keys: &mut Vec<(String, String)>) {
 fn lam_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     println!("cargo:rerun-if-changed={}", path.display());
     for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        // A data file's `titleText "key"`, then each cue that takes a key, called directly or through `attr`.
         for (i, found) in line.match_indices("titleText \"") {
             let rest = &line[i + found.len()..];
             let key = &rest[..rest.find('"').unwrap_or(rest.len())];
@@ -503,6 +511,7 @@ fn lam_keys(path: &Path, keys: &mut Vec<(String, String)>) {
 fn py_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     println!("cargo:rerun-if-changed={}", path.display());
     for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        // A `# title-text: key` or `# dispatch-text: key` line names a key.
         for field in ["# title-text: ", "# dispatch-text: "] {
             if let Some(key) = line.strip_prefix(field) {
                 keys.push((
@@ -518,6 +527,7 @@ fn py_keys(path: &Path, keys: &mut Vec<(String, String)>) {
 fn wgsl_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     println!("cargo:rerun-if-changed={}", path.display());
     for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
+        // Only `///` comments holding a `{@ … }` tag name keys, in their `text=` and `help=`.
         let Some(comment) = line
             .trim_start()
             .strip_prefix("///")
@@ -577,6 +587,7 @@ fn rust_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     // A derived value's or a choice option's name on screen: `#[value(… text = "key" …)]`, `#[choice(text = "key")]`.
     for attribute in ["#[value(", "#[choice("] {
         for (i, _) in code.match_indices(attribute) {
+            // The attribute, up to its closing bracket, is searched for `text = "…"` and `help = "…"`.
             let span = &code[i..closing(&code, i + 1)];
             for (j, _) in span
                 .match_indices("text = \"")
@@ -611,6 +622,7 @@ fn rust_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     }
     for call in ["tr(", "tr_with("] {
         for (i, _) in code.match_indices(call) {
+            // A call of `tr` or `tr_with` (not a longer name ending in it, nor its definition) names a key.
             let before = code[..i].chars().next_back();
             if before.is_some_and(|c| c.is_alphanumeric() || c == '_')
                 || code[..i].trim_end().ends_with("fn")
@@ -642,6 +654,7 @@ fn closing(code: &str, open: usize) -> usize {
     let mut escaped = false;
     for (i, c) in code[open..].char_indices() {
         if in_string {
+            // Inside a string literal, only its closing quote matters (an escaped one does not).
             match (escaped, c) {
                 (true, _) => escaped = false,
                 (false, '\\') => escaped = true,
@@ -654,6 +667,7 @@ fn closing(code: &str, open: usize) -> usize {
             '"' => in_string = true,
             '(' | '[' | '{' => depth += 1,
             ')' | ']' | '}' => {
+                // The closing bracket that brings the depth back to 0 closes the one at `open`.
                 depth -= 1;
                 if depth == 0 {
                     return open + i + 1;
@@ -690,6 +704,7 @@ fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
         let dir = dir.display();
         let (first, _, reference) = &tables[0];
         for (locale, complete, table) in &tables {
+            // Every locale's keys must be English's, naming the same variables and formulas.
             for (key, message) in table {
                 let Some((_, other)) = reference.iter().find(|(k, _)| k == key) else {
                     panic!("{dir}/{locale}.ftl has {key}, {first}.ftl does not")
@@ -706,6 +721,7 @@ fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
                 );
             }
             if *complete {
+                // A complete locale must also have every English key.
                 for (key, _) in reference {
                     assert!(
                         table.iter().any(|(k, _)| k == key),
@@ -739,6 +755,7 @@ fn check_text(locales: &[(String, bool)], tables: &[(PathBuf, Vec<PathBuf>)]) {
 fn source_key(name: &str) -> String {
     let mut out = String::new();
     for c in name.chars() {
+        // A character outside letters, digits, `_`, and `-` becomes `-`, and a run of them collapses to one.
         let c = if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
             c
         } else {
@@ -786,8 +803,10 @@ fn check_source_tables(locales: &[(String, bool)], module_dir: &Path) {
         serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", index_path.display()));
     let expected = source_keys(&index);
     for (locale, complete) in locales.iter().skip(1) {
+        // Each other locale's source table translates only the index's texts, and a complete one all of them.
         let path = module_dir.join(format!("text/sources/{locale}.ftl"));
         if !path.is_file() {
+            // A missing table is allowed only for a draft locale.
             assert!(
                 !complete,
                 "{}: no source table for {locale}, a complete locale",

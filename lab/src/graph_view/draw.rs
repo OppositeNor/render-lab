@@ -113,6 +113,7 @@ impl Painting<'_> {
     fn boxes(&self) {
         let (painter, scale) = (self.painter, self.scale);
         for &(c, b) in &self.laid.boxes {
+            // A cluster's box is drawn where it meets the clip, faded when the look does not light its cluster.
             let b = self.t.rect(b);
             if !b.intersects(self.clip) {
                 continue;
@@ -157,6 +158,7 @@ impl Painting<'_> {
         let (look, laid, t, scale) = (self.look, self.laid, self.t, self.scale);
         let tip = (scale * 0.3).clamp(5.0, 14.0);
         for (e, edge) in self.graph.edges.iter().enumerate() {
+            // An edge is skipped while hidden, not yet drawn, or joining a hidden node; else drawn as far as `drawn`.
             let l = look.edges[e];
             if l.hidden
                 || l.drawn <= 0.0
@@ -193,6 +195,7 @@ impl Painting<'_> {
                 tip,
             );
             if let (true, Some(label), true) = (look.edge_labels, &edge.label, l.drawn >= 1.0) {
+                // A fully drawn edge's label sits on a chip at its label point.
                 let w = self.ink.measure(label, scale, FontFamily::Proportional);
                 self.painter.rect_filled(
                     Rect::from_center_size(label_at, w + vec2(scale * 0.5, scale * 0.2)),
@@ -249,6 +252,7 @@ impl Painting<'_> {
         if node.card.is_some() {
             self.card(node, l, r);
         } else if node.rows.is_empty() && self.laid.pictures[i] == 0.0 {
+            // A node with neither rows nor a picture: its title lines, centred in the box.
             let line = scale * LINE;
             let top = r.center().y - line * node.title.len() as f32 / 2.0;
             for (k, title) in node.title.iter().enumerate() {
@@ -265,6 +269,7 @@ impl Painting<'_> {
             self.group(node, l, r, self.laid.pictures[i]);
         }
         if node.dashed {
+            // A dashed node's outline is dashes around its four sides.
             let corners = [
                 r.left_top(),
                 r.right_top(),
@@ -308,6 +313,7 @@ impl Painting<'_> {
             pos2(r.max.x - scale * 0.17, r.max.y - scale * 0.17 - rows),
         );
         for (k, row) in node.rows.iter().enumerate() {
+            // The card's rows sit along its bottom, each in its look's colour.
             let (color, _) = l
                 .rows
                 .get(k)
@@ -340,6 +346,7 @@ impl Painting<'_> {
             ),
         }
         if let Some(badge) = &l.badge {
+            // The badge goes in the picture's bottom-right corner, if it fits in 90% of its width.
             let size = self.ink.measure(badge, scale, FontFamily::Monospace)
                 + vec2(scale * 0.4, scale * 0.08);
             let tag = Rect::from_min_size(room.max - size, size);
@@ -389,6 +396,7 @@ impl Painting<'_> {
             y += RULE * scale;
         }
         for (k, row) in node.rows.iter().enumerate() {
+            // Each row is a band; a lit row is filled with the accent behind its text.
             let band = Rect::from_min_max(
                 pos2(r.min.x + scale * 0.25, y),
                 pos2(r.max.x - scale * 0.25, y + ROW * scale),
@@ -428,6 +436,7 @@ impl Painting<'_> {
 
 /// A picture fitted in `room`, its shape kept; framed when `frame`.
 pub(super) fn picture(painter: &egui::Painter, room: Rect, p: Picture, tint: Color32, frame: bool) {
+    // A picture taller than the room fits its height; a wider one fits its width.
     let shape = p.1[1] as f32 / p.1[0].max(1) as f32;
     let fitted = if shape > room.height() / room.width() {
         Rect::from_center_size(room.center(), vec2(room.height() / shape, room.height()))

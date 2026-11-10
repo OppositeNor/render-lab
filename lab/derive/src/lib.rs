@@ -75,6 +75,7 @@ fn expand_choice(input: &DeriveInput) -> Result<Tokens> {
     };
     let (mut package, mut prefix) = (String::new(), None::<String>);
     for attr in input.attrs.iter().filter(|a| a.path().is_ident("choice")) {
+        // Each `#[choice(…)]` on the enum may name its package and its WGSL constants' prefix.
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("package") {
                 package = meta.value()?.parse::<LitStr>()?.value();
@@ -88,6 +89,7 @@ fn expand_choice(input: &DeriveInput) -> Result<Tokens> {
     }
     let (mut options, mut indices, mut variants) = (Vec::new(), Vec::new(), Vec::new());
     for (i, variant) in data.variants.iter().enumerate() {
+        // Each variant becomes an option, indexed in declaration order; a variant with fields is refused.
         if !matches!(variant.fields, Fields::Unit) {
             return Err(Error::new(
                 variant.span(),
@@ -148,6 +150,7 @@ fn choice_option(variant: &syn::Variant, package: &str) -> Result<Tokens> {
     }
     let (mut text, mut label) = (None::<String>, None::<String>);
     for attr in variant.attrs.iter().filter(|a| a.path().is_ident("choice")) {
+        // Each `#[choice(…)]` on a variant overrides its story name, its text, its label, or its WGSL name.
         attr.parse_nested_meta(|meta| {
             let value = meta.value()?.parse::<LitStr>()?.value();
             if meta.path.is_ident("name") {
@@ -353,6 +356,7 @@ fn expand(input: &DeriveInput) -> Result<Tokens> {
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut all_defaults = true;
     for field in &fields.named {
+        // Each field becomes an entry under its key (scoped, camel-cased if asked), with a getter, setter, and default.
         let ident = field.ident.as_ref().unwrap();
         let kind = Kind::of(&field.ty)?;
         let attrs = field_attrs(field)?;
@@ -434,6 +438,7 @@ fn field_components(
     };
     let components: Vec<String> = match kind {
         Kind::Vec(n) => {
+            // A vector's components are `<key>.x`, `<key>.y`, and so on, unless the field names each one.
             if !attrs.components.is_empty() && attrs.components.len() != n {
                 return Err(Error::new(
                     field.span(),
@@ -467,6 +472,7 @@ fn default_tokens(
 ) -> Tokens {
     match &attrs.default {
         Some(v) => {
+            // A default goes into the entry and, cast to the field's type, into `defaults()`.
             defaults.push(match kind {
                 Kind::F32 => quote!(#ident: (#v) as f32),
                 Kind::I32 => quote!(#ident: (#v) as i32),
@@ -477,6 +483,7 @@ fn default_tokens(
             quote!(Some(#v))
         }
         None => {
+            // One field without a default leaves the struct without `defaults()`.
             *all_defaults = false;
             quote!(None)
         }
@@ -514,6 +521,7 @@ fn camel_case(name: &str) -> String {
     let mut out = String::new();
     let mut upper = false;
     for c in name.chars() {
+        // An underscore is dropped, and the letter after it is capitalised.
         if c == '_' {
             upper = true;
         } else if upper {
@@ -590,6 +598,7 @@ fn accessors(
 ) {
     match kind {
         Kind::Vec(n) => {
+            // A vector reads and writes whole under its key, and each component as an f32 under its own.
             let variant = syn::Ident::new(&format!("Vec{n}"), ident.span());
             gets.push(quote!(#key => Some(::lab::values::Value::#variant(self.#ident))));
             sets.push(quote!(#key => match value { ::lab::values::Value::#variant(v) => self.#ident = v, _ => panic!("{} is a {}, not a {:?}", #key, stringify!(#variant), value) }));
@@ -599,6 +608,7 @@ fn accessors(
             }
         }
         _ => {
+            // A scalar reads and writes under its key, as its own type.
             let read = match kind {
                 Kind::F32 => quote!(::lab::values::Value::F32(self.#ident)),
                 Kind::I32 => quote!(::lab::values::Value::I32(self.#ident)),
@@ -657,6 +667,7 @@ fn camel(name: &str) -> String {
     let mut out = String::new();
     let mut upper = false;
     for c in name.trim_start_matches('_').chars() {
+        // An underscore is dropped, and the letter after it is capitalised.
         if c == '_' {
             upper = true;
         } else if upper {
@@ -698,6 +709,7 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
     let (mut clicks, mut click_arms) = (Vec::new(), Vec::new());
     let mut keys: Vec<String> = Vec::new();
     for item in &mut input.items {
+        // Each function is a click handler (`#[click]`), an action (`#[action]`), or left as it is.
         let syn::ImplItem::Fn(f) = item else { continue };
         // A click handler: a function of its frame alone.
         if let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("click")) {
@@ -726,6 +738,7 @@ fn expand_actions(mut input: syn::ItemImpl) -> Result<Tokens> {
             });
             continue;
         }
+        // An action: a function of its frame and its arguments, under a key no other action has.
         let Some(at) = f.attrs.iter().position(|a| a.path().is_ident("action")) else {
             continue;
         };
@@ -807,6 +820,7 @@ fn action_args(f: &syn::ImplItemFn) -> Result<(Vec<Tokens>, Vec<Tokens>)> {
     }
     let (mut args, mut reads) = (Vec::new(), Vec::new());
     for input in inputs {
+        // Each later parameter is an argument, which a story sets by its name in camel case (`run.<arg>`).
         let syn::FnArg::Typed(pt) = input else {
             unreachable!("only the first parameter can be `self`")
         };

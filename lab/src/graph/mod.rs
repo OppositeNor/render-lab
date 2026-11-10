@@ -348,6 +348,7 @@ impl FrameGraph {
     /// and buffers.
     fn shading_resources(s: &'static SceneShading, resources: &mut Vec<Resource>) {
         for t in s.targets {
+            // A target the state sizes takes divisor 0; one the scene pass or pre-pass draws into is multisampled.
             let divisor = if s.resolution.is_some_and(|r| r.targets.contains(&t.name)) {
                 0
             } else {
@@ -461,6 +462,7 @@ impl FrameGraph {
         }
         if let Some(s) = shading {
             for h in s.history {
+                // A history keeps a target or a buffer from one frame to the next, so it must name one.
                 if !s.targets.iter().any(|t| t.name == *h)
                     && !s.buffers.iter().any(|b| b.name == *h)
                 {
@@ -503,6 +505,7 @@ impl FrameGraph {
         let frame = s.nodes;
         let mut named: Vec<&'static str> = Vec::new();
         let mut unique = |entry: &'static str| -> &'static str {
+            // A pass placed again is named `<entry>#2`, `#3`, and so on, so every node's name is its own.
             let k = named.iter().filter(|n| **n == entry).count();
             named.push(entry);
             if k == 0 {
@@ -518,6 +521,7 @@ impl FrameGraph {
         let mut placed = std::collections::BTreeMap::<FrameNode, usize>::new();
         let mut leading = true;
         for node in frame.iter() {
+            // Each placed node is counted, and the update passes must all come first.
             *placed.entry(*node).or_default() += 1;
             let update = matches!(node, FrameNode::Update(_));
             if update && !leading {
@@ -740,12 +744,14 @@ impl FrameGraph {
         // Edges, per resource, in declaration order.
         let mut edges = Vec::new();
         for (r, resource) in self.resources.iter().enumerate() {
+            // Walking the nodes in order, each resource keeps its last writer and the readers since.
             let mut writer: Option<usize> = None;
             let mut readers: Vec<usize> = Vec::new();
             for (i, n) in self.nodes.iter().enumerate() {
                 let reads = n.reads.contains(&resource.name);
                 let writes = n.writes.contains(&resource.name);
                 if reads {
+                    // A read follows the last writer; with none, the resource outlives frames, or the node writes it.
                     match writer {
                         Some(w) if w != i => edges.push((w, i, Edge::Data(r))),
                         Some(_) => {}
@@ -763,6 +769,7 @@ impl FrameGraph {
                     readers.push(i);
                 }
                 if writes {
+                    // A write waits for the reads of the last value, and for its writer.
                     for &reader in readers.iter().filter(|&&x| x != i) {
                         edges.push((reader, i, Edge::Order(r)));
                     }
@@ -785,6 +792,7 @@ impl FrameGraph {
         }
         let mut done = vec![false; count];
         while self.order.len() < count {
+            // Each step takes the first declared node with no edges left into it; none left means a cycle.
             let Some(next) = (0..count).find(|&i| !done[i] && incoming[i] == 0) else {
                 self.errors
                     .push("the nodes' accesses form a cycle".to_string());
@@ -878,6 +886,7 @@ impl FrameGraph {
             }
         }
         while let Some(i) = stack.pop() {
+            // A node becomes live once, and the writers of what it reads become live in turn.
             if std::mem::replace(&mut live[i], true) {
                 continue;
             }

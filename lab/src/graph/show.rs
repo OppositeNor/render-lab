@@ -172,6 +172,7 @@ pub fn inspect_entry(shape: &Shape) -> (&'static str, u32) {
         Shape::Volume { .. } => ("inspectVolumeCS", 7),
         Shape::Bytes { .. } => ("inspectBufferCS", 6),
         Shape::Image { kind, format, .. } => {
+            // A program image's entry follows its kind and its format's class; an integer 2D image is read as an array.
             use crate::investigation::ImageKind;
             let int = image_class(*format);
             match (kind, int) {

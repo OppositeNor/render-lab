@@ -365,6 +365,7 @@ fn read_resource(
     );
     let overrides = read_override(table, resolve, &fail)?;
     if form == Form::Built {
+        // A built collection's resource is a file a build wrote: it takes only the built fields, and no parameters.
         if let Some((key, _)) = table.iter().find(|(key, _)| !BUILT_FIELDS.contains(key)) {
             return Err(fail(format!("unknown field `{key}` in a built collection")));
         }
@@ -436,6 +437,7 @@ fn kind_params(
 ) -> Result<BTreeMap<String, f64>, String> {
     let mut params = BTreeMap::new();
     for (key, item) in table {
+        // Every field that is not a resource's own must be a parameter of its kind, of the parameter's type.
         if FIELDS.contains(&key) {
             continue;
         }
@@ -567,6 +569,7 @@ impl Declaration {
             hash.update(format!("{key}={value:?};"));
         }
         if self.kind.name == "directory" {
+            // A directory's stamp covers each of its files' size and time; a missing directory has none.
             if !self.file.is_dir() {
                 return None;
             }
@@ -593,6 +596,7 @@ impl Declaration {
     /// processed and written.
     pub fn produce(&self, out: &Path) -> Result<(), String> {
         if self.kind.name == "directory" {
+            // A directory resource is produced file by file, each one as a `file` resource.
             for file in self.files() {
                 let one = Declaration {
                     kind: &KINDS[0],
@@ -619,6 +623,7 @@ impl Declaration {
                     .map_err(|e| format!("resources: {}: copy {}: {e}", self.id, self.source))?;
             }
         } else {
+            // A processed resource runs its kind's processor on the source's bytes.
             let bytes = fs::read(&self.file)
                 .map_err(|e| format!("resources: {}: read {}: {e}", self.id, self.source))?;
             let processed = (self.kind.process)(&bytes, &self.params)

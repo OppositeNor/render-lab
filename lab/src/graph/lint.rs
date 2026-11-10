@@ -163,12 +163,14 @@ impl Lint<'_> {
         for &(group, binding, flags) in &used {
             match group {
                 2 => {
+                    // Group 2 is the chain's resources: each binding the entry uses must be one, and in the right list.
                     let Some(&(_, name, written)) = self.chain.iter().find(|c| c.0 == binding)
                     else {
                         self.problems.push(format!("{entry}: binds group 2 binding {binding}, which is none of the chain's resources"));
                         continue;
                     };
                     if self.buffers.contains(&name) {
+                        // A buffer's use comes from the shader: a read (or a length query) and a write are each seen.
                         if flags.intersects(GlobalUse::READ | GlobalUse::QUERY) {
                             seen.push((name, false));
                             if !reads.contains(&name) && flags.contains(GlobalUse::READ) {
@@ -184,6 +186,7 @@ impl Lint<'_> {
                         }
                         }
                     } else {
+                        // A target has one binding to read it and one to write it; the matching list must name it.
                         seen.push((name, written));
                         let listed = if written {
                             writes.is_some_and(|w| w.contains(&name))
@@ -208,6 +211,7 @@ impl Lint<'_> {
                     }
                 }
                 3 if binding > 0 => {
+                    // Group 3's bindings after 0 are only sampled: the volumes, or the program's scene uses.
                     let Some(name) = self.volume(binding) else {
                         continue;
                     };
@@ -224,6 +228,7 @@ impl Lint<'_> {
         if subset {
             return;
         }
+        // Every listed read and write must be one the shader makes.
         for name in reads {
             if !seen.contains(&(name, false)) {
                 self.problems.push(format!(
@@ -256,6 +261,7 @@ impl Lint<'_> {
         };
         let mut seen: Vec<(&str, bool)> = Vec::new();
         for &(group, binding, flags) in &used {
+            // Group 2: binding 0 is the frame's, then the update's buffers, then the volumes it writes.
             match (group, binding) {
                 (2, 0) => {}
                 (2, b) if b <= nb => {
@@ -269,6 +275,7 @@ impl Lint<'_> {
                             ));
                         }
                     }
+                    // A length query counts as a read only where the pass lists the buffer.
                     if flags.contains(GlobalUse::QUERY) && pass.reads.contains(&name) {
                         seen.push((name, false));
                     }
@@ -307,6 +314,7 @@ impl Lint<'_> {
                 _ => {}
             }
         }
+        // Every listed read and write must be one the shader makes.
         for name in pass.reads {
             if !seen.contains(&(name, false)) {
                 self.problems.push(format!(
@@ -358,6 +366,7 @@ pub(super) fn lint_program(
                 problems.push(format!("{label}: no entry point `{entry}` in {module}"));
                 return;
             };
+            // The entry points' group-3 uses, merged by binding.
             for (group, binding, flags) in u {
                 if group != 3 {
                     continue;
@@ -369,6 +378,7 @@ pub(super) fn lint_program(
             }
         }
         for d in declared {
+            // A use is the program's own resource or a frame texture (read with Load, and never by the scene pass).
             if read_only && frame(d.resource) {
                 problems.push(format!("{label}: the scene pass reads the frame's `{}` itself, not through the program", d.resource));
             } else if frame(d.resource) && d.access != Access::Load {
@@ -422,6 +432,7 @@ fn check_bindings(
 ) {
     use crate::investigation::Access;
     for (binding, flags) in used {
+        // Each binding the pass uses must be declared, and used the way its declaration says.
         let Some(d) = declared.iter().find(|d| d.binding == *binding) else {
             problems.push(format!(
                 "{label}: binds group 3 binding {binding}, which none of its uses declares"

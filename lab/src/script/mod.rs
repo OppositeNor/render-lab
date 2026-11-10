@@ -235,6 +235,7 @@ fn inlines(
     for x in xs {
         let (subject, attrs) = match x {
             Inline::Anchor { name, attrs, at: l } => {
+                // A cue is checked at its own place, which later problems in the paragraph take as theirs.
                 if l.is_some() {
                     *last = l.clone();
                 }
@@ -245,6 +246,7 @@ fn inlines(
                 attrs,
                 inlines: inner,
             } => {
+                // A range's attributes are checked, then what it spans.
                 let subject = if name.is_empty() {
                     "a range".to_string()
                 } else {
@@ -263,6 +265,7 @@ fn inlines(
             | Inline::Strong(inner)
             | Inline::Link { inlines: inner, .. }
             | Inline::Say { shown: inner, .. } => {
+                // Emphasis, links, and spoken text hold inlines of their own, checked in turn.
                 inlines(inner, schema, last, out);
                 continue;
             }
@@ -270,6 +273,7 @@ fn inlines(
             | Inline::Code { at: l, .. }
             | Inline::Math { at: l, .. }
             | Inline::Value { at: l, .. } => {
+                // Text only moves the last place forward, for the cues after it.
                 if l.is_some() {
                     *last = l.clone();
                 }

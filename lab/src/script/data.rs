@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 fn kebab(label: &str) -> String {
     let mut out = String::new();
     for c in label.chars() {
+        // A capital letter becomes `-` and its lowercase.
         if c.is_ascii_uppercase() {
             out.push('-');
             out.push(c.to_ascii_lowercase());
@@ -125,6 +126,7 @@ pub fn document(d: &Data, name: &str) -> Result<String, String> {
     let is_tables = |v: &Data| matches!(v, Data::List(items) if !items.is_empty() && items.iter().all(|x| matches!(x, Data::Record(_))));
     let (mut plain, mut tables, mut arrays) = (BTreeMap::new(), Vec::new(), Vec::new());
     for (k, v) in fields {
+        // A record becomes a table, a list of records an array of tables, and anything else a plain value.
         match present(v) {
             None => {}
             Some(Data::Record(inner)) => tables.push((k, inner)),

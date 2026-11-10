@@ -50,6 +50,7 @@ pub(super) fn typed(key: &str, entry: &values::Entry, value: &Data) -> Result<La
         }
     };
     if let Some(c) = entry.choices {
+        // A choice is written by its option's name, and stored as that option's index.
         let index = match value {
             Data::String(name) => c.index(name).ok_or_else(|| {
                 format!(
@@ -129,6 +130,7 @@ pub(super) fn trace(u: f64, v: f64, skip: &[String]) -> Result<Option<Hit>, Stri
             .ray(glam::Vec2::new(u as f32, v as f32) * glam::Vec2::from(camera.viewport_size));
         let mut best: Option<(f32, Vec3, usize)> = None;
         for (i, o) in content.objects.iter().enumerate() {
+            // The nearest object the ray hits, leaving out the named ones to skip.
             if names.get(i).is_some_and(|n| skip.iter().any(|s| s == n)) {
                 continue;
             }

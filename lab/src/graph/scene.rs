@@ -143,6 +143,7 @@ impl FrameGraph {
         let mut section_of = std::collections::HashMap::new();
         let mut holder = std::collections::HashMap::new();
         for s in &scene.sections {
+            // Each section's passes and resources must exist; each is mapped to the section that holds it.
             for p in &s.passes {
                 if !self.nodes.iter().any(|n| entry(n.name) == *p) {
                     errors.push(format!("{}: no pass `{p}` in the frame", s.id));
@@ -193,6 +194,7 @@ impl FrameGraph {
             }
         };
         for &(a, b, e) in &self.edges {
+            // A data edge between passes joins their sections, through the section that holds the resource if one does.
             let Edge::Data(r) = e else { continue };
             let (from, to) = (
                 section_of.get(&entry(self.nodes[a].name)),

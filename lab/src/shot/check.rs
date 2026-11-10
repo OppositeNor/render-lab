@@ -35,6 +35,7 @@ pub(super) fn check_notes(
         crate::utility::annotations::parse_color(color)?;
     }
     if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
+        // An arrow not made by an earlier key must name both its ends; one made before keeps them.
         if made.get(name) != Some(&"arrow") && (key.arrow_from.is_none() || key.arrow_to.is_none())
         {
             return Err(format!(
@@ -69,6 +70,7 @@ pub(super) fn check_notes(
         made.insert(set.clone(), "arrows");
     }
     if let Some(name) = key.label.as_deref().filter(|n| !n.is_empty()) {
+        // A label not made by an earlier key must name its point and text; one made before keeps them.
         if made.get(name) != Some(&"label") && (key.label_at.is_none() || key.label_text.is_none())
         {
             return Err(format!(
@@ -261,6 +263,7 @@ impl Cue {
             return Err(CueProblem::new("story.motion", "animate", problem));
         }
         for name in motion.params() {
+            // A motion moves only a value, the camera's or the free camera's channels, or the frame's.
             if investigation::current().param_default(name).is_none()
                 && !camera_channels().contains(&name)
                 && !free_camera_channels().contains(&name)
@@ -290,6 +293,7 @@ impl Cue {
         for (i, motion) in motions.iter().enumerate() {
             self.check_motion(motion)?;
             for name in motion.params() {
+                // A parameter an earlier motion of the key already drives is refused.
                 if let Some((_, first)) = seen.iter().find(|(n, _)| *n == name) {
                     return Err(CueProblem::new(
                         "story.motion.duplicate",

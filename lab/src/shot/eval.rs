@@ -205,6 +205,7 @@ fn set_point(
     match point_value(value).unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame)) {
         PointValue::Named(k) => Anchor::Named(k),
         PointValue::At(p) => {
+            // A fixed point blends by coordinate: a new channel starts held at its value, and each heads for it.
             for (k, v) in p.into_iter().enumerate() {
                 let channel = note_point(name, end, k);
                 if !segments.contains_key(&channel) {
@@ -266,6 +267,7 @@ pub(super) fn apply_notes(
         })
     };
     if let Some(name) = key.arrow.as_deref().filter(|n| !n.is_empty()) {
+        // An arrow keeps its ends and width unless the key gives new ones.
         let old = state
             .notes
             .iter()
@@ -313,6 +315,7 @@ pub(super) fn apply_notes(
         );
     }
     if let Some(name) = key.label.as_deref().filter(|n| !n.is_empty()) {
+        // A label keeps its point and text unless the key gives new ones.
         let old = state
             .notes
             .iter()
@@ -362,6 +365,7 @@ pub(super) fn finish_notes(
         }
     };
     for note in &mut state.notes {
+        // Each note's fade and fixed points are read at the frame; a note faded out is dropped below.
         note.alpha = segments
             .get(&note_alpha(&note.name))
             .map_or(0.0, |s| s.value(frame));
@@ -455,6 +459,7 @@ impl Timeline {
         }
         let mut frame = 0;
         for beat in &self.beats {
+            // The beats must tile the timeline: each starts where the one before ended.
             if beat.start_frame != frame {
                 bail!(
                     "beat {} starts at {} but the previous beat ended at {frame}",
@@ -536,6 +541,7 @@ impl Timeline {
         let camera = camera_channels();
         Self::reset(&mut segments, &state, 0);
         for key in self.keys.iter().take_while(|k| k.frame <= frame) {
+            // Each key up to the frame, in order, may switch the demonstration, sets its cues, and blends its values.
             Self::switch_demo(key, &mut state, &mut segments, &camera);
             Self::apply_cues(key, &mut state);
             let mut targets: Vec<(String, f32)> = key
@@ -547,8 +553,8 @@ impl Timeline {
             }
             targets.extend(key.image_hide.iter().map(|name| (image_alpha(name), 0.0)));
             Self::show_image(key, &mut state, &mut segments, &mut targets);
-            // A newly lit term fades in from dark; unlighting fades the term out.
             apply_notes(key, &mut state, &mut segments, &mut targets);
+            // A newly lit term fades in from dark; unlighting fades the term out.
             if let Some(term) = key.term {
                 if term > 0 {
                     state.formula_term = term;
@@ -658,6 +664,7 @@ impl Timeline {
         // A demonstration's switch above stops every action (its state is new).
         state.actions.retain(|a| !key.stop.contains(&a.key));
         if let Some(call) = &key.run {
+            // Running an action again restarts it.
             state.actions.retain(|a| a.key != call.name);
             state.actions.push(RunningAction {
                 key: call.name.clone(),
@@ -704,6 +711,7 @@ impl Timeline {
                     }
                 }
                 None => {
+                    // A new image: the one the key makes, else a published image or a resource by its name.
                     let source = made.unwrap_or_else(|| {
                         image_source(name)
                             .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame))
@@ -745,12 +753,14 @@ impl Timeline {
                 image.mark_text = Some(text.clone()).filter(|t| !t.is_empty());
             }
             if !shown {
+                // An image not showing fades in from nothing, and so does its mark.
                 segments.insert(image_alpha(name), Channel::hold(key.frame, 0.0));
                 segments.insert(image_mark_alpha(name), Channel::hold(key.frame, 0.0));
             }
             Self::mark_image(key, name, segments, targets);
             targets.push((image_alpha(name), 1.0));
             for (param, value) in &key.image_params {
+                // Each parameter blends, component by component, to the key's value.
                 let value = components(value)
                     .unwrap_or_else(|e| panic!("{e}, in key at frame {}", key.frame));
                 targets.extend(
@@ -798,6 +808,7 @@ impl Timeline {
     fn camera_targets(key: &Key, targets: &mut Vec<(String, f32)>) {
         if let Some(c) = &key.camera {
             if let Some(t) = c.target {
+                // The target blends by component, through the camera's own channels.
                 let target = OrbitCamera::schema()
                     .iter()
                     .find(|e| e.key == "camera.target")
@@ -826,6 +837,7 @@ impl Timeline {
     /// Each target blends from its channel's value at `key` over the key's blend.
     fn blend_to(key: &Key, targets: Vec<(String, f32)>, segments: &mut BTreeMap<String, Channel>) {
         for (name, target) in targets {
+            // A channel without a value yet starts at its target.
             let start = segments
                 .get(&name)
                 .map(|s| s.value(key.frame))
@@ -846,6 +858,7 @@ impl Timeline {
     /// `key`'s motions: each moves its parameters from where they are at the key.
     fn animate(&self, key: &Key, segments: &mut BTreeMap<String, Channel>) {
         for motion in &key.animate {
+            // A motion starts from its parameters' values at the key, and each parameter follows it by index.
             let params = motion.params();
             let start = Rc::new(
                 params

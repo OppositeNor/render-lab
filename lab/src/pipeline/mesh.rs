@@ -87,6 +87,7 @@ fn parse_obj(text: &str, scale: f32) -> Result<Vec<Triangle>, String> {
             Some("v") => positions.push(vec3(&mut parts)? * scale),
             Some("vn") => normals.push(vec3(&mut parts)?.normalize_or_zero()),
             Some("f") => {
+                // A face's corners are `v/vt/vn`: each finds its position and normal (1-based) declared before it.
                 let corners = parts
                     .map(|c| {
                         let mut ids = c.split('/');
@@ -134,6 +135,7 @@ fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
     // (node, start, end, depth)
     let mut work = vec![(0usize, 0usize, triangles.len(), 1usize)];
     while let Some((node, start, end, level)) = work.pop() {
+        // A node's box bounds its triangles, and its centroids' box picks the axis to split along.
         depth = depth.max(level);
         let (mut lo, mut hi) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
         let (mut clo, mut chi) = (lo, hi);
@@ -148,6 +150,7 @@ fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
         nodes[node].bounds_min = lo;
         nodes[node].bounds_max = hi;
         if end - start <= leaf {
+            // Few enough triangles: the node is a leaf over its run of `order`.
             nodes[node].first_or_left = start as u32;
             nodes[node].triangle_count = (end - start) as u32;
             continue;
@@ -160,6 +163,7 @@ fn build(triangles: &[Triangle], leaf: usize) -> (Vec<Node>, Vec<u32>, usize) {
         } else {
             2
         };
+        // Otherwise the run is sorted along that axis (ties by index) and split at its median into two children.
         order[start..end].sort_by(|&a, &b| {
             centroids[a as usize][axis]
                 .total_cmp(&centroids[b as usize][axis])

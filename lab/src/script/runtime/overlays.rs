@@ -225,6 +225,7 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
     });
     let result = with_runtime(|rt| {
         for i in 0..rt.overlays.len() {
+            // Each overlay draws what it last drew in this view when its call fails, so a slip does not blank it.
             let name = Kind::Overlay(i).to_string();
             let drawn = rt
                 .call(
@@ -247,6 +248,7 @@ pub fn overlay(state: &ShotState, statics: &Statics, content: &mut FrameContent,
             }
         }
         for i in 0..rt.readouts.len() {
+            // Each readout's rows are added after the rows already in the readout.
             let name = Kind::Readout(i).to_string();
             let rows = rt
                 .call(

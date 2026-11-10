@@ -304,6 +304,7 @@ fn declared(source: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for head in ["$[# {", "$[# ", "$[Native ", "$[Macro !"] {
         for (i, _) in source.match_indices(head) {
+            // A declared name runs to the next space or bracket; one starting with `_` is private.
             let name: String = source[i + head.len()..]
                 .chars()
                 .take_while(|c| !c.is_whitespace() && !"{}[]".contains(*c))
@@ -755,6 +756,7 @@ impl Runtime {
         let (params, ret) = (params.clone(), ret.clone());
         let named = binding.name.clone();
         let taken = |m: &BTreeMap<String, Hook>| m.contains_key(&named);
+        // A hook's type says its kind: from time, shapes make an overlay, rows a readout, writes an animation.
         match params.as_slice() {
             [TypeDesc::Float] if *ret == types.shapes => self.overlays.push(hook),
             [TypeDesc::Float] if *ret == types.rows => self.readouts.push(hook),

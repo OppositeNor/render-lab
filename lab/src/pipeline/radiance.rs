@@ -52,6 +52,7 @@ fn process(file: &[u8], params: &Params) -> Result<Vec<u8>, String> {
     }
     for i in 0..count {
         if i > 0 {
+            // Each mip after the first averages 2 × 2 texels of the one before.
             let w = width >> (i - 1);
             level = (0..level.len() / 4)
                 .map(|k| {
@@ -124,6 +125,7 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
             return Err(truncated());
         }
         if (8..0x8000).contains(&width) && data[0] == 2 && data[1] == 2 && data[2] & 0x80 == 0 {
+            // A run-length scanline: a header (2, 2, width), then each channel coded on its own.
             if ((data[2] as usize) << 8) | data[3] as usize != width {
                 return Err("a Radiance scanline's width is not the image's".into());
             }
@@ -133,6 +135,7 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
                 while x < width {
                     let count = *data.first().ok_or_else(truncated)? as usize;
                     if count > 128 {
+                        // A count above 128 repeats the next byte count - 128 times.
                         let value = *data.get(1).ok_or_else(truncated)?;
                         for texel in scanline
                             .get_mut(x..x + count - 128)
@@ -143,6 +146,7 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
                         x += count - 128;
                         data = &data[2..];
                     } else {
+                        // Otherwise `count` bytes follow, copied as they are.
                         let run = data.get(1..1 + count).ok_or_else(truncated)?;
                         for (texel, &value) in scanline
                             .get_mut(x..x + count)
@@ -158,12 +162,14 @@ fn read_radiance(file: &[u8]) -> Result<(usize, usize, Vec<Vec3>), String> {
                 }
             }
         } else {
+            // Any other scanline is flat: four bytes (RGBE) per texel.
             let flat = data.get(..4 * width).ok_or_else(truncated)?;
             for (texel, bytes) in scanline.iter_mut().zip(flat.as_chunks::<4>().0.iter()) {
                 texel.copy_from_slice(bytes);
             }
             data = &data[4 * width..];
         }
+        // RGBE: each channel times 2^(e - 128) / 256, and a zero exponent is black.
         texels.extend(scanline.iter().map(|&[r, g, b, e]| {
             if e == 0 {
                 Vec3::ZERO
