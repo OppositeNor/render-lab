@@ -3,13 +3,15 @@
 How Godot's Forward+ renderer computes **signed distance field global illumination**, read from the Godot source
 (4.7.2-stable, the commit in [`source-index.json`](../../../source-index.json)) and followed in the lab at the engine's
 own sizes: four cascades of 128³ cells (0.2 m cells in the first), 17³ probes per cascade, eight rays per probe per
-frame, and a history of 30 frames. The study room is voxelized, flooded, lit, and traced on the CPU by
-[`voxels.rs`](voxels.rs), [`occlusion.rs`](occlusion.rs), [`light.rs`](light.rs), [`probes.rs`](probes.rs), and
-[`sim.rs`](sim.rs), each following the engine's shader or C++ function line by line; the scene pass shades the room
-with [`shaders/sdfgi_shading.wgsl`](../../../shaders/sdfgi_shading.wgsl), a WGSL port of the screen pass
-(`sdfgi_process`), reading the probe maps of that CPU world. [`shaders/sdfgi_passes.wgsl`](../../../shaders/sdfgi_passes.wgsl)
-ports the light pass (with the area light's LTC integral), the probe rays, and the probe store for the selftest, which
-compares them with the CPU model.
+frame, and a history of 30 frames. The frame runs Godot's own passes on the GPU ([`gpu.rs`](gpu.rs),
+`shaders/sdfgi_gpu_*.wgsl`, as a lab program: voxelize, the jump flood and STORE, the light, the probe rays and store);
+the depth pre-pass and the screen gather ([`shaders/sdfgi_shading.wgsl`](../../../shaders/sdfgi_shading.wgsl), a WGSL
+port of `sdfgi_process`) then light the room from the probe maps those passes wrote. Only the cascades' update and the
+culling run on the CPU, as in Godot. The demonstrations' read-outs come from a CPU model of the same steps
+([`voxels.rs`](voxels.rs), [`occlusion.rs`](occlusion.rs), [`light.rs`](light.rs), [`probes.rs`](probes.rs),
+[`sim.rs`](sim.rs)), each following the engine's shader or C++ function line by line, which the selftest compares with
+the GPU passes ([`shaders/sdfgi_passes.wgsl`](../../../shaders/sdfgi_passes.wgsl) ports the light pass, the probe rays,
+and the probe store for it).
 
 ## What the demonstrations show
 

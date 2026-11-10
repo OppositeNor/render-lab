@@ -4,6 +4,7 @@ use super::*;
 
 /// Chapter 4: the solid voxels of cascade 0 and one voxel's bits.
 pub(super) fn voxels_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
+    emission_chart(state, content);
     let data = &world.data[0];
     let passes = state.p("voxelPasses");
     if state.p("voxels") > 0.5 {
@@ -12,6 +13,7 @@ pub(super) fn voxels_demo(state: &ShotState, world: &World, content: &mut FrameC
     let p = worked_voxel(world);
     let w = cell_world(world, 0, p);
     ball(content, w, 0.08, palette::SELECTED, 1.0);
+    neighbour_flags(state, world, p, content);
     for (k, dir) in voxels::ANISO_DIR.iter().enumerate() {
         // An arrow per direction, bright where the worked voxel's facing bit is set.
         let on = data.voxels.facing[index(p)] & (1 << k) != 0;
@@ -133,8 +135,9 @@ pub(super) fn stored_voxels(state: &ShotState, world: &World, content: &mut Fram
             let n = n.max(1);
             Color32::from_rgb((r / n) as u8, (g / n) as u8, (b / n) as u8)
         } else {
-            // Or its albedo, brightened (square root) to read on screen.
-            let a = c.albedo_rgb();
+            // Or its albedo, at `albedoLevels` levels a channel (the stored 5 bits are 32), brightened to read.
+            let levels = (state.p("albedoLevels").round().clamp(2.0, 32.0) - 1.0).max(1.0);
+            let a = (c.albedo_rgb() * levels + Vec3::splat(0.5)).floor() / levels;
             Color32::from_rgb(
                 (a.x.sqrt() * 255.0) as u8,
                 (a.y.sqrt() * 255.0) as u8,
@@ -143,6 +146,66 @@ pub(super) fn stored_voxels(state: &ShotState, world: &World, content: &mut Fram
         };
         ball(content, w, size, color, 1.0);
     }
+}
+
+/// With `emissionChart`, an emissive colour at 10^`emissionLevel` packed as the SDF pass packs emission (RGBE8985):
+/// its three mantissas and its shared exponent as bars, and the colour read back beside the true one.
+pub(super) fn emission_chart(state: &ShotState, content: &mut FrameContent) {
+    if state.p("emissionChart") <= 0.5 {
+        return;
+    }
+    let light = Vec3::new(1.0, 0.55, 0.2) * 10f32.powf(state.p("emissionLevel"));
+    let word = voxels::encode_rgbe8985(light);
+    let back = voxels::decode_rgbe8985(word);
+    // The word's fields: red's 8 bits, green's 9, blue's 8, the exponent's 5, each as a share of its range.
+    let fields = [
+        ((word & 0xFF) as f32 / 255.0, [230u8, 90, 80]),
+        (((word >> 8) & 0x1FF) as f32 / 511.0, [90, 200, 110]),
+        (((word >> 17) & 0xFF) as f32 / 255.0, [90, 140, 230]),
+        (((word >> 25) & 0x1F) as f32 / 31.0, [230, 200, 90]),
+    ];
+    let n = 120usize;
+    let mut rgba = vec![0u8; n * n * 4];
+    for px in rgba.chunks_mut(4) {
+        px.copy_from_slice(&[12, 20, 32, 255]);
+    }
+    for (k, (v, c)) in fields.iter().enumerate() {
+        // Each field a bar, as tall as its value is of its range.
+        let top = n - 1 - (v.clamp(0.0, 1.0) * (n - 8) as f32) as usize;
+        for y in top..n {
+            for x in 8 + k * 28..8 + k * 28 + 20 {
+                let i = (y * n + x) * 4;
+                rgba[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+            }
+        }
+    }
+    content.insets.push(picture(
+        Corner::TopLeft,
+        Caption {
+            title: tr("demos-emission_word").into(),
+            key: format!("emission-{word}"),
+            lines: vec![
+                (
+                    tr_with(
+                        "demos-emission_red",
+                        lab::args!(value = format!("{:.4}", light.x)),
+                    ),
+                    palette::text(),
+                ),
+                (
+                    tr_with(
+                        "demos-emission_back",
+                        lab::args!(value = format!("{:.4}", back.x)),
+                    ),
+                    palette::text_dim(),
+                ),
+            ],
+        },
+        n,
+        rgba,
+        [tr("demos-emission_fields").into(), String::new()],
+        None,
+    ));
 }
 
 /// Cascade 0's render images after `passes` of the three views (cached).
@@ -203,7 +266,7 @@ pub(super) fn slice_window(
     let y = world_cell(world, 0, Vec3::new(0.0, state.p("sliceHeight"), 0.0)).y;
     let n = cells as usize;
     // Each cell drawn as a block of k x k pixels, so the inset's filtering keeps cells sharp.
-    let k = (220 / n).max(1);
+    let k = (300 / n).max(1);
     let size = n * k;
     let mut rgba = vec![0u8; size * size * 4];
     for row in 0..n {
@@ -288,7 +351,11 @@ pub(super) fn grey(v: f32) -> [u8; 4] {
 pub(super) fn field_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
     let data = &world.data[0];
     let step = state.p("floodStep").round().clamp(0.0, 8.0) as usize;
-    let worked = world_cell(world, 0, Vec3::new(-0.2, state.p("sliceHeight"), -0.55));
+    let worked = world_cell(
+        world,
+        0,
+        Vec3::new(state.p("fieldX"), state.p("sliceHeight"), state.p("fieldZ")),
+    );
     let seeds_at = |p: IVec3| -> [u8; 4] {
         match step {
             // Step 0 is the half-size seeds, 1 to 6 the half-size passes, 7 the upscale, then the full-size pass.
@@ -318,6 +385,8 @@ pub(super) fn field_demo(state: &ShotState, world: &World, content: &mut FrameCo
     }
     // A sphere trace across the slice: from the worked cell along +x, each step the stored distance.
     let march_steps = field_march(state, world, worked, content);
+    byte_profile(state, world, worked, content);
+    flood_reach(state, world, (step, worked, seed), content);
     let schedule = voxels::half_schedule();
     let step_text = match step {
         0 => tr("demos-flood_init").to_string(),
@@ -421,8 +490,8 @@ pub(super) fn field_slices(
             },
             |p| {
                 if n == 1 {
-                    // The distance field: grey by distance, white from 24 cells.
-                    grey(data.stored.sdf[index(p)] as f32 / 24.0)
+                    // The distance field: grey by distance (square root, so cells near a surface read), white from 24.
+                    grey((data.stored.sdf[index(p)] as f32 / 24.0).sqrt())
                 } else {
                     // The seeds: whether this step changed the cell's seed, from the step before.
                     let s = seeds_at(p);
@@ -436,8 +505,8 @@ pub(super) fn field_slices(
                         prev != s
                     };
                     if s[3] == 0 {
-                        // No seed yet: black.
-                        [0, 0, 0, 255]
+                        // No seed yet: dark slate.
+                        [44, 48, 62, 255]
                     } else if changed {
                         // A cell this step gave a nearer seed.
                         [255, 120, 60, 255]
@@ -454,6 +523,25 @@ pub(super) fn field_slices(
             },
             Some(worked),
         );
+        // A click picks the cell under it (script/logic.lam `pickFieldCell`); the worked cell outlined, linked to the scene.
+        let n = SLICE_CELLS as f32;
+        let min = world_cell(world, 0, Vec3::new(-n * 0.1, 0.0, -n * 0.1));
+        let (u, v) = ((worked.x - min.x) as f32 / n, (worked.z - min.z) as f32 / n);
+        let inset = PictureInset {
+            click: Some("pickFieldCell".into()),
+            outlines: vec![Outline {
+                rect: [u, 1.0 - v - 1.0 / n, u + 1.0 / n, 1.0 - v],
+                color: palette::SELECTED,
+                width: 2.0,
+                outside: false,
+            }],
+            link: Some(Link {
+                from: cell_world(world, 0, worked),
+                outline: 0,
+            }),
+            size: [300.0, 300.0],
+            ..inset
+        };
         if image_on {
             content.images.push((key.to_string(), inset.clone()));
         }
@@ -481,7 +569,8 @@ pub(super) fn field_march(
         let pos = (start - field.offset(0)) * field.to_cell(0);
         let dir = Vec3::X;
         let mut advance = 0.0;
-        for _ in 0..40 {
+        let shown = state.p("fieldSteps").round().clamp(0.0, 40.0) as usize;
+        for _ in 0..shown {
             let d = light::sample_sdf(
                 &data.stored.sdf,
                 (pos + dir * advance) / CASCADE_SIZE as f32,
@@ -510,4 +599,202 @@ pub(super) fn field_march(
 pub(super) fn half_index(p: IVec3) -> usize {
     let h: IVec3 = p >> IVec3::ONE;
     (h.x + h.y * 64 + h.z * 64 * 64) as usize
+}
+
+/// The stored byte along the march's line (`byteProfile` cells of it, from the worked cell along +x): a bar per
+/// cell of the byte, less `byteRead` (1: the byte minus one, as a ray reads it, so a solid voxel's zero reads -1),
+/// and with `byteCurve` the trilinear read between the cells as a curve, which crosses zero halfway between a solid
+/// voxel and its empty neighbour.
+fn byte_profile(state: &ShotState, world: &World, worked: IVec3, content: &mut FrameContent) {
+    const CELLS: usize = 24;
+    const PX: usize = 6;
+    let shown = state.p("byteProfile").round().clamp(0.0, CELLS as f32) as usize;
+    if shown == 0 {
+        return;
+    }
+    let sdf = &world.data[0].stored.sdf;
+    let (w, h) = (CELLS * PX, 120usize);
+    let (low, high) = (-1.5f32, 8.0f32);
+    let y_of = |v: f32| -> usize {
+        let t = ((v.clamp(low, high) - low) / (high - low)).clamp(0.0, 1.0);
+        ((1.0 - t) * (h - 1) as f32) as usize
+    };
+    let mut rgba = vec![0u8; w * h * 4];
+    for px in rgba.chunks_mut(4) {
+        px.copy_from_slice(&[12, 20, 32, 255]);
+    }
+    let put = |x: usize, y: usize, c: [u8; 4], rgba: &mut Vec<u8>| {
+        if x < w && y < h {
+            let i = (y * w + x) * 4;
+            rgba[i..i + 4].copy_from_slice(&c);
+        }
+    };
+    let zero = y_of(0.0);
+    for x in 0..w {
+        put(x, zero, [90, 100, 120, 255], &mut rgba);
+    }
+    for c in 0..shown {
+        // Each cell a bar from zero to its byte minus one, orange where the voxel is solid.
+        let p = worked + IVec3::new(c as i32, 0, 0);
+        if p.x >= CASCADE_SIZE {
+            break;
+        }
+        let v = sdf[index(p)] as f32 - state.p("byteRead").clamp(0.0, 1.0);
+        let colour = if v < 0.0 {
+            [255, 150, 70, 255]
+        } else {
+            [90, 160, 230, 255]
+        };
+        let (a, b) = (zero.min(y_of(v)), zero.max(y_of(v)));
+        for x in c * PX + 1..(c + 1) * PX - 1 {
+            for y in a..=b {
+                put(x, y, colour, &mut rgba);
+            }
+        }
+    }
+    for x in 0..shown * PX * usize::from(state.p("byteCurve") > 0.5) {
+        // The trilinear read a ray takes between the cell centres, a white curve.
+        let at = worked.as_vec3() + Vec3::new(x as f32 / PX as f32, 0.5, 0.5);
+        if at.x >= CASCADE_SIZE as f32 {
+            break;
+        }
+        let v = light::sample_sdf(sdf, at / CASCADE_SIZE as f32) * 255.0 - 1.0;
+        put(x, y_of(v), [240, 240, 240, 255], &mut rgba);
+    }
+    // A click on the chart switches its bars between the stored byte and the byte a ray reads (`toggleByteRead`).
+    content.insets.push(PictureInset {
+        click: Some("toggleByteRead".into()),
+        ..picture(
+            Corner::BottomLeft,
+            Caption {
+                title: tr("demos-byte_profile").into(),
+                key: format!("byte-profile-{shown}"),
+                lines: vec![(tr("demos-byte_profile_note").into(), palette::text_dim())],
+            },
+            w.max(h),
+            square(rgba, w, h),
+            [tr("demos-byte_axis").into(), tr("demos-read_axis").into()],
+            None,
+        )
+    });
+}
+
+/// A `w` x `h` picture centred in a square one, for `picture`.
+fn square(rgba: Vec<u8>, w: usize, h: usize) -> Vec<u8> {
+    let n = w.max(h);
+    let mut out = vec![0u8; n * n * 4];
+    for px in out.chunks_mut(4) {
+        px.copy_from_slice(&[12, 20, 32, 255]);
+    }
+    let (ox, oy) = ((n - w) / 2, (n - h) / 2);
+    for y in 0..h {
+        let src = y * w * 4;
+        let dst = ((y + oy) * n + ox) * 4;
+        out[dst..dst + w * 4].copy_from_slice(&rgba[src..src + w * 4]);
+    }
+    out
+}
+
+/// With `floodNeighbours`, the cells the worked cell compares at `floodStep`: at a half-size pass, the 26 cells a
+/// step away along the axes and diagonals (the step in full cells); at the upscale, the eight voxels of the block its
+/// seed lies in.
+fn flood_reach(
+    state: &ShotState,
+    world: &World,
+    (step, worked, seed): (usize, IVec3, [u8; 4]),
+    content: &mut FrameContent,
+) {
+    if state.p("floodNeighbours") <= 0.5 {
+        return;
+    }
+    let from = cell_world(world, 0, worked);
+    let mut cells = Vec::new();
+    if (1..=6).contains(&step) {
+        // A half-size pass: its step is in half-size cells, so twice that in full cells.
+        let reach = 2 * voxels::half_schedule()[step - 1].0;
+        for i in -1..=1 {
+            for j in -1..=1 {
+                for k in -1..=1 {
+                    if (i, j, k) != (0, 0, 0) {
+                        cells.push(worked + IVec3::new(i, j, k) * reach);
+                    }
+                }
+            }
+        }
+    } else if step == 7 && seed[3] != 0 {
+        // The upscale: the 2 x 2 x 2 block of full cells the seed lies in.
+        let base = (IVec3::new(seed[0] as i32, seed[1] as i32, seed[2] as i32) >> IVec3::ONE)
+            << IVec3::ONE;
+        for k in 0..8 {
+            cells.push(base + IVec3::new(k & 1, (k >> 1) & 1, (k >> 2) & 1));
+        }
+    }
+    for c in cells.into_iter().filter(|&c| inside(c)) {
+        // A neighbour inside the room gets its line; one beyond it a short stub toward it, so lines stay in the room.
+        let at = cell_world(world, 0, c);
+        if Scene::inside_room(at, 0.0) {
+            content
+                .draw
+                .segment(from, at, palette::OUTSIDE, 0.6, 1.5, 0);
+            ball(content, at, 0.05, palette::OUTSIDE, 1.0);
+        } else {
+            let tip = from + (at - from).normalize_or_zero() * 0.5;
+            content.draw.segment(
+                from,
+                tip,
+                palette::OUTSIDE,
+                0.6,
+                1.5,
+                lab::frame::FLAG_ARROW,
+            );
+        }
+    }
+}
+
+/// With `neighbourFlags`, the worked voxel's 26 neighbour flags from its solid-cell record: a short line toward each
+/// neighbour, bright where the flag is set (that neighbour is empty and its nearest surface is this voxel).
+pub(crate) fn neighbour_flags(
+    state: &ShotState,
+    world: &World,
+    p: IVec3,
+    content: &mut FrameContent,
+) {
+    if state.p("neighbourFlags") <= 0.5 {
+        return;
+    }
+    let Some(cell) = world.data[0].stored.cells.iter().find(|c| c.cell() == p) else {
+        return;
+    };
+    let flags = cell.neighbours();
+    let w = cell_world(world, 0, p);
+    // One cell's box in the room (its height unsquashed), each neighbour drawn as a box of that size.
+    let cell = (cell_world(world, 0, p + IVec3::ONE) - w).abs();
+    wire_box(
+        content,
+        w - cell * 0.45,
+        cell * 0.9,
+        palette::SELECTED,
+        1.0,
+        3.0,
+    );
+    let mut bit = 0;
+    for i in -1..=1 {
+        for j in -1..=1 {
+            for k in -1..=1 {
+                if (i, j, k) == (0, 0, 0) {
+                    continue;
+                }
+                // The flags in the order STORE sets them: x, then y, then z, from -1 to 1; a set flag's box lit.
+                let on = flags & (1 << bit) != 0;
+                let at = cell_world(world, 0, p + IVec3::new(i, j, k));
+                let (colour, alpha, width) = if on {
+                    (palette::INCIDENT, 1.0, 3.0)
+                } else {
+                    (palette::BRICK_EMPTY, 0.3, 1.0)
+                };
+                wire_box(content, at - cell * 0.42, cell * 0.84, colour, alpha, width);
+                bit += 1;
+            }
+        }
+    }
 }

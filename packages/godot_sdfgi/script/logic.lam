@@ -1,9 +1,11 @@
 The SDFGI investigation's logic
 ===============================
 
-The action its story can run (`{run "jumpFlood"}`), stepping the jump flood's demonstration.
+The action its story can run (`{run "jumpFlood"}`), stepping the jump flood's demonstration; the click handlers of
+the probe maps' inset (`pickMapTexel`), the distance field's slice (`pickFieldCell`), and the byte chart
+(`toggleByteRead`); and the click on the scene, which picks the light demonstration's floor cell.
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* godot_sdfgi_values]
+$[Import* std]$[Import* render_lab_runtime]$[Import* godot_sdfgi_values]$[ImportAs rl_runtime rt]
 
 The jump flood's last step (`floodStep`: the full-size pass).
 $[# lastFloodStep 8]
@@ -22,3 +24,41 @@ $[# jumpFlood {: {^ {elapsed run}
             {setFloodStep {float {min
                 {+ from {steps seconds elapsed}}
                 lastFloodStep}}}}}} {Action JumpFlood}}]
+
+Picks the texel of the followed probe's maps under a click on their inset (`demos::maps_inset`): the two maps side
+by side in a 408-pixel square, 24 pixels a texel, each 8 texels wide with its border, from row 108 down. A click on
+a border texel or beside the maps picks nothing.
+$[# pickMapTexel {: {^ {click}
+    [# px {* {.u click} 408.0}]
+    [# py {* {.v click} 408.0}]
+    [# left {!if {< px 216.0} 0.0 216.0}]
+    [# x {- {floor {/ {- px left} 24.0}} 1}]
+    [# y {- {floor {/ {- py 108.0} 24.0}} 1}]
+    {!if {< x 0}
+        {'}
+        {!if {< 5 x}
+            {'}
+            {!if {< y 0}
+                {'}
+                {!if {< 5 y} {'} {' {setMapTexel {float {+ {* y 6} x}}}}}}}}} ClickHandler}]
+
+Picks the cell under a click on the distance field's slice inset (`demos::field_slices`): 34 cells of 0.2 m a side
+from -3.4 m on x and z, rows from the top. The march, the readout, and the byte chart follow the picked cell.
+$[# pickFieldCell {: {^ {click}
+    [# col {clamp {floor {* {.u click} 34.0}} 0 33}]
+    [# row {clamp {floor {* {.v click} 34.0}} 0 33}]
+    {'
+        {setFieldX {+ -3.4 {* {+ {float col} 0.5} 0.2}}}
+        {setFieldZ {+ -3.4 {* {+ {float row} 0.5} 0.2}}}}} ClickHandler}]
+
+A click on the byte chart switches its bars between the stored byte and the byte minus one, as a ray reads it.
+$[# toggleByteRead {: {^ {click} {' {setByteRead {!if {< {byteRead} 0.5} 1.0 0.0}}}} ClickHandler}]
+
+A click on the scene, in the light demonstration, picks the floor cell under it as the worked cell (`cellX`, `cellZ`):
+its shadow ray, faces, and flags follow. Elsewhere, or on nothing, it picks nothing.
+$[# scene {: {^ {click} {!if {= {demo} "light"}
+    {caseOption
+        {rt::trace {.u click} {.v click} {'}}
+        {^ {} {'}}
+        {^ {hit} {' {setCellX {.x {.point hit}}} {setCellZ {.z {.point hit}}}}}}
+    {'}}} ClickHandler}]

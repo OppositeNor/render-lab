@@ -5,8 +5,10 @@
 //! (sim::converged), which is built once.
 
 mod field;
+mod light_views;
 mod probe_views;
 use field::*;
+use light_views::*;
 use probe_views::*;
 
 use super::light;
@@ -24,7 +26,7 @@ use lab::palette;
 use lab::scene::{Scene, ids};
 use lab::shot::ShotState;
 use lab::utility::draw::{ball, circle, label, row, wire_box};
-use lab::utility::inset::{Corner, Marker, Picture, PictureInset};
+use lab::utility::inset::{Corner, Link, Marker, Outline, Picture, PictureInset};
 use std::sync::{Arc, OnceLock};
 
 /// Where the lab creates SDFGI, and where its camera stays: the room's
@@ -35,23 +37,29 @@ pub const ORIGIN: Vec3 = Vec3::new(0.0, 1.6, 0.0);
 /// (-1.6, 1.07, 0.0) m, between the sphere and the red wall.
 pub const FOLLOWED_PROBE: IVec3 = IVec3::new(7, 7, 8);
 
+/// How far the camera has walked from where SDFGI was created: `cameraX` along x, `walkZ` along z.
+pub fn walk_offset(state: &ShotState) -> Vec3 {
+    Vec3::new(state.p("cameraX"), 0.0, state.p("walkZ"))
+}
+
 /// The cascades for a shot: created at `ORIGIN`, then updated once per
-/// 0.2 m step of the walk to `cameraX`, as frames would while the camera
-/// walks there, with the shot's y scale.
+/// 0.2 m step of the walk to `cameraX` and `walkZ`, as frames would while the
+/// camera walks there, with the shot's y scale.
 pub fn cascades(state: &ShotState) -> Cascades {
-    let walk = state.p("cameraX");
+    let walk = walk_offset(state);
     let steps = if state.p("cameraJump") > 0.5 {
         // A jump moves the camera in a single step.
         1
     } else {
         // A walk: one step per fifth of a metre, so each cascade scrolls as it would.
-        (walk.abs() / 0.2).ceil() as usize
+        (walk.length() / 0.2).ceil() as usize
     };
     let path: Vec<Vec3> = (1..=steps)
-        .map(|k| ORIGIN + Vec3::X * walk * (k as f32 / steps as f32))
+        .map(|k| ORIGIN + walk * (k as f32 / steps as f32))
         .collect();
     let settings = Settings {
         y_scale_mode: state.p("yScale").round().clamp(0.0, 2.0) as usize,
+        min_cell_size: state.p("minCellSize"),
         ..Settings::default()
     };
     model::follow(settings, ORIGIN, &path)
@@ -154,7 +162,12 @@ pub fn build_frame(
         view_params: [1.0, 0.0, 0.0, 0.0],
     };
     let mut content = FrameContent::new(objects, uniforms);
-    let world = sim::converged();
+    // A teapot whose GI mode is Dynamic or Disabled is left out of the voxels: every demonstration reads that world.
+    let world = if state.p("teapotGiMode") > 0.5 {
+        sim::converged_dynamic_teapot()
+    } else {
+        sim::converged()
+    };
     content.shading_frame = sim::frame_cascades(&world.cascades, ORIGIN);
     match demo {
         Demo::Room => room(state, &mut content),
@@ -200,6 +213,27 @@ fn shared_overlays(state: &ShotState, world: &World, content: &mut FrameContent)
             ),
             *color,
         );
+    }
+    let row = state
+        .p("probeRow")
+        .round()
+        .clamp(0.0, PROBE_AXIS_COUNT as f32) as i32;
+    for x in 0..row {
+        // One row of cascade 0's probes along x, counted from the cascade's edge, each with its index.
+        let pos = cascades.probe_position(0, IVec3::new(x, 8, 8));
+        ball(content, pos, 0.09, palette::PROBE_SELECTED, 1.0);
+        if x % 8 == 0 {
+            // The ends and the middle numbered: 0, 8, and 16.
+            content
+                .draw
+                .text(pos, x.to_string(), palette::text(), [0.5, 1.4]);
+        }
+        if x > 0 {
+            let prev = cascades.probe_position(0, IVec3::new(x - 1, 8, 8));
+            content
+                .draw
+                .segment(prev, pos, palette::PROBE_SELECTED, 0.8, 2.0, 0);
+        }
     }
     if state.p("probes") > 0.5 {
         for p in 0..probes::PROBES {
@@ -295,8 +329,7 @@ fn room(state: &ShotState, content: &mut FrameContent) {
 /// Chapter 2: the cascades around the camera, its walk, and the scroll.
 fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
     let cascades = cascades(state);
-    let walk = state.p("cameraX");
-    let camera = ORIGIN + Vec3::X * walk;
+    let camera = ORIGIN + walk_offset(state);
     ball(content, camera, 0.15, palette::VIEW, 1.0);
     // The camera SDFGI follows, drawn as the lab draws a camera: SDFGI reads only its position, so it is drawn
     // looking along its walk (+X), with the main camera's field of view.
@@ -343,7 +376,11 @@ fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
         formula: None,
         formula_lit: None,
         rows: vec![
-            row(tr("demos-camera_x"), format!("{walk:.2} m"), palette::VIEW),
+            row(
+                tr("demos-camera_x"),
+                format!("{:.2} m", camera.x),
+                palette::VIEW,
+            ),
             row(
                 tr("demos-camera_cell"),
                 format!("int({:.2} / 0.2) = {}", camera.x, cell.x),
@@ -438,7 +475,7 @@ fn regions_demo(state: &ShotState, content: &mut FrameContent) {
         label(
             content,
             state,
-            r.bounds_min + r.bounds_size * Vec3::new(0.5, 1.0, 0.5),
+            r.bounds_min + r.bounds_size * Vec3::new(0.5, 0.0, 0.5),
             tr_with("demos-region_label", lab::args!(cascade = r.cascade)),
             palette::INSIDE,
         );
@@ -475,10 +512,13 @@ fn regions_demo(state: &ShotState, content: &mut FrameContent) {
         rows.push(row(
             format!("{} {}", tr("demos-cascade"), r.cascade),
             format!(
-                "{:?} + {:?} {}",
-                r.local_offset.to_array(),
-                r.local_size.to_array(),
-                tr("demos-cells")
+                "({}, {}, {}) + ({}, {}, {})",
+                r.local_offset.x,
+                r.local_offset.y,
+                r.local_offset.z,
+                r.local_size.x,
+                r.local_size.y,
+                r.local_size.z
             ),
             CASCADE_COLORS[r.cascade.min(3)],
         ));
@@ -595,6 +635,7 @@ fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) 
         1.0,
     );
     let packed = data.occlusion[index(probe_cell + IVec3::new(2, -2, 1))];
+    cube_probes(state, world, probe_cell + IVec3::new(2, -2, 1), content);
     content.readout = Some(Readout {
         title: tr("demos-occlusion").into(),
         subtitle: tr("demos-occlusion_subtitle").into(),
@@ -622,6 +663,49 @@ fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) 
             )])
             .collect(),
     });
+}
+
+/// The readout's cell and the eight probes at the corners of its probe cube (`cubeProbes` of them, 0 to 8): a line
+/// to each, as bright as the 4-bit visibility the cell keeps for that probe's class, with that value.
+fn cube_probes(state: &ShotState, world: &World, cell: IVec3, content: &mut FrameContent) {
+    let shown = state.p("cubeProbes").round().clamp(0.0, 8.0) as i32;
+    if shown == 0 {
+        return;
+    }
+    let packed = world.data[0].occlusion[index(cell)];
+    let at = cell_world(world, 0, cell);
+    ball(content, at, 0.05, palette::SELECTED, 1.0);
+    let base = IVec3::new(
+        cell.x.div_euclid(8),
+        cell.y.div_euclid(8),
+        cell.z.div_euclid(8),
+    );
+    for k in 0..shown {
+        // Each corner of the probe cube: its probe's class is the parity of its world position on each axis.
+        let probe = base + IVec3::new(k & 1, (k >> 1) & 1, (k >> 2) & 1);
+        let bits = (world.cascades.cascades[0].position / 8 + probe) & IVec3::ONE;
+        let class = (bits.x | (bits.y << 1) | (bits.z << 2)) as usize;
+        let value = (packed >> super::occlusion::OCCLUSION_SHIFT[class]) & 0xF;
+        let p = cell_world(world, 0, probe * 8);
+        content.draw.segment(
+            at,
+            p,
+            palette::PROBE_SELECTED,
+            0.15 + 0.85 * value as f32 / 15.0,
+            2.0,
+            0,
+        );
+        ball(content, p, 0.06, palette::PROBE_SELECTED, 1.0);
+        // The upper corner's value above its probe, the lower one's below, so a top view keeps them apart.
+        let align = if k >> 1 & 1 == 1 {
+            [0.5, 1.3]
+        } else {
+            [0.5, -0.3]
+        };
+        content
+            .draw
+            .text(p, format!("{value}/15"), palette::text(), align);
+    }
 }
 
 /// The F1 run: a static omni light, then three scrolls of cascade 0; the
@@ -701,6 +785,8 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
         Vec3::new(state.p("cellX"), 0.05, state.p("cellZ"))
     };
     let cell = world_cell(world, 0, at);
+    face_light(state, world, cell, content);
+    neighbour_flags(state, world, cell, content);
     let mut rows = Vec::new();
     if state.p("extraLight") > 0.5 {
         rows.extend(extra_light(state, world, (light_pos, cell), content));
@@ -789,6 +875,7 @@ fn extra_light(
     let cell_w = cell_world(world, 0, cell);
     let mut rows = Vec::new();
     ball(content, light_pos, 0.1, palette::INCIDENT, 1.0);
+    squashed_light(state, light_pos, y_mult, content);
     label(
         content,
         state,
@@ -799,11 +886,15 @@ fn extra_light(
     ball(content, cell_w, 0.07, palette::SELECTED, 1.0);
     let field = world.field();
     let squashed = (cell.as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
+    if let Some((_, dist, _)) = light::light_at(&omni, squashed) {
+        falloff_chart(state, dist, content);
+    }
     if let Some((dir, dist, att)) = light::light_at(&omni, squashed) {
         let mut steps = Vec::new();
         let hit = light::shadow_ray(&field, 0, squashed, dir, dist, Some(&mut steps));
         if state.p("shadowRay") > 0.5 {
-            for (j, pos, d) in steps.iter().take(24) {
+            let shown = state.p("shadowSteps").round().clamp(0.0, 24.0) as usize;
+            for (j, pos, d) in steps.iter().take(shown) {
                 // Each march step, back from cells and the squashed height to the world, a circle of its distance.
                 let s = *pos / field.to_cell(*j) + field.offset(*j);
                 let r = Vec3::new(s.x, s.y / y_mult, s.z);
@@ -833,12 +924,12 @@ fn extra_light(
         rows.extend([
             row(
                 tr("demos-squashed_distance"),
-                format!("{dist:.2} m ({} {real_d:.2} m)", tr("demos-real")),
+                format!("{dist:.2} m ({} {real_d:.2})", tr("demos-real")),
                 palette::INCIDENT,
             ),
             row(
                 tr("demos-attenuation"),
-                format!("(1 - (d/5)^4)^2 / d = {att:.4}"),
+                format!("{att:.4}"),
                 palette::INCIDENT,
             ),
             row(

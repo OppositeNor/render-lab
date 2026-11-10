@@ -54,8 +54,8 @@ pub(super) fn probes_demo(
             tr("demos-rays_per_frame"),
             format!(
                 "{} ({} {})",
-                world.integrate.ray_count,
-                world.integrate.history_size * world.integrate.ray_count,
+                rays_setting(state, world).ray_count,
+                world.integrate.history_size * rays_setting(state, world).ray_count,
                 tr("demos-over_history")
             ),
             palette::INCIDENT,
@@ -85,16 +85,9 @@ pub(super) fn probes_demo(
         history_chart(world, k, content);
     }
     if maps {
-        maps_inset(world, content);
-        if state.p("showGain") > 0.5 {
-            // With the gain shown: what the maps store for a uniform sky of 1, 4/π.
-            let gain = 4.0 / std::f32::consts::PI;
-            rows.push(row(
-                tr("demos-sky_gain"),
-                format!("4/pi = {gain:.3}"),
-                palette::MISMATCH,
-            ));
-        }
+        maps_inset(state, world, content);
+        texel_directions(state, real, content);
+        rows.extend(gain_rows(state));
     }
     content.readout = Some(Readout {
         title: if maps {
@@ -110,6 +103,16 @@ pub(super) fn probes_demo(
     });
 }
 
+/// The probe settings with the ray count the shot's `giRayCount` picks from the code's table (gi.cpp
+/// `update_probes`): index 1, the editor's "16", is 8 rays.
+fn rays_setting(state: &ShotState, world: &World) -> probes::Integrate {
+    let index = (state.p("giRayCount").round().max(0.0) as usize).min(sim::RAY_COUNTS.len() - 1);
+    probes::Integrate {
+        ray_count: sim::RAY_COUNTS[index],
+        ..world.integrate
+    }
+}
+
 /// The followed probe's rays over `rayFrames` frames: even slots point to -z, odd ones to +z (a frame's eight
 /// rays share a half), the last frame's strongest.
 pub(super) fn probe_rays(state: &ShotState, world: &World, content: &mut FrameContent) {
@@ -123,18 +126,15 @@ pub(super) fn probe_rays(state: &ShotState, world: &World, content: &mut FrameCo
     let sky = probes::Sky::Radiance(&sky_fn);
     let real = unsquash(probe_pos);
     let frames = state.p("rayFrames").round().clamp(0.0, 30.0) as u32;
+    // The rays a frame as the scene's ray-count setting gives them (its index into the code's table).
+    let integrate = rays_setting(state, world);
+    let mut traced = Vec::new();
     if state.p("probeRays") > 0.5 {
         for h in 0..frames {
             // Each of the first `rayFrames` frames' rays, to its hit or a short way into the sky, the newest brightest.
-            for ray in probes::trace_rays(
-                &field,
-                &light_refs,
-                0,
-                FOLLOWED_PROBE,
-                h,
-                &world.integrate,
-                &sky,
-            ) {
+            for ray in
+                probes::trace_rays(&field, &light_refs, 0, FOLLOWED_PROBE, h, &integrate, &sky)
+            {
                 let end = match ray.hit {
                     Some((j, p)) => unsquash(p / field.to_cell(j) + field.offset(j)),
                     None => real + unsquash(ray.direction) * 1.2,
@@ -149,7 +149,10 @@ pub(super) fn probe_rays(state: &ShotState, world: &World, content: &mut FrameCo
                     real,
                     end,
                     color,
-                    if h + 1 == frames {
+                    // Under the SH glyph the rays fade, so the glyph reads.
+                    if state.p("shGlyph") > 0.5 {
+                        0.12
+                    } else if h + 1 == frames {
                         1.0
                     } else {
                         0.35
@@ -161,8 +164,70 @@ pub(super) fn probe_rays(state: &ShotState, world: &World, content: &mut FrameCo
                     },
                     0,
                 );
+                if ray.hit.is_some() && state.p("hitNormals") > 0.5 {
+                    // The hit's normal from the field's gradient, unsquashed to the room's heights; the first labelled.
+                    let n =
+                        Vec3::new(ray.normal.x, ray.normal.y * y_mult, ray.normal.z).normalize();
+                    content.draw.segment(
+                        end,
+                        end + n * 0.25,
+                        palette::NORMAL,
+                        1.0,
+                        3.0,
+                        lab::frame::FLAG_ARROW,
+                    );
+                    if traced.iter().all(|r: &probes::Ray| r.hit.is_none()) {
+                        label(
+                            content,
+                            state,
+                            end + n * 0.3,
+                            tr("demos-hit_normal").into(),
+                            palette::NORMAL,
+                        );
+                    }
+                }
+                traced.push(ray);
             }
         }
+    }
+    if state.p("shGlyph") > 0.5 && !traced.is_empty() {
+        sh_glyph(&traced, real, content);
+    }
+}
+
+/// The light the drawn rays give, projected onto the 16 SH bases as the probe pass adds each ray in
+/// (`frame_coefficients`), and read back in every direction: points on a small sphere around the probe, each in
+/// the colour the coefficients give for its direction.
+fn sh_glyph(rays: &[probes::Ray], probe: Vec3, content: &mut FrameContent) {
+    let mut sum = [Vec3::ZERO; SH_SIZE];
+    for r in rays {
+        let y = probes::sh_basis(r.direction);
+        for i in 0..SH_SIZE {
+            sum[i] += r.light * y[i];
+        }
+    }
+    let coefficients = sum.map(|c| c * 4.0 / rays.len() as f32);
+    let n = 320;
+    let golden = std::f32::consts::PI * (3.0 - 5f32.sqrt());
+    for k in 0..n {
+        // Directions spread evenly over the sphere (a Fibonacci spiral), each read from the coefficients.
+        let y = 1.0 - 2.0 * (k as f32 + 0.5) / n as f32;
+        let r = (1.0 - y * y).sqrt();
+        let d = Vec3::new(
+            (golden * k as f32).cos() * r,
+            y,
+            (golden * k as f32).sin() * r,
+        );
+        let basis = probes::sh_basis(d);
+        let light: Vec3 = (0..SH_SIZE).map(|i| coefficients[i] * basis[i]).sum();
+        // Positive light in its colour; where the 16 coefficients read negative (their ringing), blue.
+        let tm = |v: f32| ((v.max(0.0) * 3.0 / (1.0 + v.max(0.0) * 3.0)).sqrt() * 255.0) as u8;
+        let colour = if light.max_element() < 0.0 {
+            Color32::from_rgb(60, 110, 230)
+        } else {
+            Color32::from_rgb(tm(light.x), tm(light.y), tm(light.z))
+        };
+        ball(content, probe + d * 0.5, 0.04, colour, 1.0);
     }
 }
 
@@ -279,11 +344,71 @@ pub(super) fn history_chart(world: &World, k: usize, content: &mut FrameContent)
 }
 
 /// The followed probe's two maps, 8 x 8 texels each with their border, side by side in a square, nearest-filtered.
-pub(super) fn maps_inset(world: &World, content: &mut FrameContent) {
+/// The picked texel (`mapTexel`, row by row over the 6 x 6), in tile coordinates; None when none is picked.
+fn picked_texel(state: &ShotState) -> Option<glam::IVec2> {
+    let i = state.p("mapTexel").round();
+    (i >= 0.0).then(|| {
+        let i = (i as i32).min(probes::OCT_SIZE * probes::OCT_SIZE - 1);
+        glam::IVec2::new(i % probes::OCT_SIZE, i / probes::OCT_SIZE)
+    })
+}
+
+/// The picked texel's direction from the probe, as STORE computes it from the texel's corner (`local / 6`), and,
+/// fainter, the direction of the texel's centre, where a lookup takes its value.
+fn texel_directions(state: &ShotState, probe: Vec3, content: &mut FrameContent) {
+    let Some(local) = picked_texel(state) else {
+        return;
+    };
+    let size = probes::OCT_SIZE as f32;
+    let corner = probes::octahedron_decode(local.as_vec2() / size);
+    let centre = probes::octahedron_decode((local.as_vec2() + glam::Vec2::splat(0.5)) / size);
+    for (d, alpha) in [(centre, 0.45), (corner, 1.0)] {
+        let tip = probe + d * 0.9;
+        content
+            .draw
+            .segment(probe, tip, palette::INCIDENT, alpha, 3.0, 0);
+        ball(content, tip, 0.04, palette::INCIDENT, alpha);
+    }
+}
+
+/// The maps' gain rows: what a uniform sky of 1 stores (with `uniformSky`), and the extra 4/pi (with `showGain`).
+fn gain_rows(state: &ShotState) -> Vec<(String, String, Color32)> {
+    let mut rows = Vec::new();
+    if let Some(v) = uniform_sky(state) {
+        rows.push(row(
+            tr("demos-uniform_sky_texel"),
+            format!("{v:.3}"),
+            palette::MISMATCH,
+        ));
+    }
+    if state.p("showGain") > 0.5 {
+        // With the gain shown: what the maps store for a uniform sky of 1, 4/π.
+        let gain = 4.0 / std::f32::consts::PI;
+        rows.push(row(
+            tr("demos-sky_gain"),
+            format!("4/pi = {gain:.3}"),
+            palette::MISMATCH,
+        ));
+    }
+    rows
+}
+
+/// With `uniformSky`, what a texel of a probe lit by a uniform sky of 1 stores: the gain times the square of L0's
+/// basis (only L0 is non-zero), the gain going from the code's 4 x 4 = 16 to the 4 pi the sphere needs
+/// (`gainFix` 0 to 1); None without it.
+fn uniform_sky(state: &ShotState) -> Option<f32> {
+    (state.p("uniformSky") > 0.5).then(|| {
+        let y0 = probes::sh_basis(Vec3::Y)[0];
+        let gain = 16.0 + (4.0 * std::f32::consts::PI - 16.0) * state.p("gainFix").clamp(0.0, 1.0);
+        gain * y0 * y0
+    })
+}
+
+pub(super) fn maps_inset(state: &ShotState, world: &World, content: &mut FrameContent) {
     // Both maps, 8 x 8 texels each with their border, side by side in a square, nearest-filtered.
     let maps = &world.maps[0];
     let n = (probes::OCT_SIZE + 2) as usize;
-    let k = 12usize;
+    let k = 24usize;
     let size = 2 * n * k + k;
     let origin = glam::IVec2::new(
         (FOLLOWED_PROBE.x + FOLLOWED_PROBE.z * PROBE_AXIS_COUNT) * (probes::OCT_SIZE + 2),
@@ -298,7 +423,13 @@ pub(super) fn maps_inset(world: &World, content: &mut FrameContent) {
         // Each texel of the probe's tile, border included, tone-mapped and drawn k x k, the border darker.
         for y in 0..n {
             for x in 0..n {
-                let t = probes::ProbeMaps::texel(layer, origin.x + x as i32, origin.y + y as i32);
+                let t = match uniform_sky(state) {
+                    // A uniform sky of 1: every texel holds the same value, the gain times L0's basis squared.
+                    Some(v) => Vec3::splat(v),
+                    None => {
+                        probes::ProbeMaps::texel(layer, origin.x + x as i32, origin.y + y as i32)
+                    }
+                };
                 let tm = |v: f32| ((v / (1.0 + v)).sqrt() * 255.0) as u8;
                 let border = x == 0 || x == n - 1 || y == 0 || y == n - 1;
                 let mut px = [tm(t.x * 3.0), tm(t.y * 3.0), tm(t.z * 3.0), 255];
@@ -319,22 +450,59 @@ pub(super) fn maps_inset(world: &World, content: &mut FrameContent) {
             }
         }
     }
-    content.insets.push(picture(
-        Corner::TopLeft,
-        Caption {
-            title: tr("demos-oct_maps").into(),
-            key: "oct-maps".into(),
-            lines: vec![(tr("demos-oct_border").into(), palette::text_dim())],
-        },
-        size,
-        rgba,
-        [tr("demos-oct_axes").into(), "v".into()],
-        None,
-    ));
+    // The picked texel outlined in both maps (bright), and the border texels STORE copies it into (dim).
+    if let Some(local) = picked_texel(state) {
+        let marks = std::iter::once((local, [255u8, 209, 102, 255])).chain(
+            probes::border_copies(local)
+                .into_iter()
+                .map(|b| (b, [120, 200, 255, 255])),
+        );
+        for (t, colour) in marks {
+            let (x, y) = ((t.x + 1) as usize, (t.y + 1) as usize);
+            for m in 0..2 {
+                for d in 0..k {
+                    // The texel's square's four edges, two pixels in from its grid line.
+                    for (dx, dy) in [(d, 1), (d, k - 1), (1, d), (k - 1, d)] {
+                        let i = ((top + y * k + dy) * size + m * (n * k + k) + x * k + dx) * 4;
+                        rgba[i..i + 4].copy_from_slice(&colour);
+                    }
+                }
+            }
+        }
+    }
+    // A click on a texel picks it (script/logic.lam `pickMapTexel`); with the uniform sky, the gain is said in numbers.
+    let mut lines = vec![(tr("demos-oct_border").to_string(), palette::text_dim())];
+    if state.p("uniformSky") > 0.5 {
+        let gain = 16.0 + (4.0 * std::f32::consts::PI - 16.0) * state.p("gainFix").clamp(0.0, 1.0);
+        lines.insert(
+            0,
+            (
+                tr_with("demos-gain_line", lab::args!(gain = format!("{gain:.2}"))),
+                palette::MISMATCH,
+            ),
+        );
+    }
+    content.insets.push(PictureInset {
+        click: Some("pickMapTexel".into()),
+        size: [420.0, 420.0],
+        ..picture(
+            Corner::TopLeft,
+            Caption {
+                title: tr("demos-oct_maps").into(),
+                key: "oct-maps".into(),
+                lines,
+            },
+            size,
+            rgba,
+            [tr("demos-oct_axes").into(), "v".into()],
+            None,
+        )
+    });
 }
 
 /// Chapter 10: a pixel on the red wall, its cascade, its eight probes.
 pub(super) fn pixel_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
+    fog_probes(state, world, content);
     // A pixel on the sphere (its roughness), or on the left wall (fully rough).
     let on_sphere = state.p("spherePixel") > 0.5;
     let sphere_centre = Vec3::new(-1.05, 0.62, -0.55);
@@ -551,6 +719,64 @@ pub(super) fn pixel_probes(
             real + Vec3::Y * 0.15,
             format!("{:.0} %", share * 100.0),
             palette::PROBE_SELECTED,
+        );
+    }
+}
+
+/// A fog sample at `fogHeight` (none below 0), at x = 0.5, z = 0 in the room: the probe the screen pass's lookup
+/// takes there, with the height scaled by y_mult (blue), and the one the fog takes, with the height left unscaled
+/// (orange), each linked to the sample.
+fn fog_probes(state: &ShotState, world: &World, content: &mut FrameContent) {
+    let height = state.p("fogHeight");
+    if height < 0.0 {
+        return;
+    }
+    let field = world.field();
+    let y_mult = world.cascades.settings.y_mult();
+    let sample = Vec3::new(0.5, height, 0.0);
+    let probe_cells = (CASCADE_SIZE / (PROBE_AXIS_COUNT - 1)) as f32;
+    let nearest = |p: Vec3| -> IVec3 {
+        ((p - field.offset(0)) * field.to_cell(0) / probe_cells)
+            .round()
+            .as_ivec3()
+    };
+    let unsquash = |p: Vec3| Vec3::new(p.x, p.y / y_mult, p.z);
+    // The sample on a vertical line up from the floor, its height said.
+    ball(content, sample, 0.1, palette::SELECTED, 1.0);
+    content.draw.segment(
+        Vec3::new(sample.x, 0.0, sample.z),
+        sample,
+        palette::SELECTED,
+        0.8,
+        2.0,
+        0,
+    );
+    label(
+        content,
+        state,
+        sample + Vec3::X * 0.15,
+        format!("{height:.2} m"),
+        palette::SELECTED,
+    );
+    for (p, colour) in [
+        (
+            Vec3::new(sample.x, sample.y * y_mult, sample.z),
+            palette::VIEW,
+        ),
+        (sample, palette::MISMATCH),
+    ] {
+        // The probe nearest the sample in the probes' grid, for each way of placing the sample in it.
+        let probe = unsquash(probes::probe_position(&field, 0, nearest(p)));
+        content
+            .draw
+            .segment(sample, probe, colour, 1.0, 3.0, lab::frame::FLAG_ARROW);
+        ball(content, probe, 0.12, colour, 1.0);
+        label(
+            content,
+            state,
+            probe - Vec3::X * 0.2,
+            format!("{:.2} m", probe.y),
+            colour,
         );
     }
 }

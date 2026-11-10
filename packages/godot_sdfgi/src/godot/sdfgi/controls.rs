@@ -35,10 +35,19 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
                 Some(tr("hints-voxels")),
                 "voxels",
             );
-            toggles.push(("voxels", tr("controls-voxels")));
+            toggles.extend([
+                ("voxels", tr("controls-voxels")),
+                ("emissionChart", tr("values-emissionChart")),
+                ("neighbourFlags", tr("values-neighbourFlags")),
+            ]);
         }
         Demo::Field | Demo::Occlusion => {
-            dock.values(ui, tr("controls-field"), Some(tr("hints-field")), "field")
+            dock.values(ui, tr("controls-field"), Some(tr("hints-field")), "field");
+            toggles.extend([
+                ("fieldMarch", tr("values-fieldMarch")),
+                ("byteCurve", tr("values-byteCurve")),
+                ("floodNeighbours", tr("values-floodNeighbours")),
+            ]);
         }
         Demo::Light => {
             dock.values(ui, tr("controls-light"), Some(tr("hints-light")), "light");
@@ -46,6 +55,8 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
                 ("cellLight", tr("controls-cell_light")),
                 ("extraLight", tr("controls-extra_light")),
                 ("shadowRay", tr("controls-shadow_ray")),
+                ("squashedLight", tr("values-squashedLight")),
+                ("neighbourFlags", tr("values-neighbourFlags")),
             ]);
         }
         Demo::Probes | Demo::Maps => {
@@ -55,9 +66,13 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
                 Some(tr("hints-probes")),
                 "probes",
             );
+            dock.values(ui, tr("controls-gi"), Some(tr("hints-gi")), "gi");
             toggles.extend([
                 ("probeRays", tr("controls-probe_rays")),
                 ("probeMaps", tr("controls-probe_maps")),
+                ("hitNormals", tr("values-hitNormals")),
+                ("shGlyph", tr("values-shGlyph")),
+                ("uniformSky", tr("values-uniformSky")),
             ]);
         }
         Demo::Pixel => {

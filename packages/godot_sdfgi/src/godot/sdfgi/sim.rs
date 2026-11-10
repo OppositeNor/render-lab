@@ -326,9 +326,31 @@ pub fn converged_with(bounce_feedback: f32) -> World {
 /// The room's world after `CONVERGED_FRAMES` with the given settings.
 pub fn converged_for(s: &SceneSettings) -> World {
     let scene = lab::scene::Scene::study_room();
-    let objects = voxelized_objects(&scene.records());
+    converged_objects(s, &voxelized_objects(&scene.records()))
+}
+
+/// The room's SDFGI with the teapot's GI mode Dynamic: the teapot left out of the voxels (`_scene_cull` keeps only
+/// GI mode Static meshes for a region), the rest as `converged`; built once, on first use.
+pub fn converged_dynamic_teapot() -> &'static World {
+    static WORLD: std::sync::OnceLock<World> = std::sync::OnceLock::new();
+    WORLD.get_or_init(|| {
+        let scene = lab::scene::Scene::study_room();
+        let objects: Vec<ObjectData> = scene
+            .records()
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != lab::scene::ids::PANEL && *i != lab::scene::ids::TEAPOT)
+            .map(|(_, o)| *o)
+            .collect();
+        converged_objects(&SceneSettings::default(), &objects)
+    })
+}
+
+/// The room's SDFGI after `CONVERGED_FRAMES` with the given settings, voxelizing `objects`.
+fn converged_objects(s: &SceneSettings, objects: &[ObjectData]) -> World {
+    let scene = lab::scene::Scene::study_room();
     let settings = Settings::default();
-    let mut world = World::new(&objects, settings, super::demos::ORIGIN);
+    let mut world = World::new(objects, settings, super::demos::ORIGIN);
     world.bounce_feedback = s.bounce_feedback;
     world.frames_to_update_light = s.frames_to_update_light;
     // Other ray counts or history sizes need histories of their own.

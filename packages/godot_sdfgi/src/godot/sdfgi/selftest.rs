@@ -49,6 +49,13 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
 
     // The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s (15 frames).
     check_actions(&mut report)?;
+    // The maps inset's click handler (script/logic.lam): a click on each texel picks it, a border texel nothing.
+    check_map_clicks(&mut report, &statics);
+    // The field slice's click handler: a click on each cell of the slice makes it the worked cell.
+    check_field_clicks(&mut report, &statics);
+    // The scene click in the light demonstration, and the byte chart's switch.
+    check_floor_clicks(&mut report, &statics);
+    check_byte_toggle(&mut report, &statics);
 
     // The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.
     check_image_kind(&mut report)?;
@@ -923,6 +930,158 @@ fn check_actions(report: &mut Report) -> Result<()> {
     let expected = [8.0, 0.0, 0.0, 1.0, 2.0, 5.0, 8.0];
     report.check("the jumpFlood action steps floodStep through a timeline, and stopping it hands floodStep back", valid.is_ok() && steps == expected, json!({"valid": valid, "frames": frames, "steps": steps, "expected": expected}));
     Ok(())
+}
+
+/// `pickMapTexel` against the maps inset's layout (`demos::maps_inset`: 408 pixels, 24 a texel, the maps 216 apart,
+/// from row 108): a click at the centre of each of the 36 texels of both maps picks that texel, and one on each
+/// border texel picks nothing.
+fn check_map_clicks(report: &mut Report, statics: &lab::frame::Statics) {
+    let shown = shot::for_demo(Demo::Maps);
+    let content = lab::shader_data::build_frame(&shown, statics, [640.0, 360.0], 1.0, 0.0);
+    let mut differ = Vec::new();
+    let mut clicks = 0;
+    for m in 0..2 {
+        for ty in 0..8 {
+            for tx in 0..8 {
+                // Each texel of the tile, border included, clicked at its centre.
+                let px = (m * 216 + tx * 24 + 12) as f32;
+                let py = (108 + ty * 24 + 12) as f32;
+                let mut state = shown.clone();
+                let mut frame = lab::actions::ClickFrame {
+                    shown: &shown,
+                    state: &mut state,
+                    uv: glam::Vec2::new(px / 408.0, py / 408.0),
+                    content: &content,
+                    statics,
+                };
+                let ran = lab::script::runtime::click("pickMapTexel", &mut frame);
+                let interior = (1..7).contains(&tx) && (1..7).contains(&ty);
+                let expected = if interior {
+                    ((ty - 1) * 6 + tx - 1) as f32
+                } else {
+                    shown.p("mapTexel")
+                };
+                clicks += 1;
+                // The handler runs for every click; only a texel's click writes.
+                if ran.is_none()
+                    || (interior && ran != Some(true))
+                    || state.p("mapTexel") != expected
+                {
+                    differ.push(json!({"map": m, "texel": [tx, ty], "picked": state.p("mapTexel"), "expected": expected}));
+                }
+            }
+        }
+    }
+    report.check("pickMapTexel picks the probe-map texel under a click on the maps inset, in both maps, and nothing on the border", differ.is_empty(), json!({"clicks": clicks, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
+}
+
+/// The scene click (script/logic.lam `scene`) in the light demonstration: floor points spread over the open floor,
+/// projected through the shot's camera to the viewport, clicked there; each must pick the floor cell it lies in.
+fn check_floor_clicks(report: &mut Report, statics: &lab::frame::Statics) {
+    let shown = shot::for_demo(Demo::Light);
+    let content = lab::shader_data::build_frame(&shown, statics, [640.0, 360.0], 1.0, 0.0);
+    let world = super::sim::converged();
+    let clip = glam::Mat4::from_cols_array_2d(&content.uniforms.camera.world_to_clip);
+    let mut differ = Vec::new();
+    let mut clicks = 0;
+    for x in [-2.2f32, -1.6, -0.6, 0.4, 1.6, 2.4] {
+        for z in [0.9f32, 1.6, 2.2] {
+            // Each floor point, projected to the viewport (uv from the top left), clicked there.
+            let p = glam::Vec3::new(x, 0.0, z);
+            let c = clip * p.extend(1.0);
+            let ndc = c.truncate() / c.w;
+            let uv = glam::Vec2::new(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+            let mut state = shown.clone();
+            let mut frame = lab::actions::ClickFrame {
+                shown: &shown,
+                state: &mut state,
+                uv,
+                content: &content,
+                statics,
+            };
+            let ran = lab::script::runtime::click("scene", &mut frame);
+            let want = super::demos::world_cell(world, 0, glam::Vec3::new(x, 0.05, z));
+            let got = super::demos::world_cell(
+                world,
+                0,
+                glam::Vec3::new(state.p("cellX"), 0.05, state.p("cellZ")),
+            );
+            clicks += 1;
+            if ran != Some(true) || want != got {
+                differ.push(json!({"point": [x, z], "uv": [uv.x, uv.y], "want": want.to_array(), "got": got.to_array()}));
+            }
+        }
+    }
+    report.check(
+        "a click on the floor in the light demonstration picks the floor cell under it (18 points)",
+        differ.is_empty() && clicks == 18,
+        json!({"clicks": clicks, "differ": differ}),
+    );
+}
+
+/// `toggleByteRead`: a click on the byte chart switches its bars from the stored byte to the byte a ray reads, and back.
+fn check_byte_toggle(report: &mut Report, statics: &lab::frame::Statics) {
+    let shown = shot::for_demo(Demo::Field);
+    let content = lab::shader_data::build_frame(&shown, statics, [640.0, 360.0], 1.0, 0.0);
+    let mut flips = Vec::new();
+    for start in [0.0f32, 1.0] {
+        // From each setting (what the viewer shows, which the script reads), one click must give the other.
+        let mut from = shown.clone();
+        from.set("byteRead", start);
+        let mut state = from.clone();
+        let mut frame = lab::actions::ClickFrame {
+            shown: &from,
+            state: &mut state,
+            uv: glam::Vec2::new(0.5, 0.5),
+            content: &content,
+            statics,
+        };
+        let ran = lab::script::runtime::click("toggleByteRead", &mut frame);
+        flips.push((start, ran, state.p("byteRead")));
+    }
+    let ok = flips == [(0.0, Some(true), 1.0), (1.0, Some(true), 0.0)];
+    report.check(
+        "a click on the byte chart switches byteRead between 0 and 1",
+        ok,
+        json!({"flips": format!("{flips:?}")}),
+    );
+}
+
+/// `pickFieldCell` against the slice inset (`demos::field_slices`: 34 x 34 cells from -3.4 m): a click at the
+/// centre of each cell sets `fieldX` and `fieldZ` so that the field demonstration's worked cell is that cell.
+fn check_field_clicks(report: &mut Report, statics: &lab::frame::Statics) {
+    let shown = shot::for_demo(Demo::Field);
+    let content = lab::shader_data::build_frame(&shown, statics, [640.0, 360.0], 1.0, 0.0);
+    let world = super::sim::converged();
+    let min = super::demos::world_cell(world, 0, glam::Vec3::new(-3.4, 0.0, -3.4));
+    let mut differ = Vec::new();
+    let mut clicks = 0;
+    for row in 0..34 {
+        for col in 0..34 {
+            // Each cell of the slice, clicked at its centre.
+            let mut state = shown.clone();
+            let mut frame = lab::actions::ClickFrame {
+                shown: &shown,
+                state: &mut state,
+                uv: glam::Vec2::new((col as f32 + 0.5) / 34.0, (row as f32 + 0.5) / 34.0),
+                content: &content,
+                statics,
+            };
+            let ran = lab::script::runtime::click("pickFieldCell", &mut frame);
+            let worked = super::demos::world_cell(
+                world,
+                0,
+                glam::Vec3::new(state.p("fieldX"), state.p("sliceHeight"), state.p("fieldZ")),
+            );
+            clicks += 1;
+            if ran != Some(true) || worked.x != min.x + col || worked.z != min.z + row {
+                differ.push(
+                    json!({"cell": [col, row], "worked": worked.to_array(), "min": min.to_array()}),
+                );
+            }
+        }
+    }
+    report.check("pickFieldCell makes the clicked cell of the distance field's slice the worked cell (34 x 34 clicks)", differ.is_empty(), json!({"clicks": clicks, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
 }
 
 /// The image kind sdfgi_views.wgsl defines (lab/src/views.rs), and a story's instances of it.

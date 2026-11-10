@@ -136,6 +136,8 @@ pub enum Sky<'a> {
 pub struct Ray {
     pub direction: Vec3,
     pub hit: Option<(usize, Vec3)>,
+    /// At a hit, the surface's normal from the field's gradient (squashed space); zero for a miss.
+    pub normal: Vec3,
     pub light: Vec3,
 }
 
@@ -259,6 +261,7 @@ pub fn trace_rays(
             pos += field.offset(j);
             ray_pos = pos;
         }
+        let mut normal = Vec3::ZERO;
         let light_rgb = match hit {
             Some((hc, _)) => {
                 // A hit: the surface's normal from the field's gradient, and the light stored there, per face.
@@ -270,6 +273,7 @@ pub fn trace_rays(
                     s(Vec3::Z * EPSILON) - s(-Vec3::Z * EPSILON),
                 )
                 .normalize();
+                normal = n;
                 let tex = light[hc];
                 let hit_light = Vec3::new(
                     sample3(uvw, |p| tex.light_at(p).x),
@@ -293,6 +297,7 @@ pub fn trace_rays(
         rays.push(Ray {
             direction: dir,
             hit,
+            normal,
             light: light_rgb,
         });
     }
@@ -457,42 +462,8 @@ pub fn store(history: &History) -> ProbeMaps {
                 let local = glam::IVec2::new(lx, ly);
                 let (irradiance, radiance) = store_texel(&mean, local);
                 let (wi, wr) = (encode_e5b9g9r9(irradiance), encode_e5b9g9r9(radiance));
-                let n = OCT_SIZE;
                 let mut copy_to = vec![local];
-                // Edge texels are copied into the border, as the octahedron wraps, so filtering stays in the tile.
-                if local == glam::IVec2::new(0, 0) {
-                    copy_to.extend([
-                        glam::IVec2::new(n - 1, -1),
-                        glam::IVec2::new(-1, n - 1),
-                        glam::IVec2::new(n, n),
-                    ]);
-                } else if local == glam::IVec2::new(n - 1, 0) {
-                    copy_to.extend([
-                        glam::IVec2::new(0, -1),
-                        glam::IVec2::new(n, n - 1),
-                        glam::IVec2::new(-1, n),
-                    ]);
-                } else if local == glam::IVec2::new(0, n - 1) {
-                    copy_to.extend([
-                        glam::IVec2::new(-1, 0),
-                        glam::IVec2::new(n - 1, n),
-                        glam::IVec2::new(n, -1),
-                    ]);
-                } else if local == glam::IVec2::new(n - 1, n - 1) {
-                    copy_to.extend([
-                        glam::IVec2::new(0, n),
-                        glam::IVec2::new(n, 0),
-                        glam::IVec2::new(-1, -1),
-                    ]);
-                } else if ly == 0 {
-                    copy_to.push(glam::IVec2::new(n - lx - 1, ly - 1));
-                } else if lx == 0 {
-                    copy_to.push(glam::IVec2::new(lx - 1, n - ly - 1));
-                } else if ly == n - 1 {
-                    copy_to.push(glam::IVec2::new(n - lx - 1, ly + 1));
-                } else if lx == n - 1 {
-                    copy_to.push(glam::IVec2::new(lx + 1, n - ly - 1));
-                }
+                copy_to.extend(border_copies(local));
                 for t in copy_to {
                     let q = oct_pos + t;
                     let i = (q.x + q.y * MAP_WIDTH) as usize;
@@ -503,6 +474,49 @@ pub fn store(history: &History) -> ProbeMaps {
         }
     }
     maps
+}
+
+/// Where STORE copies a texel of a probe's map into its border (tile coordinates, -1 and `OCT_SIZE` the border):
+/// an edge texel mirrored across its edge, a corner texel into three places, as the octahedron wraps.
+pub fn border_copies(local: glam::IVec2) -> Vec<glam::IVec2> {
+    let (lx, ly) = (local.x, local.y);
+    let n = OCT_SIZE;
+    // A corner texel goes to three places, an edge texel to its mirror across the edge; inner texels nowhere.
+    if local == glam::IVec2::new(0, 0) {
+        vec![
+            glam::IVec2::new(n - 1, -1),
+            glam::IVec2::new(-1, n - 1),
+            glam::IVec2::new(n, n),
+        ]
+    } else if local == glam::IVec2::new(n - 1, 0) {
+        vec![
+            glam::IVec2::new(0, -1),
+            glam::IVec2::new(n, n - 1),
+            glam::IVec2::new(-1, n),
+        ]
+    } else if local == glam::IVec2::new(0, n - 1) {
+        vec![
+            glam::IVec2::new(-1, 0),
+            glam::IVec2::new(n - 1, n),
+            glam::IVec2::new(n, -1),
+        ]
+    } else if local == glam::IVec2::new(n - 1, n - 1) {
+        vec![
+            glam::IVec2::new(0, n),
+            glam::IVec2::new(n, 0),
+            glam::IVec2::new(-1, -1),
+        ]
+    } else if ly == 0 {
+        vec![glam::IVec2::new(n - lx - 1, ly - 1)]
+    } else if lx == 0 {
+        vec![glam::IVec2::new(lx - 1, n - ly - 1)]
+    } else if ly == n - 1 {
+        vec![glam::IVec2::new(n - lx - 1, ly + 1)]
+    } else if lx == n - 1 {
+        vec![glam::IVec2::new(lx + 1, n - ly - 1)]
+    } else {
+        Vec::new()
+    }
 }
 
 /// The probe maps of every cascade, for the light pass's bounce.

@@ -16,12 +16,21 @@ pub struct SdfgiValues {
     /// How far the camera has walked along +x from where SDFGI was created, metres; the cascades follow it (`SDFGI::update`).
     #[value(default = 0.0, range = -12.0..=12.0, unit = m, text = "controls-camera_walk", color = palette::THEME_ACCENT, label(cascades), help = "help-cameraX")]
     pub camera_x: f32,
+    /// How far the camera has walked along +z, metres (with `cameraX`, a walk that moves the cascades along two axes).
+    #[value(default = 0.0, range = -12.0..=12.0, unit = m, text = "controls-camera_walk_z", color = palette::THEME_ACCENT, label(cascades), help = "help-walkZ")]
+    pub walk_z: f32,
     /// How many of the cascades' boxes are drawn, from the finest (0 to 4).
     #[value(default = 0.0, range = 0.0..=4.0, unit = index, text = "controls-cascades_shown", color = palette::THEME_ACCENT, label(cascades), help = "help-cascadesShown")]
     pub cascades_shown: f32,
     /// The environment's sdfgi_y_scale for the boxes drawn: 0 = 50 %, 1 = 75 % (the default), 2 = 100 %; fractions blend.
     #[value(default = 1.0, range = 0.0..=2.0, unit = index, text = "controls-y_scale", color = palette::THEME_ACCENT, label(cascades), help = "help-yScale")]
     pub y_scale: f32,
+    /// The environment's sdfgi_min_cell_size for the cascades drawn, metres (the first cascade's cell; the scene keeps 0.2).
+    #[value(default = 0.2, range = 0.05..=0.8, unit = m, text = "controls-min_cell_size", color = palette::THEME_ACCENT, label(cascades), help = "help-minCellSize")]
+    pub min_cell_size: f32,
+    /// One row of cascade 0's probes along x, counted (0 to 17).
+    #[value(default = 0.0, range = 0.0..=17.0, unit = index, text = "controls-probe_row", color = palette::THEME_ACCENT, label(cascades), help = "help-probeRow")]
+    pub probe_row: f32,
     /// The probes of cascade 0, as points (the ones inside the room brighter).
     #[value(default = 0.0, toggle, text = "values-probes", help = "help-probes")]
     pub probes: f32,
@@ -36,12 +45,30 @@ pub struct SdfgiValues {
         help = "help-scrollView"
     )]
     pub scroll_view: f32,
+    /// The teapot's GI mode: 0 Static (voxelized), 1 Dynamic, 2 Disabled; for SDFGI both of the last leave it out of
+    /// the voxels and still light it (GeometryInstance3D's GI_MODE_DYNAMIC acts as GI_MODE_DISABLED there).
+    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-teapot_gi_mode", color = palette::THEME_ACCENT, label(voxels), help = "help-teapotGiMode")]
+    pub teapot_gi_mode: f32,
     /// Cascade 0's solid voxels, as points in their albedo.
     #[value(default = 0.0, toggle, text = "values-voxels", help = "help-voxels")]
     pub voxels: f32,
     /// How many of the voxelizer's three passes (x, y, z views) have run (0 to 3).
     #[value(default = 3.0, range = 0.0..=3.0, unit = index, text = "controls-voxel_passes", color = palette::THEME_ACCENT, label(voxels), help = "help-voxelPasses")]
     pub voxel_passes: f32,
+    /// The levels a channel of the drawn voxels' albedo has (2 to 32; the stored five bits give 32).
+    #[value(default = 32.0, range = 2.0..=32.0, unit = index, text = "controls-albedo_levels", color = palette::THEME_ACCENT, label(voxels), help = "help-albedoLevels")]
+    pub albedo_levels: f32,
+    /// An emissive colour packed as the SDF pass packs emission, as a chart of its fields.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-emissionChart",
+        help = "help-emissionChart"
+    )]
+    pub emission_chart: f32,
+    /// That colour's brightness, as a power of ten (-3 to 3).
+    #[value(default = 0.0, range = -3.0..=3.0, unit = plain, text = "controls-emission_level", color = palette::THEME_ACCENT, label(voxels), help = "help-emissionLevel")]
+    pub emission_level: f32,
     /// Voxels are drawn only below this height, metres (a cut through the room).
     #[value(default = 4.0, range = 0.0..=4.0, unit = m, text = "controls-cut_height", color = palette::THEME_ACCENT, label(voxels), help = "help-cutHeight")]
     pub cut_height: f32,
@@ -57,6 +84,9 @@ pub struct SdfgiValues {
     /// The occlusion shells shown around the probe (|x| + |y| + |z| up to this, 0 to 22).
     #[value(default = 22.0, range = 0.0..=22.0, unit = index, text = "controls-occlusion_shell", color = palette::OUTSIDE, label(field), help = "help-occlusionShell")]
     pub occlusion_shell: f32,
+    /// The probes at the corners of the readout cell's probe cube drawn (0 to 8), each with the cell's visibility of it.
+    #[value(default = 0.0, range = 0.0..=8.0, unit = index, text = "controls-cube_probes", color = palette::OUTSIDE, label(field), help = "help-cubeProbes")]
+    pub cube_probes: f32,
     /// The solid cells, coloured by the light the light pass stored in them.
     #[value(
         default = 0.0,
@@ -107,6 +137,26 @@ pub struct SdfgiValues {
         help = "help-shadowRay"
     )]
     pub shadow_ray: f32,
+    /// How many of the shadow ray's steps are drawn (0 to 24).
+    #[value(default = 24.0, range = 0.0..=24.0, unit = index, text = "controls-shadow_steps", color = palette::OUTSIDE, label(light), help = "help-shadowSteps")]
+    pub shadow_steps: f32,
+    /// The omni light's falloff as a chart: 1 the engine's default attenuation, 2 the inverse square beside it.
+    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-falloff_chart", color = palette::INCIDENT, label(light), help = "help-falloffChart")]
+    pub falloff_chart: f32,
+    /// Where the light pass's distance puts the light: every height times y_mult.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-squashedLight",
+        help = "help-squashedLight"
+    )]
+    pub squashed_light: f32,
+    /// The worked cell's six faces, as arrows.
+    #[value(default = 0.0, range = 0.0..=1.0, unit = plain, text = "controls-face_light", color = palette::INCIDENT, label(light), help = "help-faceLight")]
+    pub face_light: f32,
+    /// Each face's arrow scaled to the share of the cell's light it stores (0 even, 1 by weight).
+    #[value(default = 0.0, range = 0.0..=1.0, unit = plain, text = "controls-face_weights", color = palette::INCIDENT, label(light), help = "help-faceWeights")]
+    pub face_weights: f32,
     /// The probe the probe demonstrations follow, and its rays.
     #[value(
         default = 0.0,
@@ -124,6 +174,32 @@ pub struct SdfgiValues {
     /// Frames since SDFGI was created, for the probe's history (0 to 60).
     #[value(default = 60.0, range = 0.0..=60.0, unit = index, text = "controls-frames", color = palette::INCIDENT, label(probes), help = "help-frames")]
     pub frames: f32,
+    /// The texel of the followed probe's maps that is picked (-1 none; 0 to 35, row by row over the 6 x 6 texels):
+    /// its direction from the probe, and its border copies.
+    #[value(default = -1.0, range = -1.0..=35.0, unit = index, text = "controls-map_texel", color = palette::INCIDENT, label(probes), help = "help-mapTexel")]
+    pub map_texel: f32,
+    /// At each drawn ray's hit, the surface's normal from the field's gradient.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-hitNormals",
+        help = "help-hitNormals"
+    )]
+    pub hit_normals: f32,
+    /// The drawn rays' light projected onto the 16 SH coefficients, read back around the probe as a glyph.
+    #[value(default = 0.0, toggle, text = "values-shGlyph", help = "help-shGlyph")]
+    pub sh_glyph: f32,
+    /// The maps inset shows what a probe lit by a uniform sky of 1 stores (every texel the same).
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-uniformSky",
+        help = "help-uniformSky"
+    )]
+    pub uniform_sky: f32,
+    /// With the uniform sky: the gain from the code's 16 (0) to the 4 pi a sphere's average needs (1).
+    #[value(default = 0.0, range = 0.0..=1.0, unit = plain, text = "controls-gain_fix", color = palette::MISMATCH, label(probes), help = "help-gainFix")]
+    pub gain_fix: f32,
     /// The followed probe's octahedral maps (an inset).
     #[value(
         default = 0.0,
@@ -149,6 +225,9 @@ pub struct SdfgiValues {
     /// The sphere's roughness (the screen pass's specular source depends on it).
     #[value(default = 0.5, range = 0.0..=1.0, text = "controls-roughness", color = palette::VIEW, label(pixel), help = "help-sphereRoughness")]
     pub sphere_roughness: f32,
+    /// A fog sample's height, metres (below 0: none): the probe the screen pass reads there and the one the fog reads.
+    #[value(default = -1.0, range = -1.0..=2.9, unit = m, text = "controls-fog_height", color = palette::MISMATCH, label(pixel), help = "help-fogHeight")]
+    pub fog_height: f32,
     /// The walk is one jump (a single `update`), not 0.2 m steps.
     #[value(
         default = 0.0,
@@ -176,6 +255,45 @@ pub struct SdfgiValues {
         help = "help-fieldMarch"
     )]
     pub field_march: f32,
+    /// How many of the field march's steps are drawn (0 to 40; it stops at the surface).
+    #[value(default = 40.0, range = 0.0..=40.0, unit = index, text = "controls-field_steps", color = palette::OUTSIDE, label(field), help = "help-fieldSteps")]
+    pub field_steps: f32,
+    /// The field demonstration's worked cell: its x and z, metres (a click on the slice inset picks it).
+    #[value(default = -0.2, range = -3.4..=3.4, unit = m, text = "controls-field_x", color = palette::SELECTED, label(field), help = "help-fieldX")]
+    pub field_x: f32,
+    #[value(default = -0.55, range = -3.4..=3.4, unit = m, text = "controls-field_z", color = palette::SELECTED, label(field), help = "help-fieldX")]
+    pub field_z: f32,
+    /// How many cells of the stored byte along the march's line the chart shows (0 none, to 24).
+    #[value(default = 0.0, range = 0.0..=24.0, unit = index, text = "controls-byte_profile", color = palette::OUTSIDE, label(field), help = "help-byteProfile")]
+    pub byte_profile: f32,
+    /// The chart's bars: the stored byte (0) or the byte minus one, as a ray reads it (1).
+    #[value(default = 0.0, range = 0.0..=1.0, unit = plain, text = "controls-byte_read", color = palette::OUTSIDE, label(field), help = "help-byteRead")]
+    pub byte_read: f32,
+    /// The chart's curve: the filtered read between the cells.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-byteCurve",
+        help = "help-byteCurve"
+    )]
+    pub byte_curve: f32,
+    /// The cells the worked cell compares at the jump flood's step: its 26 neighbours a step away, or at the
+    /// upscale the eight voxels of its seed's block.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-floodNeighbours",
+        help = "help-floodNeighbours"
+    )]
+    pub flood_neighbours: f32,
+    /// The worked voxel's 26 neighbour flags, from its solid-cell record.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-neighbourFlags",
+        help = "help-neighbourFlags"
+    )]
+    pub neighbour_flags: f32,
     /// The followed probe's irradiance over the frames since creation (an inset chart).
     #[value(
         default = 0.0,
