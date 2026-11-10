@@ -292,7 +292,6 @@ fn read_shader(
     })
 }
 
-/// A `[[resource]]` of a collection: its id, kind, flags, and override; built, its file; a source, its
 /// The flag `field` of a resource (false when it is left out).
 fn flag(
     table: &toml_edit::Table,
@@ -324,6 +323,7 @@ fn read_override(
     ))
 }
 
+/// A `[[resource]]` of a collection: its id, kind, flags, and override; built, its file; a source, its
 /// parameters and its source file (inside its package).
 fn read_resource(
     table: &toml_edit::Table,

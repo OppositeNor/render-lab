@@ -88,12 +88,14 @@ impl TriangleMesh {
         let mut stack = [0u32; MAX_DEPTH + 2];
         let mut sp = 1;
         while sp > 0 {
+            // A node whose box the ray misses, or enters past the nearest hit so far, is skipped.
             sp -= 1;
             let node = &self.nodes[stack[sp] as usize];
             if box_entry(node, ro, inv, t_best).is_none() {
                 continue;
             }
             if node.triangle_count > 0 {
+                // A leaf's triangles each may shorten the ray; any hit ends the search when one is enough.
                 for i in node.first_or_left..node.first_or_left + node.triangle_count {
                     if let Some((t, u, v)) =
                         intersect_triangle(&self.triangles[i as usize], ro, rd, t_best)
@@ -137,6 +139,7 @@ impl TriangleMesh {
         let mut stack = [0u32; MAX_DEPTH + 2];
         let mut sp = 1;
         while sp > 0 {
+            // A node whose box is no nearer than the closest point so far is skipped.
             sp -= 1;
             let node = &self.nodes[stack[sp] as usize];
             let outside = (v3(node.bounds_min) - p)

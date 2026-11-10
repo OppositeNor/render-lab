@@ -504,6 +504,7 @@ pub fn resolve(name: &str, json: &serde_json::Value) -> Result<Vec<(String, f32)
     let entry = entry(name);
     match entry {
         Some(e) if e.key == name => {
+            // A whole value: a choice by its option's name, else in its own type; it sets each of its channels.
             let value = match (json, e.choices) {
                 (serde_json::Value::String(option), Some(c)) => {
                     Value::U32(c.index(option).ok_or_else(|| {
@@ -530,6 +531,7 @@ pub fn resolve(name: &str, json: &serde_json::Value) -> Result<Vec<(String, f32)
                 .collect())
         }
         _ if entry.is_some() || investigation::current().param_default(name).is_some() => {
+            // A component of a value, or an investigation's own parameter: one number.
             let n = json
                 .as_f64()
                 .ok_or_else(|| format!("`{name}` is a number, not {json}"))?;

@@ -179,6 +179,7 @@ pub fn redundant(requires: &[Vec<usize>]) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     for (n, reqs) in requires.iter().enumerate() {
         for (k, &r) in reqs.iter().enumerate() {
+            // A requirement is redundant when another of the node's requires it already, or it is listed twice.
             let others: Vec<usize> = reqs
                 .iter()
                 .enumerate()
@@ -558,11 +559,13 @@ fn merge(
     let (index, group_index) = index_topics(&mut graph, &files, text)?;
     let mut start = 0;
     for (p, file) in &files {
+        // A package resolves names against the packages loaded before it (`all` up to its own place).
         let at = all
             .iter()
             .position(|o| o.name == p.name)
             .unwrap_or(all.len());
         for (i, node) in file.nodes.iter().enumerate() {
+            // A topic in a group must share the group's area.
             let Some(reference) = &node.group else {
                 continue;
             };
@@ -596,6 +599,7 @@ fn merge(
     let mut start = 0;
     for (p, file) in &files {
         for (i, node) in file.nodes.iter().enumerate() {
+            // A topic's requirements are topics; a base requires nothing, and every other topic something.
             let requires = node
                 .requires
                 .iter()
@@ -648,10 +652,10 @@ fn merge(
     Ok(graph)
 }
 
-/// The files' topics and groups added to `graph` (each declared once; only render_lab declares the bases):
 /// Where each topic (or each group) is in the graph, by its full name.
 type Places = BTreeMap<String, usize>;
 
+/// The files' topics and groups added to `graph` (each declared once; only render_lab declares the bases):
 /// where each topic is, and where each group is, by full name.
 fn index_topics(
     graph: &mut Graph,
@@ -738,6 +742,7 @@ fn check_graph(graph: &Graph, package: &str) -> Result<(), String> {
         ));
     }
     for chapter in &graph.chapters {
+        // A chapter, as one more node of the graph, may not require what another of its requirements already does.
         let mut with = requires.clone();
         with.push(chapter.requires.clone());
         if let Some((_, r)) = redundant(&with)
@@ -933,6 +938,7 @@ impl Graph {
             }
         }
         for area in areas {
+            // Each area: its topics in no group as one open cluster, then each of its groups as a boxed one.
             let loose: Vec<usize> = (0..shown.len())
                 .filter(|&k| node(k).area == area && node(k).group.is_none())
                 .collect();

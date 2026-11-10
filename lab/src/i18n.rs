@@ -414,6 +414,7 @@ pub fn report() -> Vec<serde_json::Value> {
             .map(|k| table.get_or_load()[0].as_ref().map_or("", |t| t.plain[*k]))
             .collect();
         for locale in Locale::all() {
+            // Each locale: the keys it lacks, the ones it leaves as English's, and the characters no font has.
             set(locale);
             let missing: Vec<&str> = keys
                 .iter()
@@ -444,6 +445,7 @@ pub fn report() -> Vec<serde_json::Value> {
                 .chain(sources.iter().copied())
                 .collect();
             for (key, text) in texts {
+                // Only the text a reader sees needs glyphs: a formula is typeset apart.
                 let plain: String = crate::rich_text::parse(text)
                     .unwrap_or_default()
                     .into_iter()

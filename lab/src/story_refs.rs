@@ -79,6 +79,7 @@ fn distance(a: &str, b: &str) -> usize {
 
 pub(crate) fn value_problem(cue: &Cue, original: String) -> CueProblem {
     for (name, value) in &cue.params {
+        // The first value that does not resolve names the problem: an unknown option, an unknown key, or the error.
         if crate::values::resolve(name, value).is_ok() {
             continue;
         }

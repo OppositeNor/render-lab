@@ -195,6 +195,7 @@ impl Listing {
         let mut header = true;
         for raw in text.lines() {
             if header {
+                // The header's `# key: value` lines name the listing; the first other line ends the header.
                 if let Some((key, value)) = raw.strip_prefix("# ").and_then(|r| r.split_once(": "))
                 {
                     match key {
@@ -222,6 +223,7 @@ impl Listing {
             // Trailers of tags and marks, `# @a @b  # @@read`, from the end.
             let (mut code, mut tags, mut mark) = (raw.trim_end(), Vec::new(), None);
             while let Some(at) = code.rfind("# @") {
+                // Each trailer's words: `@@kind` marks the line, `@tag` tags it.
                 for word in code[at + 2..].split_whitespace() {
                     if let Some(m) = word.strip_prefix("@@") {
                         match Kind::from_mark(m) {
@@ -307,6 +309,7 @@ fn logical_lines(listing: &Listing) -> Vec<Logical> {
             && (open > 0 || continued || line.indent() % 4 != 0)
             && out.last().is_some_and(|l| !l.blank);
         if joins {
+            // A continued line joins the logical line before it; any other starts one.
             let last = out.last_mut().unwrap();
             last.lines.end = i + 1;
             last.code.push(' ');
@@ -368,16 +371,19 @@ fn build(listing: &Listing, logical: &[Logical], i: &mut usize, min: usize) -> V
         }
         let word = listing.lines[l.lines.start].word();
         if l.code.is_empty() {
+            // A comment alone is a note.
             out.push(Block::Note {
                 line: l.lines.start,
             });
             *i += 1;
         } else if word == "def" || word == "class" {
+            // A definition is a hat block, its body the blocks after it.
             out.push(Block::Hat {
                 lines: l.lines.clone(),
             });
             *i += 1;
         } else if l.code.ends_with(':') && matches!(word, "for" | "while" | "if" | "with" | "try") {
+            // A compound statement is a C block: each arm's head, and the blocks indented under it.
             let indent = l.indent;
             let mut arms = Vec::new();
             let mut head = l.lines.clone();
@@ -403,6 +409,7 @@ fn build(listing: &Listing, logical: &[Logical], i: &mut usize, min: usize) -> V
             }
             out.push(Block::C { arms });
         } else if matches!(word, "return" | "break" | "continue" | "raise") {
+            // A jump ends a stack: a cap block.
             out.push(Block::Cap {
                 lines: l.lines.clone(),
             });

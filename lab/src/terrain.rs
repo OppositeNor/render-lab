@@ -251,6 +251,7 @@ impl Terrain {
         let (dtx, dtz) = ((c.x * inv.x).abs(), (c.y * inv.z).abs());
         let mut t_cell = t_enter;
         for _ in 0..2 * (last + 1) + 2 {
+            // Cell by cell: where the ray's heights in the cell meet the cell's heights, its triangles are tested.
             let t_out = tx.min(tz).min(t_exit);
             let (ya, yb) = (lo.y + ld.y * t_cell, lo.y + ld.y * t_out);
             let (ci, cj) = (i as u32, j as u32);
@@ -263,6 +264,7 @@ impl Terrain {
             let lo_h = corners.iter().copied().fold(f32::INFINITY, f32::min);
             let hi_h = corners.iter().copied().fold(f32::NEG_INFINITY, f32::max);
             if ya.min(yb) <= hi_h + 1e-4 && ya.max(yb) >= lo_h - 1e-4 {
+                // The nearer of the cell's two triangles the ray hits, its normal blended from the corners'.
                 let mut best: Option<(f32, Vec3)> = None;
                 for tri in Self::cell_triangles(ci, cj) {
                     let [a, b, d] = tri.map(|(x, z)| self.vertex(x, z));
@@ -282,6 +284,7 @@ impl Terrain {
                 return None;
             }
             if tx < tz {
+                // Then into the next cell, across whichever side (x or z) the ray reaches first.
                 i += si;
                 t_cell = tx;
                 tx += dtx;

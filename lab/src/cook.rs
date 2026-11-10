@@ -275,6 +275,7 @@ fn built_collection(
         "# Built from the package's source collections; rebuilt when they change. Do not edit.\n",
     );
     for decl in resources {
+        // A resource is produced again only when its stamp or output changed (or the file is gone); each is listed.
         let output = decl.output();
         let stamp = decl.stamp();
         match &stamp {

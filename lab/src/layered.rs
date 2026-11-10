@@ -178,6 +178,7 @@ fn sweep_rows(rows: &mut [Vec<Item>], edges: &[(usize, usize)], rank: &[usize]) 
         }
     };
     for sweep in 0..8 {
+        // Eight sweeps, alternately down and up the rows: each row is ordered against the row before it.
         let up = sweep % 2 == 0;
         let ks: Vec<usize> = if up {
             (1..=top).collect()
@@ -185,6 +186,7 @@ fn sweep_rows(rows: &mut [Vec<Item>], edges: &[(usize, usize)], rank: &[usize]) 
             (0..top).rev().collect()
         };
         for k in ks {
+            // Items sort by their neighbours' mean place in the near row; one without neighbours keeps its own.
             let near_row = if up {
                 k - 1
             } else {

@@ -247,6 +247,7 @@ pub fn list(state: &ShotState, statics: &Statics) -> Vec<Entity> {
         .collect();
     let movable = current.movable_objects();
     for o in &statics.scene.objects {
+        // Each object is an entity; the glowing one at the panel light's centre is the light.
         let kind =
             if o.emissive_strength > 0.0 && statics.scene.lighting.light.center == o.translation {
                 EntityKind::Light
@@ -267,6 +268,7 @@ pub fn list(state: &ShotState, statics: &Statics) -> Vec<Entity> {
             scale_factor: 1.0,
         };
         if movable && o.movable {
+            // A movable object is placed by its values (position, yaw, scale), each defaulting to the scene's pose.
             let keys = object_keys(o.name);
             let t = o.translation;
             entity.position = Some([keys.x, keys.y, keys.z]);

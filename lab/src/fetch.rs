@@ -467,6 +467,7 @@ impl Queue {
         self.frame += 1;
         let mut spent = 0u64;
         for request in requests {
+            // A request this frame wants, not already in flight for this view, is copied out while the budget allows.
             let view = crate::view::current();
             if !self.wants(request, tag)
                 || self
@@ -490,6 +491,7 @@ impl Queue {
                     (&mut spent, budget),
                 ),
                 Target::Buffer(buffer) => {
+                    // A buffer's region goes to a staging buffer and lands later; the first copy may pass the budget.
                     if !buffer.usage().contains(wgpu::BufferUsages::COPY_SRC) {
                         continue;
                     }

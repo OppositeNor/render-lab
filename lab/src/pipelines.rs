@@ -157,10 +157,12 @@ pub fn chain_binding(shading: &SceneShading, name: &str, written: bool) -> u32 {
     if shading.depth_views.is_some_and(|d| d.name == name) {
         return 2 * n + 2 + shading.buffers.len() as u32;
     }
+    // After the targets' pairs come the depth to read (2n), the HDR target to write (2n + 1), then buffers.
     match (name, written) {
         ("depth", false) => 2 * n,
         ("hdr", true) => 2 * n + 1,
         _ => {
+            // Each target has two bindings in a row: 2i to read it, 2i + 1 to write it.
             let i = shading
                 .targets
                 .iter()

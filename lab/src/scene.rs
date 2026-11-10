@@ -627,6 +627,7 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
     let e = Vec3::from(o.local_extent);
     match o.shape_kind {
         SHAPE_SPHERE => {
+            // A sphere: the ray's quadratic; the nearer root ahead of the origin, else the farther (from inside).
             let oc = lo - c;
             let a = ld.dot(ld);
             let b = oc.dot(ld);
@@ -646,6 +647,7 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             Some((t, normal_to_world(o, (lo + ld * t - c) / e.x)))
         }
         SHAPE_BOX => {
+            // A box: each axis's slab entry and exit; the hit is the last entry, or the first exit from inside.
             let safe = Vec3::select(ld.abs().cmplt(Vec3::splat(1e-9)), Vec3::splat(1e-9), ld);
             let inv = Vec3::ONE / safe;
             let t0 = (c - e - lo) * inv;
@@ -665,6 +667,7 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             if t < 1e-4 || t >= t_max {
                 return None;
             }
+            // The face hit is the axis along which the point is farthest out, in the box's own units.
             let p = (lo + ld * t - c) / e;
             let a = p.abs();
             let n_local = if a.x >= a.y && a.x >= a.z {
@@ -702,6 +705,7 @@ pub fn intersect_object(o: &ObjectData, ro: Vec3, rd: Vec3, t_max: f32) -> Optio
             ))
         }
         _ => {
+            // Anything else is a plane at the centre's height, bounded by its extent in x and z, facing the ray.
             if ld.y.abs() < 1e-9 {
                 return None;
             }
@@ -798,6 +802,7 @@ pub fn direct_irradiance(
     let mut sum = 0.0f32;
     for j in 0..4 {
         for i in 0..4 {
+            // The panel light, as a 4 × 4 grid of points: each unshadowed one adds cos × cos / d² of the light.
             let s = l.center
                 + l.axis_u * ((i as f32 + 0.5) / 2.0 - 1.0)
                 + l.axis_v * ((j as f32 + 0.5) / 2.0 - 1.0);
@@ -1045,6 +1050,7 @@ fn box_mesh(o: &SceneObject, vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>)
     let (c, e) = (o.local_center, o.local_extent);
     for axis in 0..3 {
         for side in [-1.0f32, 1.0] {
+            // Each face: its normal along one axis, a tangent and bitangent across it, and its four corners.
             let mut n = Vec3::ZERO;
             n[axis] = side;
             let t = if axis == 0 {

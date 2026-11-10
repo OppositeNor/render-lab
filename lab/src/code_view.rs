@@ -99,6 +99,7 @@ fn wgsl_tokens(line: &str) -> Vec<(Token, &str)> {
     let mut out = Vec::new();
     let mut rest = line;
     while !rest.is_empty() {
+        // Each token in turn: a comment takes the rest of the line; an attribute, a number, or a word its own run.
         if rest.starts_with("//") {
             out.push((Token::Comment, rest));
             break;
@@ -151,6 +152,7 @@ pub fn wrap(text: &str, columns: usize) -> Vec<Row> {
     let mut rows = Vec::new();
     let (mut start, mut indent) = (0, 0);
     while chars.len() - start > columns - indent {
+        // A row breaks after the last space or comma that fits; the rows after the first are indented deeper.
         let limit = start + (columns - indent).max(1);
         let stop = (start + 1..=limit)
             .rev()
@@ -420,6 +422,7 @@ fn draw_sections(
             y += header_height;
         }
         for (line, rows) in section.lines.iter().zip(rows) {
+            // A line that does not fit (without scrolling) is counted as cut; one in view is drawn, lit with a band.
             let h = rows.len() as f32 * LINE;
             if !scrolls && y + h > rect.max.y {
                 overflow += 1;

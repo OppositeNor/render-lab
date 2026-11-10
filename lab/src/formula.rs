@@ -231,6 +231,7 @@ fn lit_args(latex: &str, at: usize) -> Result<(u32, &str, usize), String> {
     let mut args = Vec::new();
     let mut j = at;
     for _ in 0..2 {
+        // Each argument is a braced group, read to the brace that brings the depth back to 0.
         if bytes.get(j) != Some(&b'{') {
             return Err("\\lit takes two arguments: \\lit{n}{…}".into());
         }
@@ -280,6 +281,7 @@ fn prepare(latex: &str, lit: Option<u32>) -> Result<(String, u32), String> {
         let break_at = rest.find("\\\\[");
         match (lit_at, break_at) {
             (Some(i), b) if b.is_none_or(|b| i < b) => {
+                // A `\lit` before any break: its body prepared in turn, and red when it is the lit term.
                 out.push_str(&rest[..i]);
                 let (n, body, end) = lit_args(rest, i + 4)?;
                 let (body, inner) = prepare(body, lit)?;
@@ -292,6 +294,7 @@ fn prepare(latex: &str, lit: Option<u32>) -> Result<(String, u32), String> {
                 rest = &rest[end..];
             }
             (_, Some(b)) => {
+                // A line break keeps its `\\`, and its spacing argument is dropped.
                 out.push_str(&rest[..b + 2]);
                 let close = rest[b..].find(']').ok_or("unclosed \\\\[ spacing")?;
                 rest = &rest[b + close + 1..];
@@ -390,6 +393,7 @@ fn typeset(latex: &str, size_px: f32, display: bool) -> Result<Formula, String> 
     let coverage = rgba.as_chunks::<4>().0.iter().map(|p| p[3]).collect();
     let mut term_masks = Vec::new();
     for n in 1..=terms {
+        // The formula with term n in red must keep its size; the term's mask is where the red is.
         let (lit, _) = prepare(latex, Some(n))?;
         let (rgba, w, h, _, _) = render(&mut world, &lit, size_px, display)?;
         if (w, h) != (width, height) {

@@ -106,6 +106,7 @@ fn binding_type(
     u: &ProgramUse,
 ) -> (wgpu::BindingType, Option<NonZeroU32>) {
     if let Some((format, multisampled)) = external(shading, u.resource) {
+        // A frame texture is loaded, never filtered: the depth as depth, other floats as unfilterable.
         let sample_type = if format == crate::gpu::DEPTH_FORMAT {
             wgpu::TextureSampleType::Depth
         } else {
@@ -132,6 +133,7 @@ fn binding_type(
         );
     }
     if let Some(image) = program.images.iter().find(|i| i.name == u.resource) {
+        // A program image binds as a texture to sample or load, or as storage; `All` binds every one as an array.
         let view_dimension = view_dimension(image.kind);
         let count =
             (u.which == Which::All).then(|| NonZeroU32::new(image.count.max(1)).expect("a count"));
@@ -684,6 +686,7 @@ impl ProgramRuntime {
                 let resource = if let Some((_, v)) = frame.iter().find(|(b, _)| *b == u.binding) {
                     wgpu::BindingResource::TextureView(v)
                 } else if let Some(k) = program.images.iter().position(|i| i.name == u.resource) {
+                    // An image binds all its textures as an array, one mip offset by the instance, or one element.
                     match u.which {
                         Which::All => wgpu::BindingResource::TextureViewArray(&refs[k]),
                         Which::Mip(offset) if !views[k].1.is_empty() => {
@@ -746,6 +749,7 @@ impl ProgramRuntime {
                 ProgramCommand::Dispatch { params, .. }
                 | ProgramCommand::DispatchIndirect { params, .. }
                 | ProgramCommand::Draw { params, .. } => {
+                    // Each dispatch or draw keeps its parameters in its own stride-sized slot of the params buffer.
                     assert!(
                         n < COMMANDS_MAX,
                         "a program's plan returned more than {COMMANDS_MAX} dispatches and draws"
@@ -851,6 +855,7 @@ impl ProgramRuntime {
         let mut i = 0;
         let count = commands.len();
         while i < count {
+            // Only this run's commands: runs of dispatches or draws of one pass go together, transfers one by one.
             if s.stages[i] != run {
                 i += 1;
                 continue;
@@ -909,6 +914,7 @@ impl ProgramRuntime {
                 );
             }
             ProgramCommand::Clear(e) => {
+                // A clear empties one element of a buffer or image, or every one (index MAX).
                 let pick = |k: usize| e.index == u32::MAX || k == e.index as usize;
                 if let Some(b) = self.source.buffers.iter().position(|b| b.name == e.name) {
                     for (_, x) in self.buffers[b].iter().enumerate().filter(|(k, _)| pick(*k)) {

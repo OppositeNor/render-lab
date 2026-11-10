@@ -222,6 +222,7 @@ fn read(id: &str, package: &str) -> Result<Vec<ViewKind>> {
         let arg = |tag: &str| tags.iter().find(|t| t.name == tag).map(|t| t.args.clone());
         let binding = var.binding.as_ref().map(|b| (b.group, b.binding));
         if let Some(key) = arg("view_params") {
+            // A kind's parameters (`view_params=`) are bound at binding 1 of the view group, and join their kind below.
             let [key] = key.as_slice() else {
                 bail!("{id}: `{name}`: `view_params=` names one kind{at}")
             };

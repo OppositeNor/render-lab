@@ -111,6 +111,7 @@ fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize),
     let mut i = start;
     let mut attrs = Vec::new();
     loop {
+        // Each attribute in turn, until the closing brace: a name, then `=` and a value, or nothing (a flag).
         while bytes.get(i).is_some_and(|b| b.is_ascii_whitespace()) {
             i += 1;
         }
@@ -138,6 +139,7 @@ fn parse_tag(text: &str, start: usize) -> Result<(Vec<(String, String)>, usize),
             continue;
         }
         i += 1;
+        // A quoted value runs to its closing quote (`\"` inside is a quote); a bare one to a space or the brace.
         let value = if bytes.get(i) == Some(&b'"') {
             i += 1;
             let mut value = String::new();
@@ -188,6 +190,7 @@ pub(crate) fn parse_tags(lines: &[String]) -> Result<(Vec<Tag>, String)> {
         let mut rest = line.trim_start_matches('/').trim();
         let mut text = String::new();
         while let Some(at) = rest.find("{@") {
+            // Each attribute of a tag becomes a tag (its value split at commas); the text around tags is the doc.
             text.push_str(&rest[..at]);
             let (attrs, end) = parse_tag(rest, at + 2).map_err(|e| anyhow!(e))?;
             for (name, value) in attrs {
@@ -506,10 +509,10 @@ fn entry_ranges(tags: &[Tag], ty: Type, choices: Option<&'static Choices>) -> Re
     Ok((range, component_ranges))
 }
 
-/// The `@shader_data` global of a reflected shader (one at most, tagged only with `scope=` besides): its
 /// A `@shader_data` global: its handle, its scope, and where it is.
 type DataGlobal = (naga::Handle<naga::GlobalVariable>, Option<String>, String);
 
+/// The `@shader_data` global of a reflected shader (one at most, tagged only with `scope=` besides): its
 /// handle, its scope, and where it is.
 fn data_global(r: &Reflected, docs: &naga::DocComments) -> Result<Option<DataGlobal>> {
     let module = &r.module;

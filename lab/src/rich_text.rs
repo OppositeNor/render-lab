@@ -94,6 +94,7 @@ fn calls(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut i = 0;
     while let Some(at) = text[i..].find('{').map(|k| i + k) {
+        // A brace starts a call only when a known function's name and `(` follow it.
         let rest = text[at + 1..].trim_start();
         if !FUNCTIONS.iter().any(|f| {
             rest.strip_prefix(f)
@@ -307,6 +308,7 @@ pub fn draw_formula(
     let base = texture(ctx, typeset, 0);
     match lit.filter(|(l, _)| l.term >= 1 && l.term <= f.terms.len() && l.weight > 0.0) {
         Some((l, dim)) => {
+            // A lit term: the whole formula dimmed toward `dim`, and the term's own mask over it in its colour.
             ink.painter.image(
                 base.id(),
                 rect,
@@ -493,6 +495,7 @@ pub fn text(
     let baseline = rect.min.y + ascent;
     let mut x = rect.min.x;
     for piece in &pieces {
+        // The pieces sit on one baseline, left to right.
         let (w, a, _) = piece.extent();
         match piece {
             Piece::Text { text, .. } | Piece::Broken { text, .. } => {

@@ -508,6 +508,7 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
             ));
         };
         let (mut package, references) = pending.remove(i);
+        // A demo's timeline and audio resolve against the packages taken before it.
         for (n, (timeline, audio)) in references.iter().enumerate() {
             let fail = |e: String| {
                 format!(

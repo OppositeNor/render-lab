@@ -681,6 +681,7 @@ impl Experiment {
         }];
         for sweep in &self.sweeps {
             let points: Vec<Vec<(String, Json)>> = if sweep.zip {
+                // A zipped sweep steps its lists together: the i-th value of each makes the i-th point.
                 (0..sweep.values[0].1.len())
                     .map(|i| {
                         sweep
@@ -691,6 +692,7 @@ impl Experiment {
                     })
                     .collect()
             } else {
+                // Otherwise every combination: each list multiplies the points so far by its values.
                 let mut points: Vec<Vec<(String, Json)>> = vec![Vec::new()];
                 for (k, list) in &sweep.values {
                     points = points
@@ -704,6 +706,7 @@ impl Experiment {
                 points
             };
             for varied in points {
+                // A point is a run named by what it varies (`key=value,…`); one another sweep made already is skipped.
                 let name = varied
                     .iter()
                     .map(|(k, v)| format!("{k}={}", short(v)))
@@ -720,6 +723,7 @@ impl Experiment {
             }
         }
         for v in &self.variants {
+            // Each variant is one more run, under its own name.
             let varied: Vec<(String, Json)> = v
                 .values
                 .iter()
