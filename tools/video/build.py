@@ -89,7 +89,8 @@ def build_all(lang: str | None, passed: list[str]) -> None:
         sys.exit(1)
 
 
-def main() -> None:
+def arg_parser() -> argparse.ArgumentParser:
+    """The command line's options."""
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     which = parser.add_mutually_exclusive_group(required=True)
     which.add_argument('--investigation', help='engine/feature, e.g. o3de/lighting')
@@ -109,24 +110,51 @@ def main() -> None:
     parser.add_argument('--jobs', type=int, default=1, help='render in this many parallel ranges, joined into one video (GPU; each takes about 1.1 GB RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory)')
     parser.add_argument('--tts-device', default='auto', choices=['auto', 'cuda', 'cpu'])
     parser.add_argument('--listing-style', default='blocks', choices=['blocks', 'text'], help='how the code panel draws pseudo-code listings: blocks (the default) or text')
+    return parser
+
+
+def build_every_video(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """`--all`: every package's video, each built with the options given here but the choice of video and language."""
+    if args.prepare_dir:
+        parser.error('--prepare-dir names one investigation\'s output directory; it does not go with --all')
+    if args.investigation_dir:
+        parser.error('--investigation-dir names one video; it does not go with --all')
+    passed, skip = [], False
+    for a in sys.argv[1:]:
+        if skip:
+            skip = False
+        elif a == '--all':
+            pass
+        elif a == '--lang':
+            skip = True
+        elif not a.startswith('--lang='):
+            passed.append(a)
+    build_all(args.lang, passed)
+
+
+def render_preview(cfg: Config, env: Environment, binary: Path, timeline: tuple[Json, Json], args: argparse.Namespace) -> None:
+    """`--preview BEAT`: one beat's stills (each cue and the frame before it, each motion's end, the midpoint) in
+    build/preview/BEAT, with index.json saying why each was taken."""
+    import explain
+    import outputs
+    tl, provenance = timeline
+    if not any(beat['id'] == args.preview for beat in tl['beats']):
+        raise SystemExit(f'no beat {args.preview!r} in {cfg.investigation} ({cfg.lang})')
+    frames = explain.preview_frames(tl, provenance['keys'], args.preview)
+    directory = cfg.build() / 'preview' / args.preview
+    if directory.exists():
+        shutil.rmtree(directory)
+    explain.write_preview_index(directory, frames)
+    run(outputs.lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{args.resolution[0]}x{args.resolution[1]}', '--snapshot', ','.join(str(f) for f, _ in frames),
+                    '--snapshot-dir', directory, '--ffmpeg', env.ffmpeg), cfg.build() / 'logs' / 'preview.log')
+    log(f'Preview of {args.preview}: {len(frames)} stills in {directory} (index.json says why each)')
+
+
+def main() -> None:
+    parser = arg_parser()
     args = parser.parse_args()
     if args.all:
-        if args.prepare_dir:
-            parser.error('--prepare-dir names one investigation\'s output directory; it does not go with --all')
-        if args.investigation_dir:
-            parser.error('--investigation-dir names one video; it does not go with --all')
-        # Each build gets the options given here but the choice of video and language.
-        passed, skip = [], False
-        for a in sys.argv[1:]:
-            if skip:
-                skip = False
-            elif a == '--all':
-                pass
-            elif a == '--lang':
-                skip = True
-            elif not a.startswith('--lang='):
-                passed.append(a)
-        build_all(args.lang, passed)
+        build_every_video(parser, args)
         return
     args.lang = args.lang or 'en'
     env = Environment()
@@ -199,17 +227,7 @@ def main() -> None:
     if args.prepare_only:
         return
     if args.preview:
-        import explain
-        if not any(beat['id'] == args.preview for beat in tl['beats']):
-            raise SystemExit(f'no beat {args.preview!r} in {cfg.investigation} ({cfg.lang})')
-        frames = explain.preview_frames(tl, provenance['keys'], args.preview)
-        directory = build / 'preview' / args.preview
-        if directory.exists():
-            shutil.rmtree(directory)
-        explain.write_preview_index(directory, frames)
-        run(outputs.lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{args.resolution[0]}x{args.resolution[1]}', '--snapshot', ','.join(str(f) for f, _ in frames),
-                        '--snapshot-dir', directory, '--ffmpeg', env.ffmpeg), build / 'logs' / 'preview.log')
-        log(f'Preview of {args.preview}: {len(frames)} stills in {directory} (index.json says why each)')
+        render_preview(cfg, env, binary, (tl, provenance), args)
         return
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl, args.resolution)
