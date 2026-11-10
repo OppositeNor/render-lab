@@ -3,6 +3,13 @@
 //! vectors and the specular lobe at the inspected point, the light's falloff,
 //! and the readout of every term there, computed by the CPU mirror (brdf.rs).
 
+mod overlays;
+mod readout;
+mod shadows;
+pub use overlays::*;
+use readout::*;
+pub use shadows::*;
+
 use super::brdf::{self, BrdfMap, DiffuseModel, Material, PointLight, Shading};
 use super::shot::Demo;
 use super::transmission::{SphereLight, Transmission, TransmissionMode};
@@ -479,7 +486,6 @@ pub fn build_frame(
     let demo = Demo::of(state.demo);
     let objects = posed_objects(state, statics);
     let shading = shading(state);
-    let lighting = statics.scene.lighting;
     // O3DE's camera near plane (Camera::Configuration's default, 0.1 m), which the cascades split from.
     let base = state.camera.camera_data(viewport);
     let camera = state.camera.camera_data_like(&lab::layout::CameraData {
@@ -488,6 +494,167 @@ pub fn build_frame(
     });
     let eye = Vec3::from(camera.position);
     let exposure = state.p("exposure");
+    let uniforms = frame_uniforms(
+        state,
+        statics,
+        (&objects, camera),
+        [exposure, pixel_scale, time],
+    );
+    // gShading is the lab's to pack (`shader_data`).
+    let mut content = FrameContent::new(objects, uniforms);
+    pack_shading_frame(&mut content, state, &shading, &uniforms.camera);
+
+    let map = BrdfMap::get();
+    let (p, n) = inspected_point(state);
+    let object = inspected_object(state);
+    let seen_from = observer(state, eye);
+    let derivatives = normal_derivatives(&content.objects, &camera, p, object);
+    let px = brdf::pixel(
+        &shading,
+        &content.objects,
+        &brdf::Fragment {
+            object,
+            p,
+            n,
+            derivatives,
+        },
+        seen_from,
+        exposure,
+        map,
+    );
+    // SSAO's occluders for the inspected point's half-res pixel (ssao::samples_at):
+    // the first `ssaoSamples` of its 52, each coloured by saturate(cos) against
+    // the normal rebuilt from depth (dark green unoccluding, bright occluding)
+    // and sized by its weight 1 / (d^2 + 0.07).
+    let shown_samples = state.p("ssaoSamples").clamp(0.0, 52.0);
+    let ssao_overlay = (shown_samples > 0.0)
+        .then(|| ssao_samples(state, &content.objects, &camera))
+        .flatten();
+    scene_marks(
+        &mut content,
+        (state, &shading, demo),
+        (&ssao_overlay, shown_samples),
+    );
+    let draw = &mut content.draw;
+    let labels = &mut content.labels;
+    // The light's attenuation radius and falloff, and the inspected point's vectors, lobes, and GGX samples are its
+    // overlay script's (script/overlay.lam, from `script::Frame`), here.
+    let overlay_at = lab::frame::DrawMark {
+        segments: draw.segments.len(),
+        points: draw.points.len(),
+        labels: labels.len(),
+    };
+
+    material_labels(labels, state, statics);
+
+    demo_overlays(
+        &mut content,
+        (state, &shading, demo),
+        &uniforms.camera,
+        (p, n),
+    );
+    let readout = readout(
+        demo,
+        state,
+        &shading,
+        &px,
+        statics,
+        &content.objects,
+        &uniforms.camera,
+    );
+    content.readout = Some(readout);
+    content.overlay_at = Some(overlay_at);
+    let surface_channels = shading.material(shading.inspected).lighting_channels;
+    content.script = Some(std::sync::Arc::new(super::script::Frame {
+        light_on: shading.light_on,
+        light: shading.light,
+        surface_channels,
+        normal: n,
+        pixel: px,
+    }));
+    content.notes = notes(demo, &shading);
+    // The unfolded cubemap covers the room, so the room's markers and labels give way to its faces' names.
+    if state.p("probeCubemap") > 0.5 {
+        content.draw = DrawLists::default();
+        content.labels.clear();
+        cubemap_cross_labels(&mut content.labels, state, &content.uniforms.camera);
+    }
+    content
+}
+
+/// The material labels (name, metallic, roughness) of the sphere, teapot, and box, when labels are on.
+fn material_labels(labels: &mut Vec<Label>, state: &ShotState, statics: &Statics) {
+    if state.p("labels") > 0.0 {
+        for (i, anchor) in [
+            (ids::SPHERE, Vec3::new(-1.05, 1.36, -0.55)),
+            (ids::TEAPOT, Vec3::new(-0.25, 0.72, -1.75)),
+            (ids::BOX, Vec3::new(1.05, 1.02, 0.15)),
+        ] {
+            let Some((roughness, metallic)) = material_params(i) else {
+                continue;
+            };
+            let text = format!(
+                "{} · metallic {:.2} · roughness {:.2}",
+                object_name(statics.scene.objects[i].name),
+                state.p(metallic),
+                state.p(roughness)
+            );
+            labels.push(Label {
+                anchor,
+                text,
+                color: palette::text(),
+            });
+        }
+    }
+}
+
+/// The demonstrations' own overlays: the probes' and decals' boxes, the culling tile and light markers, and the
+/// cascades around the inspected point `(p, n)`.
+fn demo_overlays(
+    content: &mut FrameContent,
+    (state, shading, demo): (&ShotState, &Shading, Demo),
+    camera: &lab::layout::CameraData,
+    (p, n): (Vec3, Vec3),
+) {
+    if state.p("probeBoxes") > 0.0 {
+        probe_boxes(content, shading, state.p("probeBoxes"));
+    }
+    if state.p("decalBoxes") > 0.0 {
+        decal_boxes(
+            &mut content.draw,
+            &mut content.labels,
+            &shading.decals,
+            state.p("decalBoxes"),
+        );
+    }
+    if demo == Demo::Culling && (state.p("cullTile") > 0.0 || state.p("lightMarkers") > 0.0) {
+        let (_, tile) = culling_view(state, shading, &content.objects, camera);
+        if state.p("cullTile") > 0.0 {
+            tile_overlay(&mut content.draw, camera, &tile, state.p("cullTile"));
+        }
+        if state.p("lightMarkers") > 0.0 {
+            light_markers(
+                &mut content.draw,
+                shading,
+                (state.p("cullTile") > 0.0).then_some(&tile),
+                state.p("lightMarkers"),
+            );
+        }
+    }
+    if state.p("cascades") > 0.0 {
+        cascade_overlay(&mut content.draw, &mut content.labels, state, camera, p, n);
+    }
+}
+
+/// The frame's uniforms: the camera, the study room's light panel, the sky's level, the floor, the overlay's
+/// exposure, pixel scale, and time, and the objects hidden (every light panel, and the walls when they are off).
+fn frame_uniforms(
+    state: &ShotState,
+    statics: &Statics,
+    (objects, camera): (&[ObjectData], lab::layout::CameraData),
+    [exposure, pixel_scale, time]: [f32; 3],
+) -> FrameUniforms {
+    let lighting = statics.scene.lighting;
     let walls = (1 << ids::BACK_WALL) | (1 << ids::LEFT_WALL) | (1 << ids::RIGHT_WALL);
     // Every scene's light panel (the study room's is ids::PANEL; the terrain's is its second object).
     let panels = objects
@@ -501,7 +668,7 @@ pub fn build_frame(
         } else {
             0
         };
-    let uniforms = FrameUniforms {
+    FrameUniforms {
         camera,
         light_center_radiance: [
             lighting.light.center.x,
@@ -523,11 +690,19 @@ pub fn build_frame(
         overlay_params: [exposure, pixel_scale, time, 0.0],
         counts: [objects.len() as u32, ids::FLOOR as u32, 0, hidden],
         view_params: [1.0, 0.0, 0.0, 0.0],
-    };
-    // gShading is the lab's to pack (`shader_data`).
-    let mut content = FrameContent::new(objects, uniforms);
-    // The full-screen passes rebuild positions from depth (shaders/standard_lighting.wgsl).
-    content.shading_frame = clip_to_world(&uniforms.camera).to_vec();
+    }
+}
+
+/// gShading's frame records, packed after the camera's clip-to-world matrix (the full-screen passes rebuild
+/// positions from depth, shaders/standard_lighting.wgsl): the materials, lights, decals, transmission, sphere
+/// lights, probes, SSAO, the cubemap view, and the cascades, each at its offset.
+fn pack_shading_frame(
+    content: &mut FrameContent,
+    state: &ShotState,
+    shading: &Shading,
+    camera: &lab::layout::CameraData,
+) {
+    content.shading_frame = clip_to_world(camera).to_vec();
     content.shading_frame.extend(shading.frame_materials());
     content.shading_frame.extend(shading.frame_lights());
     content.shading_frame.resize(FRAME_DECALS, [0.0; 4]);
@@ -561,40 +736,20 @@ pub fn build_frame(
         .shading_frame
         .extend(super::reflections::cubemap_view_records(state));
     content.shading_frame.resize(FRAME_CASCADES, [0.0; 4]);
-    content
-        .shading_frame
-        .extend(cascade_records(state, &uniforms.camera));
+    content.shading_frame.extend(cascade_records(state, camera));
+}
 
-    let map = BrdfMap::get();
-    let (p, n) = inspected_point(state);
-    let object = inspected_object(state);
-    let seen_from = observer(state, eye);
-    let derivatives = normal_derivatives(&content.objects, &camera, p, object);
-    let px = brdf::pixel(
-        &shading,
-        &content.objects,
-        &brdf::Fragment {
-            object,
-            p,
-            n,
-            derivatives,
-        },
-        seen_from,
-        exposure,
-        map,
-    );
-    // SSAO's occluders for the inspected point's half-res pixel (ssao::samples_at):
-    // the first `ssaoSamples` of its 52, each coloured by saturate(cos) against
-    // the normal rebuilt from depth (dark green unoccluding, bright occluding)
-    // and sized by its weight 1 / (d^2 + 0.07).
-    let shown_samples = state.p("ssaoSamples").clamp(0.0, 52.0);
-    let ssao_overlay = (shown_samples > 0.0)
-        .then(|| ssao_samples(state, &content.objects, &camera))
-        .flatten();
+/// SSAO's occluders for the inspected point (the first `shown_samples`), the simple point light, and the sphere
+/// lights, with their labels.
+fn scene_marks(
+    content: &mut FrameContent,
+    (state, shading, demo): (&ShotState, &Shading, Demo),
+    (ssao_overlay, shown_samples): (&Option<SsaoOverlay>, f32),
+) {
     let draw = &mut content.draw;
     let labels = &mut content.labels;
 
-    if let Some((world_p, world_n, samples)) = &ssao_overlay {
+    if let Some((world_p, world_n, samples)) = ssao_overlay {
         draw.segment(
             *world_p,
             *world_p + *world_n * 0.25,
@@ -641,132 +796,37 @@ pub fn build_frame(
             });
         }
     }
-    // The light's attenuation radius and falloff, and the inspected point's vectors, lobes, and GGX samples are its
-    // overlay script's (script/overlay.lam, from `script::Frame`), here.
-    let overlay_at = lab::frame::DrawMark {
-        segments: draw.segments.len(),
-        points: draw.points.len(),
-        labels: labels.len(),
-    };
+}
 
-    if state.p("labels") > 0.0 {
-        for (i, anchor) in [
-            (ids::SPHERE, Vec3::new(-1.05, 1.36, -0.55)),
-            (ids::TEAPOT, Vec3::new(-0.25, 0.72, -1.75)),
-            (ids::BOX, Vec3::new(1.05, 1.02, 0.15)),
-        ] {
-            let Some((roughness, metallic)) = material_params(i) else {
-                continue;
-            };
-            let text = format!(
-                "{} · metallic {:.2} · roughness {:.2}",
-                object_name(statics.scene.objects[i].name),
-                state.p(metallic),
-                state.p(roughness)
-            );
-            labels.push(Label {
-                anchor,
-                text,
-                color: palette::text(),
-            });
-        }
-    }
-
-    if state.p("probeBoxes") > 0.0 {
-        for probe in &shading.probes {
-            let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
-            obb_edges(
-                &mut content.draw,
-                probe.position,
-                probe.rotation,
-                probe.outer_half,
-                color,
-                state.p("probeBoxes") * 0.6,
-                2.0,
-            );
-            obb_edges(
-                &mut content.draw,
-                probe.position,
-                probe.rotation,
-                probe.inner_half,
-                color,
-                state.p("probeBoxes"),
-                3.0,
-            );
-            content
-                .draw
-                .point(probe.position, 9.0, color, state.p("probeBoxes"));
-            content.labels.push(Label {
-                anchor: probe.position,
-                text: format!("{} {}", tr("demos-probe"), probe.cubemap + 1),
-                color,
-            });
-        }
-    }
-    if state.p("decalBoxes") > 0.0 {
-        decal_boxes(
+/// The reflection probes' boxes (outer and inner), at `alpha`, each with its centre and name.
+fn probe_boxes(content: &mut FrameContent, shading: &Shading, alpha: f32) {
+    for probe in &shading.probes {
+        let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
+        obb_edges(
             &mut content.draw,
-            &mut content.labels,
-            &shading.decals,
-            state.p("decalBoxes"),
+            probe.position,
+            probe.rotation,
+            probe.outer_half,
+            color,
+            alpha * 0.6,
+            2.0,
         );
-    }
-    if demo == Demo::Culling && (state.p("cullTile") > 0.0 || state.p("lightMarkers") > 0.0) {
-        let (_, tile) = culling_view(state, &shading, &content.objects, &uniforms.camera);
-        if state.p("cullTile") > 0.0 {
-            tile_overlay(
-                &mut content.draw,
-                &uniforms.camera,
-                &tile,
-                state.p("cullTile"),
-            );
-        }
-        if state.p("lightMarkers") > 0.0 {
-            light_markers(
-                &mut content.draw,
-                &shading,
-                (state.p("cullTile") > 0.0).then_some(&tile),
-                state.p("lightMarkers"),
-            );
-        }
-    }
-    if state.p("cascades") > 0.0 {
-        cascade_overlay(
+        obb_edges(
             &mut content.draw,
-            &mut content.labels,
-            state,
-            &uniforms.camera,
-            p,
-            n,
+            probe.position,
+            probe.rotation,
+            probe.inner_half,
+            color,
+            alpha,
+            3.0,
         );
+        content.draw.point(probe.position, 9.0, color, alpha);
+        content.labels.push(Label {
+            anchor: probe.position,
+            text: format!("{} {}", tr("demos-probe"), probe.cubemap + 1),
+            color,
+        });
     }
-    let readout = readout(
-        demo,
-        state,
-        &shading,
-        &px,
-        statics,
-        &content.objects,
-        &uniforms.camera,
-    );
-    content.readout = Some(readout);
-    content.overlay_at = Some(overlay_at);
-    let surface_channels = shading.material(shading.inspected).lighting_channels;
-    content.script = Some(std::sync::Arc::new(super::script::Frame {
-        light_on: shading.light_on,
-        light: shading.light,
-        surface_channels,
-        normal: n,
-        pixel: px,
-    }));
-    content.notes = notes(demo, &shading);
-    // The unfolded cubemap covers the room, so the room's markers and labels give way to its faces' names.
-    if state.p("probeCubemap") > 0.5 {
-        content.draw = DrawLists::default();
-        content.labels.clear();
-        cubemap_cross_labels(&mut content.labels, state, &content.uniforms.camera);
-    }
-    content
 }
 
 /// With `splitView`, two views from the same camera: on the left the frame in
@@ -799,1249 +859,6 @@ pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
             title: Some(title(state.p("viewMode"))),
         },
     ]
-}
-
-/// Where gShadingFrame holds the sun's cascades (shaders/standard_lighting.wgsl FRAME_CASCADES).
-pub const FRAME_CASCADES: usize = 240;
-
-/// The camera the sun's cascades cover: the main camera, as O3DE takes the
-/// active camera's (DirectionalLightComponentController::
-/// GetCameraConfiguration), its far plane the light's shadow far. The free
-/// camera (lab/src/free_view.rs) sees them from elsewhere.
-pub fn shadow_camera(
-    state: &ShotState,
-    camera: &lab::layout::CameraData,
-) -> super::cascades::Observer {
-    let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
-    let forward = -Vec3::new(view.x_axis.z, view.y_axis.z, view.z_axis.z).normalize();
-    let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
-    super::cascades::Observer {
-        position: Vec3::from(camera.position),
-        forward,
-        fov_y: camera.vertical_fov,
-        aspect,
-        near: camera.near_plane,
-        far: state.p("shadowFar").min(camera.far_plane).max(0.2),
-    }
-}
-
-/// gShadingFrame[FRAME_CASCADES..]: each cascade's world to shadow-map
-/// transform (cascades::world_to_shadowmap, by column), then each cascade's
-/// (near, far, texel in metres, depth range in metres), then the sun: (its direction of
-/// travel, the cascade count), (white times sunLux, on), and
-/// (normalShadowBias, shadowBias, shadowBlur, cascadeColors), and (the
-/// cascades' camera depth span, the fullscreen blur's const falloff and
-/// depth falloff strength, unused).
-pub fn cascade_records(state: &ShotState, camera: &lab::layout::CameraData) -> Vec<[f32; 4]> {
-    let observer = shadow_camera(state, camera);
-    let set =
-        super::cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
-    let mut out = Vec::new();
-    for i in 0..super::cascades::CASCADES {
-        out.extend(set.world_to_shadowmap(i).to_cols_array_2d());
-    }
-    for c in &set.cascades {
-        out.push([c.near, c.far, c.texel(), c.max_y - c.min_y]);
-    }
-    let d = sun_direction(state);
-    let lux = state.p("sunLux");
-    out.push([d.x, d.y, d.z, super::cascades::CASCADES as f32]);
-    out.push([
-        lux,
-        lux,
-        lux,
-        if lux > 0.0 {
-            1.0
-        } else {
-            0.0
-        },
-    ]);
-    out.push([
-        state.p("normalShadowBias"),
-        state.p("shadowBias"),
-        state.p("shadowBlur"),
-        state.p("cascadeColors"),
-    ]);
-    // m_far_minus_near: the camera's depth span the cascades cover, which
-    // GetThickness scales a cascade's depth difference by.
-    out.push([
-        observer.far - observer.near,
-        state.p("shadowBlurStrength"),
-        state.p("shadowBlurSharpness"),
-        0.0,
-    ]);
-    out
-}
-
-/// The directional light's direction, from `sunYaw` and `sunPitch` (below the horizon).
-pub fn sun_direction(state: &ShotState) -> Vec3 {
-    let (yaw, pitch) = (
-        state.p("sunYaw").to_radians(),
-        state.p("sunPitch").to_radians(),
-    );
-    Vec3::new(
-        pitch.cos() * yaw.sin(),
-        -pitch.sin(),
-        pitch.cos() * yaw.cos(),
-    )
-    .normalize()
-}
-
-pub const CASCADE_COLORS: [Color32; 4] = [
-    palette::rgb(0x64dfd1),
-    palette::rgb(0x8fb8ff),
-    palette::rgb(0xffd98a),
-    palette::rgb(0xff8fc8),
-];
-
-/// The main camera's frustum split into its cascades (the first
-/// `cascadesShown`, a fraction growing the next), each cascade's bounding
-/// sphere and snapped light-space box, the light's direction, and the
-/// inspected point's cascade: seen from the free camera, which also draws the
-/// main camera itself.
-fn cascade_overlay(
-    draw: &mut DrawLists,
-    labels: &mut Vec<Label>,
-    state: &ShotState,
-    camera: &lab::layout::CameraData,
-    p: Vec3,
-    n: Vec3,
-) {
-    use super::cascades;
-    let alpha = state.p("cascades");
-    let observer = shadow_camera(state, camera);
-    let dir = sun_direction(state);
-    let set = cascades::cascades(observer, dir, state.p("cascadeSplitRatio"));
-    let shown = state
-        .p("cascadesShown")
-        .clamp(0.0, cascades::CASCADES as f32);
-    let near = observer.corners(observer.near);
-    for (i, c) in set.cascades.iter().enumerate() {
-        let grown = (shown - i as f32).clamp(0.0, 1.0);
-        if grown <= 0.0 {
-            break;
-        }
-        let color = CASCADE_COLORS[i];
-        let far = c.near + (c.far - c.near) * Ease::Smooth.apply(grown);
-        let (a, b) = (observer.corners(c.near), observer.corners(far));
-        let ring: Vec<Vec3> = b.iter().chain(std::iter::once(&b[0])).copied().collect();
-        draw.polyline(&ring, color, alpha, 3.0);
-        for k in 0..4 {
-            draw.segment(
-                if i == 0 {
-                    near[k]
-                } else {
-                    a[k]
-                },
-                b[k],
-                color,
-                alpha * 0.8,
-                2.0,
-                0,
-            );
-        }
-        if grown >= 1.0 {
-            labels.push(Label {
-                anchor: (b[2] + b[3]) * 0.5,
-                text: format!("{} {i} · {:.2} m", tr("demos-cascade"), c.far),
-                color,
-            });
-        }
-        let spheres = state.p("cascadeSpheres") * grown;
-        if spheres > 0.0 {
-            for (u, v) in [
-                (set.frame.x, set.frame.y),
-                (set.frame.y, set.frame.z),
-                (set.frame.x, set.frame.z),
-            ] {
-                let circle: Vec<Vec3> = (0..=64)
-                    .map(|t| {
-                        let a = t as f32 / 64.0 * std::f32::consts::TAU;
-                        c.center + (u * a.cos() + v * a.sin()) * c.radius
-                    })
-                    .collect();
-                draw.polyline(&circle, color, alpha * spheres * 0.55, 1.5);
-            }
-            draw.point(c.center, 7.0, color, alpha * spheres);
-        }
-        let boxes = state.p("cascadeBoxes") * grown;
-        if boxes > 0.0 {
-            let (lo, hi) = (c.snapped_min, c.snapped_max);
-            let corner = |x: bool, y: bool, z: bool| {
-                set.frame.to_world(Vec3::new(
-                    if x {
-                        hi.x
-                    } else {
-                        lo.x
-                    },
-                    if y {
-                        hi.y
-                    } else {
-                        lo.y
-                    },
-                    if z {
-                        hi.z
-                    } else {
-                        lo.z
-                    },
-                ))
-            };
-            for (x0, y0, z0, x1, y1, z1) in [
-                (0, 0, 0, 1, 0, 0),
-                (0, 1, 0, 1, 1, 0),
-                (0, 0, 1, 1, 0, 1),
-                (0, 1, 1, 1, 1, 1),
-                (0, 0, 0, 0, 1, 0),
-                (1, 0, 0, 1, 1, 0),
-                (0, 0, 1, 0, 1, 1),
-                (1, 0, 1, 1, 1, 1),
-                (0, 0, 0, 0, 0, 1),
-                (1, 0, 0, 1, 0, 1),
-                (0, 1, 0, 0, 1, 1),
-                (1, 1, 0, 1, 1, 1),
-            ] {
-                draw.segment(
-                    corner(x0 == 1, y0 == 1, z0 == 1),
-                    corner(x1 == 1, y1 == 1, z1 == 1),
-                    color,
-                    alpha * boxes * 0.7,
-                    1.5,
-                    0,
-                );
-            }
-        }
-    }
-    // The light, shining along its direction.
-    let from = Vec3::new(-2.2, 2.7, -2.2) - dir * 0.9;
-    draw.segment(from, from + dir * 0.9, LIGHT, alpha, 4.0, FLAG_ARROW);
-    labels.push(Label {
-        anchor: from - dir * 0.1,
-        text: tr("demos-directional_light").into(),
-        color: LIGHT,
-    });
-    // The inspected point's cascade.
-    draw.point(p, 9.0, palette::SELECTED, alpha);
-    let text = match set.select(p, n) {
-        Some(i) if (i as f32) < shown => format!("{} {i}", tr("demos-cascade")),
-        Some(_) => String::new(),
-        None => tr("demos-outside_every_cascade").into(),
-    };
-    if !text.is_empty() {
-        labels.push(Label {
-            anchor: p + Vec3::Y * 0.1,
-            text,
-            color: palette::SELECTED,
-        });
-    }
-}
-
-/// The names the demonstration gives the scene's decals (decals::scene_decals).
-fn decal_name(texture: usize) -> &'static str {
-    [tr("demos-splat"), tr("demos-grid")][texture.min(1)]
-}
-
-/// The twelve edges of a box.
-fn obb_edges(
-    draw: &mut DrawLists,
-    center: Vec3,
-    rotation: glam::Quat,
-    half: Vec3,
-    color: Color32,
-    alpha: f32,
-    width: f32,
-) {
-    let [x, y, z] = [
-        rotation * Vec3::X * half.x,
-        rotation * Vec3::Y * half.y,
-        rotation * Vec3::Z * half.z,
-    ];
-    let corner = |i: u32| {
-        center
-            + x * if i & 1 != 0 {
-                1.0
-            } else {
-                -1.0
-            }
-            + y * if i & 2 != 0 {
-                1.0
-            } else {
-                -1.0
-            }
-            + z * if i & 4 != 0 {
-                1.0
-            } else {
-                -1.0
-            }
-    };
-    for i in 0..8u32 {
-        for bit in [1, 2, 4] {
-            if i & bit == 0 {
-                draw.segment(corner(i), corner(i | bit), color, alpha, width, 0);
-            }
-        }
-    }
-}
-
-/// Each decal's box (m_position, m_quaternion, m_halfSize), its projection
-/// axis (local z, the decalUp of GetDecalAttenuation), and its sort key.
-fn decal_boxes(
-    draw: &mut DrawLists,
-    labels: &mut Vec<Label>,
-    decals: &[super::decals::Decal],
-    alpha: f32,
-) {
-    for d in decals {
-        let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
-        let [x, y, z] = d.axes();
-        let corner = |i: u32| {
-            d.position
-                + x * d.half_size.x
-                    * if i & 1 != 0 {
-                        1.0
-                    } else {
-                        -1.0
-                    }
-                + y * d.half_size.y
-                    * if i & 2 != 0 {
-                        1.0
-                    } else {
-                        -1.0
-                    }
-                + z * d.half_size.z
-                    * if i & 4 != 0 {
-                        1.0
-                    } else {
-                        -1.0
-                    }
-        };
-        for i in 0..8u32 {
-            for bit in [1, 2, 4] {
-                if i & bit == 0 {
-                    draw.segment(corner(i), corner(i | bit), color, alpha * 0.8, 2.0, 0);
-                }
-            }
-        }
-        draw.segment(
-            d.position,
-            d.position + z * (d.half_size.z + 0.25),
-            color,
-            alpha,
-            3.0,
-            FLAG_ARROW,
-        );
-        labels.push(Label {
-            anchor: d.position + z * (d.half_size.z + 0.3),
-            text: format!("{} · sortKey {}", decal_name(d.texture), d.sort_key),
-            color,
-        });
-    }
-}
-
-/// The inspected point's tile as the culling demonstration shows it.
-pub struct CullTile {
-    pub tile: [u32; 2],
-    pub data: super::culling::TileLightData,
-    /// The point's bin, and the lights the bin keeps (group 1 of its remapped list).
-    pub bin: u32,
-    pub kept: Vec<u32>,
-    /// The simple point lights the tile's list holds, for any bin.
-    pub listed: Vec<u32>,
-    pub point: Vec3,
-}
-
-/// The culling readout and the inspected point's tile, from the CPU mirror on
-/// the tile's ray-cast depths.
-pub fn culling_view(
-    state: &ShotState,
-    shading: &Shading,
-    objects: &[ObjectData],
-    camera: &lab::layout::CameraData,
-) -> (Vec<(String, String, Color32)>, CullTile) {
-    use super::culling;
-    let (p, _) = inspected_point(state);
-    let projector = lab::camera::Projector::new(camera);
-    let pixel = projector.project(p).map_or(Vec2::ZERO, |(px, _)| px);
-    let tile = [
-        (pixel.x.max(0.0) as u32) / culling::TILE_DIM,
-        (pixel.y.max(0.0) as u32) / culling::TILE_DIM,
-    ];
-    let data = culling::cpu_tile(camera, objects, tile);
-    let lights = shading.lights();
-    let list = culling::cull_tile(
-        camera,
-        &data,
-        tile,
-        &lights,
-        &shading.decals,
-        &shading.sphere_lights,
-    );
-    let distance = -glam::Mat4::from_cols_array_2d(&camera.world_to_view)
-        .transform_point3(p)
-        .z;
-    let bin = data.bin(distance);
-    let bins = culling::remap(&list);
-    let kept: Vec<u32> = bins[bin as usize]
-        .split(|&v| v == culling::END_OF_GROUP)
-        .nth(culling::GROUP_SIMPLE_POINT as usize)
-        .unwrap_or(&[])
-        .to_vec();
-    let in_tile = list.len() - culling::LIGHT_GROUPS as usize;
-    let listed: Vec<u32> = list
-        .split(|&e| e >> 16 == culling::END_OF_GROUP)
-        .nth(culling::GROUP_SIMPLE_POINT as usize)
-        .unwrap_or(&[])
-        .iter()
-        .map(|e| e >> 16)
-        .collect();
-    let reach = lights
-        .iter()
-        .filter(|l| (l.position - p).length_squared() * l.inv_attenuation_radius_squared < 1.0)
-        .count();
-    let rows = vec![
-        (
-            tr("demos-tile_16_x_16_px").to_string(),
-            format!("({}, {})", tile[0], tile[1]),
-            palette::text(),
-        ),
-        (
-            "zNear … zFar".to_string(),
-            format!("{:.2} … {:.2} m", data.z_near, data.z_far),
-            palette::accent(),
-        ),
-        (
-            tr("demos-depth_bins_2_logmaxbins").to_string(),
-            format!("{}", 1u32 << data.log_max_bins),
-            palette::accent(),
-        ),
-        (
-            tr("demos-32_slice_mask").to_string(),
-            format!("0x{:08X}", data.mask),
-            palette::accent(),
-        ),
-        (
-            tr("demos-simple_point_lights").to_string(),
-            format!("{}", lights.len()),
-            LIGHT,
-        ),
-        (
-            tr("demos-in_the_tile_s_list").to_string(),
-            format!("{in_tile}"),
-            LIGHT,
-        ),
-        (
-            tr("demos-the_point_s_bin").to_string(),
-            format!("{bin}  ({:.2} m)", distance),
-            palette::accent(),
-        ),
-        (
-            tr("demos-in_that_bin").to_string(),
-            format!("{}", kept.len()),
-            LIGHT,
-        ),
-        (
-            tr("demos-lights_reaching_the_point").to_string(),
-            format!("{reach}"),
-            DIFFUSE,
-        ),
-    ];
-    (
-        rows,
-        CullTile {
-            tile,
-            data,
-            bin,
-            kept,
-            listed,
-            point: p,
-        },
-    )
-}
-
-/// The tile's view-space box in the world, its depth bins as slices, and the
-/// lights its bin keeps.
-fn tile_overlay(
-    draw: &mut DrawLists,
-    camera: &lab::layout::CameraData,
-    tile: &CullTile,
-    alpha: f32,
-) {
-    use super::culling;
-    let to_world = glam::Mat4::from_cols_array_2d(&camera.world_to_view).inverse();
-    let projection = glam::Mat4::from_cols_array_2d(&camera.view_to_clip);
-    let grid = Vec2::splat(culling::TILE_DIM as f32) / Vec2::from(camera.viewport_size);
-    let corner = |uv: Vec2, distance: f32| {
-        let ndc = Vec2::new(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
-        to_world.transform_point3(Vec3::new(
-            ndc.x * distance / projection.x_axis.x,
-            ndc.y * distance / projection.y_axis.y,
-            -distance,
-        ))
-    };
-    let uv0 = Vec2::new(tile.tile[0] as f32, tile.tile[1] as f32) * grid;
-    let uvs = [
-        uv0,
-        uv0 + Vec2::new(grid.x, 0.0),
-        uv0 + grid,
-        uv0 + Vec2::new(0.0, grid.y),
-    ];
-    let bins = 1u32 << tile.data.log_max_bins;
-    for k in 0..=bins {
-        let z = tile.data.z_near + (tile.data.z_far - tile.data.z_near) * k as f32 / bins as f32;
-        let ring: Vec<Vec3> = uvs
-            .iter()
-            .chain(std::iter::once(&uvs[0]))
-            .map(|uv| corner(*uv, z))
-            .collect();
-        let color = if k == tile.bin || k == tile.bin + 1 {
-            palette::SELECTED
-        } else {
-            palette::accent()
-        };
-        draw.polyline(&ring, color, alpha, 2.0);
-    }
-    for uv in uvs {
-        draw.segment(
-            corner(uv, tile.data.z_near),
-            corner(uv, tile.data.z_far),
-            palette::accent(),
-            alpha * 0.7,
-            1.5,
-            0,
-        );
-    }
-    draw.point(tile.point, 9.0, palette::SELECTED, alpha);
-}
-
-/// A marker on each of the culling demonstration's lights, in its colour:
-/// faint when the inspected point's tile does not list it, brighter when the
-/// tile lists it for other bins, and lit, ringed, and joined to the point
-/// when the point's bin keeps it. List indices count the room's light first;
-/// it keeps its own marker, and is ringed and joined the same way.
-fn light_markers(draw: &mut DrawLists, shading: &Shading, tile: Option<&CullTile>, alpha: f32) {
-    if let Some(t) = tile.filter(|t| shading.light_on && t.kept.contains(&0)) {
-        draw.point(shading.light.position, 17.0, palette::text(), alpha);
-        draw.point(shading.light.position, 11.0, LIGHT, alpha);
-        draw.segment(
-            t.point,
-            shading.light.position,
-            palette::text(),
-            alpha * 0.8,
-            2.0,
-            FLAG_DASHED,
-        );
-    }
-    for (i, light) in shading.extra_lights.iter().enumerate() {
-        let index = i as u32 + 1;
-        let [r, g, b] = (EXTRA_LIGHT_COLORS[i % 4] * 255.0).round().to_array();
-        let color = Color32::from_rgb(r as u8, g as u8, b as u8);
-        let kept = tile.is_some_and(|t| t.kept.contains(&index));
-        let listed = tile.is_some_and(|t| t.listed.contains(&index));
-        if kept {
-            draw.point(light.position, 16.0, palette::text(), alpha);
-            draw.point(light.position, 11.0, color, alpha);
-            if let Some(t) = tile {
-                draw.segment(
-                    t.point,
-                    light.position,
-                    palette::text(),
-                    alpha * 0.8,
-                    2.0,
-                    FLAG_DASHED,
-                );
-            }
-        } else {
-            draw.point(
-                light.position,
-                if listed {
-                    10.0
-                } else {
-                    8.0
-                },
-                color,
-                alpha
-                    * if listed {
-                        0.85
-                    } else {
-                        0.4
-                    },
-            );
-        }
-    }
-}
-
-fn readout(
-    demo: Demo,
-    state: &ShotState,
-    shading: &Shading,
-    px: &brdf::Pixel,
-    statics: &Statics,
-    objects: &[ObjectData],
-    camera: &lab::layout::CameraData,
-) -> Readout {
-    let s = &px.surface;
-    let l = &px.lighting;
-    let g = &px.terms;
-    let seen = if state.p("observer") > 0.5 {
-        tr("demos-seen_from_the_observer")
-    } else {
-        tr("demos-seen_from_the_camera")
-    };
-    let object = format!(
-        "{} · {seen}",
-        object_name(statics.scene.objects[shading.inspected as usize].name)
-    );
-    let mut rows: Vec<(String, String, Color32)> = Vec::new();
-    let mut row =
-        |name: &str, value: String, color: Color32| rows.push((name.to_string(), value, color));
-    let (title, subtitle) = match demo {
-        Demo::Room if state.p("readoutMode") >= 1.5 => {
-            // EncodeNormalSignedOctahedron, step by step.
-            let n = s.normal;
-            let l1 = n.x.abs() + n.y.abs() + n.z.abs();
-            let o = n / l1;
-            let e = brdf::encode_normal_signed_octahedron(n);
-            row("normal", f3(n), palette::NORMAL);
-            row("|x| + |y| + |z|", format!("{l1:.3}"), palette::text());
-            row("n / that (octahedron)", f3(o), palette::NORMAL);
-            row(
-                "x' = x/2 + y/2 + 1/2",
-                format!("{:.3}", e.x),
-                palette::accent(),
-            );
-            row(
-                "y' = -x/2 + y/2 + 1/2",
-                format!("{:.3}", e.y),
-                palette::accent(),
-            );
-            row("z' = sign of z", format!("{:.0}", e.z), palette::accent());
-            row(
-                "RGB10A2 stores",
-                format!(
-                    "{} · {} · {}",
-                    (e.x * 1023.0).round(),
-                    (e.y * 1023.0).round(),
-                    (e.z * 1023.0).round()
-                ),
-                palette::text(),
-            );
-            ("EncodeNormalSignedOctahedron", object)
-        }
-        Demo::Room if state.p("readoutMode") >= 0.5 => {
-            // The five targets' texels at the point (GetPbrLightingOutput,
-            // ForwardPassVertexAndPixel.azsli): what the forward pass leaves.
-            let albedo = s.albedo * l.diffuse_response * s.diffuse_ao;
-            let flags = brdf::encode_unorm_2bit_flags(shading.ibl, shading.multiscatter);
-            row(
-                "DiffuseOutput",
-                format!("{} · -1", f3(px.diffuse())),
-                DIFFUSE,
-            );
-            row(
-                "SpecularOutput",
-                format!("{} · 1", f3(px.specular())),
-                SPECULAR,
-            );
-            row(
-                "AlbedoOutput",
-                format!(
-                    "{} · {:.3}",
-                    f3(albedo.map(brdf::unorm8)),
-                    brdf::unorm8(s.specular_occlusion)
-                ),
-                palette::text(),
-            );
-            row(
-                "SpecularF0Output",
-                format!(
-                    "{} · {:.3}",
-                    f3(s.specular_f0.map(brdf::unorm8)),
-                    brdf::unorm8(s.roughness_linear)
-                ),
-                palette::accent(),
-            );
-            row(
-                "NormalOutput",
-                format!(
-                    "{} · {flags:.3}",
-                    f3(brdf::encode_normal_signed_octahedron(s.normal))
-                ),
-                palette::NORMAL,
-            );
-            (tr("demos-forward_targets_at_the_point"), object)
-        }
-        Demo::Room => {
-            row(
-                tr("demos-light_position"),
-                f3(shading.light.position),
-                LIGHT,
-            );
-            row(
-                tr("demos-intensity_cd"),
-                f3(shading.light.rgb_intensity_candelas),
-                LIGHT,
-            );
-            row(
-                tr("common-attenuation_radius"),
-                format!("{:.2} m", shading.light.attenuation_radius()),
-                LIGHT,
-            );
-            row("", String::new(), palette::text());
-            row("diffuseLighting", f3(px.diffuse()), DIFFUSE);
-            row("specularLighting", f3(px.specular()), SPECULAR);
-            let ibl_on = if shading.ibl {
-                1.0
-            } else {
-                0.0
-            };
-            row(
-                tr("demos-ibl_diffuse"),
-                f3(px.ibl.diffuse * ibl_on),
-                DIFFUSE,
-            );
-            row(
-                tr("demos-ibl_specular"),
-                f3(px.ibl.specular * ibl_on),
-                SPECULAR,
-            );
-            row(
-                tr("demos-pixel"),
-                f3(px.diffuse() + px.specular() + (px.ibl.diffuse + px.ibl.specular) * ibl_on),
-                palette::text(),
-            );
-            (tr("demos-forward_pass_at_the_point"), object)
-        }
-        Demo::Culling => {
-            let (rows_, _) = culling_view(state, shading, objects, camera);
-            for (name, value, color) in rows_ {
-                row(&name, value, color);
-            }
-            (
-                tr("common-tiled_light_culling"),
-                tr("demos-the_inspected_point_s_tile").to_string(),
-            )
-        }
-        Demo::Surface => {
-            let material = shading.material(shading.inspected);
-            row("baseColor", f3(s.base_color), palette::text());
-            row("metallic", f1(s.metallic), palette::text());
-            row(
-                "specularF0Factor",
-                f1(material.specular_f0_factor),
-                palette::text(),
-            );
-            row(
-                "roughness (authored)",
-                f1(content_roughness(state, shading.inspected)),
-                palette::text(),
-            );
-            row("", String::new(), palette::text());
-            row("albedo", f3(s.albedo), DIFFUSE);
-            row("specularF0", f3(s.specular_f0), SPECULAR);
-            row("roughnessLinear", f1(s.roughness_linear), palette::accent());
-            row("roughnessA", f1(s.roughness_a), palette::accent());
-            row("roughnessA2", f1(s.roughness_a2), palette::accent());
-            row("diffuseAmbientOcclusion", f1(s.diffuse_ao), DIFFUSE);
-            row("specularOcclusion", f1(s.specular_occlusion), SPECULAR);
-            ("SetAlbedoAndSpecularF0", object)
-        }
-        Demo::Decals => {
-            // The surface before its decals, then each decal in SortDecals' order.
-            let (p, n) = inspected_point(state);
-            let plain = Shading {
-                decals: Vec::new(),
-                ..shading.clone()
-            };
-            let before = brdf::pixel(
-                &plain,
-                objects,
-                &brdf::Fragment::at(shading.inspected, p, n),
-                p + n,
-                1.0,
-                BrdfMap::get(),
-            )
-            .surface;
-            row(tr("demos-albedo_surface"), f3(before.albedo), DIFFUSE);
-            if shading.decals.is_empty() {
-                row("decals", tr("demos-off").into(), palette::text_dim());
-            }
-            let sorted = super::decals::sorted(&shading.decals);
-            let top = sorted
-                .iter()
-                .rev()
-                .copied()
-                .find(|&i| super::decals::sample(&shading.decals[i], p, n).is_some());
-            for i in sorted {
-                let d = &shading.decals[i];
-                let name = format!("{} (key {})", decal_name(d.texture), d.sort_key);
-                let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
-                match super::decals::sample(d, p, n) {
-                    Some(k) => {
-                        row(
-                            &name,
-                            format!("uvw ({:.2}, {:.2}, {:.2})", k.uvw.x, k.uvw.y, k.uvw.z),
-                            color,
-                        );
-                        row(
-                            tr("demos-opacity_angle"),
-                            format!(
-                                "{:.2}·{:.2}·{:.2} = {:.2}",
-                                k.base[3], d.opacity, k.attenuation, k.albedo_opacity
-                            ),
-                            color,
-                        );
-                        // The decal on top: what BlendBaseColor blends (its texture times its colour),
-                        // and that colour converted to ACEScg, as a material's would be.
-                        if top == Some(i) {
-                            row("b", f3(k.blended), color);
-                            row(
-                                tr("demos-b_in_acescg"),
-                                f3(super::decals::linear_srgb_to_acescg(k.blended)),
-                                palette::text_dim(),
-                            );
-                        }
-                    }
-                    None => row(
-                        &name,
-                        tr("demos-outside_its_box").into(),
-                        palette::text_dim(),
-                    ),
-                }
-            }
-            row(tr("demos-albedo_after"), f3(s.albedo), DIFFUSE);
-            row("specularF0", f3(s.specular_f0), SPECULAR);
-            row("normal", f3(s.normal), palette::NORMAL);
-            ("ApplyDecal", object)
-        }
-        Demo::Specular => {
-            row("roughnessA2", f1(s.roughness_a2), palette::accent());
-            row("NdotL", f1(g.n_dot_l), LIGHT);
-            row("NdotV", f1(l.n_dot_v), palette::VIEW);
-            row("NdotH", f1(g.n_dot_h), HALF);
-            row("HdotV", f1(g.h_dot_v), HALF);
-            row("D  NormalDistributionGGX", f1(g.d), SPECULAR);
-            row("G  (visibility, ÷ 4 NdotL NdotV)", f1(g.g), TERM_G);
-            // GGX's F term, in the text's colour.
-            row("F  FresnelSchlick", f3(g.f), palette::text());
-            row(
-                tr("demos-compensation"),
-                f3(l.multi_scatter_compensation),
-                palette::text_dim(),
-            );
-            row(
-                "D·G·F·NdotL·comp",
-                f3(brdf::specular_ggx(
-                    l.dir_to_camera,
-                    px.light.dir_to_light,
-                    s.normal,
-                    s.specular_f0,
-                    l.n_dot_v,
-                    s.roughness_a2,
-                    l.multi_scatter_compensation,
-                )),
-                SPECULAR,
-            );
-            row(tr("demos-light_lux"), f3(px.specular()), SPECULAR);
-            ("SpecularGGX", object)
-        }
-        Demo::ClearCoat => {
-            let to_light = px.light.dir_to_light;
-            let base = brdf::specular_ggx(
-                l.dir_to_camera,
-                to_light,
-                s.normal,
-                s.specular_f0,
-                l.n_dot_v,
-                s.roughness_a2,
-                l.multi_scatter_compensation,
-            );
-            match s.clear_coat {
-                Some(c) => {
-                    let h = (to_light + l.dir_to_camera).normalize();
-                    let fc =
-                        brdf::fresnel_schlick(brdf::saturate(h.dot(to_light)), Vec3::splat(0.04))
-                            * c.factor;
-                    let coated = brdf::clear_coat_specular(to_light, l.dir_to_camera, &c, base);
-                    row("clearCoat.factor", f1(c.factor), palette::accent());
-                    row("clearCoat.roughness", f1(c.roughness), palette::accent());
-                    row(tr("demos-specularf0_base"), f3(s.specular_f0), SPECULAR);
-                    row("diffuseResponse", f3(l.diffuse_response), DIFFUSE);
-                    row("Fc = F(HdotL, 0.04) · factor", f1(fc.x), HALF);
-                    row(tr("demos-base_1_fc"), f3(base * (Vec3::ONE - fc)), SPECULAR);
-                    row(
-                        tr("demos-coat_specular"),
-                        f3(coated - base * (Vec3::ONE - fc)),
-                        HALF,
-                    );
-                    row(tr("demos-light_lux"), f3(px.specular()), SPECULAR);
-                }
-                None => row(
-                    "clearCoat.enable",
-                    tr("demos-off").into(),
-                    palette::text_dim(),
-                ),
-            }
-            (tr("demos-clearcoatspecular"), object)
-        }
-        Demo::Transmission => {
-            let (_, n) = inspected_point(state);
-            let mode = match s.transmission.map(|t| t.mode) {
-                Some(super::transmission::TransmissionMode::ThickObject) => "ThickObject",
-                Some(super::transmission::TransmissionMode::ThinObject) => "ThinObject",
-                None => "None",
-            };
-            row("o_transmission_mode", mode.into(), palette::accent());
-            match (s.transmission, shading.sphere_lights.first()) {
-                (Some(tm), Some(light)) => {
-                    let to_light = (light.position - s.position).normalize();
-                    row(
-                        tr("demos-thickness_no_shadow_data"),
-                        f1(tm.thickness),
-                        palette::accent(),
-                    );
-                    if tm.mode == super::transmission::TransmissionMode::ThickObject {
-                        let k = super::transmission::thick_terms(
-                            &tm,
-                            n,
-                            l.dir_to_camera,
-                            to_light,
-                            0.0,
-                        );
-                        row("V·−(L + N·distortion)", f1(k.v_dot), palette::VIEW);
-                        row(
-                            tr("demos-power_scale"),
-                            f1(k.transmittance),
-                            palette::accent(),
-                        );
-                        row(
-                            "exp(−t·k)·saturate(1 − t)",
-                            f1(k.lamber_attenuation),
-                            palette::accent(),
-                        );
-                    } else {
-                        let e = s.albedo * brdf::saturate(tm.params.y + (-n).dot(to_light));
-                        row(tr("demos-e_albedo_sat_bias_n"), f3(e), DIFFUSE);
-                        row(
-                            tr("demos-kernel_at_s_0"),
-                            f3(super::transmission::transmission_kernel(0.0, Vec3::ONE)),
-                            palette::accent(),
-                        );
-                    }
-                    row(
-                        tr("demos-back_lighting_lux"),
-                        f3(l.translucent_back_lighting),
-                        SPHERE_LIGHT,
-                    );
-                    row(
-                        tr("demos-tint"),
-                        f3(l.translucent_back_lighting * tm.tint),
-                        SPHERE_LIGHT,
-                    );
-                    row("diffuseLighting", f3(px.diffuse()), DIFFUSE);
-                }
-                (Some(_), None) => row(
-                    tr("demos-point_light"),
-                    tr("demos-off").into(),
-                    palette::text_dim(),
-                ),
-                (None, _) => {}
-            }
-            (tr("demos-getbacklighting"), object)
-        }
-        Demo::Diffuse => {
-            let lambert = brdf::diffuse_lambertian(
-                s.albedo,
-                s.normal,
-                px.light.dir_to_light,
-                l.diffuse_response,
-            );
-            let disney = brdf::normalized_disney_diffuse(
-                s.albedo,
-                s.normal,
-                l.dir_to_camera,
-                px.light.dir_to_light,
-                s.roughness_linear,
-            );
-            row("NdotV", f1(l.n_dot_v), palette::VIEW);
-            row("NdotL", f1(g.n_dot_l), LIGHT);
-            row(
-                tr("demos-f_with_roughness"),
-                f3(l.specular_response),
-                SPECULAR,
-            );
-            row("1 − F (response)", f3(l.diffuse_response), DIFFUSE);
-            row("albedo", f3(s.albedo), palette::text());
-            row("DiffuseLambertian", f3(lambert), DIFFUSE);
-            row(tr("demos-disney_skin"), f3(disney), palette::text_dim());
-            row(tr("demos-light_lux"), f3(px.diffuse()), DIFFUSE);
-            (tr("demos-diffuse_lighting"), object)
-        }
-        Demo::Multiscatter => {
-            let e_ss = l.brdf.x + l.brdf.y;
-            let single = brdf::specular_ggx(
-                l.dir_to_camera,
-                px.light.dir_to_light,
-                s.normal,
-                s.specular_f0,
-                l.n_dot_v,
-                s.roughness_a2,
-                Vec3::ONE,
-            );
-            row("roughnessLinear", f1(s.roughness_linear), palette::accent());
-            row(
-                tr("demos-uv_ndotv_smoothness"),
-                format!("({:.3}, {:.3})", l.n_dot_v, 1.0 - s.roughness_linear),
-                palette::text_dim(),
-            );
-            row("brdf.x  (A, scale)", f1(l.brdf.x), palette::accent());
-            row("brdf.y  (B, bias)", f1(l.brdf.y), palette::accent());
-            row(
-                tr("demos-a_b_single_scattering_energy"),
-                f1(e_ss),
-                palette::accent(),
-            );
-            row("specularF0", f3(s.specular_f0), SPECULAR);
-            row(
-                tr("demos-compensation"),
-                f3(l.multi_scatter_compensation),
-                SPECULAR,
-            );
-            row(
-                tr("demos-single_scattering"),
-                f3(single),
-                palette::text_dim(),
-            );
-            row(
-                tr("demos-compensated"),
-                f3(single * l.multi_scatter_compensation),
-                SPECULAR,
-            );
-            ("GetMultiScatterCompensation", object)
-        }
-        Demo::Ibl => {
-            let i = &px.ibl;
-            row(tr("demos-albedo_target"), f3(i.albedo), DIFFUSE);
-            row(tr("demos-irradiance_at_n"), f3(i.irradiance), DIFFUSE);
-            row(tr("common-diffuse_ibl"), f3(i.diffuse), DIFFUSE);
-            row("", String::new(), palette::text());
-            row(
-                tr("demos-roughness_8_bit"),
-                f1(i.roughness),
-                palette::accent(),
-            );
-            row(tr("demos-mip_roughness_5"), f1(i.mip), palette::accent());
-            row(
-                tr("demos-prefiltered_at_r"),
-                f3(i.prefiltered),
-                palette::REFLECTED,
-            );
-            row("NdotV (≥ 0.01)", f1(i.n_dot_v), palette::VIEW);
-            row(
-                "F0 · A + B",
-                f3(i.specular_f0 * i.brdf.x + Vec3::splat(i.brdf.y)),
-                TERM_G,
-            );
-            row(
-                tr("demos-compensation"),
-                f3(i.compensation),
-                palette::text_dim(),
-            );
-            row(tr("common-specular_ibl"), f3(i.specular), SPECULAR);
-            (tr("demos-global_ibl_passes"), object)
-        }
-        Demo::Reflections => {
-            let r = &px.ibl.reflection;
-            let masked = r.stencil & super::reflections::STENCIL_REFLECTION_MASK;
-            let region = match masked {
-                0..=2 => tr("demos-no_passes"),
-                3 => tr("demos-outside_the_inners"),
-                _ => tr("demos-inside_an_inner"),
-            };
-            row("stencil", format!("{masked} · {region}"), palette::accent());
-            for probe in &shading.probes {
-                let name = format!("{} {}", tr("demos-probe"), probe.cubemap + 1);
-                let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
-                let value = if probe.contains(probe.inner_half, s.position) {
-                    tr("demos-inner_weight_1").to_string()
-                } else if probe.contains(probe.outer_half, s.position) {
-                    format!(
-                        "{} {:.3}",
-                        tr("demos-outer_weight"),
-                        probe.blend_weight(s.position)
-                    )
-                } else {
-                    tr("demos-outside").to_string()
-                };
-                row(&name, value, color);
-            }
-            row(
-                tr("demos-blend_weight_sum"),
-                f1(r.blend_weight),
-                palette::accent(),
-            );
-            row(
-                tr("demos-global_1_min_sum_1"),
-                f1(r.global_weight),
-                palette::text_dim(),
-            );
-            row(tr("demos-reflection_target"), f3(r.reflection), SPECULAR);
-            row(tr("demos-composited"), f3(r.composited), SPECULAR);
-            (tr("common-reflection_probes"), object)
-        }
-        Demo::Ssao => {
-            let (p, _) = inspected_point(state);
-            let projector = lab::camera::Projector::new(camera);
-            let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
-            let size = [
-                camera.viewport_size[0] as u32,
-                camera.viewport_size[1] as u32,
-            ];
-            // DepthToLinearDepth at a pixel: the view distance of the surface its centre sees, or of the far plane.
-            let linear_depth = |x: i32, y: i32| -> f32 {
-                let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
-                let hit = lab::scene::trace_scene(objects, o, d, 100.0, ids::PANEL as u32);
-                if hit.is_hit() {
-                    -view.transform_point3(o + d * hit.t).z
-                } else {
-                    camera.far_plane
-                }
-            };
-            let projection = glam::Mat4::from_cols_array_2d(&camera.view_to_clip);
-            let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
-            let settings = super::ssao::Settings::from_records(&ssao_records(state));
-            match projector.project(p) {
-                Some((pixel, _)) => {
-                    let (x, y) = (pixel.x.floor() as i32, pixel.y.floor() as i32);
-                    let k = super::ssao::at_pixel(&linear_depth, size, &settings, tan, x, y);
-                    row(
-                        tr("demos-pixel_half_res"),
-                        format!("({x}, {y}) · ({}, {})", k.half_pixel[0], k.half_pixel[1]),
-                        palette::text(),
-                    );
-                    row(
-                        tr("demos-linear_depth"),
-                        format!("{:.3} m", k.linear_depth),
-                        palette::accent(),
-                    );
-                    row(
-                        tr("demos-strength_radius"),
-                        format!("{:.2} · {:.3}", settings.strength, settings.sampling_radius),
-                        palette::accent(),
-                    );
-                    row(
-                        tr("demos-ssaocompute_52_samples"),
-                        f1(k.raw),
-                        palette::text(),
-                    );
-                    row(
-                        tr("demos-blur_vertical"),
-                        f1(k.blur_vertical),
-                        palette::text(),
-                    );
-                    row(tr("demos-blur_horizontal"), f1(k.blurred), palette::text());
-                    row(tr("demos-upsampled_ao"), f1(k.upsampled), palette::text());
-                    let diffuse = px.diffuse()
-                        + px.ibl.diffuse
-                            * if shading.ibl {
-                                1.0
-                            } else {
-                                0.0
-                            };
-                    row(tr("demos-diffuse"), f3(diffuse), DIFFUSE);
-                    row(tr("demos-ao"), f3(diffuse * k.upsampled), DIFFUSE);
-                }
-                None => row(
-                    tr("demos-point"),
-                    tr("demos-off_screen").into(),
-                    palette::text_dim(),
-                ),
-            }
-            ("SsaoCompute", object)
-        }
-        Demo::Terrain => {
-            // TerrainPBR_ForwardPass.azsl's macro surface.
-            row("roughnessLinear (macro)", f1(1.0), palette::accent());
-            row(
-                "specularF0 factor (macro)",
-                format!("0.5 · F0 {:.2}", 0.08 * 0.5),
-                SPECULAR,
-            );
-            row("metallic (macro)", f1(0.0), palette::text());
-            row(
-                tr("demos-terrain_direct_multiscatter"),
-                tr("demos-off").to_string(),
-                palette::text(),
-            );
-            row(
-                tr("demos-terrain_ibl_multiscatter"),
-                if shading.multiscatter {
-                    tr("demos-on")
-                } else {
-                    tr("demos-off")
-                }
-                .to_string(),
-                palette::text(),
-            );
-            ("TerrainPBR_ForwardPass", object)
-        }
-        Demo::Cascades => {
-            use super::cascades;
-            let (p, n) = inspected_point(state);
-            // The cascades the frame renders (the overlay draws the observer's, whose frustum can be seen).
-            let observer = shadow_camera(state, camera);
-            let set =
-                cascades::cascades(observer, sun_direction(state), state.p("cascadeSplitRatio"));
-            row(
-                tr("demos-near_shadow_far"),
-                format!("{:.2} … {:.1} m", observer.near, observer.far),
-                palette::text(),
-            );
-            row(
-                tr("demos-split_ratio"),
-                format!("{:.2}", state.p("cascadeSplitRatio")),
-                palette::accent(),
-            );
-            for (i, c) in set.cascades.iter().enumerate() {
-                row(
-                    &format!("{} {i}", tr("demos-cascade")),
-                    format!("{:.2}–{:.2} m · R {:.2}", c.near, c.far, c.radius),
-                    CASCADE_COLORS[i],
-                );
-            }
-            let texels: Vec<String> = set
-                .cascades
-                .iter()
-                .map(|c| format!("{:.1}", c.texel() * 1000.0))
-                .collect();
-            row(tr("demos-texel_mm"), texels.join(" · "), palette::accent());
-            match set.select(p, n) {
-                Some(i) => {
-                    let t = set.texel_of(i, p, n);
-                    row(
-                        tr("demos-point_s_cascade"),
-                        format!("{i} · texel ({:.0}, {:.0})", t.x, t.y),
-                        CASCADE_COLORS[i],
-                    );
-                }
-                None => row(
-                    tr("demos-point_s_cascade"),
-                    tr("demos-outside_every_cascade").into(),
-                    palette::text_dim(),
-                ),
-            }
-            ("DirectionalLightFeatureProcessor", object)
-        }
-        // Its rows are its readout script's (script/readout.lam, from `script::Frame`).
-        Demo::PointLight => ("SimplePointLightUtil", object),
-    };
-    rows.truncate(state.p("readoutRows").round().max(0.0) as usize);
-    let (formula, formula_lit) = super::formulas::readout(demo, state.p("formula"));
-    Readout {
-        title: title.to_string(),
-        subtitle,
-        formula,
-        formula_lit,
-        rows,
-    }
 }
 
 fn content_roughness(state: &ShotState, object: u32) -> f32 {
@@ -2141,6 +958,9 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
 /// An SSAO occluder in world space: its position, saturate(cos), and weight.
 type Occluder = (Vec3, f32, f32);
 
+/// SSAO's overlay: the point, its normal rebuilt from depth, and its occluders.
+type SsaoOverlay = (Vec3, Vec3, Vec<Occluder>);
+
 /// The inspected point's SSAO occluders in world space: its position and
 /// depth-rebuilt normal, and each occluder with its saturate(cos) and weight
 /// (ssao::samples_at, on the lab's ray-traced linear depth); None off screen.
@@ -2148,7 +968,7 @@ fn ssao_samples(
     state: &ShotState,
     objects: &[ObjectData],
     camera: &lab::layout::CameraData,
-) -> Option<(Vec3, Vec3, Vec<Occluder>)> {
+) -> Option<SsaoOverlay> {
     let (p, _) = inspected_point(state);
     let projector = lab::camera::Projector::new(camera);
     let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);

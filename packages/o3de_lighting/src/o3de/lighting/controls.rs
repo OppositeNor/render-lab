@@ -55,7 +55,12 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
             "cascades_view",
         );
     }
-    let mut toggles: Vec<(&'static str, &str)> = vec![("lightOn", tr("controls-light_on"))];
+    dock.show(ui, &toggles(demo));
+}
+
+/// The toggles under the sliders: the light, the demonstration's own, then multiscatter, specular AA, and IBL.
+fn toggles(demo: Demo) -> Vec<(&'static str, &'static str)> {
+    let mut toggles: Vec<(&'static str, &'static str)> = vec![("lightOn", tr("controls-light_on"))];
     match demo {
         Demo::Room => toggles.extend([
             ("labels", tr("controls-labels")),
@@ -130,7 +135,7 @@ pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
         ("specularAA", "specular AA"),
         ("ibl", "IBL"),
     ]);
-    dock.show(ui, &toggles);
+    toggles
 }
 
 fn view(dock: &mut Dock, ui: &mut Ui) {

@@ -998,22 +998,16 @@ impl Fragment {
     }
 }
 
-/// o3dePixel: the forward pass for one pixel (`fragment`), seen from `eye`.
-pub fn pixel(
-    shading: &Shading,
-    objects: &[ObjectData],
-    fragment: &Fragment,
-    eye: Vec3,
-    exposure: f32,
-    map: &BrdfMap,
-) -> Pixel {
+/// The surface o3dePixel shades at `fragment` of object `o`: its material's inputs, specular AA, the occlusion
+/// maps on the sphere's UVs, clear coat (GetClearCoatInputs without maps, then ApplyClearCoatToSpecularF0), and
+/// transmission.
+fn pixel_surface(shading: &Shading, o: &ObjectData, fragment: &Fragment) -> Surface {
     let Fragment {
         object,
         p,
         n,
         derivatives,
     } = *fragment;
-    let o = &objects[object as usize];
     let material = shading.material(object);
     let [r, g, b, roughness] = o.albedo_roughness;
     let mut s = Surface::new(
@@ -1045,6 +1039,53 @@ pub fn pixel(
         s.specular_f0 = apply_clear_coat_to_specular_f0(s.specular_f0, factor);
     }
     s.transmission = material.transmission;
+    s
+}
+
+/// The lights of the forward pass on surface `s` at `p`, into `l`: ApplySimplePointLight for each light of the
+/// channels `channels`, then ApplyPointLights for the sphere lights.
+fn apply_pixel_lights(
+    shading: &Shading,
+    channels: u32,
+    (s, l): (&Surface, &mut LightingData),
+    p: Vec3,
+) {
+    // ApplySimplePointLight for each light, in index order: other lighting
+    // channels and lights at or beyond their radius are skipped.
+    for light in shading.lights() {
+        if light.lighting_channel_mask & channels == 0 {
+            continue;
+        }
+        let sample = simple_point_light(&light, p);
+        if sample.falloff < 1.0 {
+            apply_light(
+                s,
+                l,
+                sample.intensity,
+                sample.dir_to_light,
+                shading.diffuse_model,
+            );
+        }
+    }
+    // ApplyPointLights, after the punctual lights.
+    for light in &shading.sphere_lights {
+        super::transmission::apply_sphere_light(light, channels, s, l, shading.diffuse_model);
+    }
+}
+
+/// o3dePixel: the forward pass for one pixel (`fragment`), seen from `eye`.
+pub fn pixel(
+    shading: &Shading,
+    objects: &[ObjectData],
+    fragment: &Fragment,
+    eye: Vec3,
+    exposure: f32,
+    map: &BrdfMap,
+) -> Pixel {
+    let Fragment { object, p, n, .. } = *fragment;
+    let o = &objects[object as usize];
+    let material = shading.material(object);
+    let mut s = pixel_surface(shading, o, fragment);
     // EvaluateLighting_ForwardPass takes the surface by value (O3DE 26.05):
     // InitializeLightingData first, on the surface before its decals, which
     // is also what the targets hold for the full-screen passes; the decals
@@ -1056,33 +1097,7 @@ pub fn pixel(
     for i in super::decals::sorted(&shading.decals) {
         super::decals::apply_decal(&shading.decals[i], &mut s, n);
     }
-    // ApplySimplePointLight for each light, in index order: other lighting
-    // channels and lights at or beyond their radius are skipped.
-    for light in shading.lights() {
-        if light.lighting_channel_mask & material.lighting_channels == 0 {
-            continue;
-        }
-        let sample = simple_point_light(&light, p);
-        if sample.falloff < 1.0 {
-            apply_light(
-                &s,
-                &mut l,
-                sample.intensity,
-                sample.dir_to_light,
-                shading.diffuse_model,
-            );
-        }
-    }
-    // ApplyPointLights, after the punctual lights.
-    for light in &shading.sphere_lights {
-        super::transmission::apply_sphere_light(
-            light,
-            material.lighting_channels,
-            &s,
-            &mut l,
-            shading.diffuse_model,
-        );
-    }
+    apply_pixel_lights(shading, material.lighting_channels, (&s, &mut l), p);
     let sample = simple_point_light(&shading.lights()[0], p);
     // Image-based lighting in the forward pass, for clear coat.
     if s.clear_coat.is_some() && shading.ibl {

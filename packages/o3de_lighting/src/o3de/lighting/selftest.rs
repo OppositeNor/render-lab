@@ -4,6 +4,11 @@
 //! against the O3DE checkout. Every check records what it compared and the
 //! worst difference.
 
+mod pixels;
+mod scene_pass;
+use pixels::*;
+use scene_pass::*;
+
 use super::brdf::{self, BRDF_MAP_SIZE, BrdfMap};
 use super::demos;
 use super::shot::{self, Demo};
@@ -48,8 +53,49 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         1080,
     )?;
     let still = still_timeline(1920, 1080);
-    let map = BrdfMap::get();
+    let mut rng = Rng(0x6f3d_e11b_4a5c_9e21);
 
+    check_layouts(&mut report, &mut renderer)?;
+    check_pick(&mut report, &mut renderer);
+    check_animations(&mut report);
+    // A frame uploads the objects and gShading the kernels read.
+    renderer.render_frame(request(&shot::for_demo(Demo::Specular), &still), None);
+    check_brdf_terms(&mut report, &mut renderer, &mut rng);
+    check_brdf_texture(&mut report, &mut renderer, &mut rng);
+    check_ggx_integral(&mut report);
+    check_ibl(&mut report, &mut renderer, &mut rng);
+    check_resolve(&mut report, &mut renderer, &mut rng);
+    check_cascades(&mut report);
+    check_furnace(&mut report);
+    check_pixels(&mut report, &mut renderer, &still)?;
+    check_clear_coat(&mut report, &mut rng);
+    check_decals(&mut report, &mut renderer, &still)?;
+    check_transmission(&mut report, &mut renderer, &still)?;
+    check_probe_camera(&mut report);
+    check_probes(&mut report, &mut renderer, &still)?;
+    check_sun_shadows(&mut report, &mut renderer, &still);
+    check_scene_pass(&mut report, &mut renderer, &still)?;
+    check_ssao(&mut report, &mut renderer, &still)?;
+    check_tiled_lights(&mut report, &mut renderer, &still)?;
+    check_demos(&mut report, &mut renderer, &still, options)?;
+    check_free_camera(&mut report, &mut renderer, &still)?;
+    check_numbers(&mut report, &mut renderer, &still)?;
+    check_formulas(&mut report);
+    check_listings(&mut report);
+    check_timeline(&mut report, &mut renderer, options)?;
+
+    let passed = report.passed();
+    std::fs::write(
+        &options.report,
+        serde_json::to_string_pretty(
+            &json!({"investigation": "o3de/lighting", "passed": passed, "gpu": gpu_info, "checks": report.checks}),
+        )?,
+    )?;
+    Ok(passed)
+}
+
+/// Section 1: the layouts, the shaders' validation, and the values' typed structs.
+fn check_layouts(report: &mut Report, renderer: &mut Renderer) -> Result<()> {
     // ---- 1. Layouts and shader validation ---------------------------------
     let checks = layout::check_all(&renderer.statics.layouts);
     report.check(
@@ -89,101 +135,104 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         }
         report.check("every demonstration's values read the same through the typed struct (view) and back (store)", detail.is_empty(), json!({"differing": detail}));
     }
+    Ok(())
+}
 
+/// A pick round-trips (script/picks.lam, `pickPixel`): the pixel picked projects back to the click.
+fn check_pick(report: &mut Report, renderer: &mut Renderer) {
     // A pick round-trips (script/picks.lam, `pickPixel`): a click at a pixel of the scene, as
     // a click on a chain-target view at the same place sets it, picks that
     // pixel, and the point it inspects projects back to it.
-    {
-        let mut worst = 0.0f32;
-        let mut picked = 0;
-        let content = demos::build_frame(
-            &shot::for_demo(Demo::Room),
-            &renderer.statics,
-            [1280.0, 720.0],
-            1.0,
-            0.0,
-        );
-        let projector = Projector::new(&content.uniforms.camera);
-        for (u, v) in [
-            (0.30, 0.70),
-            (0.42, 0.62),
-            (0.55, 0.55),
-            (0.70, 0.80),
-            (0.50, 0.40),
-        ] {
-            let shown = shot::for_demo(Demo::Room);
-            let mut state = shot::for_demo(Demo::Room);
-            let mut frame = lab::actions::ClickFrame {
-                shown: &shown,
-                state: &mut state,
-                uv: Vec2::new(u, v),
-                content: &content,
-                statics: &renderer.statics,
-            };
-            if lab::script::runtime::click("pickPixel", &mut frame) != Some(true) {
-                continue;
-            }
-            picked += 1;
-            let p = Vec3::new(
-                state.p("inspectX"),
-                state.p("inspectY"),
-                state.p("inspectZ"),
-            );
-            let back = projector
-                .project(p)
-                .map(|(px, _)| px)
-                .unwrap_or(Vec2::splat(f32::MAX));
-            let at = Vec2::new(u, v) * Vec2::new(1280.0, 720.0);
-            worst = worst.max(back.distance(at));
+    let mut worst = 0.0f32;
+    let mut picked = 0;
+    let content = demos::build_frame(
+        &shot::for_demo(Demo::Room),
+        &renderer.statics,
+        [1280.0, 720.0],
+        1.0,
+        0.0,
+    );
+    let projector = Projector::new(&content.uniforms.camera);
+    for (u, v) in [
+        (0.30, 0.70),
+        (0.42, 0.62),
+        (0.55, 0.55),
+        (0.70, 0.80),
+        (0.50, 0.40),
+    ] {
+        let shown = shot::for_demo(Demo::Room);
+        let mut state = shot::for_demo(Demo::Room);
+        let mut frame = lab::actions::ClickFrame {
+            shown: &shown,
+            state: &mut state,
+            uv: Vec2::new(u, v),
+            content: &content,
+            statics: &renderer.statics,
+        };
+        if lab::script::runtime::click("pickPixel", &mut frame) != Some(true) {
+            continue;
         }
-        report.check("a pick round-trips: the picked pixel's surface point projects back to it (5 pixels, within 1 px)", picked == 5 && worst < 1.0 && shot::for_demo(Demo::Room).p("pickShown") == 0.0, json!({"picked": picked, "worstPixels": worst}));
+        picked += 1;
+        let p = Vec3::new(
+            state.p("inspectX"),
+            state.p("inspectY"),
+            state.p("inspectZ"),
+        );
+        let back = projector
+            .project(p)
+            .map(|(px, _)| px)
+            .unwrap_or(Vec2::splat(f32::MAX));
+        let at = Vec2::new(u, v) * Vec2::new(1280.0, 720.0);
+        worst = worst.max(back.distance(at));
     }
+    report.check("a pick round-trips: the picked pixel's surface point projects back to it (5 pixels, within 1 px)", picked == 5 && worst < 1.0 && shot::for_demo(Demo::Room).p("pickShown") == 0.0, json!({"picked": picked, "worstPixels": worst}));
+}
 
+/// The scripts' Play animations (script/animations.lam) are the waves they describe.
+fn check_animations(report: &mut Report) {
     // The scripts' Play animations (script/animations.lam) are the waves they describe, and say what they set.
-    {
-        use lab::animation::{Clip, Motion, Wave};
-        let mut worst = 0.0f32;
-        let mut samples = 0;
-        let cases: [(Demo, Vec<Motion>); 2] = [
-            (
-                Demo::Surface,
-                vec![
-                    Motion::Wave(Wave::new("sphereMetallic", 0.5, 0.5, 8.0)),
-                    Motion::Wave(Wave::new("sphereRoughness", 0.45, 0.35, 13.0)),
-                ],
-            ),
-            (
-                Demo::Ibl,
-                vec![Motion::Wave(
-                    Wave::new("sphereRoughness", 0.5, -0.5, 12.0).cosine(),
-                )],
-            ),
-        ];
-        for (demo, motions) in cases {
-            let clip = Clip(motions);
-            for k in 0..400 {
-                let t = k as f32 * 0.137;
-                let mut state = shot::for_demo(demo);
-                let keys =
-                    lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
-                for (param, value) in clip.sample(t, |_| 0.0) {
-                    samples += 1;
-                    worst = worst.max((state.p(&param) - value).abs());
-                    if !keys.contains(&param) {
-                        worst = f32::MAX;
-                    }
+    use lab::animation::{Clip, Motion, Wave};
+    let mut worst = 0.0f32;
+    let mut samples = 0;
+    let cases: [(Demo, Vec<Motion>); 2] = [
+        (
+            Demo::Surface,
+            vec![
+                Motion::Wave(Wave::new("sphereMetallic", 0.5, 0.5, 8.0)),
+                Motion::Wave(Wave::new("sphereRoughness", 0.45, 0.35, 13.0)),
+            ],
+        ),
+        (
+            Demo::Ibl,
+            vec![Motion::Wave(
+                Wave::new("sphereRoughness", 0.5, -0.5, 12.0).cosine(),
+            )],
+        ),
+    ];
+    for (demo, motions) in cases {
+        let clip = Clip(motions);
+        for k in 0..400 {
+            let t = k as f32 * 0.137;
+            let mut state = shot::for_demo(demo);
+            let keys = lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
+            for (param, value) in clip.sample(t, |_| 0.0) {
+                samples += 1;
+                worst = worst.max((state.p(&param) - value).abs());
+                if !keys.contains(&param) {
+                    worst = f32::MAX;
                 }
             }
         }
-        report.check("the scripts' Play animations (surface, ibl) are their waves within 1e-5, and set what they move", worst < 1e-5, json!({"samples": samples, "worst": worst}));
     }
+    report.check("the scripts' Play animations (surface, ibl) are their waves within 1e-5, and set what they move", worst < 1e-5, json!({"samples": samples, "worst": worst}));
+}
 
-    // A frame uploads the objects and gShading the kernels read.
-    renderer.render_frame(request(&shot::for_demo(Demo::Specular), &still), None);
+/// A surface the BRDF terms are checked on: its normal, the directions to the camera and the light, base
+/// colour, metallic, roughness, specular factor, multiscatter, and the normal's screen derivatives.
+type BrdfCase = (Vec3, Vec3, Vec3, Vec3, f32, f32, f32, bool, Vec3, Vec3);
 
-    // ---- 2. The BRDF, term by term ----------------------------------------
-    let mut rng = Rng(0x6f3d_e11b_4a5c_9e21);
-    let count = 96;
+/// `count` random surfaces for the BRDF terms: the kernel's inputs (six vec4s each), and the cases.
+fn brdf_cases(rng: &mut Rng, count: usize) -> (Vec<[f32; 4]>, Vec<BrdfCase>) {
     let mut tests: Vec<[f32; 4]> = Vec::new();
     let mut cases = Vec::new();
     for k in 0..count {
@@ -235,6 +284,15 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             dndy,
         ));
     }
+    (tests, cases)
+}
+
+/// Section 2: the BRDF, term by term, on the GPU against brdf.rs.
+fn check_brdf_terms(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
+    let map = BrdfMap::get();
+    // ---- 2. The BRDF, term by term ----------------------------------------
+    let count = 96;
+    let (tests, cases) = brdf_cases(rng, count);
     // The kernels read gShading from the frame above, with specular AA on (the default).
     let specular_aa = shot::for_demo(Demo::Specular).p("specularAA") > 0.5;
     let words = renderer.run_shading_verify("o3deBrdfTests", count as u32, &tests, 32 * count);
@@ -309,7 +367,11 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
     }
     let passed = worst.iter().all(|w| w.1 < 2e-3);
     report.check("every BRDF term on the GPU matches the CPU mirror (96 random surfaces, with and without specular AA)", passed && specular_aa, json!({"worstRelativeDifference": worst.iter().map(|(n, w)| (n.to_string(), json!(w))).collect::<serde_json::Map<_, _>>(), "tolerance": 2e-3}));
+}
 
+/// Section 3: the BRDF texture, the WGSL port of BRDFTextureCS against the CPU's.
+fn check_brdf_texture(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
+    let map = BrdfMap::get();
     // ---- 3. The BRDF texture ----------------------------------------------
     // The lab fills the texture on the CPU (the same on every GPU). The WGSL
     // port of BRDFTextureCS must match it once sinTheta's square root is
@@ -353,7 +415,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             2 * tests.len(),
         )
     };
-    let (guarded, unguarded) = (run(&mut renderer, true), run(&mut renderer, false));
+    let (guarded, unguarded) = (run(renderer, true), run(renderer, false));
     let mut worst_map = 0.0f32;
     let mut worst_texel = (0, 0);
     let mut lost: Vec<Value> = Vec::new();
@@ -389,7 +451,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         max_energy <= 1.002 && (smooth_head_on.x + smooth_head_on.y) > 0.98 && smooth_head_on.y < 0.01,
         json!({"maxAplusB": max_energy, "smoothHeadOn": smooth_head_on.to_array(), "roughGrazing": rough_grazing.to_array()}),
     );
+}
 
+/// Section 4: GGX's D is a distribution: its projected integral is 1.
+fn check_ggx_integral(report: &mut Report) {
     // ---- 4. GGX's D is a distribution: the projected integral is 1 ---------
     let mut integrals = Vec::new();
     for a2 in [0.002f32, 0.02, 0.1, 0.4, 1.0] {
@@ -407,7 +472,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         integrals.iter().all(|(_, v)| (v - 1.0).abs() < 5e-3),
         json!(integrals),
     );
+}
 
+/// Section 4b: image-based lighting on the GPU against the CPU's cubemaps.
+fn check_ibl(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
     // ---- 4b. Image-based lighting -----------------------------------------
     let cubes = super::ibl::Ibl::get();
     let mut tests = Vec::new();
@@ -453,6 +521,10 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         worst_ibl < 1e-4,
         json!({"worstRelativeDifference": worst_ibl, "tolerance": 1e-4}),
     );
+}
+
+/// MSAAResolveCustom on the GPU and the CPU.
+fn check_resolve(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
     // MSAAResolveCustom: four samples clamped against the brightest
     // neighbour and averaged in the log domain, on the GPU and the CPU.
     let mut tests: Vec<[f32; 4]> = Vec::new();
@@ -494,41 +566,48 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
             .count();
     }
     report.check("MSAAResolveCustom (neighbour clamp, log-domain mean) on the GPU matches the CPU (64 pixels)", worst_resolve < 1e-4 && clamped > 0, json!({"worstRelativeDifference": worst_resolve, "clampedSamples": clamped, "tolerance": 1e-4}));
+}
+
+/// The directional light's cascades (cascades.rs): the worked example's split and boxes.
+fn check_cascades(report: &mut Report) {
     // The directional light's cascades (cascades.rs): the split of research.md
     // §6's worked example, boxes floored to whole texels, and the first cascade
     // holding a point at the camera's focus.
-    {
-        use super::cascades;
-        let splits = cascades::split_depths(0.1, 100.0, 0.9);
-        let splits_ok = splits
-            .iter()
-            .zip([3.014, 7.851, 23.507, 100.0])
-            .all(|(a, b)| (a - b).abs() < 2e-3);
-        let uniform_ok = cascades::split_depths(0.1, 100.0, 0.0)
-            .iter()
-            .zip([25.075, 50.05, 75.025, 100.0])
-            .all(|(a, b)| (a - b).abs() < 1e-3);
-        let observer = cascades::Observer {
-            position: Vec3::new(1.0, 1.5, 2.0),
-            forward: Vec3::new(-0.4, -0.2, -1.0).normalize(),
-            fov_y: 60f32.to_radians(),
-            aspect: 16.0 / 9.0,
-            near: 0.1,
-            far: 12.0,
-        };
-        let set = cascades::cascades(observer, Vec3::new(0.3, -1.0, 0.2), 0.9);
-        let snapped = set.cascades.iter().all(|k| {
-            let cells = k.snapped_min / k.snap;
-            (cells - cells.round()).abs().max_element() < 1e-3
-                && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
-        });
-        let first = set.select(observer.position + observer.forward * 0.3, Vec3::Y);
-        report.check(
-            "the directional light's cascades follow DirectionalLightFeatureProcessor: log/uniform splits, snapped boxes, selection by bounds",
-            splits_ok && uniform_ok && snapped && first == Some(0),
-            json!({"splits": splits, "radii": set.cascades.iter().map(|k| k.radius).collect::<Vec<_>>(), "focusCascade": first}),
-        );
-    }
+    use super::cascades;
+    let splits = cascades::split_depths(0.1, 100.0, 0.9);
+    let splits_ok = splits
+        .iter()
+        .zip([3.014, 7.851, 23.507, 100.0])
+        .all(|(a, b)| (a - b).abs() < 2e-3);
+    let uniform_ok = cascades::split_depths(0.1, 100.0, 0.0)
+        .iter()
+        .zip([25.075, 50.05, 75.025, 100.0])
+        .all(|(a, b)| (a - b).abs() < 1e-3);
+    let observer = cascades::Observer {
+        position: Vec3::new(1.0, 1.5, 2.0),
+        forward: Vec3::new(-0.4, -0.2, -1.0).normalize(),
+        fov_y: 60f32.to_radians(),
+        aspect: 16.0 / 9.0,
+        near: 0.1,
+        far: 12.0,
+    };
+    let set = cascades::cascades(observer, Vec3::new(0.3, -1.0, 0.2), 0.9);
+    let snapped = set.cascades.iter().all(|k| {
+        let cells = k.snapped_min / k.snap;
+        (cells - cells.round()).abs().max_element() < 1e-3
+            && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
+    });
+    let first = set.select(observer.position + observer.forward * 0.3, Vec3::Y);
+    report.check(
+        "the directional light's cascades follow DirectionalLightFeatureProcessor: log/uniform splits, snapped boxes, selection by bounds",
+        splits_ok && uniform_ok && snapped && first == Some(0),
+        json!({"splits": splits, "radii": set.cascades.iter().map(|k| k.radius).collect::<Vec<_>>(), "focusCascade": first}),
+    );
+}
+
+/// A white furnace: a constant environment comes out constant in every mip and the diffuse cubemap.
+fn check_furnace(report: &mut Report) {
+    let cubes = super::ibl::Ibl::get();
     // A white furnace: both filters are normalised averages, so a constant
     // environment comes out constant in every mip and in the diffuse cubemap.
     let constant = Vec3::new(0.7, 0.5, 0.3);
@@ -555,800 +634,21 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         cubes.specular.len() == 6 && cubes.specular[5].size == 8,
         json!(stats),
     );
+}
 
-    // ---- 5. Whole pixels: o3dePixel on the GPU against brdf::pixel ---------
-    let mut pixel_detail = Vec::new();
-    let mut pixels_ok = true;
-    for view in 0..brdf::ViewMode::choices().options.len() {
-        let mut state = shot::for_demo(Demo::Specular);
-        state.set("viewMode", view as f32);
-        // Every other view with the sphere's occlusion maps assigned.
-        let occluded = view % 2 == 1;
-        if occluded {
-            state.set("sphereOcclusion", 1.0);
-            state.set("diffuseOcclusionFactor", 1.6);
-            state.set("specularOcclusionFactor", 0.7);
-        }
-        // Every third view with the sphere's clear coat.
-        let coated = view % 3 == 2;
-        if coated {
-            state.set("sphereClearCoat", 1.0);
-            state.set("clearCoatFactor", 0.8);
-            state.set("clearCoatRoughness", 0.2);
-        }
-        let frame = renderer.render_frame(request(&state, &still), None);
-        let content = frame.content.context("scene content")?;
-        let shading = demos::shading(&state);
-        let eye = Vec3::from(content.uniforms.camera.position);
-        let projector = Projector::new(&content.uniforms.camera);
-        let mut tests = Vec::new();
-        let mut points = Vec::new();
-        for j in 0..12 {
-            for i in 0..16 {
-                let pixel = Vec2::new((i as f32 + 0.5) / 16.0, (j as f32 + 0.5) / 12.0)
-                    * projector.viewport;
-                let (o, d) = projector.ray(pixel);
-                let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                if !hit.is_hit() {
-                    continue;
-                }
-                let p = o + d * hit.t;
-                let n = if hit.normal.dot(d) > 0.0 {
-                    -hit.normal
-                } else {
-                    hit.normal
-                };
-                tests.extend([
-                    p.extend(hit.object as f32).to_array(),
-                    n.extend(0.0).to_array(),
-                ]);
-                points.push((p, n, hit.object));
-            }
-        }
-        let words = renderer.run_shading_verify(
-            "o3dePixelTests",
-            points.len() as u32,
-            &tests,
-            8 * points.len(),
-        );
-        let mut worst = 0.0f32;
-        for (k, &(p, n, object)) in points.iter().enumerate() {
-            // The kernel has no screen, so no normal derivatives.
-            let cpu = brdf::pixel(
-                &shading,
-                &content.objects,
-                &brdf::Fragment::at(object, p, n),
-                eye,
-                state.p("exposure"),
-                map,
-            );
-            let gpu = f3(&words, 8 * k);
-            let d = (gpu - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05);
-            worst = worst.max(d);
-        }
-        pixels_ok &= worst < 3e-3;
-        pixel_detail.push(json!({"view": view, "occlusionMaps": occluded, "clearCoat": coated, "points": points.len(), "worstRelativeDifference": worst}));
-    }
-    report.check("o3dePixel on the GPU matches brdf::pixel in every view (192 rays each; with occlusion maps and clear coat in turn)", pixels_ok, json!({"views": pixel_detail, "tolerance": 3e-3}));
-
-    // ---- 5b. Clear coat at factor 0 changes no direct-lighting term -------
-    {
-        let mut worst = 0.0f32;
-        for _ in 0..256 {
-            let n = rng.unit();
-            let (v, l) = (rng.above(n), rng.above(n));
-            let base = Vec3::new(rng.next(), rng.next(), rng.next());
-            let s = brdf::Surface::new(Vec3::ZERO, n, base, rng.next(), rng.next(), rng.next());
-            let mut coated = s;
-            coated.clear_coat = Some(brdf::ClearCoat {
-                factor: 0.0,
-                roughness: rng.next().max(1e-3),
-                normal: n,
-            });
-            coated.specular_f0 = brdf::apply_clear_coat_to_specular_f0(s.specular_f0, 0.0);
-            let lit = |surface: &brdf::Surface| {
-                let mut ld = brdf::LightingData::new(surface, v, true, map);
-                brdf::apply_light(
-                    surface,
-                    &mut ld,
-                    Vec3::ONE,
-                    l,
-                    brdf::DiffuseModel::Lambertian,
-                );
-                (ld.diffuse_lighting, ld.specular_lighting)
-            };
-            let ((d0, s0), (d1, s1)) = (lit(&s), lit(&coated));
-            worst = worst
-                .max((d0 - d1).abs().max_element())
-                .max((s0 - s1).abs().max_element());
-        }
-        report.check("clear coat at factor 0 leaves the F0, the diffuse response, and every light's diffuse and specular unchanged", worst <= 1e-6, json!({"surfaces": 256, "worstDifference": worst}));
-    }
-
-    // ---- 5c. Decals: o3dePixel on the GPU against brdf::pixel inside them --
-    {
-        let mut detail = Vec::new();
-        let mut ok = true;
-        // The demonstration's start, the splat tilted under the grid at partial opacity, and the grid turned with weak attenuation.
-        let configs: [&[(&str, f32)]; 3] = [
-            &[],
-            &[
-                ("decalTilt", 40.0),
-                ("decalSplatSortKey", 15.0),
-                ("decalOpacity", 0.6),
-                ("decalNormalOpacity", 0.5),
-            ],
-            &[
-                ("decalTurn", 70.0),
-                ("decalAngleAttenuation", 0.3),
-                ("decalTilt", -50.0),
-            ],
-        ];
-        for config in configs {
-            let mut state = shot::for_demo(Demo::Decals);
-            for &(name, value) in config {
-                state.set(name, value);
-            }
-            let frame = renderer.render_frame(request(&state, &still), None);
-            let content = frame.content.context("scene content")?;
-            let shading = demos::shading(&state);
-            let eye = Vec3::from(content.uniforms.camera.position);
-            let projector = Projector::new(&content.uniforms.camera);
-            let (mut tests, mut points) = (Vec::new(), Vec::new());
-            for j in 0..24 {
-                for i in 0..32 {
-                    let (o, d) = projector.ray(
-                        Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
-                            * projector.viewport,
-                    );
-                    let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                    let p = o + d * hit.t;
-                    if !hit.is_hit()
-                        || !shading
-                            .decals
-                            .iter()
-                            .any(|dc| super::decals::sample(dc, p, hit.normal).is_some())
-                    {
-                        continue;
-                    }
-                    let n = if hit.normal.dot(d) > 0.0 {
-                        -hit.normal
-                    } else {
-                        hit.normal
-                    };
-                    tests.extend([
-                        p.extend(hit.object as f32).to_array(),
-                        n.extend(0.0).to_array(),
-                    ]);
-                    points.push((p, n, hit.object));
-                }
-            }
-            let words = renderer.run_shading_verify(
-                "o3dePixelTests",
-                points.len() as u32,
-                &tests,
-                8 * points.len(),
-            );
-            let mut worst = 0.0f32;
-            for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(
-                    &shading,
-                    &content.objects,
-                    &brdf::Fragment::at(object, p, n),
-                    eye,
-                    state.p("exposure"),
-                    map,
-                );
-                worst = worst.max(
-                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
-                        / cpu.color.max_element().max(0.05),
-                );
-            }
-            ok &= worst < 3e-3 && points.len() > 100;
-            detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "pointsInDecals": points.len(), "worstRelativeDifference": worst}));
-        }
-        // ApplyDecal on a metallic surface: O3DE 26.05 blends the albedo and leaves specularF0 as it was.
-        let decal = super::decals::scene_decals(&shot::for_demo(Demo::Decals))[0];
-        let mut metal = brdf::Surface::new(
-            decal.position,
-            Vec3::Y,
-            Vec3::new(0.9, 0.6, 0.3),
-            0.75,
-            0.5,
-            0.4,
-        );
-        let before = metal;
-        super::decals::apply_decal(&decal, &mut metal, Vec3::Y);
-        let k =
-            super::decals::sample(&decal, decal.position, Vec3::Y).context("the splat's centre")?;
-        let f0_ok = (metal.specular_f0 - before.specular_f0).abs().max_element() < 1e-6
-            && (metal.albedo - before.albedo.lerp(k.blended, k.albedo_opacity))
-                .abs()
-                .max_element()
-                < 1e-6
-            && k.albedo_opacity > 0.9;
-        report.check(
-            "decals: o3dePixel on the GPU matches brdf::pixel at points inside the decals (three settings), and ApplyDecal blends a metal's albedo by its opacity and leaves its specularF0 (26.05)",
-            ok && f0_ok,
-            json!({"settings": detail, "tolerance": 3e-3, "metallicF0": f0_ok}),
-        );
-    }
-
-    // ---- 5d. Transmission and the sphere light: o3dePixel against brdf::pixel --
-    {
-        let mut detail = Vec::new();
-        let mut ok = true;
-        let configs: [&[(&str, f32)]; 3] = [
-            &[],
-            &[
-                ("transmissionPower", 2.0),
-                ("transmissionDistortion", 0.5),
-                ("transmissionThickness", 0.2),
-                ("sphereLightBulb", 0.3),
-            ],
-            &[("teapotTransmission", 2.0)],
-        ];
-        for config in configs {
-            let mut state = shot::for_demo(Demo::Transmission);
-            for &(name, value) in config {
-                state.set(name, value);
-            }
-            let frame = renderer.render_frame(request(&state, &still), None);
-            let content = frame.content.context("scene content")?;
-            let shading = demos::shading(&state);
-            let eye = Vec3::from(content.uniforms.camera.position);
-            let projector = Projector::new(&content.uniforms.camera);
-            let (mut tests, mut points) = (Vec::new(), Vec::new());
-            let mut lit = 0usize;
-            for j in 0..24 {
-                for i in 0..32 {
-                    let (o, d) = projector.ray(
-                        Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
-                            * projector.viewport,
-                    );
-                    let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                    if !hit.is_hit() {
-                        continue;
-                    }
-                    let p = o + d * hit.t;
-                    let n = if hit.normal.dot(d) > 0.0 {
-                        -hit.normal
-                    } else {
-                        hit.normal
-                    };
-                    tests.extend([
-                        p.extend(hit.object as f32).to_array(),
-                        n.extend(0.0).to_array(),
-                    ]);
-                    points.push((p, n, hit.object));
-                }
-            }
-            let words = renderer.run_shading_verify(
-                "o3dePixelTests",
-                points.len() as u32,
-                &tests,
-                8 * points.len(),
-            );
-            let mut worst = 0.0f32;
-            for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(
-                    &shading,
-                    &content.objects,
-                    &brdf::Fragment::at(object, p, n),
-                    eye,
-                    state.p("exposure"),
-                    map,
-                );
-                lit += usize::from(cpu.lighting.translucent_back_lighting.max_element() > 1e-3);
-                worst = worst.max(
-                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
-                        / cpu.color.max_element().max(0.05),
-                );
-            }
-            ok &= worst < 3e-3 && lit > 20;
-            detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "points": points.len(), "backLit": lit, "worstRelativeDifference": worst}));
-        }
-        report.check(
-            "transmission: o3dePixel with the sphere light matches brdf::pixel, thick and thin, with back lighting on the teapot",
-            ok,
-            json!({"settings": detail, "tolerance": 3e-3}),
-        );
-    }
-
-    // ---- 5d. The probes' capture camera ------------------------------------
-    {
-        let probes = super::reflections::bake_check(4096);
-        let ok = probes
-            .iter()
-            .all(|&(share, median)| share > 0.9 && median < 0.01);
-        report.check(
-            "probe captures: each cubemap, read along 4096 directions, shows what the room traced from the probe's position shows along them (90% within 5%)",
-            ok,
-            json!(probes.iter().map(|&(share, median)| json!({"withinFivePercent": share, "medianRelativeDifference": median})).collect::<Vec<_>>()),
-        );
-    }
-
-    // ---- 5e. Reflection probes: o3dePixel against brdf::pixel -------------
-    {
-        let mut detail = Vec::new();
-        let mut ok = true;
-        let mut grey = 0usize;
-        // The last with a clear-coated sphere, whose forward-pass IBL blends in its own probe.
-        let configs: [&[(&str, f32)]; 5] = [
-            &[],
-            &[("probeParallax", 0.0)],
-            &[("probeInnerScale", 0.5), ("probeExposure", 1.0)],
-            &[("ibl", 0.0)],
-            &[("sphereClearCoat", 1.0), ("probeExposure", 0.5)],
-        ];
-        for config in configs {
-            let mut state = shot::for_demo(Demo::Reflections);
-            for &(name, value) in config {
-                state.set(name, value);
-            }
-            let frame = renderer.render_frame(request(&state, &still), None);
-            let content = frame.content.context("scene content")?;
-            let shading = demos::shading(&state);
-            let eye = Vec3::from(content.uniforms.camera.position);
-            let projector = Projector::new(&content.uniforms.camera);
-            let (mut tests, mut points) = (Vec::new(), Vec::new());
-            for j in 0..36 {
-                for i in 0..48 {
-                    let (o, d) = projector.ray(
-                        Vec2::new((i as f32 + 0.5) / 48.0, (j as f32 + 0.5) / 36.0)
-                            * projector.viewport,
-                    );
-                    let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                    if !hit.is_hit() {
-                        continue;
-                    }
-                    let p = o + d * hit.t;
-                    let n = if hit.normal.dot(d) > 0.0 {
-                        -hit.normal
-                    } else {
-                        hit.normal
-                    };
-                    tests.extend([
-                        p.extend(hit.object as f32).to_array(),
-                        n.extend(0.0).to_array(),
-                    ]);
-                    points.push((p, n, hit.object));
-                }
-            }
-            let words = renderer.run_shading_verify(
-                "o3dePixelTests",
-                points.len() as u32,
-                &tests,
-                8 * points.len(),
-            );
-            let (mut worst, mut inner, mut blended) = (0.0f32, 0usize, 0usize);
-            for (k, &(p, n, object)) in points.iter().enumerate() {
-                let cpu = brdf::pixel(
-                    &shading,
-                    &content.objects,
-                    &brdf::Fragment::at(object, p, n),
-                    eye,
-                    state.p("exposure"),
-                    map,
-                );
-                let r = cpu.ibl.reflection;
-                let masked = r.stencil & super::reflections::STENCIL_REFLECTION_MASK;
-                inner += usize::from(masked > 3);
-                blended += usize::from(masked == 3 && r.blend_weight > 0.0 && r.blend_weight < 1.0);
-                // The IBL flag off: inside an inner volume the target's 0.4 grey reaches the composite.
-                if !shading.ibl
-                    && masked > 3
-                    && (r.composited - super::reflections::REFLECTION_CLEAR)
-                        .abs()
-                        .max_element()
-                        < 1e-6
-                {
-                    grey += 1;
-                }
-                worst = worst.max(
-                    (f3(&words, 8 * k) - cpu.color).abs().max_element()
-                        / cpu.color.max_element().max(0.05),
-                );
-            }
-            ok &= worst < 3e-3 && inner > 4 && blended > 10;
-            detail.push(json!({"settings": config.iter().map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>(), "points": points.len(), "insideInner": inner, "blended": blended, "worstRelativeDifference": worst}));
-        }
-        report.check(
-            "reflection probes: o3dePixel matches brdf::pixel (stencil, blend weights, global, outer, inner, composite; parallax on and off, IBL off; a clear-coated mesh's forward-pass probe)",
-            ok,
-            json!({"settings": detail, "tolerance": 3e-3}),
-        );
-        report.check(
-            "finding: with the IBL flag off, surfaces inside an inner probe volume get the reflection target's 0.4 clear grey (reported, not required)",
-            true,
-            json!({"pointsWithGrey": grey}),
-        );
-    }
-
-    // ---- 5d. The sun's shadow maps follow the camera ------------------------
-    // The cascades are fitted to the camera that renders, so moving it moves
-    // them: a frame drawn just after another camera's (its maps last drawn
-    // for that one) must match one whose maps were drawn for its own. A frame
-    // with a shading value changed (specularAA, which the maps' redraw key
-    // has always held) makes sure the maps are drawn for the camera before it.
-    {
-        // The room with the sun on, as the story's sun beats show it.
-        let mut here = shot::for_demo(Demo::Room);
-        for (name, value) in [
-            ("labels", 0.0),
-            ("sunLux", 40.0),
-            ("exposure", 0.18),
-            ("sunYaw", 40.0),
-            ("sunPitch", 52.0),
-        ] {
-            here.set(name, value);
-        }
-        let mut there = here.clone();
-        there.camera.yaw -= 70.0;
-        let frame_after = |renderer: &mut Renderer, before: &lab::shot::ShotState| {
-            let mut nudged = before.clone();
-            nudged.set("specularAA", 1.0 - before.p("specularAA"));
-            renderer.render_frame(request(&nudged, &still), None);
-            renderer.render_frame(request(before, &still), None);
-            renderer.render_frame(request(&here, &still), None);
-            renderer.read_frame()
-        };
-        let settled = frame_after(&mut renderer, &here);
-        let after_move = frame_after(&mut renderer, &there);
-        let pixels = settled.len() / 4;
-        let differing = (0..pixels)
-            .filter(|&i| (0..3).any(|c| settled[4 * i + c].abs_diff(after_move[4 * i + c]) > 8))
-            .count();
-        let share = differing as f32 / pixels as f32;
-        report.check("the sun's shadow maps follow the camera: a frame just after another camera's matches one after its own (pixels off by more than 8 of 255 under 0.5%)", share < 0.005, json!({"pixels": pixels, "differing": differing, "share": share, "yawMoved": -70.0}));
-    }
-
-    // ---- 6. The scene pass draws with the port ----------------------------
-    let mut state = shot::for_demo(Demo::Room);
-    for name in ["labels", "vectors", "lobe", "lightOn"] {
-        state.set(name, 0.0);
-    }
-    // With the light off only the image-based lighting remains; then with it on.
-    let mut raster_detail = Vec::new();
-    let mut raster_ok = true;
-    for (light_on, probes) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)] {
-        state.set("lightOn", light_on);
-        state.set("probes", probes);
-        let shading = demos::shading(&state);
-        let frame = renderer.render_frame(request(&state, &still), None);
-        let content = frame.content.context("scene content")?;
-        let rgba = renderer.read_frame();
-        // ModulateWithSsao: the GPU's upsampled AO, which section 6c checks against the CPU mirror.
-        let (ao_words, ao_size) = renderer.read_chain_buffer("ssaoFull").context("ssao")?;
-        let layout = renderer.frame_layout();
-        let vp = layout.viewport_px();
-        // A recording draws its tag, watermark, and progress over the viewport: compare only where they are not.
-        let safe = layout.safe();
-        let projector = Projector::new(&content.uniforms.camera);
-        let eye = Vec3::from(content.uniforms.camera.position);
-        let light_px = projector.project(shading.light.position).map(|(p, _)| p);
-        let mut worst = 0u8;
-        let mut compared = 0;
-        for j in 0..24 {
-            for i in 0..32 {
-                let pixel = Vec2::new(
-                    ((i as f32 + 0.5) / 32.0 * vp[2] as f32).floor() + 0.5,
-                    ((j as f32 + 0.5) / 24.0 * vp[3] as f32).floor() + 0.5,
-                );
-                if light_px.is_some_and(|l| l.distance(pixel) < 40.0) {
-                    continue;
-                }
-                let (sx, sy) = (
-                    (vp[0] as f32 + pixel.x) / layout.scale,
-                    (vp[1] as f32 + pixel.y) / layout.scale,
-                );
-                if sx < safe.min.x || sx > safe.max.x || sy < safe.min.y || sy > safe.max.y {
-                    continue;
-                }
-                // Flat surfaces only (the sphere and teapot are tessellated), away from edges.
-                let hit_at = |px: Vec2| {
-                    let (o, d) = projector.ray(px);
-                    (
-                        o,
-                        d,
-                        scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32),
-                    )
-                };
-                let (o, d, hit) = hit_at(pixel);
-                if !hit.is_hit()
-                    || ![SHAPE_PLANE, SHAPE_BOX]
-                        .contains(&content.objects[hit.object as usize].shape_kind)
-                {
-                    continue;
-                }
-                if [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y]
-                    .iter()
-                    .any(|step| hit_at(pixel + *step * 3.0).2.object != hit.object)
-                {
-                    continue;
-                }
-                let p = o + d * hit.t;
-                let n = if hit.normal.dot(d) > 0.0 {
-                    -hit.normal
-                } else {
-                    hit.normal
-                };
-                // Flat surfaces: the normal does not change from pixel to pixel.
-                let px = brdf::pixel(
-                    &shading,
-                    &content.objects,
-                    &brdf::Fragment::at(hit.object, p, n),
-                    eye,
-                    state.p("exposure"),
-                    map,
-                );
-                let ao = f32::from_bits(
-                    ao_words[(pixel.y as u32 * ao_size[0] + pixel.x as u32) as usize],
-                );
-                let diffuse = px.diffuse()
-                    + px.ibl.diffuse
-                        * if shading.ibl {
-                            1.0
-                        } else {
-                            0.0
-                        };
-                let expected =
-                    scene::display_rgb(px.color - diffuse + diffuse * ao, state.p("exposure"));
-                let (x, y) = (vp[0] + pixel.x as u32, vp[1] + pixel.y as u32);
-                let at = ((y * renderer.width + x) * 4) as usize;
-                let diff = (0..3)
-                    .map(|c| rgba[at + c].abs_diff(expected[c]))
-                    .max()
-                    .unwrap_or(0);
-                worst = worst.max(diff);
-                compared += 1;
-            }
-        }
-        raster_ok &= worst <= 3 && compared > 100;
-        raster_detail.push(json!({"lightOn": light_on, "probes": probes, "pixels": compared, "worstLevels": worst}));
-    }
-    report.check("the scene pass's pixels on flat surfaces match the CPU shading (within 3 of 255, its diffuse times the GPU's SSAO), without and with reflection probes", raster_ok, json!(raster_detail));
-
-    // ---- 6c. SSAO: each GPU stage against the CPU mirror of it ------------
-    {
-        use super::ssao::{self, Image};
-        let mut detail = Vec::new();
-        let mut ssao_ok = true;
-        for blur in [1.0, 0.0] {
-            let mut state = shot::for_demo(Demo::Room);
-            state.set("labels", 0.0);
-            state.set("ssaoBlur", blur);
-            let frame = renderer.render_frame(request(&state, &still), None);
-            let content = frame.content.context("scene content")?;
-            let settings = ssao::Settings::from_records(&demos::ssao_records(&state));
-            let projection = glam::Mat4::from_cols_array_2d(&content.uniforms.camera.view_to_clip);
-            let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
-            let read = |name: &str, half: bool| -> Result<Image> {
-                let (words, size) = renderer.read_chain_buffer(name).context("ssao buffer")?;
-                let size = if half {
-                    [size[0].div_ceil(2), size[1].div_ceil(2)]
-                } else {
-                    size
-                };
-                Ok(Image {
-                    size,
-                    data: words[..(size[0] * size[1]) as usize]
-                        .iter()
-                        .map(|w| f32::from_bits(*w))
-                        .collect(),
-                })
-            };
-            let (linear, half, raw, blur_v, blur_h, full) = (
-                read("linearDepth", false)?,
-                read("halfDepth", true)?,
-                read("ssao", true)?,
-                read("ssaoBlurV", true)?,
-                read("ssaoBlur", true)?,
-                read("ssaoFull", false)?,
-            );
-            // Each stage from the GPU's previous one, so differences do not pile up.
-            let worst = |a: &Image, b: &Image| {
-                a.data
-                    .iter()
-                    .zip(&b.data)
-                    .map(|(x, y)| (x - y).abs())
-                    .fold(0.0f32, f32::max)
-            };
-            let off = |a: &Image, b: &Image| {
-                a.data
-                    .iter()
-                    .zip(&b.data)
-                    .filter(|(x, y)| (*x - *y).abs() > 1.5 / 255.0)
-                    .count()
-            };
-            let stages = [
-                (
-                    "DepthDownsample",
-                    worst(&half, &ssao::downsample(&linear)),
-                    0usize,
-                ),
-                (
-                    "SsaoCompute",
-                    worst(&raw, &ssao::compute(&half, &settings, tan)),
-                    off(&raw, &ssao::compute(&half, &settings, tan)),
-                ),
-                (
-                    "blur, vertical",
-                    worst(&blur_v, &ssao::blur(&raw, &half, &settings, false)),
-                    off(&blur_v, &ssao::blur(&raw, &half, &settings, false)),
-                ),
-                (
-                    "blur, horizontal",
-                    worst(&blur_h, &ssao::blur(&blur_v, &half, &settings, true)),
-                    off(&blur_h, &ssao::blur(&blur_v, &half, &settings, true)),
-                ),
-                (
-                    "DepthUpsample",
-                    worst(&full, &ssao::upsample(&blur_h, &half, &linear)),
-                    off(&full, &ssao::upsample(&blur_h, &half, &linear)),
-                ),
-            ];
-            // Off by one 8-bit level where float rounding lands on the other side of a step; anything more in at most 0.1% of pixels.
-            let stage_ok = stages
-                .iter()
-                .all(|(_, w, n)| *w <= 1.5 / 255.0 || *n * 1000 <= full.data.len());
-            // The readout's SSAO, from ray-cast depths around the pixel, against the GPU's on flat surfaces.
-            let projector = Projector::new(&content.uniforms.camera);
-            let view_m = glam::Mat4::from_cols_array_2d(&content.uniforms.camera.world_to_view);
-            let linear_depth = |x: i32, y: i32| -> f32 {
-                let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
-                let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                if hit.is_hit() {
-                    -view_m.transform_point3(o + d * hit.t).z
-                } else {
-                    content.uniforms.camera.far_plane
-                }
-            };
-            let (mut probed, mut close) = (0usize, 0usize);
-            for j in 0..4 {
-                for i in 0..6 {
-                    let (x, y) = (
-                        (full.size[0] as i32) * (2 * i + 1) / 12,
-                        (full.size[1] as i32) * (2 * j + 1) / 8,
-                    );
-                    let k = ssao::at_pixel(&linear_depth, full.size, &settings, tan, x, y);
-                    probed += 1;
-                    close += usize::from((k.upsampled - full.at(x, y)).abs() <= 2.5 / 255.0);
-                }
-            }
-            ssao_ok &= close * 5 >= probed * 4;
-            let darkened = full.data.iter().filter(|v| **v < 0.9).count();
-            ssao_ok &= stage_ok && darkened > 100;
-            detail.push(json!({"blur": blur, "stages": stages.iter().map(|(name, w, n)| json!({"stage": name, "worstDifference": w, "pixelsOffByMoreThanOneLevel": n})).collect::<Vec<_>>(), "pixelsDarkenedBelow0.9": darkened, "readoutPixels": probed, "readoutWithin2Levels": close}));
-        }
-        report.check("SSAO: the GPU's downsample, SsaoCompute, both blurs, and the upsample match the CPU mirror stage by stage (within one 8-bit level), with the blur on and off; the readout's ray-cast SSAO agrees within two levels at 80% of 24 pixels", ssao_ok, json!(detail));
-    }
-
-    // ---- 6b. Tiled light culling: the GPU's lists against the CPU mirror ---
-    {
-        use super::culling::{self, TileLightData};
-        let mut state = shot::for_demo(Demo::Room);
-        state.set("extraLights", 24.0);
-        state.set("decals", 1.0);
-        state.set("sphereLight", 1.0);
-        let frame = renderer.render_frame(request(&state, &still), None);
-        let content = frame.content.context("scene content")?;
-        let shading = demos::shading(&state);
-        let lights = shading.lights();
-        let camera = content.uniforms.camera;
-        let (tile_words, size) = renderer
-            .read_chain_buffer("tileData")
-            .context("tile data")?;
-        let (list_words, _) = renderer
-            .read_chain_buffer("lightList")
-            .context("light list")?;
-        let (remap_words, _) = renderer
-            .read_chain_buffer("lightListRemapped")
-            .context("remapped list")?;
-        let grid = [
-            size[0].div_ceil(culling::TILE_DIM),
-            size[1].div_ceil(culling::TILE_DIM),
-        ];
-        let (mut tiles, mut list_mismatch, mut remap_mismatch, mut listed) =
-            (0usize, 0usize, 0usize, 0usize);
-        for ty in 0..grid[1] {
-            for tx in 0..grid[0] {
-                let t = (ty * grid[0] + tx) as usize;
-                let data = TileLightData::unpack(&tile_words[4 * t..4 * t + 4]);
-                let cpu = culling::cull_tile(
-                    &camera,
-                    &data,
-                    [tx, ty],
-                    &lights,
-                    &shading.decals,
-                    &shading.sphere_lights,
-                );
-                let gpu = &list_words[t * 256..t * 256 + cpu.len()];
-                tiles += 1;
-                listed += cpu.len() - culling::LIGHT_GROUPS as usize;
-                list_mismatch += usize::from(gpu != cpu.as_slice());
-                // The remap from the GPU's own list is integer work: it must match exactly.
-                let base = t * 256 * 8;
-                for (bin, entries) in culling::remap(gpu).iter().enumerate() {
-                    remap_mismatch += usize::from(
-                        &remap_words[base + bin * 256..base + bin * 256 + entries.len()]
-                            != entries.as_slice(),
-                    );
-                }
-            }
-        }
-        // Every light that reaches a surface point is in that pixel's bin.
-        let projector = Projector::new(&camera);
-        let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
-        let (mut points, mut missing) = (0usize, 0usize);
-        for y in (4..size[1]).step_by(8) {
-            for x in (4..size[0]).step_by(8) {
-                let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
-                let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
-                if !hit.is_hit() {
-                    continue;
-                }
-                let p = o + d * hit.t;
-                let t = ((y / culling::TILE_DIM) * grid[0] + x / culling::TILE_DIM) as usize;
-                let data = TileLightData::unpack(&tile_words[4 * t..4 * t + 4]);
-                let distance = -view.transform_point3(p).z;
-                // The raster and the analytic shapes differ by millimetres; skip points that close to a bin edge.
-                let span = (data.z_far - data.z_near) / (1u32 << data.log_max_bins) as f32;
-                let f = (distance - data.z_near) / span;
-                if (f - f.round()).abs() * span < 0.005 {
-                    continue;
-                }
-                let base = (t * 8 + data.bin(distance) as usize) * 256;
-                let bin: Vec<u32> = remap_words[base..base + 256]
-                    .iter()
-                    .copied()
-                    .take_while(|&v| v != culling::END_OF_LIST)
-                    .collect();
-                let group = bin
-                    .split(|&v| v == culling::END_OF_GROUP)
-                    .nth(culling::GROUP_SIMPLE_POINT as usize)
-                    .unwrap_or(&[]);
-                points += 1;
-                let decal_group = bin
-                    .split(|&v| v == culling::END_OF_GROUP)
-                    .next()
-                    .unwrap_or(&[]);
-                for (i, decal) in shading.decals.iter().enumerate() {
-                    if super::decals::sample(decal, p, hit.normal).is_some()
-                        && !decal_group.contains(&(i as u32))
-                    {
-                        missing += 1;
-                    }
-                }
-                for (i, light) in lights.iter().enumerate() {
-                    let reaches = (light.position - p).length_squared()
-                        * light.inv_attenuation_radius_squared
-                        < 1.0;
-                    if reaches && !group.contains(&(i as u32)) {
-                        missing += 1;
-                    }
-                }
-            }
-        }
-        let ok = tiles > 0
-            && list_mismatch * 200 <= tiles
-            && remap_mismatch == 0
-            && missing == 0
-            && points > 100
-            && listed > 0;
-        report.check(
-            "light culling: the GPU's tile lists match the CPU mirror (all but at most 0.5% of tiles, float rounding), the remap exactly, and every light that reaches a surface point (and every decal whose box holds it) is in its pixel's bin; with a sphere light",
-            ok,
-            json!({"tiles": tiles, "lightsListed": listed, "listMismatchTiles": list_mismatch, "remapMismatchBins": remap_mismatch, "points": points, "lightsMissing": missing, "lights": lights.len()}),
-        );
-    }
-
+/// Section 7: every demonstration renders, with readable text.
+fn check_demos(
+    report: &mut Report,
+    renderer: &mut Renderer,
+    still: &Timeline,
+    options: &SelftestOptions,
+) -> Result<()> {
     // ---- 7. Every demonstration renders, with readable text ---------------
     let mut demo_detail = Vec::new();
     let mut demos_ok = true;
     for demo in Demo::ALL {
         let mut state = shot::for_demo(demo);
-        let result = renderer.render_frame(request(&state, &still), None);
+        let result = renderer.render_frame(request(&state, still), None);
         let values = result
             .content
             .as_ref()
@@ -1379,7 +679,7 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         let mut overflow = serde_json::Map::new();
         for style in lab::pseudocode::Style::ALL {
             let code = lab::pseudocode::with_style(style, || {
-                renderer.render_frame(request(&state, &still), None).report
+                renderer.render_frame(request(&state, still), None).report
             });
             listing_ok &= code.panel_code.as_deref() == Some(listing) && code.code_overflow == 0;
             overflow.insert(style.key().into(), json!(code.code_overflow));
@@ -1388,120 +688,129 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         demo_detail.push(json!({"demo": demo.key(), "minTextPt": result.report.min_text_pt, "readoutRows": values, "formula": formula, "formulaScale": result.report.formula_scale, "rowsBelowItCut": result.report.readout_overflow, "listing": listing, "listingFits": listing_ok, "linesCut": overflow, "snapshot": png}));
     }
     report.check("every demonstration renders its formula at full size, its readout, and its listing with text of at least 24 px", demos_ok, json!(demo_detail));
+    Ok(())
+}
 
+/// The free camera changes only what is seen.
+fn check_free_camera(report: &mut Report, renderer: &mut Renderer, still: &Timeline) -> Result<()> {
     // ---- 7b. The free camera changes only what is seen ----------------------
     // With the free camera on, the main camera's render (its image, the buffers its image kinds show) and the
     // readout are what they are with it off; only the frame on screen, drawn from the free camera, differs.
-    {
-        let mut detail = Vec::new();
-        let mut ok = true;
-        for demo in [Demo::Room, Demo::Ssao, Demo::Specular] {
-            let off = shot::for_demo(demo);
-            let mut on = off.clone();
-            on.free_camera.on = true;
-            on.free_camera.yaw = off.camera.yaw + 70.0;
-            let mut seen = Vec::new();
-            for state in [&off, &off, &on] {
-                let result = renderer.render_frame(request(state, &still), None);
-                let rows: Vec<(String, String)> = result
-                    .content
-                    .as_ref()
-                    .and_then(|c| c.readout.as_ref())
-                    .map(|r| {
-                        r.rows
-                            .iter()
-                            .map(|(n, v, _)| (n.clone(), v.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let (_, linear) = renderer
-                    .read_view(renderer::ViewKind::Live)
-                    .context("the main view")?;
-                let buffers: Vec<Vec<u32>> = ["ssaoFull", "tileData", "lightList"]
-                    .iter()
-                    .map(|b| {
-                        renderer
-                            .read_chain_buffer(b)
-                            .map(|(w, _)| w)
-                            .unwrap_or_default()
-                    })
-                    .collect();
-                seen.push((rows, linear, buffers, renderer.read_frame()));
-            }
-            let (rows, image, buffers) = (
-                seen[2].0 == seen[1].0,
-                seen[2].1 == seen[1].1,
-                seen[2].2 == seen[1].2,
-            );
-            let stable = seen[0].1 == seen[1].1 && seen[0].2 == seen[1].2;
-            let screen_differs = seen[2].3 != seen[1].3;
-            ok &= rows && image && buffers && screen_differs && !seen[1].0.is_empty();
-            detail.push(json!({"demo": demo.key(), "readoutRowsEqual": rows, "readoutRows": seen[1].0.len(), "mainImageEqual": image, "buffersEqual": buffers, "offRendersRepeat": stable, "screenDiffers": screen_differs}));
-        }
-        report.check("the free camera: the main camera's image, its image kinds' buffers (SSAO, tiles, light lists), and the readout match those with it off; the screen differs", ok, json!(detail));
-    }
-
-    // ---- 7a. Numbers the narration states, measured at the demonstrations' points ----
-    {
-        // Each demonstration's scene is loaded by a frame of it first (the last one rendered may be another scene).
-        let mut row = |demo: Demo, prefix: &str| -> Option<f32> {
-            let state = shot::for_demo(demo);
-            renderer.render_frame(request(&state, &still), None);
-            // The lab's frame: the demonstration's readout rows include its readout script's (script/readout.lam).
-            let content =
-                lab::shader_data::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
-            let (_, value, _) = content
-                .readout?
-                .rows
-                .into_iter()
-                .find(|(name, _, _)| name.starts_with(prefix))?;
-            value
-                .trim_start_matches('(')
-                .split([',', ' '])
-                .find(|v| !v.is_empty())?
-                .parse()
-                .ok()
-        };
-        // "At roughness zero point eight and this view angle, that is only about fifty seven percent."
-        let energy = row(Demo::Multiscatter, "A + B");
-        // "Six candelas at just under two metres give about one point seven lux, before the window."
-        let distance = row(Demo::PointLight, tr("common-distance_d"));
-        let lux = row(Demo::PointLight, "I / max");
-        let ok = energy.is_some_and(|e| (0.565..0.575).contains(&e))
-            && distance.is_some_and(|d| (1.85..2.0).contains(&d))
-            && lux.is_some_and(|l| (1.65..1.75).contains(&l));
-        report.check("the narration's measured numbers: A + B about 57% at the multiscatter point; about 1.7 lux from 6 cd just under 2 m", ok, json!({"singleScatteringEnergy": energy, "distanceMetres": distance, "luxBeforeWindow": lux}));
-    }
-
-    // ---- 7b. The formulas: each typesets within the lab's limits, and each term lights ----
-    {
-        let mut formulas_ok = true;
-        let mut detail = Vec::new();
-        for demo in Demo::ALL {
-            let tag = lab::rich_text::first_formula(super::formulas::text(demo));
-            let checked = tag
+    let mut detail = Vec::new();
+    let mut ok = true;
+    for demo in [Demo::Room, Demo::Ssao, Demo::Specular] {
+        let off = shot::for_demo(demo);
+        let mut on = off.clone();
+        on.free_camera.on = true;
+        on.free_camera.yaw = off.camera.yaw + 70.0;
+        let mut seen = Vec::new();
+        for state in [&off, &off, &on] {
+            let result = renderer.render_frame(request(state, still), None);
+            let rows: Vec<(String, String)> = result
+                .content
                 .as_ref()
-                .ok_or_else(|| "no formula tag".to_string())
-                .and_then(|(latex, display, _)| lab::formula::check(latex, *display));
-            let terms = super::formulas::terms(demo);
-            // One colour per \lit term, each term with some ink of its own.
-            let (ok, size, glyph, lit) = match &checked {
-                Ok(f) => (
-                    f.terms.len() == terms && f.terms.iter().all(|t| t.iter().any(|&c| c > 128)),
-                    [f.width, f.height],
-                    f.min_glyph_px,
-                    f.terms.len(),
-                ),
-                Err(_) => (false, [0, 0], 0.0, 0),
-            };
-            let hidden = super::formulas::readout(demo, -1.0).0.is_none()
-                && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
-            formulas_ok &= ok && hidden && terms > 0;
-            detail.push(json!({"demo": demo.key(), "size": size, "minGlyphPx": glyph, "terms": terms, "litMasks": lit, "error": checked.err(), "ok": ok}));
+                .and_then(|c| c.readout.as_ref())
+                .map(|r| {
+                    r.rows
+                        .iter()
+                        .map(|(n, v, _)| (n.clone(), v.clone()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (_, linear) = renderer
+                .read_view(renderer::ViewKind::Live)
+                .context("the main view")?;
+            let buffers: Vec<Vec<u32>> = ["ssaoFull", "tileData", "lightList"]
+                .iter()
+                .map(|b| {
+                    renderer
+                        .read_chain_buffer(b)
+                        .map(|(w, _)| w)
+                        .unwrap_or_default()
+                })
+                .collect();
+            seen.push((rows, linear, buffers, renderer.read_frame()));
         }
-        report.check("formulas: each demonstration's typesets with glyphs >= 24 px inside the panel, one colour and one lit mask per term", formulas_ok, json!(detail));
+        let (rows, image, buffers) = (
+            seen[2].0 == seen[1].0,
+            seen[2].1 == seen[1].1,
+            seen[2].2 == seen[1].2,
+        );
+        let stable = seen[0].1 == seen[1].1 && seen[0].2 == seen[1].2;
+        let screen_differs = seen[2].3 != seen[1].3;
+        ok &= rows && image && buffers && screen_differs && !seen[1].0.is_empty();
+        detail.push(json!({"demo": demo.key(), "readoutRowsEqual": rows, "readoutRows": seen[1].0.len(), "mainImageEqual": image, "buffersEqual": buffers, "offRendersRepeat": stable, "screenDiffers": screen_differs}));
     }
+    report.check("the free camera: the main camera's image, its image kinds' buffers (SSAO, tiles, light lists), and the readout match those with it off; the screen differs", ok, json!(detail));
+    Ok(())
+}
 
+/// Numbers the narration states, measured at the demonstrations' points.
+fn check_numbers(report: &mut Report, renderer: &mut Renderer, still: &Timeline) -> Result<()> {
+    // ---- 7a. Numbers the narration states, measured at the demonstrations' points ----
+    // Each demonstration's scene is loaded by a frame of it first (the last one rendered may be another scene).
+    let mut row = |demo: Demo, prefix: &str| -> Option<f32> {
+        let state = shot::for_demo(demo);
+        renderer.render_frame(request(&state, still), None);
+        // The lab's frame: the demonstration's readout rows include its readout script's (script/readout.lam).
+        let content =
+            lab::shader_data::build_frame(&state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+        let (_, value, _) = content
+            .readout?
+            .rows
+            .into_iter()
+            .find(|(name, _, _)| name.starts_with(prefix))?;
+        value
+            .trim_start_matches('(')
+            .split([',', ' '])
+            .find(|v| !v.is_empty())?
+            .parse()
+            .ok()
+    };
+    // "At roughness zero point eight and this view angle, that is only about fifty seven percent."
+    let energy = row(Demo::Multiscatter, "A + B");
+    // "Six candelas at just under two metres give about one point seven lux, before the window."
+    let distance = row(Demo::PointLight, tr("common-distance_d"));
+    let lux = row(Demo::PointLight, "I / max");
+    let ok = energy.is_some_and(|e| (0.565..0.575).contains(&e))
+        && distance.is_some_and(|d| (1.85..2.0).contains(&d))
+        && lux.is_some_and(|l| (1.65..1.75).contains(&l));
+    report.check("the narration's measured numbers: A + B about 57% at the multiscatter point; about 1.7 lux from 6 cd just under 2 m", ok, json!({"singleScatteringEnergy": energy, "distanceMetres": distance, "luxBeforeWindow": lux}));
+    Ok(())
+}
+
+/// The formulas: each typesets within the lab's limits, and each term lights.
+fn check_formulas(report: &mut Report) {
+    // ---- 7b. The formulas: each typesets within the lab's limits, and each term lights ----
+    let mut formulas_ok = true;
+    let mut detail = Vec::new();
+    for demo in Demo::ALL {
+        let tag = lab::rich_text::first_formula(super::formulas::text(demo));
+        let checked = tag
+            .as_ref()
+            .ok_or_else(|| "no formula tag".to_string())
+            .and_then(|(latex, display, _)| lab::formula::check(latex, *display));
+        let terms = super::formulas::terms(demo);
+        // One colour per \lit term, each term with some ink of its own.
+        let (ok, size, glyph, lit) = match &checked {
+            Ok(f) => (
+                f.terms.len() == terms && f.terms.iter().all(|t| t.iter().any(|&c| c > 128)),
+                [f.width, f.height],
+                f.min_glyph_px,
+                f.terms.len(),
+            ),
+            Err(_) => (false, [0, 0], 0.0, 0),
+        };
+        let hidden = super::formulas::readout(demo, -1.0).0.is_none()
+            && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
+        formulas_ok &= ok && hidden && terms > 0;
+        detail.push(json!({"demo": demo.key(), "size": size, "minGlyphPx": glyph, "terms": terms, "litMasks": lit, "error": checked.err(), "ok": ok}));
+    }
+    report.check("formulas: each demonstration's typesets with glyphs >= 24 px inside the panel, one colour and one lit mask per term", formulas_ok, json!(detail));
+}
+
+/// Section 8: the listings and the source index.
+fn check_listings(report: &mut Report) {
     // ---- 8. Listings and the source index ---------------------------------
     let index = super::sources::INDEX.get();
     let listings = super::pseudocode::all();
@@ -1527,7 +836,14 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         .collect();
     report.check("every listing cites a source entry and a demonstration; every demonstration has a listing and sources", listing_problems.is_empty() && demo_problems.is_empty(), json!({"listings": listing_problems, "demos": demo_problems}));
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
+}
 
+/// Section 9: the narrated timeline, every scene beat readable.
+fn check_timeline(
+    report: &mut Report,
+    renderer: &mut Renderer,
+    options: &SelftestOptions,
+) -> Result<()> {
     // ---- 9. The narrated timeline: every scene beat readable ---------------
     if let Some(path) = &options.timeline {
         let timeline = Timeline::load(path)?;
@@ -1573,13 +889,5 @@ pub fn run(options: &SelftestOptions) -> Result<bool> {
         }
         report.check("every scene beat of the timeline: text >= 24 px, labels inside and apart, listings, formulas, and readouts fit", problems.is_empty() && beats > 0, json!({"timeline": path, "sceneBeats": beats, "problems": problems}));
     }
-
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(
-            &json!({"investigation": "o3de/lighting", "passed": passed, "gpu": gpu_info, "checks": report.checks}),
-        )?,
-    )?;
-    Ok(passed)
+    Ok(())
 }
