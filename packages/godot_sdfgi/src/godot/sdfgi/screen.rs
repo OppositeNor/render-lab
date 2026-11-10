@@ -51,6 +51,7 @@ pub fn voxel_gi(
     specular_normal: Vec3,
     roughness: f32,
 ) -> VoxelGi {
+    // Off the surface along the normal (the normal bias, in probe units), then the cell of eight probes around it.
     let cascade_pos = cascade_pos + cam_normal * (inputs.normal_bias / 128.0 * 16.0);
     let base = cascade_pos.floor().as_ivec3();
     let diffuse_oct = octahedron_encode(cam_normal) * OCT_SIZE as f32;
@@ -60,12 +61,14 @@ pub fn voxel_gi(
     let mut specular_accum = Vec3::ZERO;
     let mut probes = Vec::with_capacity(8);
     for j in 0..8 {
+        // For each of the eight corner probes: its trilinear weight, times how much it faces the normal.
         let offset = IVec3::new(j & 1, (j >> 1) & 1, (j >> 2) & 1);
         let probe = base + offset;
         let probe_to_pos = cascade_pos - probe.as_vec3();
         let probe_dir = (-probe_to_pos).normalize();
         let trilinear = Vec3::ONE - probe_to_pos.abs();
         let weight = trilinear.x * trilinear.y * trilinear.z * cam_normal.dot(probe_dir).max(0.005);
+        // The probe's tile in the atlas, past its one-texel border, then the direction's texel in it.
         let tex = glam::Vec2::new(
             ((probe.x + probe.z * PROBE_AXIS_COUNT) * (OCT_SIZE + 2) + 1) as f32,
             (probe.y * (OCT_SIZE + 2) + 1) as f32,
@@ -76,9 +79,11 @@ pub fn voxel_gi(
         let s = tex + specular_oct;
         let mut specular = Vec3::ZERO;
         if roughness < 0.99 {
+            // A smooth surface reads the radiance map along the reflection.
             specular = ProbeMaps::bilinear(&maps.radiance, s.x, s.y);
         }
         if roughness > 0.2 {
+            // A rough one fades toward the irradiance map, fully by roughness 0.99.
             specular = specular.lerp(
                 ProbeMaps::bilinear(&maps.irradiance, s.x, s.y),
                 (roughness - 0.2) * 1.25,
@@ -94,6 +99,7 @@ pub fn voxel_gi(
         biased: cascade_pos,
     };
     if diffuse_accum.w > 0.0 {
+        // Normalised by the weights' sum, which the facing term makes less than one.
         out.diffuse /= diffuse_accum.w;
         out.specular /= diffuse_accum.w;
     }
@@ -126,11 +132,13 @@ pub fn process(
         cascade: None,
         blend: 0.0,
     };
+    // The first cascade, finest first, whose 16 probe cells hold the point.
     let found = inputs.cascades.iter().enumerate().find_map(|(i, c)| {
         let p = (vertex - c.position) * c.to_probe;
         (p.cmpge(Vec3::ZERO).all() && p.cmplt(Vec3::splat(16.0)).all()).then_some((i, p))
     });
     let Some((cascade, cascade_pos)) = found else {
+        // Outside every cascade: no light from SDFGI.
         return out;
     };
     out.ambient.w = 1.0;
@@ -153,7 +161,9 @@ pub fn process(
         0.0
     };
     if blend > 0.0 {
+        // Near the cascade's edge it blends toward the next coarser cascade.
         if cascade == inputs.cascades.len() - 1 {
+            // The last cascade has none to blend to: it fades out instead.
             out.ambient.w = 1.0 - blend;
             out.reflection.w = 1.0 - blend;
         } else {

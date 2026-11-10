@@ -101,12 +101,14 @@ fn unorm8(v: f32) -> u8 {
 /// A trilinear `texture()` read of an `N`^3 image at `uvw` (0..1), clamped to
 /// the edge, of the values `at` gives per texel.
 pub fn sample3(uvw: Vec3, at: impl Fn(IVec3) -> f32) -> f32 {
+    // The texel coordinate, half a texel back, so the eight texels around it start at its floor.
     let t = uvw * N as f32 - Vec3::splat(0.5);
     let base = t.floor();
     let f = t - base;
     let b = base.as_ivec3();
     let mut sum = 0.0;
     for i in 0..8 {
+        // Each corner weighs the fraction toward it on each axis, clamped to the edge.
         let o = IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
         let p = (b + o).clamp(IVec3::ZERO, IVec3::splat(CASCADE_SIZE - 1));
         let w = Vec3::new(
@@ -138,6 +140,7 @@ pub fn sample_sdf(sdf: &[u8], uvw: Vec3) -> f32 {
 
 /// `get_omni_attenuation`: (1 - (d/r)^4)^2 * d^-decay.
 pub fn omni_attenuation(distance: f32, inv_range: f32, decay: f32) -> f32 {
+    // Godot's window, (1 - (d / range)^4)^2, times the distance to the power -decay.
     let mut nd = distance * inv_range;
     nd *= nd;
     nd *= nd;
@@ -186,22 +189,26 @@ pub fn shadow_ray(
     let grid = CASCADE_SIZE as f32;
     let inv_dir = Vec3::ONE / direction;
     let cell_size = 1.0 / field.to_cell(cascade);
+    // Start at the cell's face toward the light, then a little along the ray, clear of the cell's own surface.
     let mut ray_pos = position + direction.signum() * cell_size * 0.48;
     ray_pos += direction * 0.4 * cell_size;
     let mut light_distance = light_distance;
     let mut steps = steps;
     for j in cascade..field.cascades.cascades.len() {
+        // The ray in this cascade's cells; a point outside it moves on to the next, coarser cascade.
         let mut pos = (ray_pos - field.offset(j)) * field.to_cell(j);
         let local_distance = light_distance * field.to_cell(j);
         if pos.cmplt(Vec3::ZERO).any() || pos.cmpge(Vec3::splat(grid)).any() {
             continue;
         }
+        // March as far as the cascade's edge, or the light, whichever comes first.
         let t0 = -pos * inv_dir;
         let t1 = (Vec3::splat(grid) - pos) * inv_dir;
         let tmax = t0.max(t1);
         let max_advance = tmax.min_element().min(local_distance);
         let mut advance = 0.0;
         while advance < max_advance {
+            // Sphere tracing: step by the distance to the nearest surface (stored plus one); close enough is a hit.
             let uvw = (pos + direction * advance) / grid;
             let distance = sample_sdf(field.sdf[j], uvw) * 255.0 - 1.0;
             if let Some(s) = steps.as_deref_mut() {
@@ -213,8 +220,10 @@ pub fn shadow_ray(
             advance += distance;
         }
         if advance >= local_distance {
+            // The ray reached the light inside this cascade.
             break;
         }
+        // Carry on from the cascade's edge in world units, in the next cascade.
         pos += direction * max_advance;
         pos /= field.to_cell(j);
         pos += field.offset(j);
@@ -229,6 +238,7 @@ pub fn shadow_ray(
 /// `normal`, not divided by 2 pi (area_lights_inc.glsl: "no division by
 /// (2.0 * M_PI) for GI calculations").
 pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
+    // An orthonormal frame around the normal, so the polygon can be clipped and integrated in it.
     let eye_vec = if normal.z.abs() < 0.7 {
         Vec3::new(0.0, 0.0, -1.0)
     } else {
@@ -247,6 +257,7 @@ pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
     ];
     let n = clip_quad_to_horizon(&mut l);
     if n == 0 {
+        // The whole light is below the horizon.
         return 0.0;
     }
     let proj = l.map(|v| v.normalize_or_zero());
@@ -256,6 +267,7 @@ pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
     if pnorm.dot(proj[0]).abs() < 1e-10 {
         return 0.0;
     }
+    // The integral over the clipped polygon is the sum over its edges.
     let mut i = integrate_edge(proj[0], proj[1], l[0], l[1]);
     i += integrate_edge(proj[1], proj[2], l[1], l[2]);
     i += integrate_edge(proj[2], proj[3], l[2], l[3]);
@@ -276,6 +288,7 @@ fn edge_hill(p0: Vec3, p1: Vec3) -> f32 {
     let a = 5.42031 + (3.12829 + 0.0902326 * y) * y;
     let b = 3.45068 + (4.18814 + y) * y;
     let mut theta_sintheta = a / b;
+    // Past 90 degrees the fit is extended by symmetry.
     if x < 0.0 {
         theta_sintheta = std::f32::consts::PI / (1.0 - x * x).sqrt() - theta_sintheta;
     }
@@ -285,6 +298,7 @@ fn edge_hill(p0: Vec3, p1: Vec3) -> f32 {
 fn integrate_edge(p_proj0: Vec3, p_proj1: Vec3, p0: Vec3, p1: Vec3) -> f32 {
     let epsilon = 0.00001;
     if p_proj0.dot(p_proj1) < -1.0 + epsilon {
+        // An edge between nearly opposite directions is split at its midpoint, as two edges.
         let half_point_t = p0 + (p1 - p0).normalize() * p0.dot((p0 - p1).normalize());
         let half_point = half_point_t.normalize();
         edge_hill(p_proj0, half_point) + edge_hill(half_point, p_proj1)
@@ -296,12 +310,14 @@ fn integrate_edge(p_proj0: Vec3, p_proj1: Vec3, p0: Vec3, p1: Vec3) -> f32 {
 /// `clip_quad_to_horizon`: clips the quad to y > 0, returning its vertex count.
 fn clip_quad_to_horizon(l: &mut [Vec3; 5]) -> usize {
     let mut config = 0;
+    // Which corners are above the horizon (y > 0), as four bits.
     for (k, bit) in [1, 2, 4, 8].iter().enumerate() {
         if l[k].y > 0.0 {
             config += bit;
         }
     }
     let lerp = |a: Vec3, b: Vec3| -a.y * b + b.y * a;
+    // Each case keeps the corners above the horizon and moves the others to the edges' crossings.
     let n = match config {
         1 => {
             l[1] = lerp(l[1], l[0]);
@@ -371,6 +387,7 @@ fn clip_quad_to_horizon(l: &mut [Vec3; 5]) -> usize {
         _ => 0,
     };
     if n == 3 {
+        // Close the polygon by repeating its first corner.
         l[3] = l[0];
     }
     if n == 4 {
@@ -394,6 +411,7 @@ pub fn area_light(light: &Light, position: Vec3) -> (f32, Vec3, f32) {
         to_vert.dot(-light.direction),
     );
     let closest_local = Vec3::new(
+        // The light's nearest point, in its own plane, gives the distance and direction.
         local.x.clamp(-a_len / 2.0, a_len / 2.0),
         local.y.clamp(-b_len / 2.0, b_len / 2.0),
         0.0,
@@ -405,14 +423,17 @@ pub fn area_light(light: &Light, position: Vec3) -> (f32, Vec3, f32) {
     let distance = rel.length();
     let mut direction = rel / distance;
     if distance < 1e-4 {
+        // At the light itself, its own direction.
         direction = light.direction;
     }
     if distance * inv_center_range >= 1.0 {
+        // Beyond the light's range: no light.
         return (0.0, direction, distance);
     }
     let hw = light.area_width / 2.0;
     let hh = light.area_height / 2.0;
     let points = [
+        // The light's corners relative to the point, for the area integral.
         light.position - hw - hh - position,
         light.position + hw - hh - position,
         light.position + hw + hh - position,
@@ -430,6 +451,7 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
     let (direction, distance, attenuation) = match light.kind {
         LIGHT_TYPE_DIRECTIONAL => (-light.direction, 1e20, 1.0),
         LIGHT_TYPE_OMNI | LIGHT_TYPE_SPOT => {
+            // Omni and spot: the falloff over distance, and for a spot its cone's rim.
             let rel = light.position - position;
             let direction = rel.normalize();
             let distance = rel.length();
@@ -437,6 +459,7 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
             if light.kind == LIGHT_TYPE_SPOT {
                 let cos_angle = (-direction).dot(light.direction);
                 if cos_angle < light.cos_spot_angle {
+                    // Outside the cone.
                     return None;
                 }
                 let scos = cos_angle.max(light.cos_spot_angle);
@@ -448,9 +471,11 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
         _ => {
             if light.area_width.length_squared() < 1e-7 || light.area_height.length_squared() < 1e-7
             {
+                // An area light of no size gives nothing.
                 return None;
             }
             if light.direction.dot(position - light.position) <= 0.0 {
+                // The point is behind the light.
                 return None;
             }
             let (attenuation, direction, distance) = area_light(light, position);
@@ -458,6 +483,7 @@ pub fn light_at(light: &Light, position: Vec3) -> Option<(Vec3, f32, f32)> {
         }
     };
     if attenuation < 0.001 {
+        // Too dim to matter.
         None
     } else {
         Some((direction, distance, attenuation))
@@ -507,16 +533,19 @@ pub fn cell_light(
     if let Some(probes) = probes
         && bounce_feedback > 0.001
     {
+        // The feedback scales the albedo up to 1, then blends it toward white past 1.
         let feedback = if bounce_feedback < 1.0 {
             albedo * bounce_feedback
         } else {
             albedo.lerp(Vec3::ONE, bounce_feedback - 1.0)
         };
+        // The cell's position in probe units, then the eight probes around it.
         let pos = (positioni.as_vec3() + Vec3::splat(0.5)) * (PROBE_AXIS_COUNT - 1) as f32
             / CASCADE_SIZE as f32;
         let base = pos.as_ivec3();
         let mut weight_accum = [0.0f32; 6];
         for j in 0..8 {
+            // For each probe and each face of the cell, the probe's irradiance toward that face, weighted.
             let offset = IVec3::new(j & 1, (j >> 1) & 1, (j >> 2) & 1);
             let probe = base + offset;
             let probe_to_pos = pos - probe.as_vec3();
@@ -542,6 +571,7 @@ pub fn cell_light(
             }
         }
         for k in 0..6 {
+            // Each face's bounce: the weighted mean, scaled by the feedback.
             if weight_accum[k] > 0.0 {
                 out.bounce[k] /= weight_accum[k];
                 out.bounce[k] *= feedback;
@@ -552,12 +582,14 @@ pub fn cell_light(
     // The stored light (emission, and any static light written back).
     let l = decode_rgbe8985(cell.light & 0x3FFF_FFFF);
     for (i, s) in out.stored.iter_mut().enumerate() {
+        // Each face's share of the stored light.
         let strength = ((cell.light_aniso >> (i * 5)) & 0x1F) as f32 / 31.0;
         *s = l * strength;
         out.accum[i] += *s;
     }
     // The lights.
     for light in lights {
+        // Each light that reaches the cell unshadowed lights the faces turned toward it.
         let Some((direction, distance, attenuation)) = light_at(light, position) else {
             continue;
         };
@@ -585,8 +617,10 @@ pub fn pack(accum: &[Vec3; 6]) -> (Vec3, [f32; 6], f32) {
 pub fn octahedron_encode(n: Vec3) -> glam::Vec2 {
     let n = n / (n.x.abs() + n.y.abs() + n.z.abs());
     let xy = if n.z >= 0.0 {
+        // The upper half maps straight down onto the square.
         glam::Vec2::new(n.x, n.y)
     } else {
+        // The lower half folds out over the square's corners.
         let sign = glam::Vec2::new(
             if n.x >= 0.0 {
                 1.0
@@ -639,6 +673,7 @@ pub fn dynamic_pass(
     };
     let mut i = offset;
     while i < cells.len() {
+        // Every increment-th cell from offset: its light and per-face shares, written to it and its neighbour cells.
         let cell = &cells[i];
         let result = cell_light(field, cascade, cell, lighting);
         let (total, lumas, luma_total) = pack(&result.accum);
@@ -661,6 +696,7 @@ pub fn dynamic_pass(
         write(p);
         let neighbours = cell.neighbours();
         for (n, offset) in NEIGHBOURS.iter().enumerate() {
+            // Free neighbours whose seed is this cell take its light too.
             if neighbours & (1 << n) != 0 {
                 write(p + *offset);
             }
@@ -673,6 +709,7 @@ pub fn dynamic_pass(
 /// cell's stored light and writes the sum back into the cell (RGBE8985).
 pub fn static_pass(field: &Field, cascade: usize, cells: &mut [SolidCell], lights: &[Light]) {
     for i in 0..cells.len() {
+        // Each cell lit by the lights alone, packed back into its stored light, its neighbour bits kept.
         let result = cell_light(
             field,
             cascade,

@@ -48,6 +48,7 @@ impl World {
         let cascades = Cascades::create(settings, camera);
         let n = cascades.cascades.len();
         let data = std::thread::scope(|s| {
+            // Each cascade voxelized on a thread of its own.
             let handles: Vec<_> = (0..n)
                 .map(|i| {
                     let cascades = &cascades;
@@ -110,6 +111,7 @@ impl World {
             let mut new_light = self.light.clone();
             std::thread::scope(|s| {
                 for (i, textures) in new_light.iter_mut().enumerate() {
+                    // Each cascade's light on a thread: every cell when its voxels are new, else a quarter in turn.
                     let field = &field;
                     let maps = &maps;
                     let cells = &self.data[i].stored.cells;
@@ -155,6 +157,7 @@ impl World {
                 .unwrap_or(4)
                 .max(1);
             for c in 0..n {
+                // Each cascade's probes split across the threads; each traces its probes' rays and projects them.
                 let values: Vec<_> = std::thread::scope(|s| {
                     let handles: Vec<_> = (0..threads)
                         .map(|t| {
@@ -189,6 +192,7 @@ impl World {
                         .flat_map(|h| h.join().expect("a probe thread"))
                         .collect()
                 });
+                // This frame's coefficients go into the history slot of its index.
                 for (p, v) in values {
                     self.history[c].push(p, history_index, v);
                 }
@@ -198,6 +202,7 @@ impl World {
         // store_probes.
         self.maps = self.history.iter().map(probes::store).collect();
         if let Some(p) = self.traced_probe {
+            // The followed probe's mean, frame by frame, for the history chart.
             self.trace.push(self.history[0].mean(p));
         }
         self.frame += 1;
@@ -213,6 +218,7 @@ impl World {
 /// and its direction unscaled, energy divided by the area.
 pub fn panel_light(scene: &lab::scene::Scene, y_mult: f32) -> Light {
     let l = &scene.lighting.light;
+    // Godot's area light: its energy from the panel's radiance over its area, its range reaching past the room.
     let width = l.axis_u * 2.0;
     let height = l.axis_v * 2.0;
     let area = width.length() * height.length();
@@ -325,6 +331,7 @@ pub fn converged_for(s: &SceneSettings) -> World {
     let mut world = World::new(&objects, settings, super::demos::ORIGIN);
     world.bounce_feedback = s.bounce_feedback;
     world.frames_to_update_light = s.frames_to_update_light;
+    // Other ray counts or history sizes need histories of their own.
     if s.ray_count != world.integrate.ray_count
         || s.history_size != world.integrate.history_size
         || s.probe_bias != world.integrate.ray_bias
@@ -373,6 +380,7 @@ pub fn shading_data_for(s: &SceneSettings) -> Vec<[f32; 4]> {
 
 fn data_of(world: &World) -> Vec<[f32; 4]> {
     let mut words: Vec<u32> = Vec::new();
+    // Each cascade's two probe maps, then cascade 0's distance field, all as raw words.
     for maps in &world.maps {
         words.extend_from_slice(&maps.irradiance);
         words.extend_from_slice(&maps.radiance);
@@ -404,6 +412,7 @@ pub fn frame_cascades(cascades: &Cascades, camera: Vec3) -> Vec<[f32; 4]> {
     let cam = Vec3::new(camera.x, camera.y * y_mult, camera.z);
     let mut out = Vec::new();
     for c in &cascades.cascades {
+        // Each cascade's corner relative to the camera and its probe scale, then its probe position and cell scale.
         let pos = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + c.position).as_vec3()
             * c.cell_size
             - cam;
@@ -464,12 +473,15 @@ impl World {
         let n = self.cascades.cascades.len();
         let old_history = self.history.clone();
         for i in 0..n {
+            // A cascade that moved too far is rebuilt; one that scrolled keeps what it can.
             match self.cascades.cascades[i].dirty {
                 super::model::Dirty::All => {
+                    // Rebuilt from scratch, its light to be redone in full.
                     self.data[i] = voxels::build_cascade(objects, &self.cascades, i);
                     self.lights_dirty[i] = true;
                 }
                 super::model::Dirty::Regions(d) if d != glam::IVec3::ZERO => {
+                    // Scrolled: its cells and histories move; new slabs are voxelized, new probes seeded.
                     self.data[i] = voxels::scroll_cascade(
                         objects,
                         &self.cascades,
@@ -527,6 +539,7 @@ pub fn cull_static(cascades: &Cascades, lights: &[StaticLight]) -> StaticCull {
     let regions = cascades.pending_regions();
     let mut cascade_light_index: Vec<usize> = Vec::new();
     for r in &regions {
+        // The cascades with something to voxelize, in order.
         if cascade_light_index.last() != Some(&r.cascade) {
             cascade_light_index.push(r.cascade);
         }
@@ -535,6 +548,7 @@ pub fn cull_static(cascades: &Cascades, lights: &[StaticLight]) -> StaticCull {
     for (i, l) in lights.iter().enumerate() {
         let mut last: Option<(usize, usize)> = None;
         for r in &regions {
+            // A light joins a cascade's list once, when it reaches one of its regions and that cascade.
             if overlaps(
                 l.aabb_min,
                 l.aabb_max,
@@ -570,10 +584,12 @@ pub fn static_pass_lights(
         .enumerate()
         .any(|(i, _)| !cull.lists[i].is_empty());
     if !any {
+        // No cascade has a light to give.
         return Vec::new();
     }
     let mut out = Vec::new();
     for (i, &c) in cull.cascade_light_index.iter().enumerate() {
+        // Each cascade's lights, those that reach its whole box, at most 1024.
         let cc = &cascades.cascades[c];
         let cmin = (glam::IVec3::splat(-(super::model::CASCADE_SIZE >> 1)) + cc.position).as_vec3()
             * cc.cell_size;
@@ -603,6 +619,7 @@ impl World {
             sdf: sdf.iter().map(|s| s.as_slice()).collect(),
         };
         for (c, ls) in &given {
+            // The static pass writes their light into the stored cells.
             if !ls.is_empty() {
                 light::static_pass(&field, *c, &mut self.data[*c].stored.cells, ls);
             }

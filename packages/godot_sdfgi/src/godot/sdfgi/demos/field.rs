@@ -13,6 +13,7 @@ pub(super) fn voxels_demo(state: &ShotState, world: &World, content: &mut FrameC
     let w = cell_world(world, 0, p);
     ball(content, w, 0.08, palette::SELECTED, 1.0);
     for (k, dir) in voxels::ANISO_DIR.iter().enumerate() {
+        // An arrow per direction, bright where the worked voxel's facing bit is set.
         let on = data.voxels.facing[index(p)] & (1 << k) != 0;
         content.draw.segment(
             w,
@@ -99,6 +100,7 @@ pub(super) fn stored_voxels(state: &ShotState, world: &World, content: &mut Fram
     let voxels = voxel_passes(passes.round().clamp(0.0, 3.0) as usize);
     let size = world.cascades.cascades[0].cell_size * 0.45;
     for c in &data.stored.cells {
+        // Each solid voxel the chosen passes made, below the cut height.
         let p = c.cell();
         if voxels.albedo[index(p)] & 1 == 0 {
             continue;
@@ -118,6 +120,7 @@ pub(super) fn stored_voxels(state: &ShotState, world: &World, content: &mut Fram
                 Color32::from_rgb(40, 70, 150),
             ];
             let f = c.facing();
+            // Mix the colours of the faces it has.
             let (mut r, mut g, mut b, mut n) = (0u32, 0u32, 0u32, 0u32);
             for (k, col) in FACE.iter().enumerate() {
                 if f & (1 << k) != 0 {
@@ -130,6 +133,7 @@ pub(super) fn stored_voxels(state: &ShotState, world: &World, content: &mut Fram
             let n = n.max(1);
             Color32::from_rgb((r / n) as u8, (g / n) as u8, (b / n) as u8)
         } else {
+            // Or its albedo, brightened (square root) to read on screen.
             let a = c.albedo_rgb();
             Color32::from_rgb(
                 (a.x.sqrt() * 255.0) as u8,
@@ -151,6 +155,7 @@ pub(super) fn voxel_passes(passes: usize) -> &'static voxels::RenderVoxels {
         let region = cascades.pending_regions()[0];
         (0..=3)
             .map(|n| {
+                // The room voxelized along 0 to 3 axes, to show what each pass adds.
                 let mut v = voxels::RenderVoxels::cleared();
                 voxels::voxelize_axes(&objects, &region, &mut v, n);
                 v
@@ -205,6 +210,7 @@ pub(super) fn slice_window(
         for col in 0..n {
             // Rows from the top: +z at the bottom, as the top camera sees the room.
             let p = IVec3::new(min.x + col as i32, y, min.z + row as i32);
+            // Each cell's colour, outside the cascade black, filling its k x k block.
             let c = if inside(p) {
                 pixel(p)
             } else {
@@ -219,6 +225,7 @@ pub(super) fn slice_window(
         }
     }
     let marker = marker.map(|m| {
+        // The marker in the picture's fractions, y up.
         (
             [
                 ((m.x - min.x) as f32 + 0.5) / n as f32,
@@ -284,6 +291,7 @@ pub(super) fn field_demo(state: &ShotState, world: &World, content: &mut FrameCo
     let worked = world_cell(world, 0, Vec3::new(-0.2, state.p("sliceHeight"), -0.55));
     let seeds_at = |p: IVec3| -> [u8; 4] {
         match step {
+            // Step 0 is the half-size seeds, 1 to 6 the half-size passes, 7 the upscale, then the full-size pass.
             0 => data.flood.half_init[half_index(p)],
             1..=6 => data.flood.half_passes[step - 1].2[half_index(p)],
             7 => data.flood.upscaled[index(p)],
@@ -300,6 +308,7 @@ pub(super) fn field_demo(state: &ShotState, world: &World, content: &mut FrameCo
     // The worked cell and its seed, for a story's arrows and labels (super::ANNOTATIONS).
     content.points.push(("field.worked".into(), w));
     if seed[3] != 0 {
+        // A seed found: an arrow from the worked cell to it.
         let s = cell_world(world, 0, seed_cell);
         content.points.push(("field.seed".into(), s));
         content
@@ -392,6 +401,7 @@ pub(super) fn field_slices(
     };
     let slice = state.p("slice").round() as i32;
     for (n, key) in [(1, "distanceField"), (2, "floodSeeds")] {
+        // Each slice is drawn while it is picked, or while a story shows it.
         let (inset_on, image_on) = (slice == n, state.shows_image(key));
         if !inset_on && !image_on {
             continue;
@@ -411,8 +421,10 @@ pub(super) fn field_slices(
             },
             |p| {
                 if n == 1 {
+                    // The distance field: grey by distance, white from 24 cells.
                     grey(data.stored.sdf[index(p)] as f32 / 24.0)
                 } else {
+                    // The seeds: whether this step changed the cell's seed, from the step before.
                     let s = seeds_at(p);
                     let changed = step > 0 && {
                         let prev = match step - 1 {
@@ -424,6 +436,7 @@ pub(super) fn field_slices(
                         prev != s
                     };
                     if s[3] == 0 {
+                        // No seed yet: black.
                         [0, 0, 0, 255]
                     } else if changed {
                         // A cell this step gave a nearer seed.
@@ -461,6 +474,7 @@ pub(super) fn field_march(
     let data = &world.data[0];
     let mut march_steps = 0;
     if state.p("fieldMarch") > 0.5 {
+        // March from the worked cell along +x through the stored field, each step a circle of its distance.
         let field = world.field();
         let y_mult = world.cascades.settings.y_mult();
         let start = (worked.as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);

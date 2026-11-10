@@ -195,6 +195,7 @@ impl Investigation for Sdfgi {
     }
 
     fn backdrop(&self, t: f32) -> Option<ShotState> {
+        // The title screen's backdrop: the room without its panel, the camera turning slowly and drifting.
         let mut state = shot::for_demo(Demo::Room);
         state.panel = PanelMode::Hidden;
         state.camera.yaw += 3.0 * t;
@@ -272,8 +273,10 @@ impl Investigation for Sdfgi {
     fn scene_data(&self, state: &ShotState) -> Option<lab::investigation::SceneData> {
         let settings = sim::SceneSettings::of(state);
         if settings == sim::SceneSettings::default() {
+            // The default settings use the data built in, converged once.
             return None;
         }
+        // Other settings converge a world of their own, kept by the hash of those settings.
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         (

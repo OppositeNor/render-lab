@@ -106,6 +106,7 @@ impl Plan {
         let camera = state.camera.eye();
         let s = settings_of(state);
         let key = {
+            // The settings that shape the converged result, hashed: a change starts over.
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
             for v in [s.bounce_feedback, s.probe_bias] {
@@ -126,6 +127,7 @@ impl Plan {
             .last
             .is_none_or(|(eye, k)| k != key || (!frame.history && eye.distance(camera) > 0.5));
         if jumped {
+            // Starting over: no cascades, so they are created around the camera below.
             self.cascades = None;
         }
         self.last = Some((camera, key));
@@ -135,18 +137,21 @@ impl Plan {
             .cascades
             .get_or_insert_with(|| Cascades::create(Settings::default(), camera));
         if created {
+            // New cascades: every cell's light to do, and the probes' history cleared.
             self.lights_dirty = vec![true; cascades.cascades.len()];
             self.render_pass = 0;
             out.push(ProgramCommand::Clear(Element::all("lightprobeHistory")));
             out.push(ProgramCommand::Clear(Element::all("lightprobeAverage")));
             out.push(ProgramCommand::Clear(Element::all("lightprobeData")));
         } else {
+            // Existing ones follow the camera, scrolling as it moves.
             cascades.update(camera);
         }
         let cascades = cascades.clone();
         regions(&cascades, &s, &mut out, &mut self.lights_dirty);
         let objects = lab::scene::Scene::study_room();
         let rounds = if jumped {
+            // A fresh start runs as many frames as the CPU model converges over; a following frame, one.
             CONVERGED_FRAMES
         } else {
             1
@@ -193,6 +198,7 @@ impl Plan {
             });
         }
         for c in 0..n {
+            // Every cell of a rebuilt cascade, else every Nth in turn.
             let (offset, increment) = if self.lights_dirty[c] || every <= 1 {
                 (0, 1)
             } else {
@@ -274,6 +280,7 @@ impl Plan {
         let n = cascades.cascades.len();
         let mut ubo: Vec<u32> = Vec::with_capacity(8 * 12);
         for k in 0..8 {
+            // Eight slots, the missing cascades repeating the last one.
             let c = cascades
                 .cascades
                 .get(k)
@@ -310,6 +317,7 @@ impl Plan {
             .into_iter()
             .enumerate()
         {
+            // Two vec4s per cascade, then the camera.
             screen[k * 4..k * 4 + 4].copy_from_slice(&v.map(f));
         }
         screen.extend([f(camera.x), f(camera.y), f(camera.z), 0]);
@@ -336,6 +344,7 @@ fn regions(
         let last = k + 1 == regions.len() || regions[k + 1].cascade != c;
         if first {
             for name in [
+                // A cascade's first region starts from cleared render images.
                 "renderAlbedo",
                 "renderEmission",
                 "renderEmissionAniso",
@@ -372,6 +381,7 @@ fn regions(
             });
         }
         if last {
+            // After a cascade's last region: its field, occlusion, and store, and its light to redo.
             preprocess(cascades, c, s, out);
             lights_dirty[c] = true;
         }
@@ -391,8 +401,10 @@ fn preprocess(
         Dirty::Regions(d) => Some(d),
     };
     let sc = scroll.unwrap_or(IVec3::ZERO);
+    // The parameters every pass of the cascade shares: the scroll, the size, the cascade.
     let base = [i(sc.x), i(sc.y), i(sc.z), N, 0, 0, 0, 0, 0, 0, ci];
     if let Some(d) = scroll {
+        // A scrolled cascade moves what it keeps first.
         scroll_commands(cascades, (c, d), s, out);
     }
     // The counters zeroed before STORE's atomics (gi.cpp:2214-2215).
@@ -410,6 +422,7 @@ fn preprocess(
     let mut ping = 0u32;
     p[8] = 1;
     for step in super::voxels::half_schedule() {
+        // Each step reads the other buffer of the ping-pong pair from the one before.
         p[7] = step.0 as u32;
         let (pass, local) = if step.1 {
             ("sdfgiJumpFloodShared", [8, 8, 8])
@@ -431,6 +444,7 @@ fn preprocess(
     // Occlusion: eight parity classes of probes, one workgroup per probe (gi.cpp:2342-2373).
     let probe_global = cascade.position / PROBE_CELLS;
     for k in 0..8u32 {
+        // Each class's probe offset, flipped on an axis where the cascade's probe position is odd.
         let mut o = IVec3::new((k & 1) as i32, ((k >> 1) & 1) as i32, ((k >> 2) & 1) as i32);
         for a in 0..3 {
             if probe_global[a] & 1 != 0 {
@@ -458,6 +472,7 @@ fn preprocess(
         &base,
     ));
     for name in ["lightData", "lightAniso0", "lightAniso1"] {
+        // The cascade's light is redone from scratch next.
         out.push(ProgramCommand::Clear(Element::of(name, ci)));
     }
 }
@@ -485,6 +500,7 @@ fn scroll_commands(
         offset: 0,
         params: params(&base),
     });
+    // The occlusion of the part of the cascade that stays.
     let keep = [
         N - d.x.unsigned_abs(),
         N - d.y.unsigned_abs(),
@@ -529,6 +545,7 @@ fn scroll_commands(
         &ip,
     ));
     if s.bounce_feedback > 0.0 {
+        // With bounce on, the probes' maps are stored again for the moved probes.
         out.push(dispatch(
             "sdfgiProbeStoreScroll",
             ci,

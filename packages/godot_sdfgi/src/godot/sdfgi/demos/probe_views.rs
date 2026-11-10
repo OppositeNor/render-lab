@@ -29,6 +29,7 @@ pub(super) fn probes_demo(
     } else {
         world.trace[k - 1]
     };
+    // The followed probe's irradiance from its mean coefficients, up and toward the left wall.
     let irradiance = |n: Vec3| -> Vec3 {
         let c = probes::sh_basis(n);
         (0..SH_SIZE)
@@ -86,6 +87,7 @@ pub(super) fn probes_demo(
     if maps {
         maps_inset(world, content);
         if state.p("showGain") > 0.5 {
+            // With the gain shown: what the maps store for a uniform sky of 1, 4/π.
             let gain = 4.0 / std::f32::consts::PI;
             rows.push(row(
                 tr("demos-sky_gain"),
@@ -123,6 +125,7 @@ pub(super) fn probe_rays(state: &ShotState, world: &World, content: &mut FrameCo
     let frames = state.p("rayFrames").round().clamp(0.0, 30.0) as u32;
     if state.p("probeRays") > 0.5 {
         for h in 0..frames {
+            // Each of the first `rayFrames` frames' rays, to its hit or a short way into the sky, the newest brightest.
             for ray in probes::trace_rays(
                 &field,
                 &light_refs,
@@ -185,6 +188,7 @@ pub(super) fn march_spheres(state: &ShotState, world: &World, content: &mut Fram
             &sky,
         );
         let dir = rays[1].direction;
+        // The second ray of frame 0, from its biased start, a sphere of the stored distance at each step.
         let start =
             probe_pos + dir / dir.abs().max_element() * world.integrate.ray_bias / field.to_cell(0);
         let mut advance = 0.0;
@@ -219,6 +223,7 @@ pub(super) fn history_chart(world: &World, k: usize, content: &mut FrameContent)
     let n = 110usize;
     let values: Vec<f32> = (0..=sim::CONVERGED_FRAMES as usize)
         .map(|f| {
+            // The probe's upward irradiance (green) after each frame.
             let m = if f == 0 {
                 [Vec3::ZERO; SH_SIZE]
             } else {
@@ -236,6 +241,7 @@ pub(super) fn history_chart(world: &World, k: usize, content: &mut FrameContent)
         px.copy_from_slice(&[12, 20, 32, 255]);
     }
     for (f, v) in values.iter().enumerate() {
+        // Each frame a bar up to its value, the frames so far lit.
         let x = f * (n - 1) / values.len().max(2).saturating_sub(1).max(1);
         let y = n - 1 - ((v / top) * (n - 1) as f32) as usize;
         let lit = f <= k;
@@ -289,6 +295,7 @@ pub(super) fn maps_inset(world: &World, content: &mut FrameContent) {
     }
     let top = (size - n * k) / 2;
     for (m, layer) in [&maps.irradiance, &maps.radiance].into_iter().enumerate() {
+        // Each texel of the probe's tile, border included, tone-mapped and drawn k x k, the border darker.
         for y in 0..n {
             for x in 0..n {
                 let t = probes::ProbeMaps::texel(layer, origin.x + x as i32, origin.y + y as i32);
@@ -328,6 +335,7 @@ pub(super) fn maps_inset(world: &World, content: &mut FrameContent) {
 
 /// Chapter 10: a pixel on the red wall, its cascade, its eight probes.
 pub(super) fn pixel_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
+    // A pixel on the sphere (its roughness), or on the left wall (fully rough).
     let on_sphere = state.p("spherePixel") > 0.5;
     let sphere_centre = Vec3::new(-1.05, 0.62, -0.55);
     let n = if on_sphere {
@@ -343,6 +351,7 @@ pub(super) fn pixel_demo(state: &ShotState, world: &World, content: &mut FrameCo
     let inputs = sim::screen_inputs(world);
     let eye = Vec3::from(content.uniforms.camera.position);
     let v = (eye - p).normalize();
+    // The view reflected about the normal.
     let r = (-v) - 2.0 * (-v).dot(n) * n;
     let roughness = if on_sphere {
         state.p("sphereRoughness")
@@ -371,6 +380,7 @@ pub(super) fn pixel_demo(state: &ShotState, world: &World, content: &mut FrameCo
         rows.extend(roughness_rows(roughness));
     }
     if let Some(c) = result.cascade {
+        // In a cascade: the pixel's probe cell, its eight probes, and the light they give.
         let y = inputs.y_mult;
         let vertex = Vec3::new(p.x - ORIGIN.x, (p.y - ORIGIN.y) * y, p.z - ORIGIN.z);
         let cascade_pos = (vertex - inputs.cascades[c].position) * inputs.cascades[c].to_probe;
@@ -472,6 +482,7 @@ pub(super) fn blend_point(
 pub(super) fn roughness_rows(roughness: f32) -> Vec<(String, String, Color32)> {
     let mut rows = Vec::new();
     let radiance = if roughness < 0.99 {
+        // The radiance map's share falls from roughness 0.2 to 0.99, the irradiance map taking over.
         1.0 - ((roughness - 0.2) * 1.25).clamp(0.0, 1.0)
     } else {
         0.0
@@ -515,6 +526,7 @@ pub(super) fn pixel_probes(
     let total: f32 = weights.iter().map(|w| w.weight).sum();
     let field = world.field();
     for w in weights {
+        // Each probe sized and lit by its share of the weight, a line to the pixel.
         let pos = probes::probe_position(&field, c, w.probe);
         let real = Vec3::new(pos.x, pos.y / y, pos.z);
         let share = w.weight / total.max(1e-9);

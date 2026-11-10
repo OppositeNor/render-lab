@@ -100,6 +100,7 @@ impl Cascades {
         let mut base_cell_size = settings.min_cell_size;
         let mut cascades = Vec::with_capacity(settings.cascades);
         for _ in 0..settings.cascades {
+            // Each cascade sits on the camera, snapped to whole probes; the next one's cells are twice as big.
             let cell_size = base_cell_size;
             let world = Vec3::new(
                 world_position.x,
@@ -138,11 +139,13 @@ impl Cascades {
             for j in 0..3 {
                 if pos_in_cascade[j] < cascade.position[j] {
                     while pos_in_cascade[j] < cascade.position[j] - drag_margin {
+                        // Past the margin behind: the cascade steps back, and the cells it uncovers are dirty.
                         cascade.position[j] -= drag_margin * 2;
                         dirty[j] += drag_margin * 2;
                     }
                 } else if pos_in_cascade[j] > cascade.position[j] {
                     while pos_in_cascade[j] > cascade.position[j] + drag_margin {
+                        // Likewise past the margin ahead.
                         cascade.position[j] += drag_margin * 2;
                         dirty[j] -= drag_margin * 2;
                     }
@@ -163,6 +166,7 @@ impl Cascades {
             if let Dirty::Regions(d) = cascade.dirty
                 && d != IVec3::ZERO
             {
+                // When the moved slabs hold more than half of what stays, the whole cascade is redone instead.
                 let size = CASCADE_SIZE as u32;
                 let total_volume = size * size * size;
                 let safe_volume: u32 = (0..3).map(|j| size - d[j].unsigned_abs()).product();
@@ -185,6 +189,7 @@ impl Cascades {
         for (i, c) in self.cascades.iter().enumerate() {
             match c.dirty {
                 Dirty::All => {
+                    // A whole cascade is one region.
                     let size = IVec3::splat(CASCADE_SIZE);
                     regions.push(Region {
                         cascade: i,
@@ -196,17 +201,21 @@ impl Cascades {
                 }
                 Dirty::Regions(d) => {
                     for j in 0..3 {
+                        // Each axis that moved gives a slab, on the side the cascade uncovered.
                         if d[j] == 0 {
                             continue;
                         }
                         let mut from = IVec3::ZERO;
                         let mut to = IVec3::splat(CASCADE_SIZE);
                         if d[j] > 0 {
+                            // The cascade moved toward negative, so the uncovered slab is at the low end.
                             to[j] = d[j];
                         } else {
+                            // Toward positive: the slab at the high end.
                             from[j] = to[j] + d[j];
                         }
                         for k in 0..j {
+                            // The earlier axes' slabs already cover their part, so this slab leaves it out.
                             if d[k] > 0 {
                                 from[k] += d[k];
                             } else if d[k] < 0 {

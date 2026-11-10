@@ -40,6 +40,7 @@ struct Window<'a> {
 impl Window<'_> {
     /// `get_facing(local)`: the facing bits of a window cell (0 outside the grid).
     fn facing(&self, local: IVec3) -> u32 {
+        // Outside the window or the cascade there is no voxel, so nothing faces anywhere.
         let p = self.region_offset + local;
         if inside(p)
             && local.cmpge(IVec3::ZERO).all()
@@ -59,6 +60,7 @@ fn occlusion_class(voxels: &RenderVoxels, probe_offset: IVec3, dst: &mut [u8]) {
     for rz in 0..groups.z {
         for ry in 0..groups.y {
             for rx in 0..groups.x {
+                // Each region of this probe class: a window two probe spacings wide, centred on its probe.
                 let region = IVec3::new(rx, ry, rz);
                 let region_offset = -IVec3::splat(OCCLUSION_SIZE)
                     + region * OCCLUSION_SIZE * 2
@@ -87,12 +89,14 @@ fn shells(w: &Window, dst: &mut [u8]) {
     for step in 0..OCC_STEPS {
         for ax in 0..OCCLUSION_SIZE {
             for ay in 0..OCCLUSION_SIZE {
+                // The cells whose coordinates sum to the step form a shell; each reads cells of the shell before.
                 let az = step - ax - ay;
                 if !(0..OCCLUSION_SIZE).contains(&az) {
                     continue;
                 }
                 let proc_abs = IVec3::new(ax, ay, az);
                 for i in 0..8 {
+                    // The same cell mirrored into each of the eight octants around the probe.
                     let bits = IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
                     let proc_sign = bits * 2 - IVec3::ONE;
                     let local =
@@ -102,11 +106,15 @@ fn shells(w: &Window, dst: &mut [u8]) {
                         continue;
                     }
                     let occ = if w.facing(local) != 0 {
+                        // A solid voxel blocks fully.
                         0.0
                     } else if step == 0 {
+                        // The probe's own cells are open.
                         1.0
                     } else {
+                        // Any other cell averages its neighbours one step back toward the probe, along each axis.
                         let read_dir = -proc_sign;
+                        // On an axis the cell lies flat on, it reads one step along its major axis instead.
                         let major = if proc_abs.x < proc_abs.y {
                             if proc_abs.z < proc_abs.y {
                                 IVec3::Y
@@ -131,11 +139,13 @@ fn shells(w: &Window, dst: &mut [u8]) {
                                     IVec3::ZERO
                                 };
                             if w.facing(read - region_offset) == 0 {
+                                // A free neighbour passes on its own occlusion.
                                 if in_grid(read) {
                                     occ += load8(dst[index(read)]);
                                     avg += 1.0;
                                 }
                             } else if proc_abs[axis] != 0 {
+                                // A solid one counts as fully blocked, but only on an axis the cell moved along.
                                 avg += 1.0;
                             }
                         }
@@ -171,9 +181,11 @@ fn bias_solid(w: &Window, dst: &mut [u8]) {
                 if facing == 0 {
                     continue;
                 }
+                // The cell's side of the probe on each axis (never zero), and so the way back toward the probe.
                 let mut proc_pos = local - IVec3::splat(OCCLUSION_SIZE);
                 proc_pos += IVec3::select(proc_pos.cmpge(IVec3::ZERO), IVec3::ONE, IVec3::ZERO);
                 let read_dir = -proc_pos.signum();
+                // An axis counts when the voxel has a face on the side that looks back toward the probe.
                 let facing_pos = IVec3::new(
                     (facing & 1) as i32,
                     ((facing >> 1) & 1) as i32,
@@ -203,6 +215,7 @@ fn bias_solid(w: &Window, dst: &mut [u8]) {
                     }
                 };
                 if vx {
+                    // Read the free neighbours toward the probe along each counted axis, edge, and corner.
                     read(dx);
                 }
                 if vy {
@@ -235,6 +248,7 @@ fn bias_solid(w: &Window, dst: &mut [u8]) {
         }
     }
     for (i, v) in solid_writes {
+        // Written after the whole window is read, so a solid voxel never reads another's new value.
         dst[i] = store8(v);
     }
 }
@@ -269,6 +283,7 @@ fn behind_surfaces(w: &Window, dst: &mut [u8]) {
                 let mut total = 0.0;
                 for axis in 0..3 {
                     if proc_abs[axis] < OCCLUSION_SIZE {
+                        // The solid neighbour a step away from the probe counts; it is visible if it faces this cell.
                         let mut d = IVec3::ZERO;
                         d[axis] = read_dir[axis];
                         let mask = w.facing(local + d);
@@ -282,6 +297,7 @@ fn behind_surfaces(w: &Window, dst: &mut [u8]) {
                 }
                 for axis in 0..3 {
                     if proc_abs[axis] == 1 {
+                        // Next to the probe's own plane, the solid neighbour one step back toward it counts too.
                         let mut d = IVec3::ZERO;
                         d[axis] = read_dir[axis];
                         let mask = w.facing(local - d);
@@ -294,6 +310,7 @@ fn behind_surfaces(w: &Window, dst: &mut [u8]) {
                     }
                 }
                 if total > 0.0 {
+                    // The cell keeps the share of its solid neighbours that face it.
                     let occ = load8(dst[index(offset)]) * visible / total;
                     dst[index(offset)] = store8(occ);
                 }
@@ -310,6 +327,7 @@ pub fn occlusion(voxels: &RenderVoxels, position: IVec3) -> Vec<Vec<u8>> {
     std::thread::scope(|s| {
         for (i, image) in images.iter_mut().enumerate() {
             let i = i as i32;
+            // Each class on a thread: its probes' offset, flipped on an axis where the cascade's position is odd.
             let mut offset = IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
             for axis in 0..3 {
                 if probe_global[axis] & 1 != 0 {
@@ -330,6 +348,7 @@ pub fn pack(images: &[Vec<u8>]) -> Vec<u32> {
         .map(|c| {
             let mut word = 0u32;
             for (i, image) in images.iter().enumerate() {
+                // Each class's occlusion takes four bits of the cell's word.
                 let occ = load8(image[c]);
                 word |= ((occ * 15.0).clamp(0.0, 15.0) as u32) << OCCLUSION_SHIFT[i];
             }

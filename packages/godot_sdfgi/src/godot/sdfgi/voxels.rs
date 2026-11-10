@@ -74,6 +74,7 @@ impl RenderVoxels {
 /// stored as R's top 8 bits, G's 9, B's top 8, and E's 5.
 pub fn encode_rgbe8985(light: Vec3) -> u32 {
     let (s, exps) = shared_exponent(light);
+    // Red and blue keep the top 8 of their 9 bits, green all 9, then the shared 5-bit exponent.
     ((s[0] & 0x1FF) >> 1)
         | ((s[1] & 0x1FF) << 8)
         | (((s[2] & 0x1FF) >> 1) << 17)
@@ -90,6 +91,7 @@ pub fn shared_exponent(light: Vec3) -> ([u32; 3], u32) {
     const LN2: f32 = 0.693_147_2;
     let c = light.clamp(Vec3::ZERO, Vec3::splat(65408.0));
     let c_max = c.max_element();
+    // The exponent that fits the largest channel in 9 bits; one more when rounding would overflow them.
     let expp = (-B - 1.0).max((c_max.ln() / LN2).floor()) + 1.0 + B;
     let s_max = (c_max / 2f32.powf(expp - B - NB) + 0.5).floor();
     let exps = if (0.0..POW2TO9).contains(&s_max) {
@@ -98,6 +100,7 @@ pub fn shared_exponent(light: Vec3) -> ([u32; 3], u32) {
         expp + 1.0
     };
     let scale = 2f32.powf(exps - B - NB);
+    // Each channel's mantissa at that exponent, rounded.
     let s = [
         (c.x / scale + 0.5).floor() as u32,
         (c.y / scale + 0.5).floor() as u32,
@@ -129,12 +132,14 @@ fn write_fragment(
         return;
     }
     let i = index(grid_pos);
+    // Albedo as 5 bits a channel, above the solid bit.
     let q = |c: f32| ((c * 31.0) as u32).min(31);
     let albedo16 = 0x1 | (q(albedo.x) << 11) | (q(albedo.y) << 6) | (q(albedo.z) << 1);
     voxels.albedo[i] = albedo16 as u16;
     let mut closest = -1e20;
     let mut facing_bits = 0;
     for (k, dir) in ANISO_DIR.iter().enumerate() {
+        // The fragment sets the bit of the one direction its normal is closest to.
         let d = normal.dot(*dir);
         if d > closest {
             closest = d;
@@ -143,6 +148,7 @@ fn write_fragment(
     }
     voxels.facing[i] |= facing_bits;
     if emission.length() > 0.001 {
+        // An emissive fragment: its light toward each of the six directions, and each one's share in 5 bits.
         let mut lumas = [0.0f32; 6];
         let mut total = Vec3::ZERO;
         for (k, dir) in ANISO_DIR.iter().enumerate() {
@@ -166,6 +172,7 @@ fn crossings(objects: &[ObjectData], ro: Vec3, rd: Vec3, t_max: f32) -> Vec<(f32
     let mut hits = Vec::new();
     for (k, o) in objects.iter().enumerate() {
         let mut t0 = 0.0;
+        // Every surface of the object along the ray, front and back, stepping just past each hit.
         while let Some((t, n)) = lab::scene::intersect_object(o, ro + rd * t0, rd, t_max - t0) {
             hits.push((t0 + t, k, n));
             t0 += t + 1e-4;
@@ -197,6 +204,7 @@ pub fn voxelize_axes(
     let min = region.bounds_min;
     let extent = region.bounds_size;
     for axis in 0..passes.min(3) {
+        // Each axis is drawn from its own side: a grid of rays across the region, each along -axis.
         let right = (axis + 1) % 3;
         let up = (axis + 2) % 3;
         let (w, h) = (size[right], size[up]);
@@ -210,6 +218,7 @@ pub fn voxelize_axes(
                 let mut rd = Vec3::ZERO;
                 rd[axis] = -1.0;
                 for (t, k, n) in crossings(objects, ro, rd, extent[axis]) {
+                    // Each surface the ray crosses is a fragment in the voxel it lands in.
                     let o = &objects[k];
                     let p = ro + rd * t;
                     let local = (p - min) / extent;
@@ -248,6 +257,7 @@ fn offsets26() -> Vec<IVec3> {
     for x in -1..=1 {
         for y in -1..=1 {
             for z in -1..=1 {
+                // Every neighbour but the cell itself.
                 if (x, y, z) != (0, 0, 0) {
                     v.push(IVec3::new(x, y, z));
                 }
@@ -299,6 +309,7 @@ pub fn jump_flood_pass(
             for x in 0..n {
                 let pos = IVec3::new(x, y, z);
                 let mut posf = pos.as_vec3();
+                // At half size, a cell's position stands for the centre of its 2 x 2 x 2 full-size cells.
                 if half_size {
                     posf = posf * 2.0 + 0.5;
                 }
@@ -310,6 +321,7 @@ pub fn jump_flood_pass(
                     }
                 };
                 let out = if optimized {
+                    // The optimised pass: the closest seed among the cell and its 26 neighbours at the step's distance.
                     let mut closest = UNUSED;
                     let mut closest_dist = 0.0;
                     for o in &off27 {
@@ -325,6 +337,7 @@ pub fn jump_flood_pass(
                     }
                     closest
                 } else {
+                    // The full pass: a full-size seed in its own cell is final; else the closest of its 26 neighbours.
                     let mut p = src[idx(pos, n)];
                     if !half_size && p == seed_at(pos) {
                         p
@@ -370,12 +383,14 @@ pub fn initialize_half(voxels: &RenderVoxels) -> Vec<Seed> {
                 let base = pos * 2;
                 let mut closest = Vec::with_capacity(8);
                 for i in 0..8 {
+                    // The solid full-size cells under this half-size cell.
                     let src = base + IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
                     if voxels.solid(src) {
                         closest.push(seed_at(src));
                     }
                 }
                 if !closest.is_empty() {
+                    // With several, the cell's position parity picks one of them, as the shader does.
                     let indexv = (pos & IVec3::ONE) * IVec3::new(1, 2, 4);
                     let k = (indexv.x | indexv.y | indexv.z) as usize % closest.len();
                     dst[idx(pos, h)] = closest[k];
@@ -400,6 +415,7 @@ pub fn upscale(voxels: &RenderVoxels, half: &[Seed]) -> Vec<Seed> {
                 let v = if voxels.solid(pos) {
                     seed_at(pos)
                 } else {
+                    // A free cell takes its half-size cell's seed, or a closer solid cell in that seed's 2 x 2 x 2.
                     let mut v = half[idx(pos >> 1, h)];
                     let seed = seed_cell(v);
                     let mut d = (seed - pos).as_vec3().length();
@@ -428,6 +444,7 @@ pub fn half_schedule() -> Vec<(i32, bool)> {
     let mut schedule = Vec::new();
     let mut s = half;
     while s > 1 {
+        // The plain pass halves the step until it is small next to the half size; the optimised one finishes.
         s /= 2;
         schedule.push((s, false));
         if half / (s / 2) >= 8 {
@@ -457,6 +474,7 @@ pub fn jump_flood(voxels: &RenderVoxels) -> JumpFlood {
     let mut current = half_init.clone();
     let mut half_passes = Vec::new();
     for (step, optimized) in half_schedule() {
+        // The passes at half size, then the seeds upscaled and one last full-size pass.
         current = jump_flood_pass(&current, h, step, true, optimized);
         half_passes.push((step, optimized, current.clone()));
     }
@@ -537,6 +555,7 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                     for ly in 0..4 {
                         for lx in 0..4 {
                             let pos = IVec3::new(gx * 4 + lx, gy * 4 + ly, gz * 4 + lz);
+                            // A cell's distance: 0 when it is its own seed, else one plus the distance to its seed.
                             let seed = seed_cell(seeds[index(pos)]);
                             let solid = seed == pos;
                             let d = if solid {
@@ -549,6 +568,7 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                             if !solid {
                                 continue;
                             }
+                            // The 26 neighbours whose seed is this cell, one bit each.
                             let mut bit = 0;
                             let mut neighbours = 0u32;
                             for i in -1..=1 {
@@ -566,6 +586,7 @@ pub fn store(voxels: &RenderVoxels, seeds: &[Seed]) -> Stored {
                                 }
                             }
                             let i = index(pos);
+                            // The neighbour bits are split over the cell's four words, in the bits each leaves free.
                             let mut cell = SolidCell {
                                 position: (pos.x | (pos.y << 7) | (pos.z << 14)) as u32,
                                 ..SolidCell::default()
@@ -626,6 +647,7 @@ pub fn build_cascade(objects: &[ObjectData], cascades: &Cascades, cascade: usize
 /// into the emission images, from which STORE copies it again.
 pub fn scroll_into(previous: &[SolidCell], scroll: IVec3, voxels: &mut RenderVoxels) {
     for cell in previous {
+        // Each stored cell moved by the scroll; the ones that leave the cascade are dropped.
         let write = cell.cell() + scroll;
         if !inside(write) {
             continue;

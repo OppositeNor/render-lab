@@ -41,8 +41,10 @@ pub const FOLLOWED_PROBE: IVec3 = IVec3::new(7, 7, 8);
 pub fn cascades(state: &ShotState) -> Cascades {
     let walk = state.p("cameraX");
     let steps = if state.p("cameraJump") > 0.5 {
+        // A jump moves the camera in a single step.
         1
     } else {
+        // A walk: one step per fifth of a metre, so each cascade scrolls as it would.
         (walk.abs() / 0.2).ceil() as usize
     };
     let path: Vec<Vec3> = (1..=steps)
@@ -62,6 +64,7 @@ pub const FAR_PLANE: f32 = 1000.0;
 /// `camera` with its projection rebuilt for `FAR_PLANE` (the lab's reversed
 /// depth, far then near, as lab/src/camera.rs builds it).
 fn far_camera(mut camera: lab::layout::CameraData) -> lab::layout::CameraData {
+    // The same camera with a far plane at FAR_PLANE, so the farthest cascades fit in its depth.
     let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
     let proj = glam::camera::rh::proj::directx::perspective(
         camera.vertical_fov,
@@ -179,6 +182,7 @@ fn shared_overlays(state: &ShotState, world: &World, content: &mut FrameContent)
         .enumerate()
         .take(cascades.cascades.len())
     {
+        // Each cascade's box fades in as `cascadesShown` passes its index, labelled with its width.
         let alpha = (shown - i as f32).clamp(0.0, 1.0);
         if alpha <= 0.0 {
             continue;
@@ -199,6 +203,7 @@ fn shared_overlays(state: &ShotState, world: &World, content: &mut FrameContent)
     }
     if state.p("probes") > 0.5 {
         for p in 0..probes::PROBES {
+            // Cascade 0's probes: those outside the room smaller and faint, the followed one lit.
             let probe = probes::probe_of(p);
             let pos = cascades.probe_position(0, probe);
             let in_room = Scene::inside_room(pos, 0.0);
@@ -274,6 +279,7 @@ fn room(state: &ShotState, content: &mut FrameContent) {
                 row("depth_prepass", tr("demos-prepass_value"), palette::VIEW),
             ];
             let focus = state.p("focusRow").round() as i32;
+            // With a focus row, the other rows dim.
             if focus >= 0 {
                 for (i, r) in rows.iter_mut().enumerate() {
                     if i as i32 != focus {
@@ -372,6 +378,7 @@ fn cascades_demo(state: &ShotState, content: &mut FrameContent) {
 /// cascade's centre.
 fn scroll_row(state: &ShotState, c0: &model::Cascade, cell: IVec3, content: &mut FrameContent) {
     if state.p("scrollView") > 0.5 {
+        // Forty-one cell edges on the floor, those near the centre stronger, then the centre and the camera's cell.
         let y = 0.02;
         let from = c0.position.x - 20;
         for k in 0..=40 {
@@ -443,6 +450,7 @@ fn regions_demo(state: &ShotState, content: &mut FrameContent) {
         cascades.settings.y_mult(),
     );
     let lights = if state.p("lightBake") > 0.5 {
+        // Baking the light: it goes through the static cull, as Godot gives it to the cascades' regions.
         vec![static_light]
     } else {
         Vec::new()
@@ -524,6 +532,7 @@ fn worked_voxel(world: &World) -> IVec3 {
 fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) {
     let data = &world.data[0];
     let probe_cell = FOLLOWED_PROBE * 8;
+    // The followed probe's occlusion class: the parity of its world position on each axis.
     let world_probe = world.cascades.cascades[0].position / 8 + FOLLOWED_PROBE;
     let bits = world_probe & IVec3::ONE;
     let class = (bits.x | (bits.y << 1) | (bits.z << 2)) as usize;
@@ -537,6 +546,7 @@ fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) 
             lines: vec![],
         },
         |p| {
+            // The cell's offset folded into the probe's octant, as the occlusion pass counts its shells.
             let d = p - probe_cell;
             let local = IVec3::new(
                 if d.x >= 0 {
@@ -556,12 +566,15 @@ fn occlusion_demo(state: &ShotState, world: &World, content: &mut FrameContent) 
                 },
             );
             if local.max_element() >= 8 {
+                // Outside the probe's window: dark.
                 return [20, 20, 30, 255];
             }
             if (local.x + local.y + local.z) as f32 > shell {
+                // A shell the pass has not reached yet.
                 return [40, 40, 60, 255];
             }
             if data.voxels.solid(p) {
+                // A solid voxel, in orange; free cells are grey by their occlusion.
                 return [200, 90, 40, 255];
             }
             grey(super::occlusion::class_value(
@@ -621,6 +634,7 @@ fn static_scrolls() -> &'static Vec<f32> {
         let light = sim::omni(Vec3::new(1.5, 1.2, 1.0), 15.0, 1.0, settings.y_mult());
         let mut world = World::new(&objects, settings, ORIGIN);
         world.static_frame(&[light]);
+        // One cell's static light after each of three walks: the scrolls carry its light along.
         let start = world.cascades.cascades[0].position;
         let keep = world_cell(&world, 0, Vec3::new(1.5, 0.05, 1.0));
         let value = |w: &World, cell: IVec3| {
@@ -650,6 +664,7 @@ fn bounce_world(bounce: f32) -> &'static World {
     static WORLDS: OnceLock<std::sync::Mutex<Vec<(u32, &'static World)>>> = OnceLock::new();
     let key = (bounce * 100.0).round() as u32;
     let worlds = WORLDS.get_or_init(|| std::sync::Mutex::new(Vec::new()));
+    // Each bounce feedback converges once, then is kept for the life of the program.
     if let Some((_, w)) = worlds.lock().unwrap().iter().find(|(k, _)| *k == key) {
         return w;
     }
@@ -666,6 +681,7 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
     if state.p("cellLight") > 0.5 {
         let size = world.cascades.cascades[0].cell_size * 0.45;
         for (i, c) in data.stored.cells.iter().enumerate() {
+            // Each cell coloured by its light, the ones this frame's phase did not update dark.
             let updated = phase >= 4 || i % sim::FRAMES_TO_UPDATE_LIGHT == phase;
             let l = world.light[0].light_at(c.cell());
             let t = |v: f32| ((v / (1.0 + v)).sqrt() * 255.0) as u8;
@@ -679,6 +695,7 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
     }
     let light_pos = Vec3::new(state.p("lightX"), state.p("lightHeight"), state.p("lightZ"));
     let at = if state.p("cellX") < -9.0 {
+        // No cell picked: the floor under the light.
         Vec3::new(light_pos.x, 0.05, light_pos.z)
     } else {
         Vec3::new(state.p("cellX"), 0.05, state.p("cellZ"))
@@ -702,6 +719,7 @@ fn light_demo(state: &ShotState, scene: &Scene, world: &World, content: &mut Fra
     let bounce = state.p("bounceFeedback");
     let wall = world_cell(world, 0, Vec3::new(-2.95, 1.2, -0.5));
     let wall_light = |w: &World| w.light[0].light_at(wall).max_element();
+    // The wall's light at the nearest converged bounce feedback.
     let nearest = [0.0f32, 0.5, 1.0, 1.5]
         .into_iter()
         .min_by(|a, b| (a - bounce).abs().total_cmp(&(b - bounce).abs()))
@@ -786,6 +804,7 @@ fn extra_light(
         let hit = light::shadow_ray(&field, 0, squashed, dir, dist, Some(&mut steps));
         if state.p("shadowRay") > 0.5 {
             for (j, pos, d) in steps.iter().take(24) {
+                // Each march step, back from cells and the squashed height to the world, a circle of its distance.
                 let s = *pos / field.to_cell(*j) + field.offset(*j);
                 let r = Vec3::new(s.x, s.y / y_mult, s.z);
                 circle(

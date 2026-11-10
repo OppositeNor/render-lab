@@ -183,6 +183,7 @@ fn check_voxels(report: &mut Report, statics: &lab::frame::Statics) -> Result<()
     report.check("the half-size jump flood finds the nearest solid voxel at most sampled cells (never nearer than exact)", exact * 10 >= samples * 9 && worst >= 0.0 - 1e-6, json!({"samples": samples, "exact": exact, "worstExcessCells": worst}));
     // Neighbour bits: bit n is set exactly when that neighbour's seed is this cell.
     let neighbours_ok = data.stored.cells.iter().take(2000).all(|c| {
+        // Recount each cell's bits from the flood's seeds, in the same order STORE uses.
         let pos = c.cell();
         let mut bit = 0;
         let mut expected = 0u32;
@@ -214,6 +215,7 @@ fn check_voxels(report: &mut Report, statics: &lab::frame::Statics) -> Result<()
     {
         let probe = IVec3::new(64, 56, 64);
         let class = |p: IVec3| -> usize {
+            // A cell's probe class: the parity of its nearest probe's world position.
             let probe_cell = (p + IVec3::splat(4)).div_euclid(IVec3::splat(8));
             let world = room.cascades[0].position / 8 + probe_cell;
             let bits = world & IVec3::ONE;
@@ -247,6 +249,7 @@ fn check_voxels(report: &mut Report, statics: &lab::frame::Statics) -> Result<()
 fn flood_samples(data: &voxels::CascadeData, solid: &[IVec3]) -> (i32, f32, i32) {
     let mut rng = 0x2545_f491_4f6c_dd1du64;
     let mut next = || {
+        // A xorshift, for repeatable samples.
         rng ^= rng << 13;
         rng ^= rng >> 7;
         rng ^= rng << 17;
@@ -254,6 +257,7 @@ fn flood_samples(data: &voxels::CascadeData, solid: &[IVec3]) -> (i32, f32, i32)
     };
     let (mut exact, mut worst, mut samples) = (0, 0.0f32, 0);
     for _ in 0..600 {
+        // At random cells: the exact distance to the nearest solid voxel, against the byte STORE kept.
         let p = IVec3::new(next() % 128, next() % 128, next() % 128);
         let best = solid
             .iter()
@@ -261,6 +265,7 @@ fn flood_samples(data: &voxels::CascadeData, solid: &[IVec3]) -> (i32, f32, i32)
             .fold(f32::MAX, f32::min);
         let stored = data.stored.sdf[voxels::index(p)] as f32;
         let expected = if best == 0.0 {
+            // The cell is solid.
             0.0
         } else {
             (1.0 + best).min(255.0).round()
@@ -286,6 +291,7 @@ fn check_light_and_probes(report: &mut Report, statics: &lab::frame::Statics) ->
     let lighting = statics.scene.lighting;
     let sky = move |d: Vec3| lab::scene::environment_radiance(&lighting, d);
     let floor_ratio = |settings: Settings| -> (f32, Value) {
+        // A world lit by the panel for one frame, then the floor cell nearest below the panel.
         let started = std::time::Instant::now();
         let mut world = sim::World::new(&voxelized, settings, super::demos::ORIGIN);
         let built = started.elapsed().as_secs_f32();
@@ -302,6 +308,7 @@ fn check_light_and_probes(report: &mut Report, statics: &lab::frame::Statics) ->
             let p = (c.cell().as_vec3() + Vec3::splat(0.5)) / field.to_cell(0) + field.offset(0);
             Vec3::new(p.x, p.y / settings.y_mult(), p.z)
         };
+        // Floor cells face up (+y).
         let Some(cell) = world.data[0]
             .stored
             .cells
@@ -460,6 +467,7 @@ fn check_screen_samples(report: &mut Report, renderer: &mut lab::renderer::Rende
         (rng >> 40) as f32 / (1u64 << 24) as f32
     };
     for k in 0..64 {
+        // The cases take turns: the floor, a wall, the sphere's top, near and far.
         let (p, n) = match k % 4 {
             0 => (
                 Vec3::new(next() * 5.8 - 2.9, 0.0, next() * 5.8 - 2.9),
@@ -499,6 +507,7 @@ fn check_screen_samples(report: &mut Report, renderer: &mut lab::renderer::Rende
     let mut worst = 0.0f32;
     let mut worst_case = 0;
     for (k, &(p, n, r, rough)) in cases.iter().enumerate() {
+        // Each case's ambient and reflection on the CPU, against the GPU's eight words.
         let cpu = screen::process(&inputs, p, n, r, rough);
         let gpu_vals: Vec<f32> = (0..8).map(|i| f32::from_bits(words[k * 8 + i])).collect();
         let cpu_vals = [
@@ -576,6 +585,7 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let mut tests = Vec::new();
     let mut cases = Vec::new();
     for (k, cell) in cells.iter().enumerate() {
+        // Each cell takes a light type in turn: the panel, an omni, a spot, the sun.
         let l = [panel, omni, spot, sun][k % 4];
         let position = (cell.cell().as_vec3() + Vec3::splat(0.5)) / to_cell + offset;
         tests.extend([
@@ -598,6 +608,7 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let (mut worst_att, mut hit_mismatch, mut capped) = (0.0f32, 0, 0);
     let mut worst_light = json!(null);
     for (k, (position, l)) in cases.iter().enumerate() {
+        // The GPU's attenuation, whether the light reaches the cell, and whether its shadow ray hit.
         let gpu_att = f32::from_bits(words[k * 8]);
         let gpu_valid = words[k * 8 + 5] != 0;
         let gpu_hit = words[k * 8 + 6] != 0;
@@ -605,6 +616,7 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
         let cpu = light::light_at(l, *position);
         let cpu_att = cpu.map(|c| c.2).unwrap_or(0.0);
         if cpu.is_some() != gpu_valid {
+            // One side lights the cell and the other does not.
             hit_mismatch += 1;
             continue;
         }
@@ -646,6 +658,7 @@ fn check_probe_rays(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let mut tests = Vec::new();
     let mut cases = Vec::new();
     for k in 0..96u32 {
+        // Spread probes and history slots, each with the ray offset its world position hashes to.
         let probe = probes::probe_of(((k * 2654435761) % probes::PROBES as u32) as usize);
         let index = (k * 7) % (integrate.history_size * integrate.ray_count);
         let cpu_offset = probes::ray_offset(world_offset + probe);
@@ -672,6 +685,7 @@ fn check_probe_rays(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let (mut worst_dir, mut worst_advance, mut hit_mismatch, mut worst_hash, mut capped) =
         (0.0f32, 0.0f32, 0, 0.0f32, 0);
     for (k, &(pos, index, cpu_offset, _)) in cases.iter().enumerate() {
+        // The CPU's ray for the same slot and offset, marched in cascade 0.
         let mut dir = probes::vogel(
             index,
             integrate.history_size * integrate.ray_count,
@@ -694,8 +708,10 @@ fn check_probe_rays(report: &mut Report, renderer: &mut lab::renderer::Renderer)
         let gpu_hit = words[k * 8 + 3] != 0;
         capped += (words[k * 8 + 4] >= 4096 || m.steps >= 4096) as usize;
         if gpu_hit != m.hit {
+            // One side hit a surface and the other did not.
             hit_mismatch += 1;
         } else if m.hit {
+            // Both hit: how far apart they stopped.
             worst_advance = worst_advance.max((f32::from_bits(words[k * 8 + 5]) - m.advance).abs());
         }
         worst_hash = worst_hash.max((f32::from_bits(words[k * 8 + 6]) - cpu_offset).abs());
@@ -713,6 +729,7 @@ fn check_store(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> R
     let mut tests = Vec::new();
     let mut cases = Vec::new();
     for k in 0..36usize {
+        // Spread probes of the converged world, each with one of the tile's 36 texels.
         let p = (k * 97) % probes::PROBES;
         let mean = converged.history[0].mean(p);
         let local = glam::IVec2::new((k % 6) as i32, (k / 6) as i32);
@@ -728,6 +745,7 @@ fn check_store(report: &mut Report, renderer: &mut lab::renderer::Renderer) -> R
     );
     let (mut worst, mut word_mismatch) = (0.0f32, 0);
     for (k, (mean, local)) in cases.iter().enumerate() {
+        // The CPU's irradiance and radiance at the texel, against the GPU's floats.
         let (irr, rad) = probes::store_texel(mean, *local);
         for (i, v) in [irr.x, irr.y, irr.z, rad.x, rad.y, rad.z]
             .iter()
@@ -810,6 +828,7 @@ fn check_static_lights(report: &mut Report) -> Result<()> {
     let mut found = json!(null);
     let mut probe = sim::World::new(&[], settings, super::demos::ORIGIN);
     for k in 1..400 {
+        // Walk on until a frame's first dirty cascade is not 0, keeping its regions' lights.
         let to = super::demos::ORIGIN + Vec3::new(0.37 * k as f32, 0.0, 0.0);
         probe.cascades.update(to);
         let wide = sim::omni(Vec3::new(1.5, 1.2, 1.0), 60.0, 1.0, settings.y_mult());
@@ -862,6 +881,7 @@ fn check_animations(report: &mut Report) -> Result<()> {
     let mut samples = 0;
     for demo in Demo::ALL {
         for k in 0..=80 {
+            // Every quarter second for 20 seconds, the script's animation must set what the Rust wave sets.
             let t = k as f32 * 0.25;
             let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
             let mut state = shot::for_demo(demo);
@@ -1005,6 +1025,7 @@ fn gpu_passes(report: &mut Report, renderer: &lab::renderer::Renderer) {
     let mut examples = Vec::new();
     for (k, (a, b)) in gpu_sdf.iter().zip(&stored.sdf).enumerate() {
         if a != b {
+            // Count the mismatches by how far apart the bytes are, and keep the first few.
             *by_size
                 .entry((*a as i32 - *b as i32).to_string())
                 .or_insert(0u32) += 1;
@@ -1071,6 +1092,7 @@ fn check_probe_maps(
         .collect();
     let (mut sum_gpu, mut sum_cpu, mut diff) = (0.0f64, 0.0f64, 0.0f64);
     for (g, c) in gpu_words.iter().zip(&world.maps[0].irradiance) {
+        // The two irradiance maps, compared through the sums of their texels' lengths.
         let (g, c) = (light::decode_e5b9g9r9(*g), light::decode_e5b9g9r9(*c));
         sum_gpu += g.length() as f64;
         sum_cpu += c.length() as f64;
