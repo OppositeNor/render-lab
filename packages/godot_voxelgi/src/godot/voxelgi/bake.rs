@@ -602,6 +602,37 @@ pub fn longest_axis(size: Vec3) -> usize {
     axis
 }
 
+/// Where a column's ray, from `ray_from` along `along`, meets the triangle of plane `(normal, d)` (the nearer end
+/// moved onto the plane when it misses), moved to the closest point on the triangle; and the interpolated normal
+/// there (the plane's when it is zero).
+fn column_hit(
+    tri: &Triangle,
+    (normal, d): (Vec3, f32),
+    ray_from: Vec3,
+    along: Vec3,
+) -> (Vec3, Vec3) {
+    let vtx = &tri.vtx;
+    let mut ray_from = ray_from;
+    let mut ray_to = ray_from + along;
+    if normal.dot(ray_from - ray_to) < 0.0 {
+        std::mem::swap(&mut ray_from, &mut ray_to);
+    }
+    let intersection = intersects_segment(normal, d, ray_from, ray_to).unwrap_or_else(|| {
+        let dist = |p: Vec3| normal.dot(p) - d;
+        if dist(ray_from).abs() < dist(ray_to).abs() {
+            ray_from - normal * dist(ray_from)
+        } else {
+            ray_to - normal * dist(ray_to)
+        }
+    });
+    let intersection = closest_point_on_triangle(vtx, intersection);
+    let mut lnormal = normal_at(intersection, vtx, &tri.normal);
+    if lnormal == Vec3::ZERO {
+        lnormal = normal;
+    }
+    (intersection, lnormal)
+}
+
 /// A face `_plot_face` plots: its triangle, with its mesh's albedo and
 /// emission (`_plot_face`'s `p_vtx`, and its material).
 #[derive(Clone, Copy)]
@@ -661,25 +692,9 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
                 });
                 continue;
             }
-            let mut ray_from = from + (t1 + t2) * 0.5 - axis * aabb.size[closest_axis];
-            let mut ray_to = ray_from + axis * aabb.size[closest_axis] * 2.0;
-            if normal.dot(ray_from - ray_to) < 0.0 {
-                std::mem::swap(&mut ray_from, &mut ray_to);
-            }
-            let intersection =
-                intersects_segment(normal, d, ray_from, ray_to).unwrap_or_else(|| {
-                    let dist = |p: Vec3| normal.dot(p) - d;
-                    if dist(ray_from).abs() < dist(ray_to).abs() {
-                        ray_from - normal * dist(ray_from)
-                    } else {
-                        ray_to - normal * dist(ray_to)
-                    }
-                });
-            let intersection = closest_point_on_triangle(vtx, intersection);
-            let mut lnormal = normal_at(intersection, vtx, &tri.normal);
-            if lnormal == Vec3::ZERO {
-                lnormal = normal;
-            }
+            let ray_from = from + (t1 + t2) * 0.5 - axis * aabb.size[closest_axis];
+            let along = axis * aabb.size[closest_axis] * 2.0;
+            let (intersection, lnormal) = column_hit(tri, (normal, d), ray_from, along);
             albedo_accum += albedo;
             emission_accum += emission;
             normal_accum += lnormal;

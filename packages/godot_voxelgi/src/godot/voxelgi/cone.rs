@@ -238,6 +238,59 @@ pub fn voxel_gi_compute(
     let blend = (1.0 - blendv.max_element()).clamp(0.0, 1.0);
     let max_distance = inst.bounds.length();
     let cell_size = Vec3::ONE / inst.bounds;
+    let mut light = diffuse_cones(
+        (inst, tex),
+        (position, cell_size, max_distance),
+        [tangent, bitangent, n],
+        high_quality,
+        trace.as_deref_mut(),
+    );
+    let scale = inst.dynamic_range * inst.exposure_normalization;
+    light = (light.truncate() * scale).extend(if inst.blend_ambient {
+        light.w
+    } else {
+        1.0
+    });
+    *out_diff += light * blend;
+    let tan = (roughness * 0.5 * M_PI * 0.99).tan();
+    let mut steps = Vec::new();
+    let irr = cone_trace(
+        tex,
+        cell_size,
+        Cone {
+            pos: position,
+            direction: ref_vec,
+            max_distance,
+            bias: inst.bias,
+        },
+        tan,
+        trace.is_some().then_some(&mut steps),
+    );
+    let irr = (irr.truncate() * scale).extend(if inst.blend_ambient {
+        irr.w
+    } else {
+        1.0
+    });
+    *out_spec += irr * blend;
+    *out_blend += blend;
+    if let Some(t) = trace {
+        t.blend = blend;
+        t.specular = Some((ref_vec, tan, steps, irr));
+        t.light = light;
+        t.reflection = irr;
+    }
+}
+
+/// The diffuse cones of `voxel_gi_compute` from `position` (in cells, of size `cell_size` in uvw, as far as
+/// `max_distance`), in the frame `[tangent, bitangent, n]`: the six weighted cones at high quality, four of 45
+/// degrees at low; their weighted light, each cone recorded in `trace`.
+fn diffuse_cones(
+    (inst, tex): (&Instance, &LightTexture),
+    (position, cell_size, max_distance): (Vec3, Vec3, f32),
+    [tangent, bitangent, n]: [Vec3; 3],
+    high_quality: bool,
+    mut trace: Option<&mut Cones>,
+) -> Vec4 {
     let mut light = Vec4::ZERO;
     let frame = |d: Vec3| (tangent * d.x + bitangent * d.y + n * d.z).normalize();
     if high_quality {
@@ -282,40 +335,7 @@ pub fn voxel_gi_compute(
             }
         }
     }
-    let scale = inst.dynamic_range * inst.exposure_normalization;
-    light = (light.truncate() * scale).extend(if inst.blend_ambient {
-        light.w
-    } else {
-        1.0
-    });
-    *out_diff += light * blend;
-    let tan = (roughness * 0.5 * M_PI * 0.99).tan();
-    let mut steps = Vec::new();
-    let irr = cone_trace(
-        tex,
-        cell_size,
-        Cone {
-            pos: position,
-            direction: ref_vec,
-            max_distance,
-            bias: inst.bias,
-        },
-        tan,
-        trace.is_some().then_some(&mut steps),
-    );
-    let irr = (irr.truncate() * scale).extend(if inst.blend_ambient {
-        irr.w
-    } else {
-        1.0
-    });
-    *out_spec += irr * blend;
-    *out_blend += blend;
-    if let Some(t) = trace {
-        t.blend = blend;
-        t.specular = Some((ref_vec, tan, steps, irr));
-        t.light = light;
-        t.reflection = irr;
-    }
+    light
 }
 
 /// The ambient and reflection `process_gi` stores for a pixel covered by
